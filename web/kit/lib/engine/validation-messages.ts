@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/** Translator shape intentionally stays smaller than the app i18n interface.
- * Server actions and client editors can both adapt their locale translator. */
 export type ValidationTranslator = (
   key: string,
   params?: Record<string, string | number>
@@ -49,8 +47,6 @@ const RULES: readonly ValidationRule[] = [
   { pattern: /^At most (\d+) data sources per channel\.$/, key: 'validation.fetchLimit', parameters: ['max'] },
 ];
 
-/** Translate known validator messages while preserving captured user values.
- * Unknown service diagnostics pass through unchanged. */
 export function translateValidationMessage(message: string | undefined, t: ValidationTranslator): string | undefined {
   if (!message) return message;
   for (const rule of RULES) {

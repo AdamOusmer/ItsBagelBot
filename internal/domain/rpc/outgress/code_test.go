@@ -10,10 +10,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// TestCodeWireValues pins the byte each code puts on the wire. Half the set
-// now aliases the shared vocabulary in internal/domain/rpc, and the console's
-// DISCORD_CODES switches on these exact strings, so a rename here must fail
-// this test before it turns a timed-out setup into a silent success.
 func TestCodeWireValues(t *testing.T) {
 	want := map[rpc.Code]string{
 		CodeOK:                 "",

@@ -1,26 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The typed literal maps the guild pages share.
-//
-// They live in one module rather than in each page because a field name has to
-// mean the same thing in every one of them: `save` merges a partial draft and
-// answers with WIRE field names, so a refusal raised by the Channels form can
-// name a field the Tickets page owns. One table is what lets any page label any
-// refused field; seven copies would drift the first time a field is renamed.
 import type { DiscordConfig, PinnedSlot } from '@bagel/kit';
 import type { I18n } from '@bagel/kit';
 
 export type I18nKey = Parameters<I18n['t']>[0];
 
-/**
- * A refused field, named the way the pages name it.
- *
- * The action reports wire field names (`ticketStaffRoleIds`), which are the one
- * thing these pages have spent their whole existence not showing anybody. The
- * map is a typed literal so the i18n scanner sees the keys; a field missing
- * from it degrades to its own name rather than to nothing.
- */
 export const FIELD_LABEL_KEYS: Partial<Record<keyof DiscordConfig, I18nKey>> = {
   liveChannelId: 'discord.liveChannelLabel',
   clipsChannelId: 'discord.clipsChannelLabel',
@@ -64,9 +49,6 @@ export const SLOT_LABEL_KEYS: Record<PinnedSlot, I18nKey> = {
   member: 'discord.slotMember'
 };
 
-// Only the fatal close codes get their own sentence: they are the ones the
-// streamer can act on. Everything else is a transient disconnect the gateway
-// retries on its own, so it reads as "reconnecting".
 export const CLOSE_KEYS: Record<
   number,
   'discord.close4004' | 'discord.close4013' | 'discord.close4014' | 'discord.close4011'
@@ -77,16 +59,6 @@ export const CLOSE_KEYS: Record<
   4014: 'discord.close4014'
 };
 
-/**
- * The slice of DiscordConfig each sub-page owns.
- *
- * A page posts only these keys, and `save` runs them through
- * mergeDiscordConfig, whose contract is that absent keys keep their stored
- * value. That is what makes seven small forms safe where the old single page
- * posted the whole config from every one of its sections: two people editing
- * two different sub-pages no longer overwrite each other with a draft neither
- * of them touched.
- */
 export const CHANNEL_FIELDS = [
   'liveChannelId',
   'clipsChannelId',

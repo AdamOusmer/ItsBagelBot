@@ -20,12 +20,9 @@ type dashboardRPC struct {
 	log  *zap.Logger
 }
 
-// SubscribeDashboard wires the console's command verbs under prefix.
 func SubscribeDashboard(w Wiring, prefix string) error {
 	d := &dashboardRPC{repo: w.Commands, log: w.Log}
 
-	// VerbForUser, not At: the user-id guard is the whole prologue of all three
-	// handlers, so it is bound once here rather than re-derived in each.
 	return bus.ServeVerbs(w.RPCWiring, prefix,
 		bus.VerbForUser[commandsrpc.DashboardRequest, commandsrpc.DashboardReply]("list", d.handleList),
 		bus.VerbForUser[commandsrpc.DashboardRequest, commandsrpc.DashboardReply]("upsert", d.handleUpsert),
@@ -42,8 +39,6 @@ func (d *dashboardRPC) handleList(ctx context.Context, _ commandsrpc.DashboardRe
 }
 
 func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.DashboardRequest, id uint64) (commandsrpc.DashboardReply, error) {
-	// allowed_user_id is optional; empty/"0" means no per-user restriction. It
-	// is not the request's own user, so it keeps its own refusal string.
 	var allowedUserID uint64
 	if req.AllowedUserID != "" {
 		parsed, err := strconv.ParseUint(req.AllowedUserID, 10, 64)
@@ -65,10 +60,6 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.Dashboa
 		BumpCounter:      req.BumpCounter,
 	}
 
-	// A rename updates the existing row's name field in place; a plain edit or
-	// create goes through the write-behind upsert.
-	// A validation or conflict error from either write reaches the caller as
-	// the reply's error field, which is what the guard does with it.
 	if req.OriginalName != "" && req.OriginalName != req.Name {
 		return commandsrpc.DashboardReply{}, d.repo.Rename(ctx, id, req.OriginalName, spec)
 	}

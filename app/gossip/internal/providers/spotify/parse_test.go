@@ -45,7 +45,6 @@ func TestClassify(t *testing.T) {
 	}
 }
 
-// The same track through every spelling must collapse onto ONE cache key.
 func TestCacheKeyCollapsesSpellings(t *testing.T) {
 	const id = "3n3Ppam7vgaVa1iaRUc9Lp"
 	url := classify("https://open.spotify.com/track/" + id + "?si=x")
@@ -119,6 +118,4 @@ func TestPlanTextSearch(t *testing.T) {
 	}
 }
 
-// These tests stage plain-http loopback upstreams the gate rightly refuses;
-// production binaries never set this (see core.SetSSRFCheckForTests).
 func init() { core.SetSSRFCheckForTests(false) }

@@ -16,9 +16,6 @@ defmodule Ingress.Dispatcher.Worker do
 
   @impl true
   def init(opts) do
-    # Payloads can be large maps and queues are explicitly bounded. Keeping
-    # queued messages off-heap prevents each worker GC from repeatedly copying
-    # the notification backlog.
     Process.flag(:message_queue_data, :off_heap)
 
     state = %{

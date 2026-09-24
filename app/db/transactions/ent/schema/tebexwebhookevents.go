@@ -11,15 +11,13 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// TebexWebhookEvents tracks webhook processing state without storing full
-// payment payloads. Tebex remains the payment detail system of record.
 type TebexWebhookEvents struct {
 	ent.Schema
 }
 
 func (TebexWebhookEvents) Fields() []ent.Field {
 	return []ent.Field{
-		field.String("id").Unique().Immutable().NotEmpty(), // Tebex webhook ID
+		field.String("id").Unique().Immutable().NotEmpty(),
 
 		field.String("event_type").Immutable().NotEmpty(),
 

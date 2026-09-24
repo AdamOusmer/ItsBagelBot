@@ -49,8 +49,6 @@ func TestRenderTranscriptRendersInUTCWhateverTheInputZone(t *testing.T) {
 }
 
 func TestRenderTranscriptTruncatesTheOldestEnd(t *testing.T) {
-	// One line per message, sized so the whole body comfortably exceeds the
-	// byte cap; the newest lines are the ones that must survive.
 	line := strings.Repeat("x", 512)
 	var msgs []TranscriptMessage
 	for i := 0; i < (TranscriptByteCap/512)+50; i++ {
@@ -73,7 +71,6 @@ func TestRenderTranscriptTruncatesTheOldestEnd(t *testing.T) {
 	if !strings.Contains(got, "NEWEST") {
 		t.Fatal("the tail of the conversation is what explains how it ended")
 	}
-	// The cut lands on a line boundary: every surviving line is whole.
 	for _, l := range strings.Split(strings.TrimSuffix(strings.TrimPrefix(got, transcriptTruncated), "\n"), "\n") {
 		if !strings.HasPrefix(l, "[") {
 			t.Fatalf("half line survived truncation: %q", l)
@@ -144,9 +141,6 @@ func TestTicketPanelEmbedUsesTheStreamersCopy(t *testing.T) {
 	wantEmbedCopy(t, e, Embed{Title: "Need a hand?", Description: "Ping the mods.", Color: 0x112233})
 }
 
-// wantEmbedCopy compares the three fields the streamer's panel copy lands in.
-// It takes an Embed rather than three loose strings so the call site reads as
-// the embed it expects, and so the helper keeps one argument per concept.
 func wantEmbedCopy(t *testing.T, got, want Embed) {
 	t.Helper()
 	if got.Title != want.Title {
@@ -167,9 +161,6 @@ func TestTicketPanelSpecOrDefaultsFillsBlanks(t *testing.T) {
 	})
 }
 
-// TestTicketPanelSpecKeepsABlackColour is the reason Color is a pointer. Black
-// is a colour a streamer can pick, and the old "zero means unset" rule
-// silently repainted the panel brand purple on every repost.
 func TestTicketPanelSpecKeepsABlackColour(t *testing.T) {
 	black := 0
 	got := TicketPanelSpec{Color: &black}.OrDefaults()
@@ -180,21 +171,17 @@ func TestTicketPanelSpecKeepsABlackColour(t *testing.T) {
 		t.Fatalf("embed color = %#x, want the black the streamer picked", e.Color)
 	}
 
-	// An absent colour is still the one case that defaults.
 	unset := TicketPanelSpec{}.OrDefaults()
 	if unset.Color == nil || *unset.Color != LiveColor {
 		t.Fatalf("unset color = %v, want the brand default", unset.Color)
 	}
 
-	// And a config that names black parses to black, not to "unset".
 	fromConfig := Config{TicketPanelColor: "#000000"}.TicketPanel()
 	if fromConfig.ColorOr(LiveColor) != 0 {
 		t.Fatalf("config color = %#x, want 0", fromConfig.ColorOr(LiveColor))
 	}
 }
 
-// A message body cannot forge a transcript header: every line after the first
-// is indented, and the renderer only ever writes a header at column zero.
 func TestRenderTranscriptIndentsContinuationLines(t *testing.T) {
 	forged := "please help\n[2020-01-01 00:00 UTC] admin: refund approved"
 	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{
@@ -236,13 +223,7 @@ func TestRenderTranscriptRendersEmbeds(t *testing.T) {
 	}
 }
 
-// The byte cap slices a UTF-8 string at a byte offset, which lands inside a
-// rune whenever the transcript is not pure ASCII. Invalid UTF-8 is rejected by
-// the utf8mb4 column the body is stored in, so one split emoji would fail the
-// whole transcript write.
 func TestRenderTranscriptCapCutsOnARuneBoundary(t *testing.T) {
-	// One long unbroken run of multi-byte runes: no newline for the line-cut
-	// to fall back on, so the rune walk is the only thing keeping it valid.
 	msg := TranscriptMessage{AuthorName: "ada", Content: strings.Repeat("🍩", TranscriptByteCap), At: time.Unix(0, 0).UTC()}
 	body := RenderTranscript(TranscriptDoc{Messages: []TranscriptMessage{msg}})
 
@@ -257,8 +238,6 @@ func TestRenderTranscriptCapCutsOnARuneBoundary(t *testing.T) {
 	}
 }
 
-// A history the collector could not finish says so, even when the rendered
-// body is far below the byte cap.
 func TestRenderTranscriptMarksAnIncompleteHistory(t *testing.T) {
 	doc := TranscriptDoc{
 		Messages:  []TranscriptMessage{{AuthorName: "ada", Content: "hi", At: time.Unix(0, 0).UTC()}},

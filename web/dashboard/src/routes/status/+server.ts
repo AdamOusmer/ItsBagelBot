@@ -6,33 +6,8 @@ import { ready as natsReady } from '@bagel/kit/server/nats';
 import { ready as valkeyReady } from '@bagel/kit/server/valkey-store';
 import { rateLimiterReady } from '@bagel/kit/server/rate-limit';
 
-// External status endpoint for the Better Stack status page, same contract as
-// the Go services' pkg/health /status: a named check per dependency, aggregate
-// "ok" | "degraded" | "down", and an HTTP status code carrying that same
-// verdict so a monitor never has to read the body: 200 ok, 207 degraded,
-// 503 down.
-//
-// 207 (Multi-Status) is the honest code for a mixed answer and, being 2xx, it
-// still reads green to any plain "expect 2xx" check. Better Stack then splits
-// paging from notifying on the expected-status-code list alone: an availability
-// monitor expecting "200,207" pages only on a real outage, while a second
-// monitor expecting "200" notifies on the impairment without waking anyone.
-// The earlier design left degraded on 200 and put the word in the body, which
-// needed a keyword monitor; a status code costs nothing on the free plan and
-// cannot drift out of sync with the aggregate the way a body string can.
-//
-// Every check is hard: NATS because SSR cannot serve without RPC, and Valkey
-// plus the rate limiter because the status page must show downtime when the
-// cache tier is gone. This endpoint answers for the console only and
-// deliberately does not fan out to the other services: each one publishes its
-// own /status, so probing them here would report their outages a second time
-// under the console's name. Pods still stay in rotation through an outage:
-// /readyz is a separate static 200 and never reads these checks.
+// Same contract as pkg/health /status (200 ok, 207 degraded, 503 down): Better Stack keys off it.
 
-// One table for both halves of the verdict, so the aggregate in the body and
-// the code on the wire cannot drift apart as checks are added. degraded is in
-// the table before it can fire: every check here is hard today, so down covers
-// any failure, and the first optional check starts serving 207 on its own.
 const HTTP_STATUS = { ok: 200, degraded: 207, down: 503 } as const;
 
 interface CheckResult {

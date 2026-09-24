@@ -15,10 +15,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// merge_prs merges the operator's PRs one at a time, then moves the run's
-// target commit past them, so a bump builds and pins the code it just merged
-// rather than main as it was when the run started.
-
 func mergePRsDone(ctx context.Context, rc *stage.RunCtx) (bool, error) {
 	run := rc.View()
 	if len(run.PRs) == 0 {
@@ -69,11 +65,6 @@ func mergeAndRecord(ctx context.Context, rc *stage.RunCtx, number int) error {
 	return rc.SetOutputs(ctx, func(o *deploy.Outputs) { o.MergedPRs = appendUniqueInt(o.MergedPRs, number) })
 }
 
-// includeMerge advances TargetSHA to a merge commit it does not contain yet.
-// Main is linear (squash only), so a merge commit is either an ancestor of
-// the target or ahead of it; comparing instead of taking the last merge keeps
-// a PR the operator listed but that was merged weeks ago from dragging the
-// target backwards.
 func includeMerge(ctx context.Context, rc *stage.RunCtx, pr ports.PullRequest) error {
 	cur := rc.View().TargetSHA
 	if cur != "" {
@@ -85,10 +76,6 @@ func includeMerge(ctx context.Context, rc *stage.RunCtx, pr ports.PullRequest) e
 	return rc.Update(ctx, func(r *deploy.Run) { r.TargetSHA = pr.MergeSHA })
 }
 
-// mergePR takes one PR to merged: wait for the required checks and CodeScene,
-// bring it up to date with main when it falls behind (the ruleset requires
-// strict up-to-date), squash merge, delete the branch. Its row in the stage
-// is keyed "pr-<n>" whatever stage calls it.
 func mergePR(ctx context.Context, rc *stage.RunCtx, number int) (ports.PullRequest, error) {
 	m := &merger{rc: rc, number: number}
 	if err := poll(ctx, rc, m.step); err != nil {
@@ -101,14 +88,10 @@ func mergePR(ctx context.Context, rc *stage.RunCtx, number int) (ports.PullReque
 }
 
 type merger struct {
-	rc      *stage.RunCtx
-	number  int
-	pr      ports.PullRequest
-	updates int
-	// updatedFrom is the head the last update-branch started from.
-	// update-branch is asynchronous (202): until the new head appears the PR
-	// still reads behind, and a second update would burn the retry budget on
-	// one real attempt.
+	rc          *stage.RunCtx
+	number      int
+	pr          ports.PullRequest
+	updates     int
 	updatedFrom deploy.SHA
 }
 
@@ -199,8 +182,6 @@ func (m *merger) merge(ctx context.Context) (bool, error) {
 	m.report(ctx, deploy.StateRunning, "merging")
 	sha, err := m.rc.Deps.GitHub.SquashMerge(ctx, m.number, m.pr.HeadSHA)
 	if errors.Is(err, ports.ErrConflict) {
-		// A push landed between the checks and the merge: the new head
-		// needs its own green checks, so start over from the PR read.
 		return false, nil
 	}
 	if err != nil {
@@ -210,8 +191,6 @@ func (m *merger) merge(ctx context.Context) (bool, error) {
 	return true, m.deleteBranch(ctx)
 }
 
-// deleteBranch tolerates a branch already gone: GitHub's auto-delete setting
-// or an earlier attempt may have removed it.
 func (m *merger) deleteBranch(ctx context.Context) error {
 	err := m.rc.Deps.GitHub.DeleteBranch(ctx, m.pr.HeadBranch)
 	if errors.Is(err, ports.ErrNotFound) {
@@ -231,7 +210,6 @@ func (m *merger) report(ctx context.Context, state deploy.StageState, detail str
 	}
 }
 
-// stoppedState is the row state for a wait that ended in err.
 func stoppedState(err error) deploy.StageState {
 	if errors.Is(err, stage.ErrCancelled) {
 		return deploy.StateCancelled
@@ -250,7 +228,6 @@ func appendUniqueInt(list []int, n int) []int {
 	return append(append([]int(nil), list...), n)
 }
 
-// joinList renders "a", "a and b", "a, b and c".
 func joinList(items []string) string {
 	if len(items) < 2 {
 		return strings.Join(items, "")

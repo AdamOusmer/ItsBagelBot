@@ -2,14 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for the `.bb-page-hero` contract
-  // (../styles/elements/page-hero.css). Its Astro twin is
-  // ../astro/PageHero.astro and ../test/parity.test.ts holds the two to the
-  // same markup.
-  //
-  // No decode wiring here, matching the Astro adapter: `data-decode` is a
-  // document-wide contract and the scan belongs to the surface. A Svelte page
-  // that wants it puts `use:decode` from ./actions.ts on the hero.
   import '../styles/elements/page-hero.css';
   import LightField from './LightField.svelte';
 

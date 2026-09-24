@@ -1,14 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The staff roster on the shared deck + inspector. One inspector serves both
-  // "add a member" and "edit a member": they differ only in whether the Twitch
-  // id is already known, and the previous page's separate add-card duplicated
-  // the role picker and its grantable-role rule.
-  //
-  // No client-side last-owner rule. The users service owns that invariant and
-  // answers with its own refusal; surfacing the server's message is the only
-  // way the console cannot disagree with it about who the last owner is.
   import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -44,8 +36,6 @@
   const { t } = getI18n();
   const failed = adminToastFailure(toast);
 
-  // Streamed roster -> local state, so mutations reconcile against the
-  // authoritative roster echoed by the users service (never a local guess).
   let staff = $state<AdminAcct[]>([]);
   let loaded = $state(false);
   let degraded = $state(false);
@@ -75,15 +65,10 @@
     return canManage(me.role, member.role) && member.id !== Number(me.id);
   }
 
-  // ── Inspector (shared controller over the pure state machine) ──────────────
   const inspector = createInspector<StaffDraft>();
   let draft = $state<StaffDraft | null>(null);
   let busy = $state(false);
 
-  // Push editor changes into the machine for dirty tracking. The spread reads
-  // each field so the effect re-runs on any field mutation; the edit itself is
-  // untracked because it both reads and writes the machine's state, which would
-  // otherwise make the effect depend on state it also mutates (an unsafe cycle).
   $effect(() => {
     const snap = draft ? { ...draft } : null;
     if (snap) untrack(() => inspector.edit(snap));
@@ -134,8 +119,6 @@
     });
   }
 
-  // ── Per-member history (lazy) ─────────────────────────────────────────────
-  // Fetched on open so the roster page never ships the whole audit log.
   let history = $state<AuditEntry[] | null>(null);
   let historyError = $state('');
 
@@ -160,7 +143,6 @@
     error?: string;
   };
 
-  // ── Save: immutable snapshot + request id; a late response can't cross rows ─
   const saveSubmit: SubmitFunction = () => {
     const requestId = inspector.beginSave()?.requestId;
     const wasCreating = creating;
@@ -170,8 +152,6 @@
       busy = false;
       const p = actionPayload<ActionPayload>(result);
       const ok = result.type === 'success' && p?.action?.ok === true;
-      // applied is false when the selection moved on during the request, so a
-      // late response for one member never mutates another's editor.
       const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
       if (!ok) {
         staff = before;
@@ -180,8 +160,6 @@
       }
       toast('ok', p!.action!.notice);
       if (p?.staff) staff = p.staff;
-      // A create has no row to keep editing, so it closes; an edit stays open
-      // and clean (Save does not close the inspector).
       if (wasCreating && applied) {
         inspector.reset();
         draft = null;
@@ -189,8 +167,6 @@
     };
   };
 
-  // ── Console access ────────────────────────────────────────────────────────
-  // Off is the soft-remove and gets a confirmation; on re-upserts the row.
   let accessTarget = $state<AdminAcct | null>(null);
   let removeForm = $state<HTMLFormElement | null>(null);
   let restoreForm = $state<HTMLFormElement | null>(null);
@@ -284,9 +260,6 @@
         closeLabel={t('admin.close')}
         onClose={close}
       >
-        <!-- Keyed on the selection so switching rows mounts a FRESH editor: it
-             snapshots its draft at mount, so one reused instance would freeze
-             the fields to the first member opened. -->
         {#key inspector.selectedId}
           <StaffEditor
             bind:draft={
@@ -331,9 +304,6 @@
   <input type="hidden" name="target_role" value={accessTarget?.role ?? ''} />
 </form>
 
-<!-- Restoring access is an upsert at the member's committed role, not the
-     draft's: turning the switch back on must not smuggle in an unsaved role
-     change the operator has not pressed Save on. -->
 <form method="POST" action="?/upsert" use:enhance={restoreSubmit} bind:this={restoreForm} hidden>
   <input type="hidden" name="user_id" value={selected?.id ?? ''} />
   <input type="hidden" name="login" value={selected?.login ?? ''} />

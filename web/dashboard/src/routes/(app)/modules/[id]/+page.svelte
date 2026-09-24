@@ -17,33 +17,20 @@
   const def = $derived(data.def);
   const modLabel = $derived(tModuleLabel(t, def));
   const modDescription = $derived(tModuleDescription(t, def));
-  // A module with no editable replies (its lines are fixed system text, e.g. the
-  // play queue) shows only its read-only command list: no builder inspector.
   const hasReplies = $derived(def.replies.length > 0);
   const parentDef = $derived(def.parent ? moduleDef(def.parent) : undefined);
 
-  // Draft: module enable + the flat config map. Seeded from the load and reseeded
-  // when navigating to a different module (component reuse across [id] routes).
   // svelte-ignore state_referenced_locally
   let enabled = $state(data.enabled);
   // svelte-ignore state_referenced_locally
   let config = $state<Record<string, string>>({ ...data.config });
-  // Optimistic-concurrency token echoed on every patch; updated from each reply.
   // svelte-ignore state_referenced_locally
   let rev = $state<number>(data.revision ?? 0);
 
-  // Trigger words is the one module whose "replies" are a free-form list the
-  // author grows: it renders trigger rules as add/removable ReplyRows and reads
-  // the whole list out of one "rules" config string (see the trigger block
-  // below). Every other module keeps its fixed def.replies.
   const isTriggers = $derived(def.id === MOD.triggers);
   // svelte-ignore state_referenced_locally
   let rules = $state<Rule[]>(parseRules(data.config.rules ?? ''));
-  // The inspector column exists for any module that has an editable ledger:
-  // fixed replies or the dynamic trigger list.
   const hasInspector = $derived(isTriggers || hasReplies);
-  // Whether there is any deck at all (replies, triggers, or a read-only command
-  // list). A settings-only module (AutoMod) has none, so it renders no empty deck.
   const hasDeck = $derived(hasInspector || (def.commands?.length ?? 0) > 0);
 
   // svelte-ignore state_referenced_locally
@@ -60,7 +47,6 @@
     }
   });
 
-  // --- Per-target save-state machine (module enable + each reply row) ---------
   let modStatus = $state<Record<string, SaveState>>({});
   const timers = new Map<string, ReturnType<typeof setTimeout>[]>();
   function setStatus(key: string, s: SaveState) {
@@ -69,7 +55,6 @@
     modStatus = { ...modStatus, [key]: s };
   }
   function ackSaved(key: string) {
-    // saved -> idle only: no timer-driven "live"/synced claim (no delivery ack).
     setStatus(key, 'saved');
     timers.set(key, [setTimeout(() => (modStatus = { ...modStatus, [key]: 'idle' }), 3000)]);
   }
@@ -78,11 +63,6 @@
     timers.set(key, [setTimeout(() => (modStatus = { ...modStatus, [key]: 'idle' }), 4000)]);
   }
 
-  // Config writes are field-level patches (only the changed keys) under optimistic
-  // concurrency. Writes are serialised so the revision stays consistent between
-  // rapid edits; each write echoes the current rev and adopts the reply's. A
-  // conflict means another writer moved the revision on: reload the latest state
-  // and let the user redo, rather than silently clobbering their change.
   let writeChain: Promise<unknown> = Promise.resolve();
 
   async function runPatch(partial: Record<string, string>, en: boolean): Promise<boolean> {
@@ -103,7 +83,6 @@
     }
     if (payload?.conflict) {
       await invalidateAll();
-      // The reseed effect only fires on module navigation, so refresh in place.
       enabled = data.enabled;
       config = { ...data.config };
       rev = data.revision ?? 0;
@@ -119,7 +98,6 @@
     return result;
   }
 
-  // --- Module master toggle (optimistic) -------------------------------------
   async function toggleModule() {
     const before = enabled;
     enabled = !enabled;
@@ -132,7 +110,6 @@
     }
   }
 
-  // --- Plain settings fields (linked account, ...) ----------------------------
   async function saveSetting(field: ModuleField, value: string) {
     const key = field.key;
     const before = config[key] ?? '';
@@ -147,9 +124,6 @@
     }
   }
 
-  // A follows-level toggle setting rests on its level's default (see
-  // automodToggleDefault) until the user flips it, when the blob stores an
-  // explicit "on"/"off". Mirrors the Go tri-state in app/twitch/sesame/automod/config.go.
   function settingToggleOn(field: ModuleField): boolean {
     const v = config[field.key] ?? '';
     if (v === 'on') return true;
@@ -157,10 +131,6 @@
     return field.followsLevel ? automodToggleDefault(config['level'] || 'moderate', field.key) : false;
   }
 
-  // A reply toggle rests on its declared default until the blob stores an
-  // explicit "on"/"off": default-off replies (defaultOff, e.g. the ad-break
-  // alert) need "on", every other reply fires unless "off". Mirrors sesame's
-  // alertOn/adAlertOn split in app/twitch/sesame/modules/alerts.go.
   function replyOn(reply: ModuleReply): boolean {
     const v = config[reply.enableKey ?? ''] ?? '';
     if (v === 'on') return true;
@@ -168,7 +138,6 @@
     return !reply.defaultOff;
   }
 
-  // --- Per-reply toggle (optimistic) -----------------------------------------
   async function toggleReply(reply: ModuleReply) {
     if (!reply.enableKey) return;
     const key = reply.enableKey;
@@ -183,16 +152,12 @@
     }
   }
 
-  // --- Reply builder inspector ------------------------------------------------
   let expanded = $state<string | null>(null);
   let editMessage = $state('');
   let busy = $state(false);
   const selectedReply = $derived(expanded ? def.replies.find((r) => r.key === expanded) : undefined);
 
-  // Dirty guard: close / row-switch / add all route through one confirmation so
-  // an in-progress reply or trigger edit is never silently dropped.
   const discard = createDiscardGuard(() => inspectorDirty);
-  // Unguarded close (after a save or delete, when there is nothing to lose).
   function doClose() {
     expanded = null;
     ruleIndex = null;
@@ -223,7 +188,6 @@
     busy = false;
     if (ok) {
       ackSaved(r.key);
-      // Save keeps the inspector open on the saved reply (now clean); no close.
       toast('ok', t('modules.saved', { label: modLabel }));
     } else {
       config = { ...config, [r.messageKey]: prev ?? '' };
@@ -232,10 +196,6 @@
     }
   }
 
-  // --- Trigger words: dynamic rule list ---------------------------------------
-  // A rule is one "phrase => response" line. The list persists as one config
-  // string (config.rules); a disabled rule is stored as a "#" comment the sesame
-  // parser skips. parse/serialize mirror app/twitch/sesame/modules/triggers.go.
   type Match = 'word' | 'contains' | 'exact' | 'prefix';
   type Rule = { phrase: string; response: string; match: Match; enabled: boolean };
 
@@ -253,9 +213,6 @@
     if (pre === 'word' || pre === 'contains' || pre === 'exact' || pre === 'prefix') return [pre, left.slice(c + 1).trim()];
     return ['word', left];
   }
-  // parseRules reads config.rules in either format: a value starting with "["
-  // is the structured JSON array (written now); anything else is the legacy
-  // "[mode:] phrase => response" line format (configs saved before the migration).
   function parseRules(raw: string): Rule[] {
     const s = raw.trim();
     if (!s) return [];
@@ -267,7 +224,7 @@
       let on = true;
       if (ln.startsWith('#')) {
         const rest = ln.slice(1).trim();
-        if (!rest.includes('=>')) continue; // a plain comment, not a disabled rule
+        if (!rest.includes('=>')) continue;
         on = false;
         ln = rest;
       }
@@ -297,9 +254,6 @@
       return [];
     }
   }
-  // Structured JSON: sesame's parser reads this (and still reads the legacy line
-  // format). JSON encodes any phrase safely, so "=>", a leading "#", or a "mode:"
-  // prefix no longer corrupt the round trip.
   function serializeRules(list: Rule[]): string {
     return JSON.stringify(
       list
@@ -313,7 +267,6 @@
     );
   }
 
-  // Rules rendered as ReplyRow-shaped rows (label = phrase, preview = response).
   const ruleRows: ModuleReply[] = $derived(
     rules.map((r, i) => ({
       key: `rule:${i}`,
@@ -326,16 +279,10 @@
     }))
   );
 
-  // Inspector draft. ruleIndex is the row being edited, -1 for a new unsaved rule,
-  // or null when no rule is open. The response reuses editMessage (shared with the
-  // reply editor's bound message).
   let ruleIndex = $state<number | null>(null);
   let draftPhrase = $state('');
   let draftMatch = $state<Match>('word');
 
-  // persistRules writes the serialized list into config.rules and posts the whole
-  // draft, so the module enable and the rules save together. config is committed
-  // only on success (the caller commits `rules` too).
   async function persistRules(next: Rule[]): Promise<boolean> {
     const rulesStr = serializeRules(next);
     const ok = await patch({ rules: rulesStr }, enabled);
@@ -366,8 +313,6 @@
 
   async function saveRule() {
     if (ruleIndex === null) return;
-    // Phrases are stored as structured JSON now, so any characters are safe:
-    // no reserved-syntax restriction.
     const keepOn = ruleIndex === -1 ? true : (rules[ruleIndex]?.enabled ?? true);
     const draft: Rule = { phrase: draftPhrase.trim(), response: editMessage, match: draftMatch, enabled: keepOn };
     const next = ruleIndex === -1 ? [...rules, draft] : rules.map((r, i) => (i === ruleIndex ? draft : r));
@@ -378,8 +323,6 @@
     busy = false;
     if (ok) {
       rules = next;
-      // Keep the inspector open on the saved rule (a new rule becomes the last
-      // row); it now reads clean.
       if (ruleIndex === -1) {
         ruleIndex = next.length - 1;
         expanded = `rule:${next.length - 1}`;
@@ -416,11 +359,6 @@
     }
   }
 
-  // --- Timezone setting field (Local Time module) -----------------------------
-  // The suggestion and the zone list come from the visitor's own browser
-  // (Intl.DateTimeFormat / Intl.supportedValuesOf), computed client-side in an
-  // effect so SSR never sees them: nothing is read from storage, no cookie is
-  // set, and the suggested zone is only persisted when the user applies it.
   let browserZone = $state('');
   let tzZones = $state<string[]>([]);
   $effect(() => {
@@ -432,14 +370,11 @@
       tzZones = browserZone ? [browserZone] : [];
     }
   });
-  // Until the effect fills the list (SSR, first paint), the select still needs
-  // the saved zone as an option so it never renders blank.
   function tzOptions(current: string): string[] {
     if (tzZones.length) return tzZones;
     return current ? [current] : [];
   }
 
-  // Whether the open reply/trigger editor has unsaved edits (drives the guard).
   const inspectorDirty = $derived.by(() => {
     if (!expanded) return false;
     if (isTriggers) {
@@ -452,7 +387,6 @@
     return false;
   });
 
-  // The inspector is open whenever a row (reply or rule) is expanded.
   const editing = $derived(!!expanded);
   const inspectorTitle = $derived(
     isTriggers ? (ruleIndex === -1 ? t('modules.newTrigger') : t('modules.editTrigger')) : selectedReply ? tModuleReplyPart(t, def.id, selectedReply, 'label') : t('modules.inspector')
@@ -465,7 +399,6 @@
 </script>
 
 <section class="screen active">
-  <!-- Breadcrumb: back ARROW to /modules; the current module marks aria-current. -->
   <nav class="crumbs" aria-label={t('modules.breadcrumbLabel')}>
     <ol>
       <li>
@@ -493,7 +426,6 @@
     </ol>
   </nav>
 
-  <!-- PageHead: the module name is the page h1 (tabindex=-1 for route focus). -->
   <PageHead eyebrow={t('modules.detailEyebrow')} description={modDescription}>{modLabel}</PageHead>
 
   {#if data.degraded}
@@ -501,8 +433,6 @@
   {/if}
 
   {#if data.locked}
-    <!-- Beta on a free channel: read-only preview with the upgrade path. The
-         server refuses every write (resolveWrite), this only explains why. -->
     <AlertBanner variant="warn">
       {t('modules.betaLockedBody')}
       {#snippet action()}
@@ -520,8 +450,6 @@
     </AlertBanner>
   {/if}
 
-  <!-- Nested games are armed from the parent page. A second master switch here
-       would reintroduce the independent-on bug this fold exists to close. -->
   {#if !def.parent}
   <Card style="padding:0" class="settings-card">
     <div class="master-row">
@@ -546,15 +474,11 @@
       {/if}
     </div>
     {#if !enabled}
-      <!-- Off but configurable: explain in TEXT that the lists stay editable and
-           go live once turned on, rather than dimming the whole surface. -->
       <p class="disabled-note">{t('modules.disabledNote')}</p>
     {/if}
   </Card>
   {/if}
 
-  <!-- General settings. Each field auto-saves on change through main's field-level
-       patch (only the changed key posts under optimistic concurrency). -->
   {#if (def.settings ?? []).length}
     <Card style="padding:0" class="settings-card">
       <div class="section-head">
@@ -644,10 +568,6 @@
     </Card>
   {/if}
 
-  <!-- The deck: reply/trigger ledger + docked builder inspector (same as commands).
-       A commands-only module (no editable replies) drops the inspector column and
-       lists its chat commands read-only instead. Settings-only modules render no
-       deck at all. -->
   {#if hasDeck}
     <div class="deck" class:inspecting={editing && hasInspector}>
       <DeckList>
@@ -751,7 +671,6 @@
 />
 
 <style>
-  /* ── breadcrumb ── */
   .crumbs { margin-bottom: 10px; }
   .crumbs ol {
     display: flex;
@@ -780,20 +699,14 @@
   .crumb-sep { opacity: 0.5; }
   .crumbs [aria-current='page'] { color: var(--bb-tan-light); }
 
-  /* ── settings cards ── */
   :global(.settings-card) { margin-bottom: 16px; }
   .master-row { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
   .tr-text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; min-width: 0; }
   .tr-label { margin: 0; font-family: var(--bb-font-display); font-weight: 700; font-size: 14px; color: var(--bb-white); }
   .tr-help { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
-  /* Status word, never colour alone: the text says On/Off and the mark goes
-     solid/hollow; the global live/quiet label only tints it. The Switch beside
-     it keeps its own pill: that one is a control, not a status. */
   .status-text { flex: none; }
 
-  /* A disabled module stays fully readable: no page-wide dimming, just a note
-     spelling out that the lists below are inactive until it is turned on. */
   .disabled-note {
     margin: 0;
     padding: 12px 18px 16px;
@@ -804,7 +717,6 @@
     border-top: 1px solid var(--rule);
   }
 
-  /* Section header (Settings, Trigger rules, Commands): a small tan caption. */
   .section-head {
     display: flex;
     align-items: center;
@@ -821,7 +733,6 @@
     color: var(--bb-tan);
   }
 
-  /* Plain settings fields under the section head (e.g. linked account). */
   .setting-row {
     display: flex;
     align-items: center;
@@ -846,7 +757,6 @@
   }
   .setting-input::placeholder { color: var(--bb-muted); opacity: 0.7; }
 
-  /* A textarea setting (e.g. blocked terms) stacks full-width under its label. */
   .setting-row.stacked { flex-direction: column; align-items: stretch; }
   .setting-row.stacked .tr-text { margin-right: 0; }
   .setting-textarea {
@@ -863,12 +773,9 @@
     .setting-input { width: 100%; }
   }
 
-  /* Browser-timezone suggestion strip under the timezone select: the hint text
-     pushes the apply button right; no divider, it belongs to the row above. */
   .tz-suggest { border-top: none; padding-top: 0; }
   .tz-suggest .tr-help { margin-right: auto; }
 
-  /* ── the deck: list + docked inspector (identical to the commands deck) ── */
   .deck {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -879,11 +786,9 @@
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  /* Semantic list of rows; the last row drops its divider inside the card. */
   .list { list-style: none; margin: 0; padding: 0; }
   .list > li:last-child :global(.row-shell) { border-bottom: none; }
 
-  /* Trigger-rules header: title + hint on the left, add button pushed right. */
   .rh-text { display: flex; flex-direction: column; gap: 2px; margin-right: auto; min-width: 0; }
   .rh-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 

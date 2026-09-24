@@ -1,36 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Fetch layer of the Nightbot config-import source: pulls a channel's custom
-// commands, timers and spam-protection filters straight from the Nightbot API
-// with an OAuth access token, replacing the old save-a-devtools-response flow.
-// The result is one stapled envelope object shaped exactly like the bundles
-// ./envelope already decodes ({commands: <response>, timers: <response>,
-// spam_protection: <filters>}), so the parse layer is untouched.
-//
-// Wire shapes per https://api-docs.nightbot.tv/: GET /1/commands and
-// /1/timers answer {"_total":N,"status":200,"<name>":[…]}; GET
-// /1/spam_protection answers with the filter list (each filter of type
-// "blacklist" carries the term array ./envelope harvests). The token comes
-// from Nightbot's authorization_code OAuth flow (scopes: commands timers
-// spam_protection), never from user paste.
-
-// defaultAPIBase is Nightbot's production root. Injectable so tests point
-// fetchNightbot at a local server, mirroring the StreamElements fetch layer.
 export const DEFAULT_API_BASE = 'https://api.nightbot.tv';
 
-// FETCH_TIMEOUT_MS bounds each upstream call via AbortController. Three
-// sequential calls happen per fetch, so worst case is ~30s.
 export const FETCH_TIMEOUT_MS = 10_000;
 
-// MAX_RESPONSE_BODY caps how much of one upstream reply is read into memory,
-// same posture as the StreamElements fetch layer: orders of magnitude past any
-// real command list while bounding a hostile or broken server response.
-const MAX_RESPONSE_BODY = 16 << 20;
+const MAX_RESPONSE_BODY_BYTES = 16 << 20;
 
-// MAX_TOKEN_LEN: Nightbot access tokens are short opaque strings today; 512
-// leaves room without letting a pasted novel reach the transport. TOKEN_SHAPE
-// refuses interior whitespace/control bytes (header-injection bait).
 export const MAX_TOKEN_LEN = 512;
 const TOKEN_SHAPE = /^[\x21-\x7e]+$/;
 
@@ -46,19 +22,12 @@ export interface FetchOptions {
   timeoutMs?: number;
 }
 
-// NbFetchEnvelope is the stapled-bundle shape ./envelope's decodeEnvelope
-// accepts: whole API responses under commands/timers (rowsOf unwraps the
-// nesting) and the extracted filter rows under spam_protection.
 export interface NbFetchEnvelope {
   commands: unknown;
   timers: unknown;
   spam_protection: unknown[];
 }
 
-// fetchNightbot reads the account's config over the REST API with the OAuth
-// access token. Commands and timers are load-bearing (a failure throws);
-// spam protection degrades to an empty filter list: the blacklist is a bonus
-// collection and a scope hiccup must not cost the broadcaster their commands.
 export async function fetchNightbot(
   accessToken: string,
   opts: FetchOptions = {}
@@ -75,10 +44,6 @@ export async function fetchNightbot(
   return { commands, timers, spam_protection: await spamFiltersOrEmpty(client) };
 }
 
-// spamFiltersOrEmpty pulls /1/spam_protection best-effort and normalizes the
-// response to the bare filter array ./envelope walks. The live API keys the
-// list as "filters"; older saved shapes used "spam_protection", so both are
-// accepted rather than betting the blacklist on one spelling.
 async function spamFiltersOrEmpty(client: NbClient): Promise<unknown[]> {
   let doc: Record<string, unknown>;
   try {
@@ -90,7 +55,6 @@ async function spamFiltersOrEmpty(client: NbClient): Promise<unknown[]> {
   return Array.isArray(list) ? list : [];
 }
 
-// NbClient binds the access token to the API root for the sequenced reads.
 interface NbClient {
   base: string;
   token: string;
@@ -119,7 +83,7 @@ async function requestJSON<T>(client: NbClient, path: string, signal: AbortSigna
     headers: { Authorization: `Bearer ${client.token}`, Accept: 'application/json' },
     signal
   });
-  const text = await readCapped(res, MAX_RESPONSE_BODY, path);
+  const text = await readCapped(res, MAX_RESPONSE_BODY_BYTES, path);
   if (res.status !== 200)
     throw new NightbotFetchError(`${path} returned ${res.status}: ${snippet(text)}${authHint(res.status)}`);
   try {
@@ -129,8 +93,6 @@ async function requestJSON<T>(client: NbClient, path: string, signal: AbortSigna
   }
 }
 
-// readCapped reads the body but refuses to buffer more than cap bytes, so a
-// hostile server streaming forever cannot balloon the dashboard pod's memory.
 async function readCapped(res: Response, cap: number, path: string): Promise<string> {
   try {
     const reader = res.body?.getReader();
@@ -172,16 +134,12 @@ function joinChunks(chunks: Uint8Array[], total: number): string {
   return new TextDecoder().decode(merged);
 }
 
-// authHint appends remediation only where the cause is almost certainly the
-// token: Nightbot access tokens live 30 days and revocation reads identical to
-// expiry without this nudge.
 function authHint(status: number): string {
   return status === 401 || status === 403
     ? ' (reconnect your Nightbot account: the authorization expired or was revoked)'
     : '';
 }
 
-// snippet collapses an upstream error body into one short single-line fragment.
 const MAX_BODY_SNIPPET = 256;
 function snippet(body: string): string {
   let s = body;

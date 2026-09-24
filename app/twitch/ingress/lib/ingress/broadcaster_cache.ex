@@ -2,36 +2,17 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.BroadcasterCache do
-  @moduledoc """
-  In-process read-through cache for broadcaster lane status, so the hot chat
-  path never hammers the owning service over NATS RPC.
-
-  Reads are lock-free ETS lookups from the calling process. Misses funnel
-  through this GenServer (serializing concurrent misses for the same key),
-  which loads via `Ingress.BroadcasterStatus` and caches the answer with a
-  TTL. Lookup failures are negative-cached briefly and answered with
-  `:standard`, so an RPC outage degrades lanes rather than dropping messages
-  or stampeding the data service.
-
-  Entries are evicted by `Ingress.CacheInvalidator` when an invalidation key
-  arrives on NATS (e.g. a broadcaster upgrades mid-stream).
-  """
-
   use GenServer
   require Logger
 
   @default_table __MODULE__
-  # How long a failed lookup is cached before retrying.
   @error_ttl_ms 5_000
-  # Expired entries are dropped lazily on read; the sweep bounds the table for
-  # broadcasters that are never read again.
   @sweep_interval_ms 60_000
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
   end
 
-  @doc "Returns `:premium`, `:standard` or `:drop` for the broadcaster."
   @spec lane(String.t(), GenServer.server()) :: :premium | :standard | :drop
   def lane(broadcaster_id, server \\ __MODULE__) do
     table = table_name(server)
@@ -49,7 +30,6 @@ defmodule Ingress.BroadcasterCache do
     end
   end
 
-  @doc "Synchronous so that a read after invalidation never sees the stale entry."
   @spec invalidate(String.t(), GenServer.server()) :: :ok
   def invalidate(broadcaster_id, server \\ __MODULE__) do
     GenServer.call(server, {:invalidate, broadcaster_id})
@@ -82,8 +62,6 @@ defmodule Ingress.BroadcasterCache do
 
   @impl true
   def handle_call({:lookup, id}, from, state) do
-    # Double-check: another caller may have filled the entry while this one
-    # was queued behind it.
     case :ets.lookup(state.table, id) do
       [{^id, lane, expires_at}] when expires_at > 0 ->
         if expires_at > now_ms() do
@@ -113,14 +91,6 @@ defmodule Ingress.BroadcasterCache do
     {:reply, :ok, state}
   end
 
-  # Invalidating an id with a load already in flight cannot cancel that load:
-  # it marks the ref stale so its answer is dropped, and starts a fresh one for
-  # the waiters. The in-flight ref comes from `ref_by_id`, the reverse index of
-  # `id_by_ref`; scanning `id_by_ref` by value cost O(N) per id, which made
-  # `:invalidate_all` O(N²) inside the GenServer loop with every lookup queued
-  # behind it. An id with nothing in flight has nothing to supersede — the old
-  # scan matched `{ref, ^id}` against `Enum.find`'s nil there and crashed the
-  # cache.
   defp reload_pending(id, state) do
     case Map.fetch(state.ref_by_id, id) do
       :error ->
@@ -139,9 +109,6 @@ defmodule Ingress.BroadcasterCache do
     end
   end
 
-  # Both directions are written together, so `ref_by_id` always names the
-  # newest task for an id: a superseded stale ref stays in `id_by_ref` (its
-  # result still has to be recognised and dropped) but loses the reverse entry.
   defp track_task(state, id, ref) do
     %{
       state
@@ -150,9 +117,6 @@ defmodule Ingress.BroadcasterCache do
     }
   end
 
-  # Only drop the reverse entry when it still names this ref. A stale ref
-  # finishing after its replacement was spawned must not unindex the
-  # replacement.
   defp untrack_ref(ref_by_id, id, ref) do
     case ref_by_id do
       %{^id => ^ref} -> Map.delete(ref_by_id, id)

@@ -12,7 +12,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// BillingOperation is an idempotent, auditable provider mutation intent.
 type BillingOperation struct{ ent.Schema }
 
 func (BillingOperation) Fields() []ent.Field {

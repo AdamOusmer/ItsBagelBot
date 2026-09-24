@@ -2,16 +2,6 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Bot-global counters: the reserved loyalty namespace shared across every
-  // channel (e.g. the personality module's lifetime tallies). Managers create,
-  // set and delete them here; system modules bump them from Go. Broadcasters
-  // never see this namespace.
-  //
-  // On the shared deck + inspector. The previous page was a <table> with a
-  // create form above it and a <form> per row inside a cell, so a row carried
-  // three interactive controls and the value editor had no dirty state at all.
-  // One inspector now serves "create" and "set", which differ only in whether
-  // the name is already taken.
   import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -49,9 +39,6 @@
   const { t } = getI18n();
   const failed = adminToastFailure(toast);
 
-  // Streamed bundle -> local state. Mutations reconcile locally rather than
-  // through invalidateAll: a full re-load would tear the inspector down, and
-  // Save is meant to keep it open.
   let counters = $state<BotCounter[]>([]);
   let loaded = $state(false);
   let degraded = $state(false);
@@ -71,15 +58,10 @@
 
   const rows = $derived([...counters].sort((a, b) => a.name.localeCompare(b.name)));
 
-  // ── Inspector (shared controller over the pure state machine) ──────────────
   const inspector = createInspector<CounterDraft>();
   let draft = $state<CounterDraft | null>(null);
   let busy = $state(false);
 
-  // Push editor changes into the machine for dirty tracking. The spread reads
-  // each field so the effect re-runs on any field mutation; the edit itself is
-  // untracked because it both reads and writes the machine's state, which would
-  // otherwise make the effect depend on state it also mutates (an unsafe cycle).
   $effect(() => {
     const snap = draft ? { ...draft } : null;
     if (snap) untrack(() => inspector.edit(snap));
@@ -129,10 +111,6 @@
     });
   }
 
-  // ── Save: create posts ?/create, an edit posts ?/set ───────────────────────
-  // Both answer the shared `{ ok }` skeleton, so one handler covers them; the
-  // local list is reconciled from the draft that was accepted rather than
-  // refetched, which is what keeps the inspector open and clean after Save.
   function upsert(snapshot: CounterDraft, wasCreating: boolean) {
     if (!wasCreating) {
       counters = counters.map((c) => (c.name === snapshot.name ? { ...c, value: snapshot.value } : c));
@@ -149,8 +127,6 @@
       busy = false;
       const p = actionPayload(result);
       const ok = result.type === 'success' && p?.ok === true;
-      // applied is false when the selection moved on during the request, so a
-      // late response for one counter never mutates another's editor.
       const applied = begun
         ? inspector.resolved(begun.requestId, { type: ok ? 'success' : 'error' })
         : false;
@@ -160,8 +136,6 @@
       }
       if (begun) upsert(begun.snapshot, wasCreating);
       toast('ok', wasCreating ? t('admin.counters.created') : t('admin.counters.updated'));
-      // A create has no committed row under the sentinel id, so it closes; an
-      // edit stays open and clean (Save does not close the inspector).
       if (wasCreating && applied) {
         inspector.reset();
         draft = null;
@@ -169,7 +143,6 @@
     };
   };
 
-  // ── Delete (confirmed; the value is not locally recreatable) ───────────────
   let deleteTarget = $state<BotCounter | null>(null);
   let deleteForm = $state<HTMLFormElement | null>(null);
 
@@ -258,9 +231,6 @@
         closeLabel={t('admin.close')}
         onClose={close}
       >
-        <!-- Keyed on the selection so switching rows mounts a FRESH editor: the
-             fields bind to the draft snapshot taken at open, so one reused
-             instance would freeze them to the first counter opened. -->
         {#key inspector.selectedId}
           <form
             class="editor"

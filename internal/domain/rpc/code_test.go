@@ -36,9 +36,6 @@ func TestFailClassifies(t *testing.T) {
 	}
 }
 
-// The vocabulary is a wire contract shared with the console, which asserts the
-// same list. Pinning it here means renaming a code fails in Go before it fails
-// as a silently-unhandled branch in a Svelte page.
 func TestCodesVocabulary(t *testing.T) {
 	want := []Code{"invalid", "not_found", "forbidden", "conflict", "unavailable", "internal"}
 	got := Codes()
@@ -52,22 +49,16 @@ func TestCodesVocabulary(t *testing.T) {
 	}
 }
 
-// oldReply is a reader built before `code` existed: the shape every console
-// and Go caller decoded until this change.
 type oldReply struct {
 	Value string `json:"value,omitempty"`
 	Error string `json:"error,omitempty"`
 }
 
-// newReply is the same reply once it embeds the Refusal.
 type newReply struct {
 	Value string `json:"value,omitempty"`
 	Refusal
 }
 
-// Both directions of the rollout have to work while services and readers are
-// on mixed builds: a new service answering an old reader, and an old service
-// answering a new one.
 func TestWireCompatBothDirections(t *testing.T) {
 	fromNew := mustEncode(t, newReply{Refusal: Refused(CodeNotFound, "no such user")})
 	var old oldReply
@@ -84,8 +75,6 @@ func TestWireCompatBothDirections(t *testing.T) {
 	}
 }
 
-// A success reply must not grow an empty `code` key: readers that treat any
-// present `error`/`code` key as a refusal would start refusing every call.
 func TestSuccessOmitsBothFields(t *testing.T) {
 	if got := mustEncode(t, newReply{Value: "ok"}); got != `{"value":"ok"}` {
 		t.Errorf("success reply = %s, want {\"value\":\"ok\"}", got)

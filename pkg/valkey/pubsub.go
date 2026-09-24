@@ -10,11 +10,6 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// Receive routes pub/sub to the master-pinned client. Keyspace notifications
-// (the expired events the timer + live-recheck watchers subscribe to) are
-// emitted only by the master. A separate lazy client isolates the long-lived
-// subscription from the ordinary command pool without charging services that
-// never subscribe.
 func (c *Client) Receive(ctx context.Context, subscribe valkey_go.Completed, fn func(msg valkey_go.PubSubMessage)) error {
 	if c.pubsub != nil {
 		pubsub, err := c.pubsub.get()
@@ -26,7 +21,6 @@ func (c *Client) Receive(ctx context.Context, subscribe valkey_go.Completed, fn 
 	return c.Client.Receive(ctx, subscribe, fn)
 }
 
-// Close releases the primary, node-local read and lazy pub/sub clients.
 func (c *Client) Close() {
 	if c.local != nil {
 		c.local.Close()
@@ -39,9 +33,6 @@ func (c *Client) Close() {
 
 type valkeyClientFactory func(valkey_go.ClientOption) (valkey_go.Client, error)
 
-// lazyValkeyClient avoids allocating a dedicated master-pinned connection pool
-// in services that never subscribe. Holding the mutex during construction makes
-// first use single-flight and prevents Close from racing a newly created client.
 type lazyValkeyClient struct {
 	mu        sync.Mutex
 	client    valkey_go.Client

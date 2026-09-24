@@ -14,11 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Round trips run against the in-process fake Valkey (fakevalkey_test.go):
-// the delete path's HDEL, the section marker and the client's tiering are all
-// decided from server state.
-
-// newTestStore boots the fake Valkey and a Store over it.
 func newTestStore(t *testing.T) (*Store, *fakeValkey) {
 	t.Helper()
 	f := newFakeValkey(t)
@@ -55,7 +50,6 @@ func TestSetFetchGetFetchRoundTrip(t *testing.T) {
 	assert.Equal(t, []string{"current", "temp_c"}, view.JSONPath)
 	assert.Equal(t, "openweather", view.KeyLabel)
 
-	// Overwrite replaces the body in place.
 	dto := fetchDTO(42, "weather", false)
 	dto.KeyLabel = ""
 	require.NoError(t, store.SetFetch(ctx, dto))
@@ -83,7 +77,6 @@ func TestSetFetchesReplacesSectionAndMarksProjected(t *testing.T) {
 	ctx := context.Background()
 	key := "settings:44"
 
-	// Stale row from an earlier projection + a foreign field that survives.
 	f.seed(key, fakeField{field: "fetch:old", value: `{"name":"old","url":"https://gone.example"}`})
 	f.seed(key, fakeField{field: "status", value: "paid"})
 
@@ -108,7 +101,6 @@ func TestSetFetchesReplacesSectionAndMarksProjected(t *testing.T) {
 	}
 	assert.Equal(t, map[string]bool{"a": true, "b": true}, names)
 
-	// An empty list is known data, not a cold miss.
 	require.NoError(t, store.SetFetches(ctx, 44, nil))
 	fetches, projected, err = store.GetFetches(ctx, 44)
 	require.NoError(t, err)
@@ -120,13 +112,11 @@ func TestGetFetchUnprojectedVsMissing(t *testing.T) {
 	store, f := newTestStore(t)
 	ctx := context.Background()
 
-	// Hash exists with other sections but no fetch marker: not projected.
 	f.seed("settings:45", fakeField{field: "status", value: "free"})
 	_, _, projected, err := store.GetFetch(ctx, 45, "anything")
 	require.NoError(t, err)
 	assert.False(t, projected)
 
-	// Projected but absent name: a real negative.
 	require.NoError(t, store.SetFetches(ctx, 45, []FetchView{{Name: "real", URL: "https://x.example"}}))
 	_, found, projected, err := store.GetFetch(ctx, 45, "ghost")
 	require.NoError(t, err)
@@ -139,9 +129,6 @@ func TestGetFetchUnprojectedVsMissing(t *testing.T) {
 	assert.Equal(t, "https://x.example", view.URL)
 }
 
-// $(urlfetch) names are user-supplied, so a definition named "projected"
-// must not be able to overwrite the section's completeness marker, and must
-// itself stay readable as an ordinary row.
 func TestFetchNamedProjectedCollidesWithNothing(t *testing.T) {
 	store, f := newTestStore(t)
 	ctx := context.Background()
@@ -172,10 +159,6 @@ func TestFetchNamedProjectedCollidesWithNothing(t *testing.T) {
 	assert.Equal(t, map[string]bool{"real": true, "projected": true}, names, "the row is visible in the list too")
 }
 
-// Hashes written before the marker rename carry fetch:projected = "1". It is
-// not a FetchView, so the list read skips it like any corrupt row instead of
-// emitting a junk definition, and the section correctly reads as unprojected
-// until a full-section write clears the prefix and lays down the new marker.
 func TestLegacyFetchProjectedFieldDecaysHarmlessly(t *testing.T) {
 	store, f := newTestStore(t)
 	ctx := context.Background()
@@ -203,14 +186,11 @@ func TestClientFetchDefsTiersAndNegativeCaching(t *testing.T) {
 	client := NewClient(Config{
 		Store:    store,
 		Subjects: Subjects{Fetches: "bagel.rpc.internal.projection.commands.fetches.get"},
-		TTL:      0, // entries never expire within the test
+		TTL:      0,
 		Log:      zap.NewNop(),
 	})
 	defer client.Close()
 
-	// Tier 3 would dial NATS; with the section unprojected the loader falls
-	// through and (no NC wired here) caches the negative — proving the miss
-	// path is safe, then proving a later full projection heals reads.
 	_, found, err := client.FetchDefs(ctx, 46, "late")
 	require.NoError(t, err)
 	assert.False(t, found)
@@ -218,8 +198,6 @@ func TestClientFetchDefsTiersAndNegativeCaching(t *testing.T) {
 	require.NoError(t, store.SetFetches(ctx, 46, []FetchView{
 		{Name: "late", URL: "https://late.example", KeyLabel: "k", IsActive: true},
 	}))
-	// The stale negative entry still governs until invalidated — push
-	// invalidation's job (evictScope "fetches"), exercised directly here.
 	client.fetches.Invalidate(fetchKey(46, "late"))
 
 	view, found, err := client.FetchDefs(ctx, 46, "Late")
@@ -235,7 +213,6 @@ func TestClientFetchDefsTiersAndNegativeCaching(t *testing.T) {
 	assert.GreaterOrEqual(t, len(f.ops()), opsBefore, "cache hit issues no server ops")
 	assert.Equal(t, opsBefore, len(f.ops()), "warm entry costs zero Valkey round trips")
 
-	// Unknown name on a projected user: cached negative.
 	_, found, err = client.FetchDefs(ctx, 46, "ghost")
 	require.NoError(t, err)
 	assert.False(t, found)

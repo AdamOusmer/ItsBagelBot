@@ -10,11 +10,6 @@ describe('module catalog', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  // MOD is a hand-written id map sitting next to 22 independently-declared
-  // module ids (each catalog/<name>.ts owns its own `id: '<name>'`). A typo
-  // in either place used to compile fine and just silently miss the module
-  // blob at runtime. These two directions catch a renamed id on one side and
-  // a new module that never got a MOD key on the other.
   test('every MOD entry names a real catalog module', () => {
     for (const [key, value] of Object.entries(MOD)) {
       expect(key).toBe(value);
@@ -62,10 +57,6 @@ describe('module catalog', () => {
     expect(moduleDelegateSections(counters!)).toEqual(['modules']);
   });
 
-  // The emoteplay tile must stay a plain opt-in toggle: no bespoke page, no
-  // delegation grant of its own, and an id matching the sesame module name the
-  // engine gates on (app/twitch/sesame/modules/emoteplay.go). Its announcements are
-  // system text, so there are no editable replies to configure.
   test('emoteplay is a toggle-only opt-in module keyed by its sesame name', () => {
     const def = moduleDef('emoteplay');
     expect(def).toBeDefined();
@@ -76,10 +67,6 @@ describe('module catalog', () => {
     expect(def?.replies).toHaveLength(0);
   });
 
-  // Personality was always-on core before it got its own ModuleView row, so
-  // the tile must ship enabled and stay a bare switch: its lines are baked
-  // into sesame, which leaves nothing to edit or configure. The two viewer
-  // commands are listed read-only so the page is not an empty toggle.
   test('personality is a default-on Chat toggle with nothing to configure', () => {
     const def = moduleDef('personality');
     expect(def).toBeDefined();
@@ -133,9 +120,6 @@ describe('module catalog', () => {
       key: 'account',
       help: 'Default profile for the command. If blank, enter a CODM UID or exact nickname after !codm.'
     });
-    // The rehearsal reads {player}'s sample straight off the token the
-    // viewer typed as previewArgs, so a broadcaster sees their own input
-    // echoed back rather than a stray catalog name.
     expect(profile.tokens?.find((tk) => tk.name === 'player')?.sample).toBe(profile.previewArgs);
     expect(def.settings!.map((field) => field.key)).toEqual(['account', 'linkedOnly']);
   });
@@ -147,10 +131,6 @@ describe('module catalog', () => {
     expect(moduleDef('discord')?.href).toBe('/discord');
   });
 
-  // Discord owns a sidebar section, so it must not ALSO be a tile: it was
-  // rendering in both places, which reads as two features sharing a name.
-  // section is not hidden -- the row stays writable and the page reachable,
-  // which is why catalogIndexable checks a separate flag.
   test('a sectioned module is kept out of the modules grid', () => {
     const discord = moduleDef('discord');
     expect(discord?.section).toBe(true);
@@ -164,10 +144,6 @@ describe('module catalog', () => {
     expect(listed.every(catalogIndexable)).toBe(true);
   });
 
-  // Discord got promoted to its own dashboard section and its own delegation
-  // grant (nav.ts's DASHBOARD_SECTIONS/GRANTABLE_SECTIONS), so it must NOT
-  // fall back to the default ['modules'] scope any more: a pre-existing
-  // 'modules' grant no longer opens /discord.
   test('discord delegates on its own grant, not modules', () => {
     const discord = moduleDef('discord');
     expect(discord).toBeDefined();
@@ -194,8 +170,6 @@ describe('module catalog', () => {
     ]);
   });
 
-  // The reward that queues a song is created on /songqueue, so a
-  // channel-points delegate has to be able to open the page.
   test('songqueue opens for modules and channel-points delegates', () => {
     const def = moduleDef('songqueue');
     expect(def).toBeDefined();

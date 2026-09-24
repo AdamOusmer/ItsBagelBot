@@ -15,9 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// The dashboard reads these fields off the wire, so the test pins the JSON
-// rather than the Go struct. Each wire entry maps a fragment to whether the
-// reply must carry it: a duplicate title must never trigger the reconnect CTA.
 func TestChannelPointsFailWireShape(t *testing.T) {
 	cp := &channelPoints{log: zap.NewNop()}
 	cases := map[string]struct {

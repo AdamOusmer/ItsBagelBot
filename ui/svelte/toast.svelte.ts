@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// App-wide toast store. Pages call toast(); the single <ToastHost> mounted in
-// the app layout renders the stack. Undo-able toasts (e.g. optimistic deletes)
-// carry an onUndo callback and live slightly longer.
 import { writable } from 'svelte/store';
 
 export type ToastKind = 'ok' | 'err' | 'info';

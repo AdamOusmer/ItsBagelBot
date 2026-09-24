@@ -26,8 +26,6 @@ const (
 
 var tagObject = reply(http.StatusOK, `{"sha":"t1","object":{"sha":"c1","type":"commit"}}`)
 
-// TestLatestTag pins semver order: v0.10.0-beta sorts before v0.9.0-beta as
-// a string, and tags outside the vX.Y.Z-beta shape never count.
 func TestLatestTag(t *testing.T) {
 	c, _, _ := newClient(t, routes{
 		"GET /repos/o/r/git/matching-refs/tags/v": reply(http.StatusOK, `[
@@ -157,8 +155,6 @@ func TestUpsertTag(t *testing.T) {
 	}
 }
 
-// TestUpsertTagBody pins an annotated tag on a commit: a lightweight tag has
-// no message, and the tag message is what the release page shows.
 func TestUpsertTagBody(t *testing.T) {
 	c, fake, _ := newClient(t, routes{
 		tagRefPath: reply(http.StatusNotFound, `{}`),
@@ -223,8 +219,6 @@ func TestCommitFiles(t *testing.T) {
 	}
 }
 
-// TestCommitFilesBodies pins exact bytes (base64 blob) and a tree layered
-// on the base commit's tree, so untouched files stay as they are.
 func TestCommitFilesBodies(t *testing.T) {
 	c, fake, _ := newClient(t, routes{
 		"GET /repos/o/r/git/commits/base": reply(http.StatusOK, `{"sha":"base","tree":{"sha":"tree0"}}`),

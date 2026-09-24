@@ -17,9 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeRequest builds a loyaltyCounters whose request func returns reply
-// (marshaled as the wire body a real NATS round trip would deliver) without
-// touching a real connection.
 func fakeRequest(t *testing.T, reply loyaltyrpc.Reply) *loyaltyCounters {
 	t.Helper()
 	body, err := codec.Marshal(reply)
@@ -39,10 +36,6 @@ func TestLoyaltyCountersGetFound(t *testing.T) {
 	assert.Equal(t, int64(9412), v)
 }
 
-// A counter loyalty has never created is an honest 0, not a failure — the
-// eventual writer for commands_answered/mod_actions may ship after the
-// baseline snapshot does (see internal/domain/event/data/loyalty_events.go's
-// doc on those two names).
 func TestLoyaltyCountersGetNotFound(t *testing.T) {
 	l := fakeRequest(t, loyaltyrpc.Reply{Found: false})
 	v, ok := l.get(context.Background(), "123", "commands_answered")

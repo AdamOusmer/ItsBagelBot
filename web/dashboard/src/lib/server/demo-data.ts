@@ -1,18 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Every dashboard demo fixture, in one module (mirrors admin's demo-data.ts).
-//
-// Nothing here may ever reach a production build. The rule that makes that
-// true: this module is ONLY ever pulled in through a dynamic import() sitting
-// inside a branch guarded by SvelteKit's build-time `dev` constant. Rollup
-// erases the branch when dev === false, the import edge goes with it, and the
-// module never enters the production graph. A static import would defeat that
-// (the sentinel below is a side effect, so the module could not be shaken out).
-//
-// The sentinel is the backstop: if a future edit does drag this module into a
-// production build, the throw makes it fail loudly at import, and
-// scripts/assert-production-clean.ts fails the build before that can ship.
 import { dev } from '$app/environment';
 import {
   MODULE_CATALOG,
@@ -50,12 +38,8 @@ import type {
 
 if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 
-// The board id every fixture hangs off. Not a valid Twitch user id (the public
-// profile route's own id check would reject it), so it can never collide with
-// a real account's data even if it leaked into a live read.
 export const DEMO_BOARD_ID = 'demo';
 
-// Demo session lets the app render without the Twitch OAuth flow wired up.
 export function demoSession(): Session {
   const now = Math.floor(Date.now() / 1000);
   return {
@@ -63,17 +47,12 @@ export function demoSession(): Session {
     login: 'itsmavey',
     display_name: 'Mavey',
     role: 'streamer',
-    // Inert placeholder: DEMO sessions never touch guard.ts's revocation
-    // check (the DEMO branch returns before it runs), so this never needs to
-    // be a real per-mint id.
     sid: 'demo-session',
     iat: now,
     expires_at: now + 3600
   };
 }
 
-// Shared between the /notifications page load and the layout's bell peek so
-// DEMO=1 shows the same rows in both places.
 export const demoNotifications: NotificationWire[] = [
   {
     id: 2,
@@ -111,8 +90,6 @@ export const demoAccountState: AccountState = {
   displayName: 'Demo'
 };
 
-// Sample grants covering the full lifecycle (pending + consumed) so the
-// settings page renders and is exercisable without OAuth + NATS.
 export const demoDelegationGiven = [
   { token: 'demo-pending-token-1234', sections: ['commands', 'modules'], delegate_login: '', consumed: false },
   { token: 'demo-consumed-token-5678', sections: ['commands'], delegate_login: 'trusty_mod', consumed: true }
@@ -122,13 +99,6 @@ export const demoDelegationReceived = [{ owner_user_id: '42', owner_login: 'ferr
 
 export const demoSavedLocale = DEFAULT_LOCALE;
 
-// The billing demo is a JOURNEY (free -> checkout -> paid -> cancel-pending),
-// not a static fixture, so unlike every other demo* export above this one is
-// mutable module state: a plain `let`, flipped by the mutators below and read
-// back by demoBilling(). It starts FREE on purpose, otherwise the purchase
-// buttons on the billing page would have nothing left to demonstrate. It lives
-// for the process's lifetime (a dev server run), same lifetime as every other
-// in-memory demo store in this file.
 let demoBillingState: BillingState = {
   active: false,
   status: 'free',
@@ -145,10 +115,6 @@ export function demoBilling(): { account: BillingState; links: { cancelUrl: stri
   };
 }
 
-// Stands in for the Tebex webhook that would otherwise flip the account async.
-// A 'monthly' purchase gets a subscriptionRef (there is a live subscription to
-// manage/cancel); 'single' does not (it is a one-off month, nothing recurs).
-// Both still expire 30 days out, mirroring one paid month either way.
 export function demoCheckoutComplete(plan: 'monthly' | 'single'): void {
   demoBillingState = {
     active: true,
@@ -160,14 +126,10 @@ export function demoCheckoutComplete(plan: 'monthly' | 'single'): void {
   };
 }
 
-// Mirrors what a real Tebex cancellation does: the plan keeps running until
-// expiresAt, it just will not renew. Only meaningful once a checkout has run.
 export function demoCancelPending(): void {
   demoBillingState = { ...demoBillingState, cancelPending: true };
 }
 
-// Replays the journey from the top. Exported (not just used internally) so a
-// demo session can be reset without restarting the dev server.
 export function demoBillingReset(): void {
   demoBillingState = {
     active: false,
@@ -189,15 +151,8 @@ export type DemoTransaction = {
   at: string;
 };
 
-// In-memory ledger, one entry per completed fake checkout. Nothing renders it
-// yet: it exists so the demo journey leaves a real record behind, the same way
-// a Tebex webhook would leave one in the transactions service, for a future
-// history UI to read.
 export const demoTransactions: DemoTransaction[] = [];
 
-// Both plans price the same $7 per paid month in this demo (matches the
-// billing page's displayed price); only the recurrence differs, and that is
-// captured on the billing state itself, not here.
 export function demoRecordTransaction(kind: 'premium' | 'gift', plan: 'monthly' | 'single', recipient: string | null): void {
   demoTransactions.push({
     id: `demo-tx-${demoTransactions.length + 1}`,
@@ -210,7 +165,6 @@ export function demoRecordTransaction(kind: 'premium' | 'gift', plan: 'monthly' 
   });
 }
 
-// Demo book so the quotes tab renders without a live backend.
 export function demoQuotes(): QuoteView[] {
   return [
     { number: 1, text: 'I meant to do that.', added_by: 'mod_amy', created_at: '2026-06-02T20:14:00Z' },
@@ -219,8 +173,6 @@ export function demoQuotes(): QuoteView[] {
   ];
 }
 
-// Whole-payload helpers: the route's demo branch returns one of these, so the
-// branch is a single line and the fixture shape lives beside the fixture.
 export function demoQuotesView() {
   return { enabled: true, addPerm: 'mod' as const, editPerm: 'mod' as const, quotes: demoQuotes() };
 }
@@ -229,7 +181,6 @@ export function demoTimersView() {
   return { enabled: true, timers: demoTimers() };
 }
 
-// Demo timers so the tab renders without a live backend.
 export function demoTimers(): TimerDef[] {
   return [
     { ...blankTimer(), id: 'demo-1', message: 'Follow on socials: twitch.tv/yourchannel', intervalSeconds: 900 },
@@ -253,8 +204,6 @@ export function demoCounters(): CounterDef[] {
   ];
 }
 
-// demoEntries mirrors what counter.entries returns for each demo counter, so
-// the inspector drill-down works offline too.
 export function demoEntries(name: string): CounterEntryView[] {
   if (name === 'raids') {
     return [
@@ -268,7 +217,6 @@ export function demoEntries(name: string): CounterEntryView[] {
   ];
 }
 
-// Demo rewards so the channel points tab renders without a live backend.
 export function demoRewards(): ChannelPointReward[] {
   return [
     { ...blankReward(), id: 'demo-1', title: 'Say hi', cost: 100, action: 'chat', message: '{user} says hi! 👋', onRedeem: 'fulfill' },
@@ -292,7 +240,6 @@ export function demoGoveeView(): GoveeView {
   return {
     enabled: true,
     keyPresent: true,
-    // One light configured, one left open, so the deck shows both states.
     bindings: [
       {
         device: 'AB:CD:EF:12:34:56',
@@ -317,8 +264,6 @@ export function demoGoveeDevices(): GoveeDevice[] {
   ];
 }
 
-// demoSpotifyView seeds the songqueue page in demo mode: module on, both
-// request paths on, and a bound reward so the bound-state row renders.
 export function demoSpotifyView() {
   return {
     enabled: true,
@@ -333,9 +278,6 @@ export function demoSpotifyView() {
   };
 }
 
-// The broadcaster's module row: the master switch, the Twitch login, and the
-// servers they have bound. Two of them, and the second has the bot offline, so
-// the list exercises both pills rather than a uniformly happy row.
 export function demoDiscordView() {
   return {
     enabled: true,
@@ -348,12 +290,8 @@ export function demoDiscordView() {
 export function demoDiscordGuilds() {
   return [
     {
-      // Snowflakes, not names: the live path stores 17-20 digit ids and the
-      // save action validates that shape, so demo must exercise it too.
       guildId: '123456789012345678',
       name: 'Demo Bakery',
-      // The console's own logo, served from /static: a real CDN icon needs a
-      // real server, and 'self' is what the CSP allows without one.
       iconUrl: '/logo.png',
       memberCount: 1284,
       botPresent: true,
@@ -372,10 +310,6 @@ export function demoDiscordGuilds() {
       boundAtMs: Date.now() - 3 * 24 * 60 * 60 * 1000
     },
     {
-      // Third guild, and the only one with a dead grant: the hub's status pill
-      // has four states and the "bots online" stat deliberately does NOT count
-      // a guild needing re-authorization. Two fixtures could never show either
-      // of those, so a regression in them looked identical to a correct render.
       guildId: '246813579024681357',
       name: 'Sourdough Society',
       iconUrl: '',
@@ -388,52 +322,23 @@ export function demoDiscordGuilds() {
   ];
 }
 
-// What Discord's /users/@me/guilds would return for the picker. One server
-// Bagel is already in, one the demo user may add it to, and one where they are
-// an ordinary member: the filter and both badges all have a row to prove
-// themselves on.
 export function demoDiscordPicker() {
   return [
-    // Already bound to this broadcaster: the row links straight to its
-    // settings instead of walking Discord's consent screen again.
     { id: '123456789012345678', name: 'Demo Bakery', owner: true, icon: '', permissions: '8' },
     { id: '456789012345678901', name: 'Toast Club', owner: false, icon: '', permissions: '32' },
-    // Manageable, but bound to a different Twitch channel (see
-    // demoDiscordBlocked): the row is disabled rather than offering an install
-    // that can only end in bound_elsewhere.
     { id: '567890123456789012', name: 'Sourdough Guild', owner: true, icon: '', permissions: '8' },
-    // SEND_MESSAGES | VIEW_CHANNEL | ADD_REACTIONS: never offered.
     { id: '456789012345678999', name: 'Someone Else Server', owner: false, icon: '', permissions: '3136' }
   ];
 }
 
-/** The guilds a `bound_elsewhere` refusal has been collected for. Live, this
- *  is a short-lived cookie the install callback writes. */
 export function demoDiscordBlocked() {
   return ['567890123456789012'];
 }
 
-// One guild's config row. version is non-zero so the demo save exercises the
-// same expected_version round trip the live path does.
-/**
- * The slot the demo's setup reports as dropped.
- *
- * `mods` is the one slot demoDiscordConfig pins, so the walk is honest end to
- * end: the fixture shows the pinned chip, pressing Set up this server reports
- * that pin as gone, and the banner names the same slot the chip was on.
- */
 export function demoDiscordDroppedPins() {
   return ['mods'];
 }
 
-/**
- * The field the demo save refuses once it is edited.
- *
- * There is no outgress in demo, so nothing can refuse anything on its own and
- * the whole `invalid` path -- banner, per-control FieldError, the section's
- * SaveStatus going red -- would be unreachable locally. Refusing only an
- * EDITED panel title keeps every other save in the demo working.
- */
 export function demoDiscordRefusedField() {
   return 'ticketPanelTitle' as const;
 }
@@ -443,8 +348,6 @@ export function demoDiscordConfig() {
     version: 4,
     found: true,
     config: {
-      // Snowflakes, not names: the live path stores 17-20 digit ids and the
-      // save action validates that shape, so demo must exercise it too.
       guildId: '123456789012345678',
       twitchLogin: 'demo',
 
@@ -478,8 +381,6 @@ export function demoDiscordConfig() {
       subscriberRoleId: '789012345678901266',
       regularsRoleId: '',
       memberRoleId: '789012345678901277',
-      // One slot pinned to a role the streamer already had, so the demo shows
-      // the pinned chip rather than only the created-by-Bagel path.
       pinnedRoles: 'mods=901234567890123456',
 
       liveEnabled: 'on',
@@ -507,8 +408,6 @@ export function demoDiscordLayout() {
       { id: '234567890123456789', name: 'now-live', type: 0 },
       { id: '345678901234567890', name: 'clips', type: 0 },
       { id: '456789012345678901', name: 'welcome', type: 0 },
-      // Type 5 is an announcement channel: text-like for posting, and the
-      // pickers must offer it (labelled) rather than filtering it out.
       { id: '567890123456789013', name: 'announcements', type: 5 },
       { id: '890123456789012345', name: 'chat', type: 0 },
       { id: '887766554433221100', name: 'support', type: 0 },
@@ -534,8 +433,6 @@ export function demoDiscordLayout() {
     guild: {
       id: '123456789012345678',
       name: 'Demo Bakery',
-      // The console's own logo, served from /static: a real CDN icon needs a
-      // real server, and 'self' is what the CSP allows without one.
       iconUrl: '/logo.png',
       memberCount: 1284
     },
@@ -546,9 +443,6 @@ export function demoDiscordLayout() {
   };
 }
 
-// The gateway status card. sinceMs is filled at call time rather than pinned
-// to a date so the "online for" line stays plausible however long this fixture
-// sits in the repo.
 export function demoDiscordStatus() {
   return {
     online: true,
@@ -558,8 +452,6 @@ export function demoDiscordStatus() {
     guild: {
       id: '123456789012345678',
       name: 'Demo Bakery',
-      // The console's own logo, served from /static: a real CDN icon needs a
-      // real server, and 'self' is what the CSP allows without one.
       iconUrl: '/logo.png',
       memberCount: 1284
     },
@@ -588,16 +480,10 @@ export function demoFetches(): { defs: FetchDefView[]; keys: FetchKeyView[] } {
         key_label: ''
       }
     ],
-    // last4 only: the demo never fabricates key material either.
     keys: [{ label: 'weather_api', last4: '9f2c', created_at: '2026-01-01T00:00:00.000Z' }]
   };
 }
 
-// `sample` mirrors what gossip returns for a DryRun: the raw upstream body the
-// builder turns into a clickable field tree. It is shaped to match the demo
-// `weather` definition's json_path (forecast.current.temp_f) so clicking through
-// the demo tree produces the same token the demo def already stores: a demo
-// whose tree disagreed with its own fixtures would teach the wrong thing.
 export function demoFetchTestRun(): { status: string; values: string[]; ms: number; sample: string } {
   return {
     status: 'ok',
@@ -615,8 +501,6 @@ export function demoFetchTestRun(): { status: string; values: string[]; ms: numb
   };
 }
 
-// Sample rows use the STORED key format (no leading "!", chat adds it), same
-// as what the projector serves; the UI renders the "!" itself.
 export const demoCommandRows: CommandView[] = [
   { name: 'dice', aliases: ['roll'], response: '{user} rolls the dice… {random:1-6}!', perm: 'everyone', cooldown: 5, uses: 412, is_active: true, stream_online_only: true },
   { name: 'socials', aliases: ['social', 'links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: 288, is_active: true },
@@ -628,8 +512,6 @@ export const demoCommandRows: CommandView[] = [
   { name: 'deaths', response: '{channel} has died {counter:deaths} times. {choice:F,RIP,ouch}', perm: 'sub', cooldown: 15, uses: 177, is_active: true }
 ];
 
-// Home-page digests. The digest shape is the route's own, so the fixture ships
-// the rows and the caller folds them with its real digest() function.
 export const demoDigestRows: CommandView[] = [
   { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', is_active: true, uses: 1200 },
   { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', is_active: true, uses: 521 },
@@ -655,7 +537,6 @@ export function demoCommandDigest(digest: (rows: CommandView[]) => Omit<CommandD
   return { ...digest(demoDigestRows), ok: true };
 }
 
-// Public channel profile (/user/[channel]).
 export const demoCreatorCode = 'MAVEY10';
 
 export const demoPublicCommands = [
@@ -690,8 +571,6 @@ export const demoPublicModules = [
   }
 ];
 
-// A synthetic, steadily-growing public snapshot so the stats page can be
-// previewed without a fleet behind it.
 const DEMO_EPOCH = Date.parse('2026-01-01T00:00:00Z');
 
 export function demoStats(now: number): PublicStats {
@@ -707,10 +586,6 @@ export function demoStats(now: number): PublicStats {
   };
 }
 
-// The two public leaderboards. The ranking is fixed (it is a lifetime view)
-// but the counts climb with the clock like demoStats does, so a demo shows the
-// same thing the live page does: boards that tick with the stream rather than
-// sitting still between reloads.
 const DEMO_CHANNELS = [
   { id: '11', name: 'bagelwatch', messages: 41_882_301, events: 68_004_112, feeds: 9_144 },
   { id: '12', name: 'nightcrust', messages: 28_100_774, events: 45_930_615, feeds: 7_820 },
@@ -726,8 +601,6 @@ const DEMO_CHANNELS = [
 
 export function demoBoards(now: number): PublicBoards {
   const secs = (now - DEMO_EPOCH) / 1000;
-  // Each channel accrues at its own pace, highest first, so the demo board
-  // moves without ever reordering itself.
   const grown = DEMO_CHANNELS.map((c, i) => {
     const rate = 6 - i * 0.5;
     return {
@@ -747,11 +620,6 @@ export function demoBoards(now: number): PublicBoards {
     degraded: false
   };
 }
-
-// ── Overview redesign: live panels ───────────────────────────────────────────
-// Fixtures for the four panels whose backend lanes ship separately. These let
-// the redesign be built and reviewed end to end before any of that data exists,
-// and they are the only place the shapes are exercised until the lanes land.
 
 export function demoStreamMeta(now: number): StreamMeta {
   return {
@@ -775,8 +643,6 @@ export const demoStreamCounters: StreamCounters = {
   ok: true
 };
 
-// A plausible rising-then-plateauing chat curve. Ticks mark the minutes a
-// command answered, which is what the tan marks under the chart read from.
 export function demoChatVolume(): ChatVolume {
   const buckets = [
     18, 26, 22, 39, 33, 48, 42, 61, 55, 74, 66, 81, 58, 92, 74, 108, 82, 90, 64,
@@ -791,7 +657,6 @@ export function demoChatVolume(): ChatVolume {
   };
 }
 
-// The bot's work, newest first.
 const DEMO_FEED: [ActivityKind, string, string][] = [
   ['command', '!bagel answered @novaburst', '41ms'],
   ['automod', 'timeout 10m @linkspam_99 · link', 'floor 0.94'],

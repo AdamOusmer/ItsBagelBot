@@ -2,56 +2,15 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.ShardScaler do
-  @moduledoc """
-  Cluster-singleton that owns the desired shard count for the Conduit.
-
-  Exactly one instance runs in the BEAM cluster (registered in
-  `Ingress.Registry`, supervised by `Ingress.ShardSupervisor`, started by
-  `Ingress.Bootstrapper`). The same Horde failover that protects the
-  `Ingress.ConduitManager` protects this process.
-
-  ## Manual floor
-
-  The `target` is the operator-chosen minimum. It is never allowed to fall
-  below `min_shards` (one per cluster node), so the floor adjusts
-  automatically as nodes join and leave.
-
-  ## Autoscaler
-
-  When `autoscale: true` the scaler samples the aggregate load across shards
-  (notifications received in the last 60 s, collected from
-  `Ingress.ShardSession.status/2`) and sizes the fleet from capacity:
-  Twitch conduits load-balance notifications across all enabled shards, so
-  the needed count is `ceil(aggregate / per-shard budget)` where the budget
-  is the shard rating × target utilization (75%, leaving 25% burst cushion).
-
-    * needed > target for consecutive ticks → jump target to needed
-      (immediately when aggregate exceeds the fleet's full rating)
-    * needed < target for consecutive ticks → drain one shard
-    * otherwise                             → hold
-
-  The effective desired count is always clamped to the node floor and the
-  lower of the operator limit or NATS-limited useful WebSocket count. Decisions
-  run every `@autoscale_interval_ms`. Ratings, utilization, and tick counts
-  live in `Ingress.ShardScaler.Policy`.
-  """
-
   use GenServer
   require Logger
 
   alias Ingress.Config.Twitch, as: TwitchConfig
   alias Ingress.{Metrics, Singleton}
-  # --- tunables ---------------------------------------------------------------
 
-  # How often the autoscaler evaluates load.
   @autoscale_interval_ms 30_000
-  # Every caller here is a console round-trip or a convergence tick, both of
-  # which prefer the config-floor fallback over waiting on a wedged singleton.
   @call_timeout_ms 2_000
-  # A shard answers its own status; the sample already runs under a 1.5s task
-  # timeout, so this is the tighter of the two.
   @shard_timeout_ms 1_000
-  # --- public API ------------------------------------------------------------
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: via())
@@ -59,14 +18,6 @@ defmodule Ingress.ShardScaler do
 
   def via, do: {:via, Horde.Registry, {Ingress.Registry, :shard_scaler}}
 
-  @doc """
-  Returns the effective desired shard count for this instant.
-
-  `min_shards` = one per BEAM node currently in the cluster.
-
-  When `autoscale` is off: `max(target, min_shards)`.
-  When `autoscale` is on:  `clamp(load_target, max(target, min_shards), max_shards)`.
-  """
   @spec desired() :: non_neg_integer()
   def desired do
     case fetch_desired() do
@@ -75,13 +26,6 @@ defmodule Ingress.ShardScaler do
     end
   end
 
-  @doc """
-  Like `desired/0` but distinguishes an answer from an unreachable singleton,
-  so `Ingress.ConduitManager` can hold convergence instead of acting on the
-  config-floor fallback and shrinking an autoscaled conduit mid-failover. The
-  answering pid is included so the manager can spot a scaler restart (a fresh
-  scaler forgets the autoscaled target and must re-adopt Twitch's count).
-  """
   @spec fetch_desired() :: {:ok, non_neg_integer(), pid()} | :error
   def fetch_desired do
     with {:ok, pid} <- Singleton.lookup(:shard_scaler),
@@ -90,37 +34,23 @@ defmodule Ingress.ShardScaler do
     end
   end
 
-  @doc """
-  Set the manual target floor. Clamped to `[min_shards, max_shards]`.
-  """
   @spec set_target(non_neg_integer()) :: :ok | {:error, :not_running}
   def set_target(count) when is_integer(count) and count >= 0 do
     call_singleton({:set_target, count})
   end
 
-  @doc """
-  Enable or disable the load-based autoscaler.
-  """
   @spec set_autoscale(boolean()) :: :ok | {:error, :not_running}
   def set_autoscale(enabled) when is_boolean(enabled) do
     call_singleton({:set_autoscale, enabled})
   end
 
-  @doc """
-  Returns the full scaler status map, used by `Ingress.AdminRpc.snapshot/0`.
-  """
   @spec status() :: map()
   def status do
     Singleton.call(:shard_scaler, :status, @call_timeout_ms, fn _reason -> fallback_status() end)
   end
 
-  # --- GenServer callbacks ---------------------------------------------------
-
   @impl true
   def init(_) do
-    # The scaler is the source of truth. ConduitManager performs the one
-    # startup read needed to locate the pinned conduit and applies this target
-    # only when Twitch's recorded count differs.
     target = TwitchConfig.conduit_shard_count()
     Logger.info("shard_scaler started: target=#{target} on #{node()}")
     schedule_autoscale()
@@ -186,13 +116,10 @@ defmodule Ingress.ShardScaler do
     {:noreply, state}
   end
 
-  # --- private ---------------------------------------------------------------
-
   defp call_singleton(msg) do
     Singleton.call(:shard_scaler, msg, @call_timeout_ms, fn _reason -> {:error, :not_running} end)
   end
 
-  # min_shards: one per node currently visible in the cluster (self + peers).
   defp min_shards do
     self_node = node()
     length([self_node | Node.list()])
@@ -258,9 +185,6 @@ defmodule Ingress.ShardScaler do
     %{state | target: new_target, ticks: ticks}
   end
 
-  # Independent of the scaling decision above: flags a single shard carrying a
-  # disproportionate share of load (a hot broadcaster). More shards can't fix
-  # this — Twitch owns broadcaster→shard placement — so this only surfaces it.
   defp check_concentration(sample) do
     if Ingress.ShardScaler.Policy.concentrated?(sample) do
       Logger.warning(
@@ -302,8 +226,6 @@ defmodule Ingress.ShardScaler do
     end
   end
 
-  # `:error` is both "no such shard" and "the shard did not answer": the policy
-  # counts either as an unresponsive slot.
   defp sample_shard(shard_id) do
     case Singleton.call({:shard, shard_id}, :status, @shard_timeout_ms, fn _reason -> :error end) do
       %{} = status -> {:ok, Map.get(status, :load, 0)}
@@ -317,8 +239,6 @@ defmodule Ingress.ShardScaler do
 
   defp clamp(value, min_v, max_v), do: value |> max(min_v) |> min(max_v)
 
-  # Status returned when the singleton is unreachable: callers get honest
-  # defaults instead of an exception.
   defp fallback_status do
     %{
       target: TwitchConfig.conduit_shard_count(),

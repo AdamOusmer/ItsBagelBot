@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package zonelist lists the IANA zone names Go's stdlib ships in
-// $GOROOT/lib/time/zoneinfo.zip, split into canonical zones and link
-// (alias/legacy) names. It exists as its own package, rather than living
-// inside gen/main.go, so both the generator and the golden test
-// (tzname_golden_test.go) can call the exact same classification logic:
-// a generator-only copy would drift from what the test checks against.
 package zonelist
 
 import (
@@ -18,12 +12,6 @@ import (
 	"strings"
 )
 
-// legacyLinks names zones that are technically their own zip entries but that
-// tzdata treats as backward-compatibility aliases for a renamed or merged
-// zone (see IANA's "backward" file). They don't share a naming pattern with
-// the US/, Canada/, Brazil/, Chile/, Mexico/ prefixes or the single-segment
-// legacy names, so there is no rule to derive them from - they're listed by
-// hand, per the spec this package implements.
 var legacyLinks = map[string]bool{
 	"Asia/Calcutta": true, "Asia/Katmandu": true, "Asia/Rangoon": true,
 	"Asia/Saigon": true, "Europe/Kiev": true, "Asia/Ulan_Bator": true,
@@ -48,30 +36,17 @@ var legacyLinks = map[string]bool{
 	"Africa/Timbuktu": true, "Atlantic/Jan_Mayen": true,
 }
 
-// linkPrefixes are directory prefixes that are entirely made of country-local
-// aliases for zones that already exist (and are named) under their normal
-// Continent/City entry - e.g. US/Eastern duplicates America/New_York. Every
-// entry in one of these trees is a link, with no exceptions worth carving out.
 var linkPrefixes = []string{"US/", "Canada/", "Brazil/", "Chile/", "Mexico/"}
 
-// skipPrefixes are zip entries that aren't zone names at all: Etc/ (its
-// GMT+N/GMT-N sign convention is inverted from what a viewer means by "+N",
-// so tzname's curated table and index cover it explicitly instead), and the
-// POSIX/right-variant trees, which duplicate the normal tree under a
-// different rule set (right/ adds leap seconds, posix/ forces POSIX sign
-// conventions) and would otherwise double every zone name in the index.
 var skipPrefixes = []string{"Etc/", "posix/", "right/", "SystemV"}
 
-// skipExact are non-zone bookkeeping entries in the zip.
 var skipExact = map[string]bool{"Factory": true, "posixrules": true, "localtime": true}
 
-// Zones is the classified, sorted zone listing.
 type Zones struct {
 	Canonical []string
 	Links     []string
 }
 
-// Load reads GOROOT's zoneinfo.zip and classifies every entry.
 func Load() (Zones, error) {
 	root, err := goroot()
 	if err != nil {
@@ -101,9 +76,6 @@ func Load() (Zones, error) {
 	return z, nil
 }
 
-// goroot prefers runtime.GOROOT() - no subprocess, correct for the running
-// binary - and falls back to "go env GOROOT" for a toolchain whose runtime
-// build baked in a different (or empty) root than the go binary on PATH.
 func goroot() (string, error) {
 	if root := runtime.GOROOT(); root != "" {
 		return root, nil
@@ -127,11 +99,6 @@ func skip(name string) bool {
 	return false
 }
 
-// isLink reports whether name is an alias/legacy zone rather than a
-// canonical one: a bare single-segment name (Cuba, Japan, GMT+0 - none of
-// these describe a place, they're all shorthands for a Continent/City zone),
-// a country-local alias tree (US/Eastern, Canada/Yukon, ...), or one of the
-// individually-renamed legacy names IANA keeps for backward compatibility.
 func isLink(name string) bool {
 	if !strings.Contains(name, "/") {
 		return true

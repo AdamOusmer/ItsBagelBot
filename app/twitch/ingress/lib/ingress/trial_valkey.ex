@@ -2,11 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.TrialValkey do
-  @moduledoc """
-  Shared Redix connection for trial admission and owner fencing. Redix handles
-  Sentinel discovery, reconnects, TLS, authentication, and RESP encoding.
-  """
-
   @timeout 2_000
   @sentinel_port 26_380
 

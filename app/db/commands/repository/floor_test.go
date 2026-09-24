@@ -20,8 +20,6 @@ func init() {
 	validate.CheckFloor = moderation.CheckFloor
 }
 
-// floorSlur pulls a term from the embedded hate artifact so no slur sits in
-// test source.
 func floorSlur(t *testing.T) string {
 	t.Helper()
 	terms := moderation.EmbeddedLexicon().Terms(moderation.CatHate)
@@ -29,11 +27,6 @@ func floorSlur(t *testing.T) string {
 	return terms[0]
 }
 
-// A custom command whose response, name or alias carries immovable-floor
-// content (hate, IP-grabber hosts) is refused at creation: the bot would post
-// or echo that text as itself, risking the broadcaster's channel and the bot
-// account platform-wide. This exercises Upsert - the exact path the dashboard
-// create/edit RPC lands on - not just the validator in isolation.
 func TestUpsertRefusesFloorContent(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
@@ -48,13 +41,10 @@ func TestUpsertRefusesFloorContent(t *testing.T) {
 		assert.ErrorIs(t, err, validate.ErrContentFloor, label)
 	}
 
-	// A slur alias is refused too, with the precise floor error (not blurred
-	// into the generic alias error).
 	s := spec("!hi", "hello chat", false, 0)
 	s.Aliases = []string{"!" + slur}
 	assert.ErrorIs(t, repo.Upsert(1001, s), validate.ErrContentFloor, "slur alias")
 
-	// An obfuscated slur folds onto the plain spelling and is refused the same.
 	leet := ""
 	for _, r := range slur {
 		switch r {
@@ -74,12 +64,9 @@ func TestUpsertRefusesFloorContent(t *testing.T) {
 	assert.ErrorIs(t, repo.Upsert(1001, spec("!x", "gg "+leet+" gg", false, 0)),
 		validate.ErrContentFloor, "obfuscated slur response")
 
-	// Nothing reached the store.
 	repo.Close(ctx)
 	assert.Equal(t, 0, client.Commands.Query().CountX(ctx))
 
-	// Milder language saves fine: the floor is hate + abuse infrastructure
-	// only, so profanity and giveaway phrasing are the broadcaster's call.
 	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
 	require.NoError(t, repo2.Upsert(1001, spec("!gg", "damn that was some bullshit ref, hell of a game", false, 0)))
 	require.NoError(t, repo2.Upsert(1001, spec("!prize", "type !prize to claim your prize tonight", false, 0)))

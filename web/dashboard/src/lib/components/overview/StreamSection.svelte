@@ -1,18 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // "This stream": the page's headline panel. Left column is the stream itself
-  // (live/offline, elapsed time, title, per-stream counters); right column is the
-  // chat-volume curve.
-  //
-  // Honesty: three independent reads feed this one section and any of them can
-  // be down. `meta.ok`, `counters.ok` and `volume.ok` are checked separately so a
-  // failed counter read never blanks a healthy stream header, and a stream we
-  // have simply never seen (`known: false`) reads as "not yet", not as an error.
-  //
-  // `now` arrives as a prop rather than being read here: this component stays
-  // pure like every other component in this directory, and the page owns the one
-  // interval that ticks it.
   import { getI18n } from '@bagel/kit/i18n/context';
   import ChatVolumeChart from './ChatVolumeChart.svelte';
   import {
@@ -165,8 +153,6 @@
     color: var(--bb-muted);
     margin: 0 0 14px;
   }
-  /* .ov-pill/.ov-dot (pill + glowing ov-pulse dot) dropped for the global
-     .bb-tag / .bb-mark label vocabulary; .bb-sweep carries the live motion. */
   .ov-stream__big {
     font-family: var(--bb-font-display);
     font-weight: 800;

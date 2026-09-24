@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package rpc exposes the loyalty service's NATS request/reply surface
-// (bagel.rpc.loyalty.*). Sesame is the primary caller: balance/counter reads
-// on a cache miss, and the mod-facing counter management verbs behind
-// !counter. The future dashboard pages ride the same verbs.
 package rpc
 
 import (
@@ -26,26 +22,6 @@ type loyaltyRPC struct {
 	log  *zap.Logger
 }
 
-// Subscribe registers the loyalty verbs under prefix:
-//
-//	<prefix>.balance.get    {user_id, viewer_id}            -> {balance}
-//	<prefix>.balance.set    {user_id, viewer_login, value}  -> {balance, found}
-//	<prefix>.balance.add    {user_id, viewer_login, value}  -> {balance, found}
-//	<prefix>.balance.spend  {user_id, viewer_login, value}  -> {balance, found, spent}
-//	<prefix>.balance.transfer {user_id, viewer_id, viewer_login, value} -> {balance, target_balance, found, spent}
-//	<prefix>.top.get        {user_id, limit}                -> {top}
-//	<prefix>.counter.get    {user_id, name[, viewer_id, command]} -> {counter, found}
-//	<prefix>.counter.create {user_id, name, scope}          -> {counter}
-//	<prefix>.counter.set    {user_id, name, value[, viewer_id, command]} -> {found}
-//	<prefix>.counter.rename {user_id, name, new_name}       -> {found}
-//	<prefix>.counter.delete {user_id, name}                 -> {}
-//	<prefix>.counter.entry.delete {user_id, name, viewer_id|command} -> {found}
-//	<prefix>.counter.list   {user_id}                       -> {counters}
-//	<prefix>.counter.board  {name, limit}                   -> {board}
-//	<prefix>.counter.entries {user_id, name, limit}         -> {entries, found}
-//
-// Counter verbs accept user_id "0": the reserved bot namespace holding the
-// admin-only bot-scope counters. Balance verbs always require a broadcaster.
 func Subscribe(w Wiring, prefix string) error {
 	l := &loyaltyRPC{repo: w.Repo, log: w.Log}
 
@@ -68,29 +44,15 @@ func Subscribe(w Wiring, prefix string) error {
 	)
 }
 
-// Wiring is everything Subscribe needs. It replaces the
-// (nc, repo, prefix, queueGroup, app, log) positional form, whose two
-// adjacent strings were transposable without a compile error.
 type Wiring struct {
 	bus.RPCWiring
 	Repo *repository.Loyalty
 }
 
-// refuse builds one coded refusal. Named here so the code travels with the
-// message at every site instead of being appended as an afterthought: this
-// service answers a single Reply type for every verb, so an uncoded refusal
-// would be indistinguishable from a coded one on the wire.
 func refuse(code domainrpc.Code, message string) loyaltyrpc.Reply {
 	return loyaltyrpc.Reply{Refusal: domainrpc.Refused(code, message)}
 }
 
-// parseIDs pulls the broadcaster id (required) and viewer id (optional) off a
-// request. ok=false carries the error reply. The parse itself is bus.UserID,
-// so a bad id reads the same here as on every other user-scoped subject; this
-// cannot be the bind-time bus.ServeForUser guard because of the optional
-// second id and the reserved namespace. allowBotNS admits user_id "0" —
-// the reserved bot namespace the counter verbs use for admin-only bot-scope
-// counters; balance verbs always require a real broadcaster.
 func parseIDs(req loyaltyrpc.Request, allowBotNS bool) (userID, viewerID uint64, ok bool, reply loyaltyrpc.Reply) {
 	uid, err := bus.UserID(req.UserID)
 	if err != nil {
@@ -109,8 +71,6 @@ func parseIDs(req loyaltyrpc.Request, allowBotNS bool) (userID, viewerID uint64,
 	return uid, viewerID, true, loyaltyrpc.Reply{}
 }
 
-// fail maps a repository error: trust-boundary rejections echo their message,
-// anything else is logged and masked.
 func (l *loyaltyRPC) fail(op string, err error) loyaltyrpc.Reply {
 	if errors.Is(err, repository.ErrInvalidInput) {
 		return refuse(domainrpc.CodeInvalid, err.Error())
@@ -142,15 +102,11 @@ func (l *loyaltyRPC) handleBalanceGet(ctx context.Context, req loyaltyrpc.Reques
 		return l.fail("loyalty balance.get", err)
 	}
 	if !found {
-		// A viewer with no row simply has nothing yet; zero is the answer.
 		return loyaltyrpc.Reply{Balance: &loyaltyrpc.Balance{ViewerID: req.ViewerID}, Found: false}
 	}
 	return loyaltyrpc.Reply{Balance: balanceView(row), Found: true}
 }
 
-// handleBalanceSet / handleBalanceAdd back the mod grants ("!points set/add
-// @user") and the future dashboard equivalents. The target is addressed by
-// login; found=false means no accrual has ever seen them in this channel.
 func (l *loyaltyRPC) handleBalanceSet(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	return l.adjustBalance(ctx, req, true)
 }
@@ -159,10 +115,6 @@ func (l *loyaltyRPC) handleBalanceAdd(ctx context.Context, req loyaltyrpc.Reques
 	return l.adjustBalance(ctx, req, false)
 }
 
-// handleBalanceSpend backs the wager games (gamble stakes, duel escrow): the
-// debit applies only when the viewer holds enough points, and the reply's
-// Spent flag says which way it went. found=false still means the channel has
-// never accrued for that login.
 func (l *loyaltyRPC) handleBalanceSpend(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	userID, _, ok, reply := parseIDs(req, false)
 	if !ok {
@@ -193,12 +145,6 @@ func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, 
 	return loyaltyrpc.Reply{Balance: balanceView(row), Found: true}
 }
 
-// handleBalanceTransfer backs "!points give @user <n>": the chatter's own
-// points move to the target. The sender is addressed by id (the chat envelope
-// always carries it) and the recipient by login, mirroring the grant verbs.
-// spent=true means the move happened (Balance = sender after, TargetBalance =
-// recipient after); found=false means the channel never accrued for the
-// target; spent=false with found=true means insufficient points.
 func (l *loyaltyRPC) handleBalanceTransfer(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	userID, viewerID, ok, reply := parseIDs(req, false)
 	if !ok {
@@ -236,7 +182,7 @@ func (l *loyaltyRPC) handleCounterEntries(ctx context.Context, req loyaltyrpc.Re
 	for _, e := range rows {
 		login := e.ViewerLogin
 		if login == "" {
-			login = logins[e.ViewerID] // legacy rows written before identity was stored
+			login = logins[e.ViewerID]
 		}
 		entries = append(entries, loyaltyrpc.CounterEntry{
 			ViewerID:    strconv.FormatUint(e.ViewerID, 10),
@@ -298,8 +244,6 @@ func (l *loyaltyRPC) handleCounterCreate(ctx context.Context, req loyaltyrpc.Req
 	}
 }
 
-// foundReply maps the (found, err) pair the counter write verbs share: a
-// repository failure through fail, everything else into a bare Found reply.
 func (l *loyaltyRPC) foundReply(op string, found bool, err error) loyaltyrpc.Reply {
 	if err != nil {
 		return l.fail(op, err)
@@ -317,8 +261,6 @@ func (l *loyaltyRPC) handleCounterSet(ctx context.Context, req loyaltyrpc.Reques
 	return l.foundReply("loyalty counter.set", found, err)
 }
 
-// handleCounterRename moves a counter (and its entry buckets) to a new name;
-// found=false means no counter carries the old name.
 func (l *loyaltyRPC) handleCounterRename(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	userID, _, ok, reply := parseIDs(req, true)
 	if !ok {
@@ -337,10 +279,6 @@ func (l *loyaltyRPC) handleCounterDelete(ctx context.Context, req loyaltyrpc.Req
 	return l.foundReply("loyalty counter.delete", true, err)
 }
 
-// handleCounterEntryDelete removes one stored bucket of an entry-scoped
-// counter, addressed by viewer_id and/or command; found=false means no such
-// counter, a non-entry scope, or an untargeted address (which is refused so it
-// can never become a whole-counter reset).
 func (l *loyaltyRPC) handleCounterEntryDelete(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	userID, viewerID, ok, reply := parseIDs(req, true)
 	if !ok {
@@ -351,10 +289,6 @@ func (l *loyaltyRPC) handleCounterEntryDelete(ctx context.Context, req loyaltyrp
 	return l.foundReply("loyalty counter.entry.delete", found, err)
 }
 
-// handleCounterBoard ranks channels by one counter name across every
-// broadcaster. It is the only counter verb that takes no user_id: the board is
-// the cross-channel view, so there is no owner to authorize against. Callers
-// that must not see it are kept out by the NATS import, as everywhere else.
 func (l *loyaltyRPC) handleCounterBoard(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	rows, err := l.repo.CounterBoard(ctx, req.Name, req.Limit)
 	if err != nil {

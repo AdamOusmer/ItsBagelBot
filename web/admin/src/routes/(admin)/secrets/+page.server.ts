@@ -33,8 +33,6 @@ async function loadBundle(): Promise<SecretsBundle> {
   return { services, scope };
 }
 
-// Streamed: the shell renders immediately; the two Doppler round trips
-// (statuses, scope probe, in parallel) hydrate in.
 export const load: PageServerLoad = async ({ parent }) => {
   const layout = await parent();
   if (!allows(layout.role, 'secrets.manage')) throw redirect(302, '/');
@@ -57,13 +55,10 @@ function serviceFromForm(f: FormData): SecretServiceId {
   return service;
 }
 
-// secretAction wraps the shared shape of every mutation here: manager gate,
-// service parse, type-to-confirm phrase check, demo short-circuit, the write,
-// and the audit trail.
 type SecretActionName = 'db_credential_rotate' | 'db_credential_set' | 'db_credential_revoke';
 
 type SecretSpec = {
-  name: SecretActionName; // audit action id
+  name: SecretActionName;
   confirm: (service: SecretServiceId, f: FormData) => string;
   run: (
     service: SecretServiceId,

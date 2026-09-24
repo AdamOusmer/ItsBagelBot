@@ -1,11 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Incomplete accounts: a short, ordered setup checklist instead of an empty
-  // "top commands" card. Each step says what it is, whether it is done (in words,
-  // not just a tick), and links to where it gets done. `receiving` is main's honest
-  // "online" (grant + active + enroll ok), so a pending/failing connection does not
-  // read as connected here.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
@@ -43,8 +38,6 @@
     <ol class="ov-setup__list">
       {#each steps as step, i (step.id)}
         <li class="ov-setup__row" class:done={step.done}>
-          <!-- Done steps get the tick; the rest keep the same box with their
-               ordinal so the list does not shift as steps complete. -->
           <span class="ov-setup__ico" aria-hidden="true">
             {#if step.done}<Icon name="check" size={15} />{:else}{i + 1}{/if}
           </span>

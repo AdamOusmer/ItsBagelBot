@@ -2,14 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for `.bb-rail`. Its Astro twin is ../astro/Rail.astro and
-  // ../test/parity.test.ts diffs the two STATIC renders -- the glide engine is
-  // tested separately, because a measured highlight has nothing to compare
-  // against in a string.
-  //
-  // The rail's whole character is that exactly one thing moves: a single
-  // highlight gliding between rows. Nothing else animates on navigation, which
-  // is why the rows themselves only change colour.
   import '../styles/elements/shell.css';
   import Brand from './Brand.svelte';
   import RailItem from './RailItem.svelte';
@@ -27,7 +19,6 @@
   }: {
     brand: UiBrand;
     groups: UiNavGroup[];
-    /** The account surface at the bottom. The console passes its own. */
     foot?: Snippet;
     ariaLabel?: string;
     class?: string;
@@ -36,9 +27,6 @@
 
   const classes = $derived(['bb-rail', className || null].filter(Boolean).join(' '));
 
-  // Groups the reader collapsed or expanded by hand, keyed by the parent href.
-  // Unset means "follow the page": the group whose own page is open starts
-  // expanded, so landing on a section never hides the thing you came for.
   let manual = $state<Record<string, boolean>>({});
   const isOpen = (item: UiNavLink) => manual[item.href ?? ''] ?? !!item.active;
   const toggle = (item: UiNavLink) => {
@@ -50,7 +38,6 @@
 
   $effect(() => {
     if (!railEl) return;
-    // Read the two things that move rows so the effect re-runs on either.
     void groups;
     void manual;
     return mountGlide(railEl, { navEl });

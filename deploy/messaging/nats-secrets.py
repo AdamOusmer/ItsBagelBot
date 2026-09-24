@@ -31,7 +31,6 @@ import bcrypt
 DRY = "--dry-run" in sys.argv
 CONFIG = "prd"
 
-# service name (account stem) -> Doppler project
 SERVICES = {
     "users": "users",
     "commands": "commands",
@@ -49,31 +48,18 @@ SERVICES = {
     "discord_data": "discord-data",
     "deployer": "deployer",
 }
-# Discord is three runtimes sharing one Doppler project (discord-svc), unlike
-# every service above which owns its project. A shared project cannot hold three
-# different values under the plain NATS_USER/NATS_PASSWORD names, so each
-# runtime's pair is prefixed here and deploy/k8s/discord.yaml maps the prefixed
-# key back onto NATS_USER/NATS_PASSWORD/NATS_RPC_USER/NATS_RPC_PASSWORD in the
-# matching container. The account stems still match nats-auth.conf's users
-# (discord_ingress_bus, discord_ingress_rpc, ...), so the broker hashes land
-# under the same NATS_BCRYPT_<STEM>_{BUS,RPC} names as everything else.
 SHARED_PROJECTS: dict[str, list[str]] = {
     "discord-svc": ["discord_ingress", "discord_engine", "discord_outgress"],
 }
 
 NO_RPC: set[str] = set()
-# gossip, notifications, transactions and discord_data are RPC-only (no
-# JetStream/event plane): none of the four ever dial the hub, so none gets a
-# BUS user.
 NO_BUS: set[str] = {"gossip", "notifications", "transactions", "discord_data"}
 
 def gen() -> str:
-    # URL-safe (hex) so the plaintext is valid inside the leaf nats-leaf:// URLs.
     return secrets.token_hex(24)
 
 
 def bcrypt_hash(pw: str) -> str:
-    # cost 11, $2a prefix — the form the NATS Go server accepts.
     return bcrypt.hashpw(pw.encode(), bcrypt.gensalt(11, prefix=b"2a")).decode()
 
 
@@ -130,7 +116,7 @@ def account(
 
 
 def main() -> None:
-    broker: dict[str, str] = {}  # nats project -> nats-auth-env
+    broker: dict[str, str] = {}
 
     print("== per-service credentials ==")
     for svc, project in SERVICES.items():
@@ -144,7 +130,6 @@ def main() -> None:
             account(stem, prefixed_keys(stem), kv, broker)
         doppler_set(project, kv)
 
-    # System account (server monitoring; no fleet service uses it).
     broker["NATS_BCRYPT_SYS"] = bcrypt_hash(gen())
 
     print("== broker hashes (nats-auth-env via the 'nats' Doppler project) ==")

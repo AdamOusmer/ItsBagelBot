@@ -17,24 +17,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// feedCommandCooldown is the shared window on both leaderboard commands. They
-// are pure reads, so the window is about chat noise rather than load.
 const feedCommandCooldown = 15 * time.Second
 
-// feedBoardTop is how many channels !bagelboard names. Three fits a chat line
-// next to the asking channel's own standing.
 const feedBoardTop = 3
 
-// feedStandingOnly is the limit !bagels asks for: a negative limit tells the
-// modules service to skip the board query entirely and answer with the
-// channel's own count and rank.
 const feedStandingOnly = -1
 
-// feedLookupCommand is the shape both leaderboard commands share: bail without
-// a store, read the board at the limit this command needs, answer the shared
-// failure line when the read fails, otherwise render. Only the limit, the log
-// key and the renderer differ, so they live as arguments rather than as a
-// second copy of the body.
 func feedLookupCommand(d engine.Deps, limit int, logKey string, render func(*module.Context, engine.FeedBoard) string) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
 		if d.Personality == nil {
@@ -51,21 +39,14 @@ func feedLookupCommand(d engine.Deps, limit int, logKey string, render func(*mod
 	}
 }
 
-// feedRankCommand answers !bagels: how often this channel has fed the bagel
-// and where that places it. The fleet-wide tally stays on the "feed the bagel"
-// reaction; this command is the per-channel half.
 func feedRankCommand(d engine.Deps) module.RunFunc {
 	return feedLookupCommand(d, feedStandingOnly, "feed rank", feedRankText)
 }
 
-// feedBoardCommand answers !bagelboard: the channels that fed the bagel most,
-// then where the asking channel sits among them.
 func feedBoardCommand(d engine.Deps) module.RunFunc {
 	return feedLookupCommand(d, feedBoardTop, "feed board", feedBoardText)
 }
 
-// feedRankText renders !bagels: the standing, or the nudge when this channel
-// has never fed the bagel.
 func feedRankText(c *module.Context, board engine.FeedBoard) string {
 	channel := c.Env.BroadcasterName()
 	if board.Rank == 0 {
@@ -74,9 +55,6 @@ func feedRankText(c *module.Context, board engine.FeedBoard) string {
 	return feedText(c, "feed.rank", append([]string{"channel", channel}, feedStandingArgs(board)...)...)
 }
 
-// feedBoardText renders !bagelboard: the podium plus this channel's standing.
-// An empty board means nobody has ever fed the bagel, which gets its own line
-// rather than a podium with no places on it.
 func feedBoardText(c *module.Context, board engine.FeedBoard) string {
 	if len(board.Entries) == 0 {
 		return feedText(c, "feed.board.empty")
@@ -87,8 +65,6 @@ func feedBoardText(c *module.Context, board engine.FeedBoard) string {
 	)
 }
 
-// feedBoardStanding is the tail of the leaderboard line: the asking channel's
-// own place, or a nudge when it has never fed the bagel.
 func feedBoardStanding(c *module.Context, board engine.FeedBoard) string {
 	if board.Rank == 0 || board.Channel == 0 {
 		return feedText(c, "feed.board.none")
@@ -96,7 +72,6 @@ func feedBoardStanding(c *module.Context, board engine.FeedBoard) string {
 	return feedText(c, "feed.board.standing", feedStandingArgs(board)...)
 }
 
-// feedStandingArgs is the count/rank/ranked triple both standing lines expand.
 func feedStandingArgs(board engine.FeedBoard) []string {
 	return []string{
 		"count", strconv.FormatUint(board.Channel, 10),
@@ -105,7 +80,6 @@ func feedStandingArgs(board engine.FeedBoard) []string {
 	}
 }
 
-// feedBoardPlaces renders the podium, one "1. name (count)" per entry.
 func feedBoardPlaces(entries []engine.FeedBoardEntry) []string {
 	places := make([]string, 0, len(entries))
 	for i, entry := range entries {
@@ -115,8 +89,6 @@ func feedBoardPlaces(entries []engine.FeedBoardEntry) []string {
 	return places
 }
 
-// feedBoardName falls back to the id when a row carries no stored display name
-// (a feeding whose event had none), so a nameless row still ranks.
 func feedBoardName(entry engine.FeedBoardEntry) string {
 	if entry.Name != "" {
 		return entry.Name
@@ -124,10 +96,6 @@ func feedBoardName(entry engine.FeedBoardEntry) string {
 	return "channel " + strconv.FormatUint(entry.BroadcasterID, 10)
 }
 
-// feedText renders one localized line. kv are {token},value pairs; {user} (the
-// invoking chatter) and the pure family ({random}, {choice:…}, {math:…}, …)
-// are always available, matching the quotes commands via the same
-// Common+KV composition chatReplier.reply uses (modules/reply.go).
 func feedText(c *module.Context, key string, kv ...string) string {
 	p := module.Common(c).Merge(module.KV(kv...))
 	return p.ExpandString(i18n.T(c.Locale, key))

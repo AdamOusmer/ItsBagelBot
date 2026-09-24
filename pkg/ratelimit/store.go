@@ -5,10 +5,6 @@ package ratelimit
 
 import "github.com/puzpuzpuz/xsync/v4"
 
-// BucketStore is the process-local table of active lease buckets. Lease
-// lifetimes are controlled by plans, so a general-purpose TTL cache adds work
-// without adding correctness. xsync.Map provides typed, allocation-free reads
-// and scales better than a single locked map under outgress concurrency.
 type BucketStore struct {
 	buckets *xsync.Map[BucketID, *LocalBucket]
 }

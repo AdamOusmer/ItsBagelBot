@@ -2,24 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.BroadcasterStatus do
-  @moduledoc """
-  NATS request-reply client for broadcaster status.
-
-  The ingress never reads MySQL directly: per the data-and-state ownership
-  rules, broadcaster configuration belongs to its owning Go service, and we
-  ask that service over NATS RPC. Only the `Ingress.BroadcasterCache` loader
-  should call this; the hot chat path goes through the cache.
-
-  Contract (subject from `NATS_BROADCASTER_STATUS_SUBJECT`):
-
-      request:  {"broadcaster_id": "141981764"}
-      reply:    {"broadcaster_id": "141981764", "tier": "premium"}
-
-  Any `tier` other than `"premium"` maps to the standard lane, as does an
-  unknown broadcaster. A `"banned"` flag wins over everything: a banned
-  broadcaster resolves to `:drop` so the ingress discards their traffic.
-  """
-
   alias Ingress.{JSON, Trace}
 
   @connection :gnat
@@ -53,7 +35,6 @@ defmodule Ingress.BroadcasterStatus do
       headers: Trace.trace_headers()
     )
   catch
-    # Gnat.request exits when the connection process is down; degrade instead.
     :exit, reason -> {:error, {:nats_down, reason}}
   end
 end

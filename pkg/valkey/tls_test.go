@@ -22,9 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestClientTLSConfigGateBothOrNeither pins the existing env gate: this
-// change must not disturb it. Unset stays today's "no client auth yet"
-// behavior; exactly one set is still a startup error.
 func TestClientTLSConfigGateBothOrNeither(t *testing.T) {
 	ca, _ := testTLSCA(t)
 	t.Setenv("VALKEY_TLS_CA_PEM", string(pemEncodeCert(ca)))
@@ -57,10 +54,6 @@ func TestClientTLSConfigGateBothOrNeither(t *testing.T) {
 	})
 }
 
-// TestClientTLSConfigUsesGetClientCertificateNotStaticCertificates guards the
-// actual bug fix: Certificates is a startup-only snapshot, GetClientCertificate
-// is called by crypto/tls on every handshake. Regressing to the former is the
-// exact shape of #560.
 func TestClientTLSConfigUsesGetClientCertificateNotStaticCertificates(t *testing.T) {
 	ca, caKey := testTLSCA(t)
 	certFile, keyFile, _ := writeTestClientCert(t, ca, caKey, "client-v1", 1)
@@ -75,11 +68,6 @@ func TestClientTLSConfigUsesGetClientCertificateNotStaticCertificates(t *testing
 	assert.Empty(t, config.Certificates, "Certificates must stay unset: a non-empty value here is read once at Config construction and never again")
 }
 
-// TestClientCertReloaderPresentsRotatedCertOnNextHandshake is the point of
-// this change: cert-manager rotates the file on disk at day 75 without the
-// process restarting, and the very next handshake -- not a redeploy -- must
-// present the new cert. This drives two real TLS handshakes end to end over
-// a net.Pipe and inspects what the server actually received.
 func TestClientCertReloaderPresentsRotatedCertOnNextHandshake(t *testing.T) {
 	ca, caKey := testTLSCA(t)
 	certFile, keyFile, certV1 := writeTestClientCert(t, ca, caKey, "client-v1", 1)
@@ -95,28 +83,20 @@ func TestClientCertReloaderPresentsRotatedCertOnNextHandshake(t *testing.T) {
 
 	serverConfig := testServerTLSConfig(t, ca, caKey)
 
-	// Handshake #1: reloader has only ever seen v1.
 	presented := doTestHandshake(t, clientConfig, serverConfig)
 	assert.Equal(t, certV1.SerialNumber, presented.SerialNumber, "first handshake should present the cert loaded at construction")
 	assert.Equal(t, "client-v1", presented.Subject.CommonName)
 
-	// cert-manager's renewal: the Secret volume's atomic symlink swap lands
-	// a same-path, different-content pair with a fresh mtime.
 	_, _, certV2 := writeTestClientCertAt(t, ca, caKey, certFile, keyFile, "client-v2", 2)
 	futureTime := time.Now().Add(time.Hour)
 	require.NoError(t, os.Chtimes(certFile, futureTime, futureTime))
 
-	// Handshake #2: no restart, same *tls.Config, same reloader -- must pick
-	// up the rotated cert this time.
 	presented = doTestHandshake(t, clientConfig, serverConfig)
 	assert.Equal(t, certV2.SerialNumber, presented.SerialNumber, "second handshake must present the ROTATED cert, not the one cached at startup")
 	assert.Equal(t, "client-v2", presented.Subject.CommonName)
 	assert.NotEqual(t, certV1.SerialNumber, presented.SerialNumber)
 }
 
-// TestClientCertReloaderCachesWhenFileUnchanged proves the reloader does not
-// stat-and-reparse the key pair on every handshake: back-to-back calls
-// against an untouched file must return the exact same cached *tls.Certificate.
 func TestClientCertReloaderCachesWhenFileUnchanged(t *testing.T) {
 	ca, caKey := testTLSCA(t)
 	certFile, keyFile, _ := writeTestClientCert(t, ca, caKey, "client-v1", 1)
@@ -132,10 +112,6 @@ func TestClientCertReloaderCachesWhenFileUnchanged(t *testing.T) {
 	assert.Same(t, first, second, "unchanged file must not trigger a reparse")
 }
 
-// TestClientCertReloaderKeepsServingCachedCertOnReloadFailure covers the
-// required degrade path: a rotated file that's briefly invalid (mid-write,
-// truncated) must not fail a live handshake. The last good cert keeps serving
-// until a subsequent, successful reload replaces it.
 func TestClientCertReloaderKeepsServingCachedCertOnReloadFailure(t *testing.T) {
 	ca, caKey := testTLSCA(t)
 	certFile, keyFile, certV1 := writeTestClientCert(t, ca, caKey, "client-v1", 1)
@@ -143,7 +119,6 @@ func TestClientCertReloaderKeepsServingCachedCertOnReloadFailure(t *testing.T) {
 	reloader, err := newClientCertReloader(certFile, keyFile)
 	require.NoError(t, err)
 
-	// Corrupt the cert file in place and bump mtime/size so changed() fires.
 	require.NoError(t, os.WriteFile(certFile, []byte("not a certificate"), 0o600))
 	futureTime := time.Now().Add(time.Hour)
 	require.NoError(t, os.Chtimes(certFile, futureTime, futureTime))
@@ -153,8 +128,6 @@ func TestClientCertReloaderKeepsServingCachedCertOnReloadFailure(t *testing.T) {
 	require.NotNil(t, cert.Leaf)
 	assert.Equal(t, certV1.SerialNumber, cert.Leaf.SerialNumber, "must keep serving the last good cert")
 }
-
-// --- test fixtures -----------------------------------------------------
 
 func testTLSCA(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey) {
 	t.Helper()
@@ -190,17 +163,12 @@ func pemEncodeCert(cert *x509.Certificate) []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
 }
 
-// writeTestClientCert issues a fresh ca-signed client-auth cert/key pair
-// under CommonName cn and serial number, and writes them to a new temp dir.
 func writeTestClientCert(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey, cn string, serial int64) (certFile, keyFile string, cert *x509.Certificate) {
 	t.Helper()
 	dir := t.TempDir()
 	return writeTestClientCertAt(t, ca, caKey, filepath.Join(dir, "tls.crt"), filepath.Join(dir, "tls.key"), cn, serial)
 }
 
-// writeTestClientCertAt issues a fresh cert/key pair signed by ca and writes
-// it to an EXISTING path, standing in for cert-manager rewriting the same
-// file the reloader is already watching.
 func writeTestClientCertAt(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey, certFile, keyFile, cn string, serial int64) (certFileOut, keyFileOut string, cert *x509.Certificate) {
 	t.Helper()
 
@@ -230,8 +198,6 @@ func writeTestClientCertAt(t *testing.T, ca *x509.Certificate, caKey *ecdsa.Priv
 	return certFile, keyFile, cert
 }
 
-// testServerTLSConfig builds a Valkey-stand-in server config that requires
-// and verifies a client certificate against ca, mirroring tls-auth-clients.
 func testServerTLSConfig(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey) *tls.Config {
 	t.Helper()
 
@@ -258,9 +224,6 @@ func testServerTLSConfig(t *testing.T, ca *x509.Certificate, caKey *ecdsa.Privat
 	}
 }
 
-// doTestHandshake runs one real client/server TLS handshake over an in-memory
-// pipe and returns the certificate the server actually received from the
-// client -- the same thing crypto/tls would send over the wire to Valkey.
 func doTestHandshake(t *testing.T, clientConfig, serverConfig *tls.Config) *x509.Certificate {
 	t.Helper()
 

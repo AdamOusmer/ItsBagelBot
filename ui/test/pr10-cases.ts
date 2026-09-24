@@ -1,23 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The nav/footer/shell parity cases: one entry per element that ships both a
-// Svelte and an Astro adapter, with the props each is rendered from.
-//
-// Separate from parity.test.ts because these cases feed TWO readers: the test,
-// which renders both adapters and diffs them against test/__golden__/<name>.html,
-// and the one-shot script that produced those files in the first place. The
-// script is deliberately not in the repo (a golden that regenerates itself
-// proves nothing); this registry is what it was pointed at, and re-pointing a
-// fresh copy of it at the same registry is how a deliberate markup change is
-// re-baselined.
-//
-// The props are chosen to exercise the shapes two adapters actually drift on:
-// an entry that is current, an entry that is locked (a different ELEMENT plus
-// an extra child), a group with children (the collapsing sub-list), a count,
-// and an optional prop left off (does each adapter suppress the attribute, or
-// emit `aria-current="undefined"`).
-
 import SvelteIcon from '../svelte/Icon.svelte';
 import AstroIcon from '../astro/Icon.astro';
 import SvelteBrand from '../svelte/Brand.svelte';
@@ -46,7 +29,6 @@ import SveltePageHead from '../svelte/PageHead.svelte';
 import AstroPageHead from '../astro/PageHead.astro';
 
 export interface ParityCase {
-  /** Also the golden's filename. */
   name: string;
   svelte: unknown;
   astro: unknown;
@@ -214,9 +196,6 @@ export const CASES: ParityCase[] = [
     props: { eyebrow: 'Board', title: 'Commands', description: 'Everything the bot answers to.' },
   },
   {
-    // The compact modifier separately: it is the one prop that only changes a
-    // class on the root, which is exactly the kind of drift a diff of the
-    // rendered markup catches and a type check does not.
     name: 'PageHeadCompact',
     svelte: SveltePageHead,
     astro: AstroPageHead,

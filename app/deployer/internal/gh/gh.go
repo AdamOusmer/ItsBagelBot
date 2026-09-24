@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package gh implements ports.GitHub with go-github, authenticated as the
-// deployer's GitHub App installation (ghinstallation).
 package gh
 
 import (
@@ -21,62 +19,37 @@ import (
 )
 
 const (
-	// apiTimeout caps one REST call. GitHub ends any request it has worked
-	// on for 10 s server side, so 30 s only ever cuts a stalled connection,
-	// never a slow but live answer.
 	apiTimeout = 30 * time.Second
-	// logTimeout caps a job log download, a plain storage read of a few MB
-	// rather than an API call.
 	logTimeout = time.Minute
-	// cacheTTL bounds how stale OpenPRs and Checks may be. The Deploys page
-	// asks for a plan on every load and each open PR costs three calls (PR,
-	// check runs, statuses); 10 s keeps a refresh-happy owner far inside the
-	// installation's 5000 requests an hour while the train's 5 s polls see
-	// an answer at most two polls old.
-	cacheTTL = 10 * time.Second
-	// fanout bounds parallel per-PR and per-blob reads. GitHub's secondary
-	// limit allows 100 concurrent requests; 8 stays far below it while a
-	// 20-PR plan (60 calls, a few seconds sequential at usual API latency)
-	// finishes well inside the 20 s RPC timeout.
-	fanout = 8
+	cacheTTL   = 10 * time.Second
+	fanout     = 8
 )
 
-// Config is the App identity plus the repository settings.
 type Config struct {
 	AppID          int64
 	InstallationID int64
 	PrivateKey     []byte
 	Deploy         ports.Config
-	// Transport is the base transport under the installation token; nil
-	// means http.DefaultTransport.
-	Transport http.RoundTripper
-	// BaseURL is the REST API root; empty means https://api.github.com/.
-	// Tests point it at an httptest server.
-	BaseURL string
+	Transport      http.RoundTripper
+	BaseURL        string
 }
 
-// Client implements ports.GitHub.
 type Client struct {
 	cfg   Config
 	gh    *github.Client
 	owner string
 	repo  string
-	// raw fetches pre-signed log URLs without the installation token.
-	raw *http.Client
-	now func() time.Time
+	raw   *http.Client
+	now   func() time.Time
 
 	openPRs  *ttlCache[ports.Branch, []deploy.PRInfo]
 	checks   *ttlCache[deploy.SHA, ports.CheckSummary]
 	required *ttlCache[ports.Branch, requirement]
-	// blobs is content addressed: a sha names its bytes forever, so entries
-	// never go stale, and the set only grows by the manifests a deploy
-	// changes until the deployer rolls itself at the end of that deploy.
-	blobs sync.Map
+	blobs    sync.Map
 }
 
 var _ ports.GitHub = (*Client)(nil)
 
-// New builds the installation-authenticated client.
 func New(cfg Config) (*Client, error) {
 	base := cfg.Transport
 	if base == nil {
@@ -108,9 +81,6 @@ func New(cfg Config) (*Client, error) {
 	}, nil
 }
 
-// sentinels maps the status codes stages branch on onto the ports
-// sentinels. 405 is GitHub's "not mergeable" and 409 its "head moved" on a
-// merge: both mean the PR must be re-read before trying again.
 var sentinels = map[int]error{
 	http.StatusNotFound:         ports.ErrNotFound,
 	http.StatusMethodNotAllowed: ports.ErrConflict,
@@ -124,8 +94,6 @@ func statusOf(resp *github.Response) int {
 	return resp.StatusCode
 }
 
-// apiErr wraps err with the sentinel for its status. go-github's error
-// already names the method, URL and GitHub's message, so no context is added.
 func apiErr(resp *github.Response, err error) error {
 	if err == nil {
 		return nil
@@ -136,9 +104,6 @@ func apiErr(resp *github.Response, err error) error {
 	return err
 }
 
-// unprocessable maps a 422 to sentinel. GitHub answers 422 for "reference
-// already exists", "reference does not exist" and "a pull request already
-// exists", which mean different things per call site.
 func unprocessable(resp *github.Response, err, sentinel error) error {
 	if statusOf(resp) == http.StatusUnprocessableEntity {
 		return fmt.Errorf("%w: %w", sentinel, err)
@@ -146,8 +111,6 @@ func unprocessable(resp *github.Response, err, sentinel error) error {
 	return apiErr(resp, err)
 }
 
-// found splits a lookup's outcome into absent (404, no error), present, and
-// a real failure.
 func found(resp *github.Response, err error) (bool, error) {
 	if statusOf(resp) == http.StatusNotFound {
 		return false, nil
@@ -155,15 +118,11 @@ func found(resp *github.Response, err error) (bool, error) {
 	return err == nil, apiErr(resp, err)
 }
 
-// accepted reports GitHub's 202 "scheduled in the background", which
-// go-github surfaces as an *AcceptedError.
 func accepted(err error) bool {
 	var a *github.AcceptedError
 	return errors.As(err, &a)
 }
 
-// collect walks every page of a list call. fetch reads list.Page, which
-// collect advances until GitHub stops sending a next page.
 func collect[T any](list *github.ListOptions, fetch func() ([]T, *github.Response, error)) ([]T, error) {
 	var all []T
 	for list.Page = 1; list.Page != 0; {
@@ -185,8 +144,6 @@ func mapAll[S, T any](in []S, f func(S) T) []T {
 	return out
 }
 
-// ttlCache holds values for ttl. Expired entries are dropped on put, so the
-// per-sha check cache never holds more than one TTL window's worth.
 type ttlCache[K comparable, V any] struct {
 	mu    sync.Mutex
 	ttl   time.Duration
@@ -202,9 +159,6 @@ func newCache[K comparable, V any](ttl time.Duration) *ttlCache[K, V] {
 	return &ttlCache[K, V]{ttl: ttl, items: map[K]cached[V]{}}
 }
 
-// load returns the cached value for key, or calls fetch and caches a
-// successful result. Concurrent misses each fetch: a duplicate read is
-// cheaper than a singleflight sharing one caller's cancelled context.
 func (c *ttlCache[K, V]) load(key K, now time.Time, fetch func() (V, error)) (V, error) {
 	if v, ok := c.get(key, now); ok {
 		return v, nil

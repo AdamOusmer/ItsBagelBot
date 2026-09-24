@@ -2,14 +2,6 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The staff inspector, in both of its modes. `creating` swaps the identity
-  // fields in for the identity facts; everything below the fold -- role, console
-  // access, history -- is the same control set, because "add a member" and
-  // "change a member" differ only in whether the id is already known.
-  //
-  // The <form> wraps the fields AND the EditorFooter (the footer's Save is this
-  // form's submit button), and the footer is a sibling after the scroll area so
-  // it never scrolls out of view.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
@@ -44,10 +36,8 @@
     onAccess
   }: {
     draft: StaffDraft;
-    /** The committed row, absent while creating. */
     member: AdminAcct | null;
     creating: boolean;
-    /** Roles this operator may grant, from canManage. */
     roles: readonly AdminRole[];
     canToggleAccess: boolean;
     status: InspectorStatus;
@@ -118,8 +108,6 @@
 
       <section class="block">
         <h3 class="block-label">{t('admin.staff.roleLabel')}</h3>
-        <!-- Named `role`: these are real radio inputs, so the role posts with
-             the form and the editor still works without JS. -->
         <RadioGroup
           name="role"
           options={roleOptions}
@@ -132,11 +120,6 @@
       </section>
 
       {#if member && canToggleAccess}
-        <!-- The roster has no hard delete: "remove" IS deactivate (the users
-             service soft-removes and keeps the audit trail), so access and
-             removal are one control rather than two buttons posting the same
-             action. Turning it off routes through the confirmation the caller
-             raises; turning it back on re-upserts the row at its current role. -->
         <section class="block">
           <h3 class="block-label">{t('admin.staff.activeLabel')}</h3>
           <Switch

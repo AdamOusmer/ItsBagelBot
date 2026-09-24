@@ -5,11 +5,6 @@ package conf
 
 import "testing"
 
-// TestProjectionDefaults pins the subjects each loader answers with when
-// nothing is set, which is the deployed state: no manifest sets any of these.
-// The two loaders must differ in exactly the modules and commands subjects,
-// and the internal projection subjects must be the same bytes in both — that
-// equality is the bug this package was created to make unrepeatable.
 func TestProjectionDefaults(t *testing.T) {
 	internal, viaProjector := LoadProjection(), LoadProjectionViaProjector()
 
@@ -40,7 +35,6 @@ func TestProjectionDefaults(t *testing.T) {
 	}
 }
 
-// TestLaneDefaults pins the lane subjects both pipeline services bind.
 func TestLaneDefaults(t *testing.T) {
 	l := LoadLanes()
 	got := []string{l.PremiumSubject, l.StandardSubject, l.OutgressPremiumSubject, l.OutgressStandardSubject}

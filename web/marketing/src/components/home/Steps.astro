@@ -2,11 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Steps: connect, shape, go live. A vertical rail draws itself as the
- * section reveals; each step carries a mono "receipt" line that decodes on
- * view (shared decode.js). Deliberately small: three beats, no scroll-jack.
- */
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 import LightField from '@bagel/ui/astro/LightField.astro';
 
@@ -100,7 +95,6 @@ const steps = [
         margin: 0;
     }
 
-    /* The rail draws itself once the list reveals */
     .steps__rail {
         position: absolute;
         left: 27px;

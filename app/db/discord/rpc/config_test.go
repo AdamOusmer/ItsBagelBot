@@ -23,8 +23,6 @@ func TestValidateConfigAcceptsUnsetAndWellFormed(t *testing.T) {
 
 func TestValidateConfigNamesTheBadFields(t *testing.T) {
 	bad := validateConfig(ddiscord.Config{
-		// A channel name pasted into an id field: the one mistake the
-		// dashboard can actually make.
 		LiveChannelID:  "#announcements",
 		ModsRoleID:     "12",
 		GoodbyeEnabled: "yes",

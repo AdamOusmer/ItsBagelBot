@@ -11,9 +11,6 @@ import (
 	"time"
 )
 
-// countingBuild returns a build func that records how many times it ran and
-// hands back a distinct *Source per call, so tests can tell a cache reuse from
-// a rebuild without any network.
 func countingBuild(calls *int) func(string) *Source {
 	return func(string) *Source {
 		*calls++
@@ -21,9 +18,6 @@ func countingBuild(calls *int) func(string) *Source {
 	}
 }
 
-// TestGetBuildsOncePerBroadcaster pins the "refresh still works for active
-// broadcasters" criterion: a hot channel builds its Source once and reuses it
-// on every later send, while a distinct channel gets its own Source.
 func TestGetBuildsOncePerBroadcaster(t *testing.T) {
 	var calls int
 	b := NewBroadcasterTokens(countingBuild(&calls))
@@ -45,9 +39,6 @@ func TestGetBuildsOncePerBroadcaster(t *testing.T) {
 	}
 }
 
-// TestGetNilReceiverAndEmptyID guards the early return that lets callers treat a
-// disabled cache and a missing broadcaster id uniformly, returning a nil Source
-// (send as bot / error at send time) rather than panicking.
 func TestGetNilReceiverAndEmptyID(t *testing.T) {
 	var nilCache *BroadcasterTokens
 	if got := nilCache.Get("chan-a"); got != nil {
@@ -60,10 +51,6 @@ func TestGetNilReceiverAndEmptyID(t *testing.T) {
 	}
 }
 
-// TestEvictLockedExpiresIdleEntries covers the TTL half of eviction: an entry
-// untouched past sourceIdleTTL is dropped while one used within the window
-// stays. Driving evictLocked directly keeps this deterministic instead of
-// filling the cache to its cap and sleeping an hour.
 func TestEvictLockedExpiresIdleEntries(t *testing.T) {
 	b := NewBroadcasterTokens(countingBuild(new(int)))
 	now := time.Now()
@@ -85,9 +72,6 @@ func TestEvictLockedExpiresIdleEntries(t *testing.T) {
 	}
 }
 
-// TestGetEvictsIdleEntryAtCapacity pins the bounded-resident-set criterion:
-// inserting a new broadcaster into a full cache must not grow it past the cap,
-// and an entry idle past its TTL is the one released.
 func TestGetEvictsIdleEntryAtCapacity(t *testing.T) {
 	b := NewBroadcasterTokens(countingBuild(new(int)))
 	for i := range maxBroadcasterSources {
@@ -96,7 +80,6 @@ func TestGetEvictsIdleEntryAtCapacity(t *testing.T) {
 	if len(b.cache) != maxBroadcasterSources {
 		t.Fatalf("cache filled to %d, want %d", len(b.cache), maxBroadcasterSources)
 	}
-	// Mark "0" idle so the TTL sweep, not the LRU fallback, selects it.
 	b.cache["0"].lastUsed = time.Now().Add(-sourceIdleTTL - time.Minute)
 
 	b.Get("overflow")
@@ -112,15 +95,11 @@ func TestGetEvictsIdleEntryAtCapacity(t *testing.T) {
 	}
 }
 
-// TestGetEvictsLeastRecentlyUsedWhenNoneIdle covers the LRU fallback: with the
-// cache full and every entry still inside its TTL, the insert cannot exceed the
-// cap, so the least recently used entry is dropped instead.
 func TestGetEvictsLeastRecentlyUsedWhenNoneIdle(t *testing.T) {
 	b := NewBroadcasterTokens(countingBuild(new(int)))
 	for i := range maxBroadcasterSources {
 		b.Get(strconv.Itoa(i))
 	}
-	// Every entry is fresh; make "7" strictly the oldest without crossing TTL.
 	const lru = "7"
 	b.cache[lru].lastUsed = time.Now().Add(-time.Minute)
 
@@ -137,9 +116,6 @@ func TestGetEvictsLeastRecentlyUsedWhenNoneIdle(t *testing.T) {
 	}
 }
 
-// nearExpirySource builds a Source whose cached token is within
-// refreshMargin of expiry -- i.e. due for renewal -- with refresh wired to
-// fn so tests can observe whether a sweep actually called it.
 func nearExpirySource(fn func(context.Context) (string, time.Duration, error)) *Source {
 	s := &Source{refresh: fn}
 	s.mu.Lock()
@@ -149,13 +125,6 @@ func nearExpirySource(fn func(context.Context) (string, time.Duration, error)) *
 	return s
 }
 
-// TestSweepOnceRefreshesOrSkipsSource covers both ends of sweepOnce's
-// per-entry decision from one shared scaffold: a near-expiry source in the
-// cache (the reason this sweep exists -- it gets renewed through the same
-// refreshIfDue path token.go's per-Source background refresher uses) versus
-// one evicted from the cache before the sweep runs (which sweepOnce must
-// never touch again -- see StartRefreshSweep's "eviction is free" doc,
-// which depends on a single ticker rather than one per Source).
 func TestSweepOnceRefreshesOrSkipsSource(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -192,9 +161,6 @@ func TestSweepOnceRefreshesOrSkipsSource(t *testing.T) {
 	}
 }
 
-// TestSweepOnceLeavesHealthySourceAlone covers the flip side: a source whose
-// token is nowhere near expiry must not trigger a refresh call, or the sweep
-// would mint far more often than refreshMargin ever requires.
 func TestSweepOnceLeavesHealthySourceAlone(t *testing.T) {
 	var calls int32
 	b := NewBroadcasterTokens(func(string) *Source {
@@ -217,9 +183,6 @@ func TestSweepOnceLeavesHealthySourceAlone(t *testing.T) {
 	}
 }
 
-// TestSweepOnceDoesNotExtendLastUsed guards against a sweep quietly
-// defeating sourceIdleTTL: if sweeping counted as use, an otherwise-idle
-// broadcaster would never go idle long enough to be evicted.
 func TestSweepOnceDoesNotExtendLastUsed(t *testing.T) {
 	b := NewBroadcasterTokens(func(string) *Source {
 		return nearExpirySource(func(context.Context) (string, time.Duration, error) {
@@ -237,13 +200,6 @@ func TestSweepOnceDoesNotExtendLastUsed(t *testing.T) {
 	}
 }
 
-// TestSweepOnceDoesNotHoldLockDuringRefresh is the correctness property the
-// whole design turns on: sweepOnce must release b.mu before running any
-// refresh, because refresh performs NATS RPC and HTTP I/O and Get (which
-// also takes b.mu) sits on the send path of every broadcaster-identity
-// message the process handles. The fake refresh here calls b.Get from
-// inside the refresh call itself; if sweepOnce still held the lock at that
-// point, this would deadlock (b.mu is not reentrant) instead of returning.
 func TestSweepOnceDoesNotHoldLockDuringRefresh(t *testing.T) {
 	var b *BroadcasterTokens
 	b = NewBroadcasterTokens(func(string) *Source {
@@ -267,9 +223,6 @@ func TestSweepOnceDoesNotHoldLockDuringRefresh(t *testing.T) {
 	}
 }
 
-// mintingSource builds a Source with no cached token and a refresh that
-// always succeeds, so a test can seed whatever cached state it wants on top
-// and then count how many times the sweep actually reached the wire.
 func mintingSource(calls *int32) *Source {
 	return &Source{refresh: func(context.Context) (string, time.Duration, error) {
 		atomic.AddInt32(calls, 1)
@@ -277,22 +230,8 @@ func mintingSource(calls *int32) *Source {
 	}}
 }
 
-// sweepPassesUnderTest is more than one on purpose: the states this test
-// asserts are skipped are exactly the states that used to be due forever, so
-// a single pass would not tell a skip apart from a coincidence.
 const sweepPassesUnderTest = 3
 
-// TestSweepRefreshesOnlyLiveTokens pins the rule in Source.refreshable
-// (token.go), where the New Relic finding behind it is written up: the sweep
-// renews a live token before it expires and does nothing else. A broadcaster
-// whose grant was revoked or never given has no token, and one whose token
-// already lapsed is no cheaper to renew than to mint, so both are left to
-// the lazy paths (Source.Token, from a real send or from the go-live warm in
-// internal/worker/tokenwarm.go) rather than retried on a schedule.
-//
-// Multi-pass counterpart to TestSweepOnceRefreshesOrSkipsSource above, which
-// covers the same near-expiry renewal for a single pass alongside the
-// evicted-entry case.
 func TestSweepRefreshesOnlyLiveTokens(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -326,10 +265,7 @@ func TestSweepRefreshesOnlyLiveTokens(t *testing.T) {
 	}
 }
 
-// itself, with the cache nowhere near its cap.
 func TestSweepTickEvictsIdleSourceBelowCap(t *testing.T) {
-	// A real refresh func, unlike countingBuild's bare &Source{}, so this
-	// tick exercises the same sources a production tick would sweep.
 	b := NewBroadcasterTokens(func(string) *Source { return mintingSource(new(int32)) })
 	b.Get("idle")
 	b.Get("active")

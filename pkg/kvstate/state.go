@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package kvstate provides bounded, revision-fenced updates on JetStream KV.
 package kvstate
 
 import (
@@ -42,8 +41,7 @@ func Read(ctx context.Context, store Store, key string) (Value, error) {
 	return Value{entry.Value(), entry.Revision(), entry.Created()}, nil
 }
 
-// Change may invoke edit more than once. Only a confirmed CAS succeeds; a
-// timeout is ambiguous and must never authorize an external side effect.
+// edit may run more than once; a timeout is ambiguous and must never authorize a side effect.
 func Change(ctx context.Context, store Store, key string, edit func(Value) ([]byte, error)) (uint64, error) {
 	for range 16 {
 		old, err := Read(ctx, store, key)

@@ -2,12 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Regenerate lib/i18n/keys.d.ts from the English catalog. Run after adding or
-// renaming keys in locales/en.json:
-//   bun scripts/gen-i18n-keys.mjs   (or: bun run i18n:keys)
-//
-// fs-only, no app imports. The output is a committed source file, NOT a build
-// step: it exists purely to give editors autocomplete + typo hints on t() keys.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -16,7 +10,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const EN = join(here, '../lib/i18n/locales/en.json');
 const OUT = join(here, '../lib/i18n/keys.d.ts');
 
-// Depth-first collect of every leaf dot-path (string or string[] leaf).
 function leafPaths(tree, prefix, out) {
   for (const [key, value] of Object.entries(tree)) {
     const path = prefix ? `${prefix}.${key}` : key;

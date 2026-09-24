@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Mirror of internal/domain/rpc/deploy/deploy.go. Field names are the JSON
-// tags verbatim; keep the two files in step (optional here = omitempty there).
-
 export const DEPLOY_PREFIX = 'bagel.rpc.admin.deploy';
 export const DEPLOY_EVENTS_PREFIX = 'bagel.deploy.events';
 export const DEPLOY_KEEP_RUNS = 50;
@@ -37,7 +34,6 @@ export const STAGE_IDS = [
 ] as const;
 export type StageId = (typeof STAGE_IDS)[number];
 
-/** Same table as deploy.StagesFor. */
 export const STAGES_FOR: Record<RunKind, readonly StageId[]> = {
   release: ['preflight', 'merge_prs', 'changelog', 'tag', 'release', 'build', 'digests', 'pin_pr', 'acl', 'rollout', 'verify'],
   hotfix: ['preflight', 'merge_prs', 'changelog', 'tag', 'release', 'build', 'digests', 'pin_pr', 'acl', 'rollout', 'verify'],
@@ -137,7 +133,6 @@ export type DeployOutputs = {
 
 export type DeployActor = { id: string; login: string };
 
-/** Locale-keyed; `en` is required. The deployer adds tag, version, github. */
 export type ChangelogEntry = {
   title: Record<string, string>;
   highlights: Record<string, string[]>;
@@ -235,7 +230,6 @@ export type RunRequest = { actor_id: string; run_id: string; stage?: StageId; re
 
 export type ListRequest = { actor_id: string; limit?: number };
 
-/** rpc.Refusal, embedded flat in every reply. */
 export type Refusal = { error?: string; code?: string };
 
 export type PlanReply = Refusal & { plan?: DeployPlan };

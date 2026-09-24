@@ -15,8 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// SubscribeBilling exposes the narrow private write surface used by the
-// transactions service after it has verified a Tebex webhook signature.
 func SubscribeBilling(w Wiring, subject, invalidationPrefix string) error {
 	nc, repo, log := w.NC, w.Repo, w.Log
 	return bus.Serve(w.Within(billingBudget), subject,

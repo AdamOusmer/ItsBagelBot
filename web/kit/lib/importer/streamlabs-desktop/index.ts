@@ -1,14 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Public surface of the StreamLabs Desktop Chatbot.db importer plus the
-// orchestration that mirrors streamlabsdesktop.go: validate the file, walk
-// the feature tables, assemble the manifest and diagnostics.
-//
-// Layout mirrors the Go original: ./dbfile is dbfile.go (open/staging),
-// ./parameters is parameters.go ($params + permissions), ./extract is
-// extract.go (table readers).
-
 import type { Database } from 'sql.js';
 import type { ImportDiagnostic, ImportManifest } from '../types';
 import { isEmptyStats, stats as statsOf } from '../validate';
@@ -38,12 +30,6 @@ export interface ParseResult {
   diagnostics: ImportDiagnostic[];
 }
 
-// parseStreamLabsDesktop translates the Chatbot.db into a manifest plus
-// diagnostics. A broken database (wrong magic, unreadable pages) throws: the
-// caller wraps that as parse_failed; anything less fatal becomes a diagnostic
-// so the healthy items still import. Items are sorted by normalized name
-// before indexing so both manifest order and diagnostic indexes stay stable
-// across runs on identical bytes (previews re-run; golden tests pin this).
 export async function parseStreamLabsDesktop(raw: Uint8Array): Promise<ParseResult> {
   if (!hasSQLiteMagic(raw)) {
     throw new StreamLabsDesktopError(
@@ -79,13 +65,10 @@ function parseDatabase(db: Database): ParseResult {
   return { manifest, diagnostics: diags };
 }
 
-// detectStreamLabsDesktop reports whether raw looks like a Chatbot.db: the
-// SQLite magic header plus at least one expected feature table actually
-// present. Opening the staged bytes keeps Detect side-effect free.
+const MIN_SQLITE_PAGE_BYTES = 4096;
+
 export async function detectStreamLabsDesktop(raw: Uint8Array): Promise<boolean> {
-  // Below one SQLite page (4096 bytes) no feature table can exist, so skip
-  // the open entirely.
-  if (!hasSQLiteMagic(raw) || raw.length < 4096) return false;
+  if (!hasSQLiteMagic(raw) || raw.length < MIN_SQLITE_PAGE_BYTES) return false;
 
   let db: Database;
   try {
@@ -108,8 +91,6 @@ export async function detectStreamLabsDesktop(raw: Uint8Array): Promise<boolean>
   }
 }
 
-// fetchStreamLabsDesktop mirrors the Go Fetch: SLCB has no API fetch, the
-// uploaded file IS the config. cred is meaningless here.
 export function fetchStreamLabsDesktop(file: Uint8Array): Uint8Array {
   if (file.length === 0) {
     throw new StreamLabsDesktopError(
@@ -119,8 +100,6 @@ export function fetchStreamLabsDesktop(file: Uint8Array): Uint8Array {
   return file;
 }
 
-// Re-exports: the parser's public API, unchanged for every existing import
-// specifier (@bagel/kit/importer/streamlabs-desktop and ./streamlabsdesktop).
 export { DEFAULT_TIMER_INTERVAL_SECONDS, parseQuoteDate } from './extract';
 export { mapPermissionSLCB, translateVariables } from './parameters';
 export { StreamLabsDesktopError } from './dbfile';

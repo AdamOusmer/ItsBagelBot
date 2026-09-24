@@ -11,15 +11,11 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// step is one row of a stage: a preflight check, an apply, a service roll.
 type step struct {
 	key   string
 	label string
 	run   func(context.Context) error
-	// last is the latest row run reported itself (a service's pod counts and
-	// node dots). The final row starts from it so the dots stay on the page
-	// once the service settles. Nil for a step that reports nothing.
-	last *deploy.Item
+	last  *deploy.Item
 }
 
 func (s step) row(state deploy.StageState, detail string) deploy.Item {
@@ -33,17 +29,12 @@ func (s step) row(state deploy.StageState, detail string) deploy.Item {
 
 func (s step) result(err error) deploy.Item { return s.row(stateOf(err), detailOf(err)) }
 
-// skip is a step that does not apply to this run, carrying the reason its
-// row shows. runSteps moves past it.
 type skip string
 
 func (s skip) Error() string { return string(s) }
 
 func (skip) Is(target error) bool { return target == stage.ErrSkipped }
 
-// runSteps runs steps in order, one row each, stopping at the first error.
-// Cancel is honoured between steps, never inside one: a step is the unit it
-// is safe to stop after (a check answered, a service fully available).
 func runSteps(ctx context.Context, rc *stage.RunCtx, steps []step) error {
 	rows := make([]deploy.Item, len(steps))
 	for i, s := range steps {

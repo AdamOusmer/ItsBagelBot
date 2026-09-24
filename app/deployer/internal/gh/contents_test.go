@@ -54,8 +54,6 @@ func TestFile(t *testing.T) {
 	}
 }
 
-// treeRoutes serve deploy/k8s at ref pin1: two manifests, one nested, and a
-// subdirectory entry that carries no bytes.
 func treeRoutes(tree string) routes {
 	return routes{
 		"GET /repos/o/r/contents/deploy": reply(http.StatusOK, `[
@@ -83,8 +81,6 @@ func TestTree(t *testing.T) {
 		"deploy/k8s/gossip.yaml":  []byte("kind: Deployment\n"),
 		"deploy/k8s/sub/svc.yaml": []byte("kind: Service\n"),
 	}, files)
-	// Blobs are content addressed, so the second read re-lists but never
-	// re-downloads: 4 calls, then 2 more.
 	assert.Equal(t, []int{4, 6}, calls)
 }
 

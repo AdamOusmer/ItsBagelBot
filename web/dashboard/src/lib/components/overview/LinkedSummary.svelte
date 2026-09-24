@@ -1,15 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // At-a-glance summary. Every item is a REAL link whose label spells out both the
-  // number and where it goes ("Manage 8 active commands"), so a screen-reader user
-  // hears the count and the destination in one breath, no non-interactive tiles
-  // dressed up to look clickable.
-  //
-  // Honesty: a digest whose read failed reports its count as 0, which is
-  // indistinguishable from an empty account. Rather than claim "Add your first
-  // command" during an outage, a failed read falls back to a neutral "manage"
-  // label that makes no count claim; the linked page shows the real state.
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
@@ -106,8 +97,6 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
-  /* Reshape the shared pill link into a full-width summary row: left-aligned,
-     roomy tap target, count-bearing label that wraps instead of truncating. */
   .ov-summary__grid :global(.ov-summary__link) {
     width: 100%;
     min-height: 56px;

@@ -1,22 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Scheduling priority for first-party workloads.
-#
-# Until this existed every pod this fleet runs sat at priority 0 — the same
-# rank as New Relic's agents, Falco, cert-manager and cloudflared. Under node
-# pressure the kubelet's eviction ranking and the scheduler's preemption logic
-# had no way to tell "the thing that answers Twitch chat" from "the thing that
-# ships metrics about it", and a burst of telemetry could win a scheduling race
-# against the data plane.
-#
-# Values are chosen to sit ABOVE every unclassed third-party workload (0) and
-# BELOW the two built-in system classes, which must keep outranking everything:
-#   system-node-critical     2000001000   (cilium, kube-proxy)
-#   system-cluster-critical  2000000000   (coredns)
-# Losing CNI or DNS takes the whole node down, so first-party services must
-# never preempt them. There is deliberately no globalDefault: a pod with no
-# class stays at 0, which is the correct rank for third-party tooling.
+# Must stay below system-node/cluster-critical: first-party pods must never preempt them.
 ---
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass

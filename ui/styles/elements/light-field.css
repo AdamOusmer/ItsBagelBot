@@ -1,30 +1,9 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
-/* The mote field contract: one canvas the engine (@bagel/ui/lib/light-field)
-   paints into. Both adapters emit
-
-     <canvas class="bb-light-field" data-warmth="0.7" aria-hidden="true">
-
-   These rules were the identical scoped <style> block in three places —
-   web/kit/components/LightField.svelte, marketing's HomeLightField.astro and
-   PageHero.astro's `.phero__field`. Identical except for the one thing the
-   full-bleed modifier below now carries, which is the only reason there were
-   three. */
-
 @layer bb.elements {
-    /* Fills its positioned ancestor and paints behind it. `z-index: -1` rather
-       than `0` puts the field under sibling decoration layers (glows, rings,
-       orbs) without reordering anyone's markup — every host that draws one has
-       other absolutely-positioned children and they all predate this. */
     .bb-light-field {
         position: absolute;
         inset: 0;
@@ -35,11 +14,6 @@
         pointer-events: none;
     }
 
-    /* Full-bleed variant: the field escapes a max-width container and spans the
-       viewport. Was HomeLightField.astro's whole reason to exist as a separate
-       component — the home sections are width-constrained but their motes are
-       not, because a starfield that stops at the content gutter reads as a
-       rectangle of stars rather than as depth. */
     .bb-light-field--bleed {
         top: 0;
         bottom: 0;
@@ -49,10 +23,6 @@
         transform: translateX(-50%);
     }
 
-    /* The engine already declines to start under reduced motion (field()
-       returns null), which leaves a blank canvas occupying layout. Hiding it
-       is not redundant: a 100vw canvas that paints nothing still costs a
-       compositing layer on every scroll. */
     @media (prefers-reduced-motion: reduce) {
         .bb-light-field {
             display: none;

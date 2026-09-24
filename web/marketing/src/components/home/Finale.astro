@@ -2,10 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Finale: the door out. Hearth glow, a staggered title, one magnetic CTA,
- * and an honesty line instead of urgency theatrics.
- */
 import Button from '@bagel/ui/astro/Button.astro';
 import { getLangFromUrl, useTranslations, localizePath, dashLoginHref } from '../../i18n/ui';
 
@@ -19,10 +15,6 @@ const titleWords = t('finale.title').split(' ');
     <div class="finale__inner">
         <span class="finale__eyebrow" data-reveal>{t('finale.eyebrow')}</span>
         <h2 class="finale__title" aria-label={titleWords.join(' ')}>
-            {/* The space expression keeps word boundaries in the extracted
-                text (compressHTML strips template whitespace between the
-                spans); flex ignores whitespace-only nodes, so the visual
-                column-gap layout is unchanged. */}
             {titleWords.map((word, i) => (
                 <Fragment><span class="finale__word" aria-hidden="true" data-reveal style={`--reveal-i: ${i + 1}`}>{word}</span>{i < titleWords.length - 1 ? ' ' : ''}</Fragment>
             ))}

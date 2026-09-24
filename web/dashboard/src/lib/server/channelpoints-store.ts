@@ -1,22 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Channel-points store: bridges the two homes of a reward.
-//
-//   - The Twitch custom reward itself is owned by outgress and mutated
-//     synchronously over NATS RPC under the broadcaster's own token
-//     (bagel.rpc.outgress.channelpoints.*). Only rewards our client id created
-//     are manageable, so the dashboard is the create surface.
-//   - The reward -> bot-action binding is stored in the hidden "channelpoints"
-//     module blob (the same modules service every other feature uses) and read
-//     by sesame's channelpoints module.
-//
-// The blob is the source of truth for what the tab renders (one fast read, no
-// Twitch round trip per page load); Twitch is the source of truth for the
-// reward's existence. Every mutation goes to Twitch first (where it must
-// succeed) and then rewrites the blob, so the two never diverge on a failed
-// call. After a create/enable we also fire an ensure-optional EventSub job so
-// the channel starts receiving redemption events.
+// Twitch first, then the binding blob, so the two never diverge on a failed call.
 import { rpcRefusal, rpcReply } from '@bagel/kit/server/nats';
 import { codeReader } from '@bagel/kit/server/rpc-code';
 import { logger } from '@bagel/kit/server/logger';
@@ -28,7 +13,6 @@ import { createCounter } from './loyalty-store';
 
 const CP_MODULE = MOD.channelpoints;
 
-// RewardWire is the snake_case mirror of the Go manage.Reward RPC contract.
 interface RewardWire {
   id?: string;
   title: string;
@@ -55,11 +39,6 @@ interface RewardReplyWire {
   code?: string;
 }
 
-// A rewards write can fail three ways the UI must tell apart: a plain failure
-// (shown as an error toast), a missing-scope rejection (shown as a reconnect
-// CTA, because the broadcaster's grant predates the redemption scope) and a
-// duplicate title (Twitch keeps titles unique per channel, counting rewards
-// made outside the bot, so the broadcaster must rename rather than retry).
 export type RewardResult =
   | { ok: true; reward?: ChannelPointReward }
   | { ok: false; missingScope?: boolean; duplicateTitle?: boolean; error?: string };
@@ -83,9 +62,7 @@ function toWire(r: ChannelPointReward): RewardWire {
     is_enabled: r.isEnabled,
     is_paused: r.isPaused,
     is_user_input_required: r.isUserInputRequired,
-    // Our rewards always ride Twitch's request queue so the bot can resolve
-    // (fulfill/cancel) them and the redemption.add event carries them as
-    // UNFULFILLED. A skipped-queue redemption cannot be updated.
+      // Always queued: a skipped-queue redemption can never be fulfilled or refunded.
     should_skip_queue: false,
     max_per_stream_enabled: r.maxPerStreamEnabled,
     max_per_stream: r.maxPerStream,
@@ -96,8 +73,6 @@ function toWire(r: ChannelPointReward): RewardWire {
   };
 }
 
-// mergeTwitch takes the Twitch-normalized reward outgress echoed back and keeps
-// the local action binding from the draft (Twitch knows nothing about it).
 function mergeTwitch(tw: RewardWire, local: ChannelPointReward): ChannelPointReward {
   return {
     id: tw.id ?? local.id,
@@ -124,11 +99,6 @@ function mergeTwitch(tw: RewardWire, local: ChannelPointReward): ChannelPointRew
   };
 }
 
-// ensureRewardCounter creates the reward's bound counter with the chosen scope
-// if it doesn't exist yet, so a broadcaster can make the counter straight from
-// the reward editor. Best-effort: the reward binding is the authoritative save,
-// so a loyalty-service blip (or the service not yet deployed) must not fail the
-// reward write. Create is idempotent: an existing counter keeps its scope.
 async function ensureRewardCounter(userId: string, reward: ChannelPointReward): Promise<void> {
   if (!reward.counter) return;
   try {
@@ -138,7 +108,6 @@ async function ensureRewardCounter(userId: string, reward: ChannelPointReward): 
   }
 }
 
-// readRewards loads the current bindings blob (enable flag + reward records).
 export async function readRewards(userId: string): Promise<RewardsView> {
   const { enabled, configs } = await readModuleBlob<{ rewards?: ChannelPointReward[] }>(userId, CP_MODULE);
   return { enabled, rewards: Array.isArray(configs.rewards) ? configs.rewards : [] };
@@ -148,18 +117,10 @@ async function writeRewards(userId: string, enabled: boolean, rewards: ChannelPo
   await upsertModule(userId, CP_MODULE, enabled, rewards.length ? { rewards } : {});
 }
 
-// rpcReply, not rpc: rpc() throws on any reply carrying `error`, which made the
-// missing_scope branch below dead and turned a duplicate title into the generic
-// "Could not update" line (greenwhaleshark retried one title six times on
-// 2026-09-23 without learning why).
 async function callReward(verb: string, req: Record<string, unknown>): Promise<RewardReplyWire> {
   return rpcReply<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, req, 8000);
 }
 
-// refusal splits a refused reply. Missing scope and a duplicate title are
-// reasons the broadcaster acts on, so they come back as results the page
-// renders; anything else throws as rpc() would, so moduleAction logs it and
-// answers its generic line.
 function refusal(reply: RewardReplyWire): RewardFailure | null {
   if (reply.missing_scope) return { ok: false, missingScope: true };
   if (replyCode(reply) === 'conflict') return { ok: false, duplicateTitle: true };
@@ -176,8 +137,6 @@ export async function createReward(userId: string, draft: ChannelPointReward): P
 
   const created = mergeTwitch(reply.reward, draft);
   const cur = await readRewards(userId);
-  // Adding the first reward turns the module on so redemptions are acted on;
-  // later adds preserve whatever enable state the broadcaster set.
   const enabled = cur.rewards.length === 0 ? true : cur.enabled;
   await writeRewards(userId, enabled, [...cur.rewards, created]);
   await ensureRewardCounter(userId, created);
@@ -209,8 +168,6 @@ export async function deleteReward(userId: string, rewardId: string): Promise<Re
   return { ok: true };
 }
 
-// setEnabled flips the whole module on/off (whether sesame acts on redemptions
-// at all) without touching the rewards themselves.
 export async function setChannelPointsEnabled(userId: string, enabled: boolean): Promise<void> {
   await setModuleEnabled(userId, CP_MODULE, enabled);
 }

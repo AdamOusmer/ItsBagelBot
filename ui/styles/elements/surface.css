@@ -1,55 +1,7 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* `.bb-surface` — the master-detail inspector shell, in its two forms.
-
-   ONE ELEMENT, TWO FORMS, and the split is a viewport question rather than a
-   caller's choice: on a wide screen the inspector is an in-flow panel docked
-   beside the list (`--docked`); below 1080px it becomes a modal bottom sheet
-   that portals to <body>, traps focus, makes the page inert and dismisses on
-   scrim or Escape (`--sheet`, inside `.bb-sheet-shell`). Every route's
-   inspector behaves identically because there is one element rather than each
-   page re-styling an <aside>.
-
-   1080px is where the docked panel stops fitting beside the deck without the
-   deck's rows truncating — measured against the widest row (the commands
-   deck), not chosen as a round number.
-
-   THE SHEET IS NOT A CARD. The docked form is: it sits in flow next to the
-   deck's cards, so it takes the same warm ink, tan hairline and 8px radius.
-   The sheet floats over a scrim on the page ink, where the card's warm plate
-   and corner atmosphere read as a second panel showing through the first, so
-   it takes `--bb-bg-1` and a plain hairline instead.
-
-   The docked form COMPOSES the card rather than restating it: the adapter
-   emits `bb-card` alongside `bb-surface--docked`, card.css owns the plate, and
-   what stays below is only what a docked panel disagrees with a card about
-   (sticky box, no padding of its own -- the head and body carry theirs). The
-   three declarations that used to stand here were a hand-copy of Card.svelte's
-   `.card`, made when the card contract still lived in the console; their own
-   note said to replace them with `.bb-card` on the re-stack, and this is it.
-   The sheet does NOT take `bb-card`, for the reason in the paragraph above.
-
-   `top: 62px` is the topbar's height, so the docked panel's sticky box starts
-   under the topbar and ends above the dock. The dock's share comes from the
-   shell as `--bb-dock-clearance`: 108px while the dock is the navigation, 0
-   once the rail replaces it (shell.css sets both in the block that hides the
-   dock). Subtracting a literal 108px on railed desktop left a blank band
-   under the sticky rehearsal, and because the panel is sticky the band sat
-   in the viewport, not below the fold; a second copy of the shell's
-   breakpoint here would only have moved that drift to the next change. The
-   topbar height is still a literal: the shell contract does not name one,
-   the topbar is a sticky element whose height is its content's, and minting
-   `--bb-topbar-h` here would be this file guessing a number for another
-   element. When shell.css publishes one, this becomes it. */
 
 @layer bb.elements {
   .bb-surface {
@@ -62,15 +14,11 @@
   }
 
   .bb-surface--docked {
-    /* The head and the body own their padding; the plate contributes none. */
     --card-pad: 0;
 
     position: sticky;
     top: 62px;
     max-height: calc(100dvh - 62px - var(--bb-dock-clearance, 108px));
-    /* Same reason as `.bb-shell`: an opening field inside this panel must
-       not drag the document (and the sticky rail) up to keep the click
-       anchored. */
     overflow-anchor: none;
   }
 
@@ -84,11 +32,6 @@
     flex: none;
   }
 
-  /* Was a display-700 heading run; now the shared `.bb-tag--bare` label. The
-     title interpolates user-typed names (a reward title, a counter name), so
-     the tag's uppercase is turned off here rather than rewriting their casing.
-     The ellipsis clipping has to live on the element rather than in tags.css:
-     `--bare` sets `overflow: visible`. */
   .bb-surface__tag {
     min-width: 0;
     overflow: hidden;
@@ -163,10 +106,6 @@
     to { transform: translateY(0); }
   }
 
-  /* The sheet's entrance is the one animation in this file that a11y.css's
-     global duration collapse cannot fix on its own: it runs `both`, so a
-     zero-duration run would leave the sheet parked at its `from` keyframe
-     (off-screen). Turned off outright instead. */
   @media (prefers-reduced-motion: reduce) {
     .bb-surface--sheet {
       animation: none;

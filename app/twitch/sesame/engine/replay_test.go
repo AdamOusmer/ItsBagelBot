@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// chatEvent is chatMsg with separate EventSub delivery and Twitch chat IDs.
 func chatEvent(t *testing.T, laneName, text, eventID string) *bus.Message {
 	t.Helper()
 	body, err := codec.Marshal(map[string]any{
@@ -37,7 +36,7 @@ func TestReplayUsesSameOutputID(t *testing.T) {
 	require.NoError(t, p.Process(chatEvent(t, "standard", "hi", "event-1")))
 	require.NoError(t, p.Process(chatEvent(t, "standard", "hi", "event-1")))
 
-	require.Len(t, pub.got, 2) // the broker, not the engine, folds the replay
+	require.Len(t, pub.got, 2)
 	require.NotEmpty(t, pub.got[0].id)
 	assert.Equal(t, pub.got[0].id, pub.got[1].id)
 }

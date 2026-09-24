@@ -40,8 +40,6 @@ func TestAtomicFallbackRequiresExplicitBrokerRejection(t *testing.T) {
 }
 
 func TestAtomicFallbackDoesNotReplayAmbiguousFailure(t *testing.T) {
-	// A worker with no connection state proves the ambiguous path never reaches
-	// the re-publish machinery.
 	worker := &publishBatchWorker{}
 	want := errors.New("nats: connection closed")
 	if err := worker.atomicFallback(stagedBatch(3), want); !errors.Is(err, want) {
@@ -59,9 +57,6 @@ func TestAtomicPublisherRejectsOversizeCohortClientSide(t *testing.T) {
 	}
 }
 
-// Orbit's commit is a publish: the cohort's last message rides CommitMsg. The
-// worker therefore stages exactly the first N-1 messages, in order, and the
-// commit carries the last one.
 func TestAtomicCohortStagesEveryMessageButTheCommitPayload(t *testing.T) {
 	publisher := &stubAtomicPublisher{}
 	worker := newOverlapWorker(func() (atomicCohortPublisher, error) { return publisher, nil })
@@ -84,9 +79,6 @@ func TestAtomicCohortStagesEveryMessageButTheCommitPayload(t *testing.T) {
 	}
 }
 
-// The overlap's whole point is that a cohort no longer waits behind an older
-// cohort's commit ack. Each cohort resolves on its own commit, and its confirmed
-// callers hear about that commit and no other.
 func TestAtomicOverlapResolvesEachCohortOnItsOwnCommit(t *testing.T) {
 	slow, opened := make(chan struct{}), 0
 	worker := newOverlapWorker(func() (atomicCohortPublisher, error) {
@@ -118,9 +110,6 @@ func TestAtomicOverlapResolvesEachCohortOnItsOwnCommit(t *testing.T) {
 	}
 }
 
-// The overlap moves the ack wait, never the at-most-once rule: an ambiguous
-// commit failure fails the cohort where it stands. The worker has no JetStream
-// context that can publish, so a replay would be visible as a refused send.
 func TestAtomicOverlapDoesNotReplayAnAmbiguousCommitFailure(t *testing.T) {
 	want := errors.New("nats: connection closed")
 	replay := &stubJetStream{err: errors.New("the per-message wire must not be used")}
@@ -139,9 +128,6 @@ func TestAtomicOverlapDoesNotReplayAnAmbiguousCommitFailure(t *testing.T) {
 	}
 }
 
-// A typed broker rejection is the one commit failure that proves nothing was
-// stored, and the replay it authorises belongs to the goroutine that resolved
-// the cohort, not to the worker.
 func TestAtomicOverlapReplaysADefiniteBrokerRejection(t *testing.T) {
 	rejected := &jsapi.APIError{Code: 400, ErrorCode: 10174, Description: "batch publish not enabled"}
 	replay := &stubJetStream{err: errors.New("per-message wire refused")}
@@ -164,8 +150,6 @@ func TestAtomicOverlapReplaysADefiniteBrokerRejection(t *testing.T) {
 	}
 }
 
-// A cohort Orbit refuses to stage never reaches a commit, so its verdict is
-// settled by the same rules on the same goroutine.
 func TestAtomicOverlapResolvesAStagingFailureWithoutCommitting(t *testing.T) {
 	want := errors.New("nats: connection closed")
 	publisher := &stubAtomicPublisher{addErr: want}
@@ -185,9 +169,6 @@ func TestAtomicOverlapResolvesAStagingFailureWithoutCommitting(t *testing.T) {
 	}
 }
 
-// The slots are the client's share of the broker's cap on concurrently staged
-// batches per stream, so a worker must stall on staging rather than open a fifth
-// batch.
 func TestAtomicOverlapSlotsBoundTheCommitDepth(t *testing.T) {
 	release, started := make(chan struct{}), make(chan struct{}, 8)
 	worker := newOverlapWorker(func() (atomicCohortPublisher, error) {
@@ -218,8 +199,6 @@ func TestAtomicOverlapSlotsBoundTheCommitDepth(t *testing.T) {
 	worker.acks.Wait()
 }
 
-// Stopping the worker must not abandon a cohort whose commit is still out: its
-// callers are waiting on that verdict and the connection is about to drain.
 func TestAtomicOverlapDrainsInFlightCommitsOnStop(t *testing.T) {
 	release, started := make(chan struct{}), make(chan struct{}, 4)
 	worker := newOverlapWorker(func() (atomicCohortPublisher, error) {
@@ -245,9 +224,6 @@ func TestAtomicOverlapDrainsInFlightCommitsOnStop(t *testing.T) {
 	requireCohortConfirmed(t, batch, "a drained cohort")
 }
 
-// With the overlap off the commit stays on the calling goroutine, which is what
-// keeps whole cohorts in stream order: the broker sequences an atomic batch at
-// commit, not on arrival.
 func TestAtomicCohortWithoutOverlapCommitsOnTheWorker(t *testing.T) {
 	publisher := &stubAtomicPublisher{}
 	worker := newOverlapWorker(func() (atomicCohortPublisher, error) { return publisher, nil })
@@ -264,8 +240,6 @@ func TestAtomicCohortWithoutOverlapCommitsOnTheWorker(t *testing.T) {
 	}
 }
 
-// requireCohortConfirmed states that every caller of a committed cohort got a
-// nil verdict.
 func requireCohortConfirmed(t *testing.T, batch []publishRequest, cohort string) {
 	t.Helper()
 	for i := range batch {
@@ -275,8 +249,6 @@ func requireCohortConfirmed(t *testing.T, batch []publishRequest, cohort string)
 	}
 }
 
-// requireCohortFailedWith states that every caller of a failed cohort got the
-// one cause, and no caller got a verdict of its own.
 func requireCohortFailedWith(t *testing.T, batch []publishRequest, want error, cause string) {
 	t.Helper()
 	for i := range batch {
@@ -286,8 +258,6 @@ func requireCohortFailedWith(t *testing.T, batch []publishRequest, want error, c
 	}
 }
 
-// requireResolvedNow states that the verdict is already there: the worker
-// returned only after resolving it, so a blocking read would be the bug.
 func requireResolvedNow(t *testing.T, i int, confirmed <-chan error) {
 	t.Helper()
 	select {
@@ -300,9 +270,6 @@ func requireResolvedNow(t *testing.T, i int, confirmed <-chan error) {
 	}
 }
 
-// newOverlapWorker builds the worker state an atomic cohort touches, with the
-// Orbit session replaced by a stub. Cohorts are handed to it directly, so the
-// stub is only ever reached from the goroutine that owns the cohort.
 func newOverlapWorker(newAtomic func() (atomicCohortPublisher, error)) *publishBatchWorker {
 	owner := newTestBatchPublisher()
 	owner.wire = wireAtomic
@@ -319,9 +286,6 @@ func newOverlapWorker(newAtomic func() (atomicCohortPublisher, error)) *publishB
 	}
 }
 
-// stubAtomicPublisher stands in for Orbit's BatchPublisher. release holds the
-// commit open so a cohort can be observed while its ack is still outstanding,
-// which is the state the overlap exists to create.
 type stubAtomicPublisher struct {
 	added         []*nats.Msg
 	committed     *nats.Msg
@@ -351,8 +315,6 @@ func (p *stubAtomicPublisher) CommitMsg(ctx context.Context, msg *nats.Msg, _ ..
 	if p.commitErr != nil {
 		return nil, p.commitErr
 	}
-	// The ordinary broker answer: every staged message plus the commit payload
-	// was stored.
 	return &jetstreamext.BatchAck{BatchSize: uint64(len(p.added) + 1), Sequence: 42}, nil
 }
 
@@ -373,10 +335,6 @@ func (p *stubAtomicPublisher) Discard() error {
 	return nil
 }
 
-// stubJetStream stands in for the per-message wire so a fallback replay is
-// observable without a broker. Only PublishMsgAsync is reachable from the
-// fallback; the embedded interface is nil and every other method would panic,
-// which is the point. err must be set: a nil PubAckFuture is not awaitable.
 type stubJetStream struct {
 	nats.JetStreamContext
 	published int

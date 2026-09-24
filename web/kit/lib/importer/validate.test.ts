@@ -1,16 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Parity suite for validate.ts, the port of app/importer/mapping. Two layers:
-//
-//  1. Golden replay: testdata/mapping-golden.json pins the canonicalizers'
-//     outputs for the Go package's own corpus (goldenCorpus() in its
-//     golden_test.go, decoded from testdata/golden.txt during the port). A
-//     diff means every future import's translation changed on purpose:
-//     regenerate deliberately and say so in the changelog.
-//  2. Unit vectors lifted verbatim from the Go package's mapping_test.go /
-//     caps_test.go, so correctness is checked independently of stability.
-
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
@@ -45,7 +35,7 @@ const golden: {
 }[] = JSON.parse(readFileSync(join(here, 'testdata/mapping-golden.json'), 'utf8'));
 
 test('golden replay: canonicalizers match the Go mapping fixture byte-for-byte', () => {
-  expect(golden.length).toBe(25); // responses x perms, per goldenCorpus()
+  expect(golden.length).toBe(25);
   for (const c of golden) {
     const { lines, diags } = canonicalizeResponse(c.in.response, c.in.resp_index);
     const mp = mapPermission(c.in.perm);
@@ -65,7 +55,7 @@ describe('NormalizeName', () => {
     ['!Discord', 'discord'],
     ['  !lurk  ', 'lurk'],
     ['LURK', 'lurk'],
-    ['!!double', '!double'], // ONE leading "!" is stripped, like the write hook
+    ['!!double', '!double'],
     ['sozial media', 'sozial media'],
     ['', ''],
     ['   ', ''],
@@ -90,9 +80,7 @@ describe('ClampCooldown', () => {
 });
 
 test('caps restate the domain constants they mirror', () => {
-  // TestCapsMatchValidate's job: a drift would let mapping accept what the
-  // commands service rejects mid-commit.
-  expect(500).toBe(500); // Twitch per-message limit
+  expect(500).toBe(500);
   expect(IMPORT_ITEM_CAPS.commands).toBe(2000);
   expect(MAX_COOLDOWN_SECONDS).toBe(86400);
 });
@@ -150,7 +138,6 @@ describe('CanonicalizeResponse', () => {
     const { lines, diags } = canonicalizeResponse('x'.repeat(600), 3);
     expect(lines).toEqual(['x'.repeat(500)]);
     expect(diags.map((d) => d.code)).toEqual(['command_response_truncated']);
-    // é is 2 bytes in UTF-8: 251 of them = 502 bytes → cut to 250 chars = 500 bytes
     const accented = canonicalizeResponse('é'.repeat(251), 3);
     expect(accented.lines[0]).toBe('é'.repeat(250));
   });
@@ -243,14 +230,11 @@ describe('FailedItems', () => {
     ]);
     expect(failed.has('commands', 3)).toBe(true);
     expect(failed.has('commands', 1)).toBe(false);
-    expect(failed.has('timers', 1)).toBe(false); // warn, not error
+    expect(failed.has('timers', 1)).toBe(false);
     expect(failed.has('quotes', 2)).toBe(true);
   });
 });
 
-// Synthesized urlfetch definitions (Phase 4 importer mapping) collide like any
-// other named item: a slug that already names something on the channel would
-// fight it at ingestion.
 test('FindCollisions flags fetch-definition slugs as kind "fetch"', () => {
   const m: ImportManifest = {
     commands: [{ name: 'weather', responses: ['{urlfetch:moobot_weather}'] }],
@@ -259,10 +243,6 @@ test('FindCollisions flags fetch-definition slugs as kind "fetch"', () => {
   expect(findCollisions(['MOOBOT_WEATHER', 'chat'], m)).toEqual([{ kind: 'fetch', name: 'moobot_weather' }]);
 });
 
-// Synthesized definition names must satisfy the commands service's own
-// grammar (Go FetchDefName, ^[a-z0-9_]{1,32}$). They did not before
-// 2026-08-31: the parsers minted "se-<command>" and every upsert was refused
-// at commit with the tokens already written into the response text.
 describe('fetchDefSlug', () => {
   test('folds a command name into the def-name grammar', () => {
     expect(fetchDefSlug('se', 'weather')).toBe('se_weather');

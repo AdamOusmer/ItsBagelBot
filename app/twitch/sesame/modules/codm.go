@@ -27,8 +27,6 @@ type codmConfig struct {
 	ProfileMessage string `json:"profileMessage"`
 }
 
-// CODM owns the opt-in Call of Duty: Mobile profile lookup. The argument is
-// kept as one string because CODM nicknames may contain spaces.
 func CODM(d engine.Deps) module.Module {
 	tokens := codmProfileTokens()
 	profile := externalCommand[codmConfig, gossiprpc.CODMProfileReply]{
@@ -40,8 +38,6 @@ func CODM(d engine.Deps) module.Module {
 	}.handler(d)
 	profile.target = codmProfileTarget
 	profile.render = func(call statsCall[codmConfig], reply *gossiprpc.CODMProfileReply) string {
-		// Normalize the chat label to the resolved input even if a rolling or
-		// mismatched provider reply supplies a different Player value.
 		safeReply := *reply
 		safeReply.Player = codmProfileTarget(call).Display
 		return tokens.Expand(orDefault(call.Cfg.ProfileMessage, codmTemplate), &safeReply)

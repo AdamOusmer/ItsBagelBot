@@ -14,8 +14,7 @@ var (
 	ErrProtectionShort  = errors.New("provider protection does not cover the complete prize interval")
 )
 
-// WorkAward is a snapshot loaded by the durable worker. Start/end are an
-// absolute saved obligation: retries never add months to a newly-read date.
+// Start and End are absolute so a retry never adds months to a newly read date.
 type WorkAward struct {
 	ID, GiveawayID, UserID, RecurringReference, IntervalRule string
 	Start, End                                               time.Time
@@ -46,15 +45,11 @@ type AwardPort interface {
 	Scheduled(ctx context.Context, awardID, grantID string) error
 }
 
-// UserLease is optional on AwardPort implementations. When present it
-// serializes awards for the same account across concurrent campaigns while
-// allowing unrelated accounts to proceed independently.
 type UserLease interface {
 	AcquireUserLease(ctx context.Context, userID string) (release func(), err error)
 }
 
-// Worker coordinates the cross-service operation while keeping every step
-// retryable. Tebex is never called while a database transaction is held.
+// Must never call Tebex while a database transaction is held.
 type Worker struct {
 	Awards            AwardPort
 	Grants            GrantPort

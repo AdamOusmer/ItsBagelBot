@@ -14,11 +14,7 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
-// projectAccess writes users.status from grant coverage. VIP is never
-// touched. Tebex/admin billing identity stays on its own columns: a covering
-// grant promotes free→paid, and a grant-only paid row whose coverage ended
-// returns to free. Billing-sourced paid rows are left for ApplyBilling and
-// ExpireSubscriptions so Tebex grace is not duplicated here.
+// Must never touch VIP or billing-sourced paid rows.
 func (r *Users) projectAccess(ctx context.Context, id uint64, now time.Time) error {
 	u, err := r.FindUser(ctx, id)
 	if err != nil {
@@ -96,9 +92,6 @@ func (r *Users) accessStatusUpdate(u *ent.User, status user.Status) *ent.UserUpd
 	return q
 }
 
-// reconcileGrantAccess promotes already-announced covering grants whose user
-// row is still free. Commit-time projection covers new awards; this catches
-// winners whose grant was committed before status was stored.
 func (r *Users) reconcileGrantAccess(ctx context.Context, now time.Time) error {
 	rows, err := r.freeUsersWithCoveringGrant(ctx, now)
 	if err != nil {

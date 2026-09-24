@@ -8,17 +8,11 @@ import (
 	"testing"
 )
 
-// coordinationBuckets names, per BUS user, the KV buckets it owns. Each bucket
-// has exactly one writer: outgress's sending coordination, and the deployer's
-// run store and deploy lock.
 var coordinationBuckets = map[string][]string{
 	"outgress_bus": {"outgress_rate", "outgress_batch", "outgress_pause"},
 	"deployer_bus": {"DEPLOY_RUNS"},
 }
 
-// coordinationSubjects is the exact $JS.API set a bucket owner holds: create
-// or reconcile the bucket, and read keys through direct get. Writes ride
-// $KV.<bucket>.>, which TestCoordinationBucketPublishIsolation pins.
 func coordinationSubjects(user string) []string {
 	buckets := coordinationBuckets[user]
 	if len(buckets) == 0 {
@@ -34,7 +28,6 @@ func coordinationSubjects(user string) []string {
 	return subjects
 }
 
-// coordinationWrites maps each bucket's $KV write subject to its one owner.
 func coordinationWrites() map[string]string {
 	writes := make(map[string]string)
 	for owner, buckets := range coordinationBuckets {

@@ -16,9 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeStreamReader stands in for *twitch.Client's three Helix reads and
-// records which of them the handler actually made, so "a live channel pays no
-// second call" is asserted rather than assumed.
 type fakeStreamReader struct {
 	users    map[string]string
 	details  map[string]twitch.StreamDetails
@@ -69,8 +66,6 @@ func TestStreamInfoRefusesARequestAddressingNobody(t *testing.T) {
 	assert.Empty(t, r.calls, "a request naming no channel costs no Helix call")
 }
 
-// A live channel is answered by Get Streams alone: title and category ride the
-// same response, so nothing else is read.
 func TestStreamInfoReadsALiveChannelInOneCall(t *testing.T) {
 	r := liveReader()
 	got := readInfo(r, outgressrpc.StreamInfoRequest{BroadcasterID: "123"})
@@ -82,8 +77,6 @@ func TestStreamInfoReadsALiveChannelInOneCall(t *testing.T) {
 	assert.Equal(t, []string{"streams:123"}, r.calls)
 }
 
-// A login costs the Get Users hop first, and the reply carries the same
-// snapshot: sesame has no Twitch credentials, so this side resolves the login.
 func TestStreamInfoResolvesALogin(t *testing.T) {
 	r := liveReader()
 	got := readInfo(r, outgressrpc.StreamInfoRequest{TargetLogin: "streamer"})
@@ -93,9 +86,6 @@ func TestStreamInfoResolvesALogin(t *testing.T) {
 	assert.Equal(t, []string{"users:streamer", "streams:123"}, r.calls)
 }
 
-// A login Twitch does not know is a resolved answer, not a failure: UserFound
-// is false and Error stays empty, so the caller renders nothing rather than
-// leaving the token literal.
 func TestStreamInfoReportsAnUnknownLogin(t *testing.T) {
 	r := liveReader()
 	got := readInfo(r, outgressrpc.StreamInfoRequest{TargetLogin: "ghost"})
@@ -104,10 +94,6 @@ func TestStreamInfoReportsAnUnknownLogin(t *testing.T) {
 	assert.Equal(t, []string{"users:ghost"}, r.calls)
 }
 
-// The offline path is the whole reason this handler is more than a
-// StreamDetails passthrough: Get Streams answers nothing for a dark channel,
-// so the title and category come from Get Channel Information, the very call
-// !title makes.
 func TestStreamInfoFallsBackToTheChannelObjectWhenOffline(t *testing.T) {
 	r := liveReader()
 	r.live["123"] = false
@@ -121,10 +107,6 @@ func TestStreamInfoFallsBackToTheChannelObjectWhenOffline(t *testing.T) {
 	assert.Equal(t, []string{"streams:123", "channels:123"}, r.calls)
 }
 
-// An unreadable channel object degrades to the offline facts we do have. It is
-// NOT an error: the stream read succeeded, and reporting the whole reply as
-// failed would make a known-offline channel indistinguishable from an
-// unreachable Twitch.
 func TestStreamInfoKeepsTheOfflineAnswerWhenTheChannelReadFails(t *testing.T) {
 	r := liveReader()
 	r.live["123"] = false

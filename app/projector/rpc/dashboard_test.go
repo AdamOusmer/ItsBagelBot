@@ -10,9 +10,6 @@ import (
 	"ItsBagelBot/internal/projection"
 )
 
-// A replace broadcast must carry every name and alias so workers evict the
-// exact per-command entries; an empty key list evicts nothing (the bug this
-// guards against).
 func TestCommandKeys(t *testing.T) {
 	commands := []projection.CommandView{
 		{Name: "uptime", Aliases: []string{"live", "up"}},

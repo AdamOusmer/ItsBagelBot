@@ -3,40 +3,7 @@
 
 package tzname
 
-// regionZones maps a state, province or country name to the zone most of
-// its people live in. It exists because of #1003: a viewer who wants to
-// share their own time in chat should be able to type "!time texas" and
-// stop at that granularity, rather than being pushed to name a city (D2 in
-// docs/specs/time-place-lookup.md originally declined states for exactly
-// the multi-zone reason below; the privacy argument won).
-//
-// Multi-zone regions pick the zone of the majority of the population, the
-// same "one declared meaning" rule the abbreviation table uses for CST/IST/
-// BST (curated.go): Texas -> Chicago (El Paso is Mountain), Florida ->
-// New_York (the panhandle is Central), Idaho -> Boise (the northern
-// panhandle is Pacific), Indiana -> Indianapolis (the corners near Chicago
-// and Evansville are Central), Kentucky -> Louisville (the west is Central),
-// Tennessee -> Chicago (Nashville and Memphis outnumber Knoxville and
-// Chattanooga), Spain -> Madrid (Canaries), Portugal -> Lisbon (Azores),
-// Brazil -> Sao_Paulo, Mexico -> Mexico_City, Indonesia -> Jakarta (Java is
-// over half the country). Countries with no majority zone (USA, Canada,
-// Australia, Russia) stay out on purpose: any pick would be wrong for most
-// viewers, so those still get time.unknown and its "try a city" hint.
-//
-// Name collisions with the curated table, resolved by Twitch-chat
-// prevalence, same as the abbreviations:
-//   - "washington" stays the curated city (DC, Eastern). The state is
-//     reachable as "washington state".
-//   - "victoria" stays the curated city (BC, Pacific). The Australian state
-//     is not listed; Melbourne resolves through the segment index.
-//   - "georgia" is the US state, not the country (Asia/Tbilisi), which a
-//     viewer can still reach as "tbilisi".
-//
-// TestRegionZonesDisjoint keeps this table minimal: a name that already
-// resolves through curated.go or the IANA segment index (new york, hong
-// kong, singapore, jamaica, puerto rico) must not be duplicated here.
 var regionZones = map[string]tzEntry{
-	// US states and DC. "new york" resolves through the segment index.
 	"alabama":          {"America/Chicago", "Alabama"},
 	"alaska":           {"America/Anchorage", "Alaska"},
 	"arizona":          {"America/Phoenix", "Arizona"},
@@ -87,9 +54,6 @@ var regionZones = map[string]tzEntry{
 	"wisconsin":        {"America/Chicago", "Wisconsin"},
 	"wyoming":          {"America/Denver", "Wyoming"},
 
-	// Canadian provinces and territories. "quebec" is in curated.go.
-	// Yellowknife became a link to Edmonton in tzdata 2023a, so the
-	// Northwest Territories point at the canonical zone directly.
 	"alberta":                   {"America/Edmonton", "Alberta"},
 	"british columbia":          {"America/Vancouver", "British Columbia"},
 	"bc":                        {"America/Vancouver", "British Columbia"},
@@ -106,7 +70,6 @@ var regionZones = map[string]tzEntry{
 	"northwest territories":     {"America/Edmonton", "Northwest Territories"},
 	"yukon":                     {"America/Whitehorse", "Yukon"},
 
-	// Australian states and territories ("victoria" is the curated BC city).
 	"new south wales":    {"Australia/Sydney", "New South Wales"},
 	"nsw":                {"Australia/Sydney", "New South Wales"},
 	"queensland":         {"Australia/Brisbane", "Queensland"},
@@ -116,7 +79,6 @@ var regionZones = map[string]tzEntry{
 	"northern territory": {"Australia/Darwin", "Northern Territory"},
 	"canberra":           {"Australia/Sydney", "Canberra"},
 
-	// UK nations.
 	"uk":               {"Europe/London", "the UK"},
 	"united kingdom":   {"Europe/London", "the UK"},
 	"britain":          {"Europe/London", "Britain"},
@@ -126,7 +88,6 @@ var regionZones = map[string]tzEntry{
 	"wales":            {"Europe/London", "Wales"},
 	"northern ireland": {"Europe/London", "Northern Ireland"},
 
-	// Europe.
 	"france":         {"Europe/Paris", "France"},
 	"germany":        {"Europe/Berlin", "Germany"},
 	"italy":          {"Europe/Rome", "Italy"},
@@ -151,7 +112,6 @@ var regionZones = map[string]tzEntry{
 	"romania":        {"Europe/Bucharest", "Romania"},
 	"hungary":        {"Europe/Budapest", "Hungary"},
 
-	// Asia and the Middle East.
 	"japan":                {"Asia/Tokyo", "Japan"},
 	"korea":                {"Asia/Seoul", "Korea"},
 	"south korea":          {"Asia/Seoul", "Korea"},
@@ -170,14 +130,12 @@ var regionZones = map[string]tzEntry{
 	"uae":                  {"Asia/Dubai", "the UAE"},
 	"united arab emirates": {"Asia/Dubai", "the UAE"},
 
-	// Africa.
 	"egypt":        {"Africa/Cairo", "Egypt"},
 	"south africa": {"Africa/Johannesburg", "South Africa"},
 	"nigeria":      {"Africa/Lagos", "Nigeria"},
 	"kenya":        {"Africa/Nairobi", "Kenya"},
 	"morocco":      {"Africa/Casablanca", "Morocco"},
 
-	// Americas and Oceania.
 	"brazil":      {"America/Sao_Paulo", "Brazil"},
 	"mexico":      {"America/Mexico_City", "Mexico"},
 	"argentina":   {"America/Argentina/Buenos_Aires", "Argentina"},
@@ -189,10 +147,6 @@ var regionZones = map[string]tzEntry{
 	"nz":          {"Pacific/Auckland", "New Zealand"},
 }
 
-// resolveRegion is resolution step 3: state, province and country names.
-// It runs after the curated table so curated.go's collision picks
-// (washington, victoria) win, and before the IANA name/segment steps so a
-// region never shadows a real zone by accident (TestRegionZonesDisjoint).
 func resolveRegion(normalized string) (Match, bool) {
 	entry, ok := regionZones[normalized]
 	if !ok {

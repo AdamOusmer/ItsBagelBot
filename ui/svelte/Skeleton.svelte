@@ -1,14 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  //
-  // Loading placeholder for streamed sections. Shape follows the content it
-  // stands in for: text lines, a pill, or a block (card/tile).
-  //
-  // Size travels as custom properties (--skel-w / --skel-h), never as a
-  // hand-built `style="width:…"` string. See ui/styles/elements/skeleton.css
-  // for why: a CSP style-src without 'unsafe-inline' drops the attribute, and
-  // the parity normaliser needs one serialisation to compare, not two.
   let {
     variant = 'text' as 'text' | 'pill' | 'block',
     width = undefined as string | undefined,

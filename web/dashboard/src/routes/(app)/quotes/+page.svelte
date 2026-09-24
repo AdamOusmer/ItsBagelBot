@@ -54,8 +54,6 @@
     }
   });
 
-  // The chat-commands reference rendered below the book, straight from the
-  // module catalog so it never drifts from the generic /modules/[id] page.
   const quoteCommands = moduleDef('quotes')?.commands ?? [];
 
   const permOptions = [
@@ -65,7 +63,6 @@
     { value: 'everyone', label: t('quotes.permEveryone') }
   ];
 
-  // --- Search over number / text / author, newest number first --------------
   let search = $state('');
   const searching = $derived(search.trim().length > 0);
   const rows = $derived(
@@ -104,8 +101,6 @@
     });
   }
 
-  // Short snippet of a quote for the delete confirmation, so it names what it
-  // removes rather than an anonymous "this quote".
   function snippet(text: string): string {
     const clean = text.trim();
     return clean.length > 48 ? `${clean.slice(0, 48).trimEnd()}…` : clean;
@@ -114,7 +109,6 @@
   const NEW = '__new__';
   let expanded = $state<string | null>(null);
   let quoteDraft = $state<QuoteDraft | null>(null);
-  // The quote number being rewritten; null while the editor adds a new one.
   let editTarget = $state<number | null>(null);
   let adding = $state(false);
   const selectedQuote = $derived(
@@ -137,15 +131,11 @@
     expanded = String(quote.number);
   }
 
-  // openEdit swaps the inspector's detail pane for the editor, prefilled with
-  // the quote's current text and day.
   function openEdit(quote: QuoteView) {
     editTarget = quote.number;
     quoteDraft = { text: quote.text, quoteDate: quote.created_at.slice(0, 10) };
   }
 
-  // closeEditor returns from the edit form to the detail pane (the inspector
-  // stays open on the same quote).
   function closeEditor() {
     quoteDraft = null;
     editTarget = null;
@@ -191,8 +181,6 @@
     };
   };
 
-  // One revert-on-failure submit per perm select; both post ?/perm with a
-  // hidden kind field naming the gate they write.
   function permSubmitFor(get: () => string, set: (value: string) => void): SubmitFunction {
     return () => {
       const was = get();
@@ -246,9 +234,6 @@
     };
   };
 
-  // Keyboard: Escape closes the inspector (owned here). Alt+/ focuses search and
-  // Alt+N adds a quote; neither fires while typing, and Alt keeps clear of the
-  // browser's single-key shortcuts.
   function isTyping(e: KeyboardEvent): boolean {
     const el = e.target as HTMLElement | null;
     return (
@@ -258,7 +243,6 @@
   }
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape' && expanded) {
-      // Editing steps back to the quote's detail pane; otherwise close.
       if (editTarget !== null) closeEditor();
       else closeInspector();
       return;
@@ -308,8 +292,6 @@
     {/snippet}
   </PageToolbar>
 
-  <!-- Chat permissions: who may save or rewrite from chat. Selects save on
-       change; each form names the gate it writes via its hidden kind field. -->
   <section class="block" aria-labelledby="quotes-perms-h">
     <h2 id="quotes-perms-h" class="block-title">{t('quotes.permsTitle')}</h2>
     <Card>
@@ -340,7 +322,6 @@
     </Card>
   </section>
 
-  <!-- Polite live region: announces the match count as the search narrows. -->
   <p class="bb-sr-only" role="status" aria-live="polite">
     {searching ? t('quotes.resultsCount', { n: rows.length }) : ''}
   </p>
@@ -439,8 +420,6 @@
     </aside>
   </div>
 
-  <!-- Chat-commands reference: the same ModuleCommandList the generic module
-       pages render, fed from the shared catalog def. -->
   {#if quoteCommands.length}
     <div class="cmd-block">
       <DeckList>
@@ -470,8 +449,6 @@
 <style>
   .toolbar-actions { display: flex; align-items: center; gap: 12px; }
 
-  /* Chat-permissions block, mirroring the loyalty page's section shells so
-     settings read as their own airy card instead of crowding the toolbar. */
   .block { margin-bottom: 26px; }
   .block-title {
     font-family: var(--bb-font-display);
@@ -487,15 +464,9 @@
     grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
     gap: 16px;
   }
-  /* The selects wear `.bb-input` (elements/field.css) and fill their field
-     via `.bb-field .bb-input`; this page used to redraw the frame on top of
-     them, at a different padding and a different background, which is the
-     rule the block guard exists to catch. */
 
-  /* Chat-commands reference below the book (same ModuleCommandList as /modules/[id]). */
   .cmd-block { margin-top: 26px; }
 
-  /* `--input-w` is `.bb-input`'s own width knob (elements/field.css). */
   .toolbar-search { width: 220px; --input-w: 100%; }
 
   .deck {
@@ -508,8 +479,6 @@
     .deck { grid-template-columns: minmax(0, 1fr) 300px; }
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
-  /* Keyed on this page's own class: the last row in THIS list drops its
-     separator because the deck's edge is right under it. */
   .quote-list :global(.row-shell:last-child) { border-bottom: none; }
 
   .inspector {
@@ -553,7 +522,6 @@
     align-items: center;
     gap: 12px;
   }
-  /* 26ch: the measure the idle line stays readable at in the 300px column. */
   :global(.inspector-idle-note) { max-width: 26ch; }
 
   .quote-detail { display: flex; flex-direction: column; gap: 18px; }

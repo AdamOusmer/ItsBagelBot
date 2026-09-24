@@ -1,56 +1,13 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* The one switch (.bb-switch).
-
-   Two switches shipped. `Switch.svelte` drew a 38x22 pill with a 16px knob and
-   an honest role="switch"; `web/kit/styles/console.css` `.toggle` drew a 42x24
-   pill with the same 16px knob, a 21px throw, and an `:active` squish that
-   stretched the knob to 20px and pulled the "on" knob back to left:17px.
-
-   38x22 wins (user decision, 2026-09-09). What that costs and why it is still
-   the right side:
-     - It is a 4px shrink, and it is worth measuring how visible: the global
-       `.toggle` class had ZERO markup call sites left at the time of the move
-       (grepped across web/dashboard, web/admin, web/kit and web/marketing:
-       the only hits were `.toggle-row` and `.overwrite-toggle`, different
-       classes). So the shrink is on paper, not on screen -- the rule was
-       already dead, kept alive by nothing but its own stylesheet.
-     - The `:active` squish goes with it. It was the nicer animation, and it
-       is the one thing here that is a real loss. It is not portable to the
-       accessible switch: the squish is drawn on ::after, and ::after is the
-       knob, so the 44x44 hit target below has to live on ::before -- which
-       leaves the squish and the target fighting over the two pseudo-elements
-       a <button> has. A third element would mean the adapter emits a wrapper
-       span, which the parity test then has to carry into Astro for a purely
-       decorative frame. Recorded rather than reimplemented: if the squish is
-       wanted back, it costs a wrapper element in both adapters.
-     - Accessibility decided the rest. The raw `.toggle` sites had no role and
-       no aria-checked at all (Switch.svelte:5-6 says so); anything adopting
-       the 42x24 look would have had to grow them anyway.
-
-   Geometry is exposed as component properties so a surface can scale the pill
-   without re-deriving the knob offsets, which is how the second switch got
-   drawn in the first place. */
 
 @layer bb.elements {
     .bb-switch {
         --switch-w: 38px;
         --switch-h: 22px;
         --switch-knob: 16px;
-        /* --ui-accent-soft and --glass-border are console-surface tokens
-           (web/kit/styles/console.css :root). The fallbacks are their console
-           values, so a marketing or docs page that renders a switch without
-           the console token sheet draws the identical control instead of
-           falling back to `initial` (transparent background, no border). */
         --switch-on-bg: var(--ui-accent-soft, rgba(var(--bb-green-glow-rgb), 0.12));
         --switch-on-knob: var(--bb-green-glow);
 
@@ -67,15 +24,12 @@
                     border-color var(--bb-dur-base) var(--bb-ease-out-back);
     }
 
-    /* 44x44 hit area without growing the visual pill (WCAG 2.2 target size).
-       -11px vertical and -3px horizontal on a 38x22 pill gives 44x44 exactly. */
     .bb-switch::before {
         content: '';
         position: absolute;
         inset: -11px -3px;
     }
 
-    /* the knob */
     .bb-switch::after {
         content: '';
         position: absolute;
@@ -90,11 +44,6 @@
                     box-shadow var(--bb-dur-base) var(--bb-ease-out-back);
     }
 
-    /* State is a data attribute rather than a class: it is what the adapter
-       writes from `checked`, and [data-state=on] is the one spelling both the
-       Svelte and the Astro adapter can emit identically (a Svelte
-       `class:on={checked}` has no Astro equivalent that survives the parity
-       normaliser). */
     .bb-switch[data-state='on'] {
         background: var(--switch-on-bg);
         border-color: rgba(var(--bb-green-glow-rgb), 0.4);
@@ -119,21 +68,6 @@
         .bb-switch::after { transition: none; }
     }
 
-    /* ── the switch row ──────────────────────────────────────────────────
-       A switch with a label and an optional hint beside it: the shape every
-       "master enable" bar on the console wears, and the only thing
-       @bagel/kit's MasterToggle.svelte had left to say for itself once the
-       pill above became an element. It is here rather than in that wrapper
-       because it describes an element, and a `<style>` block in a kit
-       component is the exact duplication this package exists to delete
-       (web/kit/scripts/assert-ui-only-in-ui.mjs enforces it).
-
-       The label is display-700 13px white, NOT `.bb-field__label` (body 12.5px
-       muted). Deliberately not unified: a field's label names an input the eye
-       is already on, while this one is the heading of the thing the switch
-       turns off, and it has to read as the section title it has always been.
-       Measured on the timers and loyalty pages before the move; the two type
-       stacks were already different and stay different. */
     .bb-switch-row {
         display: inline-flex;
         align-items: center;

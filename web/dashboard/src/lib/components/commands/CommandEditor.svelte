@@ -1,10 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Inline command editor (create + edit share it). Renders the ?/save form,
-  // runs the shared validator client-side before submitting (instant field
-  // errors, no round trip on invalid input), and mirrors unsaved drafts to
-  // sessionStorage so navigation/refresh can't eat work in progress.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
@@ -52,15 +48,11 @@
     status?: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
     dirty?: boolean;
     canSave?: boolean;
-    /** Saved data sources, for the {urlfetch:…} palette chip. */
     fetchDefs?: SourceDef[];
     fetchKeys?: { label: string }[];
     onFetchDefsChanged?: (defs: SourceDef[]) => void;
     onCancel: () => void;
     onSubmit: SubmitFunction;
-    // Edit: live row enabled state. The inspector Switch posts the same toggle
-    // as the row so Active is not a draft field (#221). Create still uses the
-    // checkbox below: there is no row yet.
     liveActive?: boolean;
     onToggleActive?: (next: boolean) => void;
   } = $props();
@@ -81,10 +73,6 @@
     ])
   ) as CommandErrors);
 
-  // Mirror the working draft to sessionStorage (skip the initial unmodified
-  // state so merely opening an editor doesn't flag the row as unsaved). Active
-  // is compared out: a live toggle must not persist a draft that only differs
-  // in is_active, or the row would show an unsaved chip after a pause/resume.
   const key = draftKey(draft.originalName, draft.edit);
   const initial = commandContentSnapshot(draft);
   $effect(() => {
@@ -92,13 +80,9 @@
     if (current === initial) return;
     try {
       sessionStorage.setItem(key, current);
-    } catch {
-      /* storage full/unavailable: drafts are best-effort */
-    }
+    } catch {}
   });
 
-  // Client-side gate in front of the form action: fold the uncommitted alias,
-  // validate, and only let the request through when the fields are sound.
   const submit: SubmitFunction = (input) => {
     chips?.commit();
     clientErrors = validateCommand({
@@ -118,10 +102,6 @@
   };
 </script>
 
-<!-- novalidate: the shared validator owns validation (inline FieldError copy),
-     not the browser's native tooltips. enhance must always run. The fields
-     scroll; the EditorFooter stays pinned so Save/Cancel never fall below the
-     fold. -->
 <form method="POST" action="?/save" class="editor-form" novalidate use:enhance={submit} bind:this={formEl}>
   <Scroller fill padding="16px" smooth>
    <div class="editor">
@@ -172,12 +152,6 @@
 
   <ChatPreview name={draft.name} response={draft.response} />
 
-  <!-- Two fields sharing a row: the `Grid` block, not a scoped flex rule.
-       Equal columns on the 12px step, which is what `.field-row`'s
-       `flex: 1; min-width: 0` pair spelled the long way. The phone collapse
-       comes with the contract (one column under 640px) and used to be a
-       480px media query here; the wider breakpoint is the system's, and a
-       select plus a number input at 480-640px was already tight. -->
   <Grid cols={2} gap={3}>
     <Field label={t('commandEditor.access')}>
       <select class="bb-input" name="perm" bind:value={draft.perm}>
@@ -222,9 +196,6 @@
 
   <div class="check">
     {#if draft.edit && onToggleActive}
-      <!-- type=button: this form is ?/save; a nested toggle form is invalid
-           HTML. The Switch posts via onToggleActive (same optimistic toggle
-           as the row) so Save cannot write a stale Active snapshot (#221). -->
       <input type="hidden" name="is_active" value={liveActive ? 'on' : ''} />
       <div class="live-active">
         <span class="live-lbl">{t('commandEditor.active')}</span>

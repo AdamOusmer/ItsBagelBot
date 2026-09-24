@@ -21,12 +21,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// The SSRF gate refuses plain-http loopback fakes; these tests predate it and
-// dial httptest servers, so the process-wide test switch turns the gate off.
-// The gate's own semantics are pinned by core's table tests.
 func init() { core.SetSSRFCheckForTests(false) }
 
-// memStore is an in-memory core.Store for tests.
 type memStore struct {
 	mu sync.Mutex
 	m  map[string][]byte
@@ -43,8 +39,6 @@ func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
 func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// Copy: the Store contract says val may come from a pooled buffer the
-	// caller recycles as soon as Set returns.
 	s.m[key] = append([]byte(nil), val...)
 	return nil
 }
@@ -84,8 +78,6 @@ func userBody(elo int, wins, loses, played int) string {
 	}`
 }
 
-// newTestProvider serves handler as the MCSR API and returns the provider plus
-// its backing store (so tests can evict the 60s user cache to simulate time).
 func newTestProvider(t *testing.T, handler http.Handler) (provider.Provider, *memStore) {
 	t.Helper()
 	srv := httptest.NewServer(handler)
@@ -106,12 +98,6 @@ func endpoint(t *testing.T, p provider.Provider, name string) func(context.Conte
 	return nil
 }
 
-// callEndpoint serves handler as the fake MCSR upstream, calls the named
-// endpoint once with req and type-asserts the reply to R. This is the
-// "stand up an upstream, call one endpoint, unwrap the typed reply" shape
-// most tests in this file share; a test that needs the provider or store
-// again (a second call, a cache eviction) calls newTestProvider/endpoint
-// directly instead.
 func callEndpoint[R any](t *testing.T, handler http.Handler, name string, req gossiprpc.Request) R {
 	t.Helper()
 	p, _ := newTestProvider(t, handler)
@@ -145,14 +131,12 @@ func TestUserUnrated(t *testing.T) {
 
 func TestUserNotFound(t *testing.T) {
 	reply := callEndpoint[gossiprpc.McsrUserReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest) // MCSR answers 400 for data not found
+		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"status":"error","data":null}`))
 	}), "user", gossiprpc.Request{Account: "ghost"})
 	assert.Equal(t, "player not found", reply.Error)
 }
 
-// TestSessionFlow drives the full snapshot lifecycle: session_start stores the
-// baseline, the player wins games, session reports the delta.
 func TestSessionFlow(t *testing.T) {
 	var mu sync.Mutex
 	elo, wins, loses, played := 1650, 40, 20, 61
@@ -167,8 +151,6 @@ func TestSessionFlow(t *testing.T) {
 	require.Empty(t, start.Error)
 	assert.Equal(t, 1650, start.Elo)
 
-	// The player plays: +24 elo, 3 wins, 1 loss. Evict the 60s user cache so
-	// the session read refetches, as it would after the TTL.
 	mu.Lock()
 	elo, wins, loses, played = 1674, 43, 21, 65
 	mu.Unlock()
@@ -193,13 +175,11 @@ func TestSessionWithoutSnapshotStartsTracking(t *testing.T) {
 	require.Empty(t, sess.Error)
 	assert.False(t, sess.HasSnapshot)
 
-	// The call itself planted a snapshot: the next session read has a baseline.
 	sess = endpoint(t, p, "session")(context.Background(), gossiprpc.Request{Account: "Feinberg", ChannelID: "77"}).(gossiprpc.McsrSessionReply)
 	assert.True(t, sess.HasSnapshot)
 	assert.Zero(t, sess.EloChange)
 }
 
-// A snapshot for another account must not produce a bogus delta.
 func TestSessionAccountSwitchResetsBaseline(t *testing.T) {
 	p, _ := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(userBody(1650, 40, 20, 61)))
@@ -218,8 +198,6 @@ func TestMissingChannel(t *testing.T) {
 	}), "session", gossiprpc.Request{Account: "x"})
 	assert.Equal(t, "missing account or channel", reply.Error)
 }
-
-// --- last_match ---------------------------------------------------------------
 
 func lastMatchBody(forfeited, decayed bool, winnerUUID string, timeMS int64) string {
 	winner := `null`
@@ -270,9 +248,6 @@ func TestLastMatchWin(t *testing.T) {
 	assert.False(t, reply.Decayed)
 }
 
-// A forfeit must not read as an ordinary result: the provider still reports
-// win/loss from the winner pointer, but Forfeited flags it so the module can
-// render it differently instead of implying a clean finish.
 func TestLastMatchForfeit(t *testing.T) {
 	reply := callEndpoint[gossiprpc.McsrLastMatchReply](t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(lastMatchBody(true, false, "u-opp", 0)))
@@ -316,8 +291,6 @@ func TestLastMatchSeasonForwarded(t *testing.T) {
 	require.Empty(t, reply.Error)
 }
 
-// --- versus ---------------------------------------------------------------------
-
 func TestVersusParsing(t *testing.T) {
 	reply := callEndpoint[gossiprpc.McsrRecordReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/users/Feinberg/versus/lowk3y_", r.URL.Path)
@@ -355,8 +328,6 @@ func TestVersusNotFound(t *testing.T) {
 	assert.Equal(t, "player not found", reply.Error)
 }
 
-// --- leaderboard ------------------------------------------------------------------
-
 func TestLeaderboardElo(t *testing.T) {
 	reply := callEndpoint[gossiprpc.McsrLeaderboardReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/leaderboard", r.URL.Path)
@@ -389,9 +360,6 @@ func TestLeaderboardPhasePredicted(t *testing.T) {
 func TestLeaderboardRecordSeasonDefaultsCurrent(t *testing.T) {
 	reply := callEndpoint[gossiprpc.McsrLeaderboardReply](t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/record-leaderboard", r.URL.Path)
-		// Unset Season must still send season=0 explicitly: an omitted param
-		// means "all seasons combined" on this one board (see the provider's
-		// fetchRecordLeaderboard doc), not "current" like every other board.
 		require.Equal(t, "0", r.URL.Query().Get("season"))
 		_, _ = w.Write([]byte(`{"status":"success","data":[
 			{"rank":1,"time":395123,"user":{"nickname":"A"}}
@@ -418,8 +386,6 @@ func TestLeaderboardUpstream400(t *testing.T) {
 	}), "leaderboard", gossiprpc.Request{Board: "phase"})
 	assert.Equal(t, "player not found", reply.Error)
 }
-
-// --- weekly_race ------------------------------------------------------------------
 
 func weeklyRaceBody() string {
 	return `{"status":"success","data":{"id":99,"leaderboard":[
@@ -458,9 +424,6 @@ func TestWeeklyRaceEmpty(t *testing.T) {
 	assert.True(t, reply.Empty)
 }
 
-// Two different players in the same week share one cached upstream response:
-// the endpoint has no per-player filter, so the provider fetches the whole
-// leaderboard once and scans it per request instead of calling twice.
 func TestWeeklyRaceSharesOneUpstreamCallAcrossPlayers(t *testing.T) {
 	var calls int
 	p, _ := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -473,11 +436,6 @@ func TestWeeklyRaceSharesOneUpstreamCallAcrossPlayers(t *testing.T) {
 	assert.Equal(t, 1, calls)
 }
 
-// TestASCIIEqualFoldDoesNotFoldUnicode pins the reason asciiEqualFold exists
-// rather than strings.EqualFold. EqualFold applies Unicode simple folding, so
-// it reports "ſome" (long s) equal to "Some" — a non-ASCII account would
-// then take an unrelated player's rank and time off the weekly board. The
-// previous strings.ToLower comparison did not do that, and neither does this.
 func TestASCIIEqualFoldDoesNotFoldUnicode(t *testing.T) {
 	if !asciiEqualFold("Nickname", "nIcKnAmE") {
 		t.Fatal("ASCII case must fold")
@@ -490,10 +448,6 @@ func TestASCIIEqualFoldDoesNotFoldUnicode(t *testing.T) {
 	}
 }
 
-// TestCacheIDBytes pins the exact id bytes mcsr lookups key on. The id is the
-// tail of a live Valkey key: changing one byte orphans every cached entry for
-// that lookup until its TTL expires, so these literals are the contract rather
-// than a restatement of the implementation.
 func TestCacheIDBytes(t *testing.T) {
 	t.Run("account", func(t *testing.T) {
 		cases := []struct {

@@ -1,17 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Command ingress is the Discord half of the ingress/engine/outgress split
-// (mirroring twitch-ingress -> sesame -> outgress). It holds the one Discord
-// gateway Identify session for the fleet bot token and does nothing else:
-// every event it receives is wrapped and published, never acted on. See
-// internal/domain/discord's Event doc and internal/relay's package doc for
-// why, and internal/relay/ack.go for the one exception (the inline
-// interaction defer).
-//
-// Exactly one replica may run this: two Identify sessions on one bot token
-// fight each other for the connection, same constraint app/dingress's
-// ROLE=gateway had before this split.
 package main
 
 import (
@@ -41,8 +30,6 @@ func main() {
 	log, ctx := core.Log, core.Ctx
 
 	cfg := config.Load()
-	// No token means no gateway Identify is possible; see IdleIfNoToken for
-	// why that parks the pod rather than failing it.
 	idle := discordboot.Service{Name: serviceName, Token: cfg.DiscordBotToken, Listen: cfg.ListenAddr}
 	if discordboot.IdleIfNoToken(core, idle) {
 		return
@@ -51,10 +38,6 @@ func main() {
 	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 
-	// The interaction defer is the one REST call ingress makes; it still
-	// pays the fleet-wide bucket outgress's calls pay, because Discord's
-	// global limit is per bot token and ingress+outgress share one. See
-	// internal/discordrate's package doc.
 	rest := discordrate.NewClient(cfg.DiscordBotToken, discordrate.New(valkeyClient))
 
 	pub, err := bus.NewPublisher(cfg.NATSURL, log)
@@ -63,40 +46,23 @@ func main() {
 
 	r := &relay.Relay{REST: rest, Pub: pub, Log: log}
 
-	// RPC connection, separate from pub above: pub is the fire-and-forget
-	// event publisher (no reply subject), while the counts lookup behind
-	// gateway presence is a request/reply call. See presence.NewFetch's doc.
 	rpcConn := svcboot.MustRPCConn(core, bus.RPCURL(cfg.NATSRPCURL))
 	defer rpcConn.Close()
 
-	// HOSTNAME is the pod name the kubelet injects; it is the only field of
-	// the status key that says WHICH ingress wrote it, which matters the one
-	// time two replicas exist by accident (two Identify sessions on one bot
-	// token fight, see this file's package doc).
 	pod := env.Get("HOSTNAME", "")
 	status := botstatus.New(valkeyClient, pod, log)
 	go status.Run(ctx)
 
 	health.ServeSet(cfg.ListenAddr, healthSet(core, rpcConn, status))
 
-	// Every gateway line carries which process wrote it. pod alone cannot:
-	// HOSTNAME is stable across a restart of the same pod name, so a burst of
-	// reconnects reads identically whether it came from one looping process
-	// or a hundred short-lived ones. boot_id is the process's start instant,
-	// and it is what turns the 21,575 socket-end lines of 2026-09-07 into an
-	// answerable question -- see gateway.connectSeq, which numbers the
-	// attempts inside one boot_id.
 	gwLog := log.With(zap.String("pod", pod), zap.Int64("boot_id", time.Now().UnixMilli()))
 
 	sess := gateway.Session{
-		Token:  cfg.DiscordBotToken,
-		Dial:   gateway.DialWS,
-		Handle: r,
-		Log:    gwLog,
-		Status: status,
-		// The connect window survives a restart deliberately: the loop that
-		// got this bot's token reset was a crash-loop, and a per-process
-		// count of 800 is 800 per crash (see gateway/budget.go).
+		Token:    cfg.DiscordBotToken,
+		Dial:     gateway.DialWS,
+		Handle:   r,
+		Log:      gwLog,
+		Status:   status,
 		Connects: botstatus.NewConnectLog(valkeyClient, pod),
 		Presence: &presence.Source{
 			Fetch: presence.NewFetch(rpcConn, cfg.UsersCountsSubject),
@@ -111,28 +77,10 @@ func main() {
 	log.Info("discord ingress shutting down")
 }
 
-// healthSet is ingress's own report plus the RPC responder that serves it, the
-// one engine folds into health.itsbagelbot.com/discord -- this process is not
-// routed from outside, so that RPC is the only way its verdict is visible.
-//
-// There is no lane check here because ingress consumes nothing: it publishes
-// every event it receives and never binds a durable. What is left is the RPC
-// connection and the responder registration on it. Until this Set existed the
-// process served zero checks, which meant a pod that had lost NATS entirely
-// still answered /status 200 and stayed Ready with the whole gateway feed
-// going nowhere.
-//
-// The idle path above (no DISCORD_BOT_TOKEN) deliberately does not come
-// through here: it has no NATS connection to register a responder on, and
-// staying Ready with nothing to check is the behaviour it is there for.
 func healthSet(core svcboot.Core, nc *nats.Conn, status *botstatus.Reporter) *health.Set {
 	set := svcboot.NewHealthSet(svcboot.Health{
 		Log: core.Log, NC: nc, Service: serviceName, QueueGroup: serviceName + "-rpc",
 	}, status.ReadyCheck())
-	// The gateway is the one dependency whose failure a restart can actually
-	// fix, so it is also the one liveness gate in the fleet: a fatal close
-	// code means this process will never hold the bot's Identify session
-	// again, and a stalled heartbeat means the loop that owns it is gone.
 	set.Live(status.LiveCheck())
 	return set
 }

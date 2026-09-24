@@ -87,8 +87,6 @@ func assertBrokerDedupAbsent(t *testing.T, msg *nats.Msg) {
 	}
 }
 
-// framedBatch stages a cohort already carrying Orbit's batch framing, as it
-// looks when a rejected batch reaches the fallback.
 func framedBatch(n int) []publishRequest {
 	batch := stagedBatch(n)
 	for i := range batch {
@@ -114,8 +112,6 @@ func stagedBatch(n int) []publishRequest {
 	return batch
 }
 
-// confirmedBatch stages a cohort whose callers are all waiting on a per-message
-// verdict, as PublishConfirmed leaves them.
 func confirmedBatch(n int) []publishRequest {
 	batch := stagedBatch(n)
 	for i := range batch {
@@ -130,24 +126,18 @@ func admitTestBatch(publisher *batchPublisher, batch []publishRequest) {
 	}
 }
 
-// newTestBatchPublisher builds the connection-side state cohort resolution
-// touches, without a broker connection.
 func newTestBatchPublisher() *batchPublisher {
 	publisher := &batchPublisher{log: zap.NewNop()}
 	publisher.signal = sync.NewCond(&publisher.stateMu)
 	return publisher
 }
 
-// A slot-gated cohort whose window closes while every inflight slot is busy
-// keeps collecting: the messages that arrive during the slot wait join it
-// instead of forming cohorts of their own behind it, and the slot comes back
-// held for publish.
 func TestCollectBatchKeepsFillingWhileSlotsAreBusy(t *testing.T) {
 	worker := newOverlapWorker(nil)
 	worker.batchWait = time.Millisecond
 	worker.batchSize = 8
 	worker.slots = make(chan struct{}, 1)
-	worker.slots <- struct{}{} // the only slot is busy
+	worker.slots <- struct{}{}
 
 	staged := stagedBatch(4)
 	done := make(chan []publishRequest, 1)
@@ -155,7 +145,7 @@ func TestCollectBatchKeepsFillingWhileSlotsAreBusy(t *testing.T) {
 		batch, _ := worker.collectBatch(staged[0])
 		done <- batch
 	}()
-	time.Sleep(20 * time.Millisecond) // window long closed, slot still busy
+	time.Sleep(20 * time.Millisecond)
 	worker.requests <- staged[1]
 	worker.requests <- staged[2]
 	time.Sleep(5 * time.Millisecond)
@@ -164,7 +154,7 @@ func TestCollectBatchKeepsFillingWhileSlotsAreBusy(t *testing.T) {
 		t.Fatalf("cohort of %d closed while the slot was busy", len(batch))
 	default:
 	}
-	<-worker.slots // the inflight cohort resolves
+	<-worker.slots
 	batch := <-done
 	if len(batch) != 3 {
 		t.Fatalf("cohort = %d messages, want the 3 that arrived during the slot wait", len(batch))
@@ -177,7 +167,6 @@ func TestCollectBatchKeepsFillingWhileSlotsAreBusy(t *testing.T) {
 	}
 }
 
-// A wire that takes no slot still closes on the window alone.
 func TestCollectBatchUngatedWireClosesOnTheWindow(t *testing.T) {
 	worker := newOverlapWorker(nil)
 	worker.overlapCommit = false
@@ -185,7 +174,7 @@ func TestCollectBatchUngatedWireClosesOnTheWindow(t *testing.T) {
 	worker.slots <- struct{}{}
 	worker.slots <- struct{}{}
 	worker.slots <- struct{}{}
-	worker.slots <- struct{}{} // all four busy, and irrelevant
+	worker.slots <- struct{}{}
 	batch, ok := worker.collectBatch(stagedBatch(1)[0])
 	if !ok || len(batch) != 1 {
 		t.Fatalf("collectBatch() = (%d, %v), want the window to close the cohort", len(batch), ok)

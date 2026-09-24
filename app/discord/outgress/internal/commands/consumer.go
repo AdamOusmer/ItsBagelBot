@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package commands is outgress's Command consumer: it binds both
-// DISCORD_OUTGRESS lanes and drains LaneMod to empty before it ever touches
-// LaneDefault (see internal/domain/discord's Lane doc for why moderation
-// preempts). Handler dispatch itself lives in handlers.go.
 package commands
 
 import (
@@ -18,37 +14,23 @@ import (
 	"go.uber.org/zap"
 )
 
-// nakDelay/maxRedeliveries match Twitch outgress's own chat lanes: a failed
-// command is retried a few times at a short, paced interval before it ages
-// out at the stream's 60s MaxAge.
 const (
 	nakDelay        = time.Second
 	maxRedeliveries = 3
 )
 
-// Consumer drains DISCORD_OUTGRESS's two lanes with strict mod-first
-// priority.
 type Consumer struct {
 	NATSURL string
 	Log     *zap.Logger
 	Handle  func(context.Context, ddiscord.Command) error
 }
 
-// Lanes is everything Run hands back: the two bound subscribers, so the caller
-// can put a health check on each, and the func that releases both.
-//
-// One struct rather than three returns because two of them are the same type,
-// and a call site that swaps mod for default compiles and then reports the
-// wrong lane as the wedged one.
 type Lanes struct {
 	Mod     bus.Subscriber
 	Default bus.Subscriber
 	Close   func()
 }
 
-// Run binds both lanes and pumps them until ctx is cancelled. It returns
-// once both subscriptions are established; the pump itself runs on its own
-// goroutine.
 func (c *Consumer) Run(ctx context.Context) (Lanes, error) {
 	mod, err := bus.NewLaneSubscriber(bus.LaneConfig{
 		URL: c.NATSURL, Stream: bus.DiscordOutgressStream.Name, Subject: ddiscord.LaneMod,
@@ -84,19 +66,6 @@ func (c *Consumer) Run(ctx context.Context) (Lanes, error) {
 	return Lanes{Mod: mod, Default: def, Close: func() { _ = mod.Close(); _ = def.Close() }}, nil
 }
 
-// pump is the mod-first priority loop: every iteration checks the mod
-// channel alone (non-blocking) before it is willing to take a default
-// message, so a sustained flood on mod is served exclusively and default
-// only makes progress in the gaps.
-//
-// This is not linearizable priority -- if both channels have a message
-// ready at the exact instant the blocking select below is entered, Go
-// picks between them at random, so one default message can occasionally
-// slip in ahead of a mod message that arrived a moment later. That is
-// bounded and self-correcting: the very next iteration re-checks mod alone
-// again, so the worst case is one out-of-order default send during a race
-// window measured in microseconds, never a mod backlog building up behind
-// a default flood.
 func (c *Consumer) pump(ctx context.Context, modCh, defCh <-chan *bus.Message) {
 	for {
 		if handled, closed := c.pollMod(modCh); closed {
@@ -110,12 +79,6 @@ func (c *Consumer) pump(ctx context.Context, modCh, defCh <-chan *bus.Message) {
 	}
 }
 
-// waitTurn is pump's blocking half, extracted on its own (CodeScene: Complex
-// Method -- pump inlining this select pushed it back over the cyclomatic
-// limit even after pollMod/take/process were already split out). Runs once
-// pollMod has confirmed nothing is already waiting on mod, and blocks for
-// ctx cancellation or the next message on either lane. Reports whether the
-// pump should keep running: false on cancellation or a closed channel.
 func (c *Consumer) waitTurn(ctx context.Context, modCh, defCh <-chan *bus.Message) bool {
 	select {
 	case <-ctx.Done():
@@ -127,11 +90,6 @@ func (c *Consumer) waitTurn(ctx context.Context, modCh, defCh <-chan *bus.Messag
 	}
 }
 
-// pollMod is the non-blocking mod-first check pump's own doc describes:
-// handled is true once it has consumed a mod message (the loop should
-// restart immediately rather than fall through to the blocking select below,
-// so a sustained mod backlog never waits its turn behind default), closed is
-// true once the mod channel itself is gone (the pump should stop).
 func (c *Consumer) pollMod(modCh <-chan *bus.Message) (handled, closed bool) {
 	select {
 	case msg, ok := <-modCh:
@@ -141,8 +99,6 @@ func (c *Consumer) pollMod(modCh <-chan *bus.Message) (handled, closed bool) {
 	}
 }
 
-// take processes one channel receive and reports whether the pump should
-// keep running: false means the channel closed and msg is the zero value.
 func (c *Consumer) take(msg *bus.Message, ok bool) bool {
 	if !ok {
 		return false

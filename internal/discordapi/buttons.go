@@ -17,11 +17,6 @@ const (
 	CustomDailyClaim  = "bagel:crumbs:daily"
 )
 
-// TicketDeskButtons is the persistent Open ticket control on the support
-// embed. The label is the streamer's (Config.TicketPanel().Button) rather
-// than a constant: the panel embed is fully editable from the dashboard, and
-// a button reading "Open a ticket" under a panel that says "Contact the mod
-// team" is the one part of that card that would not follow the copy.
 func TicketDeskButtons(label string) []Button {
 	if label == "" {
 		label = "Open a ticket"
@@ -29,7 +24,6 @@ func TicketDeskButtons(label string) []Button {
 	return []Button{{Style: ButtonPrimary, Label: label, CustomID: CustomTicketOpen}}
 }
 
-// TicketOpenButtons are the Claim and Close controls inside a private ticket.
 func TicketOpenButtons() []Button {
 	return []Button{
 		{Style: ButtonSecondary, Label: "Claim", CustomID: CustomTicketClaim},
@@ -37,7 +31,6 @@ func TicketOpenButtons() []Button {
 	}
 }
 
-// VoiceRoomButtons is Lock/Unlock on a join-to-create clone.
 func VoiceRoomButtons() []Button {
 	return []Button{
 		{Style: ButtonDanger, Label: "Lock", CustomID: CustomVoiceLock},
@@ -45,7 +38,6 @@ func VoiceRoomButtons() []Button {
 	}
 }
 
-// DailyClaimButtons is the Claim daily control on a rank card.
 func DailyClaimButtons() []Button {
 	return []Button{{Style: ButtonPrimary, Label: "Claim daily", CustomID: CustomDailyClaim}}
 }

@@ -19,15 +19,12 @@ type PermitBorrower interface {
 	Borrow(context.Context, Member, BorrowRequest) (BorrowReply, error)
 }
 
-// selfShare is this pod's precomputed lease allotment for one bucket profile.
-// Shares depend only on the plan (member count and stable order), so they are
-// derived once at activation and read lock-free on every admission.
 type selfShare struct {
 	sharedRate    rate.Limit
 	sharedBurst   int
 	standardRate  rate.Limit
 	standardBurst int
-	signature     uint64 // precomputed bucketConfigSignature for lock-free hit checks
+	signature     uint64
 	valid         bool
 }
 
@@ -37,9 +34,7 @@ type activePlan struct {
 	validFromMS int64
 	notBefore   time.Time
 	notAfter    time.Time
-	// nextNotBefore is the earliest safe admission time for the following
-	// generation. Between notAfter and this deadline both generations are
-	// deliberately closed, preventing their leased shares from overlapping.
+	// Both generations stay closed until here so their leased shares never overlap.
 	nextNotBefore time.Time
 	members       []Member
 	selfIndex     int
@@ -47,20 +42,14 @@ type activePlan struct {
 	shares        [profileHelixUser + 1]selfShare
 }
 
-// coversNow reports whether now falls inside the plan's guarded admission
-// window [notBefore, notAfter).
 func (p *activePlan) coversNow(now time.Time) bool {
 	return !now.Before(p.notBefore) && now.Before(p.notAfter)
 }
 
-// matches reports whether p is the plan the given epoch/generation refers to.
-// A nil plan never matches (the caller is between generations or unprovisioned).
 func (p *activePlan) matches(epoch, generation uint64) bool {
 	return p != nil && p.epoch == epoch && p.generation == generation
 }
 
-// shareFor returns this pod's valid share for a profile. ok is false when the
-// pod owns no share (outside the plan, unknown profile, or an empty allotment).
 func (p *activePlan) shareFor(profile uint8) (*selfShare, bool) {
 	if p.selfIndex < 0 || int(profile) >= len(p.shares) {
 		return nil, false
@@ -83,12 +72,6 @@ type LeaseManager struct {
 	emergencySlots *semaphore.Weighted
 }
 
-// Identity names the pod a manager leases for. It is a required constructor
-// argument, not a functional option: the option form (WithLeaseIdentity, the
-// only option that ever existed) was passed by every caller, and a manager
-// built without it leases under the empty pod id, which no plan ever lists --
-// selfIndex stays -1, shareFor never returns a share, and the pod silently
-// falls back to the central limiter instead of its lease.
 type Identity struct {
 	Region string
 	PodID  string
@@ -105,9 +88,6 @@ func NewLeaseManager(central *Limiter, local *BucketStore, permit PermitBorrower
 	}
 }
 
-// ActivatePlan maps Valkey server time onto local monotonic deadlines. It may be
-// called before the boundary; admission uses the plan only inside the guarded
-// interval.
 func (m *LeaseManager) ActivatePlan(plan Plan, serverNow, localNow time.Time, guard time.Duration) error {
 	if err := plan.Validate(); err != nil {
 		return err
@@ -140,16 +120,11 @@ func (m *LeaseManager) ActivatePlan(plan Plan, serverNow, localNow time.Time, gu
 	m.plan.Store(ap)
 	m.primeFixedBuckets(localNow, ap)
 	if m.local != nil {
-		// Keep the immediately previous incarnation so an unchanged holder can
-		// renew without losing its token balance. Older idle buckets are safe to
-		// discard; recreation starts empty.
 		m.local.DeleteExpired(localNow.Add(-2 * notAfter.Sub(notBefore)).UnixNano())
 	}
 	return nil
 }
 
-// buildShares precomputes every profile's lease allotment for this pod under a
-// plan with the given member count and this pod's stable rank.
 func buildShares(members, selfIndex int) [profileHelixUser + 1]selfShare {
 	var shares [profileHelixUser + 1]selfShare
 	for profile := profileChat; profile <= profileHelixUser; profile++ {
@@ -160,8 +135,6 @@ func buildShares(members, selfIndex int) [profileHelixUser + 1]selfShare {
 	return shares
 }
 
-// computeShare derives one profile's share. ok is false for a profile with no
-// spec or an allotment too small to grant this pod any burst.
 func computeShare(profile uint8, members, selfIndex int) (selfShare, bool) {
 	shared, standard, ok := specsForProfile(profile)
 	if !ok {
@@ -184,11 +157,6 @@ func computeShare(profile uint8, members, selfIndex int) (selfShare, bool) {
 	}, true
 }
 
-// primeFixedBuckets creates the fleet-wide Helix buckets as soon as a lease
-// plan activates and renews them every epoch. Unlike per-channel chat buckets,
-// these sparse control buckets must remain resident: creating them on the first
-// EventSub operation would start them empty and expose only the 10% emergency
-// partition to an operation that needs a larger burst.
 func (m *LeaseManager) primeFixedBuckets(now time.Time, plan *activePlan) {
 	if m.local == nil || plan.selfIndex < 0 {
 		return
@@ -218,10 +186,6 @@ func (m *LeaseManager) Allow(ctx context.Context, req Request) (bool, error) {
 	return m.allowAt(ctx, &req, time.Now())
 }
 
-// GuardRetryAfter distinguishes the intentional lease-generation guard from a
-// genuinely empty token bucket. The old plan knows the next generation's safe
-// opening boundary, so a system caller that lands in the gap can wait a few
-// milliseconds and retry without weakening the no-overlap invariant.
 func (m *LeaseManager) GuardRetryAfter() time.Duration {
 	return m.guardRetryAfterAt(time.Now())
 }
@@ -241,20 +205,13 @@ func (m *LeaseManager) guardRetryAfterAt(now time.Time) time.Duration {
 	}
 }
 
-// allowAt is the admission core with an explicit clock so deterministic tests
-// and benchmarks can refill local buckets without sleeping. Production callers
-// go through Allow with the wall clock. req is a pointer to avoid copying the
-// embedded Spec on the hot path; allowAt never retains it.
 func (m *LeaseManager) allowAt(ctx context.Context, req *Request, now time.Time) (bool, error) {
 	plan := m.active(now)
 	if plan == nil {
+		// Guard gap or expired plan: fail closed, another generation may be spending.
 		if m.plan.Load() != nil {
-			// A plan exists but we are in the guard gap or past its expiry. Fail
-			// closed: another generation may already be spending, and the gap is a
-			// deliberate sacrifice that prevents overlap.
 			return false, nil
 		}
-		// No plan has ever been installed; bootstrap on the emergency partition.
 		return m.emergencyAllow(ctx, *req, 1)
 	}
 
@@ -344,8 +301,6 @@ func (m *LeaseManager) tryLocalStandardState(now time.Time, plan *activePlan, bu
 	return standard, shared, existed
 }
 
-// leaseOp bundles the state one lease admission reads: the clock, the committed
-// plan, the target bucket, and this pod's share of it.
 type leaseOp struct {
 	now    time.Time
 	plan   *activePlan
@@ -353,9 +308,6 @@ type leaseOp struct {
 	share  *selfShare
 }
 
-// refreshBucket rewrites a bucket's full config from this pod's share (the pod
-// is always the holder). Called when a bucket's signature no longer matches the
-// committed share or a lease read reports the bucket stale.
 func (m *LeaseManager) refreshBucket(bucket *LocalBucket, now time.Time, plan *activePlan, share *selfShare) {
 	bucket.Update(now, BucketConfig{
 		Epoch: plan.epoch, Generation: plan.generation, Holder: plan.selfPodID,
@@ -365,8 +317,6 @@ func (m *LeaseManager) refreshBucket(bucket *LocalBucket, now time.Time, plan *a
 	})
 }
 
-// premiumLease takes one premium (shared/system) token, rebuilding a stale
-// bucket and retrying once.
 func (m *LeaseManager) premiumLease(op leaseOp) bool {
 	allowed, stale := op.bucket.TryPremiumLease(op.now, op.plan.epoch, op.plan.generation)
 	if stale {
@@ -376,8 +326,6 @@ func (m *LeaseManager) premiumLease(op leaseOp) bool {
 	return allowed
 }
 
-// standardLease takes one standard+shared token pair, rebuilding a stale bucket
-// and retrying once.
 func (m *LeaseManager) standardLease(op leaseOp) (bool, bool) {
 	standard, shared, stale := op.bucket.TryStandardLease(op.now, op.plan.epoch, op.plan.generation)
 	if stale {
@@ -389,19 +337,14 @@ func (m *LeaseManager) standardLease(op leaseOp) (bool, bool) {
 
 func (m *LeaseManager) configuredBucket(now time.Time, plan *activePlan, bucketID BucketID, share *selfShare) (*LocalBucket, bool) {
 	if bucket, ok := m.local.Load(bucketID); ok {
-		// Hot path: one atomic load and a uint64 compare against the precomputed
-		// signature. The full config is only rebuilt when the profile changes
-		// (e.g. a broadcaster's mod status flips inside an epoch).
 		if !bucket.MatchesSignature(share.signature) {
 			m.refreshBucket(bucket, now, plan, share)
 		}
 		return bucket, true
 	}
 	candidate := NewLocalBucket()
+	// bucketID aliases the bus payload buffer; clone it before the map keeps it.
 	stableID := bucketID
-	// Sonic exposes envelope strings as views into the native bus payload. Clone
-	// only on the first bucket insertion so the map does not retain the whole
-	// message buffer; cache hits remain allocation-free.
 	if stableID.Value != "" {
 		stableID.Value = strings.Clone(stableID.Value)
 	}
@@ -413,11 +356,6 @@ func (m *LeaseManager) configuredBucket(now time.Time, plan *activePlan, bucketI
 	return bucket, true
 }
 
-// A newly created per-channel bucket starts empty by design, so no member in a
-// newly activated generation can safely spend a local burst immediately. Peer
-// borrowing for that first sparse chat request only adds up to two cross-region
-// round trips; use the globally serialized emergency partition directly. Pods
-// outside the committed plan must still borrow, as they own no local share.
 func skipColdChatBorrow(plan *activePlan, existed bool, profile uint8) bool {
 	return plan.selfIndex >= 0 && !existed && (profile == profileChat || profile == profileChatMod)
 }
@@ -435,14 +373,10 @@ func localShare(spec Spec, members, rank int) (rate.Limit, int) {
 	return rate.Limit(leasedRate / float64(members)), burst
 }
 
-// validRank reports whether rank is a usable member index in [0, members).
 func validRank(rank, members int) bool {
 	return members > 0 && rank >= 0 && rank < members
 }
 
-// borrowTarget is one peer-borrow request: the bucket, the needs still
-// outstanding, and the shared/standard specs the lender's share is derived
-// from.
 type borrowTarget struct {
 	bucketID BucketID
 	need     uint8
@@ -450,9 +384,6 @@ type borrowTarget struct {
 	standard Spec
 }
 
-// borrow tries to cover the outstanding needs from peers in local-region-first
-// order, bounded to two attempts total so a cold chat request never spends more
-// than two cross-region round trips.
 func (m *LeaseManager) borrow(ctx context.Context, plan *activePlan, target borrowTarget) uint8 {
 	if m.permit == nil || len(plan.members) < 2 {
 		return 0
@@ -479,8 +410,6 @@ func (m *LeaseManager) borrow(ctx context.Context, plan *activePlan, target borr
 	return paid
 }
 
-// borrowOrder lists the peer indices to try, local-region peers first then
-// remote, skipping this pod.
 func (m *LeaseManager) borrowOrder(plan *activePlan) []int {
 	order := make([]int, 0, len(plan.members)-1)
 	for _, wantLocal := range []bool{true, false} {
@@ -496,8 +425,6 @@ func (m *LeaseManager) borrowOrder(plan *activePlan) []int {
 	return order
 }
 
-// peerAsk is one Borrow RPC: the plan and target, the peer's member index, and
-// the needs already paid (so the request asks only for the remainder).
 type peerAsk struct {
 	plan   *activePlan
 	target borrowTarget
@@ -505,8 +432,6 @@ type peerAsk struct {
 	paid   uint8
 }
 
-// askPeer sends one Borrow RPC to the peer, sized to that member's share.
-// Remote peers get a longer timeout than same-region ones.
 func (m *LeaseManager) askPeer(ctx context.Context, ask peerAsk) (BorrowReply, error) {
 	member := ask.plan.members[ask.index]
 	members := len(ask.plan.members)
@@ -528,9 +453,6 @@ func (m *LeaseManager) askPeer(ctx context.Context, ask peerAsk) (BorrowReply, e
 	})
 }
 
-// GrantPermit authorizes a peer against this pod's share. The caller-supplied
-// numeric allocation must exactly match the share derived from the committed
-// profile and plan; a malformed peer cannot inflate this lender's bucket.
 func (m *LeaseManager) GrantPermit(now time.Time, request BorrowRequest) BorrowReply {
 	reply := BorrowReply{Version: planVersion, Epoch: request.Epoch, Status: "stale"}
 	plan, share, status := m.validateBorrow(now, request)
@@ -543,9 +465,6 @@ func (m *LeaseManager) GrantPermit(now time.Time, request BorrowRequest) BorrowR
 	return reply
 }
 
-// validateBorrow checks a borrow request against the committed plan and this
-// lender's share. status is "" on success; "stale" if the plan moved on, or
-// "invalid" for an unknown profile or a share the request does not match.
 func (m *LeaseManager) validateBorrow(now time.Time, request BorrowRequest) (*activePlan, *selfShare, string) {
 	plan := m.active(now)
 	if !plan.matches(request.Epoch, request.Generation) {
@@ -558,15 +477,11 @@ func (m *LeaseManager) validateBorrow(now time.Time, request BorrowRequest) (*ac
 	return plan, share, ""
 }
 
-// matchesShare reports whether the request's numeric allocation exactly equals
-// the lender's committed share, so a malformed peer cannot inflate the bucket.
 func (r BorrowRequest) matchesShare(share *selfShare) bool {
 	return r.SharedRateMicros == limitMicros(share.sharedRate) && r.SharedBurst == share.sharedBurst &&
 		r.StandardRateMicros == limitMicros(share.standardRate) && r.StandardBurst == share.standardBurst
 }
 
-// grantNeed applies the requested need against the lender's bucket and returns
-// the paid mask plus the reply status.
 func (m *LeaseManager) grantNeed(op leaseOp, need uint8) (uint8, string) {
 	switch need {
 	case NeedShared, NeedSystem:
@@ -588,9 +503,7 @@ func limitMicros(limit rate.Limit) int64 {
 	return int64(math.Floor(float64(limit) * 1_000_000))
 }
 
-// reserveEmergency acquires one globally serialized emergency slot. ok is false
-// when the central limiter is absent or every slot is busy; otherwise the
-// caller must invoke release when done.
+// When ok, the caller must call release.
 func (m *LeaseManager) reserveEmergency() (release func(), ok bool) {
 	if m.central == nil {
 		return nil, false

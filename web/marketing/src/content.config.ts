@@ -4,12 +4,6 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 
-// Legal documents (terms, privacy, creator-terms) as pure data: one folder per
-// doc, one subfolder per locale, a meta.json plus NN-<anchor>.md per section.
-// The NN- prefix orders sections; the rest of the filename is the anchor id
-// (must stay stable: it is the in-page #hash). A translator adds a language by
-// copying a locale folder and translating the files; no code changes.
-
 const legalMeta = defineCollection({
   loader: glob({ pattern: '*/*/meta.json', base: './src/content/legal' }),
   schema: z.object({
@@ -29,14 +23,6 @@ const legalSections = defineCollection({
     plain: z.string(),
   }),
 });
-
-// Changelog: one JSON file per GitHub release. Drop in a new file to publish
-// an entry, no page edits. `title` / `highlights` are either plain English
-// or a locale map with `en` required; missing locales fall back to English.
-// `highlights` is a short bullet list (UX-facing; no dense paragraphs).
-// `tag` drives the stylized chips (alpha, beta, prerelease); `release` is the
-// quiet stable mark. `version` is the git tag shown on the page and the sort
-// key (do not rely on the filename: the loader strips dots from ids).
 
 const localized = z.union([
   z.string(),

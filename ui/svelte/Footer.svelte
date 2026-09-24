@@ -2,14 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for `.bb-footer`. Its Astro twin is ../astro/Footer.astro;
-  // ../test/parity.test.ts diffs the two.
-  //
-  // Every string is a prop and every link is a `UiNavLink`, including the
-  // legal strip. The `colophon` snippet is the deliberate exception to "the
-  // footer renders what it is given": the marketing site's ownership block is
-  // bot-specific, homepage-gated and load-bearing for an external ownership
-  // scan, so it stays in that site and is passed in here.
   import '../styles/elements/footer.css';
   import Brand from './Brand.svelte';
   import NavLink from './NavLink.svelte';
@@ -28,14 +20,11 @@
     ...rest
   }: {
     brand: UiBrand;
-    /** The goodbye line and its hand-written sub-line. */
     signoff?: { line: string; sub?: string };
     columns?: UiFooterColumn[];
     legal?: UiNavLink[];
     copyright: string;
-    /** The one promise repeated at the bottom. */
     note?: string;
-    /** Rendered above the footer proper; see the note on this slot. */
     colophon?: Snippet;
     class?: string;
     [key: string]: unknown;

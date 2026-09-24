@@ -2,14 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro adapter for `.bb-rail`. Its Svelte twin is ../svelte/Rail.svelte and
-// ../test/parity.test.ts diffs the two static renders.
-//
-// Static by design: no collapse state and no glide engine. This adapter exists
-// for the surfaces that DRAW a console rail rather than run one -- the guide
-// screens and the docs -- and those want the rail exactly as it looks on
-// arrival, which is groups expanded for the current page and the highlight not
-// yet measured.
 import '../styles/elements/shell.css';
 import Brand from './Brand.astro';
 import RailItem from './RailItem.astro';

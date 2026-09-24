@@ -1,15 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The module catalog is one file per module under catalog/: adding a module
-// means adding one file plus one line in MODULE_CATALOG below, mirroring how
-// app/twitch/sesame/modules/all.go registers the Go side of the same module.
-// The loyalty-wager games are one file holding two defs (they nest under
-// loyalty and change together), spread into the list below.
-//
-// MOD maps every module id used in the catalog. Module-id strings were
-// previously hardcoded per store (a typo compiled fine and silently missed
-// the module blob) so stores key off MOD.<name> instead of a raw literal.
 import type { ModuleDef } from './module-def';
 import { GAME_MODULE_DEFS } from './games';
 import { VALORANT_MODULE_DEF } from './valorant';
@@ -67,11 +58,6 @@ export const MOD = {
 } as const;
 
 export const MODULE_CATALOG: readonly ModuleDef[] = [
-  // Order here is declaration order, not the directory grouping. The modules
-  // index sorts by MODULE_CATEGORY_ORDER (Moderation → Chat → Channel →
-  // Points → Play → Gear → Stats) so AutoMod is the first row a streamer
-  // sees. Channel Points and Timers own bespoke pages (opened via href);
-  // Trigger Words uses the generic reply inspector with its rule editor.
   CHANNELPOINTS_MODULE,
   STREAM_MODULE,
   TIMERS_MODULE,
@@ -103,15 +89,10 @@ export function moduleDef(id: string): ModuleDef | undefined {
   return MODULE_CATALOG.find((m) => m.id === id);
 }
 
-// catalogChildren are the modules nested under parentId, in catalog order.
 export function catalogChildren(parentId: string): ModuleDef[] {
   return MODULE_CATALOG.filter((def) => def.parent === parentId);
 }
 
-// catalogIndexable is the modules grid's row set: hidden modules stay
-// unreachable, nested children fold into their parent instead of minting a
-// second tile that could be flipped on without it, and a module with its own
-// sidebar section is listed there instead of here rather than in both places.
 export function catalogIndexable(def: ModuleDef): boolean {
   return !def.hidden && !def.parent && !def.section;
 }

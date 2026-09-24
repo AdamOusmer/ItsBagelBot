@@ -2,7 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Per-locale for the same reason as 404.astro.
 import Layout from '../../layouts/Layout.astro';
 import ErrorScene from '@bagel/ui/astro/ErrorScene.astro';
 import { getLangFromUrl, useTranslations, localeStaticPaths, localizePath } from '../../i18n/ui';
@@ -11,8 +10,6 @@ export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
-// The home link is localised: a French visitor who mistyped a URL should land
-// on /fr, not on the English root.
 const home = localizePath('/', lang);
 ---
 

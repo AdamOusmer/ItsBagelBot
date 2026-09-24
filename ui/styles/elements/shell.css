@@ -1,53 +1,19 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
-/* The application shell: the desktop rail, the call-sign strip, the floating
-   dock, the stage they frame, and the four page-level pieces that live inside
-   it (section nav, page head, toolbar, scroll region).
-
-   One file rather than eight because they are one layout and they share three
-   numbers -- the 761px width at which the rail replaces the dock, the gutter
-   the stage and the strip agree on, and the z-order that keeps the dock over
-   the page, the strip over the rail and the rail over a page's own fixed
-   backdrop. Splitting them put those numbers in three files each, which is how
-   the rail came to appear UNDER the billing page's aurora backdrop.
-
-   `--gutter` and `--d` (a density multiplier) are the console's, not this
-   library's: they arrive from the host stylesheet and every use below carries
-   a fallback, so a surface that does not define them still lays out. */
 @layer bb.elements {
-  /* ── Shell ───────────────────────────────────────────────────────────── */
-
   .bb-shell {
-    /* The one number the rail and the dock must agree on: above it the rail is
-       the navigation and the dock is hidden, below it the reverse. */
     --shell-rail-breakpoint: 761px;
     --shell-canvas-max: 1160px;
-    /* How much of the viewport's bottom the dock takes, for the sticky panels
-       that must stop above it (surface.css reads it). It goes to 0 in the
-       block below that hides the dock, so the two cannot drift apart. */
     --bb-dock-clearance: 108px;
 
     position: relative;
-    /* Pages that paint a fixed full-viewport backdrop inside the shell do it
-       at z-index 0; 1 here keeps the chrome above them. */
     z-index: 1;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    /* Expanding a deck row (or a rail group) grows content above the fold.
-       Default scroll-anchoring then shifts the document to keep the click
-       target in view, which on this flex shell moved the sticky rail and
-       the docked rehearsal together and left a blank band under the
-       rehearsal. The click already named what should stay put. */
     overflow-anchor: none;
   }
 
@@ -58,9 +24,6 @@
     min-width: 0;
   }
 
-  /* `display: contents` keeps the fixed dock positioned against the viewport;
-     the wrapper exists only so the rail can take the dock's place at desktop
-     widths without the dock growing a breakpoint of its own. */
   .bb-shell__dock-slot {
     display: contents;
   }
@@ -72,15 +35,10 @@
     flex: 1;
   }
 
-  /* main is a landmark skip target, not a control: focus lands here from the
-     skip link so the next Tab starts in the content, but a full-width ring
-     around the whole page reads as a bug. Whatever sent focus here already
-     showed its own ring. */
   .bb-shell__main:focus {
     outline: none;
   }
 
-  /* One centred reading column; the dock floats over the bottom padding. */
   .bb-shell__canvas {
     padding: calc(var(--gutter, 28px) + 6px) var(--gutter, 28px)
       calc(110px + env(safe-area-inset-bottom, 0px));
@@ -89,8 +47,6 @@
     margin: 0 auto;
   }
 
-  /* Offset for a fixed banner above the shell (impersonation, delegation).
-     The strip keeps its own 10px float below the banner. */
   .bb-shell--offset {
     box-sizing: border-box;
     padding-top: 44px;
@@ -101,10 +57,6 @@
     top: calc(54px + env(safe-area-inset-top, 0px));
   }
 
-  /* The first focusable element in the shell, parked off-screen by a transform
-     rather than by `display: none` or a clip: it has to be focusable, and it
-     has to animate back in, and a clipped element that moves is the shape
-     Safari has historically failed to repaint. */
   .bb-shell__skip {
     position: fixed;
     top: 0;
@@ -134,7 +86,6 @@
   @media (min-width: 761px) {
     .bb-shell--railed {
       flex-direction: row;
-      /* The dock slot is hidden just below: nothing to clear. */
       --bb-dock-clearance: 0px;
     }
 
@@ -142,13 +93,10 @@
       display: none;
     }
 
-    /* No dock to clear: give the column back the bottom it was reserving. */
     .bb-shell--railed .bb-shell__canvas {
       padding-bottom: calc(var(--gutter, 28px) + 24px);
     }
   }
-
-  /* ── Rail ────────────────────────────────────────────────────────────── */
 
   .bb-rail {
     --rail-width: 240px;
@@ -156,7 +104,6 @@
 
     position: sticky;
     top: 0;
-    /* Above a page's fixed backdrop (z 0), below the strip (z 40). */
     z-index: 1;
     align-self: start;
     height: 100vh;
@@ -177,11 +124,6 @@
     }
   }
 
-  /* The rail's one moving part: a single measured highlight that travels
-     between rows, including across group boundaries. It sits BEHIND the rows
-     (they carry z-index 1) so it reads as the row lighting up rather than as a
-     block sliding over the text. Position comes from the engine as two custom
-     properties; see ui/lib/rail-glide.ts for why it is measured. */
   .bb-rail__glide {
     position: absolute;
     left: var(--rail-pad, 14px);
@@ -213,9 +155,6 @@
     box-shadow: 0 0 10px rgba(82, 183, 136, 0.5);
   }
 
-  /* One box holding every nav row: the glide watches its height, so an opening
-     sub-list re-measures as it moves. `flex: none` keeps a tall nav from being
-     squeezed by the spacer below it. */
   .bb-rail__nav {
     display: flex;
     flex-direction: column;
@@ -282,15 +221,6 @@
     transform: rotate(90deg);
   }
 
-  /* The collapse is a grid-template-rows 0fr -> 1fr transition, NOT a height
-     animation and NOT a framework transition. Two reasons, and the second is
-     the load-bearing one: `auto` is not an interpolable height, so the version
-     this replaces used Svelte's `transition:slide`, which measures and writes
-     inline styles -- and an Astro twin has no equivalent, so the two adapters
-     could not have rendered the same collapsing group. A CSS state driven by
-     `data-open` animates identically in both and keeps the engine
-     framework-free. `overflow: hidden` on the wrapper is what makes 0fr clip
-     rather than overflow. */
   .bb-rail__subs {
     display: grid;
     grid-template-rows: 0fr;
@@ -350,11 +280,6 @@
     min-height: 18px;
   }
 
-  /* A quiet rail entry: icon + sentence-case label. Deliberately NOT the
-     ledger row (`.bb-nav-group > .bb-nav-link`): no index column, no mono
-     uppercase. The active state is carried by the rail's gliding highlight, so
-     this row only changes COLOUR -- two competing active treatments in one
-     list read as a rendering bug. */
   .bb-rail-item {
     position: relative;
     z-index: 1;
@@ -404,14 +329,6 @@
     cursor: not-allowed;
   }
 
-  /* A locked row says WHY, in real text, to whoever cannot see that it is
-     dimmed. Not a `title` tooltip: that reaches neither a screen reader
-     reliably nor a touch user at all. Written out here rather than reused from
-     a shared `.sr-only` for the same reason nav-link.css writes its own -- the
-     package does not ship one yet, and scoping it to the element means the day
-     it does, deleting this block cannot silently unhide anything else.
-     `clip-path: inset(50%)` and not the legacy `clip: rect(…)`, which Safari
-     17 stopped honouring inside a transformed ancestor. */
   .bb-rail-item__hint {
     position: absolute;
     width: 1px;
@@ -424,11 +341,6 @@
     border: 0;
   }
 
-  /* ── Topbar ──────────────────────────────────────────────────────────── */
-
-  /* A floating glass pill matching the marketing bar: sticky with a breathing
-     gap rather than a full-bleed ruled strip. The sticky top offset carries
-     the notch inset so the pill never rides into the safe area. */
   .bb-topbar {
     position: sticky;
     top: calc(10px + env(safe-area-inset-top, 0px));
@@ -486,8 +398,6 @@
     min-width: 0;
   }
 
-  /* The separator is decorative pseudo-content, not a text node, so assistive
-     tech never reads a spurious "slash" between the crumbs. */
   .bb-topbar__crumb li + li::before {
     content: "/";
     opacity: 0.45;
@@ -504,9 +414,6 @@
     color: var(--bb-tan-pale);
   }
 
-  /* min-width: 0 plus hidden overflow makes the crumb the one flexible piece
-     of the strip: a long page title ellipsizes instead of running under the
-     account chip. */
   .bb-topbar__crumb [data-here] {
     color: var(--bb-tan-light);
     white-space: nowrap;
@@ -546,27 +453,16 @@
       display: inline;
     }
 
-    /* A railed board's rail owns the account surface at this width, so the
-       strip's chip is a duplicate of it and goes. Same breakpoint as the
-       rail's own `display: flex`, and it has to stay the same one: at any
-       other value there is a band where the board shows two account menus or
-       none. */
     .bb-topbar__account[data-railed] {
       display: none;
     }
   }
 
-  /* On phones the crumb goes entirely: after the mark, the avatar and the bell
-     the pill leaves it ~30px (measured at 375px), which ellipsized every page
-     name down to two letters. The page eyebrow and the dock's active item
-     already carry the location there. */
   @media (max-width: 480px) {
     .bb-topbar__crumb {
       display: none;
     }
   }
-
-  /* ── Dock ────────────────────────────────────────────────────────────── */
 
   .bb-dock {
     position: fixed;
@@ -692,7 +588,6 @@
     text-align: center;
   }
 
-  /* A group's popover: a small card floating above its dock button. */
   .bb-dock__popover {
     position: absolute;
     bottom: calc(100% + 12px);
@@ -761,18 +656,11 @@
     text-align: center;
   }
 
-  /* Phones: icons only, except the ACTIVE item, which keeps its label as an
-     expanding pill (the iOS tab-bar shape). Every destination stays one tap
-     away without crowding a 375px row. The label is `display: none`, never
-     removed, so the accessible name survives. */
   @media (max-width: 760px) {
     .bb-dock {
       padding: 0 8px calc(8px + env(safe-area-inset-bottom, 0px));
     }
 
-    /* Full-bleed veil behind the pill: fades the scrolling page out and paints
-       the canvas colour solid across the home-indicator strip, so nothing
-       shows through the gaps around the floating dock. */
     .bb-dock::before {
       content: "";
       position: absolute;
@@ -820,25 +708,10 @@
     }
   }
 
-  /* ── Section nav ─────────────────────────────────────────────────────── */
-
-  /* Gone from here. In-page section navigation is the shared rail contract
-     (`.bb-tabs`, ../tags.css) with `orientation="auto"`, and the block that
-     used to sit here -- the container query, the count slot, the active
-     marker -- moved there whole so the rail has ONE definition. The adapters
-     are ../../svelte/SectionNav.svelte and ../../astro/SectionNav.astro. */
-
-  /* ── Page head ───────────────────────────────────────────────────────── */
-
-  /* The console's answer to the marketing site's section heading: a quiet mono
-     green eyebrow, a display title with gentle tracking. No rules, no
-     ornaments. */
   .bb-page-head {
     margin-bottom: calc(30px * var(--d, 1));
   }
 
-  /* Flex only WITH a trail, so a page without one keeps the exact block layout
-     (and margin collapse) it had before the slot existed. */
   .bb-page-head--trailed {
     display: flex;
     align-items: flex-end;
@@ -891,14 +764,6 @@
     max-width: 560px;
   }
 
-  /* One step down, for a page whose visual anchor is not its title: the
-     console's Overview, where the bot-status panel underneath is what the eye
-     goes to and a full-size greeting above it competes for nothing. This used
-     to be a whole second component (the console's OverviewHead.svelte), which
-     reproduced the eyebrow, the title and the lede at these four sizes instead
-     of asking for them -- so the copy stayed in step with this file and the
-     type did not. A modifier rather than a size prop, because nothing else
-     about the head changes. */
   .bb-page-head--compact {
     margin-bottom: calc(22px * var(--d, 1));
   }
@@ -918,8 +783,6 @@
     margin-top: 8px;
   }
 
-  /* ── Toolbar ─────────────────────────────────────────────────────────── */
-
   .bb-toolbar {
     display: flex;
     align-items: center;
@@ -937,25 +800,10 @@
     }
   }
 
-  /* ── Scroller ────────────────────────────────────────────────────────── */
-
-  /* The thin tan bar itself is `.bb-scroll` in ui/styles/a11y.css. Only the
-     6px width is this element's: a panel bar inside a card has to read as
-     narrower than the page's. */
   .bb-scroller {
     --bb-scrollbar-size: 6px;
 
     overflow-y: auto;
-    /* Not `contain`. Measured 2026-09-20 (headless Chromium 153, real wheel
-       input): with no smooth scroller running (reduced motion) a wheel over
-       an `overflow: auto` pane that has NOTHING to scroll, with `contain`,
-       moves nothing at all, and the page freezes under the pointer. With the
-       smooth scroller running the same pane is decided by its nested-scroll
-       gate (lib/nested-scroll.ts): it yields to this pane only while the
-       pane can move in the wheel's direction, and `auto` here is what lets
-       the page take over at the pane's edges. `contain` would make the pane
-       hold at its edges instead; the overlays that need that carry
-       `data-lenis-prevent`, and lenis.css gives them `contain`. */
   }
 
   .bb-scroller--fill {

@@ -5,18 +5,6 @@
 import { SITE } from '@bagel/kit/site-links';
 import { docsI18n } from '../i18n/ui';
 
-/**
- * Starlight `Footer` override: the page's own footer, then the site's.
- *
- * Starlight's Footer is per-PAGE furniture -- edit link, last updated,
- * previous/next pagination -- and every one of those is worth keeping, so the
- * default renders first, unchanged. `@bagel/ui/astro/Footer.astro` follows it
- * as the sitewide sign-off, which is what makes the docs feel like the same
- * property as the marketing site rather than a subdomain someone forgot.
- *
- * No colophon slot here: the ownership block is the homepage's, and it is
- * homepage-gated for a reason (see web/marketing/src/components/layout/Footer.astro).
- */
 import Default from '@astrojs/starlight/components/Footer.astro';
 import Footer from '@bagel/ui/astro/Footer.astro';
 

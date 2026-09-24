@@ -2,14 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Twitch.Api do
-  @moduledoc """
-  Helix calls the ingress needs: conduit lifecycle and shard binding.
-
-  Twitch owns the Conduit (server-side state); these calls are how we reconcile
-  our view against theirs. All calls use the app access token. A 401 drops the
-  cached token so the next attempt re-authenticates.
-  """
-
   require Logger
 
   alias Ingress.Config.Twitch, as: TwitchConfig
@@ -17,16 +9,6 @@ defmodule Ingress.Twitch.Api do
 
   @helix "https://api.twitch.tv/helix"
 
-  @doc """
-  Returns `{:ok, conduit_id, shard_count}` for the conduit this ingress owns,
-  growing its shard count up to the configured value.
-
-  `TWITCH_CONDUIT_ID` is authoritative and required: an unset or empty pin is
-  `{:error, :conduit_id_unset}`, and a pin naming a conduit Twitch does not
-  list is `{:error, {:pinned_conduit_missing, id}}`. Neither reuses another
-  conduit nor creates one, because the conduit id is a shared contract with
-  outgress. `create_conduit/1` remains available to provision one deliberately.
-  """
   @spec ensure_conduit() :: {:ok, String.t(), pos_integer()} | {:error, term()}
   def ensure_conduit do
     desired = TwitchConfig.conduit_shard_count()
@@ -45,11 +27,7 @@ defmodule Ingress.Twitch.Api do
     end
   end
 
-  # An unset conduit pin is a hard error: the conduit id is a shared contract
-  # with outgress, so silently adopting the first conduit Twitch lists could
-  # drift from the conduit outgress is enrolled into. A nil/empty pin means
-  # the operator hasn't set TWITCH_CONDUIT_ID yet; fail loudly rather than
-  # binding shards to an arbitrary conduit.
+  # Never substitute a conduit: outgress enrolls into the same TWITCH_CONDUIT_ID.
   defp pick_conduit(conduits) do
     case TwitchConfig.conduit_id() do
       nil ->
@@ -88,11 +66,6 @@ defmodule Ingress.Twitch.Api do
     end
   end
 
-  @doc """
-  Lists the conduit's shards with Twitch's per-shard transport status. This is
-  Twitch's view of which shard slots actually receive events; a slot that is
-  not `"enabled"` gets its notifications dropped silently.
-  """
   @spec get_shards(String.t()) :: {:ok, [map()]} | {:error, term()}
   def get_shards(conduit_id), do: get_shards_page(conduit_id, nil, [])
 
@@ -100,10 +73,6 @@ defmodule Ingress.Twitch.Api do
     path = "/eventsub/conduits/shards?conduit_id=" <> conduit_id <> cursor_param(cursor)
 
     with {:ok, body} <- request(:get, path, nil) do
-      # Pages accumulate as a list of pages, newest first, flattened once at the
-      # end. `acc ++ page` copied the whole accumulator on every page, so a full
-      # listing cost O(pages²) in copying; Twitch returns 100 shards per page and
-      # conduits here run to thousands of shards. Order is unchanged.
       acc = [body["data"] || [] | acc]
 
       case get_in(body, ["pagination", "cursor"]) do
@@ -116,10 +85,6 @@ defmodule Ingress.Twitch.Api do
   defp cursor_param(nil), do: ""
   defp cursor_param(cursor), do: "&after=" <> URI.encode_www_form(cursor)
 
-  @doc """
-  Binds a WebSocket `session_id` to `shard_id` on the conduit. This is the call
-  a shard session makes after receiving `session_welcome` on a fresh socket.
-  """
   @spec assign_shard(String.t(), non_neg_integer(), String.t()) :: :ok | {:error, term()}
   def assign_shard(conduit_id, shard_id, session_id) do
     payload = %{

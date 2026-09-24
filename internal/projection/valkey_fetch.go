@@ -3,11 +3,6 @@
 
 package projection
 
-// $(urlfetch) definition projection: the fetch:<name> rows, their projected
-// marker and the readers gossip resolves definitions through. Split from
-// valkey.go so the fetch section reads as one file beside the command and
-// module sections it mirrors.
-
 import (
 	"context"
 	"strings"
@@ -20,31 +15,10 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// fetchFieldPrefix holds the fetch definition JSON keyed by its lower-cased
-// name, addressable individually so resolving one definition is a single
-// HGET rather than a whole-hash HGETALL (the commandFieldPrefix precedent).
 const fetchFieldPrefix = "fetch:"
 
-// fetchesMarkerField is the fetch section's completeness marker, deliberately
-// PLURAL so it does not share fetchFieldPrefix. $(urlfetch) names are
-// user-supplied, so with the marker at fetch:projected a user naming a
-// definition "projected" made SetFetch write that definition's JSON over the
-// marker; markerProjected accepts only "1", so the section then read as never
-// projected and every GetFetch fell through to the projector RPC for good.
-// commands:projected and modules:projected already keep a plural marker prefix
-// distinct from their singular command:/module: row prefixes — this follows
-// that convention rather than inventing one. Rejected: rejecting "projected"
-// as a definition name, which pushes a Valkey field-layout detail into
-// user-facing validation and would still break every name a future marker
-// takes.
 const fetchesMarkerField = "fetches:projected"
 
-// FetchView is the projected view of one $(urlfetch) definition, stored as
-// the JSON body of the fetch:<name> hash field. Field set and json tags match
-// internal/domain/rpc/fetchkey.FetchView exactly (the CommandView/contract
-// duplication precedent) so gossip and the console decode without conversion.
-// It carries key_label only: sealed key material never enters Valkey or any
-// cache — plaintext travels the single key RPC per fetch.
 type FetchView struct {
 	Name     string   `json:"name"`
 	URL      string   `json:"url"`
@@ -53,12 +27,6 @@ type FetchView struct {
 	IsActive bool     `json:"is_active"`
 }
 
-// SetFetch projects one $(urlfetch) definition of one user, the fetch twin of
-// SetCommand minus alias pointers: definitions have no aliases. A Deleted
-// event (rename or delete; rows hard-delete) retires the fetch:<name> field
-// via the same HDEL path. Like every per-row setter it deliberately does NOT
-// set the fetches:projected marker — only the full-section write may declare
-// completeness.
 func (v *Store) SetFetch(ctx context.Context, dto data.FetchChangedDTO) error {
 	defer segment(ctx, "HSET")()
 
@@ -93,14 +61,10 @@ func (v *Store) SetFetch(ctx context.Context, dto data.FetchChangedDTO) error {
 	return v.pipeline(ctx, cmds...)
 }
 
-// SetFetches projects a complete definition list and records that an empty
-// list is known data, not a cold Valkey miss.
 func (v *Store) SetFetches(ctx context.Context, userID uint64, fetches []FetchView) error {
 	return v.SetFetchesWithTTL(ctx, userID, fetches, DefaultTTL)
 }
 
-// SetFetchesWithTTL replaces the complete fetch section and keeps the hash
-// for at least ttl. An empty list is still marked as projected.
 func (v *Store) SetFetchesWithTTL(ctx context.Context, userID uint64, fetches []FetchView, ttl time.Duration) error {
 	defer segment(ctx, "HSET")()
 
@@ -120,10 +84,6 @@ func (v *Store) SetFetchesWithTTL(ctx context.Context, userID uint64, fetches []
 	})
 }
 
-// GetFetch reads one definition by name in a single round trip. found reports
-// whether the definition exists; projected reports whether the fetch section
-// has been populated at all, so a caller can tell a real "no such definition"
-// from a cold Valkey miss that should fall through to the projector RPC.
 func (v *Store) GetFetch(ctx context.Context, userID uint64, name string) (view FetchView, found bool, projected bool, err error) {
 	defer segment(ctx, "HGET")()
 
@@ -147,20 +107,8 @@ func (v *Store) GetFetch(ctx context.Context, userID uint64, name string) (view 
 	return view, found, projected, nil
 }
 
-// fetchesSection is the pair of field names the definition list reader needs.
-// Every fetch:<name> field is a row: the section marker moved out of this
-// prefix (see fetchesMarkerField), so the guard that used to drop
-// name == "projected" is gone with it. Keeping it would have made a definition
-// a user legitimately named "projected" permanently invisible in GetFetches —
-// the same bug moved one field over. Hashes written before the rename still
-// carry fetch:projected = "1"; "1" is not a FetchView, so getSection's
-// unmarshal skips it like any other corrupt row, and the next full-section
-// write clears it with the rest of the prefix.
 var fetchesSection = sectionRead{prefix: fetchFieldPrefix, marker: fetchesMarkerField}
 
-// GetFetches reads the complete projected definition list of one user,
-// mirroring GetCommands: the fetches:projected marker alone decides whether a
-// missing row means "none" or "not yet hydrated".
 func (v *Store) GetFetches(ctx context.Context, userID uint64) ([]FetchView, bool, error) {
 	return getSection[FetchView](ctx, v, userID, fetchesSection)
 }

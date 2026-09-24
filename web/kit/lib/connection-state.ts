@@ -1,25 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Honest bot-connection state. The dashboard used to fold three separate reads
-// (Twitch grant, users-service active flag, outgress enroll state) into a single
-// `receiving` boolean with `subState !== 'unenrolled'`, which let `pending`,
-// `failing`, and `unknown` all read as "Online · in chat", and defaulted a
-// failed account read to "Free". This module keeps every read's failure visible
-// as `'unknown'` and maps the honest signals to exactly one UI state, so a
-// down/pending/failing connection can never masquerade as online.
-//
-// Pure and framework-free: the server computes it for SSR, the client recomputes
-// it from the /substate poll, and the unit test drives the whole permutation
-// matrix. String-literal types mirror ChannelSubState['state'] and AccountStatus
-// in dashboard $lib/server/services.ts (kept in sync by hand, both closed sets).
-
 export type SubState = 'ok' | 'pending' | 'failing' | 'revoked' | 'chat_banned' | 'unenrolled' | 'unknown';
 export type PlanStatus = 'free' | 'paid' | 'vip';
 
-// A read that failed (RPC down / timeout) surfaces as 'unknown', never a silent
-// default. `grant`/`active` are tri-state; `status`/`sub` carry their own
-// 'unknown' member.
 export type ConnSignals = {
   grant: boolean | 'unknown';
   active: boolean | 'unknown';
@@ -28,54 +12,38 @@ export type ConnSignals = {
 };
 
 export type ConnKind =
-  | 'unavailable' // a core read (grant or active) is down, we cannot tell
-  | 'auth_required' // no Twitch grant on file
-  | 'reauth_required' // Twitch revoked the grant (password change / app disconnect); user must re-consent
-  | 'bot_banned' // the channel's chat banned the bot account; grant intact, user must unban then enable
-  | 'disabled' // grant present but the channel is inactive (disconnected)
-  | 'connecting' // active, enroll in flight (pending / just-published)
-  | 'online' // active + enroll ok: the ONLY truthful "online"
-  | 'degraded' // active + enroll failing (connected but not in chat)
-  | 'sub_unknown'; // active but the enroll read is unavailable
+  | 'unavailable'
+  | 'auth_required'
+  | 'reauth_required'
+  | 'bot_banned'
+  | 'disabled'
+  | 'connecting'
+  | 'online'
+  | 'degraded'
+  | 'sub_unknown';
 
 export type ConnUi = {
   kind: ConnKind;
-  live: boolean; // the green "in chat" dot: online only
-  canManage: boolean; // channel is active: restart / disconnect apply
-  showEnable: boolean; // the ?/enable form (disconnected channel, nothing in flight)
-  showConnect: boolean; // route to Settings for Twitch authorization
-  canRetry: boolean; // a read is unavailable: offer a refresh, not a stale value
+  live: boolean;
+  canManage: boolean;
+  showEnable: boolean;
+  showConnect: boolean;
+  canRetry: boolean;
 };
 
-// connectionUiState maps honest signals to exactly one UI state. Every backend
-// permutation resolves here to one kind → one headline → one action. The core
-// invariant: `online` requires grant true, active true, AND sub === 'ok'.
 export function connectionUiState(s: ConnSignals): ConnUi {
-  // A down core read must not be reported as any definite connection state.
   if (s.grant === 'unknown' || s.active === 'unknown') return ui('unavailable');
   if (!s.grant) return ui('auth_required');
-  // A blocked enroll state outranks the active flag: outgress deactivates the
-  // row itself when Twitch revokes the grant or the chat bans the bot, so on
-  // those channels "inactive" is the symptom, not a choice the user made. A
-  // channel the user disconnected has no enroll state and still reads disabled.
   const blocked = blockedKind(s.sub);
   if (blocked) return ui(blocked);
   if (!s.active) return ui('disabled');
-  // Active from here on; the enroll state decides whether chat is actually served.
   return ui(activeKind(s.sub));
 }
 
-// blockedKind maps the two streamer-fixable blocks to their UI kind, or null
-// when the enroll state is not a block.
 function blockedKind(sub: SubState): ConnKind | null {
   switch (sub) {
-    // Twitch revoked the broadcaster's authorization. Restart cannot fix it
-    // (outgress skips enrolls for revoked channels on purpose); only a fresh
-    // Twitch consent can, so the UI routes to reconnect instead of retry.
     case 'revoked':
       return 'reauth_required';
-    // The chat banned the bot account. The grant is fine, so a reconnect
-    // would change nothing; the user unbans the bot, then Enable re-enrolls.
     case 'chat_banned':
       return 'bot_banned';
     default:
@@ -83,7 +51,6 @@ function blockedKind(sub: SubState): ConnKind | null {
   }
 }
 
-// activeKind maps an active channel's enroll state to its UI kind.
 function activeKind(sub: SubState): ConnKind {
   switch (sub) {
     case 'ok':
@@ -98,15 +65,8 @@ function activeKind(sub: SubState): ConnKind {
   }
 }
 
-// Per-kind action sets. Membership lists keep each ConnUi flag a single
-// readable predicate instead of a growing boolean chain.
-// A connecting channel already has a control operation in flight. Hiding its
-// management actions prevents restart/disconnect/enable sequences from racing
-// each other while Outgress is still converging the previous intent.
 const MANAGEABLE: readonly ConnKind[] = ['online', 'degraded', 'sub_unknown'];
 const CONNECTABLE: readonly ConnKind[] = ['auth_required', 'reauth_required'];
-// Enable (set active + create-only enroll) is the repair for a disconnected
-// channel and for a banned bot once the streamer has unbanned it.
 const ENABLEABLE: readonly ConnKind[] = ['disabled', 'bot_banned'];
 const RETRYABLE: readonly ConnKind[] = ['unavailable', 'sub_unknown'];
 

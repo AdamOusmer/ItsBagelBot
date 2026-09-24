@@ -9,10 +9,6 @@ import (
 	"time"
 )
 
-// TestHandlerBudgets pins the three budgets the notifications verbs run on.
-// They were positional arguments to QueueSubscribeJSON before the shared
-// wiring landed, which is exactly the kind of value a refactor flattens onto
-// one default without anyone noticing until the janitor starts timing out.
 func TestHandlerBudgets(t *testing.T) {
 	got := map[string]time.Duration{
 		"read":    readBudget,

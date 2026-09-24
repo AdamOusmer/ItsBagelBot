@@ -26,8 +26,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// UsersPort is the narrow cross-service contract the worker needs. Transactions
-// never opens the Users database directly.
 type UsersPort interface {
 	Pool(context.Context, *time.Time) (usersrpc.GiveawayPoolReply, error)
 	Coverage(context.Context, uint64) (usersrpc.PremiumCoverage, error)
@@ -55,8 +53,6 @@ type Engine struct {
 	mu       sync.Mutex
 }
 
-// Store exposes the Transactions repository to the RPC adapter; all writes
-// still go through Store's versioned, idempotent methods.
 func (e *Engine) Store() *Store { return e.store }
 
 func NewEngine(cfg EngineConfig) *Engine {
@@ -67,8 +63,6 @@ func NewEngine(cfg EngineConfig) *Engine {
 	return &Engine{store: cfg.Store, users: cfg.Users, mailer: cfg.Mailer, provider: cfg.Provider, config: cfg.Config, now: now}
 }
 
-// Run is the durable background loop. A disabled new-award gate does not stop
-// this loop: queued recovery, reconciliation, and email work remain active.
 func (e *Engine) Run(ctx context.Context) error {
 	interval := e.config.BoundaryInterval
 	if interval <= 0 {
@@ -107,15 +101,11 @@ func waitForTick(ctx context.Context, ticker *time.Ticker) error {
 	}
 }
 
-// Retry requeues one award's existing durable fulfillment work. It never
-// creates a second award or computes a relative interval.
 func (e *Engine) Retry(ctx context.Context, awardID string) error {
 	return e.store.RetryAward(ctx, awardID, e.now())
 }
 
-// DispatchOnce claims at most one durable work item. The claim lease is
-// written before any Users, Tebex, or Resend call; a crashed worker becomes
-// eligible again after the lease expires.
+// The claim lease must be written before any Users, Tebex or Resend call.
 func (e *Engine) DispatchOnce(ctx context.Context) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -433,9 +423,6 @@ func (a *engineAwardAdapter) scheduleInTx(ctx context.Context, tx *ent.Tx, id, g
 	if _, err = update.Save(ctx); err != nil {
 		return err
 	}
-	// A fulfillment review alert describes the failed transition that has now
-	// succeeded. Resolve it in the same transaction as the award transition so
-	// readers cannot observe an active award with a stale fulfillment failure.
 	if _, err = tx.GiveawayAlert.Update().Where(giveawayalert.AwardIDEQ(id), giveawayalert.CategoryEQ("fulfillment")).SetState("resolved").SetResolvedAt(now).SetLastSeenAt(now).Save(ctx); err != nil {
 		return err
 	}
@@ -578,10 +565,7 @@ func (a engineProviderAdapter) protectionEvidence(ctx context.Context, reference
 	return operation.State == "protecting" || operation.State == "uncertain" || operation.State == "verified"
 }
 
-// providerState deliberately canonicalizes the reference to the value used
-// by Transactions. Tebex accepts both a raw recurring reference and its
-// tbx-r- form, but a response that cannot be proven to match the requested
-// subscription must never authorize a prize obligation.
+// A response not proven to match the requested subscription must never authorize a prize.
 func providerState(payment tebex.RecurringPayment, ref string) ProviderState {
 	state := ProviderState{
 		Reference:             ref,

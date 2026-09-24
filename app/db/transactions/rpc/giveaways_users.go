@@ -16,8 +16,6 @@ import (
 
 const defaultUsersAuthSubject = "bagel.rpc.admin.user.auth.check"
 
-// UsersGiveawayClient is the Transactions side of the Users-owned contract.
-// It carries only eligibility facts and stable grant identifiers over NATS.
 type UsersGiveawayClient struct {
 	nc                                    *nats.Conn
 	pool, coverage, prepare, commit, auth string

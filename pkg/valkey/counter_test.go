@@ -17,17 +17,6 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// counterFake is a minimal in-process RESP2 server wide enough for Incr and
-// GetInt: INCR, EXPIRE, GET, DEL, TTL, plus the handshake no-ops every fake in
-// this package answers. It reuses lock_fake_test.go's wire helpers
-// (readLockRESPArray, lockSimple/lockInt/lockBulk/lockNil/lockErr) rather than
-// redefining RESP encoding a third time in this package.
-//
-// A real valkey-go client dials it, for the same reason lockFake exists
-// instead of a canned-response stub: the property under test is the actual
-// command Incr/GetInt build and how the real client's reply types decode it
-// (a missing key on GET, an int reply on INCR), not a mock's opinion of what
-// those would look like.
 type counterFake struct {
 	ln     net.Listener
 	client valkey_go.Client
@@ -47,7 +36,7 @@ func newCounterFake(t *testing.T) *counterFake {
 	go f.serve()
 	client, err := valkey_go.NewClient(valkey_go.ClientOption{
 		InitAddress:  []string{ln.Addr().String()},
-		DisableCache: true, // no CLIENT TRACKING init; the fake speaks plain RESP2
+		DisableCache: true,
 	})
 	require.NoError(t, err)
 	f.client = client
@@ -82,21 +71,10 @@ func (f *counterFake) session(c net.Conn) {
 	}
 }
 
-// counterFakeOK answers a handshake no-op command with a plain +OK, shared by
-// every verb this fake accepts without modeling it (AUTH, CLIENT, SELECT,
-// COMMAND, PING).
 func counterFakeOK(*counterFake, respArgs) []byte { return lockSimple("OK") }
 
-// counterFakeHello answers HELLO the way lockFake's fake does: an error that
-// matches valkey-go's noHello regex, so the client falls back to plain RESP2
-// instead of the HELLO-based protocol this fake does not speak.
 func counterFakeHello(*counterFake, respArgs) []byte { return lockErr("unknown command 'HELLO'") }
 
-// counterFakeHandlers dispatches exec's verbs. A map keyed by verb, not a
-// switch, is what keeps exec itself at one branch (the "no handler for this
-// verb" case): CodeScene flagged the previous switch's cyclomatic complexity,
-// driven by the handshake no-ops sharing one case label. Method values
-// ((*counterFake).execINCR and friends) need no wrapper closures.
 var counterFakeHandlers = map[string]func(*counterFake, respArgs) []byte{
 	"HELLO":   counterFakeHello,
 	"AUTH":    counterFakeOK,
@@ -172,7 +150,6 @@ func (f *counterFake) execTTL(args respArgs) []byte {
 	return lockInt(int64(deadline.Sub(f.now).Seconds()))
 }
 
-// aliveLocked applies lazy expiry; the caller holds mu.
 func (f *counterFake) aliveLocked(key string) bool {
 	if deadline, ok := f.expires[key]; ok && !f.now.Before(deadline) {
 		delete(f.ints, key)
@@ -183,8 +160,6 @@ func (f *counterFake) aliveLocked(key string) bool {
 	return ok
 }
 
-// breakINCR makes every following INCR answer with a server error, so a test
-// can prove Incr surfaces a backend failure instead of swallowing it.
 func (f *counterFake) breakINCR() {
 	f.mu.Lock()
 	defer f.mu.Unlock()

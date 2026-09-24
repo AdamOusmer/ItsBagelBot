@@ -20,8 +20,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// rolloutOutcome is everything one WaitRollout call is judged on, compared
-// in one go.
 type rolloutOutcome struct {
 	Code     deploy.FailureCode
 	Canceled bool
@@ -36,8 +34,6 @@ type rolloutCase struct {
 	pods     []podSpec
 	events   []eventSpec
 	canceled bool
-	// revision is the Deployment's revision annotation, "2" (the new
-	// ReplicaSet) unless the case predates the controller's first sync.
 	revision string
 	want     rolloutOutcome
 }
@@ -67,8 +63,6 @@ func waitingStatus(reason string, restarts int32) corev1.ContainerStatus {
 	}
 }
 
-// The rollout fixtures: a two-replica commands Deployment moving from
-// ReplicaSet "old" to "new" across node1 and node2.
 var (
 	oldA     = placed(commandsPod("commands-old-a", "old"), "node1", true)
 	newA     = placed(commandsPod("commands-new-a", "new"), "node1", true)
@@ -84,14 +78,11 @@ var (
 	unsynced     = "commands: rollout incomplete at the deadline: generation 2 not observed yet (at 1)"
 )
 
-// failedHalfway is the outcome of a rollout that fails with one of its two
-// replicas not yet new and ready: f's message is the item's detail.
 func failedHalfway(f deploy.Failure, nodes ...deploy.NodePod) rolloutOutcome {
 	last := deploy.Item{State: deploy.StateFailed, Progress: deploy.Progress{Total: 2}, Detail: f.Message, Nodes: nodes}
 	return rolloutOutcome{Code: f.Code, Last: last, Tail: f.LogTail}
 }
 
-// fastFailCases stop the wait early on what the timeout cannot fix.
 func fastFailCases() []rolloutCase {
 	return []rolloutCase{
 		{
@@ -114,7 +105,6 @@ func fastFailCases() []rolloutCase {
 	}
 }
 
-// waitCases finish, run into the timeout or are cancelled.
 func waitCases() []rolloutCase {
 	return []rolloutCase{
 		{
@@ -142,9 +132,6 @@ func waitCases() []rolloutCase {
 			}},
 		},
 		{
-			// Right after the apply the controller has not synced: the
-			// revision annotation still names the old ReplicaSet, whose
-			// long-lived pod carries restarts from earlier NATS blips.
 			name: "old pod restarts before the controller syncs are not a crash loop", revision: "1",
 			status: appsv1.DeploymentStatus{ObservedGeneration: 1, Replicas: 2, UpdatedReplicas: 2, ReadyReplicas: 2, AvailableReplicas: 2},
 			pods:   []podSpec{placed(commandsPod("commands-old-a", "old"), "node1", true, corev1.ContainerStatus{Name: "commands", RestartCount: 5})},
@@ -199,9 +186,6 @@ func TestWaitRollout(t *testing.T) {
 	}
 }
 
-// TestWaitRolloutReportsOnChange pins that progress fires once per distinct
-// observation, not once per poll: a rollout that sits unchanged for the
-// whole timeout reports running once, then failed.
 func TestWaitRolloutReportsOnChange(t *testing.T) {
 	c := rolloutCase{status: halfway, pods: []podSpec{oldA, pendingB}}
 	var states []deploy.StageState

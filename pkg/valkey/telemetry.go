@@ -10,10 +10,6 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// Valkey spans are emitted only for transactions selected by New Relic's own
-// sampler. The unsampled command path remains one context lookup and a branch,
-// while sampled traces get fixed-name read/write dependency attribution without
-// exposing keys or commands as high-cardinality facets.
 func traceValkeyCall[T any](ctx context.Context, operation string, do func() T, classify func(T) string) T {
 	txn := newrelic.FromContext(ctx)
 	if txn == nil || !txn.IsSampled() {

@@ -49,8 +49,6 @@ type publishProbe struct {
 	subject  string
 }
 
-// rpcRoute is one cross-account request path: requester imports subject from
-// the account responder connects under.
 type rpcRoute struct {
 	responder serviceIdentity
 	requester serviceIdentity
@@ -67,10 +65,6 @@ type violationExpectation struct {
 	subject       string
 }
 
-// TestScopedBusUsersBindAllowedStreams exercises the same pkg/bus stream and
-// consumer calls the services make in production. It is opt-in because it
-// needs a local NATS 2.14 fixture running this directory's auth config;
-// point NATS_AUTHZ_ACCEPTANCE_URL and NATS_AUTHZ_ACCEPTANCE_PASSWORD at it.
 func TestScopedBusUsersBindAllowedStreams(t *testing.T) {
 	harness := newAcceptanceHarness(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -121,7 +115,6 @@ func (h *acceptanceHarness) reconcileOwnedStreams(t *testing.T, ctx context.Cont
 func (h *acceptanceHarness) assertAllowedBindings(t *testing.T) {
 	t.Helper()
 	bindings := []streamBinding{
-		// Both broadcast (ephemeral) and durable paths are represented.
 		{serviceIdentity{"users_bus"}, "", "data.users.changed"},
 		{serviceIdentity{"users_bus"}, "authz_users", "data.reproject.request"},
 		{serviceIdentity{"commands_bus"}, "", "data.commands.changed"},
@@ -135,17 +128,9 @@ func (h *acceptanceHarness) assertAllowedBindings(t *testing.T) {
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.outgress.premium"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.outgress.system"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.event.stream"},
-		// Authorization lifecycle consumers (revocation marking + grant re-enroll).
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.granted"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.revoked"},
 		{serviceIdentity{"outgress_bus"}, "authz_outgress", "twitch.ingress.status.authz.subrevoked"},
-		// discord-engine binds its OWN durable on the same stream-status
-		// subject, independent of outgress's — one decides the go-live/
-		// offline embed, the other re-verifies mod status. It also binds a
-		// durable on the clip fact and on one of DISCORD_INGRESS's six
-		// subjects, all through the same push/explicit-ack path (unlike the
-		// old dingress-egress role, no Discord service pull-fetches — see
-		// assertPullFetchPermission).
 		{serviceIdentity{"discord_engine_bus"}, "authz_discord_engine", "twitch.ingress.event.stream"},
 		{serviceIdentity{"discord_engine_bus"}, "authz_discord_engine", "data.twitch.clip.created"},
 		{serviceIdentity{"discord_engine_bus"}, "authz_discord_engine", "discord.ingress.event.message"},
@@ -196,8 +181,6 @@ func (h *acceptanceHarness) assertRequiredAckPermissions(t *testing.T) {
 func (h *acceptanceHarness) assertStreamAcks(t *testing.T, grant consumerGrant) {
 	t.Helper()
 	for _, stream := range grant.streams {
-		// NATS 2.14 may issue either legacy or domain/account-qualified ACK
-		// reply subjects. Exercise both permission shapes directly.
 		h.assertPublishAllowed(t, publishProbe{grant.identity, "$JS.ACK." + stream + ".authz.1.1.1.0.0"})
 		h.assertPublishAllowed(t, publishProbe{grant.identity, "$JS.ACK.hub.account." + stream + ".authz.1.1.1.0.0"})
 	}
@@ -220,12 +203,6 @@ func (h *acceptanceHarness) assertPublishAllowed(t *testing.T, probe publishProb
 	}
 }
 
-// assertPullFetchPermission covers the verb the receipt-level pull lane runs on.
-// A denied MSG.NEXT is invisible from the client side: the consumer is created,
-// the stream fills, and every fetch is refused, so the lane reports zero events
-// per second with nothing but a broker-log violation to read. The permission is
-// gated on the publish, which is what this probes; the consumer name in the
-// subject only has to be inside the granted prefix.
 func (h *acceptanceHarness) assertPullFetchPermission(t *testing.T) {
 	t.Helper()
 	cases := []struct {
@@ -235,11 +212,6 @@ func (h *acceptanceHarness) assertPullFetchPermission(t *testing.T) {
 	}{
 		{serviceIdentity{"worker_bus"}, "TWITCH_INGRESS", "worker_twitch_ingress_event_standard"},
 		{serviceIdentity{"worker_bus"}, "TWITCH_INGRESS_STANDARD", "worker_twitch_ingress_event_standard"},
-		// No Discord service pull-fetches (see the streamGrants comment on
-		// pullFetchStreams in nats_auth_test.go): discord-engine's BAGEL_DATA
-		// and TWITCH_INGRESS bindings and discord-outgress's DISCORD_OUTGRESS
-		// bindings are all push/explicit-ack, so there is no MSG.NEXT case to
-		// assert here.
 	}
 	for _, c := range cases {
 		subject := "$JS.API.CONSUMER.MSG.NEXT." + c.stream + "." + c.consumer
@@ -257,8 +229,6 @@ func (h *acceptanceHarness) assertConsumerIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Leave Name/Durable empty so nats.go sends the legacy create endpoint with
-	// the wildcard filter in the JSON body, not as an invalid publish subject.
 	_, err = js.AddConsumer("TWITCH_INGRESS", &nats.ConsumerConfig{
 		DeliverSubject: "_INBOX.authz.loyalty.stolen",
 		DeliverPolicy:  nats.DeliverNewPolicy,
@@ -288,10 +258,6 @@ func (h *acceptanceHarness) assertDestructiveOperationsDenied(t *testing.T) {
 	}
 }
 
-// assertNodeLocalRPCImport drives one node-qualified request per route through
-// the real import/export chain: the health probe every status page folds in,
-// and both hops of a deploy verb (console to deployer, deployer's owner check
-// to users).
 func (h *acceptanceHarness) assertNodeLocalRPCImport(t *testing.T) {
 	t.Helper()
 	for _, route := range []rpcRoute{

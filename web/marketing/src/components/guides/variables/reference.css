@@ -23,13 +23,8 @@
 
 .vref__note { margin-top: 12px; max-width: 58ch; color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
 
-/* ── Groups ── */
-
 .vref__main { display: grid; gap: 48px; }
 
-/* style.css gives every <section> the page frame (max-width 1200px, auto
-   margins, 100px 48px padding). A group is a section for the outline and the
-   #category anchor, not a page band, so the frame is reset here. */
 .vref-group { max-width: none; margin: 0; padding: 0; min-width: 0; }
 
 .vref-group__heading {
@@ -41,24 +36,11 @@
     scroll-margin-top: calc(var(--nav-offset) + 16px);
 }
 
-/* bb-tbl-wrap already scrolls a wide table sideways instead of pushing the
-   page (ui/astro/Table.astro), which is what keeps a phone at 375px from
-   gaining horizontal scroll on the page itself. This file is a plain
-   imported stylesheet, not an Astro scoped <style> block, so a selector
-   reaching into a child component's markup needs no `:global()` -- that
-   directive only means something inside <style>, and written here it is
-   simply invalid CSS that every rule using it silently drops. */
 .vref-group .bb-tbl-wrap { border-radius: var(--radius-md); }
 .vref-table td,
 .vref-table th { vertical-align: top; }
 .vref-table tr[id] { scroll-margin-top: calc(var(--nav-offset) + 16px); }
 
-/* A <span> inside the <td>, not the cell itself: a table cell is not a
-   valid flex container in every layout engine table cells participate in
-   (and mixing `flex-wrap: wrap` with `white-space: nowrap` here fought
-   itself -- wrap allowed the chip and Copy button to drop to a second
-   line while nowrap then refused the text inside them room to do it). One
-   line, no wrap: both children are short. */
 .vref-td-variable {
     display: flex;
     align-items: center;
@@ -83,8 +65,6 @@
 }
 .vref-copy:hover, .vref-copy:focus-visible { border-color: var(--green-glow); color: var(--green-glow); }
 
-/* A row an extra form (positional's {2:}, random's {random:1-6}...) adds
-   under its owning entry's id: same table, quieter, no repeated chip. */
 .vref-entry-extra td:first-child,
 .vref-entry-extra td:nth-child(2) { border-bottom: none; }
 .vref-entry-extra td { color: var(--muted); }
@@ -115,8 +95,6 @@
     line-height: 1.7;
 }
 
-/* ── Footer links ── */
-
 .vref__back {
     display: flex;
     flex-wrap: wrap;
@@ -128,8 +106,5 @@
 }
 
 @media (max-width: 640px) {
-    /* The nav is a fixed pill; below 640px the page has no hero band above
-       this header, so the eyebrow needs the nav offset itself or it sits
-       under the pill. */
     .vref { padding-top: calc(var(--nav-offset, 76px) + 24px); }
 }

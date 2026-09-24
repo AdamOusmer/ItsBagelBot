@@ -1,13 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Unit coverage for targets.ts's own logic, independent of any one source
-// parser. normalizeInstant gets the most scrutiny: it replaced a Date.parse
-// call (machine-dependent, silently wrong on several real inputs — see its
-// own decision record) with a fixed grammar, and every branch of that
-// grammar is pinned here so a future edit cannot quietly widen it back
-// toward Date.parse's behaviour.
-
 import { describe, expect, test } from 'bun:test';
 import { emit, normalizeInstant, positional, slice } from './targets';
 
@@ -15,7 +8,6 @@ describe('normalizeInstant', () => {
   test('RFC3339 passes through unchanged, calendar validated', () => {
     expect(normalizeInstant('2026-12-25T05:00:00Z')).toBe('2026-12-25T05:00:00Z');
     expect(normalizeInstant('2026-12-25T05:00:00.000+02:00')).toBe('2026-12-25T05:00:00.000+02:00');
-    // Feb 30 does not exist in any year.
     expect(normalizeInstant('2026-02-30T00:00:00Z')).toBeNull();
   });
 
@@ -28,7 +20,6 @@ describe('normalizeInstant', () => {
     expect(normalizeInstant('Dec 25 2026 12:00:00 AM EST')).toBe('2026-12-25T05:00:00.000Z');
     expect(normalizeInstant('Jan 1 2026 00:00:00 UTC')).toBe('2026-01-01T00:00:00.000Z');
     expect(normalizeInstant('Jul 4 2026 3:00:00 PM PDT')).toBe('2026-07-04T22:00:00.000Z');
-    // Date only (no clock component) still needs a zone under this grammar.
     expect(normalizeInstant('Dec 25 2026 EST')).toBe('2026-12-25T05:00:00.000Z');
   });
 
@@ -43,8 +34,6 @@ describe('normalizeInstant', () => {
   });
 
   test('an unrecognized zone abbreviation is refused rather than guessed', () => {
-    // CET/BST are real abbreviations Date.parse handles inconsistently across
-    // engines; this grammar does not special-case them, so they warn.
     expect(normalizeInstant('Dec 25 2026 12:00:00 CET')).toBeNull();
     expect(normalizeInstant('Dec 25 2026 12:00:00 BST')).toBeNull();
   });
@@ -83,7 +72,6 @@ describe('positional/slice family', () => {
   test('positional and slice accept an optional fallback', () => {
     expect(positional(1, 'everyone')).toBe('{1|everyone}');
     expect(slice(2, undefined, 'nothing')).toBe('{2:|nothing}');
-    // A fallback containing '|' or '}' cannot round-trip.
     expect(positional(1, 'a|b')).toBeNull();
     expect(slice(2, undefined, 'a}b')).toBeNull();
   });

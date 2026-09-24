@@ -22,37 +22,20 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// revisionAnnotation is the rollout revision the Deployment controller
-// stamps on a Deployment and on each ReplicaSet it owns; the ReplicaSet
-// carrying the Deployment's value is the new one.
 const revisionAnnotation = "deployment.kubernetes.io/revision"
 
 const failedSchedulingSelector = "involvedObject.kind=Pod,reason=FailedScheduling"
 
-// tailTimeout bounds reading events and logs for a timeout Fail, which
-// happens after the rollout context has already expired.
 const tailTimeout = 10 * time.Second
 
-// pullReasons fast-fail: a node that cannot fetch the pinned image keeps
-// backing off for the whole timeout without ever recovering.
 var pullReasons = map[string]bool{"ImagePullBackOff": true, "ErrImagePull": true}
 
-// failingReasons paint a pod dot red. The set is wider than the fast-fail
-// one: a CreateContainerConfigError (a secret key Doppler has not synced
-// yet) shows at once but is left to the timeout, since the operator's next
-// sync can still clear it mid-rollout.
 var failingReasons = map[string]bool{
 	"CrashLoopBackOff": true, "ImagePullBackOff": true, "ErrImagePull": true,
 	"CreateContainerConfigError": true, "CreateContainerError": true,
 	"InvalidImageName": true, "RunContainerError": true,
 }
 
-// WaitRollout polls every Config.PollEvery rather than holding a watch. A
-// watch stream ends whenever the API server rotates it and needs a re-list
-// plus resourceVersion bookkeeping to resume; a poll re-reads the same three
-// lists (Deployment, ReplicaSets, pods) that re-list would, and at the 5 s
-// default the dots trail a pod's readiness by at most one poll.
-// Config.RolloutTimeout bounds the wait even when the stage's ctx does not.
 func (w *Watcher) WaitRollout(ctx context.Context, spec ports.RolloutSpec, progress ports.ProgressFunc) error {
 	switch spec.Workload.Kind {
 	case kindCronJob:
@@ -70,23 +53,21 @@ type rollout struct {
 	w        *Watcher
 	ref      ports.WorkloadRef
 	progress ports.ProgressFunc
-	view     view        // last observation, kept for the timeout's evidence
-	last     deploy.Item // last reported, so progress fires only on change
+	view     view
+	last     deploy.Item
 }
 
-// view is one poll's observation.
 type view struct {
 	dep  *appsv1.Deployment
-	hash string // pod-template-hash of the new ReplicaSet, "" until the controller creates it
+	hash string
 	pods []corev1.Pod
 }
 
-// trigger is the pod and container a fast-fail or timeout blames.
 type trigger struct {
 	code      deploy.FailureCode
 	pod       *corev1.Pod
-	container string // whose log to tail; "" when no container ever ran
-	previous  bool   // tail the crashed instance: the restarted one has not logged yet
+	container string
+	previous  bool
 	message   string
 }
 
@@ -126,13 +107,6 @@ func (r *rollout) step(ctx context.Context) (bool, error) {
 	return false, r.check(ctx)
 }
 
-// observed reports whether the Deployment controller has seen the applied
-// generation and created (or adopted) its ReplicaSet. Until then the
-// revision annotation still names the OLD ReplicaSet, so newPods() would
-// return the pods being replaced and a long-lived pod's lifetime restart
-// count (NATS blips add a few a week) would fail the service as a crash
-// loop. The first observe runs right after the apply, before the
-// controller's first sync, so this window is hit on almost every rollout.
 func (v view) observed() bool {
 	if v.dep.Status.ObservedGeneration < v.dep.Generation {
 		return false
@@ -177,9 +151,6 @@ func isNewReplicaSet(rs *appsv1.ReplicaSet, d *appsv1.Deployment) bool {
 	return rev != "" && rs.Annotations[revisionAnnotation] == rev
 }
 
-// check fast-fails on what waiting out the timeout cannot fix. Only
-// new-ReplicaSet pods count: an old pod's restarts are the release being
-// replaced, not this one.
 func (r *rollout) check(ctx context.Context) error {
 	fresh := r.view.newPods()
 	if t, ok := firstTrouble(fresh, r.w.cfg.RestartLimit); ok {
@@ -216,12 +187,6 @@ func statusTrouble(s *corev1.ContainerStatus, limit int32) (trigger, bool) {
 	return trigger{}, false
 }
 
-// unschedulable fast-fails a new pod the scheduler has refused for longer
-// than Config.FailedSchedulingAfter because of anti-affinity or a hostname
-// spread constraint: on this fleet that is the maxSurge deadlock (every
-// node already holds a pod of the service), which never resolves by itself.
-// Other reasons (CPU, memory) are left to the timeout, since a finishing Job
-// or an old pod terminating can free the room.
 func (r *rollout) unschedulable(ctx context.Context, fresh []corev1.Pod) (trigger, bool, error) {
 	waiting := unscheduled(fresh)
 	if len(waiting) == 0 {
@@ -259,16 +224,11 @@ func stuckScheduling(e *corev1.Event, cutoff time.Time) bool {
 	return blockedBySpread(e.Message)
 }
 
-// blockedBySpread matches the scheduler's wording: "didn't match pod
-// anti-affinity rules" and "didn't match pod topology spread constraints".
 func blockedBySpread(msg string) bool {
 	m := strings.ToLower(msg)
 	return strings.Contains(m, "anti-affinity") || strings.Contains(m, "topology spread")
 }
 
-// eventStart is when the event first happened. The scheduler records
-// through events.k8s.io, which leaves the core/v1 firstTimestamp empty and
-// sets eventTime instead.
 func eventStart(e *corev1.Event) time.Time {
 	switch {
 	case !e.FirstTimestamp.IsZero():
@@ -285,9 +245,6 @@ func (r *rollout) failure(ctx context.Context, t trigger) error {
 	return f
 }
 
-// fail maps err to the stage's *Fail and reports the failed item. A parent
-// cancel passes through untouched: that is the operator cancelling or the
-// engine shutting down, not a rollout failure.
 func (r *rollout) fail(ctx context.Context, err error) error {
 	f, ok := ports.AsFail(err)
 	switch {
@@ -303,9 +260,6 @@ func (r *rollout) fail(ctx context.Context, err error) error {
 	return f
 }
 
-// timeout reads its evidence on a fresh context: ctx is already past its
-// deadline, and a Fail with neither events nor log tells the operator
-// nothing about which pod stalled.
 func (r *rollout) timeout(ctx context.Context) *ports.Fail {
 	f := ports.Failf(deploy.FailTimeout, "%s: rollout incomplete at the deadline: %s", r.ref.Name, r.view.pending())
 	t, ok := stalled(r.view.newPods())
@@ -365,9 +319,6 @@ func (v view) newPods() []corev1.Pod {
 	return out
 }
 
-// item is progress (new pods ready / replicas) plus one dot per pod,
-// grouped by node. Pods arrive sorted by name, so the stable sort keeps
-// each node's dots in name order.
 func (v view) item() deploy.Item {
 	if v.dep == nil {
 		return deploy.Item{}
@@ -409,11 +360,7 @@ func podFailing(p *corev1.Pod) bool {
 	})
 }
 
-// tail is the evidence a failed rollout carries: the pod's events, then the
-// last Config.LogTailLines lines of the failing container. A read error
-// becomes a line of its own, so a missing log never hides the failure it
-// was meant to explain. Every line goes through redact because the tail is
-// persisted in run history (see package redact).
+// tail must redact every line: it is persisted in run history.
 func (w *Watcher) tail(ctx context.Context, t trigger) []string {
 	lines := w.podEvents(ctx, t.pod)
 	if t.container != "" {

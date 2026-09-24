@@ -16,23 +16,9 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// This file is a stateful in-process fake Valkey: a minimal RESP2 server the
-// real valkey-go client dials, so Store tests exercise genuine wire round
-// trips (Do/DoMulti routing, pipelining) instead of mocked results.
-//
-// Why not a recording stub: tombstone skips and rev gating are decided from
-// server STATE (EXISTS / stored revs), so the fake must remember hashes,
-// string keys and expiries. Why not miniredis: not a dependency of this repo,
-// and the command surface the projection uses is a dozen verbs.
-//
-// The server is deliberately single-threaded per connection — one connection,
-// commands processed strictly in arrival order — which mirrors a real Valkey's
-// serial execution and is exactly what makes op-block contiguity assertions
-// meaningful for the shard-mutex tests.
-
 type fakeOp struct {
 	cmd  string
-	args []string // key + rest, cmd excluded
+	args []string
 }
 
 func (o fakeOp) key() string {
@@ -58,7 +44,6 @@ type fakeValkey struct {
 	hgetFail string
 }
 
-// newFakeValkey boots the listener + client. Caller must Close.
 func newFakeValkey(t *testing.T) *fakeValkey {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -78,7 +63,7 @@ func newFakeValkey(t *testing.T) *fakeValkey {
 	go f.serve()
 	client, err := valkey_go.NewClient(valkey_go.ClientOption{
 		InitAddress:  []string{f.addr},
-		DisableCache: true, // no CLIENT TRACKING init; the fake speaks plain RESP2
+		DisableCache: true,
 	})
 	if err != nil {
 		t.Fatalf("fake valkey client: %v", err)
@@ -95,14 +80,12 @@ func (f *fakeValkey) Close() {
 	_ = f.ln.Close()
 }
 
-// ops snapshots the execution log.
 func (f *fakeValkey) ops() []fakeOp {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]fakeOp(nil), f.log...)
 }
 
-// hash returns a copy of one hash for assertions.
 func (f *fakeValkey) hash(key string) fakeHash {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -113,24 +96,15 @@ func (f *fakeValkey) hash(key string) fakeHash {
 	return out
 }
 
-// seed writes a hash field bypassing the Store, to stage pre-existing state.
-// cmdArgs is one decoded RESP command line: the words after the verb.
 type cmdArgs []string
 
-// fakeHash is one key's field map.
 type fakeHash map[string]string
 
-// fakeField is one hash field+value pair for seeding.
 type fakeField struct {
 	field string
 	value string
 }
 
-// failHGET makes every HGET of one field answer with a server error, so a test
-// can prove a read failure on a write path is propagated instead of being read
-// as an absent field. "" disables it. A whole-server outage would not do: it
-// fails the following write too, so both the buggy and the fixed code return
-// an error and the test proves nothing.
 func (f *fakeValkey) failHGET(field string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -157,8 +131,6 @@ func (f *fakeValkey) serve() {
 	}
 }
 
-// session serves one connection: read a command array, execute, write the
-// reply, until either side drops.
 func (f *fakeValkey) session(c net.Conn) {
 	defer c.Close()
 	r := bufio.NewReader(c)
@@ -173,10 +145,6 @@ func (f *fakeValkey) session(c net.Conn) {
 	}
 }
 
-// fakeCommandHandlers dispatches one supported command to its executor.
-// Handlers run with f.mu HELD and receive the args AFTER the command word;
-// they answer in RESP2 via the resp* helpers. Unknown commands fall to the
-// default at the bottom of exec, matching the real server's error shape.
 var fakeCommandHandlers = map[string]func(*fakeValkey, cmdArgs) []byte{
 	"HSET":    (*fakeValkey).execHSET,
 	"HGET":    (*fakeValkey).execHGET,
@@ -190,7 +158,6 @@ var fakeCommandHandlers = map[string]func(*fakeValkey, cmdArgs) []byte{
 	"EVAL":    (*fakeValkey).execEVAL,
 }
 
-// exec runs one command atomically under the global fake lock and records it.
 func (f *fakeValkey) exec(args cmdArgs) []byte {
 	if len(args) == 0 {
 		return respError("empty command")
@@ -204,7 +171,6 @@ func (f *fakeValkey) exec(args cmdArgs) []byte {
 
 	switch cmd {
 	case "HELLO":
-		// Match pipe.go's noHello regex so valkey-go falls back to RESP2.
 		return respError("unknown command 'HELLO'")
 	case "AUTH", "CLIENT", "SELECT", "COMMAND", "PING":
 		return respSimple("OK")
@@ -235,8 +201,6 @@ func (f *fakeValkey) execHSET(args cmdArgs) []byte {
 }
 
 func (f *fakeValkey) execHGET(args cmdArgs) []byte {
-	// One clause covers both cases: hgetFail is "" when disabled and no real
-	// hash field is named "".
 	if args[1] == f.hgetFail {
 		return respError("SIMULATED transient read failure")
 	}
@@ -332,15 +296,14 @@ func (f *fakeValkey) execEXPIRE(args cmdArgs) []byte {
 		mode = strings.ToUpper(args[2])
 	}
 	target := f.nowFunc().Add(time.Duration(secs) * time.Second)
-	// Lazy-expire first so NX/GT see a truthful "has expiry" state.
 	f.aliveLocked(key)
 	current, hasCurrent := f.expires[key]
 	switch mode {
-	case "NX": // only when no expiry lives
+	case "NX":
 		if hasCurrent {
 			return respInt(0)
 		}
-	case "GT": // only extends an existing shorter expiry
+	case "GT":
 		if !hasCurrent || !target.After(current) {
 			return respInt(0)
 		}
@@ -349,8 +312,6 @@ func (f *fakeValkey) execEXPIRE(args cmdArgs) []byte {
 	return respInt(1)
 }
 
-// execEVAL implements just the scripts the projection layer issues:
-// clearFieldsLua deletes every hash field prefixed by any ARGV entry.
 func (f *fakeValkey) execEVAL(args cmdArgs) []byte {
 	script := args[0]
 	numkeys, _ := strconv.Atoi(args[1])
@@ -362,8 +323,6 @@ func (f *fakeValkey) execEVAL(args cmdArgs) []byte {
 	return respInt(f.deleteByPrefixes(keys[0], argv))
 }
 
-// deleteByPrefixes mirrors the projection sweep script: HDEL every field of
-// key matching any prefix, returning the count.
 func (f *fakeValkey) deleteByPrefixes(key string, prefixes cmdArgs) int64 {
 	h, ok := f.hashes[key]
 	if !ok || !f.aliveLocked(key) {
@@ -388,7 +347,6 @@ func hasAnyPrefix(s string, prefixes cmdArgs) bool {
 	return false
 }
 
-// aliveLocked applies lazy expiry; caller holds mu.
 func (f *fakeValkey) aliveLocked(key string) bool {
 	if dl, ok := f.expires[key]; ok {
 		if f.nowFunc().After(dl) {
@@ -402,5 +360,3 @@ func (f *fakeValkey) aliveLocked(key string) bool {
 	_, str := f.strs[key]
 	return hash || str
 }
-
-// --- RESP2 encoding helpers ---

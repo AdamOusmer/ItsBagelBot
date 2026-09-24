@@ -1,10 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The ticket desk: the switch, its channels and staff, the panel embed and a
-  // live preview of it. The desk keeps its own channel pickers rather than
-  // sending the streamer to the Channels page, because the four of them are
-  // meaningless outside tickets and picking them is part of setting the desk up.
   import { enhance } from '$app/forms';
   import {
     AlertBanner,
@@ -52,8 +48,6 @@
   }
 
   const panel = $derived(ticketPanelSpec(draft.config));
-  // Six presets so the common case is one click and the picker stays for the
-  // rest; the first is the colour every other Bagel embed already uses.
   const SWATCHES = [LIVE_COLOR_HEX, '#52b788', '#5865f2', '#dfe4e9', '#b05a46', '#8a7cc9'] as const;
   const panelColor = $derived(normalizeHex(draft.config.ticketPanelColor));
   const ticketsOn = $derived(alertOn(draft.config.ticketsEnabled));

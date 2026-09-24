@@ -4,8 +4,6 @@
 const UNDASHED = /^[0-9a-f]{32}$/i;
 const DASHED = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// canonicalMinecraftUUID returns the lowercase undashed form when value is
-// already a uuid (dashes optional), otherwise null.
 export function canonicalMinecraftUUID(value: string): string | null {
   const s = value.trim();
   if (!s) return null;

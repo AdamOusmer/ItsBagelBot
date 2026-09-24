@@ -20,11 +20,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// liveRPC answers the worker's cold-key live query. It serves the projector's
-// own projected live signal when it has one; otherwise it escalates to Twitch by
-// publishing a stream_status job on the outgress system lane and replies unknown,
-// so the worker treats the broadcaster as offline until the escalation refreshes
-// the live key.
 type liveRPC struct {
 	store         *projection.Store
 	pub           bus.Publisher
@@ -32,8 +27,6 @@ type liveRPC struct {
 	log           *zap.Logger
 }
 
-// SubscribeLive registers the projector live verb on subject. systemSubject is
-// the outgress system lane the escalation job rides; pub is a JetStream publisher.
 func SubscribeLive(nc *nats.Conn, store *projection.Store, pub bus.Publisher, subject, systemSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	l := &liveRPC{store: store, pub: pub, systemSubject: systemSubject, log: log}
 	return bus.QueueSubscribeJSON[projectorrpc.LiveRequest, projectorrpc.LiveReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, l.handleGet)
@@ -51,7 +44,6 @@ func (l *liveRPC) handleGet(ctx context.Context, req projectorrpc.LiveRequest) p
 
 	live, known, err := l.store.GetStreamLive(ctx, id)
 	if err != nil {
-		// Valkey error: do not escalate, just answer offline/unknown.
 		log.Warn("live rpc: store read failed", zap.Uint64("broadcaster_id", id), zap.Error(err))
 		return projectorrpc.LiveReply{BroadcasterID: req.BroadcasterID, Live: false, Known: false}
 	}
@@ -59,8 +51,6 @@ func (l *liveRPC) handleGet(ctx context.Context, req projectorrpc.LiveRequest) p
 		return projectorrpc.LiveReply{BroadcasterID: req.BroadcasterID, Live: live, Known: true}
 	}
 
-	// Cold: escalate to Twitch via outgress; the re-check writes the live key for
-	// the next read. Reply unknown (offline) now.
 	l.escalate(ctx, req.BroadcasterID)
 	return projectorrpc.LiveReply{BroadcasterID: req.BroadcasterID, Live: false, Known: false}
 }

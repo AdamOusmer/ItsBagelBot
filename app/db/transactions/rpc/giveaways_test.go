@@ -77,8 +77,6 @@ func TestGiveawaySummaryUsesExclusiveCategories(t *testing.T) {
 		{UserID: 2, Status: "paid"},
 		{UserID: 3, Status: "paid", SubscriptionRef: strptr("recurring")},
 	}}
-	// A real Ent row is unnecessary for this wire invariant; use the helper
-	// below so the test remains independent of a database driver.
 	if got := categoryCounts(pool); got != [3]int{1, 1, 1} {
 		t.Fatalf("category counts = %v, want free/one-time/subscriber = 1/1/1", got)
 	}

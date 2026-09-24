@@ -1,21 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Golden test for variableReferenceData() (./index.ts), the guide page's data
-// layer: kit's variable manifest plus locale copy, resolved and localized.
-// It is supposed to be a pure function of that manifest and of kit's en/fr
-// catalogs, so its exact JSON shape is pinned here rather than left to be
-// "probably still right" -- a catalog rename, a dropped surface, or a wording
-// tweak in kit's locales changes what every guide reader sees, and this test
-// turns that into a diff instead of a silent surprise. Runs under `bun test`
-// specifically because index.ts -> builder.ts -> @bagel/kit/i18n/static
-// resolves entirely without Vite: see lang.ts and kit/lib/i18n/static.ts for
-// why that path had to exist.
-//
-// Regeneration is a deliberate act, gated on UPDATE_GOLDEN=1, never a side
-// effect of running the suite (.claude/skills/golden-output-tests: "a
-// fixture the suite can rewrite documents whatever the code currently does,
-// which is the opposite of the point").
 import { describe, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

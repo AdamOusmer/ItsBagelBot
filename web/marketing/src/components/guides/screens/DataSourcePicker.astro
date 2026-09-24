@@ -2,15 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * The command editor's insert palette with the "Data source" chip open: the
- * token chips a response already offers, then the popover listing the saved
- * definitions with their paths. Clicking a row drops the token at the cursor.
- *
- * The popover is the one piece with no @bagel/ui element behind it: it is the
- * editor's own FetchSourcePicker, a live listbox, so the still frame of it is
- * drawn here in scoped CSS and stays here.
- */
 import Card from '@bagel/ui/astro/Card.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
 import Field from '@bagel/ui/astro/Field.astro';

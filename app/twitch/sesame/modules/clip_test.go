@@ -19,7 +19,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// clipReader is a minimal projection.Reader stub for the clip toggle read.
 type clipReader struct {
 	modules []projection.ModuleView
 	err     error
@@ -79,7 +78,6 @@ func TestClipCommandShape(t *testing.T) {
 }
 
 func TestClipEmitsWhenEnabled(t *testing.T) {
-	// No stored row => default-on.
 	cmd := clipCommand(t, engine.Deps{Proj: clipReader{}, Log: zap.NewNop()})
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), clipCtx(), "Sick play", col.emit))
@@ -87,8 +85,8 @@ func TestClipEmitsWhenEnabled(t *testing.T) {
 	o := col.out[0]
 	assert.Equal(t, outgress.TypeClip, o.Type)
 	assert.Equal(t, "5", o.BroadcasterID)
-	assert.Equal(t, "Sick play", o.Text) // title echoed + sent to Twitch
-	assert.Equal(t, "viewer", o.To)      // clipper for the reply
+	assert.Equal(t, "Sick play", o.Text)
+	assert.Equal(t, "viewer", o.To)
 	assert.Zero(t, o.Duration, "plain !clip leaves duration unset (Twitch default)")
 }
 
@@ -114,7 +112,7 @@ func TestClipNoTemplateWhenConfigEmpty(t *testing.T) {
 func TestClipDurationFromNumericSuffix(t *testing.T) {
 	cmd := clipCommand(t, engine.Deps{Proj: clipReader{}, Log: zap.NewNop()})
 	c := clipCtx()
-	c.Num = "45" // !clip45
+	c.Num = "45"
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
 	require.Len(t, col.out, 1)
@@ -123,14 +121,14 @@ func TestClipDurationFromNumericSuffix(t *testing.T) {
 
 func TestClipDuration(t *testing.T) {
 	cases := map[string]float64{
-		"":                         0,  // plain !clip: unset, Twitch default
-		"30":                       30, // in range
-		"5":                        5,  // min
-		"60":                       60, // max
-		"3":                        5,  // below min clamps up
-		"90":                       60, // above max clamps down
-		"0":                        5,  // zero clamps to min
-		"999999999999999999999999": 60, // overflow clamps to max
+		"":                         0,
+		"30":                       30,
+		"5":                        5,
+		"60":                       60,
+		"3":                        5,
+		"90":                       60,
+		"0":                        5,
+		"999999999999999999999999": 60,
 	}
 	for in, want := range cases {
 		if got := clipDuration(in); got != want {

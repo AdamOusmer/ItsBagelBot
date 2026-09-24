@@ -1,37 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The scheduler is the one module in lib/ whose correctness is invisible on
-// screen. A loop that never settles looks identical to one that does; the
-// difference is a laptop fan and a battery graph. A loop that settles and
-// cannot be woken looks identical to a broken effect, and gets debugged in the
-// effect, for hours. So it gets the unit test that the drawing code does not
-// need.
-//
-// Bun has no DOM, and lib/raf-loop.ts reads `requestAnimationFrame` and
-// `document` as bare globals resolved at call time. That is what makes this
-// testable at all: the stubs are installed on globalThis BEFORE the module is
-// imported (hence the top-level await on a dynamic import, rather than a static
-// import that would hoist above the stubs), so the module's own
-// visibilitychange registration lands on the fake document too.
-//
-// The scheduler is a module-level singleton and bun's module registry is per
-// process, so there is exactly ONE instance for the whole file. Every test
-// therefore registers through `track()` and `afterEach` unsubscribes: a
-// subscriber left behind would be woken by the next test's argument-less
-// `wake()` and count a tick that test never asked for.
-//
-// `frames()` drains the queue one frame at a time rather than looping until it
-// is empty: a subscriber that never settles would make "until empty" hang
-// forever, and a CI hang is a far worse failure report than a wrong count.
-
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// Type-only: erased at compile time, so it does not pull the module in above
-// the global stubs the way a value import would.
 import type { Tick } from "../lib/raf-loop";
 
 const savedGlobals = new Map(
@@ -76,16 +50,12 @@ globalThis.cancelAnimationFrame = ((handle: number) => {
   removeEventListener() {},
 };
 
-// Other suites render adapters that import the production singleton before
-// this fake document exists. Use a private module instance so its visibility
-// listener always belongs to this test, independent of file discovery order.
 const isolatedDir = mkdtempSync(join(tmpdir(), 'bagel-raf-test-'));
 afterAll(() => rmSync(isolatedDir, { recursive: true, force: true }));
 const schedulerPath = join(isolatedDir, 'raf-loop.ts');
 copyFileSync(new URL('../lib/raf-loop.ts', import.meta.url), schedulerPath);
 const loop = await import(schedulerPath) as typeof import('../lib/raf-loop');
 
-/** Run every callback queued so far, exactly once, `count` times over. */
 function frames(count = 1): void {
   for (let i = 0; i < count; i += 1) {
     const pending = queue;
@@ -95,7 +65,6 @@ function frames(count = 1): void {
   }
 }
 
-/** Flip `document.hidden` and fire the event the module listens for. */
 function setHidden(value: boolean): void {
   hidden = value;
   for (const listener of visibilityListeners) listener();
@@ -142,7 +111,7 @@ describe("subscribe", () => {
     });
 
     frames(1);
-    expect(loop.isRunning()).toBe(true); // the second one still wants frames
+    expect(loop.isRunning()).toBe(true);
 
     frames(5);
     expect(longRunning).toBe(4);

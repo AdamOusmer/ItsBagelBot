@@ -1,6 +1,3 @@
-// Pure rules shared by the giveaway form and its server action.
-// Keep these checks independent of Svelte so the no-live-mutation preview can
-// be tested without a browser or a Transactions responder.
 
 export type GiveawayEligibility = {
   eligible: number;
@@ -33,19 +30,16 @@ export function giveawayDrawState(capabilities?: GiveawayCapabilityFlags): { blo
   };
 }
 
-/** Positive whole months within the supported prize duration. */
 export function parsePrizeMonths(raw: unknown): number | null {
   const value = typeof raw === 'number' ? raw : Number(String(raw ?? '').trim());
   return Number.isSafeInteger(value) && value > 0 && value <= MAX_PRIZE_MONTHS ? value : null;
 }
 
-/** A draw cannot have zero winners and must use a safe integer count. */
 export function parseWinnerCount(raw: unknown): number | null {
   const value = typeof raw === 'number' ? raw : Number(String(raw ?? '').trim());
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
-/** Overflow-safe display arithmetic. A null total means the input is too large. */
 export function giveawaySummary(winners: unknown, months: unknown): GiveawaySummary {
   const winnerCount = parseWinnerCount(winners) ?? 0;
   const monthCount = parsePrizeMonths(months) ?? 0;

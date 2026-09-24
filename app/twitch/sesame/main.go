@@ -26,13 +26,8 @@ const (
 	queueGroup  = "sesame-rpc"
 )
 
-// projectionCacheTTL bounds how long a stale module/command/user view can linger
-// in sesame before the next read re-checks Valkey and the projector.
 const projectionCacheTTL = 30 * time.Second
 
-// cacheOccupancyInterval is how often sesame logs how full its projection caches
-// run, so their capacities can be tuned to the observed working set. Slow enough
-// to be noise-free at info level (one line per pod per interval).
 const cacheOccupancyInterval = 5 * time.Minute
 
 func main() {
@@ -44,27 +39,7 @@ func main() {
 
 	cfg := config.Load()
 
-	// Sesame owns both ingress lane streams' reconciliation. Other ingress
-	// consumers receive consumer-only ACLs and twitch-ingress itself is
-	// publish-only.
-	//
-	// The lane shape comes from IngressLaneSpecs: one wildcard stream until the
-	// partition flip, the narrowed pair after it (NATS_INGRESS_PARTITION). The
-	// slice order inside the partitioned shape is load-bearing — TWITCH_INGRESS
-	// must be narrowed before TWITCH_INGRESS_STANDARD claims the standard
-	// subject; EnsureStreams reconciles in order and the reverse is refused for
-	// subject overlap, which a fatal initial provision would turn into a
-	// crashloop that never performs the narrowing. See the migration note on
-	// bus.TwitchIngressStandardStream.
-	//
-	// TWITCH_INGRESS_RETRY is provisioned only when the lanes actually bind
-	// receipt-level consumers, because only those schedule onto it: a flow
-	// consumer has no per-message pending state to NAK, so a handler failure is
-	// handed back to the broker as a scheduled message instead. Creating it
-	// unconditionally would hold 32 MiB of memory-backed stream on every hub
-	// member for a lane nothing writes to. The same flag decides whether the
-	// consumer subscribes it (see internal/consumer), so the stream and its
-	// reader appear and disappear together and enabling flow stays one env flip.
+	// internal/consumer subscribes TWITCH_INGRESS_RETRY under the same flag; change both together.
 	owned := bus.IngressLaneSpecs()
 	if bus.FlowConsumeEnabled() {
 		owned = append(owned, bus.TwitchIngressRetryStream)
@@ -80,10 +55,6 @@ func main() {
 	valkeyClient := svcboot.MustValkey(core)
 	defer valkeyClient.Close()
 
-	// Real Overview activity sink: internal/activity.Emit is a no-op until a
-	// sink is installed (see that package's decision record). This is the one
-	// SetSink call for the whole process; every Emit call site in sesame's
-	// modules (alerts.go) lands here without further wiring.
 	activity.SetSink(activity.NewStore(valkeyClient))
 
 	w := wireCtx{ctx: ctx, in: infra{nc: nc, pub: pub, sub: sub, vc: valkeyClient}, cfg: cfg, log: log}
@@ -97,34 +68,18 @@ func main() {
 	timers := newTimers(w, proj, live)
 
 	loyaltyReporter := engine.NewLoyaltyReporter(pub, log)
-	defer loyaltyReporter.Close() // flushes pending accruals on shutdown
-	// chatters is the shared {random.viewer} snapshot store: the watch tick
-	// write-warms it below, and buildDeps wires the same instance behind
-	// ViewerRPC's cold-cache fetch.
+	defer loyaltyReporter.Close()
 	chatters := engine.NewValkeyChatters(valkeyClient, log)
 	loyalty, loyaltyTick := newLoyalty(w, loyaltyDeps{proj: proj, live: live, reporter: loyaltyReporter, chatters: chatters})
 
 	raffle := newRaffle(w, proj)
 	duel := newDuel(w, proj, loyalty)
 
-	// guard is the inline automod gate; hoisted so the emote/lexicon refreshers can
-	// install their false-positive-suppression sets onto the same instance. The
-	// learned layers (Vocab as ExtraEmotes provider, Baseline style ceilings) are
-	// dark-launched behind SESAME_AUTOMOD_ADAPTIVE: unset, they are never
-	// installed and span-derived emote codes stay unused at the pipeline door,
-	// keeping verdicts byte-identical to the pre-learned gate.
 	guard := automod.New()
 	if cfg.AdaptiveEnabled {
 		guard.SetExtraEmotes(automod.NewVocab())
 		guard.SetBaseline(automod.NewBaseline(automod.DefaultCeiling()))
 	}
-	// emotes is the shared third-party emote catalog. ONE fetcher serves both
-	// readers: the gate's false-positive suppression set and the {7tvemotes}
-	// family of response tokens, which read the snapshot its hourly refresh
-	// leaves behind rather than fetching anything on the command lane. Built
-	// here rather than inside the refresher so the tokens and the gate can
-	// never end up on two different fetches; nil when the refresher is off, and
-	// then the tokens stay literal because that process will never hold a code.
 	var emotes *automod.EmoteFetcher
 	if cfg.EmotesEnabled {
 		emotes = automod.NewEmoteFetcher(nil, automod.DefaultEmoteEndpoints)
@@ -138,24 +93,13 @@ func main() {
 	startRefreshers(w, guard, emotes)
 
 	pipe := newPipeline(deps, registry, cfg)
-	defer pipe.Close() // flushes pending use-counter ticks on shutdown
+	defer pipe.Close()
 
-	// timers is built before pipe exists (buildDeps needs the store as a
-	// value before the pipeline can be built from deps); wiring the pipeline
-	// in now is what lets a timer's message expand {token} spans through
-	// timerChain (see the pipeline field on ValkeyTimerStore). Its watchers
-	// start only AFTER this call — see newTimers' and startTimerWatchers'
-	// comments for the data race that ordering the other way around opens.
 	timers.WirePipeline(pipe)
 	startTimerWatchers(w, timers)
 
-	// Overview feed: turns handled command dispatches into activity rows and
-	// the latency median (see activity_observer.go). Each lane below owns its
-	// own Observer.
 	pipe.RegisterObserver(activityObserver{})
 
-	// Overview chart: per-minute chat volume plus command-answer ticks (see
-	// chatvolume_observer.go and internal/chatvolume's package doc).
 	pipe.RegisterObserver(chatVolumeObserver{store: chatvolume.New(valkeyClient, log)})
 
 	weighted, err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process)
@@ -167,23 +111,7 @@ func main() {
 	drainInflight(weighted, cfg.DrainTimeout, log)
 }
 
-// serveHealth publishes sesame's health surface and registers the health RPC
-// responder against the same Set, so /status and the RPC reply cannot disagree
-// about this pod at the same instant.
-//
-// The endpoint answers for the whole Twitch vertical, not only for this pod:
-// health.itsbagelbot.com/twitch terminates in sesame, so the two HealthProbe
-// checks fold ingress's and outgress's own reports in over the health RPC.
-// Neither is wrapped in health.Degrades even though both are remote services.
-// HealthProbe already carries the downstream verdict through (a degraded
-// downstream degrades this endpoint, a dead one downs it), so marking them
-// optional on top of that would flatten a total ingress outage into 207
-// degraded: /readyz would stay ready, and the outage would never page.
-//
-// One LaneCheck, not one per lane: sesame drains premium, standard and their
-// retry lanes through a single bus.Subscriber (see internal/consumer's lanes),
-// and SubscriberHealthy reads that one subscriber's fetch clock. Splitting it
-// per lane would publish the same bool under three names.
+// Do not wrap the probes in health.Degrades: a total ingress outage would never page.
 func serveHealth(w wireCtx) {
 	svcboot.ServeHealth(svcboot.Health{
 		Log: w.log, NC: w.in.nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: w.cfg.ListenAddr,
@@ -194,12 +122,6 @@ func serveHealth(w wireCtx) {
 	)
 }
 
-// startRefreshers launches the background automod refreshers that feed the
-// shared gate: the third-party emote sets (caps false-positive suppression),
-// the optional lexicon override directory, and the dynamic link-safety checker.
-// It takes the same wireCtx the store constructors do, so the lifecycle
-// context, config and logger travel as one value rather than as three more
-// parameters beside the two gate pieces.
 func startRefreshers(w wireCtx, guard *automod.Gate, emotes *automod.EmoteFetcher) {
 	if emotes != nil {
 		go refreshEmotes(w.ctx, emotes, guard, w.log)
@@ -212,15 +134,11 @@ func startRefreshers(w wireCtx, guard *automod.Gate, emotes *automod.EmoteFetche
 	}
 }
 
-// logReady emits the one-line startup banner with the effective consumer tuning.
 func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
 	log.Info("sesame ready",
 		zap.String("consumer_name", cfg.ConsumerName),
 		zap.String("premium_subject", cfg.PremiumSubject),
 		zap.String("standard_subject", cfg.StandardSubject),
-		// Which acknowledgement contract the lanes actually bound: receipt-level
-		// flow control, or the explicit-ACK default. This is the one place an
-		// operator can read it back, since the flag is unset in every manifest.
 		zap.Bool("flow_consume", bus.FlowConsumeEnabled()),
 		zap.Int("min_routines", cfg.MinRoutines),
 		zap.Int("max_routines", cfg.MaxRoutines),
@@ -232,11 +150,6 @@ func logReady(cfg *config.Config, specialUsers int, log *zap.Logger) {
 	)
 }
 
-// drainInflight waits for the handlers the consumer already dispatched to run to
-// completion before main returns and its deferred Close calls flush the reporters
-// and shut the publishers. SIGTERM cancelled the consumer's context, so no new
-// work is being pulled. A handler killed mid-flight remains unacknowledged and
-// is redelivered; deterministic output IDs collapse outputs already stored.
 func drainInflight(weighted *bus.Weighted, timeout time.Duration, log *zap.Logger) {
 	log.Info("sesame shutting down, draining in-flight events", zap.Duration("timeout", timeout))
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -248,20 +161,10 @@ func drainInflight(weighted *bus.Weighted, timeout time.Duration, log *zap.Logge
 	log.Info("in-flight events drained")
 }
 
-// emoteRefreshInterval is how often the global third-party emote sets are
-// re-fetched. They change slowly; hourly keeps the caps false-positive suppression
-// fresh at negligible cost (a few small unauthenticated GETs).
 const emoteRefreshInterval = time.Hour
 
-// lexiconReloadInterval is how often the lexicon override directory is re-read.
-// The pattern artifact is a mounted ConfigMap (the Flux-managed reviewable-list
-// pattern); a few minutes of staleness on a word-list change is fine.
 const lexiconReloadInterval = 5 * time.Minute
 
-// reloadLexicon loads the lexicon override directory at startup and re-reads it
-// on a slow ticker, swapping the compiled set into the gate. A load failure is
-// logged and the previous (or embedded) lexicon stays active, so a bad mount can
-// never blank the floor lists.
 func reloadLexicon(ctx context.Context, dir string, guard *automod.Gate, log *zap.Logger) {
 	load := func() {
 		l, err := automod.LoadLexiconDir(dir)
@@ -286,16 +189,6 @@ func reloadLexicon(ctx context.Context, dir string, guard *automod.Gate, log *za
 	}
 }
 
-// refreshEmotes keeps the shared third-party emote catalog current: it installs
-// the global BTTV/FFZ/7TV codes once at startup, then re-fetches on a slow
-// ticker. A fetch failure is logged and the previous set is kept; it never
-// blocks the gate, which treats an absent set as "suppress nothing" (the
-// pre-emote behavior).
-//
-// This is also the ONLY thing that loads the codes the {7tvemotes} family of
-// response tokens prints: they read the fetcher's snapshot, so a channel whose
-// command names one pays no upstream call and a channel that never names one
-// costs this ticker nothing extra.
 func refreshEmotes(ctx context.Context, fetcher *automod.EmoteFetcher, guard *automod.Gate, log *zap.Logger) {
 	load := func() {
 		n, err := fetcher.Refresh(ctx, guard)

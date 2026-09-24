@@ -1,34 +1,8 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
-/* The call sign: a mark, a name, and optionally a line under the name saying
-   which surface you are on. Four hand-written copies before this file --
-   the console rail's `.brand` (30px mark, station id under the name), the
-   console topbar's `.station` (26px, circular mark for a premium board), the
-   marketing bar's `.logo` (26px, name only) and the marketing footer's
-   `.brand` (55px, and the one that wobbles on hover) -- which is why the mark
-   sizes were 30/26/26/55 and the names were Syne 15/13.5/0.95rem/1.1rem: four
-   people each picking what looked right in one place.
-
-   Three sizes now, and they are the three that were actually load-bearing:
-   `sm` is the bar and the strip (26px mark, 13.5px name), `md` is the rail
-   (30px/15px), `lg` is the footer sign-off (55px/1.1rem). The name type scales
-   with the mark rather than being set per surface, because the two were always
-   chosen together.
-
-   The logo itself is a plain <img> taking a caller-resolved src: the marketing
-   site runs its own asset pipeline (astro:assets emits a hashed, resized file)
-   and the console serves /logo.png from static, so this library must not know
-   which. Passing the resolved URL in is what keeps it consumable without
-   Astro's build. */
 @layer bb.elements {
   .bb-brand {
     --brand-mark: 30px;
@@ -46,12 +20,6 @@
     text-decoration: none;
   }
 
-  /* `sm` is the console strip's numbers, and the marketing bar takes them:
-     that bar's wordmark was 0.95rem/700 and is now 13.5px/800. Measured
-     2026-09-09 at 1280px, the two render within ~2px of each other -- the
-     heavier weight buys back most of the 1.7px of size -- and this is the one
-     place the four copies could not simply be kept, because "the wordmark next
-     to a 26px mark" cannot be two sizes at once. */
   .bb-brand--sm {
     --brand-mark: 26px;
     --brand-name-size: 13.5px;
@@ -78,9 +46,6 @@
     border-radius: var(--brand-radius);
   }
 
-  /* A premium board's mark is round rather than rounded-square. It is the only
-     thing about the chrome that says so, which is deliberate: the badge it
-     replaced sat next to the name and was read as a state, not an identity. */
   .bb-brand[data-premium] .bb-brand__logo img {
     border-radius: 50%;
   }
@@ -101,11 +66,6 @@
     white-space: nowrap;
   }
 
-  /* The station id. Mono, tan, tracked wide and uppercase everywhere it has
-     ever been drawn -- except the marketing footer, whose "tagline" sits in
-     this slot at a readable size and normal case. That is what
-     --brand-sub-* exist for: the footer sets three values instead of
-     restating the block. */
   .bb-brand__sub {
     --brand-sub-size: 9px;
     --brand-sub-tracking: 0.22em;
@@ -128,14 +88,6 @@
     margin-top: 10px;
   }
 
-  /* The footer mark tips over when you catch it. Hover-only and pointer-fine
-     only: on a touch device :hover sticks after the tap, so the logo would sit
-     permanently crooked for the rest of the visit.
-
-     500ms is kept as a literal rather than folded into --bb-dur-slow (600ms):
-     the two numbers were never the same decision. --bb-dur-slow is the
-     console rail's highlight travel, and this is a 14-degree tip on a
-     back-eased curve, which reads as slow at 600. */
   @media (hover: hover) and (pointer: fine) {
     .bb-brand--lg .bb-brand__logo {
       transition: rotate 500ms var(--bb-ease-out-back);

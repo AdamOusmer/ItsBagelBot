@@ -1,20 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Production HTTP(S) front for both consoles. The SvelteKit adapter stays
-// adapter-node (it emits handler.js + precompressed client assets); this file
-// is the process that serves them. It runs under bun — the runtime image is
-// oven/bun:*-distroless, whose ENTRYPOINT is already `bun` — not Node.
-//
-// Bun.serve was not used. sirv is a Node (req, res, next) stack; adapter-node's
-// handler is the same; TLS is node:https with the cert-manager cert; and the
-// New Relic Node agent documents that bun.serve is the path that loses request
-// instrumentation. bun's node:http/https implement server.listen, which is
-// what all four of those require. New Relic's optional native addons
-// (@newrelic/fn-inspect, @newrelic/native-metrics, @datadog/pprof) are
-// Node/V8 .node files: bun dlopens a present addon and aborts the process
-// (`undefined symbol GetScriptOrigin`) instead of throwing, so the
-// Containerfile strips those packages and the JS agent stays up.
 import { createServer as createHttpServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { existsSync, readFileSync } from 'node:fs';
@@ -28,7 +14,7 @@ const { handler } = await import(pathToFileURL(path.join(build, 'handler.js')).h
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '0.0.0.0';
 const socketPath = process.env.SOCKET_PATH;
-const shutdownTimeout = Number(process.env.SHUTDOWN_TIMEOUT || 30);
+const shutdownTimeoutSeconds = Number(process.env.SHUTDOWN_TIMEOUT || 30);
 
 const immutable = '/_app/immutable/';
 
@@ -38,21 +24,15 @@ const client = sirv(path.join(build, 'client'), {
   brotli: true,
   setHeaders: (res, pathname) => {
     if (pathname.includes(immutable)) {
-      // Content-hashed names; safe to cache hard at the browser and CF edge.
       res.setHeader('cache-control', 'public,max-age=31536000,immutable');
     } else if (pathname === '/_app/version.json') {
-      // Deploy-detection poll target. If CF or the browser ever cached it, the
-      // client's `updated` store would never flip on a new deploy and stale tabs
-      // would keep fetching deleted chunks. Must never be cached.
+      // Deploy-detection poll target: if cached, stale tabs never notice a deploy.
       res.setHeader('cache-control', 'no-store');
     }
   }
 });
 
-// A miss must never be cached. A transient 404 (a chunk requested mid-deploy,
-// before this pod rolled, or routed to a peer that hasn't) would otherwise be
-// memoized by the CF edge and replayed to every client = a 404 storm. no-store
-// keeps the miss to the one request so the client's version-poll reload recovers.
+// no-store: the CF edge would replay a cached mid-deploy miss to every client.
 function send404(req, res) {
   res.statusCode = 404;
   res.setHeader('Cache-Control', 'no-store');
@@ -75,9 +55,7 @@ const prerendered = existsSync(prerenderedDir)
 const requestListener = (req, res) => {
   client(req, res, () => {
     const next = () => {
-      // A static asset under /_app that sirv could not find: it does not exist on
-      // this pod. Don't fall through to the SSR handler (which would 200 an HTML
-      // shell for a .js URL and break the SPA); return a non-cacheable 404.
+      // Missing /_app assets must 404: the SSR fallback would answer a .js URL with HTML.
       if (req.url && req.url.startsWith('/_app/')) {
         send404(req, res);
         return;
@@ -94,11 +72,6 @@ const requestListener = (req, res) => {
   });
 };
 
-// Serve HTTPS when a cert is provided (TLS_CERT_FILE/TLS_KEY_FILE, mounted from the
-// cert-manager console-*-tls secret). Traefik re-encrypts to this backend via a
-// ServersTransport, so the traefik->console hop is TLS end-to-end and no longer
-// depends on the Linkerd mesh, the gate for de-meshing NATS. Plain HTTP fallback
-// keeps local dev (no cert) unchanged.
 const tlsCert = process.env.TLS_CERT_FILE;
 const tlsKey = process.env.TLS_KEY_FILE;
 const server =
@@ -115,7 +88,7 @@ function shutdown(signal) {
   setTimeout(() => {
     server.closeAllConnections?.();
     process.exit(1);
-  }, shutdownTimeout * 1000).unref();
+  }, shutdownTimeoutSeconds * 1000).unref();
 }
 
 process.on('SIGTERM', shutdown);

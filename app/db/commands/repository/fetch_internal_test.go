@@ -9,8 +9,6 @@ import (
 	"ItsBagelBot/pkg/tmpl"
 )
 
-// lexOneSpan lexes a single-span template so the tables below can be written
-// in the spans a broadcaster types rather than in tmpl.Token literals.
 func lexOneSpan(t *testing.T, span string) tmpl.Token {
 	t.Helper()
 	toks := tmpl.Lex(span)
@@ -20,19 +18,6 @@ func lexOneSpan(t *testing.T, span string) tmpl.Token {
 	return toks[0]
 }
 
-// TestReferencesFetch pins the "which commands break if I delete this
-// definition" scan against the spans a broadcaster actually types.
-//
-// The first two rows are the regressions that motivated replacing the
-// hand-rolled substring scan: it looked for the literal "{urlfetch:" + name in
-// a lower-cased response and accepted only '}' or '.' as the next byte, so it
-// missed the '|' fallback grammar entirely (a definition every
-// fallback-using command referenced reported ZERO referrers and deleted
-// clean) and it never folded the CALLER's name, so a mixed-case argument
-// matched nothing.
-//
-// The table is also what holds urlFetchTokenName to the spelling the sesame
-// scope resolves: the rows are literal spans, not the constant.
 func TestReferencesFetch(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -61,8 +46,6 @@ func TestReferencesFetch(t *testing.T) {
 	}
 }
 
-// TestFetchDefNameDropsSelector pins that only the leading segment names the
-// definition; the rest is a path INTO the fetched document.
 func TestFetchDefNameDropsSelector(t *testing.T) {
 	for _, tc := range [][2]string{
 		{"{urlfetch:Weather.main.temp}", "weather"},

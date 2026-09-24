@@ -1,45 +1,7 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* Card atmosphere: the instrument-panel light (QuietWork Cards, variant 3a).
-   The hero's tan->green arc parked off the right edge, plus a green sheen
-   washing in from the top-right corner. Character from structure, not glow:
-   the blurred orbs an earlier version carried were two 42px-blur bitmaps per
-   card, and the sheen is one unblurred radial gradient instead, so a grid of
-   cards drops the blur rasters entirely.
-
-   Everything stays static. The arc never spins (rotating a masked layer on
-   every tile re-rasters at 60fps, the original hitch) and hover only nudges
-   opacity, which stays on the compositor.
-
-   Geometry only. Where the layer SITS (stacking) and when it BRIGHTENS
-   (hover) belong to the card that hosts it, and are in elements/card.css,
-   which imports this file. It was split that way when the two hosts were an
-   Astro component and a Svelte component that were byte-identical for the 55
-   lines below and legitimately different either side of them; the two knobs
-   are still the seam:
-
-     --card-atmo-ease   the app's expo easing token
-     --card-atmo-glow / --card-atmo-ring   the rest/hover opacity pair
-
-   Plain CSS rather than a component: the two hosts are Astro and Svelte, and
-   the shared part is entirely style. Global rather than scoped for the same
-   reason (neither scoping mechanism can reach the other's markup); the class
-   names are namespaced under bb-card-atmo__ so that is safe.
-
-   IN THE LAYER, not unlayered as it shipped in PR3. Unlayered CSS beats every
-   layer, so `.bb-card-atmo { --card-atmo-glow: 1 }` here outranked card.css's
-   `.bb-card[data-hover]:hover .bb-card-atmo { --card-atmo-glow: 1.6 }` no
-   matter how specific the latter was, and the hover brightening silently did
-   nothing. Inside the same layer, specificity decides and it works. */
 
 @layer bb.elements {
 
@@ -48,22 +10,11 @@
     inset: 0;
     overflow: hidden;
     pointer-events: none;
-    /* Rest/hover pair replaces the old orb bump (0.28->0.42): the sheen's 0.12
-       alpha is authored into the gradient, so the var scales it, and 1.6 lands
-       the hover wash at ~0.19 against the card ink. */
     --card-atmo-glow: 1;
     --card-atmo-ring: 0.16;
-    /* Mirror the light. A grid that alternates its cards left/right wants the
-       glow to alternate with them, or every second card reads as lit from the
-       wrong side. -1 flips; the changelog's zig-zag is the caller that needs
-       it, and it had the same rule as a `:global(.bb-card-atmo)` reach-in. */
     transform: scaleX(var(--card-atmo-flip, 1));
 }
 
-/* Mini of the header's ring: a 1.5px tan->green arc, not a filled disc. A
-   masked conic gradient rather than an inline SVG so we never mint per-card
-   gradient ids (g1/g2 would collide across a grid). Parked half off the right
-   edge the way the hero ring sits off-canvas. */
 .bb-card-atmo__ring {
     position: absolute;
     top: 42%;

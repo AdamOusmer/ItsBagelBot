@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// Every kind starts with preflight and ends rollout, verify: the lock is
-// taken before anything else and nothing runs after the verify verdict.
 func TestStagesForBracketsEveryKind(t *testing.T) {
 	for _, kind := range Kinds() {
 		got := StagesFor(kind)

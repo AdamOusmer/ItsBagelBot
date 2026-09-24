@@ -11,10 +11,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// Delegation is a single-use authorization link: a dashboard owner grants
-// another Twitch user scoped access (a subset of dashboard sections) to their
-// dashboard. The link is consumed exactly once on the invitee's login; after
-// that consumed_at is set and the token can never be reused.
 type Delegation struct {
 	ent.Schema
 }
@@ -26,7 +22,6 @@ func (Delegation) Fields() []ent.Field {
 		field.Uint64("owner_id"),
 		field.String("owner_login"),
 
-		// Granted dashboard sections, e.g. ["commands","modules"].
 		field.Strings("sections"),
 
 		field.Uint64("delegate_id").Optional().Default(0),

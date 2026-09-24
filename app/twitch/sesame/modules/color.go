@@ -8,10 +8,6 @@ import (
 	"strings"
 )
 
-// namedColors maps the colour words a viewer can type in a redemption to their
-// packed 24-bit RGB value. It is a deliberately small, unambiguous set: common
-// colour names people actually say in chat, no shades that only differ by a few
-// bits. Anything not here must be given as a hex code.
 var namedColors = map[string]int{
 	"red":     0xFF0000,
 	"orange":  0xFF6A00,
@@ -33,11 +29,6 @@ var namedColors = map[string]int{
 	"gold":    0xFFAA00,
 }
 
-// parseColor turns a viewer's colour input into a packed 24-bit RGB value. It
-// accepts a named colour (case-insensitive), a "#rrggbb"/"rrggbb" hex code, or
-// the "#rgb"/"rgb" short form (each nibble doubled). ok is false when the input
-// is empty or matches nothing, so the caller can refund the redemption and tell
-// the viewer instead of silently setting a wrong colour.
 func parseColor(input string) (rgb int, ok bool) {
 	s := strings.ToLower(strings.TrimSpace(input))
 	if s == "" {
@@ -49,8 +40,6 @@ func parseColor(input string) (rgb int, ok bool) {
 	return parseHexColor(strings.TrimPrefix(s, "#"))
 }
 
-// parseHexColor reads a 6- or 3-digit hex colour (no leading '#'). Each length
-// has its own parser so this stays a flat dispatch.
 func parseHexColor(hex string) (int, bool) {
 	switch len(hex) {
 	case 6:
@@ -62,7 +51,6 @@ func parseHexColor(hex string) (int, bool) {
 	}
 }
 
-// parseHex6 reads a full "rrggbb" hex colour.
 func parseHex6(hex string) (int, bool) {
 	v, err := strconv.ParseInt(hex, 16, 32)
 	if err != nil {
@@ -71,18 +59,6 @@ func parseHex6(hex string) (int, bool) {
 	return int(v), true
 }
 
-// parseHex3 reads the "rgb" short form, doubling each nibble into a full byte
-// ("f80" -> "ff8800"), matching CSS.
-//
-// The nibble is decoded with ASCII arithmetic instead of
-// strconv.ParseInt(string(r), 16, 16): converting each character back into a
-// string to parse a single digit heap-allocated three strings per redemption,
-// which is the whole cost of this function. hexNibble rejects exactly what
-// ParseInt rejected here — ParseInt with an explicit base takes no sign, no
-// "0x" and no digit separators, so [0-9a-fA-F] is the complete accepted set.
-// Iterating bytes rather than runes is equally safe: a hex digit is always one
-// byte, so a three-byte multi-byte input still fails on its first continuation
-// byte, as it did when ParseInt was handed the whole rune.
 func parseHex3(hex string) (int, bool) {
 	var v int
 	for i := 0; i < len(hex); i++ {
@@ -95,8 +71,6 @@ func parseHex3(hex string) (int, bool) {
 	return v, true
 }
 
-// hexNibble maps one ASCII hex digit to its 0-15 value. ok is false for every
-// other byte.
 func hexNibble(c byte) (int, bool) {
 	switch {
 	case c >= '0' && c <= '9':
@@ -109,8 +83,6 @@ func hexNibble(c byte) (int, bool) {
 	return 0, false
 }
 
-// colorNames returns the named colours a viewer may type, for the reward prompt
-// and dashboard help. Order is stable for a predictable UI.
 func colorNames() []string {
 	return []string{
 		"red", "orange", "yellow", "green", "lime", "teal", "cyan",

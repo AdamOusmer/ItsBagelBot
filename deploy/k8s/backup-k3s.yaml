@@ -1,60 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-#
-# Off-OCI backup of the k3s datastore on cp1.
-#
-# Why this exists: backup-mysql.yaml covers the *application* state, but the
-# cluster's own state (every Secret, the NATS auth material, Doppler tokens,
-# cert-manager CAs, all object specs) lives in a single SQLite file on cp1 --
-# and cp1 is an OCI host like the MySQL instance, so the same single-account
-# loss that motivated the MySQL job takes the cluster state with it. Rebuilding
-# from manifests alone loses everything the manifests reference by Secret.
-#
-# What a restore needs (all three, k3s single-server SQLite):
-#   - db/state.db            -- the datastore itself
-#   - token                  -- decrypts the bootstrap keys stored *inside* the db
-#   - /etc/rancher/k3s/encryption-config.json -- THE operative Secrets
-#     encryption key. This cluster enables encryption-at-rest via
-#     kube-apiserver-arg encryption-provider-config in config.yaml, NOT via
-#     k3s's --secrets-encryption, so server/cred/encryption-{config,state}.json
-#     are unused scaffolding with a DIFFERENT key (sha256 mismatch verified
-#     2026-08-28). The 2026-08-28 restore drill proved it both ways: a restored
-#     server without the flag fails every Secret read with "identity
-#     transformer tried to read encrypted data", with --secrets-encryption
-#     (cred key) it fails with "no matching prefix found", and with the
-#     /etc file wired as encryption-provider-config all 125 Secrets decrypt.
-#     The cred/ pair is still bundled, but only as scaffolding.
-# Restore (rehearsed 2026-08-28 in a rancher/k3s container, --disable-agent):
-# stop k3s on the new host, place db/state.db + token under
-# /var/lib/rancher/k3s/server/, place meta/etc-encryption-config.json at
-# /etc/rancher/k3s/encryption-config.json, restore meta/etc-config.yaml to
-# /etc/rancher/k3s/config.yaml (it carries the kube-apiserver-arg
-# encryption-provider-config wiring), start k3s.
-#
-# Why sqlite3 .backup and not cp: the live db runs in WAL mode (verified
-# 2026-08-28: state.db-wal was 25 MB next to a 52 MB state.db). A plain cp
-# tears -- it captures the main file without the WAL frames, which is a
-# corrupt-on-arrival backup that still "succeeds" every run. The online backup
-# API takes a consistent snapshot and folds the WAL in, and the copy is then
-# gated on PRAGMA integrity_check the way the MySQL dump is gated on its
-# "Dump completed" trailer.
-#
-# Why the db hostPath is mounted read-write: WAL readers must be able to map
-# and lock state.db-shm, so a readOnly mount fails the open outright. The
-# container only ever *writes* to /work; rw here is a locking requirement, not
-# a write intent.
-#
-# No seLinuxOptions despite the host enforcing: k3s on cp1 runs without
-# --selinux, so containers get no container_t transition (verified 2026-08-28:
-# zero container_t processes on the host) and root in the pod reads the
-# root-owned hostPath directly.
-#
-# Encryption/destination/retention deliberately mirror backup-mysql.yaml:
-# same write-only smime cert, same R2 bucket (k3s/ prefix), retention as R2
-# lifecycle rules on k3s/daily + k3s/monthly rather than deletes in-job.
-# worker1 mirrors R2 prefixes explicitly (bagel-backup-sync), so k3s/daily and
-# k3s/monthly must be added to its prefix list -- it will not pick them up on
-# its own.
+
+# sqlite3 .backup, never cp: the db runs in WAL mode and a cp silently captures a torn copy.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -161,7 +108,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  schedule: "37 */6 * * *" # every 6h, offset from backup-mysql's :23
+  schedule: "37 */6 * * *"
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 600
   successfulJobsHistoryLimit: 3
@@ -176,9 +123,6 @@ spec:
             app: backup-k3s
         spec:
           restartPolicy: OnFailure
-          # The datastore only exists on cp1, and cp1 repels normal workloads
-          # with the role=cp taint -- this pod is one of the few that belongs
-          # there.
           nodeSelector:
             role: cp
           tolerations:
@@ -189,10 +133,7 @@ spec:
           securityContext:
             seccompProfile: {type: RuntimeDefault}
           volumes:
-            # medium: Memory -- between snapshot and encrypt, /work holds the
-            # entire cluster state in plaintext (every Secret in the fleet).
-            # Sized for headroom: state.db measured 52 MB on 2026-08-28; peak
-            # usage is snapshot + tarball + ciphertext, ~130 MB today.
+            # Memory-backed: /work holds every Secret in plaintext.
             - name: work
               emptyDir: {medium: Memory, sizeLimit: 512Mi}
             - name: scripts
@@ -210,9 +151,6 @@ spec:
             - name: k3s-etc-config
               hostPath: {path: /etc/rancher/k3s/config.yaml, type: File}
           initContainers:
-            # Runs as root: db/, token and cred/ are 0600/0700 root on the
-            # host. Every capability is still dropped -- uid 0 passes the
-            # owner-bits check on those files without CAP_DAC_OVERRIDE.
             - name: snapshot
               image: alpine/sqlite:3.53.4@sha256:66bef37427a54bf74251220104626df8ca1a3574ad674448b265452a7c271232
               imagePullPolicy: IfNotPresent
@@ -220,7 +158,6 @@ spec:
               volumeMounts:
                 - {name: work, mountPath: /work}
                 - {name: scripts, mountPath: /scripts, readOnly: true}
-                # rw is a WAL locking requirement (see header), not a write path.
                 - {name: k3s-db, mountPath: /host/db}
                 - {name: k3s-token, mountPath: /host/token, readOnly: true}
                 - {name: k3s-cred, mountPath: /host/cred, readOnly: true}
@@ -247,7 +184,6 @@ spec:
                 runAsUser: 0
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
-                # CHOWN only, to hand the ciphertext to the 65534 uploader.
                 capabilities: {drop: ["ALL"], add: ["CHOWN"]}
               resources:
                 requests: {cpu: 50m, memory: 128Mi}

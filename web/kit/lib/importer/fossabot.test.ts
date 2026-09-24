@@ -1,21 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Behaviour contract for the Fossabot parser. As with nightbot.test.ts there
-// is no Go implementation to pin against, so these expectations ARE the
-// contract: change one only when the mapping itself is meant to change.
-//
-// testdata/fossabot-golden.json pins the whole translation of
-// testdata/fossabot-fixture.json (20 rows captured verbatim from the public
-// myth directory on 2026-09-07, plus three rows with 9999-prefixed ids for
-// cases that feed happens not to contain: a command disabled both online and
-// offline, a role id the roles table does not carry, and a $(customapi …) with
-// a URL next to an alias that cannot be a command name here). The golden was
-// generated once, read line by line, and committed: regenerating it from the
-// code under test would only prove the code equals itself, so this file has no
-// regeneration path. When a mapping changes on purpose, write the new
-// expectation by hand.
-
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -37,7 +22,6 @@ const bytes = (doc: unknown): Uint8Array => new TextEncoder().encode(JSON.string
 
 const codesOf = (diags: ImportDiagnostic[]): string[] => diags.map((d) => d.code);
 
-// command builds one directory row with the fields the live feed carries.
 const command = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
   id: '90019',
   name: 'hello',
@@ -50,8 +34,6 @@ const command = (over: Record<string, unknown> = {}): Record<string, unknown> =>
   ...over
 });
 
-// ROLES is the role table of the fixture channel, reused by the unit cases so
-// role ids read the same everywhere.
 const ROLES = [
   { id: '242749', name: 'Moderator', default: true },
   { id: '242755', name: '[Imported] Channel Editor', default: false },
@@ -142,11 +124,6 @@ describe('commands', () => {
     ]);
   });
 
-  // The channel facts Fossabot spells as bare variables map straight across
-  // (phase 6 added $(game) alongside $(uptime)/$(title), all three documented,
-  // argument-less variables); a viewer count does not, because its documented
-  // variable table has none and inventing a spelling is how an importer
-  // silently produces the wrong text.
   test('the bare channel facts map, and only those', () => {
     const { manifest, diagnostics } = parseFossabot(
       feed([command({ response: 'live $(uptime) with $(title) - $(game) $(stream.title)' })])
@@ -374,7 +351,6 @@ describe('urlfetch synthesis', () => {
     ]);
     for (const f of manifest.fetches ?? []) expect(isValidFetchDefName(f.name)).toBe(true);
     expect(validateManifest(manifest).filter((d) => d.severity === 'error')).toEqual([]);
-    // phase 6: a successful synthesis now warns, naming the slug and URL.
     expect(codesOf(diagnostics)).toEqual(['fetch_def_created']);
   });
 
@@ -403,8 +379,6 @@ describe('urlfetch synthesis', () => {
   });
 });
 
-// --- golden ------------------------------------------------------------------
-
 interface Golden {
   manifest: unknown;
   diagnostics: { severity: string; item_index: number; code: string }[];
@@ -430,11 +404,6 @@ describe('fixture golden', () => {
   });
 });
 
-// --- fetch flow (public cached API) ------------------------------------------
-
-// Local stand-in server, mirroring nightbot.test.ts: records every request
-// (snapshotted eagerly, Bun recycles Request internals once the handler
-// resolves) and answers via `handler`.
 async function withTestServer(
   handler: (req: Request) => Response | Promise<Response>,
   run: (baseUrl: string, paths: string[]) => Promise<void>
@@ -506,8 +475,6 @@ describe('fetch flow', () => {
   });
 
   test('an oversized body is refused instead of being buffered', async () => {
-    // 17 MiB in 1 MiB chunks: one past the 16 MiB cap, and finite so the
-    // server side cannot spin forever if the cap ever stops firing.
     let sent = 0;
     const flood = new ReadableStream<Uint8Array>({
       pull(controller) {

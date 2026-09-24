@@ -13,10 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The two 429 origins must stay distinguishable in chat: a bucket denial
-// refills in seconds and cost no upstream call, an upstream 429 means the
-// provider is throttling our address. Collapsing them to one message is what
-// made the real incident undiagnosable from the outside.
 func TestFriendlyUpstream429Origins(t *testing.T) {
 	msg, pin := FriendlyUpstream(&UpstreamError{Status: 429, Message: "standard rate limit exceeded", LocalDeny: true})
 	assert.Equal(t, "stats commands are busy right now, try again in a few seconds", msg)
@@ -40,9 +36,6 @@ func TestFriendlyUpstreamClasses(t *testing.T) {
 	assert.Empty(t, msg, "infrastructure failures must propagate, not chat")
 }
 
-// BuildReply maps each Pin class onto its store TTL: negatives keep the
-// endpoint's negativeTTL, upstream throttles pin for ThrottleTTL, and bucket
-// denials answer with TTL zero so the very next request retries.
 func TestBuildReplyPinTTLs(t *testing.T) {
 	const negativeTTL = 5 * time.Minute
 	errReply := func(msg string) any { return map[string]string{"error": msg} }
@@ -70,7 +63,6 @@ func TestBuildReplyPinTTLs(t *testing.T) {
 	assert.True(t, friendly.LocalDeny)
 }
 
-// A success reports no friendly failure and keeps the endpoint's TTL.
 func TestBuildReplySuccess(t *testing.T) {
 	b, ttl, friendly, err := BuildReply(context.Background(), time.Minute, time.Hour,
 		func(context.Context) (any, error) { return map[string]string{"ok": "1"}, nil },
@@ -85,7 +77,6 @@ func TestBuildReplyHonorsRetryAfter(t *testing.T) {
 	const negativeTTL = 5 * time.Minute
 	errReply := func(msg string) any { return map[string]string{"error": msg} }
 
-	// An upstream 429 with a Retry-After larger than ThrottleTTL (20s) must extend the pin TTL.
 	b, ttl, friendly, err := BuildReply(context.Background(), time.Minute, negativeTTL,
 		func(context.Context) (any, error) {
 			return nil, &UpstreamError{Status: 429, RetryAfter: 90 * time.Second}
@@ -96,7 +87,6 @@ func TestBuildReplyHonorsRetryAfter(t *testing.T) {
 	require.NotNil(t, friendly)
 	assert.Equal(t, 90*time.Second, friendly.RetryAfter)
 
-	// A Retry-After shorter than ThrottleTTL keeps ThrottleTTL as floor.
 	_, ttlShort, _, _ := BuildReply(context.Background(), time.Minute, negativeTTL,
 		func(context.Context) (any, error) {
 			return nil, &UpstreamError{Status: 429, RetryAfter: 5 * time.Second}
@@ -104,10 +94,6 @@ func TestBuildReplyHonorsRetryAfter(t *testing.T) {
 	assert.Equal(t, ThrottleTTL, ttlShort, "ThrottleTTL is the floor when Retry-After is shorter")
 }
 
-// Retry-After is a throttle signal and may only stretch a throttle pin.
-// PinNone exists to heal on the next request (our own bucket, a key permission
-// fixed out of band); pinning one on a stray header caches the failure past the
-// moment it was fixed.
 func TestBuildReplyDoesNotExtendNonThrottlePins(t *testing.T) {
 	errReply := func(msg string) any { return map[string]string{"error": msg} }
 	const negativeTTL = 15 * time.Second

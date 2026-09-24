@@ -34,9 +34,9 @@ func TestGiveawayPoolUsesAuthoritativeRulesAndPendingFlags(t *testing.T) {
 	for id, name := range map[uint64]string{1: "eligible", 2: "inactive", 3: "staff", 4: "former", 5: "test", 6: "vip", 7: "banned", 8: "onboarding"} {
 		require.NoError(t, repo.Register(ctx, id, name, name, name+"@example.com"))
 	}
-	require.NoError(t, repo.SetOnboarded(ctx, 1, true)) // still pending in the batcher
+	require.NoError(t, repo.SetOnboarded(ctx, 1, true))
 	require.NoError(t, repo.SetOnboarded(ctx, 2, true))
-	require.NoError(t, repo.SetActive(ctx, 2, false)) // pending inactive must be visible
+	require.NoError(t, repo.SetActive(ctx, 2, false))
 	require.NoError(t, repo.SetOnboarded(ctx, 3, true))
 	require.NoError(t, repo.SetOnboarded(ctx, 4, true))
 	require.NoError(t, repo.SetOnboarded(ctx, 5, true))
@@ -48,8 +48,6 @@ func TestGiveawayPoolUsesAuthoritativeRulesAndPendingFlags(t *testing.T) {
 	require.NoError(t, client.User.UpdateOneID(5).SetTestAccount(true).Exec(ctx))
 	require.NoError(t, client.User.UpdateOneID(6).SetStatus(user.StatusVip).Exec(ctx))
 	require.NoError(t, repo.SetBanned(ctx, 7, true))
-	// Only active roster membership excludes a staff account. A former staff
-	// row remains eligible after it is disabled.
 	_, err := client.AdminUser.Create().SetID(3).SetLogin("staff").SetDisplayName("Staff").SetRole(adminuser.RoleAdmin).Save(ctx)
 	require.NoError(t, err)
 	_, err = client.AdminUser.Create().SetID(4).SetLogin("former").SetDisplayName("Former").SetRole(adminuser.RoleAdmin).SetActive(false).Save(ctx)
@@ -205,10 +203,6 @@ func TestPremiumGrantBoundarySweepAdvancesProjectionPhase(t *testing.T) {
 	assert.Equal(t, "", client.User.GetX(ctx, 31).SubscriptionSource)
 }
 
-// rejectInvalidateStatus is the production JetStream catalog: bagel.cache.invalidate.status
-// has no stream. The sweep used to PublishJSON through this publisher and stall
-// projection_phase at pending. Core NATS (nc) is the invalidate path now; with
-// prefix set and nc nil the sweep must still advance.
 type rejectInvalidateStatus struct {
 	inner *bustest.Publisher
 }
@@ -294,8 +288,6 @@ func TestCommittedGrantOverlaysBillingAndRevokeKeepsPrize(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "paid", view.Status)
 
-	// A source-specific termination clears only the Tebex agreement. The
-	// committed prize remains effective and its interval is still readable.
 	_, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{UserID: 40, EventID: "paid-revoke", Action: billingrpc.ActionRevoke,
 		OccurredAt: now.Add(time.Minute), RecurringReference: "tbx-r-40"})
 	require.NoError(t, err)
@@ -311,7 +303,6 @@ func TestCommittedGrantOverlaysBillingAndRevokeKeepsPrize(t *testing.T) {
 	assert.Len(t, coverage.Grants, 1)
 	assert.Nil(t, stored.SubscriptionRef)
 
-	// Ending the grant restores the source row's stored free state.
 	require.NoError(t, client.PremiumGrant.UpdateOneID(grant.ID).SetEndAt(now.Add(-time.Second)).Exec(ctx))
 	count, err := repo.ExpirePremiumGrants(ctx, now)
 	require.NoError(t, err)

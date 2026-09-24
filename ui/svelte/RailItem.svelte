@@ -2,15 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for `.bb-rail-item`. Its Astro twin is
-  // ../astro/RailItem.astro; ../test/parity.test.ts diffs the two.
-  //
-  // A locked entry renders a <span>, not a disabled link: there is then
-  // nothing to focus and nothing to activate, instead of a control that
-  // silently refuses. What it is missing is said in real text
-  // (`.bb-rail-item__hint`), and the wording arrives as a prop -- the console
-  // resolves "Broadcaster only" from its own catalog, because this library
-  // must never know the word.
   import '../styles/elements/shell.css';
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
@@ -29,10 +20,8 @@
     href?: string;
     icon?: IconName;
     label: string;
-    /** Current route. The rail's glide reads `[data-active]` to find this row. */
     active?: boolean;
     locked?: boolean;
-    /** sr-only explanation of a locked row. Caller's wording. */
     lockedHint?: string;
     count?: string | number;
     class?: string;

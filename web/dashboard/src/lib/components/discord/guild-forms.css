@@ -1,21 +1,6 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved. */
 /* Proprietary. No license granted. See LICENSE.md. */
 
-/*
- * The setting-row recipes the six guild sub-pages share.
- *
- * A plain stylesheet, imported once by the guild +layout.svelte, rather than a
- * <style> block per page: splitting the old single page into seven routes would
- * otherwise have copied ~120 lines of identical CSS into each of them, and a
- * Svelte scoped block in the layout cannot reach markup rendered by a child
- * anyway (scoping is per component, and {@render children()} is not).
- *
- * Everything is scoped under `.dc`, which the guild layout puts on its one
- * .screen. That is deliberate: `.hint`, `.actions` and `.setting-row` are
- * generic enough that a genuinely global rule would restyle unrelated routes
- * that happen to use the same class names in their own scoped blocks.
- */
-
 .dc .block {
   margin: 0;
 }
@@ -56,7 +41,6 @@
   flex-wrap: wrap;
 }
 
-/* -- setting rows -- */
 .dc .setting-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -142,9 +126,6 @@
   flex-wrap: wrap;
 }
 
-/* The note sits under the whole row, not beside the control: the second column
-   is sized to the control and a message wrapped inside it would be one word
-   wide. */
 .dc .field-note {
   grid-column: 1 / -1;
 }

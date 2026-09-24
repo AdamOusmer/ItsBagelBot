@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package clashroyale exposes the official Supercell Clash Royale player API
-// through RoyaleAPI's supported proxy. The stats, decks, ranked, and
-// trophy_road endpoints all derive from GET /players/{playerTag}; a shared
-// profile cache means reading several views still costs one upstream request.
 package clashroyale
 
 import (
@@ -30,22 +26,17 @@ const (
 	httpTimeout    = 10 * time.Second
 	handlerTimeout = 15 * time.Second
 
-	// RateLimit is configured as requests per minute.
 	rateWindowSeconds = 60.0
 )
 
-// Config carries the official API host, bearer token, and per-minute request
-// budget. APIKey must be non-empty; providers.All skips this provider otherwise.
 type Config struct {
 	BaseURL   string
 	APIKey    string
 	RateLimit float64
 }
 
-// providerName is the subject token this provider answers under.
 const providerName = "clashroyale"
 
-// api holds the provider's runtime pieces; the declared endpoints capture it.
 type api struct {
 	http    *core.HTTPClient
 	cache   *core.Cache
@@ -53,8 +44,6 @@ type api struct {
 	buckets core.Buckets
 }
 
-// New builds a Clash Royale provider: four byte-flow views over one shared
-// profile cache, so reading several views still costs one upstream request.
 func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d).Trusted()
 	p := newAPI(cfg, d, b)
@@ -83,8 +72,6 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	}
 }
 
-// view declares one byte-flow endpoint that projects the shared player profile
-// through shape.
 func (p *api) view(b *provider.Builder, name string, errReply provider.ReplyFunc, shape func(playerProfile) any) {
 	b.Endpoint(name).Timeout(handlerTimeout).
 		Cached(profileTTL, negativeTTL).
@@ -95,9 +82,6 @@ func (p *api) view(b *provider.Builder, name string, errReply provider.ReplyFunc
 		Fetch(p.profileFetch(shape))
 }
 
-// tagID validates and canonicalizes the player tag: the reply echoes the
-// canonical "#TAG" form once it parses, or the raw input on a validation
-// error.
 func tagID(req gossiprpc.Request) (provider.ID, string) {
 	tag, msg := parsePlayerTag(req.Account)
 	if msg != "" {
@@ -106,20 +90,13 @@ func tagID(req gossiprpc.Request) (provider.ID, string) {
 	return provider.ID{Display: tag.String(), Key: tag.cacheKey()}, ""
 }
 
-// profileFetch loads the shared profile and projects it through shape.
-// profileBudget spends one request's share of the Clash Royale allowance in that
-// request's own lane. Every view shares one profile entry, so it is declared on
-// each endpoint rather than written inside the shared fill: a check in there runs
-// once per singleflight flight, is charged to whichever caller won it, and hands
-// that verdict to everyone joined — which let a drained standard bucket deny
-// premium callers the reserve they are entitled to.
 func (p *api) profileBudget(ctx context.Context, req gossiprpc.Request) error {
 	return p.buckets.Enforce(ctx, p.limiter, req.IsPremium)
 }
 
 func (p *api) profileFetch(shape func(playerProfile) any) provider.FetchFunc {
 	return func(ctx context.Context, _ gossiprpc.Request, id provider.ID) (any, error) {
-		tag, _ := parsePlayerTag(id.Display) // already validated by tagID
+		tag, _ := parsePlayerTag(id.Display)
 		profile, err := p.profile(ctx, tag)
 		if err != nil {
 			return nil, err
@@ -128,19 +105,10 @@ func (p *api) profileFetch(shape func(playerProfile) any) provider.FetchFunc {
 	}
 }
 
-// playerTag is the canonical tag without its leading hash. Clash Royale tags
-// use a deliberately restricted alphabet so visually ambiguous characters do
-// not occur.
 type playerTag string
 
 const tagAlphabet = "0289PYLQGRJCUV"
 
-// tagRuneTable answers "is this rune in tagAlphabet" in one indexed load.
-// strings.ContainsRune rescanned the 14-byte alphabet for every character of
-// every tag; the table is built once at package init and the alphabet is a
-// compile-time constant, so there is nothing to invalidate. Rejected a
-// map[rune]bool: hashing a rune costs more than the array load and the set is
-// dense in a 128-entry span.
 var tagRuneTable = buildTagRuneTable()
 
 func buildTagRuneTable() [128]bool {
@@ -151,10 +119,6 @@ func buildTagRuneTable() [128]bool {
 	return table
 }
 
-// isTagRune keeps the accept set byte-identical to the old ContainsRune scan,
-// non-ASCII included: tags are uppercased before validation and ToUpper can
-// map a rune past the table's range, so the unsigned bounds check rejects it
-// rather than panicking on the index.
 func isTagRune(r rune) bool {
 	return uint32(r) < uint32(len(tagRuneTable)) && tagRuneTable[r]
 }
@@ -165,8 +129,6 @@ func parsePlayerTag(account string) (playerTag, string) {
 		return "", "missing account"
 	}
 	tag = strings.TrimPrefix(tag, "#")
-	// O is not part of Supercell's tag alphabet, but it is the most common
-	// transcription of zero. RoyaleAPI recommends normalizing it for users.
 	tag = strings.ReplaceAll(tag, "O", "0")
 	if len(tag) < 3 || len(tag) > 15 {
 		return "", "invalid player tag"
@@ -182,11 +144,6 @@ func parsePlayerTag(account string) (playerTag, string) {
 func (t playerTag) String() string   { return "#" + string(t) }
 func (t playerTag) cacheKey() string { return strings.ToLower(string(t)) }
 
-// playerProfile is the current official player payload subset used by all
-// four views. Unknown upstream additions are ignored by encoding/json. Nested
-// values reuse the shared reply shapes: their JSON keys mirror the upstream's
-// own, so the profile decodes straight into them and shaping is projection
-// only.
 type playerProfile struct {
 	Tag                       string                            `json:"tag"`
 	Name                      string                            `json:"name"`

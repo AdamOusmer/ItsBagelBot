@@ -12,12 +12,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// A pod that shuts down must say so. The status key has no TTL, so before
-// this the dashboard showed a green pill for a bot whose process had exited
-// -- forever, or until the next pod happened to write the key.
 func TestShutdownReportsDownBeforeReturning(t *testing.T) {
-	// No readErr and no closed channel: this socket just sits there, which
-	// is what a healthy connection looks like when the pod is drained.
 	conn := &scriptedConn{reads: [][]byte{helloFrame(t)}}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Millisecond)
 	defer cancel()
@@ -34,23 +29,16 @@ func TestShutdownReportsDownBeforeReturning(t *testing.T) {
 	if downs[0].Fatal {
 		t.Fatalf("shutdown Down = %+v, want it not marked fatal", downs[0])
 	}
-	// Shutdown is not a reconnect: nothing was scheduled, so nothing was
-	// charged to the connect budget.
 	if states := st.budgetStates(); len(states) != 0 {
 		t.Fatalf("budget states = %+v, want none on shutdown", states)
 	}
 }
 
-// The shutdown write must not inherit the cancelled context: a Valkey call
-// under one fails instantly, which is the same as not writing at all.
 func TestShutdownWriteGetsALiveContext(t *testing.T) {
 	sess := Session{Status: &recStatus{}}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	// Inspected inside the callback: reportFinalDown cancels its own
-	// context on the way out, so the only moment the write context is live
-	// is while the write is happening.
 	var called bool
 	var liveErr error
 	var deadline time.Time
@@ -73,7 +61,6 @@ func TestShutdownWriteGetsALiveContext(t *testing.T) {
 	}
 }
 
-// statusFunc is a Status that only cares about Down's context.
 type statusFunc func(ctx context.Context)
 
 func (f statusFunc) Up(context.Context, Up)           {}
@@ -81,10 +68,6 @@ func (f statusFunc) Down(ctx context.Context, _ Down) { f(ctx) }
 func (f statusFunc) Event(context.Context)            {}
 func (f statusFunc) Budget(context.Context, Budget)   {}
 
-// A dial must not be able to park the whole ingress. Before dialTimeout the
-// handshake inherited only Run's process-lifetime context, so a gateway host
-// that accepted the TCP connection and then said nothing held the loop
-// forever with a stale status key.
 func TestDialIsBounded(t *testing.T) {
 	var deadline time.Time
 	var had bool
@@ -107,10 +90,6 @@ func TestDialIsBounded(t *testing.T) {
 	}
 }
 
-// The uptime that resets the backoff schedule is measured from READY, not
-// from before the dial. A socket that never identified must report zero:
-// counting a 30s hung handshake as uptime let a connection that carried no
-// bytes reset the schedule and hammer Discord's identify budget.
 func TestUptimeIsMeasuredFromReady(t *testing.T) {
 	dead := &scriptedConn{readErr: errors.New("connection reset")}
 	sess := Session{Token: "t", Dial: func(context.Context, string) (Conn, error) { return dead, nil }}
@@ -130,8 +109,6 @@ func TestUptimeIsMeasuredFromReady(t *testing.T) {
 	}
 }
 
-// A second RESUMED on the same socket must not restamp the clock: it is
-// still the same connection, and restamping would understate its uptime.
 func TestResumeStateUptimeStampsOnce(t *testing.T) {
 	st := &resumeState{}
 	base := time.Unix(1_700_000_000, 0)
@@ -149,9 +126,6 @@ func TestResumeStateUptimeStampsOnce(t *testing.T) {
 	}
 }
 
-// A heartbeat ACK is the only traffic a bot in a silent guild sees, so it
-// has to count as an event -- otherwise the liveness clock measures how busy
-// the guild is instead of whether the socket is delivering.
 func TestHeartbeatAckCountsAsAnEvent(t *testing.T) {
 	ack, err := codec.Marshal(packet{Op: opHeartbeatAck})
 	if err != nil {

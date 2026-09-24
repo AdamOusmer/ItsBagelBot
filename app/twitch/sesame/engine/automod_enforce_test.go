@@ -52,8 +52,6 @@ func TestAutomodEnforceEmitsTimeout(t *testing.T) {
 
 func TestAutomodEnforceSkipsCommandDispatch(t *testing.T) {
 	pub := &fakePublisher{}
-	// The chatter also runs a custom command; enforcement must action them and
-	// NOT answer the command (only the timeout is emitted, not a chat reply).
 	reader := fakeReader{cmd: projection.Command{Name: "x", Response: "hi", IsActive: true}, cmdFound: true}
 	p := newAutomodPipeline(pub, reader, true)
 
@@ -77,10 +75,6 @@ func TestSanitizeVarStripsLeadingSlash(t *testing.T) {
 	assert.Equal(t, "hello", sanitizeVar("hello"))
 }
 
-// A hostile upstream value must not mint extra chat lines or poison rendering:
-// control bytes (C0 + DEL) vanish, leading slash runs still trim, multibyte
-// runes survive byte-wise filtering (continuations are >= 0x80 and untouched),
-// and the ExternalVar cap stays rune-safe on top.
 func TestSanitizeVarStripsControlBytes(t *testing.T) {
 	assert.Equal(t, "hi/ban everyone", sanitizeVar("hi\r\n/ban everyone"), "no newline survives to mint a second line")
 	assert.Equal(t, "clean", sanitizeVar("cle\x00an"))

@@ -22,28 +22,14 @@ import { connectionUiState, type ConnSignals, type ConnUi } from '@bagel/kit/con
 import { fail, redirect } from '@sveltejs/kit';
 import { overviewLanes } from '$lib/server/overview-lanes';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
-// The home page consumes honest per-read signals plus the derived UI state.
-// connState keeps each read's failure visible (as 'unknown') rather than folding
-// it into one boolean, so the client can recompute the same state from the
-// /substate poll and a down/pending/failing connection never renders as online.
 export type ConnData = { signals: ConnSignals; ui: ConnUi };
 
 function settled<T>(r: PromiseSettledResult<T>): T | undefined {
   return r.status === 'fulfilled' ? r.value : undefined;
 }
 
-// One enable publish per user per window, per replica. The enable action and
-// the self-heal below both publish the same job, and right after a connect
-// click the registry still reads 'unenrolled' until the worker flips it to
-// 'pending': without this guard every page load and substate poll in that
-// window fires another full enroll (each worth ~13-24 reserved Helix calls;
-// two back-to-back full enrolls observed 2026-07-10). Per-replica memory is
-// enough: the worker-side enroll cooldown is the fleet-wide guard, this only
-// stops one replica re-publishing what it just sent.
 const ENABLE_PUBLISH_WINDOW_MS = 120_000;
 const recentEnables = new Map<string, number>();
 
@@ -53,13 +39,7 @@ function pruneEnableStamps(now: number): void {
   }
 }
 
-// Self-heal: a channel the users service says is active but outgress has no
-// enrollment for (fresh signup, or one predating auto-enroll) gets its
-// EventSub enable job published right here on page load. Safe to repeat:
-// outgress single-flights the enroll and creates are 409-idempotent. Only
-// 'unenrolled' triggers this; 'unknown' (outgress RPC down) must not spam
-// enables. Reports 'pending' so the UI shows the enroll in flight; the
-// substate poll takes over with the real outcome.
+// Only 'unenrolled' heals; 'unknown' (outgress down) must never publish enables.
 function healSubState(conn: {
   uid: string;
   active: boolean;
@@ -69,28 +49,16 @@ function healSubState(conn: {
   if (state !== 'unenrolled') return state;
   if (!active) return state;
 
-  // One publish per window (see recentEnables above): right after a connect
-  // click the registry still reads 'unenrolled', so without the stamp every
-  // load and poll here would fire another full enroll.
   const now = Date.now();
   const stamped = recentEnables.get(uid);
   if (stamped !== undefined && now - stamped < ENABLE_PUBLISH_WINDOW_MS) return 'pending';
   recentEnables.set(uid, now);
   if (recentEnables.size > 1024) pruneEnableStamps(now);
 
-  // A failed publish must not suppress the next heal for the whole window.
   publishEventSub(uid, true).catch(() => recentEnables.delete(uid));
   return 'pending';
 }
 
-// Resolve the bot connection state in one round trip (grant presence + the
-// coalesced active/tier state_get + channel enroll state). allSettled keeps a
-// slow or down responder from failing the whole render.
-//
-// "Receiving" is grounded in outgress's own enroll state, not just the users
-// service's active flag: is_active defaults to true at signup, so trusting it
-// alone showed brand-new channels as connected while they had zero EventSub
-// subscriptions (and hid the only button that would have created them).
 async function connState(uid: string): Promise<ConnData> {
   const [grant, state, sub] = await Promise.allSettled([
     hasGrant(uid),
@@ -100,15 +68,10 @@ async function connState(uid: string): Promise<ConnData> {
   const account = settled(state);
   const subHealth = settled(sub);
 
-  // Each read keeps its own failure visible. A rejected grant/account read is
-  // 'unknown' (→ unavailable), never a silent false/'free' that would show a
-  // paid, connected channel as unauthorized or free during an outage.
   const grantOk: boolean | 'unknown' = grant.status === 'fulfilled' ? grant.value === true : 'unknown';
   const active: boolean | 'unknown' =
     grantOk === 'unknown' ? 'unknown' : grantOk === false ? false : account ? account.active === true : 'unknown';
 
-  // Self-heal (publish a fresh enroll) fires only on a definite active channel;
-  // 'unknown' must not spam enables.
   const subState = healSubState({ uid, active: active === true, state: subHealth?.state ?? 'unknown' });
 
   const signals: ConnSignals = {
@@ -120,8 +83,6 @@ async function connState(uid: string): Promise<ConnData> {
   return { signals, ui: connectionUiState(signals) };
 }
 
-// Parse the uses counter for ranking: the backend sends a plain number, while
-// older sample data used human-formatted strings ('1.2k', '412').
 function usesCount(raw: number | string | undefined): number {
   if (typeof raw === 'number') return raw;
   if (!raw) return 0;
@@ -131,20 +92,14 @@ function usesCount(raw: number | string | undefined): number {
   return m[2] === 'm' ? n * 1_000_000 : m[2] === 'k' ? n * 1000 : n;
 }
 
-// Everything the home page shows about commands, from one cached read: the
-// most-used rows for the strip plus real counts for the stat cards.
 export type CommandDigest = {
   top: CommandView[];
   active: number;
   total: number;
   uses: number;
-  // false = the read failed; total/active/uses are not real and must not drive
-  // onboarding or "0" stats (an outage is not an empty account).
   ok: boolean;
 };
 
-// digest counts; the read-availability flag (`ok`) is added at the boundary
-// (commandDigest / demoDigest), so a failed read can be told from an empty one.
 function digest(cmds: CommandView[]): Omit<CommandDigest, 'ok'> {
   const active = cmds.filter((c) => c.is_active);
   return {
@@ -155,23 +110,14 @@ function digest(cmds: CommandView[]): Omit<CommandDigest, 'ok'> {
   };
 }
 
-// Modules at a glance: enabled count over the user-facing catalog.
 export type ModuleDigest = { on: number; total: number; ok: boolean };
 
-// Who can reach this dashboard: consumed delegation grants.
 export type ShareDigest = { people: number; pending: number; ok: boolean };
 
-// demoOr streams either the demo fixture or the real RPC as an unawaited
-// promise so SvelteKit streams it: the page shell flushes immediately and each
-// section hydrates when its round trip lands, instead of blocking SSR (and the
-// post-login redirect) on NATS. The fixture side is a dynamic import so the
-// whole demo-data module drops out of a production build with the branch.
 function demoOr<T>(pick: (m: typeof import('$lib/server/demo-data')) => T, real: () => Promise<T>): Promise<T> {
   return DEMO ? import('$lib/server/demo-data').then(pick) : real();
 }
 
-// commandDigest feeds the stat cards + top strip. Cache-backed (same fabric
-// entry as the commands page) and optional: a failure just hides the strip.
 function commandDigest(uid: string): Promise<CommandDigest> {
   return listCommands(uid)
     .then((c) => ({ ...digest(c), ok: true }))
@@ -194,8 +140,6 @@ function moduleDigest(uid: string): Promise<ModuleDigest> {
     .catch(() => ({ on: 0, total: visibleCatalog.length, ok: false }));
 }
 
-// Delegation shares only exist for owners; a delegate browsing the owner's
-// board doesn't own grants, so show zero rather than erroring.
 function shareDigest(uid: string): Promise<ShareDigest> {
   return delegationList(uid)
     .then((grants) => ({
@@ -206,21 +150,12 @@ function shareDigest(uid: string): Promise<ShareDigest> {
     .catch(() => ({ people: 0, pending: 0, ok: false }));
 }
 
-// A delegate has no owner overview to read, so this page always bounces them:
-// to the first section their grant actually opened (guard.ts keeps that list
-// in the delegate's own grant order, so it is the same landing the rail shows
-// first), or off the board entirely when the grant opened none.
 function delegateLanding(s: App.Locals['session']): string | null {
   if (!s?.delegate_of) return null;
   const first = s.sections?.[0];
   return first ? `/${first}` : '/delegate/exit';
 }
 
-// An owner who has never finished the tour. Read off the account state the
-// request's gate already fetched (hooks.server.ts -> guardSession), so the
-// common case costs nothing; an unset field (a blipped gate read) counts as
-// onboarded, which is the safe direction. An admin viewing as the user is
-// never sent: accepting the terms is not an impersonatable act.
 function ownerNotOnboarded(locals: App.Locals): boolean {
   const s = locals.session;
   const gate = locals.accountState;
@@ -229,28 +164,16 @@ function ownerNotOnboarded(locals: App.Locals): boolean {
   return !gate.value.onboarded;
 }
 
-// The tour (/welcome) replaces an empty board for a genuinely new account:
-// never onboarded, and CONFIRMED empty (the commands read succeeded and found
-// zero). A failed read reports zero too, and sending an existing user through
-// the tour mid-outage is the bug the `ok` check guards against. Awaits the
-// digest only for the accounts it applies to; everyone else streams it.
 async function needsTour(locals: App.Locals, commands: Promise<CommandDigest>): Promise<boolean> {
   if (!ownerNotOnboarded(locals)) return false;
   const cd = await commands;
   return cd.ok && cd.total === 0;
 }
 
-// The board's owner id: the session's, or the demo fixture's under DEMO. No
-// session and no demo build means no board to read: the layout's login
-// redirect is the only correct outcome, so never fall back to a placeholder
-// id that a real account could one day occupy.
 function boardUid(locals: App.Locals): string | null {
   return locals.session?.user_id ?? (DEMO ? 'demo' : null);
 }
 
-// Where the tour takes over from the board, or null to render the board:
-// `?welcome=1` (the tour's old in-place address, kept working) and the
-// brand-new-account rule in needsTour.
 async function tourFor(locals: App.Locals, url: URL, commands: Promise<CommandDigest>): Promise<string | null> {
   if (url.searchParams.get('welcome') === '1') return '/welcome';
   return (await needsTour(locals, commands)) ? '/welcome' : null;
@@ -270,24 +193,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     modules: demoOr<ModuleDigest>((m) => m.demoModuleDigest, () => moduleDigest(uid)),
     shares: demoOr<ShareDigest>((m) => m.demoShareDigest, () => shareDigest(uid)),
 
-    // The redesign's live panels (see overview-lanes.ts). Each read degrades
-    // to its own default rather than throwing, so one unreachable backend dims
-    // one panel instead of failing the page; the panels then render an honest
-    // "not measured" rather than a confident zero. The same lane set feeds the
-    // /overview/stream SSE tick, which is what keeps these panels moving after
-    // this snapshot: no cache invalidation ever fires for them.
     ...overviewLanes(uid)
   };
 };
 
-// ownerAction wraps the shared shape of every home-page action: owners only (a
-// delegate browsing the owner's board cannot flip the connection), then the
-// RPC sequence, then the audit trail; any failure maps to a 502 the client
-// toasts.
 type OwnerAction = {
-  /** Action name: the audit verb, the success payload, and the failure text. */
   name: string;
-  /** Whether the act is impersonatable and so belongs in the audit trail. */
   audit: boolean;
   run: (uid: string) => Promise<unknown>;
 };
@@ -308,27 +219,17 @@ function ownerAction({ name, audit, run }: OwnerAction) {
 }
 
 export const actions: Actions = {
-  // Enable: mark the channel active and create the EventSub subs. This is a
-  // plain create (enabled=true), not a reconnect: a first-time or re-enable has
-  // nothing to drop, and the creates are 409-idempotent, so drop-then-recreate
-  // would only add a needless delete pass and reset Twitch's conduit routing
-  // propagation for the fresh channel.chat.message sub. Use restart (below) for
-  // an intentional drop+recreate of an already-connected channel.
+  // A plain create, not a reconnect: drop-then-recreate resets Twitch's conduit routing.
   enable: ownerAction({
     name: 'enable',
     audit: true,
     run: async (uid) => {
       await setActive(uid, true);
       await publishEventSub(uid, true);
-      // The loads/polls that follow this action still read 'unenrolled' until
-      // the worker picks the job up; stamp the publish so the self-heal doesn't
-      // immediately fire a duplicate enroll.
       recentEnables.set(uid, Date.now());
     }
   }),
-  // Restart: atomic drop + recreate of EventSub subscriptions (stays active).
   restart: ownerAction({ name: 'restart', audit: true, run: (uid) => publishEventSubReconnect(uid) }),
-  // Disconnect: delete the subscriptions and mark inactive (grant kept).
   disconnect: ownerAction({
     name: 'disconnect',
     audit: true,

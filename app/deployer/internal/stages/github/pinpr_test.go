@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// allServices are the rollout units testdata/k8s pins, in manifest order.
 var allServices = []string{
 	"commands", "console-admin", "console-dashboard", "discord-data", "discord-ingress", "discord-engine",
 	"discord-outgress", "gossip", "loyalty", "modules", "notifications", "outgress", "projector", "sesame",
@@ -36,8 +35,7 @@ type pinResult struct {
 	PinPR    int
 	PinSHA   deploy.SHA
 	Services []string
-	// OnMain: main's head carries every digest the run recorded.
-	OnMain bool
+	OnMain   bool
 }
 
 func (f *fixture) pinResult(t *testing.T, done bool, err error) pinResult {
@@ -126,15 +124,11 @@ func TestPinPRStage(t *testing.T) {
 	}
 }
 
-// currentPin is the pin testdata/k8s carries for img.
 func currentPin(t *testing.T, img deploy.ImageName) deploy.ImagePin {
 	t.Helper()
 	return pinsByImage(ParsePins(loadManifests(t), testRepo))[img]
 }
 
-// TestPinPRRollback: a rollback resolves the target release's version tag,
-// leaves an image with no build of it (warp here) at its current pin, and
-// records what it resolved as the run's digests.
 func TestPinPRRollback(t *testing.T) {
 	cases := []struct {
 		name   string

@@ -1,14 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package commandsrpc holds the shared wire types for the commands service RPC surface.
 package commandsrpc
 
 import "ItsBagelBot/internal/domain/rpc"
 
 import "ItsBagelBot/internal/domain/rpc/projection"
 
-// DashboardRequest covers all commands dashboard verbs; unused fields are zero-valued.
 type DashboardRequest struct {
 	UserID           string   `json:"user_id"`
 	Name             string   `json:"name"`
@@ -19,14 +17,10 @@ type DashboardRequest struct {
 	Perm             string   `json:"perm"`
 	Cooldown         uint     `json:"cooldown"`
 	AllowedUserID    string   `json:"allowed_user_id"`
-	// BumpCounter names the loyalty counter this command bumps by one on
-	// every successful run; "" means none.
-	BumpCounter string `json:"bump_counter"`
-	// OriginalName, when set and different from Name, makes upsert a rename.
-	OriginalName string `json:"original_name"`
+	BumpCounter      string   `json:"bump_counter"`
+	OriginalName     string   `json:"original_name"`
 }
 
-// DashboardReply is the reply shape for commands dashboard verbs.
 type DashboardReply struct {
 	Commands []projection.CommandView `json:"commands"`
 	rpc.Refusal

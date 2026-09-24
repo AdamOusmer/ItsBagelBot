@@ -1,13 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package cmd builds internal/domain/discord.Command values, centralizing
-// the Payload marshalling every module would otherwise repeat. A marshal
-// failure is swallowed into an empty Payload rather than propagated: a
-// Command with a body outgress cannot decode just no-ops that one send, the
-// same severity as any other single dropped post, and a builder that can
-// fail would force every module Handler to thread an error return through
-// what is otherwise a one-line Emit call.
 package cmd
 
 import (
@@ -15,55 +8,28 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// Target names where a Command applies: always a guild, and (depending on
-// the Command type) a channel and/or a member within it. Every builder in
-// this file used to take its own bare (guildID, channelID, userID string)
-// triple -- CodeScene flagged the repeated triple itself as Primitive
-// Obsession, so it is named once here and threaded through every builder
-// instead of re-declared per function.
 type Target struct {
 	GuildID   string
 	ChannelID string
 	UserID    string
 }
 
-// GuildTarget builds a Target for a Command that only needs the guild
-// (identity updates, interaction followups -- those key off the
-// interaction token, not a channel or member).
 func GuildTarget(guildID string) Target {
 	return Target{GuildID: guildID}
 }
 
-// ChannelTarget builds a Target for a Command that posts or acts in a
-// channel.
 func ChannelTarget(guildID, channelID string) Target {
 	return Target{GuildID: guildID, ChannelID: channelID}
 }
 
-// UserTarget builds a Target for a Command that acts on a member.
 func UserTarget(guildID, userID string) Target {
 	return Target{GuildID: guildID, UserID: userID}
 }
 
-// Reason is a Command's audit-log reason (Command.Reason), as passed to
-// DeleteMessage, TimeoutMember, KickMember and BanMember. Named, rather
-// than a bare string, because this file was flagged for CodeScene's
-// Primitive Obsession (file-level): those four builders' payload
-// parameters, beyond the already-named Target, were still bare strings and
-// bools indistinguishable from a message id, a role id or an interaction
-// token one parameter over. A string literal still converts to it for
-// free, so most call sites need no change.
 type Reason string
 
-// Token is a Discord interaction token, as passed to Followup and
-// FollowupEmbed to complete a deferred interaction. Named for the same
-// Primitive Obsession reason as Reason above -- both builders otherwise
-// read as one more (Target, string, ...) shape indistinguishable from a
-// plain content string one parameter over.
 type Token string
 
-// RoleID is a Discord role id, as passed to AddRole and RemoveRole. Named
-// for the same Primitive Obsession reason as Reason and Token above.
 type RoleID string
 
 func marshal(v any) []byte {
@@ -74,7 +40,6 @@ func marshal(v any) []byte {
 	return raw
 }
 
-// PostEmbed builds a TypePostEmbed Command.
 func PostEmbed(t Target, embed ddiscord.Embed) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypePostEmbed, GuildID: t.GuildID, ChannelID: t.ChannelID,
@@ -82,7 +47,6 @@ func PostEmbed(t Target, embed ddiscord.Embed) ddiscord.Command {
 	}
 }
 
-// PostPanel builds a TypePostPanel Command (an embed with buttons).
 func PostPanel(t Target, content string, embed ddiscord.Embed, buttons []ddiscord.ButtonSpec) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypePostPanel, GuildID: t.GuildID, ChannelID: t.ChannelID,
@@ -90,7 +54,6 @@ func PostPanel(t Target, content string, embed ddiscord.Embed, buttons []ddiscor
 	}
 }
 
-// PostChat builds a TypePostChat Command.
 func PostChat(t Target, content string) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypePostChat, GuildID: t.GuildID, ChannelID: t.ChannelID,
@@ -98,7 +61,6 @@ func PostChat(t Target, content string) ddiscord.Command {
 	}
 }
 
-// AddRole builds a TypeAddRole Command.
 func AddRole(t Target, roleID RoleID) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeAddRole, GuildID: t.GuildID, UserID: t.UserID,
@@ -106,7 +68,6 @@ func AddRole(t Target, roleID RoleID) ddiscord.Command {
 	}
 }
 
-// RemoveRole builds a TypeRemoveRole Command.
 func RemoveRole(t Target, roleID RoleID) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeRemoveRole, GuildID: t.GuildID, UserID: t.UserID,
@@ -114,11 +75,6 @@ func RemoveRole(t Target, roleID RoleID) ddiscord.Command {
 	}
 }
 
-// DeleteMessage builds a TypeDeleteMessage Command (mod lane). reason
-// should always be set -- it rides Discord's audit-log header (see
-// Command.Reason and TypeDeleteMessage's doc), and an automod deletion
-// with no reason reads, to a moderator checking the log, as the bot
-// malfunctioning rather than acting on purpose.
 func DeleteMessage(t Target, messageID string, reason Reason) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeDeleteMessage, GuildID: t.GuildID, ChannelID: t.ChannelID, Reason: string(reason),
@@ -126,7 +82,6 @@ func DeleteMessage(t Target, messageID string, reason Reason) ddiscord.Command {
 	}
 }
 
-// TimeoutMember builds a TypeTimeoutMember Command (mod lane).
 func TimeoutMember(t Target, untilISO string, reason Reason) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeTimeoutMember, GuildID: t.GuildID, UserID: t.UserID, Reason: string(reason),
@@ -134,18 +89,14 @@ func TimeoutMember(t Target, untilISO string, reason Reason) ddiscord.Command {
 	}
 }
 
-// KickMember builds a TypeKickMember Command (mod lane).
 func KickMember(t Target, reason Reason) ddiscord.Command {
 	return ddiscord.Command{Type: ddiscord.TypeKickMember, GuildID: t.GuildID, UserID: t.UserID, Reason: string(reason)}
 }
 
-// BanMember builds a TypeBanMember Command (mod lane).
 func BanMember(t Target, reason Reason) ddiscord.Command {
 	return ddiscord.Command{Type: ddiscord.TypeBanMember, GuildID: t.GuildID, UserID: t.UserID, Reason: string(reason)}
 }
 
-// Followup builds a TypeInteractionFollowup Command completing a deferred
-// interaction with a plain text reply.
 func Followup(t Target, token Token, content string, ephemeral bool) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeInteractionFollowup, GuildID: t.GuildID,
@@ -153,8 +104,6 @@ func Followup(t Target, token Token, content string, ephemeral bool) ddiscord.Co
 	}
 }
 
-// FollowupEmbed builds a TypeInteractionFollowup Command completing a
-// deferred interaction with an embed and optional buttons.
 func FollowupEmbed(t Target, token Token, embed ddiscord.Embed, buttons []ddiscord.ButtonSpec) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeInteractionFollowup, GuildID: t.GuildID,
@@ -162,11 +111,6 @@ func FollowupEmbed(t Target, token Token, embed ddiscord.Embed, buttons []ddisco
 	}
 }
 
-// SetGuildIdentity builds a TypeSetGuildIdentity Command: the bot's own
-// nickname and avatar inside one guild. It carries a two-state identity
-// rather than the image, because outgress embeds the avatar and the same
-// picture would otherwise ride the lane once per guild (see
-// ddiscord.GuildIdentity).
 func SetGuildIdentity(t Target, id ddiscord.GuildIdentity) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeSetGuildIdentity, GuildID: t.GuildID,
@@ -174,19 +118,12 @@ func SetGuildIdentity(t Target, id ddiscord.GuildIdentity) ddiscord.Command {
 	}
 }
 
-// StripRoles disarms a member by removing every role Bagel can remove. It
-// carries no payload: outgress reads the member's current roles itself,
-// because the engine's copy of them (from whatever event triggered this) is
-// already stale by the time the command is drained, and stripping a stale
-// list is exactly the half-measure a compromised account needs.
 func StripRoles(t Target, reason Reason) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeStripRoles, GuildID: t.GuildID, UserID: t.UserID, Reason: string(reason),
 	}
 }
 
-// Lockdown raises the guild's verification level and mutes @everyone in the
-// text channels under categoryIDs.
 func Lockdown(t Target, everyoneRoleID string, categoryIDs []string, reason Reason) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeLockdown, GuildID: t.GuildID, Reason: string(reason),
@@ -194,10 +131,6 @@ func Lockdown(t Target, everyoneRoleID string, categoryIDs []string, reason Reas
 	}
 }
 
-// Unlock reverses a Lockdown. It carries no payload: what to restore was
-// recorded by the lockdown itself (outgress's kv.LockdownStore), because the
-// mute DESTROYS the information -- once @everyone is denied SEND, nothing on
-// Discord's side still says whether that deny was the streamer's or ours.
 func Unlock(t Target, reason Reason) ddiscord.Command {
 	return ddiscord.Command{
 		Type: ddiscord.TypeUnlock, GuildID: t.GuildID, Reason: string(reason),

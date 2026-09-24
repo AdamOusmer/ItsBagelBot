@@ -2,15 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for `.bb-nav`. Its Astro twin is ../astro/Nav.astro and
-  // ../test/parity.test.ts diffs the two, so the element order, the class
-  // lists and the attribute order below are the contract.
-  //
-  // The engine is attached in an `$effect` rather than by an `astro:page-load`
-  // listener, and torn down by its return: that is the entire difference
-  // between the two adapters, and it is why the panel choreography lives in
-  // ../lib/nav-menu.ts as a plain mount/dispose pair instead of inside either
-  // one of them.
   import '../styles/elements/nav.css';
   import Brand from './Brand.svelte';
   import NavLink from './NavLink.svelte';
@@ -40,23 +31,14 @@
   }: {
     brand: UiBrand;
     links: UiNavLink[];
-    /** The one filled entry, in the bar and repeated in the panel. */
     cta?: UiNavLink;
-    /** Omit entirely on a single-locale surface; the switch disappears. */
     locales?: UiLocaleOption[];
     localeLabel?: string;
     ariaLabel: string;
-    /** Every string the hamburger and the panel need. No copy lives in ui. */
     menuLabels: { open: string; close: string; panel: string };
-    /** Panel fine print. */
     menuMeta?: string;
-    /** Panel id; the hamburger's aria-controls and the clip id derive from it. */
     menuId?: string;
-    /** pill = the floating marketing bar, bar = a full-width docs header. */
     variant?: 'pill' | 'bar';
-    /** The hamburger and its panel. Off for a host that already ships a mobile
-        menu of its own, where a second one is two hamburgers side by side
-        opening two different navigations. */
     menu?: boolean;
     actions?: Snippet;
     mobileFooter?: Snippet;
@@ -68,17 +50,10 @@
 
   let navEl = $state<HTMLElement | null>(null);
 
-  // Queried out of the rendered tree rather than bound with `bind:this` on
-  // every part: the panel and its curve are two components down, and threading
-  // three element bindings back up would put the engine's wiring into
-  // MobileMenu's props, where a caller could break it by rendering the panel
-  // itself. The engine's contract is the data-attributes.
   $effect(() => {
     const root = navEl?.parentElement;
     if (!root) return;
     const toggle = root.querySelector<HTMLElement>('[data-menu-toggle]');
-    // `menuEl`, not `menu`: the prop of that name is the on/off switch for
-    // this whole feature, and shadowing it here would read as the element.
     const menuEl = root.querySelector<HTMLElement>('[data-mobile-menu]');
     const curvePath = root.querySelector<SVGPathElement>('[data-menu-curve-path]');
     const logo = root.querySelector<HTMLAnchorElement>('[data-home-logo]');

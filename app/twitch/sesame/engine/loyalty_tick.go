@@ -28,65 +28,28 @@ import (
 	"go.uber.org/zap"
 )
 
-// The watch tick is the loyalty module's viewtime clock: one Valkey key per
-// live broadcaster with an enabled loyalty module, EX'd to the tick interval.
-// Its expiry (the timers_valkey idiom) claims one replica, lists the channel's
-// connected chatters through the outgress chatters RPC, hands every one of
-// them the tick's watch seconds + points via the loyalty reporter, and
-// re-arms. Stream.offline deletes the key; a reconciler sweep recovers a
-// silently stalled tick mid-stream.
-//
-// Failure handling is deliberate, because a failed attempt credits nobody:
-// a transient chatters/live error re-arms short so a blip costs viewers a
-// minute, not a whole window, and a persistent failure (a dead grant, a lost
-// moderator seat) escalates to an Error-level log once per streak instead of
-// spinning invisibly forever. Once per hour a successful tick additionally asks
-// outgress for a positive Twitch re-check of the live state, bounding how long
-// a lost stream.offline can keep paying phantom watch time from the warm
-// live:<id> key to roughly an hour instead of that key's full 12h TTL.
 const (
 	loyaltyTickKeyPrefix   = "loyaltick:"
 	loyaltyTickClaimPrefix = "loyaltick:claim:"
 
-	// watchTickInterval is one watch accrual period. Five minutes matches the
-	// going rate of chat loyalty systems and keeps the Helix chatters spend at
-	// one listing per live channel per five minutes.
 	watchTickInterval = 5 * time.Minute
 
-	// watchTickJitter spreads first fires so channels armed in the same
-	// instant (a mass stream.online after an ingress restart) don't line their
-	// chatters fetches up.
-	watchTickJitter = time.Minute
-	// loyaltyTickClaimTTL covers one tick's work: a paginated chatters fetch
-	// (10s handler budget) plus the reporter hand-off.
+	watchTickJitter     = time.Minute
 	loyaltyTickClaimTTL = 30 * time.Second
 
-	// chattersRPCTimeout sits above the outgress handler's own 10s budget.
+	// Must stay above outgress's 10s chattersHandleTimeout.
 	chattersRPCTimeout = 12 * time.Second
 
 	loyaltyRearmTimeout = 5 * time.Second
 
-	// watchTickQuickRetry is the re-arm delay after a failed attempt whose
-	// cause may already be gone (a timed-out chatters fetch, an errored live
-	// read). Retrying inside a minute bounds what one blip costs the channel's
-	// viewers; watchTickQuickRetries caps that spend so a hard-down
-	// dependency falls back to the normal cadence after two fast attempts.
 	watchTickQuickRetry   = time.Minute
 	watchTickQuickRetries = 2
 
-	// watchTickReconfirmInterval bounds positive live-state re-confirms across
-	// the fleet, even when a different replica wins each watch tick. The warm
-	// live:<id> key is trusted for its whole 12h TTL otherwise, so without
-	// this a lost stream.offline keeps paying phantom watch time until the
-	// key expires. Cost: one system-lane Helix call per live channel per hour.
 	watchTickReconfirmInterval = time.Hour
 	loyaltyReconfirmKeyPrefix  = loyaltyTickClaimPrefix + "reconfirm:"
 
 	loyaltyReconfirmTimeout = 5 * time.Second
 
-	// loyaltyEscalationLevel is where a failure streak stops being Warn noise:
-	// at this many consecutive failures each log line carries an actionable
-	// Error (fix the bot grant's chatters scope or restore the mod seat).
 	loyaltyEscalationLevel = 3
 
 	loyaltyReconcileInterval = time.Minute
@@ -94,9 +57,6 @@ const (
 	loyaltyReconcileClaimTTL = 30 * time.Second
 )
 
-// ValkeyLoyaltyClock arms and fires the per-broadcaster watch tick. It shares
-// the deployment's keyspace-notification config with the live and timer
-// watchers.
 type ValkeyLoyaltyClock struct {
 	client   valkey.Client
 	proj     projection.Reader
@@ -105,60 +65,33 @@ type ValkeyLoyaltyClock struct {
 
 	nc              *nats.Conn
 	request         func(context.Context, string, []byte) (*nats.Msg, error)
-	chattersSubject string // e.g. "bagel.rpc.outgress.chatters.get"
-	rearmSubject    string // modules cache-invalidation subject; empty disables
+	chattersSubject string
+	rearmSubject    string
 
-	// pub + outgressSystemSubject drive the periodic positive live re-confirm
-	// (see watchTickReconfirmInterval); either empty disables it.
 	pub                   bus.Publisher
 	outgressSystemSubject string
 
-	botID      string // the bot's own chatter id, excluded from accrual
+	botID      string
 	keyspaceDB int
 	log        *zap.Logger
 
-	// viewers is the shared {random.viewer} snapshot store. The watch tick
-	// already lists every live channel's chatters every 5 minutes (accrue's
-	// fetchChatters); writing that same list here is what keeps a live
-	// channel's snapshot warm without a dedicated fetch of its own, so a
-	// command naming {random.viewer} on a live channel usually reads a cache
-	// hit instead of triggering ViewerRPC's own cold-cache fetch. nil (a
-	// deployment that never wired it) skips the write.
 	viewers *ValkeyChatters
 
-	// Failure streaks only steer retry delays and log levels. The live-state
-	// reconfirm schedule lives in Valkey so changing replicas cannot reset it.
 	tmu      sync.Mutex
 	failures map[uint64]int
 }
 
-// LoyaltyClockConfig wires a ValkeyLoyaltyClock.
 type LoyaltyClockConfig struct {
-	// OutgressRPCPrefix is the outgress management RPC prefix (default
-	// "bagel.rpc.outgress"); the clock appends ".chatters.get".
-	OutgressRPCPrefix string
-	// ModulesInvalidateSubject is the modules-scope cache-invalidation subject
-	// the rearm watcher listens on. Empty leaves mid-stream enabling to the
-	// reconciler sweep.
+	OutgressRPCPrefix        string
 	ModulesInvalidateSubject string
-	// BotUserID is the bot's own Twitch user id, skipped in the chatter list.
-	BotUserID string
-	// KeyspaceDB is the Valkey db the expiry watcher listens on (default 0).
-	KeyspaceDB int
-	// Publisher + OutgressSystemSubject publish the periodic live re-check job
-	// (outgress.Message{TypeStreamStatus}) onto the outgress system lane — the
-	// same request the live key's own expiry watcher sends when it expires.
-	// Either empty disables the re-confirm.
-	Publisher             bus.Publisher
-	OutgressSystemSubject string
-	// ViewerSnapshots write-warms the shared {random.viewer} cache from
-	// every tick's chatter listing. nil skips the write.
-	ViewerSnapshots *ValkeyChatters
-	Log             *zap.Logger
+	BotUserID                string
+	KeyspaceDB               int
+	Publisher                bus.Publisher
+	OutgressSystemSubject    string
+	ViewerSnapshots          *ValkeyChatters
+	Log                      *zap.Logger
 }
 
-// NewValkeyLoyaltyClock builds the watch tick clock. proj resolves the
-// broadcaster's "loyalty" ModuleView; live gates every fire and re-arm.
 func NewValkeyLoyaltyClock(client valkey.Client, nc *nats.Conn, proj projection.Reader, live IsLiveChecker, reporter *LoyaltyReporter, cfg LoyaltyClockConfig) *ValkeyLoyaltyClock {
 	log := cfg.Log
 	if log == nil {
@@ -192,9 +125,6 @@ func loyaltyTickKey(broadcasterID uint64) string {
 	return cache.UserKey(loyaltyTickKeyPrefix, broadcasterID)
 }
 
-// Arm starts (or leaves counting) the broadcaster's watch tick, if their
-// loyalty module is enabled. NX keeps a redelivered stream.online from
-// resetting a running tick; the first fire carries a phase offset.
 func (s *ValkeyLoyaltyClock) Arm(ctx context.Context, broadcasterID uint64) {
 	if broadcasterID == 0 {
 		return
@@ -210,12 +140,10 @@ func (s *ValkeyLoyaltyClock) Arm(ctx context.Context, broadcasterID uint64) {
 	}
 }
 
-// Disarm stops the tick immediately (stream.offline).
 func (s *ValkeyLoyaltyClock) Disarm(ctx context.Context, broadcasterID uint64) {
 	if broadcasterID == 0 {
 		return
 	}
-	// Retry history only describes this replica's current live session.
 	s.tmu.Lock()
 	delete(s.failures, broadcasterID)
 	s.tmu.Unlock()
@@ -224,8 +152,6 @@ func (s *ValkeyLoyaltyClock) Disarm(ctx context.Context, broadcasterID uint64) {
 	}
 }
 
-// rearmIfLive arms mid-stream (module enabled from the dashboard while live).
-// Arm re-checks the module config; the NX SET leaves a running tick alone.
 func (s *ValkeyLoyaltyClock) rearmIfLive(ctx context.Context, broadcasterID uint64) {
 	if broadcasterID == 0 {
 		return
@@ -237,10 +163,6 @@ func (s *ValkeyLoyaltyClock) rearmIfLive(ctx context.Context, broadcasterID uint
 	s.Arm(ctx, broadcasterID)
 }
 
-// StartExpiryWatcher subscribes to Valkey key-expiry notifications and fires
-// each tick whose key expires, reconnecting on a dropped subscription. Same
-// idiom (and notify-keyspace-events requirement) as the live and timer
-// watchers.
 func (s *ValkeyLoyaltyClock) StartExpiryWatcher(ctx context.Context) {
 	channel := "__keyevent@" + strconv.Itoa(s.keyspaceDB) + "__:expired"
 	s.log.Info("loyalty: watch tick expiry watcher starting", zap.String("channel", channel))
@@ -261,9 +183,6 @@ func (s *ValkeyLoyaltyClock) StartExpiryWatcher(ctx context.Context) {
 	}
 }
 
-// StartRearmWatcher mirrors the timer store's arm-on-save path: a modules
-// cache invalidation (a dashboard save) re-arms a live broadcaster's tick, so
-// enabling loyalty mid-stream starts accruing this session.
 func (s *ValkeyLoyaltyClock) StartRearmWatcher(ctx context.Context) {
 	if s.nc == nil || s.rearmSubject == "" {
 		return
@@ -294,9 +213,6 @@ func (s *ValkeyLoyaltyClock) StartRearmWatcher(ctx context.Context) {
 	}()
 }
 
-// StartReconciler periodically re-arms every live broadcaster's tick,
-// recovering one that silently stalled (a lost expiry notification), exactly
-// like the timer reconciler. NX arming keeps a running tick untouched.
 func (s *ValkeyLoyaltyClock) StartReconciler(ctx context.Context) {
 	ticker := time.NewTicker(loyaltyReconcileInterval)
 	defer ticker.Stop()
@@ -313,16 +229,13 @@ func (s *ValkeyLoyaltyClock) StartReconciler(ctx context.Context) {
 
 func (s *ValkeyLoyaltyClock) reconcile(ctx context.Context) {
 	if won, err := pkg_valkey.ClaimOnce(ctx, s.client, loyaltyReconcileClaimKey, loyaltyReconcileClaimTTL); err != nil || !won {
-		return // another replica owns this tick, or the claim write failed
+		return
 	}
 	for _, id := range s.liveBroadcasters(ctx) {
 		s.rearmIfLive(ctx, id)
 	}
 }
 
-// liveBroadcasters SCANs the live-key set, skipping the recheck guard keys
-// that share the live: prefix (the timer reconciler's scan, duplicated rather
-// than shared so neither store grows a dependency on the other).
 func (s *ValkeyLoyaltyClock) liveBroadcasters(ctx context.Context) []uint64 {
 	var ids []uint64
 	cursor := uint64(0)
@@ -344,8 +257,6 @@ func (s *ValkeyLoyaltyClock) liveBroadcasters(ctx context.Context) []uint64 {
 	}
 }
 
-// parseLiveKey extracts the broadcaster id from one live:<id> key, rejecting
-// the live:recheck: guard keys that share the prefix.
 func parseLiveKey(key string) (uint64, bool) {
 	if strings.HasPrefix(key, recheckKeyPrefix) {
 		return 0, false
@@ -354,10 +265,6 @@ func parseLiveKey(key string) (uint64, bool) {
 	return id, err == nil && id != 0
 }
 
-// onExpired handles one expired key. The real work runs on its own goroutine:
-// a tick's chatters fetch can take seconds, and the expiry watcher's pub/sub
-// callback must never block other keys' notifications behind it. The claim
-// inside fire keeps the fan-out cheap — every replica spawns, one proceeds.
 func (s *ValkeyLoyaltyClock) onExpired(ctx context.Context, key string) {
 	if !strings.HasPrefix(key, loyaltyTickKeyPrefix) || strings.HasPrefix(key, loyaltyTickClaimPrefix) {
 		return
@@ -369,10 +276,6 @@ func (s *ValkeyLoyaltyClock) onExpired(ctx context.Context, key string) {
 	go s.fire(ctx, broadcasterID)
 }
 
-// fire claims one tick fleet-wide, re-validates live state and module config,
-// accrues one tick over the current chatter list, then re-arms. A failed
-// attempt still re-arms — it must not stop the clock for the rest of the
-// stream — but re-arms short when the cause may be gone (see settle).
 func (s *ValkeyLoyaltyClock) fire(ctx context.Context, broadcasterID uint64) {
 	claimKey := loyaltyTickClaimPrefix + strconv.FormatUint(broadcasterID, 10)
 	if won, err := pkg_valkey.ClaimOnce(ctx, s.client, claimKey, loyaltyTickClaimTTL); err != nil || !won {
@@ -381,17 +284,15 @@ func (s *ValkeyLoyaltyClock) fire(ctx context.Context, broadcasterID uint64) {
 
 	live, err := s.live.IsLive(ctx, broadcasterID)
 	if err != nil {
-		// The read failed rather than answering offline; retry soon instead of
-		// sitting out until the reconciler's next sweep.
 		s.rearmAfterFailure(ctx, broadcasterID, err)
 		return
 	}
 	if !live {
-		return // stream ended: stay stopped until the next stream.online
+		return
 	}
 	_, enabled := loyaltyModuleConfig(ctx, s.proj, broadcasterID)
 	if !enabled {
-		return // module disabled since arming: drop, don't re-arm
+		return
 	}
 
 	accrued, err := s.accrue(ctx, broadcasterID)
@@ -404,15 +305,10 @@ func (s *ValkeyLoyaltyClock) fire(ctx context.Context, broadcasterID uint64) {
 	}
 }
 
-// rearmAfterFailure records a failed attempt and re-arms at its policy delay.
 func (s *ValkeyLoyaltyClock) rearmAfterFailure(ctx context.Context, broadcasterID uint64, cause error) {
 	s.rearm(ctx, broadcasterID, s.settleFailure(broadcasterID, cause))
 }
 
-// rearm sets the tick key's next expiry. NX keeps a reconciler arm that raced
-// ahead from being reset; a lost race just means the key lives a little
-// longer. A failed re-arm is survivable either way — the reconciler recovers
-// the tick within its sweep interval.
 func (s *ValkeyLoyaltyClock) rearm(ctx context.Context, broadcasterID uint64, ttl time.Duration) {
 	err := s.client.Do(ctx, s.client.B().Set().Key(loyaltyTickKey(broadcasterID)).Value("1").Nx().
 		ExSeconds(int64(ttl.Seconds())).Build()).Error()
@@ -421,22 +317,12 @@ func (s *ValkeyLoyaltyClock) rearm(ctx context.Context, broadcasterID uint64, tt
 	}
 }
 
-// accrue lists the channel's chatters and hands each one the tick's watch
-// seconds and points. A returned error skips this tick's accrual
-// (loss-tolerant) and feeds the caller's failure policy.
 func (s *ValkeyLoyaltyClock) accrue(ctx context.Context, broadcasterID uint64) (bool, error) {
 	chatters, err := s.fetchChatters(ctx, broadcasterID)
 	if err != nil {
 		return false, err
 	}
-	// Write-warm {random.viewer}'s shared cache from the listing this tick
-	// already paid for: a live channel then answers the token from cache
-	// instead of ViewerRPC's own cold-fetch path. Best-effort and off the
-	// accrual result — a snapshot write failure must not skip a tick's
-	// points.
 	s.viewers.Store(ctx, broadcasterID, viewerSnapshotEntries(chatters))
-	// A paginated fetch may take seconds. Recheck the stream and current
-	// settings before paying: offline or disable events may have arrived.
 	live, err := s.live.IsLive(ctx, broadcasterID)
 	if err != nil || !live {
 		return false, err
@@ -464,8 +350,6 @@ func (s *ValkeyLoyaltyClock) accrue(ctx context.Context, broadcasterID uint64) (
 	return true, nil
 }
 
-// chatterViewerID parses one chatter's id, dropping the bot's own account (it
-// sits in every chat it serves and must not farm points).
 func (s *ValkeyLoyaltyClock) chatterViewerID(id string) (uint64, bool) {
 	if id == s.botID {
 		return 0, false
@@ -474,9 +358,6 @@ func (s *ValkeyLoyaltyClock) chatterViewerID(id string) (uint64, bool) {
 	return viewerID, err == nil && viewerID != 0
 }
 
-// fetchChatters asks outgress for the current chatter list. A missing-scope
-// reply (bot demodded / stale grant) is surfaced as an error and skipped
-// upstream.
 func (s *ValkeyLoyaltyClock) fetchChatters(ctx context.Context, broadcasterID uint64) ([]manage.Chatter, error) {
 	ctx, cancel := context.WithTimeout(ctx, chattersRPCTimeout)
 	defer cancel()
@@ -499,7 +380,6 @@ func (s *ValkeyLoyaltyClock) fetchChatters(ctx context.Context, broadcasterID ui
 	return reply.Chatters, nil
 }
 
-// chattersError carries the reply's failure detail for the skip log line.
 type chattersError struct {
 	message      string
 	missingScope bool
@@ -512,9 +392,6 @@ func (e *chattersError) Error() string {
 	return e.message
 }
 
-// settleSuccess clears the failure streak and requests a live recheck at
-// most once per hour fleet-wide. The first successful tick also rechecks, so
-// restarts do not extend a stale live key's lifetime.
 func (s *ValkeyLoyaltyClock) settleSuccess(ctx context.Context, broadcasterID uint64) time.Duration {
 	s.tmu.Lock()
 	delete(s.failures, broadcasterID)
@@ -524,7 +401,6 @@ func (s *ValkeyLoyaltyClock) settleSuccess(ctx context.Context, broadcasterID ui
 		lock := pkg_valkey.NewOwnerLock(s.client, key, nuid.Next())
 		if won, err := lock.Acquire(ctx, watchTickReconfirmInterval); err == nil && won {
 			if err := s.requestLiveRecheck(ctx, broadcasterID); err != nil {
-				// A failed publish must not suppress another attempt for an hour.
 				_ = lock.Release(ctx)
 			}
 		}
@@ -532,11 +408,6 @@ func (s *ValkeyLoyaltyClock) settleSuccess(ctx context.Context, broadcasterID ui
 	return watchTickInterval
 }
 
-// settleFailure records one failed attempt and answers its re-arm delay.
-// Persistent trouble escalates the log level once per streak — at
-// loyaltyEscalationLevel every line becomes an actionable Error naming the
-// two real-world causes (stale grant scope, lost moderator seat) instead of
-// an identical Warn repeating forever.
 func (s *ValkeyLoyaltyClock) settleFailure(broadcasterID uint64, cause error) time.Duration {
 	s.tmu.Lock()
 	n := s.failures[broadcasterID] + 1
@@ -556,11 +427,6 @@ func (s *ValkeyLoyaltyClock) settleFailure(broadcasterID uint64, cause error) ti
 	return rearmAfterFailure(n)
 }
 
-// rearmAfterFailure is the pure policy behind settleFailure: the first couple
-// of failures retry inside a minute (a blip then costs viewers one minute,
-// not one window), anything longer-standing waits out the normal interval so
-// a hard-down dependency stops spending Helix calls. The reconciler still
-// recovers a stopped tick either way.
 func rearmAfterFailure(failures int) time.Duration {
 	if failures <= watchTickQuickRetries {
 		return watchTickQuickRetry
@@ -568,12 +434,6 @@ func rearmAfterFailure(failures int) time.Duration {
 	return watchTickInterval
 }
 
-// watchTickIdentity is the stable dedup identity for the accrual bucket that
-// contains at on one channel: the channel id plus the interval index of the
-// event's OWN timestamp. Both replicas firing the same key expiry derive the
-// same string (the bucket comes from the payload's clock, never the local
-// one), yet the next legitimate window indexes differently — so the dedup
-// guard collapses a refired expiry without suppressing the following accrual.
 func watchTickIdentity(broadcasterID uint64, at time.Time) string {
 	buf := GetBuf()
 	buf = append(buf, "wtick:"...)
@@ -585,10 +445,6 @@ func watchTickIdentity(broadcasterID uint64, at time.Time) string {
 	return key
 }
 
-// requestLiveRecheck asks outgress to resolve the broadcaster's live state
-// against Twitch and write it back — outgress.Message{TypeStreamStatus}, the
-// same job the live key's own expiry watcher sends. Best-effort: a failed
-// publish just means the next window's confirm lands instead.
 func (s *ValkeyLoyaltyClock) requestLiveRecheck(ctx context.Context, broadcasterID uint64) error {
 	if s.pub == nil || s.outgressSystemSubject == "" {
 		return nil

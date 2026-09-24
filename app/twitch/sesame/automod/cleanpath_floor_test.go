@@ -9,12 +9,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 )
 
-// The clean-path bail must not become a floor hole: short scam/domain lines
-// (no caps, no symbols, no zero-width, under shortLen) carry no heuristic flag
-// and used to skip the deep path entirely. The infra pre-scan routes them onto
-// it, where floorInfra rules authoritatively - same contract as the hate
-// pre-scan in TestLexiconHateShortLine. Deep is asserted so the routing itself
-// is pinned: a verdict without the trip would mean some other juror fired.
 func TestCleanPathInfraFloorHoldsShortLines(t *testing.T) {
 	g := New()
 	caught := []struct {
@@ -38,8 +32,6 @@ func TestCleanPathInfraFloorHoldsShortLines(t *testing.T) {
 	}
 }
 
-// assertInfraTimeoutViaDeepPath pins the timeout verdict AND that the line took
-// the deep path: a verdict without the trip would mean some other juror fired.
 func assertInfraTimeoutViaDeepPath(t *testing.T, g *Gate, line, rule string) {
 	t.Helper()
 	v, sigs := g.Assess(module.RoleEveryone, line, nil)
@@ -57,11 +49,6 @@ func assertInfraTimeoutViaDeepPath(t *testing.T, g *Gate, line, rule string) {
 	}
 }
 
-// The other direction: benign short chat still bails before the skeleton runs.
-// The released boundary traps double as proof the pre-scan does not route
-// near-misses (a false hit would be only a perf cost, but these shapes are
-// exactly what would turn every fan page and chemistry joke into a deep-path
-// line).
 func TestCleanPathBenignStillBailsFast(t *testing.T) {
 	g := New()
 	benign := []string{
@@ -83,8 +70,6 @@ func TestCleanPathBenignStillBailsFast(t *testing.T) {
 	}
 }
 
-// The pre-scans ride on the zero-alloc hot path: a benign line that walks deep
-// into their loops (digits, punctuation, dots) must not allocate.
 func TestCleanPathZeroAllocWithPrescans(t *testing.T) {
 	g := New()
 	for _, line := range []string{
@@ -97,8 +82,6 @@ func TestCleanPathZeroAllocWithPrescans(t *testing.T) {
 	}
 }
 
-// Tier-0 trust stays first: an exempt chatter's short scam line never reaches
-// any scan, pre- or deep.
 func TestCleanPathExemptBeforePrescan(t *testing.T) {
 	g := New()
 	if v := g.Inspect(module.RoleVIP, "grabify.link"); v.Action != ActionNone {

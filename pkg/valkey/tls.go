@@ -43,52 +43,22 @@ func clientTLSConfig() (*tls.Config, error) {
 		MinVersion: tls.VersionTLS12,
 	}
 
-	// mTLS: Valkey's tls-auth-clients yes rejects any connection (data port
-	// AND Sentinel port -- both share this one config) that does not present
-	// a cert chaining to the CA above. Deliberately file-based, not a PEM env
-	// var like VALKEY_TLS_CA_PEM: that CA is public, this is a private key,
-	// and a Secret volume mount keeps it out of `kubectl describe pod`, env
-	// dumps, and any log/panic handler that serializes the process env.
 	pair, err := tlsenv.PairFromEnv("VALKEY_TLS_CLIENT_CERT_FILE", "VALKEY_TLS_CLIENT_KEY_FILE")
 	if err != nil {
 		return nil, err
 	}
 	if !pair.Configured() {
-		// Deliberately permissive: unset means "server not requiring client
-		// auth yet," which is the state every consumer is in until its own
-		// Deployment is updated with the cert volume. This is what makes the
-		// per-service mount + cert-issuance rollout a no-op ahead of the
-		// tls-auth-clients flip, instead of a synchronized flag day.
 		return config, nil
 	}
-	// GetClientCertificate, not Certificates: the latter is read once when
-	// this *tls.Config is built and then frozen, so a process that lives
-	// past cert-manager's day-75 rotation keeps presenting the cert issued
-	// at boot until it expires at day 90 and every handshake starts failing.
-	// GetClientCertificate is invoked by crypto/tls on every handshake,
-	// which gives the reloader below a chance to notice the rotated file.
 	reloader, err := newClientCertReloader(pair.CertFile(), pair.KeyFile())
 	if err != nil {
 		return nil, fmt.Errorf("valkey: loading client cert/key: %w", err)
 	}
+	// Not Certificates: a frozen cert fails every handshake once cert-manager rotates it.
 	config.GetClientCertificate = reloader.getClientCertificate
 	return config, nil
 }
 
-// clientCertReloader caches the parsed client certificate and re-reads it
-// from disk only when the cert file's mtime or size has moved since the last
-// read. A stat is orders of magnitude cheaper than LoadX509KeyPair (which
-// re-parses PEM and re-derives the key), and mtime+size is enough to detect
-// cert-manager's renewal: the kubelet's Secret volume rotates in the new
-// cert via an atomic symlink swap, which always changes both. Byte-for-byte
-// content hashing would catch a same-second same-size edit that this misses,
-// but that isn't a shape cert-manager rotation produces, so it isn't worth
-// reading the file on every handshake to guard against it.
-//
-// This is why the pair's own GetClientCertificate closure (pkg/tlsenv) is not
-// used here: it re-reads unconditionally, which is right for a listener whose
-// handshakes are probes, and wrong for a Valkey client that reconnects per
-// Sentinel failover and per pooled connection.
 type clientCertReloader struct {
 	certFile string
 	keyFile  string
@@ -107,14 +77,8 @@ func newClientCertReloader(certFile, keyFile string) (*clientCertReloader, error
 	return reloader, nil
 }
 
-// getClientCertificate implements tls.Config.GetClientCertificate.
 func (r *clientCertReloader) getClientCertificate(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 	if r.changed() {
-		// Best effort: if the file is mid-write (the symlink swap isn't
-		// atomic against a concurrent stat+read on every filesystem) or the
-		// rotated pair is briefly invalid, keep serving the cached cert
-		// instead of failing a live handshake over it. The next handshake
-		// tries again.
 		_ = r.reload()
 	}
 	r.mu.RLock()
@@ -144,8 +108,6 @@ func (r *clientCertReloader) reload() error {
 	if err != nil {
 		return err
 	}
-	// LoadX509KeyPair leaves Leaf nil (parsed lazily per handshake by
-	// default); parse it once here so it's cached alongside everything else.
 	if leaf, err := x509.ParseCertificate(cert.Certificate[0]); err == nil {
 		cert.Leaf = leaf
 	}
@@ -204,9 +166,6 @@ func nativeTLSDial(ctx context.Context, address string, dialer *net.Dialer, conf
 	return tlsConnection, nil
 }
 
-// nativeDialTarget keeps Sentinel's elected-primary semantics while avoiding a
-// hostPort/Tailnet loop on whichever node currently owns the primary. Remote
-// primary addresses and Sentinel connections are left untouched.
 type nativeDialTarget struct {
 	discovered   string
 	nodeIP       string

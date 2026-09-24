@@ -10,17 +10,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// Deps is every collaborator a discord.ingress.event.*-driven module needs.
-// Live and Clip are wired separately in main (see their own doc comments):
-// they are driven off Twitch subjects, not a Discord gateway dispatch type,
-// so they never go through the module.Builder/Registry at all.
 type Deps struct {
-	Store    discordstore.Store
-	Channels voiceClient
-	// Tickets is the desk's own outgress surface. Separate from Channels
-	// because the two overlap only on channel.delete: the voice modules have
-	// no use for the ticket orchestrations, and one wide interface would make
-	// every voice test stub four methods it never calls.
+	Store     discordstore.Store
+	Channels  voiceClient
 	Tickets   ticketClient
 	Purge     purgeClient
 	Guard     Guarder
@@ -29,8 +21,6 @@ type Deps struct {
 	Log       *zap.Logger
 }
 
-// All returns every module the dispatcher indexes, mirroring
-// app/twitch/sesame/modules.All's role as the single assembly point.
 func All(d Deps) []module.Module {
 	return []module.Module{
 		Welcome(),

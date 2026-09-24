@@ -217,8 +217,6 @@ func TestCreateBasketGiftCarriesAttribution(t *testing.T) {
 	}
 }
 
-// giftCustom mints a gift basket with the given spec and returns the custom
-// payload sent to Tebex.
 func giftCustom(t *testing.T, spec BasketSpec) map[string]any {
 	t.Helper()
 	var createBody map[string]any
@@ -261,7 +259,6 @@ func TestGiftBasketOmitsEmptyMessage(t *testing.T) {
 }
 
 func TestSelfPurchaseIgnoresMessage(t *testing.T) {
-	// A message with no gifted_by is a self-purchase; the note never rides along.
 	custom := giftCustom(t, BasketSpec{UserID: 804932984, Username: "mavey", GiftMessage: "note"})
 	if _, present := custom["gift_message"]; present {
 		t.Errorf("self-purchase must not carry gift_message, got %v", custom["gift_message"])

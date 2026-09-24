@@ -14,7 +14,6 @@ import (
 	ddiscord "ItsBagelBot/internal/domain/discord"
 )
 
-// fakeLockdowns is an in-memory kv.LockdownStore.
 type fakeLockdowns struct {
 	state   map[string]kv.LockdownState
 	putErr  error
@@ -44,9 +43,6 @@ func (f *fakeLockdowns) DeleteLockdown(_ context.Context, g kv.GuildID) error {
 	return nil
 }
 
-// lockdownRest is a guild whose cat1 holds one channel of each type a mute
-// means something for, plus a voice channel and a channel in another
-// category that must be left alone.
 func lockdownRest() *fakeRest {
 	return &fakeRest{
 		guild: discapi.Snowflake{ID: "g1", VerificationLevel: 1},
@@ -78,10 +74,6 @@ func mutedChannels(rest *fakeRest) []string {
 	return got
 }
 
-// lockdownHandlers is the wiring every lockdown and unlock case needs: the
-// fake REST, the test logger, and the undo store when the case has one. The
-// three cases that pass no store are asserting the half of a lockdown that
-// happens without one, so a nil store stays a supported shape here.
 func lockdownHandlers(rest *fakeRest, store *fakeLockdowns) *Handlers {
 	h := &Handlers{Rest: rest, Log: testLogger()}
 	if store != nil {
@@ -90,8 +82,6 @@ func lockdownHandlers(rest *fakeRest, store *fakeLockdowns) *Handlers {
 	return h
 }
 
-// A lockdown with no categories is still the useful half: the verification
-// bump is what stops new accounts at the door.
 func TestLockdownRaisesVerificationLevel(t *testing.T) {
 	rest := &fakeRest{}
 	h := lockdownHandlers(rest, nil)
@@ -110,10 +100,6 @@ func TestLockdownRaisesVerificationLevel(t *testing.T) {
 	}
 }
 
-// Muting must ADD the SEND deny to whatever the channel already denies and
-// clear it from the allow, because Discord's overwrite write replaces the
-// whole overwrite -- a bare deny would drop the VIEW allow that makes a
-// gated channel visible to its tier.
 func TestLockdownMutesTextChannelsInCategoriesOnly(t *testing.T) {
 	rest := &fakeRest{fullChannels: []discapi.ChannelInfo{
 		{ID: "c-text", Type: ddiscord.ChannelText, ParentID: "cat1", PermissionOverwrites: []discapi.PermissionOverwrite{
@@ -144,8 +130,6 @@ func TestLockdownMutesTextChannelsInCategoriesOnly(t *testing.T) {
 	}
 }
 
-// A failed lockdown must NACK. The old no-op ACKed the message, so a
-// lockdown the bot lacked MANAGE_GUILD for looked delivered.
 func TestLockdownSurfacesOverwriteFailure(t *testing.T) {
 	rest := &fakeRest{
 		overwriteErr: errors.New("403 missing permissions"),
@@ -162,9 +146,6 @@ func TestLockdownSurfacesOverwriteFailure(t *testing.T) {
 	}
 }
 
-// Announcement and forum channels are places members post, so a lockdown
-// that muted only type 0 left the loudest surfaces of a modern server open.
-// Voice carries SPEAK rather than SEND, so writing there changes nothing.
 func TestLockdownMutesEveryPostableChannelType(t *testing.T) {
 	rest := lockdownRest()
 	h := lockdownHandlers(rest, newFakeLockdowns())
@@ -177,9 +158,6 @@ func TestLockdownMutesEveryPostableChannelType(t *testing.T) {
 	}
 }
 
-// The undo state must be written BEFORE anything changes: once @everyone is
-// denied SEND, nothing on Discord's side still says whether that deny was
-// the streamer's own.
 func TestLockdownRecordsTheStateItIsAboutToDisplace(t *testing.T) {
 	rest := lockdownRest()
 	store := newFakeLockdowns()
@@ -198,15 +176,9 @@ func TestLockdownRecordsTheStateItIsAboutToDisplace(t *testing.T) {
 		t.Fatalf("stored channels = %d, want 3", len(state.Channels))
 	}
 	wantStoredChannel(t, state.Channels[0], kv.LockdownChannel{ChannelID: "c-text", Allow: "1024", Deny: "0"})
-	// A channel with no @everyone overwrite is remembered as an explicit
-	// zero pair, which restores permission-identically.
 	wantStoredChannel(t, state.Channels[1], kv.LockdownChannel{ChannelID: "c-news", Allow: "0", Deny: "0"})
 }
 
-// wantStoredChannel compares one remembered overwrite whole. The three fields
-// only mean anything together -- an allow without the channel it belongs to
-// says nothing -- and asserting them one condition per field is what pushed
-// the recording test past the complexity the gate allows.
 func wantStoredChannel(t *testing.T, got, want kv.LockdownChannel) {
 	t.Helper()
 	if got != want {
@@ -214,9 +186,6 @@ func wantStoredChannel(t *testing.T, got, want kv.LockdownChannel) {
 	}
 }
 
-// The verification bump is the half that stops NEW accounts. Its failure
-// must return before any channel is touched, or a retry of the whole
-// lockdown finds the door still open.
 func TestLockdownShortCircuitsOnModifyGuildFailure(t *testing.T) {
 	rest := lockdownRest()
 	rest.guildPatchErrs = []error{discapi.ErrForbidden}
@@ -231,9 +200,6 @@ func TestLockdownShortCircuitsOnModifyGuildFailure(t *testing.T) {
 	}
 }
 
-// Every channel is attempted and every failure is reported: one unwritable
-// channel must not leave the rest of the guild open, and the joined error
-// still nacks so the lane redelivers the idempotent mute.
 func TestLockdownAggregatesPerChannelFailures(t *testing.T) {
 	rest := lockdownRest()
 	rest.overwriteErr = discapi.ErrRateLimited
@@ -248,10 +214,6 @@ func TestLockdownAggregatesPerChannelFailures(t *testing.T) {
 	}
 }
 
-// Unparseable allow bits used to read as zero, which rewrote that channel's
-// @everyone allow to nothing -- dropping a VIEW allow and hiding the channel
-// from the whole server as a side effect of a lockdown. Now it fails that
-// channel and the others still go through.
 func TestLockdownFailsOnlyTheChannelWithUnparseableBits(t *testing.T) {
 	rest := lockdownRest()
 	rest.fullChannels[0].PermissionOverwrites[0].Allow = "not-a-bitfield"
@@ -267,8 +229,6 @@ func TestLockdownFailsOnlyTheChannelWithUnparseableBits(t *testing.T) {
 	}
 }
 
-// Unlock is the whole point of recording the state: level back, overwrites
-// back verbatim, key gone.
 func TestUnlockRestoresLevelAndOverwrites(t *testing.T) {
 	rest := lockdownRest()
 	store := newFakeLockdowns()
@@ -298,9 +258,6 @@ func TestUnlockRestoresLevelAndOverwrites(t *testing.T) {
 	}
 }
 
-// No remembered state is TERMINAL, not an error: the key expired or the
-// lockdown predates the store, and no redelivery conjures the old
-// overwrites back.
 func TestUnlockWithoutStateIsTerminal(t *testing.T) {
 	rest := lockdownRest()
 	h := lockdownHandlers(rest, newFakeLockdowns())
@@ -312,8 +269,6 @@ func TestUnlockWithoutStateIsTerminal(t *testing.T) {
 	}
 }
 
-// A refused restore must nack: a channel left muted is a channel nobody can
-// talk in, and the write is idempotent.
 func TestUnlockSurfacesRestoreFailure(t *testing.T) {
 	rest := lockdownRest()
 	store := newFakeLockdowns()
@@ -330,8 +285,6 @@ func TestUnlockSurfacesRestoreFailure(t *testing.T) {
 	}
 }
 
-// A lockdown must still happen when its undo state cannot be written:
-// an unliftable lockdown beats a raid that was never stopped.
 func TestLockdownProceedsWhenTheStoreFails(t *testing.T) {
 	rest := lockdownRest()
 	store := newFakeLockdowns()

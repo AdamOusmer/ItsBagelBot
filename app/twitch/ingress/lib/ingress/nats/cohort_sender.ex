@@ -2,28 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Nats.CohortSender do
-  @moduledoc """
-  Fixed send-lane pool for one ingress publisher connection.
-
-  `Gnat` can coalesce concurrent `pub/4` calls into one socket write, but a
-  cohort collector calling it serially never gives that coalescer more than
-  one command. This pool keeps a small set of persistent processes and fans a
-  flushed cohort across them. The public Gnat API remains the only wire
-  implementation; this module only supplies the concurrency it is designed to
-  combine.
-
-  The pool is used for ordinary per-message publishes. Atomic batches retain
-  their single ordered sender because their sequence headers must reach NATS
-  in order.
-
-  Every lane write is bounded by the caller's `timeout`, and a lane that hits
-  one failure fails the rest of its requests without calling again. Both rules
-  exist for the same reason: the collector blocks in `publish/4` until every
-  lane answers, applying no PubAcks and running no sweep ticks while it waits,
-  so a wedged connection must cost one timeout for the whole cohort rather than
-  one per queued write.
-  """
-
   alias Ingress.Nats.Publisher.Wire
 
   @type token :: term()
@@ -58,9 +36,6 @@ defmodule Ingress.Nats.CohortSender do
   defp assign(requests, workers) do
     lane_count = min(length(requests), length(workers))
 
-    # One conversion up front, then O(1) `elem/2` per lane. `Enum.at(workers,
-    # index)` walked the worker list once per lane, making assignment O(lanes²)
-    # on a path every publish goes through.
     workers = List.to_tuple(workers)
 
     requests
@@ -102,10 +77,6 @@ defmodule Ingress.Nats.CohortSender do
     results
   end
 
-  # Once one write on this lane has failed, the connection is down or wedged.
-  # Fail the remainder closed instead of paying another full call timeout each:
-  # the caller is blocked on all lanes, so a lane holding N queued writes would
-  # otherwise turn one stalled socket into N × timeout of collector downtime.
   defp lane_publish(false, _connection, _subject, _payload, _opts, _timeout),
     do: {:error, :not_connected}
 

@@ -19,20 +19,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// dispatchCommand is the command stage the pipeline runs for every chat line. It
-// parses the "!command", looks it up first in the registry's bound command index
-// and then in the broadcaster's custom commands, applies the one shared gate
-// (permission, live-only, cooldown), and runs the winner. It is the folded-in
-// command router: unlike the worker it is not a module, so it reads the registry
-// directly and needs no Bind. A non-command line returns nil with no work.
-//
-// A baked command is first gated by its owning module's enable state (the same
-// enabled() check event handlers pass), so a command on a disabled module never
-// runs — the trigger instead falls through to the broadcaster's custom
-// commands, so an opt-in module can ship friendly triggers without reserving
-// them fleet-wide. The gate also wires the module's config into the Context
-// before the command runs. views is the broadcaster's ModuleView set (nil when
-// the chat path needs none, i.e. only core command owners).
 func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views map[string]projection.ModuleView, emit module.Emit) error {
 	name, args, ok := parseCommand(c.Env.Text)
 	if !ok {
@@ -41,27 +27,18 @@ func (p *Pipeline) dispatchCommand(ctx context.Context, c *module.Context, views
 	if c.Env.Origin == "trial" && !trialReadOnlyCommand(name) {
 		return nil
 	}
-	// Recorded for the post-stage observer hook (see engine/observe.go). The
-	// name is a view into the pooled payload; the hook clones before it hands
-	// the event to anything that outlives Process.
 	c.Command = name
 	if bc, num, isBaked := p.registry.ResolveCommand(name); isBaked {
 		if p.enabled(bc.Owner, views, c) {
 			return p.runBaked(ctx, c, bc.Cmd, num, args, emit)
 		}
-		// The owner module is off: fall through to the broadcaster's custom
-		// commands so an opt-in module's trigger (e.g. !daily) never reserves the
-		// name on channels that did not enable it.
 	}
 	if c.Env.Origin == "trial" {
-		return nil // a stale custom command can never become a trial write path
+		return nil
 	}
 	return p.runCustom(ctx, c, name, args, emit)
 }
 
-// Only these baked commands have read-only bodies: they compute a response or
-// an outgress intent, and none calls a channel-owned write service directly.
-// The emitted intent retains trial origin and is blocked by outgress.
 func trialReadOnlyCommand(name string) bool {
 	switch name {
 	case "ping", "source", "itsbagelbot", "clip", "followage", "accountage", "uptime",
@@ -73,21 +50,12 @@ func trialReadOnlyCommand(name string) bool {
 	}
 }
 
-// runBaked gates and runs a command a module owns. Every output the command
-// emits is routed through emitCommand, which always lexes the reply and then
-// applies the shared slash-verb middleware, so a baked command can write
-// "/announce ..." the same way a custom one does. num is the inline numeric
-// suffix the trigger absorbed ("" when none / not a NumericSuffix command); it
-// is exposed on the Context for the command to read.
 func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.Command, num, args string, emit module.Emit) error {
 	pass, err := p.gate(ctx, c, gateRule{cmd.Name, cmd.AllowedUserID, cmd.Perm, cmd.LiveOnly, cmd.Cooldown})
 	if err != nil || !pass {
 		return err
 	}
 	c.Num = num
-	// Resolve the broadcaster's UI locale so baked commands can localize replies.
-	// Only for commands that actually run (past the gate); the read is cache
-	// fronted, and any miss leaves Locale empty (default language).
 	if u, uerr := p.proj.User(ctx, c.BroadcasterID); uerr == nil {
 		c.Locale = u.Locale
 	}
@@ -105,9 +73,6 @@ func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.C
 	return emitErr
 }
 
-// runCustom resolves a broadcaster's custom command, gates it with the same rule
-// as a baked command, then hands the stored template to emitCommand — the same
-// lexer, line split, and slash-verb path baked replies use.
 func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args string, emit module.Emit) error {
 	cc, found, err := p.proj.Command(ctx, c.BroadcasterID, name)
 	if err != nil || !found || !cc.IsActive {
@@ -139,28 +104,11 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 		return err
 	}
 
-	// Count the successful run. cc.Name is the canonical key (an alias lookup
-	// resolves to it), so alias invocations all count against the one command.
 	p.recordUse(ctx, c, cc.Name)
 	p.bumpCommandCounter(ctx, c, cc)
 	return nil
 }
 
-// bumpCommandCounter applies the command-run "also bump counter <name> when
-// this command runs" option (cc.BumpCounter): a chosen setting, not a
-// template span, so it produces no render output of its own — this is why it
-// runs after emitCommand has already sent cc.Response, rather than as
-// something the response could read mid-render. It replaced {counter:x} as a
-// template TOKEN with a side effect (see ent/schema/commands.go's field
-// comment), and it reuses the exact dedup-claimed path that token used to
-// drive through scope.Store: claimedCounterValue's CounterEffect(name) claim
-// is per (event identity, counter name), so a redelivered command line skips
-// the increment exactly the way the old token bump did, rather than double
-// counting.
-//
-// The bump always keys on the sender: unlike a "{counter:target:x}" template
-// read, the option names no viewer to mention, so there is no addressing to
-// resolve.
 func (p *Pipeline) bumpCommandCounter(ctx context.Context, c *module.Context, cc projection.Command) {
 	if cc.BumpCounter == "" || p.loyalty == nil {
 		return
@@ -170,11 +118,6 @@ func (p *Pipeline) bumpCommandCounter(ctx context.Context, c *module.Context, cc
 	p.claimedCounterValue(ctx, c, cc.BumpCounter, sender, cc.Name)
 }
 
-// recordUse counts one successful command run. The reporter sums ticks locally
-// and publishes one event per command per flush window, so chat spam never
-// floods NATS. It is deduped so a redelivered command line does not inflate the
-// summed count: the use counter is one of the effects that is not naturally
-// idempotent, and a quorum loss redelivers whatever was in flight.
 func (p *Pipeline) recordUse(ctx context.Context, c *module.Context, name string) {
 	if p.uses == nil || p.dedup.Duplicate(ctx, EffectRef{Identity: EventIdentity(&c.Env), Effect: effectUse}) {
 		return
@@ -182,19 +125,6 @@ func (p *Pipeline) recordUse(ctx context.Context, c *module.Context, name string
 	p.uses.Record(c.BroadcasterID, name)
 }
 
-// blankLine reports whether an expanded line has nothing left to say.
-//
-// Whitespace-only counts as blank, not just empty, and that is what a
-// conditional needs: "{if:2:and {2}}" on a one-word invocation renders a line
-// holding one space, and a space is not a chat message. The drop happens
-// BEFORE the line is counted against validate.MaxResponseLines, so a response
-// whose middle line vanishes still sends every line the broadcaster wrote —
-// the alternative (count then drop) would silently eat the fifth line of a
-// five-line reply the moment one of the first four went quiet.
-//
-// It is the same reason the blank-line skip existed before conditionals: a
-// stored response with a double newline in it must not publish an empty chat
-// message. This only widens "empty" to "nothing visible".
 func blankLine(line string) bool {
 	return strings.TrimSpace(line) == ""
 }
@@ -231,15 +161,7 @@ func (p *Pipeline) prepareCommand(o *module.Output) bool {
 	return !isEmptyAction(o) && !p.floorSuppressed(o)
 }
 
-// emitCommand is the one command emit path. Baked modules and custom-command
-// templates both hand it a chat body; it lexes, splits lines, then translates
-// each line's slash-verb. Two expanders is how songqueue posted a literal
-// "@{user}" — the baked path skipped the lexer the custom path already had.
-//
-// Expansion lives HERE, not in newEmit. newEmit also publishes event-handler
-// lines and would re-lex a value already substituted into {args}, turning a
-// viewer's "{user}" into a token, which is the injection sanitizeVar exists
-// to keep as literal text.
+// Expand only here: newEmit would re-lex {args} and turn a viewer's typed "{user}" into a token.
 func (p *Pipeline) emitCommand(ctx context.Context, run commandRun, o *module.Output, emit module.Emit) (bool, error) {
 	p.expandCommandText(ctx, run, o)
 	if o.Type == outgress.TypeChat {
@@ -252,12 +174,6 @@ func (p *Pipeline) emitCommand(ctx context.Context, run commandRun, o *module.Ou
 	return true, nil
 }
 
-// expandCommandText runs one command body through the command lexer. Plan
-// happens once, before chatLines walks the result, so no lookup can hide
-// inside the loop that writes a chat line. A body with no spans is left
-// alone after Lex (ping-style copy, provider errors) — the skip reads the
-// token list, not a substring search for '{', which is the scanner this
-// package is not allowed to grow.
 func (p *Pipeline) expandCommandText(ctx context.Context, run commandRun, o *module.Output) {
 	switch o.Type {
 	case outgress.TypeChat, outgress.TypeAnnounce, outgress.TypePin:
@@ -288,10 +204,6 @@ func hasVarToken(toks []tmpl.Token) bool {
 	return false
 }
 
-// chatLines fans one expanded TypeChat body into one action per non-empty
-// line, each with its own slash-verb translation, capped at
-// validate.MaxResponseLines. User-controlled values are sanitizeVar'd before
-// they reach here, so an embedded newline in {args} cannot mint a second line.
 func (p *Pipeline) chatLines(o *module.Output) []module.Output {
 	outputs := make([]module.Output, 0, validate.MaxResponseLines)
 	lines := 0
@@ -315,13 +227,6 @@ func (p *Pipeline) chatLines(o *module.Output) []module.Output {
 	return outputs
 }
 
-// claimedCounterValue applies one event's counter bump exactly once: a fresh
-// dedup claim bumps and renders the new value; a replay (redelivered command
-// line) skips the increment and renders the counter's CURRENT value via a
-// peek, so the re-run line shows the same number instead of double-counting;
-// a failed bump releases its claim so redelivery retries. The kill switch
-// (nil dedup) degrades to the plain unguarded bump. An empty result means
-// "render without a value" — a bump error or an unknown-counter peek.
 func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, name string, viewer Viewer, command string) string {
 	bump := func() (int64, error) {
 		return p.loyalty.CounterBump(ctx, CounterBump{
@@ -364,9 +269,6 @@ func (p *Pipeline) claimedCounterValue(ctx context.Context, c *module.Context, n
 	return strconv.FormatInt(value, 10)
 }
 
-// firstArg returns the first whitespace-delimited word of a command's
-// arguments — the same word emitCommand renders as {touser}. Fields rather
-// than a space Cut so a tab after the mention cannot glue itself to the name.
 func firstArg(args string) string {
 	fields := strings.Fields(args)
 	if len(fields) == 0 {
@@ -375,9 +277,6 @@ func firstArg(args string) string {
 	return fields[0]
 }
 
-// gateRule is the set of checks one command is gated by, so the gate takes a
-// single value rather than a long parameter list. runBaked builds it from a
-// module.Command; runCustom builds it from a projection.Command.
 type gateRule struct {
 	name          string
 	allowedUserID string
@@ -386,11 +285,6 @@ type gateRule struct {
 	cooldown      time.Duration
 }
 
-// gate applies the one shared command gate — permission, then live-only, then
-// cooldown — and returns (true, nil) only when every applicable check passes.
-// Each check is its own helper so the gate reads as three linear steps and
-// allocates nothing on the hot path (the cooldown key is built into a pooled
-// buffer).
 func (p *Pipeline) gate(ctx context.Context, c *module.Context, r gateRule) (bool, error) {
 	if !permits(c, r.allowedUserID, r.perm) {
 		return false, nil
@@ -399,13 +293,11 @@ func (p *Pipeline) gate(ctx context.Context, c *module.Context, r gateRule) (boo
 		return false, err
 	}
 	if c.Env.Origin == "trial" {
-		return true, nil // no cooldown claim or other channel-owned write
+		return true, nil
 	}
 	return p.cooldownOK(ctx, c.BroadcasterID, r.name, r.cooldown)
 }
 
-// permits checks the permission tier: an explicit allowed user overrides the
-// role tier entirely.
 func permits(c *module.Context, allowedUserID string, perm module.Role) bool {
 	if allowedUserID != "" {
 		return c.Env.ChatterUserID == allowedUserID
@@ -413,7 +305,6 @@ func permits(c *module.Context, allowedUserID string, perm module.Role) bool {
 	return c.Chatter().Allows(perm)
 }
 
-// liveOK passes when the command is not live-only or the broadcaster is live.
 func (p *Pipeline) liveOK(ctx context.Context, c *module.Context, liveOnly bool) (bool, error) {
 	if !liveOnly {
 		return true, nil
@@ -421,8 +312,6 @@ func (p *Pipeline) liveOK(ctx context.Context, c *module.Context, liveOnly bool)
 	return p.live.IsLive(ctx, c.BroadcasterID)
 }
 
-// cooldownOK passes when the command has no cooldown or its window is free (and
-// claims it).
 func (p *Pipeline) cooldownOK(ctx context.Context, broadcasterID uint64, name string, cooldown time.Duration) (bool, error) {
 	if cooldown <= 0 {
 		return true, nil
@@ -430,16 +319,10 @@ func (p *Pipeline) cooldownOK(ctx context.Context, broadcasterID uint64, name st
 	return p.cooldown.Allow(ctx, cooldownKey(broadcasterID, name), cooldown)
 }
 
-// CommandCooldownKey exposes the gate's cooldown key for a module that routes a
-// subcommand to the same reply as a standalone command (e.g. !queue list vs
-// !list) and must share that command's throttle window rather than sidestep it.
 func CommandCooldownKey(broadcasterID uint64, name string) string {
 	return cooldownKey(broadcasterID, name)
 }
 
-// cooldownKey builds "cooldown:cmd:<broadcasterID>:<name>" into a pooled scratch
-// buffer, appending the id with strconv so the hot path does no fmt-style
-// allocation. The buffer is returned to the pool before the string is handed off.
 func cooldownKey(broadcasterID uint64, name string) string {
 	buf := GetBuf()
 	buf = append(buf, "cooldown:cmd:"...)

@@ -9,9 +9,6 @@ defmodule Ingress.JSONTest do
   defp encode(term), do: term |> JSON.encode() |> IO.iodata_to_binary()
 
   test "encodes date/time structs as ISO 8601 strings, not raw struct maps" do
-    # Regression: native :json has no protocol dispatch, so a DateTime's tuple
-    # :microsecond field raised {:unsupported_type, {_, 6}} and crashed the shard
-    # publishing twitch.ingress.status.shard.up (since: DateTime.utc_now()).
     dt = ~U[2026-07-12 18:23:44.211650Z]
     assert encode(%{since: dt}) == ~s({"since":"2026-07-12T18:23:44.211650Z"})
 

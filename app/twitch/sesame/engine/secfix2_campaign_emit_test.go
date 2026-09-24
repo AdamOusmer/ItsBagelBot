@@ -21,10 +21,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// --- emit-side chat cap (the runtime backstop for pre-walk stored configs) ---
-
-// Untouched output is returned byte-identical: the common case must not pay a
-// rebuild (or drift by a join/split round trip).
 func TestCapChatTextPassthrough(t *testing.T) {
 	for _, text := range []string{
 		"",
@@ -39,21 +35,17 @@ func TestCapChatTextPassthrough(t *testing.T) {
 }
 
 func TestCapChatTextTruncates(t *testing.T) {
-	// Six lines -> first five.
 	got, changed := capChatText("1\n2\n3\n4\n5\n6")
 	assert.True(t, changed)
 	assert.Equal(t, "1\n2\n3\n4\n5", got)
 
-	// Oversized line cut to the byte limit.
 	got, changed = capChatText(strings.Repeat("a", 501))
 	assert.True(t, changed)
 	assert.Len(t, got, 500)
 }
 
-// A byte-exact cut could split a multibyte rune and hand outgress an invalid
-// UTF-8 sequence; the cut backs up to a rune start instead.
 func TestCapChatTextRuneSafe(t *testing.T) {
-	confetti := "\U0001F389" // 4 bytes
+	confetti := "\U0001F389"
 	line := strings.Repeat("a", 498) + confetti + confetti
 	got, changed := capChatText(line)
 	assert.True(t, changed)
@@ -61,8 +53,6 @@ func TestCapChatTextRuneSafe(t *testing.T) {
 	require.NotPanics(t, func() { _, _ = codec.Marshal(got) })
 }
 
-// The full emit path: a module (or old stored config) that renders an oversized
-// line publishes a bounded message instead of a guaranteed Twitch 400.
 func TestEmitCapsOversizedChatOutput(t *testing.T) {
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{},
@@ -80,26 +70,16 @@ func TestEmitCapsOversizedChatOutput(t *testing.T) {
 		"each oversized line is capped in place; nothing over five lines goes out")
 }
 
-// --- external variable capping ---
-
 func TestExternalVarCapsAndSanitizes(t *testing.T) {
 	assert.Equal(t, "sniper", ExternalVar("sniper"))
-	// Control characters stripped, so no embedded newline can mint extra
-	// lines (the leftover "/" is inert mid-line; only a LEADING slash run is
-	// a verb vector and sanitizeVar trims that too).
 	assert.Equal(t, "evil/ban everyone bot", ExternalVar("evil\n/ban everyone bot"))
 	assert.Equal(t, "ban everyone", ExternalVar("/ban everyone"))
-	// ...and length capped at MaxExternalVarBytes without splitting runes.
 	long := strings.Repeat("x", 300) + "\U0001F389"
 	got := ExternalVar(long)
 	assert.LessOrEqual(t, len(got), MaxExternalVarBytes)
 	assert.Equal(t, strings.Repeat("x", MaxExternalVarBytes), got)
 }
 
-// --- campaign-band poisoning mitigations ---
-
-// recordingReputation records strikes so the attribution rule can be observed:
-// council-only verdicts must not score, content-backed ones must.
 type recordingReputation struct {
 	scores map[string]int
 	bumps  []string
@@ -113,8 +93,6 @@ func (r *recordingReputation) Score(_ context.Context, id string) int { return r
 
 func (r *recordingReputation) Bump(_ context.Context, id string) { r.bumps = append(r.bumps, id) }
 
-// campaignPipeline is councilPipeline with a reputation store and an injectable
-// zap core (pass nil for a nop logger).
 func campaignPipeline(pub *fakePublisher, camp Campaign, rep Reputation, zc zapcore.Core) *Pipeline {
 	gate := automod.New()
 	gate.SetEmotes(automod.NewEmoteSet(nil))
@@ -131,13 +109,6 @@ func campaignPipeline(pub *fakePublisher, camp Campaign, rep Reputation, zc zapc
 	})
 }
 
-// A band quorum with NO content signal behind it (clean link carrier, delete
-// minted purely by "council:campaign") enforces the immediate delete — a real
-// flood needs it — but records NO reputation strike: 8 colluding accounts can
-// manufacture the quorum, so letting it score would let them pump an innocent
-// user up the warn->timeout->ban ladder while the reason launders it as
-// automod. The activation itself lands one Warn audit line naming the channel
-// and the actioned chatter.
 func TestCampaignOnlyVerdictSkipsReputationStrikeButAudits(t *testing.T) {
 	pub := &fakePublisher{}
 	rep := newRecordingReputation()
@@ -154,11 +125,6 @@ func TestCampaignOnlyVerdictSkipsReputationStrikeButAudits(t *testing.T) {
 	assert.Equal(t, "777", matched.All()[0].ContextMap()["chatter_id"])
 }
 
-// A content-backed verdict escalated BY the campaign juror keeps its strike:
-// the content signal alone justifies it regardless of what the band said.
-// (The link makes the base evidence content-backed — under the jury rule a
-// style-only delete at quorum stays delete and is covered over in
-// council_test.go.)
 func TestContentBackedCampaignEscalationStillScores(t *testing.T) {
 	pub := &fakePublisher{}
 	rep := newRecordingReputation()

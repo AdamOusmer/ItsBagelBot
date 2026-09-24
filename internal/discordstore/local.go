@@ -13,91 +13,32 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// cachedConfigEntry is what the settings cache key holds: the blob plus the
-// version, because a caller that reads from cache still has to echo a version
-// back on its next write.
 type cachedConfigEntry struct {
 	Config  ddiscord.Config `json:"config"`
 	Version int             `json:"version"`
 }
 
-// bindingCacheTTL bounds how long a cached guild->broadcaster answer is served
-// without asking discord-data.
-//
-// Ten minutes, not indefinite and not seconds. The binding changes only when a
-// broadcaster runs setup or unbind from the dashboard, which is rare and
-// already invalidates the entry directly, so the TTL exists purely as the
-// backstop for an invalidation this process never saw (a replica that was
-// restarting, a dropped RPC). Shorter would put a round trip on the hot path of
-// every gateway event for no gain; longer leaves a genuinely stale binding
-// answering events for a channel that has moved on.
 const bindingCacheTTL = 10 * time.Minute
 
-// configCacheTTL bounds how long a cached guild settings blob is served
-// without asking discord-data.
-//
-// One minute, an order of magnitude shorter than bindingCacheTTL, because the
-// two entries fail differently. A stale binding sends events to the wrong
-// broadcaster's config; a stale settings blob only delays a toggle the
-// streamer just flipped. Outgress DELs this key on every successful save, so
-// the TTL covers exactly one case -- an invalidation this replica never saw --
-// and a minute of a just-flipped switch not taking effect is the worst that
-// costs.
 const configCacheTTL = 60 * time.Second
 
-// guildsCacheTTL bounds how long a cached "which guilds does this broadcaster
-// own" answer is served without asking discord-data.
-//
-// Sixty seconds, matching configCacheTTL rather than bindingCacheTTL. The
-// listing feeds two callers with opposite tolerances: the dashboard's server
-// picker, which a streamer reloads seconds after adding a server, and the
-// Twitch fan-out, which posts to every guild on it. Both write verbs drop the
-// key directly, so the TTL is only the backstop for an invalidation a replica
-// never saw -- and a minute is short enough that a server added on another
-// replica shows up before the streamer reaches for the reload button.
 const guildsCacheTTL = 60 * time.Second
 
-// localStore is the node-local half of the state Discord features need: the
-// whole Store surface, plus the cache and cooldown primitives that never leave
-// the node and so are not part of the cross-process interface. Both the Valkey
-// store and the in-memory test double satisfy it.
-//
-// NewRPC composes one of these rather than reimplementing voice occupancy,
-// clone tracking and the desk lock over RPC: those keyspaces are ephemeral,
-// engine-private and die with the channel they describe, so moving them to
-// MySQL would buy durability nothing reads.
 type localStore interface {
 	Store
 
-	// cachedBroadcaster reads the guild binding cache. It is exactly what
-	// Store.Broadcaster does on the Valkey store; named separately so the RPC
-	// store's fallback path reads as a cache read at the call site.
 	cachedBroadcaster(ctx context.Context, g Guild) (Broadcaster, bool)
 	cacheBroadcaster(ctx context.Context, g Guild, b Broadcaster)
 	dropBroadcaster(ctx context.Context, g Guild)
-	// cachedConfig reads the guild settings cache. Unlike cachedBroadcaster
-	// this is NOT what Store.GuildConfig does on the Valkey store: settings
-	// have no Valkey store of record, so only the RPC store may serve them,
-	// and only as a cache in front of discord-data.
 	cachedConfig(ctx context.Context, g Guild) (ddiscord.Config, int, bool)
 	cacheConfig(ctx context.Context, g Guild, cfg ddiscord.Config, version int)
 	dropConfig(ctx context.Context, g Guild)
 	cachedGuilds(ctx context.Context, b Broadcaster) ([]Binding, bool)
 	cacheGuilds(ctx context.Context, b Broadcaster, guilds []Binding)
-	// dropGuilds invalidates one broadcaster's guild list. Both write verbs
-	// call it, which is what keeps the listing symmetric with the binding
-	// cache: bind and unbind invalidate directly, the TTL is the backstop.
 	dropGuilds(ctx context.Context, b Broadcaster)
-	// takeXPCooldown reports whether this message earns XP, taking the 60s
-	// per-member cooldown when it does. It stays local by design: a rate
-	// limiter with a TTL is the one thing Valkey is better at than MySQL, and
-	// routing it through discord-data would put an RPC round trip on every
-	// message in every guild.
 	takeXPCooldown(ctx context.Context, m Member) bool
 }
 
-// newLocal builds the node-local store. A nil client yields the in-memory
-// double, matching New's contract.
 func newLocal(client valkey.Client) localStore {
 	if client == nil {
 		return NewMem()
@@ -105,10 +46,6 @@ func newLocal(client valkey.Client) localStore {
 	return valkeyStore{client: client}
 }
 
-// kv is the shared string/JSON command surface over this store's own client.
-// Built on demand rather than kept as a second field: it is a one-word value
-// over the client the struct already holds, and a field would mean every
-// construction site had to remember to fill it in step with client.
 func (s valkeyStore) kv() pkg_valkey.KV { return pkg_valkey.NewKV(s.client) }
 
 func (s valkeyStore) cachedBroadcaster(ctx context.Context, g Guild) (Broadcaster, bool) {
@@ -119,16 +56,10 @@ func (s valkeyStore) cacheBroadcaster(ctx context.Context, g Guild, b Broadcaste
 	if g.ID == "" || b.ID == "" {
 		return
 	}
-	// Failing to cache is not failing the read: the next call pays another
-	// round trip, which is strictly better than turning a served event into an
-	// error because Valkey blinked.
 	_ = s.kv().Set(ctx, pkg_valkey.Key{Name: guildKey(g), TTL: bindingCacheTTL}, b.ID)
 }
 
 func (s valkeyStore) dropBroadcaster(ctx context.Context, g Guild) {
-	// The binding key and its cache entry are the same key here, so dropping
-	// the cache is the DEL UnbindGuild issues -- minus the guild-list
-	// invalidation, which has no broadcaster to address at this point.
 	_ = s.kv().Del(ctx, guildKey(g))
 }
 
@@ -186,9 +117,6 @@ func (s valkeyStore) dropGuilds(ctx context.Context, b Broadcaster) {
 	_ = s.kv().Del(ctx, guildsKey(b))
 }
 
-// The memory double's guild-list cache is its own map, not its GuildsOf: the
-// RPC store composes a local half purely for these three, and a double whose
-// cache methods were no-ops would let a caching bug pass every test.
 func (m *Mem) cachedGuilds(_ context.Context, b Broadcaster) ([]Binding, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -231,7 +159,6 @@ func (m *Mem) takeXPCooldown(_ context.Context, mem Member) bool {
 	return m.takeXPCooldownLocked(mem)
 }
 
-// takeXPCooldownLocked assumes m.mu is already held.
 func (m *Mem) takeXPCooldownLocked(mem Member) bool {
 	k := mem.key()
 	if m.xpCD[k] {

@@ -1,14 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Demo fixtures for the config-import wizard (settings/import), DEMO=1 only.
-//
-// A sibling of demo-data.ts rather than a section of it: that module's
-// production-graph guarantee rests on being pulled ONLY through dynamic
-// import() edges inside branches guarded by the build-time `dev` constant.
-// This module keeps the identical contract (same sentinel, same
-// dynamic-import-only rule), so the importer's demo plumbing never widens the
-// surface of the already load-bearing fixtures file.
 import { dev } from '$app/environment';
 import type {
   CommitResponse,
@@ -20,11 +12,6 @@ import type {
 
 if (!dev) throw new Error('DASHBOARD_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 
-// One canonical manifest for every source. The wizard UX (review checkboxes,
-// warning badges, collision highlight, overwrite toggle) is identical across
-// sources either way; the per-parser differences live server-side in prod, so
-// faking them here would only risk drift from the real translation tables.
-// One builder per collection composes into demoManifest.
 function demoManifest(): ImportManifest {
   return {
     commands: demoCommands(),
@@ -144,8 +131,6 @@ export function demoImportPreview(_source: ImportSource): PreviewResponse {
   };
 }
 
-// Mirrors the real commit semantics closely enough to exercise the summary
-// screen: without overwrite, a colliding item is skipped rather than applied.
 export function demoImportCommit(manifest: ImportManifest, overwrite: boolean): CommitResponse {
   const applied = stats(manifest);
   let skipped: CommitResponse['skipped'];

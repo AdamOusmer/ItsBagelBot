@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The server list. One broadcaster owns many guilds, so this route holds
-// everything that is true of the account -- the master switch, the list, the
-// invite path -- and /discord/[guildId] holds everything that is true of one
-// server.
 import type { Actions, PageServerLoad } from './$types';
 import { readDiscord, saveDiscordModule, type DiscordGuildSummary } from '$lib/server/discord-store';
 import { DISCORD_ERROR_SLUGS, discordConfigured, discordTemplateURL } from '$lib/server/discord-oauth';
@@ -17,8 +13,7 @@ import { dev } from '$app/environment';
 import { fail } from '@sveltejs/kit';
 import { actionError } from '$lib/server/action-errors';
 
-// process.env, not $env/dynamic/private: this route sits behind guard.ts on
-// the boot import graph (see module-gate.ts).
+// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 const DEMO = dev && process.env.DEMO === '1';
 
 type DiscordListPage = {
@@ -49,16 +44,6 @@ export const load: PageServerLoad = ({ locals, url }) => {
   const rawSlug = url.searchParams.get('e') ?? '';
   const errorSlug = (DISCORD_ERROR_SLUGS as readonly string[]).includes(rawSlug) ? rawSlug : '';
 
-  // Discord is premium-only while it is in beta. The route guard lets a
-  // sectioned module through so the page can explain that rather than
-  // bouncing the visitor to a grid Discord is no longer in; the page renders
-  // a locked panel and every action refuses (see listAction).
-  //
-  // Resolved inside `read` rather than before moduleLoad so the delegate gate
-  // still runs first (moduleLoad pins that order, and the tier lookup is an
-  // RPC for a beta module); `blank` reads the value the read already settled,
-  // which is why it is a captured let rather than a second lookup on the
-  // degraded path.
   let locked = false;
   return moduleLoad<DiscordListPage>('discord', locals.session, {
     demo: DEMO ? demoPage : undefined,
@@ -80,13 +65,6 @@ async function demoPage(): Promise<DiscordListPage> {
 }
 
 export const actions: Actions = {
-  // The master switch is per broadcaster, not per guild: turning Discord off
-  // stops Bagel posting in every server at once, which is what a streamer who
-  // reaches for this control means.
-  //
-  // The beta lock is checked here rather than in the gate: it is a refusal
-  // with its own status and copy (the page renders the upgrade panel), which
-  // the skeleton's single "not signed in" refusal cannot say.
   toggle: moduleAction(
     'discord',
     'toggle',

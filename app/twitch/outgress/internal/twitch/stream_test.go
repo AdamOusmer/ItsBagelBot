@@ -71,8 +71,6 @@ func TestStreamStartedAtSurfacesTwitchFailure(t *testing.T) {
 	}
 }
 
-// The live and offline cases differ only in the payload and the expected
-// StreamDetails, so they share one table rather than two near-identical bodies.
 func TestStreamDetails(t *testing.T) {
 	live := StreamDetails{
 		Title:       "Ranked grind",

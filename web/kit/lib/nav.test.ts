@@ -19,16 +19,12 @@ import { dashboardNavItems as clientNavItems } from './nav-dashboard';
 
 describe('nav registry', () => {
   test('every bespoke page prefix resolves to its owning section', () => {
-    // Counters/quotes/govee/timers/loyalty have no nav entry of their own; they
-    // must breadcrumb as Modules or the old four-place drift is back.
     expect(sectionForPath('/')).toBe('overview');
     expect(sectionForPath('/commands')).toBe('commands');
     expect(sectionForPath('/commands/new')).toBe('commands');
     for (const p of ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty']) {
       expect(sectionForPath(p)).toBe('modules');
     }
-    // Discord graduated out of Modules into its own section (see
-    // DASHBOARD_SECTIONS): it must NOT resolve as 'modules' any more.
     expect(sectionForPath('/discord')).toBe('discord');
     expect(sectionForPath('/billing')).toBe('billing');
     expect(sectionForPath('/settings')).toBe('settings');
@@ -65,9 +61,6 @@ describe('nav registry', () => {
     expect(items.map((i) => i.active)).toEqual([false, false, false, false, true, false]);
   });
 
-  // Delegate visibility: ownerOnly entries (Overview, Settings) drop; grants
-  // gate the rest. A commands-only delegate gets exactly one entry: this is
-  // the shape guard.ts bounce logic assumes.
   test('a delegate sees only granted sections, never owner-only ones', () => {
     const items = dashboardNavItems({ isDelegate: true, sections: ['commands'], section: 'commands' });
     expect(items).toHaveLength(1);
@@ -83,9 +76,6 @@ describe('nav registry', () => {
   });
 
   test('the rail nests the /modules sections, not the modules themselves', () => {
-    // A module is a tile on /modules, not a page of its own (only 9 of the
-    // catalog rows have a route, including /discord), so the rail must mirror that page's sections
-    // instead.
     const links = moduleSectionLinks((key) => `en:${key}`);
     expect(links.map((l) => l.href)).toEqual(
       MODULE_CATEGORY_ORDER.map((name) => `/modules#cat-${name.toLowerCase()}`)
@@ -128,12 +118,7 @@ describe('nav registry', () => {
   });
 });
 
-// Table-driven on purpose: each of these three functions is a pure
-// sections -> verdict map, so the cases ARE the specification. Written out one
-// assertion per line they were near-identical blocks that a reader has to diff
-// by eye to spot the one differing id.
 describe('delegateAllowedPaths', () => {
-  // A grant that opens an exact, closed set of paths.
   test.each([
     [[], []],
     [['invalid_sec', 'admin'], []],
@@ -142,7 +127,6 @@ describe('delegateAllowedPaths', () => {
     expect(delegateAllowedPaths(sections)).toEqual(paths);
   });
 
-  // A grant that also pulls in every module page scoped to it.
   test.each([
     ['commands', ['/commands', '/counters/list', '/quotes', '/timers'], ['/billing', '/settings', '/channelpoints']],
     ['channelpoints', ['/channelpoints', '/songqueue'], ['/commands', '/billing', '/counters/list']],
@@ -171,12 +155,6 @@ describe('pathnameAllowed', () => {
     expect(pathnameAllowed(path, delegateAllowedPaths(['commands']), ['commands'])).toBe(want);
   });
 
-  // Discord is seven routes now, not one page: the guild shell and every
-  // sub-page hang off /discord/<guildId>. The 'discord' grant admits them
-  // through the section's own `match: ['/discord']` prefix, so a delegate who
-  // can open the server list can open the pages that server list links to. A
-  // narrower match here would 403 a delegate mid-navigation with no nav entry
-  // to explain it.
   test.each([
     ['/discord', true],
     ['/discord/123456789012345678', true],
@@ -187,9 +165,6 @@ describe('pathnameAllowed', () => {
     expect(pathnameAllowed(path, delegateAllowedPaths(['discord']), ['discord'])).toBe(want);
   });
 
-  // The '/modules' prefix covers every catalog module's generic page, so a
-  // module with its own narrower delegateSections must be rechecked by id
-  // rather than admitted on the bare 'modules' grant.
   test.each([
     [['modules'], '/modules', true],
     [['modules'], '/modules/quotes', true],

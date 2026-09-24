@@ -12,8 +12,8 @@ import (
 func TestParseColorNamed(t *testing.T) {
 	cases := map[string]int{
 		"red":     0xFF0000,
-		"BLUE":    0x0066FF, // case-insensitive
-		" green ": 0x00C000, // trimmed
+		"BLUE":    0x0066FF,
+		" green ": 0x00C000,
 		"magenta": 0xFF00FF,
 		"white":   0xFFFFFF,
 	}
@@ -28,7 +28,7 @@ func TestParseColorHex(t *testing.T) {
 	cases := map[string]int{
 		"#00ccff": 0x00CCFF,
 		"00ccff":  0x00CCFF,
-		"#FFF":    0xFFFFFF, // short form doubles nibbles
+		"#FFF":    0xFFFFFF,
 		"f80":     0xFF8800,
 		"#000000": 0x000000,
 	}
@@ -47,8 +47,6 @@ func TestParseColorRejectsGarbage(t *testing.T) {
 }
 
 func TestColorNamesAllParse(t *testing.T) {
-	// Every advertised name must actually resolve, or the reward prompt would
-	// suggest colours the module then refunds.
 	for _, name := range colorNames() {
 		_, ok := parseColor(name)
 		assert.True(t, ok, "advertised colour %q must parse", name)

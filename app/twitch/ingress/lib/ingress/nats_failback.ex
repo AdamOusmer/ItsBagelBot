@@ -2,22 +2,10 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.NatsFailback do
-  @moduledoc """
-  Returns displaced NATS connections to the same-node leaf after recovery.
-
-  The ordinary `nats-leaf` Service remains available cluster-wide for failover;
-  `nats-leaf-local` has `internalTrafficPolicy: Local` and is used only as proof
-  that this node's leaf has recovered. Connections are moved one at a time.
-  """
-
   use GenServer
   require Logger
 
-  # Only the RPC plane (:gnat) is failed back to the node-local leaf. The BUS
-  # plane (:gnat_bus) dials the hub directly (hub-direct firehose), whose
-  # server_name is "nats-N", never "<node>--…", so local_connection?/2 would
-  # always treat it as displaced and recycle it every 3 checks (~90s) forever.
-  # It has no local-leaf to fail back to — leave it pinned to the hub.
+  # Never :gnat_bus: it dials the hub directly, so it would be recycled forever as displaced.
   @connections [:gnat]
 
   def start_link(opts \\ []) do
@@ -56,31 +44,21 @@ defmodule Ingress.NatsFailback do
 
         cond do
           locality == true ->
-            # Already on the node-local leaf — nothing to do.
             {Map.put(counts, name, 0), candidate}
 
           locality == :unknown ->
-            # Connection is reconnecting or between states (process absent,
-            # server_info unavailable). Don't count this toward displacement;
-            # leave the counter unchanged so a transient reconnect window
-            # (e.g. after Gnat's own backoff) doesn't accumulate false
-            # displacement evidence.
             {counts, candidate}
 
           !local_ready ->
             {Map.put(counts, name, 0), candidate}
 
           true ->
-            # Connection is confirmed on a remote leaf and the local leaf is
-            # healthy — count toward failback.
             count = Map.get(counts, name, 0) + 1
             next = if is_nil(candidate) and count >= state.required, do: name, else: candidate
             {Map.put(counts, name, count), next}
         end
       end)
 
-    # One connection per check limits the blast radius for in-flight RPCs and
-    # lets subscriptions settle before the other account is re-homed.
     successes =
       if candidate do
         server =
@@ -106,12 +84,6 @@ defmodule Ingress.NatsFailback do
     {:noreply, state}
   end
 
-  # Returns `true` when connected to the node-local leaf, `false` when
-  # confirmed on a remote server, or `:unknown` when the connection process
-  # is absent or between states (backoff reconnect window). The three-way
-  # return lets the caller distinguish "definitely displaced" from "can't
-  # tell yet", preventing transient reconnect windows from accumulating
-  # false displacement evidence that triggers unnecessary connection kills.
   @spec local_connection?(atom(), String.t()) :: boolean() | :unknown
   defp local_connection?(name, node) do
     case Process.whereis(name) do

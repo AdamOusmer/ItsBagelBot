@@ -38,12 +38,10 @@ var ghcrPull = credential{user: "bagel", pass: "ghcr-pull-token"}
 
 var (
 	amd64 = v1.Platform{OS: "linux", Architecture: "amd64"}
-	// arm64 carries a variant on purpose: it must still count as linux/arm64.
 	arm64 = v1.Platform{OS: "linux", Architecture: "arm64", Variant: "v8"}
 	both  = []string{"linux/amd64", "linux/arm64"}
 )
 
-// outcome is everything a call tells the caller, compared in one assert.
 type outcome struct {
 	Info    ports.ImageInfo
 	Tags    []deploy.Tag
@@ -75,8 +73,6 @@ func imageRef(image deploy.ImageName, tag deploy.Tag) ports.ImageRef {
 	return ports.ImageRef{Image: image, Tag: tag}
 }
 
-// fixture is an in-memory registry behind basic auth, the challenge ghcr
-// puts in front of the ghcr-pull credential.
 type fixture struct {
 	t    *testing.T
 	repo string
@@ -114,7 +110,6 @@ func (f *fixture) push() remote.Option {
 	return remote.WithAuth(&authn.Basic{Username: ghcrPull.user, Password: ghcrPull.pass})
 }
 
-// image builds a random image stamped the way publish-images stamps one.
 func (f *fixture) image(revision deploy.SHA) v1.Image {
 	img, err := random.Image(256, 1)
 	require.NoError(f.t, err)

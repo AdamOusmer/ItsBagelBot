@@ -1,16 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // "What the bot just did": the newest work the bot has done this stream.
-  //
-  // Rows are keyed by id so Svelte moves the existing nodes when a new row is
-  // pushed onto the head instead of recreating the list; only the arriving row
-  // animates. Keying by index would re-run the entry animation on every row at
-  // once, every time.
-  //
-  // The footer states the median answer time AND whether anything was shed. The
-  // pipeline hook drops events under backpressure by design, so a feed that
-  // silently omitted them would be claiming a completeness it does not have.
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { clockFace, type ActivityFeed, type ActivityKind } from '$lib/overview-live';
@@ -98,8 +88,6 @@
     color: var(--bb-white);
     margin: 0;
   }
-  /* .ov-log__live/.ov-dot--live (glowing ov-pulse dot) dropped for the global
-     .bb-tag--incoming label; .bb-sweep carries the motion. */
   .ov-log__list {
     list-style: none;
     margin: 0;
@@ -121,8 +109,6 @@
     color: var(--bb-muted);
     font-variant-numeric: tabular-nums;
   }
-  /* Pill fill/border/radius gone: the row is already bordered, so the kind
-     chip is a .bb-tag--bare label. Only layout + colour stay scoped here. */
   .ov-log__chip {
     flex: none;
     min-width: 78px;
@@ -173,11 +159,6 @@
     text-transform: uppercase;
     color: var(--bb-muted);
   }
-  /* The link is the `TextLink` block. Its rest/lit colours are the two
-     custom properties the contract exposes (`--text-link-rest`,
-     `--text-link-lit`, elements/text-link.css); this footer runs tan rather
-     than the default muted because the row it sits in is already muted and
-     the link has to be the one thing in it you can click. */
   .ov-log__foot {
     --text-link-rest: var(--bb-tan);
     --text-link-lit: var(--bb-tan-pale);

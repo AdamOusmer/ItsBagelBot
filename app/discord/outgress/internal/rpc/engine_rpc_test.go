@@ -135,9 +135,6 @@ func TestHandleLiveOnlineIsIdempotentPerStream(t *testing.T) {
 		t.Fatalf("expected exactly one embed sent, got %d", len(rest.sent))
 	}
 
-	// A repeat call for the same (still-announced) stream must not post a
-	// second embed -- this is the whole reason LiveOnline is an RPC and not
-	// a fire-and-forget Command (see internal/domain/rpc/discordoutgress's doc).
 	second := h.handleLiveOnline(context.Background(), discordoutgress.LiveOnlineRequest{GuildID: "g1", ChannelID: "c1"})
 	if second.Error != "" {
 		t.Fatalf("second online: %s", second.Error)
@@ -192,11 +189,6 @@ func TestHandleInviteResolveReturnsTheTargetGuild(t *testing.T) {
 	}
 }
 
-// TestHandleInviteResolve404IsNotFoundNotError proves a dead code (revoked,
-// expired, never existed) is reported as NotFound rather than Error --
-// engine caches NotFound but never caches Error (see InviteResolveReply's
-// doc), and a dead invite is exactly the amplification case (a spam wave of
-// junk codes) that caching needs to hold.
 func TestHandleInviteResolve404IsNotFoundNotError(t *testing.T) {
 	rest := &fakeEngineREST{inviteErr: discapi.ErrChannelNotFound}
 	h := &engineRPC{rest: rest, log: zap.NewNop()}
@@ -206,11 +198,6 @@ func TestHandleInviteResolve404IsNotFoundNotError(t *testing.T) {
 	}
 }
 
-// TestHandleInviteResolveGroupDMInviteIsNotFound proves an invite that
-// resolved successfully but named no guild (a group-DM invite -- discord.gg
-// codes are not guild-exclusive) also collapses to NotFound: linkguard's
-// only question is "does this code target guild X", and a codeless-of-guild
-// invite can never answer yes.
 func TestHandleInviteResolveGroupDMInviteIsNotFound(t *testing.T) {
 	rest := &fakeEngineREST{inviteReply: discapi.Invite{Code: "dm1"}}
 	h := &engineRPC{rest: rest, log: zap.NewNop()}
@@ -220,11 +207,6 @@ func TestHandleInviteResolveGroupDMInviteIsNotFound(t *testing.T) {
 	}
 }
 
-// TestHandleInviteResolveTransientErrorIsError proves an unclassified
-// failure (network, 5xx, the shared rate-limit bucket) comes back as Error,
-// not NotFound -- engine must not cache this as a confirmed answer (see
-// linkguard.go's tripIsOwnInvite doc for the fail-safe this distinction
-// drives).
 func TestHandleInviteResolveTransientErrorIsError(t *testing.T) {
 	rest := &fakeEngineREST{inviteErr: errors.New("boom")}
 	h := &engineRPC{rest: rest, log: zap.NewNop()}

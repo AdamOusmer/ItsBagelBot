@@ -2,25 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.ConduitManager do
-  @moduledoc """
-  Cluster-singleton reconciler for the Conduit.
-
-  Exactly one instance runs in the BEAM cluster (registered in
-  `Ingress.Registry`, supervised by `Ingress.ShardSupervisor`, so it fails
-  over with the rest of the Horde-managed processes). It ensures the Conduit
-  exists on Twitch's side with the desired shard count (sourced from
-  `Ingress.ShardScaler`), then converges the running `Ingress.ShardSession`
-  processes to match — starting missing shards and stopping excess ones.
-
-  Reconciliation repeats periodically. Each tick reads Twitch's per-shard
-  snapshot once and uses it twice: to gate shard starts (never start into a
-  slot Twitch says is being served — that is how rolling deploys used to
-  spawn duplicate copies) and to heal any slot Twitch reports unhealthy
-  (dead binding, wedged session, blocked replacement — see the rescue
-  section below). Conduit writes still happen only when the desired shard
-  count changes.
-  """
-
   use GenServer
   require Logger
 
@@ -33,21 +14,12 @@ defmodule Ingress.ConduitManager do
   alias Ingress.Singleton
   alias Ingress.Twitch.Api
 
-  # Also the shard-health poll cadence: worst-case blackhole detection is one
-  # interval, and escalation to a replacement/rescue is two.
   @reconcile_interval_ms 15_000
   @retry_interval_ms 5_000
-  # How long a direct stop of an unsupervised (orphan) shard may take.
   @orphan_stop_timeout_ms 5_000
-  # Passive Horde redistribution avoids stop-before-start gaps during a roll.
-  # Once the same membership has survived this many reconcile ticks (~2 min),
-  # move at most one shard per tick with an explicit make-before-break handoff.
   @rebalance_stable_ticks 9
   @rebalance_handoff_timeout_ms 20_000
   @rebalance_poll_interval_ms 300
-  # The released name has to reach the registry replica on the node Horde
-  # places the successor on before that start can register. Delta sync is
-  # sub-second; this bounds the wait well above it without stalling the tick.
   @rebalance_name_release_timeout_ms 5_000
 
   def start_link(_opts) do
@@ -63,15 +35,10 @@ defmodule Ingress.ConduitManager do
        conduit_id: nil,
        applied_shard_count: nil,
        adopted_scaler: nil,
-       # shard_id => consecutive reconcile ticks observed unhealthy on Twitch
        unhealthy_counts: %{},
-       # shard_id => {rescue pid, seen count when the rescue was spawned}
        rescues: %{},
        placement_nodes: [],
        placement_stable_ticks: 0,
-       # True while another process holds the `:conduit_manager` name and this
-       # one is deliberately doing nothing. Tracked so the standby is logged on
-       # the transition instead of on every tick.
        standby?: false
      }, {:continue, :reconcile}}
   end
@@ -87,13 +54,6 @@ defmodule Ingress.ConduitManager do
   @impl true
   def handle_info(:reconcile, state), do: {:noreply, reconcile(state)}
 
-  # The registry merge that can strip a shard of its name can strip the
-  # singleton of its own, and a manager that keeps reconciling without it is
-  # not harmless: on 2026-08-20 two managers drove the same conduit for twenty
-  # minutes, each issuing its own Helix resize for the same target. A manager
-  # that no longer owns the name stands by rather than exits -- it is
-  # supervised `:permanent`, so stopping it would restart it straight into a
-  # name that is already taken. An empty lookup is registry lag, not a verdict.
   defp reconcile(state) do
     case singleton_status(state) do
       {:standby, state} ->
@@ -143,15 +103,7 @@ defmodule Ingress.ConduitManager do
   defp ensure_conduit(%{conduit_id: nil}), do: Api.ensure_conduit()
   defp ensure_conduit(%{conduit_id: id, applied_shard_count: count}), do: {:ok, id, count}
 
-  # Convergence acts only on a live answer from the scaler singleton:
-  # `ShardScaler.desired/0`'s fallback is the config floor, and resizing the
-  # conduit down to that while the scaler is between homes (failover, deploy)
-  # would drop autoscaled shard bindings. Holding for a retry interval is
-  # always safe — the running shards keep serving.
-  #
-  # A scaler answering under a pid we have not adopted yet is fresh (first boot
-  # or a restart that forgot the autoscaled target), so Twitch's recorded count
-  # is adopted before its answer is allowed to converge anything.
+  # Live scaler answers only: shrinking to its config-floor fallback drops autoscaled bindings.
   defp converge_with_scaler(state) do
     case ShardScaler.fetch_desired() do
       {:ok, _desired, scaler} when scaler != state.adopted_scaler ->
@@ -183,12 +135,6 @@ defmodule Ingress.ConduitManager do
     state
   end
 
-  # Twitch's recorded shard count is the only survivor of a singleton failover
-  # or deploy: the scaler restarts at the config floor, so without adoption the
-  # next converge would shrink an autoscaled conduit and drop shard bindings
-  # until the autoscaler climbed back. Only raises the target (set_target
-  # clamps to max_shards); a count at or below the current desired changes
-  # nothing.
   defp adopt_applied_count(applied) do
     case ShardScaler.fetch_desired() do
       {:ok, desired, _scaler} when applied > desired ->
@@ -205,18 +151,6 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  # Converge the Conduit (Twitch side) and local ShardSession processes to
-  # exactly `desired` shards. Grows or shrinks as needed.
-  #
-  # Order of operations:
-  #   1. If `desired` changed, resize the Conduit on Twitch's side so it
-  #      accepts exactly that many shard bindings.
-  #   2. Stop sessions for shard IDs >= desired (the Conduit no longer has
-  #      slots for them; stopping is safe because :transient restart means a
-  #      deliberate shutdown will not restart the session).
-  #   3. Start any missing sessions for shard IDs 0..(desired-1).
-  # Twitch's per-shard snapshot backing both the duplicate-start gate and the
-  # health pass; fetched once per tick.
   defp shard_snapshot(conduit_id) do
     case Api.get_shards(conduit_id) do
       {:ok, shards} ->
@@ -251,11 +185,7 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  # Stop ShardSession processes for shard IDs >= desired. We look them up in
-  # the cluster-wide registry; if they live on a remote node Horde still
-  # terminates them via the DynamicSupervisor.
   defp stop_excess_shards(desired) do
-    # Discover running shard IDs by scanning the registry for {:shard, _} keys.
     running_ids =
       Horde.Registry.select(Ingress.Registry, [
         {{{:shard, :"$1"}, :_, :_}, [], [:"$1"]}
@@ -273,12 +203,6 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  # The registry-driven pass above is blind to a session whose registration a
-  # CRDT merge dropped, and that blindness is not academic: the 5->3 scale-down
-  # on 2026-08-20 reaped shard 3 and walked straight past shard 4, which kept a
-  # bound socket for a slot the conduit no longer had. Sweep the supervisor's
-  # own child list -- the view that survives a merge -- for anything the
-  # registry cannot show. Decisions live in `Ingress.ShardHealth`.
   defp sweep_unmanaged_shards(desired) do
     for {pid, status} <- ShardInventory.unmanaged(),
         ShardHealth.unmanaged_action(status, desired) == :stop do
@@ -296,13 +220,6 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  # `terminate_child` answers :not_found for a shard the supervisor does not
-  # track: duplicate-shard takeover re-registers the surviving process directly
-  # in the registry, so the supervisor CRDT never learns its pid and the shard
-  # would otherwise outlive every scale-down, bind-looping against a conduit
-  # that has no slot for it. Stop the process itself. GenServer.stop rather
-  # than an exit signal: the session traps exits and would absorb a :shutdown
-  # signal as an info message.
   defp stop_orphan_shard(shard_id, pid) do
     Logger.warning("stopping orphan shard #{shard_id} (registered but unsupervised)")
 
@@ -314,12 +231,6 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  # A shard is only started when Twitch does not report its slot enabled: an
-  # enabled slot has a live serving socket somewhere even if the registry
-  # shows a hole (registry state lags membership changes during a rolling
-  # deploy — starting into the hole is how duplicate copies used to spawn
-  # and race the serving one). Without a snapshot, fall back to starting
-  # every slot; the registry still deduplicates the common case.
   defp start_missing_shards(conduit_id, desired, snapshot) do
     for shard_id <- startable_ids(snapshot, desired), do: start_shard(conduit_id, shard_id)
   end
@@ -327,10 +238,6 @@ defmodule Ingress.ConduitManager do
   defp startable_ids({:ok, shards}, desired), do: ShardHealth.startable_ids(shards, desired)
   defp startable_ids(:error, desired), do: Enum.to_list(0..(desired - 1))
 
-  # :started only when a fresh session actually spawned. :already_started is
-  # normal during converge (the shard runs), but right after a terminate it
-  # means the registration is wedged on a pid nothing can remove — callers on
-  # the restart path treat :blocked as the cue to escalate to a rescue.
   defp start_shard(conduit_id, shard_id) do
     spec = {Ingress.ShardSession, shard_id: shard_id, conduit_id: conduit_id}
 
@@ -351,11 +258,6 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  # Horde stays in passive redistribution mode because its active mode moves a
-  # shard stop-before-start on every membership change. A rolling deployment
-  # therefore finishes safely but can leave the final pod to join with no
-  # shards. After membership has remained unchanged for roughly two minutes,
-  # repair only a real count imbalance, one shard per reconcile tick.
   defp rebalance_shards(state, desired, snapshot) do
     nodes = placement_nodes()
     state = track_placement_membership(state, nodes)
@@ -450,13 +352,6 @@ defmodule Ingress.ConduitManager do
     :exit, reason -> {:error, {:release_failed, reason}}
   end
 
-  # `release_shard_name` unregisters on the node the old copy runs on, but the
-  # successor registers on whichever node Horde places it on, and that node's
-  # registry replica only learns of the release at the next delta sync. Starting
-  # the instant the release returns therefore races that sync and gets
-  # `{:already_started, _}` for the very copy just unregistered — a rebalance
-  # that rolls back on every tick, forever. Retry until the release has
-  # propagated to the placing node, then give up and roll back.
   defp start_successor(conduit_id, shard_id) do
     start_until_free(
       fn -> start_shard(conduit_id, shard_id) end,
@@ -465,16 +360,6 @@ defmodule Ingress.ConduitManager do
   end
 
   @doc false
-  # Retry policy for a blocked start. Public so it can be exercised without a
-  # running Horde cluster.
-  #
-  # Clock and poll come in through `opts` (defaults = production behaviour)
-  # instead of being read from `System`/`Process` here. The give-up branch is a
-  # wall-clock race against the deadline, so on a loaded machine a single
-  # attempt can outrun a short test deadline and the retry assertion flakes
-  # (~25% of full-suite runs). Rejected widening the test deadline (same race,
-  # rarer) and asserting `>= 1` attempt (stops proving the loop retries at all);
-  # a clock the test ticks makes the policy deterministic instead.
   def start_until_free(start_fun, deadline, opts \\ []) do
     timing = %{
       poll_ms: Keyword.get(opts, :poll_ms, @rebalance_poll_interval_ms),
@@ -560,12 +445,6 @@ defmodule Ingress.ConduitManager do
     :exit, _ -> :error
   end
 
-  # Twitch silently drops events routed to a shard slot whose transport is not
-  # enabled — a conduit never rebalances a subscription to a healthy shard —
-  # and a slot can die without any local process noticing (its socket keeps
-  # receiving keepalives after the binding moved or died with another copy).
-  # So reconciliation asks Twitch for its per-shard view and repairs every
-  # slot it reports unhealthy. Decisions live in `Ingress.ShardHealth`.
   defp run_health_pass(state, desired, {:ok, shards}) do
     unhealthy = ShardHealth.unhealthy_ids(shards, desired)
     {counts, rescues} = heal_all(state, unhealthy)
@@ -573,14 +452,8 @@ defmodule Ingress.ConduitManager do
     %{state | unhealthy_counts: counts, rescues: rescues}
   end
 
-  # No snapshot, no verdicts: carry the counts unchanged rather than treating
-  # a Helix hiccup as five healthy shards.
   defp run_health_pass(state, _desired, :error), do: state
 
-  # Heals every Twitch-unhealthy shard, threading the consecutive-unhealthy
-  # counts and the rescue table. Shards Twitch reports healthy drop out of the
-  # counts map, so a heal that works resets the escalation clock. A slot is
-  # `{conduit_id, shard_id}` throughout the heal path.
   defp heal_all(state, unhealthy) do
     Enum.reduce(unhealthy, {%{}, state.rescues}, fn shard_id, {counts, rescues} ->
       seen = Map.get(state.unhealthy_counts, shard_id, 0) + 1
@@ -596,9 +469,6 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  # Nothing registered: normally this tick's start_missing_shards pass covers
-  # it. If the shard is still unhealthy after that had its chance, starting is
-  # blocked (supervisor wedge, placement failure) — bring up a rescue.
   defp heal_unregistered(slot, seen, rescues) do
     if ShardHealth.escalate?(seen) do
       ensure_rescue(slot, seen, rescues)
@@ -623,10 +493,6 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  # A successful restart resets the observation count: the replacement session
-  # gets the full backstop window before it can be judged wedged. A blocked
-  # restart (the registration or supervision is wedged on a pid nothing can
-  # remove) escalates to a rescue session, which needs no name at all.
   defp restart_registered({_conduit_id, shard_id} = slot, pid, seen, rescues) do
     Logger.warning("shard #{shard_id} unhealthy on Twitch (#{seen} ticks); replacing session")
     Metrics.count("Conduit/ShardRestarts")
@@ -648,16 +514,6 @@ defmodule Ingress.ConduitManager do
     :exit, _ -> :unreachable
   end
 
-  # --- rescue sessions --------------------------------------------------------
-  #
-  # Last line of defense: when a shard slot stays dead on Twitch and the named
-  # session cannot even be replaced (Horde registration or supervision wedged
-  # on a dead pid), an unnamed session is started instead. It binds the shard
-  # on Twitch — the binding PATCH, not the registry, decides who receives
-  # events — so the slot serves again no matter what the cluster metadata
-  # says. Once Twitch reports the slot healthy and a live named session holds
-  # a binding, the named session re-asserts and the rescue is stopped.
-
   defp ensure_rescue({_conduit_id, shard_id} = slot, seen, rescues) do
     case Map.get(rescues, shard_id) do
       nil -> {seen, spawn_rescue(slot, seen, rescues)}
@@ -674,8 +530,6 @@ defmodule Ingress.ConduitManager do
       start:
         {Ingress.ShardSession, :start_link,
          [[shard_id: shard_id, conduit_id: conduit_id, rescue?: true]]},
-      # :temporary — a crashed rescue is not restarted blindly; the next
-      # health pass decides whether one is still needed.
       restart: :temporary
     }
 
@@ -689,9 +543,6 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  # A rescue is judged by the same rules as a named session, on its own clock
-  # (ticks since it was spawned): give it the settle window, force a re-bind
-  # if it claims a binding Twitch says is dead, replace it if it stays stuck.
   defp heal_rescue({_conduit_id, shard_id} = slot, {pid, spawned_seen}, seen, rescues) do
     case ShardHealth.heal_action(probe_shard(pid), seen - spawned_seen) do
       :skip ->
@@ -707,10 +558,6 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  # Twitch reports a rescued slot healthy again: hand it back to the named
-  # session when one is alive and bound (re-assert makes Twitch's routing
-  # follow it before the rescue socket closes). While no named session
-  # serves, the rescue IS the shard; keep it.
   defp reap_rescues(unhealthy, rescues) do
     Enum.reduce(rescues, %{}, fn {shard_id, entry}, acc ->
       if shard_id in unhealthy do

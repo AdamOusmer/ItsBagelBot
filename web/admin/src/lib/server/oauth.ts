@@ -1,13 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Twitch OAuth via the shared client (@bagel/kit/server/oauth), which is
-// built on oauth4webapi and replaced the deprecated arctic package.
-// Identity-only: the admin console authenticates an operator's Twitch account
-// to obtain their subject id; authorization is then decided by the DB allowlist
-// (auth.check). It requests no bot scopes: sign-in proves who you are, nothing
-// more. Reuses the same Twitch app as the dashboard tier (same client
-// id/secret); only the redirect URI differs.
 import { Twitch } from '@bagel/kit/server/oauth';
 import { env } from '$env/dynamic/private';
 
@@ -23,12 +16,7 @@ export function twitch(): Twitch {
   return new Twitch(id, secret, redirect);
 }
 
-// Bot authorization uses the DASHBOARD's Twitch app, not the admin one: the bot
-// grant is minted and consumed by the dashboard tier, so the token must be
-// issued by the same client id/secret (and that app must register the bot
-// redirect URI). DASHBOARD_TWITCH_CLIENT_ID/SECRET are copied into the admin
-// config (Doppler). Scopes override via BOT_OAUTH_SCOPES; redirect via
-// BOT_REDIRECT_URI, else derived from the request origin.
+// The DASHBOARD's Twitch app: the dashboard mints and consumes this grant, so the client id must match.
 export function botClientId(): string {
   const id = env.DASHBOARD_TWITCH_CLIENT_ID;
   if (!id) throw new Error('DASHBOARD_TWITCH_CLIENT_ID not set');
@@ -36,9 +24,6 @@ export function botClientId(): string {
 }
 
 export function botScopes(): string[] {
-  // Bot account grant. These prior authorizations let the app token act as the
-  // cloud bot. channel:bot belongs to each broadcaster's dashboard grant, not
-  // this bot-account grant.
   return [
     'openid',
     'chat:read',
@@ -50,23 +35,10 @@ export function botScopes(): string[] {
     'moderator:read:chatters',
     'moderator:manage:banned_users',
     'moderator:manage:chat_messages',
-    // Required by the worker's slash-command outgress paths: announcements back
-    // /announce[color] (POST /helix/chat/announcements) and shoutouts back
-    // /shoutout (POST /helix/chat/shoutouts). The app-token calls rely on these
-    // prior bot authorizations. The bot must also moderate the target channel.
     'moderator:manage:announcements',
     'moderator:manage:shoutouts',
-    // Required by outgress mod-status verification (GET /helix/moderation/channels):
-    // lists the channels where the bot is a moderator. Without this scope the
-    // bot token 401s ("Missing scope: user:read:moderated_channels"). The bot
-    // must RE-AUTH through the admin bot flow to receive this newly-added scope.
+    // Without this scope the bot token 401s; any new scope needs a bot re-auth.
     'user:read:moderated_channels',
-    // Required by the automod EventSub upgrades (app/twitch/outgress/internal/twitch/
-    // eventsub.go optional list): channel.suspicious_user.message carries
-    // Twitch's own ban-evader/suspicion flags per chat message, and
-    // automod.message.hold v2 carries AutoMod category+level verdicts. Both
-    // subscribe with the BOT as moderator_user_id, so these are bot-account
-    // scopes. The bot must RE-AUTH through the admin bot flow to receive them.
     'moderator:read:suspicious_users',
     'moderator:manage:automod'
   ];

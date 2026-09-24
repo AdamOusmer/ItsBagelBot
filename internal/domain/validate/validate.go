@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package validate holds the input rules enforced at every trust boundary:
-// repository methods fed by RPC or webhooks, and event payloads consumed from
-// the bus. ent parameterizes all SQL, so the concerns here are domain
-// validity, resource caps (a config blob must not be able to blow up the
-// database or Valkey), and key safety (a module name becomes part of a Valkey
-// hash field, so its charset is strict).
 package validate
 
 import (
@@ -18,24 +12,18 @@ import (
 )
 
 const (
-	maxUsernameLength    = 25  // Twitch login limit
-	maxEmailLength       = 254 // RFC 5321
+	maxUsernameLength    = 25
+	maxEmailLength       = 254
 	maxCommandNameLength = 64
 	maxCommandAliases    = 25
-	maxCooldownSeconds   = 86400 // one day; guards against absurd values
+	maxCooldownSeconds   = 86400
 	maxModuleNameLength  = 64
 	maxConfigsBytes      = 16 << 10
 	maxTokenBytes        = 8 << 10
 )
 
-// MaxResponseLineLength is the per-line chat message limit. Exported alongside
-// MaxResponseLines so the engine's emit-side cap mirrors the save-time shape
-// from one constant instead of a duplicated literal.
 const MaxResponseLineLength = 500
 
-// MaxResponseLines caps how many chat messages one command response may fan
-// out into: the response is newline-delimited and the bot sends one message
-// per line. Exported so the worker can enforce the same ceiling at emit time.
 const MaxResponseLines = 5
 
 var (
@@ -52,10 +40,7 @@ var (
 	ErrConfigsInvalid     = errors.New("module configs must be valid JSON of at most 16KiB")
 	ErrTokenInvalid       = errors.New("token must be 1 byte to 8KiB")
 	ErrStatusInvalid      = errors.New("status must be free, paid or vip")
-	// ErrContentFloor rejects text carrying immovable-floor content (identity
-	// slurs, IP-grabber hosts). The bot would post this text as itself, so it is
-	// refused at save time regardless of any per-channel automod setting.
-	ErrContentFloor = errors.New("text contains a disallowed term (hate or abuse infrastructure)")
+	ErrContentFloor       = errors.New("text contains a disallowed term (hate or abuse infrastructure)")
 )
 
 func UserID(id uint64) error {
@@ -112,16 +97,9 @@ func CommandName(name string) error {
 		}
 	}
 
-	// The name is displayed on the dashboard and echoed in chat with every use
-	// ("!<name>"), so it is held to the same immovable floor as the response;
-	// CommandAliases inherits this per alias. Leet obfuscation folds onto the
-	// plain spelling before matching.
 	return FloorClean(name)
 }
 
-// CommandAliases validates the alternate names a command answers to: each must
-// be a valid command name, the set must be free of duplicates (case-insensitive,
-// matching the lower-cased lookup the bot does), and the count is capped.
 func CommandAliases(aliases []string) error {
 
 	if len(aliases) > maxCommandAliases {
@@ -131,8 +109,6 @@ func CommandAliases(aliases []string) error {
 	seen := make(map[string]struct{}, len(aliases))
 	for _, alias := range aliases {
 		if err := CommandName(alias); err != nil {
-			// A floor hit carries its own precise message; do not blur it
-			// into the generic alias error.
 			if errors.Is(err, ErrContentFloor) {
 				return err
 			}
@@ -148,11 +124,6 @@ func CommandAliases(aliases []string) error {
 	return nil
 }
 
-// CommandResponse checks a newline-delimited command response: at most
-// MaxResponseLines lines, each line 1-500 characters with no control
-// characters. The bot sends one chat message per line, so each line is held
-// to the single-message limit. Callers normalize first (CRLF folded to LF,
-// blank lines dropped), so a blank line here is a hard error, not noise.
 func CommandResponse(response string) error {
 
 	if len(response) == 0 {
@@ -170,16 +141,9 @@ func CommandResponse(response string) error {
 		}
 	}
 
-	// The bot posts this text as itself, so the immovable floor (identity
-	// slurs, IP-grabber hosts) is enforced at save time: hosting it in a
-	// command risks the broadcaster's channel and the bot account platform-wide
-	// (Twitch ToS). Everything milder is deliberately allowed - broadcasters
-	// say what they want; only hate and abuse infrastructure are refused.
 	return FloorClean(response)
 }
 
-// validResponseLine reports whether one chat line is within the single-message
-// limit and carries no control characters (including CR).
 func validResponseLine(line string) bool {
 	if len(line) == 0 || len(line) > MaxResponseLineLength {
 		return false
@@ -192,13 +156,8 @@ func validResponseLine(line string) bool {
 	return true
 }
 
-// CheckFloor is an injectable hook for moderation filtering.
-// If set, it returns the matched term and true if the text hits the immovable floor.
 var CheckFloor func(text string) (term string, hit bool)
 
-// FloorClean rejects text carrying immovable-floor content. Matching runs over
-// the normalized skeleton, so leet and lookalike-letter obfuscation folds onto
-// the plain spelling.
 func FloorClean(text string) error {
 	if CheckFloor == nil {
 		return nil
@@ -209,9 +168,6 @@ func FloorClean(text string) error {
 	return nil
 }
 
-// Perm is the minimum role tier allowed to run a command. The set mirrors the
-// dashboard <select>; an unknown value is rejected rather than silently coerced
-// so a typo never widens or narrows access by accident.
 func Perm(perm string) error {
 
 	switch perm {
@@ -231,27 +187,8 @@ func Cooldown(seconds uint) error {
 	return nil
 }
 
-// CounterName is a command's "also bump counter <name>" option value. It is
-// its own type, not a bare string, because BumpCounter's job is narrower
-// than CommandName's (see BumpCounter) and giving the value a name keeps
-// that distinction at the type level instead of just in a comment.
 type CounterName string
 
-// BumpCounter validates the optional "also bump counter <name>" command
-// option. "" is valid (no bump), unlike CommandName's own name, which the
-// command can never be empty for; a name is held to the same length and
-// floor as a command name because it is likewise echoed back to chat, via
-// {counter:name} and {count:name} reads of the value this option produces.
-//
-// ':' is refused for the same reason app/db/loyalty's ValidCounterName
-// refuses it: it is the {counter:...}/{count:...} token's payload separator
-// (pkg/tmpl), so a stored name containing one could never be addressed by
-// either token — "{counter:target:deaths}" reads the "target:deaths" payload
-// as addressing prefix "target:" plus counter name "deaths", never a counter
-// literally named "target:deaths". Rejecting it here, at the one place a
-// broadcaster picks the name, keeps this validator and the loyalty service's
-// own agreeing on which names can exist without either having to trust the
-// other's input.
 func BumpCounter(name CounterName) error {
 	if name == "" {
 		return nil
@@ -270,8 +207,6 @@ func BumpCounter(name CounterName) error {
 	return FloorClean(string(name))
 }
 
-// ModuleName is strict because the name is embedded into the Valkey hash
-// field "module:<name>:enabled"; a ':' here could forge another field.
 func ModuleName(name string) error {
 
 	if len(name) == 0 || len(name) > maxModuleNameLength {
@@ -287,8 +222,6 @@ func ModuleName(name string) error {
 	return nil
 }
 
-// validModuleChar reports whether c is allowed in a module name: lowercase
-// ascii, digits, underscore, or hyphen (a ':' would forge a Valkey hash field).
 func validModuleChar(c byte) bool {
 	switch {
 	case c >= 'a' && c <= 'z':
@@ -303,18 +236,13 @@ func validModuleChar(c byte) bool {
 func ConfigsJSON(configs []byte) error {
 
 	if len(configs) == 0 {
-		return nil // absent configs are fine, modules can be pure toggles
+		return nil
 	}
 
 	if len(configs) > maxConfigsBytes || !codec.Valid(configs) {
 		return ErrConfigsInvalid
 	}
 
-	// Module config strings can end up in bot-emitted chat (a shoutout
-	// template, a greeting), so every string value in the blob is held to the
-	// same immovable floor as a command response. Keys and non-string values
-	// carry no free text. Nested shapes are walked; the 16KiB cap above bounds
-	// the work.
 	var doc any
 	if err := codec.Unmarshal(configs, &doc); err != nil {
 		return ErrConfigsInvalid

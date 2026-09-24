@@ -12,11 +12,6 @@ import (
 	ddiscord "ItsBagelBot/internal/domain/discord"
 )
 
-// Welcome ports app/dingress/internal/community/welcome.go: autorole,
-// the welcome embed, the goodbye line, and the join/leave log lines. Both
-// GUILD_MEMBER_ADD and GUILD_MEMBER_REMOVE ride discord.ingress.event.member
-// (see internal/domain/discord's Event doc), distinguished here by
-// Event.Type exactly as community's communityEvents map did.
 func Welcome() module.Module {
 	b := module.NewModule("welcome")
 	b.On("GUILD_MEMBER_ADD", onMemberAdd)
@@ -51,12 +46,6 @@ func shouldWelcome(cfg ddiscord.Config) bool {
 	return cfg.WelcomeChannelID != ""
 }
 
-// autorole grants the member role on join. That is the only role Bagel
-// ever assigns on its own: tier roles (subscriber, VIP, regulars) are
-// created by the fill and pinned in the dashboard but never applied by the
-// engine. That was decided on 2026-09-04 -- there is no Discord-to-Twitch
-// viewer link to drive it, and guessing a tier would take roles away from
-// people a streamer granted by hand.
 func autorole(c *module.Context, ev decode.MemberEvent, emit module.Emit) {
 	if c.Config.MemberRoleID == "" || !c.Config.AutoRoleOn() {
 		return
@@ -91,16 +80,11 @@ func logJoin(c *module.Context, ev decode.MemberEvent, emit module.Emit) {
 	_ = logLine(c, emit, logEntry{Title: "Member joined", Body: shown + " (" + ev.User.ID + ")"})
 }
 
-// logEntry is one #logs line. Shared by welcome.go and message.go, matching
-// community's welcome.go/message.go split before this move.
 type logEntry struct {
 	Title string
 	Body  string
 }
 
-// logLine emits a TypePostEmbed Command into the guild's log channel, gated
-// on LogsOn and a configured channel, exactly like community's
-// Bot.logLine.
 func logLine(c *module.Context, emit module.Emit, entry logEntry) error {
 	if !c.Config.LogsOn() {
 		return nil

@@ -1,10 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The rail's account foot. When the rail is on screen this is the account
-  // surface: the row opens the switcher menu (shared dashboards + delegate
-  // exit) that used to live behind the topbar avatar, so the signed-in user
-  // has one place to be, not two.
   import '@bagel/ui/styles/elements/profile-menu.css';
   import { afterNavigate } from '$app/navigation';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -14,7 +10,6 @@
   import type { DashboardLink } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
 
-  // Falls back to English when no i18n context is set (admin).
   const { t } = getI18n();
 
   let {
@@ -27,25 +22,17 @@
   }: {
     name: string;
     role: string;
-    // Boards shared with this user; renders a scrollable quick-switch list in
-    // the account menu. Empty (e.g. a user with no grants) hides it.
     dashboards?: DashboardLink[];
     isDelegate?: boolean;
     delegateExitHref?: string;
     delegateExitLabel?: string;
   } = $props();
 
-  // Wakes the Bolota engine while the pointer is over the account row.
   let hovered = $state(false);
 
-  // Nothing to switch to and nowhere to exit back to: the row stays a plain
-  // readout instead of a button that opens an empty menu.
   const hasMenu = $derived(dashboards.length > 0 || isDelegate);
   let menuOpen = $state(false);
 
-  // The rail lives in the persistent layout, so a shared-dashboard link in the
-  // menu navigates without unmounting it, leaving the menu open. Close it on
-  // any completed navigation (covers back/forward too).
   afterNavigate(() => (menuOpen = false));
 </script>
 
@@ -73,7 +60,6 @@
       </span>
     </button>
     {#if menuOpen}
-      <!-- Click-away scrim; Escape via the window handler above. -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="bb-profile__scrim"
@@ -82,8 +68,6 @@
         onkeydown={(e) => { if (e.key === 'Enter') menuOpen = false; }}
       ></div>
       <div class="bb-profile-rail__foot-menu" role="menu">
-        <!-- Centrepiece, carried over from the topbar menu this replaced: a big
-             Bolota on its own plate, name and role stacked under it. -->
         <div class="bb-profile__head">
           <span class="bb-profile__portrait">
             <Bolota name={name} size={72} active={menuOpen} />
@@ -92,9 +76,6 @@
           <i>{role}</i>
         </div>
         {#if dashboards.length}
-          <!-- The Scroller caps the list so a long roster never runs the menu
-               off the top of the rail. Each row jumps into that owner's
-               dashboard via the /delegate/enter link. -->
           <div class="bb-profile__section">{t('topbar.dashboards')}</div>
           <Scroller maxHeight="208px" role="group" aria-label={t('topbar.dashboards')}>
             <div class="bb-profile__list">

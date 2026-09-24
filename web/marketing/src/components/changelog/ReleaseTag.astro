@@ -2,19 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Release-channel label: which tone and which mark a channel wears.
- *
- * The element itself is @bagel/ui's Badge. This file used to write the
- * contract's class strings out by hand (`bb-tag bb-tag--alpha`, `bb-mark
- * bb-mark--hollow`), which is the same element with the adapter skipped — the
- * two tone maps below are the only part that is the changelog's.
- *
- * `rtag--<channel>` is kept on the element although no rule styles it: it is
- * the stable hook the changelog tests (and anything else) select a channel
- * by. The move onto Badge (#960) dropped it, and the tone class is not a
- * substitute because beta and a live status share `bb-tag--live`.
- */
 import Badge from '@bagel/ui/astro/Badge.astro';
 
 interface Props {
@@ -42,11 +29,6 @@ const MARK = {
 <Badge class={`rtag rtag--${tag}`} tone={TONE[tag]} mark={MARK[tag]} sweep={tag === 'beta'}>{label}</Badge>
 
 <style>
-    /* Was a translucent pill per channel (hatched alpha, glowing 50% dot on a
-       sine pulse for beta, gradient-border ember for pre-release). All four
-       now ride the shared .bb-tag hairline, so only the row fit stays local:
-       the 7px hairline gap sits the label above the centre of the version
-       chip next to it, and 3px puts the two texts back on the same line. */
     .rtag {
         flex-shrink: 0;
         top: 3px;

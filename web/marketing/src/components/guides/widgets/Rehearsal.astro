@@ -2,24 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Rehearsal: a light response rehearsal, the same idea as the command
- * builder's live preview but scoped to one response line. Edit the response,
- * who is typing, and the args, and the chat line below updates.
- *
- * The script uses the shared token lexer and fallback resolver. Its tutorial
- * samples cover user/sender, touser/target, args, channel, counter:<name>,
- * urlfetch:<name[.path]>, random, random:a-b, choice:a,b,c. An unrecognized
- * token is left exactly as typed, braces included, same as the live bot. A
- * counter always shows a fixed sample (128) since there is no real store
- * here; {urlfetch:...} cannot run in a browser (it needs a saved API
- * definition and a server round trip), so it renders as a pill instead of a
- * value, same as the dashboard's own builder does for that token.
- *
- * outputDefault is the server-rendered result for the default fields, so the
- * page reads fine with JS off. The script recomputes it once on load and on
- * every input, so a JS reader never sees a stale line.
- */
 interface Props {
     labels?: Record<string, string>;
 }
@@ -100,10 +82,6 @@ const L = {
         color: var(--muted, #888077);
     }
 
-    /* Named, not `.rh__field textarea, .rh__field input`: this widget's own
-       control part. It is NOT `.bb-input` on purpose -- the widget is a
-       miniature of the console inside a guide page, and its controls have to
-       fit a 0.68rem label grid rather than the console's own rhythm. */
     .rh__control {
         font-family: var(--font-body, "DM Sans", sans-serif);
         font-size: 0.85rem;
@@ -170,8 +148,6 @@ const L = {
         color: var(--muted, #888077);
     }
 
-    /* The link colour is `.bb-prose`'s (@bagel/ui/styles/elements/typography.css). */
-
     @media (prefers-reduced-motion: reduce) {
         .rh__line { transition: none; }
         .rh__line.is-updating { opacity: 1; transform: none; }
@@ -188,9 +164,6 @@ const L = {
 
     import { bindOnce } from '../../../script/bind';
 
-    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
-    // Grammar and fallback handling are shared; these random samples and
-    // fetched-value pills belong to this interactive tutorial.
     type Segment = { pill: false; text: string } | { pill: true };
 
     function expand(template: string, who: string, args: string, counterSample: string): Segment[] {

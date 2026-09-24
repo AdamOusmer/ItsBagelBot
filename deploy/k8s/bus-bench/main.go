@@ -14,20 +14,12 @@ import (
 	"time"
 )
 
-// Command bus-bench drives the fleet's publish and consume paths against a
-// real cluster: provision a memory stream, feed it from every pooled
-// publisher connection, drain it through one weighted lane, then restore
-// what setup changed. Each RIG_REPORT line is JSON the invoking harness parses.
-
 const (
 	fallbackURL       = "nats://nats.messaging.svc.cluster.local:4222"
 	maxLatencySamples = 12_000_000
-	// benchPods bounds the publisher pod indexes the consumer tracks and
-	// benchSeqSpan the per-pod sequence range its dedup bitset covers; one
-	// second of latency samples is capped at secSampleCap per pod.
-	benchPods    = 8
-	benchSeqSpan = 1 << 26
-	secSampleCap = 1 << 16
+	benchPods         = 8
+	benchSeqSpan      = 1 << 26
+	secSampleCap      = 1 << 16
 )
 
 func main() {
@@ -60,13 +52,8 @@ func main() {
 		routinesMax  = flag.Int("routines-max", 512, "consume mode: weighted lane MaxRoutines")
 	)
 	flag.Parse()
-	// pkg/bus reports connection-level events (async errors, slow consumer,
-	// reconnects) through the global logger; without this they are invisible.
 	zap.ReplaceGlobals(stderrLogger())
 
-	// benchLane names the NATS resources one bench run drives: where to dial,
-	// which stream and subject carry the traffic, and which consumer group
-	// binds it. Every mode addresses the same lane, so they travel together.
 	lane := benchLane{url: *url, stream: *stream, subject: *subject, group: *group}
 
 	stopProfile := startCPUProfile(*pprofPath, *mode)
@@ -95,14 +82,8 @@ func main() {
 	}
 }
 
-// profiledMode says which modes measure something worth profiling; setup and
-// cleanup are one-shot admin calls whose profile would be noise.
 func profiledMode(mode string) bool { return mode == "publish" || mode == "consume" }
 
-// startCPUProfile begins a whole-run CPU profile when -pprof names a path. The
-// returned stop is always safe to call — a profile that cannot start degrades
-// to a warning on stderr rather than failing the run, since the measurement the
-// rig exists for is the report, not the profile.
 func startCPUProfile(path, mode string) func() {
 	noop := func() {}
 	if path == "" || !profiledMode(mode) {

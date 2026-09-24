@@ -2,15 +2,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro twin of ../svelte/Select.svelte. The chevron is a real <svg> sibling
-// and the options are children; both records are in the Svelte adapter.
 import '../styles/elements/field.css';
 import '../styles/elements/input.css';
 
 interface Props {
     value?: string;
     invalid?: boolean;
-    /** Take the container's width instead of the 240px default. */
     fill?: boolean;
     class?: string;
     [key: string]: unknown;

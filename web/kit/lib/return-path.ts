@@ -3,12 +3,9 @@
 
 const RETURN_ORIGIN = 'https://return.invalid';
 
-/** A normalized same-origin path for redirects, retaining its query and fragment. */
 export function safeReturnPath(value: string | null | undefined): string | null {
   if (!value?.startsWith('/') || value.startsWith('//')) return null;
-  // URL parsers discard ASCII whitespace/control characters and reinterpret
-  // backslashes as slashes. Reject them before parsing rather than letting an
-  // apparently local path become a protocol-relative redirect.
+  // URL parsers drop control chars and read backslashes as slashes, enabling off-site redirects.
   if (/[\\\u0000-\u0020\u007f]/.test(value)) return null;
   try {
     const url = new URL(value, RETURN_ORIGIN);

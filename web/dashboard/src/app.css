@@ -4,11 +4,6 @@
 @import '@bagel/kit/styles/tokens.css';
 @import '@bagel/kit/styles/console.css';
 
-/* Mobile-first page-content overrides for the dashboard.
-   The app shell (.app grid, sidebar, topbar, canvas, mobile nav) is now owned by
-   the shared AppShell components and styled there; only page-content responsive
-   rules remain below. */
-
 .stat-grid { grid-template-columns: 1fr 1fr; }
 .thead { display: none; }
 .trow { grid-template-columns: 1fr auto; gap: 8px; }
@@ -24,7 +19,6 @@
 .grid-2 { grid-template-columns: 1fr; }
 .mod-grid { grid-template-columns: 1fr; }
 
-/* Desktop breakpoint (≥761px) */
 @media (min-width: 761px) {
   .stat-grid { grid-template-columns: repeat(4, 1fr); }
   .thead { display: grid; }
@@ -43,7 +37,6 @@
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* Wide breakpoint (≥1101px) */
 @media (min-width: 1101px) {
   .grid-2 { grid-template-columns: 1.5fr 1fr; }
   .mod-grid { grid-template-columns: repeat(2, 1fr); }

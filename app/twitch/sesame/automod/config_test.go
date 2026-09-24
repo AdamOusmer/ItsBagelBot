@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// termStrings flattens normalized term bytes for one-shot comparisons.
 func termStrings(terms [][]byte) []string {
 	out := make([]string, len(terms))
 	for i, term := range terms {
@@ -21,8 +20,6 @@ func termStrings(terms [][]byte) []string {
 	return out
 }
 
-// sectionsOn lists which toggleable sections a resolved config enables, in a
-// stable order, so tests compare one string instead of five booleans.
 func sectionsOn(s sections) string {
 	var on []string
 	for _, f := range []struct {
@@ -46,9 +43,6 @@ const allSections = "harassment sexual profanity style links"
 
 const ipLoggerLine = "claim your prize at https://grabify.link/abcd right now friends"
 
-// capsMid is caps-ratio ~0.65: flagged under the strict caps threshold (>=0.6)
-// but not moderate (>=0.7). No 8-run and short symbols, so caps is the only
-// possible signal.
 const capsMid = "ABCDE FGHIJ KLM nopqrst"
 
 func TestParseConfig(t *testing.T) {
@@ -58,7 +52,6 @@ func TestParseConfig(t *testing.T) {
 	if ParseConfig(codec.RawMessage(`{bad`)) != nil {
 		t.Fatal("malformed blob must yield nil, never a fail-closed config")
 	}
-	// The dashboard form writes flat strings; terms split on commas and newlines.
 	c := ParseConfig(codec.RawMessage(`{"level":"all","block_terms":"BadWord, other thing\nthird","allow_terms":" okThing "}`))
 	if c == nil {
 		t.Fatal("config must parse")
@@ -74,7 +67,6 @@ func TestParseConfig(t *testing.T) {
 	}
 }
 
-// The legacy "profile" key is still honored as a level alias.
 func TestParseConfigLegacyProfileAlias(t *testing.T) {
 	c := ParseConfig(codec.RawMessage(`{"profile":"adult"}`))
 	if c == nil || c.Level != LevelBasic {
@@ -104,7 +96,6 @@ func TestParseLevel(t *testing.T) {
 	}
 }
 
-// resolved(): the full "none -> all" span, plus per-section override.
 func TestResolvedSections(t *testing.T) {
 	if got := sectionsOn((&Config{Level: LevelNone}).resolved()); got != "" {
 		t.Fatalf("none must be floor-only, enabled: %s", got)
@@ -112,24 +103,19 @@ func TestResolvedSections(t *testing.T) {
 	if got := sectionsOn((&Config{Level: LevelStrict}).resolved()); got != allSections {
 		t.Fatalf("strict must enable every section, got: %s", got)
 	}
-	// A disabled row collapses to floor-only regardless of its level.
 	if got := sectionsOn((&Config{Level: LevelStrict, Disabled: true}).resolved()); got != "" {
 		t.Fatalf("disabled row must be floor-only, enabled: %s", got)
 	}
-	// Per-section override on top of a level: moderate has profanity off; turn it on.
 	over := (&Config{Level: LevelModerate, profanity: triOn}).resolved()
 	if !over.profanity {
 		t.Fatal("section override triOn must force profanity on")
 	}
-	// And off overrides a level that has it on.
 	off := (&Config{Level: LevelStrict, style: triOff}).resolved()
 	if off.style {
 		t.Fatal("section override triOff must force style off")
 	}
 }
 
-// The floor holds under EVERY level, a disabled row, AND an allow-term - this is
-// the account-safety guarantee.
 func TestFloorImmovableAcrossLevels(t *testing.T) {
 	g := New()
 	for _, raw := range []string{
@@ -142,17 +128,12 @@ func TestFloorImmovableAcrossLevels(t *testing.T) {
 			t.Fatalf("floor must hold for %s: got rule=%s action=%s", raw, v.Rule, v.Action)
 		}
 	}
-	// A disabled module row is floor-only, NOT a full opt-out.
 	if v := g.InspectWith(module.RoleEveryone, ipLoggerLine, &Config{Disabled: true}); v.Rule != "ip_logger" {
 		t.Fatalf("disabled row must still enforce the floor: got %s", v.Rule)
 	}
 }
 
-// Level none disables the style checks (caps) but the floor still holds.
 func TestLevelNoneDropsStyle(t *testing.T) {
-	// Loaded-empty emote set keeps caps enforcing; a never-loaded set now
-	// suppresses caps-only lines by design (TestCapsOnlyRescueByEmoteAvailability),
-	// and these tests are about level toggles, not emote availability.
 	g := newGateWithEmotes()
 	shout := "STOP SCREAMING IN CHAT RIGHT NOW PLEASE"
 	if v := g.InspectWith(module.RoleEveryone, shout, nil); v.Action != ActionDelete {
@@ -165,7 +146,7 @@ func TestLevelNoneDropsStyle(t *testing.T) {
 }
 
 func TestStrictTightensCaps(t *testing.T) {
-	g := newGateWithEmotes() // loaded-empty: caps enforcing (see TestLevelNoneDropsStyle)
+	g := newGateWithEmotes()
 	if v := g.InspectWith(module.RoleEveryone, capsMid, nil); v.Action != ActionNone {
 		t.Fatalf("moderate: mid-caps under threshold should pass, got %s", v.Action)
 	}
@@ -181,11 +162,9 @@ func TestBlockTermFlags(t *testing.T) {
 	if v := g.InspectWith(module.RoleEveryone, "this has badword in it", cfg); v.Rule != "block_term" {
 		t.Fatalf("channel block term should flag, got rule=%s", v.Rule)
 	}
-	// Without the config the same line is clean.
 	if v := g.InspectWith(module.RoleEveryone, "this has badword in it", nil); v.Action != ActionNone {
 		t.Fatalf("no config: line should be clean, got %s", v.Action)
 	}
-	// A disabled row does not apply channel block terms (floor-only).
 	dis := ParseConfig(codec.RawMessage(`{"block_terms":"badword"}`))
 	dis.Disabled = true
 	if v := g.InspectWith(module.RoleEveryone, "this has badword in it", dis); v.Action != ActionNone {
@@ -194,8 +173,8 @@ func TestBlockTermFlags(t *testing.T) {
 }
 
 func TestAllowTermSuppressesNonFloor(t *testing.T) {
-	g := newGateWithEmotes()                   // loaded-empty: caps enforcing (see TestLevelNoneDropsStyle)
-	shout := "SCREAMING LOUDLY HELLO EVERYONE" // caps -> would be a heuristic delete
+	g := newGateWithEmotes()
+	shout := "SCREAMING LOUDLY HELLO EVERYONE"
 	if v := g.InspectWith(module.RoleEveryone, shout, nil); v.Action != ActionDelete {
 		t.Fatalf("baseline caps should flag, got %s", v.Action)
 	}

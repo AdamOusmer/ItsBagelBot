@@ -15,10 +15,6 @@ function sse(event: string, data: unknown): Uint8Array {
   return enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-// SSE bridge from the ingress shard-lifecycle status subjects. This is a live,
-// non-persistent wildcard subscription under `${prefix}.>`, not the Twitch
-// EventSub payload stream. Heartbeats keep proxies from idling it out. Under
-// DEMO=1 the broker may be absent, so it emits a synthetic feed instead.
 export const GET: RequestHandler = async ({ locals }) => {
   if (!(await requireAdmin(locals.session))) throw error(403, 'forbidden');
 
@@ -28,19 +24,11 @@ export const GET: RequestHandler = async ({ locals }) => {
         controller.enqueue(enc.encode(': connected\n\n'));
         let n = 0;
         const fixture = import('$lib/server/demo-data');
-        // Guarded, like the live branch's heartbeat below: the fixture tick
-        // resolves a dynamic import, so its write lands a microtask AFTER the
-        // timer fired. cancel() clearing the interval therefore cannot stop the
-        // write already in flight, and enqueueing on a closed controller throws
-        // ERR_INVALID_STATE out of a timer callback -- which is unhandled, and
-        // takes the whole dev server down. Navigating away from the feed page
-        // did exactly that.
+        // Writing to a closed controller throws ERR_INVALID_STATE; uncaught in a timer it kills the server.
         const push = (chunk: Uint8Array) => {
           try {
             controller.enqueue(chunk);
-          } catch {
-            /* closed */
-          }
+          } catch {}
         };
         const tick = setInterval(() => {
           fixture.then(({ demoFeedEvent }) => {
@@ -91,17 +79,13 @@ export const GET: RequestHandler = async ({ locals }) => {
       const hb = setInterval(() => {
         try {
           controller.enqueue(enc.encode(': keepalive\n\n'));
-        } catch {
-          /* closed */
-        }
+        } catch {}
       }, 20000);
       try {
         for await (const m of sub) {
           controller.enqueue(sse('feed', decode(STATUS_PREFIX, m.subject, m.data)));
         }
-      } catch {
-        /* subscription closed */
-      } finally {
+      } catch {} finally {
         clearInterval(hb);
       }
     },

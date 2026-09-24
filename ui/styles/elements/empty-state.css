@@ -1,27 +1,7 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* Empty state: the "nothing here yet" panel a list renders instead of rows.
-
-   Pure layout and type; no behaviour, no state. The two numbers that a
-   surface might want to change are exposed rather than hard-coded, because
-   the guide screenshots (PR12) draw this inside a much smaller frame than a
-   console page does:
-
-     --empty-pad       the block's padding (36px 20px)
-     --empty-measure   the body copy's measure (42ch)
-
-   42ch is a measure, not a width: the body is centred prose and 42 characters
-   is the low end of the readable range, chosen over a px width so it tracks
-   the font. */
 
 @layer bb.elements {
     .bb-empty {

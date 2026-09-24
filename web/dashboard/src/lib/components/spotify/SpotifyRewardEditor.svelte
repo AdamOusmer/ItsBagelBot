@@ -1,8 +1,5 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-  // Inspector body: create/edit the one channel-points reward bound to song
-  // requests. Named form inputs post straight to ?/saveReward (the page owns
-  // the enhance handler); local state drives the live ChatPreview rehearsal.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
@@ -31,14 +28,9 @@
     user: t('spotify.previewUserSample'),
     track: 'Never Gonna Give You Up',
     input: 'rick roll',
-    // Not offered by this component's own default reply, but the catalog's
-    // songqueue.redeem tokens include it (songqueue.ts's own reply uses
-    // "position #{pos}"), so the {pos} chip above needs a sample too.
     pos: '3'
   };
 
-  // Seeded once per mount (the page re-keys this component when switching
-  // between create and edit), so capturing the initial binding is intentional.
   // svelte-ignore state_referenced_locally
   const isNew = !redeem.rewardId;
 
@@ -55,9 +47,6 @@
   // svelte-ignore state_referenced_locally
   let replyMessage = $state(redeem.replyMessage ?? '');
 
-  // --- Client-side gate: a blank title is the one thing the server can't
-  // recover, so validate it before submit and land the caret on it, with the
-  // error associated to the input via aria-describedby. ------------------------
   const TITLE_ERR_ID = 'spotify-title-err';
   let titleError = $state<string | undefined>(undefined);
   let formEl = $state<HTMLFormElement | null>(null);
@@ -97,8 +86,6 @@
     <Field label={t('spotify.fieldCost')}>
       <input class="input" type="number" name="cost" min="1" max="10000000" bind:value={cost} required />
     </Field>
-    <!-- Colour: a labelled native picker PLUS a text hex readout, so the chosen
-         value is legible without relying on the swatch colour alone. -->
     <label class="color-field">
       <span class="color-label">{t('spotify.fieldColor')}</span>
       <span class="color-row">
@@ -115,12 +102,6 @@
   <Field label={t('spotify.fieldReply')} tag={t('common.optional')}>
     <ResponseEditor bind:value={replyMessage} name="replyMessage" surface="reward:spotify" placeholder={DEFAULT_REPLY} />
   </Field>
-  <!-- kind="reply": the song-queue redeem substitutes {user}/{track}/{input}
-       plus the dynamic set ({random}/{choice:…}), like every other reward
-       reply. It used to carry dynamic={false} because this surface fell
-       through to a bare string replacer while the channel-points reply
-       expanded the dice; the engine now resolves dynamics on EVERY reward
-       surface, so the preview does too. -->
   <ChatPreview kind="reply" response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('spotify.previewTag')} samples={replySamples} />
 
   <Field label={t('spotify.afterTitle')}>
@@ -151,7 +132,6 @@
   .editor { padding: 4px 2px 2px; display: grid; gap: 14px; }
   .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
 
-  /* Field owns label + wiring; strip its default bottom margin inside the grid. */
   .editor :global(.field) { margin-bottom: 0; }
   .input {
     padding: 8px 12px;

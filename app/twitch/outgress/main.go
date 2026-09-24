@@ -36,24 +36,17 @@ const (
 	queueGroup  = "outgress-rpc"
 )
 
-// A failed command is retried three times at one-second intervals. The
-// work-queue stream also has a five-second MaxAge, so it cannot survive a
-// restart and reappear later as stale chat output.
-//
-// System (EventSub enroll / stream_status) jobs live on their own stream with
-// a five-minute MaxAge, so their retries are slower and more numerous: a
-// transient Twitch or rate-limit failure gets another shot every fifteen
-// seconds for as long as the message survives.
 const (
 	nakDelay        = time.Second
 	maxRedeliveries = 3
 
 	systemNakDelay        = 15 * time.Second
 	systemMaxRedeliveries = 6
+
+	twitchWarmupTimeout = 8 * time.Second
+	conduitCacheTTL     = 60 * time.Second
 )
 
-// deps carries the process-wide handles main assembles once and every later
-// wiring step reads from.
 type deps struct {
 	core   svcboot.Core
 	cfg    *config.Config
@@ -73,12 +66,6 @@ func main() {
 	warnStartupFallbacks(cfg, log)
 	i18n.WarnGaps(log)
 
-	// Reconcile both outgress streams here (not only from producer services) so
-	// their retention and lifetimes are guaranteed before any lane consumer
-	// attaches. Order matters: the chat stream is narrowed off the system subject
-	// FIRST, so adding the system stream cannot overlap it. The chat lanes are
-	// perishable work-queue (5s); the control lane keeps a longer lifetime so an
-	// EventSub enroll survives a rollout gap instead of being purged.
 	svcboot.FatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}, log),
 		"failed to provision outgress streams")
 
@@ -86,9 +73,6 @@ func main() {
 	svcboot.FatalIf(log, err, "invalid optional Valkey configuration")
 	defer valkeyClient.Close()
 
-	// Real Overview activity sink: the modactions.go/redemption.go Emit call
-	// sites are already wired (see internal/activity's decision record) and
-	// need only this one SetSink to start landing rows.
 	activity.SetSink(activity.NewStore(valkeyClient))
 
 	registry := channels.New(valkeyClient)
@@ -97,20 +81,11 @@ func main() {
 	defer nc.Close()
 	defer registry.Close()
 
-	// pub is the pooled async publisher for derived-fact events outgress
-	// fires after a lane handler's own work is done -- currently only the
-	// clip-created fact (see worker/clip.go's publishClipCreated). It is a
-	// separate connection pool from nc above (request-reply/RPC) because
-	// bus.Publisher batches and pools independently of core-NATS requests.
 	pub, err := bus.NewPublisher(cfg.NATSURL, log)
 	svcboot.FatalIf(log, err, "failed to connect publisher")
 	defer func() { _ = pub.Close() }()
 
 	host := podIdentity(log)
-	// Label every worker transaction with this pod's region and the Kubernetes
-	// node it runs on so the Twitch external-segment duration can be split per
-	// node in New Relic. NODE_NAME (spec.nodeName) names the actual node;
-	// hostname (the pod) is the dev fallback.
 	worker.SetNodeIdentity(cfg.RateRegion, env.Get("NODE_NAME", host))
 
 	d := &deps{core: core, cfg: cfg, log: log, nrApp: nrApp, nc: nc, valkey: valkeyClient, host: host}
@@ -133,12 +108,6 @@ func main() {
 	premiumSub, standardSub, systemSub, closeSubs := d.laneSubscribers()
 	defer closeSubs()
 
-	// Streamer-facing messaging attaches before ANY consumer that can reach it.
-	// The system lane needs it for the go-live beacon and the authz consumers;
-	// the chat lanes need it because a broadcaster-identity call failing there
-	// is what discovers a dead grant in the first place, and that raises the
-	// dashboard bell immediately rather than waiting for the next go-live.
-	// The notifier holds no per-lane state, so one instance serves all three.
 	reauth := worker.NewReauthNotifier(nc, worker.ReauthConfig{
 		SendSubject:   cfg.NotifySendSubject,
 		StateSubject:  cfg.UsersStateSubject,
@@ -149,10 +118,6 @@ func main() {
 	standard.SetReauthNotifier(reauth)
 	system.SetReauthNotifier(reauth)
 
-	// Only the chat lanes ever process TypeClip (sesame routes !clip to
-	// premium/standard by broadcaster tier, never to system), so only those
-	// two need the fact publisher. Attaches before any consumer goroutine
-	// starts, same as every other Set* above.
 	premium.SetFactPublisher(pub)
 	standard.SetFactPublisher(pub)
 
@@ -162,8 +127,6 @@ func main() {
 	})
 	d.startSystemLane(ctx, systemSub, system)
 
-	// The client-scoped user.authorization.* subscriptions that feed the
-	// notifier are ensured in the background below.
 	closeStreamLane := d.startStreamLane(ctx, system)
 	defer closeStreamLane()
 
@@ -178,13 +141,9 @@ func main() {
 	}, valkeyClient, tw, cfg.TwitchBotUserID),
 		"failed to subscribe trial subscription rpc")
 
-	// Channel-points reward management (create/edit/delete custom rewards under
-	// each broadcaster's own token), driven synchronously by the dashboard tab.
 	svcboot.FatalIf(log, rpc.SubscribeChannelPoints(nc, tw, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
 		"failed to subscribe channel-points rpc")
 
-	// Chatter listing (Helix Get Chatters under the bot's user token), driven by
-	// sesame's loyalty watch tick: one call per live channel per tick.
 	svcboot.FatalIf(log, rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
 		"failed to subscribe chatters rpc")
 	d.serveHealth(premiumSub, standardSub, systemSub)
@@ -194,10 +153,6 @@ func main() {
 	core.Await()
 }
 
-// warnStartupFallbacks surfaces the degradable startup conditions. The
-// deployment supplies a stable locality for the quota-lease protocol; keep the
-// config fallback usable so a missing optional tuning value cannot turn an
-// otherwise healthy outgress rollout into a fleet-wide outage.
 func warnStartupFallbacks(cfg *config.Config, log *zap.Logger) {
 	if os.Getenv("OUTGRESS_REGION") == "" {
 		log.Warn("OUTGRESS_REGION is unset; using fallback locality",
@@ -208,8 +163,6 @@ func warnStartupFallbacks(cfg *config.Config, log *zap.Logger) {
 	}
 }
 
-// podIdentity returns this pod's stable identity, used only for lease
-// membership and targeted permits; it never assigns broadcaster ownership.
 func podIdentity(log *zap.Logger) string {
 	host, err := os.Hostname()
 	if err != nil || host == "" {
@@ -218,23 +171,10 @@ func podIdentity(log *zap.Logger) string {
 	return host
 }
 
-// creds is the Twitch app client id + secret every token grant presents.
 func (d *deps) creds() twitch.ClientCredentials {
 	return twitch.ClientCredentials{ID: d.cfg.TwitchClientID, Secret: d.cfg.TwitchClientSecret}
 }
 
-// newTwitchClient assembles the Helix client over the three token sources: the
-// app token, the bot account's user token, and the per-broadcaster grants.
-//
-// The app and bot sources get a proactive background refresher (ctx is the
-// process's root/service context from signal.NotifyContext in main, so both
-// stop cleanly on shutdown): both are built once here and live for the whole
-// process, so renewing them off the chat send path is pure upside -- see
-// twitch.Source.StartBackgroundRefresh's doc for the ~320ms a lazy renewal
-// would otherwise dump onto whichever chat message happens to observe
-// expiry. Per-broadcaster sources get the equivalent treatment through a
-// single cache-wide sweeper instead of one refresher per Source; see
-// broadcasterTokens and twitch.BroadcasterTokens.StartRefreshSweep for why.
 func (d *deps) newTwitchClient(ctx context.Context) *twitch.Client {
 	appTokens := twitch.NewAppTokenSource(d.creds())
 	appTokens.StartBackgroundRefresh(ctx)
@@ -250,10 +190,6 @@ func (d *deps) newTwitchClient(ctx context.Context) *twitch.Client {
 	return twitch.NewClient(d.cfg.TwitchClientID, appTokens, bot, broadcasterTokens)
 }
 
-// botTokenSource builds the bot account's user token source. It prefers the
-// copy stored by the users service (the admin panel manages it); the env
-// refresh token is only a seed or, without a bot user id, the legacy static
-// configuration. nil (with a warning) disables mod status verification.
 func (d *deps) botTokenSource() *twitch.Source {
 	switch {
 	case d.cfg.TwitchBotUserID != "":
@@ -266,42 +202,12 @@ func (d *deps) botTokenSource() *twitch.Source {
 	}
 }
 
-// broadcasterTokens wires the per-broadcaster user tokens: a job with
-// as="broadcaster" sends under the channel's own stored grant (saved by the
-// dashboard at login) rather than the bot. Each Source loads/persists that
-// channel's refresh token through the same users-service token RPC, keyed by
-// broadcaster id.
-//
-// No per-Source StartBackgroundRefresh here, unlike newTwitchClient's app
-// and bot sources: a goroutine (and ticker) per cached broadcaster would
-// mean up to maxBroadcasterSources = 2048 of them, plus eviction-tied
-// cancellation plumbing to avoid leaking one per evicted Source. Instead,
-// newTwitchClient starts twitch.BroadcasterTokens.StartRefreshSweep on the
-// *twitch.BroadcasterTokens this returns: a single goroutine that walks the
-// cache and renews whatever is due, which gets eviction handling for free
-// (an evicted entry is just absent from the next pass). That sweep is what
-// actually matters for a channel that is live: BroadcasterTokens.Get
-// touches lastUsed on every cache hit, so an actively streaming channel's
-// Source is never idle and never evicted by sourceIdleTTL (1h) -- it lives
-// long enough to reach its own ~4h token expiry while still live, and
-// without the sweep that renewal would land lazily on whatever chat message
-// first observed it. Broadcaster tokens are additionally kept hot by the
-// go-live pre-warm (internal/worker/tokenwarm.go), and any renewal --
-// pre-warm, sweep, or lazy on-send -- is safe to run uncoordinated across
-// replicas because mintOrAdopt (token.go) serializes real mints via the
-// lease built in newMintLease below.
 func (d *deps) broadcasterTokens() *twitch.BroadcasterTokens {
 	return twitch.NewBroadcasterTokens(func(broadcasterID string) *twitch.Source {
 		return d.storedTokenSource(broadcasterID, "")
 	})
 }
 
-// storedTokenSource builds a user token source backed by the users-service
-// token store for one account, seeded with an optional env refresh token.
-// Every account gets a mint lease (see newMintLease) regardless of whether
-// its Source ends up with a background refresher: the lease guards the mint
-// itself, which both the bot's background-refresh path and a broadcaster's
-// lazy on-send path can still trigger.
 func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 	store := tokenstore.New(d.nc, d.cfg.TokensSubjectPrefix, accountID)
 	log := d.log
@@ -328,21 +234,9 @@ func (d *deps) storedTokenSource(accountID, seedRefresh string) *twitch.Source {
 	}, d.newMintLease(accountID))
 }
 
-// warmupTwitch pays the cold-start cost (token minting, DNS/TLS and the first
-// HTTP/2 handshake) before consumers and readiness come online, instead of on
-// the first real chat message handled by each new pod. A transient Twitch
-// outage must not crash-loop the service, so the bounded warmup degrades to a
-// warning.
 func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {
 	warmupStarted := time.Now()
-	// tw.Warmup now mints up to two tokens (app, then bot) sequentially.
-	// Measured 2026-08-20, id.twitch.tv cold TLS+request (network path only,
-	// a trivial GET -- NOT a real grant, so Twitch-side grant processing is
-	// not included): p50 310ms, max 430ms. Two of those worst-case is well
-	// under a second even before any unmeasured grant-processing overhead,
-	// so the pre-existing 8s budget stays generous with real margin to
-	// spare even with the second mint added.
-	warmupCtx, warmupCancel := context.WithTimeout(ctx, 8*time.Second)
+	warmupCtx, warmupCancel := context.WithTimeout(ctx, twitchWarmupTimeout)
 	err := tw.Warmup(warmupCtx)
 	warmupCancel()
 	if err != nil {
@@ -353,13 +247,6 @@ func warmupTwitch(ctx context.Context, tw *twitch.Client, log *zap.Logger) {
 	log.Info("twitch client warmed", zap.Duration("duration", time.Since(warmupStarted)))
 }
 
-// newLaneWorkers builds the three lane workers over the shared collaborators,
-// plus the mod verifier and live writer they hang off. The system lane carries
-// the dashboard's EventSub create/delete jobs; it pays only the reserved
-// system Helix partition, so onboarding bursts never compete with chat/api
-// traffic for the general budget. It also resolves live re-checks
-// (stream_status jobs) and writes the result back into the live projection for
-// the worker fleet.
 func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, registry *channels.Registry, batch worker.BatchStore) (premium, standard, system *worker.Worker, cleanup func()) {
 	base := worker.Config{
 		TrialStore: d.valkey,
@@ -368,7 +255,7 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 		Twitch:     tw,
 		BotID:      d.cfg.TwitchBotUserID,
 		Owner:      d.host,
-		Conduit:    conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, 60*time.Second, d.log.Named("conduit")),
+		Conduit:    conduit.New(d.nc, d.cfg.ConduitSubject, d.cfg.TwitchConduitID, conduitCacheTTL, d.log.Named("conduit")),
 		Batch:      batch,
 		UserIDs:    worker.NewUserIDCache(),
 	}
@@ -392,8 +279,6 @@ func (d *deps) newLaneWorkers(tw *twitch.Client, limiter ratelimit.Manager, regi
 	return premium, standard, system, modVerifier.Close
 }
 
-// laneSubscribers connects the three lane subscribers; paced redelivery keeps
-// rate-limit nacks from spinning.
 func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub bus.Subscriber, closeAll func()) {
 	var err error
 	premiumSub, err = bus.NewLaneSubscriber(bus.LaneConfig{
@@ -421,22 +306,6 @@ func (d *deps) laneSubscribers() (premiumSub, standardSub, systemSub bus.Subscri
 	}
 }
 
-// serveHealth publishes outgress's health surface and registers the health RPC
-// responder against the same Set, so /status and the RPC reply cannot disagree
-// about this pod at the same instant.
-//
-// outgress no longer owns a public health route. The Twitch vertical answers at
-// health.itsbagelbot.com/twitch, which terminates in sesame and folds this
-// service in over the health RPC (bus.HealthProbe), so the RPC reply is now the
-// only surface these checks reach. A lane left out of the Set therefore reads
-// as a green vertical while chat output is not draining.
-//
-// One check per lane, because outgress binds three separate subscribers
-// (laneSubscribers above) with independent fetch clocks. Naming them premium,
-// standard and system makes the report say which lane stalled instead of
-// rolling three consumers into a single boolean: the system lane going quiet
-// (EventSub enroll, go-live beacon) is a different page from chat output
-// stopping.
 func (d *deps) serveHealth(premiumSub, standardSub, systemSub bus.Subscriber) {
 	svcboot.ServeHealth(svcboot.Health{
 		Log: d.log, NC: d.nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: d.core.ListenAddr,
@@ -447,9 +316,6 @@ func (d *deps) serveHealth(premiumSub, standardSub, systemSub bus.Subscriber) {
 	)
 }
 
-// startChatLanes runs premium and standard on one central weighted consumer: a
-// single routine budget partitioned by weight so premium drains ahead without
-// starving standard.
 func (d *deps) startChatLanes(ctx context.Context, lanes []bus.WeightedLane) {
 	_, err := bus.ConsumeWeighted(ctx, d.nrApp, lanes, bus.ScalePolicy{
 		MinRoutines:    d.cfg.MinRoutines,
@@ -461,9 +327,6 @@ func (d *deps) startChatLanes(ctx context.Context, lanes []bus.WeightedLane) {
 	svcboot.FatalIf(d.log, err, "failed to consume premium/standard lanes")
 }
 
-// startSystemLane keeps the system lane on its own independent consumer, off
-// the weighted budget, so onboarding bursts never compete for the chat/api
-// routines. It runs a fixed pool (min == max, single consumer), no autoscaling.
 func (d *deps) startSystemLane(ctx context.Context, sub bus.Subscriber, system *worker.Worker) {
 	_, err := bus.ConsumeWeighted(ctx, d.nrApp, []bus.WeightedLane{
 		{Sub: sub, Subject: d.cfg.SystemSubject, Handle: system.Process},
@@ -475,31 +338,12 @@ func (d *deps) startSystemLane(ctx context.Context, sub bus.Subscriber, system *
 	svcboot.FatalIf(d.log, err, "failed to consume system lane")
 }
 
-// startTokenWarmListener binds this replica's own core-NATS (non-queue)
-// subscription to the projector's go-live token-warm fan-out (see
-// outgress.TokenWarmScope and system.SubscribeTokenWarm). This is
-// deliberately NOT a lane consumer: every one of the 3 outgress replicas
-// needs its own subscription so every replica's independent
-// twitch.BroadcasterTokens cache gets warmed, which a queue-grouped lane
-// (where only one replica in the group ever dequeues a given message) cannot
-// provide. Bound to the system worker because it already carries the
-// takeSystemHelix budget the warm's Helix call spends from.
 func (d *deps) startTokenWarmListener(system *worker.Worker) func() {
 	sub, err := system.SubscribeTokenWarm(d.nc, d.cfg.CacheInvalidatePrefix)
 	svcboot.FatalIf(d.log, err, "failed to subscribe token-warm fan-out")
 	return func() { _ = sub.Unsubscribe() }
 }
 
-// startStreamLane binds a durable consumer for the real Twitch stream.online /
-// stream.offline events on the ingress stream lane (TWITCH_INGRESS,
-// provisioned by ingress/projector) under outgress's OWN service group, so the
-// system worker re-verifies the bot's mod status on every go-live. This
-// restores the re-verify that used to ride the cold-live escalation: once the
-// projector writes the live key directly from these events, the worker's live
-// query is no longer cold, so stream_status (and its mod-status re-check) no
-// longer fires. The projector binds its own group on the same subject and
-// still gets every event once. Best-effort and idempotent: HandleStreamEvent
-// only re-verifies, never writes live state (that is the projector's job).
 func (d *deps) startStreamLane(ctx context.Context, system *worker.Worker) func() {
 	streamSub, err := bus.NewSubscriber(d.cfg.NATSURL, serviceName, d.log)
 	svcboot.FatalIf(d.log, err, "failed to connect stream-lane subscriber")
@@ -510,13 +354,6 @@ func (d *deps) startStreamLane(ctx context.Context, system *worker.Worker) func(
 	return func() { _ = streamSub.Close() }
 }
 
-// startAuthzLane binds one durable consumer per authorization lifecycle
-// subject (granted / revoked / subrevoked) under outgress's service group, on
-// the same TWITCH_INGRESS stream as the stream lane. Ingress publishes these
-// when Twitch reports an authorization change; the system worker reconciles
-// the channel's enrollment state (mark revoked, re-enroll on grant). Distinct
-// literal subjects keep each handler's intent typed instead of re-dispatching
-// on a wildcard.
 func (d *deps) startAuthzLane(ctx context.Context, system *worker.Worker) func() {
 	authzSub, err := bus.NewSubscriber(d.cfg.NATSURL, serviceName, d.log)
 	svcboot.FatalIf(d.log, err, "failed to connect authz subscriber")

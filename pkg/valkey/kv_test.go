@@ -20,12 +20,6 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// kvServer is a real TCP server speaking the sliver of RESP these helpers
-// use, driving a real valkey-go client. The helpers are tested through the
-// wire rather than against a fake client because the whole point of KV is the
-// command it builds: a fake whose B() we would have to supply ourselves
-// (valkey-go's builder is internal) could only ever echo back what the test
-// already assumed.
 type kvServer struct {
 	ln net.Listener
 
@@ -71,8 +65,6 @@ func (s *kvServer) handle(c net.Conn) {
 	}
 }
 
-// reply answers one command. HELLO is refused so the client falls back to
-// RESP2, matching what the other scripted-server tests in this repo do.
 func (s *kvServer) reply(args []string) string {
 	switch strings.ToUpper(args[0]) {
 	case "HELLO":
@@ -113,7 +105,6 @@ func (s *kvServer) del(key string) {
 	delete(s.values, key)
 }
 
-// lastSet returns the argument vector of the most recent SET.
 func (s *kvServer) lastSet() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -129,7 +120,6 @@ func (s *kvServer) put(key, value string) {
 	s.values[key] = value
 }
 
-// readRESPCommand reads one inbound array-of-bulk-strings command.
 func readRESPCommand(r *bufio.Reader) ([]string, error) {
 	header, err := r.ReadString('\n')
 	if err != nil {
@@ -159,7 +149,7 @@ func readRESPBulk(r *bufio.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	buf := make([]byte, size+2) // payload + CRLF
+	buf := make([]byte, size+2)
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return "", err
 	}
@@ -197,10 +187,6 @@ func TestKVStringRoundTripCarriesTTL(t *testing.T) {
 	assert.Equal(t, []string{"SET", "k", "v", "EX", "60"}, server.lastSet())
 }
 
-// TestKVSetWithoutTTLIsPersistent pins the zero-TTL branch: the flags that
-// must outlive the process (the reauth marker, the gateway status) are
-// written through the same Set, and an accidental EX 0 would be rejected by
-// Valkey rather than silently persisting.
 func TestKVSetWithoutTTLIsPersistent(t *testing.T) {
 	server := newKVServer(t)
 	kv := dialKV(t, server)

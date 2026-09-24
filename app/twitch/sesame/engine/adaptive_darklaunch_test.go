@@ -16,9 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// hypeChat is a caps-only line whose every token is covered by a native emote
-// span: exactly the shape the learned layers exist to rescue, and exactly the
-// FP class the 2026-08-22 shadow audit caught (0/8 precision, "LUL LUL LUL LUL").
 func hypeChat(t *testing.T) *bus.Message {
 	t.Helper()
 	body, err := codec.Marshal(map[string]any{
@@ -39,9 +36,6 @@ func hypeChat(t *testing.T) *bus.Message {
 	return bus.NewMessage("u-999", body)
 }
 
-// darkLaunchPipeline mirrors councilPipeline with the adaptive switch exposed:
-// the fetched emote set is loaded-but-empty so caps keeps enforcing, which
-// makes per-message spans the only possible rescue for the hype line.
 func darkLaunchPipeline(pub *fakePublisher, adaptive bool) *Pipeline {
 	gate := automod.New()
 	gate.SetEmotes(automod.NewEmoteSet(nil))
@@ -55,9 +49,6 @@ func darkLaunchPipeline(pub *fakePublisher, adaptive bool) *Pipeline {
 	})
 }
 
-// Dark launch contract: SESAME_AUTOMOD_ADAPTIVE unset must leave verdicts
-// byte-identical to the pre-span gate — the envelope may carry emote data,
-// but the pipeline drops it at the door.
 func TestAdaptiveOffDropsSpanKnowledge(t *testing.T) {
 	pub := &fakePublisher{}
 	p := darkLaunchPipeline(pub, false)

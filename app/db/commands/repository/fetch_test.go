@@ -20,7 +20,7 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,8 +31,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// newFetchPacker fakes Tink exactly like the modules custody tests: a fresh
-// in-memory AES256GCM keyset, serialized as the JSON NewCrypto consumes.
 func newFetchPacker(t *testing.T) *crypto.Crypto {
 	t.Helper()
 	handle, err := keyset.NewHandle(aead.AES256GCMKeyTemplate())
@@ -70,8 +68,6 @@ func TestFetchKeySealUnsealRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "sk-weather-secret-a1b2", got)
 
-	// The plaintext must never sit in the column; the sealed blob and the
-	// display suffix are all that persist.
 	row := client.FetchKey.Query().Where().OnlyX(ctx)
 	assert.NotContains(t, string(row.KeyEnc), "sk-weather-secret", "key must be sealed at rest")
 	assert.Equal(t, "a1b2", row.Last4)
@@ -92,8 +88,6 @@ func TestFetchKeyAADBindsUserAndLabel(t *testing.T) {
 
 	_, err := repo.SetKey(ctx, 1001, repository.KeyEntry{Label: "alpha", Value: "key-for-alpha"})
 	require.NoError(t, err)
-	// Copy user 1001's alpha envelope onto the same user's OTHER label: the
-	// AAD binds the label too, so it must fail to open rather than leak.
 	row := client.FetchKey.Query().OnlyX(ctx)
 	client.FetchKey.Create().SetUserID(1001).SetLabel("beta").SetLast4("0000").SetKeyEnc(row.KeyEnc).ExecX(ctx)
 
@@ -102,7 +96,6 @@ func TestFetchKeyAADBindsUserAndLabel(t *testing.T) {
 	assert.NotErrorIs(t, err, repository.ErrNoFetchKey)
 	assert.NotErrorIs(t, err, repository.ErrCustodyUnavailable)
 
-	// And onto another user's same-label row.
 	client.FetchKey.Delete().ExecX(ctx)
 	client.FetchKey.Create().SetUserID(2002).SetLabel("alpha").SetLast4("0000").SetKeyEnc(row.KeyEnc).ExecX(ctx)
 	_, err = repo.Key(ctx, 2002, "alpha")
@@ -127,13 +120,10 @@ func TestFetchKeyUpsertReplacesAndDeletes(t *testing.T) {
 	require.Len(t, keys, 1, "one row per label after rotation")
 	assert.Equal(t, "99aa", keys[0].Last4)
 
-	// Key delete is always allowed, even with definitions still pointing at
-	// the label (dangling labels fail closed at fetch time by design).
 	require.NoError(t, repo.DeleteKey(ctx, 1001, "openweather"))
 	_, err = repo.Key(ctx, 1001, "openweather")
 	assert.ErrorIs(t, err, repository.ErrNoFetchKey)
 
-	// Deleting an absent key is a no-op, like the govee clear path.
 	require.NoError(t, repo.DeleteKey(ctx, 9999, "ghost"))
 }
 
@@ -155,8 +145,6 @@ func TestFetchCustodyDisabledRefusesClosedButDefsWork(t *testing.T) {
 	_, err = repo.Key(ctx, 1001, "label")
 	assert.ErrorIs(t, err, repository.ErrCustodyUnavailable)
 
-	// Definitions keep working keyless — this is why the keyset load is
-	// best-effort instead of fatal.
 	require.NoError(t, repo.UpsertDef(ctx, 1001, fetchSpec("wx", "https://api.example.com")))
 	views, err := repo.List(ctx, 1001)
 	require.NoError(t, err)
@@ -167,7 +155,6 @@ func TestUpsertDefWritesImmediatelyAndPublishes(t *testing.T) {
 	client, pub, repo := fetchSetup(t)
 	ctx := context.Background()
 
-	// Immediate write: no batcher window to wait out.
 	require.NoError(t, repo.UpsertDef(ctx, 1001, repository.FetchSpec{
 		Name:     "!Weather",
 		URL:      "https://api.example.com/v1?city=berlin",
@@ -194,7 +181,6 @@ func TestUpsertDefWritesImmediatelyAndPublishes(t *testing.T) {
 	assert.Equal(t, "weather", dto.Name)
 	assert.Equal(t, []string{"current", "temp_c"}, dto.JSONPath)
 
-	// A second save of the same name updates in place without a second row.
 	require.NoError(t, repo.UpsertDef(ctx, 1001, fetchSpec("Weather", "https://api.example.com/v2")))
 	rows := client.FetchDefinition.Query().AllX(ctx)
 	require.Len(t, rows, 1)
@@ -239,14 +225,11 @@ func TestFetchDefQuotaEnforcedSynchronously(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "limit reached")
 
-	// The cap is creation-scoped: editing an existing definition is never
-	// quota-blocked.
 	require.NoError(t, repo.UpsertDef(ctx, 1001, fetchSpec("defa", "https://api-a.example.com/v2")))
 
 	count := client.FetchDefinition.Query().Where(fetchdefinition.UserIDEQ(1001)).CountX(ctx)
 	assert.Equal(t, validate.MaxFetchDefsPerBroadcaster, count)
 
-	// Another broadcaster's cap is independent.
 	require.NoError(t, repo.UpsertDef(ctx, 2002, fetchSpec("defa", "https://api-a.example.com")))
 }
 
@@ -266,14 +249,11 @@ func TestDeleteDefReferenceGate(t *testing.T) {
 		SetResponse("hello world").
 		ExecX(ctx)
 
-	// Refused while referenced; the refusal names the referencing commands.
 	err := repo.DeleteDef(ctx, 1001, repository.DefDelete{Name: "weather", Force: false})
 	var refErr *repository.ErrFetchDefReferenced
 	require.ErrorAs(t, err, &refErr)
 	assert.Equal(t, []string{"temp"}, refErr.Commands)
 
-	// Case-insensitive on the token name, precise on token boundaries:
-	// "{urlfetch:weather2}" must NOT count as a reference to "weather".
 	client.Commands.Delete().ExecX(ctx)
 	client.Commands.Create().
 		SetUserID(1001).
@@ -284,7 +264,6 @@ func TestDeleteDefReferenceGate(t *testing.T) {
 	rows := client.FetchDefinition.Query().AllX(ctx)
 	assert.Empty(t, rows)
 
-	// Force bypasses the gate.
 	require.NoError(t, repo.UpsertDef(ctx, 1001, fetchSpec("wx", "https://api.example.com")))
 	client.Commands.Create().
 		SetUserID(1001).
@@ -295,7 +274,6 @@ func TestDeleteDefReferenceGate(t *testing.T) {
 	rows = client.FetchDefinition.Query().AllX(ctx)
 	assert.Empty(t, rows)
 
-	// Every successful delete announced Deleted:true so the projector HDELs.
 	finalDel := map[string]bool{}
 	for _, msg := range pub.On("data.commands.fetch_changed") {
 		var dto struct {
@@ -322,8 +300,6 @@ func TestRenameDefRetiresOldName(t *testing.T) {
 	assert.Equal(t, "new", row.Name)
 	assert.Equal(t, "https://api.example.com/v2", row.URL)
 
-	// Rename publishes delete(old) + change(new) so consumers retire fetch:old.
-	// The initial create's change event precedes them on the same subject.
 	msgs := pub.On("data.commands.fetch_changed")
 	require.Len(t, msgs, 3)
 	type nameDel struct {
@@ -340,12 +316,11 @@ func TestRenameDefRetiresOldName(t *testing.T) {
 		got = append(got, nameDel{dto.Name, dto.Deleted})
 	}
 	assert.Equal(t, []nameDel{
-		{"old", false}, // create
-		{"old", true},  // rename retires the old field
-		{"new", false}, // rename writes the new one
+		{"old", false},
+		{"old", true},
+		{"new", false},
 	}, got)
 
-	// Renaming a ghost falls back to a plain upsert so the edit is not lost.
 	require.NoError(t, repo.RenameDef(ctx, 1001, "ghost", fetchSpec("real", "https://real.example.com")))
 	names2 := client.FetchDefinition.Query().AllX(ctx)
 	require.Len(t, names2, 2)
@@ -388,8 +363,6 @@ func countKeysFor(client *ent.Client, userID uint64) int {
 }
 
 func TestFetchViewWireTagsMatchProjectionContract(t *testing.T) {
-	// The Valkey field JSON and the RPC reply share one shape; pin the tags so
-	// they cannot drift apart silently (CommandView/contract precedent).
 	view := fetchkeyrpc.FetchView{Name: "wx", URL: "https://x", JSONPath: []string{"a"}, KeyLabel: "k", IsActive: true}
 	b, err := codec.Marshal(view)
 	require.NoError(t, err)

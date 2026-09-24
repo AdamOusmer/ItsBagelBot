@@ -97,7 +97,6 @@ export function actionError(locale: Locale, fallback: string): string {
   return value === key ? fallback : value;
 }
 
-/** Only translate presentation fields; preserve samples, service data and status. */
 export function actionErrorBody(locale: Locale, body: Record<string, unknown>): Record<string, unknown> {
   const result = { ...body };
   if (typeof body.error === 'string') result.error = actionError(locale, body.error);

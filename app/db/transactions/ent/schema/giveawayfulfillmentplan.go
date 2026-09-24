@@ -12,8 +12,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// GiveawayFulfillmentPlan freezes the exact interval and policy used for one
-// award. It is immutable so retries cannot recalculate a different prize.
 type GiveawayFulfillmentPlan struct{ ent.Schema }
 
 func (GiveawayFulfillmentPlan) Fields() []ent.Field {

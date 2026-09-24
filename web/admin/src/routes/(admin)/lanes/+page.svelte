@@ -1,15 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // JetStream consumers, on the shared deck + inspector.
-  //
-  // The page was a seven-column CSS grid with a hand-written header row, an
-  // inline rename <input> that appeared INSIDE the row it renamed, and three
-  // icon buttons per row. Rename, make-permanent and delete all moved into the
-  // inspector; the grid became a DeckList.
-  //
-  // The action names (`alias`, `durable`, `delete`) are the server's LaneOp
-  // table's and are not renamed -- the audit trail keys off them.
   import { untrack, onMount } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -47,13 +38,11 @@
   const failed = adminToastFailure(toast);
   const canMutate = $derived(allows(data.role, 'lanes.mutate'));
 
-  // ── Streamed lanes -> local state ──────────────────────────────────────────
   let result = $state<LanesResult | null>(null);
   let live = $state(false);
   $effect(() => {
     let alive = true;
     data.lanes.then((r: LanesResult) => {
-      // The poll may already have delivered something fresher than SSR.
       if (alive && result === null) result = r;
     });
     return () => {
@@ -61,11 +50,6 @@
     };
   });
 
-  // ── Live poll ──────────────────────────────────────────────────────────────
-  // The sampler keeps a warm snapshot behind /lanes/data, so this is a flat 5s
-  // like the loop it replaces. livePoll owns the generation counter that makes a
-  // teardown mid-fetch safe; the tick never reports settled, because lane depth
-  // never "arrives", so the deadline is Infinity.
   const POLL_MS = 5000;
 
   async function pollLanes(): Promise<boolean> {
@@ -100,7 +84,6 @@
     };
   });
 
-  // ── Filters ────────────────────────────────────────────────────────────────
   const CATEGORIES = ['all', 'system', 'projection', 'ephemeral'] as const;
   let category = $state<string>('all');
   let search = $state('');
@@ -127,15 +110,10 @@
   const orphanCount = $derived(lanes.filter((l) => l.orphan).length);
   const totalPending = $derived(lanes.reduce((sum, l) => sum + l.pending, 0));
 
-  // ── Inspector ──────────────────────────────────────────────────────────────
   const inspector = createInspector<LaneDraft>();
   let draft = $state<LaneDraft | null>(null);
   let busy = $state(false);
 
-  // Push editor changes into the machine for dirty tracking. The spread reads
-  // the field so the effect re-runs on any mutation; the edit itself is
-  // untracked because it both reads and writes the machine's state, which would
-  // otherwise make the effect depend on state it also mutates (an unsafe cycle).
   $effect(() => {
     const snap = draft ? { ...draft } : null;
     if (snap) untrack(() => inspector.edit(snap));
@@ -171,12 +149,8 @@
     });
   }
 
-  // ── Mutations ──────────────────────────────────────────────────────────────
-  // All three answer LaneMutationResult (`{ ok, notice }`) or fail(502, {notice}).
   type LaneActionPayload = { ok?: boolean; notice?: string; error?: string };
 
-  // Optimistic alias: the row shows the new name immediately, and the old one
-  // comes back with the real error if the KV write fails.
   const aliasSubmit: SubmitFunction = () => {
     const begun = inspector.beginSave();
     const key = inspector.selectedId;
@@ -202,10 +176,6 @@
     };
   };
 
-  // ── Make permanent / delete (confirmed, non-optimistic) ────────────────────
-  // Neither outcome is locally derivable: `durable` creates a NEW consumer the
-  // sampler has yet to see, and `delete` is refused server-side when anything is
-  // still bound. Both re-poll instead of guessing.
   let confirmDurable = $state(false);
   let confirmDelete = $state(false);
   let durableForm = $state<HTMLFormElement | null>(null);
@@ -313,9 +283,6 @@
         closeLabel={t('admin.close')}
         onClose={close}
       >
-        <!-- Keyed on the selection so switching rows mounts a FRESH editor: the
-             alias field binds to the draft snapshot taken at open, so one reused
-             instance would freeze it to the first lane opened. -->
         {#key inspector.selectedId}
           <LaneEditor
             bind:draft={

@@ -8,9 +8,6 @@ import (
 	"testing"
 )
 
-// TestCondSplit pins where a conditional's three parts end: the cond key is
-// everything before the LAST two ':' segments, the "=" cut inside it makes the
-// equality form, and a payload survives on the cond's own key.
 func TestCondSplit(t *testing.T) {
 	cases := []struct {
 		in      string
@@ -48,8 +45,6 @@ func TestCondSplit(t *testing.T) {
 	}
 }
 
-// TestCondNeedsTwoParts pins the spans that are NOT conditionals, so a
-// half-written one keeps its braces instead of quietly rendering nothing.
 func TestCondNeedsTwoParts(t *testing.T) {
 	for _, in := range []string{"{if}", "{if:}", "{if:user}", "{iffy:user:hi}"} {
 		if _, ok := Lex(in)[0].Cond(); ok {
@@ -61,8 +56,6 @@ func TestCondNeedsTwoParts(t *testing.T) {
 	}
 }
 
-// TestCondBranchIsLiteral pins the no-nesting rule: a reference is one level
-// deep, so a token spelled inside then or else is text and nothing expands it.
 func TestCondBranchIsLiteral(t *testing.T) {
 	repl := func(tok Token) (string, bool) {
 		val, ok := map[string]string{"user": "bob", "touser": ""}[tok.Key()]
@@ -71,16 +64,11 @@ func TestCondBranchIsLiteral(t *testing.T) {
 	if got := Expand("{if:user:hi bob:hi nobody}", repl); got != "hi bob" {
 		t.Errorf("then branch = %q", got)
 	}
-	// The else branch is reached and its brace text is copied out verbatim:
-	// the span closes at the first '}', so the trailing one is literal too.
 	if got := Expand("{if:touser:named:nobody {touser}}", repl); got != "nobody {touser}" {
 		t.Errorf("else branch = %q", got)
 	}
 }
 
-// TestWithCondRefs pins that the lexer surfaces the token a cond READS, which
-// is what lets a planner mount the scope and batch the lookup before any
-// rendering happens.
 func TestWithCondRefs(t *testing.T) {
 	plain := Lex("hi {user}")
 	if got := WithCondRefs(plain); len(got) != len(plain) {
@@ -102,16 +90,10 @@ func TestWithCondRefs(t *testing.T) {
 	}
 }
 
-// splitsAs reports whether a cond's ref token carries the expected name and
-// payload. A named predicate rather than three ORed comparisons at the call
-// site: the assertion reads as the sentence it is checking.
 func splitsAs(tok Token, name, payload string) bool {
 	return tok.Name == name && tok.Payload == payload && tok.HasPayload
 }
 
-// TestCondUnknownStaysLiteral pins the whole-span literal rule: a cond naming
-// something nothing resolves is a typo or a module that is off, and taking the
-// else branch would hide both.
 func TestCondUnknownStaysLiteral(t *testing.T) {
 	repl := func(Token) (string, bool) { return "", false }
 	for _, in := range []string{"{if:missing:x}", "{if:missing:x:y}", "{if:missing=1:x:y}"} {

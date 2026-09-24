@@ -19,8 +19,6 @@ import (
 
 const defaultRPCTimeout = 5 * time.Second
 
-// RPCReplyError is returned when the peer answers with a JSON {"error": "..."}
-// payload. Most existing RPC contracts use that shape, including the TS client.
 type RPCReplyError struct {
 	Subject string
 	Message string
@@ -33,19 +31,12 @@ func (e RPCReplyError) Error() string {
 	return fmt.Sprintf("rpc %s: %s", e.Subject, e.Message)
 }
 
-// RequestJSON performs a core NATS request/reply using a JSON request body and
-// JSON response body. It also normalizes the fleet's conventional {"error": ""}
-// reply into a Go error so callers do not accidentally treat failed replies as
-// zero-valued success.
 func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, request any) (T, error) {
 	var zero T
 
 	encodeSegment := startMessagingSegment(ctx, messagingSpan{
 		name: "rpc.request.encode", operation: "request", destination: subject,
 	})
-	// FastMarshal over codec.Marshal: escaping and key order are byte-level
-	// only and every consumer of internal fleet RPC parses JSON with Go or TS,
-	// so the sorted-key/escaped-HTML guarantees buy nothing on this path.
 	body, err := codec.FastMarshal(request)
 	endMessagingSegment(encodeSegment, err)
 	if err != nil {
@@ -81,7 +72,6 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 	return reply, nil
 }
 
-// RequestJSONTimeout is RequestJSON with a local timeout layered onto ctx.
 func RequestJSONTimeout[T any](ctx context.Context, nc *nats.Conn, subject string, request any, timeout time.Duration) (T, error) {
 	if timeout <= 0 {
 		timeout = defaultRPCTimeout
@@ -91,15 +81,7 @@ func RequestJSONTimeout[T any](ctx context.Context, nc *nats.Conn, subject strin
 	return RequestJSON[T](ctx, nc, subject, request)
 }
 
-// QueueSubscribeJSON registers a queue RPC handler with common JSON decode,
-// timeout, response, slow-call logging and subscription flushing behavior.
-//
-// handle runs inline on the subscription's delivery goroutine, so requests on a
-// subscription are answered one at a time. Moving this path onto an RPCPool
-// waits on the read-modify-write handlers behind it (outgress channel.set, users
-// ApplyBilling) and on the DB_MAX_OPEN_CONNS=4 budget every database service
-// ships, either of which would turn added concurrency into lost updates or
-// gate-blocked handlers rather than throughput.
+// handle runs serially; moving it onto an RPCPool turns read-modify-write handlers into lost updates.
 func QueueSubscribeJSON[Req any, Resp any](
 	nc *nats.Conn,
 	subject string,
@@ -123,12 +105,8 @@ func QueueSubscribeJSON[Req any, Resp any](
 		log := monitor.TraceLogger(txn, log)
 
 		var req Req
-		// Empty bodies are allowed for no-argument RPCs; handlers validate any
-		// required fields on the zero-value request.
 		if len(msg.Data) > 0 {
 			decodeSegment := txn.StartSegment("rpc.decode")
-			// FastUnmarshal leaves strings aliasing msg.Data, which stays alive
-			// for the whole inline handler — no copy needed.
 			if err := codec.FastUnmarshal(msg.Data, &req); err != nil {
 				decodeSegment.AddAttribute(resultAttribute, "invalid")
 				decodeSegment.End()
@@ -144,8 +122,6 @@ func QueueSubscribeJSON[Req any, Resp any](
 		ctx, cancel := context.WithTimeout(newrelic.NewContext(context.Background(), txn), timeout)
 		defer cancel()
 
-		// A handler panic on the delivery goroutine kills the whole process;
-		// answer the requester with the conventional error envelope instead.
 		defer func() {
 			if r := recover(); r != nil {
 				txn.NoticeError(fmt.Errorf("rpc handler panic: %v", r))
@@ -171,9 +147,6 @@ func QueueSubscribeJSON[Req any, Resp any](
 func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logger, txn *newrelic.Transaction, reply any) {
 	elapsed := time.Since(start)
 	encodeSegment := txn.StartSegment("rpc.reply.encode")
-	// FastMarshal rather than marshalResponse: same byte-level-only argument as
-	// RequestJSON's request encode, and rpcErrorMessage's probe below still hits
-	// because a struct/map "error" field serializes as `"error":` either way.
 	body, err := codec.FastMarshal(reply)
 	encodeSegment.AddAttribute(resultAttribute, messagingResult(err))
 	encodeSegment.End()
@@ -203,21 +176,10 @@ func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logg
 	}
 }
 
-// errorFieldProbe is the shortest byte sequence any {"error": "..."} reply must
-// contain. A reply without it cannot be an error envelope, whatever its shape.
 var errorFieldProbe = []byte(`"error"`)
 
-// ReplyErrorMessage reports the message carried by the fleet's conventional
-// {"error": "..."} reply envelope, or "" when the reply is an ordinary payload.
-// Callers that own their own request/reply loop use it instead of decoding an
-// error envelope themselves.
 func ReplyErrorMessage(data []byte) string { return rpcErrorMessage(data) }
 
-// rpcErrorMessage answers the same question without parsing the common case.
-// Replies are overwhelmingly successes, and a success carries no "error" key at
-// all, so a byte scan rejects it outright. Only a reply that could hold the key
-// pays a decode. Without the scan every reply in the fleet was parsed twice:
-// once into this envelope and once into the caller's own type.
 func rpcErrorMessage(data []byte) string {
 	if !bytes.Contains(data, errorFieldProbe) {
 		return ""

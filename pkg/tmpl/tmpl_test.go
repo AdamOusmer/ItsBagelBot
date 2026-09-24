@@ -5,8 +5,6 @@ package tmpl
 
 import "testing"
 
-// pinTokens is the palette the pinning table resolves against. The ':' keys
-// exist only to pin the one place the two legacy scanners disagreed.
 var pinTokens = map[string]string{
 	"user":  "bob",
 	"title": "hi",
@@ -15,17 +13,6 @@ var pinTokens = map[string]string{
 	"x:Y":   "XYUP",
 }
 
-// TestExpandPinsLegacyBehaviour pins, byte for byte, what the two scanners
-// this package replaced produced for every brace and escape edge case: an
-// unclosed '{', a bare '}', empty braces, nesting, adjacent tokens and a key
-// carrying a ':' payload.
-//
-// The two originals (sesame module.Expand, outgress expandTokens) were run
-// against this exact table before either was rewired. They agreed on all of it
-// except the last two rows: outgress lowercased the whole key, so it read
-// {x:Y} as x:y and answered "XY". sesame's name-only lowercasing is kept —
-// the payload after ':' is data, not a name — and no outgress token has ever
-// carried a payload, so no live reply changes.
 func TestExpandPinsLegacyBehaviour(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"", ""},
@@ -69,8 +56,6 @@ func pinRepl(tok Token) (string, bool) {
 	return v, ok
 }
 
-// TestAppendKeepsCallerBuffer covers the pooled path sesame's hot loop uses:
-// Append must write into the caller's slice and allocate nothing of its own.
 func TestAppendKeepsCallerBuffer(t *testing.T) {
 	dst := make([]byte, 0, 64)
 	got := Append(append(dst, "pre "...), "{user} says {unknown}", pinRepl)
@@ -84,10 +69,6 @@ func TestAppendKeepsCallerBuffer(t *testing.T) {
 	}
 }
 
-// TestLexRoundTrips pins the lexer's structural invariant: concatenating every
-// token's literal Text and span Raw reproduces the input exactly. It is what
-// lets a caller plan work off the token list and still render the original
-// bytes for anything it did not resolve.
 func TestLexRoundTrips(t *testing.T) {
 	for _, in := range []string{
 		"", "plain", "{user}", "hi {user}!", "{user}{title}", "a{b}c{user}d",
@@ -108,14 +89,7 @@ func TestLexRoundTrips(t *testing.T) {
 	}
 }
 
-// TestLexSplitsSpanParts pins the parts a scope chain plans against: a
-// lowercased name, a case-preserved payload that knows whether it exists at
-// all, and a fallback cut at the LAST pipe.
 func TestLexSplitsSpanParts(t *testing.T) {
-	// The parts only mean anything together, so the expectation is one
-	// comparable value and the assertion is one equality. Comparing the six
-	// fields one at a time made this loop complex enough to trip the health
-	// gate, and the per-field messages said less than a %+v diff does.
 	type parts struct {
 		name, payload, fallback string
 		hasPayload, hasFallback bool
@@ -154,8 +128,6 @@ func TestLexSplitsSpanParts(t *testing.T) {
 	}
 }
 
-// TestResolveThreeWay pins the render rule every surface shares: an unknown
-// name keeps its braces, an empty value falls back, anything else renders.
 func TestResolveThreeWay(t *testing.T) {
 	tok := Lex("{1|everyone}")[0]
 	if got := tok.Resolve("", false); got != "{1|everyone}" {

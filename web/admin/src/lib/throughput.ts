@@ -9,11 +9,6 @@ const FALLBACK_NATS_RATED_EPS = 123_000;
 const FALLBACK_TARGET_PCT = 75;
 const FALLBACK_WINDOW_SECONDS = 60;
 
-/**
- * Resolve capacity from the ingress snapshot. The fallback only exists for
- * mixed-version rolling deployments; ingress is the source of truth once the
- * capacity field is available.
- */
 export function resolveCapacity(snapshot: ShardSnapshot): IngressCapacity {
   if (snapshot.capacity) return snapshot.capacity;
 

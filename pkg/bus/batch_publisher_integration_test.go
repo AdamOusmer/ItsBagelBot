@@ -16,8 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Run with NATS_INTEGRATION_URL against NATS 2.14+ (testdata/nats-2.14.conf).
-// The ordinary suite skips it so CI does not need an external broker.
 func TestBatchPublisherIntegration(t *testing.T) {
 	t.Setenv("NATS_PUBLISH_WIRE", "single")
 	url, pub := openIntegrationPublisher(t)
@@ -28,8 +26,6 @@ func TestBatchPublisherIntegration(t *testing.T) {
 	assertIntegrationStream(t, url, messages)
 }
 
-// TestFastBatchPublisherIntegration exercises the default Fast-Ingest wire
-// end-to-end: a flow-controlled session must land whole on one commit.
 func TestFastBatchPublisherIntegration(t *testing.T) {
 	t.Setenv("NATS_PUBLISH_WIRE", "fast")
 	url, pub := openIntegrationPublisher(t)
@@ -40,8 +36,6 @@ func TestFastBatchPublisherIntegration(t *testing.T) {
 	assertIntegrationStream(t, url, messages)
 }
 
-// TestAtomicBatchPublisherIntegration exercises the ADR-050 atomic wire
-// end-to-end: cohorts must land whole with one commit PubAck each.
 func TestAtomicBatchPublisherIntegration(t *testing.T) {
 	t.Setenv("NATS_PUBLISH_WIRE", "atomic")
 	url, pub := openIntegrationPublisher(t)
@@ -52,9 +46,6 @@ func TestAtomicBatchPublisherIntegration(t *testing.T) {
 	assertIntegrationStream(t, url, messages)
 }
 
-// TestAtomicBatchMessageIdentityIntegration proves a stable fleet message ID
-// is transport metadata only. Repeating an intentional cohort stores it again
-// because the publisher never sends Nats-Msg-Id.
 func TestAtomicBatchMessageIdentityIntegration(t *testing.T) {
 	t.Setenv("NATS_PUBLISH_WIRE", "atomic")
 	url, pub := openIntegrationPublisher(t)
@@ -65,7 +56,6 @@ func TestAtomicBatchMessageIdentityIntegration(t *testing.T) {
 	flushIntegrationPublisher(t, pub, 5*time.Second)
 	assertIntegrationStream(t, url, messages)
 
-	// Same identities again: broker dedup is off, so the stream grows.
 	publishIdentifiedIntegrationMessages(t, pub, messages)
 	flushIntegrationPublisher(t, pub, 5*time.Second)
 	assertIntegrationStream(t, url, messages*2)
@@ -89,8 +79,6 @@ func publishIntegrationMessages(t *testing.T, pub Publisher, messages int) {
 	})
 }
 
-// publishConcurrently releases `messages` simultaneous publishes so cohort
-// assembly is exercised, then fails on the first publish error.
 func publishConcurrently(t *testing.T, messages int, publish func(i int) error) {
 	t.Helper()
 	start := make(chan struct{})
@@ -166,20 +154,11 @@ func assertBatchFeatures(t *testing.T, nc *nats.Conn) {
 	}
 }
 
-// BenchmarkBatchPublisherIntegration measures the exact fleet Publisher
-// contract, including message-ID generation, trace-header preparation, routing,
-// admission and whichever cohort wire NATS_PUBLISH_WIRE selects. Run it against
-// the repository's NATS 2.14 test configuration:
-//
-//	NATS_INTEGRATION_URL=nats://127.0.0.1:14222 \
-//	go test ./pkg/bus -run '^$' -bench BenchmarkBatchPublisherIntegration -benchmem
 func BenchmarkBatchPublisherIntegration(b *testing.B) {
 	url, pub := openIntegrationPublisher(b)
 	defer closeIntegrationPublisher(b, url, pub)
 	payload := integrationPayload(256)
 	configureIntegrationBenchmark(b, len(payload))
-	// Keep enough calls in flight to fill the connection-local cohorts; this
-	// measures saturated capacity, not the collection timer.
 	b.ResetTimer()
 	runIntegrationBenchmark(b, pub, payload)
 	flushIntegrationPublisher(b, pub, 30*time.Second)

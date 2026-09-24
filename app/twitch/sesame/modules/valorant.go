@@ -13,17 +13,10 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 )
 
-// valModuleName is the ModuleView key; the console MODULE_CATALOG entry and
-// the dashboard module page use the same id.
 const valModuleName = "valorant"
 
-// valCooldown is the shared per-command window; gossip caches every answer
-// (two minutes on rank and matches, a day on the shop rotation), so this only
-// shields chat from command spam, not the API.
 const valCooldown = 10 * time.Second
 
-// Default reply templates. The broadcaster customizes them per command on the
-// module page; blank falls back to these.
 const (
 	defaultValRankTemplate    = "{player} · {tier} · {rr} RR ({lastchange}) · peak {peaktier}"
 	defaultValMatchesTemplate = "{player}'s last {count}: {matches}"
@@ -32,9 +25,6 @@ const (
 	defaultValShopTemplate    = "Daily rotation ({count}): {items} · resets in {reset}"
 )
 
-// Special-case lines that replace their template entirely, because every
-// numeric token would render zero (the same shape as !crranked's no-record
-// answer).
 const (
 	valUnrankedText   = "has no competitive record this act"
 	valNoMatchesText  = "has no recent competitive games"
@@ -42,22 +32,9 @@ const (
 	valEmptyShopText  = "the daily rotation is empty today"
 )
 
-// valorantConfig is the module's dashboard configuration. Account is the
-// linked Riot ID ("Name#Tag"); Region and Platform scope it ("na", "console",
-// ...) — blank lets gossip detect the shard from the account and default to
-// PC. Chat args override all three per call. The *Enabled toggles are stored
-// "on"/"off" — empty means on, matching the alerts module's semantics — and
-// each *Message is a customized template (blank = default).
 type valorantConfig struct {
-	// linkedAccountConfig carries account/accountUuid/linkedOnly: here the
-	// account is a Riot ID ("Name#Tag"). Riot's own identifier is a puuid the
-	// provider resolves per lookup, so accountUuid stays unset and is never
-	// consulted (the resolution asks for it only under PreferUUID).
 	linkedAccountConfig
 
-	// Region and Platform scope the lookup ("na", "console", …); blank lets
-	// gossip detect the shard from the account and default to PC. Chat args
-	// override both per call.
 	Region   string `json:"region"`
 	Platform string `json:"platform"`
 
@@ -73,28 +50,6 @@ type valorantConfig struct {
 	ShopMessage  string `json:"shopMessage"`
 }
 
-// Valorant owns the Valorant chat commands backed by the gossip service. It
-// is a named, opt-in module (KindOptIn): off by default, enabled on the
-// dashboard, where the broadcaster links their Riot ID. Viewers can always
-// target another player explicitly: "!val Frosty#EUW1".
-//
-// The command surface mirrors clashroyale's: one root with subcommands plus
-// the squashed forms as direct triggers.
-//
-//	!val [id]            current competitive standing (also !valrank)
-//	!val matches [id]    the last few competitive games (also !valmatches)
-//	!val account [id]    who an ID resolves to, level/title (also !valaccount)
-//	!val lb [region]     the regional top 10 (also !vallb)
-//	!val shop            today's global skin rotation (also !valshop)
-//
-// An id is "Name#Tag"; any argument word naming a shard (na/eu/ap/kr/br/
-// latam) or a ladder (pc/console) scopes the lookup wherever it sits, so
-// "!val eu Frosty#EUW1" and "!val lb console ap" read naturally. Every
-// account answer rides gossip's cache keyed on id+region+platform, and a
-// region-less lookup auto-detects the shard once per day fleet-wide.
-// The four empty-state overrides. Each replaces its command's template
-// entirely when the reply carries no renderable content, because every numeric
-// token would print zero.
 func valRankSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantRankReply) (string, bool) {
 	if !r.Unranked {
 		return "", false
@@ -123,14 +78,10 @@ func valShopSpecial(_ statsCall[valorantConfig], r *gossiprpc.ValorantShopReply)
 	return valEmptyShopText, true
 }
 
-// valRoute names one Valorant gossip endpoint.
 func valRoute(endpoint string) engine.GossipRoute {
 	return engine.GossipRoute{Provider: "valorant", Endpoint: endpoint}
 }
 
-// newValRuns wires the five subcommand runners: each names its gossip
-// endpoint, where its toggle and template live in the config blob, and which
-// empty-state override applies.
 func newValRuns(d engine.Deps) valRuns {
 	return valRuns{
 		rank: valRun(d, valScope{}, externalCommand[valorantConfig, gossiprpc.ValorantRankReply]{
@@ -200,33 +151,15 @@ func Valorant(d engine.Deps) module.Module {
 	return m.Build()
 }
 
-// valRuns bundles the five subcommand runners so the root dispatcher takes one
-// argument instead of a positional list that grows with every new view.
 type valRuns struct {
 	rank, matches, account, board, shop module.RunFunc
 }
 
-// valScope names the two places a Valorant lookup deviates from the shared
-// account resolution. Everything else about these commands is the common
-// shape, which is why they ride externalCommand and replace only the two
-// strategies that scoping touches.
 type valScope struct {
-	// noBroadcasterFallback drops the "else the broadcaster's own login" step.
-	// A bare "!vallb" is a regional top-N ask, not a lookup of the
-	// broadcaster's standing, and their Twitch login is never a syntactically
-	// valid Riot ID: the fallback would only mint "invalid riot id".
 	noBroadcasterFallback bool
-	// accountless: the daily rotation is global, so no account scopes it and
-	// none is resolved.
-	accountless bool
+	accountless           bool
 }
 
-// valRun builds one command runner: the shared skeleton with Valorant's own
-// scoping in place of the plain linked-account resolution. cmd carries the
-// half that is the common shape (route, toggle, template, palette,
-// empty-state), and the handler is assembled from it here rather than built
-// through cmd.handler and then overwritten — a strategy that is replaced the
-// line after it is set reads as if the default still applied.
 func valRun[R any](d engine.Deps, scope valScope, cmd externalCommand[valorantConfig, R]) module.RunFunc {
 	return statsHandler[valorantConfig, R]{
 		d:       d,
@@ -238,8 +171,6 @@ func valRun[R any](d engine.Deps, scope valScope, cmd externalCommand[valorantCo
 	}.run
 }
 
-// valTarget names what a failure chats about: the resolved Riot ID, or the
-// feature itself when nothing scopes the lookup.
 func valTarget(scope valScope) func(statsCall[valorantConfig]) statsSubject {
 	if scope.accountless {
 		return fixedSubject[valorantConfig]("daily rotation")
@@ -250,9 +181,6 @@ func valTarget(scope valScope) func(statsCall[valorantConfig]) statsSubject {
 	}
 }
 
-// valRequest builds the scoped lookup. An accountless command sends the shared
-// request over the empty subject fixedSubject left it, so "nothing scopes this
-// lookup" is spelled one way here and not two.
 func valRequest(scope valScope) func(statsCall[valorantConfig], statsSubject) gossiprpc.Request {
 	if scope.accountless {
 		return accountRequest[valorantConfig]
@@ -264,16 +192,10 @@ func valRequest(scope valScope) func(statsCall[valorantConfig], statsSubject) go
 	}
 }
 
-// valLookup scopes one lookup: shard and ladder words peel off the typed args
-// first and dashboard config fills whatever remains; the target account then
-// resolves through the shared fallback chain unless the command opts out.
 func valLookup(call statsCall[valorantConfig], scope valScope) (account, region, platform string) {
 	cfg := call.Cfg
 	argAccount, region, platform := parseValArgs(call.Args)
 	if explicitOn(cfg.LinkedOnly) {
-		// Linked-only drops the typed id; a shard or ladder word still
-		// applies, since it only changes where the linked account is looked
-		// up, not whose.
 		argAccount = ""
 	}
 	region, platform = orDefault(region, cfg.Region), orDefault(platform, cfg.Platform)
@@ -284,13 +206,6 @@ func valLookup(call statsCall[valorantConfig], scope valScope) (account, region,
 	return account, region, platform
 }
 
-// parseValArgs splits a typed argument list into its scoping parts. Any word
-// naming a shard or ladder sets the region/platform wherever it sits ("!val
-// console ap" needs no account); the first remaining word is the account —
-// always a username-shaped Riot ID ("Name#Tag"), never a numeric id. The shard
-// set mirrors the provider's affinity table — adding one means touching both
-// places, since sesame prefers to pre-scope than to round-trip an upstream
-// rejection as a chat error.
 func parseValArgs(args string) (account, region, platform string) {
 	for _, f := range strings.Fields(args) {
 		switch w := strings.ToLower(f); w {
@@ -307,7 +222,6 @@ func parseValArgs(args string) (account, region, platform string) {
 	return account, region, platform
 }
 
-// valRankTokens is the !valrank template palette over the gossip reply.
 func valRankTokens() module.TokenExpander[gossiprpc.ValorantRankReply] {
 	type reply = gossiprpc.ValorantRankReply
 	return module.TokenExpander[reply]{
@@ -322,9 +236,6 @@ func valRankTokens() module.TokenExpander[gossiprpc.ValorantRankReply] {
 	}
 }
 
-// valMatchTokens is the !valmatches palette: the games joined as one-liners
-// (bounded by the upstream at five, so no truncation budget is needed) plus
-// the age of the most recent one.
 func valMatchTokens() module.TokenExpander[gossiprpc.ValorantMatchesReply] {
 	type reply = gossiprpc.ValorantMatchesReply
 	return module.TokenExpander[reply]{
@@ -347,7 +258,6 @@ func valMatchTokens() module.TokenExpander[gossiprpc.ValorantMatchesReply] {
 	}
 }
 
-// valAccountTokens is the !valaccount palette.
 func valAccountTokens() module.TokenExpander[gossiprpc.ValorantAccountReply] {
 	type reply = gossiprpc.ValorantAccountReply
 	return module.TokenExpander[reply]{
@@ -360,8 +270,6 @@ func valAccountTokens() module.TokenExpander[gossiprpc.ValorantAccountReply] {
 	}
 }
 
-// valBoardTokens is the !vallb palette: the rows joined as "#rank player (RR)"
-// (bounded by the upstream at ten, so no truncation budget is needed).
 func valBoardTokens() module.TokenExpander[gossiprpc.ValorantLeaderboardReply] {
 	type reply = gossiprpc.ValorantLeaderboardReply
 	return module.TokenExpander[reply]{
@@ -379,9 +287,6 @@ func valBoardTokens() module.TokenExpander[gossiprpc.ValorantLeaderboardReply] {
 	}
 }
 
-// valShopTokens is the !valshop palette. The rotation is bounded by the game
-// itself (a handful of direct-purchase skins per day), so the joined list fits
-// a chat line without a truncation budget.
 func valShopTokens() module.TokenExpander[gossiprpc.ValorantShopReply] {
 	type reply = gossiprpc.ValorantShopReply
 	return module.TokenExpander[reply]{
@@ -398,9 +303,6 @@ func valShopTokens() module.TokenExpander[gossiprpc.ValorantShopReply] {
 	}
 }
 
-// valAgo renders a wall-clock age ("2h ago"); sub-minute reads as fresh
-// because a completed match younger than that is still being played out in
-// the client.
 func valAgo(seconds int64) string {
 	d := time.Duration(seconds) * time.Second
 	switch {
@@ -415,8 +317,6 @@ func valAgo(seconds int64) string {
 	}
 }
 
-// valResetIn renders the countdown to the next shop flip, rounded to the
-// minute so a template never prints "resets in 3h 59m" an hour early.
 func valResetIn(unix int64) string {
 	d := time.Until(time.Unix(unix, 0)).Round(time.Minute)
 	if d < 0 {

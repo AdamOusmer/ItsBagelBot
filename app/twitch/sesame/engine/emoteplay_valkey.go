@@ -15,34 +15,13 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// Tuned windows. Both are gap tolerances, not stream boundaries: a chain dies
-// when the next candidate line takes longer than the window to arrive, and
-// ordinary prose never touches this store at all (the module gates on shape),
-// so nothing here can cost the chat hot path anything. Values are script
-// arguments, so a test can shrink them instead of sleeping out real windows.
 const (
-	// pyramidWindow is the max gap between two lines of one pyramid. Chat
-	// pyramids move at typing speed (~1-3s per line); 15s absorbs slow typists
-	// and a folded-cohort detour without keeping a dead attempt alive long
-	// enough for someone to "complete" a pyramid nobody was building.
 	pyramidWindow = 15 * time.Second
-	// streakWindow is the max gap between two single-emote messages of one
-	// streak. Streaks read as hype only while they are dense; 10s keeps the
-	// counter from creeping up across scattered messages.
-	streakWindow = 10 * time.Second
+	streakWindow  = 10 * time.Second
 )
 
-// streakLadder is the counts at which a streak is announced. A milestone fires
-// when the running count crosses a rung (a folded cohort may jump several), and
-// after the last rung the streak stays silent — past x1000 every further line
-// would be spam with no information. Crossing (not equality) so a 5-duplicate
-// cohort cannot step over a rung without celebrating it.
 var streakLadder = []int{5, 10, 25, 50, 100, 250, 500, 1000}
 
-// EmotePlayUpdate is one candidate line fed to the store: emote is the exact
-// repeated token (case matters — Kappa and kappa are different emotes), width
-// its repetition count in the line (>= 1), copies how many identical lines the
-// ingress squash folded into this envelope (>= 1 when none).
 type EmotePlayUpdate struct {
 	BroadcasterID uint64
 	MsgID         string
@@ -51,48 +30,15 @@ type EmotePlayUpdate struct {
 	Copies        int
 }
 
-// EmotePlayResult is what one accepted line did to the channel's chains.
 type EmotePlayResult struct {
-	// PyramidDone is true when this line landed the descent back at width 1;
-	// Apex is the height it reached.
-	PyramidDone bool
-	Apex        int
-	// StreakMilestone is true when the streak crossed a ladder rung; Streak is
-	// that rung's count (the announced number, not necessarily the raw count —
-	// a folded cohort can overshoot).
+	PyramidDone     bool
+	Apex            int
 	StreakMilestone bool
 	Streak          int
 }
 
-// EmotePlayStore itself is declared in deps.go alongside the other store
-// interfaces; ValkeyEmotePlay below is its implementation.
-
-// ValkeyEmotePlay is the race-safety story, which is the whole reason it lives
-// in valkey rather than pod-local memory: sesame runs 3 replicas sharing one
-// durable lane consumer, so consecutive lines of the same channel are routinely
-// handled by different pods, and JetStream redeliveries re-run handlers after a
-// nack. Every transition is therefore ONE Lua script call — read state, decide,
-// write state, all inside the interpreter's single-threaded atomicity — so the
-// second pod to touch a channel linearizes on top of the first pod's write.
-// There is deliberately no WATCH/MULTI retry loop and no GET-then-SET: the
-// script is one master round trip, which keeps the per-candidate-line cost at
-// exactly one RTT and closes the inter-pod races by construction.
-//
-// The script is not NewLuaScriptRetryable on purpose (same reasoning as
-// pkg/ratelimit): a connection failure mid-script could have applied the bump,
-// and replaying it would double-count a line. The module treats an error as
-// "line lost" and fails open silently.
-//
-// Replays of the SAME message id are absorbed in-script (the msg field): a
-// redelivered envelope re-runs this handler because the pipeline's EventDedup
-// deliberately does not claim plain-chat lines, and without the msg guard a
-// redelivery would double-count a streak line. One guard covers both
-// subsystems since they consume the same line.
 type ValkeyEmotePlay struct {
 	client valkey.Client
-	// The windows ride every Bump as script arguments rather than living only
-	// in the script source, so tests can shrink them to milliseconds instead
-	// of sleeping out production values.
 	pyrWin time.Duration
 	stkWin time.Duration
 }
@@ -101,30 +47,6 @@ func NewValkeyEmotePlay(client valkey.Client) *ValkeyEmotePlay {
 	return &ValkeyEmotePlay{client: client, pyrWin: pyramidWindow, stkWin: streakWindow}
 }
 
-// emoteplayScript advances pyramid + streak state for one candidate line.
-//
-// KEYS[1] the channel's state hash (emoteplay:v1:<broadcaster>).
-// ARGV[1] emote, [2] width, [3] copies, [4] msgid,
-// [5] pyramid window ms, [6] streak window ms, [7] key ttl ms, [8] ladder csv.
-//
-// Returns {flags, milestone, apex}: flags bit0 (value 1) pyramid completed,
-// bit1 (value 2) streak milestone; milestone the rung crossed; apex the
-// completed pyramid's height. Integers only — raffle_claim.go documents why a
-// RESP2 bulk starting '-' would parse as an error.
-//
-// Pyramid rules. State: emote, width, apex, phase (0 ascending / 1 descending).
-// An attempt must begin at width 1. Same-width repeats are neutral no-ops (two
-// chatters racing the same step, or two pods delivering near-simultaneously,
-// must not double-step); width+1 ascends while phase=asc; width-1 descends,
-// but only straight off the apex (phase flips there); landing the descent at 1
-// completes and clears. Anything else — different emote, a width jump, or
-// re-ascending mid-descent — abandons the attempt. Only a new width-1 line can
-// start another one. Window expiry behaves like a clear.
-//
-// Streak rules. Only single-token lines (width==1) count; a wider pure-emote
-// line (someone building something else) breaks the current streak silently.
-// Same-emote lines add their copies (folded duplicates each count — they were
-// distinct chatters); a different emote restarts from that line's copies.
 var emoteplayScript = valkey.NewLuaScript(`
 local t = redis.call('TIME')
 local now = t[1] * 1000 + math.floor(t[2] / 1000)
@@ -237,9 +159,6 @@ func emoteplayKey(broadcasterID uint64) string {
 	return cache.UserKey("emoteplay:v1:", broadcasterID)
 }
 
-// Bump advances both chains for one line in a single master round trip. Pure
-// write script, so the default write-to-master routing is correct without a
-// Primary pin (nothing ever reads back through a replica).
 func (s *ValkeyEmotePlay) Bump(ctx context.Context, u EmotePlayUpdate) (EmotePlayResult, error) {
 	ladder := make([]string, len(streakLadder))
 	for i, r := range streakLadder {
@@ -252,10 +171,6 @@ func (s *ValkeyEmotePlay) Bump(ctx context.Context, u EmotePlayUpdate) (EmotePla
 		u.MsgID,
 		strconv.FormatInt(s.pyrWin.Milliseconds(), 10),
 		strconv.FormatInt(s.stkWin.Milliseconds(), 10),
-		// Twice the longest subsystem window, so an abandoned chain always
-		// expires server-side even if no further candidate line ever arrives.
-		// Nothing reads the key except this script, so the exact value only
-		// bounds memory.
 		strconv.FormatInt((2 * s.pyrWin).Milliseconds(), 10),
 		strings.Join(ladder, ","),
 	}

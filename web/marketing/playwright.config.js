@@ -3,14 +3,9 @@
 
 import { defineConfig } from '@playwright/test';
 
-// Serves the already-built static output in dist/ on :4321 for the suite.
-// `reuseExistingServer` lets a manually-running preview be reused locally.
 export default defineConfig({
     testDir: './tests',
     fullyParallel: true,
-    // The encryption scene runs a real WebGL context (software-rendered in
-    // headless); too many parallel workers starve rAF and make the timing-based
-    // assertions flake. Cap workers and allow one retry for residual contention.
     workers: 3,
     retries: 1,
     use: {

@@ -9,8 +9,6 @@ import (
 	"testing"
 )
 
-// rbacManifest reads the four RBAC kinds out of deployer.yaml. Roles fill
-// Rules, bindings fill RoleRef and Subjects.
 type rbacManifest struct {
 	Kind     string `yaml:"kind"`
 	Metadata struct {
@@ -40,7 +38,6 @@ type rbacSubject struct {
 	Namespace string `yaml:"namespace"`
 }
 
-// rbacKinds groups deployer.yaml's RBAC documents by kind.
 func rbacKinds(t *testing.T) map[string][]rbacManifest {
 	t.Helper()
 	out := map[string][]rbacManifest{}
@@ -50,12 +47,6 @@ func rbacKinds(t *testing.T) map[string][]rbacManifest {
 	return out
 }
 
-// deniedGrants are what the deployer must never hold. delete: the train only
-// adds or changes, and a removal is a human decision. secrets: Doppler owns
-// every Secret, and reading one is reading another service's credentials.
-// RBAC: a train that can write a RoleBinding, or escalate, bind or
-// impersonate, can grant itself anything, so every other limit here would be
-// advisory. A wildcard grants all of the above at once.
 var deniedGrants = []struct {
 	field  string
 	of     func(rbacRule) []string
@@ -69,9 +60,6 @@ var deniedGrants = []struct {
 		[]string{"rbac.authorization.k8s.io", "*"}},
 }
 
-// TestDeployerRBACNeverGrantsDeleteSecretsOrRBAC walks every rule of every
-// Role and ClusterRole in deployer.yaml, so a grant added in any of them, or
-// a new role, is checked without editing this test.
 func TestDeployerRBACNeverGrantsDeleteSecretsOrRBAC(t *testing.T) {
 	kinds := rbacKinds(t)
 	roles := slices.Concat(kinds["Role"], kinds["ClusterRole"])
@@ -91,7 +79,6 @@ func TestDeployerRBACNeverGrantsDeleteSecretsOrRBAC(t *testing.T) {
 	}
 }
 
-// deniedIn lists each denied value a rule grants, as "field value".
 func deniedIn(rule rbacRule) []string {
 	var out []string
 	for _, grant := range deniedGrants {
@@ -104,12 +91,6 @@ func deniedIn(rule rbacRule) []string {
 	return out
 }
 
-// TestDeployerRolesMirrorTheApplierAllowlist: one Role per workload
-// namespace, identical in each, whose write grants are the applier's
-// allowlist (app/deployer/internal/kube/apply) one for one. RBAC is the outer
-// bound and the allowlist the inner one; when they match, a refused object
-// fails on the applier's readable message instead of a 403 half way through
-// an apply. ops is absent on purpose: the deployer never rolls itself.
 func TestDeployerRolesMirrorTheApplierAllowlist(t *testing.T) {
 	byNamespace := map[string][]rbacRule{}
 	for _, role := range rbacKinds(t)["Role"] {
@@ -128,15 +109,12 @@ func TestDeployerRolesMirrorTheApplierAllowlist(t *testing.T) {
 	}
 }
 
-// allowlist is the applier's kind allowlist as "group/resource", sorted.
-// PriorityClass is the cluster-scoped member and lives on the ClusterRole.
 var allowlist = sorted(
 	"/configmaps", "/services", "apps/daemonsets", "apps/deployments", "batch/cronjobs",
 	"keda.sh/scaledobjects", "networking.k8s.io/networkpolicies", "policy/poddisruptionbudgets",
 	"traefik.io/ingressroutes", "traefik.io/middlewares",
 )
 
-// writableResources lists every "group/resource" a rule set can patch.
 func writableResources(rules []rbacRule) []string {
 	var out []string
 	for _, rule := range rules {
@@ -148,7 +126,6 @@ func writableResources(rules []rbacRule) []string {
 	return out
 }
 
-// targets lists the rule's "group/resource" pairs.
 func (r rbacRule) targets() []string {
 	var out []string
 	for _, group := range r.APIGroups {
@@ -159,10 +136,6 @@ func (r rbacRule) targets() []string {
 	return out
 }
 
-// TestDeployerClusterRoleIsPriorityClassesAndNodes: the only cluster-scoped
-// needs are applying priorityclasses.yaml first on every rollout and
-// preflight's node listing. Exact, because a cluster-scoped grant reaches
-// every namespace, including the ones the Roles leave out.
 func TestDeployerClusterRoleIsPriorityClassesAndNodes(t *testing.T) {
 	clusterRoles := rbacKinds(t)["ClusterRole"]
 	want := []rbacRule{
@@ -174,9 +147,6 @@ func TestDeployerClusterRoleIsPriorityClassesAndNodes(t *testing.T) {
 	}
 }
 
-// TestDeployerBindingsNameOnlyItsServiceAccount: every binding grants to the
-// deployer ServiceAccount in ops and nothing else, and binds the roles above
-// in exactly the namespaces they live in.
 func TestDeployerBindingsNameOnlyItsServiceAccount(t *testing.T) {
 	type binding struct {
 		RoleRef  rbacRoleRef

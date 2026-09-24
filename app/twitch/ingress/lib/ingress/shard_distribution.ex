@@ -2,27 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.ShardDistribution do
-  @moduledoc """
-  Horde distribution strategy that places shard sessions round-robin by
-  shard id across the alive members, sorted by node name, so a 5-shard
-  Conduit on two nodes always splits 3/2 instead of wherever the default
-  hash ring happens to land (4/1 in practice).
-
-  Placement is deterministic given the same membership. New shards land in a
-  balanced shape immediately; `Ingress.ConduitManager` uses the same target
-  calculation for a delayed make-before-break rebalance after membership has
-  settled following a rollout.
-
-  Nodes carrying a `{:draining, node}` marker (registered by `Ingress.Drain`
-  during a planned shutdown) are excluded from every placement — a handoff
-  successor placed back on the dying pod would die seconds later. A marker
-  whose owner is no longer a visible cluster member is ignored, so a stale
-  entry can never fence a node out permanently.
-
-  Anything that is not a shard session (the singletons, rescue sessions)
-  falls back to `Horde.UniformDistribution` over the same filtered members.
-  """
-
   @behaviour Horde.DistributionStrategy
 
   @impl true
@@ -49,25 +28,13 @@ defmodule Ingress.ShardDistribution do
   @impl true
   def has_quorum?(_members), do: true
 
-  @doc """
-  Returns the deterministic node for a shard under the supplied membership.
-  """
   def target_node(_shard_id, []), do: nil
 
   def target_node(shard_id, nodes) do
-    # Tuple form so the modulus and the pick both read the size for free;
-    # `Enum.at/2` plus `length/1` walked the list twice per placement.
     nodes = nodes |> Enum.sort() |> List.to_tuple()
     elem(nodes, rem(shard_id, tuple_size(nodes)))
   end
 
-  @doc """
-  Picks one move that strictly improves an imbalanced fleet.
-
-  Placements are `{shard_id, pid}` pairs. A balanced fleet (node counts differ
-  by at most one) is left alone even when shard ids do not sit on their
-  deterministic target, avoiding needless WebSocket rebinds.
-  """
   def rebalance_candidate(placements, nodes),
     do: rebalance_candidate(placements, nodes, &node/1)
 
@@ -99,9 +66,6 @@ defmodule Ingress.ShardDistribution do
     end
   end
 
-  # A fleet with no nodes needs no move. Otherwise it is balanced when the
-  # per-node shard counts differ by at most one; empty placements collapse to
-  # all-zero loads, which reads as balanced.
   defp balanced?([], _counts), do: true
 
   defp balanced?(nodes, counts) do
@@ -115,8 +79,6 @@ defmodule Ingress.ShardDistribution do
       [] -> false
     end
   rescue
-    # Registry not running (placement asked before the tree is up): no
-    # markers can exist either.
     ArgumentError -> false
   end
 

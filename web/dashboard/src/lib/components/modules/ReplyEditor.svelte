@@ -1,22 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Builder inspector for one module reply, the same surface as editing a custom
-  // command's response: the shared ResponseEditor (message + token chips) and the
-  // ChatPreview rehearsal (ItsBagelBot name + logo).
-  //
-  // Two reply shapes:
-  //  - event replies (shoutout, alerts): framed by the firing event (`tag`),
-  //    bot line only.
-  //  - command replies (gossip modules: reply.command set): same surface as a
-  //    custom command ("Chat rehearsal" border, a sample viewer typing the
-  //    trigger), and the token palette swaps to the reply's supported variables.
-  // Both rehearse with kind="reply": ONLY this reply's own token samples
-  //    (plus the dynamic tokens) substitute, so foreign tokens stay marked
-  //    as unknown.
-  //
-  // Save/Cancel are handled by the page so the whole-module config persists in
-  // one place.
   import { Field, getI18n, tModuleReplyDefault, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
   import { chipsFor } from '@bagel/kit/variables';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
@@ -41,20 +25,11 @@
 
   const { t } = getI18n();
 
-  // Blank posts the module default, so preview the default (matches the
-  // placeholder) instead of an empty "nothing to say yet".
   const localizedDefault = $derived(tModuleReplyDefault(t, moduleId, reply));
   const effectiveMessage = $derived(message.trim() ? message : localizedDefault);
 
   const isCommand = $derived(!!reply.command);
-  // This reply's own token reference, read off the manifest surface (the same
-  // set surface={{module,reply}} on ResponseEditor's VariablePalette
-  // offers), for the read-only list under the rehearsal below.
   const ownTokens = $derived(chipsFor({ module: moduleId, reply: reply.key }));
-  // ChatPreview's samples prop is a bare name->sample record (it feeds the
-  // shared rehearsal in engine/rehearsal.ts, which knows nothing about
-  // ReplyToken); derive it from the same tokens the palette reads so the two
-  // never disagree.
   const rehearsalSamples = $derived(Object.fromEntries((reply.tokens ?? []).map((tk) => [tk.name, tk.sample])));
 </script>
 
@@ -64,9 +39,6 @@
   </Field>
 
   {#if isCommand}
-    <!-- Same surface as the commands page: viewer types the trigger, the bot
-         answers. kind="reply" because sesame expands only this reply's own
-         tokens (plus {random}/{choice:…}): never the command set. -->
     <ChatPreview
       kind="reply"
       name={reply.command}

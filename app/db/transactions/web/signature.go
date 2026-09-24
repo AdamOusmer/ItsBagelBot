@@ -10,8 +10,6 @@ import (
 	"strings"
 )
 
-// verifyTebexSignature authenticates a webhook: Tebex signs HMAC-SHA256 over the
-// hex of the body's SHA-256. The comparison is constant time.
 func verifyTebexSignature(body []byte, signature, secret string) bool {
 	provided, err := hex.DecodeString(strings.TrimSpace(signature))
 	if err != nil {

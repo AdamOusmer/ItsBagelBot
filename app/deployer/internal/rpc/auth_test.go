@@ -16,8 +16,6 @@ import (
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 )
 
-// verdict is what RequireOwner decided plus what it asked the users service,
-// compared whole.
 type verdict struct {
 	Actor     deploy.Actor
 	Forbidden bool

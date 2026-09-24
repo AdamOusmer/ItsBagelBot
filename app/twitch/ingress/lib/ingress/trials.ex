@@ -2,8 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Trials do
-  @moduledoc "Durable trial admission and ownership over Valkey."
-
   alias Ingress.TrialValkey, as: VK
 
   @members "trial:desired"

@@ -1,26 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Twitch OAuth2/OIDC client built on oauth4webapi (Panva's maintained protocol
-// library, the successor ecosystem to the deprecated `arctic` package this
-// used to be). This module is only arg-marshaling: every protocol-sensitive
-// step: client_secret_post encoding, the token request itself, and ID Token
-// claim validation (iss, aud, exp, nonce), happens inside oauth4webapi.
-//
-// Twitch metadata is pinned rather than discovered: discovery would add a
-// network round trip and failure mode to every cold login for three endpoints
-// that have been stable for years. Same trust model as arctic: the id_token
-// claims are validated against the pinned issuer/client but the JWS signature
-// is not checked (the token arrives over a direct TLS call to
-// id.twitch.tv, which is the issuer-verification substitute RFC-wise;
-// oauth4webapi.validateApplicationLevelSignature exists if that ever needs
-// tightening).
-//
-// Nonce policy (tightened vs arctic-era code): when a nonce value is supplied,
-// oauth4webapi asserts it matches the id_token nonce claim; when it is not,
-// expectNoNonce asserts the token carries none. Callers must therefore always
-// pass either the stored cookie nonce or expectNoNonce: a login whose
-// oauth_nonce cookie vanished fails closed instead of skipping the check.
 import {
   authorizationCodeGrantRequest,
   ClientSecretBasic,
@@ -42,14 +22,6 @@ import {
 
 export { ResponseBodyError, expectNoNonce };
 
-// isOAuthProtocolError is what the auth callbacks should catch: BOTH failure
-// families the exchange can produce. ResponseBodyError is the provider saying
-// no (invalid grant, revoked code); OperationProcessingError is the provider
-// answering something the strict parser refuses (the Twitch array-scope quirk
-// was one). Neither is OUR server failing, so neither deserves the framework
-// 500, and a +server endpoint throw renders SvelteKit's bare fallback page,
-// never the app's +error.svelte, which is exactly how the array-scope bug
-// surfaced to users as an unstyled default 500.
 export function isOAuthProtocolError(e: unknown): boolean {
   return e instanceof ResponseBodyError || e instanceof OperationProcessingError;
 }
@@ -74,16 +46,10 @@ export class OAuth2Tokens {
     throw new Error("Missing or invalid 'refresh_token' field");
   }
 
-  // refreshTokenOptional is for providers that may legitimately omit the
-  // refresh token on a re-consent whose scopes are unchanged (Spotify does
-  // exactly this: consent is reused). Callers decide whether absence is
-  // acceptable (one already stored server-side) or fatal.
   refreshTokenOptional(): string | undefined {
     return typeof this.result.refresh_token === 'string' ? this.result.refresh_token : undefined;
   }
 
-  // Claims come back already validated (issuer, audience, expiry, nonce) by
-  // processAuthorizationCodeResponse's ID Token processing.
   claims(): IDToken {
     const claims = getValidatedIdTokenClaims(this.result as never);
     if (!claims) throw new Error('Token response carried no ID Token claims');
@@ -91,19 +57,6 @@ export class OAuth2Tokens {
   }
 }
 
-// normalizeTwitchScope rewrites the ONE way Twitch's token endpoint violates
-// RFC 6749 before the strict library sees it: `scope` comes back as a JSON
-// array (["openid", ...]) where §5.1 requires a space-delimited string.
-// oauth4webapi rightly refuses it ('"response" body "scope" property must be
-// a string'), which made EVERY successful login 500: the exchange succeeds,
-// then parsing throws OperationProcessingError, which is not the
-// ResponseBodyError the callback maps to /login?e=oauth. Reproduced against a
-// Twitch-shaped body and green with only this join applied.
-//
-// Only a 200 JSON body with an array scope is touched; error responses pass
-// through byte-identical so ResponseBodyError classification stays the
-// library's. This is vendor-quirk normalization at the boundary, not protocol
-// logic. Everything else stays inside oauth4webapi.
 async function normalizeTwitchScope(response: Response): Promise<Response> {
   if (!response.ok) return response;
   const body: unknown = await response.clone().json().catch(() => null);
@@ -117,8 +70,6 @@ async function normalizeTwitchScope(response: Response): Promise<Response> {
   });
 }
 
-// Exported for the regression test only; production code reaches it through
-// Twitch.validateAuthorizationCode.
 export const __normalizeTwitchScopeForTests = normalizeTwitchScope;
 
 export class Twitch {
@@ -131,8 +82,6 @@ export class Twitch {
     private readonly redirectURI: string
   ) {
     this.client = { client_id: clientId };
-    // client_secret_post matches what Twitch expects and what arctic sent:
-    // credentials in the form body, not an Authorization header.
     this.clientAuth = ClientSecretPost(clientSecret);
   }
 
@@ -150,9 +99,6 @@ export class Twitch {
     code: string,
     nonce?: string | typeof expectNoNonce
   ): Promise<OAuth2Tokens> {
-    // validateAuthResponse is the library's own callback sanity gate (rejects
-    // provider error responses, missing code); state was already compared
-    // against the HttpOnly cookie by the routes, so it's skipped here.
     const callbackParameters = validateAuthResponse(
       TWITCH_AS,
       this.client,
@@ -186,10 +132,6 @@ const SPOTIFY_AS: AuthorizationServer = {
   token_endpoint: 'https://accounts.spotify.com/api/token'
 };
 
-// Spotify OAuth2 client for the song-requests connect flow. Plain OAuth2:
-// no ID Token (Spotify ships none), so requireIdToken stays off and there is
-// no nonce to bind. Spotify returns scope as an RFC-compliant space-delimited
-// string, so unlike Twitch no response normalization is needed.
 export class Spotify {
   private readonly client: Client;
   private readonly clientAuth: ClientAuth;
@@ -200,8 +142,6 @@ export class Spotify {
     private readonly redirectURI: string
   ) {
     this.client = { client_id: clientId };
-    // Spotify's token endpoint documents HTTP Basic (it also accepts post-body
-    // credentials, but Basic is the documented default).
     this.clientAuth = ClientSecretBasic(clientSecret);
   }
 
@@ -230,7 +170,6 @@ export class Spotify {
       this.redirectURI,
       nopkce
     );
-    // No ID Token to validate: process without the requireIdToken assertion.
     const result = await processAuthorizationCodeResponse(SPOTIFY_AS, this.client, response);
     return new OAuth2Tokens(result as unknown as Record<string, unknown>);
   }

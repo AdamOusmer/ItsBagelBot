@@ -1,18 +1,12 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Palette chip that opens a small panel: insert an existing counter's token
-  // at the cursor, or create a counter (name + scope) right here and insert
-  // it. The list lazy-loads from /counters/list on first open; create posts
-  // through the counters page's own ?/create action.
   import { deserialize } from '$app/forms';
   import { getI18n, type CounterScope } from '@bagel/kit';
   import { PickerPanel } from '@bagel/kit';
 
   const { t } = getI18n();
 
-  // The list endpoint sends names and scopes only (values are channel
-  // metrics and stay on the counters page).
   type CounterRef = { name: string; scope: CounterScope };
 
   let { onInsert }: { onInsert: (token: string) => void } = $props();
@@ -24,17 +18,6 @@
   let counters = $state<CounterRef[]>([]);
   let newName = $state('');
 
-  // "Who does this count for?" is one question, so it is one control. It used
-  // to be two: a scope <select> plus a separate "count for the viewer they
-  // mention" checkbox, which split a single decision across two widgets and
-  // left the reader to work out how they combined.
-  //
-  // 'target' is a pseudo-scope. On the wire it is still a viewer-scoped counter:
-  // the difference is only which viewer the bump keys on, which is carried by
-  // the {counter:target:…} token spelling rather than by the counter's own
-  // scope (issue #479). Keeping it in this list is what makes the UI match how
-  // an author thinks about it; the two derived values below put it back onto
-  // the two axes the wire actually has.
   const COUNTS_FOR = ['channel', 'viewer', 'target', 'command', 'viewer_command'] as const;
   let countsFor = $state<(typeof COUNTS_FOR)[number]>('channel');
 
@@ -67,7 +50,6 @@
       counters = data.counters ?? [];
       loaded = true;
     } catch {
-      /* the list is a convenience; creating below still works */
     }
     loading = false;
   }
@@ -111,8 +93,6 @@
 </script>
 
 <div class="cp">
-  <!-- Labelled as what it does, not as the token it eventually inserts: this
-       opens a menu, so it must not wear the same mono pill as the literals. -->
   <button
     type="button"
     class="picker"
@@ -128,9 +108,6 @@
 
   <PickerPanel {open} anchor={btnEl} label={t('counters.pickerTitle')} width={280} maxHeight={360} onClose={() => (open = false)}>
     {#snippet children()}
-      <!-- Sits above both lists because it governs both: it decides the token
-           spelling for whatever you insert, and the scope of anything created
-           below. -->
       <label class="counts-for">
         <span class="panel-title">{t('counters.fieldScope')}</span>
         <select class="bb-input" bind:value={countsFor}>
@@ -182,8 +159,6 @@
 <style>
   .cp { position: relative; display: inline-flex; }
 
-  /* Menu trigger, not a token chip. Kept identical to FetchSourcePicker's
-     .picker so the two menus read as one group beside the literal pills. */
   .picker {
     display: inline-flex;
     align-items: center;
@@ -235,12 +210,10 @@
   }
   .opt:hover { background: var(--glass-fill-2); }
   .opt-name { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-white); }
-  /* Was a plain muted body-font run; now the global .bb-tag--bare label. */
   .opt-tag { flex: none; }
 
   .err { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-status-error, #cf8a78); }
 
-  /* First row of the panel: who the counter counts against. */
   .counts-for { display: flex; flex-direction: column; gap: 5px; }
   .preview {
     margin: -2px 0 2px;

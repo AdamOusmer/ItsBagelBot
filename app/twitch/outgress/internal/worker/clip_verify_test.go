@@ -16,8 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// scriptedTransport serves one canned response per call, in order, and counts
-// the calls so tests can assert how many polls actually went out.
 type scriptedTransport struct {
 	mu        sync.Mutex
 	responses []scriptedResponse
@@ -121,7 +119,6 @@ func TestClipConfirmedAbsentCanceledContextStaysSilent(t *testing.T) {
 	w := clipVerifyWorker(t, rt)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	// Non-zero waits so the done context, not the expired timer, wins the select.
 	if w.clipConfirmedAbsent(ctx, clipProbe{broadcasterID: "123", clipID: "AbCdEf"}, clipVerifyDelay, clipVerifyRecheck) {
 		t.Error("clipConfirmedAbsent = true on canceled context")
 	}

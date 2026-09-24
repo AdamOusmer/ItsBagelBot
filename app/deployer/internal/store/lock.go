@@ -13,14 +13,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// lockRecord is the lock document. Expiry is HeartbeatAt plus LockTTL, judged
-// on the reader's clock.
-//
-// A KV per-key TTL (KeyTTL, server 2.11+) looks like the natural fit but
-// cannot carry a heartbeat: the TTL is set only by Create, Update cannot
-// extend it, so every heartbeat would be delete-then-create, which drops the
-// revision CAS and leaves a window where a second run takes the lock between
-// the two writes. The explicit timestamp keeps every write a CAS.
 type lockRecord struct {
 	Owner       deploy.RunID `json:"owner"`
 	HeartbeatAt time.Time    `json:"heartbeat_at"`
@@ -37,11 +29,7 @@ func (s *Store) AcquireLock(ctx context.Context, owner deploy.RunID) (ports.Lock
 	return s.stamp(ctx, owner, rev)
 }
 
-// Heartbeat rewrites the timestamp at the held revision. It still succeeds
-// after LockTTL if nobody took the lock in the meantime: the revision proves
-// the lock was never anyone else's. The zero Lock is refused rather than
-// stamped at revision 0, which would create an ownerless lock nobody can
-// re-acquire until it expires.
+// The zero Lock must be refused: revision 0 would create an ownerless lock.
 func (s *Store) Heartbeat(ctx context.Context, lock ports.Lock) (ports.Lock, error) {
 	if lock.Revision == 0 {
 		return ports.Lock{}, fmt.Errorf("%w: lock not held", ports.ErrLockHeld)
@@ -49,11 +37,7 @@ func (s *Store) Heartbeat(ctx context.Context, lock ports.Lock) (ports.Lock, err
 	return s.stamp(ctx, lock.Owner, lock.Revision)
 }
 
-// ReleaseLock deletes the lock at the held revision. A lock another run has
-// taken over is not ours to delete, so a lost CAS is not an error. The zero
-// Lock is a no-op rather than a revision-0 delete, which KV treats as
-// unconditional: a caller that assigns a failed Heartbeat's zero result and
-// then releases would otherwise delete the lock the other run now holds.
+// The zero Lock must be a no-op: a revision-0 delete is unconditional and drops another run's lock.
 func (s *Store) ReleaseLock(ctx context.Context, lock ports.Lock) error {
 	if lock.Revision == 0 {
 		return nil
@@ -81,8 +65,6 @@ func (s *Store) expired(cur lockRecord) bool {
 	return !s.clock.Now().Before(cur.HeartbeatAt.Add(s.ttl))
 }
 
-// stamp writes owner's heartbeat at rev (0 creates). A lost CAS means
-// another run wrote the lock after it was read, so it reads as ErrLockHeld.
 func (s *Store) stamp(ctx context.Context, owner deploy.RunID, rev ports.Revision) (ports.Lock, error) {
 	next, err := s.save(ctx, keyLock, lockRecord{Owner: owner, HeartbeatAt: s.clock.Now()}, rev)
 	if errors.Is(err, ports.ErrConflict) {

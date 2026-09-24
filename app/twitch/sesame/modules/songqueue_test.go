@@ -21,8 +21,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeSongQueue is an in-memory SongQueueStore: a current pointer plus the
-// ordered pending line, mirroring the real store's rules.
 type fakeSongQueue struct {
 	current *engine.SongEntry
 	up      []engine.SongEntry
@@ -126,8 +124,6 @@ func songDeps(store engine.SongQueueStore, g engine.GossipCaller) engine.Deps {
 	return engine.Deps{SongQueue: store, Gossip: g, Log: zap.NewNop()}
 }
 
-// songCtx builds a chat Context for broadcaster 100 with the given chatter.
-// badges carries Twitch badge set_ids ("moderator", "broadcaster", ...).
 func songCtx(chatterID, login string, badges ...string) *module.Context {
 	env := lane.Envelope{
 		Type:                 "channel.chat.message",
@@ -154,10 +150,6 @@ func srTrack(id, name, artist string) gossiprpc.SpotifyTrack {
 	return gossiprpc.SpotifyTrack{ID: id, Name: name, Artists: []string{artist}, DurationMS: 222000}
 }
 
-// srSearchGossip fakes the whole request path: the search resolve plus the two
-// player writes every accepted add and skip now perform. The player answers
-// success so tests about queue policy stay about queue policy; the
-// player-refusal tests override these keys.
 func srSearchGossip(tracks ...gossiprpc.SpotifyTrack) *fakeGossip {
 	return &fakeGossip{replies: map[string]any{
 		"spotify.search": gossiprpc.SpotifySearchReply{Tracks: tracks, ResolvedAs: "text"},
@@ -180,9 +172,6 @@ func TestSRAddsResolvedTrack(t *testing.T) {
 
 	out := runSR(t, m, songCtx("42", "alice"), "brightside by the killers")
 
-	// One resolve, one best-effort player reconcile, then one push onto the
-	// live player: the push is what makes the request audible, and it
-	// addresses the track the search resolved.
 	require.Len(t, g.calls, 3)
 	search, sync, push := g.calls[0], g.calls[1], g.calls[2]
 	assert.Equal(t, "nowplaying", sync.endpoint)
@@ -210,8 +199,6 @@ func TestSRAddsResolvedTrack(t *testing.T) {
 	assert.Contains(t, text, "#1")
 }
 
-// The old hard rule was one pending request per viewer. The default is now
-// UNLIMITED, and any cap is the broadcaster's per-tier quota config.
 func TestSRSecondRequestQueuesByDefault(t *testing.T) {
 	g := srSearchGossip(srTrack("t2", "Human", "The Killers"))
 	store := &fakeSongQueue{}
@@ -225,8 +212,6 @@ func TestSRSecondRequestQueuesByDefault(t *testing.T) {
 	assert.Contains(t, chatText(t, out), "#2")
 }
 
-// Per-tier quotas: the chatter's highest role picks the cap, an absent tier is
-// unlimited, and the refusal names the limit.
 func TestSRQuotaPerTier(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -263,8 +248,6 @@ func TestSRQuotaPerTier(t *testing.T) {
 	}
 }
 
-// A refused player push must not leave a phantom entry: the list only claims
-// songs the player accepted, and chat hears Spotify's reason, not "queued".
 func TestSRPlayerRefusalRollsBackTheAdd(t *testing.T) {
 	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
 	g.replies["spotify.queue"] = gossiprpc.SpotifyPlayerReply{Error: "no active Spotify device, start playing something first"}
@@ -277,8 +260,6 @@ func TestSRPlayerRefusalRollsBackTheAdd(t *testing.T) {
 	assert.Contains(t, chatText(t, out), "no active Spotify device")
 }
 
-// A player push that never reached gossip is a refusal too: an unanswered
-// write must not be reported as an add.
 func TestSRPlayerTransportFailureRollsBackTheAdd(t *testing.T) {
 	g := srSearchGossip(srTrack("t1", "Mr. Brightside", "The Killers"))
 	delete(g.replies, "spotify.queue")
@@ -292,8 +273,6 @@ func TestSRPlayerTransportFailureRollsBackTheAdd(t *testing.T) {
 	assert.NotContains(t, text, "#1", "no position claim without a confirmed push")
 }
 
-// !skip drives the real player, and only advances the request list when the
-// player actually moved: a refusal is spoken and changes nothing.
 func TestSkipDrivesThePlayer(t *testing.T) {
 	store := &fakeSongQueue{up: []engine.SongEntry{
 		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
@@ -370,8 +349,6 @@ func TestSRRetractTouchesOnlyOwnLatest(t *testing.T) {
 	assert.Contains(t, chatText(t, out), "don't have a queued song")
 }
 
-// A viewer typing a number must never remove someone else's entry: it falls
-// back to their own retract; only mods get positional reach.
 func TestSRRemoveNumberIsModOnlyPositional(t *testing.T) {
 	g := srSearchGossip(
 		srTrack("t1", "One", "A"),
@@ -390,7 +367,6 @@ func TestSRRemoveNumberIsModOnlyPositional(t *testing.T) {
 	assert.Contains(t, out[0].Text, "#2", "the mod removed position #2")
 	assert.Contains(t, out[0].Text, "bob", "the confirmation names whose entry went")
 
-	// Non-mod with a number: their OWN latest retracts, nobody else's.
 	runSR(t, m, songCtx("3", "carol"), "remove 1")
 	require.Len(t, store.up, 1)
 	assert.Equal(t, "1", store.up[0].RequesterID, "carol's own remaining entry went, not alice's #1")
@@ -453,8 +429,6 @@ func TestSRViewShowsNowPlayingAndUpNext(t *testing.T) {
 }
 
 func TestSRUnknownWordsAreQueriesNotVerbs(t *testing.T) {
-	// Unknown words are QUERIES, not subcommands: "!sr Next Episode by Dr. Dre"
-	// is a song called Next..., not a mod verb.
 	g := srSearchGossip(srTrack("tn", "Next Episode", "Dr. Dre"))
 	store := &fakeSongQueue{}
 	m := SongQueue(songDeps(store, g))
@@ -469,39 +443,30 @@ func TestSRIsInertWithoutStoreOrGossip(t *testing.T) {
 	out := runSR(t, m, songCtx("42", "alice"), "anything")
 	assert.Empty(t, out, "an unwired module stays inert")
 
-	// Wired store but no gossip caller: adds cannot resolve, stay silent.
 	m2 := SongQueue(songDeps(&fakeSongQueue{}, nil))
 	out = runSR(t, m2, songCtx("42", "alice"), "anything")
 	assert.Empty(t, out)
 }
 
-// songDepsLive is songDeps with the live-state stub the gate cases need.
 func songDepsLive(store engine.SongQueueStore, g engine.GossipCaller, live bool) engine.Deps {
 	d := songDeps(store, g)
 	d.Live = &fakeLive{live: live}
 	return d
 }
 
-// The chat path's two switches: the enable/perm gate, and the govee-shaped
-// live gate. A legacy blob carries neither key and must keep queueing, or
-// enabling the module would have silently stopped working under the channels
-// already using it.
 func TestSRPathGates(t *testing.T) {
 	cases := []struct {
 		name   string
 		config string
 		live   bool
 		queued bool
-		says   string // the refusal chat says why; empty when the add lands
+		says   string
 	}{
 		{"disabled path says it is off", `{"sr":{"enabled":false,"perm":"everyone"}}`, true, false, "turned off"},
 		{"perm tier says it is limited", `{"sr":{"enabled":true,"perm":"mod"}}`, true, false, "smaller group"},
 		{"live-only says it is offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":false}}`, false, false, "while the stream is live"},
 		{"allowOffline queues while offline", `{"sr":{"enabled":true,"perm":"everyone","allowOffline":true}}`, false, true, ""},
 		{"legacy blob keeps queueing", `{"maxDepth":10}`, false, true, ""},
-		// An sr object written without the enabled key never decided the
-		// switch, so it must not read as off. The live gate still applies
-		// (this one runs live), because a written block HAS decided that.
 		{"partial sr record keeps queueing", `{"sr":{"perm":"everyone"}}`, true, true, ""},
 	}
 	for _, tc := range cases {
@@ -514,9 +479,7 @@ func TestSRPathGates(t *testing.T) {
 			out := runSR(t, SongQueue(songDepsLive(store, g, tc.live)), c, "brightside")
 			if !tc.queued {
 				assert.Empty(t, store.up)
-				// A closed gate must not spend a Spotify lookup either.
 				assert.Empty(t, g.calls)
-				// ...but it must say why: silence reads as a broken bot.
 				assert.Contains(t, chatText(t, out), tc.says)
 				return
 			}
@@ -537,15 +500,12 @@ func songRedeemCtx(config string) *module.Context {
 	}
 }
 
-// The channel-points path. Every refusal refunds: a viewer who spent points
-// and got no song back is the one outcome worse than not having the feature.
-// A redemption of any other reward is not this module's business at all.
 func TestSongRedeemGates(t *testing.T) {
 	cases := []struct {
 		name   string
 		config string
 		live   bool
-		want   string // queued | refund | ignored
+		want   string
 	}{
 		{"offline refunds", `{"redeem":{"enabled":true,"rewardId":"rw-sr","onRedeem":"fulfill"}}`, false, "refund"},
 		{"allowOffline queues", `{"redeem":{"enabled":true,"rewardId":"rw-sr","onRedeem":"fulfill","allowOffline":true}}`, false, "queued"},
@@ -582,16 +542,11 @@ func assertSongRedeem(t *testing.T, want string, store *fakeSongQueue, out []mod
 	}
 }
 
-// The ghost-position bug: a pushed track plays through on Spotify, the list
-// still holds it, and the next viewer is told #2 behind a song that already
-// played. Reconciling against the live player before the add makes the
-// position count only what is still waiting.
 func TestSRPositionSkipsAlreadyPlayedHead(t *testing.T) {
 	store := &fakeSongQueue{up: []engine.SongEntry{
 		{TrackID: "t1", Title: "Played Already", RequesterID: "7", RequesterName: "bob"},
 	}}
 	g := srSearchGossip(srTrack("t2", "Human", "The Killers"))
-	// The player is audibly on t1: Spotify moved on without telling anyone.
 	g.replies["spotify.nowplaying"] = playing(srTrack("t1", "Played Already", "Someone"))
 	m := SongQueue(songDeps(store, g))
 
@@ -603,7 +558,6 @@ func TestSRPositionSkipsAlreadyPlayedHead(t *testing.T) {
 	assert.Contains(t, chatText(t, out), "#1", "the new request is first in what is actually waiting")
 }
 
-// !srlist reads five deep where the bare view reads three.
 func TestSRListShowsFiveUpNext(t *testing.T) {
 	up := make([]engine.SongEntry, 0, 6)
 	for i := 0; i < 6; i++ {

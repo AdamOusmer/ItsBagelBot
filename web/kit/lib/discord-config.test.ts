@@ -132,15 +132,12 @@ describe('merge', () => {
     });
     expect(config.ticketStaffRoleIds).toBe(`${ID_A},${ID_B}`);
     expect(config.ticketPanelColor).toBe(LIVE_COLOR_HEX);
-    // Encoded in PINNED_SLOTS order, not submission order.
     expect(config.pinnedRoles).toBe(`owner=${ID_A},vip=${ID_B}`);
   });
 
   test('a malformed role id in a list is refused, not silently dropped', () => {
     const current = { ...blankDiscordConfig(), ticketStaffRoleIds: ID_A };
     const { config, errors } = mergeDiscordConfig(current, { ticketStaffRoleIds: `${ID_B},notasnowflake` });
-    // The encoder would have dropped the bad half and stored ID_B, which reads
-    // to the streamer as "one of my two picks vanished for no reason".
     expect(config.ticketStaffRoleIds).toBe(ID_A);
     expect(errors).toEqual([{ field: 'ticketStaffRoleIds', code: 'list' }]);
   });
@@ -323,7 +320,6 @@ describe('guild permissions', () => {
   });
 
   test('a guild with neither bit is filtered out', () => {
-    // SEND_MESSAGES | VIEW_CHANNEL | ADD_REACTIONS: a normal member.
     expect(canManageGuild({ permissions: '3136' })).toBe(false);
     expect(canManageGuild({ permissions: '0' })).toBe(false);
     expect(canManageGuild({})).toBe(false);
@@ -335,13 +331,9 @@ describe('guild permissions', () => {
   });
 
   test('a bitfield past 2^53 keeps every low bit', () => {
-    // 1 << 50 (USE_EXTERNAL_APPS) plus MANAGE_GUILD. Number.parseInt on this
-    // string rounds and the AND against 0x20 can come out zero, which is the
-    // whole reason the parse is BigInt.
     const bits = (1n << 50n) | DISCORD_MANAGE_GUILD;
     expect(canManageGuild({ permissions: bits.toString() })).toBe(true);
     expect(guildPermissionBits(bits.toString())).toBe(bits);
-    // The same field WITHOUT either management bit must still be refused.
     expect(canManageGuild({ permissions: (1n << 50n).toString() })).toBe(false);
   });
 
@@ -372,12 +364,8 @@ describe('guild presentation', () => {
   });
 
   test('an unread reauth flag is neutral, never green and never red', () => {
-    // The listing reports needsReauth false both for a healthy grant and for
-    // a lookup that never ran, so reauthUnknown has to beat botPresent in
-    // BOTH directions or the pill asserts something nobody checked.
     expect(guildBotState({ botPresent: true, reauthUnknown: true })).toBe('unknown');
     expect(guildBotState({ botPresent: false, reauthUnknown: true })).toBe('unknown');
-    // A flag that WAS read and came back true still wins: that one is known.
     expect(guildBotState({ botPresent: true, needsReauth: true, reauthUnknown: true })).toBe('reauth');
     expect(guildBotState({ botPresent: true, reauthUnknown: false })).toBe('online');
   });
@@ -388,7 +376,6 @@ describe('guild presentation', () => {
     expect(guildPickerBadge(ID_C, { bound })).toBe('addable');
     expect(guildPickerBadge(ID_A, { bound: [] })).toBe('addable');
     expect(guildPickerBadge(ID_C, { bound, elsewhere: [ID_C] })).toBe('elsewhere');
-    // A guild in both lists is mine: my own binding is the stronger fact.
     expect(guildPickerBadge(ID_A, { bound, elsewhere: [ID_A] })).toBe('mine');
   });
 });
@@ -442,7 +429,6 @@ describe('legacyConfigFor', () => {
     expect(out?.liveChannelId).toBe(ID_B);
     expect(out?.modsRoleId).toBe(ID_C);
     expect(out?.levelsEnabled).toBe('off');
-    // Unknown keys never reach the guild row.
     expect(Object.keys(out ?? {})).toEqual([...DISCORD_CONFIG_KEYS]);
   });
 
@@ -538,9 +524,6 @@ describe('refused fields', () => {
 
 describe('the repost panel payload', () => {
   test('a colour the streamer never set is omitted, not defaulted on the wire', () => {
-    // Absent key, not 0 and not the brand hex: outgress reads absent as
-    // "paint it the brand colour", so sending one freezes today's amber into
-    // every panel and sending 0 would paint them black.
     const payload = ticketPanelPayload(blankDiscordConfig());
     expect('color' in payload).toBe(false);
     expect(hexToDiscordColor('')).toBeNull();
@@ -573,7 +556,6 @@ describe('guild icons', () => {
     expect(parseUserGuild({ id: ID_A, name: 'x', icon: 'abc123' })?.icon).toBe('abc123');
     expect(parseUserGuild({ id: ID_A, name: 'x', icon: null })?.icon).toBe('');
     expect(guildIconURL(ID_A, 'abc123')).toBe(`https://cdn.discordapp.com/icons/${ID_A}/abc123.png`);
-    // An animated icon is still asked for as .png: the tile wants one frame.
     expect(guildIconURL(ID_A, 'a_9f0')).toBe(`https://cdn.discordapp.com/icons/${ID_A}/a_9f0.png`);
   });
 

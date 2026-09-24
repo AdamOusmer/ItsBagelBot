@@ -1,8 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The last handful of operator actions. Managers only -- the caller gates the
-  // whole panel on allows(role, 'audit.read'), matching the /audit route.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';

@@ -1,18 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Parity suite for streamelements.ts, the port of
-// app/importer/source/streamelements. Three layers:
-//
-//  1. Golden replay: testdata/se-golden.json pins the parser's full manifest +
-//     diagnostics for the Go suite's committed envelope fixtures (decoded from
-//     its golden.txt during the port). A diff means every future StreamElements
-//     import's translation changed on purpose.
-//  2. Unit vectors lifted verbatim from the Go package's tests (variables,
-//     accessLevel table, flexText shapes, detect, parse assertions).
-//  3. Fetch-flow tests against a local HTTP server (Bun.serve standing in for
-//     the Go httptest.Server), asserting paths, headers and error prose.
-
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
@@ -44,10 +32,8 @@ describe('golden replay', () => {
     test(`${want.file}: full manifest + diagnostics byte-exact vs the Go fixture`, () => {
       const raw = readFileSync(join(here, `testdata/se-envelope-${want.file}.json`), 'utf8');
       const { manifest, diagnostics } = parseStreamElements(raw);
-      // Key order differs (Go struct fields vs JS objects); content is the
-      // contract, so compare deep-equal, which bun's toEqual provides.
       expect(manifest).toEqual(want.manifest as never);
-      expect(diagnostics).toEqual(want.diags as never); // messages included
+      expect(diagnostics).toEqual(want.diags as never);
     });
   }
 
@@ -71,16 +57,10 @@ describe('translateVariables (vectors from variables_test)', () => {
     ['${user.name} x $(sender) $(source)', '{user} x {user} {user}', null],
     ['$(USER.NAME)', '{user}', null],
     ['$(touser) $(target.user) {target}', '{touser} {touser} {touser}', null],
-    // phase 6: the positional family. $(1:) keeps its documented {args}
-    // spelling (see positionalRule's decision record); every other N takes
-    // the new {N:}/{N:M}/{N}/{N|fallback} shapes directly.
     ['$(1:) words', '{args} words', null],
     ['$(2:) tail', '{2:} tail', null],
     ['$(1) solo', '{1} solo', null],
     ['$(2:5) mid', '{2:5} mid', null],
-    // $(:M) counts word 0 (the trigger) in M; {:M} here does not, so the
-    // same real words come out of {:(M-1)} — $(:1) is the trigger alone, no
-    // real words at all, which has no token and warns instead.
     ['$(:3)', '{:2}', null],
     ['$(:2)', '{:1}', null],
     ['$(:1)', '$(:1)', ['$(:1)']],
@@ -110,17 +90,8 @@ describe('translateVariables (vectors from variables_test)', () => {
     ['oops $(user', 'oops $(user', null],
     ['smile :) ($(user))', 'smile :) ({user})', null],
     ['$(uptime) $(title)', '$(uptime) $(title)', ['$(uptime)', '$(title)']],
-    // phase 6: $(args)/${args} are not a documented SE call (only $(1:)
-    // means "the rest"), so an explicit attempt still stays unmapped+warned.
     ['$(args)', '$(args)', ['$(args)']],
-    // phase 6 bug fix: the bare-{…} community shorthand DOES spell the same
-    // word this bot's own {args} does, unlike the $()/${} form above, so it
-    // maps directly instead of silently vanishing (the LEGACY_HEADS entry
-    // for "args" had nothing consuming it before this).
     ['use {args} here', 'use {args} here', null],
-    // phase 6: every bare-{…} LEGACY_HEADS head that fails to resolve now
-    // warns like an explicit $()/${} attempt does, not just count/getcount —
-    // {target} with an unrecognized subfield is a genuine attempted variable.
     ['{target.nickname} shows up', '{target.nickname} shows up', ['{target.nickname}']]
   ];
   for (const [input, want, warns] of cases) {
@@ -157,10 +128,10 @@ describe('mapAccessLevel table', () => {
   const cases: [number, string, boolean][] = [
     [100, 'everyone', true],
     [250, 'sub', true],
-    [300, 'everyone', false], // Regular widens, like Moobot regulars
+    [300, 'everyone', false],
     [400, 'vip', true],
     [500, 'mod', true],
-    [1000, 'lead_mod', true], // Super Moderator ↔ senior-mod tier
+    [1000, 'lead_mod', true],
     [1500, 'broadcaster', true],
     [777, 'everyone', false],
     [0, 'everyone', false],
@@ -259,11 +230,11 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
   });
 
   test('permission tiers land per the documented widening rules', () => {
-    expect(manifest.commands![7].online_only).toBeUndefined(); // offline-only upstream → widened, not online-only
-    expect(manifest.commands![8].permission).toBe('lead_mod'); // Super Moderator
+    expect(manifest.commands![7].online_only).toBeUndefined();
+    expect(manifest.commands![8].permission).toBe('lead_mod');
     expect(manifest.commands![9].permission).toBe('broadcaster');
-    expect(manifest.commands![10].permission).toBe('everyone'); // Regular widens
-    expect(manifest.commands![11].permission).toBe('everyone'); // unknown level
+    expect(manifest.commands![10].permission).toBe('everyone');
+    expect(manifest.commands![11].permission).toBe('everyone');
     expect(['gn', 'dealwithit', 'streamersecret', 'lounge', 'mystatus']).toEqual([
       manifest.commands![7].name,
       manifest.commands![8].name,
@@ -301,8 +272,6 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
       '-1|timer_disabled_skipped': 1,
       '0|command_user_cooldown_dropped': 1,
       '1|command_type_reply': 1,
-      // phase 6: $(1|everyone) now maps onto {1|everyone} (the positional
-      // fallback family), so "hug" no longer trips command_variable_unmapped.
       '2|command_user_cooldown_dropped': 1,
       '3|command_variable_unmapped': 1,
       '4|command_type_whisper': 1,
@@ -312,11 +281,11 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
       '7|command_offline_only_widened': 1,
       '10|command_permission_unmapped': 1,
       '11|command_permission_unmapped': 1,
-      '11|command_variable_unmapped': 2, // $(weather) and $(uptime)
+      '11|command_variable_unmapped': 2,
       '0|trigger_variable_unmapped': 1,
       '1|trigger_variable_unmapped': 1,
       '1|timer_offline_only_widened': 1,
-      '2|timer_variable_unmapped': 1 // $(random.chatter)
+      '2|timer_variable_unmapped': 1
     };
     for (const [key, n] of Object.entries(expected)) {
       expect(counts.get(key) ?? 0).toBe(n);
@@ -328,17 +297,12 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
   });
 });
 
-// --- urlfetch mapping (docs/urlfetch/IMPLEMENTATION.md, Phase 4) --------------
-
 describe('urlfetch mapping', () => {
   const parse = (reply: string, extra = '') =>
     parseStreamElements(
       `{"commands":[{"command":"weather","reply":${JSON.stringify(reply)},"accessLevel":100${extra}}],"timers":[]}`
     );
 
-  // Regression guard: the slug used to be `se-<command>`, which the commands
-  // service refuses (^[a-z0-9_]{1,32}$), every synthesized definition failed
-  // at commit with its tokens already in the response text.
   test('every synthesized definition name is one the commands service accepts', () => {
     const { manifest } = parse(
       '$(urlfetch https://a.example/1) $(urlfetch https://a.example/2 data.temp)',
@@ -415,13 +379,10 @@ describe('urlfetch mapping', () => {
         timers: [{ name: 't', online: { enabled: true, interval: 5 }, message: '$(urlfetch https://ok.example/x)' }]
       })
     );
-    // Command mapped; def exists once.
     expect(manifest.commands![0].responses![0]).toBe('{urlfetch:se_w}');
     expect(manifest.fetches).toEqual([{ name: 'se_w', url: 'https://ok.example/x', source: 'streamelements' }]);
-    // Trigger kept the raw token, attributed with trigger_variable_unmapped.
     expect(manifest.triggers![0].response).toContain('$(urlfetch https://ok.example/x)');
     expect(diagnostics.some((d) => d.code === SE_CODE.triggerVariableUnmapped && d.message.includes('urlfetch'))).toBe(true);
-    // Timer likewise.
     expect(manifest.timers![0].message).toContain('$(urlfetch https://ok.example/x)');
     expect(diagnostics.some((d) => d.code === 'timer_variable_unmapped' && d.message.includes('urlfetch'))).toBe(true);
   });
@@ -437,8 +398,6 @@ describe('urlfetch mapping', () => {
       })
     );
     expect(manifest.fetches).toEqual([{ name: 'se_clash', url: 'https://first.example/a', source: 'streamelements' }]);
-    // The loser's token degrades to literal rather than re-pointing at
-    // another command's data source.
     expect(manifest.commands![1].responses![0]).toContain('$(urlfetch');
     expect(diagnostics.some((d) => d.code === 'fetch_def_collision')).toBe(true);
   });
@@ -457,7 +416,6 @@ describe('urlfetch mapping', () => {
     }));
     const { manifest, diagnostics } = parseStreamElements(JSON.stringify({ commands, timers: [] }));
     expect(manifest.fetches).toHaveLength(FETCH_DEF_CAP);
-    // The overflow command keeps its raw token instead of a dangling reference.
     const last = manifest.commands![FETCH_DEF_CAP];
     expect(last.responses![0]).toContain('$(urlfetch');
     expect(diagnostics.filter((d) => d.code === CODE.variableUnmapped && d.item_index === FETCH_DEF_CAP))
@@ -465,14 +423,9 @@ describe('urlfetch mapping', () => {
   });
 });
 
-// --- fetch flow --------------------------------------------------------------
-
 const CHANNEL_ID = '5b2e2007760aeb7729487dab';
-const TEST_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJpYXQiOjF9.c2lnbmF0dXJl'; // shape-valid dummy
+const TEST_JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJpYXQiOjF9.c2lnbmF0dXJl';
 
-// newTestServer stands in for the Go httptest.Server: records every request
-// (path + headers snapshotted eagerly, Bun recycles Request internals once
-// the handler resolves) and answers via `handler`; failPath answers failStatus.
 interface Recorded {
   path: string;
   authorization: string | null;
@@ -612,8 +565,6 @@ describe('fetch flow', () => {
 });
 
 describe('credential gate', () => {
-  // The shape gate must reject before any HTTP happens: malformed credentials
-  // are either paste accidents or header-injection bait.
   const bad = [
     'eyJhbGciOi.eyJpYXQ yZQ.c2ln',
     'eyJhbGciOi.eyJpYXQ\nc2ln.c2ln',

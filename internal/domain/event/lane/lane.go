@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package lane holds the shared wire contract ingress publishes on the premium,
-// standard and stream lanes and the worker consumes. It is the single source of
-// the lane message shape: ingress writes it (see app/twitch/ingress/lib/ingress/
-// pipeline.ex) and every Go consumer decodes this type rather than redefining it.
 package lane
 
 import (
@@ -13,20 +9,12 @@ import (
 	"time"
 )
 
-// Badge is one Twitch chat badge as carried on a channel.chat.message event.
-// The set_id identifies the role ("broadcaster", "moderator", "lead_moderator",
-// "vip", "subscriber", "founder", ...); id/info are Twitch's per-badge detail.
 type Badge struct {
 	SetID string `json:"set_id"`
 	ID    string `json:"id,omitempty"`
 	Info  string `json:"info,omitempty"`
 }
 
-// Sender is one chatter in a folded duplicate cohort. The ingress squash
-// collapses identical non-command lines into a single channel.chat.message
-// carrying every duplicate sender here (see app/twitch/ingress/lib/ingress/squash.ex),
-// so the worker keeps per-user reputation and cross-user campaign signal without
-// one event per duplicate.
 type Sender struct {
 	ChatterUserID    string  `json:"chatter_user_id,omitempty"`
 	ChatterUserLogin string  `json:"chatter_user_login,omitempty"`
@@ -35,42 +23,20 @@ type Sender struct {
 	Badges           []Badge `json:"badges,omitempty"`
 }
 
-// EmoteSpan is one emote occurrence inside a chat message's Text. Ingress
-// copies it off the EventSub channel.chat.message emotes array onto every chat
-// envelope (and onto a squashed cohort's base event, identically). Begin/End
-// are rune indexes into the RAW Text - End exclusive - so consumers slice
-// runes, not bytes; ID is Twitch's own emote id, opaque here. The array covers
-// NATIVE Twitch emotes and cheermotes only: third-party (BTTV/FFZ/7TV) codes
-// have no EventSub entry and arrive as plain text, which is why the automod
-// still fetches those separately. Absent when the line carries no emotes;
-// unknown fields are ignored on both sides, so older/newer peers interoperate.
 type EmoteSpan struct {
 	ID    string `json:"id"`
 	Begin int    `json:"begin"`
 	End   int    `json:"end"`
 }
 
-// Envelope is the wire contract published by ingress. Consumers read exactly the
-// fields ingress writes. Every event carries its Twitch EventSub `type` and the
-// `lane` it was routed on; the rest depends on the type:
-//
-//   - channel.chat.message is flattened (broadcaster/chatter ids, text, badges);
-//   - every other type, including stream.online/offline, nests the raw EventSub
-//     `event` object.
+// Built by app/twitch/ingress (Elixir); change both sides together.
 type Envelope struct {
-	Type    string `json:"type"`
-	Lane    string `json:"lane"`
-	EventID string `json:"event_id,omitempty"`
-	// Origin and TrialGeneration are set by trusted ingress admission, never by
-	// the Twitch notification. They remain on queued work after trial removal.
+	Type            string `json:"type"`
+	Lane            string `json:"lane"`
+	EventID         string `json:"event_id,omitempty"`
 	Origin          string `json:"origin,omitempty"`
 	TrialGeneration uint64 `json:"trial_generation,omitempty"`
 
-	// Flattened chat fields (only set for channel.chat.message). Both the stable
-	// login and the mutable display name are carried: the login is the identifier
-	// (API calls, lookups, cooldown keys), the *UserName is what the viewer set as
-	// their display name and is what chat-facing text should show. See
-	// BroadcasterName / ChatterName.
 	BroadcasterUserID    string      `json:"broadcaster_user_id,omitempty"`
 	BroadcasterUserLogin string      `json:"broadcaster_user_login,omitempty"`
 	BroadcasterUserName  string      `json:"broadcaster_user_name,omitempty"`
@@ -81,31 +47,17 @@ type Envelope struct {
 	Badges               []Badge     `json:"badges,omitempty"`
 	Emotes               []EmoteSpan `json:"emotes,omitempty"`
 
-	// Senders is set only on a folded duplicate cohort: the identical non-command
-	// lines the ingress squash collapsed into this one channel.chat.message. When
-	// present the line is plain chat (never a command), so command dispatch is
-	// skipped and the automod fans out over the senders for reputation/campaign.
 	Senders []Sender `json:"senders,omitempty"`
 
-	// Raw EventSub event object (set for every non-chat type).
 	Event codec.RawMessage `json:"event,omitempty"`
 
 	MsgID         string `json:"msg_id,omitempty"`
 	ChatMessageID string `json:"chat_message_id,omitempty"`
 	ShardID       int    `json:"shard_id,omitempty"`
 
-	// ReceivedAt is ingress's EventSub notification receipt time (Twitch's
-	// message_timestamp, RFC 3339), published on every lane body (see
-	// app/twitch/ingress/lib/ingress/pipeline.ex). It is the only ordering signal
-	// stream.online / stream.offline carry: the consumer pool gives no
-	// cross-message ordering, so lifecycle writers compare EventVersion
-	// instead of trusting arrival order. Absent on older envelopes.
 	ReceivedAt string `json:"received_at,omitempty"`
 }
 
-// BroadcasterName is the broadcaster's Twitch display name for chat-facing text,
-// falling back to the login when the event carried no display name. The login
-// stays the stable identifier; only shown names should use this.
 func (e Envelope) BroadcasterName() string {
 	if e.BroadcasterUserName != "" {
 		return e.BroadcasterUserName
@@ -113,8 +65,6 @@ func (e Envelope) BroadcasterName() string {
 	return e.BroadcasterUserLogin
 }
 
-// ChatterName is the chatter's Twitch display name for chat-facing text, falling
-// back to the login when the event carried no display name.
 func (e Envelope) ChatterName() string {
 	if e.ChatterUserName != "" {
 		return e.ChatterUserName
@@ -122,11 +72,6 @@ func (e Envelope) ChatterName() string {
 	return e.ChatterUserLogin
 }
 
-// EventVersion returns the event's ordering version: the ReceivedAt instant as
-// unix milliseconds. Zero when the envelope predates the field or carries an
-// unparseable timestamp — callers must treat 0 as "no ordering claim" and fall
-// back to their own clock rather than letting a timestamp-less event win a
-// comparison against a stamped one.
 func (e Envelope) EventVersion() int64 {
 	if e.ReceivedAt == "" {
 		return 0
@@ -138,9 +83,6 @@ func (e Envelope) EventVersion() int64 {
 	return t.UnixMilli()
 }
 
-// BroadcasterID returns the broadcaster the event belongs to as a uint64. For
-// chat it is the flattened field; for every other type it is read from the raw
-// event (raids name the receiving channel as to_broadcaster_user_id).
 func (e Envelope) BroadcasterID() (uint64, bool) {
 	raw := e.BroadcasterUserID
 	if raw == "" {

@@ -17,20 +17,8 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// writeGolden regenerates testdata/pins.golden.txt and
-// testdata/rewrite.golden.txt instead of asserting against them:
-//
-//	go test ./app/deployer/internal/stages/github/ -run Golden -github.write-golden
-//
-// Regeneration is a flag and never a side effect of running the suite: a
-// fixture the suite can rewrite documents whatever the code currently does.
-// The inputs in testdata/k8s are the real deploy/k8s files, copied; refresh
-// them by copying again when a manifest gains a shape the parser must learn.
 var writeGolden = flag.Bool("github.write-golden", false, "rewrite testdata/*.golden.txt from testdata/k8s")
 
-// goldenPins is the rewrite corpus: every image the manifests pin except
-// warp, at a new tag and a digest derived from the image name. Leaving warp
-// out keeps one pin line in a changed file (gossip.yaml) untouched.
 func goldenPins(lines []PinLine) map[deploy.ImageName]deploy.ImagePin {
 	pins := map[deploy.ImageName]deploy.ImagePin{}
 	for img := range pinsByImage(lines) {
@@ -49,9 +37,6 @@ func TestParsePinsGolden(t *testing.T) {
 	assertGolden(t, "pins.golden.txt", b.String())
 }
 
-// TestRewritePinsGolden pins every byte of the rewrite: each input line
-// either appears unchanged or is listed in the golden with its replacement,
-// and the line count cannot move.
 func TestRewritePinsGolden(t *testing.T) {
 	files := loadManifests(t)
 	changed, err := RewritePins(files, testRepo, goldenPins(ParsePins(files, testRepo)))
@@ -96,8 +81,6 @@ func assertGolden(t *testing.T, name, got string) {
 	}
 }
 
-// TestRewritePinsProperties: the changed-file set, a second rewrite being a
-// no-op, and the rewritten pins reading back as requested.
 func TestRewritePinsProperties(t *testing.T) {
 	files := loadManifests(t)
 	lines := ParsePins(files, testRepo)
@@ -151,8 +134,6 @@ func TestRewritePinsRefusesMalformedPins(t *testing.T) {
 	}
 }
 
-// TestParsePinsLineShapes covers what the real files do not: a list item, a
-// quoted value, a tag-only line, another repo, a comment.
 func TestParsePinsLineShapes(t *testing.T) {
 	d := string(testDigest("a"))
 	body := strings.Join([]string{
@@ -178,9 +159,6 @@ func TestParsePinsLineShapes(t *testing.T) {
 	}
 }
 
-// TestServicesForManifests: the rollout units come from the manifests, a
-// sidecar image maps to the Deployment that runs it and the notifications
-// CronJob is not a unit of its own.
 func TestServicesForManifests(t *testing.T) {
 	lines := ParsePins(loadManifests(t), testRepo)
 	cases := []struct {

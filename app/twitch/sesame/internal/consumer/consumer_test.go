@@ -37,8 +37,6 @@ func TestRetryLanesAreDrainedAlongsideTheHotLanes(t *testing.T) {
 			t.Fatalf("lane %d = %q, want %q", i, lanes[i].Subject, subject)
 		}
 	}
-	// The retry lanes carry exceptional traffic and must not hold pool slots away
-	// from live chat.
 	premiumKeepsItsReserve := lanes[0].Reserve == 25
 	retryLanesHoldNoSlots := lanes[2].Reserve == 0 && lanes[3].Reserve == 0
 	reservesFollowTheLanePolicy := premiumKeepsItsReserve && retryLanesHoldNoSlots
@@ -47,11 +45,6 @@ func TestRetryLanesAreDrainedAlongsideTheHotLanes(t *testing.T) {
 	}
 }
 
-// The explicit-ACK path NAKs in place, so nothing ever schedules a retry and a
-// subscription to the retry lane would only be a consumer to maintain. That path
-// is the default, so unset must bind the two hot lanes and nothing else — the
-// same condition main.go uses to decide whether to provision the retry stream at
-// all, which is what keeps the stream and its reader in step.
 func TestRetryLanesDisappearWithoutFlowControl(t *testing.T) {
 	for _, value := range []string{"", "off"} {
 		t.Setenv("NATS_CONSUME_FLOW", value)

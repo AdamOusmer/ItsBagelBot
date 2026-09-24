@@ -20,15 +20,9 @@ const (
 	modCheckTimeout      = 15 * time.Second
 	modCheckErrorBackoff = 5 * time.Minute
 	maxConcurrentChecks  = 4
-	// backoffPruneAbove bounds the backoff map: entries for channels that never
-	// chat again would otherwise accumulate for the life of the process.
-	backoffPruneAbove = 1024
+	backoffPruneAbove    = 1024
 )
 
-// ModVerifier keeps moderator discovery off the latency-sensitive chat path.
-// Checks are bounded per process, collapsed per broadcaster, and guarded by a
-// Valkey lock so the four outgress replicas do not all perform the same
-// paginated Twitch lookup.
 type ModVerifier struct {
 	registry modRegistry
 	twitch   moderatorClient
@@ -72,9 +66,6 @@ func newModVerifier(registry modRegistry, tw moderatorClient, botID, owner strin
 	}
 }
 
-// Status returns immediately from the last known state. A missing or stale
-// state schedules a refresh, but safely uses the non-mod allowance until that
-// background check completes.
 func (v *ModVerifier) Status(ch manage.Channel, found bool, broadcasterID, senderID string) bool {
 	if found && !ch.ModCheckedAt.IsZero() && time.Since(ch.ModCheckedAt) < modStatusTTL {
 		return ch.IsMod
@@ -83,8 +74,6 @@ func (v *ModVerifier) Status(ch manage.Channel, found bool, broadcasterID, sende
 	return found && ch.IsMod
 }
 
-// Schedule requests a refresh regardless of the cached timestamp. This is
-// used by go-live events, while Status handles the ordinary chat-path TTL.
 func (v *ModVerifier) Schedule(broadcasterID, senderID string) {
 	if v == nil || broadcasterID == "" || !v.twitch.HasUserToken() {
 		return
@@ -120,7 +109,6 @@ func (v *ModVerifier) Schedule(broadcasterID, senderID string) {
 	go v.verify(broadcasterID, botID)
 }
 
-// Close stops accepting refreshes and waits for the bounded in-flight checks.
 func (v *ModVerifier) Close() {
 	v.mu.Lock()
 	v.closed = true
@@ -161,14 +149,10 @@ func (v *ModVerifier) verify(broadcasterID, botID string) {
 		return
 	}
 	if !got {
-		// Another replica is checking or is holding the distributed error
-		// backoff. Avoid turning every chat message into another lock probe.
 		failed = true
 		return
 	}
 
-	// On failure the lock is deliberately left until its TTL expires, providing
-	// a fleet-wide backoff. A successful check releases it immediately.
 	isMod, err := v.twitch.IsModerator(ctx, botID, broadcasterID)
 	if err != nil {
 		failed = true

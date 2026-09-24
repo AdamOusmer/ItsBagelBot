@@ -15,18 +15,10 @@ import (
 
 const batchKeyPrefix = "outgress:batch:"
 
-// ValkeyBatchStore is the infrastructure adapter for BatchStore. Batch
-// orchestration depends only on the interface in batch.go; this file owns the
-// Valkey commands and key layout.
 type ValkeyBatchStore struct {
 	client valkey.Client
 }
 
-// NewValkeyBatchStore builds the store on a primary-consistent view. The lock
-// holder reads back its own progress: Acquire takes the lock, then Next reads
-// the cursor SaveNext wrote on the previous pass. A node-local replica that has
-// not yet received that SaveNext returns an older cursor, and the batch resends
-// chat lines it already delivered. The view reuses the client's connections.
 func NewValkeyBatchStore(client valkey.Client) *ValkeyBatchStore {
 	return &ValkeyBatchStore{client: pkg_valkey.Primary(client)}
 }
@@ -55,9 +47,6 @@ func (s *ValkeyBatchStore) Release(ctx context.Context, lease BatchLease) error 
 	return s.lock(lease).Release(ctx)
 }
 
-// lock is the batch's slice of the shared owner-scoped lock primitive: the
-// lease names both the key and the owner token, so Acquire and Release derive
-// the same lock from the same lease rather than each spelling the key out.
 func (s *ValkeyBatchStore) lock(lease BatchLease) pkg_valkey.OwnerLock {
 	return pkg_valkey.NewOwnerLock(s.client, batchLockKey(lease.ID), lease.Owner)
 }

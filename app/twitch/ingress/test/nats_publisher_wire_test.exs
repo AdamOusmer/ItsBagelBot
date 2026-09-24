@@ -2,8 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Nats.Publisher.WireTest do
-  # async: false — a wire context owns a named ETS table, and these cases drive
-  # the same shard fixtures the collector suites use.
   use Ingress.PublisherCase, async: false
 
   alias Ingress.Config.Publish, as: PublishConfig
@@ -60,17 +58,11 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
   describe "a blocking wire write is bounded" do
     test "the call timeout sits below the ack budget it would otherwise blow" do
-      # The collector applies no PubAcks and runs no sweep ticks while a wire
-      # write blocks, so the write has to give up well before the deadline the
-      # next sweep measures against — otherwise one stalled socket resolves as
-      # a window-wide ack timeout instead of as a definite :not_connected.
       assert PublishConfig.call_timeout_ms() < PublishConfig.ack_timeout_ms()
     end
 
     test "a connection that never answers surfaces as :not_connected", %{wire: wire} do
       conn = :gnat_bus_pub_wire_stalled
-      # Own child id: the answering connection from setup is already supervised
-      # under the module's default one.
       start_fake_gnat(conn, mode: :stalled, id: :stalled_gnat)
 
       started = System.monotonic_time(:millisecond)
@@ -87,11 +79,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
     end
 
     test "prepared opts are still the shape Gnat's own command builder accepts", %{wire: wire} do
-      # Bounding the call means reproducing Gnat.pub/4's private header
-      # preparation. Gnat.Command.build/4 matches a literal
-      # [headers: _, reply_to: _] over cowlib-encoded iodata, so a wrong
-      # encoding or a wrong key order is a FunctionClauseError on the first
-      # traced publish in production rather than anything a mock would catch.
       admit(wire, 2)
       Single.send_cohort([{@subject, "{}", [{"traceparent", "00-a-b-01"}], nil}], wire)
       assert_receive {:pub, @subject, traced, traced_opts}, 500
@@ -109,15 +96,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
   describe "the shipped default" do
     test "the whole fleet's open batches stay under the broker's per-stream cap" do
-      # The broker caps concurrently-open atomic batches at 50 PER STREAM, and
-      # every shard in the fleet opens against the same TWITCH_INGRESS. This is
-      # the arithmetic that picks the number, so it is asserted rather than
-      # restated in a comment: an over-cap open is answered 10210/429 and
-      # re-drives per message, which removes the batching this wire exists for
-      # exactly when every shard is saturated at once.
-      #
-      # If deploy/k8s/twitch-ingress.yaml changes `replicas` or the `+S` flag in
-      # ERL_FLAGS, this test is the thing that should fail.
       broker_cap_per_stream = 50
       replicas = 3
       schedulers_per_replica = 2
@@ -125,25 +103,16 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert fleet_shards * PublishConfig.batch_inflight() <= broker_cap_per_stream
 
-      # And it must not be so far under that shards bypass on ordinary latency:
-      # ~1000 cohorts/s at publish_batch_wait_ms = 1 means the window covers
-      # 1000/s x its commit-ack latency, so 8 buys 8 ms of R3 quorum commit.
       assert PublishConfig.batch_inflight() >= 8
       assert Application.get_env(:ingress, :publish_batch_inflight, 8) == 8
     end
 
     test "a swept batch's slot is held for the broker's own batch timeout" do
-      # Nothing on the wire cancels an open batch; only the broker's inactivity
-      # timer does, and its default is 10 s.
       assert PublishConfig.batch_hold_ms() == 10_000
       assert PublishConfig.batch_hold_ms() > PublishConfig.ack_timeout_ms()
     end
 
     test "cohorts ride the atomic wire unless single is asked for" do
-      # The lane stream is replicated, so a per-event PubAck costs a RAFT
-      # quorum round trip each; the atomic wire pays it once per cohort.
-      # INGRESS_PUBLISH_WIRE=single is the compatibility escape hatch, and both
-      # the env parser and the config accessor have to agree on the default.
       assert Application.get_env(:ingress, :publish_wire, :atomic) == :atomic
       assert PublishConfig.wire() == :atomic
     end
@@ -162,9 +131,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
     end
 
     test "a wire call touches only the shard context it is handed", %{wire: wire} do
-      # No collector process exists in this suite: the wires run as plain
-      # functions over the struct, which is what keeps the process model the
-      # GenServer's alone.
       refute Process.whereis(Ingress.Nats.Publisher.process_name(:wire_seam))
 
       admit(wire, 1)
@@ -218,7 +184,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
       assert_receive {:pub, @subject, _json, retry_opts}, 500
       require_dedup_free_single(retry_opts)
 
-      # Still outstanding: the retry is a fresh attempt on the same row.
       assert counter_ledger(wire) == %{
                pending: 1,
                acked: 0,
@@ -234,10 +199,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
       publish_single(wire)
       ref = single_ref(wire)
 
-      # The BUS connection flapped between the rejection and the republish, so
-      # the publisher already knows the message never reached the socket.
-      # Holding the row for another ack timeout would keep the shard's
-      # admission window saturated and count a retry that never happened.
       offline = %{wire | conn: :gnat_bus_pub_wire_absent}
 
       assert Single.ack(ref, @rejected, offline) == :ok
@@ -343,11 +304,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
   describe "a swept batch keeps the slot the broker is still holding" do
     test "the local slot outlives the events, then retires on its own row", %{wire: wire} do
-      # Nothing on the wire cancels an open atomic batch: the broker keeps its
-      # per-stream in-flight slot (and the staged cohort in the leader's RAM)
-      # until its own inactivity timer. Freeing the local slot at the ack
-      # deadline would let this shard recycle its whole cap several times
-      # through a budget the broker has not released.
       publish_cohort(wire, 3)
       {id, :batch, _entries, stamp} = row = swept_row(wire, 3)
 
@@ -356,8 +312,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Atomic.expire(hold, wire) == :ok
 
-      # The hold row carries no events, so retiring it settles nothing beyond
-      # the failures the sweep already counted.
       assert counter_ledger(wire) == %{
                pending: 0,
                acked: 0,
@@ -378,7 +332,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
       assert Atomic.ack(ref, @stored, wire) == :ok
 
-      # The events were already dropped by the dedup-free rule and stay dropped.
       assert counter_ledger(wire) == %{
                pending: 0,
                acked: 0,
@@ -393,11 +346,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
 
   describe "a broker that never read the batch headers" do
     test "a success PubAck on the open inbox resolves the cohort as stored", %{wire: wire} do
-      # Only a broker that ignored Nats-Batch-* answers the opening message
-      # with a stored PubAck (a 2.14 broker sends a zero-byte ack when staging
-      # and an error PubAck for every rejection, allow_atomic being off
-      # included). The cohort is on the stream, so counting it failed would
-      # report total data loss during healthy ingest.
       publish_cohort(wire, 3)
 
       assert Atomic.ack(start_ref(wire, 3), @stored, wire) == :ok
@@ -425,17 +373,10 @@ defmodule Ingress.Nats.Publisher.WireTest do
     end
   end
 
-  ## Fixtures
-
-  # Mirrors what scheduler-local admission does before an event is queued, so
-  # the in-flight window is charged the way a wire expects to find it.
   defp admit(wire, count), do: Enum.each(1..count, fn _ -> Pending.reserve(wire.counter) end)
 
   defp entry(n), do: {@subject, ~s({"n":#{n}}), nil}
 
-  # The two steps every case opens with: charge admission for the cohort, then
-  # hand it to a wire. Named per wire because which one wrote the cohort is the
-  # whole point of the case that follows.
   defp publish_single(wire), do: publish(Single, wire, 1)
   defp publish_cohort(wire, count), do: publish(Atomic, wire, count)
 
@@ -444,18 +385,12 @@ defmodule Ingress.Nats.Publisher.WireTest do
     wire_impl.send_cohort(Enum.map(1..count, &entry/1), wire)
   end
 
-  # The pending row the sweep would find. The cohort's own writes are drained
-  # first so a later refute_receive can only trip on a re-drive.
   defp swept_row(wire, count) do
     Enum.each(1..count, fn _ -> drain_reply() end)
     [row] = :ets.tab2list(wire.table)
     row
   end
 
-  # The wire's whole outcome ledger read as one value: counters, inflight
-  # batches, and the pending table, so a settle's entire end state is one
-  # comparison. take_* reads reset their counter, exactly as the per-line
-  # assertions they replaced did.
   defp counter_ledger(wire) do
     %{
       pending: Pending.pending(wire.counter),
@@ -468,26 +403,18 @@ defmodule Ingress.Nats.Publisher.WireTest do
     }
   end
 
-  # The slot survives the sweep as a hold row carrying the ORIGINAL open stamp,
-  # so it retires on the broker's clock rather than restarting one at sweep
-  # time. Returns the hold row for the caller to retire.
   defp require_batch_hold(wire, id, stamp) do
     assert Pending.batches_inflight(wire.counter) == 1
     assert [{^id, :batch_hold, ^stamp} = hold] = :ets.tab2list(wire.table)
     hold
   end
 
-  # A fallback re-publish is a plain single: a per-message reply inbox and none
-  # of the batch or dedup headers the atomic wire stamps.
   defp require_dedup_free_single(opts) do
     assert Keyword.fetch!(opts, :reply_to) =~ ".s."
     refute headers_map(opts)["nats-batch-id"]
     refute headers_map(opts)["nats-msg-id"]
   end
 
-  # Every dedup-free drop resolves the same way, whichever wire and whichever
-  # ambiguous outcome produced it: nothing re-driven, no pending work left, and
-  # every event in the cohort counted failed.
   defp require_dropped(wire, count) do
     refute_receive {:pub, _, _, _}, 100
     assert Pending.pending(wire.counter) == 0
@@ -502,8 +429,6 @@ defmodule Ingress.Nats.Publisher.WireTest do
   defp start_ref(wire, count), do: batch_ref(wire, count, ".bs.")
   defp commit_ref(wire, count), do: batch_ref(wire, count, ".bc.")
 
-  # Drains the whole cohort before picking a reply, so the leftovers cannot be
-  # mistaken for a later fallback publish.
   defp batch_ref(wire, count, tag) do
     reply =
       1..count

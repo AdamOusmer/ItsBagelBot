@@ -84,10 +84,6 @@ func TestBatchJSONDecoderPrecompiles(t *testing.T) {
 	}
 }
 
-// Acquire takes the lock, then Next reads back the cursor SaveNext wrote on the
-// previous pass. A node-local replica that has not yet received that write
-// hands the lock holder an older cursor and the batch resends chat lines it
-// already delivered, so the store's reads must be primary-consistent.
 func TestNewValkeyBatchStorePinsProgressReadsToThePrimary(t *testing.T) {
 	assert.True(t, pkg_valkey.IsPrimary(NewValkeyBatchStore(nil).client),
 		"batch progress is read back by the lock holder that wrote it")

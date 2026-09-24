@@ -17,10 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// songqueueRedemption queues a track from a channel-points redemption of the
-// bound reward. Live-only (unless AllowOffline) and the path enable switch
-// match the chat path and govee's gate polarity: offline while live-only
-// refunds, a disabled path refunds so viewers do not lose points silently.
 func songqueueRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
 	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		qc, cfg, ev, ok := decodeSongqueueRedemption(d, c, log)
@@ -40,10 +36,6 @@ func songqueueRedemption(d engine.Deps, log *zap.Logger) module.EventHandler {
 	}
 }
 
-// decodeSongqueueRedemption pulls the redeem binding and the redemption event,
-// returning ok=false for anything that is not this module's configured reward.
-// One guard per reason, in the order they can fail: no store, no binding, an
-// unreadable event, someone else's reward.
 func decodeSongqueueRedemption(d engine.Deps, c *module.Context, log *zap.Logger) (songQueueCmd, songqueueRedeem, redemptionEvent, bool) {
 	var none songQueueCmd
 	qc, ok := newSongQueueCmd(d, c, log)
@@ -64,8 +56,6 @@ func decodeSongqueueRedemption(d engine.Deps, c *module.Context, log *zap.Logger
 	return qc, cfg, ev, true
 }
 
-// redeemBinding is the channel-points path's config, and whether it names a
-// reward at all: an unbound path has nothing a redemption could match.
 func (qc songQueueCmd) redeemBinding() (songqueueRedeem, bool) {
 	if qc.cfg.Redeem == nil {
 		return songqueueRedeem{}, false
@@ -76,8 +66,6 @@ func (qc songQueueCmd) redeemBinding() (songqueueRedeem, bool) {
 	return *qc.cfg.Redeem, true
 }
 
-// redemptionOf reads the redemption off the envelope. An empty or unreadable
-// payload is not this module's business either way.
 func redemptionOf(c *module.Context) (redemptionEvent, bool) {
 	if len(c.Env.Event) == 0 {
 		return redemptionEvent{}, false
@@ -89,7 +77,6 @@ func redemptionOf(c *module.Context) (redemptionEvent, bool) {
 	return ev, true
 }
 
-// songqueueRedeemRun is one redemption in flight.
 type songqueueRedeemRun struct {
 	qc   songQueueCmd
 	cfg  songqueueRedeem
@@ -103,7 +90,6 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 		r.refund("type a song name or Spotify link, your points were refunded")
 		return nil
 	}
-	// Resolve against the redeemer, not the chat chatter fields.
 	r.qc.c.Env.ChatterUserID = r.ev.UserID
 	r.qc.c.Env.ChatterUserLogin = r.ev.UserLogin
 	r.qc.c.Env.ChatterUserName = r.ev.UserName
@@ -113,12 +99,7 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 		r.refund(failure + ", your points were refunded")
 		return nil
 	}
-	// Same reconcile as the chat path: the position in the reply must count
-	// only songs still ahead of this one.
 	r.qc.syncWithPlayer(ctx)
-	// A redemption event carries no badges, so the quota tier resolves from
-	// what the context knows: the broadcaster shortcut still applies, everyone
-	// else redeems under the everyone tier.
 	pos, err := r.qc.store.Add(ctx, r.qc.c.BroadcasterID, r.qc.entry(*track), engine.SongQueueLimits{MaxDepth: r.qc.maxDepth, PerRequester: r.qc.quotaFor()})
 	if err != nil {
 		switch {
@@ -132,9 +113,6 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 		}
 		return nil
 	}
-	// Same contract as the chat path: the redemption only fulfils when the
-	// track is audibly queued. A player refusal rolls the entry back and
-	// refunds, since points for an inaudible request are points eaten.
 	if failure := r.qc.pushToPlayer(ctx, track.ID); failure != "" {
 		if _, _, rbErr := r.qc.store.RetractOwn(ctx, r.qc.c.BroadcasterID, r.ev.UserID); rbErr != nil {
 			r.qc.log.Warn("songqueue: redeem rollback after player refusal failed", r.qc.c.BID(), zap.Error(rbErr))
@@ -169,30 +147,6 @@ func (r songqueueRedeemRun) chat(text string) {
 
 const defaultSongqueueRedeemReply = "@{user} queued {track}, position #{pos}."
 
-// renderSongqueueRedeemReply fills {user}/{track}/{input}/{pos} from the
-// redemption, falling back to defaultSongqueueRedeemReply when blank.
-//
-// The pure-family fallthrough ({random}, {choice:a,b}, {math:…}, …) is
-// deliberate and is a behaviour CHANGE, pinned by
-// TestSongqueueRedeemReplyResolvesDynamic.
-//
-// Every other reward-template surface (channelpoints, alerts, shoutout,
-// timeofday, emoteplay) already ended its switch in the dynamic vars; this
-// one and govee ended in `return "", false`, so a broadcaster who wrote
-// "{choice:nice,cool} pick, @{user}" into the song-request reward saw the
-// braces in chat while the identical template worked one reward over. The
-// drift was invisible enough that the web command builder encodes it by hand
-// as a per-surface exception. Making the two agree deletes that exception:
-// {random} and {choice:} now resolve on ALL reward surfaces.
-//
-// {input} is sanitized through sanitizeRewardInput (channelpoints.go), the
-// same trim channelpoints has always applied: it used not to here, which
-// meant "{input}" was safe in one reward template and not the other.
-// songqueueRedeemReplyParams bundles renderSongqueueRedeemReply's inputs: the
-// broadcaster's locale/template and the one redemption (event, resolved
-// track, queue position) they render against. Same shape choice as
-// channelpoints' rewardChatParams — one param carrying values that are
-// always supplied together beats four that happen to.
 type songqueueRedeemReplyParams struct {
 	locale string
 	text   string

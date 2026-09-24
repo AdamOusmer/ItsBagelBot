@@ -26,7 +26,6 @@ var (
 	replicas3     = map[string]any{"replicas": int64(3)}
 )
 
-// patch is what the fake API server saw for one server-side apply.
 type patch struct {
 	Ref      string
 	Manager  string
@@ -40,10 +39,6 @@ type cluster struct {
 	failOn  string
 }
 
-// newCluster fakes an API server that knows the allowlisted kinds (KEDA
-// optional) and answers apply patches the way a real one does for this test:
-// a new object gets resourceVersion 1, an existing one keeps its version (a
-// no-op apply).
 func newCluster(t *testing.T, withKEDA bool, live ...runtime.Object) (*cluster, *Applier) {
 	t.Helper()
 	var known []schema.GroupKind
@@ -52,8 +47,6 @@ func newCluster(t *testing.T, withKEDA bool, live ...runtime.Object) (*cluster, 
 			known = append(known, gk)
 		}
 	}
-	// The preferred versions let a versionless RESTMapping (the live
-	// ScaledObject list) resolve, as discovery's PriorityRESTMapper does.
 	gvs := make([]schema.GroupVersion, len(known))
 	for i, gk := range known {
 		gvs[i] = gk.WithVersion(versionOf(gk)).GroupVersion()
@@ -148,8 +141,6 @@ func TestApply(t *testing.T) {
 	}
 }
 
-// TestApplyWithoutKEDA: a cluster with no ScaledObject CRD has no live
-// ScaledObjects, so replicas stay and the apply proceeds.
 func TestApplyWithoutKEDA(t *testing.T) {
 	c, a := newCluster(t, false)
 	objs := objects(manifest{apiVersion: "apps/v1", kind: "Deployment", ns: "db", name: "users", spec: replicas3})

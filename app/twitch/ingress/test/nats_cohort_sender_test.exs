@@ -68,9 +68,6 @@ defmodule Ingress.Nats.CohortSenderTest do
     results = CohortSender.publish(senders, connection, requests, 200)
     elapsed = System.monotonic_time(:millisecond) - started
 
-    # The barrier never replies, so the first write times out and the rest of
-    # the lane fails closed without calling: the collector is blocked here, so
-    # four writes must not cost four timeouts.
     assert Enum.sort(results) == [
              {1, {:error, :not_connected}},
              {2, {:error, :not_connected}},

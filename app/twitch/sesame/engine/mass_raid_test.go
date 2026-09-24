@@ -19,8 +19,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// hostileCohort builds a folded channel.chat.message: n distinct senders, all
-// carrying the same text (which the gate flags as a timeout when hostile).
 func hostileCohort(t *testing.T, n int, text string) *bus.Message {
 	t.Helper()
 	senders := make([]map[string]any, n)
@@ -51,7 +49,6 @@ func raidPipeline(t *testing.T, pub bus.Publisher, enforce, shield bool) *Pipeli
 	return NewPipeline(d, NewRegistry(zap.NewNop()), cfg)
 }
 
-// countByType tallies the captured outgress messages by their Type.
 func countByType(got []captured) map[string]int {
 	m := map[string]int{}
 	for _, c := range got {
@@ -66,7 +63,6 @@ func TestMassRaidEscalatesToShieldAndBansCappedPrefix(t *testing.T) {
 	pub := &fakePublisher{}
 	p := raidPipeline(t, pub, true, true)
 
-	// A cohort larger than both the raid threshold and the ban cap.
 	require.NoError(t, p.Process(hostileCohort(t, massRaidBanCap+30, raidLink)))
 
 	got := countByType(pub.got)
@@ -79,7 +75,7 @@ func TestSmallHostileCohortBansAllNoShield(t *testing.T) {
 	pub := &fakePublisher{}
 	p := raidPipeline(t, pub, true, true)
 
-	n := massRaidThreshold - 1 // below the raid threshold
+	n := massRaidThreshold - 1
 	require.NoError(t, p.Process(hostileCohort(t, n, raidLink)))
 
 	got := countByType(pub.got)
@@ -89,7 +85,7 @@ func TestSmallHostileCohortBansAllNoShield(t *testing.T) {
 
 func TestMassRaidShieldDisabledStillBans(t *testing.T) {
 	pub := &fakePublisher{}
-	p := raidPipeline(t, pub, true, false) // enforce on, shield off
+	p := raidPipeline(t, pub, true, false)
 
 	require.NoError(t, p.Process(hostileCohort(t, massRaidThreshold+5, raidLink)))
 
@@ -102,15 +98,13 @@ func TestCleanCohortDoesNotAct(t *testing.T) {
 	pub := &fakePublisher{}
 	p := raidPipeline(t, pub, true, true)
 
-	// Hype copypasta: many identical senders but harmless text. The gate returns
-	// no verdict, so nothing is emitted (only reputation would build).
 	require.NoError(t, p.Process(hostileCohort(t, massRaidThreshold+10, "PogChamp what a play")))
 	assert.Empty(t, pub.got, "a clean cohort is never actioned")
 }
 
 func TestMassRaidShadowModeDoesNotAct(t *testing.T) {
 	pub := &fakePublisher{}
-	p := raidPipeline(t, pub, false, true) // shadow: enforce off
+	p := raidPipeline(t, pub, false, true)
 
 	require.NoError(t, p.Process(hostileCohort(t, massRaidThreshold+10, raidLink)))
 	assert.Empty(t, pub.got, "shadow mode emits nothing, even for a mass raid")
@@ -120,7 +114,6 @@ func TestRepeatedFoldsShieldOncePerCooldown(t *testing.T) {
 	pub := &fakePublisher{}
 	p := raidPipeline(t, pub, true, true)
 
-	// Two folds from the same raid on the same channel within the cooldown.
 	require.NoError(t, p.Process(hostileCohort(t, massRaidThreshold+1, raidLink)))
 	require.NoError(t, p.Process(hostileCohort(t, massRaidThreshold+1, raidLink)))
 
@@ -153,9 +146,6 @@ func TestBuildOutgressShieldMode(t *testing.T) {
 	assert.JSONEq(t, `{"is_active":true}`, string(msg.Payload))
 }
 
-// A cohort must never dispatch a command even when Automod is present and the
-// broadcaster has a matching custom command; the enforced-cohort path replaces
-// dispatch entirely.
 func TestHostileCohortWithCommandStillNoDispatch(t *testing.T) {
 	reader := fakeReader{cmd: projection.Command{Name: "x", Response: "hi", IsActive: true}, cmdFound: true}
 	pub := &fakePublisher{}

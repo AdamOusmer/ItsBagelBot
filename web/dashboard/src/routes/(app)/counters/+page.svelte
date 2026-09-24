@@ -37,9 +37,6 @@
   const { t } = getI18n();
   const failed = toastFailure(toast, t);
 
-  // Local source of truth, reseeded when a fresh SSR load lands. create / set /
-  // delete resync through invalidateAll (which swaps `data` and re-seeds here).
-  // The shape and the ?c= entries contract are exactly what the load returns.
   // svelte-ignore state_referenced_locally
   let items = $state<CounterDef[]>(data.counters ?? []);
   // svelte-ignore state_referenced_locally
@@ -52,9 +49,6 @@
   });
 
   let search = $state('');
-  // SegmentedControl keys its options by their DISPLAYED string, the same
-  // contract every other filter in the console uses, so the bound state is the
-  // label and the scope is derived back out of it.
   const scopeOptions = $derived([
     t('counters.filterAll'),
     ...COUNTER_SCOPES.map((s) => scopeTag[s]),
@@ -77,7 +71,6 @@
     viewer_command: t('counters.tagViewerCommand')
   };
 
-  // Plain-language scope names for the create picker and the filter.
   const scopeLabel: Record<CounterScope, string> = {
     channel: t('counters.scopeChannel'),
     viewer: t('counters.scopeViewer'),
@@ -85,8 +78,6 @@
     viewer_command: t('counters.scopeViewerCommand')
   };
 
-  // postSet writes an absolute value for one stored bucket of an entry-scoped
-  // counter (the inspector's per-entry edit), wrapping main's ?/set action.
   async function postSet(
     name: string,
     value: number,
@@ -102,9 +93,6 @@
       .catch(() => null);
   }
 
-  // focusSelect opens a field ready to overtype: the channel value editor's
-  // whole point is correcting a number, so the current value lands focused and
-  // selected. (Enter submits the surrounding form by default.)
   function focusSelect(node: HTMLInputElement) {
     node.focus();
     node.select();
@@ -113,19 +101,15 @@
   const NEW = '__new__';
   let expanded = $state<string | null>(null);
 
-  // Create draft.
   let newName = $state('');
   let newScope = $state<CounterScope>('channel');
   let creating = $state(false);
   let nameError = $state('');
 
-  // Channel set-value draft.
   let setValue = $state(0);
   let setting = $state(false);
 
   const selected = $derived(expanded && expanded !== NEW ? items.find((c) => c.name === expanded) : undefined);
-  // Entry-scoped counters load their per-viewer buckets from the server via ?c=;
-  // ready once the SSR selection matches the row we opened.
   const entriesReady = $derived(!!selected && data.selected === selected.name);
 
   function normCounterName(raw: string): string {
@@ -174,7 +158,6 @@
     if (data.selected) void goto('/counters', { noScroll: true, keepFocus: true });
   }
 
-  // Close the editor if the counter it held vanished (e.g. deleted).
   $effect(() => {
     if (expanded && expanded !== NEW && !items.some((c) => c.name === expanded)) {
       expanded = null;
@@ -208,7 +191,6 @@
         await invalidateAll();
         return;
       }
-      // Keep the form open with the typed name; surface the reason.
       failed(actionPayload(result), 'counters.toastFailed');
     };
   };
@@ -272,8 +254,6 @@
     };
   };
 
-  // The typed username resolves to its Twitch id server-side; the scope decides
-  // which fields the form shows (viewer, command, or both).
   let addUser = $state('');
   let addCommand = $state('');
   let addValue = $state(0);
@@ -315,9 +295,6 @@
     };
   };
 
-  // Drafts are keyed by (viewer, command) bucket and hold the raw input text;
-  // a row is dirty once the parsed draft differs from the stored value. Saving
-  // posts a targeted set and resyncs through invalidateAll.
   let entryEdits = $state<Record<string, string>>({});
   let entrySaving = $state<string | null>(null);
 
@@ -325,9 +302,6 @@
     return e.viewerId + ':' + e.command;
   }
 
-  // A bucket is editable only when the service can address it: the command
-  // bucket for command scope, the viewer for the viewer scopes. An untargeted
-  // set would reset the whole counter, so unaddressable rows stay read-only.
   function entryEditable(scope: CounterScope, e: CounterEntryView): boolean {
     return scope === 'command' ? e.command !== '' : e.viewerId !== '0';
   }
@@ -360,8 +334,6 @@
     }
   }
 
-  // The bucket's human label for confirm copy and aria: the viewer for the
-  // viewer scopes, the command for command scope.
   function entryLabel(e: CounterEntryView): string {
     return e.viewerName || e.viewerLogin || e.command || e.viewerId;
   }
@@ -411,9 +383,6 @@
 </script>
 
 {#snippet renameBlock()}
-  <!-- The input joins the hidden ?/rename form via form=, so it can sit inside
-       the set form without nesting forms. The section head already says
-       "Rename", so the field carries only its placeholder (bb-sr-only label). -->
 <div class="rename-row">
     <input
       class="bb-input rename-input"
@@ -446,9 +415,6 @@
 
   <PageToolbar>
     {#snippet lead()}
-      <!-- THE RAIL. This was a row of `Chip`s -- boxed pills, the tag shape --
-           while the modules page next door jumped sections on the underline
-           rail. One console, one answer to "which of these am I looking at". -->
       <SegmentedControl
         options={scopeOptions}
         bind:value={scopeLabelPicked}
@@ -465,8 +431,6 @@
     {/snippet}
   </PageToolbar>
 
-  <!-- The deck: full-width ledger list until a selection opens the docked
-       inspector (no idle panel reserving a third of the row). -->
   <div class="deck {expanded !== null ? 'inspecting' : ''}">
     <DeckList>
       {#if rows.length}
@@ -568,7 +532,6 @@
             <Scroller fill padding="16px" smooth>
               <p class="ins-sub">{scopeLabel[selected.scope]}</p>
 
-              <!-- Values lead: the stored buckets are the point of this panel. -->
               <div class="sec">
                 <div class="sec-head-row">
                   <span class="sec-head">{t('counters.valuesTitle')}</span>
@@ -597,11 +560,6 @@
                           <tr>
                             {#if showViewer}<th scope="row">{e.viewerName || e.viewerLogin || e.viewerId}</th>{/if}
                             {#if showSource}<td class="mut">{e.command || '·'}</td>{/if}
-                            <!-- Value cell is always a 2-track grid (number box |
-                                 28px save slot) so the number's right edge is
-                                 invariant: the save check toggles visibility, it
-                                 is never inserted into or removed from the flow.
-                                 Read-only buckets fill the same tracks. -->
                             <td class="r">
                               <span class="entry-edit">
                                 {#if entryEditable(selected.scope, e)}
@@ -647,8 +605,6 @@
                 {/if}
               </div>
 
-              <!-- Add a value: the username resolves to its Twitch id on save;
-                   the counter's scope decides which key fields show. -->
               <div class="sec">
                 <span class="sec-head">{t('counters.addTitle')}</span>
                 <form
@@ -703,7 +659,6 @@
                 </form>
               </div>
 
-              <!-- Rename is a rare utility; keep it out of the way at the bottom. -->
               <div class="sec sec-util">
                 <span class="sec-head">{t('counters.rename')}</span>
                 {@render renameBlock()}
@@ -722,8 +677,6 @@
   </div>
 </section>
 
-<!-- Delete: confirmed + named; posts through a hidden form so the confirm owns
-     the destructive click. -->
 <ConfirmDialog
   open={deleteTarget !== null}
   title={t('counters.deleteTitle')}
@@ -739,7 +692,6 @@
   <input type="hidden" name="name" value={deleteTarget?.name ?? ''} />
 </form>
 
-<!-- Rename: the visible input in the inspector belongs to this form via form=. -->
 <form
   id="counter-rename-form"
   method="POST"
@@ -751,7 +703,6 @@
   <input type="hidden" name="name" value={selected?.name ?? ''} />
 </form>
 
-<!-- Reset an entry-scoped counter: value 0 clears every stored bucket. -->
 <ConfirmDialog
   open={resetTarget !== null}
   title={t('counters.resetTitle')}
@@ -768,9 +719,6 @@
   <input type="hidden" name="value" value="0" />
 </form>
 
-<!-- Remove one stored bucket: confirmed + named. The command field carries ""
-     for the viewer scope; the viewer_id is blanked for the pooled command
-     bucket (viewer 0), so the post always names exactly one bucket. -->
 <ConfirmDialog
   open={entryDeleteTarget !== null}
   title={t('counters.entryDeleteTitle')}
@@ -807,8 +755,6 @@
   .list { margin: 0; padding: 0; }
   .list :global(.row-shell:last-child) { border-bottom: none; }
 
-  /* The inspector body fills the surface below its head: the Scroller scrolls and
-     the footer stays pinned at the bottom. */
   .ins-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
   .ins-form :global(.num) { max-width: 200px; }
   .ins-foot {
@@ -830,9 +776,6 @@
     color: #cf8a78;
   }
 
-  /* Scope subtitle: the InspectorSurface title already names the counter, so
-     the panel body opens with just the scope in plain language, not a second
-     copy of the name. */
   .ins-sub {
     margin: 0 0 16px;
     font-family: var(--bb-font-body);
@@ -840,12 +783,8 @@
     color: var(--bb-muted);
   }
 
-  /* Sections: each block of the inspector, divided by a hairline so values,
-     add and rename read as distinct groups rather than one form dump. */
   .sec { padding: 0 0 16px; }
   .sec + .sec { padding-top: 16px; border-top: 1px solid var(--rule, rgba(240, 236, 228, 0.08)); }
-  /* The rename utility sits quieter than the sections above it. `--input-fs`
-     is the control frame's own knob (elements/field.css). */
   .sec-util { --input-fs: 12.5px; }
 
   .sec-head {
@@ -860,29 +799,20 @@
   }
   .sec-head-row { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
   .sec-head-row .sec-head { margin: 0; }
-  /* Was a 999px outlined count pill; now the global .bb-tag--bare label. */
   .sec-count { font-variant-numeric: tabular-nums; }
 
-  /* The channel value is the point of that panel, so it gets a larger box. */
   .big-num :global(.num),
   .ins-form :global(.big-num) { font-size: 16px; max-width: 160px; }
 
   .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
   .hints { display: flex; flex-direction: column; gap: 8px; }
 
-  /* Fixed value column so every value cell is the same box and the right edge
-     never drifts with content. */
   .entries th.r,
   .entries td.r { width: 128px; }
-  /* Trailing per-bucket delete column. */
   .entries th.act,
   .entries td.act { width: 32px; padding-left: 4px; padding-right: 0; text-align: right; }
   .entries :global(.entry-del:hover) { color: #cf8a78; }
 
-  /* Per-entry value cell: a 2-track grid (number box | 28px save slot). The
-     save check toggles visibility inside its always-reserved slot, so the
-     number's position is invariant whether the row is dirty, clean or
-     read-only. */
   .entry-edit {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 28px;
@@ -908,15 +838,10 @@
   .entry-slot { width: 28px; height: 28px; }
   .entries :global(.entry-check.is-off) { visibility: hidden; }
 
-  /* Add a value: key fields stack full-width (the panel is only 420px, so a
-     side-by-side row would cramp), then the value + Add button share the last
-     line, button riding the field baseline. */
   .add :global(.field) { margin-bottom: 12px; }
   .add-foot { display: flex; align-items: flex-end; gap: 10px; }
   .add-val { flex: none; }
   .add-val :global(.num) { width: 96px; }
-  /* Keyed on the button's own class: this is where THIS button sits on the
-     row, which is composition, not a second definition of the contract. */
   :global(.add-btn) { margin-bottom: 2px; }
 
   @media (max-width: 760px) {

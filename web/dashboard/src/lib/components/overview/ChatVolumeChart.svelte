@@ -1,14 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Chat volume across the stream: one point per minute, plus tan ticks on the
-  // minutes a command answered.
-  //
-  // Only the wording is the dashboard's: the drawing lives in the shared
-  // AreaSeries so a second console charting the same lane cannot draw it
-  // differently. What stays here is what a shared chart must not decide -- the
-  // label, the now/peak readout, the legend, and what to say when the read did
-  // not land.
   import { getI18n } from '@bagel/kit/i18n/context';
   import AreaSeries from '@bagel/ui/svelte/AreaSeries.svelte';
   import type { ChatVolume } from '$lib/overview-live';
@@ -17,8 +9,6 @@
 
   let { volume }: { volume: ChatVolume } = $props();
 
-  // Two points are the minimum a curve can be drawn from; below that (and on a
-  // failed read) the panel says so rather than drawing an empty box.
   const hasCurve = $derived(volume.ok && volume.buckets.length > 1);
 </script>
 

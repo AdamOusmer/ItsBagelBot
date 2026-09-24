@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The rule that decides whether a wheel goes to the page or to the pane under
-// the pointer. It is pinned as a table because the failure it replaces was
-// invisible in the code: Lenis's own `allowNestedScroll` has the same rule
-// with a 2 s cache in front of it, and a pane that grew or shrank inside that
-// window answered from the old geometry (see lib/nested-scroll.ts).
-
 import { describe, expect, test } from "bun:test";
 
 import {
@@ -21,7 +15,6 @@ const DOWN = { deltaX: 0, deltaY: 120 };
 const UP = { deltaX: 0, deltaY: -120 };
 const RIGHT = { deltaX: 120, deltaY: 10 };
 
-/** A 300px-tall pane over 3000px of content, unless a test says otherwise. */
 function box(over: { x?: Partial<ScrollAxis>; y?: Partial<ScrollAxis> } = {}): ScrollBox {
   return {
     x: { overflow: "visible", overscroll: "auto", at: 0, max: 0, ...over.x },
@@ -62,15 +55,12 @@ describe("keepsWheel", () => {
   test("overscroll-behavior other than auto holds the wheel at the edges too", () => {
     expect(keepsWheel(box({ y: { at: 2700, overscroll: "contain" } }), DOWN)).toBe(true);
     expect(keepsWheel(box({ y: { at: 0, overscroll: "none" } }), UP)).toBe(true);
-    // ...but still not when there is nothing to scroll: contain on an empty
-    // pane is the freeze this whole module exists to end.
     expect(keepsWheel(box({ y: { max: 0, overscroll: "contain" } }), DOWN)).toBe(false);
   });
 
   test("the dominant axis of the gesture is the one asked about", () => {
     expect(keepsWheel(box({ x: { overflow: "auto", max: 1600 } }), RIGHT)).toBe(true);
     expect(keepsWheel(box({ x: { overflow: "auto", max: 1600, at: 1600 } }), RIGHT)).toBe(false);
-    // A vertical-only pane does not claim a mostly-horizontal wheel.
     expect(keepsWheel(box({ y: { at: 100 } }), RIGHT)).toBe(false);
   });
 });
@@ -99,8 +89,6 @@ function node(overflowY: string, geometry: Partial<FakeNode> = {}): FakeNode {
     clientHeight: 300,
     ...geometry,
   };
-  // Count the layout-forcing reads: the gate must not pay them on elements
-  // whose overflow already says they are not a pane.
   for (const key of ["scrollTop", "scrollHeight", "clientHeight"] as const) {
     const value = n[key];
     Object.defineProperty(n, key, {
@@ -140,9 +128,6 @@ describe("createNestedScrollGate", () => {
     gate.virtualScroll(wheel(-120));
     expect(gate.prevent(pane)).toBe(false);
 
-    // The pane shrank between two wheels: no cache, so the next answer is
-    // from the new geometry. This is the case Lenis's allowNestedScroll gets
-    // wrong for 2 s.
     const short = node("auto", { scrollHeight: 150 }) as unknown as HTMLElement;
     gate.virtualScroll(wheel(120));
     expect(gate.prevent(short)).toBe(false);

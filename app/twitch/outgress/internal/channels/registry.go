@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package channels keeps the managed per-broadcaster state of the egress
-// path in Valkey: whether a channel receives traffic at all, and whether the
-// bot moderates it (which doubles its Twitch chat allowance). The registry
-// is written through the management RPC and by the workers' periodic mod
-// verification; unknown channels default to enabled and non-mod, so the safe
-// rate applies until someone or something says otherwise.
 package channels
 
 import (
@@ -48,10 +42,6 @@ const (
 	pauseReadTimeout       = 750 * time.Millisecond
 )
 
-// The per-pod channel cache only needs the working set of channels this pod is
-// actively sending to; Valkey remains authoritative and NATS invalidation keeps
-// hits coherent. A short TTL lets channels that stop chatting leave memory
-// instead of sitting resident for a day.
 const (
 	channelCacheCapacity = 4096
 	channelCacheTTL      = 6 * time.Hour
@@ -86,16 +76,6 @@ type Registry struct {
 	pauseWG     sync.WaitGroup
 }
 
-// New builds the registry on a primary-consistent view of the client. The
-// registry is control-plane state at a few reads per second, and every read it
-// makes is a read-back of a write it just issued: Get reloads the hash right
-// after applyChannelUpdate invalidated the cache, List reads the index set the
-// same pipeline just SADDed, and EnrollCooldownActive checks a key
-// ArmEnrollCooldown set moments earlier. Served by a lagging node-local
-// replica, those reads would re-cache the pre-write value for the cache's full
-// TTL (the NATS invalidation has already fired by then) and bypass the enroll
-// cooldown. The view borrows the client's existing connections, so pinning
-// costs no extra pool.
 func New(client valkey.Client) *Registry {
 	return &Registry{
 		client: pkg_valkey.Primary(client),
@@ -103,9 +83,6 @@ func New(client valkey.Client) *Registry {
 	}
 }
 
-// StartInvalidationListener keeps the per-pod channel caches coherent. Valkey
-// is authoritative, but without this broadcast one replica can retain a stale
-// moderator status for the cache's full TTL after another replica refreshes it.
 func (r *Registry) StartInvalidationListener(nc *nats.Conn, prefix string, log *zap.Logger) error {
 	r.nc = nc
 	r.invalidatePrefix = prefix
@@ -155,7 +132,7 @@ func (r *Registry) subscribePauseInvalidation(prefix string, log *zap.Logger) (*
 	return r.nc.Subscribe(prefix+"."+pauseInvalidateScope, func(msg *nats.Msg) {
 		if r.pauseStore != nil {
 			return
-		} // Legacy events have a different revision namespace.
+		}
 		var event pauseEvent
 		if err := codec.Unmarshal(msg.Data, &event); err != nil || event.Version < 1 {
 			log.Debug("pause cache invalidation: bad payload", zap.Error(err))
@@ -169,10 +146,7 @@ func (r *Registry) subscribePauseInvalidation(prefix string, log *zap.Logger) (*
 	})
 }
 
-// seedPauseSnapshot flushes the just-created subscriptions and performs the
-// initial pause read. Subscribing before loading means a concurrent pause
-// arriving between the two cannot be lost: version comparison prevents the
-// initial read from reverting it.
+// Call only after subscribing, or this read can revert a concurrent pause.
 func (r *Registry) seedPauseSnapshot() error {
 	if err := r.nc.Flush(); err != nil {
 		return err
@@ -187,7 +161,6 @@ func (r *Registry) seedPauseSnapshot() error {
 	return nil
 }
 
-// Close releases the in-process cache and invalidation subscription.
 func (r *Registry) Close() {
 	if r.pauseCancel != nil {
 		r.pauseCancel()
@@ -212,12 +185,6 @@ func (r *Registry) publishInvalidation(broadcasterID string) {
 	}
 }
 
-// channelFromFields decodes one HGETALL reply. An empty reply is a channel that
-// was never registered (or whose hash is gone while the index still lists the
-// id) and decodes to the zero value, which both Get and List read back as
-// not-found through an empty BroadcasterID. Get and List share this so a
-// channel decoded by a List can never differ from the same channel decoded by
-// a Get.
 func channelFromFields(broadcasterID string, fields map[string]string) manage.Channel {
 	if len(fields) == 0 {
 		return manage.Channel{}
@@ -235,9 +202,6 @@ func channelFromFields(broadcasterID string, fields map[string]string) manage.Ch
 	}
 }
 
-// Get returns the stored state for one broadcaster. found is false when the
-// channel was never registered, in which case the caller should assume the
-// defaults (enabled, non-mod).
 func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channel, bool, error) {
 
 	ch, err := r.cache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (manage.Channel, error) {
@@ -252,7 +216,6 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channe
 		return manage.Channel{}, false, err
 	}
 
-	// If the loader returned a zero struct (not found in Valkey), we don't treat it as found.
 	if ch.BroadcasterID == "" {
 		return manage.Channel{}, false, nil
 	}
@@ -260,15 +223,6 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channe
 	return ch, true, nil
 }
 
-// savedFields renders every persisted field of a channel. Save writes exactly
-// this set, and TestSaveCoversEveryChannelField asserts it covers every json
-// field of manage.Channel.
-//
-// It is a map rather than an inline builder chain because Save is a full
-// overwrite: a field added to manage.Channel but forgotten here is not a
-// compile error, it is a field that silently reverts to empty whenever anyone
-// calls Save. That is how a grant marker would be erased by an operator
-// toggling "enabled" in the admin console, with no error logged anywhere.
 func savedFields(ch manage.Channel) map[string]string {
 	return map[string]string{
 		"enabled":        utils.BoolField(ch.Enabled),
@@ -289,7 +243,6 @@ func unixOrZero(t time.Time) string {
 	return strconv.FormatInt(t.Unix(), 10)
 }
 
-// Save overwrites the full state of one channel and indexes it for List.
 func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 
 	key := keyPrefix + ch.BroadcasterID
@@ -314,8 +267,6 @@ func (r *Registry) Save(ctx context.Context, ch manage.Channel) error {
 	return nil
 }
 
-// SetMod records a verified mod status without touching the enabled flag;
-// a channel first seen through verification starts out enabled.
 func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
@@ -331,9 +282,6 @@ func (r *Registry) SetMod(ctx context.Context, broadcasterID string, isMod bool)
 	)
 }
 
-// SetSubState records the current eventsub enrollment state for a broadcaster
-// without touching enabled/is_mod. It also updates updated_at so listeners
-// polling the registry see a freshness bump.
 func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg string) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
@@ -349,10 +297,6 @@ func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg
 	)
 }
 
-// SetGrantState records the health of the broadcaster's own OAuth grant without
-// touching enabled/is_mod/sub_state. Like SetMod it seeds enabled on a channel
-// first seen here, so the marker can never conjure a disabled channel into the
-// registry.
 func (r *Registry) SetGrantState(ctx context.Context, broadcasterID string, state manage.GrantState) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
@@ -367,8 +311,6 @@ func (r *Registry) SetGrantState(ctx context.Context, broadcasterID string, stat
 	)
 }
 
-// applyChannelUpdate runs one channel's update pipeline, then drops the local
-// cache entry and broadcasts the invalidation to the other replicas.
 func (r *Registry) applyChannelUpdate(ctx context.Context, broadcasterID string, commands ...valkey.Completed) error {
 	for _, res := range r.client.DoMulti(ctx, commands...) {
 		if err := res.Error(); err != nil {
@@ -388,17 +330,12 @@ const modCheckLockPrefix = "outgress:mod-check:lock:"
 
 const enrollCooldownPrefix = "outgress:enroll:cooldown:"
 
-// ArmEnrollCooldown records that a full enroll (enable or reconnect) just
-// completed for the broadcaster. While the key lives, an identical incoming
-// job is redundant — everything it would create already exists on the conduit
-// — so the workers can acknowledge it without spending Helix budget.
 func (r *Registry) ArmEnrollCooldown(ctx context.Context, broadcasterID string, ttl time.Duration) error {
 	return r.client.Do(ctx,
 		r.client.B().Set().Key(enrollCooldownPrefix+broadcasterID).Value("1").PxMilliseconds(ttl.Milliseconds()).Build(),
 	).Error()
 }
 
-// EnrollCooldownActive reports whether ArmEnrollCooldown ran within its ttl.
 func (r *Registry) EnrollCooldownActive(ctx context.Context, broadcasterID string) (bool, error) {
 	n, err := r.client.Do(ctx, r.client.B().Exists().Key(enrollCooldownPrefix+broadcasterID).Build()).AsInt64()
 	if err != nil {
@@ -407,28 +344,16 @@ func (r *Registry) EnrollCooldownActive(ctx context.Context, broadcasterID strin
 	return n > 0, nil
 }
 
-// reauthBeaconPrefix throttles the go-live "please reconnect" chat line for a
-// revoked channel.
 const reauthBeaconPrefix = "outgress:reauth:beacon:"
 
-// ArmReauthBeacon claims the right to send one reauth chat beacon for the
-// broadcaster within ttl. SET NX makes the claim atomic across replicas and
-// across a stream being restarted several times in a row: the first caller
-// wins, everyone else skips. Fails closed (false, err) on a Valkey error so
-// an outage cannot spam a streamer's chat.
 func (r *Registry) ArmReauthBeacon(ctx context.Context, broadcasterID string, ttl time.Duration) (bool, error) {
 	return r.acquireLock(ctx, reauthBeaconPrefix+broadcasterID, "1", ttl)
 }
 
-// AcquireEnrollLock tries to set a Valkey NX key as a distributed lock.
-// Returns true if this caller owns the lock, false if another replica holds it.
 func (r *Registry) AcquireEnrollLock(ctx context.Context, broadcasterID, owner string, ttl time.Duration) (bool, error) {
 	return r.acquireLock(ctx, enrollLockPrefix+broadcasterID, owner, ttl)
 }
 
-// AcquireModCheckLock ensures only one replica verifies a broadcaster's
-// moderator status at a time. Callers may intentionally leave the lock in
-// place after an error to turn its TTL into a distributed retry backoff.
 func (r *Registry) AcquireModCheckLock(ctx context.Context, broadcasterID, owner string, ttl time.Duration) (bool, error) {
 	return r.acquireLock(ctx, modCheckLockPrefix+broadcasterID, owner, ttl)
 }
@@ -437,8 +362,6 @@ func (r *Registry) acquireLock(ctx context.Context, key, owner string, ttl time.
 	return pkg_valkey.NewOwnerLock(r.client, key, owner).Acquire(ctx, ttl)
 }
 
-// ReleaseEnrollLock deletes the lock key only when its value matches owner,
-// preventing a replica from releasing a lock it no longer holds.
 func (r *Registry) ReleaseEnrollLock(ctx context.Context, broadcasterID, owner string) error {
 	return r.releaseLock(ctx, enrollLockPrefix+broadcasterID, owner)
 }
@@ -451,20 +374,6 @@ func (r *Registry) releaseLock(ctx context.Context, key, owner string) error {
 	return pkg_valkey.NewOwnerLock(r.client, key, owner).Release(ctx)
 }
 
-// List returns every registered channel.
-//
-// The hashes are read with one pipelined DoMulti instead of one Get per id.
-// Per-id Get made List cost one serial round trip per channel on a cold cache,
-// so its latency grew with the install base even though every one of those
-// HGETALLs was independent and could have shared a flush. DoMulti makes List
-// two round trips (SMEMBERS, then the pipeline) at any channel count.
-//
-// Every id is fetched, cached ones included, because pkg/cache has no
-// peek-without-load: probing it through GetOrLoad would enter the singleflight
-// group for that key and hand a concurrent Get the probe's result. A cached id
-// riding along in an already-flushed pipeline costs no extra round trip, and
-// the client is primary-pinned, so the value written back is never older than
-// the one it replaces.
 func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 
 	ids, err := r.client.Do(ctx, r.client.B().Smembers().Key(indexKey).Build()).AsStrSlice()
@@ -488,10 +397,6 @@ func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 		}
 		ch := channelFromFields(ids[i], fields)
 
-		// Populate exactly what Get's loader would have, negative entries
-		// included: an id in the index whose hash is missing caches as the
-		// zero value, so a following Get answers not-found from memory rather
-		// than re-reading a hash that is not there.
 		r.cache.Set(ids[i], ch)
 		if ch.BroadcasterID != "" {
 			out = append(out, ch)
@@ -501,9 +406,6 @@ func (r *Registry) List(ctx context.Context) ([]manage.Channel, error) {
 	return out, nil
 }
 
-// SetPaused flips the global kill switch. While paused, workers nack every
-// message; redelivery pacing holds them for a while, but messages older
-// than the retry budget are dropped, which is the right call for chat.
 func (r *Registry) SetPaused(ctx context.Context, paused bool) error {
 	if r.pauseStore != nil {
 		return r.setDurablePause(ctx, paused)
@@ -523,8 +425,6 @@ func (r *Registry) SetPaused(ctx context.Context, paused bool) error {
 	return nil
 }
 
-// runPauseTxn flips the pause key and bumps its version inside one MULTI/EXEC,
-// returning the new version.
 func runPauseTxn(ctx context.Context, client valkey.DedicatedClient, paused bool) (int64, error) {
 	stateCommand := client.B().Del().Key(pausedKey).Build()
 	if paused {
@@ -543,8 +443,6 @@ func runPauseTxn(ctx context.Context, client valkey.DedicatedClient, paused bool
 	return executed[1].AsInt64()
 }
 
-// pauseTxnResults validates the pause MULTI/EXEC pipeline (every command
-// queued, both transaction steps executed) and returns the EXEC array.
 func pauseTxnResults(results []valkey.ValkeyResult) ([]valkey.ValkeyMessage, error) {
 	if len(results) != 4 {
 		return nil, errors.New("pause transaction returned an invalid pipeline result")
@@ -583,25 +481,14 @@ func firstMessageError(messages []valkey.ValkeyMessage) error {
 	return nil
 }
 
-// SeedPause installs an in-process pause snapshot directly, bypassing Valkey
-// and NATS. The snapshot's observedAt is pinned far in the future so it never
-// trips the staleness guard, however long a benchmark runs; without the
-// reconciler nothing would refresh it. It exists for tests and benchmarks
-// that need Paused to answer without the listener running; wiring never calls
-// it, and a versioned snapshot from the real listener always supersedes it.
 func (r *Registry) SeedPause(paused bool) {
 	r.applyPauseSnapshot(pauseSnapshot{paused: paused, observedAt: time.Now().Add(24 * time.Hour)})
 }
 
-// Prime seeds the per-pod channel cache directly, bypassing Valkey. It exists
-// for tests and benchmarks that need a warm Get without a backing store;
-// wiring never calls it.
 func (r *Registry) Prime(ch manage.Channel) {
 	r.cache.Set(ch.BroadcasterID, ch)
 }
 
-// Paused reports the global kill switch from one lock-free in-process snapshot.
-// The reconciler bounds staleness without putting Valkey I/O on the message path.
 func (r *Registry) Paused(_ context.Context) (bool, error) {
 	snapshot := r.pause.Load()
 	if snapshot == nil || time.Since(snapshot.observedAt) > pauseMaxAge {
@@ -647,15 +534,11 @@ func (r *Registry) loadPauseSnapshot(ctx context.Context) (pauseSnapshot, error)
 	return pauseSnapshot{paused: paused, version: version, observedAt: time.Now()}, nil
 }
 
-// pausedFlagField parses the paused key's MGET value; a nil key means not
-// paused.
 func pausedFlagField(value valkey.ValkeyMessage) (bool, error) {
 	state, err := stringOrNil(value)
 	return state == "1", err
 }
 
-// pauseVersionField parses the pause version's MGET value; a nil key means
-// version zero (never paused/resumed yet).
 func pauseVersionField(value valkey.ValkeyMessage) (int64, error) {
 	raw, err := stringOrNil(value)
 	if err != nil || raw == "" {
@@ -664,7 +547,6 @@ func pauseVersionField(value valkey.ValkeyMessage) (int64, error) {
 	return strconv.ParseInt(raw, 10, 64)
 }
 
-// stringOrNil reads one MGET value, mapping an unset (nil) key to "".
 func stringOrNil(value valkey.ValkeyMessage) (string, error) {
 	raw, err := value.ToString()
 	if valkey.IsValkeyNil(err) {

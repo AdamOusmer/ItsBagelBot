@@ -1,10 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // Where the run stands in one glance: its state, how long it has taken, who
-  // started it, whether this page is still receiving it, and one bar for the
-  // whole train. The stream state is shown because EventSource retries
-  // silently; a page that stopped updating must not look like a stalled run.
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';

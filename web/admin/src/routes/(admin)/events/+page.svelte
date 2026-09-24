@@ -1,18 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The ingress shard-lifecycle feed: a live, non-persistent SSE view of shard
-  // connections, Conduit bindings and disconnect reasons.
-  //
-  // The stream itself is unchanged (/events/stream, one EventSource, the same
-  // 300-event cap and pause buffer). What changed is the chrome: the feed now
-  // scrolls inside a Scroller instead of growing the page without bound, the
-  // pause control is the shared Switch rather than a Button whose label was the
-  // state, and each row's dot is the shared StatusDot rather than a third copy
-  // of the tone palette.
-  //
-  // There is no inspector: an event is three fields, all of them already on the
-  // row, and it is gone on reload.
   import { onMount } from 'svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
@@ -38,9 +26,6 @@
 
   const { t } = getI18n();
 
-  // The feed's own three-word tone vocabulary, mapped onto the shared one. A
-  // lifecycle "up" is a shard that came back, which is the same success the
-  // health panel's green means.
   const TONE_DOT: Record<FeedEvent['tone'], StatusTone> = {
     up: 'success',
     down: 'error',
@@ -49,8 +34,6 @@
 
   const CAP = 300;
   let events = $state<FeedEvent[]>([]);
-  // Honest connection state: EventSource retries forever, so distinguish "live"
-  // from "reconnecting" instead of flashing a generic spinner.
   let conn = $state<'connecting' | 'live' | 'reconnecting'>('connecting');
   let paused = $state(false);
   let missedWhilePaused = $state(0);
@@ -66,7 +49,6 @@
       }
       events = [ev, ...events].slice(0, CAP);
     } catch {
-      /* ignore malformed */
     }
   }
 
@@ -79,8 +61,6 @@
   });
 
   function setPaused(next: boolean) {
-    // Flush what arrived while reading, newest first: nothing is dropped
-    // silently, which is the whole reason the pause has a buffer at all.
     if (!next) {
       events = [...buffer, ...events].slice(0, CAP);
       buffer = [];
@@ -138,8 +118,6 @@
       <div class="toolbar-search">
         <SearchInput fill bind:value={search} placeholder={t('admin.events.searchPlaceholder')} />
       </div>
-      <!-- Switch renders no visible text of its own (its label is the
-           accessible name), so the toolbar supplies one. -->
       <span class="switch-field">
         <span class="switch-label">
           {paused && missedWhilePaused
@@ -174,8 +152,6 @@
       {/snippet}
     </CardHead>
 
-    <!-- aria-live off on purpose: a lifecycle firehose announced item by item is
-         unusable, and the counts above already carry the summary. -->
     <Scroller maxHeight="60vh" aria-live="off">
       {#if rows.length === 0}
         {#if events.length === 0}

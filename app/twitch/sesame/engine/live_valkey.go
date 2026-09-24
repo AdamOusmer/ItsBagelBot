@@ -23,41 +23,20 @@ import (
 	"go.uber.org/zap"
 )
 
-// recheckKeyPrefix guards the per-broadcaster Twitch re-check so that, when many
-// replicas all see the same key expire, only one fires the outgress job. It
-// deliberately sorts under the shared live: prefix; onExpired skips it.
 const recheckKeyPrefix = "live:recheck:"
 
-// liveCacheCapacity ceilings the resolved-live cache. It is keyed one entry per
-// broadcaster with a short TTL, so a few thousand covers the live broadcasters a
-// pod tracks in the window without holding the generic cache.DefaultCapacity ten
-// thousand at rest.
 const liveCacheCapacity int64 = 4096
 
-// LiveConfig wires the Valkey-backed live store.
 type LiveConfig struct {
-	// TTL bounds how long a live key survives without a refresh; on expiry the
-	// key-event watcher re-checks Twitch (via outgress) rather than letting the
-	// state silently drop, so a stream longer than TTL is re-confirmed.
-	TTL time.Duration
-	// CacheTTL is the in-process cache lifetime for the resolved live bool.
-	CacheTTL time.Duration
-	// ProjectorLiveSubject is the projector RPC asked on a cold Valkey key.
-	ProjectorLiveSubject string
-	// OutgressSystemSubject is the outgress system lane the re-check job rides.
+	TTL                   time.Duration
+	CacheTTL              time.Duration
+	ProjectorLiveSubject  string
 	OutgressSystemSubject string
-	// CacheInvalidatePrefix is the core-NATS prefix used to fan a live change to
-	// every replica (subject = prefix + ".live").
 	CacheInvalidatePrefix string
-	// KeyspaceDB is the Valkey db the key-event watcher listens on (default 0).
-	KeyspaceDB int
-	// Log is the store's logger; a nil Log defaults to a no-op.
-	Log *zap.Logger
+	KeyspaceDB            int
+	Log                   *zap.Logger
 }
 
-// ValkeyLiveStore is the default LiveStore. The same struct owns the read path
-// (cache -> Valkey -> projector RPC), the write path (stream events), the
-// fleet-wide invalidation, and the key-expiry re-check.
 type ValkeyLiveStore struct {
 	client valkey.Client
 	nc     *nats.Conn
@@ -65,17 +44,12 @@ type ValkeyLiveStore struct {
 	cfg    LiveConfig
 	log    *zap.Logger
 
-	// cache is keyed by the broadcaster id itself, not the live: string key, so a
-	// cache hit (the hot path: every live-only command gate and bagel check)
-	// allocates nothing.
 	cache      *cache.Keyed[uint64, bool]
 	rpcTimeout time.Duration
 
 	invalidationSub *nats.Subscription
 }
 
-// NewValkeyLiveStore builds a live store. pub publishes the re-check job onto the
-// outgress system lane; nc carries the projector RPC and the invalidation fan-out.
 func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub bus.Publisher, cfg LiveConfig) *ValkeyLiveStore {
 	if cfg.CacheTTL <= 0 {
 		cfg.CacheTTL = 30 * time.Second
@@ -97,12 +71,8 @@ func NewValkeyLiveStore(client valkey.Client, nc *nats.Conn, pub bus.Publisher, 
 
 func liveKey(id uint64) string { return livekey.Key(id) }
 
-// IsLive resolves the broadcaster's live state: in-process cache, then the shared
-// Valkey key, then the projector on a cold key. A live answer learned from the
-// projector is written back so the key-expiry re-check applies to it.
 func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (bool, error) {
 	return s.cache.GetOrLoad(ctx, broadcasterID, func(ctx context.Context) (bool, error) {
-		// Existence is the answer; the value is the applied version (#561).
 		_, err := s.client.Do(ctx, s.client.B().Get().Key(liveKey(broadcasterID)).Build()).ToString()
 		if err == nil {
 			return true, nil
@@ -111,9 +81,6 @@ func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (boo
 			return false, err
 		}
 
-		// Cold key: ask the projector. It returns its own projected state or, on
-		// its miss, escalates to Twitch and replies offline (eventual). Treat an
-		// RPC failure as offline so an outage never falsely greenlights.
 		reply, err := bus.RequestJSONTimeout[projectorrpc.LiveReply](
 			ctx, s.nc, s.cfg.ProjectorLiveSubject,
 			projectorrpc.LiveRequest{BroadcasterID: strconv.FormatUint(broadcasterID, 10)},
@@ -129,10 +96,6 @@ func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (boo
 	})
 }
 
-// SetLive marks the broadcaster live (on stream.online) and fans the change
-// out. applied is false when a newer version was already on the key — the
-// caller must then skip its follow-up effects (greet reset, timer arm), which
-// belong to a session that has already ended (#561).
 func (s *ValkeyLiveStore) SetLive(ctx context.Context, broadcasterID uint64, version int64) (bool, error) {
 	applied, err := s.setLiveKey(ctx, broadcasterID, version)
 	if err != nil || !applied {
@@ -143,10 +106,6 @@ func (s *ValkeyLiveStore) SetLive(ctx context.Context, broadcasterID uint64, ver
 	return true, nil
 }
 
-// ClearLive drops the broadcaster's live state (on stream.offline). A newer
-// applied version (a re-check that confirmed live after this event was sent)
-// survives: the local cache still drops so this replica re-reads the truth,
-// but the fleet-wide broadcast is skipped — nothing changed fleet-wide.
 func (s *ValkeyLiveStore) ClearLive(ctx context.Context, broadcasterID uint64, version int64) (bool, error) {
 	s.cache.Invalidate(broadcasterID)
 	applied, err := clearLiveKey(ctx, s.client, broadcasterID, version)
@@ -181,19 +140,12 @@ func clearLiveKey(ctx context.Context, client valkey.Client, broadcasterID uint6
 	return applied > 0, nil
 }
 
-// The two writes run through their scripts atomically (internal/domain/live):
-// each compares the stored version and refuses to move state backwards. Not
-// NewLuaScriptRetryable on purpose — a retried SET would re-apply a version it
-// already wrote, which is idempotent, but a retried DEL racing a concurrent
-// SetLive could delete a freshly confirmed key; one clean failure beats one
-// wrong deletion (same reasoning as emoteplay_valkey.go).
+// Not retryable: a retried DEL racing a concurrent SetLive could delete a freshly confirmed key.
 var (
 	setLiveScript   = valkey.NewLuaScript(livekey.SetScript)
 	clearLiveScript = valkey.NewLuaScript(livekey.ClearScript)
 )
 
-// broadcast fans a live change to every replica so their in-process caches drop
-// the entry immediately, backing the short cache TTL.
 func (s *ValkeyLiveStore) broadcast(broadcasterID uint64) {
 	if s.nc == nil || s.cfg.CacheInvalidatePrefix == "" {
 		return
@@ -203,8 +155,6 @@ func (s *ValkeyLiveStore) broadcast(broadcasterID uint64) {
 	}
 }
 
-// StartInvalidationListener subscribes to prefix+".live" so a live change made by
-// any replica (or by outgress after a re-check) drops this replica's cached bool.
 func (s *ValkeyLiveStore) StartInvalidationListener() {
 	if s.cfg.CacheInvalidatePrefix == "" {
 		return
@@ -229,10 +179,6 @@ func (s *ValkeyLiveStore) StartInvalidationListener() {
 	s.log.Info("live: invalidation listener started", zap.String("subject", subject))
 }
 
-// StartExpiryWatcher subscribes to Valkey key-expiry notifications and, when a
-// live key expires, asks outgress (system lane) to re-check the stream against
-// Twitch. It runs until ctx is cancelled. Requires the Valkey server to have
-// notify-keyspace-events including expired-key events (Ex). Run in a goroutine.
 func (s *ValkeyLiveStore) StartExpiryWatcher(ctx context.Context) {
 	channel := "__keyevent@" + strconv.Itoa(s.cfg.KeyspaceDB) + "__:expired"
 	s.log.Info("live: expiry watcher starting", zap.String("channel", channel))
@@ -253,9 +199,6 @@ func (s *ValkeyLiveStore) StartExpiryWatcher(ctx context.Context) {
 	}
 }
 
-// onExpired handles one expired-key notification. It ignores everything that is
-// not a live key (and the recheck guard keys), dedups across replicas with an NX
-// guard, then publishes the re-check job.
 func (s *ValkeyLiveStore) onExpired(ctx context.Context, key string) {
 	if !strings.HasPrefix(key, livekey.KeyPrefix) || strings.HasPrefix(key, recheckKeyPrefix) {
 		return
@@ -266,7 +209,6 @@ func (s *ValkeyLiveStore) onExpired(ctx context.Context, key string) {
 		return
 	}
 
-	// One replica per expiry fires the re-check.
 	got, err := s.client.Do(ctx, s.client.B().Set().Key(recheckKeyPrefix+idStr).Value("1").Nx().ExSeconds(10).Build()).ToString()
 	if err != nil || got != "OK" {
 		return
@@ -277,8 +219,6 @@ func (s *ValkeyLiveStore) onExpired(ctx context.Context, key string) {
 	}
 }
 
-// requestRecheck publishes a stream_status job onto the outgress system lane;
-// outgress resolves Twitch and writes the live key back with a fresh TTL.
 func (s *ValkeyLiveStore) requestRecheck(ctx context.Context, broadcasterID string) error {
 	body, err := codec.Marshal(outgress.StreamStatusJob{BroadcasterID: broadcasterID})
 	if err != nil {
@@ -291,8 +231,6 @@ func (s *ValkeyLiveStore) requestRecheck(ctx context.Context, broadcasterID stri
 	})
 }
 
-// Close releases the invalidation subscription. The expiry watcher stops with its
-// context.
 func (s *ValkeyLiveStore) Close() {
 	if s.invalidationSub != nil {
 		_ = s.invalidationSub.Unsubscribe()

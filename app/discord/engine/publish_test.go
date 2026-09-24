@@ -13,9 +13,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// recordingPublisher is a bus.Publisher that answers only through the
-// confirmed entry point, so a caller that slipped back onto PublishOwned
-// fails here rather than silently losing its error classification.
 type recordingPublisher struct {
 	subject string
 	id      string
@@ -35,10 +32,6 @@ func (p *recordingPublisher) PublishOwnedWithID(_ context.Context, subject, id s
 func (p *recordingPublisher) Flush(context.Context) error { return nil }
 func (p *recordingPublisher) Close() error                { return nil }
 
-// The engine's publisher must go through PublishOwnedWithID with a non-empty
-// identity: bus.PublishConfirmed rejects an empty one outright, and the
-// confirmed path is the only one that hands dispatch the broker's real
-// verdict to classify.
 func TestConfirmedPublisherSendsOnTheLaneWithAnIdentity(t *testing.T) {
 	pub := &recordingPublisher{}
 	cmd := ddiscord.Command{Type: ddiscord.TypeDeleteMessage, GuildID: "g1", ChannelID: "c1"}
@@ -62,8 +55,6 @@ func TestConfirmedPublisherSendsOnTheLaneWithAnIdentity(t *testing.T) {
 	}
 }
 
-// The broker's verdict has to reach the caller unchanged; dispatch
-// classifies on it.
 func TestConfirmedPublisherReturnsTheBrokerVerdict(t *testing.T) {
 	want := errors.New("bus: asynchronous publish cohort PubAck timeout")
 	pub := &recordingPublisher{fail: want}

@@ -3,12 +3,6 @@
 
 package main
 
-// This file is sesame's composition root: it dials the shared clients and
-// assembles engine.Deps plus the per-broadcaster stores. A new module
-// dependency is a field in engine.Deps (app/twitch/sesame/engine/deps.go) and a
-// construction line here; main.go only sequences boot/shutdown and should not
-// need to change.
-
 import (
 	"context"
 	"time"
@@ -27,8 +21,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// infra bundles the process's shared clients so the wiring helpers take one
-// value instead of a long argument list.
 type infra struct {
 	nc  *nats.Conn
 	pub bus.Publisher
@@ -36,9 +28,6 @@ type infra struct {
 	vc  valkey.Client
 }
 
-// wireCtx carries the cross-cutting inputs every store constructor needs
-// (lifecycle context, shared clients, config, logger), so the constructors
-// below take it as one value plus their store-specific dependencies.
 type wireCtx struct {
 	ctx context.Context
 	in  infra
@@ -46,8 +35,6 @@ type wireCtx struct {
 	log *zap.Logger
 }
 
-// dialNATS opens the core RPC connection (projector fallback) and the JetStream
-// publisher/subscriber that drive the lanes. Any failure is fatal.
 func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, bus.Subscriber) {
 	nc, err := bus.Connect(cfg.NATSRPCURL, serviceName)
 	if err != nil {
@@ -57,9 +44,6 @@ func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, b
 	if err != nil {
 		log.Fatal("failed to connect publisher", zap.Error(err))
 	}
-	// ConsumerName defaults to "worker" so sesame binds the worker's existing lane
-	// consumer (drop-in on the same lanes; no DeliverAll replay, rollout overlap
-	// load-balances instead of double-processing).
 	sub, err := bus.NewSubscriber(cfg.NATSURL, cfg.ConsumerName, log)
 	if err != nil {
 		log.Fatal("failed to connect subscriber", zap.Error(err))
@@ -67,38 +51,23 @@ func dialNATS(cfg *config.Config, log *zap.Logger) (*nats.Conn, bus.Publisher, b
 	return nc, pub, sub
 }
 
-// engineRuntime bundles the per-broadcaster stores main builds before assembling
-// engine.Deps, so buildDeps takes one value instead of a long argument list.
 type engineRuntime struct {
-	proj    *projection.Client
-	live    *engine.ValkeyLiveStore
-	timers  *engine.ValkeyTimerStore
-	guard   *automod.Gate
-	loyalty engine.LoyaltyStore
-	tick    *engine.ValkeyLoyaltyClock
-	stats   *engine.LoyaltyReporter
-	raffle  *engine.ValkeyRaffleStore
-	duel    *engine.ValkeyDuelStore
-	seq     *engine.Sequencer
-	// emotes is the shared third-party emote catalog the automod refresher
-	// keeps current; the command lane reads its snapshot for the {7tvemotes}
-	// family. nil when the refresher is off.
-	emotes *automod.EmoteFetcher
-	// chatters is the shared {random.viewer} snapshot store: the loyalty
-	// tick write-warms it, and ViewerRPC reads/cold-fetches through it.
+	proj     *projection.Client
+	live     *engine.ValkeyLiveStore
+	timers   *engine.ValkeyTimerStore
+	guard    *automod.Gate
+	loyalty  engine.LoyaltyStore
+	tick     *engine.ValkeyLoyaltyClock
+	stats    *engine.LoyaltyReporter
+	raffle   *engine.ValkeyRaffleStore
+	duel     *engine.ValkeyDuelStore
+	seq      *engine.Sequencer
+	emotes   *automod.EmoteFetcher
 	chatters *engine.ValkeyChatters
 }
 
-// buildDeps assembles the engine.Deps every module fn captures. modules.All turns
-// it into the built modules (core commands + bagel, live tracker, opt-in shoutout)
-// the engine registry indexes; adding a feature is a new file in app/twitch/sesame/modules
-// plus one line in all.go, no wiring here. The Valkey/RPC-backed stores are built
-// from the process's shared clients (in) and the config.
 func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	in, cfg, log := w.in, w.cfg, w.log
-	// One GossipRPC serves both call surfaces: the modules' typed provider
-	// calls (Gossip) and the {urlfetch:...} token family's custom.fetch
-	// endpoint (CustomFetch).
 	gossipRPC := engine.NewGossipRPC(in.nc, cfg.GossipRPCPrefix)
 	return engine.Deps{
 		TrialStore:    in.vc,
@@ -137,10 +106,6 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 
 		EmotePlay: engine.NewValkeyEmotePlay(in.vc),
 
-		// The {7tvemotes} / {bttvemotes} / {ffzemotes} / {random.emote} tokens
-		// read the emote refresher's own snapshot. EmoteCatalogFrom keeps a
-		// missing refresher out of the interface (a typed nil would mount the
-		// scope and answer every list "" forever).
 		Emotes: engine.EmoteCatalogFrom(rt.emotes),
 
 		Dedup: newDedup(w),
@@ -151,18 +116,11 @@ func buildDeps(w wireCtx, rt engineRuntime) engine.Deps {
 	}
 }
 
-// idempotency guard tuning. The prefix follows the fleet's colon-delimited
-// keyspace convention; the LRU absorbs the same-pod redelivery burst before it
-// reaches Valkey.
 const (
 	sesameSeenPrefix       = "sesame:seen:"
 	idempotencyLRUCapacity = 100_000
 )
 
-// newDedup builds the consumer-side dedup guard over the shared Valkey client:
-// a per-pod LRU tier in front of a master-pinned SET NX store. The kill switch
-// (SESAME_IDEMPOTENCY=off) returns nil, which engine.EventDedup treats as
-// fail-open everywhere — effects run, nothing is deduped.
 func newDedup(w wireCtx) *engine.EventDedup {
 	if !w.cfg.IdempotencyEnabled {
 		return nil
@@ -172,9 +130,6 @@ func newDedup(w wireCtx) *engine.EventDedup {
 	return engine.NewEventDedup(store, sesameSeenPrefix, w.cfg.IdempotencyTTL, w.log)
 }
 
-// newProjection builds the settings-projection reader (in-process cache fronting
-// Valkey, with a projector RPC fallback) and starts its cache invalidation
-// listener.
 func newProjection(w wireCtx) *projection.Client {
 	proj := projection.NewClient(projection.Config{
 		Store: projection.NewStore(w.in.vc),
@@ -192,10 +147,6 @@ func newProjection(w wireCtx) *projection.Client {
 	return proj
 }
 
-// newLive builds the Valkey-backed live store — a dedicated live:<id> key read
-// through an in-process cache, written from the stream events sesame consumes,
-// with a projector RPC fallback on a cold key and a key-expiry re-check against
-// Twitch (via the outgress system lane) — and starts its listeners.
 func newLive(w wireCtx) *engine.ValkeyLiveStore {
 	live := engine.NewValkeyLiveStore(w.in.vc, w.in.nc, w.in.pub, engine.LiveConfig{
 		TTL:                   w.cfg.LiveTTL,
@@ -211,19 +162,6 @@ func newLive(w wireCtx) *engine.ValkeyLiveStore {
 	return live
 }
 
-// newTimers builds the Valkey-backed timer store — one schedule key per
-// enabled repeating message, armed on stream.online and fired off key expiry
-// (see live_valkey.go's key-expiry idiom, which this shares the deployment's
-// notify-keyspace-events config with). It does NOT start the watchers: fire
-// reads the store's pipeline field unsynchronized (timers_valkey.go), and a
-// watcher goroutine started before main calls WirePipeline could read it
-// concurrently with that write — a real data race, not just a theoretical
-// one, since StartExpiryWatcher's first tick can land well inside the window
-// main spends building loyalty/raffle/duel/deps/registry before the pipeline
-// exists. Go's memory model only promises the watcher goroutine sees writes
-// that happened before its `go` statement ran, so the fix is ordering: main
-// calls startTimerWatchers AFTER WirePipeline, never before. See that
-// function's own comment.
 func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore) *engine.ValkeyTimerStore {
 	return engine.NewValkeyTimerStore(w.in.vc, w.in.pub, proj, live, engine.TimersConfig{
 		OutgressPremiumSubject:   w.cfg.OutgressPremiumSubject,
@@ -235,23 +173,12 @@ func newTimers(w wireCtx, proj *projection.Client, live *engine.ValkeyLiveStore)
 	})
 }
 
-// startTimerWatchers launches the expiry, rearm and reconciler watchers.
-// Split out of newTimers so main can call timers.WirePipeline first: the
-// plain field write it does happens-before every read inside these
-// goroutines only if it runs before the `go` statements that start them, per
-// Go's memory model (a `go` statement happens-after everything the calling
-// goroutine did first). Starting them any earlier is the data race newTimers'
-// comment describes.
 func startTimerWatchers(w wireCtx, timers *engine.ValkeyTimerStore) {
 	go timers.StartExpiryWatcher(w.ctx)
 	go timers.StartRearmWatcher(w.ctx)
 	go timers.StartReconciler(w.ctx)
 }
 
-// newRaffle builds the Valkey-backed raffle store — one deadline-keyed raffle
-// per broadcaster whose key expiry IS the auto-close (the timers idiom), with
-// the draw announced on the broadcaster's lane like a timer firing — and
-// starts its expiry watcher.
 func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
 	raffle := engine.NewValkeyRaffleStore(w.in.vc, engine.RaffleConfig{
 		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
@@ -263,9 +190,6 @@ func newRaffle(w wireCtx, proj *projection.Client) *engine.ValkeyRaffleStore {
 	return raffle
 }
 
-// newDuel builds the Valkey-backed duel store — the wager games' escrow
-// ledger over the loyalty service — and starts its expiry watcher (pots draw
-// stake-weighted on deadline, unanswered challenges refund their opener).
 func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *engine.ValkeyDuelStore {
 	duel := engine.NewValkeyDuelStore(w.in.vc, engine.DuelConfig{
 		OutgressPremiumSubject:  w.cfg.OutgressPremiumSubject,
@@ -278,9 +202,6 @@ func newDuel(w wireCtx, proj *projection.Client, loyalty engine.LoyaltyStore) *e
 	return duel
 }
 
-// loyaltyDeps bundles the shared collaborators newLoyalty and newLoyaltyClock
-// wire in beyond the ambient wireCtx (keeps both constructors under the
-// function-argument-count threshold).
 type loyaltyDeps struct {
 	proj     *projection.Client
 	live     *engine.ValkeyLiveStore
@@ -288,20 +209,12 @@ type loyaltyDeps struct {
 	chatters *engine.ValkeyChatters
 }
 
-// newLoyalty builds the loyalty store (a Valkey live view fronting the loyalty
-// service) and its watch clock, both fed by the shared reporter that batches
-// accruals/bumps onto data.loyalty.*.
 func newLoyalty(w wireCtx, deps loyaltyDeps) (engine.LoyaltyStore, *engine.ValkeyLoyaltyClock) {
 	store := engine.NewValkeyLoyaltyStore(w.in.vc, engine.NewLoyaltyRPC(w.in.nc, w.cfg.LoyaltyRPCPrefix), deps.reporter, w.log)
 	tick := newLoyaltyClock(w, deps)
 	return store, tick
 }
 
-// newLoyaltyClock builds the Valkey-backed watch tick — one schedule key per
-// live broadcaster with an enabled loyalty module, armed on stream.online and
-// fired off key expiry (the timers idiom) into a chatters fetch + accrual —
-// and starts its expiry, rearm and reconciler watchers. chatters write-warms
-// the shared {random.viewer} cache from every tick's chatter listing.
 func newLoyaltyClock(w wireCtx, deps loyaltyDeps) *engine.ValkeyLoyaltyClock {
 	clock := engine.NewValkeyLoyaltyClock(w.in.vc, w.in.nc, deps.proj, deps.live, deps.reporter, engine.LoyaltyClockConfig{
 		OutgressRPCPrefix:        w.cfg.OutgressRPCPrefix,
@@ -331,10 +244,6 @@ func newPipeline(deps engine.Deps, registry *engine.Registry, cfg *config.Config
 	})
 }
 
-// newConsumer builds the one autoscaling consumer that drains the premium and
-// standard lanes into a shared pool, with premium reserving a slice so it is
-// never starved. Live events ride these same lanes, so there is no separate
-// stream consumer.
 func newConsumer(sub bus.Subscriber, nrApp *newrelic.Application, cfg *config.Config, log *zap.Logger) *consumer.Consumer {
 	return consumer.New(sub, nrApp, consumer.Config{
 		Lanes: consumer.Lanes{PremiumSubject: cfg.PremiumSubject, StandardSubject: cfg.StandardSubject},

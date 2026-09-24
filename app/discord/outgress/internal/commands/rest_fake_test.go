@@ -27,15 +27,12 @@ type fakeRest struct {
 	roleRems     []discapi.MemberRole
 	followups    []discapi.Followup
 
-	member        discapi.GuildMemberInfo
-	members       map[string]discapi.GuildMemberInfo
-	memberErr     error
-	guildRoles    []discapi.Snowflake
-	guildRolesErr error
-	// roleRemReasons is the X-Audit-Log-Reason each removal carried, in the
-	// same order as roleRems.
+	member         discapi.GuildMemberInfo
+	members        map[string]discapi.GuildMemberInfo
+	memberErr      error
+	guildRoles     []discapi.Snowflake
+	guildRolesErr  error
 	roleRemReasons []string
-	// removeErrs is role id -> the error that removal answers with.
 	removeErrs     map[string]error
 	fullChannels   []discapi.ChannelInfo
 	guildPatches   []discapi.GuildPatch
@@ -168,9 +165,6 @@ func marshalPayload(t *testing.T, v any) []byte {
 	return raw
 }
 
-// dispatchOK dispatches cmd and fails the test on any error. Nearly every
-// test in this file wants exactly this, so hoisting it here keeps each
-// test's own body to the branches that are actually its.
 func dispatchOK(t *testing.T, h *Handlers, cmd ddiscord.Command) {
 	t.Helper()
 	if err := h.Dispatch(context.Background(), cmd); err != nil {
@@ -178,10 +172,6 @@ func dispatchOK(t *testing.T, h *Handlers, cmd ddiscord.Command) {
 	}
 }
 
-// requireOneCall fails the test unless calls has exactly one entry and it
-// matches. The four moderation-type assertions in TestDispatchModerationTypes
-// used to repeat "len(x) != 1 || x[0].Field != want" as their own branches;
-// this makes each one a single call instead.
 func requireOneCall[T any](t *testing.T, calls []T, match func(T) bool, label string) {
 	t.Helper()
 	if len(calls) != 1 || !match(calls[0]) {
@@ -189,10 +179,6 @@ func requireOneCall[T any](t *testing.T, calls []T, match func(T) bool, label st
 	}
 }
 
-// dispatchAll dispatches every command through one Handlers over a fresh fake
-// and hands the fake back. The five dispatch cases below opened with the same
-// three lines -- build a fake, wrap it, dispatch -- and only differ in the
-// commands, so that is all they say now.
 func dispatchAll(t *testing.T, cmds ...ddiscord.Command) *fakeRest {
 	t.Helper()
 	rest := &fakeRest{}

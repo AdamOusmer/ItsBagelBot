@@ -2,10 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Faq: plain answers, no support-page voice. Native <details> with the
- * grid-template-rows height trick; mono index numbers; hover nudge.
- */
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Text from '@bagel/ui/astro/Text.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
@@ -19,7 +15,6 @@ interface FaqItem {
 }
 
 interface Props {
-    /** Override the pricing defaults so other pages can reuse the component. */
     eyebrow?: string;
     title?: string;
     items?: FaqItem[];
@@ -39,8 +34,6 @@ const faqs: FaqItem[] = items ?? [
     { question: t('faq.q5'), answer: t('faq.a5') },
 ];
 
-// FAQPage structured data: surfaces these Q&As as rich results in search and
-// gives LLM answer engines clean, quotable answers about pricing and licensing.
 const faqLd = {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
@@ -134,7 +127,6 @@ const faqLd = {
         }
     }
 
-    /* +/- icon */
     .faq__icon {
         position: relative;
         width: 20px;
@@ -181,15 +173,9 @@ const faqLd = {
         background: var(--tan, #c9a87c);
     }
 
-    /* Smooth height expand via grid-template-rows */
     .faq__body {
         display: grid;
         grid-template-rows: 0fr;
-        /* 0fr -> 1fr on the grid row is the only way to animate to CONTENT
-           height without hard-coding one. Lighthouse counts it as a
-           non-composited animation, and it is; the alternative is a max-height
-           magic number, which breaks the moment the FR copy runs longer than
-           the EN copy it was measured against. */
         transition: grid-template-rows 380ms var(--ease-out-expo);
     }
 
@@ -203,9 +189,6 @@ const faqLd = {
 
     .faq__item[open] .faq__answer { opacity: 1; }
 
-    /* The type is the `Text` block. Local: the answer is indented to clear
-       the question's expand icon (42px) and carries the panel's own bottom
-       padding, which is this accordion's geometry. */
     :global(.faq__text) {
         line-height: 1.75;
         padding: 0 4px 24px 42px;

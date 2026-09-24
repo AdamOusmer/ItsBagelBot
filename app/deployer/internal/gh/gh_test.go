@@ -30,8 +30,6 @@ const (
 	tokenPath = "POST /app/installations/2/access_tokens"
 )
 
-// appKey is generated once: a 2048-bit key costs ~100 ms and every test
-// builds a client.
 var appKey = sync.OnceValue(func() []byte {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -40,11 +38,8 @@ var appKey = sync.OnceValue(func() []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
 })
 
-// routes maps "METHOD /path" to a handler; the query is not part of the key.
 type routes map[string]http.HandlerFunc
 
-// fakeGitHub serves routes and records every API call other than the token
-// exchange, as "METHOD /path?query".
 type fakeGitHub struct {
 	t      *testing.T
 	routes routes
@@ -82,7 +77,6 @@ func (f *fakeGitHub) record(key string, r *http.Request) {
 	r.Body = io.NopCloser(bytes.NewReader(body))
 }
 
-// writes are the recorded calls that change something.
 func (f *fakeGitHub) writes() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -101,7 +95,6 @@ func (f *fakeGitHub) count() int {
 	return len(f.calls)
 }
 
-// clock is the test's c.now, moved by hand to cross cacheTTL.
 type clock struct{ at time.Time }
 
 func (c *clock) now() time.Time { return c.at }
@@ -130,8 +123,6 @@ func reply(status int, body string) http.HandlerFunc {
 	}
 }
 
-// kindOf names the ports sentinel err wraps, so a case compares it in one
-// struct with the rest of its outcome.
 func kindOf(err error) error {
 	for _, kind := range []error{ports.ErrNotFound, ports.ErrConflict, ports.ErrInvalid} {
 		if errors.Is(err, kind) {

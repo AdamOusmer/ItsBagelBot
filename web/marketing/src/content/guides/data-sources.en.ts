@@ -3,9 +3,6 @@
 
 import type { GuideContent } from '../../lib/guides/types';
 
-// The response the PathPicker widget starts from. Shared verbatim by both
-// locales: it is an API answer, not copy, and a translated key would teach a
-// path that does not exist.
 const SAMPLE = `{
   "latitude": 45.5,
   "longitude": -73.6,

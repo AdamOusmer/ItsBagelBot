@@ -21,8 +21,6 @@ defmodule Ingress.ConduitManagerTest do
       start_fun = fn ->
         :counters.add(calls, 1, 1)
 
-        # The placing node's registry replica still carries the old
-        # registration for the first two attempts.
         if :counters.get(calls, 1) < 3, do: :blocked, else: {:started, pid}
       end
 
@@ -41,15 +39,10 @@ defmodule Ingress.ConduitManagerTest do
       assert {:error, :name_release_timeout} =
                ConduitManager.start_until_free(start_fun, 30, fake_clock())
 
-      # 30 ms window polled every 5 ms: attempts at 0..30 inclusive.
       assert :counters.get(calls, 1) == 7
     end
   end
 
-  # The retry loop is a race against wall-clock, so under real time a loaded
-  # machine can blow the whole window on the first attempt and the give-up test
-  # sees a single call. This clock only advances when the loop sleeps, which
-  # makes the attempt count a pure function of window / poll interval.
   defp fake_clock do
     ticks = :counters.new(1, [])
 

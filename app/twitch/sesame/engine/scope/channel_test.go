@@ -12,13 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// channelClock is the fixed "now" {uptime} measures against, so a humanized
-// span is an assertion rather than a race with the wall clock.
 var channelClock = time.Date(2026, time.September, 9, 12, 0, 0, 0, time.UTC)
 
-// fakeStreams answers a canned session per login ("" being the channel the
-// command ran in) and records every login it was asked for, so the batching
-// claim ("one read per channel per response") is asserted rather than assumed.
 type fakeStreams struct {
 	values map[string]Stream
 	asked  []string
@@ -29,7 +24,6 @@ func (f *fakeStreams) Stream(_ context.Context, login string) Stream {
 	return f.values[login]
 }
 
-// liveStream is a channel that has been up for two hours with an audience.
 func liveStream(title, game string, viewers int) Stream {
 	return Stream{
 		UserFound: true, Live: true, Title: title, GameName: game,
@@ -37,15 +31,10 @@ func liveStream(title, game string, viewers int) Stream {
 	}
 }
 
-// offlineStream is a channel Twitch knows but that is not broadcasting: it
-// still has a title and a category (they come from the channel object, not the
-// stream), and no audience.
 func offlineStream(title, game string) Stream {
 	return Stream{UserFound: true, Title: title, GameName: game}
 }
 
-// mounted is the scope with every token's gate on, which is what a broadcaster
-// who has touched none of the toggles gets.
 func mounted(streams Streams) Channel {
 	return Channel{
 		Locale: "en", Streams: streams, OwnLogin: "streamer",
@@ -60,8 +49,6 @@ func TestChannelLeavesTokensLiteralWhenNothingIsWired(t *testing.T) {
 		"an unwired scope owns nothing, so its spans stay literal like a typo")
 }
 
-// Each of the three command-backed tokens is gated on its own row, so a
-// channel that turned !title off keeps {game} working and shows {title} raw.
 func TestChannelMountsEachTokenOnItsOwn(t *testing.T) {
 	streams := &fakeStreams{values: map[string]Stream{"": liveStream("bagel time", "Just Chatting", 42)}}
 	ch := mounted(streams)
@@ -78,9 +65,6 @@ func TestChannelRendersTheLiveSession(t *testing.T) {
 	assert.Equal(t, []string{""}, streams.asked, "four spans, one read")
 }
 
-// The pinned offline decisions, together: the viewer count is "0" (a number
-// the template can say out loud), the uptime is empty so its fallback speaks,
-// and the title and category still render because an offline channel has both.
 func TestChannelRendersAnOfflineChannel(t *testing.T) {
 	streams := &fakeStreams{values: map[string]Stream{"": offlineStream("bagel time", "Just Chatting")}}
 
@@ -88,8 +72,6 @@ func TestChannelRendersAnOfflineChannel(t *testing.T) {
 		render(t, "{title} / {game} / {channel.viewers} / {uptime|not right now}", Chain{mounted(streams)}, nil))
 }
 
-// A login Twitch does not know is a lookup that RAN and produced nothing:
-// every span renders its fallback, and none of them stays literal.
 func TestChannelRendersNothingForAnUnknownChannel(t *testing.T) {
 	streams := &fakeStreams{values: map[string]Stream{}}
 
@@ -107,8 +89,6 @@ func TestChannelReadsANamedChannel(t *testing.T) {
 	assert.Equal(t, []string{"pokimane", ""}, streams.asked, "'@Pokimane' folds to the bare login")
 }
 
-// A span naming the broadcaster's own channel is the bare span: one read, and
-// it does not spend one of the three named-login slots.
 func TestChannelFoldsItsOwnLoginOntoTheBareSpan(t *testing.T) {
 	streams := &fakeStreams{values: map[string]Stream{"": liveStream("bagel time", "Just Chatting", 42)}}
 
@@ -117,8 +97,6 @@ func TestChannelFoldsItsOwnLoginOntoTheBareSpan(t *testing.T) {
 	assert.Equal(t, []string{""}, streams.asked)
 }
 
-// The cap is on distinct OTHER channels. Past it a span renders empty (its
-// fallback speaks) rather than staying literal, and no further read is made.
 func TestChannelCapsNamedLogins(t *testing.T) {
 	values := map[string]Stream{"": liveStream("bagel time", "Just Chatting", 42)}
 	var template string
@@ -133,8 +111,6 @@ func TestChannelCapsNamedLogins(t *testing.T) {
 	assert.Len(t, streams.asked, MaxChannelLogins, "the fourth channel is never read")
 }
 
-// The unknown-token rule, pinned beside the tokens that answer: an empty
-// payload addresses nobody, and {channel.viewers} takes no payload at all.
 func TestChannelKeepsUnaddressableSpansLiteral(t *testing.T) {
 	streams := &fakeStreams{values: map[string]Stream{"": liveStream("bagel time", "Just Chatting", 42)}}
 	const template = "{title:} {channel.viewers:pokimane} {channel.followers}"
@@ -143,8 +119,6 @@ func TestChannelKeepsUnaddressableSpansLiteral(t *testing.T) {
 	assert.Empty(t, streams.asked, "an unaddressable span costs no read")
 }
 
-// fakeCounts answers a canned {followers}/{subs} read and counts calls, so
-// "one read answers both spans" is asserted rather than assumed.
 type fakeCounts struct {
 	result ChannelCountsResult
 	calls  int
@@ -155,8 +129,6 @@ func (f *fakeCounts) Counts(context.Context) ChannelCountsResult {
 	return f.result
 }
 
-// {followers}/{subs} need no Streams at all: they answer from a separate
-// dependency with no module row of its own.
 func TestChannelReadsFollowersAndSubsWithoutStreams(t *testing.T) {
 	counts := &fakeCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true, Subs: 7, SubsOK: true}}
 	chain := Chain{Channel{Counts: counts}}
@@ -165,9 +137,6 @@ func TestChannelReadsFollowersAndSubsWithoutStreams(t *testing.T) {
 	assert.Equal(t, 1, counts.calls, "one read answers both spans")
 }
 
-// A half the read could not answer (a missing scope, surfaced as OK=false)
-// stays literal — never the pinned "0" an offline viewer count uses, because
-// "cannot say" and "genuinely zero" are different claims.
 func TestChannelLeavesANotOKCountLiteral(t *testing.T) {
 	counts := &fakeCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true, SubsOK: false}}
 	chain := Chain{Channel{Counts: counts}}
@@ -176,8 +145,6 @@ func TestChannelLeavesANotOKCountLiteral(t *testing.T) {
 	assert.Equal(t, "100 {subs|unknown}", render(t, "{followers} {subs|unknown}", chain, nil))
 }
 
-// Neither token takes a payload: a span carrying one is an authoring mistake
-// and stays literal without ever reading Counts.
 func TestChannelLeavesPayloadedCountSpansLiteral(t *testing.T) {
 	counts := &fakeCounts{result: ChannelCountsResult{Followers: 100, FollowersOK: true}}
 	chain := Chain{Channel{Counts: counts}}
@@ -185,8 +152,6 @@ func TestChannelLeavesPayloadedCountSpansLiteral(t *testing.T) {
 	assert.Equal(t, "{followers:pokimane} 100", render(t, "{followers:pokimane} {followers}", chain, nil))
 }
 
-// Without Counts wired both spans stay literal, matching every other
-// unwired-dependency token.
 func TestChannelLeavesCountsLiteralWithoutTheDependency(t *testing.T) {
 	assert.Equal(t, "{followers} {subs}", render(t, "{followers} {subs}", Chain{Channel{}}, nil))
 }

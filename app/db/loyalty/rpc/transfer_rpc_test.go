@@ -9,15 +9,13 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/db/loyalty/ent"
-	// The generated defaults (created_at etc.) are wired by this package's
-	// init; without it every create panics on a nil default func.
 	_ "ItsBagelBot/app/db/loyalty/ent/runtime"
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -25,9 +23,6 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 )
 
-// newTransferHarness builds the handler over an in-memory sqlite repository,
-// seeded with broadcaster 2's ledger: viewer 7 ("sender") holds 1000 points,
-// viewer 8 ("receiver") holds 100.
 func newTransferHarness(t *testing.T) *loyaltyRPC {
 	t.Helper()
 	db, err := sql.Open(testdb.Driver, testdb.MemDSN("loyaltytransferrpc"))
@@ -75,7 +70,6 @@ func TestHandleBalanceTransferMovesPoints(t *testing.T) {
 func TestHandleBalanceTransferRefusals(t *testing.T) {
 	l := newTransferHarness(t)
 
-	// Insufficient: the sender exists and keeps what they had.
 	reply := l.handleBalanceTransfer(context.Background(), loyaltyrpc.Request{
 		UserID: "2", ViewerID: "7", ViewerLogin: "receiver", Value: 5000,
 	})
@@ -85,20 +79,17 @@ func TestHandleBalanceTransferRefusals(t *testing.T) {
 	assert.Nil(t, reply.TargetBalance)
 	assert.Equal(t, int64(1000), reply.Balance.Points)
 
-	// Unknown target login.
 	reply = l.handleBalanceTransfer(context.Background(), loyaltyrpc.Request{
 		UserID: "2", ViewerID: "7", ViewerLogin: "ghost", Value: 10,
 	})
 	assert.Empty(t, reply.Error)
 	assert.False(t, reply.Found)
 
-	// Self-transfer is refused as invalid input, not silently no-oped.
 	reply = l.handleBalanceTransfer(context.Background(), loyaltyrpc.Request{
 		UserID: "2", ViewerID: "7", ViewerLogin: "sender", Value: 10,
 	})
 	assert.NotEmpty(t, reply.Error)
 
-	// A missing sender id never reaches the ledger.
 	reply = l.handleBalanceTransfer(context.Background(), loyaltyrpc.Request{
 		UserID: "2", ViewerLogin: "receiver", Value: 10,
 	})

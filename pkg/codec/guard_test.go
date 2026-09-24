@@ -14,15 +14,10 @@ import (
 	"testing"
 )
 
-// jsonImplementations are the import paths that decide how the fleet reads and
-// writes JSON. Exactly one package is allowed to name them, so that the choice
-// of implementation stays a single decision rather than drifting per service.
 var jsonImplementations = []string{
 	"encoding/json",
 	"github.com/bytedance/sonic",
 	"github.com/buger/jsonparser",
-	// Not used today. Listed so that reaching for one is a deliberate edit to
-	// this list rather than a quiet import in some service.
 	"github.com/json-iterator/go",
 	"github.com/goccy/go-json",
 	"github.com/segmentio/encoding/json",
@@ -31,20 +26,13 @@ var jsonImplementations = []string{
 	"github.com/tidwall/gjson",
 }
 
-// skipDirs are trees that are not part of this Go module or not ours to police.
 var skipDirs = map[string]bool{
 	".git": true, ".claude": true, "node_modules": true,
 	"web": true, "console": true, "docs": true, "vendor": true, "mail": true,
 }
 
-// codecDir is the one package allowed to name an implementation.
 var codecDir = filepath.Join("pkg", "codec")
 
-// TestOnlyThisPackageImportsAJSONImplementation is the standing guard behind the
-// migration that put every service on pkg/codec. The value of a single codec is
-// that swapping it, or changing its escaping and key-order rules, is one edit;
-// a stray encoding/json import in one service silently takes that back and
-// nothing else in the build would complain.
 func TestOnlyThisPackageImportsAJSONImplementation(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -61,8 +49,6 @@ func TestOnlyThisPackageImportsAJSONImplementation(t *testing.T) {
 	}
 }
 
-// findJSONImports reports every "<file> imports <path>" pair that breaks the
-// rule, over the whole module.
 func findJSONImports(root string) ([]string, error) {
 	var offenders []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -86,8 +72,6 @@ func findJSONImports(root string) ([]string, error) {
 	return offenders, err
 }
 
-// policed reports whether a path is a Go file this rule applies to. pkg/codec
-// itself is exempt: it is where the implementation is supposed to be named.
 func policed(root, path string) bool {
 	if !strings.HasSuffix(path, ".go") {
 		return false
@@ -99,11 +83,6 @@ func policed(root, path string) bool {
 	return filepath.Dir(rel) != codecDir
 }
 
-// bannedImportsOf returns the JSON implementations a file imports. A file that
-// cannot be parsed yields nothing: the build reports that with a far better
-// message than this test would. Generated models yield nothing either, since
-// the next `go generate` reverts any hand edit there, leaving a reviewer
-// nothing to act on.
 func bannedImportsOf(path string) []string {
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly|parser.ParseComments)
 	if err != nil || isGenerated(file.Comments) {
@@ -120,8 +99,6 @@ func bannedImportsOf(path string) []string {
 	return found
 }
 
-// isJSONImplementation reports whether an import path is one of the listed
-// implementations, or a subpackage of one.
 func isJSONImplementation(importPath string) bool {
 	for _, banned := range jsonImplementations {
 		if importPath == banned || strings.HasPrefix(importPath, banned+"/") {
@@ -131,8 +108,6 @@ func isJSONImplementation(importPath string) bool {
 	return false
 }
 
-// isGenerated reports whether a file carries the conventional generated-code
-// marker, which by convention appears before the package clause.
 func isGenerated(groups []*ast.CommentGroup) bool {
 	for _, group := range groups {
 		for _, comment := range group.List {

@@ -100,10 +100,6 @@ func SubscribeDashboard(
 	return bus.QueueSubscribeJSON[projectorrpc.DashboardRequest, rpcprojection.ModulesReply](nc, prefix+".modules.replace", queueGroup, 2*time.Second, app, log, d.handleModulesReplace)
 }
 
-// unreachable codes a fallback-load failure. The fill path only fails when the
-// owning db service did not answer inside the 1.5s budget or the request's own
-// deadline expired, so it is CodeUnavailable rather than CodeInternal: the same
-// request a moment later may well be served from the projection.
 func unreachable(message string) domainrpc.Refusal {
 	return domainrpc.Refused(domainrpc.CodeUnavailable, message)
 }
@@ -149,11 +145,6 @@ func (d *Dashboard) handleModulesGet(ctx context.Context, req projectorrpc.Dashb
 		return rpcprojection.ModulesReply{Refusal: bus.Classify(err)}
 	}
 
-	// GetModules hands back the by-name map every read path wants; this reply is
-	// the one place a list is still on the wire, so flatten here rather than
-	// making every hot-path consumer rebuild a map. Order is unspecified and
-	// always was (map iteration order), and the console renders from its own
-	// static catalog keyed by name.
 	byName, projected, err := d.store.GetModules(ctx, userID)
 	if err == nil && projected {
 		d.hydrator.EnsureAsync(userID, hydration.Seed{})
@@ -194,16 +185,11 @@ func (d *Dashboard) writeCommandsAsync(userID uint64, commands []projection.Comm
 			d.log.Warn("projector command valkey write failed", zap.Uint64("user_id", userID), zap.Error(err))
 		}
 		if d.cacheInvalidatePrefix != "" {
-			// Workers evict per-command cache entries, so the broadcast must carry
-			// every name and alias the replace may have changed — an empty key list
-			// evicts nothing and the write stays invisible until the TTL expires.
 			_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, "commands", strconv.FormatUint(userID, 10), commandKeys(commands)...)
 		}
 	}()
 }
 
-// commandKeys flattens a command list into the granular invalidation key set
-// (every name plus every alias), matching what the change-event path publishes.
 func commandKeys(commands []projection.CommandView) []string {
 	keys := make([]string, 0, len(commands))
 	for _, c := range commands {

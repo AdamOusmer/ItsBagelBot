@@ -13,9 +13,6 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// UseDurablePause migrates the pause once, before workers attach. Thereafter
-// NATS is authoritative, including after a process restart during Valkey loss.
-// Never seed an unknown pause as false: first migration requires a Valkey read.
 func (r *Registry) UseDurablePause(ctx context.Context, store kvstate.Store) error {
 	old, err := kvstate.Read(ctx, store, "paused")
 	if err != nil {
@@ -37,8 +34,7 @@ func (r *Registry) UseDurablePause(ctx context.Context, store kvstate.Store) err
 
 func (r *Registry) loadDurablePause(ctx context.Context) (pauseSnapshot, error) {
 	var paused bool
-	// A KV direct read can be served by a lagging replica. Confirm the revision
-	// with the leader before refreshing the safety snapshot's freshness clock.
+	// Change, not Read: a direct read can hit a lagging replica and miss a pause.
 	revision, err := kvstate.Change(ctx, r.pauseStore, "paused", func(value kvstate.Value) ([]byte, error) {
 		var err error
 		paused, err = strconv.ParseBool(string(value.Data))
@@ -55,6 +51,5 @@ func (r *Registry) setDurablePause(ctx context.Context, paused bool) error {
 		return err
 	}
 	r.applyPauseSnapshot(pauseSnapshot{paused: paused, version: int64(version), observedAt: time.Now()})
-	// Other replicas reconcile from the durable authority within one second.
 	return nil
 }

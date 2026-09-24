@@ -18,27 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Cmd is the always-on commands module. It has two halves:
-//
-//   - A public link. Anyone can run !cmd / !cmds / !command / !commands (with no
-//     subcommand) to get the channel's public command page.
-//
-//   - Moderator management. Mods add, edit and delete custom commands from chat:
-//
-//     !cmd add <name> <response>
-//     !cmd edit <name> <response>
-//     !cmd remove <name>
-//
-//   - Stream editor. Lead moderators (and the broadcaster) set the live title,
-//     category, tags, run a commercial, or drop a stream marker, matching the
-//     Nightbot !title/!game/!tags/!commercial/!marker set plus StreamElements
-//     !settitle/!setgame aliases. Each command is toggleable per broadcaster
-//     (absent row = on) the same way !clip is, and they ship enabled.
-//
-// The command itself is open to everyone (so the link works for viewers); the
-// mutating subcommands are gated on RoleModerator inside the handler. Mutations
-// are forwarded to the commands service's dashboard RPC (via
-// engine.CommandManager) so sesame stays read-only on the projection layer.
 func Cmd(d engine.Deps) module.Module {
 	log := d.Log
 	if log == nil {
@@ -52,8 +31,6 @@ func Cmd(d engine.Deps) module.Module {
 
 		switch strings.ToLower(sub) {
 		case "add", "edit", "remove", "delete":
-			// Managing commands stays moderator-only; a viewer who tries gets the
-			// public link instead so the command is never a dead end for them.
 			if !c.Chatter().Allows(module.RoleModerator) {
 				cmdLink(ctx, c, d, emit)
 				return nil
@@ -63,20 +40,15 @@ func Cmd(d engine.Deps) module.Module {
 				cmdAdd(ctx, c, d, rest, emit, log)
 			case "edit":
 				cmdEdit(ctx, c, d, rest, emit, log)
-			default: // remove, delete
+			default:
 				cmdRemove(ctx, c, d, rest, emit, log)
 			}
 		default:
-			// No (or unknown) subcommand: everyone gets the channel's page link.
 			cmdLink(ctx, c, d, emit)
 		}
 		return nil
 	})
 
-	// Stream editor: LeadMod at the builder so the engine gate matches the
-	// dashboard's defaultPerm. Each command is independently toggleable under
-	// its trigger name (absent row = on). Commercial and marker are live-only
-	// because Twitch rejects both on an offline channel.
 	m.Command("title").Aliases("settitle").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldTitle))
 	m.Command("game").Aliases("setgame").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldGame))
 	m.Command("tags").Aliases("settags").LeadMod().Cooldown(streamEditCooldown).Run(streamFieldRun(d, streamFieldTags))
@@ -86,8 +58,6 @@ func Cmd(d engine.Deps) module.Module {
 	return m.Build()
 }
 
-// cmdAdd creates a new custom command. It checks for duplicates via the
-// projection reader and forwards the mutation to the commands dashboard RPC.
 func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
 	name, response := splitFirst(args)
 	if name == "" {
@@ -99,7 +69,6 @@ func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, 
 		return
 	}
 
-	// Guard: reject if the command already exists.
 	name = strings.TrimPrefix(strings.ToLower(name), "!")
 	if _, found, _ := d.Proj.Command(ctx, c.BroadcasterID, name); found {
 		reply(c, emit, i18n.T(c.Locale, "cmd.err.exists"), c.Env.ChatterName(), name)
@@ -113,8 +82,6 @@ func cmdAdd(ctx context.Context, c *module.Context, d engine.Deps, args string, 
 	reply(c, emit, i18n.T(c.Locale, "cmd.added"), c.Env.ChatterName(), name)
 }
 
-// cmdEdit updates an existing custom command's response. It verifies the command
-// exists before forwarding the mutation.
 func cmdEdit(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
 	name, response := splitFirst(args)
 	if name == "" {
@@ -126,7 +93,6 @@ func cmdEdit(ctx context.Context, c *module.Context, d engine.Deps, args string,
 		return
 	}
 
-	// Guard: reject if the command does not exist.
 	name = strings.TrimPrefix(strings.ToLower(name), "!")
 	if _, found, _ := d.Proj.Command(ctx, c.BroadcasterID, name); !found {
 		reply(c, emit, i18n.T(c.Locale, "cmd.err.not_found"), c.Env.ChatterName(), name)
@@ -140,7 +106,6 @@ func cmdEdit(ctx context.Context, c *module.Context, d engine.Deps, args string,
 	reply(c, emit, i18n.T(c.Locale, "cmd.modified"), c.Env.ChatterName(), name)
 }
 
-// cmdRemove deletes a custom command.
 func cmdRemove(ctx context.Context, c *module.Context, d engine.Deps, args string, emit module.Emit, log *zap.Logger) {
 	name, _ := splitFirst(args)
 	if name == "" {
@@ -156,26 +121,9 @@ func cmdRemove(ctx context.Context, c *module.Context, d engine.Deps, args strin
 	reply(c, emit, i18n.T(c.Locale, "cmd.removed"), c.Env.ChatterName(), name)
 }
 
-// cmdLink emits the channel's public command-page link. Any viewer can trigger
-// it, so it is the everyone-facing half of the module. The URL is
-// "<base>/user/<login>": the login is what a viewer reads in a shared link, and
-// the page resolves it to the broadcaster id server-side before rendering
-// anything.
-//
-// The link used to be "<base>/user/<id>?channel=<display name>", where the page
-// took its channel label straight from that query string. Anyone could edit the
-// query and hand out a link that showed one channel's commands under another
-// streamer's name, so the name is no longer carried in the URL at all. The id
-// stays the fallback path for links already shared in that older form.
-//
-// A broadcaster can turn the page off (User.CommandsPageHidden); cmdLink then
-// answers with cmdPageOff's one-liner instead of a URL that would 404.
 func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.Emit) {
 	channel := c.Env.BroadcasterName()
 
-	// Fail open: a projection read error (cold cache, projector outage) prints
-	// the link rather than hiding it. A projection outage must not take down
-	// every channel's link (spec D6).
 	if u, err := d.Proj.User(ctx, c.BroadcasterID); err == nil && u.CommandsPageHidden {
 		cmdPageOff(c, emit, channel)
 		return
@@ -202,8 +150,6 @@ func cmdLink(ctx context.Context, c *module.Context, d engine.Deps, emit module.
 	})
 }
 
-// cmdPageOff replies with the one-liner for a hidden commands page, in place
-// of the URL that would otherwise 404.
 func cmdPageOff(c *module.Context, emit module.Emit, channel string) {
 	text := module.KV(
 		"user", c.Env.ChatterName(),
@@ -216,7 +162,6 @@ func cmdPageOff(c *module.Context, emit module.Emit, channel string) {
 	})
 }
 
-// reply emits a chat message with {user} and {command} variable expansion.
 func reply(c *module.Context, emit module.Emit, line, user, command string) {
 	text := module.KV("user", user, "command", command).WithLocale(module.Locale(c.Locale)).ExpandString(line)
 	emit(&module.Output{
@@ -226,8 +171,6 @@ func reply(c *module.Context, emit module.Emit, line, user, command string) {
 	})
 }
 
-// splitFirst splits s on the first whitespace boundary, returning the first
-// token and the rest (trimmed). If there is no whitespace, rest is empty.
 func splitFirst(s string) (first, rest string) {
 	s = strings.TrimSpace(s)
 	if i := strings.IndexByte(s, ' '); i >= 0 {
@@ -236,24 +179,14 @@ func splitFirst(s string) (first, rest string) {
 	return s, ""
 }
 
-// Stream-editor commands share one Helix Modify Channel Information call
-// (title/game/tags) plus commercial and marker. Nightbot's !title/!game show
-// the current value with no args and set it when args are present;
-// StreamElements' !settitle/!setgame require args. We honour both: the
-// set* aliases with no args print usage, the Nightbot spellings with no args
-// ask outgress to read the live channel info.
 const (
 	streamFieldTitle = "title"
 	streamFieldGame  = "game"
 	streamFieldTags  = "tags"
 
-	// Twitch's Modify Channel Information title cap. Sending more is a 400, so
-	// we refuse here rather than paying Helix to say no.
-	streamTitleMax = 140
-	// Helix stream tags: at most 10, each 1–25 characters.
-	streamTagMaxCount = 10
-	streamTagMaxLen   = 25
-	// Helix Start Commercial accepts these lengths only.
+	streamTitleMax       = 140
+	streamTagMaxCount    = 10
+	streamTagMaxLen      = 25
 	streamCommercialMin  = 30
 	streamCommercialMax  = 180
 	streamCommercialStep = 30
@@ -263,10 +196,6 @@ const (
 	streamMarkerCooldown     = 10 * time.Second
 )
 
-// streamFieldRun emits a TypeChannelUpdate for !title/!game/!tags (and their
-// set* aliases). An empty argument on the Nightbot spelling is a get; the
-// same empty argument on settitle/setgame/settags is usage. Over-long titles
-// and illegal tag lists are refused here so outgress never sends a 400.
 func streamFieldRun(d engine.Deps, field string) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		if !moduleEnabled(ctx, d, c.BroadcasterID, field) {
@@ -286,10 +215,6 @@ func streamFieldRun(d engine.Deps, field string) module.RunFunc {
 	}
 }
 
-// streamFieldRefusal returns the i18n key refusing value for field, or ""
-// when the value can be sent to outgress. An empty value is always sendable
-// here — it is the Nightbot get spelling (the set-alias case is refused
-// before validation ever runs).
 func streamFieldRefusal(field, value string) string {
 	if value == "" {
 		return ""
@@ -357,10 +282,6 @@ func emitStreamUpdate(c *module.Context, field, value string, emit module.Emit) 
 	})
 }
 
-// streamIsSetAlias reports whether the chatter typed a set* alias (settitle,
-// setgame, settags) rather than the Nightbot show-or-set spelling. The engine
-// resolves aliases onto the same command, so the typed trigger has to be
-// recovered from the original chat line.
 func streamIsSetAlias(c *module.Context) bool {
 	t := strings.TrimSpace(c.Env.Text)
 	t = strings.TrimPrefix(t, "!")
@@ -372,9 +293,6 @@ func streamIsSetAlias(c *module.Context) bool {
 	return false
 }
 
-// parseStreamTags splits a comma-separated tag list the way Nightbot's !tags
-// does. Empty pieces are dropped; more than 10 tags or a tag over 25 runes
-// is rejected so the PATCH never 400s.
 func parseStreamTags(s string) ([]string, error) {
 	parts := strings.Split(s, ",")
 	out := make([]string, 0, len(parts))
@@ -394,10 +312,6 @@ func parseStreamTags(s string) ([]string, error) {
 	return out, nil
 }
 
-// parseCommercialLength reads a Twitch commercial length from args. Bare
-// !commercial (no number) is 30, the shortest Helix accepts. Any other value
-// must be 30/60/90/120/150/180 — Nightbot's set, and the only lengths Twitch
-// will run.
 func parseCommercialLength(args string) (int, bool) {
 	s := strings.TrimSpace(args)
 	if s == "" {

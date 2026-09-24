@@ -10,9 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// fakePeeks answers a canned value per counter name and records every name it
-// was asked for, so "both spellings read, neither bumps" and "one lookup
-// answers both spellings" are asserted rather than assumed.
 type fakePeeks struct {
 	values map[string]string
 	asked  []string
@@ -52,9 +49,6 @@ func TestStoreReadsATargetAddressedCounter(t *testing.T) {
 	assert.Equal(t, "7", render(t, "{counter:target:shutups}", chain, nil))
 }
 
-// A counter nobody has ever bumped (whether by the old token or the current
-// command-run option) renders EMPTY, so its fallback speaks — never literal,
-// which would claim the bot has no such token.
 func TestStoreRendersAMissingCounterAsEmpty(t *testing.T) {
 	peeks := &fakePeeks{values: map[string]string{}}
 	chain := Chain{Store{Peeks: peeks}}
@@ -63,9 +57,6 @@ func TestStoreRendersAMissingCounterAsEmpty(t *testing.T) {
 	assert.Equal(t, "none yet", render(t, "{count:nothing|none yet}", chain, nil))
 }
 
-// Neither spelling ever writes: this is the whole point of the read-only
-// scope. There is no Counters/Bump dependency left to assert "never called"
-// against — the type does not exist any more.
 func TestStoreNeverWrites(t *testing.T) {
 	peeks := &fakePeeks{values: map[string]string{"deaths": "42"}}
 	chain := Chain{Store{Peeks: peeks}}
@@ -73,10 +64,6 @@ func TestStoreNeverWrites(t *testing.T) {
 	assert.Equal(t, "42 42", render(t, "{counter:deaths} {count:deaths}", chain, nil))
 }
 
-// Every spelling that stays literal for {counter:…} stays literal for
-// {count:…}: one grammar answers both. {count:bot:feeds} used to be reserved
-// (an admin-only bot-scope counter); dropping that prefix means it is now an
-// ordinary counter name, so it is no longer in this literal set.
 func TestStoreLeavesUnusableReadSpansLiteral(t *testing.T) {
 	peeks := &fakePeeks{}
 	chain := Chain{Store{Peeks: peeks}}
@@ -87,15 +74,11 @@ func TestStoreLeavesUnusableReadSpansLiteral(t *testing.T) {
 	assert.Empty(t, peeks.asked)
 }
 
-// Bare {count} is not this scope's: it is the {uses} alias, owned by Uses.
-// With no Uses scope mounted, it stays literal like any other unowned span.
 func TestStoreDoesNotOwnBareCount(t *testing.T) {
 	chain := Chain{Store{Peeks: &fakePeeks{}}}
 	assert.Equal(t, "{count}", render(t, "{count}", chain, nil))
 }
 
-// A Store with no Peeks dependency leaves every counter token literal rather
-// than silently answering it as empty.
 func TestStoreUnmountedLeavesTokensLiteral(t *testing.T) {
 	chain := Chain{Store{}}
 	assert.Equal(t, "{counter:deaths} {count:deaths}", render(t, "{counter:deaths} {count:deaths}", chain, nil))

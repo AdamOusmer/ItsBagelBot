@@ -1,24 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Secrets console backend: per-service database credentials, read through
-// least-privileged Doppler access.
-//
-// Token model (least privilege): every service must resolve its own
-// DOPPLER_TOKEN_<SERVICE>, scoped to that one project (users/commands/…).
-// There is deliberately NO broad-token fallback: DOPPLER_MANAGEMENT_TOKEN /
-// generic DOPPLER_TOKEN used to be consulted when a scoped token was missing,
-// which turned any console-admin compromise into read access to all five DB
-// projects plus token minting (red-team finding F-secrets). Missing now means
-// missing: the UI reports it instead of silently escalating privilege.
-//
-// This module used to mint, list and revoke Doppler service tokens too. It
-// cannot: a scoped SERVICE token has no rights over tokens at all (Doppler
-// reserves /v3/configs/config/tokens for a personal or management token), so
-// every one of those three calls returned 403 the moment the broad-token
-// fallback was removed above. Token lifecycle is a Doppler-dashboard job now,
-// deliberately: restoring the console's ability to do it means restoring the
-// broad token, which is the exact escalation F-secrets closed.
+// No broad-token fallback: a missing scoped DOPPLER_TOKEN_<SERVICE> must stay missing.
 import { env } from '$env/dynamic/private';
 import { nanoid } from 'nanoid';
 import mysql from 'mysql2/promise';
@@ -46,10 +29,6 @@ const services: Record<SecretServiceId, ServiceDef> = {
   modules: { id: 'modules', label: 'Modules', project: 'modules', config: 'prd', schema: 'bagel_modules', expectedUserPrefix: 'modules_svc' },
   transactions: { id: 'transactions', label: 'Transactions', project: 'transactions', config: 'prd', schema: 'bagel_transactions', expectedUserPrefix: 'transactions_svc' },
   notifications: { id: 'notifications', label: 'Notifications', project: 'notifications', config: 'prd', schema: 'bagel_notifications', expectedUserPrefix: 'notifications_svc' },
-  // discord-data owns bagel_discord: Discord guild bindings, the ticket desk
-  // and member XP. Its Doppler project is named after the deployment
-  // (discord-data), not after the schema, because the `discord` project
-  // already holds the Discord application's own credentials.
   'discord-data': { id: 'discord-data', label: 'Discord data', project: 'discord-data', config: 'prd', schema: 'bagel_discord', expectedUserPrefix: 'discord_svc' }
 };
 
@@ -61,12 +40,8 @@ export function serviceOf(raw: string): SecretServiceId | null {
   return raw in services ? (raw as SecretServiceId) : null;
 }
 
-// ── Doppler token resolution ─────────────────────────────────────────────────
-
 export type TokenSource = 'scoped' | 'missing';
 
-// tokenFor picks the narrowest credential available for a service and reports
-// which tier it came from, so the UI can tell the truth about privilege.
 export function tokenFor(svc: ServiceDef): { token: string; source: TokenSource } {
   const scoped = (env[`DOPPLER_TOKEN_${svc.id.toUpperCase()}`] ?? '').trim();
   if (scoped) return { token: scoped, source: 'scoped' };
@@ -93,8 +68,6 @@ async function dopplerFetch({ token, path, init = {} }: DopplerCall): Promise<Re
   return res;
 }
 
-// Doppler POST/DELETE bodies always carry the project/config pair; centralize
-// the JSON envelope so call sites stay declarative.
 function dopplerBody(svc: ServiceDef, extra: Record<string, unknown>): RequestInit {
   return {
     headers: { 'content-type': 'application/json' },
@@ -102,10 +75,7 @@ function dopplerBody(svc: ServiceDef, extra: Record<string, unknown>): RequestIn
   };
 }
 
-// ── Scope report ─────────────────────────────────────────────────────────────
-
 export interface ScopeReport {
-  // Which tier each service resolves to ('scoped' or 'missing').
   sources: Record<SecretServiceId, TokenSource>;
 }
 
@@ -115,8 +85,6 @@ export async function scopeReport(): Promise<ScopeReport> {
   ) as Record<SecretServiceId, TokenSource>;
   return { sources };
 }
-
-// ── Config secrets (DB credential status) ────────────────────────────────────
 
 export interface DbCredentialStatus {
   id: SecretServiceId;
@@ -179,14 +147,11 @@ export async function credentialStatuses(): Promise<DbCredentialStatus[]> {
   );
 }
 
-// One validator over a rule table instead of a bespoke assert per field.
 interface FormatRule {
   re: RegExp;
   message: string;
 }
 
-// Module-private since the token rules left with the token calls: every
-// remaining caller is in this file.
 const FORMATS = {
   dbUser: {
     re: /^[A-Za-z0-9_]{3,32}$/,
@@ -199,37 +164,11 @@ function assertFormat(value: string, rule: FormatRule): void {
   if (!rule.re.test(value)) throw new Error(rule.message);
 }
 
-// ── MySQL runtime users ──────────────────────────────────────────────────────
-
 export interface DbCredentialInput {
   dbUser: string;
   dbPass: string;
 }
 
-// dbEnvOf builds the Doppler payload a service reads its database credential
-// from. It writes the CREDENTIAL ONLY, deliberately.
-//
-// It used to also write DB_AUTO_MIGRATE (false on rotate, true on manual set),
-// DB_MAX_OPEN_CONNS and DB_QUERY_CONCURRENCY. That was a category error with
-// two real consequences, both observed on 2026-08-20:
-//
-//  1. Rotating a credential silently turned that service's auto-migration off
-//     in Doppler. Four of the six services (users, commands, modules,
-//     transactions) were sitting at DB_AUTO_MIGRATE=false purely because they
-//     had been rotated most recently. Auto-migration is wanted ON; nothing
-//     about rotating a password should change it. Migrations only kept running
-//     because deploy/k8s/*.yaml pins the literal "true" as a pod env var,
-//     which outranks the Doppler-sourced value - so the flag read as off in
-//     this console while being on in production.
-//  2. It reset the pool caps to 4 on every rotation, silently reverting any
-//     tuning an operator had applied. Those two caps stack (SetMaxOpenConns
-//     plus the DB_QUERY_CONCURRENCY gate) and 4 was measured to be the
-//     binding constraint on a MySQL server that was otherwise idle.
-//
-// Runtime tuning belongs to the deployment manifests, which are reviewed and
-// version-controlled. This function must stay limited to the credential.
-// updateDoppler POSTs a partial update, so keys absent here keep whatever
-// value they already have rather than being cleared.
 function dbEnvOf(cred: DbCredentialInput, svc: ServiceDef): Record<string, string> {
   return {
     DB_USER: cred.dbUser,
@@ -238,14 +177,6 @@ function dbEnvOf(cred: DbCredentialInput, svc: ServiceDef): Record<string, strin
   };
 }
 
-// assertManageable rejects credentials this console must never touch: the
-// privileged admin user itself, and users outside the service's own namespace.
-//
-// The namespace check matters on the write paths, not just revokes: every
-// caller hands the resulting user to provisionDbUser, which GRANTs it on that
-// service's schema. Without it, naming another service's user here would widen
-// that user's access to this schema too, the one thing the per-service
-// schema+user split exists to prevent.
 function assertManageable(cred: Pick<DbCredentialInput, 'dbUser'>, svc: ServiceDef): void {
   assertFormat(cred.dbUser, FORMATS.dbUser);
   if (cred.dbUser === adminDbUser()) throw new Error('refusing to manage the admin database user');
@@ -331,7 +262,6 @@ interface DbAdminTarget {
   clientKey: string;
 }
 
-// envFirst returns the first non-empty value among the named env keys.
 function envFirst(...keys: string[]): string {
   for (const key of keys) {
     const value = env[key];
@@ -342,9 +272,6 @@ function envFirst(...keys: string[]): string {
 
 const REQUIRED_TARGET_FIELDS = ['host', 'user', 'password'] as const;
 
-// adminDbEndpoint resolves host/port, preferring the explicit DB_ADMIN_HOST /
-// DB_ADMIN_PORT overrides over the combined host:port DB_ADMIN_ADDR fallback
-// shared with the Go services' DB_ADDR convention.
 function adminDbEndpoint(): { host: string; port: number } {
   const [addrHost = '', addrPort = ''] = envFirst('DB_ADMIN_ADDR', 'DB_ADDR').split(':');
   return {
@@ -353,11 +280,6 @@ function adminDbEndpoint(): { host: string; port: number } {
   };
 }
 
-// adminClientIdentity reads the optional mTLS identity for REQUIRE X509
-// accounts (2026-08-27, issued by the ItsBagelBot HeatWave Root CA in OCI
-// Certificates). Optional as a pair so the change deploys before the account
-// flip; half-configured is always a Doppler mistake and fails here rather
-// than as an opaque server-side refusal.
 function adminClientIdentity(): { clientCert: string; clientKey: string } {
   const clientCert = envFirst('DB_ADMIN_CLIENT_CERT');
   const clientKey = envFirst('DB_ADMIN_CLIENT_KEY');
@@ -366,16 +288,12 @@ function adminClientIdentity(): { clientCert: string; clientKey: string } {
   return { clientCert, clientKey };
 }
 
-// adminDbTarget resolves the privileged MySQL endpoint from env, in one place,
-// and fails with one clear message when any required part is missing.
 function adminDbTarget(): DbAdminTarget {
   const target: DbAdminTarget = {
     ...adminDbEndpoint(),
     user: adminDbUser(),
     password: envFirst('DB_ADMIN_PASS', 'DB_ADMIN_PASSWORD'),
-    // This must be the dedicated HeatWave CA rather than a broad/shared trust
-    // bundle such as the internal fleet CA: anything that CA signed could
-    // otherwise impersonate the DB endpoint.
+    // Must be the dedicated HeatWave CA: anything a broader CA signed could impersonate the DB.
     ca: envFirst('DB_ADMIN_CA_CERT', 'DB_CA_CERT'),
     ...adminClientIdentity()
   };
@@ -407,7 +325,6 @@ function adminDbUser(): string {
   return env.DB_ADMIN_USER ?? '';
 }
 
-// Every character class a strong password must hit at least once.
 const PASSWORD_CLASSES = [/[A-Z]/, /[a-z]/, /[0-9]/, /[^A-Za-z0-9]/];
 
 function generatePassword(): string {
@@ -422,10 +339,7 @@ function accountSql(cred: Pick<DbCredentialInput, 'dbUser'>): string {
 }
 
 function schemaSql(svc: ServiceDef): string {
-  // Allowlist, not an escape: the schema name is interpolated into DDL, so it
-  // must be one of the names this console is allowed to manage. Widened for
-  // bagel_discord (discord-data) 2026-09-04; every addition to `services` above
-  // needs a matching arm here or rotation fails at the GRANT.
+  // Allowlist, not an escape: the name is interpolated into DDL. Each service above needs an arm.
   if (!/^bagel_(users|commands|modules|transactions|notifications|discord)$/.test(svc.schema)) {
     throw new Error('invalid database schema');
   }

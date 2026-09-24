@@ -48,7 +48,6 @@ func TestPutCompareAndSet(t *testing.T) {
 		})
 }
 
-// activeID is the run Active reports, or "" for none.
 func activeID(t *testing.T, s *Store) deploy.RunID {
 	t.Helper()
 	run, _, ok, err := s.Active(context.Background())
@@ -94,8 +93,6 @@ func TestActivePointerAllowsOneLiveRun(t *testing.T) {
 		})
 }
 
-// A Put that fails after claiming leaves the pointer at a run that is
-// terminal or was never written. Neither may block the next run.
 func TestActivePointerStaleHolderIsTakenOver(t *testing.T) {
 	cases := []struct {
 		name string
@@ -163,8 +160,6 @@ func TestListNewestFirstAndPrunesPastKeepRuns(t *testing.T) {
 		})
 }
 
-// An index entry whose run write failed reads as absent, and a retried
-// create does not list the run twice.
 func TestListSkipsUnwrittenAndDedupesRetry(t *testing.T) {
 	ctx := context.Background()
 	s, kv, _ := testStore()

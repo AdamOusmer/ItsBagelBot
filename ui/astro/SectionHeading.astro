@@ -2,20 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro adapter for the `.bb-section-heading` contract
-// (../styles/elements/section-heading.css). Svelte twin:
-// ../svelte/SectionHeading.svelte; ../test/parity.test.ts holds the two to the
-// same markup.
-//
-// THE BADGE RIDES THE EYEBROW LINE, not the title. A status chip set beside
-// display type at clamp(1.6rem, 4.5vw, 2.5rem) either shrinks the title to fit
-// or is dwarfed by it, and on a phone it wraps under the first word of the
-// heading and reads as a caption for that word.
-//
-// `data-reveal` and `--reveal-i` are the shared scroll-reveal contract
-// (../styles/reveal.css): the meta row reveals first, the title one step
-// behind it. The stagger index is inline rather than an :nth-child rule
-// because the meta row is conditional.
 import '../styles/elements/section-heading.css';
 
 interface Props {

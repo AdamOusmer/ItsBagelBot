@@ -14,18 +14,10 @@ import (
 	"ItsBagelBot/pkg/bus"
 )
 
-// SubscribeFetchDashboard serves the $(urlfetch) console verbs under the same
-// prefix as the command verbs (NATS_COMMANDS_SUBJECT_PREFIX): fetch_list,
-// fetch_set_def, fetch_set_key and fetch_delete. None of them ever returns key
-// material — lists carry label+last4 metadata only, set replies the last4
-// derived from the just-submitted value once. The audit zap line per mutate
-// lives in the repository; values are never logged.
+// No verb here may return key material beyond label and last4.
 func SubscribeFetchDashboard(w Wiring, prefix string) error {
 	d := &fetchDashboardRPC{repo: w.Fetches}
 
-	// Four verbs, four different request and reply types, so they cannot share
-	// one ServeVerbs table; ServeForUser binds each on the shared wiring and
-	// puts the user-id guard in front of every one of them.
 	return errors.Join(
 		bus.ServeForUser[fetchkeyrpc.FetchListRequest, fetchkeyrpc.FetchListReply](w.RPCWiring, prefix+".fetch_list", d.handleList),
 		bus.ServeForUser[fetchkeyrpc.FetchDefSetRequest, fetchkeyrpc.FetchMutateReply](w.RPCWiring, prefix+".fetch_set_def", d.handleSetDef),
@@ -59,9 +51,6 @@ func (d *fetchDashboardRPC) handleSetDef(ctx context.Context, req fetchkeyrpc.Fe
 		IsActive: req.IsActive,
 	}
 
-	// A rename updates the existing row's name field in place; a plain edit
-	// or create goes through the immediate validated upsert (never the
-	// write-behind batcher — the quota count must see real rows).
 	if req.OriginalName != "" && req.OriginalName != req.Name {
 		return fetchkeyrpc.FetchMutateReply{}, d.repo.RenameDef(ctx, id, req.OriginalName, spec)
 	}
@@ -76,7 +65,6 @@ func (d *fetchDashboardRPC) handleSetKey(ctx context.Context, req fetchkeyrpc.Fe
 	case isKeyValidationErr(err), errors.Is(err, repository.ErrCustodyUnavailable):
 		return fetchkeyrpc.FetchKeySetReply{}, err
 	default:
-		// Seal/persist failure: reported without echoing any of the value.
 		return fetchkeyrpc.FetchKeySetReply{Refusal: domainrpc.Refused(domainrpc.CodeInternal, "failed to store key")}, nil
 	}
 }
@@ -92,9 +80,6 @@ func (d *fetchDashboardRPC) handleDelete(ctx context.Context, req fetchkeyrpc.Fe
 	}
 }
 
-// isKeyValidationErr reports whether err is one of the domain validation
-// sentinels whose message is safe (and useful) to surface verbatim on the
-// wire; anything else gets a generic refusal so internals never leak.
 func isKeyValidationErr(err error) bool {
 	return errors.Is(err, validate.ErrKeyLabel) ||
 		errors.Is(err, validate.ErrKeyValue) ||

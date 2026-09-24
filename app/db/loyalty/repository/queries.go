@@ -19,27 +19,15 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 )
 
-// maxCounterName mirrors the schema's MaxLen; enforced at the trust boundary
-// so a hostile RPC can never hit the column constraint as a DB error.
 const maxCounterName = 64
 
-// defaultTopLimit bounds a leaderboard read when the caller sent no (or a
-// silly) limit.
 const (
 	defaultTopLimit = 10
 	maxTopLimit     = 100
 )
 
-// ErrInvalidInput marks trust-boundary rejections; the RPC layer maps it to a
-// "bad request" reply instead of a generic failure.
 var ErrInvalidInput = errors.New("invalid input")
 
-// ValidCounterName reports the normalized name, or an error when it is empty,
-// oversized, or contains ':' — the {counter:...}/{count:...} token's payload
-// separator (pkg/tmpl), so a name containing one could never be addressed by
-// either token: "{counter:target:deaths}" reads addressing prefix "target:"
-// plus counter name "deaths", never a counter literally named
-// "target:deaths".
 func ValidCounterName(name string) (string, error) {
 	n := normalizeName(name)
 	if n == "" || len(n) > maxCounterName {
@@ -51,12 +39,6 @@ func ValidCounterName(name string) (string, error) {
 	return n, nil
 }
 
-// writableCounterName validates a name for a write verb and, for a real
-// broadcaster, refuses the system-owned fleet stats names (data.SystemCounter).
-// Those rows are written for every channel by sesame and ranked on the public
-// stats boards, so letting a channel create, set, rename or delete its own row
-// would let it edit a public leaderboard. The bot namespace (user 0) keeps full
-// control: that is the admin console's counter surface.
 func writableCounterName(userID uint64, name string) (string, error) {
 	n, err := ValidCounterName(name)
 	if err != nil {
@@ -68,7 +50,6 @@ func writableCounterName(userID uint64, name string) (string, error) {
 	return n, nil
 }
 
-// ValidScope reports the canonical scope, defaulting empty to channel.
 func ValidScope(scope string) (string, error) {
 	switch scope {
 	case "", data.CounterScopeChannel:
@@ -80,8 +61,6 @@ func ValidScope(scope string) (string, error) {
 	}
 }
 
-// entryScoped reports whether a scope keeps its values in counter_entries;
-// bot and channel scopes keep the value on the counter row itself.
 func entryScoped(scope string) bool {
 	switch scope {
 	case data.CounterScopeViewer, data.CounterScopeCommand, data.CounterScopeViewerCommand:
@@ -91,12 +70,10 @@ func entryScoped(scope string) bool {
 	}
 }
 
-// bucketed reports whether a scope keys entries by command bucket.
 func bucketed(scope string) bool {
 	return scope == data.CounterScopeCommand || scope == data.CounterScopeViewerCommand
 }
 
-// BalanceGet returns one viewer's standing. A missing row is (zero, false, nil).
 func (r *Loyalty) BalanceGet(ctx context.Context, userID, viewerID uint64) (*ent.Balance, bool, error) {
 	return getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
 		return r.client.Balance.Query().
@@ -105,7 +82,6 @@ func (r *Loyalty) BalanceGet(ctx context.Context, userID, viewerID uint64) (*ent
 	})
 }
 
-// Top returns the channel's top standings by points.
 func (r *Loyalty) Top(ctx context.Context, userID uint64, limit int) ([]*ent.Balance, error) {
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Balance, error) {
 		return r.client.Balance.Query().
@@ -116,12 +92,6 @@ func (r *Loyalty) Top(ctx context.Context, userID uint64, limit int) ([]*ent.Bal
 	})
 }
 
-// BalanceAdjust writes a viewer's points by login (a mod's "!points set/add
-// @user" — chat knows the target's login, not their id). absolute sets the
-// value; otherwise value is a delta. The row must already exist (any accrual
-// creates it); an unseen login is (nil, false, nil) so the caller can answer
-// "haven't seen them yet" instead of inventing an id-less row. Renames can
-// leave several rows carrying one old login; the freshest wins.
 func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin string, value int64, absolute bool) (*ent.Balance, bool, error) {
 	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(viewerLogin), "@"))
 	if login == "" {
@@ -149,15 +119,7 @@ func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin 
 	})
 }
 
-// BalanceSpend conditionally debits amount points from a viewer, addressed by
-// login (chat wagers know the target's login, not their id). The guard lives
-// in the UPDATE's WHERE clause — points >= amount — not in a prior read, so a
-// concurrent second spend racing the same row can never drive points
-// negative: whichever UPDATE lands second no longer matches and is refused.
-// spent=false with found=false means the channel never accrued for that
-// login; spent=false with found=true means insufficient points (Balance then
-// carries what they actually hold). amount must be positive: a zero or
-// negative "spend" is a caller bug, not a refund path.
+// The points >= amount guard must stay in the UPDATE's WHERE so concurrent spends cannot go negative.
 func (r *Loyalty) BalanceSpend(ctx context.Context, userID uint64, viewerLogin string, amount int64) (*ent.Balance, bool, bool, error) {
 	login, err := normalizeSpendTarget(viewerLogin, amount)
 	if err != nil {
@@ -180,8 +142,6 @@ func (r *Loyalty) BalanceSpend(ctx context.Context, userID uint64, viewerLogin s
 		return nil, true, false, err
 	}
 	if n == 0 {
-		// Refused: another write moved the balance after our read, so the
-		// snapshot above is stale. Report what the row holds now.
 		fresh, ferr := r.client.Balance.Get(ctx, row.ID)
 		if ferr != nil {
 			return nil, true, false, ferr
@@ -195,8 +155,6 @@ func (r *Loyalty) BalanceSpend(ctx context.Context, userID uint64, viewerLogin s
 	return spent, true, true, nil
 }
 
-// normalizeSpendTarget validates a spend request and returns the lower-cased
-// login the ledger addresses.
 func normalizeSpendTarget(viewerLogin string, amount int64) (string, error) {
 	login := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(viewerLogin), "@"))
 	if login == "" || amount <= 0 {
@@ -205,7 +163,6 @@ func normalizeSpendTarget(viewerLogin string, amount int64) (string, error) {
 	return login, nil
 }
 
-// clampLimit bounds a caller-provided page size, defaulting a missing one.
 func clampLimit(limit int) int {
 	if limit <= 0 {
 		return defaultTopLimit
@@ -213,11 +170,6 @@ func clampLimit(limit int) int {
 	return min(limit, maxTopLimit)
 }
 
-// CounterEntries lists an entry-scoped counter's stored buckets, highest
-// value first (the dashboard's per-counter leaderboard). Each bucket carries
-// its own stored viewer identity (refreshed by the bump flushes); the login
-// map fills the gap for legacy rows written before identity was stored, from
-// the viewer's balance row when they have one.
 func (r *Loyalty) CounterEntries(ctx context.Context, userID uint64, name string, limit int) ([]*ent.CounterEntry, map[uint64]string, error) {
 	n, err := ValidCounterName(name)
 	if err != nil {
@@ -236,10 +188,6 @@ func (r *Loyalty) CounterEntries(ctx context.Context, userID uint64, name string
 	return rows, r.viewerLogins(ctx, userID, rows), nil
 }
 
-// viewerLogins resolves the display login of each distinct viewer whose row
-// carries no stored identity yet, from their balance row. Best-effort: logins
-// are cosmetic, the entries themselves are the answer, so a read failure
-// returns an empty map.
 func (r *Loyalty) viewerLogins(ctx context.Context, userID uint64, rows []*ent.CounterEntry) map[uint64]string {
 	logins := map[uint64]string{}
 	ids := legacyViewerIDs(rows)
@@ -262,8 +210,6 @@ func (r *Loyalty) viewerLogins(ctx context.Context, userID uint64, rows []*ent.C
 	return logins
 }
 
-// legacyViewerIDs returns the distinct viewers in rows whose bucket carries no
-// stored login yet — the only ones that still need a balance-row lookup.
 func legacyViewerIDs(rows []*ent.CounterEntry) []uint64 {
 	seen := map[uint64]struct{}{}
 	ids := make([]uint64, 0, len(rows))
@@ -279,12 +225,6 @@ func legacyViewerIDs(rows []*ent.CounterEntry) []uint64 {
 	return ids
 }
 
-// entryTarget resolves how a read or write addresses one of row's entry
-// buckets: the (viewer, command) pair when the caller targeted one, ok=false
-// when untargeted. Untargeted means the row value answers a read and a set
-// resets the whole counter. Command scope targets by command alone (pooled
-// across viewers); the viewer scopes target by viewer; channel/bot never
-// target entries.
 func entryTarget(row *ent.Counter, viewerID uint64, command string) (uint64, string, bool) {
 	switch row.Scope {
 	case data.CounterScopeCommand:
@@ -299,12 +239,6 @@ func entryTarget(row *ent.Counter, viewerID uint64, command string) (uint64, str
 	}
 }
 
-// CounterGet resolves one counter: the definition, plus the effective value —
-// the row's own value for channel/bot scope; the selected bucket's value (0
-// when it has none) for the entry scopes: the viewer's entry for viewer
-// scope, the command bucket (pooled, viewer-independent) for command scope,
-// the (command, viewer) bucket for viewer+command scope. A viewer scope asked
-// without a viewer answers with the row value.
 func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, viewerID uint64, command string) (*ent.Counter, int64, bool, error) {
 	n, err := ValidCounterName(name)
 	if err != nil {
@@ -341,13 +275,6 @@ func (r *Loyalty) CounterGet(ctx context.Context, userID uint64, name string, vi
 	return row, entry.Value, true, nil
 }
 
-// CountersList returns the channel's counter definitions. The system-owned
-// fleet stats rows sesame writes on every channel are left out: the broadcaster
-// cannot edit them (writableCounterName), so listing them would only offer a
-// dashboard row whose every action fails. The exclusion takes the whole set
-// from data.SystemCounterNames rather than naming rows here, so a name added
-// to the set is hidden the moment it is reserved. The bot namespace still
-// sees them — that is where the admin console manages the fleet totals.
 func (r *Loyalty) CountersList(ctx context.Context, userID uint64) ([]*ent.Counter, error) {
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Counter, error) {
 		q := r.client.Counter.Query().Where(counter.UserIDEQ(userID))
@@ -358,17 +285,6 @@ func (r *Loyalty) CountersList(ctx context.Context, userID uint64) ([]*ent.Count
 	})
 }
 
-// CounterBoard ranks every channel that holds the named channel-scope counter,
-// highest value first — the cross-broadcaster read behind the public stats
-// boards, where one counter name (say "messages_processed") is written by every
-// channel and the interesting answer is who leads.
-//
-// The reserved bot namespace (user 0) is excluded: it holds the fleet-wide
-// total of the same counter name, which would otherwise take rank 1 forever.
-// Entry-scoped rows are excluded too — their Value column is an unused 0.
-//
-// Backed by the (name, value) index; without it this is a full scan of the
-// counters table, which is why the index ships with this query.
 func (r *Loyalty) CounterBoard(ctx context.Context, name string, limit int) ([]*ent.Counter, error) {
 	n, err := ValidCounterName(name)
 	if err != nil {
@@ -387,8 +303,6 @@ func (r *Loyalty) CounterBoard(ctx context.Context, name string, limit int) ([]*
 	})
 }
 
-// CounterCreate upserts a counter definition. An existing counter keeps its
-// value and scope (create is idempotent, not a reset).
 func (r *Loyalty) CounterCreate(ctx context.Context, userID uint64, name, scope string) (*ent.Counter, error) {
 	n, err := writableCounterName(userID, name)
 	if err != nil {
@@ -398,8 +312,6 @@ func (r *Loyalty) CounterCreate(ctx context.Context, userID uint64, name, scope 
 	if err != nil {
 		return nil, err
 	}
-	// Bot scope and the bot namespace imply each other: user 0 holds only
-	// bot counters, and bot counters live only under user 0.
 	if (s == data.CounterScopeBot) != (userID == 0) {
 		return nil, fmt.Errorf("%w: scope", ErrInvalidInput)
 	}
@@ -420,20 +332,12 @@ func (r *Loyalty) CounterCreate(ctx context.Context, userID uint64, name, scope 
 	})
 }
 
-// SetTarget addresses one stored bucket of an entry-scoped counter (a viewer
-// for the viewer scopes, a command bucket for command scope). ViewerLogin
-// optionally stamps the bucket's display identity — the dashboard's manual
-// add knows the typed username; a later bump refreshes it like any other.
 type SetTarget struct {
 	ViewerID    uint64
 	Command     string
 	ViewerLogin string
 }
 
-// CounterSet writes an absolute value. Channel/bot scope sets the row value.
-// For the entry scopes, a targeted set upserts that bucket; an untargeted set
-// resets the whole counter (deletes every entry), the "!counter reset"
-// semantics. A missing counter is (false, nil).
 func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, target SetTarget, value int64) (bool, error) {
 	if _, err := writableCounterName(userID, name); err != nil {
 		return false, err
@@ -475,14 +379,7 @@ func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, ta
 	})
 }
 
-// CounterEntryDelete removes one stored bucket of an entry-scoped counter,
-// addressed like a targeted set (a viewer for the viewer scopes, a command
-// bucket for command scope). It refuses an untargeted call so it can never
-// become an accidental whole-counter reset — that is CounterSet's job. A
-// missing counter, a non-entry scope, or an untargeted address is
-// (false, nil); an already-absent bucket is (true, nil), since the goal state
-// (no such bucket) holds either way. The worker's live Valkey view converges
-// the same way a delete does: TTL expiry, or re-seed on the next cold read.
+// Must refuse an untargeted call, or it resets the whole counter.
 func (r *Loyalty) CounterEntryDelete(ctx context.Context, userID uint64, name string, target SetTarget) (bool, error) {
 	if _, err := writableCounterName(userID, name); err != nil {
 		return false, err
@@ -511,8 +408,6 @@ func (r *Loyalty) CounterEntryDelete(ctx context.Context, userID uint64, name st
 	})
 }
 
-// normalizeLogin canonicalizes a carried viewer login the way BalanceAdjust
-// does its target: bare, lower-cased, clamped to the column width.
 func normalizeLogin(login string) string {
 	l := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(login), "@"))
 	if len(l) > maxCounterName {
@@ -521,13 +416,6 @@ func normalizeLogin(login string) string {
 	return l
 }
 
-// CounterRename moves a counter and its entry buckets to a new name, in one
-// transaction so a crash can never strand the buckets under the old name. The
-// target name must be free: a clash returns ErrInvalidInput so the caller can
-// surface "name taken" instead of a generic failure. A missing counter is
-// (false, nil). The worker's live Valkey view of the old name converges the
-// same way a delete does: TTL expiry, or re-seed from the service on the next
-// cold read.
 func (r *Loyalty) CounterRename(ctx context.Context, userID uint64, name, newName string) (bool, error) {
 	n, err := writableCounterName(userID, name)
 	if err != nil {
@@ -563,8 +451,6 @@ func (r *Loyalty) CounterRename(ctx context.Context, userID uint64, name, newNam
 	return renamed, err
 }
 
-// withTx runs fn inside one ent transaction, committing on success and
-// rolling back on error.
 func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) error {
 	tx, err := client.Tx(ctx)
 	if err != nil {
@@ -577,7 +463,6 @@ func withTx(ctx context.Context, client *ent.Client, fn func(tx *ent.Tx) error) 
 	return tx.Commit()
 }
 
-// CounterDelete removes a counter and its viewer entries.
 func (r *Loyalty) CounterDelete(ctx context.Context, userID uint64, name string) error {
 	n, err := writableCounterName(userID, name)
 	if err != nil {
@@ -596,7 +481,6 @@ func (r *Loyalty) CounterDelete(ctx context.Context, userID uint64, name string)
 	})
 }
 
-// DeleteAllForUser removes every loyalty row of a deleted broadcaster account.
 func (r *Loyalty) DeleteAllForUser(ctx context.Context, userID uint64) error {
 	return db.WithExec(ctx, func(ctx context.Context) error {
 		if _, err := r.client.Balance.Delete().Where(balance.UserIDEQ(userID)).Exec(ctx); err != nil {
@@ -610,8 +494,6 @@ func (r *Loyalty) DeleteAllForUser(ctx context.Context, userID uint64) error {
 	})
 }
 
-// getOptional runs one Only-style query through the DB gate and maps ent's
-// not-found to (zero, false, nil).
 func getOptional[T any](ctx context.Context, fn func(context.Context) (*T, error)) (*T, bool, error) {
 	row, err := db.WithQuery(ctx, fn)
 	if err != nil {

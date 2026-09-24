@@ -33,7 +33,7 @@ func TestSanitizeGiftMessage(t *testing.T) {
 }
 
 func TestSanitizeGiftMessageCaps(t *testing.T) {
-	long := strings.Repeat("é", 400) // multi-byte runes to prove the cap counts runes, not bytes
+	long := strings.Repeat("é", 400)
 	got := sanitizeGiftMessage(long)
 	if n := utf8.RuneCountInString(got); n > giftMessageMaxRunes {
 		t.Errorf("capped length = %d runes, want <= %d", n, giftMessageMaxRunes)
@@ -58,9 +58,6 @@ func TestClampLogin(t *testing.T) {
 	}
 }
 
-// The checkout gate rejects a gift note only after sanitizing, so a link
-// smuggled through control chars or spacing must survive sanitization and still
-// be caught. This proves the sanitize -> ContainsLink pairing the RPC relies on.
 func TestGiftNoteLinkAfterSanitize(t *testing.T) {
 	cases := []struct {
 		note    string
@@ -80,11 +77,6 @@ func TestGiftNoteLinkAfterSanitize(t *testing.T) {
 	}
 }
 
-// TestBasketBudget pins the widest handler budget in the service. It was a
-// positional argument to a seven-argument subscribe call, which is exactly the
-// kind of value a refactor flattens onto the 2s default: two upstream Tebex
-// calls do not fit in two seconds, and the failure would be a timeout in
-// production rather than a compile error here.
 func TestBasketBudget(t *testing.T) {
 	if want := 15 * time.Second; basketBudget != want {
 		t.Fatalf("basketBudget = %v, want %v", basketBudget, want)

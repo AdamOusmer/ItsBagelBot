@@ -3,12 +3,6 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The user directory, on the shared deck + inspector.
-  //
-  // Every mutation is a hidden <form> here rather than a form inside the
-  // inspector: one place owns the confirmation, the optimistic apply and the
-  // rollback, and the inspector stays presentational. The action names are the
-  // server's and are not renamed -- the audit trail keys off them.
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -46,10 +40,6 @@
   const failed = adminToastFailure(toast);
   const can = (key: AccessKey) => allows(data.role, key);
 
-  // ── Streamed directory -> local optimistic state ───────────────────────────
-  // The load streams the directory promise; it resolves into local state so
-  // row mutations can apply optimistically and reconcile against the server
-  // echo (or roll back on failure) without refetching the page.
   let dir = $state<UserDirectory | null>(null);
   $effect(() => {
     let alive = true;
@@ -64,9 +54,6 @@
 
   const rows = $derived(dir?.recent ?? []);
 
-  // ── Server-driven search + state filter ────────────────────────────────────
-  // Both drive URL params so they cover the whole directory, not just the page
-  // already loaded.
   // svelte-ignore state_referenced_locally
   let search = $state(data.search);
   $effect(() => {
@@ -95,16 +82,12 @@
     goto(href({ q: search.trim(), state: stateFilter }), { keepFocus: true });
   }
 
-  // ── Selection + probe ──────────────────────────────────────────────────────
   let selectedId = $state<string | null>(null);
-  // A lookup echo for a row that is not on the current page (mutated off-page).
   let detached = $state<AdminUserWire | null>(null);
   const selected = $derived(
     selectedId === null ? null : (rows.find((u) => String(u.id) === selectedId) ?? detached)
   );
 
-  // Probe state is honest about being in flight: null = checking, then the real
-  // answer. Never rendered as a guess.
   let tokenPresent = $state<boolean | null>(null);
   let subState = $state<ChannelSubState | null>(null);
   let viewAsUrl = $state('');
@@ -162,8 +145,6 @@
       if (!res.ok) throw new Error(`history fetch failed (${res.status})`);
       const body = (await res.json()) as { entries?: AuditEntry[]; error?: string };
       if (body.error) throw new Error(body.error);
-      // The search matches target/detail broadly; keep only rows aimed at this
-      // exact user.
       history = (body.entries ?? []).filter((e) => e.target === id).slice(0, 5);
     } catch (e) {
       historyError = (e as Error).message;
@@ -189,7 +170,6 @@
     return async ({ result }) => {
       const lk = actionPayload<ActionPayload>(result)?.lookup;
       if (!lk || lk.error) {
-        // Selection stays; the probe failed and says so.
         tokenPresent = null;
         subState = { state: 'unknown', error: lk?.error ?? t('admin.users.lookupFailed'), checkedAt: null };
         return;
@@ -200,7 +180,6 @@
     };
   };
 
-  // Merge a server-echoed user row into the list (and detached selection).
   function reconcile(u: AdminUserWire) {
     if (!dir) return;
     const i = dir.recent.findIndex((r) => r.id === u.id);
@@ -208,9 +187,6 @@
     else if (selectedId === String(u.id)) detached = u;
   }
 
-  // ── Optimistic mutation plumbing ───────────────────────────────────────────
-  // Apply the expected result instantly, keep a snapshot, then reconcile with
-  // the echoed row on success or roll back + toast the real error on failure.
   let busy = $state<string | null>(null);
   let forms = $state<Record<string, HTMLFormElement | null>>({});
   let pending = $state<UserActionDef | null>(null);
@@ -233,7 +209,6 @@
         if (i >= 0) dir.recent[i] = def.optimistic(dir.recent[i]);
         if (detached) detached = def.optimistic(detached);
       }
-      // The EventSub state is genuinely unknown while a reconnect queues.
       if (def.id === 'restart') subState = null;
       return async ({ result }) => {
         busy = null;
@@ -241,13 +216,9 @@
         if (result.type === 'success' && p?.action?.ok) {
           applied(p);
           if (def.id === 'delete') dropSelected();
-          // A token wipe has no echoed row, so the badge is cleared here rather
-          // than optimistically: it only turns off once the server confirms.
           if (def.id === 'clearToken' || def.id === 'reset') tokenPresent = false;
           return;
         }
-        // Roll back the optimistic apply: the UI must not keep a state the
-        // server refused.
         if (dir) dir.recent = before;
         detached = beforeDetached;
         failed(p, t('admin.users.actionFailed', { verb: t(def.label) }));
@@ -260,8 +231,6 @@
     closeInspector();
   }
 
-  // Destructive or externally-visible verbs park behind a confirmation; the
-  // rest fire straight away.
   function request(def: UserActionDef) {
     if (def.confirm) {
       pending = def;
@@ -276,7 +245,6 @@
     if (def) forms[def.id]?.requestSubmit();
   }
 
-  // ── Status change (paid needs a grant end date) ────────────────────────────
   let statusForms = $state<Record<string, HTMLFormElement | null>>({});
   let grantOpen = $state(false);
   let grantDate = $state('');
@@ -320,9 +288,6 @@
     };
   };
 
-  // ── Direct notification ────────────────────────────────────────────────────
-  // The composer owns its own fields (see MessageDialog); the page keeps only
-  // the open flag and the reply handling, which shares this page's toasts.
   let msgOpen = $state(false);
 
   const msgSubmit: SubmitFunction = () => {
@@ -419,10 +384,6 @@
 
       {#if dir && (dir.page > 1 || dir.hasMore)}
         <div class="pager">
-          <!-- ButtonLink, not raw `.bb-btn` markup: the dimming and the
-               click-swallowing a disabled pager arrow needs are the button
-               contract's `[aria-disabled]` state, which this page used to
-               fork locally at a different opacity. -->
           <ButtonLink
             variant="ghost"
             href={href({ q: data.search, state: data.state, page: dir.page - 1 })}
@@ -474,13 +435,10 @@
   </div>
 </section>
 
-<!-- Hidden lookup probe: fired on row select to fetch token + EventSub state. -->
 <form method="POST" action="?/lookup" use:enhance={lookupSubmit} bind:this={lookupForm} hidden>
   <input type="hidden" name="q" value={lookupQ} />
 </form>
 
-<!-- One hidden form per table entry, so the inspector's buttons stay buttons and
-     the POST body is identical whichever way the verb was reached. -->
 {#each USER_ACTIONS as def (def.id)}
   <form
     method="POST"
@@ -496,7 +454,6 @@
   </form>
 {/each}
 
-<!-- free/vip apply immediately; paid goes through the grant modal for its end date. -->
 {#each ['free', 'vip', 'paid'] as st (st)}
   <form
     method="POST"

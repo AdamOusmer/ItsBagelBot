@@ -68,7 +68,6 @@ func TestFetchURL(t *testing.T) {
 		{"no host refused", "https:///path", ErrFetchURL},
 		{"unparseable", "https://exa mple.com", ErrFetchURL},
 
-		// Host denylist half.
 		{"ip literal v4", "https://127.0.0.1/admin", ErrFetchHost},
 		{"metadata ip literal", "https://169.254.169.254/latest/meta-data", ErrFetchHost},
 		{"ip literal v6", "https://[::1]/admin", ErrFetchHost},
@@ -78,7 +77,6 @@ func TestFetchURL(t *testing.T) {
 		{"trailing dot forms normalized", "https://printer.local./api", ErrFetchHost},
 		{"port does not hide the host", "https://localhost:8443/api", ErrFetchHost},
 
-		// Immovable IP-logger floor.
 		{"grabber host", "https://grabify.link/XYZ", ErrContentFloor},
 	}
 	for _, tc := range cases {
@@ -94,7 +92,7 @@ func TestFetchURL(t *testing.T) {
 func TestFetchHostAllowed(t *testing.T) {
 	for host, want := range map[string]error{
 		"api.openweathermap.org": nil,
-		"API.EXAMPLE.COM.":       nil, // case + trailing dot normalize away
+		"API.EXAMPLE.COM.":       nil,
 		"127.0.0.1":              ErrFetchHost,
 		"::ffff:127.0.0.1":       ErrFetchHost,
 		"":                       ErrFetchHost,
@@ -158,15 +156,12 @@ func TestKeyLabelAndValue(t *testing.T) {
 	})
 }
 
-// keyRuleCase is one (input, expected) row for a string-rule validator.
 type keyRuleCase struct {
 	name string
 	in   string
 	want error
 }
 
-// runKeyRuleCases folds one validator's table; the fat-fatal message carries
-// the input so a regression names the exact case.
 func runKeyRuleCases(t *testing.T, rule func(string) error, cases []keyRuleCase) {
 	t.Helper()
 	for _, tc := range cases {

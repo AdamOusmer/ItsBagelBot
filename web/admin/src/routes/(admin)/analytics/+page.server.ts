@@ -4,7 +4,6 @@
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 
-// The enrollment series folded into the Overview; keep old bookmarks working.
 export const load: PageServerLoad = () => {
   throw redirect(301, '/');
 };

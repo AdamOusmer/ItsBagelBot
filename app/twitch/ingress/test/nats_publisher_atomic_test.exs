@@ -2,10 +2,11 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Nats.PublisherAtomicTest do
-  # async: false — the publisher uses a named process, a named ETS table and a
-  # global persistent_term context, so it cannot share the VM with a parallel
-  # instance of itself.
   use Ingress.PublisherCase, async: false
+
+  @idx_pending 1
+  @idx_batch_inflight 7
+  @idx_batch_bypass 9
 
   setup do
     conn = :gnat_bus_pub_atomic_test
@@ -37,21 +38,12 @@ defmodule Ingress.Nats.PublisherAtomicTest do
     end
   end
 
-  # A batch belongs to one stream: the broker resolves each message's stream from
-  # its subject and keeps the batch state there, so a batch spanning two streams
-  # reaches at least one of them starting at a sequence other than 1 and is
-  # rejected with JSAtomicPublishIncompleteBatch — on messages carrying no reply
-  # inbox, which makes the loss silent. The premium and standard lanes live on
-  # different streams (TWITCH_INGRESS / TWITCH_INGRESS_STANDARD), so this is the
-  # ordinary mixed cohort, not an edge case.
   test "lanes on different streams never share one atomic batch", %{publisher: publisher} do
     for subject <- ["twitch.ingress.event.standard", "twitch.ingress.event.premium"],
         n <- 1..2 do
       assert Publisher.enqueue(subject, ~s({"n":#{n}})) == :ok
     end
 
-    # Neither subject reaches the batch size of 3, so the shard's flush timer
-    # sends both cohorts.
     by_subject =
       Enum.group_by(
         for _ <- 1..4 do
@@ -68,8 +60,6 @@ defmodule Ingress.Nats.PublisherAtomicTest do
       for {_subject, [first, last]} <- by_subject do
         batch_id = first["nats-batch-id"]
 
-        # Each stream's batch is self-contained: it opens at 1 and commits on its
-        # own last message.
         assert first["nats-batch-sequence"] == "1"
         assert last["nats-batch-sequence"] == "2"
         assert last["nats-batch-id"] == batch_id
@@ -81,7 +71,6 @@ defmodule Ingress.Nats.PublisherAtomicTest do
 
     assert length(Enum.uniq(batch_ids)) == 2
 
-    # Two cohorts, two in-flight batches, one shard.
     _state = :sys.get_state(publisher)
   end
 
@@ -108,19 +97,16 @@ defmodule Ingress.Nats.PublisherAtomicTest do
     refute Map.has_key?(middle_headers, "nats-batch-commit")
     assert last_headers["nats-batch-commit"] == "1"
 
-    # Dedup is structurally disabled on both publisher wires.
     refute Map.has_key?(first_headers, "nats-msg-id")
     refute Map.has_key?(middle_headers, "nats-msg-id")
     refute Map.has_key?(last_headers, "nats-msg-id")
 
-    # Only the opening (start errors) and commit (PubAck) messages carry replies.
     start_reply = Keyword.fetch!(first, :reply_to)
     commit_reply = Keyword.fetch!(last, :reply_to)
     assert String.contains?(start_reply, ".bs.")
     assert String.contains?(commit_reply, ".bc.")
     refute Keyword.has_key?(middle, :reply_to)
 
-    # Zero-byte start ack changes nothing; the commit PubAck resolves the batch.
     send(publisher, {:msg, %{topic: start_reply, body: ""}})
 
     send(
@@ -133,7 +119,7 @@ defmodule Ingress.Nats.PublisherAtomicTest do
     )
 
     _state = :sys.get_state(publisher)
-    assert :atomics.get(ctx.counter, 1) == 0
+    assert :atomics.get(ctx.counter, @idx_pending) == 0
     assert :ets.info(ctx.table, :size) == 0
   end
 
@@ -155,8 +141,6 @@ defmodule Ingress.Nats.PublisherAtomicTest do
        }}
     )
 
-    # The negative PubAck proves the cohort was not stored, so a dedup-free
-    # per-message re-drive is safe.
     fallback = collect_cohort()
 
     Enum.each(fallback, fn opts ->
@@ -167,9 +151,8 @@ defmodule Ingress.Nats.PublisherAtomicTest do
       assert Keyword.fetch!(opts, :reply_to) =~ ".s."
     end)
 
-    # Still three pending events awaiting their individual PubAcks.
     _state = :sys.get_state(publisher)
-    assert :atomics.get(ctx.counter, 1) == 3
+    assert :atomics.get(ctx.counter, @idx_pending) == 3
     assert :ets.info(ctx.table, :size) == 3
 
     fallback
@@ -183,7 +166,7 @@ defmodule Ingress.Nats.PublisherAtomicTest do
     end)
 
     _state = :sys.get_state(publisher)
-    assert :atomics.get(ctx.counter, 1) == 0
+    assert :atomics.get(ctx.counter, @idx_pending) == 0
     assert :ets.info(ctx.table, :size) == 0
   end
 
@@ -208,14 +191,13 @@ defmodule Ingress.Nats.PublisherAtomicTest do
     assert length(fallback) == 3
 
     _state = :sys.get_state(publisher)
-    assert :atomics.get(ctx.counter, 1) == 3
+    assert :atomics.get(ctx.counter, @idx_pending) == 3
   end
 
   test "cohorts past the in-flight batch budget degrade to individual publishes", %{
     ctx: ctx
   } do
-    # Saturate the budget directly (index 7 tracks in-flight atomic batches).
-    :atomics.put(ctx.counter, 7, 4)
+    :atomics.put(ctx.counter, @idx_batch_inflight, 4)
 
     enqueue_cohort()
     cohort = collect_cohort()
@@ -226,8 +208,8 @@ defmodule Ingress.Nats.PublisherAtomicTest do
       assert Keyword.fetch!(opts, :reply_to) =~ ".s."
     end)
 
-    assert :atomics.get(ctx.counter, 9) == 1
+    assert :atomics.get(ctx.counter, @idx_batch_bypass) == 1
 
-    :atomics.put(ctx.counter, 7, 0)
+    :atomics.put(ctx.counter, @idx_batch_inflight, 0)
   end
 end

@@ -13,15 +13,8 @@ import { env } from '$env/dynamic/private';
 import { giveawayPrizes, type PrizeAward } from '$lib/server/giveaways';
 import { actionError } from '$lib/server/action-errors';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
-// Who a billing action operates on: the owner's account. Runnable by the owner,
-// or by a delegate explicitly granted the billing section (Tebex handles the
-// actual payment identity at checkout). Admin impersonation (view-as) never
-// spends. Returns null when the caller may not act. delegate_of / delegate_login
-// carry the OWNER's id + login (set in delegate/enter).
 function billingActor(s: Session | null | undefined): { id: string; login: string } | null {
   if (!s || s.impersonator_id) return null;
   if (s.delegate_of) {
@@ -31,9 +24,6 @@ function billingActor(s: Session | null | undefined): { id: string; login: strin
   return { id: s.user_id, login: s.login };
 }
 
-// The preamble every billing action shares: signed in, and allowed to spend on
-// this account. Returns the actor or the refusal, so an action states the rule
-// once instead of unpacking it in two branches of its own.
 function billingGate(
   s: Session | null | undefined,
   locale: App.Locals['locale']
@@ -64,16 +54,10 @@ function links(): BillingLinks {
   };
 }
 
-// 'monthly' or anything else (the "buy one month" button posts 'once'),
-// pulled out so the subscribe action's own DEMO branch stays a single line.
 function subscribePlan(form: FormData): 'monthly' | 'single' {
   return form.get('plan') === 'monthly' ? 'monthly' : 'single';
 }
 
-// One set of recipient rules for both paths, demo and live. Returns plain data
-// rather than calling fail() itself: SvelteKit infers each action's ActionData
-// from fail() calls written directly inside that action, so fail() is still
-// called at the gift action's own call sites below.
 type GiftFormError = { gift: true; error: string; recipient: string; message: string };
 type GiftFailure = { ok: false; status: number; data: GiftFormError };
 
@@ -96,17 +80,14 @@ function giftValidate(form: FormData, locale: App.Locals['locale']): { ok: true;
   return { ok: true, recipient, message };
 }
 
-// Never send an already-premium account to Tebex: a staff-granted period, an
-// active Tebex entitlement, or a VIP grant must run out before a new charge is
-// possible. Returns the refusal to surface, or null when the sale may proceed.
+// Never send an already-premium account to Tebex: the current period must end before a new charge.
 async function premiumAlreadyHeld(
   ownerId: string,
   locale: App.Locals['locale']
 ): Promise<{ status: number; data: { error: string } } | null> {
   try {
     const state = await billingState(ownerId);
-    // A missing giveaway read must fail closed: allowing checkout while an
-    // award is being reconciled could create duplicate Premium coverage.
+    // Must fail closed: checkout during a giveaway reconcile could duplicate Premium coverage.
     const prizes = await giveawayPrizes(ownerId);
     const pendingPrize = prizes.some((prize) => ['selected', 'preparing', 'needs_review', 'scheduled', 'active'].includes(prize.state));
     if (state.status === 'free' && !pendingPrize) return null;
@@ -122,10 +103,6 @@ async function premiumAlreadyHeld(
   }
 }
 
-// Cancellation only means something for a live Tebex subscription: a
-// staff-granted period or a VIP grant has nothing to cancel, and neither does a
-// free account. Returns the refusal to surface, or null when the redirect out
-// to Tebex-hosted management is the right answer.
 async function tebexSubscriptionMissing(
   ownerId: string,
   locale: App.Locals['locale']
@@ -142,9 +119,6 @@ async function tebexSubscriptionMissing(
   }
 }
 
-// Entitlement is attributed to the owner; Tebex collects payment from whoever
-// completes checkout. Null means no usable URL came back, which the caller
-// turns into the one user-facing failure this has.
 async function subscribeCheckout(
   actor: { id: string; login: string },
   packageType: 'subscription' | 'single',
@@ -164,10 +138,6 @@ async function subscribeCheckout(
   }
 }
 
-// The basket call and its failure mapping, lifted out of the action. The RPC's
-// own error strings are user-facing (the transactions service vets the
-// recipient: registered, not banned, not already premium), while anything else
-// is ours to log and generalise.
 async function giftCheckout(
   session: { user_id: string; login: string },
   recipient: string,
@@ -231,8 +201,6 @@ async function billingPageData(input: { uid: string }): Promise<{ account: Billi
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-  // ?subscribe=1 comes from the marketing site's pricing page (rides through
-  // the login flow); the page auto-opens checkout when the plan allows it.
   const autostart = url.searchParams.get('subscribe') === '1';
 
   if (DEMO) {
@@ -243,19 +211,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   const s = locals.session;
   if (!s) throw redirect(302, '/login');
-  // Billing is owner-only unless a delegate was explicitly granted the billing
-  // section (then they manage it on the owner's behalf, see billingActor).
   const isDelegate = !!s.delegate_of;
   if (isDelegate && !(s.sections ?? []).includes('billing')) throw redirect(302, '/');
 
-  // The board being read: the owner's for a delegate, otherwise the user's own.
   const uid = s.delegate_of ?? s.user_id;
 
-  // Returning from hosted checkout lands here (?checkout=complete). The
-  // entitlement is applied by an async Tebex webhook, which publishes a `status`
-  // invalidation on the cache bus; that both drops the server cache and (via the
-  // live SSE stream) re-fetches this page, so the view flips to premium on its
-  // own. No special-casing needed in the load.
   const board = await billingPageData({ uid });
   return {
     account: board.account,
@@ -268,15 +228,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-  // Mint a Tebex basket for this user (transactions service -> Headless API)
-  // and redirect the browser to Tebex-hosted checkout. The basket URL is still
-  // required because it carries our custom user_id for webhook attribution; do
-  // not fall back to a static package URL that could charge without attributing
-  // the resulting entitlement.
+  // Always mint a basket: it carries user_id for webhook attribution.
   subscribe: async ({ locals, request, getClientAddress }) => {
-    // Demo stands in for Tebex-hosted checkout with our own fake checkout page,
-    // so the whole purchase journey is clickable without a session or an RPC.
-    // Guarded on the module-level DEMO const (dev + env.DEMO), same as the load.
     if (DEMO) {
       const plan = subscribePlan(await request.formData());
       throw redirect(303, `/billing/demo-checkout?kind=premium&plan=${plan}`);
@@ -286,8 +239,6 @@ export const actions: Actions = {
     if (!gate.ok) return fail(gate.status, { error: gate.error });
     const actor = gate.actor;
 
-    // 'monthly' = auto-renewing subscription, anything else = one paid month.
-    // Recurring billing only ever happens on an explicit monthly choice.
     const packageType = subscribePlan(await request.formData()) === 'monthly' ? 'subscription' : 'single';
 
     const blocked = await premiumAlreadyHeld(actor.id, locals.locale);
@@ -298,23 +249,13 @@ export const actions: Actions = {
     throw redirect(303, url);
   },
 
-  // Gift premium to another registered user. The transactions service resolves
-  // the Twitch login and vets the recipient (registered, not banned, not
-  // already premium); its error strings are user-facing, so surface them
-  // verbatim on the gift form. The buyer's own plan does not gate gifting.
   gift: async ({ locals, request, getClientAddress }) => {
-    // Same validation as the live path (so the gift modal's errors behave
-    // identically in demo), then hand off to our own fake checkout instead of
-    // minting a Tebex basket.
     if (DEMO) {
       const validated = giftValidate(await request.formData(), locals.locale);
       if (!validated.ok) return fail(validated.status, validated.data);
       throw redirect(303, `/billing/demo-checkout?kind=gift&plan=single&recipient=${encodeURIComponent(validated.recipient)}`);
     }
 
-    // A gift is the buyer's own purchase (they pay, the recipient gets
-    // premium), so the buyer stays the acting session user, but access is
-    // still gated to owners + billing-granted delegates.
     const gate = billingGate(locals.session, locals.locale);
     if (!gate.ok) return fail(gate.status, { gift: true, error: gate.error });
     const s = locals.session!;
@@ -327,12 +268,7 @@ export const actions: Actions = {
     throw redirect(303, checkout.url);
   },
 
-  // Cancellation/account management lives on Tebex. We still gate the button
-  // behind an owner session so delegated or view-as sessions cannot act on it.
   cancel: async ({ locals }) => {
-    // A real cancellation just redirects out to Tebex-hosted management; the
-    // demo has nowhere to redirect to, so it flips cancelPending itself and
-    // sends the browser straight back.
     if (DEMO) {
       const { demoCancelPending } = await import('$lib/server/demo-data');
       demoCancelPending();

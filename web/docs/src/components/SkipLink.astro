@@ -11,11 +11,7 @@ const isSplash = entry.data.template === 'splash';
 <Default><slot /></Default>
 
 {
-    /*
-      Decoration (orbs + noise overlay) is restricted to splash pages.
-      Doc pages stay clean — no fixed-position visuals competing with
-      the content.
-    */
+    /* Decoration is restricted to splash pages; doc pages stay clean. */
     isSplash && (
         <div class="bb-decoration" aria-hidden="true" data-astro-transition-persist="bb-decoration">
             <div class="bb-orb bb-orb--halo bb-orb--green bb-orb-1" />

@@ -10,7 +10,7 @@ import (
 
 func TestSimHashBagOfWords(t *testing.T) {
 	a := simHash([]byte("free nitro at example com click now"))
-	b := simHash([]byte("click now free nitro at example com")) // reordered
+	b := simHash([]byte("click now free nitro at example com"))
 	if a == 0 || a != b {
 		t.Fatalf("token order must not change the hash: %x vs %x", a, b)
 	}
@@ -18,7 +18,7 @@ func TestSimHashBagOfWords(t *testing.T) {
 
 func TestSimHashNearDuplicate(t *testing.T) {
 	a := simHash([]byte("free nitro giveaway at example com click here fast friends"))
-	b := simHash([]byte("free nitro giveaway at other com click here fast friends")) // one token swapped
+	b := simHash([]byte("free nitro giveaway at other com click here fast friends"))
 	c := simHash([]byte("what a great play by the jungler that was insane"))
 
 	if d := bits.OnesCount64(a ^ b); d > 24 {

@@ -35,8 +35,6 @@ func TestNewSpecRejectsInvalidConfiguration(t *testing.T) {
 	_ = NewSpec(0, 1)
 }
 
-// This test is opt-in because the script's atomicity and server-TIME behavior
-// need a real Valkey interpreter, not a command mock. Run with VALKEY_TEST_ADDR.
 func TestAllowOrderedIntegration(t *testing.T) {
 	address := os.Getenv("VALKEY_TEST_ADDR")
 	if address == "" {
@@ -66,7 +64,6 @@ func TestAllowOrderedIntegration(t *testing.T) {
 		t.Fatalf("fresh pair denied/error = %d/%v", denied, err)
 	}
 
-	// An empty first bucket must not touch the second bucket at all.
 	future := strconv.FormatInt(time.Now().Add(time.Hour).UnixMilli(), 10)
 	if err := client.Do(ctx, client.B().Hset().Key(firstKey).FieldValue().
 		FieldValue("tokens", "0").FieldValue("last_ms", future).Build()).Error(); err != nil {
@@ -88,7 +85,6 @@ func TestAllowOrderedIntegration(t *testing.T) {
 		t.Fatalf("second bucket changed after first denial: before=%v after=%v", before, after)
 	}
 
-	// An atomic evaluation means if the second bucket is empty, the first token is NOT consumed.
 	for key, tokens := range map[string]string{firstKey: "2", secondKey: "0"} {
 		if err := client.Do(ctx, client.B().Hset().Key(key).FieldValue().
 			FieldValue("tokens", tokens).FieldValue("last_ms", future).Build()).Error(); err != nil {
@@ -107,8 +103,6 @@ func TestAllowOrderedIntegration(t *testing.T) {
 		t.Fatalf("first tokens = %q, want 2 (atomic fallback)", tokens)
 	}
 
-	// The script reads both keys before writing either one. A wrong-type second
-	// key must therefore fail without consuming the first token.
 	if err := client.Do(ctx, client.B().Hset().Key(firstKey).FieldValue().
 		FieldValue("tokens", "2").FieldValue("last_ms", future).Build()).Error(); err != nil {
 		t.Fatal(err)

@@ -23,28 +23,20 @@ import (
 	"go.uber.org/zap"
 )
 
-// maxBodyBytes caps the webhook request body; Tebex payloads are far smaller.
 const maxBodyBytes = 256 * 1024
 
 type Store interface {
 	SaveWebhookEvent(ctx context.Context, event repository.WebhookEvent) error
 }
 
-// GiftNotice describes a gifted entitlement that just landed: who received it,
-// who paid, and the webhook id (used as the idempotency key so Tebex's webhook
-// retries never duplicate the notification).
 type GiftNotice struct {
 	WebhookID     string
 	RecipientID   uint64
 	GiftedByID    uint64
 	GiftedByLogin string
-	// GiftMessage is the buyer's optional personal note from the basket custom
-	// payload; empty falls back to the default gift email copy.
-	GiftMessage string
+	GiftMessage   string
 }
 
-// BillingIncident is an allowlisted summary of a verified provider event.
-// Raw webhook payloads and contact data never cross this callback boundary.
 type BillingIncident struct {
 	EventID       string
 	EventType     string
@@ -81,23 +73,12 @@ type appliedEvent struct {
 }
 
 type Config struct {
-	WebhookSecret string
-	// Health owns /healthz, /readyz, /status and /drain. Nil falls back to a
-	// check-less set that always reports ready, which is what the webhook-only
-	// tests want.
-	Health *health.Set
-	// NotifyGift is called after a gifted payment is recorded (initial payment
-	// only, not renewals). Best-effort: failures are logged, never surfaced to
-	// Tebex — the entitlement is already durable at that point.
-	NotifyGift func(ctx context.Context, notice GiftNotice) error
-	// ApplyBilling synchronously updates the users service after signature
-	// verification. Returning an error makes Tebex retry the webhook, so a
-	// transient NATS/users outage cannot lose a paid entitlement.
+	WebhookSecret         string
+	Health                *health.Set
+	NotifyGift            func(ctx context.Context, notice GiftNotice) error
 	ApplyBilling          func(ctx context.Context, req billingrpc.ApplyRequest) error
 	RecordBillingIncident func(ctx context.Context, incident BillingIncident) error
-	// App instruments the Tebex webhook routes with New Relic transactions.
-	// Health probes stay uninstrumented. Nil (no license key) is a no-op.
-	App *newrelic.Application
+	App                   *newrelic.Application
 }
 
 type Server struct {
@@ -144,9 +125,6 @@ func New(store Store, cfg Config, log *zap.Logger) http.Handler {
 	return r
 }
 
-// transactionMiddleware runs each webhook request inside a New Relic
-// transaction and exposes it through the request context, so handler logs and
-// downstream RPC segments join the trace. A nil app makes every call a no-op.
 func transactionMiddleware(app *newrelic.Application) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -160,18 +138,10 @@ func transactionMiddleware(app *newrelic.Application) func(http.Handler) http.Ha
 	}
 }
 
-// tebexReachable is the bare 200 Tebex itself GETs to validate our webhook
-// URL: an INBOUND endpoint, not a dependency probe. Tebex is deliberately not
-// a check in the health Set, and no outbound Tebex probe should be added
-// either — /status is polled by uptime monitors, and a health endpoint must
-// not call a third-party payment API on every poll.
 func (s *Server) tebexReachable(w http.ResponseWriter, _ *http.Request) {
 	sendOK(w)
 }
 
-// tebexWebhook owns only the HTTP-and-verification concern: authenticate the
-// request, then route the event to its handler. Event classification lives in
-// tebexevent.go; the per-outcome work lives in the dispatch helpers below.
 func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 
 	body, ok := s.verifiedBody(w, r)
@@ -199,20 +169,13 @@ func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 		s.processBillingEvent(ctx, w, billingWork{event: event, action: spec.action, notify: spec.notify})
 		return
 	}
-	// Trial webhooks exist in the Tebex panel but not (yet) in their docs, so
-	// match by prefix rather than exact strings.
 	if strings.HasPrefix(event.Type, "recurring-payment.trial") {
 		s.trialLifecycle(ctx, w, event)
 		return
 	}
-	// Everything else changes no entitlement and is audited as ignored:
-	// payment.declined (nothing was granted), payment.dispute.closed (won/lost
-	// carry the outcome), status changes, and any future types.
 	s.auditIgnored(ctx, w, event)
 }
 
-// verifiedBody reads the capped request body and checks the Tebex signature.
-// On failure it writes the rejection response and returns ok=false.
 func (s *Server) verifiedBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 
 	log := monitor.TxnLogger(r.Context(), s.log)
@@ -238,11 +201,6 @@ func (s *Server) verifiedBody(w http.ResponseWriter, r *http.Request) ([]byte, b
 	return body, true
 }
 
-// processBillingEvent is the single path every entitlement-changing event
-// follows: parse the payment, apply the billing action, persist the processed
-// audit row, and (for activations) notify the gift recipient. A parse or apply
-// failure is recorded and surfaced so Tebex retries; a persist failure alone
-// returns 500.
 func (s *Server) processBillingEvent(ctx context.Context, w http.ResponseWriter, work billingWork) {
 	event, action, notify := work.event, work.action, work.notify
 
@@ -264,8 +222,6 @@ func (s *Server) processBillingEvent(ctx context.Context, w http.ResponseWriter,
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleValidation acknowledges Tebex's endpoint-validation ping: record it and
-// echo the id back.
 func (s *Server) handleValidation(ctx context.Context, w http.ResponseWriter, event tebexEvent) {
 	if err := s.saveEvent(ctx, eventAudit{event: event, status: repository.WebhookValidation, payment: recordablePayment{}}); err != nil {
 		s.saveError(w)
@@ -274,7 +230,6 @@ func (s *Server) handleValidation(ctx context.Context, w http.ResponseWriter, ev
 	sendJSON(w, http.StatusOK, map[string]string{"id": event.ID})
 }
 
-// auditIgnored records an event that changes no entitlement and acknowledges it.
 func (s *Server) auditIgnored(ctx context.Context, w http.ResponseWriter, event tebexEvent) {
 	if err := s.saveEvent(ctx, eventAudit{event: event, status: repository.WebhookIgnored, payment: recordablePayment{}}); err != nil {
 		s.saveError(w)
@@ -283,18 +238,10 @@ func (s *Server) auditIgnored(ctx context.Context, w http.ResponseWriter, event 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// saveError is the one response for a failed audit-log write, which makes Tebex
-// retry the delivery.
 func (s *Server) saveError(w http.ResponseWriter) {
 	sendJSON(w, http.StatusInternalServerError, errorBody{Error: "failed to save webhook state"})
 }
 
-// trialLifecycle maps trial webhooks onto the billing actions: a started trial
-// activates premium until the trial's next payment date, a cancelled trial
-// keeps the entitlement but marks the cancellation pending (the expiry safety
-// net or a recurring-payment.ended does the actual revoke at trial end), and
-// the rest (ending-soon reminder, trial ended) change nothing — a conversion
-// to paid arrives as payment.completed / recurring-payment.renewed.
 func (s *Server) trialLifecycle(ctx context.Context, w http.ResponseWriter, event tebexEvent) {
 
 	action, ok := trialAction(event.Type)
@@ -367,15 +314,7 @@ func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment rec
 	}
 	expiresAt := payment.ExpiresAt
 	if grantsPaid(action) && expiresAt == nil {
-		// One-time purchases (single-month buys, gifts) can arrive without any
-		// expiry on the payment subject, but every action that leaves the user
-		// paid must still run out. This is not just activation: a
-		// payment.dispute.won maps to ActionCancelAborted and follows a
-		// payment.dispute.opened that already cleared the stored expiry
-		// (ActionRevoke), so a nil expiry here would otherwise reinstate the
-		// user with no expiry at all, permanent premium, and no further Tebex
-		// event ever arrives for a settled one-time payment to correct it.
-		// Default to one month from the payment event.
+		// A nil expiry would grant permanent premium.
 		fallback := occurredAt.AddDate(0, 1, 0)
 		expiresAt = &fallback
 	}
@@ -386,10 +325,7 @@ func (s *Server) applyBilling(ctx context.Context, event tebexEvent, payment rec
 		OccurredAt:         occurredAt,
 		ExpiresAt:          expiresAt,
 		RecurringReference: payment.RecurringReference,
-		// Non-zero only on a gift payment (gifts are one-time "single" packages,
-		// so this is set on the initial payment.completed and never on renewals);
-		// lets the users service count the gift against the buyer.
-		GifterID: payment.GiftedByID,
+		GifterID:           payment.GiftedByID,
 	})
 }
 
@@ -416,9 +352,6 @@ func (s *Server) failEvent(ctx context.Context, w http.ResponseWriter, failure e
 	sendJSON(w, failure.status, errorBody{Error: failure.cause.Error()})
 }
 
-// notifyGift tells the recipient their gifted premium landed. Initial payments
-// only — a renewal keeps the plan running and does not warrant a ping. Never
-// fails the webhook: the entitlement is already recorded.
 func (s *Server) notifyGift(ctx context.Context, event tebexEvent, payment recordablePayment) {
 
 	if s.cfg.NotifyGift == nil || payment.GiftedByID == 0 {

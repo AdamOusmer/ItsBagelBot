@@ -29,7 +29,6 @@ const (
 
 var published = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 
-// podSpec is a pod spec holding one container per name/image pair.
 func podSpec(images map[string]string) map[string]any {
 	var containers []any
 	for name, image := range images {
@@ -53,8 +52,6 @@ func (m manifest) object() *unstructured.Unstructured {
 	}}
 }
 
-// withCluster gives the harness a main branch, manifests and a cluster in
-// which gossip runs the release image while main pins its main-push build.
 func withCluster(h *harness) {
 	h.gh.main = mainSHA
 	h.gh.tags = map[deploy.Version]deploy.SHA{"v1.2.3-beta": tagSHA, "v1.2.2-beta": "c"}

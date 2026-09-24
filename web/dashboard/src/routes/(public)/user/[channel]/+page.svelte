@@ -9,15 +9,6 @@
   let { data }: { data: PageData } = $props();
   const { t } = getI18n();
 
-  // Keys carry the source index because triggers are not unique across the
-  // flat list: a module can publish the same label twice (aliases folded into
-  // the catalog) and a custom trigger can shadow a module one. Keying on the
-  // trigger alone throws each_key_duplicate, which aborts the render and
-  // leaves the page blank.
-  // One flat directory of everything a viewer can type. Custom commands carry
-  // their own detail (aliases, access, cooldown); module and built-in commands
-  // come from the catalog and carry a usage line instead, with the module that
-  // owns them as the source tag.
   type Kind = 'custom' | 'module' | 'builtin';
   type Filter = 'all' | Kind;
   type Row = {
@@ -135,8 +126,6 @@
   />
 </svelte:head>
 
-<!-- The nav and the sign-off come from the (public) layout; this is the same
-     drifting mote field the leaderboard and stats pages wear. -->
 <div class="starfield" aria-hidden="true"><LightField /></div>
 <div class="glow" aria-hidden="true"></div>
 
@@ -282,11 +271,7 @@
   h1, p { margin: 0; }
 
 
-  /* ── atmosphere ── */
 
-
-  /* Mote field below content (z-index 1), the same stacking the leaderboard
-     and stats pages use. */
   .starfield {
     position: fixed;
     inset: 0;
@@ -294,7 +279,6 @@
     pointer-events: none;
   }
 
-  /* Hearth glow behind the hero: tan core, green fringe. */
   .glow {
     position: absolute;
     left: 50%;
@@ -312,8 +296,6 @@
     filter: blur(18px);
   }
 
-  /* ── page shell ── */
-
   .page {
     position: relative;
     z-index: 1;
@@ -322,8 +304,6 @@
     padding: calc(var(--bb-nav-height, 76px) + env(safe-area-inset-top, 0px) + 72px) 24px 96px;
     color: var(--bb-white);
   }
-
-  /* ── hero ── */
 
   .hero {
     display: flex;
@@ -405,21 +385,9 @@
     color: var(--bb-tan-pale);
     text-shadow: 0 0 18px rgba(201, 168, 124, 0.25);
   }
-  /* Was bare muted text; it is the copy trigger's confirmation, so it wears a
-     .bb-chip frame and flips to .is-done. Only the type scale stays local. */
   .creator__hint { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; }
 
   .notice { margin-bottom: 24px; }
-
-  /* ── toolbar: search + source tabs, pinned under the nav ──
-     Deliberately NOT @bagel/ui's <PageToolbar>/`.bb-toolbar`, even though the
-     class name is the same word. That contract is a plain 12px flex row with
-     an 18px bottom margin; this one is sticky under the public nav, carries a
-     z-index, a 10px gap, its own padding and a gradient scrim, and its search
-     field is `flex: 1 1 260px` in a wrapping row -- the contract's
-     `.bb-toolbar__grow` spacer would compete with it for the free space and
-     push the tabs to a second line. This is a page's own sticky header that
-     happens to share a noun. Scoped, so it collides with nothing. */
 
   .toolbar {
     position: sticky;
@@ -433,16 +401,8 @@
     background: linear-gradient(180deg, var(--bb-black) 78%, transparent);
   }
 
-  /* The field is @bagel/ui's <SearchInput> (.bb-search on the .bb-input frame),
-     which owns the icon, the clear button, the height and the focus ring. This
-     page had hand-built all four: a label with an absolutely positioned svg at
-     left:14px and a 40px text indent, which is why the magnifier sat by itself
-     against the edge of a 500px-wide field instead of beside the placeholder.
-     All that is left here is how wide the field is in the wrapping row. */
   .search { flex: 1 1 260px; min-width: 0; }
 
-
-  /* ── columns ── */
 
   .columns {
     display: flex;
@@ -461,11 +421,6 @@
     gap: 14px;
   }
 
-  /* Shared Card, re-shaped through its own knobs (`--card-pad`,
-     `--card-radius`, elements/card.css) handed down from the two columns: the
-     list is a table so its padding goes to the rows; the modules panel keeps
-     a plate. Both take the 16px public radius. The shadow keys on the classes
-     this page puts ON the cards, which it owns. */
   .list-wrap { --card-pad: 0; }
   .side { --card-pad: 22px; }
   .list-wrap, .side { --card-radius: var(--bb-radius-md); }
@@ -489,8 +444,6 @@
   .side__count { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0; text-transform: none; }
 
   .rows, .mods { list-style: none; margin: 0; padding: 0; }
-
-  /* ── one command row ── */
 
   .row {
     display: flex;
@@ -519,8 +472,6 @@
     flex-direction: column;
     gap: 6px;
   }
-  /* The chip is the `Code` block. Local: the trigger is the thing a viewer
-     types in chat, so it is green and set a step larger than prose code. */
   :global(.trigger-code) { font-size: 14.5px; font-weight: 500; color: var(--bb-green-glow); }
   .row__aliases {
     font-family: var(--bb-font-mono);
@@ -553,7 +504,6 @@
     color: var(--bb-tan-light);
   }
 
-  /* The cooldown clock rides inside a .bb-tag, which sets no svg presentation. */
   .row__tags svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .uses { color: var(--bb-muted); white-space: nowrap; padding-left: 4px; }
   .copied { color: var(--bb-green-glow); animation: fadeIn 180ms ease-out; }
@@ -565,8 +515,6 @@
     font-size: 14px;
     color: var(--bb-muted);
   }
-
-  /* ── modules panel ── */
 
   .side :global(.modules) {
     background-image: radial-gradient(240px 140px at 100% 0%, rgba(82, 183, 136, 0.08), transparent 70%);
@@ -592,9 +540,6 @@
   .mod:disabled { cursor: default; }
   .mod:not(:disabled):hover, .mod:focus-visible { background: rgba(201, 168, 124, 0.06); }
   .mod.on { background: rgba(82, 183, 136, 0.12); }
-  /* Keyed on the mark's own class in this file's markup, not on the shared
-     `.bb-mark` contract: the diamond is green HERE because it stands for the
-     module being on. */
   .mod__mark { color: var(--bb-green-glow); }
   .mod__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .mod__label { font-family: var(--bb-font-body); font-size: 14px; font-weight: 600; color: var(--bb-white); }

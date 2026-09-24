@@ -1,12 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Inline quote editor, rendered inside the page inspector. In "add" mode it
-  // saves a new quote; in "edit" mode it rewrites an existing quote's body
-  // and day in place (the number survives). Each control is wrapped in the
-  // shared <Field> (a real <label>, so the input is labelled), and the
-  // Save/Cancel actions live in the form so the editor stays self-contained
-  // within the page's docked inspector.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Field, Button, getI18n } from '@bagel/kit';
@@ -20,7 +14,6 @@
     onSubmit
   }: {
     draft: { text: string; quoteDate: string };
-    // The quote being rewritten; null means the editor adds a new one.
     number?: number | null;
     busy?: boolean;
     onCancel: () => void;

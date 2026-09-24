@@ -84,7 +84,6 @@ func TestDoneStageSucceedsWithoutRunning(t *testing.T) {
 
 func isACL(id deploy.StageID) bool { return id == deploy.StageACL }
 
-// failOnce fails the first attempt with err and succeeds on the next.
 func failOnce(err error) body {
 	tripped := false
 	return func(context.Context, *stage.RunCtx) error {
@@ -191,9 +190,6 @@ func TestRerunRefusedOutsideTheBuildStage(t *testing.T) {
 	require.ErrorIs(t, err, ports.ErrInvalid)
 }
 
-// untilCancelled is a cooperative stage body: it stops at its safe point
-// once cancel is requested. A cut context would make it fail instead, which
-// the test would see as a failed run.
 func untilCancelled(ctx context.Context, rc *stage.RunCtx) error {
 	for !rc.Cancelled() {
 		if err := ctx.Err(); err != nil {
@@ -204,8 +200,6 @@ func untilCancelled(ctx context.Context, rc *stage.RunCtx) error {
 	return stage.ErrCancelled
 }
 
-// untilCut waits on its context the way a build or checks wait does and
-// wraps the cut the way the GitHub stages do.
 func untilCut(ctx context.Context, _ *stage.RunCtx) error {
 	<-ctx.Done()
 	return ports.Failf(deploy.FailGitHub, "wait for build: %v", ctx.Err())
@@ -376,7 +370,6 @@ func TestBootResumesTheActiveRun(t *testing.T) {
 	}
 }
 
-// seedInterrupted stores a reapply run a previous pod left mid-acl.
 func seedInterrupted(t *testing.T, s *memStore) {
 	now := time.Now()
 	run := deploy.Run{
@@ -402,8 +395,6 @@ func TestProgressWritesAreCoalesced(t *testing.T) {
 
 	run := h.await(h.start(deploy.StartRequest{Kind: deploy.KindReapply}).ID, deploy.RunSucceeded)
 
-	// create, begin and end of four stages, the ending: ten writes, and the
-	// hundred progress reports ride the rollout's end.
 	assert.Equal(t,
 		progressView{Puts: 10, Rollout: deploy.Progress{Done: 100, Total: 100}},
 		progressView{Puts: h.store.putCount(), Rollout: run.Stage(deploy.StageRollout).Progress})

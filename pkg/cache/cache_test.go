@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The whole point of GetOrLoad is stampede protection: any number of
-// concurrent misses on one key must produce exactly one loader call.
 func TestGetOrLoadCollapsesConcurrentMisses(t *testing.T) {
 	c := New[string](1000, time.Minute)
 	defer c.Close()
@@ -25,7 +23,7 @@ func TestGetOrLoadCollapsesConcurrentMisses(t *testing.T) {
 
 	loader := func(context.Context) (string, error) {
 		calls.Add(1)
-		time.Sleep(50 * time.Millisecond) // hold the flight open so everyone piles up
+		time.Sleep(50 * time.Millisecond)
 		return "value", nil
 	}
 
@@ -107,7 +105,7 @@ func TestGetOrLoadTTLUsesLoaderTTL(t *testing.T) {
 	}
 	require.Equal(t, int32(1), calls.Load())
 
-	time.Sleep(30 * time.Millisecond) // past selected TTL plus maximum jitter
+	time.Sleep(30 * time.Millisecond)
 	_, err := c.GetOrLoadTTL(context.Background(), "key", loader)
 	require.NoError(t, err)
 	assert.Equal(t, int32(2), calls.Load())
@@ -122,7 +120,7 @@ func TestEntriesExpire(t *testing.T) {
 	_, ok := c.client.Get("key")
 	require.True(t, ok)
 
-	time.Sleep(30 * time.Millisecond) // past TTL plus the maximum jitter
+	time.Sleep(30 * time.Millisecond)
 
 	_, ok = c.client.Get("key")
 	assert.False(t, ok, "entry should have expired")
@@ -152,7 +150,7 @@ func TestLenAndCapacity(t *testing.T) {
 
 	c.Set("a", 1)
 	c.Set("b", 2)
-	c.client.Wait() // let theine's async write buffer drain before counting
+	c.client.Wait()
 
 	assert.Equal(t, 2, c.Len(), "Len reports live entries")
 	assert.Equal(t, int64(128), c.Capacity(), "Capacity is unaffected by occupancy")

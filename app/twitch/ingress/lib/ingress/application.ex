@@ -2,53 +2,11 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Application do
-  @moduledoc """
-  Top-level supervisor for the Twitch ingress.
-
-  Tree (`:one_for_one`, per the twitch-ingress doc page):
-
-    * `Cluster.Supervisor` (libcluster) - BEAM node auto-discovery.
-    * `Ingress.Registry` (Horde) - cluster-wide `{:shard, id} -> pid` registry.
-    * `Ingress.ShardSupervisor` (Horde) - spawns shard sessions, re-assigns
-      them to surviving nodes when a node leaves.
-    * `Ingress.BroadcasterCache` - in-process ETS cache over the broadcaster
-      status NATS RPC (the ingress never reads the database directly).
-    * `Ingress.Squash.Pool` - scheduler-sharded duplicate cohort owners. A
-      cohort stays ordered on one owner while unrelated chat folds in parallel.
-    * `Ingress.Dispatcher` - direct, bounded dispatch from websocket processes
-      into supervised worker mailboxes, with no central event queue.
-    * `Ingress.Metrics` - scheduler-friendly ETS counter aggregation; New Relic
-      is called once per counter per flush rather than once per event.
-    * `Ingress.Twitch.AppToken` - cached app access token for Helix calls.
-    * `Gnat.ConnectionSupervisor` - RPC-plane NATS connection (twitch_ingress
-      account), registered as `:gnat`.
-    * `Gnat.ConnectionSupervisor` - BUS-plane NATS connection (shared BUS
-      account), registered as `:gnat_bus`; carries the twitch.ingress.* firehose.
-    * `Ingress.Nats.PublisherPool` - a pool of asynchronous, pipelined JetStream
-      publishers + ack multiplexers for the lane firehose, sharded across N BUS
-      connections so publish throughput scales past one connection's process
-      ceiling and is bounded by the in-flight window, not one blocked worker per
-      PubAck.
-    * `Gnat.ConsumerSupervisor` (invalidation) - subscription to cache
-      invalidation subject.
-    * `Gnat.ConsumerSupervisor` (admin) - request-reply read endpoint for
-      `Ingress.AdminRpc`.
-    * `Gnat.ConsumerSupervisor` (scale) - request-reply control endpoint for
-      `Ingress.ScaleRpc` (manual shard count).
-    * `Gnat.ConsumerSupervisor` (autoscale) - request-reply control endpoint
-      for `Ingress.AutoscaleRpc` (load-based autoscaler toggle).
-    * `Gnat.ConsumerSupervisor` (health) - side-effect-free RPC latency probe.
-    * `Ingress.Bootstrapper` - ensures the cluster-singleton ShardScaler and
-      ConduitManager run.
-  """
-
   use Application
 
   alias Ingress.Config
   alias Ingress.Config.Admin, as: AdminConfig
 
-  # Shared queue group for the admin-plane request-reply endpoints: exactly one
-  # replica answers each request; any replica can, via the Horde registry.
   @admin_queue "twitch-ingress-admin"
 
   @impl true
@@ -64,11 +22,6 @@ defmodule Ingress.Application do
     Supervisor.start_link(children, strategy: :one_for_one, name: Ingress.Supervisor)
   end
 
-  # Runs on SIGTERM before the supervision tree stops: hand every local
-  # shard off to a surviving node (make-before-break — the successor binds
-  # before the local socket closes), so a rolling deploy never drops a
-  # slot's events. Unplanned deaths skip this; the ConduitManager health
-  # pass is the floor there.
   @impl true
   def prep_stop(state) do
     if Application.get_env(:ingress, :server, true), do: Ingress.Drain.run()
@@ -97,35 +50,14 @@ defmodule Ingress.Application do
          name: Ingress.ShardSupervisor,
          strategy: :one_for_one,
          members: :auto,
-         # :passive — processes move only when their node dies, never to
-         # rebalance on a join. :active moved shards stop-then-start on
-         # every membership change, a 2-5s event gap per moved shard on
-         # every scale-up and a second mover racing the drain handoff
-         # (Ingress.Drain) during rollouts. Balance comes from deterministic
-         # round-robin placement at start time instead.
+         # :active stops then restarts shards on every membership change, dropping events.
          process_redistribution: :passive,
-         # Round-robin shards across nodes (3/2 on a two-node fleet) instead
-         # of the default hash ring, which clusters them (4/1 observed).
          distribution_strategy: Ingress.ShardDistribution
        ]},
-      # RPC plane (:gnat): the twitch_ingress account, on the node-local leaf.
-      # Carries the admin/scale/autoscale/conduit RPC endpoints, the
-      # cache-invalidation consumer and the broadcaster-status request.
       connection_child(:nats_connection, :gnat, Config.nats()),
-      # BUS plane (:gnat_bus): the shared BUS account, connected DIRECT to the hub
-      # (not the leaf) since it carries only the twitch.ingress.* firehose
-      # publishes (Ingress.Nats) captured by the hub's JetStream streams. Kept a
-      # separate account so ingress holds no JetStream/event-plane rights on its
-      # RPC account. Ingress.Nats.PublisherPool opens further hub connections for
-      # the acked firehose; this one carries the fire-and-forget status publishes.
       connection_child(:nats_bus_connection, :gnat_bus, Config.nats_bus()),
       Ingress.NatsFailback,
-      # Counter instrumentation is batched through scheduler-friendly ETS so
-      # New Relic never receives one call per ingress event.
       Ingress.Metrics,
-      # Sharded asynchronous ack multiplexer for lane publishes
-      # (Ingress.Nats.publish_acked): a pool of BUS connections + collectors so
-      # publish throughput scales past a single connection's process ceiling.
       # Must start before the Dispatcher and Squash, which publish through it.
       Ingress.Nats.PublisherPool,
       {Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor},
@@ -184,36 +116,27 @@ defmodule Ingress.Application do
         Ingress.CacheInvalidator,
         Config.invalidation_subject()
       ),
-      # Request-reply endpoint for the admin tool.
       rpc_consumer_child(:admin_consumer, Ingress.AdminRpc, AdminConfig.admin_subject(),
         queue_group: @admin_queue
       ),
-      # Manual shard scaling: {"count": N}.
       rpc_consumer_child(:scale_consumer, Ingress.ScaleRpc, AdminConfig.scale_subject(),
         queue_group: @admin_queue
       ),
-      # Toggle the load-based autoscaler: {"enabled": bool}.
       rpc_consumer_child(
         :autoscale_consumer,
         Ingress.AutoscaleRpc,
         AdminConfig.autoscale_subject(),
         queue_group: @admin_queue
       ),
-      # Live conduit id: body {}, replies {"conduit_id": "<uuid>"}.
       rpc_consumer_child(:conduit_consumer, Ingress.ConduitRpc, AdminConfig.conduit_subject(),
         queue_group: @admin_queue
       ),
-      # Side-effect-free fleet RPC latency probe.
       rpc_consumer_child(:health_consumer, Ingress.HealthRpc, AdminConfig.rpc_health_subject(),
         queue_group: @admin_queue
       )
     ]
   end
 
-  # Same contract as the Go services' pkg/health.Serve: both env vars set
-  # serves HTTPS, both empty serves plaintext (local/dev), and a half-set pair
-  # is a boot failure rather than a silent plaintext fallback. Rotation needs
-  # no restart: Erlang's ssl pem cache re-reads the certfile when it changes.
   defp status_listener do
     port = String.to_integer(System.get_env("STATUS_PORT", "8080"))
     base = [plug: Ingress.StatusPlug, port: port]
@@ -230,8 +153,6 @@ defmodule Ingress.Application do
     end
   end
 
-  # connection_child builds a Gnat.ConnectionSupervisor child spec for one NATS
-  # plane (RPC or BUS), keyed by id and registered under name.
   defp connection_child(id, name, connection_settings) do
     Supervisor.child_spec(
       {Gnat.ConnectionSupervisor,
@@ -240,9 +161,6 @@ defmodule Ingress.Application do
     )
   end
 
-  # consumer_child builds a Gnat.ConsumerSupervisor child spec subscribing module
-  # to topic on the RPC connection. opts may carry :queue_group for the admin-
-  # plane endpoints; the plain invalidation consumer passes none.
   defp consumer_child(id, module, topic, opts \\ []) do
     consumer_topics_child(id, module, [topic], opts)
   end

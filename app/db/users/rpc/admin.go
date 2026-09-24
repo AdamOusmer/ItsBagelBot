@@ -32,26 +32,12 @@ type adminRPC struct {
 	log                *zap.Logger
 }
 
-// adminVerb is one row of the admin user surface's registry: the subject
-// suffix, the least staff role allowed to call it, and the handler.
-//
-// The role lives in the same row as the handler on purpose. When the ladder
-// was a separate map keyed by verb name, adding a verb meant remembering to
-// add a second entry somewhere else, and a forgotten entry is an unguarded
-// verb. Here the compiler will not let a row exist without a role.
 type adminVerb struct {
 	name   string
 	min    adminuser.Role
 	handle func(context.Context, usersrpc.AdminRequest) usersrpc.AdminReply
 }
 
-// verbs is the registry AND the whole authorization policy for
-// bagel.rpc.admin.user.*: one place, as data, minimum role per verb.
-//
-// Read verbs carry a role too. They are not "safe": list and overview
-// enumerate the entire customer base, and token_status reports whether an
-// operator token is installed. A caller with no staff row must not be able to
-// ask, so the gate is on the verb, not on whether the verb writes.
 func (a *adminRPC) verbs() []adminVerb {
 	const (
 		mod   = adminuser.RoleModerator
@@ -65,10 +51,8 @@ func (a *adminRPC) verbs() []adminVerb {
 		{"enrollment", mod, a.enrollment},
 		{"overview", mod, a.overview},
 		{"token_status", mod, a.tokenStatus},
-		// Moderation is the moderator's job; it is reversible by unban.
 		{"ban", mod, a.ban},
 		{"unban", mod, a.unban},
-		// Everything below moves money, serving state, or credentials.
 		{"set_status", admin, a.setStatus},
 		{"set_active", admin, a.setActive},
 		{"set_creator_code", admin, a.setCreatorCode},
@@ -76,19 +60,10 @@ func (a *adminRPC) verbs() []adminVerb {
 		{"reset", admin, a.reset},
 		{"token_set", admin, a.tokenSet},
 		{"token_clear", admin, a.tokenClear},
-		// Deleting a user destroys rows no other verb can restore.
 		{"delete", owner, a.delete},
 	}
 }
 
-// authorize resolves the caller from the staff table and compares its
-// persisted role against the verb's minimum.
-//
-// The role is read from the database, never from the request, for the same
-// reason the roster surface does it (see resolveActiveActor): a caller must
-// not be able to elevate itself by forging request metadata. A caller that
-// names no actor, or one that is not active staff, is refused here rather
-// than reaching a handler.
 func (a *adminRPC) authorize(ctx context.Context, actorID string, min adminuser.Role) domainrpc.Refusal {
 	actor, errMsg := a.gate.resolveActiveActor(ctx, actorID)
 	if errMsg != "" {
@@ -100,9 +75,6 @@ func (a *adminRPC) authorize(ctx context.Context, actorID string, min adminuser.
 	return domainrpc.Refusal{}
 }
 
-// guarded wraps one verb's handler in its role check, so no handler in this
-// file carries an authorization branch of its own and the internal refresh
-// calls handlers make (get after a write, say) are not re-checked.
 func (a *adminRPC) guarded(v adminVerb) func(context.Context, usersrpc.AdminRequest) usersrpc.AdminReply {
 	return func(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 		if r := a.authorize(ctx, req.ActorID, v.min); r.Code != domainrpc.CodeOK {
@@ -117,14 +89,8 @@ const (
 	adminUserMaxPages = repository.AdminUserMaxPages
 )
 
-// AdminConfig carries the subjects the admin RPC surface answers on and
-// speaks to. The connection, queue group, New Relic app and logger ride the
-// shared Wiring instead. Same shape as the notifications service's
-// AdminConfig: subjects bundle, everything else on Wiring.
 type AdminConfig struct {
-	Prefix string
-	// InternalGetSubject is the ungated twin of the get verb, for service
-	// callers that have no operator identity to authorize.
+	Prefix             string
 	InternalGetSubject string
 	InvalidationPrefix string
 }
@@ -138,9 +104,6 @@ func SubscribeAdmin(w Wiring, db *ent.Client, cfg AdminConfig) error {
 		log:                w.Log,
 	}
 
-	// An ordered table, not the map-and-loop this replaced: Go randomises map
-	// iteration, so the fifteen subjects bound in a different order every boot
-	// and a partial bind failure named a different verb each time.
 	table := a.verbs()
 	bound := make([]bus.Verb[usersrpc.AdminRequest, usersrpc.AdminReply], 0, len(table))
 	for _, v := range table {
@@ -150,37 +113,19 @@ func SubscribeAdmin(w Wiring, db *ent.Client, cfg AdminConfig) error {
 		return err
 	}
 
-	// The same get handler again, ungated, on an import-gated internal
-	// subject: service callers (transactions vetting a gift recipient,
-	// notifications resolving a target username) have no operator identity to
-	// authorize, so they get their own subject rather than an actor-less
-	// exemption on the admin verb, which stays fail-closed for the console.
 	return bus.Serve(w.Within(adminBudget), cfg.InternalGetSubject, a.get)
 }
 
-// storeRules is this service's half of the refusal classification: the two
-// repository sentinels plus ent's own miss predicate, which is a function
-// rather than a comparable error and so cannot be a plain Is rule. Everything
-// else -- a timed-out pool, an unrecognised driver error -- is classified by
-// bus.Classify exactly as it is in the other six db services.
 var storeRules = []domainrpc.Rule{
 	domainrpc.Is(repository.ErrUserNotFound, domainrpc.CodeNotFound),
 	domainrpc.Is(repository.ErrNoContactEmail, domainrpc.CodeNotFound),
 	domainrpc.When(ent.IsNotFound, domainrpc.CodeNotFound),
 }
 
-// refusal classifies one store error for this service. Named so the rules
-// table is spelled once rather than at each of the twenty-odd refusal sites.
 func refusal(err error) domainrpc.Refusal { return bus.Classify(err, storeRules...) }
 
-// adminError renders one refusal as the admin surface's reply. It takes the
-// whole refusal rather than a message so the machine-readable code cannot be
-// dropped at a call site that only had the sentence to hand.
 func adminError(r domainrpc.Refusal) usersrpc.AdminReply { return usersrpc.AdminReply{Refusal: r} }
 
-// mutation names one per-user write verb: the log line it emits, the repo
-// write it applies, the refreshed reply it returns (a user view or a token
-// view), and any extra structured log fields.
 type mutation struct {
 	logMsg string
 	write  func(context.Context, uint64) error
@@ -188,9 +133,6 @@ type mutation struct {
 	fields []zap.Field
 }
 
-// mutate resolves the request's user, applies the write, invalidates the
-// cache, logs, and returns the verb's refreshed reply. Any failure short-
-// circuits with the service error.
 func (a *adminRPC) mutate(ctx context.Context, req usersrpc.AdminRequest, m mutation) usersrpc.AdminReply {
 	u, err := a.findUser(ctx, req)
 	if err != nil {
@@ -204,7 +146,6 @@ func (a *adminRPC) mutate(ctx context.Context, req usersrpc.AdminRequest, m muta
 	return m.reply(ctx, u.ID)
 }
 
-// getByID / tokenStatusByID are the two refreshed replies verbs pick from.
 func (a *adminRPC) getByID(ctx context.Context, id uint64) usersrpc.AdminReply {
 	return a.get(ctx, idRequest(id))
 }
@@ -248,8 +189,6 @@ func (a *adminRPC) list(ctx context.Context, req usersrpc.AdminRequest) usersrpc
 	return usersrpc.AdminReply{Users: userViewsOf(rows)}
 }
 
-// listPage returns one clamped page, fetching one extra row (except on the last
-// page) to compute has-more without a separate count query.
 func (a *adminRPC) listPage(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	page := clamp(req.Page, 1, adminUserMaxPages)
 	pageSize := clamp(adminListLimit(req.Limit), 1, adminUserPageSize)
@@ -312,9 +251,6 @@ const (
 	enrollmentMaxDays     = 90
 )
 
-// enrollment returns the daily signup histogram over the requested trailing
-// window plus the current user totals, so the console can chart new signups
-// against the registered base in one round trip.
 func (a *adminRPC) enrollment(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	days := req.Days
 	if days <= 0 {
@@ -365,8 +301,6 @@ func (a *adminRPC) setStatus(ctx context.Context, req usersrpc.AdminRequest) use
 	return a.get(ctx, idRequest(u.ID))
 }
 
-// parseExpiresAt parses the optional RFC3339 grant end date; an empty value
-// means no expiry (nil).
 func parseExpiresAt(raw string) (*time.Time, error) {
 	if raw == "" {
 		return nil, nil
@@ -378,8 +312,6 @@ func parseExpiresAt(raw string) (*time.Time, error) {
 	return &parsed, nil
 }
 
-// findOrProvision resolves the request's user, provisioning a fresh row when a
-// user_id is given but no row exists yet (the bot-account install path).
 func (a *adminRPC) findOrProvision(ctx context.Context, req usersrpc.AdminRequest) (*ent.User, error) {
 	u, err := a.findUser(ctx, req)
 	if errors.Is(err, repository.ErrUserNotFound) && req.UserID != "" {
@@ -388,8 +320,6 @@ func (a *adminRPC) findOrProvision(ctx context.Context, req usersrpc.AdminReques
 	return u, err
 }
 
-// setActive flips whether the bot serves this broadcaster. Inactive users
-// project to standard tier and the ingress drops their traffic.
 func (a *adminRPC) setActive(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	return a.mutate(ctx, req, mutation{
 		logMsg: "admin set active",
@@ -433,8 +363,6 @@ func (a *adminRPC) setTestAccount(ctx context.Context, req usersrpc.AdminRequest
 	return a.get(ctx, idRequest(u.ID))
 }
 
-// ban blocks the user from the service entirely. The ingress drops banned
-// users, so their traffic never reaches a worker.
 func (a *adminRPC) ban(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	return a.mutate(ctx, req, mutation{
 		logMsg: "admin ban",
@@ -443,7 +371,6 @@ func (a *adminRPC) ban(ctx context.Context, req usersrpc.AdminRequest) usersrpc.
 	})
 }
 
-// unban lifts a previous ban, allowing the user's traffic through again.
 func (a *adminRPC) unban(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	return a.mutate(ctx, req, mutation{
 		logMsg: "admin unban",
@@ -452,8 +379,6 @@ func (a *adminRPC) unban(ctx context.Context, req usersrpc.AdminRequest) usersrp
 	})
 }
 
-// reset clears all tokens for the user. Configs and timers are managed
-// externally, so token wipe is the scope of this operation.
 func (a *adminRPC) reset(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	return a.mutate(ctx, req, mutation{
 		logMsg: "admin state reset",
@@ -462,20 +387,12 @@ func (a *adminRPC) reset(ctx context.Context, req usersrpc.AdminRequest) usersrp
 	})
 }
 
-// tokenSet stores (or replaces) the user's Twitch OAuth token. This is how
-// the operator installs the bot account's own token; the row is provisioned
-// on first sight so the bot account does not need to onboard like a
-// broadcaster.
 func (a *adminRPC) tokenSet(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	u, err := a.findOrProvision(ctx, req)
 	if err != nil {
 		return adminError(refusal(err))
 	}
 
-	// Expiry unknown: an operator-installed token has no Twitch expires_in to
-	// carry, so nil here (see UpsertToken's doc) is correct, not a gap --
-	// outgress's stored-token path still falls back to minting until the
-	// grant is rotated once and the refresh closure fills the expiry in.
 	if err := a.repo.UpsertToken(ctx, u.ID, tokens.TypeUserToken, tokens.PlatformTwitch,
 		[]byte(req.AccessToken), []byte(req.RefreshToken), nil); err != nil {
 		return adminError(refusal(err))
@@ -532,8 +449,6 @@ func (a *adminRPC) provision(ctx context.Context, userID string) (*ent.User, err
 	}
 
 	email := fmt.Sprintf("%d@unknown.invalid", id)
-	// No display name: an admin-provisioned row has no Twitch identity yet;
-	// the owner's first login fills it in.
 	if err := a.repo.Register(ctx, id, fmt.Sprintf("unknown-%d", id), "", email); err != nil {
 		return nil, err
 	}
@@ -542,14 +457,6 @@ func (a *adminRPC) provision(ctx context.Context, userID string) (*ent.User, err
 	return a.findUser(ctx, usersrpc.AdminRequest{UserID: userID})
 }
 
-// findUser resolves the target of an admin verb. The user id is optional here
-// -- the console also looks a user up by login -- so this cannot be the
-// bind-time bus.ServeForUser guard; it calls bus.UserID directly instead, and
-// answers with the same refusal string every other verb in the fleet does.
-//
-// That parse was fmt.Sscanf("%d"), which accepts a numeric prefix: "12abc"
-// resolved to user 12 and the operator saw an unrelated account. ParseUint
-// refuses the whole string.
 func (a *adminRPC) findUser(ctx context.Context, req usersrpc.AdminRequest) (*ent.User, error) {
 	switch {
 	case req.UserID != "":

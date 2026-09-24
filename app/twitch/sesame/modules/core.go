@@ -1,11 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package modules holds sesame's shipped features, one file per module. Each is
-// a func that takes the engine Deps and returns a built module.Module; all() in
-// all.go lists them. A module declares its commands and event handlers with the
-// fluent module.Builder, and its command Runs and handlers capture whatever
-// services they need from Deps by closure.
 package modules
 
 import (
@@ -26,20 +21,6 @@ const (
 	bagelCount   = 3
 )
 
-// Core is the always-on core module of baked primitives. It is never listed on
-// the dashboard and cannot be toggled or reconfigured. It owns:
-//
-//   - the reserved info commands (!ping, !itsbagelbot, !source), which the
-//     registry indexes first so a custom or default command can never shadow
-//     their names;
-//   - the bagel greeting on the non-command chat path: a special user's first
-//     message on a live stream gets three bagels, once per stream.
-//
-// Announce is intentionally NOT a command here: it is output post-processing
-// middleware in the engine (a command whose text starts with "/announce" is
-// routed to an announce action). A broadcaster who wants an "!announce" command
-// makes a custom command with a "/announce {args}" response and gates that
-// command however they like.
 func Core(d engine.Deps) module.Module {
 	started := time.Now()
 
@@ -69,7 +50,6 @@ func localizedChatLine(key string) module.RunFunc {
 	}
 }
 
-// chatLine builds a RunFunc that emits one fixed chat line to the broadcaster.
 func chatLine(text string) module.RunFunc {
 	return func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
 		emit(&module.Output{
@@ -81,9 +61,6 @@ func chatLine(text string) module.RunFunc {
 	}
 }
 
-// bagelGreet is the non-command chat handler: any first message from a special
-// user while the stream is live yields three bagels. Errors are logged and
-// swallowed so a greet failure never blocks the message.
 func bagelGreet(d engine.Deps) module.EventHandler {
 	log := d.Log
 	if log == nil {
@@ -103,11 +80,6 @@ func bagelGreet(d engine.Deps) module.EventHandler {
 			return nil
 		}
 
-		// A trial runs the same special-user/live branch but never claims a
-		// channel-owned greeting. Its emitted bagels carry trial provenance and
-		// are discarded at outgress. Repeated trial lines can therefore each
-		// propose a greeting without changing the real channel's first-greet
-		// state if the broadcaster later registers.
 		if !greetAllowed(ctx, c, d, log) {
 			return nil
 		}

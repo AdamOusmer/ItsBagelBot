@@ -13,7 +13,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// Notification holds the schema definition for the Notification entity.
 type Notification struct {
 	ent.Schema
 }
@@ -24,7 +23,6 @@ func (Notification) Fields() []ent.Field {
 		field.Enum("scope").
 			Values("broadcast", "direct"),
 
-		// Unset for scope=broadcast; the recipient of a scope=direct notification.
 		field.Uint64("target_user_id").Optional().Nillable(),
 
 		field.String("title").NotEmpty(),
@@ -39,13 +37,10 @@ func (Notification) Fields() []ent.Field {
 
 		field.String("created_by_login").NotEmpty(),
 
-		// Stable across all deliveries of one admin RPC. Nullable so existing
-		// rows migrate cleanly; every new admin send supplies a value.
 		field.String("request_id").Optional().Nillable().Unique().Immutable(),
 
 		field.Time("created_at").Default(time.Now).Immutable(),
 
-		// Unset means the notification never expires.
 		field.Time("expires_at").Optional().Nillable(),
 	}
 }

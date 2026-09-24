@@ -10,8 +10,6 @@ import (
 	"syscall"
 )
 
-// Machine-readable RIG_REPORT payloads and their single emitter.
-
 type latencyStats struct {
 	Count int64   `json:"count"`
 	Min   int64   `json:"min"`
@@ -21,23 +19,16 @@ type latencyStats struct {
 	P99   int64   `json:"p99"`
 }
 
-// publishReport carries both rates on purpose: requested_rate is what -rate
-// asked for (0 when unbounded) and offered_rate is what the rig actually
-// admitted per second, so a step that under-delivers is visible in the report
-// instead of being mistaken for a cluster ceiling. confirm_skipped counts
-// samples dropped because the feeder's single confirm slot was still busy.
 type publishReport struct {
-	Admitted       uint64  `json:"admitted"`
-	Errors         uint64  `json:"errors"`
-	ElapsedS       float64 `json:"elapsed_s"`
-	RequestedRate  int     `json:"requested_rate"`
-	OfferedRate    float64 `json:"offered_rate"`
-	ConfirmSkipped uint64  `json:"confirm_skipped"`
-	// AvgCohort is messages per cohort the process's publishers sent: the
-	// shape the broker committed, not the configured batch size.
-	AvgCohort   float64      `json:"avg_cohort"`
-	CommitNs    latencyStats `json:"commit_latency_ns"`
-	CPUUsPerMsg float64      `json:"cpu_us_per_msg"`
+	Admitted       uint64       `json:"admitted"`
+	Errors         uint64       `json:"errors"`
+	ElapsedS       float64      `json:"elapsed_s"`
+	RequestedRate  int          `json:"requested_rate"`
+	OfferedRate    float64      `json:"offered_rate"`
+	ConfirmSkipped uint64       `json:"confirm_skipped"`
+	AvgCohort      float64      `json:"avg_cohort"`
+	CommitNs       latencyStats `json:"commit_latency_ns"`
+	CPUUsPerMsg    float64      `json:"cpu_us_per_msg"`
 }
 
 type consumeReport struct {
@@ -54,9 +45,6 @@ type consumeReport struct {
 	CPUUsPerMsg  float64      `json:"cpu_us_per_msg"`
 }
 
-// cpuMicrosPerMessage is this process's user+system CPU time divided by the
-// messages it handled: a host-state-independent cost figure, where latency
-// percentiles on a shared host are not.
 func cpuMicrosPerMessage(messages uint64) float64 {
 	var ru syscall.Rusage
 	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &ru); err != nil || messages == 0 {
@@ -66,8 +54,6 @@ func cpuMicrosPerMessage(messages uint64) float64 {
 	return micros / float64(messages)
 }
 
-// setupReport says what setup did: created the stream, or raised an existing
-// stream's cap (recording the cap it found), or left it as it was.
 type setupReport struct {
 	Created          bool  `json:"created"`
 	Raised           bool  `json:"raised"`
@@ -75,9 +61,6 @@ type setupReport struct {
 	OriginalMaxAge   int64 `json:"original_max_age,omitempty"`
 }
 
-// cleanupReport says what teardown removed and reverted.
-
-// cleanupReport says what teardown removed and reverted.
 type cleanupReport struct {
 	DeletedConsumer  bool   `json:"deleted_consumer"`
 	Consumer         string `json:"consumer"`

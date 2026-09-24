@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// memStore is an in-memory Store for tests (TTL ignored beyond storage).
 type memStore struct {
 	mu sync.Mutex
 	m  map[string][]byte
@@ -33,8 +32,6 @@ func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
 func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// Copy: the Store contract says val may come from a pooled buffer the
-	// caller recycles as soon as Set returns.
 	s.m[key] = append([]byte(nil), val...)
 	return nil
 }
@@ -79,8 +76,6 @@ func TestCachedMissFillsThenHits(t *testing.T) {
 	assert.Equal(t, int32(1), fetches.Load(), "second read must come from cache")
 }
 
-// A hit must cost NO budget: the buckets meter upstream spend, and charging a
-// hit would meter chat volume instead.
 func TestCachedAdmitSkippedOnHit(t *testing.T) {
 	c := NewCache(newMemStore())
 	ctx := context.Background()
@@ -97,11 +92,6 @@ func TestCachedAdmitSkippedOnHit(t *testing.T) {
 	assert.Equal(t, payload{Name: "x", N: 1}, got)
 }
 
-// The envelope path's half of the premium-reserve regression (CachedBytes has
-// its own). Concurrent callers for one key collapse into a single flight, and
-// the budget check used to live inside it, so whichever caller won ran the check
-// for everyone: a standard caller with a drained bucket handed its 429 to
-// premium callers entitled to the reserve. Admission is per caller now.
 func TestCachedAdmitIsPerCallerUnderOneFlight(t *testing.T) {
 	c := NewCache(newMemStore())
 	ctx := context.Background()
@@ -110,8 +100,6 @@ func TestCachedAdmitIsPerCallerUnderOneFlight(t *testing.T) {
 	const perLane = 4
 	var fetches atomic.Int32
 	release := make(chan struct{})
-	// Park the fill until every caller has been admitted, so they share one
-	// flight instead of the early finisher filling the key for the rest.
 	fill := func(context.Context) (payload, error) {
 		<-release
 		fetches.Add(1)
@@ -201,11 +189,6 @@ func TestCachedPoisonEntryRefetched(t *testing.T) {
 	assert.Equal(t, "fresh", got.Name)
 }
 
-// A legacy/foreign-format entry is VALID JSON but carries no envelope marker.
-// It once unmarshaled "successfully" into a zero-value envelope and the caller
-// served an empty reply (blank player, zero stats) until the entry expired —
-// the live "command answers garbage until retried later" bug. It must read as
-// poison and refetch instead.
 func TestCachedLegacyFormatEntryRefetched(t *testing.T) {
 	st := newMemStore()
 	require.NoError(t, st.Set(context.Background(), "k", []byte(`{"name":"old-format","n":42}`), time.Minute))
@@ -217,7 +200,6 @@ func TestCachedLegacyFormatEntryRefetched(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, payload{Name: "fresh", N: 7}, got)
 
-	// And the refreshed entry now serves without another fetch.
 	got, err = Cached(context.Background(), c, "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		t.Error("must not refetch a repaired entry")
 		return payload{}, nil
@@ -226,8 +208,6 @@ func TestCachedLegacyFormatEntryRefetched(t *testing.T) {
 	assert.Equal(t, "fresh", got.Name)
 }
 
-// A zero-value success (empty string) still round-trips: the always-present "v"
-// member is the format marker, so it must not be mistaken for a legacy entry.
 func TestCachedZeroValueSuccessRoundTrips(t *testing.T) {
 	c := NewCache(newMemStore())
 	var fetches atomic.Int32
@@ -243,8 +223,6 @@ func TestCachedZeroValueSuccessRoundTrips(t *testing.T) {
 	assert.Equal(t, int32(1), fetches.Load(), "empty-string success must be served from cache")
 }
 
-// A 429 (rate limited) must NOT be negatively cached: the next request should
-// retry the bucket, not be pinned to a denial for the negative TTL.
 func TestCachedRateLimitNotCached(t *testing.T) {
 	c := NewCache(newMemStore())
 	var fetches atomic.Int32
@@ -265,9 +243,6 @@ func TestCachedRateLimitNotCached(t *testing.T) {
 	assert.Equal(t, int32(2), fetches.Load(), "a 429 must be retried, never cached")
 }
 
-// The negative entry must also be honored on the fast path AFTER a fresh Cache
-// (fresh singleflight group) reads it — i.e. it survives in the store, not just
-// in-process.
 func TestCachedNegativeSharedAcrossInstances(t *testing.T) {
 	st := newMemStore()
 	notFound := &UpstreamError{Status: 404, Message: "player not found"}
@@ -277,7 +252,6 @@ func TestCachedNegativeSharedAcrossInstances(t *testing.T) {
 	})
 	assert.Equal(t, notFound, err)
 
-	// A different Cache instance (another replica) sharing the same store.
 	_, err = Cached(context.Background(), NewCache(st), "k", time.Minute, time.Minute, nil, func(context.Context) (payload, error) {
 		t.Error("second replica must serve the negative from the shared store")
 		return payload{}, nil
@@ -305,7 +279,6 @@ func TestCachedSingleflightCollapses(t *testing.T) {
 			})
 		}()
 	}
-	// Give the goroutines a moment to pile onto the flight, then release.
 	time.Sleep(50 * time.Millisecond)
 	close(release)
 	wg.Wait()
@@ -332,10 +305,6 @@ func TestKey(t *testing.T) {
 	assert.Equal(t, "gossip:urchin:daily:techno", Key("urchin", "daily", "techno"))
 }
 
-// A stale entry must be served IMMEDIATELY and revalidated behind the caller.
-// This is the property the fortnite account resolve depends on: it runs before
-// the stats call, so an expired entry that blocked would put a whole upstream
-// round trip in front of an otherwise warm command.
 func TestCachedStaleServedThenRevalidated(t *testing.T) {
 	c := NewCache(newMemStore())
 	ctx := context.Background()
@@ -348,13 +317,11 @@ func TestCachedStaleServedThenRevalidated(t *testing.T) {
 		}
 	}
 
-	// Fresh for 20ms, retained for twice that.
 	got, err := Cached(ctx, c, "k", 20*time.Millisecond, time.Minute, nil, fill(1))
 	require.NoError(t, err)
 	require.Equal(t, 1, got.N)
 	time.Sleep(40 * time.Millisecond)
 
-	// Stale read: the OLD value comes back at once, and one refresh is kicked.
 	got, err = Cached(ctx, c, "k", time.Minute, time.Minute, nil, fill(2))
 	require.NoError(t, err)
 	assert.Equal(t, 1, got.N, "a stale read must serve the stored value, not block on the refetch")
@@ -366,9 +333,6 @@ func TestCachedStaleServedThenRevalidated(t *testing.T) {
 	assert.Equal(t, int32(2), fetches.Load(), "one cold fill plus exactly one revalidation")
 }
 
-// The revalidation is claimed once across replicas, exactly as the byte path
-// does it: two Cache instances over one store model two pods, and without the
-// shared claim each would fire its own upstream call for one stale key.
 func TestCachedStaleRefreshClaimedOnceFleetWide(t *testing.T) {
 	st := newMemStore()
 	podA, podB := NewCache(st), NewCache(st)
@@ -383,8 +347,6 @@ func TestCachedStaleRefreshClaimedOnceFleetWide(t *testing.T) {
 	require.NoError(t, err)
 	time.Sleep(40 * time.Millisecond)
 
-	// The refetch parks until both pods have taken their stale read, so the
-	// winner's write cannot land in between and turn the second into a fresh hit.
 	release := make(chan struct{})
 	refetch := func(context.Context) (payload, error) {
 		<-release
@@ -405,8 +367,6 @@ func TestCachedStaleRefreshClaimedOnceFleetWide(t *testing.T) {
 	assert.Equal(t, int32(2), fetches.Load(), "one cold fill plus exactly one fleet-wide refresh")
 }
 
-// A negative stands for an absence, so revalidating it in the background would
-// spend upstream budget to re-learn nothing. It expires instead.
 func TestCachedNegativeIsNotRevalidated(t *testing.T) {
 	c := NewCache(newMemStore())
 	ctx := context.Background()
@@ -418,8 +378,6 @@ func TestCachedNegativeIsNotRevalidated(t *testing.T) {
 		return payload{}, missing
 	}
 
-	// The first answer is the fetch's own error; the next two are decoded back
-	// out of the entry, so they are equal by value and NOT the same pointer.
 	for range 3 {
 		_, err := Cached(ctx, c, "k", time.Minute, time.Minute, nil, fetch)
 		var ue *UpstreamError
@@ -427,14 +385,10 @@ func TestCachedNegativeIsNotRevalidated(t *testing.T) {
 		assert.Equal(t, 404, ue.Status)
 		assert.Equal(t, "player not found", ue.Message)
 	}
-	// Give any (incorrect) background refresh a chance to run before asserting.
 	time.Sleep(50 * time.Millisecond)
 	assert.Equal(t, int32(1), fetches.Load(), "a cached negative must not be refetched")
 }
 
-// An entry written before the fresh stamp existed decodes it as zero, which
-// reads as already stale. It is served once and refreshed, so the format rolls
-// forward on its own instead of needing a cache flush at deploy.
 func TestCachedLegacyEntryWithoutStampRefreshes(t *testing.T) {
 	st := newMemStore()
 	ctx := context.Background()
@@ -458,8 +412,6 @@ func TestCachedLegacyEntryWithoutStampRefreshes(t *testing.T) {
 	assert.Equal(t, int32(1), fetches.Load())
 }
 
-// StoreCached must produce entries Cached serves as hits: a hydrated value
-// answers the next lookup with zero fetch work.
 func TestStoreCachedValueIsServedAsHit(t *testing.T) {
 	c := NewCache(newMemStore())
 	StoreCached(context.Background(), c, StoreRequest[payload]{
@@ -475,7 +427,6 @@ func TestStoreCachedValueIsServedAsHit(t *testing.T) {
 	assert.Equal(t, payload{Name: "hydrated", N: 7}, v)
 }
 
-// A hydrated negative behaves exactly like a fetched one.
 func TestStoreCachedNegativeIsServedAsHit(t *testing.T) {
 	c := NewCache(newMemStore())
 	notFound := &UpstreamError{Status: 404, Message: "player not found"}
@@ -491,8 +442,6 @@ func TestStoreCachedNegativeIsServedAsHit(t *testing.T) {
 	assert.Equal(t, notFound, err)
 }
 
-// An infrastructure failure teaches nothing about the key, so nothing may be
-// stored for it — the next lookup must reach the fetch.
 func TestStoreCachedInfraFailureStoresNothing(t *testing.T) {
 	c := NewCache(newMemStore())
 	StoreCached(context.Background(), c, StoreRequest[payload]{

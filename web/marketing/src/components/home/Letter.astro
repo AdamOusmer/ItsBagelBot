@@ -2,12 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Letter: the human beat of the page. A short unsigned-at-2 a.m. note from
- * the people building the bot, set on a slightly tilted "paper" card. The
- * signature uses the handwriting face; the stamp sprinkles sesame seeds
- * (reusing the global .sesame-seed easter-egg styles) when clicked.
- */
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -134,7 +128,6 @@ const t = useTranslations(lang);
         line-height: 1;
     }
 
-    /* Ink underline draws on reveal */
     .letter__signature::after {
         content: "";
         position: absolute;
@@ -211,8 +204,6 @@ const t = useTranslations(lang);
     import { bindOnce } from '../../script/bind';
     import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
-    /* Stamp click → sesame burst. Reuses the global .sesame-seed styles. */
-
     function sprinkle(x: number, y: number) {
         if (reduceMotion.matches) return;
         const count = 10 + Math.floor(Math.random() * 6);
@@ -230,7 +221,7 @@ const t = useTranslations(lang);
     bindOnce('[data-letter-stamp]', (stamp) => {
         stamp.addEventListener('click', (event) => {
             stamp.classList.remove('is-stamped');
-            void stamp.offsetWidth; /* restart the press animation */
+            void stamp.offsetWidth;
             stamp.classList.add('is-stamped');
             sprinkle(event.clientX || 0, event.clientY || 0);
         });

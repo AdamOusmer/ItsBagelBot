@@ -24,13 +24,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// --- test double: a real client against a scripted TCP server ---
-
-// recentScriptedServer answers the client handshake with the one error the
-// RESP2 fallback tolerates, replies to ZRANGEBYSCORE with the currently
-// scripted member array, and acks everything else. It exists because sweep
-// results must come off the WIRE (ValkeyMessage arrays cannot be synthesized
-// from outside the library).
 type recentScriptedServer struct {
 	ln net.Listener
 
@@ -87,15 +80,12 @@ func (s *recentScriptedServer) handle(c net.Conn) {
 	}
 }
 
-// writeLine emits one raw RESP line; a write failure ends the connection.
 func writeLine(c net.Conn, line string) {
 	if _, err := io.WriteString(c, line); err != nil {
 		c.Close()
 	}
 }
 
-// writeMemberArray answers a ZRANGEBYSCORE with the currently scripted
-// members, recording the command that asked so tests can pin the read shape.
 func (s *recentScriptedServer) writeMemberArray(c net.Conn, args []string) {
 	s.mu.Lock()
 	members := append([]string(nil), s.members...)
@@ -123,9 +113,6 @@ func dialRecentClient(tb testing.TB, addr string) valkey.Client {
 	return real
 }
 
-// recentRecordingClient captures every pipelined command while delegating to
-// the real client, so writes both land on the scripted server and are
-// assertable as raw argument vectors.
 type recentRecordingClient struct {
 	valkey.Client
 
@@ -136,8 +123,6 @@ type recentRecordingClient struct {
 func (r *recentRecordingClient) DoMulti(ctx context.Context, cmds ...valkey.Completed) []valkey.ValkeyResult {
 	r.mu.Lock()
 	for _, cmd := range cmds {
-		// Deep-copy before delegating: execution returns the builder state to
-		// valkey-go's pool, which zeroes whatever Commands() aliased.
 		r.cmds = append(r.cmds, append([]string(nil), cmd.Commands()...))
 	}
 	r.mu.Unlock()
@@ -157,8 +142,6 @@ func newRecentStoreUnderTest(tb testing.TB) (*ValkeyRecent, *recentRecordingClie
 	v := NewValkeyRecent(rec, zap.NewNop())
 	return v, rec, server
 }
-
-// --- flush shape ---
 
 func TestValkeyRecentFlushPipelinesPerChannelShape(t *testing.T) {
 	v, rec, _ := newRecentStoreUnderTest(t)
@@ -206,14 +189,12 @@ func TestValkeyRecentFlushAfterEmptyFlushIsNoop(t *testing.T) {
 	assert.Empty(t, rec.captured())
 }
 
-// --- sweep over the wire ---
-
 func TestValkeyRecentSweepParsesMatchesAndDedupes(t *testing.T) {
 	v, rec, server := newRecentStoreUnderTest(t)
 	server.scriptMembers([]string{
 		"111:0:join my FREE N1TRO giveaway",
-		encodeRecentMember(recentEntry{uid: 111, text: "free nitro again!!"}), // same user, second line
-		"222:4:free nitro is my whole personality",                            // lead mod: parsed, not filtered here
+		encodeRecentMember(recentEntry{uid: 111, text: "free nitro again!!"}),
+		"222:4:free nitro is my whole personality",
 		"garbage-without-colons",
 		"zero:0:no uid",
 	})
@@ -225,7 +206,7 @@ func TestValkeyRecentSweepParsesMatchesAndDedupes(t *testing.T) {
 	assert.Equal(t, channelID(222), hits[1].UserID)
 	assert.Equal(t, module.RoleLeadModerator, hits[1].Role)
 
-	cmds := rec.captured() // sweep rides Do (single), so nothing pipelined was captured
+	cmds := rec.captured()
 	assert.Empty(t, cmds)
 }
 
@@ -241,8 +222,6 @@ func TestValkeyRecentSweepCutoffRidesTheCommand(t *testing.T) {
 	require.Len(t, last, 7)
 	assert.Equal(t, []string{"ZRANGEBYSCORE", "am:recent:123", wantMin, "+inf", "LIMIT", "0", strconv.Itoa(recentFetchLimit)}, last)
 }
-
-// --- guards ---
 
 func TestValkeyRecentNilClientDegradesSilently(t *testing.T) {
 	v := NewValkeyRecent(nil, zap.NewNop())
@@ -265,8 +244,6 @@ func TestParseRecentMember(t *testing.T) {
 	}
 }
 
-// --- error visibility ---
-
 func TestValkeyRecentErrorsSurfaceOncePerInterval(t *testing.T) {
 	v, rec, _ := newRecentStoreUnderTest(t)
 
@@ -277,8 +254,6 @@ func TestValkeyRecentErrorsSurfaceOncePerInterval(t *testing.T) {
 	v.Record(123, soloChatEnv("999", "hello world again"), nukeClockBase)
 	v.flush(context.Background())
 
-	// The failed batch left nothing behind that a later healthy flush would
-	// double-write: pending was drained either way.
 	v.Record(123, soloChatEnv("998", "second line here"), nukeClockBase)
 	failFirst = false
 	v.flush(context.Background())
@@ -292,14 +267,10 @@ func TestValkeyRecentErrorsSurfaceOncePerInterval(t *testing.T) {
 	assert.True(t, found, "entries recorded after a failed flush still land")
 }
 
-// zaddCarrying reports whether a captured command vector is the pipelined
-// ZADD whose final score-member pair embeds text.
 func zaddCarrying(cmd []string, text string) bool {
 	return cmd[0] == "ZADD" && len(cmd) > 3 && strings.Contains(cmd[len(cmd)-1], text)
 }
 
-// wroteMemberContaining reports whether any captured pipelined ZADD carried a
-// member whose text contains substr.
 func wroteMemberContaining(rec *recentRecordingClient, substr string) bool {
 	for _, cmd := range rec.captured() {
 		if zaddCarriesMember(cmd, substr) {
@@ -309,8 +280,6 @@ func wroteMemberContaining(rec *recentRecordingClient, substr string) bool {
 	return false
 }
 
-// zaddCarriesMember scans a captured ZADD's score/member pairs (everything
-// after the key) for a member whose text contains substr.
 func zaddCarriesMember(cmd []string, substr string) bool {
 	if len(cmd) < 4 || cmd[0] != "ZADD" {
 		return false
@@ -339,11 +308,6 @@ func (c failClient) DoMulti(ctx context.Context, cmds ...valkey.Completed) []val
 	return c.Client.DoMulti(ctx, cmds...)
 }
 
-// TestValkeyRecentSweepKeepsOneHitPerSenderInOrder pins the two properties the
-// uidSet dedup has to preserve. One hit per sender: a copypasta wave is one
-// spammer on many retained lines, and !nuke must time them out once. Order
-// preserved: hits is still the storage precisely because a map has none, and
-// the sweep answers in the order members came off the ZSET walk.
 func TestValkeyRecentSweepKeepsOneHitPerSenderInOrder(t *testing.T) {
 	v, _, server := newRecentStoreUnderTest(t)
 	server.scriptMembers([]string{

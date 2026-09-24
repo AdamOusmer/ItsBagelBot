@@ -18,18 +18,10 @@ import (
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 )
 
-// historyGet names the one branch every scripted transport in this file has to
-// answer differently: a page of channel history, as opposed to the writes the
-// close sequence makes around it.
 func historyGet(call recordedCall) bool {
 	return call.method == http.MethodGet && strings.HasSuffix(call.path, "/messages")
 }
 
-// closeReq is the request the close cases start from: ticket channel c1 in
-// guild g1, archived into cat1 with its summary posted in log1. Each case
-// overrides only the field it is about, so a literal that differs below is the
-// point of that case rather than fixture drift -- which is what made ten
-// near-identical request bodies here read as ten unrelated setups.
 func closeReq() discordoutgress.TicketCloseRequest {
 	return discordoutgress.TicketCloseRequest{
 		GuildID: "g1", ChannelID: "c1", ChannelName: "ticket-ada-1",
@@ -37,8 +29,6 @@ func closeReq() discordoutgress.TicketCloseRequest {
 	}
 }
 
-// wantLogPosts asserts how many messages reached the log channel and hands them
-// back: what is inside them is the next claim in most cases here.
 func wantLogPosts(t *testing.T, tr *scriptedTransport, want int) []recordedCall {
 	t.Helper()
 	posts := tr.find(http.MethodPost, "/channels/log1/messages")
@@ -48,8 +38,6 @@ func wantLogPosts(t *testing.T, tr *scriptedTransport, want int) []recordedCall 
 	return posts
 }
 
-// wantChannelPatch asserts the ticket channel was modified exactly once and
-// hands the call back; every archive assertion below reads its body.
 func wantChannelPatch(t *testing.T, tr *scriptedTransport) recordedCall {
 	t.Helper()
 	patches := tr.find(http.MethodPatch, "/channels/c1")
@@ -59,8 +47,6 @@ func wantChannelPatch(t *testing.T, tr *scriptedTransport) recordedCall {
 	return patches[0]
 }
 
-// wantContainsAll asserts every fragment is present, naming the one that is
-// missing rather than leaving a reader to diff two wire bodies by eye.
 func wantContainsAll(t *testing.T, body string, wants ...string) {
 	t.Helper()
 	for _, want := range wants {
@@ -70,8 +56,6 @@ func wantContainsAll(t *testing.T, body string, wants ...string) {
 	}
 }
 
-// pagedHistory scripts a channel whose history is one full page followed by a
-// short one, which is what makes the transcript walk take two GETs and stop.
 func pagedHistory(call recordedCall) (int, string) {
 	if !historyGet(call) {
 		return 200, `{"id":"m-new"}`
@@ -82,9 +66,6 @@ func pagedHistory(call recordedCall) (int, string) {
 	return 200, messagePage(1000, discapi.MessagePageMax)
 }
 
-// assertHistoryPaging pins the walk itself: one uncursored page, then one
-// carrying the oldest id of the page before it. A missing cursor re-reads the
-// same page forever; a cursor on the first call skips the newest messages.
 func assertHistoryPaging(t *testing.T, tr *scriptedTransport) {
 	t.Helper()
 	pages := tr.find(http.MethodGet, "/channels/c1/messages")
@@ -99,9 +80,6 @@ func assertHistoryPaging(t *testing.T, tr *scriptedTransport) {
 	}
 }
 
-// assertTranscriptOrder: the render walks the pages oldest-first even though
-// Discord hands them back newest-first, so a transcript reads as the
-// conversation happened.
 func assertTranscriptOrder(t *testing.T, body string) {
 	t.Helper()
 	if !strings.HasPrefix(body, "[2026-01-02 03:04 UTC] ada: line 898\n") {
@@ -118,8 +96,6 @@ func TestTicketClosePagesHistoryUploadsAndArchives(t *testing.T) {
 	req := closeReq()
 	req.OpenerID = "u1"
 	req.Transcript = true
-	// The empty id is deliberate: the archive PATCH must not turn it into an
-	// overwrite on the everyone-shaped id "".
 	req.StaffRoleIDs = []string{"rmod", ""}
 	req.Summary = discordoutgress.TicketCloseSummary{Opener: "<@u1>", Closer: "Mod"}
 
@@ -140,7 +116,6 @@ func TestTicketClosePagesHistoryUploadsAndArchives(t *testing.T) {
 	assertMultipartUpload(t, tr)
 	assertArchivePatch(t, tr)
 
-	// The channel was moved, not deleted.
 	if got := tr.find(http.MethodDelete, "/channels/c1"); len(got) != 0 {
 		t.Fatal("an archived ticket channel must survive")
 	}
@@ -175,8 +150,6 @@ func assertArchivePatch(t *testing.T, tr *scriptedTransport) {
 	body := wantChannelPatch(t, tr).body
 	wantContainsAll(t, body,
 		`"parent_id":"cat1"`, `"name":"closed-ticket-ada-1"`, `"id":"rmod"`, `"id":"u1"`)
-	// The empty staff role id in the request must not become an overwrite on
-	// the everyone-shaped id "".
 	if strings.Contains(body, `"id":"","type":0,"allow"`) {
 		t.Fatalf("patch body carries an empty-id overwrite: %q", body)
 	}
@@ -200,7 +173,6 @@ func TestTicketCloseWithoutTranscriptOrArchiveDeletesTheChannel(t *testing.T) {
 	if got := tr.find(http.MethodGet, "/channels/c1/messages"); len(got) != 0 {
 		t.Fatal("transcript off must not page the channel")
 	}
-	// The summary still posts, as a plain embed rather than an upload.
 	posts := wantLogPosts(t, tr, 1)
 	if strings.HasPrefix(posts[0].contentType, "multipart/") {
 		t.Fatalf("log post = %+v, want a plain embed rather than an upload", posts[0])
@@ -256,7 +228,6 @@ func TestPageLimitNeverOvershootsTheCap(t *testing.T) {
 }
 
 func TestCollectStopsAtTheMessageCap(t *testing.T) {
-	// Every page is full, so only the cap ends the walk.
 	next := 100000
 	h, tr := newTicketRPC(t, func(recordedCall) (int, string) {
 		next -= discapi.MessagePageMax
@@ -308,11 +279,6 @@ func TestArchivedNameLeavesAnUnknownNameAlone(t *testing.T) {
 	}
 }
 
-// An overwrite'"'"'s unused half is the string "0", never "". Discord'"'"'s overwrite
-// object types allow and deny as strings; an empty one is rejected outright by
-// newer API versions and read as "leave the existing value" by older ones,
-// which on the archive PATCH means a deny lands on top of an allow we meant to
-// clear. decode.OverwriteAllow/OverwriteDeny use the same convention.
 func TestArchiveOverwritesCarryBothHalves(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 
@@ -337,10 +303,6 @@ func TestArchiveOverwritesCarryBothHalves(t *testing.T) {
 	}
 }
 
-// The channel is disposed of BEFORE the summary posts. The summary is the step
-// most likely to fail slowly (a missing, forbidden or rate-limited log
-// channel), and when it ran first a failure there left the ticket channel
-// sitting in the open category with a closed row behind it.
 func TestTicketCloseDisposesBeforePostingTheSummary(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 
@@ -359,8 +321,6 @@ func TestTicketCloseDisposesBeforePostingTheSummary(t *testing.T) {
 	}
 }
 
-// A retried close must not stack a second card and a second transcript upload
-// in the log channel. The memo is keyed on the ticket row id.
 func TestTicketCloseSummaryPostsOncePerTicket(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 	h.memo = newOnceMemo()
@@ -370,12 +330,9 @@ func TestTicketCloseSummaryPostsOncePerTicket(t *testing.T) {
 	h.close(context.Background(), req)
 	h.close(context.Background(), req)
 
-	// One card and one upload across two closes: the memo is keyed on the row.
 	wantLogPosts(t, tr, 1)
 }
 
-// A ticket with no row id (the pure-Valkey fallback) has nothing to key the
-// memo on, so it posts every time rather than never.
 func TestTicketCloseWithoutARowIDAlwaysPosts(t *testing.T) {
 	h, tr := newTicketRPC(t, nil)
 	h.memo = newOnceMemo()
@@ -386,13 +343,9 @@ func TestTicketCloseWithoutARowIDAlwaysPosts(t *testing.T) {
 	h.close(context.Background(), req)
 	h.close(context.Background(), req)
 
-	// One per close, because there is no row id to key the memo on.
 	wantLogPosts(t, tr, 2)
 }
 
-// The upload is the half that fails on its own -- a payload too large, or a
-// proxy that rejects multipart. When the card only ever travelled attached to
-// the file, that failure took the close record with it.
 func TestTicketCloseFallsBackToAnEmbedWhenTheUploadFails(t *testing.T) {
 	uploaded := false
 	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
@@ -414,7 +367,6 @@ func TestTicketCloseFallsBackToAnEmbedWhenTheUploadFails(t *testing.T) {
 	if !uploaded {
 		t.Fatal("the upload was never attempted")
 	}
-	// The upload plus the fallback embed.
 	fallback := wantLogPosts(t, tr, 2)[1]
 	if strings.HasPrefix(fallback.contentType, "multipart/") {
 		t.Fatalf("the fallback must be a plain embed: %q", fallback.contentType)
@@ -424,8 +376,6 @@ func TestTicketCloseFallsBackToAnEmbedWhenTheUploadFails(t *testing.T) {
 	}
 }
 
-// A history that could not be paged in full is marked, in the reply and in the
-// body, so a short transcript is never mistaken for a short conversation.
 func TestTicketCloseMarksATruncatedTranscript(t *testing.T) {
 	pages := 0
 	h, _ := newTicketRPC(t, func(call recordedCall) (int, string) {

@@ -1,10 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One index row: the name/purpose/commands are a real link (open the module),
-  // the switch is a sibling so it is never nested inside that link. Streamers
-  // recognise a module by the command chat types, so chips sit in the same
-  // glance as the name rather than behind a "Configure" button.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { SaveStatus, Switch, Tag, getI18n, moduleCommandChips, moduleHref, tModuleLabel, tModuleTagline, type ModuleState } from '@bagel/kit';
@@ -26,16 +22,11 @@
   const href = $derived(moduleHref(def));
   const chips = $derived(moduleCommandChips(def));
   const toggleable = $derived(def.toggleable !== false);
-  // Beta chip shows for everyone (premium included: it sets expectations);
-  // the lock replaces the switch only when the board is not premium.
   const beta = $derived(def.beta === true);
   const locked = $derived(module.locked === true);
 </script>
 
 <article class="mod" class:on={module.enabled && !locked} class:off={!module.enabled || locked} class:locked>
-  <!-- data-cursor="quiet": a row is a reading surface, not a control. The
-       custom cursor morphs onto any <a>, and filling this whole card with a
-       tan box covered the switch and read against the dock. -->
   <a class="main" {href} data-cursor="quiet">
     <span class="copy">
       <span class="name">
@@ -145,15 +136,9 @@
     gap: 6px 14px;
     margin-top: 6px;
   }
-  /* Was a filled 6px-radius pill. These print literal chat triggers, so the
-     global .bb-tag uppercase is turned off here; the rest comes from --bare. */
   .cmd { color: var(--bb-tan-light); text-transform: none; letter-spacing: 0.02em; }
   .cmd.more { color: var(--bb-muted); }
 
-  /* Offset only: the beta label is Tag alpha (dashed tan), the same
-     "not generally available" mark the login and module catalog use. A
-     filled chip was tried so people would not miss the gate; it read as
-     the retired status pill this system replaced. */
   .beta {
     display: inline-flex;
     vertical-align: 1px;

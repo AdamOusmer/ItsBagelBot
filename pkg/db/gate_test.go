@@ -11,9 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// gateWaitBudget is how long the uncontended acquire is given. Enormous
-// relative to a channel send, so this asserts "did not block" without being a
-// timing test that a loaded CI machine can lose.
 const gateWaitBudget = 250 * time.Millisecond
 
 func TestAcquireFastPathDoesNotBlock(t *testing.T) {
@@ -50,8 +47,6 @@ func TestAcquireSlowPathHonoursDeadline(t *testing.T) {
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
-// A released slot has to be returned to the same gate, or the second acquire
-// below waits forever on a semaphore that reports itself full.
 func TestReleaseReturnsTheSlot(t *testing.T) {
 	slots := newGate(1)
 

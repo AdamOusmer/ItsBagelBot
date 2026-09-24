@@ -9,8 +9,6 @@ import { auditPage, AUDIT_MAX_PAGES, AUDIT_PAGE_SIZE } from '$lib/server/service
 
 const DEMO = dev && process.env.DEMO === '1';
 
-// Lazy per-member history. The staff drawer fetches this on open so the roster
-// page never ships the whole audit log (keeps payload + render cheap).
 export const GET: RequestHandler = async ({ url, locals }) => {
   const admin = await requireRole({ locals }, 'staff.manage');
   if (!admin) throw error(403, 'forbidden');
@@ -25,7 +23,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
   if (DEMO) {
     const { demoStaffHistory } = await import('$lib/server/demo-data');
-    // In demo mode, only return data for page 1
     const entries = page === 1 ? demoStaffHistory(Number(actorId)) : [];
     return json({ entries, page, page_size: AUDIT_PAGE_SIZE, max_pages: AUDIT_MAX_PAGES, has_more: false });
   }

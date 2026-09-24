@@ -4,6 +4,8 @@
 defmodule Ingress.NatsCohortIntegrationTest do
   use Ingress.PublisherCase, async: false
 
+  @idx_pending 1
+
   @moduletag :integration
 
   @stream "ELIXIR_BATCH_TEST"
@@ -13,7 +15,7 @@ defmodule Ingress.NatsCohortIntegrationTest do
       assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":1})) == :ok
       assert Publisher.enqueue("twitch.ingress.event.standard", ~s({"n":2})) == :ok
 
-      assert eventually(fn -> :atomics.get(ctx.counter, 1) == 0 end)
+      assert eventually(fn -> :atomics.get(ctx.counter, @idx_pending) == 0 end)
       assert stream_messages(conn) == 2
     end)
   end
@@ -27,7 +29,7 @@ defmodule Ingress.NatsCohortIntegrationTest do
                ) == :ok
       end
 
-      assert eventually(fn -> :atomics.get(ctx.counter, 1) == 0 end)
+      assert eventually(fn -> :atomics.get(ctx.counter, @idx_pending) == 0 end)
       assert stream_messages(conn) == 3
       assert :ets.info(ctx.table, :size) == 0
     end)
@@ -43,11 +45,9 @@ defmodule Ingress.NatsCohortIntegrationTest do
                  ) == :ok
         end
 
-        assert eventually(fn -> :atomics.get(ctx.counter, 1) == 0 end)
+        assert eventually(fn -> :atomics.get(ctx.counter, @idx_pending) == 0 end)
       end
 
-      # Repeating an intentional publish is not folded: no Nats-Msg-Id is
-      # generated anywhere on the ingress path.
       replay.()
       assert stream_messages(conn) == 3
       replay.()
@@ -70,28 +70,17 @@ defmodule Ingress.NatsCohortIntegrationTest do
       ensure_stream(conn)
       purge_stream(conn)
 
-      # The Gnat connection is linked to the test process, so it is already gone
-      # when on_exit runs; only the connection-independent teardown belongs
-      # there. Broker-side cleanup happens in the `after` below, while the
-      # connection is still alive.
       on_exit(fn -> if Process.alive?(gnat), do: GenServer.stop(gnat) end)
       %{ctx: ctx} = start_publisher(conn)
 
       try do
         run.(conn, ctx)
       after
-        # Remove the isolated stream: its literal subject sits under the
-        # TWITCH_INGRESS wildcard, so a leftover makes any suite that
-        # provisions the fleet streams against this broker fail on subject
-        # overlap (and its memory reservation crowds out the 1 GiB
-        # TWITCH_INGRESS spec).
         _ = Gnat.request(conn, "$JS.API.STREAM.DELETE." <> @stream, "")
       end
     end
   end
 
-  # Idempotently provisions the isolated test stream with the NATS 2.14 batch
-  # capabilities the production reconciler enables on the fleet streams.
   defp ensure_stream(conn) do
     config = %{
       name: @stream,
@@ -109,7 +98,6 @@ defmodule Ingress.NatsCohortIntegrationTest do
       Gnat.request(conn, "$JS.API.STREAM.CREATE." <> @stream, Ingress.JSON.encode(config))
 
     case Ingress.JSON.decode(body) do
-      # name already in use
       {:ok, %{"error" => %{"err_code" => 10_058}}} -> :ok
       {:ok, %{"error" => error}} -> raise "stream create failed: #{inspect(error)}"
       {:ok, _} -> :ok

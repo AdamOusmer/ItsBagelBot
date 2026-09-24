@@ -2,8 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for `.bb-kbd` (../styles/elements/typography.css).
-  // Astro twin: ../astro/Kbd.astro.
   import '../styles/elements/typography.css';
   import type { Snippet } from 'svelte';
 

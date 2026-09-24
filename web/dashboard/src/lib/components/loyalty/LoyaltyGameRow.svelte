@@ -1,10 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Compact nested-game row on the loyalty page: the name/purpose/commands
-  // are a real link (open the inspector), the switch is a sibling so it is
-  // never nested inside that link. Odds, limits and chat lines stay on
-  // /modules/[id] so this page does not grow a second inspector.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
@@ -59,9 +55,6 @@
 </script>
 
 <article class="game" class:on={enabled} id={def.id}>
-  <!-- data-cursor="quiet": a row is a reading surface, not a control. The
-       custom cursor morphs onto any <a>, and filling this whole card with a
-       tan box covered the switch and read against the dock. -->
   <a class="main" {href} data-cursor="quiet">
     <span class="copy">
       <span class="name">{tModuleLabel(t, def)}</span>
@@ -134,8 +127,6 @@
     overflow: hidden;
   }
   .cmds { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
-  /* Was a filled 6px-radius pill. These print literal chat triggers, so the
-     global .bb-tag uppercase is turned off here; the rest comes from --bare. */
   .cmd { color: var(--bb-tan-light); text-transform: none; letter-spacing: 0.02em; }
 
   .side {

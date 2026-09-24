@@ -20,30 +20,17 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrNoGoveeKey marks a broadcaster with no Govee API key on file.
 var ErrNoGoveeKey = errors.New("no govee key on record")
 
-// GoveeCreds is the custody store for broadcaster Govee API keys, sealed at
-// rest with the modules service's own AEAD keyset. It shares the service's ent
-// client but is its own type so the general module store (write-behind toggles
-// and configs) stays free of any crypto dependency: only this narrow surface
-// touches plaintext keys, and it never caches or logs them.
 type GoveeCreds struct {
 	client *ent.Client
 	packer domaincrypto.Packer
 }
 
-// NewGoveeCreds builds the credential store over the shared ent client.
 func NewGoveeCreds(client *ent.Client, packer domaincrypto.Packer) *GoveeCreds {
 	return &GoveeCreds{client: client, packer: packer}
 }
 
-// NewGoveeCredsFromEnv builds the credential store from the service's Tink
-// keyset (TINK_KEYSET_PATH). It is best-effort so a core service never
-// crash-loops on a secret that may not be provisioned yet: an unset path, or a
-// path whose file is absent (the manifest mounts the keyset as an optional
-// secret), disables key custody and returns nil. Only a present-but-invalid
-// keyset is fatal, since that is a real misconfiguration.
 func NewGoveeCredsFromEnv(client *ent.Client, log *zap.Logger) *GoveeCreds {
 	path := env.Get("TINK_KEYSET_PATH", "")
 	if path == "" {
@@ -65,9 +52,6 @@ func NewGoveeCredsFromEnv(client *ent.Client, log *zap.Logger) *GoveeCreds {
 	return NewGoveeCreds(client, packer)
 }
 
-// SetKey seals the broadcaster's Govee API key and upserts it. The plaintext
-// never touches the database or logs; the AAD binds the ciphertext to this
-// user id so an envelope copied onto another row fails to open.
 func (g *GoveeCreds) SetKey(ctx context.Context, userID uint64, key string) error {
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -91,8 +75,6 @@ func (g *GoveeCreds) SetKey(ctx context.Context, userID uint64, key string) erro
 	})
 }
 
-// ClearKey removes the broadcaster's stored key. A missing row is a no-op: the
-// end state (no key) is the same either way.
 func (g *GoveeCreds) ClearKey(ctx context.Context, userID uint64) error {
 	if err := validate.UserID(userID); err != nil {
 		return err
@@ -105,8 +87,6 @@ func (g *GoveeCreds) ClearKey(ctx context.Context, userID uint64) error {
 	})
 }
 
-// keyRow loads the (validated) broadcaster's sealed credential row, mapping a
-// missing row to ErrNoGoveeKey. Both HasKey and Key read through it.
 func (g *GoveeCreds) keyRow(ctx context.Context, userID uint64) (*ent.GoveeCredential, error) {
 	if err := validate.UserID(userID); err != nil {
 		return nil, err
@@ -122,8 +102,6 @@ func (g *GoveeCreds) keyRow(ctx context.Context, userID uint64) (*ent.GoveeCrede
 	return row, err
 }
 
-// HasKey reports whether the broadcaster has a key on file — the status the
-// dashboard shows ("key on file"), never the value.
 func (g *GoveeCreds) HasKey(ctx context.Context, userID uint64) (bool, error) {
 	_, err := g.keyRow(ctx, userID)
 	switch {
@@ -136,9 +114,6 @@ func (g *GoveeCreds) HasKey(ctx context.Context, userID uint64) (bool, error) {
 	}
 }
 
-// Key unseals and returns the stored Govee API key. Returns ErrNoGoveeKey when
-// the broadcaster has none. The plaintext is returned to the caller (gossip)
-// and deliberately never cached.
 func (g *GoveeCreds) Key(ctx context.Context, userID uint64) (string, error) {
 	row, err := g.keyRow(ctx, userID)
 	if err != nil {

@@ -15,11 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// This file holds the MCSR Ranked command tests: !elo, !session, !lastmatch,
-// !record, !lb, !race and !pb. Shared fixtures (mcsrModule, mcsrCtx,
-// runMcsrCmd) and the module-wiring / arg-parsing tests live in
-// mcsr_test.go.
-
 func TestMcsrEloDefaultTemplate(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Feinberg", Elo: 1650, Rank: 12, Wins: 40, Loses: 20},
@@ -60,10 +55,6 @@ func TestMcsrEloUsesLinkedUUID(t *testing.T) {
 	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", gw.lastCall(t).req.Account)
 }
 
-// TestMcsrSessionDrawsFillTheGap pins the derived {draws} token: MCSR counts
-// matches that ended with no winner in playedMatches but in neither wins nor
-// loses, so 3W 4L in 8 matches is upstream-correct and needs the 1D to read
-// that way. See mcsrWinLossTokens for the measurement.
 func TestMcsrSessionDrawsFillTheGap(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"mcsr.session": gossiprpc.McsrSessionReply{
@@ -75,17 +66,10 @@ func TestMcsrSessionDrawsFillTheGap(t *testing.T) {
 	assert.Equal(t, "LawnMobius this stream: -13 elo (1568 now) · 3W 4L 1D in 8 matches", col.out[0].Text)
 }
 
-// TestMcsrSessionDrawsNeverNegative covers a season rollover under a live
-// snapshot: the live counters reset below the baseline, so the subtraction
-// would go negative and render "-2D".
 func TestMcsrSessionDrawsNeverNegative(t *testing.T) {
 	assert.Equal(t, "0", mcsrWinLoss(3, 1, 2)["draws"])
 }
 
-// TestMcsrSessionTemplateUpgrade covers the three stored shapes: blank falls
-// through to the current default, a config holding the pre-{draws} default
-// verbatim is upgraded to it, and an edited template — even one byte off — is
-// served exactly as written.
 func TestMcsrSessionTemplateUpgrade(t *testing.T) {
 	assert.Equal(t, defaultMcsrSessionTemplate, mcsrSessionTemplate(""))
 	assert.Equal(t, defaultMcsrSessionTemplate, mcsrSessionTemplate(legacyMcsrSessionTemplate))
@@ -103,14 +87,10 @@ func TestMcsrSessionWithSnapshot(t *testing.T) {
 	require.Len(t, col.out, 1)
 	assert.Equal(t, "Feinberg this stream: +24 elo (1660 now) · 3W 1L 0D in 4 matches", col.out[0].Text)
 
-	// The session request is scoped to this channel.
 	assert.Equal(t, "2", gw.lastCall(t).req.ChannelID)
 	assert.Equal(t, "Feinberg", gw.lastCall(t).req.Account)
 }
 
-// !session ignores a typed player argument so a viewer cannot retarget (and
-// clobber) the streamer's per-channel baseline; it always uses the linked
-// account.
 func TestMcsrSessionIgnoresArgument(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"mcsr.session": gossiprpc.McsrSessionReply{Nickname: "Feinberg", HasSnapshot: true},
@@ -147,9 +127,6 @@ func TestMcsrLastMatchDefaultTemplate(t *testing.T) {
 	assert.Equal(t, "Feinberg vs lowk3y_: won · 11:03.135 · Desert Temple Treasure · +21 elo · 2m ago", col.out[0].Text)
 }
 
-// A forfeit must read as a forfeit, not a clean win: the module appends the
-// translated "(forfeit)" suffix and the missing time renders as a dash
-// instead of an empty gap in the template.
 func TestMcsrLastMatchForfeit(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"mcsr.last_match": gossiprpc.McsrLastMatchReply{
@@ -208,7 +185,6 @@ func TestMcsrRecordDefaultTemplate(t *testing.T) {
 	assert.Equal(t, "lowk3y_", gw.lastCall(t).req.AccountB)
 }
 
-// Only one typed username compares it against the module's linked account.
 func TestMcsrRecordSingleArgUsesLinkedAccount(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"mcsr.versus": gossiprpc.McsrRecordReply{PlayerA: "Feinberg", PlayerB: "lowk3y_"},
@@ -229,8 +205,6 @@ func TestMcsrRecordSingleArgUsesLinkedUUID(t *testing.T) {
 	assert.Equal(t, "lowk3y_", call.req.AccountB)
 }
 
-// Under linkedOnly the two-name form collapses to self vs the first typed
-// name: the broadcaster is always side A.
 func TestMcsrRecordLinkedOnlyPinsSelf(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"mcsr.versus": gossiprpc.McsrRecordReply{PlayerA: "Feinberg", PlayerB: "lowk3y_"},
@@ -360,8 +334,6 @@ func TestMcsrEloSeasonToken(t *testing.T) {
 	assert.Equal(t, 5, call.req.Season)
 }
 
-// --- !pb ---------------------------------------------------------------------------
-
 func TestMcsrPbBareIsAllTime(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"paceman.personal_best": gossiprpc.PacemanPersonalBestReply{Player: "Feinberg", Window: "all-time", Time: "6:10.012"},
@@ -391,9 +363,6 @@ func TestMcsrPbWindowArg(t *testing.T) {
 	}
 }
 
-// A bare typed name with no window keyword resolves as the account, not a
-// window — "!pb Feinberg" is the all-time form for that player, same as
-// !elo/!pace's argument handling.
 func TestMcsrPbBareName(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"paceman.personal_best": gossiprpc.PacemanPersonalBestReply{Player: "lowk3y_", Window: "all-time", Time: "5:59.000"},
@@ -414,8 +383,6 @@ func TestMcsrPbWindowAndName(t *testing.T) {
 	assert.Equal(t, "weekly", call.req.TimeWindow)
 }
 
-// No personal best in the requested window is a normal PaceMan answer, not
-// an error: it must render the translated plain line, never a zero time.
 func TestMcsrPbNoneInWindow(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"paceman.personal_best": gossiprpc.PacemanPersonalBestReply{Player: "Newbie", Window: "daily", Empty: true},
@@ -454,8 +421,6 @@ func TestMcsrPbDailyKeepsUsername(t *testing.T) {
 	assert.Equal(t, "Feinberg", gw.lastCall(t).req.Account, "PaceMan is name-keyed")
 }
 
-// An unrated player never got a season best recorded upstream (BestTimeMS
-// stays 0), same "no personal best" line as an empty PaceMan window.
 func TestMcsrPbRankedUnrated(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"mcsr.user": gossiprpc.McsrUserReply{Nickname: "Newbie", Elo: -1, BestTimeMS: 0},

@@ -1,16 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package kv is outgress's go-live message tracker: it remembers the
-// message id SendEmbed returns so a later stream.offline can edit it in
-// place. Ported from app/dingress/internal/egress/kv.go, narrowed to just
-// this one keyspace -- the guild->broadcaster reverse index that used to
-// live alongside it (PutGuild/GetGuild/DeleteGuild) moved to
-// internal/discordstore, which engine now also reads (see that package's
-// doc for why one copy of that key matters more once two processes touch
-// it). This package stays outgress-local because nothing outside the
-// live/offline RPC handler (see ../rpc/engine_rpc.go) ever needs it: it is
-// keyed on a message id only outgress's own SendEmbed call ever learns.
 package kv
 
 import (
@@ -25,24 +15,10 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// liveMessageTTL bounds how long the go-live message id is remembered. It
-// is refreshed on every go-live touch, so it only has to outlast one
-// stream: 7 days covers a subathon, where the first cut's 36 h left the
-// post stuck on LIVE.
 const liveMessageTTL = 7 * 24 * time.Hour
 
-// GuildID is a Discord guild id, as this package's every keyspace is scoped
-// by one. Given its own type, rather than a bare string, because this file
-// was flagged for CodeScene's String Heavy Function Arguments (file-level):
-// nearly every function here takes a single string parameter meaning "the
-// guild", and a plain string would still compile if one were passed where a
-// message id or a raw stored value belongs. A string literal or an
-// already-string variable still needs an explicit GuildID(...) conversion
-// at the call site -- unlike decode.OptionName, callers here pass variables
-// (a request's GuildID field), not literals, so the conversion is not free.
 type GuildID string
 
-// LiveStore remembers the go-live message so stream.offline can edit it.
 type LiveStore interface {
 	PutLiveMessage(ctx context.Context, guildID GuildID, m discapi.Message) error
 	GetLiveMessage(ctx context.Context, guildID GuildID) (discapi.Message, bool)
@@ -53,10 +29,6 @@ type valkeyLiveStore struct {
 	kv pkg_valkey.KV
 }
 
-// New builds the Valkey-backed LiveStore. A nil client (Valkey unreachable
-// at boot) returns a nil store rather than panicking later -- callers
-// already nil-check before every use, matching outgress's original
-// newValkeyDiscordLive.
 func New(client valkey.Client) LiveStore {
 	if client == nil {
 		return nil
@@ -64,11 +36,6 @@ func New(client valkey.Client) LiveStore {
 	return valkeyLiveStore{kv: pkg_valkey.NewKV(client)}
 }
 
-// liveKey is keyed by GUILD id, not the Twitch broadcaster id the original
-// keyed on: outgress's RPC surface (see internal/domain/rpc/discordoutgress)
-// only ever carries the guild id engine already resolved, and a guild binds
-// to exactly one broadcaster, so this loses no information while dropping a
-// field neither side otherwise needs to agree on.
 func liveKey(guildID GuildID) string { return "discord:live-msg:" + string(guildID) }
 
 func (s valkeyLiveStore) PutLiveMessage(ctx context.Context, guildID GuildID, m discapi.Message) error {
@@ -88,10 +55,6 @@ func (s valkeyLiveStore) GetLiveMessage(ctx context.Context, guildID GuildID) (d
 	return discapi.Message{ChannelID: ch, ID: id}, true
 }
 
-// malformedLiveMessage reports whether the stored "channel|id" value did not
-// split into two non-empty halves -- defensive against a value written by an
-// older or buggy build rather than something this package itself can ever
-// produce.
 func malformedLiveMessage(ch, id string, ok bool) bool {
 	return !ok || ch == "" || id == ""
 }
@@ -100,17 +63,10 @@ func (s valkeyLiveStore) DeleteLiveMessage(ctx context.Context, guildID GuildID)
 	return s.kv.Del(ctx, liveKey(guildID))
 }
 
-// BotStatusReader reads the gateway status key discord-ingress publishes
-// (internal/domain/discord.BotStatusKey). Read-only by construction: outgress
-// holds no gateway connection, so it has nothing true to say about the
-// session and must never write this key.
 type BotStatusReader interface {
 	BotStatus(ctx context.Context) (ddiscord.BotStatus, bool)
 }
 
-// NewBotStatusReader builds the Valkey-backed reader. A nil client returns
-// nil, matching New: callers nil-check and report "unknown" rather than
-// failing a page load over a status pill.
 func NewBotStatusReader(client valkey.Client) BotStatusReader {
 	if client == nil {
 		return nil
@@ -120,11 +76,6 @@ func NewBotStatusReader(client valkey.Client) BotStatusReader {
 
 type valkeyBotStatus struct{ kv pkg_valkey.KV }
 
-// BotStatus reports the last published status, or ok=false when the key is
-// missing or unreadable. A decode failure reads as missing on purpose: the
-// only thing that writes this key is ingress, so a value that does not parse
-// came from a build that no longer exists, and treating it as "no status" is
-// what lets a rollout heal itself.
 func (s valkeyBotStatus) BotStatus(ctx context.Context) (ddiscord.BotStatus, bool) {
 	raw, ok := s.kv.GetString(ctx, ddiscord.BotStatusKey)
 	if !ok {
@@ -137,100 +88,53 @@ func (s valkeyBotStatus) BotStatus(ctx context.Context) (ddiscord.BotStatus, boo
 	return got, true
 }
 
-// reauthKey marks a guild whose bot role predates CHANGE_NICKNAME.
 func reauthKey(guildID GuildID) string { return "discord:reauth:" + string(guildID) }
 
-// ReauthStore records guilds where the per-guild rename was refused, so the
-// dashboard can ask that streamer to re-authorize.
-//
-// This is learned from Discord's own 403 rather than computed from role
-// permissions. Computing it would mean fetching the guild's roles, the bot's
-// member roles, and folding the permission bits ourselves, and being subtly
-// wrong there means either nagging streamers who are fine or staying silent
-// for the ones who are not. The refusal is unambiguous and free: we already
-// made the call.
 type ReauthStore interface {
 	MarkNeedsReauth(ctx context.Context, guildID GuildID) error
 	ClearNeedsReauth(ctx context.Context, guildID GuildID) error
 	NeedsReauth(ctx context.Context, guildID GuildID) bool
 }
 
-// NewReauthStore builds the Valkey-backed store.
 func NewReauthStore(client valkey.Client) ReauthStore {
 	return valkeyReauth{kv: pkg_valkey.NewKV(client)}
 }
 
 type valkeyReauth struct{ kv pkg_valkey.KV }
 
-// MarkNeedsReauth records the refusal. No TTL: the missing permission is
-// frozen into the bot's role at install and does not lapse on its own, so an
-// expiring flag would just make the prompt blink in and out until someone
-// acts on it.
 func (s valkeyReauth) MarkNeedsReauth(ctx context.Context, guildID GuildID) error {
 	return s.kv.Set(ctx, pkg_valkey.Key{Name: reauthKey(guildID)}, "1")
 }
 
-// ClearNeedsReauth is called once a rename succeeds, which is the only proof
-// the permission actually arrived.
 func (s valkeyReauth) ClearNeedsReauth(ctx context.Context, guildID GuildID) error {
 	return s.kv.Del(ctx, reauthKey(guildID))
 }
 
-// NeedsReauth reads the marker rather than EXISTS-ing it: the value is always
-// the constant "1", so presence and a successful read are the same fact, and
-// going through the shared GET keeps one command shape for the whole file.
 func (s valkeyReauth) NeedsReauth(ctx context.Context, guildID GuildID) bool {
 	_, marked := s.kv.GetString(ctx, reauthKey(guildID))
 	return marked
 }
 
-// lockdownTTL bounds how long a lockdown's undo state is kept. A lockdown is
-// an hours-long event, not a permanent setting, and a key that outlived the
-// raid by months would restore a verification level the streamer has since
-// changed by hand. Seven days matches liveMessageTTL for the same reason:
-// it comfortably outlasts the event while still expiring on its own if
-// nobody ever unlocks.
 const lockdownTTL = 7 * 24 * time.Hour
 
-// LockdownChannel is one channel's @everyone overwrite as it stood BEFORE
-// the lockdown muted it.
-//
-// A channel that had no @everyone overwrite at all is stored as an explicit
-// "0"/"0" pair rather than a "delete it again" marker: an overwrite that
-// allows nothing and denies nothing is permission-identical to having none,
-// and carrying the distinction would mean a second REST verb whose only job
-// is to tidy up a row nobody can see.
 type LockdownChannel struct {
 	ChannelID string `json:"channel_id"`
 	Allow     string `json:"allow"`
 	Deny      string `json:"deny"`
 }
 
-// LockdownState is everything Unlock needs to put a guild back.
-//
-// It is stored rather than recomputed because the lockdown DESTROYS the
-// information: once @everyone is denied SEND, nothing on Discord's side
-// still says whether that deny was the streamer's own or ours.
 type LockdownState struct {
-	// VerificationLevel is the level in force before the bump. Not omitempty:
-	// level 0 (NONE) is a real setting a guild must get back.
-	VerificationLevel int `json:"verification_level"`
-	// EveryoneRoleID is the overwrite target the mute was written onto.
-	EveryoneRoleID string `json:"everyone_role_id,omitempty"`
-	// Channels are the channels the lockdown muted, in the order it muted
-	// them.
-	Channels []LockdownChannel `json:"channels,omitempty"`
+	VerificationLevel int               `json:"verification_level"`
+	EveryoneRoleID    string            `json:"everyone_role_id,omitempty"`
+	Channels          []LockdownChannel `json:"channels,omitempty"`
 }
 
-// LockdownStore remembers what one lockdown displaced so it can be undone.
 type LockdownStore interface {
 	PutLockdown(ctx context.Context, guildID GuildID, state LockdownState) error
 	GetLockdown(ctx context.Context, guildID GuildID) (LockdownState, bool)
 	DeleteLockdown(ctx context.Context, guildID GuildID) error
 }
 
-// NewLockdownStore builds the Valkey-backed store. A nil client yields a nil
-// store, matching New: callers nil-check before use.
 func NewLockdownStore(client valkey.Client) LockdownStore {
 	if client == nil {
 		return nil

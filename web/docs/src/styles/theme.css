@@ -1,132 +1,48 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* ──────────────────────────────────────────────────────────────────
-   ItsBagelBot — Starlight Theme
-   Mirrors the web/ marketing site palette:
-   warm dark background, tan/gold primary accent, green secondary,
-   off-white text, Syne display + DM Sans body + DM Mono code.
-   ────────────────────────────────────────────────────────────────── */
-
-/* Brand primitives: the palette, the shape scale, the easing curves, the type
-   stack and the motion durations come from the one shared definition
-   (marketing/ and the console read the same file), so this theme can no longer
-   drift away from the product's colours, including the RGB triplets those
-   colours are used through. Everything this file adds below is genuinely the
-   docs': the paper/light-mode surfaces, the Starlight gray ramps and the
-   mermaid palette.
-
-   fonts.css replaces the Google Fonts @import that used to be the first line
-   of this file:
-     @import url("https://fonts.googleapis.com/css2?family=DM+Mono:...&display=swap")
-   That was a render-blocking stylesheet on a third-party origin, so a cold
-   visit paid DNS + TLS to fonts.googleapis.com and then again to
-   fonts.gstatic.com for the payloads, before first paint — and it could not be
-   reused from another site's visit, because the HTTP cache is partitioned per
-   top-level site. The faces it fetched are the ones ui vendors, so the swap is
-   like-for-like. Three things go with it: the two <link rel="preconnect"> tags
-   in src/components/Head.astro that existed only to warm those hosts, and both
-   Google origins in the CSP in public/_headers, which is now font-src 'self'
-   with no third-party host at all. */
 @import "@bagel/ui/styles/layers.css";
 @import "@bagel/ui/styles/brand.css";
 @import "@bagel/ui/styles/fonts.css";
-/* Only the two contracts this site actually renders: it draws the ambient
-   orbs and it needs the a11y floor, but nothing here is a .bb-tag, a .bb-chip
-   or a [data-reveal] — Starlight owns the prose chrome and the page
-   transitions. Adding an import for a contract with no markup behind it
-   would put ~1.6 KB gzip on every docs page to style nothing. */
-/* The type scale and the layout primitives. Safe to import under Starlight,
-   which owns the prose type on this surface: this file's bare-element half is
-   in `bb.base`, the weakest layer, and Starlight's own stylesheets are
-   unlayered — unlayered CSS beats every layer at any specificity, so nothing
-   here can out-rank a Starlight heading. What it adds is the `.bb-h` /
-   `.bb-text` / `.bb-stack` contract for the docs' own components, which were
-   otherwise the one surface with no block vocabulary at all. */
 @import "@bagel/ui/styles/elements/typography.css";
 @import "@bagel/ui/styles/elements/layout.css";
 @import "@bagel/ui/styles/orbs.css";
 @import "@bagel/ui/styles/a11y.css";
 
-/* ════════════════════════════════════════════════════════════════════
-   Design tokens — every color the theme uses lives here.
-   ════════════════════════════════════════════════════════════════════
-
-   Naming convention:
-     --bb-<role>            solid hex
-     --bb-<role>-rgb        comma-separated RGB triplet for alpha math
-                            via `rgba(var(--bb-<role>-rgb), 0.15)`
-
-   Rule of thumb: any color literal anywhere else in this file should
-   resolve to one of these tokens. If you need a one-off alpha,
-   compose it from a *-rgb token. Pure black (shadow) is its own
-   token below.
-
-   NOTE the alpha form: `rgba(var(--x-rgb), 0.15)`, NOT
-   `rgb(var(--x-rgb) / 0.15)`. The triplets here are comma-separated, and
-   comma-separated channels with a slash alpha parse in neither rgb()
-   grammar, so the declaration is invalid at computed-value time and the
-   property falls back to its initial value. Measured in Chrome on the docs
-   header: `border-bottom: 1px solid var(--sl-color-hairline)` with the
-   slash form computed to rgb(240, 236, 228) (currentColor, the off-white
-   body text), i.e. a bright hairline where a 12%-tan one was meant. All
-   ~117 slash uses across this file and MermaidStyles.astro were converted
-   to the rgba() form; the strokes they draw are now dimmer, not brighter,
-   because they finally carry their intended alpha.
-
-   Why rgba(var(...), a) and not space-separated triplets plus the slash
-   form: @bagel/ui/styles/brand.css, the one shared definition of the
-   palette, writes its literals as `rgba(201, 168, 124, 0.15)`. Keeping the
-   comma grammar here means a value can be moved between the two files
-   verbatim. Rejected: switching every *-rgb triplet to space-separated.
-   It is the more modern spelling, but it silently breaks any consumer
-   still writing `rgba(var(--x-rgb), a)`, and both docs/ and the console
-   have such consumers.
-   ──────────────────────────────────────────────────────────────────── */
 :root {
-    /* ── Surfaces (warm darks) ──────────────────────────────────── */
-    --bb-mermaid-panel: #0d0c0a;  /* dark mermaid panel + sidebar bg */
-    --bb-mermaid-cluster: #15201b; /* mermaid subgraph fill */
+    --bb-mermaid-panel: #0d0c0a;
+    --bb-mermaid-cluster: #15201b;
     --bb-elev-1: #16140f;
-    --bb-elev-2: #1d1a14;          /* edge-label pill bg */
+    --bb-elev-2: #1d1a14;
 
-    /* ── Darker tans (used heavily in light-mode hovers/accents) ── */
     --bb-tan-deep: #8a6a3e;
     --bb-tan-mid: #6e5026;
     --bb-tan-darkest: #4a3416;
-    --bb-tan-low: #2a2316;        /* sl-color-accent-low dark */
+    --bb-tan-low: #2a2316;
 
-    /* ── Text / ink ─────────────────────────────────────────────── */
-    --bb-ink: #14110c;            /* deep ink for light surfaces */
+    --bb-ink: #14110c;
     --bb-ink-soft: #2a251e;
     --bb-ink-mid: #46403a;
     --bb-muted-soft: #b0a898;
 
-    /* ── Dark-theme gray ramp (Starlight --sl-color-gray-*) ─────── */
     --bb-gray-1-dark: #e3ddd0;
     --bb-gray-4-dark: #5a5650;
     --bb-gray-5-dark: #2e2b26;
     --bb-gray-6-dark: #1a1814;
 
-    /* ── Light-theme paper surfaces ─────────────────────────────── */
-    --bb-paper: #fffbf0;           /* lightest paper (panels) */
-    --bb-paper-warm: #faf5e9;      /* page background */
+    --bb-paper: #fffbf0;
+    --bb-paper-warm: #faf5e9;
     --bb-paper-sidebar: #f3ecdb;
     --bb-paper-cluster: #f3e7d2;
     --bb-paper-card: #f7f1e4;
     --bb-paper-invert: #fbf6ec;
 
-    /* ── Light-theme gray ramp ──────────────────────────────────── */
     --bb-gray-3-light: #6b6359;
     --bb-gray-4-light: #968d80;
     --bb-gray-5-light: #d8d0c1;
     --bb-gray-6-light: #ede6d7;
 
 
-    /* ── RGB-component tokens for alpha math ──────────────────────
-       Only the docs' own colours are here. The brand roles (tan, green,
-       black, card-bg, white, muted) ship their triplets from brand.css,
-       because a triplet re-typed from a hex is a copy nothing checks. */
     --bb-tan-deep-rgb: 138, 106, 62;
     --bb-ink-rgb: 20, 17, 12;
     --bb-white-pure-rgb: 255, 255, 255;
@@ -135,24 +51,14 @@
     --bb-paper-sidebar-rgb: 243, 236, 219;
     --bb-mermaid-panel-rgb: 13, 12, 10;
     --bb-elev-2-rgb: 29, 26, 20;
-
-    /* (--bb-font-display / -body / -mono are in @bagel/ui/styles/brand.css.
-       The three stacks this file used to declare named the same three
-       families with shorter fallback tails; the shared ones add "Inter Tight"
-       / "Inter" / "JetBrains Mono" ahead of the generic keyword, which only
-       changes what renders on a machine that has those installed AND failed
-       to load the woff2.) */
 }
 
-/* ── Starlight DARK theme overrides ───────────────────────────────── */
 :root,
 :root[data-theme="dark"] {
-    /* Accent — tan/gold */
     --sl-color-accent-low: var(--bb-tan-low);
     --sl-color-accent: var(--bb-tan);
     --sl-color-accent-high: var(--bb-tan-pale);
 
-    /* Grayscale ramp anchored on warm off-white */
     --sl-color-white: var(--bb-white);
     --sl-color-gray-1: var(--bb-gray-1-dark);
     --sl-color-gray-2: var(--bb-muted-soft);
@@ -162,34 +68,26 @@
     --sl-color-gray-6: var(--bb-gray-6-dark);
     --sl-color-black: var(--bb-black);
 
-    /* Surfaces */
     --sl-color-bg: var(--bb-black);
-    /* Sidebar + nav share the same warm dark so the header reads as
-       a continuous frame around the gold-glowed content area. */
     --sl-color-bg-nav: #151209;
     --sl-color-bg-sidebar: #151209;
     --sl-color-bg-inline-code: rgba(var(--bb-tan-rgb), 0.10);
     --sl-color-bg-accent: var(--bb-tan);
 
-    /* Text */
     --sl-color-text: var(--bb-white);
     --sl-color-text-accent: var(--bb-tan-light);
     --sl-color-text-invert: var(--bb-black);
 
-    /* Hairlines / borders */
     --sl-color-hairline-light: rgba(var(--bb-tan-rgb), 0.18);
     --sl-color-hairline: rgba(var(--bb-tan-rgb), 0.12);
     --sl-color-hairline-shade: rgba(var(--bb-tan-rgb), 0.08);
 
-    /* Backdrops */
     --sl-color-backdrop-overlay: rgba(var(--bb-black-rgb), 0.78);
 
-    /* Fonts */
     --sl-font: var(--bb-font-body);
     --sl-font-system: var(--bb-font-body);
     --sl-font-system-mono: var(--bb-font-mono);
 
-    /* Misc */
     --sl-shadow-md:
         0 1px 1px rgba(var(--bb-shadow-rgb), 0.35),
         0 6px 14px rgba(var(--bb-shadow-rgb), 0.45);
@@ -199,10 +97,9 @@
         0 0 0 1px var(--bb-border);
 }
 
-/* ── Starlight LIGHT theme overrides ──────────────────────────────── */
 :root[data-theme="light"] {
     --sl-color-accent-low: var(--bb-paper-cluster);
-    --sl-color-accent: var(--bb-tan-deep);          /* darker tan for AA contrast */
+    --sl-color-accent: var(--bb-tan-deep);
     --sl-color-accent-high: var(--bb-tan-darkest);
 
     --sl-color-white: var(--bb-ink);
@@ -231,10 +128,6 @@
 
     --sl-color-backdrop-overlay: rgba(var(--bb-ink-rgb), 0.55);
 }
-
-/* ────────────────────────────────────────────────────────────────────
-   Typography — Syne for display, DM Sans body, DM Mono code
-   ──────────────────────────────────────────────────────────────────── */
 
 body {
     font-family: var(--bb-font-body);
@@ -276,9 +169,6 @@ samp {
     font-feature-settings: "ss01", "ss02";
 }
 
-/* Inline code — neutral so dense prose stays readable. The text uses
-   the body color (off-white), and only the chip itself carries a hint
-   of warmth via a very subtle border. */
 .sl-markdown-content :not(pre) > code {
     border: 1px solid rgba(var(--bb-tan-rgb), 0.10);
     border-radius: 6px;
@@ -294,14 +184,6 @@ samp {
     border-color: rgba(var(--bb-ink-rgb), 0.08);
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   Global decoration layer (rendered by SkipLink.astro override)
-   .bb-decoration is a top-level child of <body>, so its fixed-
-   positioned children anchor to the viewport — meaning the orbs land
-   in the actual screen corners on every page, not the corners of
-   whatever flex/grid ancestor we'd otherwise inherit.
-   ════════════════════════════════════════════════════════════════════ */
-
 .bb-decoration {
     position: fixed;
     inset: 0;
@@ -310,21 +192,11 @@ samp {
     z-index: 0;
 }
 
-/* All real content sits in a stacking context above the decoration.
-   Starlight's `.page` is the outer flex wrapper for everything. */
 .page {
     position: relative;
     z-index: 1;
 }
 
-/* ── Orbs — geometry only ────────────────────────────────────────────
-   The circle, the blur, the pulsing halo and the two glow colours are
-   @bagel/ui/styles/orbs.css now. This block used to be a hand copy of the
-   marketing hero's rules, labelled "mirrors Header.astro exactly", and it
-   was not: it had already lost the hero's scroll coupling and re-typed both
-   glow colours as literals. Only the placement is genuinely docs-specific,
-   because the hero puts green top-RIGHT over its ring and docs puts it
-   top-left, on the logical axis so RTL locales mirror it. */
 .bb-decoration .bb-orb-1 {
     width: 500px;
     height: 500px;
@@ -341,7 +213,6 @@ samp {
     --bb-orb-pulse-delay: 400ms;
 }
 
-/* Light theme — softer & a touch warmer */
 :root[data-theme="light"] .bb-decoration .bb-orb-1 {
     background: var(--bb-green-light);
     opacity: 0.10;
@@ -352,15 +223,11 @@ samp {
     opacity: 0.12;
 }
 
-/* ── Noise texture — every page, both themes ──────────────────────── */
 .bb-decoration .bb-noise {
     position: absolute;
     inset: 0;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
     pointer-events: none;
-    /* Pin the noise above content via its own z-index — the parent
-       .bb-decoration sits at z-index:0 with .page at z-index:1 above
-       it, so we lift just the noise back over the page. */
     position: fixed;
     inset: 0;
     z-index: 200;
@@ -379,32 +246,15 @@ samp {
     }
 }
 
-/* ────────────────────────────────────────────────────────────────────
-   Header / Nav — rely on Starlight's --sl-color-bg-nav variable
-   so we don't stack a second background on top of the default.
-   ──────────────────────────────────────────────────────────────────── */
-
 header.header {
     backdrop-filter: saturate(180%) blur(14px);
     border-bottom: 1px solid var(--sl-color-hairline-shade);
 }
 
-/* Header matches the sidebar's vertical gradient so the two surfaces
-   read as a continuous frame around the content area. */
 :root[data-theme="dark"] header.header {
     background: linear-gradient(180deg, var(--bb-mermaid-panel) 0%, var(--bb-black) 100%);
 }
 
-/* Starlight's `SiteTitle` and `SocialIcons` no longer render: the Header
-   override draws @bagel/ui's `.bb-nav`, whose brand mark and links carry their
-   own contract (ui/styles/elements/brand-mark.css, nav-link.css). The rules
-   that used to restyle those two components are deleted rather than left in
-   place -- a selector for an element nothing emits is indistinguishable from a
-   rule that stopped working, and the next person would spend the afternoon
-   finding out which. `header.header` above stays: that IS Starlight's bar, and
-   it still holds the nav. */
-
-/* Search button */
 site-search button[data-open-modal] {
     border: 1px solid var(--bb-border);
     background: rgba(var(--bb-tan-rgb), 0.04);
@@ -416,10 +266,6 @@ site-search button[data-open-modal]:hover {
     border-color: var(--bb-border-strong);
     background: rgba(var(--bb-tan-rgb), 0.08);
 }
-
-/* ────────────────────────────────────────────────────────────────────
-   Sidebar — clean, tan accent on active
-   ──────────────────────────────────────────────────────────────────── */
 
 .sidebar-pane {
     border-inline-end: 1px solid var(--bb-border);
@@ -451,9 +297,6 @@ site-search button[data-open-modal]:hover {
     color: var(--bb-tan-light);
 }
 
-/* Active page in the sidebar — green accent bar + tinted background.
-   Hover stays tan (see rule above) so hover & active are visually
-   distinct: hover = tan tease, current = green commitment. */
 .sidebar-content a[aria-current="page"],
 .sidebar-content a[aria-current="page"]:hover {
     background: rgba(var(--bb-green-rgb), 0.12);
@@ -468,13 +311,6 @@ site-search button[data-open-modal]:hover {
     border-inline-start-color: var(--bb-green);
 }
 
-/* ────────────────────────────────────────────────────────────────────
-   Main content — anchors, links
-   ──────────────────────────────────────────────────────────────────── */
-
-/* Prose links — body color with a thin tan underline. Stays readable
-   in dense docs (no glowing tan word every other line); the underline
-   carries the accent and the link saturates only on hover. */
 .sl-markdown-content a:not(:where(.not-content *)) {
     color: var(--bb-green-glow);
     text-decoration-color: rgba(var(--bb-green-glow-rgb), 0.55);
@@ -499,8 +335,6 @@ site-search button[data-open-modal]:hover {
     text-decoration-color: var(--bb-tan-deep);
 }
 
-/* Headings underline — green→tan gradient hairline. Adds the brand's
-   secondary accent to docs pages so they don't feel mono-tan. */
 .sl-markdown-content h1:not(:where(.not-content *)),
 .sl-markdown-content h2:not(:where(.not-content *)),
 .sl-markdown-content h3:not(:where(.not-content *)),
@@ -513,9 +347,6 @@ site-search button[data-open-modal]:hover {
     margin-bottom: 1.6em;
 }
 
-/* Starlight wraps headings in `.sl-heading-wrapper`, which can absorb the
-   heading's margin-bottom. Add the breathing room on the wrapper itself
-   so the gap actually lands between the heading and the next block. */
 .sl-markdown-content .sl-heading-wrapper:not(:where(.not-content *)) {
     margin-bottom: 1.6em;
 }
@@ -560,7 +391,6 @@ site-search button[data-open-modal]:hover {
     );
 }
 
-/* Horizontal rules */
 .sl-markdown-content hr:not(:where(.not-content *)) {
     border: 0;
     height: 1px;
@@ -573,8 +403,6 @@ site-search button[data-open-modal]:hover {
     );
 }
 
-/* Blockquotes — green border so the brand's secondary accent does the
-   heavy lifting here instead of more tan. */
 .sl-markdown-content blockquote:not(:where(.not-content *)) {
     border-inline-start: 2px solid var(--bb-green-light);
     background: rgba(var(--bb-green-light-rgb), 0.04);
@@ -589,7 +417,6 @@ site-search button[data-open-modal]:hover {
     color: var(--bb-ink-mid);
 }
 
-/* Tables — neutral chrome. The table is structure, not accent. */
 .sl-markdown-content table:not(:where(.not-content *)) {
     border: 1px solid rgba(var(--bb-tan-rgb), 0.08);
     border-radius: 10px;
@@ -612,7 +439,6 @@ site-search button[data-open-modal]:hover {
     background: rgba(var(--bb-ink-rgb), 0.04);
 }
 
-/* Code blocks — quiet hairline, no warm tint. */
 .expressive-code,
 .sl-markdown-content pre:not(:where(.not-content *)) {
     border-radius: 10px;
@@ -620,16 +446,6 @@ site-search button[data-open-modal]:hover {
     box-shadow: 0 1px 0 rgba(var(--bb-white-pure-rgb), 0.02) inset;
 }
 
-/* ────────────────────────────────────────────────────────────────────
-   Starlight Components — Card, Aside, Badge
-   ──────────────────────────────────────────────────────────────────── */
-
-/* Cards
-   Note: Starlight's `.stagger > :nth-child(2n)` applies
-   `transform: translateY(--stagger-height)` to offset every second card.
-   We must not override that transform on hover or staggered cards snap
-   back into alignment. We use a per-card --bb-card-y variable that
-   defaults to the stagger offset for even children and 0 otherwise. */
 .card {
     --bb-card-y: 0px;
     --bb-card-lift: 0px;
@@ -693,7 +509,6 @@ site-search button[data-open-modal]:hover {
     font-weight: 700;
 }
 
-/* Green for the icon so docs pages get the brand's secondary accent. */
 .card .icon {
     color: var(--bb-green-glow);
     border-color: rgba(var(--bb-green-glow-rgb), 0.30);
@@ -710,7 +525,6 @@ site-search button[data-open-modal]:hover {
     background-color: rgba(var(--bb-green-rgb), 0.08);
 }
 
-/* Asides (notes, tips, cautions, dangers) */
 .starlight-aside {
     border-radius: 10px;
     border-inline-start-width: 3px;
@@ -748,7 +562,6 @@ site-search button[data-open-modal]:hover {
     border-color: var(--bb-danger);
 }
 
-/* Badge */
 .sl-badge {
     font-family: var(--bb-font-mono);
     font-size: 0.66rem;
@@ -777,10 +590,6 @@ site-search button[data-open-modal]:hover {
     border-color: rgba(var(--bb-green-glow-rgb), 0.35);
 }
 
-/* ────────────────────────────────────────────────────────────────────
-   Hero (used by splash template)
-   ──────────────────────────────────────────────────────────────────── */
-
 .hero {
     align-items: center;
     text-align: start;
@@ -801,9 +610,6 @@ site-search button[data-open-modal]:hover {
     color: var(--bb-white);
 }
 
-/* Accent the trailing word(s) in the title using the green glow.
-   Authors can wrap a span with `class="accent"` in their hero title
-   to highlight specific words; otherwise the full h1 stays white. */
 .hero h1 .accent,
 .hero h1 em,
 .hero h1 mark {
@@ -837,7 +643,6 @@ site-search button[data-open-modal]:hover {
     color: var(--bb-ink-mid);
 }
 
-/* Hero action buttons */
 .hero .action {
     font-family: var(--bb-font-mono);
     font-size: 0.78rem;
@@ -892,10 +697,6 @@ site-search button[data-open-modal]:hover {
     background: rgba(var(--bb-tan-deep-rgb), 0.06);
 }
 
-/* ────────────────────────────────────────────────────────────────────
-   Pagination footer, TOC, misc
-   ──────────────────────────────────────────────────────────────────── */
-
 .pagination-links a {
     border: 1px solid var(--bb-border);
     border-radius: 10px;
@@ -913,7 +714,6 @@ site-search button[data-open-modal]:hover {
     background: var(--bb-paper);
 }
 
-/* TOC current item */
 starlight-toc nav a[aria-current="true"] {
     color: var(--bb-tan);
     font-weight: 600;
@@ -923,7 +723,6 @@ starlight-toc nav a[aria-current="true"] {
     color: var(--bb-tan-mid);
 }
 
-/* Selection */
 ::selection {
     background: rgba(var(--bb-tan-rgb), 0.35);
     color: var(--bb-white);
@@ -934,94 +733,51 @@ starlight-toc nav a[aria-current="true"] {
     color: var(--bb-ink);
 }
 
-/* Focus rings — the ring itself is @bagel/ui/styles/a11y.css (2px
-   --bb-focus, 3px offset). Only the light-theme colour is docs', because
-   only docs has a light theme. */
 :root[data-theme="light"] :focus-visible {
     outline-color: var(--bb-tan-deep);
 }
 
-/* Scrollbar — @bagel/ui/styles/a11y.css. It styles `html` and `.bb-scroll`
-   rather than the `*` this block used, and scrollbar-width/scrollbar-color
-   inherit, so every nested scroller on this site still gets the thin tan bar
-   from the html rule. What nested scrollers lose is the ::-webkit-scrollbar
-   fallback, which only matters on an engine that supports the pseudo-element
-   but not the standard properties. */
-
-/* ════════════════════════════════════════════════════════════════════
-   Light-mode hover inversion
-   On a cream/light surface, "brighter on hover" reads as washed out —
-   the eye loses the element instead of locking onto it. Flip every
-   brightness-up + lighten-color hover so light-mode hovers go DARKER
-   (and slightly more saturated) instead. Same affordance, correct
-   direction for the surface.
-   ════════════════════════════════════════════════════════════════════ */
 :root[data-theme="light"] {
 
-    /* Theme toggle */
     & starlight-theme-select label:hover,
     & starlight-theme-select select:hover {
         color: var(--bb-ink-soft);
         filter: brightness(0.85);
     }
 
-    /* Sidebar items — darker text, faint dark wash on hover */
     & .sidebar-content ul li a:hover {
         color: var(--bb-ink);
         background: rgba(var(--bb-ink-rgb), 0.06);
     }
 
-    /* TOC items */
     & starlight-toc nav a:hover {
         color: var(--bb-ink-soft);
     }
 
-    /* Cards — title goes darker, not lighter */
     & .card:hover .title {
         color: var(--bb-ink-soft);
     }
 
-    /* Hero minimal action button */
     & .hero .action.minimal:hover {
         color: var(--bb-ink-soft);
         background: rgba(var(--bb-ink-rgb), 0.05);
         border-color: rgba(var(--bb-ink-rgb), 0.45);
     }
 
-    /* Search button magnifier icon */
     & site-search button[data-open-modal]:hover svg {
         color: var(--bb-ink-soft);
     }
 
-    /* Heading anchor link — already darkens in light via existing
-       override; just adds the brightness dimming for consistency */
     & .sl-heading-wrapper .sl-anchor-link:hover {
         filter: brightness(0.85);
     }
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   Micro-interactions — fun, smooth, on-brand
-   Uses two easings:
-     --bb-ease-out-expo  → calm, ProMotion-feeling deceleration
-     --bb-ease-out-back  → playful overshoot for "fun" moments
-   ════════════════════════════════════════════════════════════════════ */
 :root {
-    /* --bb-ease-out-back, --bb-dur-fast and --bb-dur-slow used to be
-       redeclared here. The easing was byte-identical to the shared one; the
-       durations were not, and this file's --bb-dur-slow was 520ms against the
-       console's 600ms. The shared value wins (see brand.css for why 600), so
-       the one rule that reads it — the sidebar transform at the bottom of this
-       file — travels 80ms slower than it did. --bb-ease-spring stays: it is
-       the docs' own overshoot curve and nothing else uses it.
-       --bb-dur-med is kept as a plain alias rather than renamed because it has
-       ~35 uses in this file and a rename is a diff nobody can review for
-       meaning; it goes when those uses are next touched. */
     --bb-ease-spring: cubic-bezier(0.22, 1.4, 0.36, 1);
     --bb-dur-med: var(--bb-dur-base);
 }
 
-/* ── Hero action buttons — arrow nudge + soft press ───────────────── */
 .hero .action {
     transition:
         background var(--bb-dur-med) var(--bb-ease-out-expo),
@@ -1049,7 +805,6 @@ starlight-toc nav a[aria-current="true"] {
 }
 
 
-/* ── Theme toggle — brighten on hover, no rotation ────────────────── */
 starlight-theme-select select,
 starlight-theme-select label {
     transition: color var(--bb-dur-fast) var(--bb-ease-out-expo),
@@ -1062,7 +817,6 @@ starlight-theme-select select:hover {
     filter: brightness(1.2);
 }
 
-/* ── Sidebar — sliding accent bar + glide ─────────────────────────── */
 .sidebar-content ul li a {
     position: relative;
     overflow: hidden;
@@ -1095,14 +849,12 @@ starlight-theme-select select:hover {
     transform: scaleY(1);
 }
 
-/* Active page bar in green — matches the brand's secondary accent. */
 .sidebar-content ul li a[aria-current="page"]::before {
     transform: scaleY(1);
     background: var(--bb-green-glow);
     box-shadow: 0 0 12px rgba(var(--bb-green-glow-rgb), 0.5);
 }
 
-/* ── Collapsible sidebar groups — smooth chevron + open glide ─────── */
 .sidebar-content details > summary {
     cursor: pointer;
     transition: color var(--bb-dur-fast) var(--bb-ease-out-expo);
@@ -1124,7 +876,6 @@ starlight-theme-select select:hover {
     transform: rotate(90deg);
 }
 
-/* Slide-down content reveal for sidebar groups (Chrome/Edge w/ interpolate-size) */
 @supports (interpolate-size: allow-keywords) {
     :root {
         interpolate-size: allow-keywords;
@@ -1147,7 +898,6 @@ starlight-theme-select select:hover {
     }
 }
 
-/* Fallback fade-in for open state */
 .sidebar-content details[open] > ul > li,
 .sidebar-content details[open] > div > * {
     animation: bb-fade-up var(--bb-dur-med) var(--bb-ease-out-expo) backwards;
@@ -1166,7 +916,6 @@ starlight-theme-select select:hover {
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Mobile menu — smooth slide-from-top ──────────────────────────── */
 mobile-starlight-toc nav,
 [id="starlight__sidebar"] {
     transition: transform var(--bb-dur-slow) var(--bb-ease-out-expo),
@@ -1174,7 +923,6 @@ mobile-starlight-toc nav,
 }
 
 @media (max-width: 50rem) {
-    /* The Starlight mobile menu open/close button */
     starlight-menu-button button {
         transition: transform var(--bb-dur-med) var(--bb-ease-out-back),
                     background var(--bb-dur-fast) var(--bb-ease-out-expo);
@@ -1190,7 +938,6 @@ mobile-starlight-toc nav,
     }
 }
 
-/* ── Search button & dialog ───────────────────────────────────────── */
 site-search button[data-open-modal] kbd {
     transition: transform var(--bb-dur-med) var(--bb-ease-out-back),
                 background var(--bb-dur-fast) var(--bb-ease-out-expo);
@@ -1209,7 +956,6 @@ site-search button[data-open-modal]:hover svg {
     color: var(--bb-tan);
 }
 
-/* ── Card icon — playful pop ──────────────────────────────────────── */
 .card .icon {
     transition: transform var(--bb-dur-med) var(--bb-ease-out-back),
                 border-color var(--bb-dur-med) var(--bb-ease-out-expo),
@@ -1229,7 +975,6 @@ site-search button[data-open-modal]:hover svg {
     color: var(--bb-tan-light);
 }
 
-/* ── Pagination — slide-out arrow ─────────────────────────────────── */
 .pagination-links a {
     overflow: hidden;
     position: relative;
@@ -1247,7 +992,6 @@ site-search button[data-open-modal]:hover svg {
     transform: translateX(4px);
 }
 
-/* ── TOC active indicator slide ───────────────────────────────────── */
 starlight-toc nav a {
     position: relative;
     transition:
@@ -1279,8 +1023,6 @@ starlight-toc nav a:hover::before {
     transform: translateY(-50%) scale(1);
 }
 
-/* Current TOC item — green dot with a faint glow, matching the
-   sidebar's active accent so the two reading axes feel consistent. */
 starlight-toc nav a[aria-current="true"]::before {
     transform: translateY(-50%) scale(1.6);
     background: var(--bb-green-glow);
@@ -1300,7 +1042,6 @@ starlight-toc nav a[aria-current="true"] {
     color: var(--bb-green);
 }
 
-/* ── Markdown anchor links — fade on heading hover ────────────────── */
 .sl-heading-wrapper .sl-anchor-link {
     opacity: 0;
     transform: translateX(-4px);
@@ -1324,7 +1065,6 @@ starlight-toc nav a[aria-current="true"] {
     color: var(--bb-green);
 }
 
-/* ── Markdown links — animated underline grow ─────────────────────── */
 .sl-markdown-content a:not(:where(.not-content *)) {
     background-image: linear-gradient(
         90deg,
@@ -1344,7 +1084,6 @@ starlight-toc nav a[aria-current="true"] {
     background-size: 100% 1.5px;
 }
 
-/* ── Code copy button — pop ───────────────────────────────────────── */
 .expressive-code .copy button {
     transition: transform var(--bb-dur-med) var(--bb-ease-out-back),
                 background var(--bb-dur-fast) var(--bb-ease-out-expo) !important;
@@ -1358,19 +1097,6 @@ starlight-toc nav a[aria-current="true"] {
     transform: scale(0.94);
 }
 
-/* ── Astro View Transitions — opacity-only, GPU-cheap ──────────────
-   Notes on perf:
-   1. NO `filter: blur(...)` in keyframes — blur forces a full-page
-      shader pass every frame, which is the #1 cause of laggy view
-      transitions on doc-sized layouts.
-   2. NO transform/translate either — translating the entire page
-      snapshot triggers layer re-rasterization on some GPUs.
-   3. NO per-element `view-transition-name` for the header/sidebar.
-      Naming them creates extra snapshot/animation passes that all run
-      concurrently with the root pass; cheaper to let the root fade
-      cover them.
-   4. Short durations (180ms / 160ms) so the user reaches the new page
-      before they notice any animation cost. */
 @view-transition {
     navigation: auto;
 }
@@ -1391,28 +1117,6 @@ starlight-toc nav a[aria-current="true"] {
     from { opacity: 0; }
 }
 
-/* Reduced motion: the global kill switch moved to
-   @bagel/ui/styles/a11y.css, where all three surfaces get it instead of
-   only this one. */
-
-/* ════════════════════════════════════════════════════════════════════
-   @bagel/ui chrome on a LIGHT surface
-   ════════════════════════════════════════════════════════════════════
-   The nav bar and the footer are the library's `.bb-nav` and `.bb-footer`,
-   and both were drawn for the marketing site, which is dark everywhere and
-   always. Two of their colours are therefore literal light-on-dark values --
-   the brand wordmark and the footer's column headings are `--bb-white`
-   (#f0ece4) -- and on this site's cream light theme they measured about
-   1.2:1 against the page, which is invisible rather than merely low.
-
-   Fixed HERE and not in the library because the library is right: a nav that
-   floats its own near-black glass over any page needs a fixed light ink. What
-   is site-specific is that this site has two grounds, and the docs are the
-   only surface that does. `--bb-ink` is this file's own light-mode text
-   token, already remapped onto Starlight's `--sl-color-white` above.
-
-   In `bb.app`, the layer the architecture reserves for exactly this: it wins
-   over `bb.elements` without a specificity trick and without !important. */
 @layer bb.app {
     :root[data-theme='light'] .bb-brand__name,
     :root[data-theme='light'] .bb-footer__col-title,

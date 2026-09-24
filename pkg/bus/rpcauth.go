@@ -17,26 +17,10 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// Service-to-service caller authentication lives at the broker: every service
-// connects with its own per-service NATS account (NATS_RPC_USER) whose
-// exports/imports are pinned account-to-account in deploy/messaging/nats-auth.conf,
-// and both client listeners run full mTLS against the fleet CA. An HMAC
-// caller-signature layer on top of that was tried and removed: it duplicated
-// the boundary the accounts already enforce, cost a per-request hash + global
-// nonce lock, and needed a signing key distributed to every peer pair. Do not
-// reintroduce it without a threat the account model demonstrably misses.
-//
-// What the account model CANNOT attest is the END USER behind a proxied
-// web-tier request — the web tier's NATS credential is held by server code,
-// not by the human. UserClaim below is that attestation, keyed by secrets the
-// web tier shares with each receiving service (WEB_TIER_CLAIM_KEY,
-// WEB_TIER_CLAIM_KEY_ADMIN).
 const (
 	HeaderUserClaim    = "Bagelbot-User-Claim"
 	HeaderUserClaimSig = "Bagelbot-User-Claim-Signature"
 
-	// DefaultCallerSkew bounds how far a claim's timestamp may drift before
-	// it is rejected. Nonce tracking closes the window behind the skew.
 	DefaultCallerSkew = time.Minute
 
 	signatureVersion = "v1"
@@ -44,7 +28,7 @@ const (
 
 type nonceCache struct {
 	mu      sync.Mutex
-	seen    map[string]int64 // hex(scope|nonce) -> timestamp millis
+	seen    map[string]int64
 	lastCut int64
 	maxAge  time.Duration
 }
@@ -75,9 +59,7 @@ func nonceSeen(scope, nonce string, now time.Time) bool {
 	return false
 }
 
-// UserClaim is the web tier's attestation of the end user behind a proxied
-// request. Handlers MUST take owner/actor identities from here rather than
-// from request payloads whenever the operation acts on a user's behalf.
+// Handlers must take the acting user from here, never from the request payload.
 type UserClaim struct {
 	UserID   string   `json:"uid"`
 	Login    string   `json:"login,omitempty"`
@@ -86,8 +68,6 @@ type UserClaim struct {
 	Nonce    string   `json:"jti"`
 }
 
-// SignUserClaim produces the two header values the web tier attaches when
-// proxying an authenticated end-user action to an internal service.
 func SignUserClaim(claim *UserClaim, key []byte) (value, signature string, err error) {
 	if len(key) == 0 {
 		return "", "", fmt.Errorf("no signing key configured")
@@ -107,9 +87,6 @@ func SignUserClaim(claim *UserClaim, key []byte) (value, signature string, err e
 	return value, hex.EncodeToString(mac.Sum(nil)), nil
 }
 
-// authenticatedClaim extracts and authenticates the claim payload: both
-// headers present, base64 decode, HMAC over "v1\0raw", JSON decode. Freshness
-// and replay stay in VerifyUserClaim.
 func authenticatedClaim(msg *nats.Msg, key []byte) (*UserClaim, error) {
 	value := msg.Header.Get(HeaderUserClaim)
 	sig := msg.Header.Get(HeaderUserClaimSig)
@@ -134,9 +111,6 @@ func authenticatedClaim(msg *nats.Msg, key []byte) (*UserClaim, error) {
 	return &claim, nil
 }
 
-// VerifyUserClaim validates and decodes the web tier's attestation. Claims
-// older than maxSkew are refused; the jti is tracked to stop same-window
-// replays.
 func VerifyUserClaim(msg *nats.Msg, key []byte, maxSkew time.Duration) (*UserClaim, error) {
 	claim, err := authenticatedClaim(msg, key)
 	if err != nil {

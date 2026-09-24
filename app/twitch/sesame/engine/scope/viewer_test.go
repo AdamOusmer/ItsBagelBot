@@ -11,9 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeSpans answers a canned span per login and records every login it was
-// asked for, so the batching claim ("one lookup per viewer per response") is
-// asserted rather than assumed.
 type fakeSpans struct {
 	values map[string]string
 	asked  []string
@@ -24,8 +21,6 @@ func (f *fakeSpans) Span(_ context.Context, login string) string {
 	return f.values[login]
 }
 
-// fakeBalances answers a canned balance per login; a login absent from the
-// map is one nobody could resolve (Found stays false).
 type fakeBalances struct {
 	values   map[string]Balance
 	currency string
@@ -67,8 +62,6 @@ func TestViewerResolvesSenderAndNamedViewer(t *testing.T) {
 	assert.Equal(t, []string{"alice", "bob"}, follow.asked, "'@Bob' folds to the bare login")
 }
 
-// Two spellings of one viewer are one lookup: the payload folds before the
-// fan-out, so a response naming somebody three ways costs one round trip.
 func TestViewerLooksEachViewerUpOnce(t *testing.T) {
 	follow := &fakeSpans{values: map[string]string{"alice": "3 months", "bob": "2 years"}}
 	chain := Chain{Viewer{Sender: "alice", Follow: follow}}
@@ -78,8 +71,6 @@ func TestViewerLooksEachViewerUpOnce(t *testing.T) {
 	assert.Equal(t, []string{"bob", "alice"}, follow.asked)
 }
 
-// {followage} and {followage:alice} are the same viewer under two spellings
-// and must not fan out twice either.
 func TestViewerFoldsTheBareSpanOntoTheSenderLogin(t *testing.T) {
 	follow := &fakeSpans{values: map[string]string{"alice": "3 months"}}
 	chain := Chain{Viewer{Sender: "alice", Follow: follow}}
@@ -88,9 +79,6 @@ func TestViewerFoldsTheBareSpanOntoTheSenderLogin(t *testing.T) {
 	assert.Equal(t, []string{"alice"}, follow.asked)
 }
 
-// A mounted family whose lookup produced nothing renders EMPTY, so the span's
-// fallback speaks — never literal, which would claim the bot has no such
-// token.
 func TestViewerRendersFallbackWhenTheLookupFoundNothing(t *testing.T) {
 	follow := &fakeSpans{values: map[string]string{}}
 	chain := Chain{Viewer{Sender: "alice", Follow: follow}}
@@ -117,17 +105,12 @@ func TestViewerReadsOneBalanceForPointsAndWatchTime(t *testing.T) {
 	assert.Equal(t, 1, balances.names)
 }
 
-// TestViewerPointsNameLegacyAlias pins PointsNameLegacyToken: {pointsname} is
-// the pre-simplification spelling of {points.name} and must resolve
-// identically, not merely to the same value by coincidence of the fixture.
 func TestViewerPointsNameLegacyAlias(t *testing.T) {
 	balances := &fakeBalances{currency: "bagels"}
 	chain := Chain{Viewer{Sender: "alice", Balances: balances}}
 	assert.Equal(t, render(t, "{points.name}", chain, nil), render(t, "{pointsname}", chain, nil))
 }
 
-// A viewer this channel could not resolve renders empty rather than "0",
-// which chat would read as an earned zero.
 func TestViewerRendersUnknownViewerAsEmpty(t *testing.T) {
 	balances := &fakeBalances{currency: "points", values: map[string]Balance{}}
 	chain := Chain{Viewer{Sender: "alice", Balances: balances}}
@@ -136,8 +119,6 @@ func TestViewerRendersUnknownViewerAsEmpty(t *testing.T) {
 	assert.Equal(t, "who?", render(t, "{points:stranger|who?}", chain, nil))
 }
 
-// Spans that address nobody, and a currency name handed a viewer it has no
-// use for, stay literal so the author sees the mistake.
 func TestViewerLeavesUnusableSpansLiteral(t *testing.T) {
 	follow := &fakeSpans{values: map[string]string{"alice": "3 months"}}
 	balances := &fakeBalances{currency: "points"}
@@ -151,8 +132,6 @@ func TestViewerLeavesUnusableSpansLiteral(t *testing.T) {
 	assert.Zero(t, balances.names)
 }
 
-// With no chatter login on the envelope a bare span addresses nobody and
-// stays literal, rather than looking up the empty login.
 func TestViewerLeavesBareSpansLiteralWithoutASender(t *testing.T) {
 	follow := &fakeSpans{}
 	chain := Chain{Viewer{Follow: follow}}

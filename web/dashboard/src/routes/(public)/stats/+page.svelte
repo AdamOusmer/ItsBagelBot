@@ -11,50 +11,22 @@
 
   const { t, locale } = getI18n();
 
-  // Fallback poll of /stats/data, armed only while the SSE stream is failed.
   const POLL_MS = 5000;
-  // The boards ride the same 2s stream as the counters (a `boards` event beside
-  // each snapshot frame), so this poll is only the stand-in for a failed
-  // stream, at the same cadence as the counters' own fallback.
-  // 0 -> value rise on first paint (ease-out-quart, as the shared countUp action).
   const INTRO_MS = 900;
-  // Time constant of the chase that re-bases the odometer onto a fresh snapshot:
-  // ~95% of the correction lands within 3τ ≈ 600ms, which reads as a drift
-  // rather than a jump.
   const TAU_MS = 200;
-  // Rates are a read-out, not an odometer, so settle them a touch more slowly.
   const RATE_TAU_MS = 300;
-  // A throttled tab (or a slept laptop) must not integrate minutes of rate into
-  // a single frame.
   const MAX_DT_MS = 250;
-  // How far past the last snapshot we are willing to extrapolate. A stalled
-  // stream should coast to a stop, not invent a number nobody can vouch for.
   const MAX_PROJECT_S = 10;
-  // Slowest the totals may move while a downward correction is being absorbed,
-  // as a share of the live rate. The counters are meant to read as running, so
-  // they crawl through a correction rather than parking on one value.
   const MIN_CRAWL = 0.25;
 
-  // The SSR snapshot is a seed, not a binding: from hydration on, this page's
-  // numbers come from its own stream, never from a re-run of the page load. Read
-  // it untracked so that intent is explicit (and so the seed-vs-prop reactivity
-  // warning does not fire on a deliberate one-time copy).
   const seed = untrack(() => data.stats);
   type Snapshot = typeof seed;
 
-  // Last snapshot from the server: seeded by SSR, replaced by each SSE frame.
-  // `live` only ever holds healthy numbers; `degraded` tracks the banner on its
-  // own so an outage frame cannot rebase the odometer (see applySnapshot).
   let live = $state(seed);
   let degraded = $state(seed.degraded);
 
-  // The two per-channel boards. Same seed-not-binding rule as the odometer, but
-  // no extrapolation: these are printed exactly as the server last sent them.
   let boards = $state(untrack(() => data.boards));
 
-  // What the tiles actually print. Seeded from the SSR numbers so the no-JS /
-  // pre-hydration render already carries the real values; onMount then runs the
-  // 0 -> value rise and hands over to the ticking loop below.
   let display = $state({
     messages: seed.messages_total,
     events: seed.events_total,
@@ -64,21 +36,13 @@
 
   type Frame = typeof display;
 
-  // Trajectory bookkeeping, deliberately not $state: it is read and written by
-  // the animation frame, never rendered.
-  let snapAt = 0; // performance.now() when the current snapshot landed
-  let introAt = 0; // start of the 0 -> value rise
+  let snapAt = 0;
+  let introAt = 0;
   let lastFrame = 0;
   let raf = 0;
   let reduced = false;
   let streamDown = false;
 
-  /**
-   * Where the totals should stand *right now*: the last snapshot's numbers plus
-   * its rate times the time since it landed. This is what makes the counters
-   * live: between snapshots the display keeps climbing at the fleet's own
-   * rate instead of sitting still for 2s and then stepping.
-   */
   function targetFrame(now: number): Frame {
     const secs = Math.min(Math.max(0, now - snapAt) / 1000, MAX_PROJECT_S);
     const msgRate = live.msg_rate ?? 0;
@@ -95,16 +59,6 @@
     return from + (to - from) * eased;
   }
 
-  /**
-   * Fraction of the remaining gap to close on this frame.
-   *
-   * After the intro it is an exponential chase (time constant TAU_MS): the
-   * target moves continuously, so a fixed-duration tween would have to be
-   * restarted on every snapshot; a chase absorbs a moving target for free.
-   * During the intro it is the same ease-out-quart the shared countUp uses,
-   * rewritten as a per-frame closing fraction so the moving target does not
-   * break the curve.
-   */
   function closingFraction(now: number, dt: number): number {
     const p = (now - introAt) / INTRO_MS;
     if (p >= 1) return 1 - Math.exp(-dt / TAU_MS);
@@ -112,15 +66,6 @@
     return 1 - Math.pow((1 - p) / (1 - before), 4);
   }
 
-  /**
-   * One frame of one total: chase the (moving) target, but never below a crawl.
-   *
-   * The floor does both jobs the odometer needs. It is monotonic, so a downward
-   * correction is never visible as digits running backwards; and it keeps a
-   * fraction of the live rate flowing, so the digits stay in motion even while
-   * an over-extrapolation is being corrected away instead of parking for a few
-   * hundred ms. A rate of 0 floors to a standstill, which is the honest reading.
-   */
   function advance(cur: number, target: number, rate: number, dt: number, k: number): number {
     return Math.max(lerp(cur, target, k), cur + rate * (dt / 1000) * MIN_CRAWL);
   }
@@ -140,7 +85,6 @@
     raf = requestAnimationFrame(tick);
   }
 
-  /** Land on the current truth immediately (reduced motion, tab re-shown). */
   function snap(now: number): void {
     lastFrame = now;
     display = targetFrame(now);
@@ -148,37 +92,28 @@
 
   function applySnapshot(next: Snapshot): void {
     degraded = next.degraded;
-    // A degraded snapshot carries zeros, not truth: raise the banner and keep
-    // the last good numbers coasting rather than rebasing the odometer onto
-    // nothing (which the reset branch below would read as a counter reset).
     if (next.degraded) return;
     const prev = live;
     live = next;
     snapAt = performance.now();
     if (reduced) {
-      snap(snapAt); // no extrapolation for reduced motion: each snapshot lands as-is
+      snap(snapAt);
       return;
     }
-    // A total that genuinely went down is a counter reset, not over-extrapolation:
-    // drop the monotonic floor with it instead of freezing the tile forever.
     if (next.messages_total < prev.messages_total) display.messages = next.messages_total;
     if (next.events_total < prev.events_total) display.events = next.events_total;
   }
 
   async function refresh(): Promise<void> {
-    // A backgrounded tab keeps neither an honest rAF nor a reason to poll; the
-    // visibility listener catches it up the moment it comes back.
     if (document.hidden) return;
     try {
       const res = await fetch('/stats/data', { headers: { accept: 'application/json' } });
       if (!res.ok) return;
       applySnapshot(await res.json());
     } catch {
-      // Keep the last good snapshot on a network blip rather than blanking.
     }
   }
 
-  /** Fallback refresh of the leaderboards; a hidden tab keeps its last ranking. */
   async function refreshBoards(): Promise<void> {
     if (document.hidden) return;
     try {
@@ -186,15 +121,9 @@
       if (!res.ok) return;
       boards = await res.json();
     } catch {
-      // Keep the last ranking on a network blip rather than emptying the board.
     }
   }
 
-  /**
-   * Live snapshots over SSE. EventSource reconnects on its own, so a failure
-   * only needs to arm the old 5s poll of /stats/data as a stand-in and stand it
-   * down again once the stream is back.
-   */
   function openStream(): EventSource {
     const es = new EventSource('/stats/stream');
     es.onopen = () => (streamDown = false);
@@ -203,17 +132,12 @@
       try {
         applySnapshot(JSON.parse(ev.data) as Snapshot);
       } catch {
-        // Malformed frame: ignore it, the next one is 2s out.
       }
     };
-    // The boards arrive on their own event so the counter frame keeps its
-    // shape. They are printed as sent, no extrapolation, no chase: a rank is
-    // a fact about a moment, not a trajectory.
     es.addEventListener('boards', (ev) => {
       try {
         boards = JSON.parse((ev as MessageEvent<string>).data) as typeof boards;
       } catch {
-        // Malformed frame: keep the last ranking.
       }
     });
     return es;
@@ -241,7 +165,6 @@
 
     const onVisible = () => {
       if (document.hidden) return;
-      // rAF is suspended while hidden: land on the truth, then resume ticking.
       snap(performance.now());
       if (!reduced) {
         cancelAnimationFrame(raf);
@@ -266,12 +189,8 @@
 
   const PENDING = '-';
 
-  // Split at render time, not in the catalogs: the stagger is presentation, and
-  // the headline stays one translatable sentence.
   const headline = $derived(t('stats.headline').split(' '));
 
-  // Two tiles, not four: each lifetime total carries its own live rate as a
-  // subline, so the page opens on the two numbers it is actually about.
   const tiles = $derived([
     {
       label: t('stats.messagesLabel'),
@@ -290,15 +209,7 @@
   const traffic = $derived(boards.channels);
   const feed = $derived(boards.feed);
 
-  // Both boards label a channel with the name the fleet stored for it, which is
-  // a display name: usually the login with capitals, which the public channel
-  // page lowercases on the way in, but not always (a localized display name
-  // has no login shape at all). Link by id when the label cannot be one, rather
-  // than linking somewhere that 404s.
   const LOGIN_SHAPE = /^[A-Za-z0-9_]{1,25}$/;
-  // Absolute, to the host the command page belongs to. Relative would keep the
-  // visitor on whichever host served /stats and hand them the commands page
-  // under it; the server redirects that away, so this just saves the hop.
   const channelHref = (row: { id: string; name: string }) =>
     commandsHref(LOGIN_SHAPE.test(row.name) ? row.name : row.id);
 </script>
@@ -306,9 +217,6 @@
 <svelte:head>
   <title>{t('stats.title')}</title>
   <meta name="description" content={t('stats.metaDescription')} />
-  <!-- The page answers on two hosts (stats.itsbagelbot.com root and
-       dashboard.itsbagelbot.com/stats); the subdomain is the one search
-       engines and shares should converge on. -->
   <link rel="canonical" href="https://stats.itsbagelbot.com/" />
   <meta property="og:url" content="https://stats.itsbagelbot.com/" />
   <meta property="og:title" content={t('stats.title')} />
@@ -323,9 +231,6 @@
 <main class="stats-page">
   <header class="hero">
     <div class="eyebrow reveal" style="--i:0">{t('stats.eyebrow')}</div>
-    <!-- Word-by-word entrance, as on /login. The shared `.reveal` steps in 80ms
-         per unit of --i, so fractional steps give the words a tighter cadence
-         than the sections around them. -->
     <h1 class="headline">
       {#each headline as word, i (i)}
         <span
@@ -346,11 +251,6 @@
   {/if}
 
   <section class="tiles" aria-label={t('stats.headline')}>
-    <!-- The surface is the shared Card the management pages and the public
-         channel page use, with `hover` on: cursor-tracked tan spotlight, border
-         brighten, small lift. The staggered rise stays on a wrapper, because
-         `.reveal` ends on a filled `transform` that would otherwise outrank the
-         card's own hover lift. -->
     {#each tiles as tile, i (tile.label)}
       <div class="tile-wrap reveal" style="--i:{5 + i * 0.5}">
         <Card atmo hover class="tile">
@@ -359,10 +259,6 @@
               <span class="label">{tile.label}</span>
             </div>
           {/snippet}
-          <!-- The body is a `Stack`, not a `:global(.bb-card__body)` rule.
-               The 12px between the counter and its rate line is the block's
-               gap; the container-type below is this page's own, because the
-               counter sizes itself in cqi against the tile it is in. -->
           <Stack gap={3} class="tile-body">
           <div class="value">
             <span class="num">{tile.value}</span>
@@ -395,8 +291,6 @@
         {#if traffic.length === 0}
           <p class="empty">{t('stats.boardEmpty')}</p>
         {:else}
-          <!-- Own scroll container: a ten-digit total on a narrow phone must
-               scroll the table, never the page. -->
           <div class="table-scroll">
             <table>
               <thead>
@@ -473,8 +367,6 @@
 </main>
 
 <style>
-  /* Mote field sits above the aurora (z-index 0) but below content (z-index 1).
-     Own stacking context so LightField's z-index:-1 canvas stays contained. */
   .starfield {
     position: fixed;
     inset: 0;
@@ -485,8 +377,6 @@
   .stats-page {
     position: relative;
     z-index: 1;
-    /* Clears the fixed 76px public nav the same way the channel page's hero
-       does, then keeps its own breathing room above the eyebrow. */
     min-height: calc(100vh - 76px);
     max-width: var(--bb-content-max);
     margin: 0 auto;
@@ -544,29 +434,15 @@
     gap: var(--bb-space-4);
   }
 
-  /* The shared Card, scaled up: the numerals are the subject here, so the tile
-     just gets more padding and a column layout. Everything else (surface,
-     hairline border, radius, hover spotlight/lift) is the Card's own. */
   .tile-wrap { min-width: 0; }
 
-  /* The tile is a banded Card. Everything below is set through the CARD'S OWN
-     custom properties (`--card-pad`, `--card-band-h`, `--card-band-pad`,
-     elements/card.css), handed down from this grid, rather than through
-     `:global(.bb-card…)` rules reaching into the contract. The band height is
-     one value for the whole grid on purpose: a 32px icon, or a label wrapped
-     to two lines on a narrow screen, must give the pair one seam either way. */
   .tiles {
     --card-pad: clamp(24px, 3.4vw, 40px);
     --card-band-h: calc(70px * var(--d, 1));
     --card-band-pad: calc(14px * var(--d, 1)) var(--card-pad);
   }
   :global(.tile) { height: 100%; min-width: 0; }
-  /* container-type makes this box the reference for the counter's cqi font
-     size below: the counter has to fit the tile it is in, not the tile it had
-     when the number was shorter. */
   :global(.tile-body) { min-width: 0; container-type: inline-size; }
-  /* Hairline of light along the top edge, as on the marketing surfaces. Free to
-     use: Card's own ::before only paints under the (unused) `sheen` variant. */
   :global(.tile)::before {
     content: '';
     position: absolute;
@@ -591,25 +467,10 @@
   .num {
     font-family: var(--bb-font-display);
     font-weight: 800;
-    /* Sized against the tile, not the viewport, because the counter only ever
-       grows. clamp(30px, 5vw, 60px) was set when the total was shorter; by
-       2,506,163,926 the number needed 11.32em and no longer fit one line at
-       ANY width, it wrapped mid-group ("2,506,163," / "926") on desktop as
-       well as on a phone.
-
-       8cqi is the tile's inline size divided by 12.5, and an eleven-digit
-       total (14 characters with separators) measures 12.32em in English,
-       which is the wider of the two locales. So the number that wraps is the
-       first one past a hundred billion, and the wrap is safe when it comes:
-       overflow-wrap below still breaks it and the gap above no longer
-       collapses. Viewport units cannot do this: the tile is one column wide
-       on a phone and half a grid wide on a desktop at the same vw. */
     font-size: clamp(20px, 8cqi, 60px);
     line-height: 1;
     letter-spacing: var(--bb-tracking-tight);
     color: var(--bb-white);
-    /* Tabular figures: a digit that changes 60 times a second must not reflow
-       the ones beside it. */
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
@@ -620,8 +481,6 @@
     color: var(--bb-muted);
   }
 
-  /* Rate subline: the tile's second number, deliberately a read-out rather than
-     an odometer, same tabular figures, a third of the size. */
   .rate {
     display: flex;
     align-items: baseline;
@@ -655,11 +514,6 @@
 
   .board-wrap { min-width: 0; }
 
-  /* Banded Card, driven by the card's own custom properties. Both boards
-     share one housing height: the two notes wrap at different widths, so a
-     floor would stagger the seams across the pair. Sized for the longest note
-     wrapped to three lines on a 375px screen (65px in French), which is the
-     tightest this head ever gets. */
   .boards {
     --card-pad: clamp(20px, 2.4vw, 30px);
     --card-band-h: calc(112px * var(--d, 1));
@@ -670,11 +524,6 @@
   .board-head { display: flex; align-items: flex-start; gap: var(--bb-space-3); min-width: 0; }
   .board-titles { min-width: 0; }
 
-  /* The type is `Heading` and `Text`. What stays local is the board title's
-     SIZE: clamp(18px, 2vw, 22px) sits between the l4 (20px) and l5 (17px)
-     steps because the housing band is a fixed height and the two boards'
-     titles have to fit it in both languages. The 4px between title and note
-     is the only other local value. */
   :global(.board-title) { font-size: clamp(18px, 2vw, 22px); letter-spacing: var(--bb-tracking-tight); }
   :global(.board-note) { margin-top: 4px; }
 
@@ -713,7 +562,6 @@
 
   th:last-child, td:last-child { padding-right: 0; }
 
-  /* Rank column: a fixed mono gutter so the names line up whatever the digits. */
   .rank {
     font-family: var(--bb-font-mono);
     font-size: 12px;
@@ -726,15 +574,8 @@
   th.n { text-align: right; padding-right: 0; }
 
   .chan { min-width: 0; }
-  /* The channel link is the `.bb-prose` contract
-     (@bagel/ui/styles/elements/typography.css): a run of text with a link in
-     it, which is what this cell is. It was a fourth drawing of an inline link
-     (white, transparent bottom border, green on hover) in a repo that already
-     had three. */
   .unnamed { color: var(--bb-muted); font-style: italic; }
 
-  /* Feed board: one big tan total, then the podium as a list, the ranking is
-     one number per row, so a table would be three quarters chrome. */
   .feed-total { display: flex; flex-direction: column; gap: 4px; }
   .feed-total .num {
     font-family: var(--bb-font-display);

@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// $parameter translation and the SLCB permission mapping: the port of
-// parameters.go. Every SLCB-specific destination is decided here before the
-// shared permission table is consulted.
-
 import type { ImportDiagnostic } from '../types';
 import { CODE, mapPermission, normalizeName } from '../validate';
 import { emit, normalizeInstant, POSITIONAL_MAX, positional, slice } from '../targets';
@@ -13,7 +9,6 @@ import type { FetchSlotSink } from '../nightbot/fetchdefs';
 import { goAtoi } from './dbfile';
 import { warnDiag } from './dbfile';
 
-// every code is a row here so call sites never repeat raw strings.
 export const SLCB_CODE = {
   manifestSourceNote: 'manifest_source_note',
   permissionAdjusted: 'command_permission_adjusted',
@@ -24,25 +19,6 @@ export const SLCB_CODE = {
   positionalNumericLost: 'command_positional_numeric_lost'
 } as const;
 
-// --- $parameter translation (parameters.go) -----------------------------------
-
-// mapPermissionSLCB translates an SLCB permission value into a perm tier.
-//
-// SLCB's own tiers (its official "Permissions & Usage" wiki page) are the
-// letter flags +a Everyone, +r Regular, +s Subscriber, +gw GameWisp Subscriber,
-// +m Moderator, +e Editor, +i Invisible, plus user/min-rank/min-points/min-hours
-// gates (+u/+r(rank)/+p/+h). Word spellings are what the desktop UI persists.
-//
-// Everything SLCB-specific is handled here BEFORE falling back to the shared
-// permission table, because each case has a deliberate destination:
-//   - regular → everyone + warn. Our tier set has no regular level (same call
-//     the Moobot parser documents); widening beats dropping the command.
-//   - editor → lead_mod + warn. A Twitch channel editor is trusted staff above
-//     moderators, which is exactly this bot's lead_mod; mapping to mod would
-//     narrow, leaving unmapped would widen to everyone.
-//   - gamewisp subscriber → sub + warn (paid-subscriber equivalent).
-//   - invisible / user / min-rank / min-points / min-hours gates → everyone +
-//     warn: these gate on state we cannot express.
 export function mapPermissionSLCB(raw: string): { perm: string; diags: ImportDiagnostic[] } {
   const label = raw.trim().toLowerCase();
   return applyPermOutcome(
@@ -51,21 +27,6 @@ export function mapPermissionSLCB(raw: string): { perm: string; diags: ImportDia
   );
 }
 
-// PermOutcome is one row of the SLCB permission table. Shared spellings run
-// through the repo-wide permission table so SLCB never diverges from how other
-// parsers land tiers; adjusted/unmapped rows carry their deliberate
-// destination plus the diagnostic explaining it.
-//
-// Everything SLCB-specific is handled here BEFORE falling back to the shared
-// table, because each case has a deliberate destination:
-//   - regular → everyone + warn. Our tier set has no regular level (same call
-//     the Moobot parser documents); widening beats dropping the command.
-//   - editor → lead_mod + warn. A Twitch channel editor is trusted staff above
-//     moderators, which is exactly this bot's lead_mod; mapping to mod would
-//     narrow, leaving unmapped would widen to everyone.
-//   - gamewisp subscriber → sub + warn (paid-subscriber equivalent).
-//   - invisible / user / min-rank / min-points / min-hours gates → everyone +
-//     warn: these gate on state we cannot express.
 type PermOutcome =
   | { kind: 'shared'; word: string }
   | { kind: 'adjusted'; perm: string; reason: (raw: string) => string }
@@ -102,8 +63,6 @@ const SLCB_PERMS: Record<string, PermOutcome> = {
   regulars: widenedRegulars()
 };
 
-// widenedRegulars lands on everyone with the unmapped code: channel regulars
-// have no tier here, so the mapping layer's widening fallback applies.
 function widenedRegulars(): PermOutcome {
   return {
     kind: 'unmapped',
@@ -135,8 +94,6 @@ function applyPermOutcome(outcome: PermOutcome, raw: string): { perm: string; di
   }
 }
 
-// sharedPerm runs a canonical word spelling through the repo-wide permission
-// table so SLCB never diverges from how other parsers land tiers.
 function sharedPerm(word: string): { perm: string; diags: ImportDiagnostic[] } {
   const { perm, recognized } = mapPermission(word);
   if (!recognized) {
@@ -154,20 +111,6 @@ function sharedPerm(word: string): { perm: string; diags: ImportDiagnostic[] } {
   return { perm, diags: [] };
 }
 
-// simpleParams are the clean 1:1 mappings:
-//   $username  invoking chatter display name → {user}
-//   $userid    the chatter's numeric/login id → {user.id} (phase 6 bug fix:
-//              this used to fold onto {user}, the DISPLAY name — SLCB's own
-//              Parameters wiki draws the same distinction our {user}/
-//              {user.id} pair does, and a response built around an id
-//              deserves the id, not a second spelling of the name)
-//   $targetname/$tousername/$touser/$target → {touser} ($target is legacy
-//              AnkhBot spelling)
-//   $mychannel broadcaster channel → {channel}
-//   $msg/$dummyormsg everything after the command → {args}
-//   $argl      everything after the command, lower-cased → {args} (the
-//              lower-casing itself has no equivalent; see the decision
-//              record on $arglN below, which the bare form shares)
 const SIMPLE_PARAMS: Record<string, string> = {
   username: emit('user')!,
   userid: emit('user.id')!,
@@ -179,29 +122,11 @@ const SIMPLE_PARAMS: Record<string, string> = {
   msg: emit('args')!,
   dummyormsg: emit('args')!,
   argl: emit('args')!,
-  // $randusername draws one name out of the people currently in chat —
-  // {random.viewer}'s own definition.
   randusername: emit('random.viewer')!,
-  // $points is the invoking chatter's own loyalty balance; $currencyname is
-  // the broadcaster's name for that currency (SLCB's "Points name" setting).
   points: emit('points')!,
   currencyname: emit('points.name')!
 };
 
-// externalParams stay literal but mark the command script/API-dependent: their
-// values come from HTTP calls, local files or wall-clock countdowns that have
-// no import-time equivalent ($desc is stripped entirely instead, see
-// translateVariables). Names follow the official Parameters wiki page.
-// countdown/countup are NOT here (phase 6): they have their own PARAM_HANDLERS
-// entries below, since — unlike the file/script calls in this set — a date
-// argument that parses is a real, computable equivalent rather than a stay-
-// literal case.
-// readapi is NOT here (phase 6): it has its own PARAM_HANDLERS entry below,
-// since — like countdown/countup above — a URL that parses is a real,
-// computable equivalent ({urlfetch:<slug>}) rather than a stay-literal case.
-// Every name still in this set reads or writes a local FILE on the machine
-// SLCB itself ran on: file I/O has no filesystem here to read or write, so
-// none of them has an equivalent at all, computable or otherwise.
 const EXTERNAL_PARAMS = new Set([
   'readline',
   'readrandline',
@@ -213,15 +138,9 @@ const EXTERNAL_PARAMS = new Set([
 interface TranslationResult {
   text: string;
   diags: ImportDiagnostic[];
-  external: boolean; // used $readline/$savetofile/... style parameters (phase 6: $readapi no longer sets this — it maps to {urlfetch:…} instead, see readapiParam)
+  external: boolean;
 }
 
-// ScanState threads one response through the per-parameter handlers below:
-// pos is the index of the '$' being dispatched, out the output under
-// construction, seenWarns the dedupe keys for emitted diagnostics, sink the
-// per-command urlfetch slot allocator (undefined for timer messages, which
-// carry no command name to build a slug from — readapiParam degrades to
-// literal+warn without one, same as every other source's fetch handler).
 interface ScanState {
   text: string;
   cmdName: string;
@@ -239,20 +158,6 @@ function warnOnce(s: ScanState, code: string, message: string): void {
   s.res.diags.push(warnDiag(-1, code, message));
 }
 
-// translateVariables rewrites SLCB $parameters in one response/timer message
-// into this bot's {key} set, leaving anything unmappable as literal text plus
-// a warn diagnostic naming the token: deleting a broadcaster's text silently
-// is worse than a stray brace.
-//
-// cmdName gates $count resolution (bare {count}, the per-command use count —
-// see uses.go's alias of {uses}); empty for timer messages, where $count has
-// no command to count and stays literal. $count auto-increments per run
-// upstream exactly like {count}/{uses} does here, which is why it maps onto
-// that rather than a named {counter:<cmdName>}: a fresh import would
-// otherwise silently create (and bind the command to) a channel counter the
-// broadcaster never named. $checkcount(name), below, is SLCB's own
-// NAMED-counter reference and is unaffected: it already read rather than
-// wrote, so it keeps mapping onto {counter:<name>}.
 export function translateVariables(text: string, cmdName: string, sink?: FetchSlotSink): TranslationResult {
   const s: ScanState = {
     text,
@@ -274,7 +179,7 @@ export function translateVariables(text: string, cmdName: string, sink?: FetchSl
     }
     const cursor = scanIdent(text, i + 1);
     if (cursor.name === '') {
-      s.out += ch; // "$" with no identifier: literal dollar sign
+      s.out += ch;
       i++;
       continue;
     }
@@ -286,10 +191,6 @@ export function translateVariables(text: string, cmdName: string, sink?: FetchSl
   return s.res;
 }
 
-// dispatchParam routes one scanned $name to its rule: the SIMPLE_PARAMS map
-// first, then PARAM_HANDLERS, then the predicate families (numbered arg slots,
-// external calls), finally the unknown fallback. Adding a parameter later is a
-// row in one of those tables, not a branch here.
 type ParamHandler = (s: ScanState, cursor: ParamCursor) => number;
 
 const PARAM_HANDLERS: Record<string, ParamHandler> = {
@@ -315,11 +216,6 @@ function dispatchParam(s: ScanState, cursor: ParamCursor): number {
   return unknownParam(s, cursor);
 }
 
-// counterSpan folds one counter name into its span, or null when the name
-// cannot survive our own lexer ('|' would turn the tail into a fallback, '}'
-// would close the span early). A command name is printable ASCII, so both are
-// reachable from a real export; the callers degrade to literal+warn rather
-// than emitting a token that names a different counter than it reads.
 function counterSpan(name: string): string | null {
   const norm = normalizeName(name);
   return norm === '' ? null : emit('counter', norm);
@@ -329,13 +225,6 @@ function countParam(s: ScanState, cursor: ParamCursor): number {
   const { next } = cursor;
   if (s.cmdName !== '') {
     s.out += emit('count')!;
-    // Meaning change, not just a spelling change: SLCB's $count was a live
-    // running total from whenever the command was created; {count} starts
-    // counting this bot's own runs from zero. SLCB's own export carries no
-    // running value to cite (unlike Moobot's <counter>, which at least has
-    // one to name), so this warns without an old-value clause. warnOnce
-    // dedupes by (code, message), so a response using $count more than once
-    // still warns a single time.
     warnOnce(
       s,
       SLCB_CODE.countRemapped,
@@ -370,13 +259,6 @@ function checkCountParam(s: ScanState, cursor: ParamCursor): number {
   return skipParens(s, cursor);
 }
 
-// countdownParam builds the $countdown(d)/$countup(d) handler for one of the
-// two names: a real mapping when d parses as a date (normalizeInstant reads
-// SLCB's free-form spelling, e.g. "Dec 25 2026 12:00:00 PST", the same shape
-// Nightbot exports — see targets.ts), literal+warn otherwise. Unlike the
-// generic EXTERNAL_PARAMS path this replaces, an unparsable date still warns
-// with the reason (not a script/file dependency, a date this bot could not
-// read), because the fix here is something the broadcaster can act on.
 function countdownParam(name: 'countdown' | 'countup'): ParamHandler {
   return (s: ScanState, cursor: ParamCursor): number => {
     const { next } = cursor;
@@ -402,31 +284,15 @@ function countdownParam(name: 'countdown' | 'countup'): ParamHandler {
   };
 }
 
-// refuseReadapi is the shared "cannot use this call" exit: no argument, a
-// blank one, or no sink to attach a definition to (timer messages carry no
-// command name) all read the same to the broadcaster.
 function refuseReadapi(s: ScanState, cursor: ParamCursor): number {
   s.out += '$readapi';
   warnOnce(s, CODE.variableUnmapped, '"$readapi(...)" is missing its URL, or has no command to attach a definition to; left as literal text');
   return cursor.next;
 }
 
-// readapiParam maps $readapi(URL) onto {urlfetch:<slug>} plus a synthesized
-// definition shell carrying the URL, the same shape Moobot's/Nightbot's own
-// $(urlfetch …)/$(customapi …) handlers use (nightbot/fetchdefs.ts's sink,
-// parameterized by source — 'slcb' here). Without a sink (timer messages
-// carry no command name to build a slug from) or with an unusable URL — most
-// notably one that still contains another literal '$param' this bot could
-// not translate first, which parseFetchArgs's usableUrl refuses on the same
-// '$'/'{'/'}' check every other source's fetch parser shares — the call
-// stays literal and warns, exactly like Nightbot's "URL built out of another
-// variable is never baked into a definition".
 function readapiParam(s: ScanState, cursor: ParamCursor): number {
   const arg = parenArg(s, cursor);
   if (arg === null || arg.trim() === '') return refuseReadapi(s, cursor);
-  // Kept as its own guard (rather than folded into the check above) so the
-  // narrowing below — s.sink.acquire(...) — does not need a non-null
-  // assertion: TypeScript already knows s.sink is defined past this return.
   if (!s.sink) return refuseReadapi(s, cursor);
   const parsed = parseFetchArgs(arg.trim());
   if (!parsed) {
@@ -471,15 +337,6 @@ function randnumParam(s: ScanState, cursor: ParamCursor): number {
   return endSpan;
 }
 
-// argsSlotParam resolves one $argN/$numN/$arglN in place, per slot: no more
-// all-or-nothing (the old rule mapped a LONE $arg1 onto {args} and gave up
-// entirely the moment a response used a second slot — deleted in phase 6, see
-// the decision record on SIMPLE_PARAMS above for $argl's bare form). Bare
-// arg/num slots are plain positional words ({N}); the 'l' family is SLCB's
-// own lower-cased variant, mapped onto the REST-from-N slice ({N:}) per the
-// phase 6 spec rather than a second positional word, and warned every time:
-// this bot's positional words do not lower-case their text, and nothing else
-// in the grammar can, so the case SLCB guaranteed is not guaranteed here.
 function argsSlotParam(s: ScanState, cursor: ParamCursor): number {
   const { name, next } = cursor;
   const n = argsSlotIndex(name);
@@ -502,14 +359,6 @@ function argsSlotParam(s: ScanState, cursor: ParamCursor): number {
       `response uses $${name}, imported as ${span}: SLCB lower-cased this argument, this bot's positional words do not`
     );
   }
-  // $numN was SLCB's own numeric-only word slot — it read as its FALLBACK
-  // (usually empty) when the word was not a number, where this bot's plain
-  // positional word ({N}) prints whatever text is there whether or not it
-  // parses as a number. Mapping both $argN and $numN onto the same {N} is
-  // still the closest available token (there is no "positional word, numeric
-  // only" span here), but the validation itself is lost, which is worth
-  // telling the broadcaster rather than letting a non-numeric word appear
-  // where SLCB would have printed nothing.
   if (name.startsWith('num')) {
     warnOnce(
       s,
@@ -532,10 +381,6 @@ function externalParam(s: ScanState, cursor: ParamCursor): number {
 
 function descParam(s: ScanState, cursor: ParamCursor): number {
   const { next } = cursor;
-  // $desc(...) is a first-line metadata directive ("sync custom description to
-  // the web" per SLCB docs), not response content; keeping it would post the
-  // instruction into chat. Stripped when it opens the first line, kept literal
-  // elsewhere.
   const endSpan = skipParensSpan(s, cursor);
   if (endSpan === null) {
     s.out += '$desc';
@@ -546,8 +391,6 @@ function descParam(s: ScanState, cursor: ParamCursor): number {
   return endSpan;
 }
 
-// swallowDirectiveBreak eats the break directly after a leading $desc(...)
-// directive so stripping it does not leave a blank first line.
 function swallowDirectiveBreak(text: string, at: number): number {
   if (text[at] === '\n') return at + 1;
   if (text[at] === '\r' && text[at + 1] === '\n') return at + 2;
@@ -563,12 +406,6 @@ function unknownParam(s: ScanState, cursor: ParamCursor): number {
   return endSpan ?? next;
 }
 
-// scanIdent reads a $parameter identifier starting at start; returns the name
-// and the index just past it. Identifiers begin with a letter or underscore:
-// chat text like "$5" or "100$" must stay literal dollars, so a leading digit
-// terminates the scan immediately.
-// ParamCursor is a scanned $parameter: its identifier and the index just past
-// it. Named because it threads through every handler below.
 interface ParamCursor {
   name: string;
   next: number;
@@ -580,9 +417,6 @@ function scanIdent(text: string, start: number): ParamCursor {
   return { name: text.slice(start, end), next: end };
 }
 
-// hasIdentStart checks the first character after '$': identifiers begin with
-// a letter or underscore: chat text like "$5" or "100$" must stay literal
-// dollars, so a leading digit terminates the scan immediately.
 function hasIdentStart(text: string, start: number): boolean {
   if (start >= text.length) return false;
   return isIdentLead(text[start]);
@@ -592,8 +426,6 @@ function isIdentLead(c: string): boolean {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_';
 }
 
-// readNameChars walks past the lead character while identifier characters
-// continue, returning the exclusive end of the name.
 function readNameChars(text: string, from: number): number {
   let i = from;
   while (i < text.length && isIdentChar(text[i])) i++;
@@ -601,22 +433,13 @@ function readNameChars(text: string, from: number): number {
 }
 
 
-// parenArg returns the content of the (...) following the scanned parameter,
-// or null. The helpers here all read the same two values the handlers already
-// hold — the scan state and the cursor just past the parameter name — so they
-// take those rather than a text/index pair unpacked at every call.
 function parenArg(s: ScanState, cursor: ParamCursor): string | null {
   const end = skipParensSpan(s, cursor);
   if (end === null || end <= cursor.next + 2) return null;
   return s.text.slice(cursor.next + 1, end - 1);
 }
 
-// skipParensSpan returns the exclusive end index of the balanced parenthesis
-// group starting at pos ('('), handling nesting; quotes inside are treated as
-// plain characters, which matches how SLCB's own parameters nest.
 function skipParensSpan(s: ScanState, cursor: ParamCursor): number | null {
-  // The group has to open right where the parameter name ended; anything else
-  // is a bare "$param" and the handlers keep it literal.
   const { text } = s;
   if (text[cursor.next] !== '(') return null;
   let depth = 0;
@@ -632,16 +455,11 @@ function parenStep(ch: string): number {
   return ch === ')' ? -1 : 0;
 }
 
-// skipParens returns the index just past the group at the cursor.
 function skipParens(s: ScanState, cursor: ParamCursor): number {
   const end = skipParensSpan(s, cursor);
   return end ?? cursor.next;
 }
 
-// randnumTarget converts a $randnum(...) argument span "(...)" to
-// {random:min-max}. One argument means 1..max; two means min,max (swapped when
-// reversed, since {random:max-min} would be an empty range here while SLCB
-// tolerates it).
 function randnumTarget(span: string): string | null {
   const parts = span.replace(/^\(/, '').replace(/\)$/, '').split(',');
   if (parts.length === 1) return singleBoundRange(parts[0]);
@@ -661,13 +479,11 @@ function boundedRange(parts: [string, string]): string | null {
   return emit('random', `${Math.min(a, b)}-${Math.max(a, b)}`);
 }
 
-// isArgsSlot reports whether name is one of $arg1..9 / $num1..9 / $argl1..9.
 function isArgsSlot(name: string): boolean {
   if (name.startsWith('argl')) return name.length >= 5;
   return (name.startsWith('arg') || name.startsWith('num')) && name.length >= 4;
 }
 
-// argsSlotIndex extracts the digit suffix of a validated arg-slot name.
 function argsSlotIndex(name: string): number {
   for (let i = name.length - 1; i >= 0; i--) {
     if (name[i] < '0' || name[i] > '9') return Number(name.slice(i + 1));
@@ -675,7 +491,6 @@ function argsSlotIndex(name: string): number {
   return 0;
 }
 
-// isIdentChar reports whether c continues a $parameter identifier.
 function isIdentChar(c: string): boolean {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c === '_';
 }

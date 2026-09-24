@@ -18,47 +18,24 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// errNotDriving refuses a write from a run this process no longer drives:
-// it finished, or another process took it over (lost KV compare-and-set).
 var errNotDriving = errors.New("run is no longer driven by this process")
 
-// cooperative stages are the ones the cancel verb must not interrupt
-// mid-flight. Rollout finishes the service in flight and then stops, because
-// a Deployment abandoned half rolled holds old and new pods side by side
-// with nobody watching it converge. Every other stage is idempotent at any
-// point, so cancel cuts its context and the stage stops at once instead of
-// sitting out a build or a checks wait.
 var cooperative = map[deploy.StageID]bool{deploy.StageRollout: true}
 
-// execution is one run executing in this process: the stage.Sink its stages
-// write through, the lock heartbeat, and what the cancel and approve verbs
-// signal.
 type execution struct {
-	e  *Engine
-	id deploy.RunID
-	// ctx is cancelled when this process must stop driving the run: the
-	// lock was lost, the run was taken over, or the run ended.
-	ctx    context.Context
-	stop   context.CancelFunc
-	hbDone chan struct{}
-	// cancelled ends when the cancel verb lands. It ends approval waits and
-	// cuts every stage that is not cooperative; a stage context registered
-	// after the cancel is cut at once, so no verb can slip between the check
-	// at the top of the train and the stage starting.
+	e            *Engine
+	id           deploy.RunID
+	ctx          context.Context
+	stop         context.CancelFunc
+	hbDone       chan struct{}
 	cancelled    context.Context
 	signalCancel context.CancelFunc
 
 	mu  sync.Mutex
 	run deploy.Run
 	rev ports.Revision
-	// saved is the run state the store last acknowledged. finish reads it,
-	// not run.State: an ending the store never took leaves the run active
-	// for the next driver, and releasing the lock over it would strand it.
-	saved deploy.RunState
-	// attempts are the writes sent since the last acknowledged one, seq to
-	// UpdatedAt. A write can land while its ack is lost (a hub leader
-	// change on the R3 bucket); the next write then loses the CAS to our
-	// own record, and these tell that apart from a takeover.
+	// finish must read saved, not run.State: releasing the lock over an unsaved ending strands the run.
+	saved    deploy.RunState
 	attempts map[uint64]time.Time
 	lock     ports.Lock
 	lockLost bool
@@ -93,16 +70,12 @@ func newExecution(e *Engine, run deploy.Run, rev ports.Revision, lock ports.Lock
 	return x
 }
 
-// View returns a copy of the run safe to marshal while stages keep writing.
 func (x *execution) View() deploy.Run {
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	return cloneRun(&x.run)
 }
 
-// Update applies edit and persists it. An edit that changes nothing but
-// cosmetic progress is coalesced to progressEvery; the pending write lands
-// on a timer, or with the next state transition, whichever comes first.
 func (x *execution) Update(ctx context.Context, edit func(*deploy.Run)) error {
 	x.mu.Lock()
 	defer x.mu.Unlock()
@@ -117,8 +90,6 @@ func (x *execution) Update(ctx context.Context, edit func(*deploy.Run)) error {
 	return x.persistLocked(ctx)
 }
 
-// AwaitApproval marks the stage waiting on reason and blocks until the
-// approve verb, the cancel verb, or ctx.
 func (x *execution) AwaitApproval(ctx context.Context, id deploy.StageID, reason string) error {
 	a, err := x.openApproval(ctx, id, reason)
 	if err != nil {
@@ -149,8 +120,6 @@ func (x *execution) openApproval(ctx context.Context, id deploy.StageID, reason 
 	return x.approval, nil
 }
 
-// dropApproval forgets a wait that ended without the approve verb (cancel,
-// shutdown), so a late approve is refused instead of answering nobody.
 func (x *execution) dropApproval(a *approval) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
@@ -159,8 +128,6 @@ func (x *execution) dropApproval(a *approval) {
 	}
 }
 
-// approve answers the waiting approval. The run is back to running in the
-// reply, before the stage goroutine wakes.
 func (x *execution) approve(ctx context.Context, id deploy.StageID) (deploy.Run, error) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
@@ -185,11 +152,6 @@ func (x *execution) awaiting(id deploy.StageID) bool {
 	return id == "" || id == x.approval.stage
 }
 
-// requestCancel records the cancel and signals the running stage: an
-// interruptible stage has its context cut, a cooperative one sees
-// rc.Cancelled at its next safe point, and an approval wait ends. A run that
-// already ended here answers errNotDriving, and the verb falls back to the
-// stored run.
 func (x *execution) requestCancel(ctx context.Context) (deploy.Run, error) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
@@ -205,9 +167,6 @@ func (x *execution) requestCancel(ctx context.Context) (deploy.Run, error) {
 	return cloneRun(&x.run), err
 }
 
-// stageContext is the context one stage runs under. A cooperative stage
-// gets the execution's own context and stops at its safe points; every
-// other stage's context is also cut by the cancel verb.
 func (x *execution) stageContext(id deploy.StageID) (context.Context, context.CancelFunc) {
 	if cooperative[id] {
 		return x.ctx, func() {}
@@ -220,8 +179,6 @@ func (x *execution) stageContext(id deploy.StageID) (context.Context, context.Ca
 	}
 }
 
-// cutShort reports whether the cancel verb cut the stage: its error is then
-// the cut context, however the stage wrapped it.
 func (x *execution) cutShort(id deploy.StageID) bool {
 	return x.cancelled.Err() != nil && !cooperative[id]
 }
@@ -235,9 +192,6 @@ func (x *execution) persist(ctx context.Context) error {
 	return x.persistLocked(ctx)
 }
 
-// persistLocked writes the run with the next seq and publishes the same
-// snapshot. The KV write is the source of truth; a failed publish only
-// delays the page until the next one, so it is logged, not returned.
 func (x *execution) persistLocked(ctx context.Context) error {
 	x.run.Seq++
 	x.run.UpdatedAt = x.e.now()
@@ -258,12 +212,6 @@ func (x *execution) persistLocked(ctx context.Context) error {
 	return nil
 }
 
-// reconcileLocked resolves a lost CAS. When the stored record is one of our
-// own unacknowledged writes, the revision is adopted and the current run
-// written over it (memory holds every edit that write carried). Anything
-// else was written by another process, which now drives the run. A failed
-// read proves neither, so it is returned without fencing and the next
-// write tries again.
 func (x *execution) reconcileLocked(ctx context.Context) (ports.Revision, error) {
 	stored, rev, err := x.e.d.Store.Get(ctx, x.id)
 	if err != nil {
@@ -288,8 +236,6 @@ func (x *execution) ownWrite(stored *deploy.Run) bool {
 	return ok && at.Equal(stored.UpdatedAt)
 }
 
-// fenceLocked stops driving a run whose revision moved under us: another
-// process resumed it, and its writes win.
 func (x *execution) fenceLocked() {
 	x.fenced = true
 	x.stopFlushLocked()
@@ -297,8 +243,6 @@ func (x *execution) fenceLocked() {
 	x.e.d.Log.Warn("deploy run taken over by another process", zap.String("run", string(x.id)))
 }
 
-// coalesce defers a cosmetic write that lands within progressEvery of the
-// last one. It reports whether the write was deferred.
 func (x *execution) coalesce() bool {
 	wait := x.e.progressEvery - time.Since(x.lastPut)
 	if wait <= 0 {
@@ -311,8 +255,6 @@ func (x *execution) coalesce() bool {
 	return true
 }
 
-// flushProgress lands a deferred cosmetic write. gen goes stale when a full
-// write landed in between, which already carried the progress.
 func (x *execution) flushProgress(gen uint64) {
 	x.mu.Lock()
 	defer x.mu.Unlock()
@@ -333,10 +275,6 @@ func (x *execution) stopFlushLocked() {
 	x.flushGen++
 }
 
-// heartbeat extends the cluster lock every Config.HeartbeatEvery until the
-// execution stops. A lost CAS goes through reclaim, which stops the run only
-// when another run holds the lock; any other error is retried on the next
-// beat, since the lock survives LockTTL without one.
 func (x *execution) heartbeat() {
 	defer close(x.hbDone)
 	t := time.NewTicker(x.e.d.Stage.Config.HeartbeatEvery)
@@ -368,14 +306,7 @@ func (x *execution) beat() {
 	}
 }
 
-// reclaim settles a heartbeat that lost its CAS. The usual cause is our own
-// previous beat landing with its ack lost (hub leader change on the R3
-// bucket), which leaves the held revision stale while the lock is still
-// ours. Re-acquiring under our own id adopts the current revision in that
-// case and is refused only when another run holds an unexpired lock, which
-// is the one outcome that means the cluster is no longer ours. Failing the
-// run on the bare CAS loss cut a cooperative rollout mid-service and left a
-// Deployment half rolled with nobody watching.
+// Only another run's unexpired lock stops the run: failing on a bare CAS loss cuts a rollout.
 func (x *execution) reclaim() {
 	next, err := x.e.d.Store.AcquireLock(x.ctx, x.id)
 	switch {

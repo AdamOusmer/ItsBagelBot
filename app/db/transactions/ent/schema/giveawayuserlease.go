@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-// GiveawayUserLease serializes fulfillment across campaigns for one account.
 type GiveawayUserLease struct{ ent.Schema }
 
 func (GiveawayUserLease) Fields() []ent.Field {

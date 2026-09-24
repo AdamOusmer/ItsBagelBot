@@ -13,7 +13,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// jobState is a job's or a run's status and conclusion.
 type jobState struct{ status, conclusion string }
 
 var (
@@ -27,7 +26,6 @@ func job(id int64, name string, s jobState) ports.Job {
 	return ports.Job{ID: id, Name: name, Status: s.status, Conclusion: s.conclusion, URL: fmt.Sprintf("https://ci/job/%d", id)}
 }
 
-// workflowRun numbers run id n as #n+33, created in number order.
 func workflowRun(id int64, sha deploy.SHA, s jobState) ports.WorkflowRun {
 	number := int(id) + 33
 	return ports.WorkflowRun{
@@ -36,7 +34,6 @@ func workflowRun(id int64, sha deploy.SHA, s jobState) ports.WorkflowRun {
 	}
 }
 
-// usersJobs is one image's jobs as publish-images names them.
 func usersJobs(build, manifest jobState) []ports.Job {
 	return []ports.Job{
 		job(1, "Select images", succeeded),
@@ -46,8 +43,6 @@ func usersJobs(build, manifest jobState) []ports.Job {
 	}
 }
 
-// TestBuildStageWaitsAndGroupsJobs follows a tag run from queued behind an
-// earlier run to success, and checks the rows group each image's jobs.
 func TestBuildStageWaitsAndGroupsJobs(t *testing.T) {
 	run := newRun(deploy.KindRelease)
 	run.Version, run.Outputs.TagSHA = "v0.2.3-beta", "c1"
@@ -78,9 +73,6 @@ func TestBuildStageWaitsAndGroupsJobs(t *testing.T) {
 	}
 }
 
-// TestBuildStageWaitsOutTheStaleAttempt: right after a rerun GitHub still
-// reports the failed attempt, and the stage must wait for the new attempt
-// instead of failing again on the old conclusion.
 func TestBuildStageWaitsOutTheStaleAttempt(t *testing.T) {
 	run := newRun(deploy.KindRelease)
 	run.Version, run.Outputs.TagSHA, run.Outputs.BuildRunAttempt = "v0.2.3-beta", "c1", 2
@@ -164,7 +156,6 @@ func TestBuildStageFailureCarriesTheJobLog(t *testing.T) {
 	}
 }
 
-// TestBuildQuery: a release watches the tag push, a bump the main push.
 func TestBuildQuery(t *testing.T) {
 	cases := []struct {
 		kind deploy.RunKind

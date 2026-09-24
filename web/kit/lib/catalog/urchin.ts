@@ -4,10 +4,6 @@
 import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD, MINECRAFT_UUID_FIELD } from './shared-fields';
 
-// Shared token palette + preview samples for the Bedwars session commands
-// (!daily / !weekly / !monthly), same template surface, one source of truth.
-// Was catalog/rehearsal-tokens.ts; inlined here since urchin.ts is its only
-// consumer (fortnite.ts keeps its own FN_* pair below its module def).
 const BW_SESSION_TOKENS = ['player', 'wins', 'losses', 'finals', 'finaldeaths', 'beds', 'games', 'levels', 'fkdr'];
 const BW_SESSION_SAMPLES: Record<string, string> = {
   player: 'Technoblade',
@@ -22,9 +18,6 @@ const BW_SESSION_SAMPLES: Record<string, string> = {
 };
 
 export const URCHIN_MODULE: ModuleDef =
-// External-stats modules: chat commands answered through the gossip service
-// (external API proxy + cache). Config keys must match the sesame module
-// structs (app/twitch/sesame/modules/urchin.go, mcsr.go).
 {
   id: 'urchin',
   label: 'Bedwars Stats',
@@ -43,9 +36,6 @@ export const URCHIN_MODULE: ModuleDef =
       enableKey: 'dailyEnabled',
       messageKey: 'dailyMessage',
       defaultMessage: '{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR',
-      // hintKey only on 'daily': the marketing builder's bw-session surface
-      // shows one representative example for !daily/!weekly/!monthly, which
-      // share this same token set (docs/specs/variables-catalog.md phase 3).
       tokens: replyTokens(BW_SESSION_TOKENS, BW_SESSION_SAMPLES, 'urchin.daily')
     },
     {

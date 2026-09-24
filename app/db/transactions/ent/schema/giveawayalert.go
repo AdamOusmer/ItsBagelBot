@@ -11,7 +11,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// GiveawayAlert remains visible until the underlying problem is resolved.
 type GiveawayAlert struct{ ent.Schema }
 
 func (GiveawayAlert) Fields() []ent.Field {

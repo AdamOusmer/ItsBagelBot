@@ -7,8 +7,7 @@ import (
 	"context"
 
 	"ItsBagelBot/app/db/discord/ent"
-	// Wire the ent schema runtime (field defaults/hooks); without this blank
-	// import every write fails: "forgotten import ent/runtime?".
+	// Without the ent runtime import every write fails.
 	_ "ItsBagelBot/app/db/discord/ent/runtime"
 	"ItsBagelBot/app/db/discord/repository"
 	"ItsBagelBot/app/db/discord/rpc"
@@ -21,13 +20,9 @@ import (
 )
 
 const (
-	serviceName = "discord-data"
-	queueGroup  = "discord-data-rpc"
-	// defaultSchema is the per-service MySQL schema (ADR 0007: one schema per
-	// data service, no cross-schema foreign keys).
-	defaultSchema = "bagel_discord"
-	// defaultNATSURL is the local-development endpoint. Production overrides
-	// it (and NATS_RPC_URL) from the manifest.
+	serviceName    = "discord-data"
+	queueGroup     = "discord-data-rpc"
+	defaultSchema  = "bagel_discord"
 	defaultNATSURL = "nats://127.0.0.1:4222"
 )
 
@@ -36,10 +31,6 @@ func main() {
 	defer done()
 	log := core.Log
 
-	// Boot order is load-bearing: driver -> client -> migrate -> NATS -> repo
-	// -> rpc -> health. The health Set reports on the pool, so it cannot be
-	// built before the pool exists, and the RPC surface must not answer before
-	// the schema it queries is there.
 	driver := databoot.MustEntDriver(core, defaultSchema)
 	client := ent.NewClient(ent.Driver(driver))
 	defer func() { _ = client.Close() }()
@@ -59,7 +50,6 @@ func main() {
 		log.Fatal("failed to subscribe discord-data rpc", zap.Error(err))
 	}
 
-	// No lane check: this service consumes no event lane, only request/reply.
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{
 			Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
@@ -72,16 +62,7 @@ func main() {
 	core.Await()
 }
 
-// rpcEndpoint resolves the one NATS endpoint this service dials.
-//
-// discord-data is RPC-only, like notifications: it answers request/reply and
-// consumes no JetStream lane, so it holds no BUS identity at all. That is why
-// this does not go through svcboot.MustNATS, which additionally opens a
-// JetStream publisher and two subscribers on the shared BUS account -- with
-// NO_BUS set for discord_data in deploy/messaging/nats-secrets.py those
-// credentials are never minted, and the manifest injects only NATS_RPC_USER /
-// NATS_RPC_PASSWORD, so MustNATS would fail authorization at boot rather than
-// merely opening connections nothing uses.
+// Must not become svcboot.MustNATS: discord-data has no BUS credentials.
 func rpcEndpoint() string {
 	return bus.RPCURL(env.Get("NATS_URL", defaultNATSURL))
 }

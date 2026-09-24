@@ -12,12 +12,10 @@ import (
 
 func newTestVocab() *Vocab {
 	v := NewVocab()
-	v.now = func() int64 { return 1_800_000_000 }
+	v.nowUnix = func() int64 { return 1_800_000_000 }
 	return v
 }
 
-// learnPattern feeds the tau x d pattern: vocabSenders senders, each saying the
-// token enough times that total uses clear vocabTau within one hour (no decay).
 func learnPattern(t *testing.T, v *Vocab, token string) {
 	t.Helper()
 	for s := 0; s < vocabSenders; s++ {
@@ -40,7 +38,7 @@ func TestVocabLearnsAfterTauByDPattern(t *testing.T) {
 
 func TestVocabSingleSenderFloodNeverLearns(t *testing.T) {
 	v := newTestVocab()
-	for i := 0; i < 1000; i++ { // 50x tau from ONE account: laundering shape
+	for i := 0; i < 1000; i++ {
 		v.Observe(1, "launderer", []string{"freediscord"})
 	}
 	ts := v.shards[1&vocabShardMask].m[1].bins["freediscord"]
@@ -66,7 +64,7 @@ func TestVocabSenderSetCapsAtD(t *testing.T) {
 func TestVocabDecayHalvesHourly(t *testing.T) {
 	v := newTestVocab()
 	hour := int64(1_800_000_000 / 3600)
-	v.now = func() int64 { return hour * 3600 }
+	v.nowUnix = func() int64 { return hour * 3600 }
 	for i := 0; i < 4; i++ {
 		v.Observe(1, "u", []string{"fading"})
 	}
@@ -75,7 +73,7 @@ func TestVocabDecayHalvesHourly(t *testing.T) {
 	if got := ts.aged(hour); math.Abs(got-2.0) > 1e-9 {
 		t.Fatalf("one silent hour must halve 4 -> 2, got %v", got)
 	}
-	hour += 2 // two more hours: 2 -> 0.5, under the floor
+	hour += 2
 	if got := ts.aged(hour); math.Abs(got-0.5) > 1e-9 {
 		t.Fatalf("three silent hours must take 4 -> 0.5, got %v", got)
 	}
@@ -94,7 +92,6 @@ func TestVocabPurgeTokensRemoves(t *testing.T) {
 	if v.Known(1, "edgecase") {
 		t.Fatal("purged token still Known; whitewash reset failed")
 	}
-	// Purge on an unknown channel must not panic or create state.
 	v.PurgeTokens(999, []string{"ghost"})
 	if _, ok := v.shards[999&vocabShardMask].m[999]; ok {
 		t.Fatal("purge must not mint channel rows")
@@ -114,22 +111,16 @@ func TestVocabMisraGriesWindowBounded(t *testing.T) {
 	}
 }
 
-// misraGriesChurnStorm interleaves ~40 heavy-hitter uses into 3K one-off churn
-// on channel 2: every one-off insert decrements all bins once, so only genuinely
-// frequent tokens survive (MG guarantee: anything above ~N/(K+1) frequency
-// stays).
 func misraGriesChurnStorm(v *Vocab) {
 	const churn = vocabBins * 3
 	for i := 0; i < churn; i++ {
 		v.Observe(2, fmt.Sprintf("u%d", i%vocabSenders), []string{fmt.Sprintf("tok%05d", i)})
-		if i%(churn/(vocabTau*2)) == 0 { // ~40 uses spread through the storm...
+		if i%(churn/(vocabTau*2)) == 0 {
 			v.Observe(2, "heavy0", []string{"heavyhitter"})
 		}
 	}
 }
 
-// topUpHeavyHitterSenders tops the heavy hitter up with the remaining senders
-// and uses past tau x d (misraGriesChurnStorm seeded "heavy0" only).
 func topUpHeavyHitterSenders(v *Vocab) {
 	for s := 1; s < vocabSenders; s++ {
 		for u := 0; u < vocabTau/vocabSenders+1; u++ {
@@ -141,14 +132,13 @@ func topUpHeavyHitterSenders(v *Vocab) {
 func TestVocabZeroAllocSteadyState(t *testing.T) {
 	v := newTestVocab()
 	ch := uint64(3)
-	// Pre-warm every allocation site: row, bin, full sender set.
 	for s := 0; s < vocabSenders; s++ {
 		for i := 0; i < vocabTau/vocabSenders+1; i++ {
 			v.Observe(ch, fmt.Sprintf("u%d", s), []string{"warm"})
 		}
 	}
 	got := testing.AllocsPerRun(1000, func() {
-		v.Observe(ch, "u0", []string{"warm"}) // existing bin, sender set already at d
+		v.Observe(ch, "u0", []string{"warm"})
 	})
 	if got != 0 {
 		t.Fatalf("Observe steady state allocates %v times/run", got)
@@ -174,7 +164,7 @@ func TestVocabConcurrentShardsRace(t *testing.T) {
 				v.Observe(ch, fmt.Sprintf("u%d", g), []string{fmt.Sprintf("t%d", i%10)})
 				v.Known(ch, "t1")
 			}
-			for i := 0; i < 100; i++ { // shared hot channel exercises lock contention
+			for i := 0; i < 100; i++ {
 				v.Observe(uint64(8192), fmt.Sprintf("shared%d", g%vocabSenders), []string{"hot"})
 				v.PurgeTokens(uint64(8192), []string{"cold"})
 			}

@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The standalone !song / !current / !skip / !next / !clear / !remove spellings. Kept out of
-// songqueue_test.go, which already carries the add, retract, remove and view
-// behaviour of !sr itself.
-
 package modules
 
 import (
@@ -20,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// runSong invokes the standalone !song / !current command.
 func runSong(t *testing.T, m module.Module, c *module.Context) []module.Output {
 	t.Helper()
 	cmd := findCmd(t, m, "song")
@@ -29,7 +24,6 @@ func runSong(t *testing.T, m module.Module, c *module.Context) []module.Output {
 	return col.out
 }
 
-// nowPlayingGossip fakes the live player read behind !current.
 func nowPlayingGossip(reply gossiprpc.SpotifyNowPlayingReply) *fakeGossip {
 	return &fakeGossip{replies: map[string]any{"spotify.nowplaying": reply}}
 }
@@ -47,8 +41,6 @@ func TestSongCommandFallsBackToTheQueueWhenNothingPlays(t *testing.T) {
 	assert.Contains(t, chatText(t, out), "Nothing queued", "an idle player degrades to the queue view")
 }
 
-// The whole point of the command: it answers about whatever is audible, which
-// on most channels is the broadcaster's own playlist rather than a request.
 func TestCurrentReadsTheLivePlayerNotTheQueue(t *testing.T) {
 	g := nowPlayingGossip(playing(srTrack("t9", "Unrequested", "Some Artist")))
 	m := SongQueue(songDeps(&fakeSongQueue{}, g))
@@ -66,8 +58,6 @@ func TestCurrentReadsTheLivePlayerNotTheQueue(t *testing.T) {
 	assert.NotContains(t, text, "Nothing queued")
 }
 
-// A track that IS the queue head gets its requester credited; one that is not
-// must never borrow the credit of whoever happens to be waiting.
 func TestCurrentCreditsOnlyTheMatchingRequester(t *testing.T) {
 	store := &fakeSongQueue{current: &engine.SongEntry{
 		TrackID: "t1", Title: "One", Artists: []string{"A"}, RequesterID: "7", RequesterName: "alice",
@@ -111,8 +101,6 @@ func TestSongCommandCarriesTheSpokenAliases(t *testing.T) {
 	assert.Contains(t, cmd.Aliases, "np")
 }
 
-// !skip carries the moderator gate on the command itself, where !sr next has to
-// enforce it by hand because a bare word there could also be a song title.
 func TestSkipCommandPromotesHead(t *testing.T) {
 	store := &fakeSongQueue{up: []engine.SongEntry{
 		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
@@ -124,9 +112,6 @@ func TestSkipCommandPromotesHead(t *testing.T) {
 	assert.Contains(t, chatText(t, out), "Human")
 }
 
-// The viewer queue module owns !queue, and command precedence is registration
-// order in All(). Claiming it from songqueue would shadow a different feature
-// on any channel running both, so this pins that it stays unclaimed here.
 func TestSongQueueDoesNotClaimQueueCommand(t *testing.T) {
 	m := SongQueue(songDeps(&fakeSongQueue{}, srSearchGossip()))
 	for _, c := range m.Commands {
@@ -135,9 +120,6 @@ func TestSongQueueDoesNotClaimQueueCommand(t *testing.T) {
 	}
 }
 
-// runSongCmd invokes one standalone command, bare, and returns what it
-// emitted. Bare is the only form these three take: !skip and !clear ignore
-// what follows, and !remove's positional form is covered through !sr remove.
 func runSongCmd(t *testing.T, m module.Module, name string, c *module.Context) []module.Output {
 	t.Helper()
 	var col collector
@@ -145,9 +127,6 @@ func runSongCmd(t *testing.T, m module.Module, name string, c *module.Context) [
 	return col.out
 }
 
-// The mod verbs carry their grant on the registration; !remove is Everyone
-// because bare it retracts the caller's OWN request (the positional form
-// inside actRemove is what checks for a moderator).
 func TestStandaloneCommandPerms(t *testing.T) {
 	m := SongQueue(songDeps(&fakeSongQueue{}, srSearchGossip()))
 	assert.Equal(t, module.RoleModerator, findCmd(t, m, "skip").Perm)
@@ -181,7 +160,6 @@ func TestRemoveCommandRetractsOwn(t *testing.T) {
 	assert.Contains(t, chatText(t, out), "Mine")
 }
 
-// !sr skip is the same advance as the standalone spelling.
 func TestSRSkipVerbPromotesHead(t *testing.T) {
 	store := &fakeSongQueue{up: []engine.SongEntry{
 		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},

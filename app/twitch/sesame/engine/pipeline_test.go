@@ -20,22 +20,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// --- shared test doubles (used across the engine test files) ---
-
-// captured is one published outgress message with the subject it rode.
 type captured struct {
 	subject string
 	id      string
 	msg     outgress.Message
 }
 
-// mu guards got: every OTHER test in this package drives fakePublisher from
-// one goroutine (Process/dispatch/fire called synchronously, then got read
-// straight back), so the lock costs those call sites nothing observable. The
-// one exception is the timer gate tests (timers_gate_test.go), which now
-// fire off tick's own goroutine (fireBounded) — snapshot/count give them a
-// race-safe read to poll with (assert.Eventually) instead of the plain field
-// every other test still reads directly.
 type fakePublisher struct {
 	mu      sync.Mutex
 	got     []captured
@@ -58,9 +48,6 @@ func (p *fakePublisher) PublishOwnedWithID(_ context.Context, subject, id string
 	return nil
 }
 
-// snapshot copies got under the lock, for a caller that reads it from a
-// different goroutine than the one that published (see the type's own
-// comment).
 func (p *fakePublisher) snapshot() []captured {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -70,7 +57,6 @@ func (p *fakePublisher) snapshot() []captured {
 func (p *fakePublisher) Flush(context.Context) error { return nil }
 func (p *fakePublisher) Close() error                { return nil }
 
-// fakeReader is a configurable projection.Reader.
 type fakeReader struct {
 	user     projection.User
 	modules  map[string]projection.ModuleView
@@ -81,9 +67,6 @@ type fakeReader struct {
 
 func (r fakeReader) User(context.Context, uint64) (projection.User, error) { return r.user, nil }
 
-// Modules hands back the fixture map itself, the way the real Client hands back
-// its cached map: building one per call would put a map alloc on the hot path
-// that production does not have and would trip the views alloc ceiling below.
 func (r fakeReader) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
 	return r.modules, r.modErr
 }
@@ -99,7 +82,6 @@ func (r fakeReader) Command(context.Context, uint64, string) (projection.Command
 	return r.cmd, r.cmdFound, nil
 }
 
-// liveAlways is a LiveStore that reports live and no-ops its writes.
 type liveAlways struct{}
 
 func (liveAlways) IsLive(context.Context, uint64) (bool, error)           { return true, nil }
@@ -130,13 +112,10 @@ func chatMsg(t *testing.T, laneName, text string) *bus.Message {
 	return bus.NewMessage("uuid-1", body)
 }
 
-// bareModule is a module with only a Kind/Name, for enabled() unit tests.
 func bareModule(name string, kind module.Kind) module.Module {
 	return module.NewModule(name, kind).Build()
 }
 
-// emitModule emits one fixed chat line on the chat event path. It fills a pooled
-// Output like a real handler.
 func emitModule(name string, kind module.Kind, text string) module.Module {
 	b := module.NewModule(name, kind)
 	b.On(chatType, func(_ context.Context, c *module.Context, emit module.Emit) error {
@@ -164,7 +143,6 @@ func emitLocaleModule(eventType string) module.Module {
 	return b.Build()
 }
 
-// errCore is a core module whose chat handler returns a logic error.
 func errCore() module.Module {
 	b := module.NewModule("", module.KindCore)
 	b.On(chatType, func(context.Context, *module.Context, module.Emit) error {
@@ -173,30 +151,25 @@ func errCore() module.Module {
 	return b.Build()
 }
 
-// === enabled() gate tests ===
-
 func TestEnabledCoreModuleAlwaysRuns(t *testing.T) {
 	p := &Pipeline{}
 	mctx := &module.Context{Config: []byte("stale")}
 	assert.True(t, p.enabled(bareModule("", module.KindCore), nil, mctx))
-	assert.Nil(t, mctx.Config) // core modules carry no config
+	assert.Nil(t, mctx.Config)
 }
 
 func TestEnabledDefaultModule(t *testing.T) {
 	p := &Pipeline{}
 	m := bareModule("feature", module.KindDefault)
 
-	// row present, enabled, with config -> runs and config is wired in
 	views := map[string]projection.ModuleView{"feature": {Name: "feature", IsEnabled: true, Configs: []byte(`{"x":1}`)}}
 	mctx := &module.Context{}
 	assert.True(t, p.enabled(m, views, mctx))
 	assert.Equal(t, []byte(`{"x":1}`), []byte(mctx.Config))
 
-	// row present, disabled -> skipped
 	off := map[string]projection.ModuleView{"feature": {Name: "feature", IsEnabled: false}}
 	assert.False(t, p.enabled(m, off, &module.Context{}))
 
-	// no row -> ships enabled (default on)
 	assert.True(t, p.enabled(m, nil, &module.Context{}))
 }
 
@@ -204,28 +177,23 @@ func TestEnabledOptInModule(t *testing.T) {
 	p := &Pipeline{}
 	m := bareModule("shoutout", module.KindOptIn)
 
-	// no row -> off
 	assert.False(t, p.enabled(m, nil, &module.Context{}))
 
-	// row enabled -> on, config wired
 	on := map[string]projection.ModuleView{"shoutout": {Name: "shoutout", IsEnabled: true, Configs: []byte(`{"m":"hi"}`)}}
 	mctx := &module.Context{}
 	assert.True(t, p.enabled(m, on, mctx))
 	assert.Equal(t, []byte(`{"m":"hi"}`), []byte(mctx.Config))
 
-	// row disabled -> off
 	off := map[string]projection.ModuleView{"shoutout": {Name: "shoutout", IsEnabled: false}}
 	assert.False(t, p.enabled(m, off, &module.Context{}))
 }
-
-// === Process() tests ===
 
 func TestProcessMalformedEnvelopeDropped(t *testing.T) {
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "x"))
 	err := p.Process(bus.NewMessage("uuid-bad", []byte("{not json")))
-	assert.NoError(t, err)   // ack, not nack
-	assert.Empty(t, pub.got) // nothing published
+	assert.NoError(t, err)
+	assert.Empty(t, pub.got)
 }
 
 func TestProcessLoadsLocaleForEventHandlers(t *testing.T) {
@@ -245,7 +213,7 @@ func TestProcessLoadsLocaleForEventHandlers(t *testing.T) {
 
 func TestProcessNoModuleAcks(t *testing.T) {
 	pub := &fakePublisher{}
-	p := newPipelineWith(pub, fakeReader{}) // empty registry
+	p := newPipelineWith(pub, fakeReader{})
 	err := p.Process(chatMsg(t, "premium", "hi"))
 	assert.NoError(t, err)
 	assert.Empty(t, pub.got)
@@ -281,10 +249,9 @@ func TestProcessChatEmittedToPremiumLane(t *testing.T) {
 
 func TestProcessModuleErrorSkippedNotNacked(t *testing.T) {
 	pub := &fakePublisher{}
-	// one failing module, one good module: error is logged+skipped, good still emits
 	p := newPipelineWith(pub, fakeReader{}, errCore(), emitModule("", module.KindCore, "still here"))
 	err := p.Process(chatMsg(t, "standard", "hi"))
-	assert.NoError(t, err) // logic error does NOT nack
+	assert.NoError(t, err)
 	require.Len(t, pub.got, 1)
 	assert.Equal(t, outgress.TypeChat, pub.got[0].msg.Type)
 }
@@ -293,12 +260,9 @@ func TestProcessPublishErrorNacks(t *testing.T) {
 	pub := &fakePublisher{failErr: errors.New("broker down")}
 	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "pong"))
 	err := p.Process(chatMsg(t, "standard", "hi"))
-	assert.Error(t, err) // publish failure DOES nack
+	assert.Error(t, err)
 }
 
-// The emit path translates a leading slash-verb for EVERY module output — a
-// module reply "/announcegreen …" leaves the pipeline as a native announce
-// action, not a chat line carrying the verb as text.
 func TestEmitTranslatesSlashVerbOnModulePath(t *testing.T) {
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "/announcegreen big news"))
@@ -314,8 +278,6 @@ func TestEmitTranslatesSlashVerbOnModulePath(t *testing.T) {
 	assert.Equal(t, "big news", inner.Message)
 }
 
-// A translated action with no usable payload (here a /shoutout without a
-// target) is dropped at emit instead of being sent for Twitch to reject.
 func TestEmitDropsEmptySlashAction(t *testing.T) {
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "/shoutout"))
@@ -323,8 +285,6 @@ func TestEmitDropsEmptySlashAction(t *testing.T) {
 	assert.Empty(t, pub.got)
 }
 
-// /me stays a plain chat line with the verb kept in the text: Twitch chat
-// itself renders the action, so the pipeline must not strip it.
 func TestEmitLeavesMePassthrough(t *testing.T) {
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "/me waves"))
@@ -334,11 +294,6 @@ func TestEmitLeavesMePassthrough(t *testing.T) {
 	assert.Equal(t, "/me waves", chatMessageText(t, pub.got[0].msg))
 }
 
-// === ChatLineCounter wiring (timer-conditions.md D3/D13) ===
-
-// countingChatLines is a ChatLineCounter fake that records every broadcaster
-// id it was called with, so a test can assert the pipeline called it exactly
-// once, or not at all, without a real timers store or Valkey.
 type countingChatLines struct {
 	calls []uint64
 }
@@ -360,9 +315,6 @@ func TestProcessCountsChatLineForEligibleChat(t *testing.T) {
 	assert.EqualValues(t, 123, counter.calls[0])
 }
 
-// The bot's own chat line is dropped by eligible() before the chatLineCounter
-// call site is ever reached (D3: counting the bot's own posts would let a
-// timer feed its own gate).
 func TestProcessDoesNotCountBotsOwnChatLine(t *testing.T) {
 	pub := &fakePublisher{}
 	counter := &countingChatLines{}
@@ -370,13 +322,11 @@ func TestProcessDoesNotCountBotsOwnChatLine(t *testing.T) {
 	d := Deps{Proj: fakeReader{}, Live: liveAlways{}, Cooldown: NoopCooldown{}, Pub: pub, Log: zap.NewNop(), ChatLines: counter}
 	p := NewPipeline(d, reg, Config{BotID: "999", OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 
-	require.NoError(t, p.Process(chatMsg(t, "standard", "hi"))) // chatter_user_id is "999"
+	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
 
 	assert.Empty(t, counter.calls)
 }
 
-// A non-chat event (e.g. stream.online) must never reach a ChatLineCounter:
-// it counts chat lines, not events.
 func TestProcessDoesNotCountNonChatEvent(t *testing.T) {
 	pub := &fakePublisher{}
 	counter := &countingChatLines{}
@@ -394,8 +344,6 @@ func TestProcessDoesNotCountNonChatEvent(t *testing.T) {
 	assert.Empty(t, counter.calls)
 }
 
-// A nil ChatLineCounter (the default in every other test's Deps) must never be
-// dereferenced.
 func TestProcessNilChatLineCounterIsSafe(t *testing.T) {
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{}, emitModule("", module.KindCore, "pong"))

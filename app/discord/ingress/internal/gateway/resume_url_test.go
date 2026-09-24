@@ -5,10 +5,6 @@ package gateway
 
 import "testing"
 
-// A resume dials READY's resume_gateway_url, which Discord hands back bare. It
-// has to carry the query of the first connection (v=10, encoding), or the
-// resume lands on a different gateway version and is answered with op 9 --
-// which is what happened to every resume before this.
 func TestDialURLForCarriesTheGatewayQueryOntoTheResumeURL(t *testing.T) {
 	st := &resumeState{}
 	st.ready("sess-1", "wss://gateway-us-east1-b.discord.gg")

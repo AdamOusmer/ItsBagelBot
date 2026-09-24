@@ -14,14 +14,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// build waits for the publish-images run the tag push (or, for a bump, the
-// main push) started. It never starts or cancels one: the workflow's
-// concurrency group queues runs per ref and the deployer only watches.
-//
-// Rerunning failed jobs is the engine's half: resume with Rerun calls
-// RerunFailedJobs on Outputs.BuildRunID and raises Outputs.BuildRunAttempt,
-// and this stage then waits until the same run id reports that attempt.
-
 const (
 	statusCompleted  = "completed"
 	statusInProgress = "in_progress"
@@ -52,8 +44,6 @@ func buildSucceeded(wr ports.WorkflowRun, run deploy.Run) bool {
 	return wr.Status == statusCompleted && wr.Conclusion == conclusionOK && !staleAttempt(wr, run)
 }
 
-// staleAttempt reports a run still showing an attempt older than the rerun
-// the engine requested: its status and jobs belong to the failed attempt.
 func staleAttempt(wr ports.WorkflowRun, run deploy.Run) bool {
 	return wr.Attempt < run.Outputs.BuildRunAttempt
 }
@@ -81,8 +71,6 @@ type buildWatch struct {
 	run ports.WorkflowRun
 }
 
-// find waits for the run to exist: GitHub creates it a few seconds after the
-// tag push, and a bump may have been started before main's push run did.
 func (w *buildWatch) find(ctx context.Context) (bool, error) {
 	wr, found, err := w.rc.Deps.GitHub.FindWorkflowRun(ctx, w.q)
 	if err != nil {
@@ -125,9 +113,6 @@ func (w *buildWatch) report(ctx context.Context, jobs []ports.Job) {
 	w.rc.SetProgress(ctx, deploy.Progress{Done: countCompleted(jobs), Total: len(jobs)})
 }
 
-// pending says why the run is not running. The workflow queues behind an
-// earlier run on the same ref instead of cancelling it, and a run sitting in
-// that queue for minutes looks hung without the run it waits on.
 func (w *buildWatch) pending(ctx context.Context) error {
 	if w.run.Status == statusInProgress {
 		w.rc.Waiting(ctx, "")
@@ -145,7 +130,6 @@ func (w *buildWatch) pending(ctx context.Context) error {
 	return nil
 }
 
-// runAhead is the newest active run created before ours.
 func runAhead(active []ports.WorkflowRun, ours ports.WorkflowRun) (ports.WorkflowRun, bool) {
 	var ahead ports.WorkflowRun
 	found := false
@@ -198,9 +182,7 @@ func countCompleted(jobs []ports.Job) int {
 	return n
 }
 
-// Job names come from publish-images.yml: "Select images", then per image
-// "Build <image> <arch label>" for each arch and "Publish manifest <image>".
-// Rows group an image's three jobs so the page shows one bar per service.
+// Job name prefixes must match publish-images.yml.
 const (
 	buildPrefix    = "Build "
 	manifestPrefix = "Publish manifest "
@@ -208,7 +190,6 @@ const (
 
 var archLabels = []string{" Intel x86_64", " ARM64"}
 
-// jobImage returns the image a job builds, or false for a job that builds none.
 func jobImage(name string) (deploy.ImageName, bool) {
 	if img, ok := strings.CutPrefix(name, manifestPrefix); ok {
 		return deploy.ImageName(img), true
@@ -230,7 +211,6 @@ func jobKey(j ports.Job) string {
 	return j.Name
 }
 
-// jobItems groups jobs into rows in first-seen order.
 func jobItems(jobs []ports.Job) []deploy.Item {
 	var order []string
 	groups := map[string][]ports.Job{}
@@ -277,9 +257,6 @@ func startedState(jobs []ports.Job) deploy.StageState {
 	return deploy.StatePending
 }
 
-// builtImages are the images whose manifest job succeeded: on a main push
-// publish-images only builds the images whose paths changed, and those are
-// the ones a bump pins.
 func builtImages(jobs []ports.Job) []deploy.ImageName {
 	var out []deploy.ImageName
 	for _, j := range jobs {

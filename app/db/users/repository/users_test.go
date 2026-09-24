@@ -23,7 +23,7 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -73,7 +73,6 @@ func TestTokenRoundTrip(t *testing.T) {
 
 	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, plaintext, refresh, nil))
 
-	// What landed in the database must be ciphertext, not the token.
 	row := client.Tokens.Query().OnlyX(ctx)
 	assert.NotEqual(t, plaintext, row.Token)
 	assert.NotEqual(t, refresh, row.RefreshToken)
@@ -98,13 +97,6 @@ func TestTokenUpsertReplacesExisting(t *testing.T) {
 	assert.Equal(t, []byte("new"), access)
 }
 
-// TestTokenExpiryPersistsAndClearsOnOverwrite covers the two halves of
-// UpsertToken's accessTokenExpiresAt contract: a caller that supplies an
-// expiry gets it back from Token, and a later write that omits one (the
-// admin/dashboard paths, today) must CLEAR the old value rather than leave
-// it in place -- an update overwriting the row is minting/storing a
-// DIFFERENT access token, so a stale expiry would let a reader (see
-// twitch.NewStoredUserTokenSource) wrongly adopt it as still valid.
 func TestTokenExpiryPersistsAndClearsOnOverwrite(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
@@ -119,8 +111,6 @@ func TestTokenExpiryPersistsAndClearsOnOverwrite(t *testing.T) {
 	require.NotNil(t, gotExpiry)
 	assert.True(t, expiresAt.Equal(*gotExpiry))
 
-	// Overwrite with a new access token but no expiry: the old expiry must
-	// not survive, since it described the token that was just replaced.
 	require.NoError(t, repo.UpsertToken(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch, []byte("second"), nil, nil))
 
 	_, _, gotExpiry, err = repo.Token(ctx, 1001, tokens.TypeAccessToken, tokens.PlatformTwitch)
@@ -128,8 +118,6 @@ func TestTokenExpiryPersistsAndClearsOnOverwrite(t *testing.T) {
 	assert.Nil(t, gotExpiry)
 }
 
-// A ciphertext copied onto another user's row must fail decryption: the
-// associated data binds every envelope to its owner.
 func TestTokenCiphertextBoundToOwner(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
@@ -171,10 +159,6 @@ func TestSetStatusRefreshesViewAndPublishes(t *testing.T) {
 	assert.Len(t, pub.On(data.SubjectUserChanged), 2, "register and status change must both announce state")
 }
 
-// TestSetCommandsPageHiddenWritesThroughAndPublishes pins D8: the flag is an
-// immediate update + publishChanged, not the queuePref batcher, so Get on the
-// same replica must see the new value with no flush-window delay, and the
-// published DTO must carry it for the projector fold (spec §4.2).
 func TestSetCommandsPageHiddenWritesThroughAndPublishes(t *testing.T) {
 	_, pub, repo := setup(t)
 	ctx := context.Background()
@@ -205,8 +189,6 @@ func TestSetCreatorCodeStoresTrimsClearsAndPublishes(t *testing.T) {
 
 	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
 
-	// Creator code is write-behind preference state: validation is
-	// synchronous, but persistence and the announcement land at flush.
 	require.NoError(t, repo.SetCreatorCode(ctx, 1001, "  MAVEY10  "))
 	repo.Close(context.Background())
 
@@ -246,12 +228,6 @@ func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@example.com"))
 
-	// Relative to now: a fixed 2026-07-02 start put the admin grant's expiry
-
-	// (start + two months) in the past on 2026-09-02, where SetAdminStatus
-
-	// rejects a paid status whose expiry is not in the future.
-
 	started := time.Now().UTC().Truncate(time.Second)
 	expires := started.AddDate(0, 1, 0)
 	applied, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
@@ -268,7 +244,6 @@ func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 	assert.Equal(t, "tbx-r-current", *view.SubscriptionRef)
 	assert.Equal(t, expires, *view.SubscriptionExpiresAt)
 
-	// An older delivery cannot roll back current state.
 	applied, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 1001, EventID: "evt-old", Action: billingrpc.ActionRevoke,
 		OccurredAt: started.Add(-time.Minute), RecurringReference: "tbx-r-current",
@@ -276,7 +251,6 @@ func TestApplyBillingLifecycleIsMonotonicAndProtectsAdminGrants(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, applied)
 
-	// Nor can a late event for another recurring reference revoke this one.
 	applied, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 1001, EventID: "evt-other", Action: billingrpc.ActionRevoke,
 		OccurredAt: started.Add(time.Minute), RecurringReference: "tbx-r-old",
@@ -318,13 +292,11 @@ func TestApplyBillingCountsGiftForGifterIdempotently(t *testing.T) {
 	g := client.User.GetX(ctx, 4001)
 	assert.Equal(t, uint32(1), g.GiftsSent, "gifter counter bumped once")
 
-	// A Tebex retry of the exact same webhook must not double-count.
 	_, err = repo.ApplyBilling(ctx, gift)
 	require.NoError(t, err)
 	g = client.User.GetX(ctx, 4001)
 	assert.Equal(t, uint32(1), g.GiftsSent, "webhook retry must not double-count")
 
-	// A self-purchase (no gifter) must not bump the counter.
 	_, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 4001, EventID: "evt-self", Action: billingrpc.ActionActivate,
 		OccurredAt: when.Add(time.Hour), ExpiresAt: &expires, GifterID: 0,
@@ -365,14 +337,6 @@ func TestApplyBillingCancellationAndEnd(t *testing.T) {
 	assert.Empty(t, view.SubscriptionSource)
 }
 
-// A payment.dispute.won arrives as ActionCancelAborted after the preceding
-// payment.dispute.opened (ActionRevoke) already cleared the stored expiry.
-// If the transactions-side fallback were ever bypassed, ApplyBilling would
-// otherwise be asked to set StatusPaid with no expiry on a row that already
-// has none. The backstop in applyPaidUpdate must clamp this to a bounded
-// expiry rather than mint permanent premium: this is the invariant that
-// makes the bug structurally impossible from the users side, independent of
-// whether the transactions side got its fallback right.
 func TestApplyBillingBackstopClampsUnboundedPaidGrant(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
@@ -386,7 +350,6 @@ func TestApplyBillingBackstopClampsUnboundedPaidGrant(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// payment.dispute.opened: the revoke clears the stored expiry.
 	_, err = repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 5005, EventID: "evt-dispute-open", Action: billingrpc.ActionRevoke,
 		OccurredAt: started.Add(time.Hour),
@@ -397,9 +360,6 @@ func TestApplyBillingBackstopClampsUnboundedPaidGrant(t *testing.T) {
 	assert.Equal(t, "free", view.Status)
 	assert.Nil(t, view.SubscriptionExpiresAt)
 
-	// payment.dispute.won arrives as ActionCancelAborted with no expiry, the
-	// exact shape a one-time purchase produces without the transactions-side
-	// fallback.
 	won := started.Add(3 * 24 * time.Hour)
 	applied, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
 		UserID: 5005, EventID: "evt-dispute-won", Action: billingrpc.ActionCancelAborted,
@@ -508,8 +468,6 @@ func TestConsumeReclaimsInsteadOfDuplicatingForSameBoard(t *testing.T) {
 	first, err := repo.ConsumeDelegation(ctx, "link-one", 2002, "delegate")
 	require.NoError(t, err)
 
-	// Second link for a board the invitee already manages: reclaim returns the
-	// grant they already hold and never mints a duplicate.
 	second, err := repo.ConsumeDelegation(ctx, "link-two", 2002, "delegate")
 	require.NoError(t, err)
 	assert.Equal(t, first.Sections, second.Sections, "reclaim returns the existing grant, not the new link")
@@ -557,21 +515,17 @@ func TestRevokeAndMutationReturnsConsumedDelegateID(t *testing.T) {
 	require.NoError(t, repo.CreateDelegation(ctx, "token-a", 1001, "owner", []string{"commands"}, nil))
 	require.NoError(t, repo.CreateDelegation(ctx, "token-b", 1001, "owner", []string{"billing"}, nil))
 
-	// Before consumption, delegateID should be 0 on revoke/update
 	delID, err := repo.RevokeDelegation(ctx, "token-b", 1001)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(0), delID, "unconsumed token has no delegateID")
 
-	// Consume token-a
 	_, err = repo.ConsumeDelegation(ctx, "token-a", 2002, "delegate")
 	require.NoError(t, err)
 
-	// Update sections on consumed token should return delegateID
 	delID, err = repo.UpdateDelegationSections(ctx, "token-a", 1001, []string{"commands", "modules"})
 	require.NoError(t, err)
 	assert.Equal(t, uint64(2002), delID)
 
-	// Revoke on consumed token should return delegateID
 	delID, err = repo.RevokeDelegation(ctx, "token-a", 1001)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(2002), delID)
@@ -594,13 +548,10 @@ func TestDeleteDelegationsByOwnerReturnsAllConsumedDelegateIDs(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []uint64{2002, 3003}, delegateIDs)
 
-	// Verify all deleted
 	grants, err := repo.ListDelegationsByOwner(ctx, 1001)
 	require.NoError(t, err)
 	assert.Empty(t, grants)
 }
-
-// --- login -> id resolve (public command page) ---
 
 func TestIDByUsernameResolves(t *testing.T) {
 	_, _, repo := setup(t)
@@ -613,8 +564,6 @@ func TestIDByUsernameResolves(t *testing.T) {
 	assert.Equal(t, uint64(4001), id)
 }
 
-// The URL segment is whatever a viewer typed or a client lowercased, so the
-// lookup normalizes before it queries.
 func TestIDByUsernameNormalizesInput(t *testing.T) {
 	_, _, repo := setup(t)
 	ctx := context.Background()
@@ -640,9 +589,6 @@ func TestIDByUsernameUnknownAndInvalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// A Twitch rename frees the old login for someone else, so two rows can carry
-// the same username until the renamed user next signs in. The freshest row is
-// the one Twitch agrees with.
 func TestIDByUsernameTakesFreshestRowOnCollision(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()

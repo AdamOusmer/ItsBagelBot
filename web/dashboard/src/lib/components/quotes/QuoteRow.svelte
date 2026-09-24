@@ -1,11 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One ledger line in the quotes deck, rendered as a non-interactive <li> with
-  // two SEPARATE controls, never nested: a disclosure button (opens the quote in
-  // the page inspector) and a delete button. The disclosure's accessible name is
-  // its visible content (number + full quote text + date), so the whole quote is
-  // available to assistive tech even though the visible line is clamped.
   import { MiniButton, getI18n } from '@bagel/kit';
   import type { QuoteView } from '$lib/server/quotes-store';
 
@@ -31,8 +26,6 @@
 </script>
 
 <li class="row-shell reveal {expanded ? 'selected' : ''}">
-  <!-- Disclosure: the ONLY control that opens the inspector. Full quote text is
-       inside it (visually clamped, but complete in the accessible name). -->
   <button
     class="disclosure"
     type="button"
@@ -122,7 +115,6 @@
     .num { grid-area: num; }
     .quote { grid-area: quote; }
     .date { grid-area: date; justify-self: end; }
-    /* Touch: keep the delete control at a >=44px hit target. */
     .row-act { --btn-icon-min-size: 44px; }
   }
 </style>

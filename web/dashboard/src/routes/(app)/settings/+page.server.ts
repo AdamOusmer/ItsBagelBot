@@ -30,41 +30,26 @@ import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } fro
 import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revocation';
 import { isLocale, DEFAULT_LOCALE } from '@bagel/kit/i18n';
 import { actionError } from '$lib/server/action-errors';
-// The delegatable sections are the shared registry's grant set; the "what is
-// grantable and why" rationale lives on that constant in @bagel/kit/nav.
 import { GRANTABLE_SECTIONS } from '@bagel/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
 function tokenLabel(token: string): string {
   return token.length <= 8 ? 'token=redacted' : `token=${token.slice(0, 8)}...`;
 }
 
-// ownerSession is the genuine account owner: signed in, not a delegate, not
-// an admin "view as" session (impersonator_id). Account-level preferences are
-// theirs alone; an impersonating admin is refused outright rather than logged.
 function ownerSession(s: Session | null): s is Session {
   return !!s && !s.delegate_of && !s.impersonator_id;
 }
 
-// purgeCommandsPage drops the channel's canonical commands page from the
-// edge. Best-effort: purgeEdge never throws, so a failure surfaces as a
-// delay rather than failing a write that already landed. The login comes
-// from accountState, the same value canonicalLogin redirects to, so only the
-// one exact URL the edge could have cached is ever purged; no login (account
-// read failed) means no URL, reported as a delay.
 async function purgeCommandsPage(userId: string): Promise<boolean> {
   const account = await accountState(userId).catch(() => null);
   if (!account?.username) return false;
   return purgeEdge([commandsHref(account.username.toLowerCase())]);
 }
 
-// ownerAction wraps the shared shape of the delegation actions: owner-only
-// guard, form parse, and a 502 failure when the backing RPC is down.
 function ownerAction<R>(
   failMsg: string,
   run: (s: Session, form: FormData, locale: Locale) => Promise<R>
@@ -82,15 +67,6 @@ function ownerAction<R>(
   };
 }
 
-// readFetchKeys shapes the API-key section out of the one list read.
-//
-// The keys live on this page rather than beside the commands that spend them
-// because they are account-level secrets and this page is already owner-only.
-// Treated like notifications: a failed read shows an empty section instead of
-// flagging the whole page degraded, since every other section still works.
-//
-// fetchKeyRefs answers "what breaks if I delete this key": the same read
-// supplies it, so naming the affected data sources costs nothing extra.
 function readFetchKeys(result: PromiseSettledResult<{ defs: { name: string; key_label: string }[]; keys: FetchKeyView[] }>): {
   fetchKeys: FetchKeyView[];
   fetchKeyRefs: Record<string, string[]>;
@@ -105,8 +81,6 @@ function readFetchKeys(result: PromiseSettledResult<{ defs: { name: string; key_
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
-  // DEMO: sample grants covering the full lifecycle (pending + consumed) so the
-  // page renders and is exercisable without OAuth + NATS.
   if (DEMO) {
     const d = await import('$lib/server/demo-data');
     return {
@@ -123,8 +97,6 @@ export const load: PageServerLoad = async ({ locals }) => {
   }
 
   const s = locals.session;
-  // Owner-only. Delegates are confined to their sections by the layout, but
-  // bounce defensively in case one ever reaches this route directly.
   if (!s || s.delegate_of) throw redirect(302, '/');
 
   const self = s.user_id;
@@ -137,8 +109,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     listFetches(self)
   ]);
 
-  // Notifications are a nice-to-have section and stay out of the degraded
-  // flag: a failed fetch just shows empty.
   const notifications: NotificationWire[] = settledOr(notifResult, { notifications: [], unreadCount: 0 }).notifications;
 
   return {
@@ -153,8 +123,6 @@ export const load: PageServerLoad = async ({ locals }) => {
   };
 };
 
-// The settled-result helpers keep load flat: each section picks its own
-// fallback and the degraded flag is one pass over the results that count.
 function settledOr<T>(r: PromiseSettledResult<T>, fallback: T): T {
   return r.status === 'fulfilled' ? r.value : fallback;
 }
@@ -168,9 +136,6 @@ function savedLocaleOf(r: PromiseSettledResult<string>): string {
   return isLocale(v) ? v : DEFAULT_LOCALE;
 }
 
-// One reason per line, and the caller renders whichever comes back. The UI has
-// only ever shown a single message, so a field->message map was shape the
-// action carried without anyone reading it.
 function keyEntryError(label: string, value: string, locale: Locale): string | null {
   if (!label) return actionError(locale, 'Label is required.');
   if (label.length > 32) return actionError(locale, 'Label must be at most 32 characters.');
@@ -179,10 +144,6 @@ function keyEntryError(label: string, value: string, locale: Locale): string | n
   return null;
 }
 
-// ownerActor is the guard both key actions share: API keys are account-level
-// secrets, so a delegate may spend one through a data source but never read,
-// rotate or destroy it. Returns the session or the refusal to render, so each
-// caller spends one branch on it instead of two.
 function ownerActor(s: Session | null, locale: App.Locals['locale']): { session: Session } | { status: number; error: string } {
   if (!s) return { status: 401, error: actionError(locale, 'Not signed in.') };
   if (s.delegate_of) return { status: 403, error: actionError(locale, 'Only the account owner can do that.') };
@@ -214,9 +175,6 @@ async function demoKeyDelete(label: string) {
 }
 
 export const actions: Actions = {
-  // Seal (or rotate) an API key under a label. The value crosses here once and
-  // is never logged, cached, or echoed back: the reply carries last4 only, and
-  // the audit trail names the label alone.
   setfetchkey: async ({ request, locals }) => {
     const form = await request.formData();
     const label = slugifyName(String(form.get('label') ?? ''));
@@ -240,9 +198,6 @@ export const actions: Actions = {
     }
   },
 
-  // Key delete. Always allowed server-side: data sources bound to a dangling
-  // label fail closed until relinked, which is the safe direction. No undo:
-  // the sealed value is destroyed.
   delfetchkey: async ({ request, locals }) => {
     const label = slugifyName(String((await request.formData()).get('label') ?? ''));
 
@@ -261,8 +216,6 @@ export const actions: Actions = {
     }
   },
 
-  // markRead lives here (not on a dedicated notifications page) because the
-  // bell dropdown and the Settings section are the only notification surfaces.
   markRead: async ({ request, locals }) => {
     const s = locals.session;
     if (DEMO) return { ok: true, action: 'read' };
@@ -296,11 +249,6 @@ export const actions: Actions = {
     return { ok: true, action: 'commands_page', edgeDelayed: !(await purgeCommandsPage(s.user_id)) };
   },
 
-  // "Mark all read" from the Settings list. markPeeked is not this: a peek only
-  // shortens the unread TTL and drops the badge, while these rows must actually
-  // come back read. The notifications service has no bulk mark, and the ids are
-  // one rendered page's worth, so the per-id write fans out; any rejection is
-  // reported as a failure rather than a partial success the list would deny.
   markAllRead: async ({ request, locals }) => {
     const s = locals.session;
     if (DEMO) return { ok: true, action: 'all_read' };
@@ -319,9 +267,6 @@ export const actions: Actions = {
     return { ok: true, action: 'all_read' };
   },
 
-  // markPeeked is the bell-dropdown-open path: soft-acknowledge everything the
-  // user can see. Best-effort: a failure just leaves the badge for next time,
-  // so it never surfaces an error to the glance-only bell.
   markPeeked: async ({ locals }) => {
     const s = locals.session;
     if (DEMO) return { ok: true, action: 'peeked' };
@@ -341,9 +286,7 @@ export const actions: Actions = {
     if (s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
 
     try {
-      // Unenroll before the row goes away (same ordering as disconnect): if
-      // either step fails the account still exists and can retry, so no
-      // failure mode leaves a deleted account with live EventSub subs.
+      // Unenroll before the row goes away: never a deleted account with live EventSub subs.
       await publishEventSub(s.user_id, false);
       await deleteSelf(s.user_id);
       auditDashboardImpersonation(s, 'account:delete');
@@ -379,8 +322,6 @@ export const actions: Actions = {
     };
   }),
 
-  // Re-scope an existing grant: add/remove sections in place (the delegate keeps
-  // the same link, and a consumed grant's access follows on their next visit).
   updateSections: ownerAction('Could not update link.', async (s, f, locale) => {
     const token = String(f.get('token') ?? '');
     if (!token) return fail(400, { error: actionError(locale, 'Missing grant.') });
@@ -410,21 +351,11 @@ export const actions: Actions = {
     return { ok: true, action: 'opted_out' };
   }),
 
-  // Kills every session the owner holds (this browser included) rather than
-  // just this one cookie. Owner-only, same guard as the rest of this file's
-  // actions: a delegate has no session of their own to sweep and must not
-  // be able to sign the owner out from someone else's board. Not wrapped in
-  // ownerAction: this action ends in a redirect + cookie wipe, not a form
-  // result, so it needs cookies/url that helper doesn't hand back.
   signOutEverywhere: async ({ locals, cookies, url }) => {
     const s = locals.session;
     if (!s || s.delegate_of) return fail(403, { error: actionError(locals.locale, 'Not allowed.') });
 
     const now = Math.floor(Date.now() / 1000);
-    // Both calls are best-effort and never throw (fail-open, see
-    // session-revocation.ts): a Valkey blip must not trap the owner in a
-    // session they just asked to leave, even if the OTHER devices don't get
-    // the memo until Valkey recovers.
     await revokeAllForUser(s.user_id, now, SESSION_TTL_SECONDS);
     if (s.sid) await revokeSession(s.sid, s.expires_at - now);
 

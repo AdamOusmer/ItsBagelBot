@@ -8,11 +8,10 @@ import "testing"
 func TestMatchFloorRegressions(t *testing.T) {
 	cases := []struct {
 		name string
-		skel string // already-normalized shape
+		skel string
 		kind FloorKind
 		term string
 	}{
-		// Domains: every real URL shape must hit.
 		{"bare domain", "visit grabify.link now", FloorIPLogger, "grabify.link"},
 		{"domain at start", "grabify.link works fast", FloorIPLogger, "grabify.link"},
 		{"domain at end", "click www.grabify.link", FloorIPLogger, "grabify.link"},
@@ -25,26 +24,23 @@ func TestMatchFloorRegressions(t *testing.T) {
 		{"listed comma", "hosts grabify.link, iplogger.org", FloorIPLogger, "grabify.link"},
 		{"other logger", "iplogger.org is known bad", FloorIPLogger, "iplogger.org"},
 		{"word entry", "that site is an ipgrabber honestly", FloorIPLogger, "ipgrabber"},
-		// Domains: label-boundary traps must stay clean.
 		{"prefix fusion", "notgrabify.link is harmless", FloorNone, ""},
 		{"suffix plural", "grabify.links went dead", FloorNone, ""},
 		{"suffix word", "the grabify.linkedin post", FloorNone, ""},
 		{"short host trap", "2no.com is innocent", FloorNone, ""},
 		{"tld trap", "yip.supposedly fine", FloorNone, ""},
-		// Scam phrases: adjacent tokens across punctuation/separators.
 		{"plain phrase", "get free nitro now friends", FloorScam, "free nitro"},
-		{"caps and bangs", "free nitro now!!!", FloorScam, "free nitro"}, // caps fold away upstream
+		{"caps and bangs", "free nitro now!!!", FloorScam, "free nitro"},
 		{"hyphen fused", "this free-nitro thing", FloorScam, "free nitro"},
 		{"comma separated", "free,nitro!! come", FloorScam, "free nitro"},
 		{"three words", "a free gift sub today wow", FloorScam, "free gift sub"},
 		{"buy followers", "you should buy followers today ok", FloorScam, "buy followers"},
 		{"giveaway bait", "winner can claim your prize today", FloorScam, "claim your prize"},
-		{"digit separator", "free nitro2 giveaway now", FloorScam, "free nitro"}, // digits separate like punctuation
-		// Scam phrases: word bounds must stay clean.
+		{"digit separator", "free nitro2 giveaway now", FloorScam, "free nitro"},
 		{"chemistry joke", "free nitrogen for everyone", FloorNone, ""},
 		{"prefix word", "carefreexit nonsense here", FloorNone, ""},
 		{"plural suffix", "please buy followership", FloorNone, ""},
-		{"fused token", "join freenitro giveaway ok", FloorNone, ""}, // known FN, recorded
+		{"fused token", "join freenitro giveaway ok", FloorNone, ""},
 		{"unrelated", "totally normal chat about the game tonight", FloorNone, ""},
 	}
 	for _, tt := range cases {
@@ -71,19 +67,13 @@ func TestMatchFloorZeroAlloc(t *testing.T) {
 	}
 }
 
-// The clean-path pre-scan runs over RAW text through a virtual skeleton and
-// must agree with MatchFloor's ruling on the real one - a routing decision
-// that the authoritative scan would overturn costs the deep path for nothing,
-// and a miss re-opens the bail hole this exists to close. Both directions are
-// pinned per case.
 func TestMatchFloorPrescanParity(t *testing.T) {
 	cases := []struct {
 		name string
-		text string // raw chat text, NOT normalized
+		text string
 		kind FloorKind
 		term string
 	}{
-		// Short scam/domain lines that previously bailed clean.
 		{"bare host", "grabify.link", FloorIPLogger, "grabify.link"},
 		{"host in sentence", "check grabify.link now", FloorIPLogger, "grabify.link"},
 		{"mixed case host", "Grabify.Link works", FloorIPLogger, "grabify.link"},
@@ -96,8 +86,6 @@ func TestMatchFloorPrescanParity(t *testing.T) {
 		{"scam caps punct", "FREE-NITRO!! come now", FloorScam, "free nitro"},
 		{"scam leet", "free n1tro here folks", FloorScam, "free nitro"},
 		{"scam digits separate", "buy 1337 followers now", FloorScam, "buy followers"},
-		// Boundary traps must release exactly as MatchFloor rules them, or
-		// every such short line would pay the deep path forever.
 		{"prefix fusion", "notgrabify.link fan page", FloorNone, ""},
 		{"suffix plural", "grabify.links went dead", FloorNone, ""},
 		{"tld trap", "yip.supposedly fine", FloorNone, ""},
@@ -134,16 +122,13 @@ func TestMatchFloorPrescanZeroAlloc(t *testing.T) {
 }
 
 func TestCheckFloorSaveTime(t *testing.T) {
-	// Hate floor holds (term pulled from the artifact, never spelled in source).
 	slur := EmbeddedLexicon().Terms(CatHate)[0]
 	if _, ok := CheckFloor("you absolute " + slur + " person"); !ok {
 		t.Fatal("hate floor must hold at save time")
 	}
-	// ScamTerms stay save-time-exempt: giveaway commands say this legitimately.
 	if _, ok := CheckFloor("claim your prize in the giveaway stream tonight friends"); ok {
 		t.Fatal("scam phrasing must stay save-time-exempt")
 	}
-	// Real hosts reject; boundary traps that were never the host pass.
 	if term, ok := CheckFloor("steal tokens via grabify.link now"); !ok || term != "grabify.link" {
 		t.Fatalf("grabify.link: got (%q, %v)", term, ok)
 	}

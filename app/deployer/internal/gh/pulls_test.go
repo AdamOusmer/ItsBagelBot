@@ -49,8 +49,6 @@ func TestOpenPRs(t *testing.T) {
 		{Number: 6, Title: "fix: y", Author: "bot", HeadSHA: "h6", Draft: true,
 			Checks: deploy.ChecksPending, CodeScene: deploy.ChecksNone, Behind: true},
 	}, got)
-	// The first call's count varies (both PRs may miss the ruleset cache
-	// together), so only the cached call's zero cost is pinned.
 	assert.Equal(t, 0, calls[1]-calls[0])
 }
 
@@ -153,8 +151,6 @@ func TestSquashMerge(t *testing.T) {
 	}
 }
 
-// TestSquashMergeBody pins the repo convention: the subject is the PR title
-// plus "(#N)", and the merge is refused by GitHub if the head moved.
 func TestSquashMergeBody(t *testing.T) {
 	c, fake, _ := newClient(t, routes{
 		pr5Path:   reply(http.StatusOK, openPR5),

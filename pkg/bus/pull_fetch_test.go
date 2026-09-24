@@ -7,9 +7,6 @@ import (
 	"testing"
 )
 
-// The pull fetch loop's own knobs: pacing defaults and the one-batch-per-loop
-// lane channel contract.
-
 func TestPullFetchLoopsDefaultsToOneAndRejectsNonPositive(t *testing.T) {
 	if got := pullFetchLoops(); got != defaultPullFetchLoops {
 		t.Fatalf("pullFetchLoops() = %d, want the default %d", got, defaultPullFetchLoops)
@@ -26,9 +23,6 @@ func TestPullFetchLoopsDefaultsToOneAndRejectsNonPositive(t *testing.T) {
 	}
 }
 
-// The lane channel holds every batch the fetch loops can have in flight at
-// once, so a full channel is backpressure onto the server's pending set rather
-// than a serialization point between the loops.
 func TestPullLaneChannelHoldsOneBatchPerLoop(t *testing.T) {
 	t.Setenv("NATS_PULL_FETCH_LOOPS", "3")
 	t.Setenv("NATS_PULL_FETCH_BATCH", "500")

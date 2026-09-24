@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-// TestMintLeaseWinnerMintsExactlyOnce covers the winning side of Problem 2's
-// fix: with a MintLease that always grants, exactly one postToken call
-// happens, and the lease is released only after Persist lands (see
-// mintLeased's doc for why the release is not immediate).
 func TestMintLeaseWinnerMintsExactlyOnce(t *testing.T) {
 	var mintCalls int32
 	fakeTokenHTTP(t, func(*http.Request) (*http.Response, error) {
@@ -29,7 +25,7 @@ func TestMintLeaseWinnerMintsExactlyOnce(t *testing.T) {
 	}}
 
 	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh", StoredTokenIO{
-		Load: func(context.Context) StoredLoad { return StoredLoad{} }, // nothing stored: never adoptable
+		Load: func(context.Context) StoredLoad { return StoredLoad{} },
 		Persist: func(context.Context, string, string, time.Time) error {
 			close(persisted)
 			return nil
@@ -59,9 +55,6 @@ func TestMintLeaseWinnerMintsExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestMintLeaseLoserAdoptsWithoutMinting covers Problem 2's other side: a
-// replica that loses the lease must poll the store and adopt the winner's
-// token once it appears, never calling postToken itself.
 func TestMintLeaseLoserAdoptsWithoutMinting(t *testing.T) {
 	var mintCalls int32
 	fakeTokenHTTP(t, func(*http.Request) (*http.Response, error) {
@@ -75,9 +68,6 @@ func TestMintLeaseLoserAdoptsWithoutMinting(t *testing.T) {
 
 	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh", StoredTokenIO{
 		Load: func(context.Context) StoredLoad {
-			// The first two Loads (the initial one plus the first
-			// waitForAdoption poll) see nothing yet; the winner "persists"
-			// on the third.
 			if atomic.AddInt32(&loadCalls, 1) < 3 {
 				return StoredLoad{RefreshToken: "stored-refresh-token"}
 			}
@@ -105,17 +95,6 @@ func TestMintLeaseLoserAdoptsWithoutMinting(t *testing.T) {
 	}
 }
 
-// TestMintLeaseLoserAcquiresWhenWinnerVanishes covers the Safety Bug 2 fix:
-// a losing replica must also try to acquire the lease on every poll, not
-// just wait for an adopted token to appear. When the original winner is
-// gone -- crashed mid-mint, or simply let mintLeaseTTL expire -- the lease
-// frees up mid-wait, and the loser that acquires it becomes the new winner
-// and mints SAFELY through mintLeased (which releases the lease itself),
-// rather than falling through to the uncoordinated last-resort mint.
-//
-// The lease's Acquire fakes exactly that timeline: the first call (from
-// mintOrAdopt's own attempt) loses, as if another replica already held it;
-// the second call (the wait loop's first poll) finds it free.
 func TestMintLeaseLoserAcquiresWhenWinnerVanishes(t *testing.T) {
 	var mintCalls int32
 	fakeTokenHTTP(t, func(*http.Request) (*http.Response, error) {
@@ -133,7 +112,7 @@ func TestMintLeaseLoserAcquiresWhenWinnerVanishes(t *testing.T) {
 	}}
 
 	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh", StoredTokenIO{
-		Load:    func(context.Context) StoredLoad { return StoredLoad{} }, // never adoptable
+		Load:    func(context.Context) StoredLoad { return StoredLoad{} },
 		Persist: func(context.Context, string, string, time.Time) error { return nil },
 	}, lease)
 
@@ -155,15 +134,6 @@ func TestMintLeaseLoserAcquiresWhenWinnerVanishes(t *testing.T) {
 	}
 }
 
-// TestMintLeaseSkipsWaitWhenBackendUnavailable covers the fix for the
-// second reviewed defect: when the lease backend itself is unreachable
-// (Valkey down/timed out), MintLease.Acquire reports unavailable == true,
-// and mintOrAdopt must skip the whole leaseWaitAttempts*leaseWaitInterval
-// adoption-poll budget and mint immediately -- waiting on a backend nobody
-// can read is guaranteed wasted time. This is asserted by never satisfying
-// an adoptable token and never granting the lease, then checking the mint
-// happens with (close to) zero added latency instead of leaseWaitAttempts
-// worth of polling.
 func TestMintLeaseSkipsWaitWhenBackendUnavailable(t *testing.T) {
 	var mintCalls int32
 	fakeTokenHTTP(t, func(*http.Request) (*http.Response, error) {
@@ -173,13 +143,13 @@ func TestMintLeaseSkipsWaitWhenBackendUnavailable(t *testing.T) {
 
 	var loadCalls int32
 	lease := MintLease{Acquire: func(context.Context) (func(), bool, bool) {
-		return nil, false, true // backend unavailable, every call
+		return nil, false, true
 	}}
 
 	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh", StoredTokenIO{
 		Load: func(context.Context) StoredLoad {
 			atomic.AddInt32(&loadCalls, 1)
-			return StoredLoad{} // never adoptable; would only be reached by the wait loop
+			return StoredLoad{}
 		},
 		Persist: func(context.Context, string, string, time.Time) error { return nil },
 	}, lease)
@@ -196,11 +166,6 @@ func TestMintLeaseSkipsWaitWhenBackendUnavailable(t *testing.T) {
 	if got := atomic.LoadInt32(&mintCalls); got != 1 {
 		t.Fatalf("mint calls = %d, want exactly 1", got)
 	}
-	// Exactly one Load: the ordinary pre-mint adoption check every refresh
-	// does (see NewStoredUserTokenSource's closure), never more. The
-	// leaseWaitAttempts-sized poll loop must not have run at all -- if it
-	// had, this would be 1+leaseWaitAttempts, same shape as
-	// TestMintLeaseLoserFallsThroughWhenNothingAppears.
 	if got := atomic.LoadInt32(&loadCalls); got != 1 {
 		t.Fatalf("load calls = %d, want exactly 1 -- an unavailable backend must skip the "+
 			"adoption poll loop entirely, not just skip minting through the lease", got)
@@ -211,11 +176,6 @@ func TestMintLeaseSkipsWaitWhenBackendUnavailable(t *testing.T) {
 	}
 }
 
-// TestMintLeaseLoserFallsThroughWhenNothingAppears covers the deliberate
-// trade-off documented on mintOrAdopt's fallback: when the wait budget
-// (leaseWaitAttempts) is exhausted and the store never shows an adoptable
-// token (winner crashed, Valkey lost the key, ...), the loser mints anyway
-// rather than leaving the grant stuck.
 func TestMintLeaseLoserFallsThroughWhenNothingAppears(t *testing.T) {
 	var mintCalls int32
 	fakeTokenHTTP(t, func(*http.Request) (*http.Response, error) {
@@ -229,7 +189,7 @@ func TestMintLeaseLoserFallsThroughWhenNothingAppears(t *testing.T) {
 	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh", StoredTokenIO{
 		Load: func(context.Context) StoredLoad {
 			atomic.AddInt32(&loadCalls, 1)
-			return StoredLoad{RefreshToken: "stored-refresh-token"} // never becomes adoptable
+			return StoredLoad{RefreshToken: "stored-refresh-token"}
 		},
 		Persist: func(context.Context, string, string, time.Time) error { return nil },
 	}, lease)
@@ -249,9 +209,6 @@ func TestMintLeaseLoserFallsThroughWhenNothingAppears(t *testing.T) {
 	}
 }
 
-// TestMintLeaseAbsentMintsUncoordinated covers the zero-value MintLease{}:
-// with Acquire == nil, mintOrAdopt must behave exactly as it did before this
-// fix existed -- mint straight away, no Valkey round trip, no wait.
 func TestMintLeaseAbsentMintsUncoordinated(t *testing.T) {
 	var mintCalls int32
 	fakeTokenHTTP(t, func(*http.Request) (*http.Response, error) {

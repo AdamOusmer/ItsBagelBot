@@ -11,9 +11,6 @@ import (
 	jsapi "github.com/nats-io/nats.go/jetstream"
 )
 
-// Setup and teardown modes: provision the bench stream, then restore the
-// cluster exactly as it was found.
-
 func runSetup(lane benchLane, maxBytes int64, maxAge time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -52,7 +49,6 @@ func runSetup(lane benchLane, maxBytes int64, maxAge time.Duration) error {
 	return nil
 }
 
-// deleteBenchConsumer removes the bench durable, tolerating its absence.
 func deleteBenchConsumer(ctx context.Context, js jsapi.JetStream, streamName, durable string) (bool, error) {
 	err := js.DeleteConsumer(ctx, streamName, durable)
 	if errors.Is(err, jsapi.ErrConsumerNotFound) {
@@ -64,20 +60,11 @@ func deleteBenchConsumer(ctx context.Context, js jsapi.JetStream, streamName, du
 	return true, nil
 }
 
-// revertStreamMaxBytes restores the bench stream's original MaxBytes cap,
-// tolerating a stream that setup never created.
-
-// revertStreamMaxBytes restores the bench stream's original MaxBytes cap,
-// tolerating a stream that setup never created.
-// retentionTarget is what setup and cleanup write to the bench stream: a byte
-// cap and optionally a MaxAge, with the duplicate window clamped under the age
-// because the broker rejects a longer one. Zero fields leave that limit alone.
 type retentionTarget struct {
 	maxBytes int64
 	maxAge   time.Duration
 }
 
-// apply writes the target into cfg and reports whether anything changed.
 func (t retentionTarget) apply(cfg *jsapi.StreamConfig) bool {
 	changed := false
 	if t.maxBytes > 0 && cfg.MaxBytes != t.maxBytes {

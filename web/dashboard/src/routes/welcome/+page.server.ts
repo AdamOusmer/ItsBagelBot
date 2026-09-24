@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The first-visit setup journey. The home load sends not-yet-onboarded owners
-// here; the owner can also return directly.
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail, redirect, type Cookies } from '@sveltejs/kit';
@@ -13,15 +11,11 @@ import type { Session } from '$lib/server/session';
 import { IMPORT_SOURCES, type ImportSource } from '@bagel/kit';
 import type { Actions, PageServerLoad } from './$types';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
 const SETUP_PRESETS = ['start-new', 'integrate', 'quiet'] as const;
 type SetupPreset = (typeof SETUP_PRESETS)[number];
 
-// Accepting terms and choosing a channel-wide preset belong to the owner,
-// not a delegate or an admin viewing as that owner.
 const isOwner = (s: Session) => !s.delegate_of && !s.impersonator_id;
 const consented = (form: FormData) => form.get('consent') === 'yes';
 
@@ -68,8 +62,6 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 };
 
 export const actions: Actions = {
-  // The import choice continues the onboarding journey. The other choices
-  // apply their preset and finish before entering the dashboard.
   done: async ({ locals, request }) => {
     const form = await request.formData();
     if (!consented(form)) return fail(400, { error: 'Accept the agreement.' });

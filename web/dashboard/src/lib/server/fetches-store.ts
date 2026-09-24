@@ -1,37 +1,17 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Fetch definitions + sealed keys store: the dashboard side of the commands
-// service's urlfetch verbs (Phase 1 of docs/urlfetch/IMPLEMENTATION.md).
-//
-// Deliberately a thin RPC twin, NOT the fabric-hybrid read commands-store.ts
-// builds: until the Go projection carries defs (the `fetch:<name>` hash fields
-// beside `command:<name>`), a dashboard L1 entry would sit outside the SCOPES
-// invalidation map and could serve a stale list for the full projected-policy
-// window after another pod's rename/delete. The page is low-traffic and every
-// action re-reads anyway, so each call here is one honest RPC.
-//
-// Key values are write-only: fetch_set_key seals and replies {last4} once; no
-// verb in this file ever receives or returns key material.
-
-// rpc rejects on any reply carrying `error` (see rpcRefusal), so a refusal
-// reaches every caller here as a thrown RpcError; nothing below re-checks it.
 import { rpc } from '@bagel/kit/server/nats';
 import { SUB } from './services';
 
-/** One stored definition. `json_path` is segment-array wire form (Go stores
- * the same array); dotted token spelling is a display concern built with
- * buildJsonPath(). */
 export interface FetchDefView {
   name: string;
   url: string;
   json_path: string[];
   is_active: boolean;
-  /** Label of the FetchKey used; '' = keyless. Dangling labels fail closed. */
   key_label: string;
 }
 
-/** label + last4 only: the plaintext never comes back over any verb. */
 export interface FetchKeyView {
   label: string;
   last4: string;
@@ -58,9 +38,6 @@ export interface FetchDefInput {
   jsonPath: string[];
   isActive: boolean;
   keyLabel: string;
-  // originalName, when set and different from name, renames in place: the
-  // upsert shape of dashboard.go's command rename (single row update, not
-  // delete-old + create-new).
   originalName?: string;
 }
 
@@ -80,15 +57,10 @@ export async function upsertFetchDef(
   try {
     return await listFetches(userId);
   } catch {
-    // Write landed but the read-back failed: the operation still succeeded.
-    // The caller reconciles from its own draft (commands-store precedent).
     return { defs: [], keys: [] };
   }
 }
 
-// setFetchKey seals one value under a label. Rotation is the same verb:
-// re-entering a value against an existing label re-seals it. The reply's
-// last4 is derived at seal time so later lists never decrypt.
 export interface FetchKeyEntry {
   userId: string;
   label: string;
@@ -104,10 +76,6 @@ export async function setFetchKey(key: FetchKeyEntry): Promise<string> {
   return r.last4 ?? '';
 }
 
-// One delete verb on the service covers both kinds (fetch_delete): definition
-// deletes are refused while any command response still references
-// `{urlfetch:<name>}` unless forced; key deletes always succeed (dangling
-// key_labels fail closed until relinked).
 export type FetchDeleteKind = 'def' | 'key';
 
 interface FetchDeleteRef {
@@ -132,8 +100,6 @@ export function deleteFetchKey(ref: { userId: string; label: string }): Promise<
   return deleteFetch({ userId: ref.userId, kind: 'key', name: ref.label });
 }
 
-// --- rehearsal dry-run ------------------------------------------------------
-
 export type FetchTestStatus = 'ok' | 'denied' | 'limited' | 'upstream_error' | 'timeout' | 'bad_def';
 
 const FETCH_TEST_STATUSES: readonly FetchTestStatus[] = [
@@ -149,39 +115,14 @@ export interface FetchTestReply {
   status: FetchTestStatus;
   values: string[];
   ms: number;
-  /**
-   * Raw upstream body, present only because this call sets DryRun: gossip
-   * attaches it so the field picker can render a clickable tree of the real
-   * response instead of asking a non-technical author to paste one.
-   *
-   * Empty whenever gossip declined to supply it (body over its cap, or not
-   * valid UTF-8), which is a normal outcome, not an error: the picker falls
-   * back to its paste box. Never assume this is populated just because status
-   * is 'ok'.
-   */
   sample: string;
 }
 
-// Just over gossip's custom.fetch budget so this RPC never abandons a fetch
-// gossip is still completing (govee listDevices' 9s-over-8s reasoning, scaled
-// to this endpoint's declared window).
+// Just over gossip's custom.fetch budget, so this never abandons a fetch still completing.
 const FETCH_TEST_TIMEOUT_MS = 8000;
 
-// rehearseFetch posts the REAL chat-path request with DryRun+Fresh: same
-// subject (bagel.rpc.gossip.custom.fetch), same SSRF gate, same buckets:
-// dry_run only skips the emit and the bucket spend, fresh skips the positive
-// cache read so authors see live data.
-//
-// Envelope note: the task spec names the gossiprpc.Request fields PascalCase
-// (DefID/ChannelID/UserID/IsPremium/DryRun/Fresh), which differs from the
-// snake_case json-tagged payloads every other dashboard RPC sends. We send
-// exactly those names (they must match the Go struct's marshal form) but PARSE
-// the reply tolerantly across both conventions, since the Go lane lands in
-// parallel.
-/** A rehearsal draft: a definition minus its activation flag. */
 export type FetchDraft = Omit<FetchDefInput, 'isActive'>;
 
-/** The gossip reply's wire shape across both casing conventions. */
 interface RawRehearsalReply {
   Status?: string;
   status?: string;

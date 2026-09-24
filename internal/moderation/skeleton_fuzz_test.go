@@ -10,9 +10,6 @@ import (
 	"unicode/utf8"
 )
 
-// fuzzNormalizeSeeds covers the evasion shapes the skeleton exists to fold:
-// NFD/NFC mixes, ZWJ emoji families, Cyrillic homoglyphs, RTL overrides,
-// quorum-gated leet.
 func fuzzNormalizeSeeds() []string {
 	return []string{
 		"",
@@ -22,29 +19,25 @@ func fuzzNormalizeSeeds() []string {
 		"FREE,NITRO!!",
 		"h4te s3xual n0t",
 		"1080 1337 <3",
-		"gr\u0430bify \u0435vil",         // Cyrillic а е homoglyphs
-		"\u03b1\u03b2\u03b3",             // Greek α β γ
-		"\uff28\uff45\uff4c\uff4c\uff4f", // fullwidth HELLO
-		"e\u0301xpose\u0301",             // NFD combining acute
-		"\u00e9\u00e9 NFC mix",           // precomposed é
-		"\U0001f468\u200d\U0001f469\u200d\U0001f466 fam", // ZWJ family emoji
-		"\u202eright\u202dto\u202dleft",                  // RTL/LTR overrides
+		"gr\u0430bify \u0435vil",
+		"\u03b1\u03b2\u03b3",
+		"\uff28\uff45\uff4c\uff4c\uff4f",
+		"e\u0301xpose\u0301",
+		"\u00e9\u00e9 NFC mix",
+		"\U0001f468\u200d\U0001f469\u200d\U0001f466 fam",
+		"\u202eright\u202dto\u202dleft",
 		"a\tb\nc\r\rd  e   f",
 		"\ufeff\ufeff bom",
-		"\u0130\u00a0nbsp",             // dotted capital I, NBSP
-		"\ufb00 ligature \u2460\u2461", // ffi ligature, circled digits
+		"\u0130\u00a0nbsp",
+		"\ufb00 ligature \u2460\u2461",
 	}
 }
 
-// FuzzNormalize pins the documented Normalize contract on arbitrary input:
-// lowercase output, no invisible/control/combining runes survive, the only
-// whitespace is a single collapsed ' ', and the transform is idempotent (the
-// skeleton of a skeleton is itself).
 func FuzzNormalize(f *testing.F) {
 	for _, s := range fuzzNormalizeSeeds() {
 		f.Add(s)
 	}
-	f.Add(string([]byte{0xff, 0xfe, 0xfd})) // invalid UTF-8 bytes
+	f.Add(string([]byte{0xff, 0xfe, 0xfd}))
 
 	f.Fuzz(func(t *testing.T, text string) {
 		out := Normalize(nil, text)
@@ -54,8 +47,6 @@ func FuzzNormalize(f *testing.F) {
 	})
 }
 
-// assertValidLowerCollapsedUTF8 pins the byte-level shape: valid UTF-8, no
-// uppercase survivor, whitespace runs collapsed to single spaces.
 func assertValidLowerCollapsedUTF8(t *testing.T, text string, out []byte) {
 	t.Helper()
 	if !utf8.Valid(out) {
@@ -65,7 +56,6 @@ func assertValidLowerCollapsedUTF8(t *testing.T, text string, out []byte) {
 	assertSingleSpaces(t, text, out)
 }
 
-// assertLowercased fails when any ASCII uppercase letter survives.
 func assertLowercased(t *testing.T, text string, out []byte) {
 	t.Helper()
 	for i := 0; i < len(out); i++ {
@@ -75,7 +65,6 @@ func assertLowercased(t *testing.T, text string, out []byte) {
 	}
 }
 
-// assertSingleSpaces fails when two space bytes sit adjacent.
 func assertSingleSpaces(t *testing.T, text string, out []byte) {
 	t.Helper()
 	for i := 1; i < len(out); i++ {
@@ -85,15 +74,12 @@ func assertSingleSpaces(t *testing.T, text string, out []byte) {
 	}
 }
 
-// assertNoStrippableSurvivors pins the rune-level shape: the only whitespace
-// left is ' ', and no invisible/control/combining rune survives.
 func assertNoStrippableSurvivors(t *testing.T, text string, out []byte) {
 	t.Helper()
 	assertOnlySpaceWhitespace(t, text, out)
 	assertNoControlsOrCombining(t, text, out)
 }
 
-// assertOnlySpaceWhitespace fails when any non-' '-space whitespace survives.
 func assertOnlySpaceWhitespace(t *testing.T, text string, out []byte) {
 	t.Helper()
 	for _, r := range string(out) {
@@ -103,7 +89,6 @@ func assertOnlySpaceWhitespace(t *testing.T, text string, out []byte) {
 	}
 }
 
-// assertNoControlsOrCombining fails when a strippable rune survives.
 func assertNoControlsOrCombining(t *testing.T, text string, out []byte) {
 	t.Helper()
 	for _, r := range string(out) {
@@ -119,7 +104,6 @@ func assertNoControlsOrCombining(t *testing.T, text string, out []byte) {
 	}
 }
 
-// assertNormalizeIdempotent pins the skeleton of a skeleton being itself.
 func assertNormalizeIdempotent(t *testing.T, text string, out []byte) {
 	t.Helper()
 	again := Normalize(nil, string(out))

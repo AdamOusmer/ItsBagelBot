@@ -1,19 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Parse layer of the Nightbot config-import source: envelope rows in, canonical
-// ImportManifest out. Envelope failures throw NightbotExportError (the wizard
-// renders it as a parse failure); everything inside the envelope degrades per
-// row, so one unusable command never costs the broadcaster the other fifty.
-//
-// The file the broadcaster brings is decoded and translated IN THE BROWSER like
-// the Moobot path, and only the resulting manifest is POSTed, so the raw export
-// never crosses the wire.
-//
-// No Go parser ever existed for this source, so unlike moobot/ and
-// streamelements.ts there is no port-parity golden to reconcile against; the
-// expectations in nightbot.test.ts ARE the contract.
-
 import {
   CODE,
   MAX_AUTOMOD_TERMS,
@@ -35,9 +22,6 @@ import type { NbRow } from './envelope';
 import { makeFetchSlotSink } from './fetchdefs';
 import { translateVariables } from './variables';
 
-// Codes this parser emits beyond the shared CODE table. The *_skipped family
-// marks source rows deliberately left out of the manifest: they own no manifest
-// slot, so they are attributed to index -1 and name the offender instead.
 export const NB_CODE = {
   commandUnparseable: 'command_unparseable_skipped',
   commandNameInvalid: 'command_name_invalid',
@@ -61,10 +45,6 @@ const errAt = (itemIndex: number, code: string, message: string): ImportDiagnost
   message
 });
 
-// State is what every row-level function needs and nothing more: the shared
-// diagnostics stream and the import-level definition map. Passing it as one
-// value keeps the row functions at two arguments instead of four, and keeps a
-// row from ever being handed a diagnostics list that is not the real one.
 class State {
   readonly diags: ImportDiagnostic[] = [];
   readonly fetchDefs = new Map<string, ManifestFetch>();
@@ -74,9 +54,6 @@ class State {
   }
 }
 
-// Notes is one item's warning sink: every note reaches the diagnostics stream
-// AND the item's own `warnings`, so the two can never drift apart by a
-// forgotten push.
 class Notes {
   private readonly kept: string[] = [];
 
@@ -95,7 +72,6 @@ class Notes {
   }
 }
 
-// parseNightbot translates one saved export into a manifest plus diagnostics.
 export function parseNightbot(bytes: Uint8Array): {
   manifest: ImportManifest;
   diagnostics: ImportDiagnostic[];
@@ -115,9 +91,6 @@ export function parseNightbot(bytes: Uint8Array): {
   return { manifest, diagnostics: state.diags };
 }
 
-// collect walks one source collection through its row parser, dropping the rows
-// that own no manifest slot. The index a row parser sees is the index its item
-// will have IN THE MANIFEST, which is what diagnostics address.
 function collect<T>(
   rows: NbRow[],
   state: State,
@@ -131,11 +104,6 @@ function collect<T>(
   return out;
 }
 
-// --- commands ----------------------------------------------------------------
-
-// NbCommand is one exported command read into the fields this parser uses,
-// so the mapping steps below take a command rather than a bag of loose strings
-// pulled out of an untyped row at each call site.
 interface NbCommand {
   name: string;
   message: string;
@@ -143,8 +111,6 @@ interface NbCommand {
   cooldown: number;
 }
 
-// readCommand lifts one row into an NbCommand, or returns null when the row
-// owns no manifest slot at all (unusable shape, empty name).
 function readCommand(row: NbRow, notes: Notes): NbCommand | null {
   if (!looksLikeCommand(row)) {
     notes.state.skip(NB_CODE.commandUnparseable, 'skipped one Nightbot row that carries no name/message pair');
@@ -170,15 +136,11 @@ function parseCommandRow(row: NbRow, notes: Notes): ManifestCommand | null {
   const src = readCommand(row, notes);
   if (!src) return null;
 
-  // Fields are omitted when empty so a serialized manifest matches what the
-  // other parsers emit for the same content.
   const cmd: ManifestCommand = {
     name: src.name,
     responses: commandResponses(src, notes),
     permission: commandPermission(src, notes)
   };
-  // canonicalizeResponse's own diagnostics are discarded here: they were
-  // already reported once, against the translated text above.
   const sourceLines = canonicalizeResponse(src.message, notes.index).lines;
   if (sourceLines.length > 0) cmd.source_responses = sourceLines;
   if (src.cooldown > 0) cmd.cooldown_seconds = src.cooldown;
@@ -186,10 +148,6 @@ function parseCommandRow(row: NbRow, notes: Notes): ManifestCommand | null {
   return cmd;
 }
 
-// commandPermission maps Nightbot's own labels: everyone / regular /
-// subscriber / twitch_vip / moderator / owner. mapPermission owns the table;
-// "regular" is Nightbot's manually-granted trust tier, which this bot has no
-// equivalent for, so it widens to everyone WITH a note rather than silently.
 function commandPermission(src: NbCommand, notes: Notes): ManifestCommand['permission'] {
   const { perm, recognized } = mapPermission(src.level);
   if (!recognized) {
@@ -206,9 +164,6 @@ function commandPermission(src: NbCommand, notes: Notes): ManifestCommand['permi
   return perm;
 }
 
-// commandResponses translates one command's message into chat-ready lines,
-// synthesizing urlfetch definitions on the way. An empty result carries an error
-// diagnostic so commit skips the command instead of writing a mute one.
 function commandResponses(src: NbCommand, notes: Notes): string[] {
   const sink = makeFetchSlotSink('nightbot', src.name, notes.state.fetchDefs, notes.state.diags);
   const translated = translateVariables(src.message, sink);
@@ -238,9 +193,6 @@ function emptyResponseDiag(src: NbCommand, idx: number): ImportDiagnostic {
   );
 }
 
-// --- timers ------------------------------------------------------------------
-
-// NbTimer is one exported timer read into the fields this parser uses.
 interface NbTimer {
   label: string;
   message: string;
@@ -259,8 +211,6 @@ function readTimer(row: NbRow, notes: Notes): NbTimer | null {
     message: asStr(row.message),
     intervalMinutes: asNum(row.interval) ?? 0,
     lineGate: asNum(row.lines) ?? 0,
-    // `enabled` is absent on some saved responses; absent means on, matching
-    // Nightbot's own default for a timer that exists at all.
     enabled: row.enabled !== false
   };
 }
@@ -281,14 +231,6 @@ function parseTimerRow(row: NbRow, notes: Notes): ManifestTimer | null {
     );
   }
 
-  // Decision record - interval units: Nightbot timer intervals are MINUTES (its
-  // dashboard labels the field "Interval (minutes)" and enforces a 5-minute
-  // floor). Multiply by 60 once here so the manifest carries seconds like every
-  // consumer expects; commit clamps sub-floor values itself.
-  //
-  // online_only is set for every Nightbot timer: Nightbot only posts timers
-  // while the channel is live, so carrying that across preserves upstream
-  // behavior rather than starting to announce into an offline chat.
   return {
     message,
     interval_seconds: Math.max(0, Math.trunc(src.intervalMinutes * 60)),
@@ -296,10 +238,6 @@ function parseTimerRow(row: NbRow, notes: Notes): ManifestTimer | null {
   };
 }
 
-// Nightbot additionally gates a timer on N chat lines having passed since its
-// last run. This engine's timers are interval-only, so the gate is dropped:
-// the timer posts more often on a quiet stream than it did upstream, which is a
-// behavior change worth naming.
 function reportLineGate(src: NbTimer, notes: Notes): void {
   if (src.lineGate <= 0) return;
   notes.state.diags.push(
@@ -311,9 +249,6 @@ function reportLineGate(src: NbTimer, notes: Notes): void {
   );
 }
 
-// timerMessage translates and canonicalizes one timer's text. Timers get no
-// urlfetch sink: they carry no command name to build a deterministic slug from,
-// so their urlfetch tokens take the literal+unmapped-warn path.
 function timerMessage(src: NbTimer, notes: Notes): string {
   const translated = translateVariables(src.message);
   for (const tok of translated.warns) {
@@ -331,21 +266,12 @@ function timerMessage(src: NbTimer, notes: Notes): string {
   return lines.join('\n');
 }
 
-// canonicalizeResponse attributes its findings with command_-prefixed codes;
-// these items are timers, so the codes are re-prefixed to keep FailedItems
-// dropping the right collection.
 function asTimerDiag(d: ImportDiagnostic): ImportDiagnostic {
   if (d.code === CODE.responseTruncated) return { ...d, code: NB_CODE.timerMessageTruncated };
   if (d.code === CODE.responseLineDropped) return { ...d, code: NB_CODE.timerLineDropped };
   return d;
 }
 
-// --- spam protection ---------------------------------------------------------
-
-// parseBlacklist maps Nightbot's spam-protection blacklist onto automod block
-// terms. Nightbot accepts a `~/regex/` form there; this bot's automod matches
-// literal terms, so a pattern entry is skipped by name instead of being imported
-// as a term that would only ever match the literal text "~/…/".
 function parseBlacklist(terms: string[], state: State): string[] {
   const out: string[] = [];
   const seen = new Set<string>();

@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package rpc serves the deploy verbs and authorizes every call as owner.
 package rpc
 
 import (
@@ -15,7 +14,6 @@ import (
 	"ItsBagelBot/pkg/bus"
 )
 
-// Engine is the run engine as the verbs see it; *engine.Engine satisfies it.
 type Engine interface {
 	Plan(ctx context.Context, actor deploy.Actor, req deploy.PlanRequest) (deploy.Plan, error)
 	Start(ctx context.Context, actor deploy.Actor, req deploy.StartRequest) (deploy.Run, error)
@@ -26,9 +24,6 @@ type Engine interface {
 	Approve(ctx context.Context, actor deploy.Actor, req deploy.RunRequest) (deploy.Run, error)
 }
 
-// Serve binds every verb under prefix (deploy.Prefix). Four ServeVerbs calls
-// rather than one table because a table binds a single request/reply pair and
-// the deploy verbs use four; the run-addressed verbs share one.
 func Serve(w bus.RPCWiring, prefix string, e Engine, auth ports.Authorizer) error {
 	v := newVerbs(e, auth)
 	if err := bus.ServeVerbs(w, prefix, v.plan); err != nil {
@@ -43,9 +38,6 @@ func Serve(w bus.RPCWiring, prefix string, e Engine, auth ports.Authorizer) erro
 	return bus.ServeVerbs(w, prefix, v.runs...)
 }
 
-// verbs is the bound surface, split by request type. Serve binds it and the
-// tests drive the same handlers, so a verb that lost its guard fails a test
-// instead of reaching the cluster.
 type verbs struct {
 	plan  bus.Verb[deploy.PlanRequest, deploy.PlanReply]
 	start bus.Verb[deploy.StartRequest, deploy.RunReply]
@@ -69,22 +61,14 @@ func newVerbs(e Engine, auth ports.Authorizer) verbs {
 	}
 }
 
-// handler is one verb's body, reached only with an actor the users service
-// has confirmed as owner.
 type handler[Req, Rep any] func(context.Context, deploy.Actor, Req) (Rep, error)
 
-// refusing is a reply that embeds domainrpc.Refusal, so the guard can stamp a
-// refusal onto any of the three reply types.
 type refusing[Rep any] interface {
 	*Rep
 	domainrpc.Refusing
 }
 
-// guarded wraps one verb in the owner check, mirroring the users service's
-// admin ladder (app/db/users/rpc/admin.go guarded): no handler carries an
-// authorization branch of its own, and the actor a handler sees is the one
-// the users service resolved from its staff table, never a role or login the
-// request claimed.
+// The only authorization path: handlers see the actor users resolved, never one the request claimed.
 func guarded[Req, Rep any, PR refusing[Rep]](auth ports.Authorizer, actorOf func(Req) string, h handler[Req, Rep]) func(context.Context, Req) Rep {
 	return func(ctx context.Context, req Req) Rep {
 		actor, err := owner(ctx, auth, actorOf(req))
@@ -99,10 +83,6 @@ func guarded[Req, Rep any, PR refusing[Rep]](auth ports.Authorizer, actorOf func
 	}
 }
 
-// owner refuses a request that names no actor before spending a users hop on
-// it. auth.check would refuse the empty id too, but through the transport
-// and as forbidden; a missing actor_id is a malformed request, and the code
-// says so.
 func owner(ctx context.Context, auth ports.Authorizer, actorID string) (deploy.Actor, error) {
 	if actorID == "" {
 		return deploy.Actor{}, invalid("actor_id is required")
@@ -110,19 +90,12 @@ func owner(ctx context.Context, auth ports.Authorizer, actorID string) (deploy.A
 	return auth.RequireOwner(ctx, actorID)
 }
 
-// refused is the zero reply carrying err's refusal, so a failed verb never
-// ships a half-built payload next to its error.
 func refused[Rep any, PR refusing[Rep]](err error) Rep {
 	var rep Rep
 	PR(&rep).Refuse(domainrpc.Fail(err, rules...))
 	return rep
 }
 
-// rules maps the engine's sentinels onto the shared vocabulary. Lock held,
-// not resumable and a lost CAS are all conflicts: the request was well formed
-// and the run's current state said no, so the console re-reads the run
-// instead of retrying. ErrRefused and anything unrecognised fall through to
-// internal.
 var rules = []domainrpc.Rule{
 	domainrpc.Is(ports.ErrInvalid, domainrpc.CodeInvalid),
 	domainrpc.Is(ports.ErrNotFound, domainrpc.CodeNotFound),
@@ -132,12 +105,10 @@ var rules = []domainrpc.Rule{
 	domainrpc.Is(ports.ErrNotResumable, domainrpc.CodeConflict),
 }
 
-// server holds the engine the verb bodies call.
 type server struct {
 	engine Engine
 }
 
-// plan accepts no kind (the overview) or a known one.
 func (s server) plan(ctx context.Context, actor deploy.Actor, req deploy.PlanRequest) (deploy.PlanReply, error) {
 	if req.Kind != "" && !known(req.Kind) {
 		return deploy.PlanReply{}, invalid("unknown kind %q", req.Kind)
@@ -159,8 +130,6 @@ func (s server) list(ctx context.Context, actor deploy.Actor, req deploy.ListReq
 	return deploy.ListReply{Runs: runs, ActiveRunID: active}, err
 }
 
-// addressed is the body shared by the four verbs that name one run: get,
-// resume, cancel and approve differ only in the engine call.
 func addressed(call handler[deploy.RunRequest, deploy.Run]) handler[deploy.RunRequest, deploy.RunReply] {
 	return func(ctx context.Context, actor deploy.Actor, req deploy.RunRequest) (deploy.RunReply, error) {
 		if req.RunID == "" {

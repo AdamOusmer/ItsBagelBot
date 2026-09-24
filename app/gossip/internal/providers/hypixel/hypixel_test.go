@@ -21,12 +21,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// The SSRF gate refuses plain-http loopback fakes; these tests predate it and
-// dial httptest servers, so the process-wide test switch turns the gate off.
-// The gate's own semantics are pinned by core's table tests.
 func init() { core.SetSSRFCheckForTests(false) }
 
-// memStore is an in-memory core.Store for tests.
 type memStore struct {
 	mu sync.Mutex
 	m  map[string][]byte
@@ -43,8 +39,6 @@ func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
 func (s *memStore) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// Copy: the Store contract says val may come from a pooled buffer the
-	// caller recycles as soon as Set returns.
 	s.m[key] = append([]byte(nil), val...)
 	return nil
 }
@@ -65,8 +59,6 @@ func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, 
 	return true, nil
 }
 
-// newTestProvider wires the provider with BOTH upstreams faked: mojang answers
-// the uuid resolve, hypixel answers /v2/player.
 func newTestProvider(t *testing.T, mojang, hypixel http.Handler) provider.Provider {
 	t.Helper()
 	mojangSrv := httptest.NewServer(mojang)
@@ -88,9 +80,6 @@ func endpoint(t *testing.T, p provider.Provider, name string) func(context.Conte
 	return nil
 }
 
-// asReply decodes one handler result into T. Byte-flow endpoints answer
-// pre-marshaled wire bytes (codec.RawMessage); guard-path failures answer the
-// typed reply directly. Both decode the same on the wire.
 func asReply[T any](t *testing.T, res any) T {
 	t.Helper()
 	if v, ok := res.(T); ok {
@@ -140,7 +129,6 @@ func TestStatsResolvesViaMojangThenHypixel(t *testing.T) {
 	assert.Equal(t, int64(500), reply.FinalDeaths)
 }
 
-// An account that is already a uuid (dashed or not) skips Mojang entirely.
 func TestStatsUUIDSkipsMojang(t *testing.T) {
 	p := newTestProvider(t,
 		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
@@ -157,8 +145,6 @@ func TestStatsUUIDSkipsMojang(t *testing.T) {
 	assert.Equal(t, int64(402), reply.Stars)
 }
 
-// Hypixel answers 200 with player:null for an unknown uuid; that must chat
-// "player not found" and negative-cache (the second call hits no upstream).
 func TestStatsUnknownPlayerNegativeCached(t *testing.T) {
 	var hypixelHits int
 	p := newTestProvider(t,
@@ -179,8 +165,6 @@ func TestStatsUnknownPlayerNegativeCached(t *testing.T) {
 	assert.Equal(t, 1, hypixelHits, "unknown player must be served from the negative cache")
 }
 
-// A name Mojang does not know 404s at the resolve step and negative-caches
-// without ever spending the Hypixel budget.
 func TestStatsUnknownNameStopsAtMojang(t *testing.T) {
 	p := newTestProvider(t,
 		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -195,8 +179,6 @@ func TestStatsUnknownNameStopsAtMojang(t *testing.T) {
 	assert.Equal(t, "player not found", reply.Error)
 }
 
-// A key-permission failure (403) must answer the config-flavored message and
-// NOT be pinned per player.
 func TestStatsForbiddenFriendlyNotCached(t *testing.T) {
 	var hits int
 	p := newTestProvider(t,
@@ -217,8 +199,6 @@ func TestStatsForbiddenFriendlyNotCached(t *testing.T) {
 	reply := asReply[gossiprpc.HypixelStatsReply](t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
 	assert.Equal(t, "stats lookup not permitted right now", reply.Error)
 
-	// Key fixed: the very next request retries upstream instead of serving a
-	// cached denial.
 	reply = asReply[gossiprpc.HypixelStatsReply](t, h(context.Background(), gossiprpc.Request{Account: "Techno"}))
 	assert.Empty(t, reply.Error)
 	assert.Equal(t, int64(402), reply.Stars)
@@ -243,12 +223,6 @@ func TestOddRateLimitDoesNotPanic(t *testing.T) {
 	})
 }
 
-// Mojang is a second upstream with its own throttle (per source IP, not per
-// key), so it must carry a budget of its own. Sharing the Hypixel bucket would
-// spend the Hypixel key's allowance on calls that never reach Hypixel and would
-// leave Mojang guarded by the wrong window; carrying no bucket at all — the
-// original defect — left the resolve hop completely unmetered, so Mojang could
-// answer 429 while the Hypixel budget still read as untouched.
 func TestMojangCarriesItsOwnBudget(t *testing.T) {
 	d := provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()}
 	b := provider.NewProvider(providerName, d).Trusted()
@@ -257,9 +231,6 @@ func TestMojangCarriesItsOwnBudget(t *testing.T) {
 	assert.NotEqual(t, core.Buckets{}, p.mojangBuckets, "the resolve hop must be metered")
 }
 
-// A Mojang throttle answers the upstream-flavored rate-limit message and pins
-// briefly: the immediate next request answers from the cache instead of
-// re-hitting an upstream that is already throttling us.
 func TestStatsMojangRateLimitedPinsBriefly(t *testing.T) {
 	var mojangHits int
 	p := newTestProvider(t,

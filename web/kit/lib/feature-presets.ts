@@ -43,10 +43,7 @@ function presetChoices(preset: FeaturePreset): Choice[] {
   return [...modules, ...commands];
 }
 
-// Only explicit state differences need a write. A missing row uses the same
-// shipped default as the dashboard and sesame, including default-on modules.
 export function featurePresetChanges(preset: FeaturePreset, rows: readonly FeatureRow[]): FeatureChange[] {
-  // Import applies its own configuration after the wizard is complete.
   if (preset === 'import') return [];
   const current = new Map(rows.map((row) => [row.name, row.is_enabled]));
   return presetChoices(preset)

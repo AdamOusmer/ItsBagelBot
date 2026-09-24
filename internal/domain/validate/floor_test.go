@@ -14,8 +14,6 @@ func init() {
 	CheckFloor = moderation.CheckFloor
 }
 
-// floorSlur pulls a term from the embedded hate artifact so no slur sits in
-// test source.
 func floorSlur(t *testing.T) string {
 	t.Helper()
 	terms := moderation.EmbeddedLexicon().Terms(moderation.CatHate)
@@ -25,15 +23,12 @@ func floorSlur(t *testing.T) string {
 	return terms[0]
 }
 
-// The bot posts command responses as itself: the immovable floor is enforced at
-// save time, while everything milder stays allowed (people say what they want).
 func TestCommandResponseFloor(t *testing.T) {
 	slur := floorSlur(t)
 
 	if err := CommandResponse("welcome to the stream " + slur); !errors.Is(err, ErrContentFloor) {
 		t.Fatalf("slur in a command response must be refused, got %v", err)
 	}
-	// Obfuscation folds onto the plain spelling.
 	leet := leetify(slur)
 	if err := CommandResponse("hello " + leet + " world"); !errors.Is(err, ErrContentFloor) {
 		t.Fatalf("obfuscated slur must be refused, got %v", err)
@@ -42,7 +37,6 @@ func TestCommandResponseFloor(t *testing.T) {
 		t.Fatalf("IP-grabber host must be refused, got %v", err)
 	}
 
-	// Milder-but-legal stays allowed: profanity, scam-sounding giveaway copy.
 	for _, ok := range []string{
 		"that was some bullshit, hell of a play though",
 		"type !prize to claim your prize in tonight's giveaway",
@@ -54,7 +48,6 @@ func TestCommandResponseFloor(t *testing.T) {
 	}
 }
 
-// leetify obfuscates a term (a->4, e->3, i->1, o->0, s->5).
 func leetify(term string) string {
 	out := make([]rune, 0, len(term))
 	for _, r := range term {
@@ -75,8 +68,6 @@ func leetify(term string) string {
 	return string(out)
 }
 
-// Module config blobs feed bot-emitted templates: every string value is held to
-// the floor, nested or not; keys and non-strings are not free text.
 func TestConfigsJSONFloor(t *testing.T) {
 	slur := floorSlur(t)
 

@@ -3,9 +3,6 @@
 
 import { mountScrollSpy } from '@bagel/ui/lib/scroll-spy';
 
-/** Bind the shared scroll-position engine to a guide/legal shell's attributes.
- * Astro swaps detach the shell, so dispose its listeners and pending frame
- * before each swap and bind the next page's sections after navigation. */
 export function scrollspy(prefix: string): void {
     let disposers: Array<() => void> = [];
     const teardown = () => {

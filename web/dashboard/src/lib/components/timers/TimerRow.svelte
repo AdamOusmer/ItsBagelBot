@@ -2,15 +2,6 @@
   import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One ledger line in the timers deck, built on the shared ManagementRow so the
-  // clickable primary is a real button and the quick actions (pause/resume
-  // switch, delete) are siblings of it, never nested inside it. The page passes
-  // the enhance handler so all optimistic state lives in one place.
-  //
-  // The row spells out both the schedule and the active/paused state as TEXT, so
-  // neither needs opening the timer to learn and neither is conveyed by colour
-  // alone: the schedule value carries an bb-sr-only "Repeat every" prefix, and the
-  // state pill reads "Active"/"Paused" with colour only tinting it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Icon, ManagementRow, Switch, getI18n, fmtDate, type TimerDef } from '@bagel/kit';
@@ -37,19 +28,12 @@
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
   const togglePayload = $derived(JSON.stringify({ ...r, enabled: !r.enabled }));
 
-  // Visible schedule summary as text: whole hours read as "N h", everything else
-  // as whole minutes. The wire value is whole seconds and the editor only writes
-  // whole minutes, so a non-whole-minute value is a defensive fallback.
   const schedule = $derived.by(() => {
     const s = r.intervalSeconds;
     if (s > 0 && s % 3600 === 0) return `${s / 3600} h`;
     return `${Math.max(1, Math.round(s / 60))} min`;
   });
 
-  // Status pills (docs/specs/timer-conditions.md §7): read nothing when a
-  // field is off (D11). Ended takes the until pill's place once endsAt has
-  // passed (D6): the stop and the date it will happen / has happened are the
-  // same fact, so showing both would repeat it.
   const ended = $derived.by(() => {
     if (!r.endsAt) return false;
     const t = Date.parse(r.endsAt);
@@ -60,8 +44,6 @@
   );
 </script>
 
-<!-- No `disabled` prop: a paused timer is conveyed by the state pill and the
-     switch, not by dimming the disclosure text (opacity would fail 4.5:1). -->
 <ManagementRow
   selected={expanded}
   {expanded}
@@ -74,8 +56,6 @@
       <span class="msg">
         <span class="msg-text">{r.message}</span>
       </span>
-      <!-- Metadata as labelled TEXT (no title tooltips): schedule value with an
-           bb-sr-only prefix, and the state pill spelling out Active / Paused. -->
       <span class="meta">
         <span class="m-sched">
           <span class="bb-sr-only">{t('timers.fieldInterval')} </span>
@@ -129,9 +109,6 @@
     min-width: 0;
   }
 
-  /* Metadata block: schedule value, state pill, gate/stop status pills, read
-     as row text. Wraps on its own (unlike .prow's grid) since the pill count
-     is per-timer and unbounded. */
   .meta { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 12px; }
   .sched-val {
     font-family: var(--bb-font-mono);
@@ -141,15 +118,10 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Was a tinted outlined pill. Still TEXT-first with colour only tinting;
-     the shape is now the global live/quiet label plus a solid/hollow mark, so
-     Active vs Paused survives without colour. */
   .m-state, .m-pill { flex: none; }
 
   :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
 
-  /* Narrow: stack the schedule + state under the message and keep 44px targets;
-     reflows cleanly down to 320px. */
   @media (max-width: 760px) {
     .prow {
       grid-template-columns: minmax(0, 1fr);

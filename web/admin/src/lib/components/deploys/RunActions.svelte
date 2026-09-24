@@ -1,20 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // The cause of a stop and the verbs that answer it.
-  //
-  // Both live in slots that keep their height whether or not there is
-  // anything in them, so a run failing (or a cancel being accepted) never
-  // shifts the stage list the operator is reading.
-  //
-  // The verbs offered are the failure's own `actions`, which the deployer
-  // fills per stage: offering Resume on a run the engine will refuse to
-  // resume would only trade a hidden button for an error toast.
-  //
-  // Roll back starts a new run against the cluster (the previous release's
-  // images), so it confirms first and goes through ?/start on /deploys like
-  // any other start; the redirect lands on the new run's page. Nothing here
-  // rolls back on its own.
   import { applyAction, enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -148,7 +134,6 @@
 />
 
 <style>
-  /* One banner's height, held open while there is nothing to say. */
   .slot {
     min-height: 48px;
     margin-bottom: 8px;

@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Dashboard copy for a ModuleDef. The catalog files stay English: tests,
-// marketing, and the search haystack read them without a locale. The console
-// overlays `modules.catalog.{id}.*` from the i18n catalogs. A missing key
-// must fall back to the catalog string rather than render the dotted path.
 import type { MessageKey } from './i18n/keys';
 import type { Perm } from './types';
 import type { ModuleCommandInfo, ModuleDef, ModuleField, ModuleReply } from './catalog/module-def';
@@ -64,9 +60,6 @@ export function tModuleReplyPart(
   return tCatalog(t, catalogKey(moduleId, 'replies', reply.key, part), reply[part]);
 }
 
-/** Resolve the empty editor's chat template in the active locale when the
- * runtime has a catalog-backed default. Custom text remains untouched; a
- * module without a catalog default keeps its source fallback. */
 export function tModuleReplyDefault(t: TFn, moduleId: string, reply: ModuleReply): string {
   const key = catalogKey(moduleId, 'replies', reply.key, 'defaultMessage');
   return tCatalog(t, key, reply.defaultMessage);

@@ -32,8 +32,6 @@
   };
   const notice = $derived(NOTICES[page.url.searchParams.get('e') ?? ''] ?? null);
 
-  // Post-login destination (validated server-side in /auth/login); rides the
-  // OAuth round trip so a deep link like /billing?subscribe=1 survives sign-in.
   const next = $derived(page.url.searchParams.get('next'));
   const loginHref = $derived(next ? `/auth/login?next=${encodeURIComponent(next)}` : '/auth/login');
 
@@ -41,15 +39,6 @@
     return Array.from(text, (g) => (g === ' ' ? '\u00a0' : g));
   }
 
-  // Same intro as web/marketing/src/components/home/Header.astro: each line's glyphs roll
-  // up out of a per-line mask; the trailing period pops last with a glow.
-  //
-  // CSS hides the glyphs pre-intro (see the h1 .glyph media query), so every
-  // branch that will NOT animate has to reveal them by hand. The Astro page
-  // needs no such escape hatch: its intro is a blocking inline module, while
-  // this one waits on onMount plus a dynamic import, and a hidden tab (the
-  // Cursor Browser pane reports document.hidden even when fronted) freezes
-  // WAAPI, so an unrevealed glyph would sit at opacity 0 forever.
   function revealGlyphs(h1: HTMLElement): void {
     h1.querySelectorAll<HTMLElement>('[data-hero-glyph]').forEach((g) => {
       g.style.opacity = '1';
@@ -62,27 +51,20 @@
     const h1 = document.querySelector<HTMLElement>('[data-hero-title]');
     if (!h1 || h1.dataset.heroMotionReady === 'true') return;
     h1.dataset.heroMotionReady = 'true';
-    // Reduced motion never hides them in the first place.
     if (prefersReducedMotion()) return;
     if (document.hidden) {
       revealGlyphs(h1);
       return;
     }
 
-    // Chunk stalled or blocked: show the headline rather than an empty hero.
     let revealed = false;
     const watchdog = window.setTimeout(() => {
       revealed = true;
       revealGlyphs(h1);
     }, 1800);
 
-    // motion touches the DOM; load it only on the client so SSR of /login
-    // does not pull the animation runtime into the server module graph.
     void import('motion').then(({ animate, stagger, cubicBezier }) => {
       window.clearTimeout(watchdog);
-      // A chunk that arrives after the watchdog fired must not animate: every
-      // track starts at opacity 0, so the headline the watchdog just revealed
-      // would blink out and roll in a second time.
       if (revealed) return;
 
       const LINE_DELAY_BASE = 0.35;
@@ -265,15 +247,6 @@
     overflow: hidden;
   }
 
-  /* Login paints its own orbs; the shell's ambient pair would muddy them. The
-     shell renders that pair (RootShell -> BackgroundOrbs), outside this route's
-     component tree, so hiding them takes a :global rule, but route CSS
-     stays in the document after a client-side navigation, and an unqualified
-     :global(.bb-bg-orb) kept them hidden on every page visited afterwards (reach
-     /login from the error page's sign-in link, then go Back). Gating on the
-     hero's presence unscopes the rule the moment this page unmounts, and
-     unlike a body class toggled from onMount it also holds during SSR, so the
-     shell orbs never flash in before hydration. */
   :global(body:has([data-hero-title]) .bb-bg-orb) {
     display: none;
   }
@@ -366,8 +339,6 @@
     animation: fadeUp 800ms 200ms var(--bb-ease-out-expo) forwards;
   }
 
-  /* Was .eyebrow__badge (green pill) + .eyebrow__dot (pulsing circle); now
-     .bb-tag--live + .bb-mark + .bb-sweep. Only no-shrink stays local. */
   .eyebrow :global(.bb-tag) {
     flex-shrink: 0;
   }
@@ -388,12 +359,6 @@
     color: var(--bb-white);
   }
 
-  /* margin-top:0 stands in for web's `* { margin: 0 }` reset (style.css), which
-     web/kit/styles/console.css does not ship. Without it the UA's
-     `h1 { margin-block-start: 0.67em }` survives (58.85px at the 87.84px
-     desktop size) and grew the grid row past the title, so `align-items: end`
-     bottom-aligned the title 59px below its eyebrow. Same reset gap as .lede
-     and .consent below. */
   h1 {
     font-family: var(--bb-font-display);
     font-size: clamp(3rem, min(9vw, 15vh), 8rem);
@@ -421,10 +386,6 @@
     transform-origin: 20% 80%;
   }
 
-  /* Keep this selector statically matchable: an attribute the mount adds at
-     runtime (h1[data-hero-animate]) compiles away: Svelte prunes selectors it
-     cannot match in the markup and warns css_unused_selector, which left the
-     glyphs visible and killed the roll-in. onMount reveals them instead. */
   @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
     h1 .glyph {
       opacity: 0;
@@ -432,11 +393,6 @@
     }
   }
 
-  /* margin-top:0 is load-bearing, not tidiness. web/marketing/src/styles/style.css
-     resets `* { margin: 0 }`, so the hero's `p` rule only ever sets a bottom
-     margin; web/kit/styles/console.css has no such reset, so the UA's
-     `p { margin: 1em 0 }` survived here and added a measured 15.68px above
-     the lede that the hero does not have. Same story for .consent below. */
   .lede {
     max-width: 550px;
     font-size: 1.05rem;
@@ -634,10 +590,6 @@
     .migrate { margin-top: 12px; font-size: 0.76rem; }
   }
 
-  /* Editorial left, desktop only. Keep this block last.
-     Copied from web/marketing/src/components/home/Header.astro: `auto 1fr` + 56px gap,
-     no divider. A max-content/hairline grid was tried here and it is what
-     painted the vertical rule the hero never has. */
   @media (min-width: 901px) {
     .header-material {
       align-items: flex-start;

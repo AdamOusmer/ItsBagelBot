@@ -58,9 +58,6 @@ func TestFlushRegressionNewHealthyFlushDoesNotInheritOldOverlapFailure(t *testin
 	want := errors.New("old cohort failed")
 	pub.completeSequences([]uint64{failed}, want)
 
-	// The first caller reports the failure. That same capture preserves it for
-	// the overlapping older caller, while trimming it from the history a new
-	// caller will inspect.
 	if err := pub.waitFlush(context.Background(), failed, firstID); !errors.Is(err, want) {
 		t.Fatalf("first overlapping Flush() = %v, want old failure", err)
 	}

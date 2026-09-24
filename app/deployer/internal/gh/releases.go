@@ -24,8 +24,6 @@ func toRelease(rel *github.RepositoryRelease, latestID int64) ports.Release {
 	}
 }
 
-// latestReleaseID is 0 when the repo has no release yet. A release object
-// does not say whether it is Latest; only this endpoint does.
 func (c *Client) latestReleaseID(ctx context.Context) (int64, error) {
 	rel, resp, err := c.gh.Repositories.GetLatestRelease(ctx, c.owner, c.repo)
 	_, err = found(resp, err)
@@ -44,11 +42,6 @@ func (c *Client) Release(ctx context.Context, tag deploy.Version) (ports.Release
 	return toRelease(rel, latest), true, nil
 }
 
-// UpsertRelease writes prerelease false on both paths: GitHub refuses to
-// mark a prerelease Latest, and the -beta suffix is the product's version
-// scheme, not a prerelease flag. On update target_commitish is re-pointed
-// for a hotfix; GitHub ignores it when the tag exists, so the tag's own
-// force-move is what moves the release.
 func (c *Client) UpsertRelease(ctx context.Context, spec ports.ReleaseSpec) (ports.Release, error) {
 	cur, resp, err := c.gh.Repositories.GetReleaseByTag(ctx, c.owner, c.repo, string(spec.Tag))
 	exists, err := found(resp, err)
@@ -73,8 +66,6 @@ func (c *Client) UpsertRelease(ctx context.Context, spec ports.ReleaseSpec) (por
 	return toRelease(rel, rel.GetID()), nil
 }
 
-// Releases reads one page: the Deploys page offers the last few releases as
-// rollback targets, far below GitHub's 100 per page. Drafts are skipped.
 func (c *Client) Releases(ctx context.Context, limit int) ([]ports.Release, error) {
 	rels, resp, err := c.gh.Repositories.ListReleases(ctx, c.owner, c.repo, &github.ListOptions{PerPage: min(limit, 100)})
 	if err != nil {

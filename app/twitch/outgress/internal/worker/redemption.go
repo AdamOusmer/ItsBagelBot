@@ -17,12 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// processRedemptionUpdate resolves one channel-points redemption (Helix Update
-// Redemption Status) as the broadcaster: it marks the redemption FULFILLED or
-// CANCELED after sesame ran the reward's action. It pays the general Helix
-// budget under the broadcaster's own user bucket. Twitch only allows updating a
-// redemption still in the UNFULFILLED state, so a redemption already resolved
-// (by a mod, or a skip-queue reward) returns a 4xx that is dropped, not retried.
 func (w *Worker) processRedemptionUpdate(ctx context.Context, payload *outgress.Message) error {
 	if !w.validRedemption(payload) {
 		return nil
@@ -56,8 +50,6 @@ func (w *Worker) processRedemptionUpdate(ctx context.Context, payload *outgress.
 	return err
 }
 
-// validRedemption reports whether a redemption job carries the ids and a target
-// status Twitch accepts; a malformed job is logged and dropped (returns false).
 func (w *Worker) validRedemption(payload *outgress.Message) bool {
 	if missingRedemptionIDs(payload) {
 		w.log.Error("dropping redemption update: missing ids",
@@ -87,9 +79,6 @@ func validRedemptionStatus(status string) bool {
 	return status == outgress.RedemptionFulfilled || status == outgress.RedemptionCanceled
 }
 
-// redemptionPermanent reports whether a redemption error can never succeed on
-// retry: a permanent Twitch 4xx (e.g. the redemption was already resolved), a
-// missing channel-points scope, or no broadcaster token.
 func redemptionPermanent(err error) bool {
 	return isPermanent(err) || errors.Is(err, twitch.ErrMissingScope) || errors.Is(err, twitch.ErrNoUserToken)
 }

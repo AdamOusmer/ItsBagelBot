@@ -27,8 +27,6 @@ func TestTokenDoesNotHoldStateLockDuringRefresh(t *testing.T) {
 	}()
 	<-started
 
-	// ExpiresIn takes the state lock. It must remain responsive while refresh
-	// is blocked on external I/O.
 	statusDone := make(chan struct{})
 	go func() {
 		_ = s.ExpiresIn()
@@ -76,24 +74,6 @@ func TestConcurrentTokenRefreshIsCollapsed(t *testing.T) {
 	}
 }
 
-// TestConcurrentGenerationsDoNotRaceOnCurrentRefresh is a data-race
-// regression test for the currentRefresh field (see its doc on Source).
-//
-// singleflightRefresh keys its group by generation (see Invalidate), so a
-// still-in-flight OLD-generation refresh and a freshly-started NEW-
-// generation refresh can both reach mintOnce at the same time -- both read
-// and, on a successful mint, write the rotated refresh token. Before
-// currentRefresh existed, that value was a bare local captured by the
-// refresh closure, which was safe only as long as singleflight guaranteed
-// exactly one refresh in flight per Source; keying by generation broke that
-// guarantee. `go test -race` only flags interleavings it actually executes,
-// so this test exists specifically to force two live generations to call
-// mintOnce at overlapping times, run under -race.
-//
-// The lease always grants (rather than a real Valkey lease's cross-replica
-// exclusion) because the point here is to stress currentRefresh itself, not
-// to re-prove lease coordination -- that is covered by the MintLease-focused
-// tests in token_mintlease_test.go.
 func TestConcurrentGenerationsDoNotRaceOnCurrentRefresh(t *testing.T) {
 	entered := make(chan struct{})
 	holdFirst := make(chan struct{})
@@ -113,7 +93,7 @@ func TestConcurrentGenerationsDoNotRaceOnCurrentRefresh(t *testing.T) {
 	}}
 
 	s := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh", StoredTokenIO{
-		Load:    func(context.Context) StoredLoad { return StoredLoad{} }, // never adoptable
+		Load:    func(context.Context) StoredLoad { return StoredLoad{} },
 		Persist: func(context.Context, string, string, time.Time) error { return nil },
 	}, lease)
 
@@ -129,7 +109,7 @@ func TestConcurrentGenerationsDoNotRaceOnCurrentRefresh(t *testing.T) {
 		t.Fatal("generation 0's mint never started")
 	}
 
-	s.Invalidate() // bumps gen: generation 1's refresh is a SEPARATE singleflight call
+	s.Invalidate()
 
 	done1 := make(chan struct{})
 	go func() {
@@ -137,11 +117,6 @@ func TestConcurrentGenerationsDoNotRaceOnCurrentRefresh(t *testing.T) {
 		_, _ = s.Token(context.Background())
 	}()
 
-	// Generation 1 is not blocked, so give it a moment to reach its own
-	// mintOnce call before releasing generation 0 -- this maximizes the
-	// window where both are inside getCurrentRefresh/setCurrentRefresh at
-	// once. Not load-bearing for correctness, only for how reliably this
-	// forces the overlap on a single run.
 	time.Sleep(20 * time.Millisecond)
 	close(holdFirst)
 

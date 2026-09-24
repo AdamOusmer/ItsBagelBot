@@ -1,25 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The Astro barrel: every block @bagel/ui ships, under one import.
-//
-// THE PER-FILE SUBPATHS STAY, and this does not replace them. Each adapter
-// JS-imports its own contract stylesheet, which is how a bundler is told to
-// emit that CSS; importing the barrel therefore pulls in every stylesheet in
-// the package. That is the right trade for the consoles, which render most of
-// the library on most routes and already load the whole of it -- and the wrong
-// one for a page that wants a single element, which is why
-// `@bagel/ui/astro/Button.astro` still resolves and why ui/scripts/size.ts
-// keeps a per-entry budget for the separation.
-//
-// Generated shape, hand-maintained content: ui/scripts/gen-catalog.mjs fails
-// the check when an adapter exists and is not exported here, so the barrel
-// cannot silently fall behind the directory.
-//
-// Grouped by family, in the order the catalog lists them (ui/CATALOG.md).
-
-
-// ── Typography ─────────────────────────────────────────────────────────────
 export { default as Code } from './Code.astro';
 export { default as Eyebrow } from './Eyebrow.astro';
 export { default as Heading } from './Heading.astro';
@@ -31,7 +12,6 @@ export { default as Text } from './Text.astro';
 export { default as TextLink } from './TextLink.astro';
 export { default as VisuallyHidden } from './VisuallyHidden.astro';
 
-// ── Layout ─────────────────────────────────────────────────────────────
 export { default as AppShell } from './AppShell.astro';
 export { default as Cluster } from './Cluster.astro';
 export { default as Container } from './Container.astro';
@@ -44,7 +24,6 @@ export { default as Section } from './Section.astro';
 export { default as Spacer } from './Spacer.astro';
 export { default as Stack } from './Stack.astro';
 
-// ── Controls ─────────────────────────────────────────────────────────────
 export { default as Button } from './Button.astro';
 export { default as ButtonLink } from './ButtonLink.astro';
 export { default as Checkbox } from './Checkbox.astro';
@@ -58,7 +37,6 @@ export { default as Select } from './Select.astro';
 export { default as Switch } from './Switch.astro';
 export { default as Textarea } from './Textarea.astro';
 
-// ── Feedback ─────────────────────────────────────────────────────────────
 export { default as AlertBanner } from './AlertBanner.astro';
 export { default as Badge } from './Badge.astro';
 export { default as Chip } from './Chip.astro';
@@ -71,7 +49,6 @@ export { default as SkeletonStack } from './SkeletonStack.astro';
 export { default as Tag } from './Tag.astro';
 export { default as Tooltip } from './Tooltip.astro';
 
-// ── Navigation ─────────────────────────────────────────────────────────────
 export { default as Brand } from './Brand.astro';
 export { default as Dock } from './Dock.astro';
 export { default as EditorFooter } from './EditorFooter.astro';
@@ -90,7 +67,6 @@ export { default as SectionNav } from './SectionNav.astro';
 export { default as SocialRail } from './SocialRail.astro';
 export { default as Topbar } from './Topbar.astro';
 
-// ── Data ─────────────────────────────────────────────────────────────
 export { default as AreaSeries } from './AreaSeries.astro';
 export { default as Card } from './Card.astro';
 export { default as CardHead } from './CardHead.astro';
@@ -101,7 +77,6 @@ export { default as OverviewGrid } from './OverviewGrid.astro';
 export { default as StatTile } from './StatTile.astro';
 export { default as Table } from './Table.astro';
 
-// ── Motion ─────────────────────────────────────────────────────────────
 export { default as AuroraBg } from './AuroraBg.astro';
 export { default as BackgroundOrbs } from './BackgroundOrbs.astro';
 export { default as Brackets } from './Brackets.astro';

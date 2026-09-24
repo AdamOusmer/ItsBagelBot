@@ -1,9 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // One status dot with its words attached: StatusDot draws colour only, and
-  // colour alone is not a state a screen reader or a colour-blind operator
-  // can read, so the name rides on the wrapper as role="img".
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import type { Tone } from './view';
 

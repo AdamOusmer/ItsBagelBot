@@ -44,22 +44,16 @@ func TestValrankDefaultTemplate(t *testing.T) {
 		"Frosty#EUW1 · Immortal 2 · 67 RR (-12) · peak Immortal 1",
 		col.out[0].Text)
 
-	// No linked id and no arg: falls back to the broadcaster's login (which
-	// the provider rejects as an invalid Riot ID), and the premium flag rides
-	// along for gossip's reserved bucket.
 	call := gw.lastCall(t)
 	assert.Equal(t, "streamer", call.req.Account)
 	assert.False(t, call.req.IsPremium)
 }
 
-// Scoping inputs resolve in priority order: chat arg over dashboard config,
-// shard/ladder words wherever they sit around the id.
 func TestValScopingArgsAndConfig(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{"valorant.rank": valRankReply()}}
 	cmd := valCmd(t, gw, "valrank")
 	var col collector
 
-	// Config alone scopes both axes.
 	cfg := `{"account":"Frosty#EUW1","region":"eu","platform":"pc"}`
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "", col.emit))
 	call := gw.lastCall(t)
@@ -67,16 +61,12 @@ func TestValScopingArgsAndConfig(t *testing.T) {
 	assert.Equal(t, "eu", call.req.Region)
 	assert.Equal(t, "pc", call.req.Platform)
 
-	// An explicit id beats the linked one; a shard word is peeled wherever it
-	// sits and overrides the configured region.
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "console @Reyna#KR5 ap", col.emit))
 	call = gw.lastCall(t)
 	assert.Equal(t, "Reyna#KR5", call.req.Account)
 	assert.Equal(t, "ap", call.req.Region)
 	assert.Equal(t, "console", call.req.Platform)
 
-	// linkedOnly "on" drops the typed id but a shard or ladder word still
-	// scopes where the linked account is looked up.
 	cfg = `{"account":"Frosty#EUW1","region":"eu","platform":"pc","linkedOnly":"on"}`
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "console @Reyna#KR5 ap", col.emit))
 	call = gw.lastCall(t)
@@ -85,8 +75,6 @@ func TestValScopingArgsAndConfig(t *testing.T) {
 	assert.Equal(t, "console", call.req.Platform)
 }
 
-// The !val root routes its first argument word onto the subcommand runners;
-// anything else targets rank, so "!val Frosty#EUW1" reads naturally.
 func TestValDispatch(t *testing.T) {
 	replies := map[string]any{
 		"valorant.rank":        gossiprpc.ValorantRankReply{Player: "Frosty#EUW1"},
@@ -122,8 +110,6 @@ func TestValDispatch(t *testing.T) {
 	}
 }
 
-// A per-command "off" toggle keeps that command silent: no chat line and no
-// gossip call.
 func TestValDisabledStaysSilent(t *testing.T) {
 	cases := []struct{ name, config string }{
 		{"val", `{"rankEnabled":"off"}`},
@@ -153,15 +139,12 @@ func TestValReplyErrorChats(t *testing.T) {
 	require.Len(t, col.out, 1)
 	assert.Equal(t, "Frosty#EUW1: player not found", col.out[0].Text)
 
-	// The accountless shop names the feature instead of a target player.
 	var shop collector
 	require.NoError(t, valCmd(t, gw, "valshop").Run(context.Background(), urchinCtx(""), "", shop.emit))
 	require.Len(t, shop.out, 1)
 	assert.Equal(t, "daily rotation: player not found", shop.out[0].Text)
 }
 
-// An unranked player replaces the rank template entirely: every numeric token
-// would render zero, so the default line says why instead.
 func TestValrankUnranked(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{"valorant.rank": gossiprpc.ValorantRankReply{
 		Player: "Frosty#EUW1", Unranked: true,
@@ -200,9 +183,6 @@ func TestValmatchesTemplateAndEmpty(t *testing.T) {
 	})
 }
 
-// A bare !vallb is a regional top-N ask: the board answers even though neither
-// an arg nor a linked id exists, because the Twitch-login fallback would only
-// mint an invalid-Riot-ID error.
 func TestVallbBareTopN(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{"valorant.leaderboard": gossiprpc.ValorantLeaderboardReply{
 		Board: "ap/console",
@@ -225,8 +205,6 @@ func TestVallbBareTopN(t *testing.T) {
 	assert.Equal(t, "console", call.req.Platform)
 }
 
-// An explicit id still scopes a leaderboard ask ("is anyone I know on the
-// board?"), riding through as the request's account.
 func TestVallbWithID(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{"valorant.leaderboard": gossiprpc.ValorantLeaderboardReply{
 		Player: "Frosty#EUW1", Board: "eu/pc",

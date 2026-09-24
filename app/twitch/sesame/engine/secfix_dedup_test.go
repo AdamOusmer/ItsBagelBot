@@ -16,12 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// --- sanitizeVar: the newline-smuggling fix ---
-
-// A viewer-supplied {args}/{touser} must never be able to mint per-line
-// slash-verbs: emitCommand splits the expanded response on "\n" and routes
-// each line through Translate independently, so an embedded newline plus a
-// leading slash was a remote moderation verb executed as the bot.
 func TestSanitizeVarStripsControlChars(t *testing.T) {
 	tests := []struct {
 		name string
@@ -36,7 +30,7 @@ func TestSanitizeVarStripsControlChars(t *testing.T) {
 		{"tab-padded verb", "\t/announce raid", "announce raid"},
 		{"carriage return alone", "a\rb", "ab"},
 		{"nul byte dropped", "a\x00b", "ab"},
-		{"all C0 controls", "\x01\x02\x1f x", "x"}, // controls stripped, then the leading space run trims
+		{"all C0 controls", "\x01\x02\x1f x", "x"},
 		{"del byte dropped", "a\x7fb", "ab"},
 		{"mid-text url keeps slashes", "see https://example.com/x", "see https://example.com/x"},
 		{"emoji survive", "café ☕ 🥯", "café ☕ 🥯"},
@@ -49,14 +43,9 @@ func TestSanitizeVarStripsControlChars(t *testing.T) {
 	}
 }
 
-// --- watch tick: stable per-bucket identity ---
-
-// The identity must be byte-stable across replicas firing the same expiry,
-// yet differ for the NEXT legitimate tick one interval later — otherwise the
-// guard either misses replays or suppresses every second accrual.
 func TestWatchTickIdentityStableWithinBucketDistinctAcross(t *testing.T) {
 	base := time.Unix(1_800_000_000, 0)
-	sameMoment := base.Add(37 * time.Second) // another replica's clock, same bucket
+	sameMoment := base.Add(37 * time.Second)
 	nextTick := base.Add(watchTickInterval)
 
 	a := watchTickIdentity(42, base)
@@ -65,8 +54,6 @@ func TestWatchTickIdentityStableWithinBucketDistinctAcross(t *testing.T) {
 	assert.NotEqual(t, a, watchTickIdentity(43, base), "channels are independent")
 }
 
-// End-to-end shape of the guard: claiming the same tick identity twice
-// reports a duplicate, so a re-fired tick's chatter is paid exactly once.
 func TestWatchTickGuardCollapsesRefire(t *testing.T) {
 	store := newRecordingStore()
 	d := NewEventDedup(store, "sesame:seen:", time.Hour, zap.NewNop())
@@ -77,10 +64,6 @@ func TestWatchTickGuardCollapsesRefire(t *testing.T) {
 	assert.True(t, d.Duplicate(ctx, ref), "re-fired tick is recognized")
 }
 
-// --- custom-command counter tokens: claim + peek on the dispatch path ---
-
-// countingLoyalty counts bumps and serves the current value to peeks. The
-// embedded nil interface covers the methods these tests never touch.
 type countingLoyalty struct {
 	LoyaltyStore
 	bumps     int
@@ -99,13 +82,6 @@ func (l *countingLoyalty) CounterPeek(context.Context, CounterTarget) (loyaltyrp
 	return loyaltyrpc.Counter{Name: "deaths", Value: l.value}, true, nil
 }
 
-// {counter:x} stopped bumping (see ent/schema/commands.go's bump_counter
-// field comment): a redelivered command line re-renders the template each
-// time, which re-peeks, but never claims the CounterEffect namespace and
-// never bumps — there is nothing left in the render path that writes. The
-// command-run bump OPTION is the one thing that still claims that namespace;
-// TestBumpCounterOptionRedeliveryDoesNotDoubleCount (counter_token_test.go)
-// covers its redelivery guard.
 func TestCounterTokenNeverBumpsOnRedelivery(t *testing.T) {
 	store := newRecordingStore()
 	pub := &rawPublisher{}
@@ -125,8 +101,8 @@ func TestCounterTokenNeverBumpsOnRedelivery(t *testing.T) {
 	defer p.Close()
 
 	require.NoError(t, p.Process(commandMsg(t, "m1", "!foo")))
-	require.NoError(t, p.Process(commandMsg(t, "m1", "!foo"))) // replay: same msg_id
-	require.NoError(t, p.Process(commandMsg(t, "m2", "!foo"))) // distinct event
+	require.NoError(t, p.Process(commandMsg(t, "m1", "!foo")))
+	require.NoError(t, p.Process(commandMsg(t, "m2", "!foo")))
 
 	assert.Zero(t, loyal.bumps, "a template read never bumps, replayed or not")
 	assert.Equal(t, 3, loyal.peekCalls, "every render re-peeks; a read has nothing to deduplicate")

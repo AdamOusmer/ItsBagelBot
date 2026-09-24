@@ -17,9 +17,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// fakeConnector stands in for the real MySQL connector so the timing wrapper
-// can be exercised without a server. Connect returns a nil driver.Conn, which
-// timedConnector passes straight back; nothing in the wrapper touches it.
 type fakeConnector struct {
 	calls int
 	err   error
@@ -32,9 +29,6 @@ func (c *fakeConnector) Connect(context.Context) (driver.Conn, error) {
 
 func (c *fakeConnector) Driver() driver.Driver { return nil }
 
-// observeLogs swaps the global logger for one that records, and restores it
-// when the test ends. timedConnector logs through zap.L() like keepalive.go
-// does, so this is the seam.
 func observeLogs(t *testing.T) *observer.ObservedLogs {
 	t.Helper()
 
@@ -79,8 +73,6 @@ func TestTimedConnectorLogsFailedConnect(t *testing.T) {
 	require.Contains(t, entries[0].ContextMap(), "elapsed")
 }
 
-// The base segment has to carry host, port and database or every datastore
-// span in APM silently loses those facets - see datastoreSegmentBuilder.
 func TestDatastoreSegmentBuilderTargets(t *testing.T) {
 	cases := []struct {
 		name         string

@@ -1,15 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Needs-attention strip. Surfaces ONLY issues the status panel does not already
-  // own (the whole connection story lives there), and only when they are REAL:
-  // an empty issue set renders nothing at all. Each row names the problem in plain
-  // words and carries its fix as a real link.
-  //
-  // Honesty: the `ok` flags come from main's digests. A failed read reports
-  // active/total/pending as 0, which is indistinguishable from an empty account,
-  // so a down read must never manufacture an "all disabled" / "invites pending"
-  // row. Guard every issue on its read having actually landed.
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
@@ -33,7 +24,6 @@
 
   const issues = $derived.by<Issue[]>(() => {
     const out: Issue[] = [];
-    // Commands exist but every one is switched off. The bot stays silent.
     if (commandsOk && total > 0 && active === 0) {
       out.push({
         id: 'all-disabled',
@@ -42,7 +32,6 @@
         href: '/commands'
       });
     }
-    // Shared-access invites nobody has accepted yet.
     if (sharesOk && pendingShares > 0) {
       out.push({
         id: 'pending-invites',

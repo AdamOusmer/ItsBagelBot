@@ -11,51 +11,28 @@ import (
 	"go.uber.org/zap"
 )
 
-// Context is the per-message state the engine builds and hands to each command
-// Run and event handler. It is confined to a single consumer goroutine, so its
-// lazily-computed fields need no synchronization. The engine pools it: it gets
-// one, fills it, runs the interested modules, then Resets and returns it.
-// Modules must not retain it past the call.
+// Pooled by the engine: modules must not retain it past the call.
 type Context struct {
 	Env           lane.Envelope
 	Regress       Regress
 	BroadcasterID uint64
 	Log           *zap.Logger
 
-	// Locale is the broadcaster's console UI language ("en", "fr", …). The engine
-	// fills it (from the user projection) before running a command, so system
-	// replies can be localized. Empty means the default language.
 	Locale string
 
-	// Config is this module's raw configuration blob from its ModuleView; the
-	// engine sets it before calling a named module. Empty for core modules.
 	Config codec.RawMessage
 
-	// Num is the inline numeric suffix a NumericSuffix command absorbed from its
-	// trigger ("30" for "!clip30"), or empty when none was typed or the command
-	// does not opt into NumericSuffix. Set by the engine before running a baked
-	// command; a command reads it to interpret the number (e.g. clip duration).
 	Num string
 
-	// Command is the trigger this line dispatched ("bagel" for "!bagel"), or
-	// empty when the line was not a command. Set by the engine at dispatch and
-	// read back after the stages run, so the activity feed can name what
-	// answered without re-parsing the text on the hot path.
 	Command string
 
 	role    Role
 	roleSet bool
 
-	// emoteCodes is the lazily-built set of emote codes spelled natively in this
-	// message (see EmoteCodes); emotesBuilt distinguishes "not built yet" from
-	// "built, none found", so a message without spans never re-scans and the
-	// accessor can return nil - not an empty map - as its steady-state answer.
 	emoteCodes  map[string]struct{}
 	emotesBuilt bool
 }
 
-// Chatter returns the chatter's resolved role, parsed once from the event badges
-// and the broadcaster id. Non-chat events resolve to RoleEveryone.
 func (c *Context) Chatter() Role {
 	if !c.roleSet {
 		c.role = ParseRole(c.Env)
@@ -64,8 +41,6 @@ func (c *Context) Chatter() Role {
 	return c.role
 }
 
-// Decode unmarshals the module's Config into out. A missing config is not an
-// error: out is left at its zero value.
 func (c *Context) Decode(out any) error {
 	if len(c.Config) == 0 {
 		return nil
@@ -73,23 +48,6 @@ func (c *Context) Decode(out any) error {
 	return codec.Unmarshal(c.Config, out)
 }
 
-// EmoteCodes returns the emote codes spelled natively in THIS message, built
-// once per pooled context from Env.Emotes: each span's Begin..End window over
-// the raw Env.Text runes, lowercased. The automod treats the result as
-// authoritative - the spans are what the chat client actually rendered, so
-// they carry native Twitch emotes and cheermotes that no third-party fetch can
-// ever contain, and they stay trustworthy even when that fetch is down.
-//
-// Lowercasing is deliberate (2026-08-23): cheermote text varies in case
-// ("cheer100" and "Cheer100" both appear in real chat) while the fetched
-// third-party sets stay exact-case; a false rescue here is bounded by the span
-// proving the client rendered an emote at exactly that offset, so case
-// strictness would only cost rescues, not prevent abuse. Malformed or
-// out-of-range spans (a forward-incompatible producer, a squashed-line offset
-// drift) are skipped rather than fatal - one bad span must not blank the rest.
-//
-// Steady state is zero-alloc: a message without Emotes returns nil from a
-// single boolean check, never touching []rune conversion.
 func (c *Context) EmoteCodes() map[string]struct{} {
 	if c.emotesBuilt {
 		return c.emoteCodes
@@ -111,10 +69,6 @@ func (c *Context) EmoteCodes() map[string]struct{} {
 	return c.emoteCodes
 }
 
-// Reset zeroes the per-message fields so the Context can be reused from a pool.
-// The struct itself stays usable; only the values are cleared. The Log pointer
-// is left in place since the engine re-sets it per message anyway, but the lazy
-// role cache is cleared so it never leaks across messages.
 func (c *Context) Reset() {
 	c.Env = lane.Envelope{}
 	c.Regress = RegressStandard
@@ -129,19 +83,6 @@ func (c *Context) Reset() {
 	c.emotesBuilt = false
 }
 
-// BID is the broadcaster-id log field a module attaches to every warn or error
-// it logs. It lives here rather than as a helper per command type because four
-// of them (quotes, queue, raffle, songqueue) had each grown a byte-identical
-// bid() for it, and a free function would have to be handed the id anyway.
 func (c *Context) BID() zap.Field { return BIDField(c.BroadcasterID) }
 
-// BIDField is the same field for the code that has an id but no Context: the
-// engine's background loops (timers, duels, loyalty ticks) and the modules'
-// own goroutines, which cannot borrow the pooled per-message Context because
-// it is reset the moment the handler returns.
-//
-// It exists so the field NAME is written once. Sixty call sites had spelled
-// zap.Uint64("broadcaster_id", …) by hand, and a log search only finds what
-// every one of them agreed to call it — one typo is a channel's worth of
-// warnings that no dashboard query returns.
 func BIDField(id uint64) zap.Field { return zap.Uint64("broadcaster_id", id) }

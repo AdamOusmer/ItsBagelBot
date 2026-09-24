@@ -1,18 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Twitch ingress fleet health, on the shared deck.
-  //
-  // The page was a grid of `.shard-card`s with its own tone triple, its own
-  // stat block, a hand-rolled `.btn-toggle` for autoscale and a per-shard SVG
-  // sparkline. It is now three StatTiles, one toolbar and a DeckList of rows:
-  // the sparkline went with the change, because a 30-sample ring buffer over an
-  // 8-second poll is four minutes of history rendered as decoration, and the
-  // per-shard load it drew is already the row's bar.
-  //
-  // Scale and autoscale are the only two verbs, both admin-only. The client
-  // gate is `allows`, the same question ?/scale and ?/autoscale ask through
-  // requireRole -- a hidden control is a courtesy, not the boundary.
   import { onMount } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -46,7 +34,6 @@
   const failed = adminToastFailure(toast);
   const canScale = $derived(allows(data.role, 'shards.scale'));
 
-  // ── Streamed snapshot -> local state ───────────────────────────────────────
   let snap = $state<ShardSnapshot | null>(null);
   let trialSnapshot = $state<TrialSnapshot | null>(null);
   let trialPolled = false;
@@ -56,7 +43,6 @@
     let alive = true;
     data.bundle.then((b) => {
       if (!alive) return;
-      // The poll may already have delivered something fresher than SSR.
       if (snap === null) snap = b.snapshot;
       if (!trialPolled) trialSnapshot = b.trials;
       degraded = b.degraded;
@@ -66,14 +52,6 @@
     };
   });
 
-  // ── Live poll ──────────────────────────────────────────────────────────────
-  // Same schedule the hand-rolled loop had: 2s while a recent action settles,
-  // else 8s, first tick at 1.5s, paused while the tab is hidden.
-  //
-  // livePoll, not another setTimeout chain: it owns the generation counter that
-  // makes a teardown mid-fetch safe. The one thing it is NOT here is a poll that
-  // settles -- fleet state never "arrives", it just keeps moving -- so the tick
-  // always answers false and the deadline is Infinity.
   const FAST_MS = 2000;
   const SLOW_MS = 8000;
   const SETTLE_WINDOW_MS = 30_000;
@@ -88,7 +66,7 @@
       trialPolled = true;
       trialSnapshot = body.trials ?? null;
       if (!body.snapshot) {
-        live = false; // the endpoint answered but had no live snapshot: say so
+        live = false;
         return false;
       }
       snap = body.snapshot;
@@ -116,7 +94,6 @@
     };
   });
 
-  // ── Derived fleet view ─────────────────────────────────────────────────────
   const capacity = $derived(snap ? resolveCapacity(snap) : null);
   const shards = $derived(snap?.shards ?? []);
   const trialConnections = $derived(
@@ -139,10 +116,6 @@
   );
   const conduit = $derived(snap?.conduit_manager);
 
-  // ── Scale stepper ──────────────────────────────────────────────────────────
-  // Tracks the operator's edits as an OFFSET from the authoritative desired
-  // count, so a poll landing mid-edit moves the base without stealing what was
-  // typed; the offset resets only when the base itself moves.
   const scaleBase = $derived(snap?.desired_count ?? snap?.shard_count ?? 1);
   let scaleOffset = $state(0);
   const scaleCount = $derived(scaleBase + scaleOffset);
@@ -164,7 +137,6 @@
     scaleOffset = v - scaleBase;
   }
 
-  // ── Actions ────────────────────────────────────────────────────────────────
   type ActionPayload = {
     action?: { ok: boolean; notice: string };
     snapshot?: ShardSnapshot;
@@ -176,8 +148,6 @@
   let autoscaleForm = $state<HTMLFormElement | null>(null);
   let confirmScaleDown = $state(false);
 
-  // Scaling DOWN drops live websockets, so it confirms; scaling up is additive
-  // and fires straight away.
   function requestScale() {
     if (scaleCount < scaleBase) {
       confirmScaleDown = true;
@@ -206,8 +176,6 @@
   const autoscaleSubmit: SubmitFunction = () => {
     busy = true;
     const before = snap ? { ...snap } : null;
-    // Optimistic: the switch flips instantly and rolls back if the ingress
-    // refuses, so the toggle never shows a mode the fleet is not in.
     if (snap) snap = { ...snap, autoscale: !snap.autoscale };
     return async ({ result }) => {
       busy = false;
@@ -273,9 +241,6 @@
       {/snippet}
       {#snippet trail()}
         {#if canScale}
-          <!-- Switch renders no visible text of its own (its label is the
-               accessible name), so the toolbar supplies one: an unlabelled
-               toggle beside a number stepper is a coin flip. -->
           <span class="switch-field">
             <span class="switch-label">{t('admin.shards.autoscaleLabel')}</span>
             <Switch
@@ -286,9 +251,6 @@
               onchange={() => autoscaleForm?.requestSubmit()}
             />
           </span>
-          <!-- The stepper stays submittable while autoscale is on (visually
-               muted) so an operator can pre-set the floor before turning it
-               off. -->
           <span class="stepper" class:dim={autoscaleOn}>
             <IconButton
               size="sm"

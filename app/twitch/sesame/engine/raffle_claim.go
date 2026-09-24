@@ -11,24 +11,15 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// This file is the raffle's !claim protocol: the typed outcome, the Lua
-// script that validates and records one claim atomically, and the receipt
-// parsing both the command path and !winner read through.
-
-// RaffleClaim is the outcome of a winner's !claim against the latest receipt.
 type RaffleClaim int
 
 const (
-	ClaimOk      RaffleClaim = iota // first claim by this winner, recorded
-	ClaimAlready                    // this winner already confirmed
-	ClaimLate                       // past raffleClaimWindow since the draw
-	ClaimNone                       // no receipt, or caller isn't among the winners
+	ClaimOk RaffleClaim = iota
+	ClaimAlready
+	ClaimLate
+	ClaimNone
 )
 
-// Claim outcome codes the Lua script returns as integer replies: 1 none, 2
-// already, 3 late, 4 recorded. Numbers, not string sentinels — a RESP2 bulk
-// starting with '-' would surface as an error on the Go side, and a typed
-// RaffleClaim deserves a numeric wire, not magic strings.
 const (
 	claimNoneCode    = 1
 	claimAlreadyCode = 2
@@ -36,10 +27,6 @@ const (
 	claimOkCode      = 4
 )
 
-// claimScript validates and records one !claim atomically: winner membership,
-// duplicate and window checks all read and write inside the script, so two
-// winners claiming in the same instant can't lose an update between HGET and
-// HSET. cjson handles the result blob.
 var claimScript = valkey.NewLuaScript(`
 local r = redis.call('HGET', KEYS[1], 'result')
 if not r then return 1 end
@@ -67,8 +54,6 @@ redis.call('HSET', KEYS[1], 'claims', cjson.encode(claims))
 return 4
 `)
 
-// Claim records a winner's prize confirmation on the latest receipt. All
-// validation rides the script; Go only translates the sentinel.
 func (s *ValkeyRaffleStore) Claim(ctx context.Context, broadcasterID uint64, userID string) (RaffleClaim, error) {
 	if userID == "" {
 		return ClaimNone, nil
@@ -89,7 +74,7 @@ func (s *ValkeyRaffleStore) Claim(ctx context.Context, broadcasterID uint64, use
 		return ClaimAlready, nil
 	case claimLateCode:
 		return ClaimLate, nil
-	default: // claimNoneCode and anything unexpected
+	default:
 		return ClaimNone, nil
 	}
 }

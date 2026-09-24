@@ -3,9 +3,6 @@
 
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
-/* Unlayered: these engine states must override an application's unlayered
-   html/body height and overflow defaults by selector specificity. */
-/* ── lenis smooth-scroll (see initLenis) ── */
 html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
 .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }

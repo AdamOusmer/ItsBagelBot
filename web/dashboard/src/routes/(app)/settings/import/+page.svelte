@@ -1,34 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  //
-  // Config-import page: a first-class four-step flow (choose source,
-  // per-source instructions, review, done) with the whole wizard internalized
-  // in this route so nothing outside imports it. Deep-linkable via ?source=
-  // (preselects that bot's card).
-  //
-  // Actions are hit with fetch + devalue (`/settings/import?/…`) instead of
-  // `use:enhance`: enhance funnels results into whatever `form` prop the
-  // CURRENT page load has, and keeping the posts manual means the step state
-  // machine below fully owns when review/done render, with no reload wiping it.
-  // Wire shapes come from @bagel/kit, single source:
-  // web/kit/lib/importer/types.ts since the importer service folded
-  // into the dashboard.
-  //
-  // Every per-source difference lives in ONE place: the strategy registry in
-  // shared/lib/importer/strategy.ts. This page renders tiles, an input block
-  // and a preview post off the picked strategy and names no source anywhere,
-  // so a new source is an entry there plus one server-side object, never a
-  // branch here. Before the split (2026-09-07) this file carried five parallel
-  // per-source tables and a `source === '…'` branch per input kind.
-  //
-  // Client-side parsing: a file source may carry parseInBrowser (Moobot does,
-  // pinned against the Go parser it was ported from), in which case the export
-  // is decoded HERE and only the resulting manifest is POSTed: raw files no
-  // longer cross the wire for that source. StreamLabs .db stays a server-side
-  // upload because console CSP forbids WASM (no wasm-unsafe-eval in
-  // script-src), which rules out an in-browser SQLite reader; see the decision
-  // record at prepareFile.
 
   import { page } from '$app/state';
   import { deserialize } from '$app/forms';
@@ -81,31 +53,21 @@
     'import.stageDone'
   ] as const;
 
-  // --- step state ----------------------------------------------------------
   type Step = 'pick' | 'instructions' | 'review' | 'done';
   // svelte-ignore state_referenced_locally
   let source = $state<ImportSource | ''>(deepLinkSource());
-  // A ?source= deep link lands on that source's instructions directly: this
-  // is what brings the wizard back mid-flow after an OAuth round trip instead
-  // of dropping the user on the picker again.
   // svelte-ignore state_referenced_locally
   let step = $state<Step>(source ? 'instructions' : 'pick');
 
   function deepLinkSource(): ImportSource | '' {
     const q = page.url.searchParams.get('source') ?? '';
     if (!isImportSource(q)) return '';
-    // A source with no working input has no instructions step to land on, so
-    // the deep link falls back to the plain picker.
     return IMPORT_STRATEGIES[q].available ? q : '';
   }
 
-  // The picked source's strategy. Everything the steps below render, validate
-  // and post comes off it, which is what keeps this page from naming a source.
   const strategy = $derived<ImportSourceStrategy | null>(source ? IMPORT_STRATEGIES[source] : null);
   const inputSpec = $derived<InputSpec | null>(strategy?.input ?? null);
 
-  // Connect status per source, from load(): a source with a connect step is
-  // connected once its OAuth callback parked a token cookie.
   const connected = $derived((page.data.connected ?? {}) as Partial<Record<ImportSource, boolean>>);
   const sourceConnected = $derived(source ? connected[source] === true : false);
   let credential = $state('');
@@ -124,8 +86,6 @@
     source = s;
     uploadFile = null;
     credential = '';
-    // Picking a tile advances to that source's how-to-find-it instructions;
-    // the credential/file input lives there now, not on the tile.
     step = 'instructions';
   }
 
@@ -141,18 +101,11 @@
     commitError = '';
   }
 
-  // --- review selection ----------------------------------------------------
-  // Checked items land in the committed manifest; anything carrying an error
-  // diagnostic cannot land at all (commit drops those server-side too), so it
-  // renders pre-unchecked with the reason on its row.
   type RowKind = 'commands' | 'timers' | 'triggers' | 'quotes';
 
   let selected = $state<Record<string, boolean>>({});
   let overwrite = $state(false);
 
-  // Diagnostic codes are prefixed with the collection they address
-  // (CONTRACT §5); matching on the prefix + item index is what puts each
-  // warning badge on the right row.
   const CODE_PREFIX: Record<RowKind, string> = {
     commands: 'command',
     timers: 'timer',
@@ -166,29 +119,12 @@
     );
   }
 
-  // SOURCE_UNTRANSLATED_PATTERN names each source's OWN variable syntax
-  // separately (review: a single global pattern covering every source at
-  // once could flag one product's token shape while reviewing a completely
-  // different product's import — e.g. Moobot's <name> tags would never
-  // appear in an SE response, so there is no reason to scan for them there).
-  // It only decides what the review screen HIGHLIGHTS — never what a parser
-  // translates — so a false positive costs a stray chip, never a wrong
-  // import; every parser's own literal+warn path is the actual authority on
-  // what did not translate.
   const SOURCE_UNTRANSLATED_PATTERN: Record<ImportSource, RegExp> = {
-    // $(name) / $(name arg): Nightbot and Fossabot's one delimiter.
     nightbot: /\$\([^)]*\)/g,
     fossabot: /\$\([^)]*\)/g,
-    // $(name) / ${name}: SE's two documented delimiters. Its OLDER bare-{…}
-    // community shorthand is deliberately not matched here: that shape is
-    // byte-identical to this bot's own {…} grammar, so a translated {user}
-    // would flag itself as "still untranslated" the moment SE was picked.
     streamelements: /\$\([^)]*\)|\$\{[^}]*\}/g,
-    // <name>: Moobot's own bracket syntax, shared with no other source.
     moobot: /<[a-zA-Z0-9_.-]+>/g,
-    // $(name) / $name(args): Wizebot's two spellings (see wizebot/tags.ts).
     wizebot: /\$\([^)]*\)|\$[a-zA-Z_]+\([^)]*\)/g,
-    // $name / $name(args): SLCB's bare and called forms, no parens-only call.
     streamlabs_desktop: /\$[a-zA-Z_][a-zA-Z0-9_]*(\([^)]*\))?/g
   };
 
@@ -197,11 +133,6 @@
     flagged: boolean;
   }
 
-  // segmentResponse splits one translated response line into plain runs and
-  // runs that still match the PICKED source's own untranslated-syntax
-  // pattern, so the markup can wrap only the leftover source syntax in a Tag
-  // instead of flagging the whole line. No source picked (should not happen
-  // once a manifest exists to render) leaves everything unflagged.
   function segmentResponse(text: string): ResponseSegment[] {
     const pattern = source ? SOURCE_UNTRANSLATED_PATTERN[source] : null;
     if (!pattern) return [{ text, flagged: false }];
@@ -217,10 +148,6 @@
     return out;
   }
 
-  // sourceLine joins a command's untranslated lines the same way row-response
-  // joins the translated ones, or a non-breaking space so the row's fixed
-  // two-line height never collapses when a manifest carries none (older
-  // fixtures, DEMO data) — see the .row-response--source CSS rule below.
   function sourceLine(c: ManifestCommand): string {
     return c.source_responses?.join(' / ') || ' ';
   }
@@ -237,8 +164,6 @@
     return n;
   });
 
-  // Reset the checkbox map whenever a new preview lands: everything checked
-  // except items flagged with an error-severity diagnostic.
   $effect(() => {
     const m = previewResult?.manifest;
     if (!m || step !== 'review') return;
@@ -260,9 +185,6 @@
     selected = { ...selected, [`${kind}:${i}`]: checked };
   }
 
-  // Collisions: normalized names of existing channel items the import would
-  // land on top of. Matching rows highlight until the user opts into
-  // overwriting; FindCollisions normalizes server-side exactly like this.
   function normalizeName(n: string): string {
     return n.trim().replace(/^!/, '').trim().toLowerCase();
   }
@@ -275,7 +197,6 @@
   );
   const anyCollisions = $derived((previewResult?.collisions ?? []).length > 0);
 
-  // Non-zero stat chips for the strip atop the review step.
   const statChips = $derived.by(() => {
     const s = previewResult?.stats;
     if (!s) return [] as string[];
@@ -289,9 +210,6 @@
 
   const statsLine = $derived(statChips.join(' · ') || t('import.statsNone'));
 
-  // --- bulk selection, commit-bar counter, rail detail lines ----------------
-  // "Select all" still refuses error-flagged rows: commit drops those
-  // server-side, so checking them would promise a landing that never happens.
   function setAll(v: boolean) {
     const m = previewResult?.manifest;
     if (!m) return;
@@ -325,8 +243,6 @@
   });
   const selectionLine = $derived(t('import.selectionLine', { n: rowPicked, total: rowTotal }));
 
-  // One line of detail per rail stage, so the rail reports the actual choices
-  // (source, file/token, selection) instead of repeating the stage names.
   const railDetail = $derived.by(() => [
     strategy ? strategy.label : t('import.railPickPending'),
     inputDetail(),
@@ -334,23 +250,16 @@
     commitResult ? t('import.railDone') : ''
   ]);
 
-  // The second rail line reports what the picked source actually takes: the
-  // typed value for a text source, the chosen file for everything else (a
-  // connect-first source has neither, and reads as a pending file exactly as
-  // it did before this line stopped naming StreamElements).
   function inputDetail(): string {
     if (inputSpec?.kind === 'text') return textInputDetail(inputSpec);
     return uploadFile ? uploadFile.name : t('import.railFilePending');
   }
 
-  // A secret and a public channel name are not the same promise to the reader,
-  // so the rail names what it is holding rather than calling a handle a token.
   function textInputDetail(spec: TextInputSpec): string {
     if (spec.secret) return credential ? t('import.railTokenSet') : t('import.railTokenPending');
     return credential ? t('import.railHandleSet') : t('import.railHandlePending');
   }
 
-  // Count tiles on the done panel: only collections that actually landed.
   const appliedTiles = $derived.by(() => {
     const a = commitResult?.applied;
     if (!a) return [] as { n: number; label: string }[];
@@ -373,8 +282,6 @@
     (previewResult?.diagnostics ?? []).filter((d) => d.item_index < 0)
   );
 
-  // Build the commit payload from what is still checked, dropping collections
-  // that end up empty (mirrors ImportManifest's omitempty shape).
   function buildSelectedManifest(): string {
     const m = previewResult?.manifest;
     if (!m) return '{}';
@@ -387,24 +294,15 @@
     out.timers = keep(m.timers as ManifestTimer[] | undefined, 'timers');
     out.triggers = keep(m.triggers as ManifestTrigger[] | undefined, 'triggers');
     out.quotes = keep(m.quotes as ManifestQuote[] | undefined, 'quotes');
-    // Automod terms have no row of their own, so they used to ride along even
-    // when every row was unchecked: the commit bar could read "0 of N selected"
-    // and the commit would still call commitAutomodTerms. Nothing selected now
-    // means nothing imported.
     if (m.automod && rowPicked > 0) out.automod = m.automod;
     return JSON.stringify(out);
   }
 
-  // --- form handlers -------------------------------------------------------
-  // Instructions content per source: numbered steps are list leaves, named by
-  // the source's own strategy.
   const instrSteps = $derived.by(() => {
     const key = strategy?.i18n.instr;
     return key ? tl(key) : [];
   });
 
-  // Seeded from the ?e= a source's connect routes bounce back with, so the
-  // failure reads inline on the instructions step the deep link reopens.
   // svelte-ignore state_referenced_locally
   let previewError = $state(deepLinkError());
 
@@ -435,8 +333,6 @@
 
     const r = await postPreview(body);
     if (r.ok && r.preview) {
-      // Caps fire client-side only (the overflow never reached the server), so
-      // those warnings are stapled in front of the server's own.
       r.preview.diagnostics = [...prepared.diags, ...(r.preview.diagnostics ?? [])];
       previewResult = r.preview;
       step = 'review';
@@ -446,9 +342,6 @@
     submitting = false;
   }
 
-  // PreparedInput is what one input kind contributed to the post: either a
-  // refusal to show inline, or the diagnostics a browser-side parse produced
-  // (empty for every source the server parses).
   type PreparedInput = { error: string } | { diags: ImportDiagnostic[] };
 
   function prepareInput(spec: InputSpec, body: FormData): Promise<PreparedInput> | PreparedInput {
@@ -457,9 +350,6 @@
     return prepareFile(spec, body);
   }
 
-  // prepareText posts the pasted value as `credential`. The shape gate is the
-  // source's own (the StreamElements JWT's three base64url segments today), so
-  // an obvious typo is answered without a round trip; the action re-checks it.
   function prepareText(spec: TextInputSpec, body: FormData): PreparedInput {
     const value = credential.trim();
     if (value === '') return { error: t(spec.i18n.errMissing) };
@@ -472,22 +362,11 @@
     return value.length <= spec.maxLen && spec.shape.test(value);
   }
 
-  // prepareOauth posts no inputs at all: the server reads the access token off
-  // the HttpOnly cookie the connect flow parked, then fetches the account's
-  // config itself.
   function prepareOauth(spec: OAuthInputSpec): PreparedInput {
     if (!sourceConnected) return { error: t(spec.i18n.errNotConnected) };
     return { diags: [] };
   }
 
-  // prepareFile refuses an oversized file before reading a byte of it. The
-  // ceiling is the source's own and mirrors/precedes the server's: 10MB for
-  // the Moobot JSON this page parses itself, 20MB for the StreamLabs .db that
-  // still uploads whole because console CSP forbids WASM (no
-  // 'wasm-unsafe-eval' in script-src, see shared/svelte-config.js), which
-  // rules out an in-browser SQLite reader. Decision record: loosening the CSP
-  // was weighed and rejected, one source keeping its server path costs less
-  // than widening script-src for every dashboard visitor.
   async function prepareFile(spec: FileInputSpec, body: FormData): Promise<PreparedInput> {
     const file = uploadFile;
     if (!file || file.size === 0) return { error: t('import.errFileMissing') };
@@ -500,11 +379,6 @@
     return parseInPage(spec.parseInBrowser, file, body);
   }
 
-  // parseInPage decodes an export in the browser: JSON.parse inside the parser
-  // (never eval), with per-item degradation. Only the resulting manifest rides
-  // to the server, which re-validates it through validateManifest for
-  // authoritative diagnostics, collisions and stats, so the raw file never
-  // leaves the machine it was exported on.
   async function parseInPage(
     parse: NonNullable<FileInputSpec['parseInBrowser']>,
     file: File,
@@ -520,10 +394,6 @@
     }
   }
 
-  // parseErrorMessage surfaces a parser's own refusal. Every parser prefixes
-  // its messages with `importer/<source>: `, which is both how one is
-  // recognized here and what gets stripped before the prose is shown; anything
-  // else that went wrong reading the file reads as the generic failure.
   function parseErrorMessage(err: unknown): string {
     const message = err instanceof Error ? err.message : '';
     const parserRefusal = /^importer\/[a-z-]+:\s*([\s\S]*)$/.exec(message);
@@ -588,11 +458,6 @@
     submitting = false;
   }
 
-  // Courtesy gate at drop time: fail fast on an obviously wrong file type so
-  // the user gets a clear message instead of a parse failure after submit.
-  // NOT a security control: extensions are trivially spoofed either way; the
-  // authoritative checks stay content-based (JSON envelope shape for Moobot,
-  // SQLite magic bytes + feature-table probe for StreamLabs).
   function pickFile(f: File | null | undefined) {
     previewError = '';
     if (!f) {
@@ -608,9 +473,6 @@
     uploadFile = f;
   }
 
-  // A file spec's accept list leads with the extension and follows with the
-  // MIME type ('.json,application/json'), so the drop-time check reads the
-  // first entry rather than carrying a second table of its own.
   function wantedExtension(): string {
     if (inputSpec?.kind !== 'file') return '';
     const first = inputSpec.accept.split(',')[0];
@@ -624,8 +486,6 @@
   </PageHead>
 
   <div class="wizard">
-    <!-- Persistent progress rail: stage list plus what has actually been
-         chosen so far. Sticky, so the flow column scrolls under it. -->
     <Card as="aside" class="rail" aria-label={t('import.stagesLabel')}>
       <p class="rail-head">{t('import.railProgress')}</p>
       <ol class="rail-list">
@@ -660,11 +520,6 @@
       <p class="hint">{t('import.pickHint')}</p>
 
       <div class="tiles">
-        <!-- One tile per registered source, in IMPORT_SOURCES order. Tiles are
-             pure selectors: picking one advances to that source's how-to-find-it
-             instructions, where its credential/file input lives. A source whose
-             input is not built yet ships visibly disabled rather than
-             half-working, and cannot be picked or deep-linked into. -->
         {#each IMPORT_SOURCES as id (id)}
           {@const s = IMPORT_STRATEGIES[id]}
           {#if s.available}
@@ -720,10 +575,6 @@
           </p>
         {/if}
         <div class="cred">
-          <!-- A secret is pasted (a JWT wraps over several lines and wants the
-               room), a public handle is typed: one short word, where a
-               textarea reads as "paste something big here" and accepts a
-               newline the gate then refuses. Same binding either way. -->
           {#if spec.secret}
             <Textarea
               rows={3}
@@ -769,9 +620,6 @@
           <p class="hint">{t(spec.i18n.scopeHint)}</p>
         </div>
       {:else}
-        <!-- Drag handlers sit on the input, not the wrapper: the input covers
-             the whole zone invisibly, so behaviour is identical while the
-             wrapper needs no interactive ARIA role. -->
         <span
           class="drop"
           class:over={dragKind === source}
@@ -865,10 +713,6 @@
                     {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
                     {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
                     {#each c.aliases ?? [] as a (a)}<Tag tone="bare" class="bb-tag--literal">!{a}</Tag>{/each}
-                    <!-- c.warnings is not rendered here: every parser pushes the
-                         same message onto BOTH cmd.warnings and the diagnostics
-                         stream in one call (see e.g. streamelements.ts's addNote),
-                         so the diag chips below already show each note once. -->
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
@@ -959,8 +803,6 @@
 
       {#if commitError}<AlertBanner>{commitError}</AlertBanner>{/if}
 
-      <!-- Sticky commit bar: the selection count travels with the list so the
-           import button is never scrolled off behind a long review. -->
       <form
         class="commit-bar"
         onsubmit={(e) => {
@@ -980,8 +822,6 @@
       </form>
   {:else if step === 'done'}
     <Card class="done-panel">
-      <!-- The blob is seeded off the channel name, so the face that congratulates
-           you here is the same one the topbar has been wearing all session. -->
       <span class="done-blob">
         <Bolota
           name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
@@ -1039,9 +879,6 @@
 </section>
 
 <style>
-  /* The step titles are `Heading` blocks. 16px is between the l4 (20px) and
-     l5 (17px) steps, and matches the settings page's own section heads: this
-     page is one of its sections. */
   :global(.step-title) { margin-bottom: 6px; font-size: 16px; }
   .hint {
     color: var(--bb-muted, #888077);
@@ -1049,7 +886,6 @@
     margin: 0 0 12px;
   }
 
-  /* --- wizard shell: sticky progress rail + flow column --- */
   .wizard {
     display: grid;
     grid-template-columns: 264px minmax(0, 1fr);
@@ -1161,9 +997,6 @@
     color: var(--bb-muted);
   }
 
-  /* Below the two-column breakpoint the rail stops being a sidebar: it goes
-     back to normal flow above the steps rather than eating a scroll-locked
-     column on a phone. */
   @media (max-width: 900px) {
     .wizard {
       grid-template-columns: minmax(0, 1fr);
@@ -1173,7 +1006,7 @@
     }
   }
 
-  /* --- step 1: source tiles --- */  .tiles {
+  .tiles {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 12px;
@@ -1205,8 +1038,6 @@
     cursor: default;
     opacity: 0.55;
   }
-  /* Keyboard access: the real radio stays in the tab order, and :has() lifts
-     the ring onto the tile when it receives focus-visible. */
   .tile input[type='radio'] {
     position: absolute;
     opacity: 0;
@@ -1258,7 +1089,6 @@
     line-height: 1.5;
   }
 
-  /* --- step 2: per-source instructions --- */
   .steps {
     margin: 6px 0 16px;
     padding-left: 22px;
@@ -1276,10 +1106,6 @@
     margin: 0 0 14px;
     font-size: 13.5px;
   }
-  /* The link look is `.bb-prose` on the paragraph
-     (@bagel/ui/styles/elements/typography.css). Local: this one link is the
-     step's whole instruction, so it is underlined at rest rather than on
-     hover -- a reader following a numbered step should not have to find it. */
   .instr-link a { text-decoration: underline; text-underline-offset: 2px; }
   .cred {
     display: flex;
@@ -1287,7 +1113,6 @@
     gap: 8px;
     margin-bottom: 6px;
   }
-  /* Keyed on the CTA's own class: where THIS button sits in the column. */
   :global(.cred-cta) {
     align-self: flex-start;
   }
@@ -1299,11 +1124,6 @@
     color: var(--bb-green, #7dc98f);
     font-size: 13px;
   }
-  /* The controls are `Textarea` and `.bb-input` now. This file used to draw
-     the frame itself, at its own padding and its own background: the fifth
-     redrawing of a control the library ships. What is genuinely local is the
-     FACE: a credential is a token, so its characters have to be
-     distinguishable (l vs 1, O vs 0) in a way prose does not need. */
   .cred-mono { font-family: var(--bb-font-mono); }
   .drop {
     position: relative;
@@ -1338,8 +1158,6 @@
   .drop.has-file {
     color: var(--bb-white);
   }
-  /* The native control covers the zone invisibly so click, keyboard focus and
-     the OS picker all stay native; focus draws the ring on the zone. */
   .drop input[type='file'] {
     position: absolute;
     inset: 0;
@@ -1372,7 +1190,6 @@
     margin: 8px 0 0;
   }
 
-  /* --- step 2: stats strip + review rows --- */
   .rows {
     list-style: none;
     margin: 0;
@@ -1415,24 +1232,11 @@
     color: var(--bb-muted);
     font-size: 13px;
     line-height: 1.5;
-    /* Fixed one-line HEIGHT (not min-height, which a long unwrapped word
-       could still exceed) on both the source and translated rows, so a
-       command whose review text is long does not push every row below it —
-       the original line above and the translated line here are each capped
-       at exactly one line's worth of height regardless of content. A row
-       that overflows is clipped with an ellipsis rather than wrapped or
-       let to grow, which is what "capped at one line" actually requires:
-       overflow-wrap alone still grows the row taller for a wrapped second
-       line. Chips live in their own sibling element (.chips, below) so they
-       are never inside this box and can never wrap the row themselves. */
     height: calc(13px * 1.5);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  /* The untranslated line above row-response: dimmer still, so the pair reads
-     as "what you wrote" (quieter) over "what this bot will say" (the
-     row's normal contrast), never the reverse. */
   .row-response--source {
     opacity: 0.6;
     font-style: italic;
@@ -1477,7 +1281,6 @@
       margin-left: 0;
     }
   }
-  /* --- design import: tile CTA, instruction head, review + done panels --- */
   .tile-cta {
     font-family: var(--bb-font-mono);
     font-size: 11px;
@@ -1506,8 +1309,6 @@
     flex: 1;
   }
 
-  /* Each collection is its own panel, so a long commands list cannot push a
-     later heading out of sight of its own rows. */
   :global(.group) {
     padding: 0;
     overflow: hidden;

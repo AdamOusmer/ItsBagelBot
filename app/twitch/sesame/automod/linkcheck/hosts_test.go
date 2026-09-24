@@ -28,8 +28,6 @@ func TestIterLinkTokens(t *testing.T) {
 		{"stacked punctuation", "see evil.example!!", []string{"evil.example"}},
 		{"caps scheme", "HTTPS://Evil.Example/p now", []string{"Evil.Example/p"}},
 		{"port", "evil.com:8080/path ok", []string{"evil.com:8080/path"}},
-		// Userinfo survives in the token (hostOf strips it later); the scanner
-		// is not a parser and does not pre-interpret @.
 		{"userinfo", "phish at https://user@evil.example/p today", []string{"user@evil.example/p"}},
 		{"query kept", "open a.example/q?x=1 please", []string{"a.example/q?x=1"}},
 		{"ellipsis noise", "wait... what...", nil},
@@ -61,8 +59,6 @@ func TestHostOfAndValidHost(t *testing.T) {
 		{token: "a.b", host: "a.b", valid: false},
 	}
 	for _, tt := range cases {
-		// Production lowercases before classification (buildTask), so the
-		// table runs on the lowered form; hostOf itself preserves case.
 		host := strings.ToLower(hostOf(tt.token))
 		if host != tt.host {
 			t.Errorf("hostOf(%q) = %q, want %q", tt.token, host, tt.host)
@@ -88,8 +84,6 @@ func TestValidHostRejectsUnicodeAndPorts(t *testing.T) {
 }
 
 func TestTrimLinkTokenDropsSchemeOnly(t *testing.T) {
-	// A bare TLD-ish token with no second label never becomes a candidate:
-	// "..." must not survive as "." after trimming.
 	if got := trimLinkToken("..."); got != "" {
 		t.Fatalf("trimLinkToken(...) = %q, want empty", got)
 	}

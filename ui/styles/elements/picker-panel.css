@@ -23,7 +23,6 @@
   }
   :root[data-theme='light'] .bb-picker-panel--dropdown { box-shadow: 0 12px 32px rgba(20, 17, 12, 0.15); }
 
-  /* Mobile: bottom sheet, same shape the inspector takes at this width. */
   .bb-picker-panel__shell { position: fixed; inset: 0; }
   .bb-picker-panel__scrim {
     position: absolute;
@@ -37,23 +36,10 @@
     left: 0;
     right: 0;
     bottom: 0;
-    /* Leaves the top of the screen visible so the sheet reads as covering the
-       page rather than being the whole page. */
     max-height: 82dvh;
     overflow-y: auto;
     border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
     padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
-    /* No fill mode on purpose: the element's resting state is then the visible
-       one, and the slide-in is decoration layered over it. With `both` the
-       resting state before the animation starts is translateY(100%) (fully
-       off-screen), so anything that keeps the animation from starting leaves
-       the sheet permanently invisible.
-
-       This does not cover a suspended mid-run animation (a pane that is not
-       painting holds currentTime at 0, and the `from` keyframe applies during
-       the active phase whatever the fill), but that resolves on its own the
-       moment the compositor runs. Reduced motion drops the animation entirely
-       below, which is the case that would otherwise strand it. */
     animation: bb-picker-panel-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
   }
   .bb-picker-panel__grabber {

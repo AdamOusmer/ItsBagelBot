@@ -6,10 +6,6 @@ defmodule Ingress.LoadCounterTest do
 
   alias Ingress.LoadCounter
 
-  # BEAM monotonic time is a large negative number. Every test that models
-  # production behaviour must use timestamps in that range: the original bug
-  # (a frozen, ever-growing load reading on the admin dashboard) only
-  # reproduced with negative timestamps and passed with positive ones.
   @beam_mono_ms -576_460_751_000_000
 
   describe "with real (negative) monotonic timestamps" do
@@ -22,12 +18,10 @@ defmodule Ingress.LoadCounterTest do
           LoadCounter.increment(acc, base + i * 100)
         end)
 
-      # 900 events over 90s: only the last 60s may remain in the window.
       {during, counter} = LoadCounter.value(counter, base + 90_000)
       assert during <= 600
       assert during > 0
 
-      # Hours later with no traffic the reading must be zero, not frozen.
       {idle, _} = LoadCounter.value(counter, base + 90_000 + 3 * 3600 * 1000)
       assert idle == 0
     end
@@ -53,7 +47,6 @@ defmodule Ingress.LoadCounterTest do
       counter = LoadCounter.increment(counter, 30_000)
       counter = LoadCounter.increment(counter, 59_000)
 
-      # At t=61s the t=0 event has left the 60s window.
       {value, _} = LoadCounter.value(counter, 61_000)
       assert value == 2
     end

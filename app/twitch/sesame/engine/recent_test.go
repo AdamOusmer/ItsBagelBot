@@ -35,17 +35,12 @@ func newNukeUnderTest() *Nuke {
 	return n
 }
 
-// chatLineInput is one synthetic chat line: who said what (and wearing what).
-// The bus uuid derives from the pair, so callers stay two-argument simple and
-// distinct lines still get distinct identities for free.
 type chatLineInput struct {
 	chatter string
 	text    string
 	badges  []map[string]string
 }
 
-// processChat marshals one input into a channel-123 chat envelope and runs it
-// through the pipeline.
 func processChat(t *testing.T, p *Pipeline, in chatLineInput) {
 	t.Helper()
 	body := map[string]any{
@@ -63,15 +58,11 @@ func processChat(t *testing.T, p *Pipeline, in chatLineInput) {
 	require.NoError(t, p.Process(bus.NewMessage("u-"+in.chatter+":"+in.text, payload)))
 }
 
-// chatFrom processes one plain chat line through a recording pipeline.
 func chatFrom(t *testing.T, p *Pipeline, chatter, text string) {
 	t.Helper()
 	processChat(t, p, chatLineInput{chatter: chatter, text: text})
 }
 
-// nukeModule mirrors the production moderation module's registration so the
-// dispatch path (gate, cooldown, emit middleware) is exercised for real; the
-// engine test package cannot import app/twitch/sesame/modules without a cycle.
 func nukeModule(n *Nuke) module.Module {
 	b := module.NewModule("moderation", module.KindDefault)
 	b.Command("nuke").Mod().Cooldown(5 * time.Second).Run(func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
@@ -83,7 +74,6 @@ func nukeModule(n *Nuke) module.Module {
 	return b.Build()
 }
 
-// moderatorNuke processes "!nuke <args>" from a moderator in channel 123.
 func moderatorNuke(t *testing.T, p *Pipeline, args string) {
 	t.Helper()
 	processChat(t, p, chatLineInput{
@@ -126,8 +116,6 @@ func timeoutTargets(t *testing.T, pub *fakePublisher) []string {
 	}
 	return ids
 }
-
-// --- RecentLog ---
 
 func TestRecentSweepMatchesNormalizedPhrase(t *testing.T) {
 	l := NewRecentLog()
@@ -197,8 +185,6 @@ func TestRecentSweepCapsResults(t *testing.T) {
 		"the ring, not the match count, bounds a sweep")
 }
 
-// --- !nuke end to end ---
-
 func TestNukeTimesOutMatchedChattersAndReports(t *testing.T) {
 	n := newNukeUnderTest()
 	pub := &fakePublisher{}
@@ -234,7 +220,7 @@ func TestNukeNeverTouchesStaffBroadcasterOrBot(t *testing.T) {
 
 	processChat(t, p, chatLineInput{chatter: "555", text: "free nitro friends", badges: []map[string]string{{"set_id": "vip"}}})
 	processChat(t, p, chatLineInput{chatter: "666", text: "free nitro friends", badges: []map[string]string{{"set_id": "moderator"}}})
-	chatFrom(t, p, "123", "free nitro friends") // the broadcaster themself
+	chatFrom(t, p, "123", "free nitro friends")
 	chatFrom(t, p, "888", "free nitro friends")
 	moderatorNuke(t, p, "free nitro")
 

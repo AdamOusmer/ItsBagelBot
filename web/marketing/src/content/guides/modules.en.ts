@@ -3,9 +3,6 @@
 
 import type { GuideContent } from '../../lib/guides/types';
 
-// The catalogue behind the ModuleCatalog widget. Names and taglines are the
-// dashboard's own strings, so they stay English in every locale; categories,
-// plan, start state and the "needs" line are ours to translate.
 const categories = ['Moderation', 'Chat', 'Channel', 'Points', 'Play', 'Gear', 'Stats'];
 
 const modules = [

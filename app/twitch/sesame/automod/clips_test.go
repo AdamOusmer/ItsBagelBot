@@ -61,7 +61,6 @@ func TestClipsOnlyDeletesNonClipLinks(t *testing.T) {
 
 func TestClipsOnlyOffByDefault(t *testing.T) {
 	g := New()
-	// Moderate defaults enable link-spam radar but never clips_only.
 	if v := g.Inspect(module.RoleEveryone, "check https://example.com/watch tonight friends"); v.Action != ActionNone {
 		t.Fatalf("default must not delete a single ordinary link, got %s/%s", v.Action, v.Rule)
 	}

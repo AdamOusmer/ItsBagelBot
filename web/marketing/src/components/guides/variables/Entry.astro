@@ -2,14 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// One or more <tr> for a single manifest entry: the canonical form on the
-// row that carries the entry's own id (`#followage` deep-links here), any
-// other form the manifest lists (positional's {2:}, {:2}, {2:4}; random's
-// {random:1-6}...) as extra rows right under it, suffixed `-2`, `-3`... so
-// each stays independently linkable (docs/specs/variables-catalog.md D7,
-// phase 7: a static table row replaces the old <details> disclosure --
-// nothing on the page moves when a visitor clicks a copy button, so there is
-// no expand/collapse state left to carry).
 import Code from '@bagel/ui/astro/Code.astro';
 import type { LocalizedVariableReference } from '../../../lib/variables';
 
@@ -24,23 +16,12 @@ interface Props {
 
 const { entry, copy } = Astro.props;
 
-// The hint is the row's one-liner when the source kit variable has one;
-// otherwise the description's first sentence stands in. Not appending
-// "Requires <module>" here separately: every kit hint that has a
-// `requirement` already names it in prose ("...(Account age module)",
-// "...(Loyalty)") -- that parenthetical exists specifically so this page
-// does not have to re-derive it, and concatenating entry.requirement on top
-// read as "(Account age module) Requires !accountage." (verified against
-// every entry the golden fixture carries: none pairs a requirement with an
-// empty hint, so the fallback path below never needs it either).
 function firstSentence(text: string): string {
     const match = text.match(/^.*?[.!?](?=\s|$)/);
     return match ? match[0] : text;
 }
 const means = entry.hint || firstSentence(entry.description);
 
-// syntaxes[0]/examples[0] is the canonical form the id anchors; every later
-// index is an extra row, paired the same way Forms.astro used to pair them.
 const extraForms = entry.syntaxes.slice(1).map((syntax, i) => ({
     syntax,
     output: entry.examples[i + 1]?.output ?? '',

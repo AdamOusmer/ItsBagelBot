@@ -1,23 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The bot status panel: the page's anchor. It tells the streamer, in words,
-  // exactly what state the connection is in and offers the recovery action that
-  // state needs. Colour + dot are decoration on top of the text label, never the
-  // only signal.
-  //
-  // The state itself comes straight from MAIN's honest connection model: the
-  // resolved `ConnUi` (kind + the canManage/showEnable/showConnect/canRetry
-  // booleans) decides both the words and which action renders, so a down /
-  // pending / failing connection can never masquerade as online. A delegate sees
-  // the state read-only, because the enable/restart/disconnect actions all 403
-  // for a delegate session server-side.
-  //
-  // Online is the common case, so it gets the quiet treatment: one row, dot +
-  // title + meta + the two management actions as small pills. Every other kind
-  // (still loading, or genuinely needs attention) keeps the larger card (icon
-  // tile, title, a sentence of detail, and one primary recovery action) because
-  // those are the moments the streamer actually has to read and act on.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -61,13 +44,8 @@
   const tone = $derived(statusTone(kind));
   const live = $derived(kind === 'online');
 
-  // The one-line strip only ever replaces the ONLINE reading, and only once we
-  // actually know that (not mid-check): a loading online guess must not skip
-  // straight to the quiet row.
   const strip = $derived(!loading && kind === 'online');
 
-  // The connection state, in words. This IS the "last known connection state",
-  // one label per ConnKind, reusing main's existing status vocabulary.
   const title = $derived.by(() => {
     switch (kind) {
       case 'online':
@@ -85,12 +63,10 @@
       case 'unavailable':
         return t('overview.unavailable');
       default:
-        // disabled | auth_required
         return t('overview.notConnected');
     }
   });
 
-  // A one-line reason under the state, again reusing main's copy where it exists.
   const detail = $derived.by(() => {
     switch (kind) {
       case 'online':
@@ -110,15 +86,12 @@
       case 'unavailable':
         return t('overview.commandsUnavailableDesc');
       default:
-        // connecting: the title already says "Connecting…"; no extra line.
         return '';
     }
   });
 </script>
 
 {#if strip}
-  <!-- Online: dot, title, plan meta, then the two management pills: one row,
-       wraps under itself on narrow viewports instead of forcing scroll. -->
   <Card as="section" sheen class="ov-status ov-status--strip" aria-label={t('overview.statusHeading')}>
     <i class="bb-mark ov-strip__dot" class:bb-mark--hollow={!live} aria-hidden="true"></i>
     <span class="ov-strip__title">{title}</span>
@@ -175,8 +148,6 @@
         {#if isDelegate}
           <p class="ov-status__note">{t('overview.statusDelegateDetail')}</p>
         {:else if ui.canManage}
-          <!-- Active channel: main's restart + disconnect. A degraded connection
-               promotes reconnect to the primary action; a healthy one stays quiet. -->
           <Button
             variant={kind === 'degraded' ? 'primary' : 'ghost'}
             type="button"
@@ -190,8 +161,6 @@
             <Button variant="primary" type="submit" class="ov-cta" loading={busy}>{t('overview.enable')}</Button>
           </form>
         {:else if ui.showConnect}
-          <!-- reauth_required: the grant died server-side, only a fresh Twitch
-               consent restores it, so the one action offered is the reconnect. -->
           <ButtonLink href="/settings" variant="primary" class="ov-cta"
             >{kind === 'reauth_required' ? t('common.reconnect') : t('overview.issueNoAuthCta')}</ButtonLink>
         {:else if ui.canRetry}
@@ -203,8 +172,6 @@
 {/if}
 
 <style>
-  /* :global on every .ov-status / --premium rule: the class now rides <Card>'s
-     root element, which this component's scoping hash never reaches. */
   :global(.ov-status) {
     margin-bottom: var(--row-gap);
   }
@@ -218,18 +185,12 @@
     border-color: rgba(201, 168, 124, 0.4);
   }
 
-  /* The one-line strip: dot, bold title, mono meta, spacer, two pill actions.
-     flex-wrap is the whole narrow-screen story here: no separate breakpoint
-     rules needed, the row just folds under itself. */
   :global(.ov-status--strip) {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 12px;
   }
-  /* Was a 9px round dot with a glow + ov-pulse; now the global .bb-mark
-     square. Live is filled, everything else hollow, so the guard that only
-     stopped ov-pulse is gone with it. */
   .ov-strip__dot {
     width: 7px;
     height: 7px;
@@ -253,11 +214,6 @@
     flex: 1 1 auto;
     min-width: 8px;
   }
-  /* .ov-pillbtn was a 999px pill; these are controls, so they are .bb-chip now.
-     The disabled state used to be restated here at opacity 0.5 / cursor
-     default, which forked the contract's own (0.55 / not-allowed, see
-     ui/styles/elements/chip.css) for this one panel: same intent, two answers,
-     and a change to the contract would never have reached this file. */
 
   .ov-status__mark {
     width: 58px;
@@ -304,7 +260,6 @@
     line-height: 1.1;
     color: var(--bb-white);
   }
-  /* Tone tints only the dot + a hair of the text; the WORD carries the state. */
   .tone-success .state-text {
     color: var(--bb-white);
   }
@@ -314,9 +269,6 @@
   .tone-warning .state-text {
     color: var(--bb-status-warning-fg);
   }
-  /* Round glowing dot + ov-pulse replaced by the global .bb-mark; tone now
-     paints currentColor, and hollow (not live) reads as off without colour.
-     Sized up from the 5px default to sit against the display-size state. */
   .dot {
     width: 8px;
     height: 8px;
@@ -352,8 +304,6 @@
     align-items: center;
     flex: none;
   }
-  /* Every action clears the 44px target regardless of the shared button's base
-     height, and stays >=8px from its neighbour via the row gap above. */
   .ov-status__actions :global(.ov-cta) {
     min-height: 44px;
   }
@@ -367,8 +317,6 @@
     text-align: right;
   }
 
-  /* Stack the panel on narrow screens; actions become full-width, comfortably
-     tappable, and never force horizontal scroll at 320px. */
   @media (max-width: 760px) {
     :global(.ov-status:not(.ov-status--strip)) {
       grid-template-columns: auto 1fr;

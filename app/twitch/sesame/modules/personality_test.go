@@ -19,9 +19,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// pinPersonalityRand makes the module deterministic for a test: every pick
-// lands on index 0 (first pack line, toast level 0, chance gates pass) and the
-// golden roll never fires. Restored on cleanup.
 func pinPersonalityRand(t *testing.T) {
 	t.Helper()
 	oldPick, oldGolden := pickIndex, goldenRoll
@@ -41,7 +38,6 @@ func personalityHandler(t *testing.T, d engine.Deps) module.EventHandler {
 	return h
 }
 
-// personalityCommand returns one of the module's baked commands by trigger.
 func personalityCommand(t *testing.T, d engine.Deps, name string) module.RunFunc {
 	t.Helper()
 	for _, cmd := range Personality(d).Commands {
@@ -67,9 +63,6 @@ func personalityCtx(text string) *module.Context {
 	}
 }
 
-// fakePersonality scripts the PersonalityStore: fixed cursor/feed values, an
-// optional sticky mood, an optional leaderboard, and an optional error that
-// fails every call. fedBy records the channel the last feeding named.
 type fakePersonality struct {
 	cursor int64
 	feed   engine.FeedCounts
@@ -272,7 +265,7 @@ func TestPersonalityGoldenOverride(t *testing.T) {
 
 func TestPersonalityEmojiChanceGate(t *testing.T) {
 	pinPersonalityRand(t)
-	pickIndex = func(int) int { return 1 } // chance gate misses (non-zero roll)
+	pickIndex = func(int) int { return 1 }
 	h := personalityHandler(t, engine.Deps{})
 
 	var muted collector
@@ -305,7 +298,6 @@ func TestPersonalitySpecificReactionBeatsMentionFact(t *testing.T) {
 	}
 }
 
-// expandFor renders a pack line the way packReply would for the test chatter.
 func expandFor(line string) string {
 	return module.ExpandString(line, func(tok tmpl.Token) (string, bool) {
 		if tok.Key() == "user" {
@@ -338,8 +330,6 @@ func TestPersonalityFactOnlyOnAtMention(t *testing.T) {
 		assert.Equal(t, personalityFacts[0], col.out[0].Text, text)
 	}
 
-	// Everything short of an @-mention is silent: the written-out handles, the
-	// old "bagel fact" phrases, and the food itself.
 	for _, text := range []string{
 		"yo bagelbot",
 		"its bagel bot is here",
@@ -361,8 +351,6 @@ func TestPersonalityNormalizeChat(t *testing.T) {
 	assert.Equal(t, "", normalizeChat("!?@"))
 }
 
-// !bagels answers with this channel's own count and rank; it must never feed
-// the bagel on the way.
 func TestFeedRankCommandReportsChannelStanding(t *testing.T) {
 	store := &fakePersonality{board: engine.FeedBoard{Ranked: 57, Channel: 12, Rank: 4}}
 	var col collector
@@ -406,8 +394,6 @@ func TestFeedBoardCommandOnEmptyBoard(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "Nobody has fed the bagel yet")
 }
 
-// A failing read says so rather than going silent: unlike the chat reaction,
-// a command was asked a direct question and owes an answer.
 func TestFeedCommandsReportUnavailableOnError(t *testing.T) {
 	for _, name := range []string{"bagels", "bagelboard"} {
 		var col collector
@@ -418,7 +404,6 @@ func TestFeedCommandsReportUnavailableOnError(t *testing.T) {
 	}
 }
 
-// Without a store the commands stay quiet: nothing to read, nothing to say.
 func TestFeedCommandsSilentWithoutStore(t *testing.T) {
 	for _, name := range []string{"bagels", "bagelboard"} {
 		var col collector
@@ -428,14 +413,6 @@ func TestFeedCommandsSilentWithoutStore(t *testing.T) {
 	}
 }
 
-// --- the derived gate ---
-
-// TestPersonalityGateCoversEveryTablePhrase pins the derivation rather than
-// the three terms it currently produces: the gate exists so that adding a
-// reaction row cannot leave that row unreachable, and only a walk of the table
-// itself can catch a row the greedy cover missed. "good bot" and "bad bot" are
-// the rows that make this more than a formality — they name no bagel, so a
-// hand-written bagel-only gate would silently kill them.
 func TestPersonalityGateCoversEveryTablePhrase(t *testing.T) {
 	for _, r := range personalityReactions {
 		for _, p := range r.phrases {
@@ -455,18 +432,11 @@ func TestPersonalityGateCoversEveryTablePhrase(t *testing.T) {
 		assert.Equal(t, expandFor(want), col.out[0].Text, text)
 	}
 
-	// The other half of the screen: a line holding no gate term never reaches
-	// the table, which is the whole point of running it first.
 	assert.False(t, personalityGate.screens("nice weather for a croissant"))
 	_, ok := matchReaction("nice weather for a croissant")
 	assert.False(t, ok)
 }
 
-// TestPersonalityFirstMatchWinsThroughGate keeps the gate a screen and not a
-// reorder. The line is the exact counterexample recorded on
-// personalityReactions: an automaton reporting the earliest-ENDING pattern
-// would answer praise here, where the table answers goodnight because gn sits
-// above good.
 func TestPersonalityFirstMatchWinsThroughGate(t *testing.T) {
 	r, ok := matchReaction("good bagel, gn bagel")
 	require.True(t, ok)

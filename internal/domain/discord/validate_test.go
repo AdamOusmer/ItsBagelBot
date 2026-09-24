@@ -68,8 +68,6 @@ func TestValidateConfigFieldErrors(t *testing.T) {
 	}
 }
 
-// A body of exactly the maximum is allowed; the limit is inclusive, and the
-// count is in runes so an accented body is not rejected for its bytes.
 func TestValidateConfigLengthBoundaryIsRunes(t *testing.T) {
 	at := Config{TicketPanelBody: strings.Repeat("é", TicketPanelBodyMax)}
 	if errs := ValidateConfig(at); len(errs) != 0 {
@@ -77,8 +75,6 @@ func TestValidateConfigLengthBoundaryIsRunes(t *testing.T) {
 	}
 }
 
-// Field errors must come back in a stable order or the dashboard's
-// highlighting flickers between two identical saves.
 func TestValidateConfigOrderIsStable(t *testing.T) {
 	cfg := Config{LiveChannelID: "bad", GuildID: "bad", ModsRoleID: "bad"}
 	first := ValidateConfig(cfg)
@@ -112,9 +108,6 @@ func TestValidSnowflake(t *testing.T) {
 	}
 }
 
-// Sanitize keeps a config usable: the bad field goes, everything around it
-// stays. Refusing the whole blob instead would take a guild's live alerts
-// down over a mistyped ticket colour.
 func TestSanitizeConfigZeroesOnlyTheInvalidFields(t *testing.T) {
 	cfg := Config{
 		GuildID:          "100000000000000001",
@@ -146,8 +139,6 @@ func TestSanitizeConfigZeroesOnlyTheInvalidFields(t *testing.T) {
 	}
 }
 
-// A zeroed field must read as UNSET, not as a broken value: every reader
-// documents a default for empty, so the guild keeps working.
 func TestSanitizeConfigLeavesZeroedFieldsOnTheirDefaults(t *testing.T) {
 	clean, _ := SanitizeConfig(Config{TicketOpenLimit: "12", TicketTranscriptEnabled: "yes"})
 
@@ -172,9 +163,6 @@ func TestSanitizeConfigLeavesAValidConfigAlone(t *testing.T) {
 	}
 }
 
-// The zeroing walks Config by JSON tag, so a field whose tag ValidateConfig
-// names must actually exist under that tag. A drifted tag would report an
-// error nothing then clears.
 func TestEveryValidatedFieldNameExistsOnConfig(t *testing.T) {
 	bad := ValidateConfig(Config{
 		GuildID: "x", ClipsChannelID: "x", TicketStaffRoles: "x", TicketPanelColor: "x",

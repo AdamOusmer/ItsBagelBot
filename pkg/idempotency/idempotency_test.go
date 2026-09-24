@@ -15,8 +15,6 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// fakeStore is an in-memory Store for the LRU, composite and Guard tests. It
-// counts Seen/Release calls and can be made to fail open on demand.
 type fakeStore struct {
 	mu       sync.Mutex
 	claims   map[string]bool
@@ -32,7 +30,7 @@ func (f *fakeStore) Seen(_ context.Context, key string, _ time.Duration) (bool, 
 	defer f.mu.Unlock()
 	f.seenN++
 	if f.err != nil {
-		return false, f.err // fail open: not-seen plus the error
+		return false, f.err
 	}
 	if f.claims[key] {
 		return true, nil
@@ -55,8 +53,6 @@ func (f *fakeStore) held(key string) bool {
 	return f.claims[key]
 }
 
-// --- Store dedup semantics (via the fake, exercised through the composite) ---
-
 func TestStoreDedupSemantics(t *testing.T) {
 	f := newFakeStore()
 	ctx := context.Background()
@@ -69,7 +65,6 @@ func TestStoreDedupSemantics(t *testing.T) {
 	if err != nil || !seen {
 		t.Fatalf("second claim: seen=%v err=%v, want true/nil", seen, err)
 	}
-	// Release frees the key for a fresh claim.
 	if err := f.Release(ctx, "k"); err != nil {
 		t.Fatalf("release: %v", err)
 	}
@@ -77,8 +72,6 @@ func TestStoreDedupSemantics(t *testing.T) {
 		t.Fatal("claim after release should be fresh, not a duplicate")
 	}
 }
-
-// --- ValkeyStore result classification + ttl flooring (no live Valkey) ---
 
 func TestSetNXOutcome(t *testing.T) {
 	if seen, ok := setNXOutcome(nil); seen || !ok {
@@ -104,13 +97,11 @@ func TestMillisFloor(t *testing.T) {
 	}
 }
 
-// --- LRU eviction + TTL ---
-
 func TestLRUEviction(t *testing.T) {
 	c := newTTLLRU(2, time.Now)
 	c.add("a", time.Minute)
 	c.add("b", time.Minute)
-	c.add("c", time.Minute) // evicts the oldest, "a"
+	c.add("c", time.Minute)
 	if c.has("a") {
 		t.Fatal("a should have been evicted at capacity")
 	}
@@ -126,8 +117,8 @@ func TestLRURecencyKeepsHotKey(t *testing.T) {
 	c := newTTLLRU(2, time.Now)
 	c.add("a", time.Minute)
 	c.add("b", time.Minute)
-	_ = c.has("a")          // touch "a" so "b" is now the oldest
-	c.add("c", time.Minute) // evicts "b"
+	_ = c.has("a")
+	c.add("c", time.Minute)
 	if c.has("b") {
 		t.Fatal("b should have been evicted, not the recently-used a")
 	}
@@ -143,7 +134,7 @@ func TestLRUTTLExpiry(t *testing.T) {
 	if !c.has("a") {
 		t.Fatal("a should be live immediately")
 	}
-	now = now.Add(2 * time.Minute) // past the ttl
+	now = now.Add(2 * time.Minute)
 	if c.has("a") {
 		t.Fatal("a should have expired")
 	}
@@ -151,8 +142,6 @@ func TestLRUTTLExpiry(t *testing.T) {
 		t.Fatalf("expired entry should be dropped, len=%d", c.len())
 	}
 }
-
-// --- Composite tier short-circuit ---
 
 func TestCompositeShortCircuit(t *testing.T) {
 	f := newFakeStore()
@@ -165,7 +154,6 @@ func TestCompositeShortCircuit(t *testing.T) {
 	if seen, _ := store.Seen(ctx, "k", time.Minute); !seen {
 		t.Fatal("second Seen should be a duplicate")
 	}
-	// The duplicate was served from the local LRU: inner saw exactly one call.
 	if f.seenN != 1 {
 		t.Fatalf("inner Seen calls=%d, want 1 (second served from LRU)", f.seenN)
 	}
@@ -180,7 +168,6 @@ func TestCompositeReleaseClearsLocal(t *testing.T) {
 	if err := store.Release(ctx, "k"); err != nil {
 		t.Fatalf("release: %v", err)
 	}
-	// After release the local claim is gone, so the next Seen reaches inner again.
 	if seen, _ := store.Seen(ctx, "k", time.Minute); seen {
 		t.Fatal("claim after release should be fresh")
 	}
@@ -195,8 +182,6 @@ func TestCompositeFailOpenNotCached(t *testing.T) {
 	store := NewTiered(100, f)
 	ctx := context.Background()
 
-	// Both deliveries fail open and neither is cached, so both reach inner (a
-	// retry stays free to claim once the backend recovers).
 	if seen, _ := store.Seen(ctx, "k", time.Minute); seen {
 		t.Fatal("fail-open Seen should report not-seen")
 	}
@@ -207,8 +192,6 @@ func TestCompositeFailOpenNotCached(t *testing.T) {
 		t.Fatalf("inner Seen calls=%d, want 2 (fail-open not cached)", f.seenN)
 	}
 }
-
-// --- Guard ---
 
 type countMetrics struct {
 	dup      int
@@ -251,7 +234,6 @@ func TestGuardErrorReleases(t *testing.T) {
 	if err := guarded(bus.NewMessage("evt-2", nil)); !errors.Is(err, boom) {
 		t.Fatalf("guard should propagate the handler error, got %v", err)
 	}
-	// The failed claim was released, so the event is not permanently suppressed.
 	if f.held("evt-2") {
 		t.Fatal("claim should be released after the handler failed")
 	}
@@ -259,7 +241,6 @@ func TestGuardErrorReleases(t *testing.T) {
 		t.Fatalf("release calls=%d, want 1", f.releaseN)
 	}
 
-	// A redelivery of the failed event runs the handler again.
 	ran := false
 	retry := Guard(Config{Store: f, Key: MessageUUIDKey, TTL: time.Minute})(func(*bus.Message) error { ran = true; return nil })
 	if err := retry(bus.NewMessage("evt-2", nil)); err != nil {
@@ -277,8 +258,6 @@ func TestGuardFailOpenRunsHandler(t *testing.T) {
 	calls := 0
 	guarded := Guard(Config{Store: f, Key: MessageUUIDKey, TTL: time.Minute, Metrics: m})(func(*bus.Message) error { calls++; return nil })
 
-	// Two deliveries during the outage both run: a guard must never drop a live
-	// event because its backend is unavailable.
 	_ = guarded(bus.NewMessage("evt-3", nil))
 	_ = guarded(bus.NewMessage("evt-3", nil))
 	if calls != 2 {
@@ -294,7 +273,6 @@ func TestGuardUnguardablePassesThrough(t *testing.T) {
 	calls := 0
 	guarded := Guard(Config{Store: f, Key: MessageUUIDKey, TTL: time.Minute})(func(*bus.Message) error { calls++; return nil })
 
-	// An empty UUID is not guardable: the handler runs and the store is untouched.
 	if err := guarded(bus.NewMessage("", nil)); err != nil {
 		t.Fatalf("unguardable delivery: %v", err)
 	}
@@ -306,8 +284,6 @@ func TestGuardUnguardablePassesThrough(t *testing.T) {
 	}
 }
 
-// TestGuardConcurrentDuplicates asserts the claim-before order admits exactly one
-// of two copies of the same event racing on one pod.
 func TestGuardConcurrentDuplicates(t *testing.T) {
 	f := newFakeStore()
 	var ran int32

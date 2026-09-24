@@ -1,14 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Command outgress is the Discord half of the ingress/engine/outgress split
-// that acts: it is the only process in the split holding a Discord REST
-// client. It consumes both DISCORD_OUTGRESS lanes (mod drained before
-// default, see internal/commands), serves the dashboard-facing guild
-// setup/layout/unbind/post RPC (unchanged wire contract from app/dingress's
-// ROLE=egress), and serves the new engine-facing channel-management/live RPC
-// (see internal/domain/rpc/discordoutgress). No gateway Identify session, so
-// it is safe at any replica count.
 package main
 
 import (
@@ -35,9 +27,6 @@ import (
 
 const serviceName = "discord-outgress"
 
-// main reads as a sequence of named boot phases; each phase logs and exits
-// the process on its own fatal error (matching what this used to do inline)
-// so the phase order below is also the exact fatal-error order.
 func main() {
 	core, done := svcboot.NewCore(serviceName)
 	defer done()
@@ -65,10 +54,6 @@ func main() {
 	nc := svcboot.MustRPCConn(core, cfg.NATSRPCURL)
 	defer nc.Close()
 
-	// discord-data-backed, same as engine's: the dashboard's setup, unbind
-	// and settings writes must land in MySQL, not in a Valkey key the engine
-	// no longer treats as the truth. Unconditional -- see the note on
-	// discordstore.DefaultRPCPrefix for why the Valkey-only mode is gone.
 	store := discordstore.NewRPC(nc, cfg.DiscordDataRPCPrefix, valkeyClient, log)
 
 	subscribeRPCs(rpcDeps{
@@ -90,19 +75,11 @@ func main() {
 	core.Await()
 }
 
-// ensureOutgressStream provisions DISCORD_OUTGRESS, the stream this process
-// consumes (see pkg/bus.DiscordOutgressStream's doc); it never provisions
-// DISCORD_INGRESS, which it only ever reads nothing from at all -- that is
-// engine's job, as the consumer on that side.
 func ensureOutgressStream(ctx context.Context, cfg config.Config, log *zap.Logger) {
 	svcboot.FatalIf(log, bus.EnsureStreams(ctx, cfg.NATSURL, []bus.StreamSpec{bus.DiscordOutgressStream}, log),
 		"failed to provision the DISCORD_OUTGRESS stream")
 }
 
-// registerSlashCommands is not fatal on failure: a stale slash-command
-// catalog or a missing application id degrades interaction followups and
-// re-registration, it does not stop the mod/default lanes from draining.
-// Retried next rollout.
 func registerSlashCommands(ctx context.Context, rest *discordapi.Client, log *zap.Logger) string {
 	applicationID, err := bootstrap.Register(ctx, rest)
 	if err != nil {
@@ -111,9 +88,6 @@ func registerSlashCommands(ctx context.Context, rest *discordapi.Client, log *za
 	return applicationID
 }
 
-// rpcDeps is subscribeRPCs's whole input, collapsed from eight positional
-// parameters into one struct (CodeScene: Excess Number of Function
-// Arguments, over its 4-parameter limit).
 type rpcDeps struct {
 	NC            *nats.Conn
 	Cfg           config.Config
@@ -127,8 +101,6 @@ type rpcDeps struct {
 	Log           *zap.Logger
 }
 
-// subscribeRPCs wires the dashboard-facing guild setup RPC and the
-// engine-facing channel-management/live RPC onto the same connection.
 func subscribeRPCs(deps rpcDeps) {
 	setupWorker := setup.New(setup.Config{Discord: deps.Rest, Store: deps.Store, Log: deps.Log.Named("setup")})
 	setupWiring := rpc.SetupWiring{
@@ -154,10 +126,6 @@ func subscribeRPCs(deps rpcDeps) {
 	}
 }
 
-// consumerDeps is what starting the command consumer needs, as one value
-// rather than six positional parameters. Same reason as rpcDeps above: a
-// six-argument call, four of which are pointers or interfaces, has several
-// orderings that compile and one that is correct.
 type consumerDeps struct {
 	Ctx           context.Context
 	Cfg           config.Config
@@ -168,8 +136,6 @@ type consumerDeps struct {
 	Log           *zap.Logger
 }
 
-// startCommandConsumer returns the bound lanes, not just their close func:
-// healthSet reports on each of them by name.
 func startCommandConsumer(deps consumerDeps) commands.Lanes {
 	log := deps.Log.Named("commands")
 	handlers := &commands.Handlers{
@@ -184,16 +150,6 @@ func startCommandConsumer(deps consumerDeps) commands.Lanes {
 	return lanes
 }
 
-// laneChecks is outgress's own report, the one engine folds into
-// health.itsbagelbot.com/discord -- outgress is not routed from outside, so the
-// health RPC is the only way its verdict reaches the vertical's answer.
-//
-// The two lane checks are the reason this is a Set and not a lone NATS check.
-// Draining DISCORD_OUTGRESS is the entire job of this process, and a durable
-// that is still bound but no longer fetching leaves the connection check green
-// while every Command silently ages out at the stream's 60s MaxAge. Checked per
-// lane so the report names which of mod/default wedged, since mod-first
-// priority means the two fail independently.
 func laneChecks(lanes commands.Lanes) []health.Check {
 	return []health.Check{
 		bus.LaneCheck("mod", lanes.Mod),

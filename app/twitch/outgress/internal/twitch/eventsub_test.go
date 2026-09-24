@@ -5,10 +5,6 @@ package twitch
 
 import "testing"
 
-// TestChannelSubscriptionsOrder pins the load-bearing order: the app-token
-// beacon subscriptions are created before anything that can 403, and the
-// chat subscription is created last so a 403 on it alone reads as a chat ban,
-// not a lost consent (see worker.isChatBanned).
 func TestChannelSubscriptionsOrder(t *testing.T) {
 	specs := ChannelSubscriptions("123", "bot")
 	if len(specs) == 0 {
@@ -21,7 +17,6 @@ func TestChannelSubscriptionsOrder(t *testing.T) {
 		t.Errorf("last spec = %q, want %s", got, ChatMessageType)
 	}
 
-	// Every app-token subscription precedes every broadcaster-scoped one.
 	appToken := map[string]bool{"stream.online": true, "stream.offline": true, "channel.update": true, "channel.raid": true}
 	seenScoped := false
 	for _, s := range specs {

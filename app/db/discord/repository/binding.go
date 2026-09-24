@@ -11,16 +11,12 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
-// BindParams is one guild-to-broadcaster binding.
 type BindParams struct {
 	GuildID       string
 	BroadcasterID uint64
-	// InstalledBy is the Discord user snowflake that ran the setup. Optional.
-	InstalledBy string
+	InstalledBy   string
 }
 
-// BindingGet resolves a guild to its broadcaster. A guild with no binding is
-// (0, false, nil): an ordinary state, not an error.
 func (s *Store) BindingGet(ctx context.Context, guildID string) (uint64, bool, error) {
 	if guildID == "" {
 		return 0, false, ErrInvalidInput
@@ -37,9 +33,6 @@ func (s *Store) BindingGet(ctx context.Context, guildID string) (uint64, bool, e
 	return row.BroadcasterID, true, nil
 }
 
-// BindingListByBroadcaster is the reverse lookup: every guild this broadcaster
-// installed the bot into, oldest binding first so the dashboard's server list
-// keeps a stable order across loads.
 func (s *Store) BindingListByBroadcaster(ctx context.Context, broadcasterID uint64) ([]*ent.GuildBinding, error) {
 	if broadcasterID == 0 {
 		return nil, ErrInvalidInput
@@ -47,20 +40,11 @@ func (s *Store) BindingListByBroadcaster(ctx context.Context, broadcasterID uint
 	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.GuildBinding, error) {
 		return s.client.GuildBinding.Query().
 			Where(guildbinding.BroadcasterIDEQ(broadcasterID)).
-			// Id breaks the tie: two guilds bound inside one clock tick would
-			// otherwise come back in whatever order the engine picked, and
-			// the dashboard's server list would reshuffle between loads.
 			Order(ent.Asc(guildbinding.FieldBoundAt, guildbinding.FieldID)).
 			All(ctx)
 	})
 }
 
-// BindingSet binds a guild to a broadcaster. Re-binding the same pair is
-// idempotent (it refreshes installed_by and updated_at); binding a guild that
-// belongs to a different broadcaster returns ErrBoundElsewhere, which is also
-// what a lost race surfaces as, since the unique index on guild_id decides it
-// rather than this read. A broadcaster binding a second, third or tenth guild
-// is ordinary and always allowed.
 func (s *Store) BindingSet(ctx context.Context, p BindParams) error {
 	if p.GuildID == "" || p.BroadcasterID == 0 {
 		return ErrInvalidInput
@@ -71,15 +55,11 @@ func (s *Store) BindingSet(ctx context.Context, p BindParams) error {
 		})
 	})
 	if ent.IsConstraintError(err) {
-		// Another replica committed the conflicting binding between our read
-		// and our insert. Same refusal either way.
 		return ErrBoundElsewhere
 	}
 	return err
 }
 
-// bindInTx is BindingSet's body, inside the transaction. Split out so the
-// error mapping above stays one statement.
 func bindInTx(ctx context.Context, tx *ent.Tx, p BindParams) error {
 	existing, err := tx.GuildBinding.Query().Where(guildbinding.GuildIDEQ(p.GuildID)).Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
@@ -95,10 +75,6 @@ func bindInTx(ctx context.Context, tx *ent.Tx, p BindParams) error {
 		Exec(ctx)
 }
 
-// rebindInTx handles a guild that already carries a binding: refresh it when
-// the broadcaster matches, refuse otherwise. Moving a guild to a different
-// broadcaster is deliberately not an update -- it must go through an explicit
-// unbind, so the dashboard's "already linked" screen is the only way past it.
 func rebindInTx(ctx context.Context, tx *ent.Tx, existing *ent.GuildBinding, p BindParams) error {
 	if existing.BroadcasterID != p.BroadcasterID {
 		return ErrBoundElsewhere
@@ -110,10 +86,6 @@ func rebindInTx(ctx context.Context, tx *ent.Tx, existing *ent.GuildBinding, p B
 	return update.Exec(ctx)
 }
 
-// BindingDelete unbinds a guild. A non-zero broadcasterID guards the delete: a
-// stale unbind for a guild that has since been re-bound to somebody else is
-// refused with ErrBoundElsewhere instead of dropping the new owner's row. An
-// already-absent binding is success -- the goal state holds either way.
 func (s *Store) BindingDelete(ctx context.Context, guildID string, broadcasterID uint64) error {
 	if guildID == "" {
 		return ErrInvalidInput

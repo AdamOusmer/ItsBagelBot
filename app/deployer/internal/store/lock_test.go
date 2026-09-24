@@ -15,7 +15,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// TestLockLifecycle walks one lock through two runs on a shared clock.
 func TestLockLifecycle(t *testing.T) {
 	ctx := context.Background()
 	s, _, clk := testStore()

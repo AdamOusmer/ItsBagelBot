@@ -1,25 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Golden PARITY test: the browser-side Moobot parser (moobot.ts) was a port of
-// app/importer/source/moobot, which was deleted when the importer service
-// folded into the dashboard (2026-08-23). This suite replays the fixture
-// corpus through the port and asserts the outputs match the committed golden:
-// same manifest bytes, same detect verdict, same diagnostic
-// {severity,item_index,code} sequence. The corpus passed against the Go
-// implementation byte-for-byte before that implementation was removed; the
-// fixture itself now lives HERE (testdata/moobot-fixture.json) so the suite is
-// self-contained.
-//
-// The expectations in testdata/moobot-golden.json are COMMITTED and
-// regenerated only deliberately:
-//
-//	IMPORTER_MOOBOT_DUMP_JSON=<repo>/web/kit/lib/importer/testdata/moobot-golden.json \
-//	  go test ./app/importer/source/moobot -run TestDumpPortableGolden
-//
-// (Go command kept for history; today a deliberate regeneration means running
-// the parse by hand and reviewing the diff before committing it.)
-
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
@@ -45,14 +26,10 @@ interface PortableCase {
 const golden: PortableCase[] = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8'));
 const fixtureBytes = new Uint8Array(readFileSync(FIXTURE_PATH));
 
-// Corpus mirrors goldenCorpus() in app/importer/source/moobot/golden_test.go,
-// rebuilt semantically (Go mutates via map[string]any + re-marshal; key order
-// differs but content, all we compare, is identical).
 function corpus(): Map<string, Uint8Array> {
   const raw = readFileSync(FIXTURE_PATH, 'utf8');
   const doc = JSON.parse(raw) as Record<string, unknown>;
 
-  // json.Compact equivalent: re-stringify without indentation.
   const compact = JSON.stringify(doc);
   const clone = () => structuredClone(doc) as Record<string, unknown>;
   const settings = (): Record<string, unknown>[] => clone().settings as Record<string, unknown>[];
@@ -109,10 +86,6 @@ function corpus(): Map<string, Uint8Array> {
   );
 }
 
-// Cases whose hard-failure text wraps the platform JSON library's message
-// (encoding/json vs V8), which no portable assertion can pin; presence of a
-// failure is still asserted. Every other err is OUR format string and must
-// match byte-for-byte.
 const ERR_PRESENCE_ONLY = new Set(['not-json', 'truncated-half', 'empty']);
 
 test('parity corpus covers exactly the committed golden cases', () => {
@@ -144,16 +117,12 @@ for (const want of golden) {
     } else {
       expect(threw).toBeNull();
       expect(manifest).toEqual(want.manifest ?? {});
-      // Diagnostics compare as ordered {severity,item_index,message-less code}
-      // triples: prose embeds Go %q/%v formatting by design.
       expect(
         diagnostics.map(({ severity, item_index, code }) => ({ severity, item_index, code }))
       ).toEqual((want.diags ?? []).map(({ severity, item_index, code }) => ({ severity, item_index, code })));
     }
   });
 }
-
-// --- urlfetch mapping (docs/urlfetch/IMPLEMENTATION.md, Phase 4) --------------
 
 function exportWith(text: string, identifier = 'weather'): Uint8Array {
   return new TextEncoder().encode(
@@ -169,14 +138,9 @@ describe('urlfetch mapping', () => {
   test('plain tag maps to the bare slug backed by a URL-less shell def', () => {
     const { manifest } = parseMoobot(exportWith('Temp: <urlfetch.plain>'));
     expect(manifest.commands![0].responses![0]).toBe('Temp: {urlfetch:moobot_weather}');
-    // Deliberately NO url: Moobot exports carry none; the shell is a
-    // placeholder until the broadcaster re-enters it.
     expect(manifest.fetches).toEqual([{ name: 'moobot_weather', source: 'moobot' }]);
   });
 
-  // Regression guard: the slug used to be `moobot-<command>`, which the
-  // commands service refuses (^[a-z0-9_]{1,32}$), so every synthesized shell
-  // failed at commit with its tokens already in the response text.
   test('every synthesized definition name is one the commands service accepts', () => {
     const { manifest } = parseMoobot(
       exportWith('a <urlfetch.plain> b <urlfetch.json.3>', 'my cool-cmd')
@@ -229,11 +193,7 @@ describe('urlfetch mapping', () => {
 
   test('slug collisions with existing channel items surface via CollisionRef', () => {
     const { manifest } = parseMoobot(exportWith('<urlfetch.plain>', 'weather'));
-    // The slug itself ("moobot_weather") is the name that could clash with an
-    // existing item, a plain "weather" command on the channel does not.
     expect(findCollisions(['moobot_weather'], manifest)).toEqual([{ kind: 'fetch', name: 'moobot_weather' }]);
-    // The imported command "weather" would of course collide with itself on
-    // the channel; only an unrelated existing list stays fully clean.
     expect(findCollisions(['nothing-here'], manifest)).toEqual([]);
   });
 
@@ -296,12 +256,6 @@ describe('<counter> remapping onto {count}', () => {
   });
 });
 
-// --- phase 6 tag vector table -------------------------------------------------
-// One row per Moobot tag this file's TAG_RENDERERS table maps or explicitly
-// warns on, run directly through translateTags rather than a full export
-// fixture: each row pins exactly what the phase 6 spec named, independent of
-// the golden corpus's own coverage (which happens to exercise some of these,
-// but not all, and not the warn-vs-map distinction on its own).
 describe('phase 6 tag vector table', () => {
   const ctx = (): TagContext => ({ name: 'x', randomTexts: [], fetchDefs: new Map() });
 

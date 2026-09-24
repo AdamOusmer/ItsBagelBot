@@ -1,13 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The two buttons that change the server rather than a setting: re-run the
-  // fill, and unbind it.
-  //
-  // No draft here, so no dirty guard: nothing on this page is editable. That is
-  // also why disconnect is safe to reach from it -- the guard that would have
-  // to stand down for the redirect belongs to the sub-pages that have a draft,
-  // and none of them is mounted while this one is.
   import { enhance } from '$app/forms';
   import { Button, ButtonLink, Card, ConfirmDialog, getI18n, toast } from '@bagel/kit';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -27,10 +20,6 @@
       busy = false;
       const p = payloadOf(result);
       if (succeeded(result, p)) {
-        // `refused` is setup reporting it did NOT rebuild: the guild already
-        // had a layout, so the fill adopted what it recognised and left the
-        // rest. That is a warning, not a success, or the streamer waits for
-        // channels that are never coming.
         toast(p?.refused ? 'err' : 'ok', p?.refused ? t('discord.toastRefused') : t('discord.toastSetup'));
         await invalidateAll();
         return;
@@ -44,8 +33,6 @@
     return async ({ result }) => {
       busy = false;
       const p = payloadOf(result);
-      // A successful disconnect never gets here: the action throws a redirect
-      // to /discord, which enhance follows.
       if (succeeded(result, p)) return;
       toast('err', refusalTextOf(t, p, t('discord.toastDisconnectFailed')));
     };
@@ -60,9 +47,6 @@
       <Button variant="secondary" type="submit" loading={busy}>{t('discord.setupCta')}</Button>
     </form>
 
-    <!-- Never saved: the guild is bound but has no config row, so nothing Bagel
-         does in it has been set up yet. The nudge is here rather than on the
-         overview because this is the button that fixes it. -->
     {#if !data.found}
       <p class="hint first-run">{t('discord.setupFirstRun')}</p>
     {/if}

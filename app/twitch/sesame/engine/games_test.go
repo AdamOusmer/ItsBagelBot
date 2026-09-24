@@ -10,8 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- gamble settings ---
-
 func TestClampGambleSettings(t *testing.T) {
 	s := ClampGambleSettings(0, 0, 0, 0)
 	assert.Equal(t, GambleSettings{
@@ -33,8 +31,6 @@ func TestClampGambleSettings(t *testing.T) {
 	assert.Equal(t, int64(5000), s.MinBet, "configured limits are honored as-is")
 	assert.Equal(t, int64(10000), s.MaxBet)
 }
-
-// --- bet resolution ---
 
 func TestResolveGambleBet(t *testing.T) {
 	const bal = int64(1234)
@@ -94,8 +90,6 @@ func TestGambleWinsBoundaries(t *testing.T) {
 	assert.True(t, GambleWins(100, 100), "always-win pays always")
 }
 
-// --- duel mechanics ---
-
 func TestClampDuelSeconds(t *testing.T) {
 	assert.Equal(t, int64(60), ClampDuelSeconds(0, DuelDefaultPotSeconds), "unset takes the default")
 	assert.Equal(t, int64(10), ClampDuelSeconds(2, DuelDefaultPotSeconds), "floor")
@@ -112,7 +106,6 @@ func TestSortAndPickDuelWinner(t *testing.T) {
 	require.True(t, stakes[0].Login == "alice" && stakes[1].Login == "bob" && stakes[2].Login == "zoe",
 		"canonical order is login-sorted regardless of input order")
 
-	// alice 30 | bob 20 | zoe 10 — cumulative [0,30) [30,50) [50,60)
 	assert.Equal(t, "alice", PickDuelWinner(stakes, 0))
 	assert.Equal(t, "alice", PickDuelWinner(stakes, 29))
 	assert.Equal(t, "bob", PickDuelWinner(stakes, 30), "the boundary lands on the next stake")
@@ -134,8 +127,8 @@ func TestParseDuelLedger(t *testing.T) {
 	entries := SortDuelStakes(parseDuelLedger(map[string]string{
 		"opener": "100",
 		"bob":    "20",
-		"ghost":  "0",      // zero stake: not a real entry
-		"junk":   "points", // unreadable: dropped rather than poisoning the pot
+		"ghost":  "0",
+		"junk":   "points",
 	}))
 	require.Len(t, entries, 2)
 	assert.Equal(t, DuelStake{Login: "bob", Stake: 20}, entries[0])

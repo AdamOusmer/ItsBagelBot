@@ -15,9 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// scriptedLimiter answers Allow per key: denied keys report exhaustion,
-// error keys report an infra failure, everything else is admitted. Keys are
-// recorded in call order so tests can assert the reserve-then-general draw.
 type scriptedLimiter struct {
 	denied map[string]bool
 	errs   map[string]error

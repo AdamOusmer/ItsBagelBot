@@ -1,10 +1,6 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-//
-// Astro twin of ../svelte/EmptyState.svelte. The CTA row renders only when the
-// caller fills the default slot, matching the Svelte adapter's `children`
-// guard: an empty .bb-empty__cta would still add its 16px top margin.
 const { title, body, ...rest } = Astro.props;
 const hasCta = Astro.slots.has('default');
 ---

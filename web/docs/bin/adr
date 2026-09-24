@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-# Wrapper around adr-tools that points it at the project-local template
-# and post-processes `adr new` output so the frontmatter title uses the
-# zero-padded NNNN format (matching the filename), instead of the raw
-# unpadded number adr-tools substitutes for the `NUMBER` placeholder.
-# Run from anywhere — the script resolves paths relative to the docs/ root.
+# Wraps adr-tools with the local template and rewrites the new ADR's title number to the zero-padded filename form.
 set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,11 +12,8 @@ cd "$project_root"
 
 if [ "${1:-}" = "new" ]; then
     shift
-    # adr new prints the created file path on its final line of stdout.
     file=$(adr new "$@" | tail -n 1)
     num=$(basename "$file" | grep -oE '^[0-9]+')
-    # Replace the leading unpadded number in `title: "<n> - …"` with the
-    # 4-digit padded version pulled from the filename.
     sed -i '' -E "s/^title: \"[0-9]+ - (.*)\"\$/title: \"$num - \\1\"/" "$file"
     echo "$file"
 else

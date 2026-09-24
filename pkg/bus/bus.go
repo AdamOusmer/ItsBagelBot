@@ -19,48 +19,15 @@ import (
 	"ItsBagelBot/pkg/env"
 )
 
-// The bus rides the JetStream cluster from ADR 0003: at-least-once delivery
-// with explicit acks, short retention, durable queue groups per service so
-// every instance of a service shares one consumer and horizontal scaling
-// comes for free.
-//
-// Streams are never auto-provisioned by the client. The fleet provisions its
-// streams explicitly through EnsureStreams (see provision.go), and the native
-// publisher and subscriber simply bind to those existing streams by subject.
-
-// NewSubscriber connects to NATS and returns a durable JetStream subscriber.
-// All instances passing the same group share one durable consumer, so a
-// message is processed by exactly one instance and survives restarts.
 func NewSubscriber(url string, group string, log *zap.Logger) (Subscriber, error) {
 	return newSubscriber(url, group, log)
 }
 
-// Redelivery budget for the durable consumers behind NewSubscriber (the
-// ingress lanes, the data.> event folds, the stream lane). Retries are paced
-// per message by NakWithDelay — a plain NACK redelivers immediately, so a
-// message whose handler fails deterministically would otherwise grind through
-// its whole budget in seconds, fleet-wide, at full pipeline cost. The pacing
-// also gives a transient dependency blip (~15s) time to clear; after the
-// budget the message is TERMed and ages out of the stream.
 const (
 	fleetMaxRedeliveries uint64 = 5
 	fleetNakDelay               = 3 * time.Second
 )
 
-// LaneConfig describes one bounded work-queue subscription: the stream it
-// binds to, the subject filter, the durable group that shares the consumer,
-// and its redelivery budget.
-//
-// NakDelay paces redelivery after a NACK (rate limits, transient failures),
-// applied per message through nats.go's NakWithDelay. It must NOT become a
-// consumer-level BackOff: the server forces AckWait down to backoff[0], so a
-// short nack delay would also redeliver every message whose handler is merely
-// slower than that delay — while the first replica is still working — and fan
-// one job out across the whole fleet (duplicate chat sends, duplicate clips).
-//
-// MaxRedeliveries excludes the first delivery. NATS enforces the total on the
-// consumer and the native delay policy terminates the final failed delivery, so a
-// failed command cannot come back after its budget is exhausted.
 type LaneConfig struct {
 	URL             string
 	Stream          string
@@ -70,19 +37,12 @@ type LaneConfig struct {
 	MaxRedeliveries uint64
 }
 
-// NewLaneSubscriber binds to a server-owned durable work-queue consumer. The
-// explicit Bind is important: a consumer created implicitly by nats.go is
-// deleted when the creating pod unsubscribes, which used to erase the shared
-// ACK floor during every rolling update and replay the retained stream.
 func NewLaneSubscriber(cfg LaneConfig, log *zap.Logger) (Subscriber, error) {
 	maxDeliveries := cfg.MaxRedeliveries + 1
 	sub, _, err := bindDurable(cfg, int(maxDeliveries), newMaxRetryDelay(cfg.NakDelay, maxDeliveries), log)
 	return sub, err
 }
 
-// bindDurable connects, provisions the server-owned durable consumer, and
-// binds a native nats.go subscriber to it. Only the binding fields of cfg are read;
-// the redelivery pacing arrives resolved as maxDeliveries + nakDelay.
 func bindDurable(cfg LaneConfig, maxDeliveries int, nakDelay maxRetryDelay, log *zap.Logger) (Subscriber, *nats.Conn, error) {
 	consumer := durableName(cfg.Group, cfg.Subject)
 
@@ -96,6 +56,7 @@ func bindDurable(cfg LaneConfig, maxDeliveries int, nakDelay maxRetryDelay, log 
 		nc.Close()
 		return nil, nil, err
 	}
+	// Provision explicitly: a consumer nats.go creates is deleted on unsubscribe, erasing the ack floor.
 	if err := ensureConsumer(js, cfg.Stream, laneConsumerConfig(cfg.Subject, cfg.Group, consumer, maxDeliveries)); err != nil {
 		nc.Close()
 		return nil, nil, err
@@ -120,18 +81,11 @@ func ensureConsumer(js nats.JetStreamManager, stream string, desired *nats.Consu
 		return err
 	}
 
-	// Update mutable parameters, keeping the deliver subject replicas are
-	// already bound to and the creation-time delivery position (a consumer
-	// recreated at an ack-floor start sequence must not be forced back to
-	// DeliverAll, which is not updatable and would trip a replace every boot).
 	desired.DeliverSubject = info.Config.DeliverSubject
 	desired.DeliverPolicy = info.Config.DeliverPolicy
 	desired.OptStartSeq = info.Config.OptStartSeq
 	if _, err := js.UpdateConsumer(stream, desired); err != nil {
-		// A failed update does not imply the configuration is immutable. In
-		// particular, a deadline while the JetStream meta leader is busy leaves
-		// this durable healthy and serving its bound replicas. Deleting it in
-		// response would discard that state and replay its retained work.
+		// Only an immutable-field rejection may delete: a timeout fails too, and deleting replays retained work.
 		if !requiresConsumerReplacement(err) {
 			return fmt.Errorf("bus: update consumer %q: %w", desired.Name, err)
 		}
@@ -142,12 +96,6 @@ func ensureConsumer(js nats.JetStreamManager, stream string, desired *nats.Consu
 	return nil
 }
 
-// replaceConsumer performs the delete + recreate required by a recognized
-// immutable-field transition. The deliver subject and group are deterministic,
-// so replicas already bound keep receiving from the recreated consumer. The
-// caller has already rewritten desired's delivery position to the predecessor's
-// ack floor (see carryAckFloor), so the recreation never replays retained
-// messages the group has handled.
 func replaceConsumer(js nats.JetStreamManager, stream string, desired *nats.ConsumerConfig, cause error) error {
 	if derr := js.DeleteConsumer(stream, desired.Name); derr != nil && !errors.Is(derr, nats.ErrConsumerNotFound) {
 		return fmt.Errorf("bus: update consumer %q: %w (replace failed: %v)", desired.Name, cause, derr)
@@ -158,9 +106,6 @@ func replaceConsumer(js nats.JetStreamManager, stream string, desired *nats.Cons
 	return nil
 }
 
-// carryAckFloor rewrites desired's delivery position to resume just past what
-// the predecessor consumer had fully acknowledged. A floor of zero means
-// nothing was ever acked, where starting from the beginning is correct.
 func carryAckFloor(desired *nats.ConsumerConfig, info *nats.ConsumerInfo) {
 	if info == nil || info.AckFloor.Stream == 0 {
 		return
@@ -169,37 +114,18 @@ func carryAckFloor(desired *nats.ConsumerConfig, info *nats.ConsumerInfo) {
 	desired.OptStartSeq = info.AckFloor.Stream + 1
 }
 
-// laneConsumerConfig deliberately sets no BackOff: the server clamps AckWait to
-// backoff[0], and a short first step turns every handler slower than it into a
-// premature redelivery to another replica while the first is still working —
-// the same job then executes on several pods (duplicate chat sends / clips).
-// NACK pacing lives in the subscriber's per-message NakWithDelay instead, which
-// leaves AckWait as the sole in-flight redelivery clock.
+// No BackOff: the server clamps AckWait to backoff[0] and redelivers slow handlers elsewhere.
 func laneConsumerConfig(subject, group, name string, maxDeliveries int) *nats.ConsumerConfig {
 	return &nats.ConsumerConfig{
-		Durable:       name,
-		Name:          name,
-		Description:   "ItsBagelBot bounded work-queue lane consumer",
-		DeliverPolicy: nats.DeliverAllPolicy,
-		AckPolicy:     nats.AckExplicitPolicy,
-		// Handlers send InProgress once per second, so a short AckWait bounds the
-		// replay gap after a disconnect without duplicating genuinely slow work.
-		// It also stays inside the perishable outgress stream's 5s dedup window.
-		AckWait:       laneAckWait,
-		MaxDeliver:    maxDeliveries,
-		FilterSubject: subject,
-		ReplayPolicy:  nats.ReplayInstantPolicy,
-		// Ceiling on unacked messages the server will push to this queue group at
-		// once. It must exceed the group's aggregate in-flight concurrency
-		// (routines × replicas × per-message latency × target rate) or the server
-		// stops delivering and the pipeline stalls below that rate. At ~15 ms/event
-		// a 100k/s target needs ~1,500 in flight; 20,000 leaves headroom for
-		// latency spikes and burst scale-up without re-tuning per deploy.
-		// Ceiling on unacked deliveries the server may hold for this queue
-		// group. Throughput is bounded by MaxAckPending / per-message dwell,
-		// so the historical inline 20000 capped lanes near ~65k msg/s however
-		// fast handlers ran; NATS_LANE_MAX_ACK_PENDING raises the window for
-		// lanes whose consumers drain fast enough to spend it.
+		Durable:        name,
+		Name:           name,
+		Description:    "ItsBagelBot bounded work-queue lane consumer",
+		DeliverPolicy:  nats.DeliverAllPolicy,
+		AckPolicy:      nats.AckExplicitPolicy,
+		AckWait:        laneAckWait,
+		MaxDeliver:     maxDeliveries,
+		FilterSubject:  subject,
+		ReplayPolicy:   nats.ReplayInstantPolicy,
 		MaxAckPending:  positiveInt(env.GetInt("NATS_LANE_MAX_ACK_PENDING", 20000), 20000),
 		DeliverSubject: "_INBOX.BAGEL." + subjectToken(name),
 		DeliverGroup:   group,
@@ -284,10 +210,6 @@ func (s *fleetSubscriber) remember(sub Subscriber, conn *nats.Conn) bool {
 }
 
 func (s *fleetSubscriber) releaseWhenDone(ctx context.Context, sub Subscriber, conn *nats.Conn) {
-	// A subscription's resources live exactly as long as its ctx. The weighted
-	// consumer adds and retires units with load, each unit subscribing under
-	// its own ctx; without this a retired unit's NATS connection would sit open
-	// until process shutdown, one more per scale cycle.
 	go s.releaseAfterDone(ctx, sub, conn)
 }
 
@@ -313,8 +235,6 @@ func (s *fleetSubscriber) beginRegistration() bool {
 	return true
 }
 
-// forget drops a subscription's entries from the shutdown bookkeeping once its
-// own ctx has released them, so Close does not double-close.
 func (s *fleetSubscriber) forget(sub Subscriber, conn *nats.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -331,11 +251,6 @@ func closeSubscription(sub Subscriber, conn *nats.Conn) {
 	}
 }
 
-// subscriberFor builds the topic's subscriber: a broadcast ephemeral consumer
-// when the group is empty, the receipt-level flow consumer on the hot ingress
-// lanes, else a durable queue-group consumer bound to a provisioned server-owned
-// durable (so it survives pod disconnects), with the shared fleet redelivery
-// budget (see fleetMaxRedeliveries).
 func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, *nats.Conn, error) {
 	if s.group == "" {
 		return s.broadcastSubscriber(target)
@@ -348,17 +263,10 @@ func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, 
 	return bindDurable(binding, int(maxDeliveries), newMaxRetryDelay(fleetNakDelay, maxDeliveries), s.log)
 }
 
-// laneQualifiesForReceiptAcks reports whether the lane's traffic contract fits
-// receipt-level acknowledgement: only the perishable hot ingress lanes and the
-// canary mirror qualify; every control lane, status subject and work-queue
-// stream keeps explicit acks.
 func laneQualifiesForReceiptAcks(target subscriptionTarget) bool {
 	return isHotIngressLane(target.stream, target.topic) || IsCanaryLane(target.stream, target.topic)
 }
 
-// laneModeFor is the scope guard for receipt-level acknowledgement. The refusal
-// is logged so an operator who set the mode can see which lanes it actually
-// reached.
 func (s *fleetSubscriber) laneModeFor(target subscriptionTarget) laneConsumeMode {
 	mode := consumeMode()
 	declined := mode != laneModeExplicit && !laneQualifiesForReceiptAcks(target)
@@ -372,15 +280,6 @@ func (s *fleetSubscriber) laneModeFor(target subscriptionTarget) laneConsumeMode
 	return laneModeExplicit
 }
 
-// sharedFlowLane is one pod-wide receipt-level lane binding, in either mode.
-//
-// The flow mode has no choice about sharing: AckFlowControl has coherent
-// acknowledgement semantics only for a single subscriber, so every consumer unit
-// in this process must share one consumer, one receipt cursor and one
-// flow-control conversation. The pull mode shares for economy rather than
-// correctness — a second fetch loop against the same durable would be a second
-// stream of MSG.NEXT requests for the same lane. Either way the units read the
-// same channel, and the binding lives until the last unit releases it.
 type sharedFlowLane struct {
 	owner *fleetSubscriber
 	key   string
@@ -388,8 +287,6 @@ type sharedFlowLane struct {
 	refs  int
 }
 
-// flowLaneHandle is one unit's claim on the shared binding. Close releases the
-// claim, never the binding, until it is the last one.
 type flowLaneHandle struct {
 	lane    *sharedFlowLane
 	release sync.Once
@@ -413,14 +310,10 @@ func (s *fleetSubscriber) sharedLaneSubscriberFor(
 	if err != nil {
 		return nil, nil, err
 	}
-	// The binding owns its connection for as long as any unit holds it, so the
-	// per-subscription connection bookkeeping must not close it.
 	return &flowLaneHandle{lane: lane}, nil, nil
 }
 
 func (s *fleetSubscriber) acquireFlowLane(target subscriptionTarget, mode laneConsumeMode) (*sharedFlowLane, error) {
-	// The mode is process-wide and fixed for the life of the pod, so it is not
-	// part of the key: one lane can never be bound in both modes at once here.
 	key := target.stream + "|" + target.topic
 	s.mu.Lock()
 	if s.closed {
@@ -443,10 +336,6 @@ func (s *fleetSubscriber) acquireFlowLane(target subscriptionTarget, mode laneCo
 	return s.rememberFlowLane(key, sub)
 }
 
-// newSharedLaneSubscriber builds the binding the mode asks for. Both
-// constructors return a concrete pointer, so each is widened to the interface
-// only after its error has been checked: a typed nil behind Subscriber is a
-// non-nil interface value that panics on first use.
 func newSharedLaneSubscriber(cfg flowLaneConfig, mode laneConsumeMode) (Subscriber, error) {
 	if mode == laneModePull {
 		sub, err := newPullLaneSubscriber(cfg)
@@ -462,10 +351,6 @@ func newSharedLaneSubscriber(cfg flowLaneConfig, mode laneConsumeMode) (Subscrib
 	return sub, nil
 }
 
-// rememberFlowLane publishes a freshly built binding, discarding it when another
-// unit won the race to build the same lane or the subscriber closed meanwhile.
-// The surplus binding is released outside the lock, because closing it drains
-// deliveries.
 func (s *fleetSubscriber) rememberFlowLane(key string, sub Subscriber) (*sharedFlowLane, error) {
 	lane, surplus, err := s.storeFlowLane(key, sub)
 	if surplus {
@@ -511,27 +396,13 @@ func (s *fleetSubscriber) logger() *zap.Logger {
 	return s.log
 }
 
-// LaneHealth is implemented by a lane binding that can say whether its own fetch
-// loop is making progress.
 type LaneHealth interface{ Healthy() bool }
 
-// SubscriberHealthy reports whether every lane binding sub owns is making
-// progress, for a service's readiness probe.
-//
-// It exists because a NATS connection check is not a consumption check. The
-// lane durables are fleet-wide and deletable, and a pod that has lost its
-// durable holds an entirely healthy connection while consuming nothing — which
-// is exactly how sesame stayed green through seven hours of silence on
-// 2026-08-16. A subscriber with nothing to report is healthy: this must never
-// make a service that does not consume lanes look sick.
 func SubscriberHealthy(sub Subscriber) bool {
 	reporter, ok := sub.(LaneHealth)
 	return !ok || reporter.Healthy()
 }
 
-// Healthy reports whether every lane this subscriber has bound is making
-// progress. Bindings that cannot report — the push and broadcast paths — are
-// not counted: they have no fetch loop to wedge.
 func (s *fleetSubscriber) Healthy() bool {
 	s.mu.Lock()
 	lanes := make([]Subscriber, 0, len(s.flowLanes))
@@ -548,9 +419,6 @@ func (s *fleetSubscriber) Healthy() bool {
 	return true
 }
 
-// broadcastSubscriber uses an ephemeral consumer with DeliverNew to avoid
-// replay storms: every instance gets every message (cache invalidation). The
-// explicit stream binding avoids an account-wide stream-name lookup.
 func (s *fleetSubscriber) broadcastSubscriber(target subscriptionTarget) (Subscriber, *nats.Conn, error) {
 	nc, err := nats.Connect(busURL(endpoint(s.url)), busOptions(clientName("broadcast-"+subjectToken(target.topic)))...)
 	if err != nil {
@@ -579,14 +447,9 @@ func (s *fleetSubscriber) Close() error {
 	}
 	s.mu.Unlock()
 
-	// Registration admission and the closed flag share s.mu. Once closed is
-	// visible, no WaitGroup.Add can race this Wait, and every admitted Subscribe
-	// either registers its resources or closes them before returning.
 	s.registrations.Wait()
 
-	// Released outside the lock: a shared flow lane's Close reaches back into
-	// releaseFlowLane for the reference count, and holding s.mu across that would
-	// deadlock shutdown.
+	// Close these outside s.mu: a shared flow lane's Close re-enters releaseFlowLane and would deadlock.
 	subs, conns := s.takeResources()
 
 	var errs []error
@@ -621,14 +484,6 @@ func newSubscriber(url string, group string, log *zap.Logger) (Subscriber, error
 	}, nil
 }
 
-// durableName derives the JetStream durable consumer name for a (group, topic)
-// pair. Qualifying the durable by subject avoids collisions when one service
-// subscribes to more than one subject (the projector folds several event
-// subjects) and gives every binding a deterministic restart-safe consumer.
-//
-// An empty group means a broadcast subscriber: it keeps an empty durable so
-// every instance gets an ephemeral consumer and therefore every message
-// (used for cache invalidation), rather than sharing one durable.
 func durableName(group, topic string) string {
 	if group == "" {
 		return ""
@@ -636,8 +491,6 @@ func durableName(group, topic string) string {
 	return group + "_" + subjectToken(topic)
 }
 
-// subjectToken turns a dotted subject into a token usable in a JetStream
-// consumer name, which may not contain dots or wildcards.
 func subjectToken(subject string) string {
 	return strings.NewReplacer(".", "_", "*", "_", ">", "_").Replace(subject)
 }

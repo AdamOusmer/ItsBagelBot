@@ -1,14 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // A floating "Install app" pill that lets phone users add the dashboard to
-  // their home screen as a PWA. Two install paths are supported:
-  //   - Chromium (Android/desktop): captures the `beforeinstallprompt` event and
-  //     drives the native install flow on click.
-  //   - iOS Safari: no such event exists, so the pill opens a small popover with
-  //     the manual "Share → Add to Home Screen" steps.
-  // Everything is progressive enhancement: the component renders nothing on the
-  // server and only appears once a real install path is detected in the browser.
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { page } from '$app/state';
@@ -18,36 +10,28 @@
 
   const { t } = getI18n();
 
-  // Minimal shape of the non-standard Chromium event (not in lib.dom yet).
   interface BeforeInstallPromptEvent extends Event {
     readonly platforms: string[];
     readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
     prompt(): Promise<void>;
   }
 
-  // Persisted "don't ask again" flag. The marketing site can override it by
-  // deep-linking with ?install=1 (see forceShow).
   const DISMISS_KEY = 'bagel:install-dismissed';
 
   const uid = $props.id();
   const titleId = `install-ios-${uid}`;
 
-  // The deferred Chromium prompt, stashed until the user opts in.
   let promptEvent: BeforeInstallPromptEvent | null = null;
-  // Which install path is active; drives what the pill click does.
   let mode = $state<'chromium' | 'ios' | null>(null);
   let visible = $state(false);
   let iosOpen = $state(false);
   let closeBtn = $state<HTMLButtonElement | null>(null);
 
-  // Already running as an installed PWA. Nothing to offer.
   function isStandalone(): boolean {
     const nav = window.navigator as Navigator & { standalone?: boolean };
     return window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true;
   }
 
-  // iPhone/iPad, including iPadOS 13+ which masquerades as "Macintosh" but
-  // reports touch points.
   function isIos(): boolean {
     const ua = window.navigator.userAgent;
     const iPadOS = /Macintosh/.test(ua) && window.navigator.maxTouchPoints > 1;
@@ -62,7 +46,6 @@
     }
   }
 
-  // Marketing deep-link that re-surfaces the pill even after a dismissal.
   function forceShow(): boolean {
     return page.url?.searchParams.get('install') === '1';
   }
@@ -71,7 +54,6 @@
     try {
       localStorage.setItem(DISMISS_KEY, '1');
     } catch {
-      // Storage unavailable (private mode): the dismissal simply won't stick.
     }
   }
 
@@ -91,7 +73,6 @@
   }
 
   function onBeforeInstall(e: Event): void {
-    // Suppress Chrome's default mini-infobar; we present our own pill instead.
     e.preventDefault();
     promptEvent = e as BeforeInstallPromptEvent;
     show('chromium');
@@ -101,7 +82,6 @@
     hide();
   }
 
-  // Chromium: replay the stored prompt and honour the user's choice.
   async function runInstall(): Promise<void> {
     const evt = promptEvent;
     if (!evt) return;
@@ -131,7 +111,6 @@
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
     window.addEventListener('appinstalled', onInstalled);
 
-    // iOS never fires beforeinstallprompt, so offer the manual path right away.
     if (isIos()) show('ios');
 
     return () => {
@@ -140,7 +119,6 @@
     };
   });
 
-  // Move focus into the popover when it opens so keyboard users land on a control.
   $effect(() => {
     if (iosOpen) closeBtn?.focus();
   });
@@ -170,13 +148,6 @@
     {#if iosOpen}
       <div class="sheet" role="dialog" aria-modal="false" aria-labelledby={titleId}>
         <div class="sheet-head">
-          <!-- `level={6} as="h2"`: the two props are the two questions. The
-               TAG is h2 because this is the labelling heading of a
-               role="dialog" and `aria-labelledby` points at it; the SIZE is
-               the l6 step (15px) because that is what a bottom sheet's head
-               affords -- the next step up, l3 at 24px, is a quarter of the
-               sheet. This was a scoped `.sheet-head h2` at 15px/700, i.e. the
-               same decision written as a rule only this file could see. -->
           <Heading level={6} as="h2" id={titleId}>{t('install.ios.title')}</Heading>
           <button
             class="sheet-x"
@@ -220,8 +191,6 @@
 {/if}
 
 <style>
-  /* Anchored top-right, clear of the sticky topbar and notch. Sits above the
-     dock (z 60/61) but below topbar menus (89/90), modals (200) and toasts. */
   .install-root {
     position: fixed;
     top: calc(env(safe-area-inset-top, 0px) + 64px);
@@ -295,7 +264,6 @@
     background: rgba(255, 255, 255, 0.06);
   }
 
-  /* Non-modal instructions popover, anchored under the pill. */
   .sheet {
     margin-top: 8px;
     width: min(300px, calc(100vw - 28px));

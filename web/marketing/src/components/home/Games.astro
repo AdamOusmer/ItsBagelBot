@@ -4,11 +4,6 @@
 
 import { SITE } from '@bagel/kit/site-links';
 
-/**
- * Games: game integrations bento grid.
- * Shows Minecraft (Hypixel Bedwars + MCSR Ranked), Fortnite, Valorant,
- * Clash Royale, and a call-to-action for requesting more games.
- */
 import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
@@ -16,10 +11,6 @@ import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
-// The full trademark and affiliation notices (Mojang, Hypixel, Epic, Riot,
-// Supercell) live in the Terms of Service (legal/terms 11-third-party). This
-// section keeps a one-line pointer: five publishers' worth of legalese under a
-// bento grid buried the section it belonged to.
 const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{terms}');
 ---
 
@@ -27,7 +18,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     <SectionHeading eyebrow={t('games.eyebrow')} title={t('games.title')} />
 
     <div class="games__grid">
-        <!-- Minecraft: Hypixel Bedwars + MCSR Ranked -->
         <Card atmo hover class="games__card" label={t('games.mcCh')} data-reveal>
             <div class="games__demo games__demo--mc" slot="band" aria-hidden="true">
                 <div class="games-mc__group games-mc__group--bw">
@@ -52,29 +42,20 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
             <p class="games__desc">{t('games.mcDesc')}</p>
         </Card>
 
-        <!-- Fortnite -->
         <Card atmo hover class="games__card" label={t('games.fnCh')} data-reveal style="--reveal-i: 1">
             <div class="games__demo games__demo--fn" slot="band" aria-hidden="true">
                 <svg class="games-fn__scar" viewBox="0 0 220 72" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg">
-                    <!-- stock -->
                     <path d="M10 32 L30 29 L30 47 L14 50 Z" />
                     <path d="M14 36 L27 34.5" stroke-width="1.5" />
-                    <!-- receiver -->
                     <path d="M30 27 H134 V47 H30 Z" />
-                    <!-- top rail + ticks -->
                     <path d="M34 27 V22 H128 V27" />
                     <path d="M44 22 v3 M56 22 v3 M68 22 v3 M80 22 v3 M92 22 v3 M104 22 v3 M116 22 v3" stroke-width="1.5" />
-                    <!-- rear sight + charging handle -->
                     <path d="M40 22 v-5 h7 v5" />
                     <path d="M62 22 v-4" />
-                    <!-- ejection port -->
                     <path d="M84 33 h20 v7 H84 Z" stroke-width="1.5" />
-                    <!-- trigger guard + grip -->
                     <path d="M76 47 q1 9 10 9 h8" />
                     <path d="M98 47 L94 64 L104 66 L109 47" />
-                    <!-- magazine -->
                     <path d="M112 47 C110 57 114 64 123 66 L133 62 C128 56 128 51 129 47 Z" />
-                    <!-- barrel + front sight + muzzle -->
                     <path d="M134 31 H184 M134 41 H184" />
                     <path d="M152 31 v-8 h7 v8" />
                     <path d="M184 28 h16 l4 4 v6 l-4 4 h-12 Z" />
@@ -94,7 +75,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
             <p class="games__desc">{t('games.fnDesc')}</p>
         </Card>
 
-        <!-- Valorant -->
         <Card atmo hover class="games__card" label={t('games.valCh')} data-reveal style="--reveal-i: 2">
             <div class="games__demo games__demo--val" slot="band" aria-hidden="true">
                 <span class="games-val__line">!valrank Frosty#EUW1</span>
@@ -113,7 +93,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
             </a>
         </Card>
 
-        <!-- Clash Royale -->
         <Card atmo hover class="games__card" label={t('games.crCh')} data-reveal style="--reveal-i: 3">
             <div class="games__demo games__demo--cr" slot="band" aria-hidden="true">
                 <span class="games-cr__line">!cr #P2LQ0GR</span>
@@ -129,7 +108,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
             <p class="games__desc">{t('games.crDesc')}</p>
         </Card>
 
-        <!-- Request more games -->
         <Card atmo hover class="games__card games__card--req" label={t('games.reqCh')} data-reveal style="--reveal-i: 4">
             <div class="games__demo games__demo--req" slot="band" aria-hidden="true">
                 <a href={`${SITE.github}/issues/new`} target="_blank" rel="noopener noreferrer" class="games-req__btn">
@@ -163,16 +141,11 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
-        /* Sized to the tallest visual in the row (the Fortnite rifle with its
-           rarity/price line underneath) so the shorter stat read-outs share
-           the same housing instead of each sizing its own. */
         --card-band-h: 132px;
     }
 
     @media (min-width: 720px) {
         .games__grid { grid-template-columns: repeat(3, 1fr); }
-        /* Five cards on a three-column grid: the request tile stretches over
-           the two columns the second row leaves free. */
         .games__card--req { grid-column: span 2; }
     }
 
@@ -199,10 +172,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         margin: 0;
     }
 
-    /* ── Demo stage shared ── */
-
-    /* Demos live in the Card's housing band (slot="band"); the band owns the
-       chrome and outer padding. Height matches the band's 104px minimum. */
     .games__demo {
         display: flex;
         flex-direction: column;
@@ -213,8 +182,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.74rem;
     }
-
-    /* ── Minecraft (Bedwars ⇄ MCSR alternating) ── */
 
     .games__demo--mc {
         position: relative;
@@ -270,8 +237,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         margin-right: 4px;
     }
 
-    /* ── Fortnite (item-shop tile, original line-art SCAR) ── */
-
     .games__demo--fn {
         align-items: center;
         gap: 8px;
@@ -307,8 +272,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         font-size: 0.7rem;
     }
 
-    /* ── Valorant & Clash Royale (typed command + stat chips) ── */
-
     .games-val__line,
     .games-cr__line {
         color: var(--tan-light, #e0c49a);
@@ -340,8 +303,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     .games-val__stats { animation: gamesFadeVal 12s ease-in-out infinite; }
     .games-cr__stats { animation: gamesFadeCr 12s ease-in-out infinite; }
 
-    /* ── Request ── */
-
     .games__demo--req {
         align-items: center;
     }
@@ -359,12 +320,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         font-family: var(--font-body, "DM Sans", sans-serif);
         font-weight: 500;
         font-size: 0.9rem;
-        /* Name the four properties :hover actually changes instead of `all`.
-           `all` transitions every animatable property, so any later addition to
-           the hover rule (or an inherited custom property) silently becomes an
-           animation -- Lighthouse counts each as a non-composited animated
-           element, and a layout property added here would animate layout at
-           60fps with nothing in the diff to explain why. */
         transition:
             background 0.2s ease,
             border-color 0.2s ease,
@@ -379,9 +334,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         color: var(--white, #f0ece4);
     }
 
-    /* ── Animations ── */
-
-    /* Minecraft card: first half of the 12s cycle is Bedwars, second half MCSR. */
     @keyframes gamesTypeMcBw {
         0%, 4% { width: 0; opacity: 1; }
         13%, 42% { width: 17ch; opacity: 1; }
@@ -412,8 +364,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         50% { transform: translateY(-1.5px); }
     }
 
-    /* Valorant: "!valrank Frosty#EUW1" types out over the first fifth of the
-       12s cycle, holds most of it, then resets. */
     @keyframes gamesTypeVal {
         0%, 4% { width: 0; opacity: 1; }
         20%, 88% { width: 20ch; opacity: 1; }
@@ -426,7 +376,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         92%, 100% { opacity: 0; transform: translateY(4px); }
     }
 
-    /* Clash Royale: same cadence as the Valorant tile for "!cr #P2LQ0GR". */
     @keyframes gamesTypeCr {
         0%, 4% { width: 0; opacity: 1; }
         16%, 88% { width: 12ch; opacity: 1; }
@@ -438,8 +387,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         30%, 84% { opacity: 1; transform: none; }
         92%, 100% { opacity: 0; transform: translateY(4px); }
     }
-
-    /* ── Legal ── */
 
     .games__legal {
         margin: 28px auto 0;
@@ -475,7 +422,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
             opacity: 1;
             transform: none;
         }
-        /* Static fallback shows the Bedwars half only. */
         .games-mc__group--mcsr { display: none; }
         .games-fn__scar { animation: none; }
         .games-val__line,

@@ -2,19 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for `.bb-check` (../styles/elements/input.css).
-  // Astro twin: ../astro/Checkbox.astro.
-  //
-  // THE NATIVE INPUT STAYS IN THE DOM, visually hidden, with a drawn <span>
-  // beside it. Not `display:none` (removes it from the a11y tree and, in some
-  // engines, from form submission) and not a `role="checkbox"` <button> (which
-  // posts nothing and has to reimplement the space key). Checked and focus are
-  // then pure CSS off the real control's state, so this adapter carries no
-  // event handling at all beyond the binding.
-  //
-  // Sibling order is contract: `.bb-check__input:checked + .bb-check__box`
-  // needs the box to be the input's NEXT sibling, so the label text comes
-  // third and never between them.
   import '../styles/elements/input.css';
   import type { Snippet } from 'svelte';
 

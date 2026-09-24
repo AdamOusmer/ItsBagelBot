@@ -15,14 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Shared test doubles for the pull-consumer suite: JetStream API spies and
-// message fakes every seam's tests build on.
-
-// ---- fakes -----------------------------------------------------------------
-
-// livePushLaneConsumer models the explicit-ACK durable a lane runs before the
-// mode flip: push (it has a delivery subject), per-message acks, opened at
-// DeliverAll.
 func livePushLaneConsumer(ackFloor uint64) *jsapi.ConsumerInfo {
 	name := "worker_twitch_ingress_event_standard"
 	info := &jsapi.ConsumerInfo{
@@ -40,14 +32,9 @@ func livePushLaneConsumer(ackFloor uint64) *jsapi.ConsumerInfo {
 	return info
 }
 
-// pullConsumerSpy stands in for the JetStream API the pull binding uses,
-// modelling the one server behaviour the replacement path exists for: a live
-// push consumer cannot be converted in place, and only a delete makes room.
 type pullConsumerSpy struct {
-	live      *jsapi.ConsumerInfo
-	createErr error
-	// convertAfter simulates another pod completing the conversion, on the Nth
-	// create attempt.
+	live         *jsapi.ConsumerInfo
+	createErr    error
 	convertAfter int
 
 	attempts int
@@ -55,8 +42,6 @@ type pullConsumerSpy struct {
 	deletes  int
 }
 
-// pullConsumerHandle satisfies jetstream.Consumer by embedding the interface, so
-// any method the binding does not call panics instead of returning a zero value.
 type pullConsumerHandle struct {
 	jsapi.Consumer
 	info *jsapi.ConsumerInfo
@@ -70,17 +55,12 @@ func (s *pullConsumerSpy) Consumer(context.Context, string, string) (jsapi.Consu
 	if s.live == nil {
 		return nil, jsapi.ErrConsumerNotFound
 	}
-	// The real client refuses to describe a push consumer through the pull
-	// accessor; modelling that here is what keeps these tests honest about
-	// the conversion (the fake used to hand the info back and the flip
-	// failed in production on this exact lookup).
 	if s.live.Config.DeliverSubject != "" {
 		return nil, jsapi.ErrNotPullConsumer
 	}
 	return &pullConsumerHandle{info: s.live}, nil
 }
 
-// pushConsumerHandle mirrors pullConsumerHandle for the push accessor.
 type pushConsumerHandle struct {
 	jsapi.PushConsumer
 	info *jsapi.ConsumerInfo
@@ -121,18 +101,10 @@ func (s *pullConsumerSpy) CreateOrUpdateConsumer(
 	return &pullConsumerHandle{info: s.live}, nil
 }
 
-// racedConversionLanded plays the other pod: after the configured number of
-// attempts, the live push durable has already been converted underneath us.
 func (s *pullConsumerSpy) racedConversionLanded() bool {
 	return s.convertAfter > 0 && s.attempts >= s.convertAfter && s.live != nil
 }
 
-// refusesImmutableUpdate is the server rule the whole conversion path exists
-// for, in checkNewConsumerConfig's own field order: storage type is checked
-// before the push/pull deliver subject, so the storage message — wrapped the
-// way the client wraps an API error — is what a real flip surfaces first
-// (production, 2026-08-15). The conversion message only appears when the
-// storage types happen to agree.
 func (s *pullConsumerSpy) refusesImmutableUpdate(cfg jsapi.ConsumerConfig) error {
 	if s.live == nil {
 		return nil
@@ -165,9 +137,6 @@ func testPullSubscriber() *pullSubscriber {
 	}
 }
 
-// drainLane takes deliveries off the lane channel the way a consumer unit would,
-// so deliver() is never the thing blocking a test. The returned function waits
-// for the reader to finish, which the caller does after closing closeCh.
 func drainLane(sub *pullSubscriber) func() {
 	done := make(chan struct{})
 	go func() {
@@ -195,9 +164,6 @@ func waitFor(t *testing.T, condition func() bool, message string) {
 	t.Fatal(message)
 }
 
-// fakePullMsg stands in for one jetstream delivery. It counts acks rather than
-// publishing them, which is what makes the cadence assertions possible without a
-// broker.
 type fakePullMsg struct {
 	sequence uint64
 	header   nats.Header
@@ -236,8 +202,6 @@ func (m *fakePullMsg) Headers() nats.Header { return m.header }
 func (m *fakePullMsg) Subject() string      { return "twitch.ingress.event.standard" }
 func (m *fakePullMsg) Reply() string        { return "$JS.ACK.hub.x.TWITCH_INGRESS.c.1.1.1.0.0" }
 func (m *fakePullMsg) DoubleAck(context.Context) error {
-	// Never reachable: a quorum round trip per message is the cost this lane
-	// exists to avoid, so a test that hits this has found a real regression.
 	panic("pull lane must never double-ack")
 }
 func (m *fakePullMsg) NakWithDelay(time.Duration) error { return m.Nak() }
@@ -258,7 +222,3 @@ func (m *fakePullMsg) Nak() error {
 	m.nakked++
 	return nil
 }
-
-// The loops knob is pure parsing, so it is testable without a broker: it
-// defaults to one serial fetch loop and refuses a non-positive override like
-// every other knob on this lane.

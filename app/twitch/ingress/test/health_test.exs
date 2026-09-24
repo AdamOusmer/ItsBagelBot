@@ -2,8 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.HealthTest do
-  # Not async: StatusPlugTest registers :gnat and :gnat_bus globally, and the
-  # report/0 case below reads those same names.
   use ExUnit.Case, async: false
 
   alias Ingress.Health
@@ -17,7 +15,6 @@ defmodule Ingress.HealthTest do
     assert Health.aggregate([check("a", true), check("b", false, %{optional: true})]) ==
              "degraded"
 
-    # A critical failure wins over an optional one, whatever the order.
     assert Health.aggregate([check("a", false), check("b", false, %{optional: true})]) == "down"
   end
 

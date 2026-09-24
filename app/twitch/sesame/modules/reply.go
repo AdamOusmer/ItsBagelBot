@@ -13,56 +13,25 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 )
 
-// replyKey names one localized line. A named type over the i18n key keeps the
-// replier's callers from passing arbitrary strings where only a known key
-// belongs; the broadcaster's override travels as a separate argument.
 type replyKey string
 
-// chatReplier is the shared voice of the templated modules: every line is
-// either the broadcaster's customized template for that reply or the localized
-// default, expanded with the caller's {token} values plus the constants every
-// line gets for free.
-//
-// Seven command types (quotes, queue, raffle, songqueue, loyalty, gamble,
-// duel) had each grown the same pick-template / expand / emit body, drifting
-// only in whether they accepted an override. Embedding it rather than passing
-// it around works because all seven already carried the *module.Context it
-// needs; a free function would have to be handed that context on every call.
 type chatReplier struct {
 	c *module.Context
 
-	// points is what {points} expands to: the channel's currency word, set
-	// only by the wager games. Blank leaves the token to the dynamic palette,
-	// so a quotes or queue template that happens to spell {points} keeps
-	// reading as the literal text it always did.
 	points string
 }
 
-// newChatReplier is the plain voice: localized defaults, broadcaster
-// overrides, no currency word.
 func newChatReplier(c *module.Context) chatReplier { return chatReplier{c: c} }
 
-// newGameReplier is the wager games' voice: the same lines plus {points}. An
-// unset currency name falls back to plain "points".
 func newGameReplier(c *module.Context, pointsName string) chatReplier {
 	return chatReplier{c: c, points: orDefault(strings.TrimSpace(pointsName), "points")}
 }
 
-// reply emits one chat line. override is the broadcaster's customized template
-// ("" for the fixed system lines, or an uncustomized customizable one); when
-// empty the localized default for key is used. kv are {token},value pairs
-// (token names without braces); {user} (the invoking chatter) and the pure
-// family ({random}, {choice:…}, {math:…}, {countdown:…}, …) are always
-// available, so a customized template can use them too.
 func (g chatReplier) reply(emit module.Emit, override string, key replyKey, kv ...string) {
 	line := override
 	if line == "" {
 		line = i18n.T(g.c.Locale, string(key))
 	}
-	// Common gives {user}/{channel} plus the pure family fallback ({random},
-	// {choice:…}, {math:…}, {countdown:…}, …); {points} merges in ahead of
-	// kv so a caller's own "points" pair (there has never been one) would
-	// still win, matching the lookup order this switch used to run by hand.
 	p := module.Common(g.c)
 	if g.points != "" {
 		p = p.Merge(module.KV("points", g.points))
@@ -76,17 +45,6 @@ func (g chatReplier) reply(emit module.Emit, override string, key replyKey, kv .
 	})
 }
 
-// loyaltyVoice is the currency word the wager games speak, and the runtime
-// half of "gamble/duel cannot run without loyalty". The dashboard is the
-// authoring half (nested toggles refuse to enable while loyalty is off).
-//
-// A nil projector skips the enable check: every existing game test wires
-// Loyalty/Duel without Proj, and adding a fake projector to each one would
-// only restate this gate. Production always has Proj. When Proj is set, an
-// off or missing loyalty module makes the game inert even if its own row
-// is still enabled (a stale flip, a forged write). The name always comes
-// from loyalty when it is on, so a leftover pointsName on the game blob
-// cannot drift from the ledger word.
 func loyaltyVoice(ctx context.Context, d engine.Deps, c *module.Context, fallback string) (name string, ok bool) {
 	if d.Proj == nil {
 		return orDefault(strings.TrimSpace(fallback), "points"), true

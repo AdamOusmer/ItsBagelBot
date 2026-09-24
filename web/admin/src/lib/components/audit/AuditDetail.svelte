@@ -1,13 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The whole stored audit row, verbatim. No EditorFooter and no verbs: an
-  // audit entry is immutable by design -- the trail is only worth reading if
-  // nothing in this console can rewrite it -- so the inspector is pure display.
-  //
-  // `detail` and `error` are shown in full and wrap; they are the two fields the
-  // row deliberately truncates, and truncating them here too would leave nowhere
-  // to read them.
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -20,8 +13,6 @@
   const { t } = getI18n();
   const kind = $derived(auditKind(entry.action));
 
-  // Absolute local timestamp: the row already carries the relative age, and an
-  // audit entry is read to answer "at what time", which "2d ago" cannot.
   const when = $derived(new Date(entry.created_at).toLocaleString());
 </script>
 

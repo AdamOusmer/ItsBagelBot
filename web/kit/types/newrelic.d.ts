@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Minimal ambient types for the New Relic Node agent. The runtime package does
-// not ship TypeScript declarations, so keep the surface used by both apps here.
 declare module 'newrelic' {
   type AttrValue = string | number | boolean;
 

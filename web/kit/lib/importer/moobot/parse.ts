@@ -1,33 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Envelope decoding, section parsers and the command/timer/alias expansion
-// pipeline: the port of moobot.go. Tag translation lives in ./tags.
-//
-// Browser-side parser for Moobot settings exports (Tools -> Import & Export ->
-// "Export this dashboard to a file"), ported one-for-one from
-// app/importer/source/moobot (moobot.go + tags.go) plus the mapping rules that
-// parser calls (NormalizeName, CanonicalizeResponse, ClampCooldown, permission
-// tiers). The point of the port: the wizard decodes/validates the export IN
-// THE BROWSER and POSTs only the resulting ImportManifest, so the raw file
-// never crosses the wire.
-//
-// Parity contract: this port is pinned against the Go parser's actual output
-// by moobot.test.ts, which replays the SAME fixture corpus through both
-// implementations (golden regenerated deliberately via
-// IMPORTER_MOOBOT_DUMP_JSON, see app/importer/source/moobot/dumpgolden_test.go
-// and testdata/moobot-golden.json). When you change the Go parser, regenerate
-// that golden and reconcile this file in the same change.
-//
-// Deliberate divergences from Go (none observable in manifests):
-//  - Diagnostic MESSAGE prose mirrors the server's wording but is not
-//    byte-identical (Go %v/%q formatting vs JS String()); only
-//    severity/item_index/code are pinned.
-//  - No worker/timeout around parse: JSON.parse is linear-time over an input
-//    already hard-capped at 10MB by the caller (~150ms worst case measured),
-//    and CSP forbids blob: workers here (script-src 'self'), so a worker buys
-//    isolation theater, not a bound. The try/catch + size cap ARE the bound.
-
 import type {
   ImportDiagnostic,
   ImportManifest,
@@ -39,9 +12,6 @@ import type {
 import { translateTags } from './tags';
 import type { TagContext, TagResult, TextOption } from './tags';
 
-// Codes restated from internal/domain/rpc/importer/importer.go, keep in step.
-// Every code this parser emits is a row here, so call sites never repeat raw
-// strings (the golden fixtures compare them verbatim).
 const CODE = {
   moduleReadFailed: 'module_read_failed',
   nameInvalid: 'command_name_invalid',
@@ -74,8 +44,6 @@ export const MOOBOT_SECTIONS = {
   respOverrides: 'responses'
 } as const;
 
-// Envelope rules mirror what Moobot's own reader enforces
-// (moobot.modal.settings-import-export.js): version 1, type "settings".
 const ENVELOPE_VERSION = 1;
 const ENVELOPE_TYPE = 'settings';
 
@@ -89,9 +57,6 @@ export class MoobotExportError extends Error {
 const encoder = new TextEncoder();
 const byteLen = (s: string): number => encoder.encode(s).length;
 
-// maxResponseLineLength / maxResponseLines / maxCooldownSeconds restate
-// app/importer/mapping (response.go, mapping.go): Twitch drops chat lines over
-// 500 bytes; responses cap at 5 lines; cooldowns fold onto 0..86400.
 const MAX_RESPONSE_LINE_BYTES = 500;
 const MAX_RESPONSE_LINES = 5;
 const MAX_COOLDOWN_SECONDS = 86400;
@@ -100,8 +65,6 @@ function q(s: string): string {
   return JSON.stringify(s);
 }
 
-// warnDiag/errDiag are the shared diagnostic factories; every finding in this
-// parser flows through one of them so the shape lives in exactly one place.
 function warnDiag(item_index: number, code: string, message: string): ImportDiagnostic {
   return { severity: 'warn', item_index, code, message };
 }
@@ -110,18 +73,10 @@ function errDiag(item_index: number, code: string, message: string): ImportDiagn
   return { severity: 'error', item_index, code, message };
 }
 
-// --- canonicalization primitives (ported from app/importer/mapping) ---------
-
-// NormalizeName: trim, strip ONE leading "!", trim, lowercase, identical to
-// mapping.NormalizeName so browser-produced names collide-detect the same way
-// server-side.
 export function normalizeName(name: string): string {
   return name.trim().replace(/^!/, '').trim().toLowerCase();
 }
 
-// truncateLineBytes cuts to at most limit BYTES without splitting a UTF-8
-// sequence (the bot posts these lines verbatim; a split emote would be invalid
-// UTF-8 on the wire).
 function truncateLineBytes(line: string, limit: number): string {
   let bytes = 0;
   let out = '';
@@ -134,10 +89,6 @@ function truncateLineBytes(line: string, limit: number): string {
   return out;
 }
 
-// canonicalizeResponse splits one source response into chat-ready lines,
-// mirroring mapping.CanonicalizeResponse: CRLF folded, blank lines dropped,
-// each line capped at 500 bytes, total capped at 5 lines, every lossy fix
-// reported as a warn diagnostic on itemIndex.
 function canonicalizeResponse(raw: string, itemIndex: number): {
   lines: string[];
   diags: ImportDiagnostic[];
@@ -169,15 +120,8 @@ function clampCooldown(seconds: number): number {
   return Math.min(seconds, MAX_COOLDOWN_SECONDS);
 }
 
-// --- permissions (ported from moobot.go resolveTriggerGroups) ---------------
-
 const PERM_RANK = ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'];
 
-// The five builtin Moobot usergroup ids, confirmed from their command-edit
-// modal; custom groups never appear in trigger_usergroups. Same table as
-// moobot.go usergroupLabels.
-// The five builtin Moobot usergroup ids; unknown ids are hostile-input
-// tolerance and degrade through the Partial lookup below.
 type MoobotUsergroup = 0 | 1 | 2 | 3 | 4;
 
 const USERGROUP_LABELS: Partial<Record<MoobotUsergroup, string>> = {
@@ -188,9 +132,6 @@ const USERGROUP_LABELS: Partial<Record<MoobotUsergroup, string>> = {
   4: 'subscribers'
 };
 
-// Shared permission alias table entries actually reachable from Moobot
-// usergroup labels (subset of mapping/permission.go; the full table also
-// covers other bots' spellings this parser never feeds it).
 const PERMISSION_ALIASES: Record<string, string> = {
   everyone: 'everyone',
   viewers: 'everyone',
@@ -248,33 +189,24 @@ function resolveTriggerGroups(ids: number[], itemIndex: number): PermResult {
   return { perm, diags };
 }
 
-// resolveOneGroup maps one builtin usergroup id to its tier, emitting that
-// id's diagnostics in order: unknown id, unrecognized feed, widened regulars.
 function resolveOneGroup(id: number, itemIndex: number, diags: ImportDiagnostic[]): { perm: string; label: string } {
   let label = USERGROUP_LABELS[id as MoobotUsergroup];
   if (label === undefined) {
     diags.push(warnDiag(itemIndex, CODE.permissionUnmapped, `unknown user group id ${id} treated as everyone`));
     label = 'everyone';
   }
-  // id 0 ("normal users") feeds the shared table as everyone; id 2
-  // (editors) narrows to moderators: Moobot editors outrank mods there,
-  // but our ladder has no editor tier and widening would invent trust
-  // (same decision record as moobot.go).
   const feed = id === 0 ? 'everyone' : id === 2 ? 'moderators' : label;
   const { perm, recognized } = mapPermission(feed);
   if (!recognized) {
     diags.push(warnDiag(itemIndex, CODE.permissionUnmapped, `permission group ${q(label)} is not recognized; defaulted to everyone`));
   }
   if (id === 3) {
-    // Regulars widens to everyone: we have no regular tier (CONTRACT §7).
     diags.push(warnDiag(itemIndex, CODE.permissionWidened,
       'Moobot regulars widen to everyone here (no regular tier); any viewer may run it'));
   }
   return { perm, label };
 }
 
-
-// --- raw shape --------------------------------------------------------------
 
 interface RawSection {
   type?: unknown;
@@ -293,9 +225,6 @@ interface RawCommand {
   enabled?: unknown;
   cooldown?: unknown;
   trigger_usergroups?: unknown;
-  // Read only for the count-remap diagnostic's "old value N" clause below;
-  // no longer imported as a counter's start value (see the decision record
-  // on parseCommandItem's <counter> handling).
   counter?: unknown;
   random_number_range_start?: unknown;
   random_number_range_end?: unknown;
@@ -323,8 +252,6 @@ const asNum = (v: unknown): number | undefined => (typeof v === 'number' && Numb
 const asObjArray = (v: unknown): Record<string, unknown>[] =>
   Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => x !== null && typeof x === 'object' && !Array.isArray(x)) : [];
 
-// stripBOM removes the UTF-8 byte-order mark Moobot exports can carry (Go's
-// decoder tolerates it mid-stream; JSON.parse does not, so drop it first).
 function stripBom(bytes: Uint8Array): Uint8Array {
   return bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf
     ? bytes.subarray(3)
@@ -332,15 +259,10 @@ function stripBom(bytes: Uint8Array): Uint8Array {
 }
 
 function decodeJson(bytes: Uint8Array): unknown {
-  // fatal:false matches Go's decoder, which replaces invalid UTF-8 rather
-  // than failing on it; syntax errors still throw like json.Unmarshal.
   const text = new TextDecoder('utf-8', { fatal: false }).decode(stripBom(bytes));
   return JSON.parse(text);
 }
 
-// isPlainObject is true for a decoded JSON value this envelope can read
-// fields off of: an object, but neither null nor an array (json.Unmarshal's
-// own "cannot unmarshal into envelope" refuses exactly these same shapes).
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   if (typeof v !== 'object' || v === null) return false;
   return !Array.isArray(v);
@@ -396,37 +318,23 @@ function sectionDiag(secType: string, err: unknown): ImportDiagnostic {
     `section ${q(secType)} could not be decoded (${(err as Error)?.message ?? String(err)}); skipped`);
 }
 
-// ParseState threads one export's accumulators through the per-section
-// parsers. Sections may arrive in any order, so aliases/timers stage until
-// after the command pass (as in moobot.go).
 interface ParseState {
   commands: ManifestCommand[];
   timers: ManifestTimer[];
   diags: ImportDiagnostic[];
-  // texts accumulates each translated response by normalized identifier so
-  // timers can expand against it.
   texts: Map<string, string>;
   stagedAliases: RawAlias[];
   stagedTimers: RawTimer[];
-  // fetchDefs accumulates synthesized urlfetch definition shells, deduped by
-  // slug across the whole export; emitted as manifest.fetches after the walk.
   fetchDefs: Map<string, ManifestFetch>;
 }
 
-// SectionParser handles one decoded settings section's object rows. Parsers
-// needing the RAW payload length read it off sec (the responses counter counts
-// non-object entries too); everyone else uses items.
 type SectionParser = (items: Record<string, unknown>[], sec: RawSection, state: ParseState) => void;
 
-// decodeSection mirrors Go's []commandItem unmarshal: a non-array payload is a
-// decode failure, and non-object entries drop from the rows.
 function decodeSection(sec: RawSection): Record<string, unknown>[] {
   if (!Array.isArray(sec.data)) throw new Error('data is not an array');
   return asObjArray(sec.data);
 }
 
-// guarded degrades one section's decode failure into a module_read_failed
-// diagnostic so the remaining sections still import.
 function guarded(parse: SectionParser): (sec: RawSection, state: ParseState) => void {
   return (sec, state) => {
     try {
@@ -464,10 +372,6 @@ function responseOverrideSection(_items: Record<string, unknown>[], sec: RawSect
     `${(sec.data as unknown[]).length} customized built-in response template(s) have no importable target; skipped`));
 }
 
-// parseMoobot translates one export file into a manifest plus diagnostics,
-// mirroring moobot.go Parse. Envelope failures throw MoobotExportError
-// (handler-level parse_failed); everything inside the envelope degrades
-// per-item so the good commands still import.
 export function parseMoobot(bytes: Uint8Array): {
   manifest: ImportManifest;
   diagnostics: ImportDiagnostic[];
@@ -500,19 +404,6 @@ function commandsSection(items: Record<string, unknown>[], _sec: RawSection, sta
   items.forEach((raw, pos) => parseCommandItem(raw as RawCommand, pos, state));
 }
 
-// parseCommandItem translates one custom command. Diagnostic order below is
-// pinned by the golden fixtures: permission findings, tag warnings (variable,
-// fetch-url, then the count remap), response canonicalization, then the
-// disabled marker. <counter> maps onto bare {count} (uses.go's alias of
-// {uses}), which carries no start value to import — the "count starts from
-// this bot's history" divergence Nightbot's $(count) mapping already
-// documents — so a remapped command earns CODE.countRemapped instead of a
-// ManifestCounter entry.
-// pushUnrecognizedAndPositionalDiags warns on two independent tag findings:
-// a bracketed word Moobot itself would not recognize, and a <2>..<5>
-// positional tag whose Moobot-side username fallback this bot does not
-// carry over. Split out of parseCommandItem so that function's shape stays
-// one branch per diagnostic kind, not per tag instance.
 function pushUnrecognizedAndPositionalDiags(tr: TagResult, idx: number, state: ParseState): void {
   for (const tok of tr.unrecognized) {
     state.diags.push(warnDiag(idx, CODE.variableUnmapped,
@@ -524,11 +415,6 @@ function pushUnrecognizedAndPositionalDiags(tr: TagResult, idx: number, state: P
   }
 }
 
-// attachSourceResponses mirrors canonicalizeResponse's split rule against the
-// untranslated line, so the review screen can show a broadcaster their own
-// <tags> above what this bot will actually say. Its own diagnostics are
-// discarded: canonicalizeResponse's truncation/drop findings are already
-// reported once, against the translated text.
 function attachSourceResponses(item: RawCommand, idx: number, cmd: ManifestCommand): void {
   const sourceLines = canonicalizeResponse(asStr(item.text), idx).lines;
   if (sourceLines.length) cmd.source_responses = sourceLines;
@@ -570,11 +456,6 @@ function applyCommandPermission(item: RawCommand, idx: number, cmd: ManifestComm
   state.diags.push(...permDiags);
 }
 
-// emitTagDiagnostics reports every tag translateTags could not fully resolve:
-// one warn per unmapped tag left as literal text, and one warn per distinct
-// fetch-backed tag whose definition still needs a URL — the tag itself
-// mapped fine, but its definition is a URL-less shell until the broadcaster
-// acts.
 function emitTagDiagnostics(tr: TagResult, idx: number, state: ParseState): void {
   for (const tok of tr.unmapped) {
     state.diags.push(warnDiag(idx, CODE.variableUnmapped,
@@ -587,12 +468,6 @@ function emitTagDiagnostics(tr: TagResult, idx: number, state: ParseState): void
   }
 }
 
-// emitCountRemapDiagnostic warns when <counter> mapped fine (no literal text
-// left over) but what it MEANS changed: Moobot's per-command counter
-// incremented on every run from whatever value the broadcaster set it to;
-// {count} counts this bot's own runs, starting from zero. The old value,
-// when the export carried one, could not come along — there is no field on
-// the imported command to hold it and nothing to add it to.
 function emitCountRemapDiagnostic(item: RawCommand, tr: TagResult, idx: number, state: ParseState): void {
   if (!tr.countRemapped) return;
   const old = asNum(item.counter);
@@ -602,8 +477,6 @@ function emitCountRemapDiagnostic(item: RawCommand, tr: TagResult, idx: number, 
       : `response uses <counter>, imported as {count}: it now counts this command’s own runs from zero; the old value ${Math.trunc(old)} was not carried over`));
 }
 
-// emitDisabledDiagnostic is kept as an error rather than a drop: preview
-// shows exactly why the command cannot land while commit skips it.
 function emitDisabledDiagnostic(item: RawCommand, idx: number, state: ParseState): void {
   if (item.enabled !== false) return;
   state.diags.push(errDiag(idx, CODE.commandDisabled,
@@ -635,8 +508,6 @@ function numOfList(v: unknown): number[] {
   return Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number' && Number.isFinite(x)) : [];
 }
 
-// Timer entries reference commands by IDENTIFIER STRING ("discord"); numbers
-// here are hostile-input tolerance, everything else degrades to nothing.
 function strList(v: unknown): string[] {
   return Array.isArray(v)
     ? v.filter((x): x is string | number => typeof x === 'string' || typeof x === 'number').map(String)
@@ -650,8 +521,6 @@ function optionsOf(v: unknown): TextOption[] | undefined {
     .map((x) => ({ text: asStr(x.text) }));
 }
 
-// applyAliases attaches alias names onto their target custom commands; all
-// alias diagnostics are manifest-level (-1), matching moobot.go.
 function applyAliases(state: ParseState): void {
   const byName = new Map<string, ManifestCommand>(state.commands.map((c) => [c.name, c]));
   for (const a of state.stagedAliases) {
@@ -685,18 +554,10 @@ function noteAliasArguments(a: RawAlias, diags: ImportDiagnostic[]): void {
   }
 }
 
-// applyTimers expands each Moobot timer into one ManifestTimer per referenced
-// command present in the export; a disabled timer is dropped outright (nothing
-// user-authored is lost, entries synthesize from referenced commands).
 function applyTimers(state: ParseState): void {
   for (const t of state.stagedTimers) expandTimer(t, state);
 }
 
-// SECONDS_PER_MINUTE converts Moobot's minute-based timer.time column.
-// Decision record (ported from moobot.go): Moobot stores intervals in MINUTES
-// while the manifest carries seconds; the dashboard enforces >=1 minute, so a
-// missing or nonsense time falls back to one minute rather than earning a
-// clamp warning.
 const SECONDS_PER_MINUTE = 60;
 
 const MOOBOT_FALLBACK_INTERVAL_SECONDS = SECONDS_PER_MINUTE;
@@ -718,8 +579,6 @@ function expandTimer(t: RawTimer, state: ParseState): void {
   expandTimerCommands(t, { desc, interval: timerIntervalSeconds(t) }, state);
 }
 
-// TimerPlan is one enabled timer's resolved identity and cadence before its
-// referenced commands are expanded.
 interface TimerPlan {
   desc: string;
   interval: number;
@@ -745,10 +604,6 @@ function expandTimerCommands(t: RawTimer, plan: TimerPlan, state: ParseState): v
   }
 }
 
-// resolveTimerCommands appends one timer entry per distinct identifier that
-// resolves against the command pass's translated texts.
-// resolveTimerCommands appends one timer entry per distinct identifier that
-// resolves against the command pass's translated texts.
 function resolveTimerCommands(
   idents: string[],
   plan: TimerPlan,

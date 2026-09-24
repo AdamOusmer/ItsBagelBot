@@ -34,7 +34,6 @@ func TestNextStreamInfoGoLiveSeedsFromEmpty(t *testing.T) {
 func TestNextStreamInfoPeakIsAHighWaterMark(t *testing.T) {
 	prev := projection.StreamInfo{PeakViewers: 100, ViewerCount: 40}
 
-	// A sample below the recorded peak must not lower it.
 	got := nextStreamInfo(prev, true, twitch.StreamDetails{ViewerCount: 60})
 	if got.PeakViewers != 100 {
 		t.Fatalf("PeakViewers = %d, want 100 (peak must not drop)", got.PeakViewers)
@@ -43,7 +42,6 @@ func TestNextStreamInfoPeakIsAHighWaterMark(t *testing.T) {
 		t.Fatalf("ViewerCount = %d, want 60 (current count tracks the latest sample)", got.ViewerCount)
 	}
 
-	// A sample above the recorded peak raises it.
 	got = nextStreamInfo(prev, true, twitch.StreamDetails{ViewerCount: 150})
 	if got.PeakViewers != 150 {
 		t.Fatalf("PeakViewers = %d, want 150", got.PeakViewers)
@@ -60,8 +58,6 @@ func TestNextStreamInfoGoOfflineSetsEndedAtAndKeepsPeak(t *testing.T) {
 	got := nextStreamInfo(prev, false, twitch.StreamDetails{})
 	after := time.Now()
 
-	// Each retained field asserted on its own, so a failure names the field
-	// that moved instead of reporting that one of three did.
 	retained := []struct {
 		field string
 		kept  bool
@@ -89,18 +85,6 @@ func TestNextStreamInfoGoLiveClearsPriorEndedAt(t *testing.T) {
 	}
 }
 
-// TestStreamStatusFailureAcksPermanentRejections pins which failures ack-drop a
-// stream_status job and which nack for redelivery. It exercises the classifier
-// through streamStatusFailure rather than through processStreamStatus because
-// w.live is a concrete *LiveWriter holding a real valkey.Client: injecting a
-// failing writer would mean either an interface this code does not otherwise
-// need or a live Valkey server in unit tests, and neither buys anything the
-// classifier table does not already prove.
-//
-// The ValkeyError cases use the zero value on purpose: valkey.ValkeyError's
-// fields are unexported, so a test outside that package cannot build one
-// carrying a message. Only its TYPE matters here, which is exactly what
-// errors.As matches on.
 func TestStreamStatusFailureAcksPermanentRejections(t *testing.T) {
 	w := &Worker{log: zap.NewNop()}
 

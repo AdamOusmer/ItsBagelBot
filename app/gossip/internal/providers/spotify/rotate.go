@@ -11,21 +11,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// keyRotator is the optional write-back half of the key resolver: custody
-// accepts a compare-and-swap replacement when Spotify rotates a refresh token
-// on exchange. Declared here rather than on provider.Deps so the shared
-// BroadcasterKeyResolver contract (which govee also implements) stays
-// read-only; core.SpotifyKeyClient satisfies it, test fakes need not.
 type keyRotator interface {
 	Rotate(ctx context.Context, broadcasterID, prevToken, newToken string) error
 }
 
-// persistRotation writes a rotated refresh token back to custody. Best-effort
-// by design: the freshly minted access token is already valid, so a write-back
-// failure must never fail the mint: it degrades to the pre-write-back
-// behavior (loud warn, store keeps the previous token, which Spotify keeps
-// valid unless it explicitly invalidates it). Token values never reach a log
-// on either path.
 func (p *api) persistRotation(ctx context.Context, broadcaster, prev, next string) {
 	if next == "" || next == prev {
 		return

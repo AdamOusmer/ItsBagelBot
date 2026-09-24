@@ -16,7 +16,7 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -52,7 +52,6 @@ func TestGoveeKeyRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "govee-secret-key", got)
 
-	// The plaintext must never sit in the column.
 	row := client.GoveeCredential.Query().Where(goveecredential.UserIDEQ(1001)).OnlyX(ctx)
 	assert.NotContains(t, string(row.KeyEnc), "govee-secret-key", "key must be sealed at rest")
 	assert.NotEmpty(t, row.KeyEnc)
@@ -107,8 +106,6 @@ func TestGoveeKeyAADBindsToUser(t *testing.T) {
 
 	require.NoError(t, creds.SetKey(ctx, 1001, "owner-key"))
 
-	// Copy user 1001's ciphertext onto user 2002's row: the AAD binds the
-	// envelope to 1001, so opening it as 2002 must fail rather than leak.
 	row := client.GoveeCredential.Query().Where(goveecredential.UserIDEQ(1001)).OnlyX(ctx)
 	client.GoveeCredential.Create().SetUserID(2002).SetKeyEnc(row.KeyEnc).ExecX(ctx)
 

@@ -15,7 +15,6 @@ import (
 )
 
 func TestRoutinePoolLaneLimitReserve(t *testing.T) {
-	// premium (lane 0) reserves 25%; standard (lane 1) reserves nothing.
 	p := newRoutinePool([]int{25, 0}, 4)
 
 	if got := p.laneLimit(0); got != 4 {
@@ -26,20 +25,15 @@ func TestRoutinePoolLaneLimitReserve(t *testing.T) {
 	}
 }
 
-// TestRoutinePoolReserveSurvivesSmallPool pins the ceil rounding: a 25% premium
-// reserve must hold at least one slot even in a 2- or 3-routine pool, where
-// truncating capacity*reserve/100 down would round the reservation to zero and
-// let a standard flood take the whole pool at raid onset (before the autoscaler
-// grows the pool past capacity 4).
 func TestRoutinePoolReserveSurvivesSmallPool(t *testing.T) {
 	cases := []struct {
 		capacity     int
-		wantPremium  int // premium may use the whole pool
-		wantStandard int // pool minus premium's rounded-up reserve
+		wantPremium  int
+		wantStandard int
 	}{
-		{1, 1, 1}, // no reservation possible at one slot; neither lane starved
-		{2, 2, 1}, // premium keeps 1 (old math gave standard 2, reserve 0)
-		{3, 3, 2}, // premium keeps 1 (old math gave standard 3, reserve 0)
+		{1, 1, 1},
+		{2, 2, 1},
+		{3, 3, 2},
 		{4, 4, 3},
 		{8, 8, 6},
 	}
@@ -60,14 +54,12 @@ func TestRoutinePoolReserveSurvivesSmallPool(t *testing.T) {
 func TestRoutinePoolStandardCannotTakeReservedSlots(t *testing.T) {
 	p := newRoutinePool([]int{25, 0}, 4)
 
-	// Standard fills its 3-slot allowance.
 	for i := 0; i < 3; i++ {
 		if !p.acquire(1) {
 			t.Fatalf("standard acquire %d should succeed", i)
 		}
 	}
 
-	// A 4th standard acquire must block (would eat premium's reserve).
 	blocked := make(chan struct{})
 	go func() {
 		p.acquire(1)
@@ -79,12 +71,10 @@ func TestRoutinePoolStandardCannotTakeReservedSlots(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 
-	// Premium can still take the reserved slot even while standard is maxed.
 	if !p.acquire(0) {
 		t.Fatal("premium acquire should succeed into its reserved slot")
 	}
 
-	// Free a standard slot; the blocked standard acquire now proceeds.
 	p.release(1)
 	select {
 	case <-blocked:
@@ -93,10 +83,6 @@ func TestRoutinePoolStandardCannotTakeReservedSlots(t *testing.T) {
 	}
 }
 
-// newTestFleet wires an admission gate and a persistent worker fleet over one
-// lane the way startUnit does, and returns the three pieces a reader touches.
-// capacity is the gate's starting size, max the ceiling the fleet's channels are
-// sized for (ScalePolicy.MaxRoutines).
 func newTestFleet(capacity, max int, handle func(*Message) error) (*workerPool, *routinePool, *sync.WaitGroup) {
 	gate := newRoutinePool([]int{0}, capacity)
 	dispatched := &sync.WaitGroup{}
@@ -104,8 +90,6 @@ func newTestFleet(capacity, max int, handle func(*Message) error) (*workerPool, 
 	return newWorkerPool(procs, gate, dispatched, max), gate, dispatched
 }
 
-// dispatchOne performs exactly one reader step against the fleet: claim the
-// lane's slot, count the dispatch for Drain, hand it over.
 func dispatchOne(t *testing.T, w *workerPool, gate *routinePool, dispatched *sync.WaitGroup) {
 	t.Helper()
 	if !gate.acquire(0) {
@@ -120,9 +104,6 @@ func waitForWorkers(t *testing.T, w *workerPool, want int) {
 	waitFor(t, func() bool { return w.liveWorkers() == want }, fmt.Sprintf("live workers never reached %d", want))
 }
 
-// TestWorkerPoolResizeFollowsCapacity pins the cheap half of a resize: the fleet
-// grows and shrinks by the delta the autoscaler asked for, and an idle worker
-// retires promptly rather than lingering until the next message.
 func TestWorkerPoolResizeFollowsCapacity(t *testing.T) {
 	w, _, dispatched := newTestFleet(4, 4, func(*Message) error { return nil })
 
@@ -136,9 +117,6 @@ func TestWorkerPoolResizeFollowsCapacity(t *testing.T) {
 	waitForWorkers(t, w, 0)
 }
 
-// TestWorkerPoolShrinkFinishesCurrentMessage pins the graceful half: a worker
-// checks for its retirement token only between messages, so shrinking under load
-// can never abandon a handler mid-flight or drop the ack it owes.
 func TestWorkerPoolShrinkFinishesCurrentMessage(t *testing.T) {
 	entered := make(chan struct{}, 2)
 	release := make(chan struct{})
@@ -155,9 +133,9 @@ func TestWorkerPoolShrinkFinishesCurrentMessage(t *testing.T) {
 	dispatchOne(t, w, gate, dispatched)
 	dispatchOne(t, w, gate, dispatched)
 	<-entered
-	<-entered // both workers are inside a handler
+	<-entered
 
-	w.resize(1) // the token has to wait: neither worker is between messages
+	w.resize(1)
 
 	time.Sleep(50 * time.Millisecond)
 	if got := atomic.LoadInt64(&finished); got != 0 {
@@ -169,9 +147,6 @@ func TestWorkerPoolShrinkFinishesCurrentMessage(t *testing.T) {
 
 	close(release)
 	waitForWorkers(t, w, 1)
-	// The retiring worker drops the live count only after its handler returns,
-	// but the surviving worker's handler is still racing to completion at that
-	// instant; a bare read here saw finished = 1 in roughly one run in fifty.
 	waitFor(t, func() bool { return atomic.LoadInt64(&finished) == 2 },
 		"finished never reached 2 (both in-flight messages must run to completion)")
 
@@ -180,11 +155,6 @@ func TestWorkerPoolShrinkFinishesCurrentMessage(t *testing.T) {
 	waitForWorkers(t, w, 0)
 }
 
-// TestWorkerPoolGrowCancelsPendingRetirement pins the no-churn rule: the
-// autoscaler steps by ±1 every second, so a shrink immediately followed by a
-// grow must take the retirement back rather than retire one goroutine and spawn
-// another. Blocking the handlers holds the token in the buffer for the whole
-// test, which is exactly the window a grow has to cancel it in.
 func TestWorkerPoolGrowCancelsPendingRetirement(t *testing.T) {
 	entered := make(chan struct{}, 2)
 	release := make(chan struct{})
@@ -201,8 +171,8 @@ func TestWorkerPoolGrowCancelsPendingRetirement(t *testing.T) {
 	<-entered
 	<-entered
 
-	w.resize(1) // token queued, unreachable while both workers are busy
-	w.resize(2) // must cancel it instead of spawning a third worker
+	w.resize(1)
+	w.resize(2)
 
 	if got := w.liveWorkers(); got != 2 {
 		t.Fatalf("live workers = %d after shrink+grow, want 2 (no spawn, no churn)", got)
@@ -219,17 +189,13 @@ func TestWorkerPoolGrowCancelsPendingRetirement(t *testing.T) {
 	waitForWorkers(t, w, 0)
 }
 
-// TestWorkerPoolStopDrainsQueuedDispatches pins the shutdown contract the
-// WaitGroup discipline rests on: every dispatch a reader counted up is run by a
-// worker even when it was still sitting in the work buffer when the channel
-// closed. If close could strand a buffered dispatch, Drain would hang forever.
 func TestWorkerPoolStopDrainsQueuedDispatches(t *testing.T) {
 	var ran int64
 	w, gate, dispatched := newTestFleet(4, 4, func(*Message) error {
 		atomic.AddInt64(&ran, 1)
 		return nil
 	})
-	w.resize(1) // one worker, so most of the dispatches queue in the buffer
+	w.resize(1)
 
 	for i := 0; i < 4; i++ {
 		dispatchOne(t, w, gate, dispatched)
@@ -247,10 +213,6 @@ func TestWorkerPoolStopDrainsQueuedDispatches(t *testing.T) {
 	waitForWorkers(t, w, 0)
 }
 
-// TestConsumerUnitSetRoutinesKeepsFleetAtLeastCapacity pins the ordering that
-// makes a lane reserve worth a worker rather than a place in a queue: whichever
-// direction the autoscaler moves, the fleet is never smaller than the number of
-// slots the gate is handing out.
 func TestConsumerUnitSetRoutinesKeepsFleetAtLeastCapacity(t *testing.T) {
 	w, gate, dispatched := newTestFleet(2, 6, func(*Message) error { return nil })
 	w.resize(2)
@@ -273,8 +235,6 @@ func TestConsumerUnitSetRoutinesKeepsFleetAtLeastCapacity(t *testing.T) {
 	dispatched.Wait()
 }
 
-// fakeSub is a minimal Subscriber: every Subscribe returns the same
-// shared channel so multiple consumers compete for one stream of messages.
 type fakeSub struct {
 	ch chan *Message
 }
@@ -351,10 +311,6 @@ func TestConsumeWeightedProcessesAndScales(t *testing.T) {
 	}
 }
 
-// TestConsumeWeightedDrainWaitsForInflight pins the shutdown contract P1 depends
-// on: after the consumer's context is cancelled (SIGTERM), Drain must not return
-// until a handler that was already dispatched has run to completion, so main can
-// flush reporters and close publishers without abandoning in-flight work.
 func TestConsumeWeightedDrainWaitsForInflight(t *testing.T) {
 	sub := &fakeSub{ch: make(chan *Message)}
 
@@ -362,7 +318,7 @@ func TestConsumeWeightedDrainWaitsForInflight(t *testing.T) {
 	release := make(chan struct{})
 	var finished int64
 	handle := func(m *Message) error {
-		close(started) // exactly one message is sent, so handle runs once
+		close(started)
 		<-release
 		atomic.AddInt64(&finished, 1)
 		return nil
@@ -378,21 +334,20 @@ func TestConsumeWeightedDrainWaitsForInflight(t *testing.T) {
 	}
 
 	sub.ch <- NewMessage("id", nil)
-	<-started // the handler is in-flight, blocked on release
+	<-started
 
-	cancel() // stop pulling, as SIGTERM does
+	cancel()
 
 	drained := make(chan error, 1)
 	go func() { drained <- w.Drain(context.Background()) }()
 
-	// Drain must block while the handler is still running.
 	select {
 	case <-drained:
 		t.Fatal("Drain returned before the in-flight handler finished")
 	case <-time.After(50 * time.Millisecond):
 	}
 
-	close(release) // let the handler complete
+	close(release)
 
 	select {
 	case err := <-drained:
@@ -407,9 +362,6 @@ func TestConsumeWeightedDrainWaitsForInflight(t *testing.T) {
 	}
 }
 
-// TestConsumeWeightedDrainDeadline pins the other half: a handler that outlives
-// the drain deadline does not hang shutdown forever; Drain returns the context
-// error so main can log and exit, leaving the event for redelivery.
 func TestConsumeWeightedDrainDeadline(t *testing.T) {
 	sub := &fakeSub{ch: make(chan *Message)}
 
@@ -417,7 +369,7 @@ func TestConsumeWeightedDrainDeadline(t *testing.T) {
 	release := make(chan struct{})
 	handle := func(m *Message) error {
 		close(started)
-		<-release // never released before the deadline
+		<-release
 		return nil
 	}
 
@@ -440,12 +392,9 @@ func TestConsumeWeightedDrainDeadline(t *testing.T) {
 		t.Fatal("Drain returned nil, want a deadline error")
 	}
 
-	close(release) // unblock the handler so the goroutine does not leak
+	close(release)
 }
 
-// laneSub gives each subject its own stream, so a test can flood one lane
-// without the other lane's reader stealing the messages (fakeSub shares one
-// channel between every subscription and cannot express that).
 type laneSub struct {
 	lanes map[string]chan *Message
 }
@@ -481,12 +430,6 @@ func (l *laneSub) Subscribe(ctx context.Context, subject string) (<-chan *Messag
 
 func (l *laneSub) Close() error { return nil }
 
-// TestConsumeWeightedPremiumReserveSurvivesStandardFlood is the end-to-end form
-// of the reserve invariant, and the one persistent workers had to preserve: the
-// fleet is shared by every lane, so a standard flood that pinned every worker
-// would starve premium just as effectively as one that took every slot. It
-// cannot, because the fleet is never smaller than the gate's capacity and the
-// gate caps standard below it — the reserved slot always has an idle worker.
 func TestConsumeWeightedPremiumReserveSurvivesStandardFlood(t *testing.T) {
 	sub := newLaneSub("premium", "standard")
 	load := newHeldLoad()
@@ -500,8 +443,6 @@ func TestConsumeWeightedPremiumReserveSurvivesStandardFlood(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Four routines with a 25% premium reserve: standard may hold 3, premium may
-	// hold all 4, so the fourth slot and the fourth worker are premium's alone.
 	w, err := ConsumeWeighted(ctx, nil, []WeightedLane{
 		{Sub: sub, Subject: "premium", Handle: premium, Reserve: 25},
 		{Sub: sub, Subject: "standard", Handle: load.handle},
@@ -512,7 +453,7 @@ func TestConsumeWeightedPremiumReserveSurvivesStandardFlood(t *testing.T) {
 
 	stopFlood := floodLane(sub.lanes["standard"], "standard")
 	for i := 0; i < 3; i++ {
-		<-load.entered // standard is holding its whole allowance, and blocking in it
+		<-load.entered
 	}
 
 	sub.lanes["premium"] <- NewMessage("premium", nil)
@@ -533,10 +474,6 @@ func TestConsumeWeightedPremiumReserveSurvivesStandardFlood(t *testing.T) {
 	}
 }
 
-// heldLoad is a handler that parks every delivery inside itself until release is
-// closed, and records how many were inside at once. That high-water mark is the
-// lane's real slot occupancy, which is what a reserve has to hold below the
-// fleet size.
 type heldLoad struct {
 	entered chan struct{}
 	release chan struct{}
@@ -579,7 +516,6 @@ func (l *heldLoad) highWater() int {
 	return l.peak
 }
 
-// floodLane keeps one lane saturated until the returned stop function is called.
 func floodLane(lane chan<- *Message, id string) func() {
 	flood := make(chan struct{})
 	go func() {
@@ -594,20 +530,6 @@ func floodLane(lane chan<- *Message, id string) func() {
 	return func() { close(flood) }
 }
 
-// BenchmarkDispatchHandoff and BenchmarkDispatchGoroutinePerMessage measure the
-// one thing this change replaced: what the serial reader loop pays to get a
-// message onto another goroutine. That cost is the lane's dispatch ceiling —
-// the loop runs once per message on a single goroutine per lane — so it is worth
-// isolating from everything around it.
-//
-// The admission gate is deliberately outside both loops. It is untouched here,
-// common to both shapes, and expensive enough per release (a cond.Broadcast that
-// wakes every waiter) to bury the difference rather than show it; measured
-// together the two shapes land within noise of each other and of the gate.
-// BenchmarkDispatchWorkerPool is the whole path with the gate back in.
-//
-// Both keep the Drain bookkeeping, because that is per-message cost that did not
-// change and it must not be attributed to either mechanism.
 func BenchmarkDispatchHandoff(b *testing.B) {
 	const routines = 8
 
@@ -638,11 +560,6 @@ func BenchmarkDispatchHandoff(b *testing.B) {
 	dispatched.Wait()
 }
 
-// BenchmarkDispatchGoroutinePerMessage is the standing control: the shape
-// startReaders used before persistent workers, spawning one goroutine per
-// message from inside the serial loop with the same message hand-off and the
-// same Drain bookkeeping. It is kept because the two shapes cannot otherwise be
-// measured against each other in one tree.
 func BenchmarkDispatchGoroutinePerMessage(b *testing.B) {
 	dispatched := &sync.WaitGroup{}
 	msg := NewMessage("bench", nil)
@@ -652,18 +569,13 @@ func BenchmarkDispatchGoroutinePerMessage(b *testing.B) {
 		dispatched.Add(1)
 		go func(m *Message) {
 			defer dispatched.Done()
-			_ = m // the old dispatch carried the message in and nothing else
+			_ = m
 		}(msg)
 	}
 
 	dispatched.Wait()
 }
 
-// BenchmarkDispatchWorkerPool measures the whole path end to end — reader step,
-// admission gate, hand-off, worker, and consumeLane.process with a no-op handler
-// and no New Relic application — so the dispatch mechanism can be read against
-// the per-message work it feeds. Unlike the two above it allocates one Message
-// per iteration, which no reader does: the subscriber owns that allocation.
 func BenchmarkDispatchWorkerPool(b *testing.B) {
 	const routines = 8
 

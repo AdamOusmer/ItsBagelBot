@@ -2,13 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Rpc do
-  @moduledoc """
-  Node-local-first Core NATS routing with the generic queue retained for HA.
-
-  A generic retry is safe only after NATS returns `:no_responders`. Timeouts and
-  connection failures are returned unchanged because a mutation may have run.
-  """
-
   @node_token "node"
 
   def subjects(subject, node \\ System.get_env("NODE_NAME")) do
@@ -24,6 +17,7 @@ defmodule Ingress.Rpc do
         Gnat.request(connection, generic, body, opts)
 
       [generic, local] ->
+        # Only :no_responders proves nothing ran; retrying a timeout can repeat a mutation.
         case Gnat.request(connection, local, body, opts) do
           {:error, :no_responders} -> Gnat.request(connection, generic, body, opts)
           result -> result

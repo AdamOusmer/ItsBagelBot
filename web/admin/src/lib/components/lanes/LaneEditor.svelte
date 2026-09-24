@@ -2,20 +2,6 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The lane inspector. Three verbs, three shapes:
-  //
-  //   alias   -- a draft field with the EditorFooter, because it is a KV write
-  //              the operator can undo by typing the old name back.
-  //   durable -- a Switch, one-way: JetStream can promote an ephemeral consumer
-  //              to a durable copy but cannot demote one, so the switch is
-  //              disabled once it is on rather than pretending to be a toggle.
-  //   delete  -- a confirmed button, offered only for an orphan. The server
-  //              refuses a bound consumer anyway; hiding it elsewhere means the
-  //              operator is not offered a verb whose only outcome is a 502.
-  //
-  // The <form> wraps the alias field AND the EditorFooter (the footer's Save is
-  // this form's submit button), with the footer a sibling after the scroll area
-  // so it never scrolls out of view.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
   import Field from '@bagel/ui/svelte/Field.svelte';

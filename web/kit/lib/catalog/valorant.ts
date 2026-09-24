@@ -1,16 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The Valorant module's catalog definition, split out of types.ts for the
-// same reason as games.ts: five customizable replies plus settings
-// make it one of the longest MODULE_CATALOG entries, and its token palettes
-// mirror app/twitch/sesame/modules/valorant.go (same config keys, same defaults).
 import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD } from './shared-fields';
 
 export const VALORANT_MODULE_DEF: ModuleDef = {
-  // All five !val views are gossip lookups, so their token palettes below
-  // mirror app/twitch/sesame/modules/valorant.go.
   id: 'valorant',
   label: 'Valorant Stats',
   tagline: 'Valorant ranks, match history, leaderboards and the daily shop rotation in chat.',

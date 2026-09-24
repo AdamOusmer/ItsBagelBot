@@ -24,7 +24,7 @@ func TestLogOccupancyEmitsPerCacheFields(t *testing.T) {
 	defer commands.Close()
 
 	users.Set("a", 1)
-	users.client.Wait() // drain the async write buffer so Len is accurate
+	users.client.Wait()
 
 	logOccupancy(log, map[string]OccupancySource{
 		"users":    users,

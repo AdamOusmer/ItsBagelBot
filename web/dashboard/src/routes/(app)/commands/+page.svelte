@@ -51,16 +51,9 @@
   const { t } = getI18n();
   const failed = toastFailure(toast, t);
 
-  // Local source of truth, seeded from the SSR load. Each action result is
-  // reconciled row-by-row into this list (see applyResult) rather than wholesale
-  // replacing it with the server's snapshot: concurrent submits then only touch
-  // their own row, so a slower reply built from a pre-flush DB snapshot cannot
-  // clobber another in-flight change.
   // svelte-ignore state_referenced_locally
   let items = $state<CommandView[]>(data.commands ?? []);
 
-  // Resync when a fresh SSR load delivers a different list (full reload), but
-  // not on optimistic edits. Those mutate items without touching data.commands.
   // svelte-ignore state_referenced_locally
   let seed = data.commands;
   $effect(() => {
@@ -70,14 +63,6 @@
     }
   });
 
-  // Data sources for the {urlfetch:…} palette chip. Held locally so the builder
-  // can hand back the server's refreshed list after a create or delete without
-  // invalidating the whole page. The command draft in the open editor would be
-  // lost to a reload, and losing an unsaved reply to add a data source is
-  // exactly the interruption this redesign removes.
-  // Annotated rather than inferred: the load's degraded branch returns a bare
-  // `[]`, which infers as never[] and makes the builder's refreshed list
-  // unassignable on the way back in.
   // svelte-ignore state_referenced_locally
   let fetchDefs = $state<SourceDef[]>(data.defs ?? []);
   // svelte-ignore state_referenced_locally
@@ -100,9 +85,6 @@
     commands?: CommandView[];
   };
 
-  // Reconcile one action result into the local list. Uses only the affected
-  // command (looked up by name) plus the original name on rename, never the
-  // whole returned list, so it is order-independent across concurrent results.
   function applyResult(d: ActionResult) {
     if (!d.ok) {
       if (d.error) toast('err', d.error);
@@ -128,9 +110,6 @@
     }
   }
 
-  // --- Per-row save-state machine ------------------------------------------
-  // saving -> saved (server ack) -> idle. There is no timer-driven "live"/"synced"
-  // claim: the dashboard has no delivery ack, so it must not assert one.
   let rowStatus = $state<Record<string, SaveState>>({});
   const statusTimers = new Map<string, ReturnType<typeof setTimeout>[]>();
 
@@ -154,9 +133,7 @@
     statusTimers.set(name, [setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'idle' }), 4000)]);
   }
 
-  // --- Filters ---------------------------------------------------------------
   const filters = ['All', 'Active', 'Disabled', 'Built-in', 'Custom'] as const;
-  // Internal keys drive the filter logic; only the display label is translated.
   const filterLabel = (f: (typeof filters)[number]) =>
     f === 'Active'
       ? t('commands.filterActive')
@@ -167,11 +144,6 @@
           : f === 'Custom'
             ? t('commands.filterCustom')
             : t('commands.filterAll');
-  // SegmentedControl keys its options by their DISPLAYED string -- the same
-  // contract every other caller of it uses -- so the bound state is the label
-  // and the internal key is derived back out of it. The reverse (bind the key,
-  // translate on render) would need the control to carry a value/label split
-  // that no other filter in the console needs.
   const filterOptions = $derived(filters.map(filterLabel));
   let activeLabel = $state(filterLabel('All'));
   const active = $derived(filters.find((f) => filterLabel(f) === activeLabel) ?? 'All');
@@ -201,16 +173,9 @@
           c.response.toLowerCase().includes(q)
         );
       })
-      // Ranked by use, not by name: the deck's job is to show what the channel
-      // actually fires. Ties fall back to the name so the order is stable
-      // across re-derives (most rows start life at 0 uses).
       .toSorted((a, b) => usesCount(b) - usesCount(a) || a.name.localeCompare(b.name))
   );
 
-  // Built-ins are separated into their own group rather than sorted to the top:
-  // the two halves obey different rules (yours are editable, built-ins only
-  // take a reply template), and the header is where that gets said once instead
-  // of per row. Empty groups drop out so a filter never leaves a bare heading.
   const groups = $derived(
     [
       {
@@ -228,13 +193,8 @@
     ].filter((g) => g.rows.length > 0)
   );
 
-  // Full width of a row's use bar. Taken over the visible rows so filtering to a
-  // quiet corner of the deck still spreads that corner across the track.
   const usesMax = $derived(Math.max(1, ...rows.map(usesCount)));
 
-  // Head readouts. `fires` is the lifetime counter the backend keeps: there is
-  // no 24h window in the command payload, so the strip says "total" rather than
-  // implying a rolling figure it cannot compute.
   const fires = $derived(items.reduce((n, c) => n + usesCount(c), 0));
   const busiest = $derived(
     items.length === 0
@@ -242,13 +202,11 @@
       : items.reduce((top, c) => (usesCount(c) > usesCount(top) ? c : top))
   );
 
-  // --- Inline editor ----------------------------------------------------------
   const NEW = '__new__';
   let expanded = $state<string | null>(null);
   let editorDraft = $state<CommandDraft | null>(null);
   let serverErrors = $state<CommandErrors | null>(null);
   let busy = $state(false);
-  // Bumped whenever sessionStorage drafts may have changed, so unsaved chips re-derive.
   let draftVersion = $state(0);
 
   function blankDraft(): CommandDraft {
@@ -284,11 +242,8 @@
     };
   }
 
-  // Bumped to remount the editor with a fresh baseline (after save, or on open).
   let editorGen = $state(0);
 
-  // The committed baseline for the open draft (what "saved" looks like), used to
-  // tell whether the editor is dirty. Built-ins are read-only (never dirty).
   const committedDraft = $derived.by<CommandDraft | null>(() => {
     if (!editorDraft || editorDraft.builtin) return null;
     if (editorDraft.edit) {
@@ -305,9 +260,6 @@
       : false
   );
 
-  // Dirty guard: close / row-switch / new all route through one confirmation
-  // rather than silently dropping in-progress edits. The sessionStorage mirror
-  // still backs a forced browser reload; a deliberate discard clears it.
   const discard = createDiscardGuard(
     () => isDirty,
     () => {
@@ -318,9 +270,6 @@
 
   function doOpenNew(name = '') {
     serverErrors = null;
-    // A draft under the "new" key only survives a forced reload; restore quietly.
-    // A name typed into the filter wins over that restored draft's name: the
-    // user asked for THAT command by typing it and pressing create.
     const draft = loadDraft('', false) ?? blankDraft();
     editorDraft = name ? { ...draft, name } : draft;
     expanded = NEW;
@@ -328,23 +277,17 @@
   }
   function doOpenEdit(c: CommandView) {
     serverErrors = null;
-    // Built-ins have no editable draft: read-only preview + toggle.
     if (c.builtin) {
       editorDraft = { ...blankDraft(), edit: true, name: c.name, originalName: c.name, is_active: c.is_active, builtin: true };
       expanded = c.name;
       editorGen++;
       return;
     }
-    // Overlay live Active onto a restored sessionStorage draft: a snapshot
-    // taken while the command was on must not re-enable it (#221).
     editorDraft = overlayLiveActive(loadDraft(c.name, true) ?? fromView(c), c.is_active);
     expanded = c.name;
     editorGen++;
   }
 
-  // Keep the open edit draft's Active in lockstep with the live row. Reassign
-  // (don't mutate) so the bound Switch sees the new value; untrack the write
-  // so overlaying is_active cannot re-enter the effect.
   $effect(() => {
     const d = editorDraft;
     const live =
@@ -354,7 +297,6 @@
       editorDraft = overlayLiveActive(d, live.is_active);
     });
   });
-  // Unguarded close for the delete path (the command is already gone).
   function doCloseEditor() {
     expanded = null;
     editorDraft = null;
@@ -366,8 +308,6 @@
     discard.guard(() => doOpenNew());
   }
 
-  // The filter doubles as the create field: a name that matches nothing is an
-  // offer to build it, so the deck never dead-ends on "no results".
   const typedName = $derived(normName(search));
   const canCreateTyped = $derived(
     typedName.length > 1 &&
@@ -380,14 +320,8 @@
     discard.guard(() => doOpenNew(name));
   }
 
-  // --- Deep-link compose (marketing command builder) ---------------------------
-  // The public command builder links here as /commands?compose=1&name=…&response=…
-  // A valid draft opens a confirmation modal (summary + the same chat rehearsal
-  // as the editor) and one press creates the command: no inspector round-trip.
-  // A draft the validator rejects falls back to the pre-filled editor so the
-  // visitor can fix it. The path (with query) survives the login round-trip via
-  // safeNextPath, same as /billing?subscribe=1. Runs once on mount; the params
-  // are then stripped so a refresh can't re-run a stale compose.
+  const COMMAND_ALIASES_MAX = 25;
+  const RESPONSE_COLUMN_MAX_CHARS = 2504;
   let composeDraft = $state<CommandDraft | null>(null);
   let composeBusy = $state(false);
   const matchingCustom = (name: string) => items.find((c) => !c.builtin && c.name === name);
@@ -404,10 +338,8 @@
     const draft: CommandDraft = {
       ...blankDraft(),
       name: normName(url.searchParams.get('name') ?? '').slice(0, COMMAND_NAME_MAX),
-      // The Go validator caps aliases at 25; drop the excess instead of failing.
-      aliases: [...new Set(aliases)].slice(0, 25),
-      // 2504 is the response column's MaxLen; validateCommand owns line rules.
-      response: (url.searchParams.get('response') ?? '').slice(0, 2504),
+      aliases: [...new Set(aliases)].slice(0, COMMAND_ALIASES_MAX),
+      response: (url.searchParams.get('response') ?? '').slice(0, RESPONSE_COLUMN_MAX_CHARS),
       perm: (PERMS as readonly string[]).includes(perm) ? (perm as Perm) : 'everyone',
       cooldown: Math.min(Math.max(cooldown, 0), COOLDOWN_MAX)
     };
@@ -426,7 +358,6 @@
     if (Object.keys(problems).length === 0) {
       composeDraft = draft;
     } else {
-      // Broken deep link: hand it to the editor with the fields to fix.
       serverErrors = problems;
       editorDraft = draft;
       expanded = NEW;
@@ -436,8 +367,6 @@
     for (const key of ['compose', 'name', 'response', 'perm', 'cooldown', 'aliases', 'lang']) {
       url.searchParams.delete(key);
     }
-    // Deferred: the router hasn't claimed the initial history entry yet when
-    // onMount runs, and a same-tick replaceState is dropped.
     setTimeout(() => replaceState(url, {}), 0);
   });
 
@@ -450,8 +379,6 @@
     const d = composeDraft;
     if (!d || composeBusy) return;
     composeBusy = true;
-    // A replace edits content only (#221): keep the stored enabled state.
-    // Composing over a disabled command must not resurrect it.
     const existing = matchingCustom(d.name);
     const view: CommandView = {
       name: d.name,
@@ -465,8 +392,6 @@
     };
     const body = formDataFor(view);
     if (existing) {
-      // The modal warned "replace": save as an edit so the server reports
-      // (and audits) an update, not a create.
       body.set('edit', '1');
       body.set('original_name', d.name);
     }
@@ -475,9 +400,7 @@
     composeBusy = false;
     composeDraft = null;
     if (payload?.ok) {
-      applyResult(payload); // reconciles the row and toasts created/updated
-      // The write can land while the read-back fails (empty commands[]);
-      // reconcile from the draft so the toasted command is actually visible.
+      applyResult(payload);
       if (!items.some((c) => c.name === d.name)) {
         items = [...items, view];
       }
@@ -485,8 +408,6 @@
       return;
     }
     flagError(d.name);
-    // Never drop the composed work: reopen it in the editor, with the
-    // server's field complaints when it sent any.
     serverErrors = payload?.errors ?? null;
     editorDraft = d;
     expanded = NEW;
@@ -509,27 +430,17 @@
     return hasDraft(name);
   };
 
-  // --- Save (optimistic with row-level rollback) -----------------------------
   const saveSubmit: SubmitFunction = ({ formData }) => {
     const d = editorDraft;
     if (!d) return;
     const key = normName(d.name);
     const orig = d.edit ? normName(d.originalName) : undefined;
-    // The selection at submit time. The row-keyed list reconciliation (applyResult)
-    // is order-independent, but the editor re-seed and inline serverErrors target
-    // whatever is open, so a late response must only touch the editor if the user
-    // is still on the command it was submitted for.
     const submittedExpanded = expanded;
 
-    // Content save must not write the inspector's Active snapshot (#221): a
-    // disabled command stayed disabled, and a row toggle with the inspector
-    // open is not reverted. Create still uses the draft checkbox.
     const live = items.find((c) => c.name === (orig ?? key));
     const isActive = persistCommandActive(d.edit, d.is_active, live?.is_active);
     formData.set('is_active', isActive ? 'on' : '');
 
-    // Row-level snapshot: rollback restores only the affected row(s), so a
-    // concurrent toggle on another row can't be clobbered.
     const prevRows = items.filter((c) => c.name === key || c.name === orig);
     const optimistic: CommandView = {
       name: key,
@@ -554,17 +465,12 @@
           ? (result.data as ActionResult | undefined)
           : undefined;
 
-      // Did the user leave the command this response was submitted for?
       const stillOpen = expanded === submittedExpanded;
 
       if (result.type === 'success' && payload?.ok) {
         applyResult({ ...payload, silent: true });
         clearDraft(d.edit ? d.originalName : '', d.edit);
         ackSaved(key);
-        // Save keeps the inspector open on the saved command (renamed or not),
-        // re-seeded so it reads clean, but only if it is still the open editor;
-        // otherwise the list is reconciled silently and the current selection is
-        // left untouched.
         if (stillOpen) {
           const saved = items.find((c) => c.name === key);
           if (saved) {
@@ -579,19 +485,13 @@
         return;
       }
 
-      // Rollback the affected rows; keep the editor open with the draft intact.
       items = [...items.filter((c) => c.name !== key && c.name !== orig), ...prevRows];
       flagError(orig ?? key);
-      // Attach validation errors only to the editor they belong to.
       if (stillOpen) serverErrors = payload?.errors ?? null;
-      // Field-level validation shows inline; anything else (RPC failure, missing
-      // payload) falls back to the localized generic toast so the failure is
-      // never silent. The server logs the real reason.
       if (!payload?.errors) failed(payload, 'commands.toastSaveFailed');
     };
   };
 
-  // --- Toggle (optimistic flip) ----------------------------------------------
   function settleToggle(name: string, before: CommandView, payload: ActionResult | null | undefined, ok: boolean) {
     if (ok && payload?.ok) {
       applyResult(payload);
@@ -618,11 +518,6 @@
       };
     };
 
-  // --- Built-in reply save (optimistic response swap) ------------------------
-  // Editable built-ins (e.g. clip) persist their reply template to the modules
-  // service. Optimistically swap the row's response to the typed value, then let
-  // the server's rebuilt row reconcile (it normalizes a blank reply back to the
-  // default template).
   const replySubmit =
     (c: CommandView): SubmitFunction =>
     ({ formData }) => {
@@ -636,7 +531,7 @@
             ? (result.data as ActionResult | undefined)
             : undefined;
         if (result.type === 'success' && payload?.ok) {
-          applyResult(payload); // silent from the server
+          applyResult(payload);
           ackSaved(c.name);
         } else {
           items = items.map((x) => (x.name === c.name ? before : x));
@@ -646,7 +541,6 @@
       };
     };
 
-  // --- Delete (optimistic removal + undo toast) --------------------------------
   function postAction(action: string, body: FormData): Promise<ActionResult | null> {
     return fetch(`?/${action}`, { method: 'POST', body })
       .then(async (res) => {
@@ -693,8 +587,6 @@
     clearDraft(c.name, true);
     draftVersion++;
 
-    // The delete RPC is immediate server-side, so undo is a re-create from the
-    // snapshot (the save's write-behind flush lands after the delete: safe order).
     let undone = false;
     toast('ok', t('commands.toastDeletedShort', { name: c.name }), {
       undoLabel: t('commands.undo'),
@@ -715,14 +607,10 @@
 
   const activeCount = $derived(items.filter((c) => c.is_active).length);
 
-  // The command currently loaded in the inspector (built-in path reads it live).
   const selectedCmd = $derived(
     expanded && expanded !== NEW ? items.find((c) => c.name === expanded) : undefined
   );
 
-  // Inspector Active Switch: same optimistic toggle as the row, without a
-  // nested form inside ?/save. no-ops when the requested state is already live
-  // so Switch's local flip + this setter cannot double-toggle.
   function setSelectedActive(next: boolean) {
     const c = selectedCmd;
     if (!c || c.builtin || c.is_active === next) return;
@@ -734,8 +622,6 @@
     });
   }
 
-  // The open editor's footer status. Maps the legacy 'live' row state (no longer
-  // produced) to 'saved' so it fits the footer's state set.
   type FooterStatus = 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
   function footerStatus(): FooterStatus {
     if (busy) return 'saving';
@@ -743,8 +629,6 @@
     return s === 'live' ? 'saved' : (s as FooterStatus);
   }
 
-  // --- Keyboard control: "/" jumps to search, "n" starts a new command,
-  // Escape closes the inspector. Ignored while typing in any field. ---
   let searchInput = $state<HTMLInputElement | undefined>(undefined);
 
   function isTyping(e: KeyboardEvent): boolean {
@@ -752,8 +636,6 @@
     return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
   }
 
-  // Escape is owned by the InspectorSurface (it yields to the discard dialog);
-  // the page only handles the search / new shortcuts.
   function onKey(e: KeyboardEvent) {
     if (composeDraft !== null || discard.open) return;
     if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -771,9 +653,6 @@
   <PageHead eyebrow={t('commands.eyebrow')} description={t('commands.description')}>
     {t('commands.titlePre')}<em>{t('commands.titleEm')}</em>
     {#snippet trail()}
-      <!-- The counts the description used to carry, promoted to a readout: the
-           deck is a working screen, so how much of it is live and what it fires
-           belong next to the title, not inside a sentence. -->
       <dl class="deck-stats">
         <div class="ds-cell">
           <dt>{t('commands.statActive')}</dt>
@@ -799,11 +678,6 @@
 
   <PageToolbar>
     {#snippet lead()}
-      <!-- THE RAIL. This was a row of `Chip`s -- boxed pills, the tag shape --
-           while the modules page next door jumped sections on the underline
-           rail, so one console answered "which of these am I looking at" two
-           ways. SegmentedControl is that rail, and the small-screen overflow
-           the `.chip-row` block below used to carry is `.bb-tabs--wrap`. -->
       <SegmentedControl
         options={filterOptions}
         bind:value={activeLabel}
@@ -816,17 +690,12 @@
         <SearchInput placeholder={t('commands.searchPlaceholder')} clearLabel={t('quotes.searchClear')}
           aria-label={t('commands.searchPlaceholder')} bind:value={search} bind:element={searchInput} fill />
       </div>
-      <!-- No "Fetch definitions" link any more: data sources are created from
-           the {urlfetch:…} chip inside the command editor, where they are used.
-           Their API keys live in Settings. -->
       <button class="bb-btn bb-btn--primary" onclick={openNew} disabled={expanded === NEW}>
         {t('commands.newCommand')}
       </button>
     {/snippet}
   </PageToolbar>
 
-  <!-- The deck: ledger list left, docked inspector right. The list never
-       disappears: selecting a row (or "new") loads it into the inspector. -->
   {#if canCreateTyped}
     <button class="create-hint" type="button" onclick={createTyped} aria-label={t('commands.createHintAria', { name: typedName })}>
       <span class="ch-name">!{typedName}</span>
@@ -903,10 +772,6 @@
             </Scroller>
           {/if}
         {:else}
-          <!-- Keyed on selection + generation so switching rows (or a save)
-               mounts a FRESH editor: it snapshots its draft key + initial value
-               at mount, so reusing one instance across commands would freeze
-               those to the first row. -->
           {#key expanded + '#' + editorGen}
             <CommandEditor
               bind:draft={editorDraft}
@@ -976,9 +841,6 @@
     color: var(--bb-muted);
   }
 
-  /* Head readout strip: a quiet ledger row (hairline top/bottom, thin dividers),
-     NOT the .stat card from app.css: that global class boxes and hover-lifts,
-     which is why these classes deliberately avoid the .stat* names. */
   .deck-stats {
     display: flex;
     gap: 26px;
@@ -1010,7 +872,6 @@
   .deck-stats .of { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
   .deck-stats .mono { font-family: var(--bb-font-mono); font-size: 15px; color: var(--bb-tan-light); line-height: 1.7; }
 
-  /* Typing a name that matches nothing turns the filter into a create button. */
   .create-hint {
     width: 100%;
     display: flex;
@@ -1078,7 +939,6 @@
     .keys { display: inline-flex; }
   }
 
-  /* the deck: full-width list until a selection opens the docked inspector. */
   .deck {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -1089,10 +949,6 @@
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  /* Trim only the deck's very last hairline. Keyed off .row-wrap (the each-item
-     wrapper). .row-shell is always the sole child of its wrapper, so a bare
-     .row-shell:last-child matches EVERY row and erased the whole last group's
-     separators. */
   .group:last-child :global(.row-wrap:last-child .row-shell) { border-bottom: none; }
 
   @media (max-width: 760px) {

@@ -21,11 +21,6 @@ import (
 	"github.com/coder/websocket"
 )
 
-// TestWSConnCloseCodeReadsRealFrames pins the translation the whole fatal
-// path rests on. wsConn.CloseCode is the only thing that turns a websocket
-// error into the number discord.FatalCloseCode judges, and its library
-// returns -1 (not 0) for "not a close frame", which is the sentinel this
-// folds away.
 func TestWSConnCloseCodeReadsRealFrames(t *testing.T) {
 	var w wsConn
 	cases := []struct {
@@ -34,14 +29,11 @@ func TestWSConnCloseCodeReadsRealFrames(t *testing.T) {
 		want int
 	}{
 		{
-			// The one that mattered on 2026-09-05: a rejected token.
 			name: "close frame",
 			err:  websocket.CloseError{Code: websocket.StatusCode(ddiscord.CloseAuthenticationFailed), Reason: "Authentication failed."},
 			want: ddiscord.CloseAuthenticationFailed,
 		},
 		{
-			// Wrapped is the normal case: the error crosses readPacket and
-			// pump before anything asks for its code.
 			name: "wrapped close frame",
 			err:  fmt.Errorf("read packet: %w", websocket.CloseError{Code: websocket.StatusCode(ddiscord.CloseDisallowedIntents)}),
 			want: ddiscord.CloseDisallowedIntents,
@@ -67,19 +59,11 @@ func TestWSConnCloseCodeReadsRealFrames(t *testing.T) {
 			t.Fatalf("%s: CloseCode = %d, want %d", tc.name, got, tc.want)
 		}
 	}
-	// A normal closure is a real code and must survive as one: it is not
-	// fatal, but it is not "no code" either.
 	if got := w.CloseCode(websocket.CloseError{Code: websocket.StatusNormalClosure}); got != int(websocket.StatusNormalClosure) {
 		t.Fatalf("CloseCode(normal closure) = %d, want %d", got, websocket.StatusNormalClosure)
 	}
 }
 
-// The reconnecting close only works if the library will actually send it:
-// coder/websocket refuses close codes outside the wire-valid set, and a
-// refused Close writes no frame at all, which leaves the peer to time the
-// session out instead of being told the transport went. This dials a real
-// socket rather than reading close.go, and asserts the peer sees the private
-// -range code and not 1000.
 func TestReconnectingCloseReachesThePeer(t *testing.T) {
 	seen := make(chan websocket.StatusCode, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +91,6 @@ func TestReconnectingCloseReachesThePeer(t *testing.T) {
 	}
 }
 
-// authFailure is the close frame Discord sends for a rejected token.
 func authFailure() error {
 	return websocket.CloseError{
 		Code:   websocket.StatusCode(ddiscord.CloseAuthenticationFailed),
@@ -115,10 +98,6 @@ func authFailure() error {
 	}
 }
 
-// heartbeatFailingConn is a socket that identifies fine and then dies on its
-// first heartbeat write, which is exactly how a 4004 reached production:
-// Discord's close frame surfaced on the write, the pump saw only a closed
-// connection, and the code never reached the fatal check.
 func heartbeatFailingConn(t *testing.T) *scriptedConn {
 	t.Helper()
 	hello, err := fastHello()
@@ -128,15 +107,11 @@ func heartbeatFailingConn(t *testing.T) *scriptedConn {
 	return &scriptedConn{
 		reads:         [][]byte{hello},
 		writeErr:      authFailure(),
-		writeErrAfter: 1, // the Identify goes through; the heartbeat does not
+		writeErrAfter: 1,
 		closed:        make(chan struct{}),
 	}
 }
 
-// oneSocketOver runs a single socket over conn under a bounded context and
-// reports what it ended with. Every socket-level case below shares this exact
-// wiring; the interesting difference between them is the connection, so it is
-// the only thing they say.
 func oneSocketOver(t *testing.T, conn Conn, timeout time.Duration) sessionEnd {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -145,9 +120,6 @@ func oneSocketOver(t *testing.T, conn Conn, timeout time.Duration) sessionEnd {
 	return sess.oneSocket(ctx, "ws://x", &resumeState{})
 }
 
-// wantCloseFrame asserts the error that ended a socket is Discord's close
-// frame and not the pump's generic read error -- the close code only survives
-// on the frame, and a codeless error reconnects forever.
 func wantCloseFrame(t *testing.T, err error) {
 	t.Helper()
 	if !errors.As(err, &websocket.CloseError{}) {
@@ -155,9 +127,6 @@ func wantCloseFrame(t *testing.T, err error) {
 	}
 }
 
-// TestWriteCloseCodeReachesTheFatalPath is the regression test for the
-// token reset: the code must come back off a write error, not off the
-// generic "closed connection" the pump reads afterwards.
 func TestWriteCloseCodeReachesTheFatalPath(t *testing.T) {
 	end := oneSocketOver(t, heartbeatFailingConn(t), time.Second)
 	code, err := end.code, end.err
@@ -171,8 +140,6 @@ func TestWriteCloseCodeReachesTheFatalPath(t *testing.T) {
 	wantCloseFrame(t, err)
 }
 
-// And the loop above it must act on that: one dial, then park. Before the
-// fix this reconnected every 2s forever, which is what got the token reset.
 func TestRunParksOnAWriteSideFatalClose(t *testing.T) {
 	dials := 0
 	dial := func(context.Context, string) (Conn, error) {
@@ -193,8 +160,6 @@ func TestRunParksOnAWriteSideFatalClose(t *testing.T) {
 	wantFatalDown(t, st, ddiscord.CloseAuthenticationFailed)
 }
 
-// fastHello is a HELLO with a heartbeat interval short enough that the
-// heartbeat goroutine fires inside a test window.
 func fastHello() ([]byte, error) {
 	d, err := codec.Marshal(helloData{HeartbeatInterval: 10})
 	if err != nil {
@@ -203,10 +168,6 @@ func fastHello() ([]byte, error) {
 	return codec.Marshal(packet{Op: opHello, D: d})
 }
 
-// ackingConn is a socket that answers op 11 acks times and then goes quiet
-// without ever closing -- the zombie shape. A live TCP connection that
-// Discord has stopped serving reads forever, so this fake never returns an
-// error either: only the heartbeat's own ACK accounting can end it.
 func ackingConn(t *testing.T, acks int) *scriptedConn {
 	t.Helper()
 	hello, err := fastHello()
@@ -224,9 +185,6 @@ func ackingConn(t *testing.T, acks int) *scriptedConn {
 	return &scriptedConn{reads: reads, closed: make(chan struct{})}
 }
 
-// A gateway that stops answering heartbeats leaves a socket that is open,
-// readable and delivering nothing. Before this the pump sat in Read for the
-// life of the process with the status key still claiming the bot was up.
 func TestHeartbeatEndsASocketThatStopsAcking(t *testing.T) {
 	end := oneSocketOver(t, ackingConn(t, 0), 2*time.Second)
 
@@ -235,8 +193,6 @@ func TestHeartbeatEndsASocketThatStopsAcking(t *testing.T) {
 	}
 }
 
-// And a socket that does answer must be left alone: the ACK accounting is
-// only allowed to kill a connection Discord has actually abandoned.
 func TestHeartbeatKeepsASocketThatAcks(t *testing.T) {
 	end := oneSocketOver(t, ackingConn(t, 50), 200*time.Millisecond)
 
@@ -245,25 +201,13 @@ func TestHeartbeatKeepsASocketThatAcks(t *testing.T) {
 	}
 }
 
-// racingConn reproduces the interleaving socket.writerGrace exists for: the
-// pump's Read fails FIRST, with a generic codeless error, while the
-// heartbeat's Write is still inside Discord's close frame and has not
-// reported anything yet.
-//
-// A real socket produces this whenever a writer takes the close frame: the
-// writer's Close makes the parked Read return immediately, and the Write it
-// was racing returns its own error microseconds later. The old non-blocking
-// poll in firstError looked at that instant, found nothing, and reported no
-// close code for a 4004.
 type racingConn struct {
 	mu      sync.Mutex
 	reads   [][]byte
 	writes  int
 	release chan struct{}
-	// lag is how long the failing Write takes to return after it has
-	// released the pump's Read.
-	lag  time.Duration
-	once sync.Once
+	lag     time.Duration
+	once    sync.Once
 }
 
 func newRacingConn(t *testing.T, lag time.Duration) *racingConn {
@@ -298,7 +242,7 @@ func (c *racingConn) Write(context.Context, []byte) error {
 	n := c.writes
 	c.mu.Unlock()
 	if n < 2 {
-		return nil // the Identify goes through
+		return nil
 	}
 	c.unblockRead()
 	time.Sleep(c.lag)
@@ -332,9 +276,6 @@ func (c *racingConn) CloseReason(err error) string {
 	return ""
 }
 
-// The pump must wait for the writer rather than deciding from an empty
-// channel that a socket died codeless. Without the grace this is a 4004
-// reported as close code 0, which reconnects forever.
 func TestCodelessReadWaitsForTheWritersCloseCode(t *testing.T) {
 	end := oneSocketOver(t, newRacingConn(t, 50*time.Millisecond), 3*time.Second)
 	code, err := end.code, end.err
@@ -346,9 +287,6 @@ func TestCodelessReadWaitsForTheWritersCloseCode(t *testing.T) {
 	wantCloseFrame(t, err)
 }
 
-// And the wait is bounded. A writer stuck in a send on a connection nobody
-// is draining is not about to produce a close code, and holding the
-// reconnect behind it indefinitely trades one loop for a stall.
 func TestCodelessReadGivesUpAfterTheGrace(t *testing.T) {
 	conn := newRacingConn(t, writerGrace+time.Second)
 

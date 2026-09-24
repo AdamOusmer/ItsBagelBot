@@ -23,10 +23,6 @@ var (
 	errNestedBatch           = errors.New("nested outgress batch")
 )
 
-// BatchStore coordinates one at-most-once batch across outgress replicas.
-// Next is the first unclaimed item. SaveNext happens before the Twitch call:
-// retries therefore never repeat an ambiguous item, at the accepted cost that
-// a crash between checkpoint and send can lose that item.
 type BatchStore interface {
 	Acquire(context.Context, BatchLease, time.Duration) (bool, error)
 	Next(context.Context, string) (int, error)
@@ -106,8 +102,6 @@ func (w *Worker) releaseBatch(lease BatchLease) {
 	}
 }
 
-// runBatchItems checkpoints before execution. That is deliberately at-most-
-// once: an ambiguous or crashed item is skipped on retry instead of repeated.
 func runBatchItems(items []outgress.Message, start int, saveNext func(int) error, execute func(outgress.Message) error) error {
 	for i := max(start, 0); i < len(items); i++ {
 		if err := saveNext(i + 1); err != nil {

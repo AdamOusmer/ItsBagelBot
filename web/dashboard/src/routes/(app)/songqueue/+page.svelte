@@ -46,12 +46,8 @@
   const { t } = getI18n();
   const failed = toastFailure(toast, t);
 
-  // Chat-commands reference from the shared catalog so this page never drifts
-  // from the generic /modules/[id] ledger (the quotes pattern).
   const songCommands = moduleDef('songqueue')?.commands ?? [];
 
-  // Local mirrors, reseeded on each SSR load (the /events stream re-runs the
-  // loader after every confirmed write).
   // svelte-ignore state_referenced_locally
   let enabled = $state<boolean>(data.enabled ?? false);
   // svelte-ignore state_referenced_locally
@@ -95,11 +91,6 @@
     store: 'spotify.errStore'
   };
 
-  // --- The broadcaster's own Spotify application -----------------------------
-  // Step one of two: there is no fleet-wide Spotify app, so a channel supplies
-  // its own credentials before anything can be authorized. The secret is
-  // write-only (it is posted once and never comes back) so the field is
-  // always blank on load, including when an app is already stored.
   // svelte-ignore state_referenced_locally
   let app = $state<{ present: boolean; clientId: string }>(data.app ?? { present: false, clientId: '' });
   let editingApp = $state(false);
@@ -123,15 +114,11 @@
     if (await copyText(data.redirectUri ?? '')) {
       toast('ok', t('spotify.redirectCopied'));
     } else {
-      // Clipboard permission is the only realistic failure and the URL is on
-      // screen anyway, so this degrades to "select it yourself".
       toast('err', t('spotify.redirectCopyFailed'));
     }
   }
 
   onMount(() => {
-    // Queue changes come from chat, which the console's event stream never
-    // sees; a lazy poll keeps the panel honest without a new push channel.
     const poll = setInterval(() => {
       if (!document.hidden) void invalidateAll();
     }, 15000);
@@ -141,8 +128,6 @@
 
   type SongQueueActionOk = ActionOk & { missingScope?: boolean };
 
-  // formResult is the shared enhance handler for simple forms: on success it
-  // optionally flips an optimistic mirror, toasts, and reloads.
   function formResult(okMsg: string, failMsg: string, onOk?: () => void): SubmitFunction {
     return () =>
       async ({ result }) => {
@@ -163,11 +148,6 @@
 
   let missingScope = $state(false);
 
-  // --- Command path (!sr): switch + permission tier post together on change ---
-  // The switches submit their own form the moment they flip, and the hidden
-  // inputs mirroring them have not re-rendered yet at that point, so the
-  // current values are stamped onto the payload here rather than read out of
-  // stale DOM. (Both fields ride this form; perm comes from the select.)
   const srSubmit: SubmitFunction = ({ formData }) => {
     formData.set('sr_enabled', sr.enabled ? 'on' : '');
     formData.set('sr_allow_offline', sr.allowOffline ? 'on' : '');
@@ -224,7 +204,6 @@
     };
   };
 
-  // --- Inspector (govee deck: one row, docked editor) -----------------------
   let inspecting = $state(false);
   let busy = $state(false);
 
@@ -253,7 +232,6 @@
     };
   };
 
-  // --- Delete (confirm; Twitch reward deletion is not undoable) ---------------
   let deletePending = $state(false);
   let deleting = $state(false);
   let deleteForm = $state<HTMLFormElement | null>(null);
@@ -311,7 +289,6 @@
     </AlertBanner>
   {/if}
 
-  <!-- Master switch first, matching govee: the credential step follows. -->
   <PageToolbar>
     {#snippet lead()}
       <MasterToggle
@@ -325,14 +302,7 @@
     {/snippet}
   </PageToolbar>
 
-  <!-- Connect is the only prerequisite. Chat and channel-points are sibling
-       paths (either can be on while the other is off), so they share a two-
-       column grid instead of a numbered 2-then-3 wizard that implied sequence. -->
   <div class="setup">
-    <!-- Step 1. Every channel brings its OWN Spotify application: we hold no
-         shared one, so this card comes before the account connect and gates
-         it. The client id is shown back (it is public); the secret is
-         write-only and its field stays blank even when one is stored. -->
     <Card>
       <h2 class="path-title">{t('spotify.appTitle')}</h2>
       <p class="muted-text">{app.present ? t('spotify.appSetHelp') : t('spotify.appHelp')}</p>
@@ -384,19 +354,12 @@
       {/if}
     </Card>
 
-    <!-- Step 2. Connecting authorizes against the app above, so it stays out
-         of reach until one is on file. -->
     <Card>
       <h2 class="path-title">{t('spotify.connectTitle')}</h2>
       <p class="muted-text">{connected ? t('spotify.connectedHelp') : t('spotify.connectHelp')}</p>
       {#if connected}
         <div class="row">
           <Tag tone="live" mark="solid">{t('spotify.connectedPill')}</Tag>
-          <!-- Reconnect is a plain re-run of the consent flow, NOT a disconnect
-               first: the stored token stays usable until a new one replaces it,
-               and a broadcaster who backs out of Spotify's screen keeps working.
-               It has to be reachable while connected, because a grant that
-               predates a scope the bot now needs looks perfectly connected. -->
           <ButtonLink variant="secondary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.reconnectSpotify')}</ButtonLink>
           <form method="POST" action="?/disconnect" use:enhance={formResult(t('spotify.disconnectedToast'), t('spotify.disconnectFailed'), () => (connected = false))}>
             <Button variant="destructive" type="submit">{t('spotify.disconnect')}</Button>
@@ -419,10 +382,6 @@
     </Card>
 
     {#if connected}
-      <!-- The live queue, read from sesame's store. Chat owns the writes;
-           this panel answers "what is coming up" without asking chat, and
-           refreshes itself on a lazy poll since queue changes ride chat
-           events the console's invalidation stream never sees. -->
       <Card>
         <div class="queue-head">
           <h2 class="path-title">{t('spotify.queueTitle')}</h2>
@@ -464,9 +423,6 @@
               <Switch bind:checked={sr.enabled} onchange={srChanged} label={t('spotify.srEnableLabel')} describedby="spotify-sr-desc" />
             </div>
             <input type="hidden" name="sr_enabled" value={sr.enabled ? 'on' : ''} />
-            <!-- The switch reads as "live only", the stored field is its
-                 inverse (allowOffline). The config keeps govee's polarity so
-                 both modules mean the same thing by the same key. -->
             <div class="enable-row">
               <div class="enable-text">
                 <span class="enable-label">{t('spotify.liveOnlyLabel')}</span>
@@ -493,10 +449,6 @@
             {/if}
           </form>
 
-          <!-- Per-viewer limits apply to BOTH request paths (chat and channel
-               points): they cap how many pending songs one viewer may hold.
-               Blank means unlimited, which is the default; the broadcaster is
-               never capped. Saved as a whole set on submit. -->
           <form method="POST" action="?/quotas" use:enhance={quotasSubmit}>
             <h3 class="path-title quota-title">{t('spotify.quotaTitle')}</h3>
             <p class="muted-text">{t('spotify.quotaHelp')}</p>
@@ -653,8 +605,6 @@
   .back:hover { color: var(--bb-white); }
   .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: var(--bb-radius-xs); }
 
-  /* Gap between the connect card and the two request-path cards; `.screen` is
-     `display: block` so sibling Cards otherwise sit flush. */
   .setup { display: grid; gap: 16px; }
 
   .path-title { margin: 0 0 6px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
@@ -663,27 +613,11 @@
 
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
-  /* Setup steps for the broadcaster's own Spotify app. Numbered because the
-     order matters on Spotify's side: the redirect URI has to be registered
-     before the first authorize attempt, or consent fails with a URI mismatch
-     that reads like a bug in our console. */
   .steps { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 8px; color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; }
-  /* The link look is `.bb-prose` (@bagel/ui/styles/elements/typography.css),
-     on the list. Local: the one link in these steps leaves the console for
-     Spotify's own dashboard, so it carries an icon beside its label and is
-     green rather than tan -- green is what the rest of this page uses for
-     "this is the Spotify side". */
   .steps .ext { color: var(--bb-green-glow); display: inline-flex; align-items: center; gap: 4px; }
   .redirect { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
-  /* Both chips are the `Code` block. Local: a redirect URI and a client id
-     are long single tokens with no spaces, so they must break anywhere rather
-     than push the card wide, and they are white because they are values to
-     copy, not identifiers in prose. */
   :global(.setup-code) { color: var(--bb-white); word-break: break-all; }
   .muted-text.small { font-size: 12px; margin: 10px 0 0; }
-  /* Field wraps its control in a <label>, so a sentence-long hint sits after
-     the field rather than inside it (a paragraph inside a label reads oddly to
-     screen readers and is not valid content there). */
   .field-hint { margin: -8px 0 14px; }
 
   .enable-row {
@@ -722,8 +656,6 @@
   }
   @media (min-width: 1080px) {
     .paths { grid-template-columns: 1fr 1fr; }
-    /* Inspector docks beside the points card, full width under chat: same
-       list+pane shape as govee, without squeezing the chat card into a third. */
     .paths.inspecting { grid-template-columns: 1fr; }
     .paths.inspecting .redeem-col { grid-template-columns: minmax(0, 1fr) 440px; }
   }

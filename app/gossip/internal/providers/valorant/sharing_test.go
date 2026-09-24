@@ -1,11 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// This file tests the relationship *between* endpoints, not any one of them:
-// which lookups share the day-long identity resolve and which deliberately do
-// not. That contract is invisible in any single endpoint's test, and it is
-// exactly what a future refactor of resolveAccount could silently break.
-
 package valorant
 
 import (
@@ -59,12 +54,6 @@ func TestAutoRegionResolveIsSharedAcrossEndpoints(t *testing.T) {
 }
 
 func TestAccountEndpointKeepsItsOwnCacheEntry(t *testing.T) {
-	// The account endpoint answers with level/card/title, which drift within
-	// the identity resolve's 24h window; it intentionally reads upstream under
-	// its own hour-long byte-flow entry instead of the resolve's. The sequence
-	// below pins the deliberate duplication: warming the resolve first does
-	// not spare the account endpoint one upstream read, and the account
-	// endpoint's own second call is served from its flow cache.
 	var mu sync.Mutex
 	accountHits := 0
 	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +87,4 @@ func TestAccountEndpointKeepsItsOwnCacheEntry(t *testing.T) {
 	assert.Equal(t, 2, accountHits, "the account endpoint's own byte-flow cache absorbs the repeat")
 }
 
-// These tests stage plain-http loopback upstreams the gate rightly refuses;
-// production binaries never set this (see core.SetSSRFCheckForTests).
 func init() { core.SetSSRFCheckForTests(false) }

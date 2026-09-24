@@ -16,7 +16,7 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,8 +33,6 @@ func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Modules) 
 	return client, pub, repository.NewModules(client, pub, nil, zap.NewNop())
 }
 
-// Five clicks on the same toggle inside one window must cost one row write
-// and announce only the final state.
 func TestSetCoalescesIntoOneWrite(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
@@ -43,7 +41,7 @@ func TestSetCoalescesIntoOneWrite(t *testing.T) {
 	repo.Set(1001, "welcome", false, codec.RawMessage(`{"message":"hey"}`))
 	repo.Set(1001, "welcome", true, codec.RawMessage(`{"message":"final"}`))
 
-	repo.Close(ctx) // deterministic flush
+	repo.Close(ctx)
 
 	rows := client.Modules.Query().AllX(ctx)
 	require.Len(t, rows, 1, "coalesced writes must produce a single row")
@@ -90,7 +88,6 @@ func TestListServedFromCacheUntilInvalidated(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, views, 1)
 
-	// Mutate behind the cache's back: List must keep serving the cached view.
 	client.Modules.Update().SetIsEnabled(false).SaveX(ctx)
 
 	views, err = repo.List(ctx, 1001)
@@ -106,8 +103,6 @@ func TestListServedFromCacheUntilInvalidated(t *testing.T) {
 
 func intptr(i int) *int { return &i }
 
-// Patch creates a row at revision 1, then merges a second key without clobbering
-// the first and bumps the revision.
 func TestPatchCreatesAndMerges(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
@@ -133,18 +128,16 @@ func TestPatchCreatesAndMerges(t *testing.T) {
 	assert.Len(t, pub.On(data.SubjectModuleChanged), 2, "each landed patch announces once")
 }
 
-// A patch built on a now-stale revision is rejected as a conflict and writes
-// nothing, so a concurrent edit can't be clobbered.
 func TestPatchRejectsStaleRevision(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
-	_, err := repo.Patch(ctx, 2001, "triggers", true, map[string]codec.RawMessage{"a": codec.RawMessage(`"1"`)}, nil) // -> rev 1
+	_, err := repo.Patch(ctx, 2001, "triggers", true, map[string]codec.RawMessage{"a": codec.RawMessage(`"1"`)}, nil)
 	require.NoError(t, err)
-	_, err = repo.Patch(ctx, 2001, "triggers", true, map[string]codec.RawMessage{"b": codec.RawMessage(`"2"`)}, intptr(1)) // -> rev 2
+	_, err = repo.Patch(ctx, 2001, "triggers", true, map[string]codec.RawMessage{"b": codec.RawMessage(`"2"`)}, intptr(1))
 	require.NoError(t, err)
 
-	res, err := repo.Patch(ctx, 2001, "triggers", true, map[string]codec.RawMessage{"c": codec.RawMessage(`"3"`)}, intptr(1)) // stale
+	res, err := repo.Patch(ctx, 2001, "triggers", true, map[string]codec.RawMessage{"c": codec.RawMessage(`"3"`)}, intptr(1))
 	require.NoError(t, err)
 	assert.True(t, res.Conflict)
 	assert.Equal(t, 2, res.Rev)
@@ -157,7 +150,6 @@ func TestPatchRejectsStaleRevision(t *testing.T) {
 	assert.Equal(t, 2, rows[0].Revision)
 }
 
-// A non-zero expected revision against a missing row is a conflict, not a create.
 func TestPatchMissingRowNonZeroExpectedConflicts(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()

@@ -1,14 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// createReward must turn outgress's two actionable refusals into results the
-// page renders. Through rpc() both threw before the store read them, so a
-// duplicate title surfaced as the generic "Could not update" line.
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { ChannelPointReward } from '@bagel/kit';
 
-// The kit root drags in the i18n catalog (import.meta.glob, Vite-only); the
-// store only needs MOD from it, which lives in the catalog entry.
 const { MOD } = await import('@bagel/kit/catalog');
 mock.module('@bagel/kit', () => ({ MOD }));
 

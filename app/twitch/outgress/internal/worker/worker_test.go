@@ -84,8 +84,6 @@ func TestCloudBotChatActionsUseAppToken(t *testing.T) {
 	}
 }
 
-// testActions builds the production action registry off a bare worker, so
-// tests can pin routes without any collaborator wiring.
 func testActions() action.Registry {
 	return New(Config{Log: zap.NewNop()}).actions
 }
@@ -249,10 +247,6 @@ func TestWithSenderIDWrapsWithField(t *testing.T) {
 	}
 }
 
-// TestAnnounceEndpoint pins the query-param construction processAnnounce uses:
-// broadcaster_id + moderator_id ride the query string, not the body, and are
-// URL-escaped. This mirrors the endpoint assembly in processAnnounce without a
-// network round-trip.
 func TestAnnounceEndpoint(t *testing.T) {
 	broadcasterID := "44322889"
 	mod := "987654"
@@ -270,10 +264,6 @@ func TestAnnounceEndpoint(t *testing.T) {
 	}
 }
 
-// TestShoutoutEndpoint pins the query-param construction processShoutout uses:
-// from_broadcaster_id + to_broadcaster_id + moderator_id ride the query string
-// (no body) and are URL-escaped. Mirrors the endpoint assembly without a network
-// round-trip.
 func TestShoutoutEndpoint(t *testing.T) {
 	ep := shoutoutEndpoint("44322889", "12826", "987654")
 	want := "/helix/chat/shoutouts?from_broadcaster_id=44322889&to_broadcaster_id=12826&moderator_id=987654"
@@ -281,7 +271,6 @@ func TestShoutoutEndpoint(t *testing.T) {
 		t.Fatalf("shoutout endpoint = %q, want %q", ep, want)
 	}
 
-	// Ids needing escaping are escaped (defense-in-depth; real ids are numeric).
 	got := shoutoutEndpoint("a b", "c&d", "e?f")
 	wantEsc := "/helix/chat/shoutouts?from_broadcaster_id=a+b&to_broadcaster_id=c%26d&moderator_id=e%3Ff"
 	if got != wantEsc {
@@ -336,16 +325,12 @@ func TestSentChatMessageID(t *testing.T) {
 	}
 }
 
-// wantRoute is one type's expected Helix routing: method, endpoint, and token
-// identity, mirroring the retired typeRoutes entry shape.
 type wantRoute struct {
 	method   string
 	endpoint string
 	as       string
 }
 
-// assertRoute pins one type's Helix routing, read from the production action
-// registry.
 func assertRoute(t *testing.T, typ string, want wantRoute) {
 	t.Helper()
 	act, ok := testActions().Lookup(typ)
@@ -357,15 +342,10 @@ func assertRoute(t *testing.T, typ string, want wantRoute) {
 	}
 }
 
-// TestShieldModeRoute pins the Shield Mode routing: a PUT to the moderation
-// shield_mode endpoint under the bot's moderator token, so the automod's
-// mass-raid escalation lands as a moderator action, not an app call.
 func TestShieldModeRoute(t *testing.T) {
 	assertRoute(t, outgress.TypeShieldMode, wantRoute{http.MethodPut, "/helix/moderation/shield_mode", outgress.AsBot})
 }
 
-// TestShieldModeEndpoint mirrors the query-param assembly processShieldMode uses:
-// broadcaster_id + moderator_id ride the query string, URL-escaped.
 func TestShieldModeEndpoint(t *testing.T) {
 	ep := "/helix/moderation/shield_mode?broadcaster_id=" +
 		url.QueryEscape("44322889") + "&moderator_id=" + url.QueryEscape("987654")
@@ -375,15 +355,11 @@ func TestShieldModeEndpoint(t *testing.T) {
 	}
 }
 
-// TestDeleteAndWarnRoutes pins the moderator-action routing for the automod's
-// delete (Delete Chat Messages) and warn (Warn Chat User) intents.
 func TestDeleteAndWarnRoutes(t *testing.T) {
 	assertRoute(t, outgress.TypeDelete, wantRoute{http.MethodDelete, "/helix/moderation/chat", outgress.AsBot})
 	assertRoute(t, outgress.TypeWarn, wantRoute{http.MethodPost, "/helix/moderation/warnings", outgress.AsBot})
 }
 
-// TestDeleteEndpoint pins the query assembly processDelete uses: all three ids
-// on the query string, URL-escaped, no body.
 func TestDeleteEndpoint(t *testing.T) {
 	got := deleteEndpoint("44322889", "987654", "abc-123")
 	want := "/helix/moderation/chat?broadcaster_id=44322889&moderator_id=987654&message_id=abc-123"

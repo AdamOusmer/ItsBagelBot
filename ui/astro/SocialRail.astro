@@ -2,12 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro adapter for `.bb-social-rail`. Its Svelte twin is
-// ../svelte/SocialRail.svelte and ../test/parity.test.ts diffs the two.
-//
-// The glyphs are inlined by ./Icon.astro at build, so the site's strict
-// img-src CSP never sees an external asset and the brand bodies inherit the
-// rail's tan tint.
 import '../styles/elements/nav.css';
 import Icon from './Icon.astro';
 import type { IconName } from '../lib/icons';
@@ -15,7 +9,6 @@ import type { IconName } from '../lib/icons';
 interface Props {
   items: { label: string; href: string; icon: IconName }[];
   ariaLabel: string;
-  /** Glyph edge. 17px is the measured size of the corner stack. */
   size?: number;
   class?: string;
   [key: string]: unknown;

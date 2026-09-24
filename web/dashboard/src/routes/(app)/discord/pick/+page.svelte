@@ -33,11 +33,6 @@
                 <span class="server-name">{c.name || t('discord.unknownServer')}</span>
                 <span class="tr-help">{t(DISCORD_BADGE_KEYS[c.badge])}</span>
               </span>
-              <!-- Three outcomes, three controls. A server this broadcaster
-                   already bound opens straight onto its settings; one bound to
-                   a different channel offers nothing, because the install can
-                   only end at the refusal that put it in this state; only a
-                   fresh one gets the invite. -->
               <span class="server-actions">
                 {#if c.badge === 'mine'}
                   <ButtonLink variant="secondary" href={c.openURL}>
@@ -54,9 +49,6 @@
             </li>
           {/each}
         </ul>
-        <!-- Not an AlertBanner: that component defaults to the danger tone and
-             role="alert", and a note about what we did with the guild list is
-             reassurance, not a problem the reader has to act on. -->
         <p class="note"><Icon name="lock" size={13} />{t('discord.pickPrivacy')}</p>
       {/if}
     </Card>
@@ -118,8 +110,6 @@
   .server-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
   @media (max-width: 600px) {
-    /* See the server list: crest and name on one line, the badge and the
-       button indented under the name on the next. 58px = crest plus gap. */
     .server { flex-wrap: wrap; }
     .server-actions { flex-basis: 100%; padding-left: 58px; }
   }

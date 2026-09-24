@@ -15,8 +15,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// FileUpload is one attachment posted into a channel, optionally alongside
-// content and an embed (the ticket close summary posts both at once).
 type FileUpload struct {
 	ChannelID string
 	Filename  string
@@ -25,15 +23,6 @@ type FileUpload struct {
 	Embed     *domain.Embed
 }
 
-// SendFile posts a message carrying one file attachment.
-//
-// This is the only multipart call in the client. Discord's attachment upload
-// is multipart/form-data with the JSON message body in a part literally named
-// "payload_json" and each file in "files[N]"; there is no JSON-only form of
-// it, and base64 in the JSON body works for a guild icon but not for a message
-// attachment. The bot needs ATTACH_FILES in the target channel or Discord
-// answers 403, which classifies as ErrForbidden like any other missing
-// permission.
 func (c *Client) SendFile(ctx context.Context, up FileUpload) (Message, error) {
 	form, err := multipartBody(up)
 	if err != nil {
@@ -55,10 +44,6 @@ func filePath(channelID string) string {
 	return "/channels/" + url.PathEscape(channelID) + "/messages"
 }
 
-// multipartBody renders the two parts Discord expects: payload_json (the
-// ordinary message body) and files[0] (the attachment). The attachments array
-// in payload_json is what binds the two -- its id must match the files[N]
-// index, or Discord accepts the message and silently drops the file.
 func multipartBody(up FileUpload) (multipartForm, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
@@ -82,11 +67,6 @@ func multipartBody(up FileUpload) (multipartForm, error) {
 	return multipartForm{body: &buf, contentType: w.FormDataContentType()}, nil
 }
 
-// multipartForm is a rendered body together with the Content-Type that
-// describes it. The two travel as one value because they are useless apart:
-// the boundary that delimits the parts is generated per writer and lives in
-// the header, so a body posted under any other Content-Type is unparseable at
-// the far end -- Discord answers 400 with no hint about which half was wrong.
 type multipartForm struct {
 	body        *bytes.Buffer
 	contentType string
@@ -105,9 +85,6 @@ func filePayload(up FileUpload) map[string]any {
 	return payload
 }
 
-// postMultipart is doInto's multipart twin: same auth header, same error
-// classification, a body this client encodes itself rather than through
-// request.payload (which is JSON-only by construction).
 func (c *Client) postMultipart(ctx context.Context, path string, form multipartForm, out any) error {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, form.body)
 	if err != nil {

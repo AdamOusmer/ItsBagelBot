@@ -1,11 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The things a streamer actually comes here to do. "New command" is the page's
-  // single primary CTA; everything else on the page stays quieter so it never
-  // competes. A Settings shortcut appears as a third action ONLY while the bot
-  // needs attention (anything but a healthy, online connection); a healthy board
-  // leaves it out.
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 

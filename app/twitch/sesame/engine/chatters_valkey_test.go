@@ -32,8 +32,6 @@ func TestValkeyChattersStoreAndSnapshotRoundTrip(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-// Past chattersSnapshotCap, Store keeps only the first N entries rather than
-// bloating the shared key with a mega-channel's full list.
 func TestValkeyChattersStoreCapsTheStoredList(t *testing.T) {
 	f := newChattersFake(t)
 	store := NewValkeyChatters(f.client, zap.NewNop())
@@ -51,9 +49,6 @@ func TestValkeyChattersStoreCapsTheStoredList(t *testing.T) {
 	assert.Len(t, got, chattersSnapshotCap)
 }
 
-// The stored key expires on the tick's own schedule (chattersSnapshotTTL =
-// watchTickInterval + watchTickJitter), not a shorter, independently-tuned
-// number — see the decision record on the constant.
 func TestValkeyChattersStoreExpiresOnTheTickSchedule(t *testing.T) {
 	f := newChattersFake(t)
 	store := NewValkeyChatters(f.client, zap.NewNop())
@@ -71,9 +66,6 @@ func TestValkeyChattersStoreExpiresOnTheTickSchedule(t *testing.T) {
 	assert.False(t, ok, "past the TTL window")
 }
 
-// Snapshot's ok=false covers a clean miss (err=nil, the normal case a caller
-// never logs) and a real Valkey failure (err set) differently, so ViewerRPC
-// can decide whether to log — see logDownOnce.
 func TestValkeyChattersSnapshotDistinguishesACleanMissFromADownRead(t *testing.T) {
 	f := newChattersFake(t)
 	store := NewValkeyChatters(f.client, zap.NewNop())
@@ -89,9 +81,6 @@ func TestValkeyChattersSnapshotDistinguishesACleanMissFromADownRead(t *testing.T
 	assert.Error(t, err, "a transport failure must be distinguishable from a miss")
 }
 
-// A garbled value (Valkey holds something this reader cannot trust) is
-// reported as an error too, the same as a transport failure — not a silent
-// empty answer.
 func TestValkeyChattersSnapshotReportsADecodeFailure(t *testing.T) {
 	f := newChattersFake(t)
 	store := NewValkeyChatters(f.client, zap.NewNop())
@@ -103,9 +92,6 @@ func TestValkeyChattersSnapshotReportsADecodeFailure(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TryFetchLock is a cross-replica SET NX: only the first caller wins, and
-// ReleaseFetchLock frees it early for a retry rather than waiting out the
-// full TTL.
 func TestValkeyChattersFetchLockContentionAndRelease(t *testing.T) {
 	f := newChattersFake(t)
 	store := NewValkeyChatters(f.client, zap.NewNop())

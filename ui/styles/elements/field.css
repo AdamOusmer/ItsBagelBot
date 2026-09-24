@@ -1,29 +1,7 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* Labelled form field (.bb-field) and the canonical text-control frame
-   (.bb-input) every text input, select, textarea and search box in the system
-   wears.
-
-   Three drawings of one control existed before this file:
-     web/kit/styles/console.css `.search`   the live console frame
-     web/kit/components/Field.svelte        the label column, scoped
-     web/marketing .../dashframe.css `.df-input` + `.df-field`
-                                            a hand redraw for the guide
-                                            screenshots (deleted in PR12)
-   The console one was named `.search` because a toolbar search box was the
-   first thing that needed it; by the time this moved, 18 files were writing
-   `class="search"` on a <select>, a <textarea> and a date <input>. The class
-   is renamed to `.bb-input` here and every call site with it -- a pure rename,
-   declaration for declaration, so nothing on screen moves. */
 
 @layer bb.elements {
     .bb-field {
@@ -39,8 +17,6 @@
         color: var(--bb-muted);
     }
 
-    /* The muted suffix ("default: 5"). Was a local `.tag` at opacity 0.65;
-       it is the shared quiet label now, so this only positions it. */
     .bb-field__tag { margin-left: 4px; }
 
     .bb-field__hint {
@@ -54,18 +30,10 @@
         display: block;
         font-family: var(--bb-font-body);
         font-size: 11.5px;
-        /* #cf8a78 is the form-error red and predates --bb-danger (#d98a8a,
-           tags.css). Kept as the literal it has always been rather than
-           folded into --bb-danger: the two are 22 points apart in red and
-           read differently against a field label, and merging them is a
-           visible change to every invalid form in the console that belongs
-           in a palette PR with a screenshot, not in a file move. */
         color: #cf8a78;
         margin-top: 4px;
     }
 
-    /* ── the control frame ─────────────────────────────────────────
-       Was `.search` in console.css:118-125, declaration for declaration. */
     .bb-input {
         display: flex;
         align-items: center;
@@ -75,18 +43,6 @@
         border: 1px solid var(--bb-border);
         border-radius: var(--bb-radius-sm);
         width: var(--input-w, 240px);
-        /* `--input-fs` is a KNOB rather than a modifier because the caller
-           that needs it (the counters inspector's rename utility) wants a
-           whole SECTION of controls a step quieter, and setting it once on
-           the section is the difference between one declaration and a class
-           on every control in it. It was a `.sec-util :global(.bb-input)`
-           reach-in there.
-
-           Declared on the frame as well as on the inner control because both
-           shapes ship: `<label class="bb-input"><input>` (the frame wraps the
-           control) and `<input class="bb-input">` (the control IS the frame).
-           13.5px is the value the inner rules below already use, so nothing
-           moves; the bare-element form was inheriting the UA's 13.33px. */
         font-size: var(--input-fs, 13.5px);
         color: var(--bb-muted);
         transition: border-color var(--bb-dur-base) var(--bb-ease-out-expo),
@@ -112,45 +68,6 @@
 
     .bb-input input::placeholder { color: var(--bb-muted); }
 
-    /* A control inside a field fills the field.
-
-       This is one ui element selecting another by class, which the rest of
-       this package does not do -- worth saying why it is here rather than
-       leaving the next reader to "clean it up".
-
-       It arrived as `.field :global(.search) { width: 100% }` inside
-       Field.svelte's scoped <style>, i.e. a component reaching through its
-       own scope to restyle a class it does not own. That is the shape being
-       deleted: Field had no way to know what `.search` was, and the rule
-       leaked onto SearchInput, which wants 240px.
-
-       Two alternatives were considered and rejected:
-         - Flip the default: `.bb-input { width: 100% }` and let the toolbar
-           search ask for 240px. Measured: ~45 `class="search"` call sites,
-           of which the ones NOT inside a field are toolbar controls that
-           would silently stretch to their container. A default that is wrong
-           for half the call sites is not a better default.
-         - A `--input-w` set by the caller on every field. 20-odd call sites
-           gain a style attribute to express "normal", and a CSP without
-           'unsafe-inline' loses them.
-       Both cost more than the coupling. The coupling is at least confined to
-       one file, between two parts of the SAME contract (a field and the
-       control it labels), which is the case the ban was never about. */
-    /* ── Fill ────────────────────────────────────────────────────────
-       The control takes the width its container gives it instead of the
-       240px default.
-
-       A modifier rather than the eight scoped copies of
-       `.something :global(.bb-input) { width: 100% }` / `{ flex: 1 }` this
-       replaces. They were the same intent written two ways, and the `flex`
-       spelling silently did nothing outside a flex row while the `width`
-       spelling silently overflowed inside one without `min-width: 0`. This
-       sets all three, so it is right in both.
-
-       Not the default: the note above records the measurement -- ~45 call
-       sites, and the ones NOT inside a field are toolbar controls that would
-       stretch to their container. A default that is wrong for half the call
-       sites is not a better default. */
     .bb-input--fill {
         width: 100%;
         flex: 1;

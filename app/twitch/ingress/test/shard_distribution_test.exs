@@ -25,7 +25,6 @@ defmodule Ingress.ShardDistributionTest do
         node
       end
 
-    # Sorted by node name: node1 gets even ids, node2 odd ids.
     assert placements == [
              :ingress@node1,
              :ingress@node2,

@@ -11,14 +11,11 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// manifestImages are the images testdata/k8s pins, read from the files.
 func manifestImages(t *testing.T) []deploy.ImageName {
 	t.Helper()
 	return sortedImages(pinsByImage(ParsePins(loadManifests(t), testRepo)))
 }
 
-// releaseFixture: main at c1 carries the real manifests, the tag points at
-// c1, and every image has a good v0.2.3-beta build of c1.
 func releaseFixture(t *testing.T) (*fixture, map[deploy.ImageName]deploy.ImagePin) {
 	t.Helper()
 	run := newRun(deploy.KindRelease)
@@ -39,8 +36,6 @@ func TestDigestsReleaseResolvesEveryImage(t *testing.T) {
 	}
 }
 
-// TestDigestsRefusals: one bad image refuses the whole set and the failure
-// lists what is wrong with it.
 func TestDigestsRefusals(t *testing.T) {
 	users := ports.ImageRef{Image: "users", Tag: "v0.2.3-beta"}
 	cases := []struct {
@@ -84,9 +79,6 @@ func TestDigestsRefusals(t *testing.T) {
 	}
 }
 
-// TestDigestsBump: a bump pins what the main push built, at the newest
-// main-<ts>-<sha12> tag of the target, and drops images whose digest main
-// already has.
 func TestDigestsBump(t *testing.T) {
 	const target = "abcdef1234567890ff"
 	cases := []struct {

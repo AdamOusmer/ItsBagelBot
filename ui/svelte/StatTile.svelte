@@ -1,17 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  //
-  // Channel-strip readout: the oversized numeral IS the tile. Rendered as a
-  // bare .bb-stat cell so the parent .bb-stat-grid draws the shared rules
-  // between strips (see ui/styles/elements/stat-tile.css).
   import type { Snippet } from 'svelte';
   import { countUp } from '../lib/count-up';
-
-  // data-count-up is redundant here -- use:countUp already binds the engine --
-  // and it is emitted anyway because the Astro twin has nothing BUT the
-  // attribute to mark the numeral with, and the parity test diffs rendered
-  // HTML. One marker, two adapters.
 
   let {
     label,
@@ -27,7 +18,6 @@
     unit?: string;
     delta: string;
     flat?: boolean;
-    /** Optional right-hand slot in the head row (a badge, a menu). */
     trail?: Snippet;
     [key: string]: unknown;
   } = $props();

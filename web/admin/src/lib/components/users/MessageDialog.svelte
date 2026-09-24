@@ -2,13 +2,6 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Direct notification composer. It posts to the NOTIFICATIONS route's send
-  // action, not to one of this page's own: delivery, audit and idempotency stay
-  // in one place, and a second copy of that write is exactly what would drift.
-  //
-  // It owns its three fields because nothing else on the page reads them, and
-  // it resets them on each open so a cancelled draft never reappears attached to
-  // the next user.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
@@ -28,7 +21,6 @@
     login: string;
     userId: string;
     busy: boolean;
-    /** Runs the enhance callback; the caller closes the dialog from it. */
     onSubmit: SubmitFunction;
   } = $props();
 
@@ -46,9 +38,6 @@
   let level = $state('info');
   let form = $state<HTMLFormElement | null>(null);
 
-  // Clear on each open rather than on close: a close can happen mid-flight, and
-  // wiping the fields under an in-flight submit is how a blank notification got
-  // sent once.
   let wasOpen = false;
   $effect(() => {
     if (open && !wasOpen) {
@@ -98,11 +87,6 @@
 </form>
 
 <style>
-  /* Composition only: the fields are `Field` blocks and the three controls
-     wear `.bb-input`. This file used to draw its own control frame
-     (`.text-input`, plus a `textarea.text-input` rule for the resize handle),
-     which is the fourth redrawing of that frame the library exists to
-     delete. `--field-mb: 0` because this column already gaps at 12px. */
   .fields {
     --field-mb: 0;
     display: flex;

@@ -2,15 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for the `.bb-text-link` contract
-  // (../styles/elements/text-link.css). Astro twin: ../astro/TextLink.astro,
-  // diffed against this file by ../test/parity.test.ts — which matters more
-  // here than anywhere else in the package, because this element emits one
-  // <span> per glyph, twice, each carrying its index.
-  //
-  // `Array.from(label)` and not `label.split('')`: split breaks surrogate
-  // pairs, so a character composed of two code units renders as two broken
-  // glyphs with two different delays.
   import '../styles/elements/text-link.css';
 
   let {
@@ -24,11 +15,8 @@
   }: {
     href: string;
     label: string;
-    /** Persistent lit state for the current route. */
     active?: boolean;
-    /** Opens in a new tab, with the rel that makes that safe. */
     external?: boolean;
-    /** Font-size override, any CSS length. The roll geometry is in em. */
     size?: string;
     class?: string;
     [key: string]: unknown;

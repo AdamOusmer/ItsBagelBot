@@ -2,12 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * GuideBody: turns one section's blocks into DOM. This is the only place that
- * knows which component renders which block kind, so a new kind is added in
- * three spots: the Block union in lib/guides/types.ts, a component under
- * blocks/ (or screens/, widgets/), and one branch here.
- */
 import type { Block } from '../../lib/guides/types';
 import Callout from './blocks/Callout.astro';
 import Cards from './blocks/Cards.astro';

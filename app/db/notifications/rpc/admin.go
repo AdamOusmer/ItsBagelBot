@@ -27,29 +27,17 @@ type adminRPC struct {
 	nc                 *nats.Conn
 	invalidationPrefix string
 	userGetSubject     string
-	// defaultTTL bounds a notification's global life when the sender does not
-	// set an explicit expiry, so every send is eventually reachable by the
-	// cron janitor instead of living forever.
-	defaultTTL time.Duration
-	log        *zap.Logger
+	defaultTTL         time.Duration
+	log                *zap.Logger
 }
 
-// AdminConfig carries the subjects the admin RPC surface answers on and
-// speaks to. The connection, queue group, New Relic app and logger ride the
-// shared Wiring instead.
 type AdminConfig struct {
 	Prefix             string
 	InvalidationPrefix string
 	UserGetSubject     string
-	// DefaultTTL bounds a notification's global life when the sender does not
-	// set an explicit expiry, so every send is eventually reachable by the
-	// cron janitor instead of living forever.
-	DefaultTTL time.Duration
+	DefaultTTL         time.Duration
 }
 
-// SubscribeAdmin registers the admin-console verbs: compose/send a
-// notification, list the sent history, and retract one. Send runs on its own
-// longer budget because it resolves a username over NATS before it writes.
 func SubscribeAdmin(w Wiring, cfg AdminConfig) error {
 	a := &adminRPC{
 		repo:               w.Repo,
@@ -70,8 +58,6 @@ func SubscribeAdmin(w Wiring, cfg AdminConfig) error {
 	return bus.Serve(read, cfg.Prefix+".delete", a.delete)
 }
 
-// parseSendRequest validates the compose form fields and renders them as
-// repository parameters (target resolution happens separately: it needs I/O).
 func parseSendRequest(req notificationsrpc.SendRequest) (repository.CreateParams, error) {
 	scope := notification.Scope(req.Scope)
 	if err := notification.ScopeValidator(scope); err != nil {
@@ -120,9 +106,6 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 		params.TargetUserID = &id
 	}
 
-	// Fall back to the default global TTL when the sender didn't pin an expiry,
-	// so the notification is eventually swept by the cron instead of living
-	// forever.
 	if params.ExpiresAt == nil && a.defaultTTL > 0 {
 		exp := time.Now().Add(a.defaultTTL)
 		params.ExpiresAt = &exp
@@ -146,8 +129,6 @@ func (a *adminRPC) send(ctx context.Context, req notificationsrpc.SendRequest) n
 	return notificationsrpc.SendReply{Notification: &view}
 }
 
-// clampAdminPage bounds the requested page/limit to the admin window and
-// returns the fetch limit (one extra row probes for a following page).
 func clampAdminPage(req notificationsrpc.ListAdminRequest) (page, pageSize, fetchLimit int) {
 	pageSize = req.Limit
 	if pageSize <= 0 || pageSize > repository.AdminPageSize {
@@ -203,9 +184,6 @@ func (a *adminRPC) delete(ctx context.Context, req notificationsrpc.DeleteReques
 	return notificationsrpc.DeleteReply{}
 }
 
-// resolveTarget looks up the target's numeric id via the users service
-// internal lookup (bagel.rpc.internal.users.get) so the console can address a
-// direct notification by username as well as by id.
 func (a *adminRPC) resolveTarget(ctx context.Context, userID, username string) (uint64, error) {
 	if userID == "" && username == "" {
 		return 0, fmt.Errorf("target_user_id or target_username required")

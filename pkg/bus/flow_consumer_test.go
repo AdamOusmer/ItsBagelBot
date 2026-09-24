@@ -22,14 +22,9 @@ func TestOnlyHotIngressLanesUseFlowControl(t *testing.T) {
 		want    bool
 	}{
 		{TwitchIngressStream.Name, "twitch.ingress.event.premium", true},
-		// The standard lane qualifies on its own partition, not on the stream it
-		// was split from: the guard has to follow the subject to its new stream or
-		// the bulk lane silently drops back to explicit acks.
 		{TwitchIngressStandardStream.Name, "twitch.ingress.event.standard", true},
 		{TwitchIngressStream.Name, "twitch.ingress.event.stream", false},
 		{TwitchIngressStream.Name, "twitch.ingress.status.authz.revoked", false},
-		// The retry lane carries a .standard leaf too, and it is not a hot lane:
-		// the stream test is what keeps the subject suffix from over-matching.
 		{TwitchIngressRetryStream.Name, "twitch.ingress.retry.standard", false},
 		{OutgressStream.Name, "twitch.outgress.standard", false},
 		{BagelDataStream.Name, "data.users.updated", false},
@@ -46,21 +41,14 @@ func TestFlowConsumerConfigIsAcceptedByTheServerContract(t *testing.T) {
 	requireContract(t,
 		contractClause{cfg.AckPolicy == jsapi.AckFlowControlPolicy,
 			fmt.Sprintf("ack policy = %v, want AckFlowControl", cfg.AckPolicy)},
-		// The server rejects an AckFlowControl consumer that is not a push consumer,
-		// has flow control off, or uses any heartbeat other than one second.
 		contractClause{cfg.FlowControl, "flow contract violated: flow control off"},
 		contractClause{cfg.DeliverSubject != "", "flow contract violated: not a push consumer"},
 		contractClause{cfg.IdleHeartbeat == time.Second,
 			fmt.Sprintf("idle heartbeat = %v, want the mandated second", cfg.IdleHeartbeat)},
 		contractClause{cfg.MaxAckPending == flowMaxAckPending,
 			fmt.Sprintf("max ack pending = %d, want %d", cfg.MaxAckPending, flowMaxAckPending)},
-		// R1 memory consumer state on the R3 stream: replicating per-consumer ack
-		// state is leader RAFT work the receipt-level design never needed. Loss of
-		// the consumer means this pod re-provisions from its own cursor and the
-		// idempotency guard absorbs the redelivered window.
 		contractClause{cfg.Replicas == 1 && cfg.MemoryStorage,
 			fmt.Sprintf("consumer state must be R1 in memory: %#v", cfg)},
-		// A first creation must not replay the retained firehose.
 		contractClause{cfg.DeliverPolicy == jsapi.DeliverNewPolicy,
 			fmt.Sprintf("deliver policy = %v, want DeliverNew", cfg.DeliverPolicy)},
 	)
@@ -71,8 +59,6 @@ func TestFlowConsumerIsSingleSubscriberPerPod(t *testing.T) {
 	name := flowConsumerName("worker", "twitch.ingress.event.premium")
 	cfg := flowConsumerConfig(laneBinding{subject: "twitch.ingress.event.premium", consumer: name})
 
-	// A queue group would hand one arbitrary member every flow-control request,
-	// and its cumulative answer would acknowledge work still running elsewhere.
 	if cfg.DeliverGroup != "" {
 		t.Fatalf("flow consumer bound a queue group: %q", cfg.DeliverGroup)
 	}
@@ -82,8 +68,6 @@ func TestFlowConsumerIsSingleSubscriberPerPod(t *testing.T) {
 	if cfg.DeliverSubject != "_INBOX.BAGEL."+subjectToken(name) {
 		t.Fatalf("delivery subject = %q, want one derived from the pod's consumer", cfg.DeliverSubject)
 	}
-	// A pod that never returns leaves its consumer behind; the server deletes it
-	// once the delivery subject has had no interest for this long.
 	if cfg.InactiveThreshold != flowInactiveThreshold {
 		t.Fatalf("inactive threshold = %v, want %v", cfg.InactiveThreshold, flowInactiveThreshold)
 	}
@@ -131,8 +115,6 @@ func TestCarriedAckFloorSurvivesConsumerReplacement(t *testing.T) {
 
 func TestUnknownAckFloorNeverInheritsThePredecessorPolicy(t *testing.T) {
 	desired := flowConsumerConfig(laneBinding{subject: "twitch.ingress.event.premium", consumer: "worker_premium_pod_1"})
-	// The explicit-ACK consumer this replaces is DeliverAll; inheriting it would
-	// open the replacement on the whole retained firehose.
 	desired.DeliverPolicy = jsapi.DeliverAllPolicy
 	desired.OptStartSeq = 77
 
@@ -150,18 +132,12 @@ func TestOnlyImmutableFieldErrorsReplaceTheConsumer(t *testing.T) {
 		{errors.New("nats: ack policy can not be updated"), true},
 		{errors.New("nats: flow control can not be updated"), true},
 		{errors.New("nats: heart beats can not be updated"), true},
-		// The mode flip: every lane consumer keeps one name across modes, so
-		// switching NATS_CONSUME_MODE re-provisions the same durable with the other
-		// shape and the server refuses the conversion in place.
 		{errors.New("nats: can not update push consumer to pull based"), true},
 		{errors.New("nats: can not update pull consumer to push based"), true},
 		{context.DeadlineExceeded, false},
 		{nats.ErrNoResponders, false},
 		{jsapi.ErrConsumerNotFound, false},
 		{errors.New("nats: max waiting can not be updated"), false},
-		// Not an immutable field at all: the server is reporting that the old
-		// delivery subject still has a live subscriber, so deleting would yank the
-		// consumer out from under a pod that is currently being delivered to.
 		{errors.New("nats: consumer name already in use"), false},
 		{nil, false},
 	} {
@@ -171,11 +147,6 @@ func TestOnlyImmutableFieldErrorsReplaceTheConsumer(t *testing.T) {
 	}
 }
 
-// Flow consumption is opt-IN. The flag is set in no manifest under deploy/, so
-// this default is what every consumer binds the moment its image rolls. Enabling
-// it also requires TWITCH_INGRESS_RETRY to be provisioned and subscribed by the
-// owning service, because a flow consumer cannot NAK and schedules failures
-// there instead; a default of on would do neither and expire them silently.
 func TestFlowConsumptionIsOptIn(t *testing.T) {
 	for _, value := range []string{"", "off", "yes", "true", "1", "ON"} {
 		t.Setenv("NATS_CONSUME_FLOW", value)
@@ -191,8 +162,6 @@ func TestFlowConsumptionIsOptIn(t *testing.T) {
 
 func TestFlowConsumerScopeGuardDeclinesControlLanes(t *testing.T) {
 	t.Setenv("NATS_CONSUME_FLOW", "on")
-	// Pin flow explicitly: the receipt-level default is pull, and this test is
-	// about the flow adapter's scope guard, not the mode selection.
 	t.Setenv("NATS_CONSUME_MODE", "flow")
 	subscriber := &fleetSubscriber{group: "worker"}
 	hot := subscriptionTarget{stream: TwitchIngressStream.Name, topic: "twitch.ingress.event.premium"}
@@ -211,13 +180,6 @@ func TestFlowConsumerScopeGuardDeclinesControlLanes(t *testing.T) {
 	}
 }
 
-// TestPartitionedLanesBindReceiptLevelConsumers walks the binding the service
-// path actually takes — topic to stream to acknowledgement contract — because
-// the partition changes the middle step and nothing else notices. targetForTopic
-// is what a consumer provisions against, so a standard lane still pointing at
-// TWITCH_INGRESS would create its consumer on a stream that no longer captures
-// the subject: no error, no delivery. Both receipt-level modes are checked
-// because each has its own provisioning path.
 func TestPartitionedLanesBindReceiptLevelConsumers(t *testing.T) {
 	t.Setenv("NATS_INGRESS_PARTITION", "on")
 	for _, mode := range []struct {
@@ -242,16 +204,12 @@ func TestPartitionedLanesBindReceiptLevelConsumers(t *testing.T) {
 	}
 }
 
-// laneExpectation is the binding one subject must walk into: the stream it
-// resolves to and the acknowledgement contract its lane gets.
 type laneExpectation struct {
 	subject string
 	stream  string
 	mode    laneConsumeMode
 }
 
-// requireLaneBinding walks one subject through the binding a consumer
-// provisions against.
 func requireLaneBinding(t *testing.T, subscriber *fleetSubscriber, want laneExpectation) {
 	t.Helper()
 	target, err := targetForTopic(want.subject)

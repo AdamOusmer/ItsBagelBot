@@ -29,16 +29,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrNoFetchKey marks a label with no sealed key on file.
 var ErrNoFetchKey = errors.New("no fetch key on record")
 
-// ErrCustodyUnavailable is answered by fetch_set_key / key reads when the
-// service booted without a usable Tink keyset: definitions keep working
-// keyless, custody refuses closed.
 var ErrCustodyUnavailable = errors.New("key custody unavailable")
 
-// ErrFetchDefReferenced refuses a definition delete while commands still
-// embed its {urlfetch:<name>} token; the message names them.
 type ErrFetchDefReferenced struct {
 	Commands []string
 }
@@ -52,38 +46,21 @@ const (
 
 	fetchesCacheTTL = 5 * time.Minute
 
-	// fetchesCacheCapacity ceilings the definition view cache, keyed one entry
-	// per user (the whole list) like the command view cache: a few thousand
-	// covers the users read within the TTL without holding
-	// cache.DefaultCapacity entries resident at rest.
 	fetchesCacheCapacity int64 = 4096
 )
 
-// FetchView is the read model of one definition (wire shape in fetchkey).
 type FetchView = fetchkeyrpc.FetchView
 
-// KeyView is the read model of one custody row: metadata only.
 type KeyView = fetchkeyrpc.KeyView
 
-// Fetches persists $(urlfetch) definitions and their sealed API keys.
-//
-// Unlike Commands this store is fully synchronous: the dashboard upsert must
-// quota-count against real rows before inserting (a write-behind queue cannot
-// enforce a per-broadcaster cap — its Upsert enqueues with no row check, and
-// the cap would only be discoverable at flush), and authors expect the
-// rehearsal path to see the saved def immediately. Definition volume is
-// console-clicks, not chat-volume, so there is nothing to coalesce.
 type Fetches struct {
 	client *ent.Client
-	packer domaincrypto.Packer // nil when key custody is disabled
+	packer domaincrypto.Packer
 	views  *cache.Cache[[]FetchView]
 	pub    bus.Publisher
 	log    *zap.Logger
 }
 
-// NewFetches builds the store over the shared ent client. packer may be nil:
-// the service then runs with key custody disabled and answers custody verbs
-// with ErrCustodyUnavailable while definitions keep working keyless.
 func NewFetches(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher, log *zap.Logger) *Fetches {
 	return &Fetches{
 		client: client,
@@ -94,12 +71,6 @@ func NewFetches(client *ent.Client, packer domaincrypto.Packer, pub bus.Publishe
 	}
 }
 
-// NewFetchesFromEnv builds the custody packer from the service's Tink keyset
-// (TINK_KEYSET_PATH) with modules' best-effort rules, deliberately diverging
-// from users' fatal MustGet: commands sits on the core chat path even with
-// zero keys ever sealed, so an unset path or an absent optional mount disables
-// key custody (warn) instead of crash-looping every commands pod. Only a
-// present-but-invalid keyset is fatal — that is real misconfiguration.
 func NewFetchesFromEnv(log *zap.Logger) domaincrypto.Packer {
 	path := env.Get("TINK_KEYSET_PATH", "")
 	if path == "" {
@@ -121,11 +92,6 @@ func NewFetchesFromEnv(log *zap.Logger) domaincrypto.Packer {
 	return packer
 }
 
-// last4 derives the display suffix at seal time: the final four characters of
-// the plaintext (the whole value when shorter). Display-only.
-// FetchSpec is the caller-editable state of one definition, as accepted by
-// UpsertDef and RenameDef. Name arrives raw from the console and is
-// normalized before validation.
 type FetchSpec struct {
 	Name     string
 	URL      string
@@ -166,7 +132,6 @@ func (s *FetchSpec) dto(userID uint64) data.FetchChangedDTO {
 	}
 }
 
-// List returns every definition of the user from the in-process cache.
 func (r *Fetches) List(ctx context.Context, userID uint64) ([]FetchView, error) {
 	return r.views.GetOrLoad(ctx, cache.UserKey(fetchesKeyPrefix, userID), func(ctx context.Context) ([]FetchView, error) {
 		return db.WithQuery(ctx, func(ctx context.Context) ([]FetchView, error) {
@@ -191,10 +156,6 @@ func (r *Fetches) List(ctx context.Context, userID uint64) ([]FetchView, error) 
 	})
 }
 
-// UpsertDef validates, quota-counts synchronously against real rows, writes
-// immediately (never through the write-behind batcher — see the Fetches doc
-// comment), and announces the new state on SubjectFetchChanged so the
-// projector rewrites the fetch:<name> field.
 func (r *Fetches) UpsertDef(ctx context.Context, userID uint64, spec FetchSpec) error {
 
 	spec.normalize()
@@ -219,10 +180,6 @@ func (r *Fetches) UpsertDef(ctx context.Context, userID uint64, spec FetchSpec) 
 		if err != nil {
 			return err
 		}
-		// Count-then-insert races only when one broadcaster saves two
-		// different names concurrently — a single console author does not do
-		// that, and the unique (user_id, name) index still holds. The cap's
-		// purpose is bounding abuse fan-out, not ledger precision.
 		if count >= validate.MaxFetchDefsPerBroadcaster {
 			return validate.FetchDefQuotaError()
 		}
@@ -253,7 +210,7 @@ func (r *Fetches) UpsertDef(ctx context.Context, userID uint64, spec FetchSpec) 
 
 	r.Invalidate(userID)
 
-	// One audit line per mutate; never the URL query or any key material.
+	// Never log the URL query or any key material.
 	r.log.Info("fetch definition saved",
 		zap.Uint64("user_id", userID),
 		zap.String("name", spec.Name),
@@ -262,11 +219,6 @@ func (r *Fetches) UpsertDef(ctx context.Context, userID uint64, spec FetchSpec) 
 	return bus.PublishJSON(ctx, r.pub, data.SubjectFetchChanged, spec.dto(userID))
 }
 
-// RenameDef changes a definition's key (name) in place and rewrites its other
-// fields in the same UPDATE. Immediate for the same reason the command rename
-// is: the write-behind batcher coalesces by (user, name), which cannot express
-// a key change. Publishes a delete for the old name and a change for the new
-// so field-keyed consumers retire the stale fetch:<old> entry.
 func (r *Fetches) RenameDef(ctx context.Context, userID uint64, originalName string, spec FetchSpec) error {
 
 	originalName = normalizeName(originalName)
@@ -299,8 +251,6 @@ func (r *Fetches) RenameDef(ctx context.Context, userID uint64, originalName str
 		return err
 	}
 
-	// Old row absent (renamed/deleted elsewhere): fall back to a plain upsert
-	// so the edit is not lost.
 	if updated == 0 {
 		return r.UpsertDef(ctx, userID, spec)
 	}
@@ -323,12 +273,6 @@ func (r *Fetches) RenameDef(ctx context.Context, userID uint64, originalName str
 	return bus.PublishJSON(ctx, r.pub, data.SubjectFetchChanged, spec.dto(userID))
 }
 
-// DeleteDef hard-deletes one definition. When commands still embed its token
-// the delete is refused with the referencing command names, unless forced —
-// deleting silently would leave chat lines resolving a dead name. Key deletes
-// are separate (DeleteKey) and always allowed; dangling labels fail closed.
-// DefDelete names one definition to remove and whether to sever live
-// references ({urlfetch:<name>} in command responses) instead of refusing.
 type DefDelete struct {
 	Name  string
 	Force bool
@@ -383,39 +327,8 @@ func (r *Fetches) DeleteDef(ctx context.Context, userID uint64, del DefDelete) e
 	})
 }
 
-// urlFetchTokenName is the span name a command response uses to read a fetch
-// definition. It is spelled again here rather than imported from
-// app/twitch/sesame/engine/scope, which owns the resolving side: this package
-// is the data tier and sesame is a read-only consumer of the projection, so
-// the import would run the dependency backwards (and internal/buildguard
-// would not catch it, because the guard it does have is the other direction).
-//
-// Nothing in the type system holds the two spellings together. What does is
-// TestReferencesFetch below: its table is written in the spans a broadcaster
-// actually types, so a rename on the sesame side that this constant missed
-// shows up as a command that stops reporting as a referrer.
 const urlFetchTokenName = "urlfetch"
 
-// ReferencingCommands lists the broadcaster's own commands whose response
-// spells {urlfetch:<name>} — with or without a dot-path tail, in any case,
-// with or without a "|fallback". It is what makes deleting a definition
-// report the commands it would break instead of silently breaking them.
-//
-// The scan is the shared lexer's, not a substring search. The hand-rolled one
-// it replaces looked for the literal "{urlfetch:" + name in a lower-cased
-// response and accepted only '}' or '.' after it, which got two live
-// spellings wrong:
-//
-//   - {urlfetch:weather|n/a} — the fallback grammar ends the payload at '|',
-//     which the needle scan did not know about, so a definition every
-//     fallback-using command depended on reported ZERO referrers and deleted
-//     clean. That is the bug this rewrite exists for.
-//   - {URLFETCH:Weather} — the haystack was folded but the caller's name was
-//     not, so a mixed-case argument matched nothing.
-//
-// Folding through tmpl.NormalizeName is the same fold scope.External applies
-// before the fetch, so "referenced" here and "resolved" at render time cannot
-// disagree.
 func (r *Fetches) ReferencingCommands(ctx context.Context, userID uint64, name string) ([]string, error) {
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Commands, error) {
 		return r.client.Commands.Query().
@@ -439,8 +352,6 @@ func (r *Fetches) ReferencingCommands(ctx context.Context, userID uint64, name s
 	return referrers, nil
 }
 
-// referencesFetch reports whether one response has a {urlfetch:…} span naming
-// the definition want (already folded).
 func referencesFetch(response, want string) bool {
 	for _, tok := range tmpl.Lex(response) {
 		if namesFetchDef(tok, want) {
@@ -450,16 +361,10 @@ func referencesFetch(response, want string) bool {
 	return false
 }
 
-// namesFetchDef reports whether one span is a {urlfetch:…} naming the
-// definition want. Named so the scan above reads as one question per span.
 func namesFetchDef(tok tmpl.Token, want string) bool {
 	return tok.Kind == tmpl.KindVar && tok.Name == urlFetchTokenName && fetchDefName(tok) == want
 }
 
-// fetchDefName folds one {urlfetch:…} span's payload down to the definition it
-// names: "Weather.a" is the definition "weather" with a dot-path selector, so
-// the tail is dropped. A span with no payload ({urlfetch}) names nothing and
-// answers "", which never matches a caller's non-empty name.
 func fetchDefName(tok tmpl.Token) string {
 	if !tok.HasPayload {
 		return ""
@@ -468,8 +373,6 @@ func fetchDefName(tok tmpl.Token) string {
 	return def
 }
 
-// DeleteAllForUser removes every definition and key of a deleted account.
-// Idempotent — deleting absent rows succeeds silently.
 func (r *Fetches) DeleteAllForUser(ctx context.Context, userID uint64) error {
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		if _, err := r.client.FetchDefinition.Delete().
@@ -489,25 +392,18 @@ func (r *Fetches) DeleteAllForUser(ctx context.Context, userID uint64) error {
 	return nil
 }
 
-// CustodyEnabled reports whether the service booted with a usable Tink
-// keyset; custody verbs refuse closed when it did not.
 func (r *Fetches) CustodyEnabled() bool {
 	return r.packer != nil
 }
 
-// Invalidate drops the cached view of one user; called when a change event
-// arrives from another instance of this service.
 func (r *Fetches) Invalidate(userID uint64) {
 	r.views.Invalidate(cache.UserKey(fetchesKeyPrefix, userID))
 }
 
-// Close releases the view cache.
 func (r *Fetches) Close() {
 	r.views.Close()
 }
 
-// defExists reports whether the user already has a row under this exact name
-// (an update must not be counted against the creation quota).
 func (r *Fetches) defExists(ctx context.Context, userID uint64, name string) (bool, error) {
 	return db.WithQuery(ctx, func(ctx context.Context) (bool, error) {
 		return r.client.FetchDefinition.Query().

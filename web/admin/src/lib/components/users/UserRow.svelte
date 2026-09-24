@@ -1,14 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One directory row on the shared ManagementRow. It carries no `actions`
-  // snippet on purpose: every mutation this user has is destructive or
-  // role-gated, so they all live in the inspector where the confirmation and
-  // the permission story sit together, and the row stays a pure selector.
-  //
-  // ManagementRow already sets data-cursor="quiet" on its primary button (a row
-  // is a reading surface, not a control, so the custom cursor must not morph
-  // into a row-sized box).
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { ago } from '@bagel/kit';
@@ -32,8 +24,6 @@
   const { t } = getI18n();
 
   const state = $derived(stateOf(user));
-  // `gate` because this list can run to fifteen rows: the blob engine only
-  // mounts for avatars actually on screen.
 </script>
 
 <ManagementRow {selected} expanded={selected} {controls} {onselect}>

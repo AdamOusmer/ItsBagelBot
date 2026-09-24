@@ -8,13 +8,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 )
 
-// All builds every module wired for the service, in registration order. Adding a
-// feature is writing its file and adding one line here. Core modules come first
-// so their reserved commands win the registry's first-wins de-dup over any named
-// module that might declare a clashing trigger. Personality registers with them
-// even though it is a named default-on module: it ships enabled for every
-// channel, so reserving its !bagels/!bagelboard spellings this early keeps a
-// later module from taking them.
 func All(d engine.Deps) []module.Module {
 	return []module.Module{
 		Core(d),
@@ -32,10 +25,6 @@ func All(d engine.Deps) []module.Module {
 		CODM(d),
 		ClashRoyale(d),
 		Valorant(d),
-		// Raffle before Queue: both declare !join, and the registry's first-wins
-		// de-dup gives the earlier module the standalone spelling. A channel
-		// running both features joins raffles with !join and reaches the queue
-		// through !queue join / !queue leave.
 		Raffle(d),
 		Queue(d),
 		Quotes(d),
@@ -43,18 +32,12 @@ func All(d engine.Deps) []module.Module {
 		Moderation(d),
 		ChannelPoints(d),
 		Loyalty(d),
-		// The wager games ride the loyalty economy; they register right after
-		// it and own no shared triggers with anything above them.
 		Gamble(d),
 		Duel(d),
 		Govee(d),
 		TimeOfDay(d),
 		Triggers(d),
 		EmotePlay(d),
-		// SongQueue registers last on purpose: its !sr spelling is checked
-		// against every earlier module's triggers by the same first-wins
-		// de-dup, so a future collision surfaces as this line failing a test,
-		// not as a silent takeover of someone else's command.
 		SongQueue(d),
 	}
 }

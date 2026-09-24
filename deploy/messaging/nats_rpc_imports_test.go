@@ -13,59 +13,17 @@ import (
 	"testing"
 )
 
-// This file is the regression gate for the RPC-plane account model's one
-// silent failure mode. Every service connects to the RPC plane under its own
-// account (NATS_RPC_USER), and a request only crosses accounts when the
-// requester's account IMPORTS the subject from the account that EXPORTS it.
-// A request on a subject with no matching import is not an error on either
-// side: the broker drops it, the caller sees ErrNoResponders or a timeout,
-// and the feature reads as "down" or "unavailable" with nothing to debug.
-// nats-auth.conf's own comments record this biting on the gossip fetch
-// rehearsal, on the govee picker, and most recently on the Overview's
-// per-stream counters (#809): the projector gained a loyalty counter.get call
-// in #737 and no import for it, so every go-live skipped the baseline write
-// and the dashboard stayed degraded for weeks.
-//
-// Two tests, from two directions:
-//
-//   - TestRPCRequestsAreImportedAndExported is a verb-level manifest: for
-//     every cross-account request a service's code makes (rpcRequests below,
-//     each with the file that makes it), the requester's account must import
-//     the subject, the import must name the account that exports it, and
-//     that account must export a pattern covering the subject. Adding an RPC
-//     call means adding a line here; the line is where the reviewer sees the
-//     ACL question asked.
-//   - TestRPCSubjectDefaultsAreGranted is source-derived: it scans every Go
-//     service's env-var subject defaults for bagel.rpc.* literals and
-//     requires each to be either served (covered by the account's exports) or
-//     requested (covered by its imports). It cannot know a verb appended at a
-//     call site, so when a literal is a PREFIX whose imports are narrower than
-//     the prefix, it requires the manifest to pin at least one verb under it.
-//     This is the test that would have failed on #737 without anyone editing
-//     a test: the projector's new "bagel.rpc.loyalty" default matched no
-//     export and no import.
-//
-// The parser is line-oriented and deliberately dumb, like the other tests on
-// this config: entries are one per line, comments start with '#', and the
-// exports/imports arrays close on a line that is just ']'.
-
 var rpcAccountHeaderPattern = regexp.MustCompile(`(?m)^  ([A-Z_]+): \{`)
 var rpcUserPattern = regexp.MustCompile(`\{ user: "([a-z_]+_rpc)"`)
 var exportEntryPattern = regexp.MustCompile(`^\s*\{ (service|stream): "([^"]+)"(?:, accounts: \[([^\]]*)\])? \}`)
 var quotedPattern = regexp.MustCompile(`"([^"]+)"`)
 var importEntryPattern = regexp.MustCompile(`^\s*\{ (service|stream): \{ account: "([A-Z_]+)",\s*subject: "([^"]+)" \} \}`)
 
-// rpcSubjectDefaultPattern matches the env-var-with-default idiom every Go
-// service uses for its subjects. The env name is unconstrained on purpose:
-// gossip's PROJECTION_FETCHES_SUBJECT has no NATS_ prefix and is exactly the
-// kind of subject this test exists to notice.
 var rpcSubjectDefaultPattern = regexp.MustCompile(`env\.Get\("[A-Z0-9_]+",\s*"(bagel\.rpc\.[^"]+)"\)`)
 
 type rpcGrant struct {
-	kind    string // "service" or "stream"
-	subject string
-	// accounts is a private export's importer allowlist (`accounts: [...]`);
-	// nil is a public export. Unused on imports.
+	kind     string
+	subject  string
 	accounts []string
 }
 
@@ -83,19 +41,9 @@ type rpcAccount struct {
 
 type rpcRequest struct {
 	subject string
-	// source names the file that issues the request, so a failure reads as a
-	// code location rather than a subject to go hunting for.
-	source string
+	source  string
 }
 
-// rpcRequests is the manifest: every cross-account RPC request a service
-// makes, keyed by the NATS user it connects as. Subjects are the FULL verb as
-// sent, never a prefix. Health probes are listed too: a missing health import
-// is read as "sibling down" on the status page, not as a config error.
-//
-// The console services (dashboard_rpc, admin_rpc) are TypeScript and outside
-// TestRPCSubjectDefaultsAreGranted's Go scan, so their entries here are the
-// only coverage they get — list the verbs the pages actually call.
 var rpcRequests = map[string][]rpcRequest{
 	"projector_rpc": {
 		{"bagel.rpc.internal.projection.users.get", "internal/projection/hydration"},
@@ -253,10 +201,6 @@ var rpcRequests = map[string][]rpcRequest{
 	},
 }
 
-// rpcServiceUsers maps each Go service directory (the one holding its main.go)
-// to the NATS user it connects to the RPC plane as. The credential itself is
-// injected at deploy time, so the mapping lives here by convention and a new
-// service must be added before its subjects are checked at all.
 var rpcServiceUsers = map[string]string{
 	"app/db/users":         "users_rpc",
 	"app/db/commands":      "commands_rpc",
@@ -275,37 +219,22 @@ var rpcServiceUsers = map[string]string{
 	"app/deployer":         "deployer_rpc",
 }
 
-// rpcServicesWithoutIdentity are main.go directories that never open an RPC
-// connection, so their subject defaults (if any) are not ACL questions.
 var rpcServicesWithoutIdentity = map[string]string{
 	"app/plain": "template service; config.Load() is called but no NATS connection is opened",
 }
 
-// rpcIntraAccountSubjects are subjects a service both serves and requests
-// under the SAME account, which need neither an export nor an import. Each
-// entry says why the two ends share an identity.
 var rpcIntraAccountSubjects = map[string]map[string]string{
 	"notifications_rpc": {
 		"bagel.rpc.internal.notifications.cleanup": "the cleanup CronJob runs the service image with the service creds (app/db/notifications/cleanup.go)",
 	},
 }
 
-// rpcUnusedDefaults are subject defaults a service loads into its config but
-// no code path requests or serves. Listed rather than silently skipped so a
-// reader knows the gap was looked at; deleting the config field removes the
-// entry.
 var rpcUnusedDefaults = map[string]map[string]string{
 	"discord_outgress_rpc": {
 		"bagel.rpc.outgress": "OutgressRPCPrefix is loaded by app/discord/outgress/internal/config but nothing in the service requests it",
 	},
 }
 
-// TestRPCRequestsAreImportedAndExported checks the manifest end to end: the
-// requester imports the subject, from the account the config says exports it,
-// and that account really does export a covering pattern. The node-qualified
-// variant is checked alongside: requestLocalFirst asks it first and only falls
-// back on ErrNoResponders, so an import that covers the plain subject but not
-// the .node.* half makes the answer depend on pod placement.
 func TestRPCRequestsAreImportedAndExported(t *testing.T) {
 	catalog := loadRPCCatalog(t)
 	for _, user := range sortedManifestUsers() {
@@ -322,12 +251,6 @@ func TestRPCRequestsAreImportedAndExported(t *testing.T) {
 	}
 }
 
-// TestRPCSubjectDefaultsAreGranted derives requesters from source instead of
-// from the manifest. Every bagel.rpc.* subject default a Go service loads must
-// be granted in one direction or the other: an export covers it (this service
-// answers on it) or an import covers it (this service calls it). A literal that
-// is only a prefix of narrower imports is accepted only when the manifest pins
-// a verb under it, so the verbs the code actually appends are on record.
 func TestRPCSubjectDefaultsAreGranted(t *testing.T) {
 	catalog := loadRPCCatalog(t)
 	checked := 0
@@ -349,21 +272,16 @@ func TestRPCSubjectDefaultsAreGranted(t *testing.T) {
 	}
 }
 
-// rpcCatalog is the parsed RPC-plane account model: every account with a
-// *_rpc user, indexed by account name and by user.
 type rpcCatalog struct {
 	accounts map[string]rpcAccount
 	byUser   map[string]rpcAccount
 }
 
 type goService struct {
-	name string // repo-relative, slash-separated: "app/twitch/sesame"
-	dir  string // filesystem path of the same directory
+	name string
+	dir  string
 }
 
-// subjectDefault is one bagel.rpc.* literal a service loads, with the account
-// it connects under, bundled so the assertion reads one value rather than a
-// row of strings.
 type subjectDefault struct {
 	service string
 	literal string
@@ -391,9 +309,6 @@ func sortedManifestUsers() []string {
 	return users
 }
 
-// accountForService resolves a service directory to its RPC account through
-// rpcServiceUsers, reporting (rather than skipping) a directory the map does
-// not know: a new service is exactly the case this test is for.
 func (c rpcCatalog) accountForService(t *testing.T, service goService) (rpcAccount, bool) {
 	t.Helper()
 	user, ok := rpcServiceUsers[service.name]
@@ -409,7 +324,6 @@ func (c rpcCatalog) accountForService(t *testing.T, service goService) (rpcAccou
 	return account, true
 }
 
-// assertRequestGranted checks one manifest entry, plain and node-qualified.
 func (c rpcCatalog) assertRequestGranted(t *testing.T, requester rpcAccount, req rpcRequest) {
 	t.Helper()
 	for _, subject := range []string{req.subject, req.subject + ".node.n1"} {
@@ -419,8 +333,6 @@ func (c rpcCatalog) assertRequestGranted(t *testing.T, requester rpcAccount, req
 	}
 }
 
-// crossAccountProblem describes why a request from requester on subject would
-// not reach a responder, or returns "" when the import/export chain is whole.
 func (c rpcCatalog) crossAccountProblem(requester rpcAccount, subject string) string {
 	imp, ok := requester.importCovering(subject)
 	if !ok {
@@ -440,15 +352,10 @@ func (c rpcCatalog) crossAccountProblem(requester rpcAccount, subject string) st
 	return ""
 }
 
-// importableBy mirrors the server's private-export rule: nats-server refuses
-// the whole config ("service import not authorized") when an account imports
-// an export whose `accounts` list does not name it.
 func (g rpcGrant) importableBy(account string) bool {
 	return g.accounts == nil || slices.Contains(g.accounts, account)
 }
 
-// assertDefaultGranted classifies one subject default. Allowlisted literals are
-// logged with their reason so the run shows they were looked at, not skipped.
 func (c rpcCatalog) assertDefaultGranted(t *testing.T, d subjectDefault) {
 	t.Helper()
 	if why, ok := d.allowlisted(); ok {
@@ -471,21 +378,16 @@ func (d subjectDefault) allowlisted() (string, bool) {
 	return "", false
 }
 
-// problem returns "" when the literal is served or requested under a grant,
-// otherwise the reason it is unreachable across accounts.
 func (d subjectDefault) problem() string {
 	if d.account.exportsCoverOrDescend(d.literal) {
-		return "" // served by this account
+		return ""
 	}
 	if _, ok := d.account.importCovering(d.literal); ok {
-		return "" // requested as a full subject
+		return ""
 	}
 	if !d.account.importsDescend(d.literal) {
 		return d.account.name + " neither exports nor imports anything covering it — a request or a subscription on it is unreachable across accounts"
 	}
-	// Narrower imports live under this prefix; the manifest has to say which
-	// verbs the service actually sends so they are checked at verb level by
-	// TestRPCRequestsAreImportedAndExported.
 	if d.manifestPinsVerbUnderPrefix() {
 		return ""
 	}
@@ -501,8 +403,6 @@ func (d subjectDefault) manifestPinsVerbUnderPrefix() bool {
 	return false
 }
 
-// goServiceDirs lists every directory under app/ that holds a main.go, one or
-// two levels deep (app/projector, app/twitch/sesame), as repo-relative names.
 func goServiceDirs(t *testing.T) []goService {
 	t.Helper()
 	root := filepath.Join("..", "..")
@@ -532,8 +432,6 @@ func goServiceDirs(t *testing.T) []goService {
 	return services
 }
 
-// TestSubjectMatches pins the NATS wildcard semantics the two tests above rely
-// on: '*' is exactly one token, '>' is one or more trailing tokens.
 func TestSubjectMatches(t *testing.T) {
 	cases := []struct {
 		pattern, subject string
@@ -557,10 +455,6 @@ func TestSubjectMatches(t *testing.T) {
 	}
 }
 
-// covers reports whether this service grant's subject pattern matches a
-// concrete subject under NATS rules: tokens are dot-separated, '*' matches
-// exactly one token and '>' matches one or more remaining tokens. Stream
-// grants never cover an RPC request.
 func (g rpcGrant) covers(subject string) bool {
 	if g.kind != "service" {
 		return false
@@ -599,10 +493,6 @@ func (a rpcAccount) exportCovering(subject string) (rpcGrant, bool) {
 	return rpcGrant{}, false
 }
 
-// exportsCoverOrDescend is the "served here" test for a subject default: the
-// literal is matched by an export (a full subject, or a prefix that an
-// export's own wildcard covers) or is a prefix that exports live under (the
-// service appends verbs to it and exports them one by one).
 func (a rpcAccount) exportsCoverOrDescend(literal string) bool {
 	if _, ok := a.exportCovering(literal); ok {
 		return true
@@ -624,9 +514,6 @@ func (a rpcAccount) importsDescend(literal string) bool {
 	return false
 }
 
-// rpcAccounts reads every top-level account block that carries a *_rpc user
-// and collects its exports and imports. BUS and SYS carry no such user and
-// fall out naturally.
 func (c authConfig) rpcAccounts(t *testing.T) map[string]rpcAccount {
 	t.Helper()
 	headers := rpcAccountHeaderPattern.FindAllStringSubmatchIndex(c.body, -1)
@@ -650,8 +537,6 @@ func (c authConfig) rpcAccounts(t *testing.T) map[string]rpcAccount {
 	return accounts
 }
 
-// accountBlock is one top-level account's text, header through the line
-// before the next header.
 type accountBlock struct {
 	body string
 }
@@ -672,10 +557,6 @@ func (b accountBlock) grants() ([]rpcGrant, []rpcImport) {
 	return p.exports, p.imports
 }
 
-// grantParser walks an account block line by line. Only the exports and
-// imports arrays are read; a line that opens or closes one of them moves the
-// cursor, every other line is matched against the entry pattern for the
-// array it sits in (so comments and the users array match nothing).
 type grantParser struct {
 	section string
 	exports []rpcGrant
@@ -705,7 +586,6 @@ func (p *grantParser) consume(line string) {
 	}
 }
 
-// quotedValues returns the quoted strings in list, or nil when there are none.
 func quotedValues(list string) []string {
 	var values []string
 	for _, m := range quotedPattern.FindAllStringSubmatch(list, -1) {
@@ -714,9 +594,6 @@ func quotedValues(list string) []string {
 	return values
 }
 
-// rpcSubjectDefaults collects every bagel.rpc.* env-var default under a
-// service directory (non-test Go files, recursively), so internal/config
-// packages are covered along with main.go.
 func rpcSubjectDefaults(t *testing.T, service goService) map[string]struct{} {
 	t.Helper()
 	literals := make(map[string]struct{})

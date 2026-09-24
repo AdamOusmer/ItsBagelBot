@@ -1,9 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // One dot per pod, grouped by node: old, new, pending or failing. This is
-  // the view that shows a one-pod-per-node service waiting on a node it
-  // cannot schedule on, which a single ready/replicas count hides.
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { NodePod } from '$lib/deploys/types';
   import CheckDot from './CheckDot.svelte';

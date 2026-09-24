@@ -21,20 +21,13 @@ const DEMO = dev && process.env.DEMO === '1';
 
 export type BotCountersBundle = { counters: BotCounter[]; degraded: boolean };
 
-// ':' is the {counter:...}/{count:...} token's payload separator, so a name
-// containing one could never be addressed by either token and never enters a
-// name; the fold itself is normalizeCounterName, shared with the dashboard's
-// counters page because both write the same keyspace.
 function validName(name: string): boolean {
   return name.length > 0 && !name.includes(':');
 }
 
 export const load: PageServerLoad = async ({ parent }) => {
   const layout = await parent();
-  // Bot-global counters have no backing role check of their own (the loyalty
-  // service takes any caller the broker lets through), so this table is the
-  // only gate: owner-only, because a bot-global counter is shared state every
-  // channel reads.
+  // The only gate: the loyalty service checks no role for bot-global counters.
   if (!allows(layout.role, 'counters.manage')) throw redirect(302, '/');
 
   const bundle: Promise<BotCountersBundle> = DEMO
@@ -46,10 +39,6 @@ export const load: PageServerLoad = async ({ parent }) => {
   return { bundle };
 };
 
-// mutate binds one POST action to the shared write skeleton
-// (@bagel/kit/server/form-action): gate, form, demo short-circuit, error
-// mapping, audit. The manager identity is this page's actor context; `run`
-// returns the audit detail, or null for a validation failure.
 type Mutation = (f: FormData) => Promise<string | null>;
 
 function mutate(op: string, run: Mutation) {
@@ -60,9 +49,6 @@ function mutate(op: string, run: Mutation) {
       refusal: () => fail(403, { ok: false, error: actionError(event.locals.locale, 'forbidden') }),
       demo: DEMO,
       run: (_admin, f) => run(f),
-      // A failed write is audited too, with the name it was attempted on: a
-      // rejected bot-counter change is exactly the kind of thing the trail is
-      // read for afterwards.
       failed: (e, f, admin) => {
         const error = (e as Error).message;
         audit(admin, { action, target: 'bot', detail: String(f.get('name') ?? ''), ok: false, error });

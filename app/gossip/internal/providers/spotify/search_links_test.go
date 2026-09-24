@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// denyAll fails the test on ANY api.spotify.com call: used when a route must
-// never reach the data API.
 func denyAll(t *testing.T) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("unexpected upstream call: %s %s", r.Method, r.URL.Path)
@@ -44,10 +42,6 @@ func TestSearchTrackLinkLooksUpDirectly(t *testing.T) {
 	assert.Equal(t, "3n3Ppam7vgaVa1iaRUc9Lp", reply.Tracks[0].ID)
 }
 
-// Artist sits in this table rather than in a test of its own: since Spotify
-// retired /artists/{id}/top-tracks for development-mode client ids, an artist
-// link is refused on exactly the path a playlist link is, and the two copies of
-// this body were already flagged as duplication before either had drifted.
 func TestSearchUnsupportedLinksRejectedWithoutCredentials(t *testing.T) {
 	for _, tt := range []struct{ name, link string }{
 		{"playlist", "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"},
@@ -100,7 +94,6 @@ func TestSearchFilteredFallsBackToPlainWhenEmpty(t *testing.T) {
 		require.Equal(t, "/v1/search", r.URL.Path)
 		searches = append(searches, r.URL.Query().Get("q"))
 		if len(searches) == 1 {
-			// The field-scoped candidate found nothing ("Stand by Me" split).
 			_, _ = io.WriteString(w, `{"tracks":{"items":[]}}`)
 			return
 		}
@@ -140,6 +133,4 @@ func TestSearchPlainTextStaysSingleShot(t *testing.T) {
 	require.Len(t, reply.Tracks, 1)
 }
 
-// These tests stage plain-http loopback upstreams the gate rightly refuses;
-// production binaries never set this (see core.SetSSRFCheckForTests).
 func init() { core.SetSSRFCheckForTests(false) }

@@ -4,14 +4,6 @@
 
 import Tag from '@bagel/ui/astro/Tag.astro';
 
-/**
- * LegalShell: legal pages that respect the reader. A sticky scrollspy table
- * of contents (desktop) and a "plain words" one-liner on every section so
- * nobody has to parse legalese to get the gist. (The reading-progress bar is
- * site-wide now: ui/ReadingProgress, mounted in Layout.)
- * Pages pass sections (id, heading, plain) and the rendered body of each
- * section as a Content component (from a markdown content collection).
- */
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 
 interface Section {
@@ -73,8 +65,6 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
         padding: 0 24px 96px;
     }
 
-    /* ── Layout ── */
-
     .lshell__grid {
         display: grid;
         grid-template-columns: 1fr;
@@ -87,8 +77,6 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
             gap: 72px;
         }
     }
-
-    /* ── TOC ── */
 
     .lshell__toc { display: none; }
 
@@ -151,8 +139,6 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
 
     .lshell__toc a.is-current::before { transform: scaleY(1); }
 
-    /* ── Content ── */
-
     .lshell__content { max-width: var(--content-text, 68ch); }
 
     .lshell__updated {
@@ -188,7 +174,6 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
         margin: 0 0 16px;
     }
 
-    /* .bb-tag--bare carries the mono/uppercase treatment now. */
     .lshell__plain-tag {
         color: var(--green-glow, #52b788);
         margin-right: 8px;
@@ -235,6 +220,5 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
 <script>
     import { scrollspy } from '../../script/scrollspy';
 
-    /* TOC scrollspy: shared with the other long-form shell. */
     scrollspy('legal');
 </script>

@@ -1,21 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Canonicalization + validation layer for config imports, ported one-for-one
-// from app/importer/mapping (mapping.go, response.go, permission.go,
-// validate.go) when the standalone importer service was folded into the
-// dashboard. Every function here is pure and deterministic: parsers run it at
-// parse time and the commit path runs it again before writing, so its outputs
-// are wire-stable and pinned by tests (validate.test.ts replays the Go
-// package's committed golden fixture as a parity check).
-//
-// The Go validators this layer called (internal/domain/validate CommandName /
-// CommandAliases / CommandResponse / Perm) are inlined below with their exact
-// error strings, because those strings surface verbatim inside diagnostics on
-// the preview screen. FloorClean was NOT ported: the importer never set
-// validate.CheckFloor, so it could not fire here; immovable-floor content is
-// still refused by the commands service when commit writes each row.
-
 import type {
   CollisionRef,
   ImportDiagnostic,
@@ -33,33 +18,10 @@ import { FETCH_NAME_MAX } from '../engine/fetch-validate';
 import { lex, type VarToken } from '../engine/tmpl';
 export { intactSpan } from '../engine/tmpl';
 
-// An importer does not merely COPY response text: it MINTS this bot's own {…}
-// tokens out of strings another product controls — a Moobot random-text
-// option, a Nightbot word number, a StreamElements definition slug. Those
-// strings are broadcaster content from somewhere else, so they can carry the
-// two bytes our span grammar spends: a '}' closes the span at the first one
-// (amputating everything after it) and a '|' re-reads the tail as a fallback.
-// Either byte produces a token that reads perfectly on the review screen and
-// resolves to something else entirely in chat, which is the one class of
-// import bug a broadcaster cannot diagnose.
-//
-// ../tmpl's intactSpan is the only sanctioned way to build one: it writes the
-// span, reads it back with the SHIPPED lexer (the same one sesame's pkg/tmpl
-// is pinned against) and refuses anything that did not survive the round trip.
-// It is re-exported here so an importer reaches for it beside the other
-// mapping rules it already imports, and so this note sits where the mapping
-// code is read. A caller that gets null drops the token rather than emitting a
-// broken one.
-
-/** Every {…} span one mapped response carries, as the bot's own lexer reads
- * them. Exported for the guard test that replays each source's fixtures and
- * asserts the whole mapped corpus lexes back to the tokens it meant. */
 export function mappedSpans(text: string): VarToken[] {
   return lex(text).filter((t): t is VarToken => t.kind === 'var');
 }
 
-// --- diagnostic codes (restated from internal/domain/rpc/importer, kept in
-// step; snake_case, item-kind-prefixed for item-level findings) ---------------
 export const CODE = {
   manifestEmpty: 'manifest_empty',
   unsupportedSource: 'unsupported_source',
@@ -92,11 +54,8 @@ export const CODE = {
   quoteTooMany: 'quote_too_many'
 } as const;
 
-// maxResponseLineLength mirrors Twitch's per-message limit: a longer line would
-// be silently eaten downstream. The ceiling belongs to Twitch, not to us.
 export const MAX_RESPONSE_LINE_BYTES = 500;
 export const MAX_RESPONSE_LINES = 5;
-// Cooldown ceiling (one day) must match the commands service's validation.
 export const MAX_COOLDOWN_SECONDS = 86400;
 
 const encoder = new TextEncoder();
@@ -104,29 +63,16 @@ function byteLen(s: string): number {
   return encoder.encode(s).length;
 }
 
-// NormalizeName canonicalizes one command name the way the commands service's
-// write hook does: trim, strip ONE leading "!", trim, lowercase. Chat carries
-// the "!"; storage and lookup keys never do, so both spellings must fold onto
-// the same key here or collision detection misses what the unique index would
-// catch at write time.
 export function normalizeName(name: string): string {
   return name.trim().replace(/^!/, '').trim().toLowerCase();
 }
 
-// ClampCooldown folds a source-provided cooldown onto the domain the commands
-// service accepts: negative values mean "unset" upstream and become 0, values
-// past the 86400s ceiling are clamped rather than rejected because every source
-// UI lets users type arbitrary numbers and losing the command over a silly
-// cooldown helps nobody.
 export function clampCooldown(seconds: number): number {
   if (seconds <= 0) return 0;
   if (seconds > MAX_COOLDOWN_SECONDS) return MAX_COOLDOWN_SECONDS;
   return seconds;
 }
 
-// truncateBytes cuts s to at most limit bytes without splitting a UTF-8 rune,
-// so a truncated emote or accented letter never becomes invalid UTF-8 on the
-// wire (the bot posts these lines verbatim).
 function truncateBytes(s: string, limit: number): string {
   const bytes = encoder.encode(s);
   if (bytes.length <= limit) return s;
@@ -135,10 +81,6 @@ function truncateBytes(s: string, limit: number): string {
   return new TextDecoder().decode(bytes.slice(0, cut));
 }
 
-// CanonicalizeResponse splits one source response into chat-ready lines: CRLF
-// folded to LF, surrounding whitespace trimmed, blank lines dropped, each
-// remaining line capped at 500 bytes and the total capped at 5 lines. Every
-// lossy fix is reported as a warn diagnostic attributed to itemIndex.
 export function canonicalizeResponse(
   raw: string,
   itemIndex: number
@@ -165,8 +107,6 @@ export function canonicalizeResponse(
   return { lines, diags };
 }
 
-// chatLine trims one source line into a chat-ready line, truncating past the
-// per-message byte limit with a diagnostic; blank lines vanish.
 function chatLine(piece: string, itemIndex: number, diags: ImportDiagnostic[]): string | null {
   let line = piece.trim();
   if (line === '') return null;
@@ -184,26 +124,8 @@ function chatLine(piece: string, itemIndex: number, diags: ImportDiagnostic[]): 
   return line;
 }
 
-// PERM_TIERS is the tier order, least to most privileged. Exported because a
-// source can grant one command to SEVERAL roles at once (Fossabot lists role
-// ids per command, Wizebot publishes "Subscribers VIPs Moderators" on one
-// command, any of which may trigger it), and resolving that onto the one tier
-// this bot stores means comparing tiers, which needs this order rather than a
-// second copy of it in each parser.
 export const PERM_TIERS: readonly Perm[] = ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'];
 
-// permissionAliases maps one external bot's permission labels onto this bot's
-// perm tiers. Keys are lower-cased source spellings; plural and abbreviation
-// variants observed in each product's UI/export are listed explicitly rather
-// than fuzzy-matched, so an unknown label fails loud (recognized=false) instead
-// of silently landing on the wrong tier:
-//   - StreamElements: Everyone / Moderator / Owner (dashboard wording).
-//   - Fossabot: Viewer / Subscriber / VIP / Moderator / Broadcaster|Streamer.
-//   - Moobot: Everyone / Subscribers / Moderators / Owner plus Regulars.
-//   - Nightbot: Everyone / Regular / Subscriber / Twitch VIP (twitch_vip on
-//     the wire) / Moderator / Owner.
-//   - StreamLabs Desktop: Everyone / Subscriber / Moderator / Streamer (+VIP).
-// lead_mod exists only in this bot; no source produces it, so it has no alias.
 const PERMISSION_ALIASES: Record<string, Perm> = {
   everyone: 'everyone',
   viewer: 'everyone',
@@ -230,12 +152,6 @@ const PERMISSION_ALIASES: Record<string, Perm> = {
   owner: 'broadcaster'
 };
 
-// MapPermission translates one source permission label into a perm tier. An
-// empty raw means the source had no permission field at all: that is the
-// source's own default of everyone, so it returns (everyone, true). A non-empty
-// raw with no table entry returns (everyone, false) so the parser can attach a
-// permission_unmapped warning; defaulting to everyone is deliberate because
-// every alternative either narrows a broadcaster's intent or invents trust.
 export function mapPermission(raw: string): { perm: Perm; recognized: boolean } {
   const label = raw.trim().toLowerCase();
   if (label === '') return { perm: 'everyone', recognized: true };
@@ -244,9 +160,6 @@ export function mapPermission(raw: string): { perm: Perm; recognized: boolean } 
   return { perm: 'everyone', recognized: false };
 }
 
-// Stats tallies one manifest by collection. It counts what the manifest holds,
-// regardless of validity: preview renders this number, commit computes its own
-// applied tally from what actually wrote.
 const STAT_KEYS: readonly (keyof ImportStats)[] = ['commands', 'timers', 'triggers', 'quotes'];
 
 export function stats(m: ImportManifest | null | undefined): ImportStats {
@@ -261,23 +174,16 @@ export function isEmptyStats(s: ImportStats): boolean {
   return STAT_KEYS.every((key) => s[key] === 0);
 }
 
-// FindCollisions returns the manifest items whose normalized name (or alias)
-// matches an entry of existingNames.
 export function findCollisions(existingNames: string[], m: ImportManifest | null | undefined): CollisionRef[] {
   if (!m || existingNames.length === 0) return [];
   const existing = new Set(existingNames.map(normalizeName));
 
   return [
     ...(m.commands ?? []).filter((c) => commandCollides(c, existing)).map((c) => collisionRef('command', c.name)),
-    // Synthesized urlfetch definitions collide like any other named item: a
-    // slug (<source>-<command>) that already names something on the channel
-    // would fight it at ingestion, so surface it and let the review screen skip.
     ...(m.fetches ?? []).filter((f) => existing.has(normalizeName(f.name))).map((f) => collisionRef('fetch', f.name))
   ];
 }
 
-// A command collides when its own normalized name OR any alias matches an
-// existing entry.
 function commandCollides(c: ManifestCommand, existing: Set<string>): boolean {
   if (existing.has(normalizeName(c.name))) return true;
   return (c.aliases ?? []).some((a) => existing.has(normalizeName(a)));
@@ -287,69 +193,24 @@ function collisionRef(kind: 'command' | 'fetch', name: string): CollisionRef {
   return { kind, name: normalizeName(name) };
 }
 
-// Caps mirror IMPORT_ITEM_CAPS exactly; restated locally so the cap, its
-// diagnostics and the client truncation read together (asserted equal by test).
 const MAX_IMPORT_COMMANDS = IMPORT_ITEM_CAPS.commands;
 const MAX_IMPORT_TIMERS = IMPORT_ITEM_CAPS.timers;
 const MAX_IMPORT_TRIGGERS = IMPORT_ITEM_CAPS.triggers;
 const MAX_IMPORT_QUOTES = IMPORT_ITEM_CAPS.quotes;
 
-// maxQuoteTextLen mirrors the quote column cap in the modules service: the
-// quote readout prepends "Quote #N: " and appends " (date)" inside one Twitch
-// message, so the schema holds the body under 450 rather than 500.
 const MAX_QUOTE_TEXT_LEN = 450;
-// minTimerIntervalSeconds re-states sesame's engine floor (30s): below it a
-// timer arms an expire/fire/re-arm loop the engine refuses, so import clamps
-// instead of writing a timer that silently never fires.
 export const MIN_TIMER_INTERVAL_SECONDS = 30;
-// Bounds one term list inside the modules service's 16KiB config-blob cap with
-// headroom for the merged blob (2 x 200 terms x ~100 bytes), so hitting the cap
-// mid-commit becomes impossible rather than handled.
 export const MAX_AUTOMOD_TERMS = 200;
 
-// MAX_FETCH_SLUG_SUFFIX reserves room for the widest slot suffix a synthesis
-// pass can append ("_2000" at the commands cap): pre-truncating the command
-// part by this much means prefix + part + suffix can never exceed
-// FETCH_NAME_MAX, so two long names cannot collide by truncation alone.
 const MAX_FETCH_SLUG_SUFFIX = 5;
 
-// FetchSlugSource is the closed set of importer prefixes. A bare string would
-// let any caller invent a prefix the 32-byte budget was never sized for (and
-// would read as one more anonymous string argument at the call site); the
-// union keeps both the budget and the meaning checked.
-// 'wizebot' is reserved here rather than used: its published command text
-// carries no urlfetch-shaped tag (the streaming website shows resolved text),
-// so v1 of that source synthesizes no definitions. The prefix is claimed now
-// so the 32-byte budget above is sized for it the day one appears.
-// 'slcb' (StreamLabs Chatbot / streamlabs-desktop) is used: $readapi(URL)
-// synthesizes a definition the same way (phase 6).
 export type FetchSlugSource = 'se' | 'moobot' | 'nightbot' | 'fossabot' | 'wizebot' | 'slcb';
 
-// fetchDefSlug builds one legal definition name from a short source prefix and
-// a command name: `<source>_<slugified command>`.
-//
-// Decision record: why the fold is slugifyName and not a local one: the name
-// this returns becomes the Valkey hash field "fetch:<name>" and the
-// {urlfetch:<name>} token payload, and the commands service validates it as
-// ^[a-z0-9_]{1,32}$ (Go FetchDefName, internal/domain/validate/fetch.go). The
-// importers used to mint `se-<command>` / `moobot-<command>`: a HYPHEN IS NOT
-// IN THAT GRAMMAR, so every synthesized definition was refused at commit while
-// its tokens were already written into the response text. Routing through the
-// fetches editor's own slugifier is what makes the two agree (a broadcaster
-// re-creating a URL-less shell by hand lands on the SAME name the imported
-// tokens reference), and it keeps the linear underscore trimming that fold
-// uses on purpose (anchored /^_+/ backtracks polynomially; see fetch-tokens).
-// Deterministic: same export in, same slugs out (re-import idempotence).
 export function fetchDefSlug(source: FetchSlugSource, commandName: string): string {
   const budget = FETCH_NAME_MAX - source.length - 1 - MAX_FETCH_SLUG_SUFFIX;
-  // Second pass over the sliced part re-trims an underscore the cut exposed.
   return `${source}_${slugifyName(slugifyName(commandName).slice(0, budget))}`;
 }
 
-// isValidFetchDefName reports whether a name would be accepted by the commands
-// service verbatim. Parsers assert their own output against it; untrusted
-// manifests are NOT re-slugified (silently renaming a reference the responses
-// embed would break token-def agreement).
 export function isValidFetchDefName(name: string): boolean {
   return name.length <= FETCH_NAME_MAX && FETCH_DEF_NAME_RE.test(name);
 }
@@ -359,8 +220,6 @@ const FETCH_DEF_NAME_RE = /^[a-z0-9_]+$/;
 const MAX_COMMAND_NAME_LEN = 64;
 const MAX_COMMAND_ALIASES = 25;
 
-// Go strconv.Quote equivalent for diagnostic prose (ASCII corpus only; control
-// characters fall back to JSON escaping; no fixture relies on them).
 function q(s: string): string {
   return JSON.stringify(s);
 }
@@ -373,8 +232,6 @@ export function warnDiag(itemIndex: number, code: string, message: string): Impo
   return { severity: 'warn', item_index: itemIndex, code, message };
 }
 
-// commandNameProblem mirrors validate.CommandName's error strings: 1-64 bytes
-// of printable ASCII without spaces. Returns null when valid.
 const NAME_RULE = 'command name must be 1-64 printable ASCII characters without spaces';
 
 export function commandNameProblem(name: string): string | null {
@@ -383,8 +240,6 @@ export function commandNameProblem(name: string): string | null {
   return printableAscii(name) ? null : NAME_RULE;
 }
 
-// Printable ASCII without space blocks control characters, whitespace
-// tricks and invisible unicode in command lookups.
 function printableAscii(name: string): boolean {
   for (let i = 0; i < name.length; i++) {
     const c = name.charCodeAt(i);
@@ -393,8 +248,6 @@ function printableAscii(name: string): boolean {
   return true;
 }
 
-// commandAliasesProblem mirrors validate.CommandAliases: each alias a valid
-// command name, unique case-insensitively, at most 25.
 const ALIAS_RULE = 'aliases must each be a valid command name, unique, and at most 25 in total';
 
 function commandAliasesProblem(aliases: string[]): string | null {
@@ -412,8 +265,6 @@ function aliasTaken(alias: string, seen: Set<string>): boolean {
   return seen.has(alias.toLowerCase());
 }
 
-// commandResponseProblem mirrors validate.CommandResponse: 1-5 lines, each
-// 1-500 bytes without control characters.
 const RESPONSE_RULE =
   'command response must be 1-5 lines, each 1-500 characters without control characters';
 
@@ -437,12 +288,6 @@ function hasControlChars(line: string): boolean {
   return false;
 }
 
-// Validate walks a whole manifest and returns one diagnostic per problem,
-// ordered commands, timers, triggers, quotes, automod. Errors mark
-// items commit must skip (the item cannot land as-is); warns mark values
-// commit will adjust. It re-checks limits even though parsers run the
-// canonicalizers themselves: callers (including the browser, on the Moobot
-// path) are untrusted, and trust here is verified, not assumed.
 export function validateManifest(m: ImportManifest | null | undefined): ImportDiagnostic[] {
   if (!m) return [];
   const diags: ImportDiagnostic[] = [];
@@ -455,8 +300,6 @@ export function validateManifest(m: ImportManifest | null | undefined): ImportDi
   return diags;
 }
 
-// CollectionKind is one manifest collection's validation rule: an accessor,
-// its cap and the pure item validator producing that collection's diagnostics.
 interface CollectionKind<T> {
   noun: string;
   cap: number;
@@ -465,8 +308,6 @@ interface CollectionKind<T> {
   validateItem: (item: T, index: number) => ImportDiagnostic[];
 }
 
-// walkKind binds a kind into the walker table below. Overflow keeps the
-// item's slot but skips its checks, exactly like the previous ladders.
 function walkKind<T>(kind: CollectionKind<T>): (m: ImportManifest) => ImportDiagnostic[] {
   return (m) =>
     kind.items(m).flatMap((item, i) =>
@@ -512,10 +353,6 @@ function automodDiags(terms: NonNullable<ImportManifest['automod']>): ImportDiag
   ];
 }
 
-// CommandItem is one manifest command under validation: the row as imported,
-// its folded name and its index in the collection. The three checks below all
-// need the same three values, so they travel as one rather than as a row plus
-// two loose primitives repeated at every call.
 interface CommandItem {
   command: ManifestCommand;
   name: string;
@@ -605,9 +442,6 @@ function validateQuoteItem(qt: ManifestQuote, index: number): ImportDiagnostic[]
   return out;
 }
 
-// isRFC3339 mirrors Go time.Parse(time.RFC3339, s): strict calendar shape with
-// a mandatory zone offset (Z or ±hh:mm). JS Date() accepts far too much to
-// reuse here.
 export function isRFC3339(s: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/.exec(s);
   if (!m) return false;
@@ -616,19 +450,12 @@ export function isRFC3339(s: string): boolean {
   return validCalendarDay(day) && validClock(time);
 }
 
-// CalendarDay names the date components one RFC3339 timestamp carries.
-// Exported so targets.ts's date-normalizer (countdown/countup, phase 6) can
-// validate a calendar date against the SAME rule this file uses, rather than
-// trusting whatever a source's free-form date string claims (Date.parse
-// happily accepts "Feb 30" and silently rolls it into March).
 export interface CalendarDay {
   y: number;
   mo: number;
   d: number;
 }
 
-// ClockTime names the time components; s = 60 = leap second, which Go's
-// RFC3339 parse also accepts.
 export interface ClockTime {
   h: number;
   mi: number;
@@ -656,8 +483,6 @@ export function validClock(time: ClockTime): boolean {
   return time.h <= 23 && time.mi <= 59 && time.s <= 60;
 }
 
-// FailedCollection names the manifest collections the commit drop filter
-// addresses: the diagnostic-code prefixes map onto exactly these.
 export type FailedCollection = 'commands' | 'timers' | 'triggers' | 'quotes';
 
 const FAILED_PREFIXES: readonly [prefix: string, collection: FailedCollection][] = [
@@ -672,12 +497,6 @@ function failedCollection(code: string): FailedCollection | null {
   return hit ? hit[1] : null;
 }
 
-// FailedItems indexes a diagnostic slice into a lookup the commit path uses to
-// drop unappliable items: errorItems(diags).has('commands', 3) answers whether
-// manifest.Commands[3] carried an error-severity finding. Diagnostics whose
-// code carries no recognized kind prefix (manifest-level findings) are skipped,
-// because dropping whole collections over a global warning would turn one bad
-// automod list into a silently empty import.
 export class FailedItems {
   private readonly sets: Map<FailedCollection, Set<number>>;
 

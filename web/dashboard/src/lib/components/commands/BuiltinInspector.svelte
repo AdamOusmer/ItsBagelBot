@@ -1,15 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Inspector pane for a built-in command. Built-ins have no editable response,
-  // so this is intentionally read-only: it shows what the command does, example
-  // usage, a preview of the chat line the bot posts, and a single on/off toggle.
-  // The toggle posts to ?/toggleBuiltin (built-in state lives in the modules
-  // service) via the page's shared optimistic toggle handler.
-  //
-  // The layout mirrors CommandEditor (same field labels, spacing, and a
-  // rehearsal-style preview card), so switching between a custom command and a
-  // built-in in the same docked inspector reads as one consistent surface.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
@@ -35,8 +26,6 @@
     command: CommandView;
     def: BuiltinCommandDef;
     toggleSubmit: SubmitFunction;
-    // replySubmit persists an editable built-in's reply template (only used when
-    // def.editable). Omitted for read-only built-ins.
     replySubmit?: SubmitFunction;
     busy?: boolean;
   } = $props();
@@ -44,12 +33,6 @@
   const { t } = getI18n();
   const c = $derived(command);
 
-  // --- Editable reply (e.g. clip) ------------------------------------------
-  // Seed the editor from the saved template (command.response), and re-seed when
-  // switching to a different built-in row so the draft never leaks across rows.
-  // seededFor starts null so the first effect run seeds it; it re-seeds only on
-  // an actual row change, so editing (which leaves the name unchanged) never
-  // fights the seed.
   let message = $state('');
   let seededFor = $state<string | null>(null);
   $effect(() => {
@@ -59,18 +42,11 @@
     }
   });
 
-  // ChatPreview's samples prop is still a bare name->sample record (it feeds
-  // the shared rehearsal in engine/rehearsal.ts, which knows nothing about
-  // ReplyToken); build it once from the same tokens the palette reads so the
-  // two never disagree.
   const rehearsalSamples = $derived(Object.fromEntries((def.tokens ?? []).map((tk) => [tk.name, tk.sample])));
-  // Blank posts the default template, so preview the default instead of "nothing
-  // to say yet".
   const effectiveMessage = $derived(message.trim() ? message : def.preview);
 </script>
 
 <div class="editor builtin">
-  <!-- Enabled: horizontal toggle row with a hairline under it -->
   <div class="toggle-row">
     <div class="tr-text">
       <span class="tr-label">{t('builtinInspector.enabled')}</span>
@@ -92,18 +68,12 @@
   </Field>
 
   {#if def.editable && replySubmit}
-    <!-- Editable reply: same surface as a custom command: message editor with a
-         token palette, then the chat rehearsal. Saved to the modules-service
-         config (via ?/saveBuiltinReply), not the commands service. -->
     <form class="reply-form" method="POST" action="?/saveBuiltinReply" use:enhance={replySubmit}>
       <input type="hidden" name="name" value={c.name} />
       <input type="hidden" name="is_active" value={c.is_active ? 'on' : ''} />
       <Field label={t('builtinInspector.replyMessage')} hint={t('builtinInspector.replyHint')}>
         <ResponseEditor name="reply" bind:value={message} surface={{ builtin: def.id }} placeholder={def.preview} />
       </Field>
-      <!-- kind="reply": built-in replies are expanded by a bare token replacer
-           (e.g. clipExpand), only this reply's own token samples substitute, no
-           dynamic tokens. Leading slash-verbs still route (outgress sendBotLine). -->
       <ChatPreview
         kind="reply"
         dynamic={false}
@@ -137,14 +107,11 @@
 </div>
 
 <style>
-  /* Match CommandEditor's container + field rhythm exactly. */
   .editor {
     padding: 4px 2px 2px;
     font-family: var(--bb-font-body);
   }
 
-  /* Enabled toggle sits in a row with a hairline beneath, like the top of the
-     module form; the switch is the shared global .toggle. */
   .toggle-row {
     display: flex;
     align-items: center;
@@ -180,7 +147,6 @@
     color: var(--bb-muted);
   }
 
-  /* Field label typography, copied from CommandEditor. */
   .reply-form { margin-bottom: 14px; }
   .reply-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
   @media (max-width: 480px) {
@@ -205,8 +171,6 @@
     gap: 6px;
   }
 
-  /* Read-only value box: styled like a disabled .bb-input so Access /
-     Cooldown read as fields, just non-editable. */
   .ro {
     box-sizing: border-box;
     width: 100%;

@@ -5,12 +5,6 @@ package engine
 
 import "testing"
 
-// TestKeyLiterals pins the exact bytes of the broadcaster-scoped Valkey keys.
-// The builders were hand-rolled concatenations before they moved onto
-// pkg/cache.UserKey/PairKey; a key that changes shape orphans every live entry
-// written under the old one (balances go to zero, armed timers never fire), and
-// nothing else in the suite would notice, because both sides of a round trip
-// would agree on the new spelling. Hence literals here, not a re-derivation.
 func TestKeyLiterals(t *testing.T) {
 	const id uint64 = 12345
 	got := map[string]string{

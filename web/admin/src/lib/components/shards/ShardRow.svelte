@@ -1,15 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One shard in the fleet deck.
-  //
-  // NOT a ManagementRow: there is no per-shard verb (scale is a fleet-wide
-  // control, and a single shard has nothing to inspect that the row does not
-  // already show), so this row is not selectable. ManagementRow renders its
-  // primary content inside a <button>, and a button that does nothing when
-  // pressed is worse than no button -- it announces itself as actionable to
-  // assistive tech and morphs the custom cursor for a dead target. The row is a
-  // plain <div> that borrows the deck's rule and padding instead.
   import type { Shard } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
@@ -25,9 +16,7 @@
   }: {
     shard: Shard;
     nodes: readonly string[];
-    /** Events per second, already resolved against the load window. */
     eps: number;
-    /** Percent of one socket's rated throughput. */
     utilization: number;
     targetUtilization: number;
   } = $props();

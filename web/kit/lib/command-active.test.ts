@@ -11,9 +11,7 @@ describe('persistCommandActive', () => {
   });
 
   test('edit uses the live row, not the inspector snapshot (#221)', () => {
-    // Disabled command, stale draft still checked → stay disabled.
     expect(persistCommandActive(true, true, false)).toBe(false);
-    // Row toggle on while inspector still shows off → keep the toggle.
     expect(persistCommandActive(true, false, true)).toBe(true);
   });
 

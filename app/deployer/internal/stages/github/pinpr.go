@@ -13,20 +13,9 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// pin_pr rewrites main's pin lines to the run's digests in one PR and merges
-// it. Rollout reads the manifests at that merge commit, never the working
-// tree or a later main, so what rolls is exactly what the PR showed.
-//
-// A rollback has no digests stage: its pins are the version tag of the target
-// release, resolved and checked here the way digests checks a release. The
-// tag and not the old pin commit, because a hotfix force-moves the tag and
-// its pin PR carries a run key no lookup can find again: the release's own
-// pin commit would roll back to the build the hotfix replaced.
-
 func pinsDone(ctx context.Context, rc *stage.RunCtx) (bool, error) {
 	run := rc.View()
 	if len(run.Outputs.Digests) == 0 {
-		// Nothing resolved yet (a rollback resolves in Run).
 		return false, nil
 	}
 	plan, err := planPins(ctx, rc, run)
@@ -57,9 +46,8 @@ func runPins(ctx context.Context, rc *stage.RunCtx) error {
 	return recordPins(ctx, rc, plan, merged)
 }
 
-// pinPlan is main's pins against the run's.
 type pinPlan struct {
-	head     deploy.SHA // main head the manifests were read at, the PR base
+	head     deploy.SHA
 	lines    []PinLine
 	pins     map[deploy.ImageName]deploy.ImagePin
 	changed  ports.Files
@@ -93,9 +81,6 @@ func targetPins(ctx context.Context, rc *stage.RunCtx, run deploy.Run, lines []P
 	return nil, fmt.Errorf("%w: no digests to pin", ports.ErrInvalid)
 }
 
-// rollbackPins resolves the target release's version tag for every image
-// main pins and persists them as the run's digests, so a resumed attempt and
-// verify see the same set.
 func rollbackPins(ctx context.Context, rc *stage.RunCtx, run deploy.Run, lines []PinLine) (map[deploy.ImageName]deploy.ImagePin, error) {
 	ref, found, err := rc.Deps.GitHub.Tag(ctx, run.RollbackTo)
 	if err != nil {
@@ -116,8 +101,6 @@ func rollbackPins(ctx context.Context, rc *stage.RunCtx, run deploy.Run, lines [
 	return pins, rc.SetOutputs(ctx, func(o *deploy.Outputs) { o.Digests = pins })
 }
 
-// pinServices follows Outputs.Services: a bump lists the rollout units whose
-// image it pins, every other kind lists them all.
 func pinServices(kind deploy.RunKind, lines []PinLine, pins map[deploy.ImageName]deploy.ImagePin) []string {
 	if kind == deploy.KindBump {
 		return servicesFor(lines, pins)
@@ -125,8 +108,6 @@ func pinServices(kind deploy.RunKind, lines []PinLine, pins map[deploy.ImageName
 	return servicesFor(lines, pinsByImage(lines))
 }
 
-// recordPins stores the commit rollout reads: the pin PR's merge commit, or
-// main's head when main already carried every pin.
 func recordPins(ctx context.Context, rc *stage.RunCtx, plan pinPlan, pr ports.PullRequest) error {
 	plan.report(ctx, rc, deploy.StateSucceeded)
 	rc.SetProgress(ctx, deploy.Progress{Done: len(plan.pins), Total: len(plan.pins)})
@@ -138,9 +119,6 @@ func recordPins(ctx context.Context, rc *stage.RunCtx, plan pinPlan, pr ports.Pu
 	})
 }
 
-// report upserts one row per pinned image, "old -> new" or skipped when
-// main already has it. Upsert rather than replace: the PR row mergePR adds
-// and a rollback's "no build" rows from the resolve stay on the page.
 func (p pinPlan) report(ctx context.Context, rc *stage.RunCtx, state deploy.StageState) {
 	current := pinsByImage(p.lines)
 	for _, img := range sortedImages(p.pins) {
@@ -167,9 +145,6 @@ func (p pinPlan) request(run deploy.Run) prRequest {
 	}
 }
 
-// pinTitle follows the titles the hand-made pin PRs used ("Deploy
-// v0.2.2-beta release images", #994) so the history reads the same after the
-// deployer took over.
 func pinTitle(run deploy.Run, services []string) string {
 	switch run.Kind {
 	case deploy.KindBump:

@@ -11,12 +11,6 @@ metadata:
   name: valkey
   namespace: cache
 spec:
-  # PreferSameNode, not the deprecated PreferClose. Keeps a caller on the
-  # backend running on its own node, with fallback to a peer when the local
-  # one is unready -- unlike internalTrafficPolicy: Local, which has no
-  # fallback. Set fleet-wide 2026-08-20 after cross-node DNS to the cp1
-  # resolver, reached over tailscale0, was traced to intermittent Cilium
-  # drops that cost a 5s resolver timeout per lost packet.
   trafficDistribution: PreferSameNode
   ports:
   - name: tls-redis
@@ -43,15 +37,6 @@ metadata:
   name: valkey-local
   namespace: cache
 spec:
-  # kube-proxy selects only the endpoint on the caller's node. This keeps
-  # node-local reads on that node's own listener, with no cross-node hop.
-  # Since the scale-up to replicas: 3 every schedulable node (node1, node2,
-  # node3) carries one member, so callers there always have a local endpoint.
-  # cp1 is tainted and runs no app pods, so its lack of a member is not a gap.
-  # The Sentinel-only fallback in pkg/valkey NewClient is therefore no longer
-  # the normal path, but it is deliberately kept: a member being down or
-  # unready on one node must degrade that node's callers to Sentinel-routed
-  # reads, not fail them.
   internalTrafficPolicy: Local
   ports:
   - name: tls-redis
@@ -95,10 +80,6 @@ metadata:
   name: valkey
   namespace: cache
 spec:
-  # TODAY there is one member, so this budget cannot protect quorum -- it only
-  # keeps a crash-looping pod evictable during a drain. Re-derive this from
-  # Sentinel quorum arithmetic (2-of-3 needs maxUnavailable: 1) when replicas
-  # scales to 3 below.
   maxUnavailable: 1
   unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
@@ -123,16 +104,6 @@ spec:
     whenDeleted: Retain
     whenScaled: Retain
   podManagementPolicy: Parallel
-  # ONE member today: this is a fresh single-node-capable cluster and pkg/valkey
-  # (buildOption in pkg/valkey/client.go) hardcodes the Sentinel master-set name
-  # "myprimary" and only takes the Sentinel path when the configured address is
-  # a Sentinel port, so a real (if 1-node) Sentinel deployment is what every
-  # consumer's VALKEY_ADDR already expects, not a bare standalone connection.
-  #
-  # Scale to 3 when more nodes are dedicated to this tier: bump replicas to 3,
-  # sentinel monitor quorum in valkey.yaml's config-init from 1 back to 2, and
-  # min-replicas-to-write in config/tuning.conf from 0 back to 1. Nothing else
-  # in this file is ordinal- or count-specific.
   replicas: 3
   revisionHistoryLimit: 10
   selector:
@@ -144,43 +115,12 @@ spec:
   template:
     metadata:
       annotations:
-        # TLS is native (Valkey's own tls-port) end to end; the pods run on
-        # the Cilium pod network (hostNetwork removed 2026-08-18) like every
-        # other workload, matching nats (deploy/messaging/).
         secrets.doppler.com/reload: 'true'
       labels:
         app.kubernetes.io/component: node
         app.kubernetes.io/instance: valkey
         app.kubernetes.io/name: valkey
     spec:
-      # Seed the writable /data copies of valkey.conf and sentinel.conf ONCE.
-      # After first boot valkey and sentinel own these files: valkey rewrites
-      # replicaof on every Sentinel-driven failover and sentinel persists its
-      # known peers/epoch, so a restarted pod reads its real current role from
-      # /data instead of re-deriving it. Every member announces its stable
-      # StatefulSet DNS identity, independent of the node it is scheduled on.
-      # Resolver options, uniform across every first-party workload.
-      #
-      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
-      # fewer than 5 dots is tried against all three search domains BEFORE
-      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
-      # an external name like api.twitch.tv costs 4 too -- three guaranteed
-      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
-      # denial cache hits against 10368 success hits, so 62% of everything
-      # served was the junk half of that expansion.
-      #
-      # single-request-reopen: glibc sends the A and AAAA queries in parallel
-      # from one socket; the two replies can race in conntrack and one gets
-      # dropped, which costs a full resolver timeout. Reopening the socket
-      # for the second query removes the race.
-      #
-      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
-      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
-      # worst case instead of 10s. The 1s matters specifically because Valkey
-      # Sentinel resolves hostnames inside its event loop and declares "tilt"
-      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
-      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
-      # See deploy/cache/valkey.yaml for the measurement that found it.
       dnsConfig:
         options:
           - {name: ndots, value: "1"}
@@ -344,11 +284,6 @@ spec:
             secretKeyRef:
               key: valkey-password
               name: valkey-core-secret
-        # Valkey never reads the cgroup limit itself -- maxmemory is a number
-        # it is told, and it has no idea what the container was given. The
-        # Downward API is the only way to get the limit into the pod, and
-        # resourceFieldRef from an initContainer must name the target
-        # container explicitly. divisor 1Mi yields whole MiB, rounded up.
         - name: MEM_LIMIT_MI
           valueFrom:
             resourceFieldRef:
@@ -394,11 +329,6 @@ spec:
         - "no"
         - --replica-read-only
         - "yes"
-        # --maxmemory is deliberately NOT repeated here. Command-line flags
-        # override the config file, which would defeat the limit-derived
-        # value config-init writes into /data/valkey.conf. The retained-PVC
-        # protection those repeated flags exist for is provided instead by
-        # config-init deleting and re-appending maxmemory on every boot.
         - --maxmemory-policy
         - volatile-lru
         - --port
@@ -411,8 +341,6 @@ spec:
         - /etc/valkey/tls/tls.key
         - --tls-ca-cert-file
         - /etc/valkey/tls/ca.crt
-        # Full mTLS: command-line policy is authoritative even over a retained
-        # /data/valkey.conf, same as every other flag repeated here.
         - --tls-auth-clients
         - "yes"
         - --tls-replication
@@ -475,37 +403,7 @@ spec:
           timeoutSeconds: 3
         resources:
           limits:
-            # Raised 2 -> 6. Measured 2026-08-20: this container has NEVER
-            # been throttled (nr_throttled 0 across 2.2M CFS periods, all
-            # three members) at 36m steady usage, so the old limit was not
-            # hurting anything today. It was, however, the stated reason
-            # io-threads was pinned at 2, and io-threads cannot use cores the
-            # cgroup will not grant. Nodes are 12-core with 29% of CPU
-            # requests committed, so 6 is affordable headroom.
-            # This raises the CEILING; it does not speed up current traffic.
-            # Live load is 81 ops/s and 2.79 kbps out, which two threads
-            # already serve without effort. The real ceiling on this fleet is
-            # TLS handshake CPU, not bandwidth: 70292 connections have been
-            # accepted against 127 steady clients, because each exec probe
-            # spawns a fresh valkey-cli that cannot reuse a session ticket
-            # and therefore pays a full handshake every time.
             cpu: '6'
-            # 512 MiB maxmemory + 128 MiB replication backlog still need room
-            # for allocator overhead, TLS buffers, AOF fork/COW and full sync.
-            # Measured 2026-08-20 on valkey-node-0: used_memory 98.4 MiB, of
-            # which used_memory_dataset is only 1.28 MiB (1.26%) and
-            # mem_replication_backlog is 93.8 MiB growing to the configured
-            # 128 MiB. RSS 122.5 MiB, frag ratio 1.25, evicted_keys 0, peak ==
-            # current. So the steady-state floor is the backlog, not the data.
-            # Raised 2 GiB -> 3 GiB purely as fork/COW headroom: a full sync to
-            # two replicas plus an AOF rewrite can fork while the backlog is
-            # full, and 2 GiB left no margin for that to coincide with a
-            # dataset that grows toward maxmemory. Limits are not reservations,
-            # so this costs nothing until it is actually needed; requests stay
-            # at 384 Mi, which still covers measured RSS. maxmemory is
-            # deliberately NOT raised with this - 512 MiB is already ~400x the
-            # live dataset, and raising it would only raise the fork/COW
-            # worst case this margin exists to absorb.
             memory: 3Gi
           requests:
             cpu: 250m
@@ -575,23 +473,6 @@ spec:
             - --sni
             - valkey.cache.svc.cluster.local
             - ping
-          # failureThreshold 6, NOT the default 3. Sentinel enters "tilt" when
-          # it detects its event loop was delayed abnormally, and a tilt
-          # window is a fixed 30s (SENTINEL_TILT_PERIOD). At failureThreshold
-          # 3 the liveness budget is periodSeconds 10 x 3 = exactly 30s, so a
-          # single tilt sits precisely on the kill boundary, and the same
-          # event-loop stall that caused the tilt also delays this probe's
-          # mTLS handshake. Measured 2026-08-20: valkey-node-1 tilted 62
-          # times, 1474s across a 3h24m window (12.0% of the time), against
-          # 0.4-0.5/h on the other two members, and was the only member
-          # kubelet restarted. It took SIGTERM at 12:29:08 and shut down
-          # gracefully, so it recorded exitCode 0 "Completed" and read as a
-          # clean exit rather than the probe kill it actually was.
-          # 6 gives 60s, clearing one full tilt window with margin.
-          # Restarting a Sentinel is worse than waiting through a tilt: it
-          # drops its runtime view of peers and replicas and must rediscover
-          # them, which is a quorum risk at exactly the moment the fleet is
-          # already unhappy.
           failureThreshold: 6
           initialDelaySeconds: 20
           periodSeconds: 10
@@ -644,24 +525,9 @@ spec:
           timeoutSeconds: 3
         resources:
           limits:
-            # Raised 250m -> 1. Both probes are exec probes that fork a full
-            # valkey-cli and complete a client-certificate mTLS handshake,
-            # readiness every 5s and liveness every 10s. That cost is bursty,
-            # and CFS grants a 250m container only 25ms of every 100ms
-            # period, so a handshake needing more stalls into the next period
-            # and drags the event loop with it -- which is what tilt reports.
-            # Measured 2026-08-20, nr_throttled/nr_periods on all three
-            # members: 8.78% / 8.31% / 7.77%. Every Sentinel here is
-            # throttled ~8% of periods, node-1 no worse than the others, so
-            # throttling is NOT what makes node-1 different. It is still a
-            # standing event-loop hazard for all three and cheap to remove.
             cpu: '1'
             memory: 64Mi
           requests:
-            # TLS health checks use 25-40m steadily. A 50m request left
-            # almost nothing above that for the handshake burst; 100m keeps
-            # the guaranteed share above measured idle without inflating the
-            # scheduler footprint. The limit is only reached by the bursts.
             cpu: 100m
             memory: 32Mi
         securityContext:
@@ -681,18 +547,10 @@ spec:
         - mountPath: /etc/valkey/tls
           name: valkey-tls
           readOnly: true
-      # Valkey and Sentinel listen on the node's own addresses (6380/26380).
-      # config-init resolves the Sentinel Service and every member announces a
-      # cluster DNS name, so the pods still need cluster DNS.
       restartPolicy: Always
-      # No role tolerations: Valkey belongs on the untainted application tier
-      # (cp1 carries no taint on this cluster either, so it is schedulable
-      # too, but anti-affinity below still keeps at most one member per node).
       schedulerName: default-scheduler
       nodeSelector:
         role: node
-      # Inert with replicas: 1 (nothing to conflict with), kept so scaling to
-      # 3 spreads members one-per-node without an extra edit.
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -729,15 +587,6 @@ spec:
         secret:
           defaultMode: 288
           secretName: valkey-server-tls
-      # Valkey storage is EPHEMERAL, deliberately. No volumeClaimTemplates.
-      # A local-path PVC binds its PV to the node that provisioned it, so a
-      # member whose node dies cannot be rescheduled. Losing a member's volume
-      # is cheap here: replication rebuilds a replica from the primary, and
-      # the whole dataset is derived state (projections, timers) that other
-      # services rebuild on their own. The init script already regenerates
-      # valkey.conf and sentinel.conf on every boot from Sentinel discovery
-      # rather than reading them back off disk, so an empty /data is the path
-      # it is written for.
       - name: valkey-data
         emptyDir:
           sizeLimit: 8Gi

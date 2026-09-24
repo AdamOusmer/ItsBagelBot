@@ -1,13 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Ticket keyspace: tickets, their pending-close markers, close summaries,
-// transcripts and the desk panel lock.
-//
-// One of the four keyspace files store.go was split into; see store_voice.go
-// for why the split runs by keyspace across both implementations rather than
-// by implementation.
-
 package discordstore
 
 import (
@@ -18,13 +11,6 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// Ticket is one private support channel.
-//
-// ID, Status, ClaimedBy and PanelMessageID are only ever populated by the RPC
-// store: they are columns on discord-data's tickets row. The pure-Valkey
-// fallback keeps the three fields the old key held (channel, guild, opener)
-// and leaves the rest zero, which is what the degraded mode's boot WARN is
-// warning about -- see NewRPC.
 type Ticket struct {
 	ID             int
 	ChannelID      string
@@ -35,38 +21,27 @@ type Ticket struct {
 	PanelMessageID string
 }
 
-// TicketOpen records one newly created ticket channel.
 type TicketOpen struct {
-	GuildID   string
-	ChannelID string
-	OpenerID  string
-	Subject   string
-	// PanelMessageID is the ticket card already posted into the channel.
+	GuildID        string
+	ChannelID      string
+	OpenerID       string
+	Subject        string
 	PanelMessageID string
-	// OpenLimit is the guild's per-member cap on simultaneously open tickets.
-	// Zero means unlimited. The check happens where the rows are (see
-	// TicketOpenResult.AtLimit): a caller-side count would need a second round
-	// trip and would still race with itself.
-	OpenLimit int
+	OpenLimit      int
 }
 
-// TicketOpenResult is what recording a ticket answered. AtLimit is the refusal:
-// the row was NOT written, and OpenCount is how many the opener already holds.
 type TicketOpenResult struct {
 	TicketID  int
 	OpenCount int
 	AtLimit   bool
 }
 
-// TicketClaim marks a ticket as being handled by StaffID.
 type TicketClaim struct {
 	GuildID   string
 	ChannelID string
 	StaffID   string
 }
 
-// TicketClose ends a ticket. A non-empty ArchivedChannelID means the channel
-// was moved into the archive category rather than deleted.
 type TicketClose struct {
 	GuildID           string
 	ChannelID         string
@@ -74,15 +49,12 @@ type TicketClose struct {
 	ArchivedChannelID string
 }
 
-// Transcript is one closed ticket's rendered history.
 type Transcript struct {
 	TicketID     int
 	Body         string
 	MessageCount int
 }
 
-// DeskPanel is the remembered ticket-desk panel message, so a repost can
-// delete the previous one instead of stacking a second panel under the first.
 type DeskPanel struct {
 	GuildID   string
 	ChannelID string
@@ -97,30 +69,12 @@ func pendingCloseKey(ch Channel) string { return "discord:ticket:pendingclose:" 
 
 func summaryKey(ticketID int) string { return "discord:ticket:summary:" + strconv.Itoa(ticketID) }
 
-// pendingCloseTTL is how long an unrecorded close waits for a retry.
-//
-// 24 hours, matching the summary memo. Long enough that a discord-data outage
-// measured in hours still ends with the row written by whoever next touches
-// the channel; short enough that a marker for a channel nobody ever opens
-// again expires instead of accumulating. Indefinite was the alternative and is
-// worse: the retry is best effort, and a key with no TTL is a leak with no
-// reader.
 const pendingCloseTTL = 24 * 60 * 60
 
-// summaryTTL is how long the "this ticket's summary was posted" memo lives.
-// A retry that arrives a day after the close is not a duplicate press, it is a
-// new decision, and the log channel should show it.
 const summaryTTL = 24 * 60 * 60
 
-// deskClaimed is the desk key's value when the panel was posted but its
-// message id is unknown -- the engine's EnsureDesk posts through a
-// fire-and-forget Command and never learns one. It is the byte the key has
-// always held, kept so an existing claim keeps reading as a claim.
 const deskClaimed = "1"
 
-// parseDeskValue reads the desk key. "1" (or anything without a separator) is
-// a claim with no remembered message; "<channel>|<message>" is a panel a
-// repost can delete first.
 func parseDeskValue(guildID, raw string) (DeskPanel, bool) {
 	channelID, messageID, ok := strings.Cut(raw, "|")
 	if !ok {
@@ -129,9 +83,6 @@ func parseDeskValue(guildID, raw string) (DeskPanel, bool) {
 	return DeskPanel{GuildID: guildID, ChannelID: channelID, MessageID: messageID}, true
 }
 
-// Ticket status values, mirroring discorddata's (which mirror the ent enum).
-// Duplicated rather than imported: the pure-Valkey path must not depend on the
-// data service's wire package to name the state of its own key.
 const (
 	TicketStatusOpen     = "open"
 	TicketStatusClaimed  = "claimed"
@@ -139,18 +90,10 @@ const (
 	TicketStatusArchived = "archived"
 )
 
-// TicketOver reports whether a ticket has reached a terminal state. A row in
-// one of these still EXISTS (discord-data keeps closed tickets; the archived
-// channel is often still in the guild), so every desk action has to ask rather
-// than assume that a row it found is a live ticket.
 func TicketOver(status string) bool {
 	return status == TicketStatusClosed || status == TicketStatusArchived
 }
 
-// ticketValue is the pure-Valkey ticket record. It is a pipe-joined triple
-// rather than JSON to stay byte-compatible with the key this store has always
-// written; the claim and panel fields are appended, and a value written by an
-// older build simply parses with them empty.
 func ticketValue(t Ticket) string {
 	return strings.Join([]string{t.GuildID, t.OpenerID, t.ClaimedBy, t.PanelMessageID}, "|")
 }
@@ -183,10 +126,6 @@ func parsePendingClose(channelID, raw string) (TicketClose, bool) {
 	}, true
 }
 
-// TrackTicket writes the channel key. The open limit is NOT enforced here: a
-// per-member count would mean a second Valkey keyspace that nothing else reads
-// and that no other replica's writes are ordered against, and this store is
-// already the degraded fallback (see NewRPC's boot WARN).
 func (s valkeyStore) TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenResult, error) {
 	ch := Channel{ID: t.ChannelID}
 	value := ticketValue(Ticket{GuildID: t.GuildID, OpenerID: t.OpenerID, PanelMessageID: t.PanelMessageID})
@@ -194,8 +133,6 @@ func (s valkeyStore) TrackTicket(ctx context.Context, t TicketOpen) (TicketOpenR
 	return TicketOpenResult{}, err
 }
 
-// Ticket reads the node-local ticket key, refusing a channel that belongs to a
-// different guild than the caller named.
 func (s valkeyStore) Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, bool) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(ticketKey(ch)).Build()).ToString()
 	if err != nil || raw == "" {
@@ -208,10 +145,6 @@ func (s valkeyStore) Ticket(ctx context.Context, g Guild, ch Channel) (Ticket, b
 	return t, true
 }
 
-// OpenTicketCount always answers zero. Counting a member's open tickets means
-// a per-member index this keyspace does not keep, and the fallback mode is
-// already the one without limits (see NewRPC's boot WARN): the number it would
-// have to invent is worse than the honest zero, which lets the ticket open.
 func (s valkeyStore) OpenTicketCount(context.Context, Member) int { return 0 }
 
 func (s valkeyStore) ClaimTicket(ctx context.Context, c TicketClaim) error {
@@ -223,20 +156,12 @@ func (s valkeyStore) ClaimTicket(ctx context.Context, c TicketClaim) error {
 	return s.client.Do(ctx, s.client.B().Set().Key(ticketKey(Channel{ID: c.ChannelID})).Value(ticketValue(t)).Build()).Error()
 }
 
-// CloseTicket drops the key. Nothing survives a close in this mode -- the
-// history the desk shows lives on discord-data's row, which the fallback has
-// no access to.
 func (s valkeyStore) CloseTicket(ctx context.Context, c TicketClose) error {
 	return s.client.Do(ctx, s.client.B().Del().Key(ticketKey(Channel{ID: c.ChannelID})).Build()).Error()
 }
 
-// PutTranscript drops the transcript. There is no ticket row to attach it to
-// and a 2 MiB Valkey value per closed ticket, kept forever, is the wrong shape
-// for a cache; the close summary still posts to the log channel either way.
 func (s valkeyStore) PutTranscript(context.Context, Transcript) error { return nil }
 
-// TicketsDurable is false: this store keeps one key per live ticket channel
-// and nothing else. See the interface's doc for what the desk does about it.
 func (valkeyStore) TicketsDurable(context.Context) bool { return false }
 
 func (s valkeyStore) MarkPendingClose(ctx context.Context, c TicketClose) error {
@@ -271,10 +196,6 @@ func (s valkeyStore) ClaimDesk(ctx context.Context, g Guild) bool {
 	return err == nil
 }
 
-// RememberDesk stores the panel pointer. A remember with NO message id is
-// set-if-absent, never an overwrite: it is a claim, and letting it overwrite
-// would erase the id of a panel that IS posted, which is the one thing a
-// repost needs to delete the old panel instead of stacking a second one.
 func (s valkeyStore) RememberDesk(ctx context.Context, p DeskPanel) error {
 	key := deskKey(Guild{ID: p.GuildID})
 	if p.MessageID == "" {
@@ -284,8 +205,6 @@ func (s valkeyStore) RememberDesk(ctx context.Context, p DeskPanel) error {
 	return s.client.Do(ctx, s.client.B().Set().Key(key).Value(value).Build()).Error()
 }
 
-// ignoreNil folds SET NX's "the key already existed" answer into success: not
-// writing because someone else already did is the outcome the caller wanted.
 func ignoreNil(err error) error {
 	if valkey.IsValkeyNil(err) {
 		return nil
@@ -301,9 +220,6 @@ func (s valkeyStore) Desk(ctx context.Context, g Guild) (DeskPanel, bool) {
 	return parseDeskValue(g.ID, raw)
 }
 
-// TrackTicket records a ticket and enforces the open limit, which the Valkey
-// store does not: the double is what module tests exercise the limit refusal
-// against, and a double that cannot refuse would let that path go untested.
 func (m *Mem) TrackTicket(_ context.Context, t TicketOpen) (TicketOpenResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -365,7 +281,6 @@ func (m *Mem) CloseTicket(_ context.Context, c TicketClose) error {
 	return nil
 }
 
-// PutTranscript keeps the body so a test can assert what was rendered.
 func (m *Mem) PutTranscript(_ context.Context, t Transcript) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -373,8 +288,6 @@ func (m *Mem) PutTranscript(_ context.Context, t Transcript) error {
 	return nil
 }
 
-// Transcript reads back what PutTranscript stored. Test-only: it is not part
-// of Store, because nothing in production reads a transcript back through it.
 func (m *Mem) Transcript(id int) (Transcript, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -382,8 +295,6 @@ func (m *Mem) Transcript(id int) (Transcript, bool) {
 	return t, ok
 }
 
-// TicketsDurable is true on the double: it enforces the open limit and keeps
-// ticket ids, which is what the module tests exercise the durable path with.
 func (*Mem) TicketsDurable(context.Context) bool { return true }
 
 func (m *Mem) MarkPendingClose(_ context.Context, c TicketClose) error {
@@ -430,8 +341,6 @@ func (m *Mem) ClaimDesk(_ context.Context, g Guild) bool {
 	return true
 }
 
-// RememberDesk mirrors the Valkey store's rule: a remember with no message id
-// never erases a pointer that has one.
 func (m *Mem) RememberDesk(_ context.Context, p DeskPanel) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -449,8 +358,6 @@ func (m *Mem) Desk(_ context.Context, g Guild) (DeskPanel, bool) {
 	return p, ok
 }
 
-// SeedTicket plants a ticket row in whatever state a test needs, including
-// the terminal ones TrackTicket cannot produce. Test-only.
 func (m *Mem) SeedTicket(t Ticket) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

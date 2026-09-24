@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// banBody mirrors the Helix Ban User request body for decoding in tests.
 type banBodyWire struct {
 	Data struct {
 		UserID   string `json:"user_id"`
@@ -68,9 +67,6 @@ func TestBuildOutgressTimeoutCarriesDuration(t *testing.T) {
 	assert.Equal(t, "spam", got.Data.Reason)
 }
 
-// A folded duplicate cohort (senders present) is plain chat the ingress squash
-// collapsed; command dispatch must be skipped even when the text looks like a
-// command, while an identical line WITHOUT senders still dispatches.
 func TestProcessCohortSkipsCommandDispatch(t *testing.T) {
 	reader := fakeReader{
 		cmd:      projection.Command{Name: "hi", Response: "hello", IsActive: true},
@@ -94,7 +90,6 @@ func TestProcessCohortSkipsCommandDispatch(t *testing.T) {
 	require.NoError(t, p.Process(bus.NewMessage("u1", cohort)))
 	assert.Empty(t, pub.got, "a cohort must never dispatch a command")
 
-	// Control: the same command line without senders dispatches and emits.
 	pub2 := &fakePublisher{}
 	p2 := newPipelineWith(pub2, reader)
 	require.NoError(t, p2.Process(chatMsg(t, "standard", "!hi")))

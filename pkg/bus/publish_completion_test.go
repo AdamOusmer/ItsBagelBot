@@ -17,8 +17,6 @@ func TestPublishCompletionPreservesGapsAcrossGrowthAndWrap(t *testing.T) {
 		pub.completeSequences([]uint64{sequence}, nil)
 	}
 	initialCapacity := len(pub.resolved)
-	// Later admissions force growth while the first message still holds the
-	// frontier. Results already recorded must survive the ring's relocation.
 	for range 4096 {
 		sequence := pub.markAccepted()
 		pub.completeSequences([]uint64{sequence}, nil)
@@ -38,8 +36,6 @@ func TestPublishCompletionPreservesGapsAcrossGrowthAndWrap(t *testing.T) {
 func verifyCompletionRingReuse(t *testing.T, pub *batchPublisher) {
 	t.Helper()
 	capacity := len(pub.resolved)
-	// Reuse every slot multiple times with out-of-order completions. A stale
-	// result from a previous lap must never advance the new lap's frontier.
 	for range capacity / 16 {
 		base := pub.completed
 		for range 32 {

@@ -14,7 +14,7 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +38,6 @@ func TestSpotifyTokenRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "rt-secret-token", got)
 
-	// The plaintext must never sit in the column.
 	row := client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(1001)).OnlyX(ctx)
 	assert.NotContains(t, string(row.TokenEnc), "rt-secret-token", "token must be sealed at rest")
 	assert.NotEmpty(t, row.TokenEnc)
@@ -93,8 +92,6 @@ func TestSpotifyTokenAADBindsToUser(t *testing.T) {
 
 	require.NoError(t, creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "owner-token"}))
 
-	// Copy user 1001's ciphertext onto user 2002's row: the AAD binds the
-	// envelope to 1001, so opening it as 2002 must fail rather than leak.
 	row := client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(1001)).OnlyX(ctx)
 	client.SpotifyCredential.Create().SetUserID(2002).SetTokenEnc(row.TokenEnc).ExecX(ctx)
 
@@ -146,11 +143,6 @@ func TestSpotifyRotateTokenEmptyNextRefused(t *testing.T) {
 	require.Error(t, creds.RotateToken(ctx, 1001, "first", ""))
 }
 
-// --- broadcaster-owned application -------------------------------------------
-
-// Every case below starts from a registered application, because nothing else
-// can be set up without one. testClientID/testClientSecret are the values each
-// assertion reads back, so they are named once rather than retyped per case.
 const (
 	testClientID     = "client-abc"
 	testClientSecret = "secret-xyz"
@@ -162,8 +154,6 @@ func seedApp(t *testing.T, creds *repository.SpotifyCreds, userID uint64) {
 		repository.SpotifyApp{ClientID: testClientID, ClientSecret: testClientSecret}))
 }
 
-// seedConnected registers an application and connects an account to it: the
-// fully set-up broadcaster.
 func seedConnected(t *testing.T, creds *repository.SpotifyCreds, userID uint64, token string) {
 	t.Helper()
 	seedApp(t, creds, userID)
@@ -180,8 +170,6 @@ func TestSpotifyAppRoundTripSealsSecret(t *testing.T) {
 	assert.Equal(t, testClientID, setup.App.ClientID)
 	assert.Equal(t, testClientSecret, setup.App.ClientSecret)
 
-	// The client id is public (it rides the authorize URL) and stays readable;
-	// the secret must not sit in the column in the clear.
 	row := client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(2001)).OnlyX(ctx)
 	assert.Equal(t, testClientID, row.ClientID)
 	assert.NotEmpty(t, row.ClientSecretEnc)
@@ -208,8 +196,6 @@ func TestSpotifyAppRequiresBothHalves(t *testing.T) {
 	assert.Error(t, creds.SetApp(ctx, 2003, repository.SpotifyApp{ClientSecret: testClientSecret}))
 }
 
-// The two flows write the same row from opposite ends: pasting credentials
-// must not wipe an existing grant, and reconnecting must not wipe the app.
 func TestSpotifyAppAndTokenSurviveEachOther(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
@@ -221,7 +207,6 @@ func TestSpotifyAppAndTokenSurviveEachOther(t *testing.T) {
 	assert.Equal(t, testClientSecret, setup.App.ClientSecret)
 	assert.Equal(t, "rt-1", setup.RefreshToken)
 
-	// Re-pasting the app with a rotated secret keeps the grant.
 	require.NoError(t, creds.SetApp(ctx, 2004,
 		repository.SpotifyApp{ClientID: testClientID, ClientSecret: "secret-rotated"}))
 	setup, err = creds.Credentials(ctx, 2004)
@@ -230,8 +215,6 @@ func TestSpotifyAppAndTokenSurviveEachOther(t *testing.T) {
 	assert.Equal(t, "rt-1", setup.RefreshToken)
 }
 
-// A broadcaster who pasted credentials but never finished the connect flow is
-// "app, no grant", not a connection, and not a seal failure either.
 func TestSpotifyAppWithoutGrantReadsAsNotConnected(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
@@ -260,8 +243,6 @@ func TestSpotifyCredentialsWithoutAppRefuses(t *testing.T) {
 	assert.ErrorIs(t, err, repository.ErrNoSpotifyApp)
 }
 
-// The app secret and the refresh token are sealed under different AAD labels,
-// so a ciphertext moved between the two columns must fail to open.
 func TestSpotifyAppAADIsNotInterchangeableWithToken(t *testing.T) {
 	client, creds := spotifySetup(t)
 	ctx := context.Background()
@@ -290,10 +271,6 @@ func TestSpotifyClearAppDropsTheGrantToo(t *testing.T) {
 	assert.False(t, connected)
 }
 
-// Disconnecting an account clears the grant and nothing else. Deleting the row
-// here would take the broadcaster's registered application with it, so the
-// reconnect they were about to do would demand their client id and secret
-// again: for no reason they could see.
 func TestSpotifyClearTokenKeepsTheApp(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
@@ -312,7 +289,6 @@ func TestSpotifyClearTokenKeepsTheApp(t *testing.T) {
 	assert.Empty(t, setup.RefreshToken)
 }
 
-// And reconnecting after that disconnect works without re-pasting the app.
 func TestSpotifyReconnectAfterDisconnectNeedsNoRepaste(t *testing.T) {
 	_, creds := spotifySetup(t)
 	ctx := context.Background()
@@ -327,10 +303,6 @@ func TestSpotifyReconnectAfterDisconnectNeedsNoRepaste(t *testing.T) {
 	assert.Equal(t, "rt-2", setup.RefreshToken)
 }
 
-// A grant records what Spotify said it covers, and a rotation must not blank
-// that: the replacement token carries the same consent as the one it
-// replaces. A row written before the column existed reads back as unknown,
-// which callers treat as stale rather than complete.
 func TestSpotifyTokenScopesSurviveRotation(t *testing.T) {
 	ctx := context.Background()
 	_, creds := spotifySetup(t)

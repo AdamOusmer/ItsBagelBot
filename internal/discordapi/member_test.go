@@ -11,12 +11,8 @@ import (
 	"testing"
 )
 
-// apiPrefix is the versioned API root every path carries; the tests below
-// pin the endpoint, not the version.
 const apiPrefix = "/api/v10"
 
-// capture records the one request a call made, so a test can pin the method
-// and path (a wrong path is a 404 nobody notices until production).
 type capture struct {
 	method string
 	path   string
@@ -39,10 +35,6 @@ func recording(t *testing.T, status int, reply string) (*Client, *capture) {
 	return client, got
 }
 
-// wantRequest pins the method and the path of the one request a call made.
-// Every test in this package asserted the pair as a single two-clause
-// condition that printed "GET /guilds/g1/members/u1" on failure without
-// saying which half was wrong; this reports the halves separately.
 func wantRequest(t *testing.T, got *capture, method, path string) {
 	t.Helper()
 	if got.method != method {
@@ -94,7 +86,6 @@ func TestListGuildChannelsFullKeepsParentAndOverwrites(t *testing.T) {
 	}
 }
 
-// ListGuildRoles has to carry "managed" now, because StripRoles skips those.
 func TestListGuildRolesDecodesManaged(t *testing.T) {
 	client, _ := recording(t, 200, `[{"id":"r1","name":"Mods"},{"id":"r2","name":"Bagel","managed":true}]`)
 
@@ -126,8 +117,6 @@ func TestModifyGuildSendsVerificationLevel(t *testing.T) {
 	}
 }
 
-// An empty patch must not reach Discord: PATCH /guilds with an empty body is
-// a wasted token off a bucket a lockdown is racing.
 func TestModifyGuildEmptyPatchSendsNothing(t *testing.T) {
 	client, got := recording(t, 200, `{}`)
 
@@ -154,8 +143,6 @@ func TestSetChannelOverwriteTargetsTheOverwriteEndpoint(t *testing.T) {
 	}
 }
 
-// The audit-log reason must reach Discord percent-encoded, and it must be
-// ABSENT rather than empty when there is nothing to say.
 func TestRemoveMemberRoleWithReasonEncodesTheHeader(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -188,8 +175,6 @@ func TestRemoveMemberRoleWithReasonEncodesTheHeader(t *testing.T) {
 	}
 }
 
-// Discord caps the reason at 512 characters and answers a longer one with a
-// 400 -- on a moderation call, at the worst possible moment.
 func TestAuditReasonTruncatesToDiscordsCap(t *testing.T) {
 	got := auditReason(strings.Repeat("a", auditReasonMax+50))
 	if len(got) != auditReasonMax {

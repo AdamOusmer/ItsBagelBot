@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package providers wires every external API system gossip serves, the
-// twin of sesame's app/twitch/sesame/modules package: each system lives in its own
-// subpackage, and adding one is writing that package plus one entry here.
 package providers
 
 import (
@@ -24,10 +21,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// All builds every configured provider, in registration order. Each append*
-// helper adds its provider when configured or logs why it is skipped; a skipped
-// provider's subjects simply time out at the caller, the same failure mode as
-// the upstream being down.
 func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	log := d.Log
 	if log == nil {
@@ -49,15 +42,6 @@ func All(cfg *config.Config, d provider.Deps) []provider.Provider {
 	return out
 }
 
-// gated registers one provider behind its single disable condition: when the
-// gate trips, log why and leave out unchanged (a skipped provider's subjects
-// simply time out at the caller, the same failure mode as the upstream being
-// down); otherwise run the constructor lazily and append it. Factoring this
-// once means adding a provider with the same "one credential/flag gates it"
-// shape is writing a flag expression, a skip reason and an env-to-Config
-// mapping below — not a seventh copy of the whole sequence (the duplication
-// CodeScene flagged once appendPaceman made the third near-identical copy of
-// what began as an inline if/warn/append in every helper).
 func gated[T any](out []provider.Provider, log *zap.Logger, disabled bool, skipReason string, build func(T, provider.Deps) provider.Provider, cfg T, d provider.Deps) []provider.Provider {
 	if disabled {
 		log.Warn(skipReason)
@@ -75,9 +59,6 @@ func appendUrchin(out []provider.Provider, cfg *config.Config, d provider.Deps, 
 }
 
 func appendHypixel(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
-	// Mojang uuid resolve does not need the Hypixel key (the dashboard stores
-	// linked-account uuids through hypixel.uuid). Without a key the provider
-	// still starts and merely skips stats — the same shop-only shape as fortnite.
 	if cfg.HypixelAPIKey == "" {
 		log.Warn("hypixel provider running uuid-only: HYPIXEL_API_KEY not set (!bwstats will not answer)")
 	}
@@ -98,9 +79,6 @@ func appendMcsr(out []provider.Provider, cfg *config.Config, d provider.Deps, lo
 	}, d)
 }
 
-// appendPaceman adds the paceman provider. Its public API needs no key, so
-// unlike the credential-gated providers there is nothing to gate on — the
-// only switch is the operator-controlled PacemanEnabled kill switch.
 func appendPaceman(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	return gated(out, log, !cfg.PacemanEnabled, "paceman provider disabled: PACEMAN_ENABLED=false", paceman.New, paceman.Config{
 		BaseURL:     cfg.PacemanBaseURL,
@@ -109,12 +87,6 @@ func appendPaceman(out []provider.Provider, cfg *config.Config, d provider.Deps,
 	}, d)
 }
 
-// appendFortnite adds the fortnite provider behind the FORTNITE_ENABLED flag
-// (dark until tested). The api-fortnite.com key gates only the stats
-// endpoint: the shop upstream (fortnite-api.com) is public, so a keyless
-// provider still answers !store and merely skips !fnstats (shop-only mode) —
-// a soft warning alongside construction, not a skip, so it does not fit
-// appendIf's single hard gate.
 func appendFortnite(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	if !cfg.FortniteEnabled {
 		log.Warn("fortnite provider disabled: FORTNITE_ENABLED=false")
@@ -141,10 +113,6 @@ func appendCODM(out []provider.Provider, cfg *config.Config, d provider.Deps, lo
 	}, d)
 }
 
-// appendGovee adds the govee provider. It needs no service key — each
-// broadcaster brings their own — but it does need the key resolver to fetch
-// them; without it (the modules internal key RPC unwired) there is nothing to
-// authenticate with, so it is skipped like any credential-less provider.
 func appendGovee(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	return gated(out, log, d.GoveeKeys == nil, "govee provider disabled: no key resolver (modules govee RPC unwired)", govee.New, govee.Config{
 		BaseURL:   cfg.GoveeBaseURL,
@@ -152,11 +120,6 @@ func appendGovee(out []provider.Provider, cfg *config.Config, d provider.Deps, l
 	}, d)
 }
 
-// appendClashRoyale adds the Clash Royale provider behind its RoyaleAPI proxy
-// token, the same credential gate as urchin/hypixel. The key itself is created
-// on developer.clashroyale.com (Supercell) with RoyaleAPI's proxy egress IP
-// 45.79.218.79 whitelisted on it; the proxy then forwards Bearer-keyed calls
-// to api.clashroyale.com. A key in Doppler lights all four !cr commands.
 func appendClashRoyale(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	return gated(out, log, cfg.ClashRoyaleAPIKey == "", "clashroyale provider disabled: CLASHROYALE_API_KEY not set (!cr commands will not answer)", clashroyale.New, clashroyale.Config{
 		BaseURL:   cfg.ClashRoyaleBaseURL,
@@ -165,11 +128,6 @@ func appendClashRoyale(out []provider.Provider, cfg *config.Config, d provider.D
 	}, d)
 }
 
-// appendValorant adds the Valorant provider behind its HenrikDev key, the same
-// credential gate as urchin/hypixel/clashroyale. The key gates everything:
-// unlike fortnite there is no keyless fallback mode — even the featured-bundle
-// viewer prices itself through HenrikDev (only its name/icon join rides the
-// keyless content CDN), so a missing key leaves every !val command dark.
 func appendValorant(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	return gated(out, log, cfg.ValorantAPIKey == "", "valorant provider disabled: VALORANT_API_KEY not set (!val commands will not answer)", valorant.New, valorant.Config{
 		BaseURL:          cfg.ValorantBaseURL,
@@ -180,12 +138,6 @@ func appendValorant(out []provider.Provider, cfg *config.Config, d provider.Deps
 	}, d)
 }
 
-// appendSpotify adds the Spotify music provider. Like govee it needs no
-// service key of its own, and since the fleet retired its shared Spotify
-// application there is no fleet credential to check either: every broadcaster
-// registers their own app and connects their own account. What remains is the
-// modules-side resolver that hands both over per call; without it the provider
-// can authenticate nothing, so it is skipped.
 func appendSpotify(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	return gated(out, log, d.SpotifyKeys == nil,
 		"spotify provider disabled: no credential resolver (modules spotify RPC unwired)",
@@ -196,10 +148,6 @@ func appendSpotify(out []provider.Provider, cfg *config.Config, d provider.Deps,
 		}, d)
 }
 
-// appendCustom adds the urlfetch provider behind its definition source: with
-// no projected definitions to execute there is nothing to serve, the same
-// degrade as a credential-less provider. (The FetchDefs adapter lands with
-// the commands-service projection; main.wireKeyResolvers records the seam.)
 func appendCustom(out []provider.Provider, cfg *config.Config, d provider.Deps, log *zap.Logger) []provider.Provider {
 	return gated(out, log, d.FetchDefs == nil, "custom urlfetch provider disabled: no definition source (projection FetchDefs unwired)", custom.New, custom.Config{
 		ChannelRateLimit: cfg.CustomChannelRateLimit,

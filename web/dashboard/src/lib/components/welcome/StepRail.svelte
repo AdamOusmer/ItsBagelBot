@@ -1,13 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // The tour's index: one numeral per step and a single halo that glides to
-  // whichever is current. One bar rather than an underline per numeral for
-  // the same reason the app rail has one highlight (ui/lib/rail-glide.ts): a
-  // per-item style cannot animate BETWEEN two elements, so the marker would
-  // blink from one step to the next instead of travelling. Every cell is the
-  // same fixed width, which is what lets the bar's position be a plain
-  // multiple of the index and skip measuring altogether.
   let {
     labels,
     current,
@@ -15,21 +8,14 @@
     label,
     onselect
   }: {
-    /** One accessible name per step, in order. */
     labels: string[];
-    /** Index of the current step, or -1 while the intro is up. */
     current: number;
-    /** Furthest step reachable right now (the consent gate decides). */
     maxStep: number;
-    /** Accessible name of the whole rail. */
     label: string;
     onselect: (i: number) => void;
   } = $props();
 </script>
 
-<!-- The trail under the numerals is the journey so far: it fills up to the
-     current cell, so the rail reads as distance travelled, not only as a
-     position. Same one-bar reasoning as the glide: a transform on one element. -->
 <nav
   class="rail"
   aria-label={label}
@@ -88,9 +74,6 @@
 
   .idx.on { color: var(--bb-tan-pale); }
 
-  /* One pip per numeral, on the trail: a hollow ring ahead, a filled bead
-     behind, a lit bead on the current step. Scale and colour only, so the row
-     never changes size. */
   .pip {
     position: absolute;
     left: 50%;
@@ -128,8 +111,6 @@
     background: var(--bb-border);
     pointer-events: none;
   }
-  /* The trail stops at the current pip's centre: the track spans pip to
-     pip, so its length is (n - 1) cells and the current pip sits i cells in. */
   .trail {
     position: absolute;
     inset: 0;
@@ -142,15 +123,11 @@
   }
   .track.idle .trail { opacity: 0; }
 
-  /* A step the consent gate has not opened yet: visibly not a target, rather
-     than a numeral that looks clickable and refuses. */
   .idx:disabled {
     cursor: not-allowed;
     opacity: 0.35;
   }
 
-  /* The glide is now a soft halo over the current cell rather than a second
-     underline: the trail already draws the line. */
   .glide {
     position: absolute;
     left: 0;

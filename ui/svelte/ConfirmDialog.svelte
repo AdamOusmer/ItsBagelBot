@@ -2,22 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Confirmation preset over ./Modal.svelte, which owns Escape, the backdrop
-  // and the focus trap. No Astro twin and no contract file of its own: it is
-  // `.bb-modal` plus `.bb-modal__body` and `.bb-modal__actions`, and an element
-  // whose CSS is entirely another element's is a composition, not a new one.
-  //
-  // USE IT FOR DESTRUCTIVE OR HARD-TO-REVERSE ACTIONS ONLY. For anything cheap
-  // to restore, apply optimistically and offer an Undo toast: a confirmation
-  // dialog on a reversible action trains people to dismiss confirmations, which
-  // is what makes the irreversible one dangerous.
-  //
-  // The action buttons are ./Button.svelte, the sibling adapter. The literal
-  // `.btn ghost` / `.btn primary` strings this used to write are gone, and so
-  // is the `confirm-danger` tone modal.css carried for them: `danger` selects
-  // the contract's `destructive` variant, which is DASHED rather than tinted
-  // on purpose (button.css records why: colour alone is not a warning for the
-  // ~8% of men with a red-green deficiency).
   import '../styles/elements/modal.css';
   import type { Snippet } from 'svelte';
   import Button from './Button.svelte';

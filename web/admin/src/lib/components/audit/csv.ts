@@ -6,8 +6,6 @@ import { csvDocument } from '@bagel/ui/lib/csv';
 
 const HEADER = 'id,actor_id,actor_login,action,target,detail,ok,error,created_at';
 
-/** The rows currently on screen as CSV -- the kind filter is client-side, so
- *  the caller passes the FILTERED list, not everything it has loaded. */
 export function auditCsv(rows: readonly AuditEntry[]): string {
   return csvDocument(
     HEADER,

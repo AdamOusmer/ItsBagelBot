@@ -15,10 +15,6 @@ import (
 
 const testPrefix = "bagel.rpc.discord-data"
 
-// fakeRequester is the scripted transport. handlers is keyed by the verb (the
-// subject with the prefix stripped); a verb with no handler fails the way an
-// unreachable discord-data does, which is exactly the case the fallback rules
-// are about.
 type fakeRequester struct {
 	handlers map[string]func(request []byte) any
 	calls    []string
@@ -33,7 +29,6 @@ func (f *fakeRequester) on(verb string, handle func(request []byte) any) {
 	f.handlers[verb] = handle
 }
 
-// reply scripts a verb that ignores its request.
 func (f *fakeRequester) reply(verb string, out any) {
 	f.on(verb, func([]byte) any { return out })
 }
@@ -69,7 +64,6 @@ func (f *fakeRequester) called(verb string) int {
 	return n
 }
 
-// newTestRPCStore wires the scripted transport to an in-memory local half.
 func newTestRPCStore(t *testing.T) (Store, *fakeRequester, *Mem) {
 	t.Helper()
 	rpc := newFakeRequester()
@@ -193,16 +187,12 @@ func TestRPCStoreUnbindDropsTheCacheOnlyOnSuccess(t *testing.T) {
 	}
 }
 
-// ticketRequests captures what the three ticket verbs actually put on the
-// wire, so the round-trip test can assert on the requests without growing a
-// closure per verb inline.
 type ticketRequests struct {
 	open  discorddata.TicketOpenRequest
 	get   discorddata.TicketGetRequest
 	close discorddata.TicketCloseRequest
 }
 
-// scriptTicketVerbs answers the three verbs and records their requests.
 func scriptTicketVerbs(rpc *fakeRequester) *ticketRequests {
 	sent := &ticketRequests{}
 	rpc.on(discorddata.VerbTicketOpen, func(request []byte) any {
@@ -223,10 +213,6 @@ func scriptTicketVerbs(rpc *fakeRequester) *ticketRequests {
 	return sent
 }
 
-// wantTicket fails unless the store resolved the ticket AND it carries the
-// opener and guild the round trip put in. Split from the one three-clause
-// condition it replaced, which reported the whole struct and left the reader
-// working out which field moved.
 func wantTicket(t *testing.T, got Ticket, ok bool, want Ticket) {
 	t.Helper()
 	if !ok {
@@ -258,9 +244,6 @@ func TestRPCStoreTicketRoundTrip(t *testing.T) {
 	}
 }
 
-// TestRPCStoreTicketVerbsCarryTheGuild: discord-data scopes the ticket lookup
-// by guild and refuses a request that omits it, so a store that dropped the
-// field would turn every button press into "this is not a ticket".
 func TestRPCStoreTicketVerbsCarryTheGuild(t *testing.T) {
 	store, rpc, _ := newTestRPCStore(t)
 	ctx := context.Background()
@@ -288,8 +271,6 @@ func TestRPCStoreTicketReadsFalseWhenUnreachable(t *testing.T) {
 	}
 }
 
-// award is one AddXP answer, named so the two cases below compare like with
-// like instead of spelling the same three-clause condition twice.
 type award struct {
 	xp      int
 	leveled bool
@@ -320,8 +301,6 @@ func TestRPCStoreAddXPTakesTheLocalCooldownFirst(t *testing.T) {
 	xp, leveled, level := store.AddXP(ctx, member)
 	wantAward(t, award{xp: xp, leveled: leveled, level: level}, award{xp: 100, leveled: true, level: 1})
 
-	// Second message inside the 60s window: no write, and the caller still gets
-	// the current standing.
 	xp, leveled, level = store.AddXP(ctx, member)
 	wantAward(t, award{xp: xp, leveled: leveled, level: level}, award{xp: 100, leveled: false, level: 1})
 	if got := rpc.called(discorddata.VerbXPAdd); got != 1 {
@@ -365,13 +344,6 @@ func TestRPCStoreXPReadsZeroWhenUnreachable(t *testing.T) {
 	}
 }
 
-// The three tests below are one composition guarantee split three ways: voice,
-// clone and desk state must still be served by the embedded local store, with
-// no RPC traffic at all. They were one function until it grew past the
-// complexity gate; each now owns one keyspace, and noRPC carries the shared
-// assertion.
-
-// noRPC fails when any of the local keyspaces reached the wire.
 func noRPC(t *testing.T, rpc *fakeRequester) {
 	t.Helper()
 	if len(rpc.calls) != 0 {
@@ -435,16 +407,11 @@ func TestRPCStoreGuildsOfListsEveryBoundGuild(t *testing.T) {
 	if got[0].Guild.ID != "g1" || got[1].Guild.ID != "g2" {
 		t.Fatalf("want both guilds in order, got %v", got)
 	}
-	// The bind timestamp has to survive the hop: it is what the dashboard's
-	// server card shows as "connected since".
 	if got[0].BoundAtUnixMs != 111 || got[1].BoundAtUnixMs != 222 {
 		t.Fatalf("bound_at_unix_ms lost in translation: %+v", got)
 	}
 }
 
-// TestRPCStoreGuildsOfFailsLoudlyWhenTheStoreCannotSay is the property an
-// empty slice used to hide: a caller cannot tell "this streamer connected no
-// servers" from "the store is down" unless the store says so.
 func TestRPCStoreGuildsOfFailsLoudlyWhenTheStoreCannotSay(t *testing.T) {
 	store, _, _ := newTestRPCStore(t)
 
@@ -457,9 +424,6 @@ func TestRPCStoreGuildsOfFailsLoudlyWhenTheStoreCannotSay(t *testing.T) {
 	}
 }
 
-// TestRPCStoreGuildsOfCachesAndInvalidates pins the cache symmetry with
-// Broadcaster: the listing is served from Valkey for guildsCacheTTL, and both
-// write verbs drop it so a server added seconds ago shows up at once.
 func TestRPCStoreGuildsOfCachesAndInvalidates(t *testing.T) {
 	store, rpc, _ := newTestRPCStore(t)
 	ctx := context.Background()
@@ -489,9 +453,6 @@ func TestRPCStoreGuildsOfCachesAndInvalidates(t *testing.T) {
 	}
 }
 
-// wantStoredConfig pins the one fixture this file writes and reads back, so
-// the served-from-cache case asserts exactly what the served-from-store case
-// did rather than a differently-worded copy of it.
 func wantStoredConfig(t *testing.T, cfg ddiscord.Config, version int, ok bool) {
 	t.Helper()
 	if !ok {
@@ -514,7 +475,6 @@ func TestRPCStoreGuildConfigCachesAndServesTheCacheOnFailure(t *testing.T) {
 	cfg, version, ok := store.GuildConfig(context.Background(), Guild{ID: "g1"})
 	wantStoredConfig(t, cfg, version, ok)
 
-	// discord-data goes away: the cached settings keep the guild serving.
 	rpc.fail[discorddata.VerbConfigGet] = errors.New("no responders")
 	cfg, version, ok = store.GuildConfig(context.Background(), Guild{ID: "g1"})
 	wantStoredConfig(t, cfg, version, ok)
@@ -573,9 +533,6 @@ func TestRPCStoreInvalidateDropsTheCachedSettings(t *testing.T) {
 	}
 }
 
-// TestRPCStoreBindGuildCarriesTheInstaller: discord-data records who ran the
-// install so support can answer "who added this bot"; the field is useless if
-// the store drops it on the way.
 func TestRPCStoreBindGuildCarriesTheInstaller(t *testing.T) {
 	store, rpc, _ := newTestRPCStore(t)
 	var sent discorddata.BindingSetRequest
@@ -597,9 +554,6 @@ func TestRPCStoreBindGuildCarriesTheInstaller(t *testing.T) {
 	}
 }
 
-// TestRPCStoreUnbindCarriesTheBroadcaster: without it discord-data's owner
-// guard cannot fire, and a stale unbind for a guild that has since been
-// re-bound to somebody else drops the new owner's row.
 func TestRPCStoreUnbindCarriesTheBroadcaster(t *testing.T) {
 	store, rpc, _ := newTestRPCStore(t)
 	var sent discorddata.BindingDeleteRequest
@@ -617,9 +571,6 @@ func TestRPCStoreUnbindCarriesTheBroadcaster(t *testing.T) {
 	}
 }
 
-// TestRPCStoreBindingOfReportsProvenance is what an ownership check reads. The
-// event path may serve a cached binding through a discord-data blip; an
-// ownership decision may not, so the two must be distinguishable.
 func TestRPCStoreBindingOfReportsProvenance(t *testing.T) {
 	store, rpc, _ := newTestRPCStore(t)
 	ctx := context.Background()

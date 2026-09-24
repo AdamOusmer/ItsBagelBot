@@ -1,14 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Response editor with a variable palette (insert-at-cursor) and live
-  // counters. The bound `value` is the wire format: a newline-delimited string,
-  // one line per chat message.
-  //
-  // maxLines > 1 renders one field per message with an "Add line" button:
-  // each field is one chat message the bot will send (commands allow up to 5).
-  // The default stays a single field for callers whose reply is one message
-  // (module replies); there pasted newlines collapse to spaces.
   import { page } from '$app/state';
   import { RESPONSE_MAX, getI18n, Textarea } from '@bagel/kit';
   import type { VariableSurface } from '@bagel/kit/variables';
@@ -34,46 +26,21 @@
   }: {
     value: string;
     name?: string;
-    /** Which Variables (and, for a module/reward surface, which reply tokens)
-     * the palette offers — see @bagel/kit/variables' VariableSurface. */
     surface: VariableSurface;
     placeholder?: string;
-    /** Validation state supplied by the form that owns this editor. */
     invalid?: boolean;
-    /** Id(s) of help or error text associated with the textarea. */
     describedby?: string;
     required?: boolean;
     maxLines?: number;
-    /** Native hard stop, forwarded to the textarea(s). Independent of
-     * RESPONSE_MAX's own counter/`.over` styling below: a caller with a
-     * shorter wire limit than a command's (TimerEditor's 500-char field,
-     * matching its own server clamp) still wants the browser to refuse the
-     * keystroke, not just paint red past it. */
     maxlength?: number;
-    // The channel's saved data sources. Only meaningful on surface==='custom':
-    // module replies and rewards have no defs to pick, and VariablePalette
-    // hides the fetch-source chip there rather than rendering an empty menu.
     fetchDefs?: SourceDef[];
     fetchKeys?: { label: string }[];
     onFetchDefsChanged?: (defs: SourceDef[]) => void;
-    // Forwarded to the field: a caller that gates its own error copy on
-    // "touched" (TimerEditor) needs a blur signal, the same as onfocus is
-    // already forwarded for caret tracking.
     onblur?: () => void;
   } = $props();
 
-  // Live module on/off state, read off the (app) layout's load once here
-  // rather than threaded through by every one of the eight callers — the same
-  // page.data convention ChatPreview already uses for the broadcaster's
-  // display name.
   const moduleFlags = $derived(page.data.moduleFlags as Record<string, boolean> | undefined);
 
-  // One entry per message field. Seeded from the incoming value (a draft
-  // restore or an edit of an existing multi-line command); from then on the
-  // fields are the source of truth and `value` mirrors their join, so the form
-  // post, the client validator and the chat rehearsal all see the wire format.
-  // Not capped here: an over-limit value renders all its fields and the
-  // validator blocks the save, rather than silently dropping content.
   let fields = $state(value.split(/\r\n|\r|\n/));
   let areas = $state<(HTMLTextAreaElement | undefined)[]>([]);
   let focused = $state(0);
@@ -89,7 +56,6 @@
     const start = el?.selectionStart ?? cur.length;
     const end = el?.selectionEnd ?? cur.length;
     fields[i] = cur.slice(0, start) + token + cur.slice(end);
-    // Restore focus with the caret placed after the inserted token.
     queueMicrotask(() => {
       el?.focus();
       const pos = start + token.length;
@@ -101,9 +67,6 @@
     queueMicrotask(() => areas[i]?.focus());
   }
 
-  // Textarea forwards native focus events, so the editor can retain its caret
-  // target without adding a dashboard-specific element-ref prop to the shared
-  // design-system component.
   function rememberArea(event: FocusEvent, i: number) {
     if (event.currentTarget instanceof HTMLTextAreaElement) areas[i] = event.currentTarget;
     focused = i;
@@ -123,8 +86,6 @@
     focusField(focused);
   }
 
-  // A field is one message: Enter never inserts a newline, with room left it
-  // adds the next field instead; Backspace on an empty field folds it away.
   function onKeydown(e: KeyboardEvent, i: number) {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -135,9 +96,6 @@
     }
   }
 
-  // Pasted newlines distribute into fields below (up to the cap; overflow
-  // folds into the last field with spaces). In single-line mode that collapses
-  // to the one-message contract.
   function onInput(i: number) {
     const v = fields[i];
     if (!/[\r\n]/.test(v)) return;
@@ -190,7 +148,6 @@
       </div>
     {/each}
   </div>
-  <!-- The form posts the joined wire format; the visible fields are unnamed. -->
   <input type="hidden" {name} {value} />
   <div class="lines-foot">
     <button type="button" class="add-line" disabled={fields.length >= maxLines} onclick={() => addLine()}>
@@ -225,13 +182,9 @@
   <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} />
 </div>
 
-<!-- The rendered reply lives in ChatPreview (chat rehearsal), owned by the editor. -->
-
 <style>
   .resp-wrap { position: relative; flex: 1; min-width: 0; }
 
-  /* Textarea owns the frame, focus and invalid highlight. These two knobs only
-     reserve room for the per-message counter inside that shared control. */
   :global(.resp-area textarea) { min-height: 96px; padding-bottom: 16px; }
   :global(.resp-area.slim textarea) { min-height: 54px; padding-bottom: 12px; }
 
@@ -247,11 +200,9 @@
   }
   .resp-count.over { color: #cf8a78; opacity: 1; }
 
-  /* --- multi-line message stack --- */
   .lines { display: flex; flex-direction: column; gap: 8px; }
   .line-field { display: flex; align-items: flex-start; gap: 8px; }
 
-  /* Which message this field becomes, mirroring the rehearsal's send order. */
   .line-idx {
     flex: none;
     margin-top: 9px;

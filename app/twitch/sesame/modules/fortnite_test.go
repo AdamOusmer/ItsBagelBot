@@ -51,8 +51,6 @@ func TestFnstatsDefaultTemplate(t *testing.T) {
 		"Ninja all time: 301 wins in 6232 matches · 4.83% WR · 21679 kills · 3.66 K/D · solo 120W / duo 90W / squad 91W",
 		col.out[0].Text)
 
-	// No linked account and no arg: falls back to the broadcaster's login. The
-	// window is the command's, never configuration.
 	call := gw.lastCall(t)
 	assert.Equal(t, "streamer", call.req.Account)
 	assert.Empty(t, call.req.AccountType)
@@ -87,15 +85,11 @@ func TestFnstatsConfigPassthrough(t *testing.T) {
 	assert.Equal(t, "psn", call.req.AccountType)
 	assert.Equal(t, "lifetime", call.req.TimeWindow)
 
-	// An explicit argument still beats the linked account; the platform stays
-	// the configured one.
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "@SomePlayer extra", col.emit))
 	call = gw.lastCall(t)
 	assert.Equal(t, "SomePlayer", call.req.Account)
 	assert.Equal(t, "psn", call.req.AccountType)
 
-	// linkedOnly "on" pins every lookup to the linked account; the typed
-	// name is dropped without a chat line.
 	cfg = `{"account":"LinkedAcc","accountType":"psn","linkedOnly":"on"}`
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "@SomePlayer", col.emit))
 	call = gw.lastCall(t)
@@ -103,8 +97,6 @@ func TestFnstatsConfigPassthrough(t *testing.T) {
 	assert.Equal(t, "psn", call.req.AccountType)
 }
 
-// A per-command "off" toggle keeps that command silent: no chat line and no
-// gossip call, for both fortnite commands.
 func TestFortniteDisabledStaysSilent(t *testing.T) {
 	cases := []struct{ name, config string }{
 		{"fn", `{"statsEnabled":"off"}`},
@@ -128,16 +120,14 @@ func TestFortniteDisabledStaysSilent(t *testing.T) {
 	}
 }
 
-// The !fn root routes its first argument word: bare/player → all-time stats,
-// season/store select the subcommand, and the remainder is the player arg.
 func TestFnDispatch(t *testing.T) {
 	seasonReply := fortniteStatsReply()
 	seasonReply.Window = "season"
 
 	cases := []struct {
 		name, args      string
-		endpoint        string // gossip endpoint expected
-		window, account string // stats requests only
+		endpoint        string
+		window, account string
 		replyValue      any
 	}{
 		{"bare is all-time stats", "", "stats", "lifetime", "streamer", fortniteStatsReply()},
@@ -177,9 +167,6 @@ func TestFnstatsReplyErrorChats(t *testing.T) {
 	assert.Equal(t, "Ghosty: player not found", col.out[0].Text)
 }
 
-// runFnSession runs !fnsession against a gossip stubbed with reply, under the
-// given module config and command argument, returning the gossip and collected
-// output for assertion.
 func runFnSession(t *testing.T, reply gossiprpc.FortniteSessionReply, cfg, arg string) (*fakeGossip, collector) {
 	t.Helper()
 	gw := &fakeGossip{replies: map[string]any{"fortnite.session": reply}}
@@ -195,16 +182,12 @@ func TestFnSessionDefaultTemplate(t *testing.T) {
 	require.Len(t, col.out, 1)
 	assert.Equal(t, "Ninja this stream: 3 wins in 12 matches · 25% WR · 48 kills · 5.33 K/D", col.out[0].Text)
 
-	// The session request is scoped to this channel and its linked account.
 	call := gw.lastCall(t)
 	assert.Equal(t, "session", call.endpoint)
 	assert.Equal(t, "2", call.req.ChannelID)
 	assert.Equal(t, "Ninja", call.req.Account)
 }
 
-// !fn session ignores a typed player argument so a viewer cannot retarget (and
-// clobber) the streamer's per-channel baseline; it always uses the linked
-// account.
 func TestFnSessionIgnoresArgument(t *testing.T) {
 	gw, _ := runFnSession(t,
 		gossiprpc.FortniteSessionReply{Player: "Ninja", HasSnapshot: true}, `{"account":"Ninja"}`, "SomeoneElse")
@@ -217,7 +200,6 @@ func TestFnSessionWithoutSnapshot(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "session tracking just started")
 }
 
-// fortniteOnlineHandler builds the module and returns its stream.online handler.
 func fortniteOnlineHandler(t *testing.T, gw engine.GossipCaller) module.EventHandler {
 	t.Helper()
 	h := Fortnite(engine.Deps{Gossip: gw, Log: zap.NewNop()}).Events["stream.online"]
@@ -225,7 +207,6 @@ func fortniteOnlineHandler(t *testing.T, gw engine.GossipCaller) module.EventHan
 	return h
 }
 
-// fortniteOnlineCtx builds a stream.online Context for broadcaster 2 with cfg.
 func fortniteOnlineCtx(cfg string) *module.Context {
 	return &module.Context{
 		Env:           lane.Envelope{Type: "stream.online", BroadcasterUserID: "2", BroadcasterUserLogin: "streamer"},
@@ -235,8 +216,6 @@ func fortniteOnlineCtx(cfg string) *module.Context {
 	}
 }
 
-// stream.online snapshots the linked account so !fn session has a baseline. The
-// call is fire-and-forget on its own goroutine.
 func TestFnStreamOnlineSnapshots(t *testing.T) {
 	done := make(chan struct{})
 	gw := &fakeGossip{
@@ -262,8 +241,6 @@ func TestFnStreamOnlineSnapshots(t *testing.T) {
 	assert.Equal(t, "2", call.req.ChannelID)
 }
 
-// With the session command toggled off, stream.online must not spend the daily
-// stats budget on a snapshot: the handler returns before spawning the call.
 func TestFnStreamOnlineSkipsWhenSessionOff(t *testing.T) {
 	gw := &fakeGossip{}
 	h := fortniteOnlineHandler(t, gw)
@@ -298,7 +275,6 @@ func TestStoreDefaultTemplate(t *testing.T) {
 func TestFormatShopEntriesBudget(t *testing.T) {
 	assert.Equal(t, "empty today", formatShopEntries("en", nil))
 
-	// A long shop truncates within the budget and reports the remainder.
 	var entries []gossiprpc.FortniteShopEntry
 	for i := 0; i < 60; i++ {
 		entries = append(entries, gossiprpc.FortniteShopEntry{
@@ -310,16 +286,12 @@ func TestFormatShopEntriesBudget(t *testing.T) {
 	assert.Contains(t, got, " more")
 	assert.True(t, strings.HasPrefix(got, "Some Cosmetic Item 0 (1200), "))
 
-	// The first entry always renders, even when it alone blows the budget.
 	huge := gossiprpc.FortniteShopEntry{Name: strings.Repeat("x", fortniteShopBudget+50), Price: 100}
 	got = formatShopEntries("en", []gossiprpc.FortniteShopEntry{huge, {Name: "Next", Price: 1}})
 	assert.True(t, strings.HasPrefix(got, huge.Name))
 	assert.Contains(t, got, "+1 more")
 }
 
-// stream.offline clears the channel's stream-start baseline so a rapid
-// stop/restart cycle (#561) cannot diff the next stream against this one's
-// snapshot. The call is fire-and-forget through the lifecycle sequencer.
 func TestFnStreamOfflineClearsBaseline(t *testing.T) {
 	done := make(chan struct{})
 	gw := &fakeGossip{
@@ -346,8 +318,6 @@ func TestFnStreamOfflineClearsBaseline(t *testing.T) {
 	assert.Empty(t, call.req.Account, "the clear is channel-scoped, not account-scoped")
 }
 
-// With the session command toggled off there is no baseline to clear (the
-// online snapshot never ran), so stream.offline must not call gossip at all.
 func TestFnStreamOfflineSkipsWhenSessionOff(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{"fortnite.session_end": gossiprpc.FortniteSnapshotReply{}}}
 	h := Fortnite(engine.Deps{Gossip: gw, Log: zap.NewNop()}).Events["stream.offline"]

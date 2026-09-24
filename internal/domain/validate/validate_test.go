@@ -53,9 +53,6 @@ func TestBumpCounter(t *testing.T) {
 
 	assert.Error(t, validate.BumpCounter("has space"))
 	assert.Error(t, validate.BumpCounter(validate.CounterName(strings.Repeat("a", 65))))
-	// ':' is the {counter:...}/{count:...} payload separator: a name
-	// carrying one could never be addressed by either token, and it is
-	// exactly what app/db/loyalty's ValidCounterName refuses too.
 	assert.Error(t, validate.BumpCounter("target:deaths"))
 	assert.Error(t, validate.BumpCounter("bot:feeds"))
 }

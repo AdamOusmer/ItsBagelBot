@@ -3,13 +3,6 @@
 
 package modules
 
-// The personality module's entire script lives in this file so the voice can be
-// tuned without touching the logic. House style: deadpan, self-deprecating,
-// mock-tragic ("I'll toast myself."), lowercase except proper nouns. {user}
-// expands to the chatter's display name; feed lines take two %d (today, then
-// lifetime).
-
-// personalityGoodPack answers "good bagel" / "good bot".
 var personalityGoodPack = []string{
 	"Validation received. existential crisis postponed",
 	"I know. but it's nice to hear it out loud.",
@@ -20,7 +13,6 @@ var personalityGoodPack = []string{
 	"Thanks, but I already have my own bae-gel",
 }
 
-// personalityBadPack answers "bad bagel" / "bad bot".
 var personalityBadPack = []string{
 	"I'll toast myself.",
 	"Your input means muffin to me",
@@ -40,7 +32,6 @@ var personalityGiveBagel = []string{
 	"Only if you ask nicely.",
 }
 
-// personalityThanksPack answers "thank you bagel" / "thanks bagel".
 var personalityThanksPack = []string{
 	"anything for you. except my last schmear.",
 	"You're welcome. Tips accepted in sesame seeds.",
@@ -48,8 +39,6 @@ var personalityThanksPack = []string{
 	"{user} I ain't do nothing.",
 }
 
-// personalityAffectionPack answers "pet the bagel" and "hug the bagel": one
-// merged reaction for physical affection.
 var personalityAffectionPack = []string{
 	"hugging {user}. careful. I crumble under pressure. literally.",
 	"Acceptable. Continue.",
@@ -59,9 +48,6 @@ var personalityAffectionPack = []string{
 	"*squeeze* ok. ok. that's enough feelings for one stream.",
 }
 
-// personalityFeedCountPack answers "feed the bagel". Every line takes two %d,
-// in this order: today's feedings (all channels, TTL window), then the
-// permanent lifetime total. No counter-less fallback: no counts, no line.
 var personalityFeedCountPack = []string{
 	"om nom. that's %d feedings today, %d ever. no regrets. some regrets.",
 	"Eating as a bagel feels philosophically wrong, but here we are. %d today. %d all time.",
@@ -72,7 +58,6 @@ var personalityFeedCountPack = []string{
 	"Are you calling me hangry? *Chews my %d of the day appreciatively* %d lifetime.",
 }
 
-// personalityBoopPack answers "boop the bagel".
 var personalityBoopPack = []string{
 	"boop received. processing. ok. you may live.",
 	"boop registered. this changes nothing between us, {user}.",
@@ -83,14 +68,11 @@ var personalityBoopPack = []string{
 	"Dont touch me, Im expensive",
 }
 
-// personalityGnPack answers "gn bagel" / "goodnight bagel".
 var personalityGnPack = []string{
 	"gn. Dream of carbs.",
 	"Manifesting a toasty warm bed for you in return",
 }
 
-// personalityMoodPack is the per-stream mood table; the first "bagel mood" ask
-// of a stream rolls one and it sticks for the window.
 var personalityMoodPack = []string{
 	"sesame. classic. dependable. mildly smug about it.",
 	"everything. chaotic. seeds everywhere. no further questions.",
@@ -106,7 +88,6 @@ var personalityMoodPack = []string{
 	"montreal. hand-rolled. honey-boiled. built different.",
 }
 
-// personalityEmojiPack occasionally answers a 🥯 in chat.
 var personalityEmojiPack = []string{
 	"🥯 I saw that.",
 	"🥯 one of us.",
@@ -114,12 +95,8 @@ var personalityEmojiPack = []string{
 	"you rang?",
 }
 
-// personalityGoldenLine replaces any reaction on a 1-in-personalityGoldenOdds
-// roll. Rare on purpose: it should clip itself.
 const personalityGoldenLine = "🌟 GOLDEN BAGEL 🌟 {user} rolled the everything bagel of destiny. 1-in-200. screenshot it or it didn't happen."
 
-// personalityToastLines maps a toast roll (index 0–10) to its verdict; every
-// line takes the rolled level as %d.
 var personalityToastLines = []string{
 	"toast level %d/10: you call that toasting. I felt a breeze.",
 	"toast level %d/10: barely warm. cowardice.",
@@ -134,9 +111,6 @@ var personalityToastLines = []string{
 	"toast level %d/10: carbonized. tell my dough I loved her.",
 }
 
-// personalityFacts is the determined fun-fact list a mention of the bot walks
-// through in order (per-channel cursor, wraps at the end). Fact first, feelings
-// second.
 var personalityFacts = []string{
 	"the first written record of the bagel is from Kraków, Poland, 1610. I have older paperwork than most countries.",
 	"in 17th-century Poland, bagels were gifted to women after childbirth as good luck. born lucky. it's been downhill since.",

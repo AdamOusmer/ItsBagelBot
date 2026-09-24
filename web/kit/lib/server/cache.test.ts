@@ -6,15 +6,6 @@ import { SwrCache, type SwrCacheOptions } from './cache';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
-/**
- * Cache on a manual clock, so every fresh/stale transition is exact.
- * Real sleeps raced a loaded event loop: a macrotask landing more than freshMs
- * (5ms here) after a background revalidation committed re-staled the entry and
- * fired an extra load, which failed `loads` intermittently in full-suite runs
- * only. Widening the windows was rejected -- it moves the flake instead of
- * removing it, and stops these tests from pinning the boundaries they exist to
- * pin. `tick()` stays where the point is letting promises settle, not time.
- */
 function make(opts: SwrCacheOptions = {}) {
   let t = 0;
   const cache = new SwrCache({ ...opts, now: () => t });
@@ -48,9 +39,6 @@ describe('SwrCache', () => {
     expect(loads).toBe(1);
   });
 
-  // Regression for the MemoryCache race: the in-flight promise lived inside the
-  // TTL'd entry, so once the entry expired a second caller started a duplicate
-  // load. In-flight loads must dedupe regardless of entry expiry.
   test('single-flight survives entry expiry mid-flight', async () => {
     const { cache, advance } = make();
     let loads = 0;
@@ -61,7 +49,6 @@ describe('SwrCache', () => {
       await gate;
       return loads;
     };
-    // freshMs 1: the (empty) window is over well before the load resolves.
     const first = cache.getOrLoad('k', { freshMs: 1 }, load);
     advance(10);
     const second = cache.getOrLoad('k', { freshMs: 1 }, load);
@@ -80,10 +67,9 @@ describe('SwrCache', () => {
       return 'old';
     };
     const inFlight = cache.getOrLoad('k', 1000, slowLoad);
-    cache.invalidate('k'); // bus invalidation while the load is in flight
+    cache.invalidate('k');
     release();
-    expect(await inFlight).toBe('old'); // caller still gets its value...
-    // ...but the cache must NOT have resurrected it:
+    expect(await inFlight).toBe('old');
     const next = await cache.getOrLoad('k', 1000, async () => 'new');
     expect(next).toBe('new');
   });
@@ -97,8 +83,6 @@ describe('SwrCache', () => {
       return 'pre-invalidation';
     });
     cache.invalidate('k');
-    // A reader AFTER the invalidation must start a fresh load, not await the
-    // doomed one (which carries pre-invalidation data).
     const fresh = cache.getOrLoad('k', 1000, async () => 'post-invalidation');
     release();
     expect(await doomed).toBe('pre-invalidation');
@@ -125,10 +109,10 @@ describe('SwrCache', () => {
     const load = async () => `v${++loads}`;
     const policy = { freshMs: 5, swrMs: 10_000 };
     expect(await cache.getOrLoad('k', policy, load)).toBe('v1');
-    advance(15); // past fresh, inside swr
-    expect(await cache.getOrLoad('k', policy, load)).toBe('v1'); // stale served
-    await tick(); // let the background revalidation commit
-    expect(await cache.getOrLoad('k', policy, load)).toBe('v2'); // fresh now
+    advance(15);
+    expect(await cache.getOrLoad('k', policy, load)).toBe('v1');
+    await tick();
+    expect(await cache.getOrLoad('k', policy, load)).toBe('v2');
     expect(loads).toBe(2);
   });
 
@@ -138,7 +122,7 @@ describe('SwrCache', () => {
     const { cache: observed, advance } = make({ onMaskedError: (_e, key) => masked.push(key) });
     const policy = { freshMs: 5, swrMs: 0, staleIfErrorMs: 10_000 };
     expect(await observed.getOrLoad('k', policy, async () => 'known')).toBe('known');
-    advance(15); // past fresh AND past swr (0) but inside the error window
+    advance(15);
     const v = await observed.getOrLoad('k', policy, async () => {
       throw new Error('rpc down');
     });
@@ -173,7 +157,7 @@ describe('SwrCache', () => {
     await inFlight;
     expect(await cache.getOrLoad('commands:1', 1000, async () => ['a2'])).toEqual(['a2']);
     expect(await cache.getOrLoad('commands:3', 1000, async () => ['c2'])).toEqual(['c2']);
-    expect(await cache.getOrLoad('modules:1', 1000, async () => ['m2'])).toEqual(['m']); // untouched
+    expect(await cache.getOrLoad('modules:1', 1000, async () => ['m2'])).toEqual(['m']);
   });
 
   test('clear() dooms everything (gap flush)', async () => {
@@ -196,7 +180,7 @@ describe('SwrCache', () => {
     const cache = new SwrCache({ capacity: 2 });
     cache.set('a', 1, 60_000);
     cache.set('b', 2, 60_000);
-    cache.set('c', 3, 60_000); // evicts a
+    cache.set('c', 3, 60_000);
     expect(cache.size).toBe(2);
     expect(await cache.getOrLoad('a', 1000, async () => 'reloaded')).toBe('reloaded');
   });
@@ -218,10 +202,10 @@ describe('SwrCache', () => {
     const events: string[] = [];
     const { cache, advance } = make({ onEvent: (e) => events.push(e) });
     const policy = { freshMs: 5, swrMs: 10_000 };
-    await cache.getOrLoad('k', policy, async () => 1); // miss
-    await cache.getOrLoad('k', policy, async () => 1); // hit
+    await cache.getOrLoad('k', policy, async () => 1);
+    await cache.getOrLoad('k', policy, async () => 1);
     advance(15);
-    await cache.getOrLoad('k', policy, async () => 2); // stale + revalidate
+    await cache.getOrLoad('k', policy, async () => 2);
     expect(events).toContain('miss');
     expect(events).toContain('hit');
     expect(events).toContain('stale');

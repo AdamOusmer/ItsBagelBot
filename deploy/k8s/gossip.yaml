@@ -1,42 +1,6 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# gossip: the fleet's external-API gossip. Sesame requests third-party data
-# (urchin.gg Coral, MCSR Ranked, fortnite-api.com) over NATS RPC
-# (bagel.rpc.gossip.>); the gossip fetches, normalizes, and caches replies in
-# Valkey. It is the only app that dials those external hosts.
-#
-# gossip-env (Doppler) carries VALKEY_*, URCHIN_API_KEY (provider disabled
-# without it), optional MCSR_API_KEY, NEW_RELIC_*, and the NATS_RPC_USER /
-# NATS_RPC_PASSWORD pair for the GOSSIP_RPC account. paceman (PaceMan.gg,
-# !pace/!nethers/!lastfort) needs no key at all — PACEMAN_BASE_URL/_ENABLED/
-# _RATE_LIMIT all default in config.go, so it runs with nothing set in
-# Doppler; only add PACEMAN_ENABLED=false there to kill-switch it. The fortnite provider
-# stays dark until FORTNITE_ENABLED=true is set there; keyless it runs
-# shop-only (!store via fortnite-api.com's public shop), and FORTNITE_API_KEY
-# (an api-fortnite.com key) additionally lights !fnstats. The "season" stats
-# window auto-resolves the season start from the stats upstream hourly;
-# FORTNITE_SEASON_START_UNIX optionally overrides it manually.
-# codm (!codm / !codmprofile / !codmrank) reads CODM Global profiles through
-# Coda's store validation endpoint on the WARP lane. No key is required;
-# CODM_ENABLED=false disables it. CODM_COUNTRY defaults to IN (home-country
-# redirects are handled automatically), CODM_BASE_URL defaults to
-# https://order-sg.codashop.com. CODM_RATE_LIMIT is an operating cap, not a
-# published upstream quota: default 60 validations/min, burst at most 4.
-# Each actual validation (including redirects) consumes one shared HTTP token;
-# cache hits are free. Upstream 429s arm a shared Retry-After cooldown.
-# clashroyale (!cr / !crstats / !crdecks / !crranked / !crroad) needs a
-# Supercell key from developer.clashroyale.com with RoyaleAPI's proxy egress
-# IP 45.79.218.79 whitelisted on the key; set CLASHROYALE_API_KEY in Doppler
-# and calls ride proxy.royaleapi.dev. Without it the provider skips at boot
-# and the !cr commands time out at the caller like any disabled provider.
-# Lower CLASHROYALE_RATE_LIMIT from its default for a fresh key.
-# valorant (!valrank / !valmatches / !vallb / !valaccount / !valshop) needs
-# VALORANT_API_KEY in Doppler: a HenrikDev key from api.henrikdev.xyz/dashboard
-# (Discord join required). The instant Basic key is 30 req/min, which the
-# rate-limit default is sized to; an Enhanced key (90/min) must raise
-# VALORANT_RATE_LIMIT to ~80 to use it. Without the key the provider skips at
-# boot and every !val command times out at the caller.
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
 metadata:
@@ -60,8 +24,6 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  # Stateless and cache-backed: keep one local RPC responder beside Sesame on
-  # each hot-path node; the working set is one HTTP client and Valkey connection.
   replicas: 3
   revisionHistoryLimit: 3
   minReadySeconds: 10
@@ -110,12 +72,6 @@ spec:
             matchLabels:
               app: gossip
       securityContext:
-        # Keep the congestion window across an idle gap. This sysctl is
-        # per-netns: the nodes run 0, but a pod netns inherits the kernel
-        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
-        # first burst on a lane that has been quiet crawls back through slow
-        # start. Both ends of a connection need it. See deploy/messaging/
-        # nats.yaml for the full note and the kubelet prerequisite.
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
             value: "0"
@@ -123,28 +79,6 @@ spec:
         runAsUser: 65532
         runAsGroup: 65532
         seccompProfile: {type: RuntimeDefault}
-      # Resolver options, uniform across every first-party workload.
-      #
-      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
-      # fewer than 5 dots is tried against all three search domains BEFORE
-      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
-      # an external name like api.twitch.tv costs 4 too -- three guaranteed
-      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
-      # denial cache hits against 10368 success hits, so 62% of everything
-      # served was the junk half of that expansion.
-      #
-      # single-request-reopen: glibc sends the A and AAAA queries in parallel
-      # from one socket; the two replies can race in conntrack and one gets
-      # dropped, which costs a full resolver timeout. Reopening the socket
-      # for the second query removes the race.
-      #
-      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
-      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
-      # worst case instead of 10s. The 1s matters specifically because Valkey
-      # Sentinel resolves hostnames inside its event loop and declares "tilt"
-      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
-      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
-      # See deploy/cache/valkey.yaml for the measurement that found it.
       dnsConfig:
         options:
           - {name: ndots, value: "1"}
@@ -152,59 +86,11 @@ spec:
           - {name: timeout, value: "1"}
           - {name: attempts, value: "3"}
       priorityClassName: bagel-service
-      # WARP sidecar (native initContainer, k8s >=1.29): the untrusted egress
-      # lane for user-defined urlfetch fetches and CODM profiles. gossip's own containers never
-      # talk to it except over loopback SOCKS (127.0.0.1:40000); every dial
-      # through it leaves from Cloudflare's IPs, so a target cannot null-route
-      # the hot-path nodes. The trusted providers keep direct egress — startup
-      # ordering follows because the SOCKS listener binds BEFORE enrollment
-      # completes: readiness passes and gossip serves immediately, while
-      # untrusted requests during the enrollment window fail closed
-      # (core.ErrWARPDown → "limited"), never unproxied.
-      #
-      # Image: our own build (app/warp/Containerfile) because Cloudflare
-      # publishes NO official WARP container — docker.io/cloudflare/* carries
-      # only cloudflared, and every cloudflare-warp repo on Docker Hub 404s
-      # (checked 2026-08-24) — so the deb from pkg.cloudflareclient.com is
-      # wrapped in-repo rather than trusting a community image with an egress
-      # credential. The placeholder tag below follows the youtube-ingress
-      # convention for a not-yet-published image: replace with the real
-      # tag@digest from the first publish-images run at rollout time, then
-      # apply and let maxSurge 0 / maxUnavailable 1 roll one replica at a time
-      # under the PDB below — required anti-affinity spreads the three daemons
-      # across nodes. NOTE: new ghcr packages default to PUBLIC — flip the
-      # "warp" package private right after its first publish.
       initContainers:
         - name: warp
           image: ghcr.io/adamousmer/itsbagelbot/warp:v0.2.2-beta@sha256:818dd9f24151d9c2dd8b6a3275edc5da361d10ea540e51825f6de39512c004e0
           imagePullPolicy: IfNotPresent
-          restartPolicy: Always # native sidecar: runs for the pod's lifetime
-          # Bootstrap (consumer WARP, deliberately NO Zero Trust org). Two
-          # reasons this uses the free consumer account rather than a team:
-          #   1. No seats, no team, no charge — a Zero Trust org bills per
-          #      enrolled device, and this sidecar only needs egress-IP
-          #      masking, not any Gateway/Access feature.
-          #   2. The SSRF gate is entirely LOCAL. gossip resolves and
-          #      classifies every user-defined target itself (core.resolveAllowed
-          #      / classifyAddr, global-unicast-or-nothing) and dials the PINNED
-          #      IP through the SOCKS proxy; WARP is only the packet path, so a
-          #      target sees a Cloudflare egress IP and cannot null-route the
-          #      hot-path nodes. An edge Gateway policy would be pure
-          #      defense-in-depth, which is why we do not pay for one.
-          #
-          # Proxy mode (MASQUE, L4) is why this cannot break pod-to-pod: it
-          # binds a userspace SOCKS5 listener on loopback and captures NOTHING
-          # else — every dial that is not sent to 127.0.0.1:40000 (all of
-          # gossip's NATS-leaf, Valkey and CoreDNS traffic) leaves the pod
-          # netns untouched, over the normal cluster path. There is no tun
-          # device and no route table change; see the securityContext note.
-          #
-          # `registration new` with no token registers a consumer device. The
-          # SOCKS listener binds as soon as `mode proxy` lands, so readiness
-          # goes green before the tunnel finishes connecting; requests during
-          # that window fail closed (core.ErrWARPDown → "limited"), never
-          # unproxied. Registration/connect failures keep the container
-          # running (the daemon retries); liveness catches a wedged daemon.
+          restartPolicy: Always
           command:
             - /bin/sh
             - -ec
@@ -232,20 +118,7 @@ spec:
               # Keep PID 1 alive for the sidecar lifetime; warp-svc serves the proxy.
               wait
           securityContext:
-            # NO NET_ADMIN and NO tun device: proxy mode is a userspace L4
-            # (MASQUE) SOCKS proxy, so it needs neither — and withholding them
-            # is the hard guarantee that WARP CANNOT create a tunnel interface
-            # or rewrite routes in the shared pod netns, which is what would
-            # otherwise blackhole gossip's pod-to-pod traffic.
-            #
-            # runAsUser/runAsGroup 0 must be stated EXPLICITLY: the pod-level
-            # securityContext pins 65532, and runAsNonRoot:false alone does not
-            # replace it — the daemon then dies immediately with
-            # "PermissionDenied" (reproduced: `podman run --user 65532 …
-            # warp-svc` fails exactly this way, `--user 0` comes up in ~2s)
-            # because it cannot create its IPC socket or write its registration
-            # state. Root here buys no network privilege: it still holds no
-            # capabilities and binds only loopback:40000.
+            # Never add NET_ADMIN or a tun device: WARP could then reroute the shared pod netns.
             runAsUser: 0
             runAsGroup: 0
             runAsNonRoot: false
@@ -258,17 +131,6 @@ spec:
             - name: warp-socks
               containerPort: 40000
           readinessProbe:
-            # EXEC, not tcpSocket: warp-svc binds the proxy on 127.0.0.1:40000
-            # only — which is exactly what we want, since nothing outside this
-            # pod should reach the untrusted egress lane — but a tcpSocket
-            # probe dials the POD IP, where nothing is listening, so it can
-            # never pass. Observed as a pod stuck at 1/2 with the tunnel
-            # already Connected and the listener bound. The probe therefore
-            # has to run INSIDE the container's netns and check loopback.
-            #
-            # 45 x 2s = 90s: the listener appears only after daemon boot (~2s)
-            # plus consumer registration, a live call to Cloudflare, and this
-            # is a native sidecar whose readiness gates the whole gossip pod.
             exec:
               command:
                 - /bin/sh
@@ -277,9 +139,6 @@ spec:
             periodSeconds: 2
             failureThreshold: 45
           livenessProbe:
-            # initialDelaySeconds covers the same boot+registration window:
-            # without it the probe runs `status` against a daemon that is not
-            # listening yet and restarts the container mid-enrollment.
             exec:
               command: ["warp-cli", "--accept-tos", "status"]
             initialDelaySeconds: 60
@@ -296,14 +155,8 @@ spec:
           image: ghcr.io/adamousmer/itsbagelbot/gossip:v0.2.2-beta@sha256:fa0fe66f66ea02bea28f92fcb4e847e9b4cbaed734dc0d0b1c0a8a39effc7d81
           imagePullPolicy: IfNotPresent
           env:
-            # gossip is RPC-only: it answers sesame's requests over
-            # bagel.rpc.gossip.> and never touches JetStream, so it dials the
-            # leaf exclusively (no NATS_HUB_URL) and carries no BUS credential.
             - name: NATS_URL
               value: tls://nats-leaf.messaging:4222
-            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
-            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
-            # and the console nats lib (TS).
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:
@@ -318,10 +171,6 @@ spec:
               value: valkey.cache.svc.cluster.local
             - name: VALKEY_ADDR
               value: valkey.cache.svc.cluster.local:26380
-            # mTLS: pkg/valkey's clientTLSConfig() treats these two as
-            # both-or-neither. Land this (a no-op while tls-auth-clients is
-            # still "no") on every consumer BEFORE flipping the statefulset,
-            # not after.
             - name: VALKEY_TLS_CLIENT_CERT_FILE
               value: /etc/valkey/client-tls/tls.crt
             - name: VALKEY_TLS_CLIENT_KEY_FILE
@@ -334,7 +183,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            # Node-local Valkey TLS reads stay on the pod network; writes ride Sentinel.
             - name: NODE_IP
               valueFrom:
                 fieldRef:
@@ -343,16 +191,10 @@ spec:
               value: valkey-local.cache.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 96MiB
-            # Serve HTTPS on 8080 with the cert-manager gossip-tls cert so the
-            # traefik hop to /status is TLS end-to-end (pkg/health reads the
-            # pair; both or neither, a half-set pair fails the listener).
             - name: TLS_CERT_FILE
               value: /etc/gossip/tls/tls.crt
             - name: TLS_KEY_FILE
               value: /etc/gossip/tls/tls.key
-            # mTLS client identity for both NATS planes (nats-client-tls,
-            # cert-manager). Presented on every dial; harmless until the
-            # listeners flip verify:true.
             - name: NATS_CLIENT_CERT_FILE
               value: /etc/nats-client/tls/tls.crt
             - name: NATS_CLIENT_KEY_FILE
@@ -392,7 +234,7 @@ spec:
             periodSeconds: 10
           startupProbe:
             httpGet: {path: /healthz, port: 8080, scheme: HTTPS}
-            failureThreshold: 18 # 18 × 5s = 90s max startup window
+            failureThreshold: 18
             periodSeconds: 5
       volumes:
         - name: nats-client-tls
@@ -404,9 +246,6 @@ spec:
         - name: valkey-client-tls
           secret:
             secretName: valkey-client-tls
-        # WARP sidecar scratch home for warp-svc registration state, gone with
-        # the pod. No tun device: proxy mode is userspace, see the sidecar's
-        # securityContext note.
         - name: warp-state
           emptyDir: {}
       terminationGracePeriodSeconds: 45

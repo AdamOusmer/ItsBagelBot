@@ -18,9 +18,6 @@ import (
 	valkey "github.com/valkey-io/valkey-go"
 )
 
-// TrialSubscriptionRequest is the versioned ingress-only subscription contract.
-// The outgress service verifies every ownership field against Valkey before it
-// lets a request use the bot account's user token.
 type TrialSubscriptionRequest struct {
 	Version         int    `json:"version"`
 	BroadcasterID   string `json:"broadcaster_id"`

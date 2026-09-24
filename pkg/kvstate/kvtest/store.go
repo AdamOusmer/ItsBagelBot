@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package kvtest supplies a revision-fenced KV double for outage/race tests.
 package kvtest
 
 import (
@@ -16,7 +15,7 @@ type Store struct {
 	mu       sync.Mutex
 	entries  map[string]entry
 	revision uint64
-	Err      error // Set only while no operations are in flight.
+	Err      error
 	Now      time.Time
 }
 

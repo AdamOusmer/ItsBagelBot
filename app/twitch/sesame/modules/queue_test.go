@@ -18,8 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeQueue is an in-memory QueueStore for the module tests: a slice preserves
-// join order, a bool the open flag.
 type fakeQueue struct {
 	open bool
 	line []string
@@ -107,8 +105,6 @@ func queueDeps(q engine.QueueStore) engine.Deps {
 	return engine.Deps{Queue: q, Log: zap.NewNop()}
 }
 
-// queueCtx builds a Context for chatter `login`. badge, when non-empty, is a
-// Twitch badge set_id ("moderator", "broadcaster", …) so the role gate resolves.
 func queueCtx(login, badge string) *module.Context {
 	env := lane.Envelope{
 		Type:                 "channel.chat.message",
@@ -130,8 +126,6 @@ func runQueue(t *testing.T, m module.Module, name string, c *module.Context, arg
 	require.NoError(t, cmd.Run(context.Background(), c, args, col.emit))
 	return col.out
 }
-
-// --- join ---
 
 func TestQueueJoinOpen(t *testing.T) {
 	q := &fakeQueue{open: true}
@@ -165,8 +159,6 @@ func TestQueueJoinTwiceKeepsSpot(t *testing.T) {
 	assert.Equal(t, []string{"bob", "alice"}, q.line)
 }
 
-// --- leave ---
-
 func TestQueueLeave(t *testing.T) {
 	q := &fakeQueue{open: true, line: []string{"alice", "bob"}}
 	m := Queue(queueDeps(q))
@@ -184,8 +176,6 @@ func TestQueueLeaveNotIn(t *testing.T) {
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "not in the queue")
 }
-
-// --- list ---
 
 func TestQueueListEmpty(t *testing.T) {
 	q := &fakeQueue{open: true}
@@ -222,18 +212,14 @@ func TestQueueListTruncatesToTen(t *testing.T) {
 	assert.Contains(t, out[0].Text, "+3 more")
 }
 
-// --- !queue subcommands: mod gate ---
-
 func TestQueueOpenRequiresMod(t *testing.T) {
 	q := &fakeQueue{}
 	m := Queue(queueDeps(q))
 
-	// non-mod: silent no-op, flag unchanged.
 	out := runQueue(t, m, "queue", queueCtx("alice", ""), "open")
 	assert.Empty(t, out)
 	assert.False(t, q.open)
 
-	// mod: opens and confirms.
 	out = runQueue(t, m, "queue", queueCtx("mod", "moderator"), "open")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "open")
@@ -244,7 +230,6 @@ func TestQueueCloseByBroadcaster(t *testing.T) {
 	q := &fakeQueue{open: true}
 	m := Queue(queueDeps(q))
 
-	// broadcaster resolves via ChatterUserID == BroadcasterUserID.
 	c := queueCtx("streamer", "")
 	c.Env.ChatterUserID = "100"
 	out := runQueue(t, m, "queue", c, "close")
@@ -310,8 +295,6 @@ func TestQueueClear(t *testing.T) {
 	assert.Empty(t, q.line)
 }
 
-// --- status + nil store ---
-
 func TestQueueStatus(t *testing.T) {
 	q := &fakeQueue{open: true, line: []string{"a", "b"}}
 	m := Queue(queueDeps(q))
@@ -340,10 +323,6 @@ func TestQueueJoinAndListViaSubcommand(t *testing.T) {
 	assert.Contains(t, out[0].Text, "1. alice")
 }
 
-// fakeCooldown scripts CooldownStore.Allow: it records the claimed keys and
-// their windows, and answers from the allow queue (defaulting to true when
-// exhausted). A non-nil err makes every claim fail, which is how the callers'
-// fail-open/fail-closed behavior is exercised.
 type fakeCooldown struct {
 	keys  []string
 	ttls  []time.Duration
@@ -365,8 +344,6 @@ func (f *fakeCooldown) Allow(_ context.Context, key string, ttl time.Duration) (
 	return ok, nil
 }
 
-// !queue list must claim the same per-channel window as the standalone !list,
-// so the subcommand spelling cannot sidestep the roster throttle.
 func TestQueueListSubcommandSharesCooldown(t *testing.T) {
 	q := &fakeQueue{open: true, line: []string{"alice"}}
 	cd := &fakeCooldown{allow: []bool{true, false}}
@@ -374,17 +351,13 @@ func TestQueueListSubcommandSharesCooldown(t *testing.T) {
 	d.Cooldown = cd
 	m := Queue(d)
 
-	// Window free: the roster is shown and the shared "list" key was claimed.
 	out := runQueue(t, m, "queue", queueCtx("alice", ""), "list")
 	require.Len(t, out, 1)
 	require.Equal(t, []string{engine.CommandCooldownKey(100, "list")}, cd.keys)
 
-	// Window held (e.g. a standalone !list just ran): silent, matching the gate.
 	out = runQueue(t, m, "queue", queueCtx("bob", ""), "list")
 	assert.Empty(t, out)
 }
-
-// --- customizable reply templates ---
 
 func TestQueueJoinCustomTemplate(t *testing.T) {
 	q := &fakeQueue{open: true}
@@ -408,8 +381,6 @@ func TestQueueNextCustomTemplate(t *testing.T) {
 	assert.Equal(t, "alice is up, 1 left", out[0].Text)
 }
 
-// A blank custom template falls back to the localized default; the roster is
-// never customizable, so a stray config key cannot alter it.
 func TestQueueListIgnoresConfig(t *testing.T) {
 	q := &fakeQueue{open: true, line: []string{"a", "b"}}
 	m := Queue(queueDeps(q))

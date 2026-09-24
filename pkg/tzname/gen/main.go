@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Command gen writes pkg/tzname/zones_gen.go from the zoneinfo.zip bundled
-// with the Go toolchain that runs it. Invoked via `go generate ./pkg/tzname`
-// (see the //go:generate directive in tzname.go).
 package main
 
 import (

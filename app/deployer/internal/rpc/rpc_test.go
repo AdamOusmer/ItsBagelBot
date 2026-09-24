@@ -24,15 +24,11 @@ const (
 	viewerID   = "2002"
 )
 
-// allVerbs is every verb the wire contract declares; the guard tests walk it
-// so a verb added to deploy.go without a guarded binding fails here.
 var allVerbs = []string{
 	deploy.VerbPlan, deploy.VerbStart, deploy.VerbList,
 	deploy.VerbGet, deploy.VerbResume, deploy.VerbCancel, deploy.VerbApprove,
 }
 
-// fakeAuth admits ownerID only, the way the users service admits one staff
-// row with the owner role.
 type fakeAuth struct{}
 
 func (fakeAuth) RequireOwner(_ context.Context, actorID string) (deploy.Actor, error) {
@@ -42,13 +38,11 @@ func (fakeAuth) RequireOwner(_ context.Context, actorID string) (deploy.Actor, e
 	return deploy.Actor{ID: actorID, Login: ownerLogin}, nil
 }
 
-// call is one engine invocation as the fake saw it.
 type call struct {
 	Verb  string
 	Actor deploy.Actor
 }
 
-// fakeEngine answers every verb with a payload and err, recording who asked.
 type fakeEngine struct {
 	err   error
 	calls []call
@@ -87,8 +81,6 @@ func (f *fakeEngine) Approve(_ context.Context, a deploy.Actor, r deploy.RunRequ
 	return deploy.Run{ID: r.RunID}, f.record(call{deploy.VerbApprove, a})
 }
 
-// request is the union of the fields the verbs read, so one table row can
-// address any verb.
 type request struct {
 	verb  string
 	actor string
@@ -100,14 +92,12 @@ func wellFormed(verb, actor string) request {
 	return request{verb: verb, actor: actor, kind: deploy.KindRelease, runID: "run-1"}
 }
 
-// outcome is everything a test asserts about one verb call, compared whole.
 type outcome struct {
 	Refusal domainrpc.Refusal
 	Payload bool
 	Calls   []call
 }
 
-// send drives r through the same bound handlers Serve registers.
 func send(e *fakeEngine, r request) outcome {
 	refusal, payload := dispatch(newVerbs(e, fakeAuth{}), r)
 	return outcome{Refusal: refusal, Payload: payload, Calls: e.calls}
@@ -149,8 +139,6 @@ func TestGuard(t *testing.T) {
 	}
 }
 
-// checkGuard: a non-owner and an actor-less request never reach the engine,
-// and the owner reaches it as the actor the authorizer resolved.
 func checkGuard(t *testing.T, verb string) {
 	owner := deploy.Actor{ID: ownerID, Login: ownerLogin}
 	cases := []struct {
@@ -191,7 +179,6 @@ func TestMalformedRequestRefusedBeforeEngine(t *testing.T) {
 	}
 }
 
-// A plan with no kind is the page's overview, not a malformed request.
 func TestPlanWithoutKindIsTheOverview(t *testing.T) {
 	req := request{verb: deploy.VerbPlan, actor: ownerID}
 	want := outcome{Payload: true, Calls: []call{{deploy.VerbPlan, deploy.Actor{ID: ownerID, Login: ownerLogin}}}}

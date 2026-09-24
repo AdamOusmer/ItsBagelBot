@@ -16,23 +16,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// This file is the runtime half of the reply-token parity handshake
-// (reply_tokens.go, reply_tokens_golden_test.go): it runs the real handler
-// behind every mapped namespace with a sample event and checks that every
-// name ReplyTokenInventory() promises for that namespace actually got
-// substituted, rather than surviving as a literal "{name}" in the chat line.
-// A name this file cannot prove resolves is a name that should not be in the
-// inventory, or a handler that stopped filling it in.
-
-// resolvedCheck bundles one namespace's rendered text with the inventory
-// lookup assertResolved runs against it, so every case below passes one
-// struct instead of two bare strings.
 type resolvedCheck struct {
 	ns, text string
 }
 
-// assertResolved fails for any name ReplyTokenInventory()[c.ns] promises
-// that still appears literally as "{name}" in c.text.
 func assertResolved(t *testing.T, c resolvedCheck) {
 	t.Helper()
 	names, ok := ReplyTokenInventory()[c.ns]
@@ -218,12 +205,6 @@ func TestReplyTokensFortniteResolve(t *testing.T) {
 	}
 }
 
-// TestReplyTokensClipPassthrough covers builtin.clip's odd shape: outgress
-// (app/twitch/outgress/internal/worker, a different app's internal package,
-// unreachable from here under Go's internal-import rule) is what actually
-// fills {clip}/{user}/{target} in, once the clip's URL exists. All this
-// package can prove is that its own Output.Template passthrough leaves every
-// inventory name in the sample template untouched on the way out.
 func TestReplyTokensClipPassthrough(t *testing.T) {
 	tmpl := "{user} clipped {clip} for {target}"
 	reader := clipReader{modules: []projection.ModuleView{

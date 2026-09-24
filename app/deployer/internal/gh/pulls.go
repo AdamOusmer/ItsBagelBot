@@ -26,10 +26,9 @@ func toPR(pr *github.PullRequest) ports.PullRequest {
 		BaseBranch: ports.Branch(pr.GetBase().GetRef()),
 		Draft:      pr.GetDraft(),
 		Open:       pr.GetState() == "open",
-		// merged_at, unlike merged, is on the list endpoint too.
-		Merged:    pr.MergedAt != nil,
-		Mergeable: pr.Mergeable,
-		Behind:    pr.GetMergeableState() == "behind",
+		Merged:     pr.MergedAt != nil,
+		Mergeable:  pr.Mergeable,
+		Behind:     pr.GetMergeableState() == "behind",
 	}
 	if out.Merged {
 		out.MergeSHA = deploy.SHA(pr.GetMergeCommitSHA())
@@ -37,7 +36,6 @@ func toPR(pr *github.PullRequest) ports.PullRequest {
 	return out
 }
 
-// OpenPRs is cached for cacheTTL; the slice is the caller's to keep.
 func (c *Client) OpenPRs(ctx context.Context) ([]deploy.PRInfo, error) {
 	infos, err := c.openPRs.load(c.cfg.Deploy.MainBranch, c.now(), func() ([]deploy.PRInfo, error) {
 		return c.fetchOpenPRs(ctx)
@@ -70,9 +68,6 @@ func (c *Client) fetchOpenPRs(ctx context.Context) ([]deploy.PRInfo, error) {
 	return infos, nil
 }
 
-// prInfo re-reads the PR because the list endpoint omits mergeable and
-// mergeable_state, which only the single-PR endpoint computes. The head of a
-// listed open PR is known to be one, so its checks skip the head lookup.
 func (c *Client) prInfo(ctx context.Context, number int) (deploy.PRInfo, error) {
 	pr, err := c.PR(ctx, number)
 	if err != nil {
@@ -104,8 +99,6 @@ func (c *Client) PR(ctx context.Context, number int) (ports.PullRequest, error) 
 	return toPR(pr), nil
 }
 
-// FindPR re-reads the chosen PR so Mergeable and Behind are filled, which
-// the list endpoint leaves out.
 func (c *Client) FindPR(ctx context.Context, head ports.Branch) (ports.PullRequest, bool, error) {
 	prs, resp, err := c.gh.PullRequests.List(ctx, c.owner, c.repo, &github.PullRequestListOptions{
 		State:       "all",
@@ -124,9 +117,6 @@ func (c *Client) FindPR(ctx context.Context, head ports.Branch) (ports.PullReque
 	return pr, err == nil, err
 }
 
-// pickPR prefers the branch's open PR, then its most recently created merged
-// one (the list is newest first). A closed, unmerged PR is an abandoned
-// attempt and never counts.
 func pickPR(prs []*github.PullRequest) int {
 	best, bestRank := 0, 0
 	for _, pr := range prs {
@@ -157,9 +147,6 @@ func (c *Client) CreatePR(ctx context.Context, spec ports.PRSpec) (ports.PullReq
 	return toPR(pr), nil
 }
 
-// UpdateBranch merges main into the PR head. GitHub does it in the
-// background and answers 202, which is success here; the caller re-waits on
-// the new head's checks.
 func (c *Client) UpdateBranch(ctx context.Context, number int) error {
 	_, resp, err := c.gh.PullRequests.UpdateBranch(ctx, c.owner, c.repo, number, nil)
 	if accepted(err) {
@@ -168,11 +155,7 @@ func (c *Client) UpdateBranch(ctx context.Context, number int) error {
 	return apiErr(resp, err)
 }
 
-// SquashMerge sets the commit title explicitly: GitHub's squash default
-// for a one-commit PR is that commit's subject, not the PR title, and the
-// repo convention is "<title> (#N)", which the plan's commit list reads PR
-// numbers from. An already merged PR returns its merge commit, so a resumed
-// stage does not fail on its own earlier success.
+// Set the title explicitly: the plan reads "(#N)" from the merge subject.
 func (c *Client) SquashMerge(ctx context.Context, number int, expectHead deploy.SHA) (deploy.SHA, error) {
 	pr, err := c.PR(ctx, number)
 	if err != nil {

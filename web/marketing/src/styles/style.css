@@ -1,23 +1,6 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Brand primitives (palette, shape scale, easing, type stack, durations) come
-   from the one shared definition, so the console and the docs cannot drift
-   away from this site's values the way they had. layers.css goes FIRST, ahead
-   of the token file: it only declares the cascade order, and the order is
-   fixed by whichever declaration the browser sees first. Then the element
-   contracts this site renders: tags/chips, the reveal rhythm, the hero orbs
-   and the a11y floor. Everything in this file after the imports is unlayered
-   and therefore outranks all of them, which is how the site keeps its own
-   page styles without out-specifying anything. The site's own short names
-   are aliases onto them: every rule below and every component style says
-   var(--tan), not var(--bb-tan), and renaming ~900 uses to buy nothing would
-   be the change that actually risks something.
-
-   fonts.css carries the five @font-face rules and the woff2 payloads. It is
-   imported here rather than in Layout.astro so that any entry point reaching
-   style.css gets the faces the tokens below name; Layout.astro keeps only the
-   two <link rel="preload"> URLs, which have to be values it can render. */
 @import '@bagel/ui/styles/layers.css';
 @import '@bagel/ui/styles/brand.css';
 @import '@bagel/ui/styles/fonts.css';
@@ -43,82 +26,43 @@
     --card-bg: var(--bb-card-bg);
     --border: var(--bb-border);
 
-    /* The type stack is shared now. The families lost their Fontsource
-       "* Variable" suffix, which named the delivery mechanism rather than the
-       typeface and only existed so a page could load a variable and a static
-       build of the same family side by side; nothing here ever did. The plain
-       names used to trail them as a fallback for a browser still holding the
-       pre-Fontsource Google Fonts CSS in cache — that entry expired long ago
-       and no surface serves the Google stylesheet any more, so the pair
-       collapses to one name. See @bagel/ui/styles/fonts.css.
-       Caveat keeps its own line: it is this site's decorative accent, still
-       delivered by @fontsource-variable/caveat, and is not in the library. */
     --font-display: var(--bb-font-display);
     --font-mono: var(--bb-font-mono);
     --font-body: var(--bb-font-body);
     --font-hand: "Caveat Variable", "Caveat", cursive;
 
-    /* Card scope. The shared contract defaults to the console's values because
-       that is where the density scale --d lives; this site's are flat numbers
-       and are set here rather than passed per call site (C3/C9). The band's
-       16/24 inset is the site's too: its housings hold a drawing, the
-       console's hold a title. */
     --card-pad: 32px;
     --card-body-pad: 24px;
     --card-band-pad: 16px 24px;
     --card-band-h: 104px;
 
     --nav-height: var(--bb-nav-height);
-    /* Visual nav band (--nav-height) plus the iOS notch inset above it. Fixed
-       nav grows into the safe area; content offsets clear the whole thing. */
     --nav-offset: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
     --ease-out-expo: var(--bb-ease-out-expo);
     --ease-out-back: var(--bb-ease-out-back);
 
-    /* Both were this site's literals and are now shared tokens; the numbers
-       behind them (the 28% border alpha that is the only step between
-       --border at 15% and the 35% hover state, 320ms for anything the eye is
-       meant to follow) are recorded in @bagel/ui/styles/brand.css. They sat
-       in the tags block until that block moved to @bagel/ui/styles/tags.css;
-       the button rules further down still say var(--border-chip) and
-       var(--dur-base), so the aliases move here rather than leave with it.
-       --tracking-eyebrow had no reader outside that block and is gone. */
     --border-chip: var(--bb-border-chip);
     --dur-base: var(--bb-dur-base);
 
-    /* Shape scale. Concentric corners: inner = outer minus the gap between
-       them, on a 4px grid, floored at xs. True circles use 50%, not a token. */
     --radius-xs: var(--bb-radius-xs);
     --radius-sm: var(--bb-radius-sm);
     --radius-md: var(--bb-radius-md);
     --radius-lg: var(--bb-radius-lg);
     --radius-pill: var(--bb-radius-pill);
 
-    /* Spacing rhythm (shared by every section) */
     --space-section: clamp(72px, 10vw, 120px);
     --space-section-sm: clamp(56px, 8vw, 88px);
 
-    /* Content widths */
     --content-max: var(--bb-content-max);
     --content-narrow: 720px;
     --content-text: 68ch;
 
-    /* Glow accents (echo the hero orbs) */
     --glow-tan: var(--bb-glow-tan);
     --glow-green: var(--bb-glow-green);
 
 }
 
 
-/* The resets go in bb.base, BELOW the element contracts in bb.elements.
-   Not a formality: `a { color: inherit }` and `button { border: none }` are
-   element selectors, so they lose to `.bb-tab` and `.bb-chip` on specificity
-   the way they always did — but only while both are unlayered. Left outside
-   the layers they would outrank every contract regardless of specificity,
-   and the first thing that broke when they were was the language switcher,
-   whose active locale is an <a class="bb-tab is-active"> and which came back
-   coloured `inherit`. Anything after this block is a page style, stays
-   unlayered, and is meant to win. */
 @layer bb.base {
     *, *::before, *::after {
         box-sizing: border-box;
@@ -126,10 +70,6 @@
         padding: 0;
     }
 
-    /* Native-cursor hiding lives in Cursor.astro behind the JS-set
-       `bb-cursor-on` class, never here. A plain `cursor: none` on html hid the
-       cursor even when the cursor script failed or JS was off, leaving desktop
-       users with no pointer at all (shipped that way until 2026-08-31). */
     html {
         scroll-behavior: smooth;
         scrollbar-width: none;
@@ -148,12 +88,6 @@
             --nav-height: 68px;
         }
     }
-
-    /* The nav panel's scroll lock used to be this class, toggled by the nav's
-       own script. The panel is @bagel/ui's now and locks the page with
-       `body:has(.bb-mobile-menu.is-open)` in its own contract: an element in a
-       shared library cannot assume the host page defines a rule for its state.
-       Deleted rather than left as a no-op, so nothing re-adds a caller for it. */
 
     body {
         background: var(--black);
@@ -193,14 +127,11 @@
     }
 }
 
-/* Global Styles */
-
 section {
     padding: 100px 48px;
     max-width: 1200px;
     margin: 0 auto;
 }
-/* ── Bagel Easter Egg ── */
 
 .bagel-cursor, .bagel-cursor * {
     cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ctext y='24' font-size='24'%3E🥯%3C/text%3E%3C/svg%3E") 16 16, auto !important;
@@ -237,19 +168,6 @@ section {
     100% { opacity: 0; transform: translate(-50%, calc(-50% + 20px)) scale(0.5) rotate(var(--rot)); }
 }
 
-/* ── Tier 2b · Buttons ("Mark") ──────────────────────────────────── */
-/* The whole block is @bagel/ui/styles/elements/button.css now, imported at the
-   top of this file. It absorbed the console's raw `.btn` block and two Svelte
-   components' scoped copies along with this one; the modifiers this site
-   writes by hand (--go, --go-solid, --quiet, --danger) are kept there as
-   aliases, so every raw call site on the site is unchanged. A bare `.bb-btn`
-   is still the primary -- that was the question the merge had to answer, and
-   the answer was the site's. */
-
-/* Tier 2c · Rails. The tab pattern turned into actions: no frame at all, the
-   label sits on the same tan hairline the tabs use and a green line draws in
-   from the left on hover, the same motion as the working indicator. Use a rail
-   where a framed button would read as a box dropped into running copy. */
 .bb-rail {
     display: inline-flex;
     align-items: center;
@@ -287,7 +205,6 @@ section {
 
 .bb-rail:hover { background-size: 100% 1px; color: var(--white); }
 
-/* Lead: the editorial form, for a rail that carries a section. */
 .bb-rail--lead {
     padding-bottom: 12px;
     border-bottom-color: var(--border-chip);
@@ -301,10 +218,6 @@ section {
 
 .bb-rail--lead:hover { color: var(--tan-pale); }
 
-/* Prose: sentence case at body size, for a rail that sits inside running copy
-   and has to stay a sentence rather than a label. It is the one rail that
-   wraps, so it drops the label line-height and hangs the mark and the arrow off
-   the first line instead of centring them against the whole block. */
 .bb-rail--prose {
     align-items: flex-start;
     font-family: var(--font-body);
@@ -330,9 +243,6 @@ section {
 
 .bb-rail:hover .bb-rail__arrow { transform: translateX(4px); }
 
-/* Cards tighten on a phone. Two custom properties rather than the two rules
-   Card.astro used to carry, because the contract reads both of them and a rule
-   here would have to out-specify it instead of just handing it a number. */
 @media (max-width: 480px) {
     :root {
         --card-pad: 24px;
@@ -341,8 +251,6 @@ section {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    /* Park the sweep mid-rail rather than hiding it: the hairline still
-       reads as "lit", it just stops travelling. */
     .bb-sweep { animation: none; left: 35%; opacity: 1; }
     .bb-drawline::after { animation: none; width: 100%; }
 }

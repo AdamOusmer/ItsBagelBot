@@ -7,7 +7,6 @@ metadata:
   name: default-deny-apps
   namespace: app
 spec:
-  # Apply only to our specific apps to avoid breaking NATS or other infrastructure in the namespace
   podSelector:
     matchExpressions:
       - key: app
@@ -17,25 +16,20 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow all app pods to reach each other for now.
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: app
-    # Allow the traefik DaemonSet (networking namespace) to reach the routed
-    # backends: consoles, webhooks, and the per-service /status listeners.
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: networking
-    # Allow Tailscale ingress controller to reach admin
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: tailscale
   egress:
-    # Resolve through cluster DNS only. Leaving `to` empty here would turn port
-    # 53 into a DNS-tunnelling escape hatch to any Internet address.
+    # Cluster DNS only: an empty `to` would make port 53 a tunnelling escape hatch.
     - to:
         - namespaceSelector:
             matchLabels:
@@ -45,23 +39,15 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    # Peer app services (RPC fan-out between pods in this namespace)
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: app
-    # Valkey lives in cache
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: cache
 ---
-# NATS (hub + leaf, namespace messaging) is its own allowlist, not part of the
-# blanket default-deny-apps egress above. Unlike the old dingress-gateway
-# (which held no BUS/RPC account at all), discord-ingress DOES need NATS: it
-# publishes discord.ingress.event.* for discord-engine to consume (see
-# internal/domain/discord/event.go), so all three Discord services carry this
-# grant.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -81,15 +67,6 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: messaging
 ---
-# Every long-running application currently exports APM directly to New Relic
-# over HTTPS. Product integrations also use HTTPS from gossip, ingress,
-# outgress, discord-ingress (Discord gateway WSS + the interaction defer),
-# discord-outgress (Discord REST), sesame, transactions and the consoles.
-# discord-engine is deliberately absent: it makes no Discord calls and no
-# other internet call, and the netpol enforces what the code already
-# promises (see internal/domain/discord's package doc). Keep this grant
-# explicit so a workload cannot silently inherit it merely by joining
-# default-deny-apps.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -108,20 +85,6 @@ spec:
         - port: 443
           protocol: TCP
 ---
-# gossip's WARP sidecar needs UDP/443 on top of the TCP/443 above, and nothing
-# else in the fleet does. Proxy mode speaks MASQUE — HTTP/3 over QUIC, which is
-# UDP — and it is the ONLY protocol proxy mode supports since client 2025.8, so
-# there is no TCP fallback to lean on: without this rule the daemon sits in
-# "Performing happy eyeballs to 162.159.198.2:443" forever, the SOCKS listener
-# never binds, and the sidecar never reports ready (observed exactly that on
-# the first rollout).
-#
-# Scoped to app=gossip alone rather than widening allow-public-https, because
-# UDP egress to the whole Internet is a materially different exfiltration
-# surface from TCP/443 and only one workload has any use for it. The dial
-# targets are Cloudflare's WARP edge; they are not enumerable as a stable IP
-# list (anycast, and the client picks endpoints dynamically), so the rule is
-# port-scoped rather than destination-scoped.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -138,16 +101,7 @@ spec:
         - port: 443
           protocol: UDP
 ---
-# Data owners reach the managed HeatWave endpoint. Restricting both the
-# workloads and destination prevents port 3306 from becoming a generic
-# public-Internet exfiltration path. console-admin is included for its
-# explicit schema-credential administration workflow.
-#
-# Two destinations, one per path. 204.216.107.73/32 is nlb-mysql, the public
-# OCI Network LB in front of HeatWave (2026-08-27): DB_ADMIN_ADDR dials it so
-# the DB path no longer rides the witness1 tailscale subnet route (SPOF).
-# 10.0.0.0/16 stays for direct-VCN fallback; removing it turns a Doppler
-# rollback into an outage.
+# 10.0.0.0/16 stays for a DB_ADDR rollback to the direct VCN path; removing it breaks that rollback.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -171,14 +125,7 @@ spec:
         - port: 3306
           protocol: TCP
 ---
-# WORKAROUND for cilium/cilium#43012 (v1.18.4+): kubelet health probes arrive
-# from cilium_host misclassified as the "world" identity instead of "host", so
-# default-deny eats every httpGet probe and pods die at the startup window with
-# perfectly healthy listeners. Until the upstream fix lands, the health ports
-# (8080 Go services + twitch-ingress, 3000 consoles) accept ingress from any
-# identity. Bounded exposure: pod IPs are unreachable from outside the pod
-# network, so "any identity" is cluster-internal in practice; the probe ports
-# serve health JSON and nothing else. REVERT when the Cilium bug is fixed.
+# WORKAROUND cilium/cilium#43012: kubelet probes arrive as "world"; without this default-deny drops them.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

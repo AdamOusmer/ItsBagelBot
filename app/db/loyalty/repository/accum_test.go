@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// bare returns a repository with only the accumulators usable — enough for the
-// fold/drain logic, which never touches the DB.
 func bare() *Loyalty {
 	return &Loyalty{
 		earnPend: map[balKey]*earnSum{},
@@ -28,8 +26,8 @@ func TestRecordEarnedFolds(t *testing.T) {
 		{ViewerID: 7, ViewerLogin: "cool", Points: 100, WatchSeconds: 300},
 		{ViewerID: 7, ViewerName: "Cool", Points: 50},
 		{ViewerID: 8, WatchSeconds: 300},
-		{ViewerID: 0, Points: 10}, // no viewer: dropped
-		{ViewerID: 9},             // nothing earned: dropped
+		{ViewerID: 0, Points: 10},
+		{ViewerID: 9},
 	}})
 
 	earn, bumps := r.drain()
@@ -42,7 +40,6 @@ func TestRecordEarnedFolds(t *testing.T) {
 	assert.Equal(t, "cool", seven.login)
 	assert.Equal(t, "Cool", seven.name)
 
-	// drain swapped the map out.
 	earn, _ = r.drain()
 	assert.Empty(t, earn)
 }
@@ -50,23 +47,23 @@ func TestRecordEarnedFolds(t *testing.T) {
 func TestRecordBumpsFoldsAndValidates(t *testing.T) {
 	r := bare()
 	r.RecordBumps(data.CounterBumpedDTO{UserID: 1, Bumps: []data.CounterBumpEntry{
-		{Name: "!Deaths", Delta: 1}, // normalized to "deaths"
-		{Name: "deaths", Delta: 2},  // folds with the one above
-		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: "cool", Delta: 1},    // viewer scope, identity carried
-		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerName: "Cool", Delta: 1},     // folds; name fills in, login kept
-		{Name: "hugs", Scope: data.CounterScopeViewer, Delta: 1},                                      // viewer scope without viewer: dropped
-		{Name: "uses", Scope: data.CounterScopeViewerCommand, ViewerID: 7, Command: "!Hug", Delta: 2}, // command normalized
-		{Name: "raids", Scope: data.CounterScopeCommand, Command: "!Raid", Delta: 3},                  // pooled command scope
-		{Name: "pulls", Scope: data.CounterScopeCommand, Delta: 2},                                    // nameless source: pools on the row (channel shape)
-		{Name: "feeds", Scope: data.CounterScopeBot, Delta: 1},                                        // bot outside bot namespace: dropped
-		{Name: "bot:x", Delta: 1}, // reserved ':' name: dropped
-		{Name: "", Delta: 1},      // no name: dropped
-		{Name: "noop", Delta: 0},  // no delta: dropped
+		{Name: "!Deaths", Delta: 1},
+		{Name: "deaths", Delta: 2},
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerLogin: "cool", Delta: 1},
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, ViewerName: "Cool", Delta: 1},
+		{Name: "hugs", Scope: data.CounterScopeViewer, Delta: 1},
+		{Name: "uses", Scope: data.CounterScopeViewerCommand, ViewerID: 7, Command: "!Hug", Delta: 2},
+		{Name: "raids", Scope: data.CounterScopeCommand, Command: "!Raid", Delta: 3},
+		{Name: "pulls", Scope: data.CounterScopeCommand, Delta: 2},
+		{Name: "feeds", Scope: data.CounterScopeBot, Delta: 1},
+		{Name: "bot:x", Delta: 1},
+		{Name: "", Delta: 1},
+		{Name: "noop", Delta: 0},
 	}})
 	r.RecordBumps(data.CounterBumpedDTO{UserID: 0, Bumps: []data.CounterBumpEntry{
-		{Name: "feeds", Scope: data.CounterScopeBot, Delta: 4},                // bot namespace
-		{Name: "deaths", Delta: 1},                                            // channel bump without broadcaster: dropped
-		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, Delta: 1}, // viewer bump without broadcaster: dropped
+		{Name: "feeds", Scope: data.CounterScopeBot, Delta: 4},
+		{Name: "deaths", Delta: 1},
+		{Name: "hugs", Scope: data.CounterScopeViewer, ViewerID: 7, Delta: 1},
 	}})
 
 	_, bumps := r.drain()
@@ -92,7 +89,7 @@ func TestRecordBumpsFoldsAndValidates(t *testing.T) {
 	pulls := bumps[bumpKey{userID: 1, name: "pulls"}]
 	require.NotNil(t, pulls)
 	assert.Equal(t, int64(2), pulls.delta)
-	assert.Equal(t, data.CounterScopeChannel, pulls.scope) // nameless source pools on the row
+	assert.Equal(t, data.CounterScopeChannel, pulls.scope)
 	feeds := bumps[bumpKey{name: "feeds"}]
 	require.NotNil(t, feeds)
 	assert.Equal(t, int64(4), feeds.delta)
@@ -108,8 +105,8 @@ func TestSplitBumpsRouting(t *testing.T) {
 		{userID: 1, name: "uses", command: "hug", viewerID: 7}: {scope: data.CounterScopeViewerCommand},
 	}
 	channel, entries := splitBumps(bumps)
-	assert.Len(t, channel, 2) // channel + bot land on the counter row
-	assert.Len(t, entries, 3) // viewer, command, viewer+command land in counter_entries
+	assert.Len(t, channel, 2)
+	assert.Len(t, entries, 3)
 }
 
 func TestEntryTarget(t *testing.T) {
@@ -117,11 +114,9 @@ func TestEntryTarget(t *testing.T) {
 
 	v, cmd, ok := entryTarget(scoped(data.CounterScopeCommand), 7, "!Raid")
 	require.True(t, ok)
-	assert.Equal(t, uint64(0), v) // pooled: viewer never keys a command bucket
+	assert.Equal(t, uint64(0), v)
 	assert.Equal(t, "raid", cmd)
 
-	// A command scope addressed without a command is untargeted: reads answer
-	// with the row value, sets reset the counter (never a hidden "" bucket).
 	_, _, ok = entryTarget(scoped(data.CounterScopeCommand), 7, "")
 	assert.False(t, ok)
 
@@ -131,10 +126,10 @@ func TestEntryTarget(t *testing.T) {
 	assert.Equal(t, "raid", cmd)
 
 	_, _, ok = entryTarget(scoped(data.CounterScopeViewer), 0, "")
-	assert.False(t, ok) // viewer scope without a viewer answers with the row value
+	assert.False(t, ok)
 
 	_, _, ok = entryTarget(scoped(data.CounterScopeBot), 7, "x")
-	assert.False(t, ok) // row-scoped
+	assert.False(t, ok)
 }
 
 func TestValidCounterName(t *testing.T) {
@@ -152,8 +147,6 @@ func TestValidCounterName(t *testing.T) {
 	_, err = ValidCounterName(string(long))
 	assert.ErrorIs(t, err, ErrInvalidInput)
 
-	// ':' is the {counter:...}/{count:...} token's payload separator, so a
-	// name containing one could never be addressed by either token.
 	_, err = ValidCounterName("target:deaths")
 	assert.ErrorIs(t, err, ErrInvalidInput)
 }
@@ -171,10 +164,6 @@ func TestValidScope(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidInput)
 }
 
-// The fleet stats names are system-owned: a broadcaster may not create, set,
-// rename or delete the row that ranks it on a public leaderboard, and the
-// name normalization must not offer a way around the guard. The bot namespace
-// (the admin console's counter surface) keeps full control.
 func TestWritableCounterNameReservesSystemCounters(t *testing.T) {
 	_, err := writableCounterName(123, data.CounterMessagesProcessed)
 	require.ErrorIs(t, err, ErrInvalidInput)

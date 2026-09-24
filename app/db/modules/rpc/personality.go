@@ -12,16 +12,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 )
 
-// SubscribePersonality answers the personality verbs under prefix: feed,
-// which records one feeding on the fleet-wide counter and the feeding
-// channel's row, and feed.board, the read-only leaderboard. They ride the
-// MODULES_RPC account export like the quote verbs, but sesame's WORKER_RPC
-// imports are scoped per subtree, so each verb needs its own import line in
-// nats-auth.conf (a bare export is not enough for the request to cross
-// accounts).
-//
-// The two verbs carry different request and reply types, so they cannot share
-// one ServeVerbs table; each is bound on its own through the same wiring.
+// Each verb needs its own sesame import line in nats-auth.conf.
 func SubscribePersonality(w bus.RPCWiring, repo *repository.Personality, prefix string) error {
 	if err := bus.Serve(w, prefix+".feed", feedBump(repo)); err != nil {
 		return err
@@ -29,7 +20,6 @@ func SubscribePersonality(w bus.RPCWiring, repo *repository.Personality, prefix 
 	return bus.Serve(w, prefix+".feed.board", feedBoard(repo))
 }
 
-// feedBump answers the write verb: one feeding, both counters.
 func feedBump(repo *repository.Personality) func(context.Context, modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
 	return func(ctx context.Context, req modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
 		totals, err := repo.FeedBump(ctx, req.BroadcasterID, req.Name)
@@ -40,8 +30,6 @@ func feedBump(repo *repository.Personality) func(context.Context, modulesrpc.Fee
 	}
 }
 
-// feedBoard answers the read verb: the leaderboard, plus the asking channel's
-// own standing when it named itself.
 func feedBoard(repo *repository.Personality) func(context.Context, modulesrpc.FeedBoardRequest) modulesrpc.FeedBoardReply {
 	return func(ctx context.Context, req modulesrpc.FeedBoardRequest) modulesrpc.FeedBoardReply {
 		reply, err := readFeedBoard(ctx, repo, req)
@@ -52,8 +40,6 @@ func feedBoard(repo *repository.Personality) func(context.Context, modulesrpc.Fe
 	}
 }
 
-// readFeedBoard collects the three reads a leaderboard answer needs, keeping
-// the error handling out of the subscribe handler.
 func readFeedBoard(ctx context.Context, repo *repository.Personality, req modulesrpc.FeedBoardRequest) (modulesrpc.FeedBoardReply, error) {
 	board, err := readBoardEntries(ctx, repo, req.Limit)
 	if err != nil {
@@ -79,8 +65,6 @@ func readFeedBoard(ctx context.Context, repo *repository.Personality, req module
 	return reply, nil
 }
 
-// readBoardEntries skips the board query entirely for a negative limit: the
-// standing-only command has no use for the podium.
 func readBoardEntries(ctx context.Context, repo *repository.Personality, limit int) ([]modulesrpc.FeedBoardEntry, error) {
 	if limit < 0 {
 		return nil, nil

@@ -6,7 +6,6 @@ import { sharedSnapshot, setSnapshotClientForTests, type SnapshotClient } from '
 
 afterEach(() => setSnapshotClientForTests(undefined));
 
-/** A stand-in Valkey holding one string, with the calls it saw. */
 function fakeClient(seed: string | null = null) {
   const calls = { get: 0, set: 0 };
   let stored = seed;

@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package watch implements ports.Watcher: settle checks, rollout waits with
-// fast-fail, image ID verification, NATS reload confirmation and URL probes.
 package watch
 
 import (
@@ -22,7 +20,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// Watcher implements ports.Watcher.
 type Watcher struct {
 	cs   kubernetes.Interface
 	cfg  ports.Config
@@ -33,8 +30,6 @@ type Watcher struct {
 
 var _ ports.Watcher = (*Watcher)(nil)
 
-// New builds the typed client from rc. hc serves NATS monitoring reads and
-// URL probes.
 func New(rc *rest.Config, cfg ports.Config, hc *http.Client) (*Watcher, error) {
 	cs, err := kubernetes.NewForConfig(rc)
 	if err != nil {
@@ -43,18 +38,12 @@ func New(rc *rest.Config, cfg ports.Config, hc *http.Client) (*Watcher, error) {
 	return newWatcher(cs, cfg, hc), nil
 }
 
-// newWatcher copies hc and stops it following redirects: verify passes a
-// public URL on 2xx or 3xx, and following the redirect would grade whatever
-// the target answers (a login page, another host) instead of the route the
-// manifests applied.
 func newWatcher(cs kubernetes.Interface, cfg ports.Config, hc *http.Client) *Watcher {
 	client := *hc
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	return &Watcher{cs: cs, cfg: cfg, http: &client, repo: imageRepo(cfg.ImageRepo), now: time.Now}
 }
 
-// Reachable lists one node. The ClusterRole already grants nodes list, and
-// unlike discovery's ServerVersion the call is bounded by ctx.
 func (w *Watcher) Reachable(ctx context.Context) error {
 	if _, err := w.cs.CoreV1().Nodes().List(ctx, metav1.ListOptions{Limit: 1}); err != nil {
 		return fmt.Errorf("kube api: %w", err)
@@ -88,7 +77,7 @@ func (w *Watcher) VerifyImageIDs(ctx context.Context, refs []ports.WorkloadRef, 
 	var out []ports.Mismatch
 	err := w.eachWorkload(ctx, refs, func(ref ports.WorkloadRef, wl *workload) error {
 		if wl.selector == nil {
-			return nil // a CronJob keeps no pods between runs
+			return nil
 		}
 		pods, err := w.pods(ctx, ref.Namespace, wl.selector)
 		for i := range pods {
@@ -99,10 +88,6 @@ func (w *Watcher) VerifyImageIDs(ctx context.Context, refs []ports.WorkloadRef, 
 	return out, err
 }
 
-// podMismatches checks only the containers whose image is a pinned
-// first-party one: sidecars (config reloader, exporter) run third-party
-// images the pin PR never touches. A container with no status yet reports
-// an empty Got, since it is not running the pin either.
 func (w *Watcher) podMismatches(ref ports.WorkloadRef, pod *corev1.Pod, pins ports.Pins) []ports.Mismatch {
 	if pod.DeletionTimestamp != nil {
 		return nil
@@ -119,7 +104,6 @@ func (w *Watcher) podMismatches(ref ports.WorkloadRef, pod *corev1.Pod, pins por
 	return out
 }
 
-// Probe returns the first answer's status; the caller grades it.
 func (w *Watcher) Probe(ctx context.Context, url ports.URL) (int, error) {
 	resp, err := w.get(ctx, string(url))
 	if err != nil {
@@ -137,12 +121,8 @@ func (w *Watcher) get(ctx context.Context, url string) (*http.Response, error) {
 	return w.http.Do(req)
 }
 
-// imageRepo is the first-party registry path, e.g.
-// "ghcr.io/adamousmer/itsbagelbot".
 type imageRepo string
 
-// name maps "<repo>/<image>:<tag>@sha256:<hex>" to "<image>", and anything
-// outside the repo to "".
 func (r imageRepo) name(image string) deploy.ImageName {
 	rest, ok := strings.CutPrefix(image, string(r)+"/")
 	if !ok {
@@ -153,8 +133,6 @@ func (r imageRepo) name(image string) deploy.ImageName {
 	return deploy.ImageName(rest)
 }
 
-// digestOf takes the digest out of a containerStatuses imageID, which the
-// runtime reports as "<repo>@sha256:<hex>".
 func digestOf(imageID string) deploy.Digest {
 	i := strings.LastIndex(imageID, "@")
 	if i < 0 {
@@ -171,8 +149,6 @@ func imageIDs(pod *corev1.Pod) map[string]deploy.Digest {
 	return ids
 }
 
-// podContainers includes init containers: native sidecars run there and
-// can carry pinned images too.
 func podContainers(spec *corev1.PodSpec) []corev1.Container {
 	return slices.Concat(spec.Containers, spec.InitContainers)
 }

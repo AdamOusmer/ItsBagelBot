@@ -4,15 +4,6 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The compose half of the notifications inspector. The <form> wraps the fields
-  // AND the EditorFooter (the footer's Save is this form's submit button), and
-  // the footer is a sibling after the scroll area so it never scrolls out of
-  // view -- the same shape as StaffEditor.
-  //
-  // The fields post by NAME rather than through hidden mirrors: the action reads
-  // `scope`, `target_user_id`, `target_username`, `title`, `body`, `level` and
-  // `expires_at` straight off the FormData, so the composer keeps working with
-  // JavaScript off.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
@@ -70,8 +61,6 @@
       </section>
 
       {#if draft.scope === 'direct'}
-        <!-- Either identifier will do; the send path resolves the username when
-             only that is given, so neither field is individually required. -->
         <Field label={t('admin.notifications.fieldUserId')}>
           <Input
             fill mono

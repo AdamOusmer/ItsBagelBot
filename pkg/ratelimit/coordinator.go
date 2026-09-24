@@ -73,10 +73,6 @@ func NewLeaseCoordinator(client valkey.Client, manager *LeaseManager, region, po
 	}
 }
 
-// membershipCadence derives the heartbeat interval and presence ttl from the
-// epoch. The interval is a bounded fraction of the epoch (neither chatty nor
-// sluggish); the ttl spans three intervals, so a live pod survives two missed
-// refreshes while a crashed one is pruned within the ttl.
 func membershipCadence(epoch time.Duration) (every, ttl time.Duration) {
 	every = epoch / 6
 	if every < 3*time.Second {
@@ -91,8 +87,6 @@ func membershipCadence(epoch time.Duration) (every, ttl time.Duration) {
 func (c *LeaseCoordinator) Start(parent context.Context) error {
 	ctx, cancel := context.WithCancel(parent)
 	c.cancel = cancel
-	// Register self before the first reconcile so this pod counts itself in any
-	// plan it proposes on the very first pass.
 	c.heartbeat(ctx)
 	var activated, proposed uint64
 	next, err := c.reconcile(ctx, &activated, &proposed)
@@ -111,8 +105,6 @@ func (c *LeaseCoordinator) Close() {
 		c.cancel()
 	}
 	c.wg.Wait()
-	// Deregister only after the loops stop, so no in-flight heartbeat can re-add
-	// self. Best-effort on a fresh context because the parent is already cancelled.
 	ctx, cancel := context.WithTimeout(context.Background(), membershipWriteTimeout)
 	defer cancel()
 	if err := c.client.RemoveMember(ctx, c.self); err != nil {
@@ -192,8 +184,6 @@ func (c *LeaseCoordinator) reconcile(ctx context.Context, activated, proposed *u
 		} else if !valkey.IsValkeyNil(err) {
 			return leaseReconcileInterval, err
 		} else {
-			// The epoch may have just turned while its commit is propagating. Retry
-			// promptly instead of leaving the fleet on emergency capacity for 2s.
 			next = min(next, leaseMissingPlanRetry)
 		}
 	}
@@ -207,13 +197,6 @@ func (c *LeaseCoordinator) reconcile(ctx context.Context, activated, proposed *u
 		return leaseReconcileInterval, err
 	}
 	if len(members) < c.config.MinMembers {
-		// Membership under-counted the fleet. Committing a plan now would hand the
-		// known members a full local share (a lone member borrows from nobody and
-		// claims the whole Twitch quota) -- fail open. Defer instead: with no fresh
-		// plan every pod stays on the globally serialized emergency partition (fail
-		// closed, no over-send). Return nil, not an error, so this expected degraded
-		// state neither crashes startup through Start's Fatal nor hides at Debug
-		// like a transient fault.
 		c.log.Warn("insufficient permit-service members; deferring lease proposal",
 			zap.Int("discovered", len(members)), zap.Int("min_members", c.config.MinMembers))
 		return leaseReconcileInterval, nil
@@ -230,18 +213,11 @@ func (c *LeaseCoordinator) reconcile(ctx context.Context, activated, proposed *u
 		*proposed = nextEpoch
 		c.log.Info("lease plan committed", zap.Uint64("epoch", nextEpoch), zap.Int("members", len(members)))
 	} else if _, err := c.client.LoadPlan(ctx, nextEpoch); err == nil {
-		// Only stop proposing once a committed, replicated plan exists. A winner
-		// that crashed before writing its commit marker would otherwise leave
-		// this epoch unrecoverable, because no peer would re-enter ProposePlan.
 		*proposed = nextEpoch
 	}
 	return next, nil
 }
 
-// nextLeaseReconcileDelay retains the low steady-state Valkey polling rate but
-// replaces the last arbitrary poll before an epoch edge with a wakeup aligned
-// to the guarded activation boundary. This removes up to two seconds of avoidable
-// fail-closed time while preserving the intentional clock-uncertainty gap.
 func nextLeaseReconcileDelay(serverNow time.Time, nextBoundaryMS int64, uncertainty time.Duration) time.Duration {
 	delay := time.UnixMilli(nextBoundaryMS).Sub(serverNow) + uncertainty
 	if delay < leaseMinimumWake {
@@ -253,11 +229,6 @@ func nextLeaseReconcileDelay(serverNow time.Time, nextBoundaryMS int64, uncertai
 	return delay
 }
 
-// listMembers reads the live fleet from the Valkey presence registry and
-// guarantees self is included. Deriving membership from the same store that owns
-// the quota plans means every pod sees the identical fleet without relying on
-// NATS discovery fan-out, and a stale replica or a just-missed heartbeat can
-// never make a pod disown itself.
 func (c *LeaseCoordinator) listMembers(ctx context.Context) ([]Member, error) {
 	members, err := c.client.ListMembers(ctx, time.Now())
 	if err != nil {

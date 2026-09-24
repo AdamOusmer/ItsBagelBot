@@ -21,57 +21,19 @@ import (
 	"go.uber.org/zap"
 )
 
-// Valkey key shapes. Counters keep MySQL (the loyalty service) as the source
-// of truth and Valkey as a shared live view: reads seed from the service on a
-// cold key, writes INCR the shared key (atomic across sesame replicas, so the
-// chat-visible count is exact) while the same delta rides the reporter to the
-// service. A lost event only drifts the Valkey view until the key's TTL
-// retires it and the next read re-seeds from DB truth.
 const (
-	// loyalCounterChannelPrefix keys one channel-scoped counter (a string).
 	loyalCounterChannelPrefix = "loyal:cnt:c:"
-	// loyalCounterViewerPrefix keys one entry-scoped counter: a single hash
-	// per counter, fields "<viewer>" (viewer scope) or "<command>:<viewer>"
-	// (viewer+command scope). One key per counter keeps invalidation a DEL.
-	loyalCounterViewerPrefix = "loyal:cnt:v:"
-	// loyalBalancePrefix keys one viewer's cached balance reply.
-	loyalBalancePrefix = "loyal:bal:"
+	loyalCounterViewerPrefix  = "loyal:cnt:v:"
+	loyalBalancePrefix        = "loyal:bal:"
 )
 
-// counterTTL bounds a counter's live view between re-seeds. Long, because a
-// death counter mid-marathon should not lose its local increments to an
-// expiry; refreshed on every write.
-const counterTTL = 12 * time.Hour
+const (
+	counterTTL               = 12 * time.Hour
+	balanceTTL               = time.Minute
+	scopeCacheTTL            = 5 * time.Minute
+	scopeCacheCapacity int64 = 4096
+)
 
-// balanceTTL bounds how stale a !points reply can be: accruals land through
-// the reporter + service flush windows, so a short TTL keeps the answer
-// within a minute of truth without a read RPC per command.
-const balanceTTL = time.Minute
-
-// scopeCacheTTL bounds the in-process (broadcaster, counter) -> scope cache.
-// Scope changes only through delete + recreate, so minutes of staleness on
-// OTHER replicas is acceptable; the acting replica invalidates its own.
-const scopeCacheTTL = 5 * time.Minute
-
-// scopeCacheCapacity ceilings that cache. It is keyed per (broadcaster, counter),
-// a handful per broadcaster, so a few thousand covers the working set within the
-// TTL without holding the generic cache.DefaultCapacity ten thousand at rest.
-const scopeCacheCapacity int64 = 4096
-
-// These scripts keep a warm counter bump to one master round trip. A missing
-// key/field returns nil without mutating anything so the caller can obtain the
-// authoritative seed from the loyalty service. The second execution installs
-// that seed only when the key is still cold, then applies this caller's delta.
-// Concurrent seeders are safe: one creates the value and every caller's INCR
-// still lands exactly once.
-// ErrReservedCounter is returned by CounterBump for a fleet stats name
-// (data.SystemCounter). Those rows rank the channel on the public stats
-// boards and are written only by the pipeline's own stats flush, which goes
-// through LoyaltyReporter.BumpChannel and never through here. Every
-// broadcaster-controlled bump (a chat "!counter add", a reward's counter, a
-// {counter:} template token) funnels through CounterBump, so refusing the
-// name at this one entry closes all three; the loyalty service cannot refuse
-// it on receipt because the legitimate flush arrives on the same bump event.
 var ErrReservedCounter = errors.New("reserved counter name")
 
 var (
@@ -94,17 +56,8 @@ redis.call('EXPIRE', KEYS[1], ARGV[4])
 return value`)
 )
 
-// ValkeyLoyaltyStore is the worker-side loyalty surface: counter bumps/reads
-// with a Valkey live view over the loyalty service, cached balance peeks, and
-// pass-through management verbs. It implements LoyaltyStore.
 type ValkeyLoyaltyStore struct {
-	client valkey.Client
-	// primary serves the counter view. Bumps are exact because their script
-	// runs on the master; peeking the same counter from a lagging node-local
-	// replica would contradict that, and would keep serving a value
-	// CounterInvalidate already deleted instead of re-seeding from the service.
-	// The balance cache deliberately does not use this: its staleness budget is
-	// balanceTTL, which dwarfs replication lag.
+	client   valkey.Client
 	primary  valkey.Client
 	rpc      *LoyaltyRPC
 	reporter *LoyaltyReporter
@@ -113,8 +66,6 @@ type ValkeyLoyaltyStore struct {
 	log      *zap.Logger
 }
 
-// NewValkeyLoyaltyStore builds the store. reporter carries every mutation to
-// the loyalty service; rpc is the cold-read loader and the management path.
 func NewValkeyLoyaltyStore(client valkey.Client, rpc *LoyaltyRPC, reporter *LoyaltyReporter, log *zap.Logger) *ValkeyLoyaltyStore {
 	if log == nil {
 		log = zap.NewNop()
@@ -130,40 +81,23 @@ func NewValkeyLoyaltyStore(client valkey.Client, rpc *LoyaltyRPC, reporter *Loya
 	}
 }
 
-// NormalizeCounterName is the worker-side mirror of the loyalty service's
-// counter key normalization: bare name, lower-cased, no leading "!".
-//
-// The definition lives in the scope package because the token grammar has to
-// fold a {counter:...} payload before this store is ever reached; keeping the
-// store-side spelling as a delegation means the two can never answer
-// differently for the same counter.
 func NormalizeCounterName(name string) string {
 	return scope.NormalizeName(name)
 }
 
-// counterRef names one channel's counter: the (broadcaster, counter name)
-// pair every key this store builds is derived from. A named pair rather than
-// two parameters threaded through three builders — the two carry no meaning
-// apart, and spelling them out at each call is what made this file's argument
-// lists primitive-heavy.
 type counterRef struct {
 	broadcasterID uint64
 	name          string
 }
 
-// channelKey is the channel-scoped counter's value key.
 func (r counterRef) channelKey() string {
 	return cache.PairKey(loyalCounterChannelPrefix, r.broadcasterID, r.name)
 }
 
-// viewerKey is the per-viewer counter's hash key.
 func (r counterRef) viewerKey() string {
 	return cache.PairKey(loyalCounterViewerPrefix, r.broadcasterID, r.name)
 }
 
-// scopeKey names the counter's cached scope. The read and the invalidate had
-// each spelled this concatenation out, one literal apart from drifting; naming
-// it means an edit cannot leave a stale entry unreachable.
 func (r counterRef) scopeKey() string {
 	return cache.PairKey("scope:", r.broadcasterID, r.name)
 }
@@ -172,15 +106,10 @@ func balanceKey(broadcasterID, viewerID uint64) string {
 	return cache.PairKey(loyalBalancePrefix, broadcasterID, strconv.FormatUint(viewerID, 10))
 }
 
-// Earn hands one accrual to the reporter (fire-and-forget; the balance cache
-// is deliberately not touched — its short TTL absorbs the lag).
 func (s *ValkeyLoyaltyStore) Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64) {
 	s.reporter.Earn(broadcasterID, viewerID, login, name, points, watchSeconds)
 }
 
-// scope resolves a counter's scope, creating nothing: an unknown counter
-// defaults to channel scope and materializes in the service on its first
-// flushed bump.
 func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, name string) string {
 	key := counterRef{broadcasterID, name}.scopeKey()
 	scope, err := s.scopes.GetOrLoad(ctx, key, func(ctx context.Context) (string, error) {
@@ -206,10 +135,6 @@ func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, na
 	return scope
 }
 
-// entryField is the hash field one entry-scoped value lives under: the viewer
-// id alone for viewer scope, "<command>:<viewer>" for viewer+command scope,
-// "<command>:0" for the pooled command scope (mirroring its viewer_id=0 row).
-// The viewer id is digits-only, so the encoding never collides.
 func entryField(scope string, viewerID uint64, command string) string {
 	if bucketedScope(scope) {
 		return command + ":" + strconv.FormatUint(viewerID, 10)
@@ -217,22 +142,14 @@ func entryField(scope string, viewerID uint64, command string) string {
 	return strconv.FormatUint(viewerID, 10)
 }
 
-// bucketedScope reports whether a scope keys its buckets by command.
 func bucketedScope(scope string) bool {
 	return scope == data.CounterScopeCommand || scope == data.CounterScopeViewerCommand
 }
 
-// rowScoped reports whether a scope keeps its value on the counter row (the
-// plain Valkey string) rather than in per-bucket entries.
 func rowScoped(scope string) bool {
 	return scope == data.CounterScopeChannel || scope == data.CounterScopeBot
 }
 
-// bumpTarget normalizes the (scope, viewer, command) triple a bump lands
-// under: bot and channel values ignore both; command scope pools every viewer
-// into the command bucket. An unaddressable bump falls back to the channel
-// value rather than dropping: a viewer scope without a viewer (should not
-// happen from chat), or a command scope bumped by a nameless source.
 func bumpTarget(scope string, viewerID uint64, command string) (string, uint64, string) {
 	switch scope {
 	case data.CounterScopeBot:
@@ -255,13 +172,6 @@ func bumpTarget(scope string, viewerID uint64, command string) (string, uint64, 
 	}
 }
 
-// CounterBump increments a counter and returns the new chat-visible value.
-// viewer is the acting chatter and command the triggering command's
-// canonical name; the counter's own scope decides which of them key the
-// value. The Valkey key is seeded from the service on first touch so the
-// increment continues the stored count instead of restarting at zero. Bot
-// scope rides broadcasterID 0 (the reserved bot namespace) and is reachable
-// only from admin/system callers — template and chat paths never pass 0.
 func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, b CounterBump) (int64, error) {
 	name := NormalizeCounterName(b.Name)
 	if name == "" || b.Delta == 0 {
@@ -273,8 +183,6 @@ func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, b CounterBump) (in
 	scope, viewerID, command := bumpTarget(s.scope(ctx, b.BroadcasterID, name), b.Viewer.ID, NormalizeCounterName(b.Command))
 	viewer := b.Viewer
 	if viewerID == 0 {
-		// The bump fell back to a non-viewer bucket; a stray identity must
-		// not ride a key it does not belong to.
 		viewer = Viewer{}
 	}
 	viewer.ID = viewerID
@@ -300,10 +208,6 @@ func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, b CounterBump) (in
 	return value, nil
 }
 
-// bumpChannel increments and refreshes a warm shared string atomically in one
-// master round trip. Only a cold key pays the loyalty RPC and a second script
-// call to seed it; the seed race across replicas is benign and every delta is
-// still applied exactly once.
 func (s *ValkeyLoyaltyStore) bumpChannel(ctx context.Context, broadcasterID uint64, name string, delta int64) (int64, error) {
 	key := counterRef{broadcasterID, name}.channelKey()
 	deltaArg := strconv.FormatInt(delta, 10)
@@ -325,9 +229,6 @@ func (s *ValkeyLoyaltyStore) bumpChannel(ctx context.Context, broadcasterID uint
 	}).AsInt64()
 }
 
-// bumpEntry is the hash-field equivalent of bumpChannel: warm increment and
-// TTL refresh are one atomic master call, while a cold field is seeded from
-// the loyalty service before the caller's delta is applied.
 func (s *ValkeyLoyaltyStore) bumpEntry(ctx context.Context, broadcasterID uint64, name, field string, viewerID uint64, command string, delta int64) (int64, error) {
 	key := counterRef{broadcasterID, name}.viewerKey()
 	deltaArg := strconv.FormatInt(delta, 10)
@@ -349,9 +250,6 @@ func (s *ValkeyLoyaltyStore) bumpEntry(ctx context.Context, broadcasterID uint64
 	}).AsInt64()
 }
 
-// CounterPeek reads a counter without bumping it: the live Valkey view when
-// present, the service otherwise. found=false means the counter exists
-// nowhere. command selects the bucket of a viewer+command counter.
 func (s *ValkeyLoyaltyStore) CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error) {
 	name := NormalizeCounterName(target.Name)
 	if name == "" {
@@ -367,12 +265,6 @@ func (s *ValkeyLoyaltyStore) CounterPeek(ctx context.Context, target CounterTarg
 	return s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command)
 }
 
-// peekView reads the live Valkey view of one counter value: the entry hash
-// field for the entry scopes (when a viewer is known), the plain string
-// otherwise. ok=false means the view is cold (or unreadable) and the caller
-// should fall back to the service. It reads the primary so a peek agrees with
-// the bump that produced the value and so CounterInvalidate's delete is
-// actually observed as a cold view rather than as the pre-delete count.
 func (s *ValkeyLoyaltyStore) peekView(ctx context.Context, broadcasterID uint64, name, scope string, viewerID uint64, command string) (int64, bool) {
 	var (
 		v   int64
@@ -394,8 +286,6 @@ func (s *ValkeyLoyaltyStore) peekView(ctx context.Context, broadcasterID uint64,
 	return v, true
 }
 
-// CounterInvalidate drops a counter's live view (both shapes) and the local
-// scope cache entry — the write-through for the authoritative management verbs.
 func (s *ValkeyLoyaltyStore) CounterInvalidate(ctx context.Context, broadcasterID uint64, name string) {
 	name = NormalizeCounterName(name)
 	if name == "" {
@@ -411,7 +301,6 @@ func (s *ValkeyLoyaltyStore) CounterInvalidate(ctx context.Context, broadcasterI
 	s.scopes.Invalidate(ref.scopeKey())
 }
 
-// BalanceGet returns one viewer's standing through a short-TTL Valkey cache.
 func (s *ValkeyLoyaltyStore) BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error) {
 	key := balanceKey(broadcasterID, viewerID)
 	if raw, err := s.client.Do(ctx, s.client.B().Get().Key(key).Build()).ToString(); err == nil {
@@ -445,8 +334,6 @@ func decodeBalance(raw string) (points int64, watch uint64, ok bool) {
 	return points, watch, true
 }
 
-// BalanceAdjust passes a mod grant through to the service and drops the
-// target's cached balance so their next !points shows the new value.
 func (s *ValkeyLoyaltyStore) BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error) {
 	bal, found, err := s.rpc.BalanceAdjust(ctx, broadcasterID, viewerLogin, value, absolute)
 	if err != nil || !found {
@@ -456,10 +343,6 @@ func (s *ValkeyLoyaltyStore) BalanceAdjust(ctx context.Context, broadcasterID ui
 	return bal, true, nil
 }
 
-// BalanceSpend passes a wager escrow through to the service's conditional
-// debit and drops the target's cached balance either way: a refused spend
-// still changes nothing, but the cached value may be stale-high, and dropping
-// it keeps the next check honest.
 func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
 	bal, found, spent, err := s.rpc.BalanceSpend(ctx, broadcasterID, viewerLogin, amount)
 	if err != nil || !found {
@@ -469,10 +352,6 @@ func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, broadcasterID uin
 	return bal, true, spent, nil
 }
 
-// BalanceTransfer passes "!points give" through to the service's atomic
-// move-to-login and drops both sides' cached balances: the sender's id rides
-// every reply, the recipient's only on a completed move (a refused or unknown
-// target changed nothing on their side; their short-TTL entry ages out).
 func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error) {
 	bal, target, found, moved, err := s.rpc.BalanceTransfer(ctx, broadcasterID, fromViewerID, targetLogin, amount)
 	if err != nil || !found {
@@ -485,17 +364,10 @@ func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, broadcasterID,
 	return bal, true, moved, nil
 }
 
-// topCacheTTL bounds how stale a !leaderboard answer may be: accruals land
-// through the reporter + flush windows anyway, so a minute keeps spammy
-// invocations off the service without lying about the order of magnitude.
 const topCacheTTL = time.Minute
 
-// topCacheCapacity ceilings the per-(broadcaster, limit) leaderboard cache: a
-// handful per channel, so a few thousand covers the fleet at rest.
 const topCacheCapacity int64 = 4096
 
-// Top returns the channel's points leaderboard through a short-TTL cache in
-// front of the service read.
 func (s *ValkeyLoyaltyStore) Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error) {
 	key := strconv.FormatUint(broadcasterID, 10) + ":" + strconv.Itoa(limit)
 	return s.top.GetOrLoad(ctx, key, func(ctx context.Context) ([]loyaltyrpc.Balance, error) {
@@ -503,16 +375,12 @@ func (s *ValkeyLoyaltyStore) Top(ctx context.Context, broadcasterID uint64, limi
 	})
 }
 
-// dropBalanceCache invalidates one viewer's cached balance reply after a
-// write; the id rides the service's reply, so an unparseable one just leaves
-// the short-TTL cache entry to age out.
 func (s *ValkeyLoyaltyStore) dropBalanceCache(ctx context.Context, broadcasterID uint64, viewerID string) {
 	if id, err := strconv.ParseUint(viewerID, 10, 64); err == nil && id != 0 {
 		_ = s.client.Do(ctx, s.client.B().Del().Key(balanceKey(broadcasterID, id)).Build()).Error()
 	}
 }
 
-// CounterCreate passes through to the service and refreshes the local view.
 func (s *ValkeyLoyaltyStore) CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error) {
 	c, err := s.rpc.CounterCreate(ctx, broadcasterID, name, scope)
 	if err != nil {
@@ -522,8 +390,6 @@ func (s *ValkeyLoyaltyStore) CounterCreate(ctx context.Context, broadcasterID ui
 	return c, nil
 }
 
-// CounterSet passes through to the service and drops the live view so the
-// next read serves the new value.
 func (s *ValkeyLoyaltyStore) CounterSet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, value int64) (bool, error) {
 	found, err := s.rpc.CounterSet(ctx, broadcasterID, name, viewerID, command, value)
 	if err != nil || !found {
@@ -533,7 +399,6 @@ func (s *ValkeyLoyaltyStore) CounterSet(ctx context.Context, broadcasterID uint6
 	return true, nil
 }
 
-// CounterDelete passes through to the service and drops the live view.
 func (s *ValkeyLoyaltyStore) CounterDelete(ctx context.Context, broadcasterID uint64, name string) error {
 	if err := s.rpc.CounterDelete(ctx, broadcasterID, name); err != nil {
 		return err
@@ -542,8 +407,6 @@ func (s *ValkeyLoyaltyStore) CounterDelete(ctx context.Context, broadcasterID ui
 	return nil
 }
 
-// CounterList passes through to the service (management/list is not a hot
-// path, so no cache).
 func (s *ValkeyLoyaltyStore) CounterList(ctx context.Context, broadcasterID uint64) ([]loyaltyrpc.Counter, error) {
 	return s.rpc.CounterList(ctx, broadcasterID)
 }

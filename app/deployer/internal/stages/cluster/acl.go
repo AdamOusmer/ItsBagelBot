@@ -14,18 +14,10 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// acl applies deploy/messaging when it changed since the live pin commit and
-// confirms every NATS server reloaded it before any service that needs the
-// new permissions rolls. The config-reloader sidecar sends the SIGHUP; the
-// deployer only reads /varz config_load_time.
 type acl struct{}
 
 func (acl) ID() deploy.StageID { return deploy.StageACL }
 
-// Done reports an earlier attempt's reload as confirmed. ACLAppliedAt is set
-// only after an apply changed something the servers load, so nil leaves the
-// decision to Run. A monitoring error is not an answer either way; Run polls
-// through it.
 func (acl) Done(ctx context.Context, rc *stage.RunCtx) (bool, error) {
 	at := rc.View().Outputs.ACLAppliedAt
 	if at == nil {
@@ -54,17 +46,6 @@ func (acl) Run(ctx context.Context, rc *stage.RunCtx) error {
 
 type aclRun struct{ rc *stage.RunCtx }
 
-// appliedAt applies deploy/messaging when it changed and returns the time
-// every server must have reloaded after, zero when the apply changed
-// nothing they load. A resumed run whose apply already landed goes straight
-// to confirming against the recorded time: re-applying would change nothing
-// and so could not tell whether a reload is still owed.
-//
-// One window stays open: an Apply that errors after writing the ConfigMap
-// records no time, and the resumed apply then changes nothing, so the reload
-// the sidecar still sends goes unconfirmed. Recording the time before Apply
-// instead was rejected: a failed apply that changed nothing would then wait
-// on a reload that never comes, and every resume would time out again.
 func (a aclRun) appliedAt(ctx context.Context) (time.Time, error) {
 	run := a.rc.View()
 	if at := run.Outputs.ACLAppliedAt; at != nil {
@@ -80,8 +61,6 @@ func (a aclRun) appliedAt(ctx context.Context) (time.Time, error) {
 	return a.apply(ctx, pinRef(run))
 }
 
-// changed records whether deploy/messaging moved between the live pin
-// commit and the one being rolled.
 func (a aclRun) changed(ctx context.Context, run deploy.Run) (bool, error) {
 	changed, err := a.diff(ctx, run)
 	if err != nil {
@@ -90,9 +69,6 @@ func (a aclRun) changed(ctx context.Context, run deploy.Run) (bool, error) {
 	return changed, a.rc.SetOutputs(ctx, func(o *deploy.Outputs) { o.MessagingChanged = changed })
 }
 
-// diff treats an unknown live commit as changed: the apply is idempotent and
-// the reload wait only follows objects the apply actually changed, so the
-// cost of guessing wrong is one no-op apply.
 func (a aclRun) diff(ctx context.Context, run deploy.Run) (bool, error) {
 	live := run.Outputs.LiveSHA
 	if live == "" {
@@ -114,9 +90,7 @@ func touches(files []ports.FilePath, dir ports.FilePath) bool {
 	return false
 }
 
-// apply takes the time before Apply, not after: the sidecar can SIGHUP
-// within milliseconds of the ConfigMap write, and a load time that lands
-// before a timestamp taken after Apply returned would never confirm.
+// Take the time before Apply: a reload that lands before Apply returns would never confirm.
 func (a aclRun) apply(ctx context.Context, ref ports.Ref) (time.Time, error) {
 	dir := a.rc.Deps.Config.MessagingDir
 	objs, err := build(ctx, a.rc, dir, ref)
@@ -134,9 +108,6 @@ func (a aclRun) apply(ctx context.Context, ref ports.Ref) (time.Time, error) {
 	return start, a.rc.SetOutputs(ctx, func(o *deploy.Outputs) { o.ACLAppliedAt = &start })
 }
 
-// reloads reports whether a change reaches the servers: a ConfigMap edit
-// through the sidecar's SIGHUP, a workload edit through fresh pods. A
-// Service or policy edit reloads nothing, and waiting on it would time out.
 func reloads(changed []ports.ObjectRef) bool {
 	for _, c := range changed {
 		switch c.Kind {
@@ -159,7 +130,6 @@ func (a aclRun) confirm(ctx context.Context, at time.Time) error {
 	return err
 }
 
-// reloadWatch polls every server's config load time.
 type reloadWatch struct {
 	rc      *stage.RunCtx
 	at      time.Time
@@ -171,8 +141,6 @@ type reloadWatch struct {
 func (w *reloadWatch) check(ctx context.Context) (bool, error) {
 	servers, err := w.rc.Deps.Watcher.NATSServers(ctx)
 	if err != nil {
-		// A server restarting under a workload change answers nothing for a
-		// moment; only the deadline ends the wait.
 		w.lastErr = err
 		return false, nil
 	}
@@ -181,7 +149,6 @@ func (w *reloadWatch) check(ctx context.Context) (bool, error) {
 	return confirmed(servers, w.at), nil
 }
 
-// report publishes one row per server, only when a row changed.
 func (w *reloadWatch) report(ctx context.Context) {
 	items := make([]deploy.Item, len(w.servers))
 	var sig strings.Builder
@@ -229,8 +196,6 @@ func reloaded(servers []ports.NATSServer, at time.Time) int {
 	return n
 }
 
-// confirmed needs at least one server: an empty answer means the monitoring
-// port is unreachable, not that there is nothing to reload.
 func confirmed(servers []ports.NATSServer, at time.Time) bool {
 	return len(servers) > 0 && reloaded(servers, at) == len(servers)
 }

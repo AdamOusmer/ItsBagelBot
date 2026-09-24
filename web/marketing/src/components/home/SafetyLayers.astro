@@ -2,11 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * SafetyLayers: animated snapshots of the moderation pipeline.
- * The visual language follows QuietWork: tactile cards, small mono system
- * readouts, and motion that demonstrates the feature instead of decorating it.
- */
 import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
@@ -19,9 +14,6 @@ const t = useTranslations(lang);
 
 <section class="safe" id="safety-layers">
     <LightField class="bb-light-field--bleed" />
-    {/* One chip for the section, not one per card. Three identical BETA tags
-        down a row of three cards read as three separate disclaimers; the state
-        belongs to the layer stack as a whole. */}
     <SectionHeading eyebrow={t('safe.eyebrow')} title={t('safe.title')}>
         <Badge slot="badge" tone="incoming" mark="plus">{t('badge.beta')}</Badge>
     </SectionHeading>
@@ -117,7 +109,6 @@ const t = useTranslations(lang);
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
-        /* 132px of stage plus the housing's 16px padding, top and bottom. */
         --card-band-h: 164px;
     }
 
@@ -147,8 +138,6 @@ const t = useTranslations(lang);
         color: var(--muted, #888077);
     }
 
-    /* Demos live in the Card's housing band (slot="band"); the band owns the
-       chrome and outer padding, the demo keeps only its stage height. */
     .safe__demo {
         position: relative;
         height: 100%;
@@ -157,7 +146,6 @@ const t = useTranslations(lang);
         font-size: 0.66rem;
     }
 
-    /* Classifier jury */
     .safe__demo--jury {
         display: grid;
         place-items: center;
@@ -290,9 +278,6 @@ const t = useTranslations(lang);
         animation: juryTally 7.2s ease-in-out infinite;
     }
 
-    /* Named, not `.jury__tally small`: this is the verdict LABEL inside an
-       animated diagram, at 0.44rem -- illustration lettering below the type
-       scale's smallest step, not text the reader is meant to read as prose. */
     .jury__verdict {
         font-size: 0.44rem;
         letter-spacing: 0.06em;
@@ -314,10 +299,6 @@ const t = useTranslations(lang);
         text-transform: uppercase;
     }
 
-    /*
-     * Jury timeline (7.2s): evidence lands → seats deliberate → ballots
-     * rise in a stagger → verdict stamps → everything settles out together.
-     */
     @keyframes juryEvidence {
         0%, 2% { opacity: 0; transform: translate(-50%, -50%) scale(0.72); animation-timing-function: var(--ease-out-back); }
         7% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
@@ -344,7 +325,6 @@ const t = useTranslations(lang);
         95%, 100% { opacity: 0; transform: scale(0.96); }
     }
 
-    /* Static gates */
     .safe__demo--gates {
         display: flex;
         flex-direction: column;
@@ -434,8 +414,6 @@ const t = useTranslations(lang);
         color: var(--muted, #888077);
     }
 
-    /* Named: one printed line of the animated receipt. Same argument as
-       `.jury__verdict` -- 0.54rem is diagram lettering. */
     .gates__check {
         font-size: 0.54rem;
         text-transform: uppercase;
@@ -457,11 +435,6 @@ const t = useTranslations(lang);
         animation: gateExit 7.2s ease infinite;
     }
 
-    /*
-     * Gates timeline (7.2s): the packet stops in front of each gate, the gate
-     * scans it (tan flicker), opens, the packet moves through and the matching
-     * receipt line ticks. Fade-out at the exit hides the loop reset.
-     */
     @keyframes gatePacket {
         0% { left: 4px; opacity: 0; }
         2% { opacity: 1; animation-timing-function: var(--ease-out-expo); }
@@ -523,7 +496,6 @@ const t = useTranslations(lang);
         98%, 100% { opacity: 0.26; transform: translateY(2px); }
     }
 
-    /* Network-wide raid propagation */
     .safe__demo--network { padding: 10px 16px; }
 
     .network__map {
@@ -602,11 +574,6 @@ const t = useTranslations(lang);
         animation: networkStatus 7.2s ease infinite;
     }
 
-    /*
-     * Network timeline (7.2s): core flashes red (raid hits one channel) →
-     * shield ping expands → links draw and nodes light in distance order →
-     * alert clears, "shielded" status holds → everything settles out.
-     */
     @keyframes networkDot {
         0%, 2% { fill: rgba(136, 128, 119, 0.6); filter: none; }
         5%, 9%, 13% { fill: rgba(217, 138, 138, 0.9); filter: drop-shadow(0 0 8px rgba(217, 138, 138, 0.65)); }

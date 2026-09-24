@@ -6,8 +6,6 @@ import { csvDocument } from '@bagel/ui/lib/csv';
 
 const HEADER = 'id,username,status,active,banned,creator_code,created_at,updated_at';
 
-/** The loaded page as CSV. The state filter is applied server-side, so this is
- *  exactly the rows on screen. */
 export function usersCsv(rows: readonly AdminUserWire[]): string {
   return csvDocument(
     HEADER,

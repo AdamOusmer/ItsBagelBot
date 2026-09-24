@@ -26,13 +26,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// This file replays app/dingress/internal/community/bot_test.go's scenarios
-// against the split engine: a gateway payload goes in through Dispatcher.Handle
-// exactly as it did through Bot.Dispatch, and instead of asserting on a fake
-// REST client's call log, it asserts on the Commands Publish captured and the
-// fake channel/purge RPC's call log -- the two things that replace "outgress
-// called Discord" now that engine never does.
-
 type fakeChannels struct {
 	mu       sync.Mutex
 	created  []string
@@ -40,13 +33,10 @@ type fakeChannels struct {
 	deleted  []string
 	moved    []string
 	modified []string
-	// opened/claimed/closed/added record the ticket-desk orchestrations, which
-	// outgress performs on the engine's behalf (see
-	// internal/domain/rpc/discordoutgress/ticket.go).
-	opened  []discordoutgress.TicketOpenRequest
-	claimed []discordoutgress.TicketClaimRequest
-	closed  []discordoutgress.TicketCloseRequest
-	added   []discordoutgress.TicketMemberAddRequest
+	opened   []discordoutgress.TicketOpenRequest
+	claimed  []discordoutgress.TicketClaimRequest
+	closed   []discordoutgress.TicketCloseRequest
+	added    []discordoutgress.TicketMemberAddRequest
 }
 
 func (f *fakeChannels) TicketOpen(_ context.Context, req discordoutgress.TicketOpenRequest) (discordoutgress.TicketOpenReply, error) {
@@ -130,8 +120,6 @@ func (m fakeModules) GetModule(context.Context, uint64, string) (projection.Modu
 	return projection.ModuleView{IsEnabled: true, Configs: raw}, true, nil
 }
 
-// commandLog captures every Command a test's Dispatcher publishes, keyed by
-// Type for easy assertions ("did a PostEmbed happen").
 type commandLog struct {
 	mu   sync.Mutex
 	cmds []ddiscord.Command
@@ -156,10 +144,6 @@ func (l *commandLog) byType(t string) []ddiscord.Command {
 	return out
 }
 
-// Fixture ids are snowflake-SHAPED on purpose: resolve zeroes config fields
-// that cannot be a Discord id (ddiscord.SanitizeConfig), so a fixture using
-// "g1" would resolve as an unconnected guild and every assertion below
-// would pass for the wrong reason.
 const (
 	testGuild      = "100000000000000001"
 	testWelcomeCh  = "100000000000000002"
@@ -174,15 +158,9 @@ func testDispatcher(cfg ddiscord.Config) (*Dispatcher, *fakeChannels, *discordst
 	channels := &fakeChannels{}
 	store := discordstore.NewMem()
 	store.PutGuild(discordstore.Guild{ID: cfg.GuildID}, discordstore.Broadcaster{ID: "42"})
-	// Per-guild settings live in the store now, not in the module blob: the
-	// blob keeps only the master switch fakeModules reports.
 	store.PutGuildConfig(discordstore.Guild{ID: cfg.GuildID}, cfg)
 	log := &commandLog{}
 
-	// Tier reports premium: Discord is premium-only while it is in beta
-	// (ddiscord.BetaPremiumOnly), and the resolver fails closed without a
-	// reader. These tests are about dispatch, not the gate, so they run as a
-	// premium channel; resolve's own tests cover the gate itself.
 	resolver := resolve.Resolver{
 		Store: store, Modules: fakeModules{cfg: cfg},
 		Tier: func(context.Context, uint64) (string, bool) { return "paid", true },
@@ -202,10 +180,6 @@ func mustJSON(t *testing.T, v any) []byte {
 	return raw
 }
 
-// event builds the ddiscord.Event a test's payload decodes as. Split out of
-// dispatch below so dispatch itself takes one Event instead of its
-// (eventType, guildID, payload) triple (CodeScene: Excess Number of
-// Function Arguments).
 func event(t *testing.T, eventType, guildID string, payload any) ddiscord.Event {
 	t.Helper()
 	return ddiscord.Event{Type: eventType, GuildID: guildID, Raw: mustJSON(t, payload)}
@@ -412,15 +386,9 @@ func TestVoiceLockButton(t *testing.T) {
 	}
 }
 
-// flakyPublish fails the first failFor calls with failWith (defaulting to a
-// proven pre-admission error) and succeeds after, counting every attempt.
 type flakyPublish struct {
 	attempts int
 	failFor  int
-	// failWith is the error the failing attempts return. Zero means
-	// nats.ErrNoResponders: the broker never saw the bytes, which is the
-	// only condition under which republishing is a first delivery rather
-	// than a duplicate.
 	failWith error
 }
 
@@ -440,9 +408,6 @@ func observedDispatcher(pub func(context.Context, ddiscord.Command) error) (*Dis
 	return &Dispatcher{Publish: pub, Log: zap.New(core)}, logs
 }
 
-// TestPublishRetriesBeforeGivingUp pins the retry budget. A lost publish is
-// a command the user asked for that nothing will ever run: the ingress
-// message is ACKed either way, so nothing redelivers it.
 func TestPublishRetriesBeforeGivingUp(t *testing.T) {
 	pub := &flakyPublish{failFor: 99}
 	d, logs := observedDispatcher(pub.publish)
@@ -483,16 +448,11 @@ func TestPublishGivesUpImmediatelyOnShutdown(t *testing.T) {
 
 	d.publishAll(ctx, []ddiscord.Command{{Type: "post"}})
 
-	// One attempt, then the cancelled context ends it: a shutting-down pod
-	// must not spend its grace period retrying.
 	if pub.attempts != 1 {
 		t.Fatalf("attempts = %d, want 1 on a cancelled context", pub.attempts)
 	}
 }
 
-// TestUndecodableInteractionIsLogged pins the other silent drop: ingress has
-// already deferred the interaction, so a decode failure leaves the user
-// staring at "thinking..." with nothing logged anywhere.
 func TestUndecodableInteractionIsLogged(t *testing.T) {
 	d, logs := observedDispatcher(nil)
 
@@ -511,10 +471,6 @@ func TestUndecodableInteractionIsLogged(t *testing.T) {
 	}
 }
 
-// A PubAck timeout is NOT proof the publish failed: JetStream may have
-// stored the message and lost only the acknowledgement. Republishing there
-// posts the streamer's message into their guild twice, which is worse than
-// the miss, so an ambiguous outcome is logged once and dropped.
 func TestPublishDoesNotRetryAnAmbiguousTimeout(t *testing.T) {
 	pub := &flakyPublish{failFor: 99, failWith: nats.ErrTimeout}
 	d, logs := observedDispatcher(pub.publish)
@@ -537,8 +493,6 @@ func TestPublishDoesNotRetryAnAmbiguousTimeout(t *testing.T) {
 	}
 }
 
-// A wrapped pre-admission error still retries: the classification is
-// errors.Is, not string matching, so pkg/bus is free to annotate.
 func TestPublishRetriesWrappedPreAdmissionErrors(t *testing.T) {
 	pub := &flakyPublish{failFor: 1, failWith: fmt.Errorf("publish %q: %w", "bagel.discord.cmd", nats.ErrNoResponders)}
 	d, _ := observedDispatcher(pub.publish)

@@ -2,17 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.CacheInvalidator do
-  @moduledoc """
-  NATS consumer for broadcaster-status invalidation keys (subject from
-  `NATS_CACHE_INVALIDATION_SUBJECT`).
-
-  Accepted payloads:
-
-    * `{"broadcaster_id": "12345"}` - evict one broadcaster
-    * `{"all": true}` - flush the whole cache
-    * a bare broadcaster ID as the message body
-  """
-
   use Ingress.RpcServer, log: "cache invalidator"
 
   alias Ingress.{BroadcasterCache, JSON}

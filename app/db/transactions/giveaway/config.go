@@ -16,8 +16,6 @@ const (
 	EnvRenewalBuffer        = "GIVEAWAYS_RENEWAL_BUFFER"
 )
 
-// Config keeps launch gates independent: disabling new awards does not stop
-// recovery and monitoring for already-selected obligations.
 type Config struct {
 	NewAwardsEnabled         bool
 	PromotionalGrantsEnabled bool
@@ -49,10 +47,6 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 	return value
 }
 
-// Draws remain available while provider semantics are being verified: the
-// winner obligation and selection notice are durable and can stay pending.
-// Promotional grants use their separately versioned calendar rule; recurring
-// subscriber grants and provider mutation require the verified provider rule.
 func (c Config) CanCreateNewAwards() bool { return c.NewAwardsEnabled }
 func (c Config) CanScheduleAwards() bool  { return c.IntervalRuleVerified }
 func (c Config) CanSchedulePromotionalGrants() bool {

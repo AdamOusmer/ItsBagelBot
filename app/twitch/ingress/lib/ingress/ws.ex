@@ -2,19 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.WS do
-  @moduledoc """
-  Minimal WebSocket connection handle built on `Mint.WebSocket`.
-
-  Mint is process-less: the owning GenServer receives the raw transport
-  messages and feeds them through `stream/2`. Nothing about the socket
-  lifecycle is hidden from the owner, which is exactly what the v1 library
-  could not give us (see ADR 0001/0006).
-
-  `stream/2` returns `:unknown` when the message belongs to a different
-  connection, so one process can hold two handles at once during the EventSub
-  reconnect handshake.
-  """
-
   defstruct [:conn, :ref, :websocket, :status, :headers]
 
   @type t :: %__MODULE__{}
@@ -48,13 +35,6 @@ defmodule Ingress.WS do
   defp schemes("https"), do: {:https, :wss, 443}
   defp schemes(_), do: {:http, :ws, 80}
 
-  @doc """
-  Feeds a raw VM message into the connection.
-
-  Returns `{:ok, ws, events}`, `{:error, ws, reason, events}` when the
-  transport failed (events seen before the failure are still delivered), or
-  `:unknown` when the message is not for this connection.
-  """
   @spec stream(t() | nil, term()) ::
           {:ok, t(), [event()]} | {:error, t(), term(), [event()]} | :unknown
   def stream(nil, _message), do: :unknown
@@ -124,7 +104,6 @@ defmodule Ingress.WS do
     end
   end
 
-  @doc "Best-effort polite close: send a close frame, then close the transport."
   @spec close(t() | nil) :: :ok
   def close(nil), do: :ok
 

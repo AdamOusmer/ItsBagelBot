@@ -1,9 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The /health probe, summarised. One row per responder with its round-trip
-  // time, because "which one" and "how slow" are the two follow-up questions an
-  // operator asks the instant the count is not N/N.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
@@ -18,8 +15,6 @@
   const { t } = getI18n();
 
   const responding = $derived(probes.filter((p) => p.ok).length);
-  // A failed read of the probe list is 'unavailable' (neutral), not 'degraded':
-  // we did not learn that the services are down, we learned nothing.
   const tone = $derived(
     !ok
       ? statusTone('unavailable')

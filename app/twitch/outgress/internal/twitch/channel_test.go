@@ -33,8 +33,6 @@ func jsonOK(body string) *http.Response {
 	}
 }
 
-// routeClient fails the test on any request that is not method+path and
-// answers the expected one with body.
 func routeClient(t *testing.T, method, path, body string) *Client {
 	t.Helper()
 	return channelClient(t, func(req *http.Request) (*http.Response, error) {
@@ -88,9 +86,6 @@ func TestSearchCategory(t *testing.T) {
 	}
 }
 
-// TestChannelWrites pins each write helper to its Helix method+path; the
-// route assertion lives in routeClient so a rename here cannot silently
-// stop checking it.
 func TestChannelWrites(t *testing.T) {
 	cases := []struct {
 		name, method, path, body string

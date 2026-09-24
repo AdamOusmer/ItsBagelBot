@@ -13,16 +13,13 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"go.uber.org/zap"
 )
 
-// A row the database will never accept (empty response violates the schema
-// validator) must be dropped by the per-item fallback while the rest of the
-// window lands — the poison item must not wedge the whole batch.
 func TestUpsertEachIsolatesPoisonItem(t *testing.T) {
 	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("commandsflush"))
 	t.Cleanup(func() { _ = client.Close() })
@@ -42,15 +39,10 @@ func TestUpsertEachIsolatesPoisonItem(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, "ok", rows[0].Name)
 
-	// A permanent failure must not be requeued: the next flush window would
-	// hit the same validation error forever. Close drains anything pending,
-	// so the row count must not change.
 	r.Close(ctx)
 	assert.Len(t, client.Commands.Query().AllX(ctx), 1)
 }
 
-// The bulk fast path must not touch the uses counter when an edit updates an
-// existing row: the counter belongs to the counter flush alone.
 func TestBulkUpsertPreservesUses(t *testing.T) {
 	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("commandsuses"))
 	t.Cleanup(func() { _ = client.Close() })
@@ -71,10 +63,6 @@ func TestBulkUpsertPreservesUses(t *testing.T) {
 	assert.Equal(t, uint64(42), row.Uses)
 }
 
-// The uses flush groups keys by increment so one statement lands every key
-// sharing a count. Distinct counts must each land their own delta, and a key
-// whose row vanished before the flush must not fail its group — it matches
-// nothing and is dropped later by the reload in publishUseEvents.
 func TestPersistUsesGroupsByIncrement(t *testing.T) {
 	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("commandsusesgroup"))
 	t.Cleanup(func() { _ = client.Close() })

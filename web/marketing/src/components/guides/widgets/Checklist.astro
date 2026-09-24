@@ -2,16 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Checklist: the reference widget. A guide passes items and a storage key;
- * each tick is remembered in localStorage for that reader only, so someone can
- * close the tab mid-setup and pick the list back up. Every visible string is a
- * label, like the screens, so a locale never edits this file.
- *
- * Storage is wrapped in try/catch on purpose: a private window or a browser
- * set to block site data throws on access, and a checklist that cannot
- * remember is still a usable checklist.
- */
 interface Props {
     labels?: Record<string, string>;
     props?: Record<string, unknown>;
@@ -97,15 +87,12 @@ const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'gu
 
     .gcheck__box { margin-top: 5px; accent-color: var(--green-glow, #52b788); }
 
-    /* Named on both sides: the checkbox and the label are this widget's own
-       two parts, and a checked item strikes its own label. */
     .gcheck__box:checked + .gcheck__label { color: var(--muted, #888077); text-decoration: line-through; }
 </style>
 
 <script>
     import { bindOnce } from '../../../script/bind';
 
-    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     function setupChecklist(root: HTMLElement) {
         const key = root.dataset.key ?? 'guides.checklist';
         const boxes = Array.from(root.querySelectorAll<HTMLInputElement>('[data-checklist-item]'));
@@ -124,8 +111,6 @@ const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'gu
             try {
                 window.localStorage.setItem(key, JSON.stringify(ticked));
             } catch {
-                // No storage available (private window, blocked site data). The
-                // list still works for this visit; nothing else to do.
             }
         }
 

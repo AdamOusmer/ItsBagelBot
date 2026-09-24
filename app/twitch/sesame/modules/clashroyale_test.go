@@ -45,8 +45,6 @@ func TestCrstatsDefaultTemplate(t *testing.T) {
 		"Bagel · level 62 · 600W/300L · 60% WR · 120 three-crowns · Bakery",
 		col.out[0].Text)
 
-	// No linked tag and no arg: falls back to the broadcaster's login, and the
-	// premium flag rides along for gossip's reserved bucket.
 	call := gw.lastCall(t)
 	assert.Equal(t, "streamer", call.req.Account)
 	assert.False(t, call.req.IsPremium)
@@ -61,7 +59,6 @@ func TestCrstatsLinkedTagAndArgPriority(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "", col.emit))
 	assert.Equal(t, "#P2LQ0GR", gw.lastCall(t).req.Account)
 
-	// An explicit argument beats the linked tag; '@' and trailing words strip.
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(cfg), "@#P9VQ0JR please", col.emit))
 	assert.Equal(t, "#P9VQ0JR", gw.lastCall(t).req.Account)
 }
@@ -108,8 +105,6 @@ func TestCrDecksRankedRoadTemplates(t *testing.T) {
 	}
 }
 
-// The !cr root routes its first argument word: bare/tag → profile stats,
-// decks/ranked/road select the subcommand, and the remainder is the tag arg.
 func TestCrDispatch(t *testing.T) {
 	cases := []struct {
 		name, args, endpoint string
@@ -135,15 +130,11 @@ func TestCrDispatch(t *testing.T) {
 			require.NoError(t, clashCmd(t, gw, "cr").Run(context.Background(), urchinCtx(`{"account":"#P2LQ0GR"}`), tc.args, col.emit))
 			require.Len(t, col.out, 1)
 			assert.Equal(t, tc.endpoint, gw.lastCall(t).endpoint)
-			// Every case targets the same player: arg-bearing cases type the
-			// linked tag itself and bare subcommands fall back to it.
 			assert.Equal(t, "#P2LQ0GR", gw.lastCall(t).req.Account)
 		})
 	}
 }
 
-// A per-command "off" toggle keeps that command silent: no chat line and no
-// gossip call.
 func TestClashDisabledStaysSilent(t *testing.T) {
 	cases := []struct{ name, config string }{
 		{"cr", `{"statsEnabled":"off"}`},
@@ -173,8 +164,6 @@ func TestCrReplyErrorChats(t *testing.T) {
 	assert.Equal(t, "#P0AAAAAA: player not found", col.out[0].Text)
 }
 
-// An unranked player replaces the ranked template entirely: every numeric
-// token would render zero, so the default line says why instead.
 func TestCrrankedUnranked(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{"clashroyale.ranked": gossiprpc.ClashRoyaleRankedReply{
 		Player: "Bagel", Unranked: true,

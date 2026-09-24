@@ -2,14 +2,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro twin of ../svelte/Code.svelte. `block` emits the <pre><code> pair
-// rather than a <code> with white-space:pre; the reason is recorded there.
 import '../styles/elements/typography.css';
 
 interface Props {
-    /** Renders inside a <pre>, for multi-line code. */
     block?: boolean;
-    /** `danger`: this identifier is about to break. See the contract. */
     tone?: 'danger';
     class?: string;
 }

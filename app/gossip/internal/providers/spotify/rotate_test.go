@@ -15,8 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// rotatingKeys fakes the full resolver+rotator pair core.SpotifyKeyClient
-// implements in production.
 type rotatingKeys struct {
 	rotateErr error
 
@@ -34,7 +32,6 @@ func (f *rotatingKeys) Rotate(_ context.Context, broadcaster, prev, next string)
 	return f.rotateErr
 }
 
-// readOnlyKeys fakes a resolver with no write-back half.
 type readOnlyKeys struct{}
 
 func (readOnlyKeys) Credentials(context.Context, string) (core.SpotifyCredentials, error) {
@@ -54,8 +51,6 @@ func TestPersistRotationSkipsWithoutRotation(t *testing.T) {
 	keys := &rotatingKeys{}
 	p := &api{keys: keys, log: zap.NewNop()}
 
-	// No replacement issued, and a replacement identical to the current token:
-	// neither is a rotation, neither may reach custody.
 	p.persistRotation(context.Background(), "42", "old-token", "")
 	p.persistRotation(context.Background(), "42", "old-token", "old-token")
 
@@ -66,8 +61,6 @@ func TestPersistRotationToleratesWriteBackFailure(t *testing.T) {
 	keys := &rotatingKeys{rotateErr: errors.New("custody unreachable")}
 	p := &api{keys: keys, log: zap.NewNop()}
 
-	// Must not panic or propagate: the mint already succeeded and the previous
-	// token generally stays valid.
 	p.persistRotation(context.Background(), "42", "old-token", "new-token")
 
 	assert.Len(t, keys.calls, 1)

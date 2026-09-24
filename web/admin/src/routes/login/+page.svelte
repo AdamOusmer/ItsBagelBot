@@ -9,10 +9,6 @@
 
   const { t } = getI18n();
 
-  // The `e` query parameter is written by the OAuth callback, which is where
-  // these four cases are decided. A table rather than a chain: the callback can
-  // grow a fifth reason, and an unrecognised one must fall through to no notice
-  // rather than to the wrong one.
   const MESSAGES = {
     denied: 'admin.login.errDenied',
     state: 'admin.login.errState',
@@ -48,8 +44,6 @@
 </main>
 
 <style>
-  /* Mote field sits above the aurora (z-index 0) but below the panel (z-index 1).
-     Own stacking context so LightField's z-index:-1 canvas stays contained. */
   .starfield {
     position: fixed;
     inset: 0;

@@ -12,9 +12,6 @@ import "ItsBagelBot/internal/domain/i18n"
 
 const GiveawayTemplateVersion = "giveaway-v2-inline-logo"
 
-// PreparedContent contains the rendered, recipient-free message. The outbox
-// stores it before delivery so a deployment or configuration change cannot
-// change the body associated with an existing provider idempotency key.
 type PreparedContent struct {
 	From    string `json:"from"`
 	Subject string `json:"subject"`

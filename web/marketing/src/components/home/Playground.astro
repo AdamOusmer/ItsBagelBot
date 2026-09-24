@@ -5,13 +5,7 @@
 import Tag from '@bagel/ui/astro/Tag.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
 
-/**
- * Playground: the first thing after the Encryption act. Not a claim, the
- * actual product. A live-simulated Twitch chat you can poke. Ambient viewers
- * drift by, spam gets caught in front of you, and the command chips (or the
- * real input) talk to the bot. Everything is DOM + textContent; no innerHTML
- * for anything user-typed.
- */
+// DOM + textContent only: never innerHTML for anything user-typed.
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -24,8 +18,6 @@ const chips = [
     { cmd: '!lurk', label: '!lurk' },
 ];
 
-// Strings the client script needs at runtime. Serialized into a JSON island
-// below so the simulated bot speaks the visitor's language too.
 const playStrings = {
     replyBagel: t('play.replyBagel'),
     replySong: t('play.replySong'),
@@ -119,8 +111,6 @@ const playStrings = {
         }
     }
 
-    /* ── Copy column ── */
-
     .play__eyebrow {
         display: block;
         font-family: var(--font-mono, "DM Mono", monospace);
@@ -157,12 +147,6 @@ const playStrings = {
         margin-bottom: 18px;
     }
 
-    /* Chips were pill buttons (.play__chip / --evil, radius-pill + a lift on
-       hover); they are .bb-chip / .bb-chip--danger frames now, and the press
-       (scale 0.96) is the contract's own -- it moved into
-       @bagel/ui/styles/elements/chip.css so every chip in the system presses,
-       not just this page's. */
-
     .play__hint {
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.72rem;
@@ -171,8 +155,6 @@ const playStrings = {
         opacity: 0.75;
         margin: 0;
     }
-
-    /* ── Chat window ── */
 
     .play__window {
         display: flex;
@@ -201,8 +183,6 @@ const playStrings = {
         letter-spacing: 0.04em;
     }
 
-    /* Was a bare green word beside .play__dot; .bb-tag--live now owns the
-       type, the hairline and the sweep, so only the placement stays here. */
     .play__live {
         margin-left: auto;
     }
@@ -219,7 +199,6 @@ const playStrings = {
         -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 56px);
     }
 
-    /* Messages are appended by the script; style them globally within the feed. */
     .play__feed :global(.pmsg) {
         display: flex;
         align-items: baseline;
@@ -268,7 +247,6 @@ const playStrings = {
         opacity: 0.7;
     }
 
-    /* Typing indicator */
     .play__feed :global(.pmsg--typing .pmsg__text) {
         display: inline-flex;
         gap: 4px;
@@ -276,7 +254,6 @@ const playStrings = {
         padding-top: 4px;
     }
 
-    /* Spam catch */
     .play__feed :global(.pmsg--spam .pmsg__text) {
         color: rgba(217, 138, 138, 0.9);
     }
@@ -302,7 +279,6 @@ const playStrings = {
         padding: 6px 10px;
     }
 
-    /* Poll bubble */
     .play__feed :global(.pmsg--poll) {
         display: block;
         background: rgba(82, 183, 136, 0.05);
@@ -342,8 +318,6 @@ const playStrings = {
         width: 0;
         border-radius: var(--radius-xs);
         background: linear-gradient(90deg, var(--green, #2d6a4f), var(--green-glow, #52b788));
-        /* `width` for the same reason as .qw-poll__bar i in QuietWork.astro:
-           scaleX would squash the 4px radius-xs ends of a 6px-tall bar. */
         transition: width 1100ms var(--ease-out-expo);
     }
 
@@ -352,7 +326,6 @@ const playStrings = {
         margin-bottom: 3px;
     }
 
-    /* Composer */
     .play__composer {
         display: flex;
         gap: 10px;
@@ -385,8 +358,6 @@ const playStrings = {
         box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.08);
     }
 
-    /* Square send key: the .bb-btn frame with the mark suppressed, since
-       the glyph is the label. */
     .play__send {
         flex-shrink: 0;
         width: 42px;
@@ -414,10 +385,6 @@ const playStrings = {
 <script>
     import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
-    /**
-     * Simulated chat. All content is inserted with textContent; the only
-     * markup built here is from these hardcoded literals.
-     */
     const VIEWERS: Array<[string, string]> = [
         ['moth_lamp', '#e0c49a'],
         ['gg_beans', '#52b788'],
@@ -427,8 +394,6 @@ const playStrings = {
         ['tiny_cactus', '#7cc9a4'],
     ];
 
-    // Ambient chatter is localized and handed in via the island (S.ambient).
-    // The spam lines below stay English on purpose: broken-English scam bait.
     const SPAM_LINES = [
         'FREE F0LLOWERS >> sketchy.link/boost CLICK NOW',
         'im giving away gift subs, DM me on telegram!!',
@@ -450,7 +415,7 @@ const playStrings = {
         '!song': S.replySong,
         '!lurk': S.replyLurk,
         '!help': S.replyHelp,
-        '!poll': null, // special-cased: renders the animated poll bubble
+        '!poll': null,
     };
 
 
@@ -499,7 +464,6 @@ const playStrings = {
             const who = document.createElement('span');
             who.className = 'pmsg__name';
             who.textContent = 'itsbagelbot';
-            // Was three bouncing <i> dots; one .bb-drawline hairline now.
             const dots = document.createElement('span');
             dots.className = 'pmsg__text';
             const line = document.createElement('span');
@@ -592,7 +556,6 @@ const playStrings = {
             addBot(S.unknown.replace('{cmd}', cmd));
         }
 
-        /* Ambient chatter, gated on visibility */
         function scheduleAmbient() {
             window.clearTimeout(ambientTimer);
             if (!visible || document.hidden) return;
@@ -614,7 +577,6 @@ const playStrings = {
 
         document.addEventListener('visibilitychange', scheduleAmbient);
 
-        /* Seed the feed so it never opens empty */
         addChat('gg_beans', '#52b788', S.seed1);
         addChat('moth_lamp', '#e0c49a', S.seedTry);
 

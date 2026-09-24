@@ -2,12 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // A horizontal control row for a page header area: a lead slot, a flexible
-  // spacer, a trail slot. Svelte only -- no static surface renders one yet.
-  //
-  // Self-contained rather than leaning on a global `.toolbar`: it used to
-  // duplicate one, and the two drifted by 6px of bottom margin depending on
-  // which page you were looking at. The global is deleted with this move.
   import '../styles/elements/shell.css';
   import type { Snippet } from 'svelte';
 

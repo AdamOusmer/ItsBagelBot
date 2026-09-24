@@ -55,11 +55,6 @@ func TestInviteAndTemplateURLs(t *testing.T) {
 	if u == "" {
 		t.Fatal("invite url must not be empty")
 	}
-	// 1102012607574 = the old 1101945498710 plus CHANGE_NICKNAME (1<<26),
-	// which the bot needs to rename ITSELF per guild for the premium
-	// identity. Changing this number is a migration, not a rollout: Discord
-	// freezes permissions into the bot's role at install, so existing guilds
-	// keep the old grant until they re-authorize.
 	if !strings.Contains(u, "permissions=1102012607574") {
 		t.Fatalf("invite permissions drifted (keep in sync with dashboard DISCORD_BOT_PERMISSIONS): %q", u)
 	}
@@ -74,9 +69,6 @@ func TestInviteAndTemplateURLs(t *testing.T) {
 	}
 }
 
-// Default semantics are the thing most easily broken by a refactor: a
-// default-ON toggle reads on for BOTH "" and anything that is not "off",
-// while a default-OFF one demands the literal "on".
 func TestNewToggleDefaults(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -100,7 +92,6 @@ func TestNewToggleDefaults(t *testing.T) {
 			}
 		})
 	}
-	// The default-OFF pair must NOT have drifted to alertOn semantics.
 	if (Config{GoodbyeEnabled: "yes"}).GoodbyeOn() {
 		t.Fatal("GoodbyeOn must require the literal \"on\"")
 	}
@@ -128,9 +119,6 @@ func TestTicketOpenLimitNClamps(t *testing.T) {
 	}
 }
 
-// panelWant is a resolved TicketPanelSpec written out field by field, so an
-// assertion says which of the four drifted instead of printing two structs
-// and leaving the reader to diff them.
 type panelWant struct {
 	title  string
 	body   string
@@ -138,9 +126,6 @@ type panelWant struct {
 	color  int
 }
 
-// wantPanel checks a resolved spec against panelWant. Shared with the embed
-// tests in transcript_test.go: the four fields were asserted as one
-// multi-clause condition in three places, which is the shape, not the test.
 func wantPanel(t *testing.T, got TicketPanelSpec, want panelWant) {
 	t.Helper()
 	if got.Title != want.title {
@@ -167,8 +152,6 @@ func TestTicketPanelFillsDefaults(t *testing.T) {
 		TicketPanelButton: "Ask", TicketPanelColor: "#00FF80",
 	}.TicketPanel()
 	wantPanel(t, custom, panelWant{title: "Support", body: "Ask us.", button: "Ask", color: 0x00FF80})
-	// An unparseable colour keeps the brand colour rather than rendering
-	// black, which is what a zero would look like in Discord.
 	if bad := (Config{TicketPanelColor: "nope"}).TicketPanel(); bad.ColorOr(0) != LiveColor {
 		t.Fatalf("color = %#x, want LiveColor", bad.ColorOr(0))
 	}

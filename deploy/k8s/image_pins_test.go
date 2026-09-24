@@ -8,15 +8,9 @@ import (
 	"testing"
 )
 
-// firstPartyImage matches every image line for the fleet's own registry path,
-// pinned or not. Group 3 is the digest, empty on a tag-only line.
 var firstPartyImage = regexp.MustCompile(`(?m)^\s*(?:-\s+)?image:\s*["']?ghcr\.io/adamousmer/itsbagelbot/` +
 	`([a-z0-9][a-z0-9._/-]*):([A-Za-z0-9_][A-Za-z0-9._-]*)(@sha256:[0-9a-f]{64})?`)
 
-// awaitingFirstPin lists first-party images that have never been published,
-// so no digest exists to pin. Each entry must carry a TODO beside its image
-// line, and the test fails the moment the image is pinned, so an entry
-// cannot outlive the reason for it.
 var awaitingFirstPin = map[string]string{
 	"deployer": "deployer.yaml: the first release that builds the deployer image fills in its tag@digest",
 }
@@ -27,12 +21,6 @@ type pinnedImage struct {
 	pinned bool
 }
 
-// TestFirstPartyImagesArePinnedByDigest: the deployer's pin PR stage rewrites
-// only tag@digest lines (app/deployer/internal/stages/github/pins.go). A
-// tag-only line is not an error there, it is invisible: the train would never
-// move that image, and the tag alone could be re-pushed under the pod. So
-// every first-party image in this directory is pinned by digest, bar the
-// documented exceptions above.
 func TestFirstPartyImagesArePinnedByDigest(t *testing.T) {
 	for _, filename := range manifestFilenames(t) {
 		body := sourceFile{name: filename}.read(t)

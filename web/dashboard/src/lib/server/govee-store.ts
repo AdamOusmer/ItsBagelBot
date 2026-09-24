@@ -1,29 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Govee store: the setup surface for the "recolour my lights" reward.
-//
-// Three homes, one page:
-//
-//   - The Govee API key is a secret. It is stored encrypted at rest by the
-//     modules service (Tink AEAD, that service's own keyset) and reached here
-//     only through set/clear/status verbs: the value never comes back, the UI
-//     shows "key on file" or not.
-//   - The device list is fetched live from Govee through the gossip service
-//     (bagel.rpc.gossip.govee.devices), which authenticates with the stored
-//     key, so the browser never sees it either.
-//   - The reward is a Twitch custom reward (owned by outgress, created under the
-//     broadcaster's token, same RPC the Channel Points tab uses) plus a local
-//     binding (device + reward id + success policy) stored in the "govee" module
-//     blob and read by sesame's govee module.
-//
-// The per-broadcaster operations are bound to a broadcaster by `goveeStore(id)`,
-// which returns them as methods closing over the id, so no operation repeats it
-// as an argument. A redemption is driven by sesame; this store only sets up.
-// rpcReply where the reply's `error` is the result the caller renders: rpc
-// rejects on any such reply before that branch runs (see rpcRefusal), which
-// turned a refused key into a thrown error the page could only show as a
-// generic failure. rpc stays where a throw is the handling.
 import { rpc, rpcReply } from '@bagel/kit/server/nats';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import { type GoveeOnRedeem, type GoveeDevice, type GoveeReward, type GoveeBinding, MOD } from '@bagel/kit';
@@ -31,48 +8,28 @@ import { SUB, fabric, invalidate, publishEventSubEnsureOptional } from './servic
 import { upsertModule } from './commands-store';
 import { readModuleBlob, setModuleEnabled } from './module-blob';
 
-// Re-export the shared govee shapes so existing importers of this store keep
-// working; the definitions live in @bagel/kit for the client components too.
 export type { GoveeOnRedeem, GoveeDevice, GoveeReward, GoveeBinding };
 
 const GOVEE_MODULE = MOD.govee;
 
-// Cache key for the one slow govee read: the third-party device list. Flushed
-// when the broadcaster's key changes (a new key can front a different Govee
-// account) and rides the coarse per-user flush via userPrefixes() as a bus-gap
-// safety net. The key-presence flag is deliberately NOT cached: it is a cheap
-// indexed DB read and its write path is off the invalidation bus, so caching it
-// per replica could strand a "no key" view on another pod right after a save.
 const devicesCacheKey = (userId: string) => `govee-devices:${userId}`;
 
-// The reward always requires input (the colour), always rides Twitch's request
-// queue (so sesame can fulfil/refund it), and is prompted with the accepted
-// colour formats.
 const REWARD_PROMPT = 'Type a colour: a name like blue, or a hex code like #00ccff';
 
 export interface GoveeView {
   enabled: boolean;
   keyPresent: boolean;
-  // bindings is the list of reward->light bindings, one per configured light.
-  // The dashboard enforces one reward per light.
   bindings: GoveeBinding[];
 }
 
-// RewardDraft is one light's reward + behaviour, bundled so a save is one
-// argument. title/cost/color/cooldown are Twitch reward settings; onRedeem/
-// replyMessage/allowOff/allowOffline are the binding behaviour sesame reads. The
-// light itself (device/sku/name) is passed alongside the draft.
 export interface RewardDraft {
   title: string;
   cost: number;
   onRedeem: GoveeOnRedeem;
-  // color is the reward tile background ("#rrggbb"); '' leaves Twitch's default.
   color: string;
-  // cooldown is the global cooldown in seconds; 0 disables it.
   cooldown: number;
   replyMessage: string;
   allowOff: boolean;
-  // allowOffline lifts the live-only gate for this reward (default false).
   allowOffline: boolean;
 }
 
@@ -82,7 +39,6 @@ function coerceOnRedeem(v: unknown): GoveeOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
 }
 
-// readBinding coerces a stored "govee" module blob into a normalized binding.
 function readBinding(configs: unknown): GoveeBinding {
   const c = (configs ?? {}) as Partial<GoveeBinding>;
   const reward = c.reward && typeof c.reward === 'object' ? (c.reward as Partial<GoveeReward>) : null;
@@ -107,9 +63,6 @@ function readBinding(configs: unknown): GoveeBinding {
   };
 }
 
-// readBindings coerces the stored blob into the list of reward->light bindings,
-// tolerating the legacy single-binding blob (top-level rewardId/device) as a
-// one-element list so pre-multi-light configs keep rendering.
 function readBindings(configs: unknown): GoveeBinding[] {
   const c = (configs ?? {}) as { bindings?: unknown };
   if (Array.isArray(c.bindings)) {
@@ -143,9 +96,6 @@ interface RewardReplyWire {
   error?: string;
 }
 
-// rewardWire maps a draft to the outgress reward contract. The reward always
-// requires input (the colour) and rides the request queue so sesame can resolve
-// it.
 function rewardWire(draft: RewardDraft, id: string): RewardWire {
   const cooldown = Number.isFinite(draft.cooldown) && draft.cooldown > 0 ? Math.trunc(draft.cooldown) : 0;
   return {
@@ -153,7 +103,6 @@ function rewardWire(draft: RewardDraft, id: string): RewardWire {
     title: draft.title,
     cost: draft.cost,
     prompt: REWARD_PROMPT,
-    // Empty leaves Twitch's default tile colour rather than sending "".
     background_color: draft.color || undefined,
     is_enabled: true,
     is_paused: false,
@@ -172,8 +121,6 @@ function callReward(userId: string, verb: string, req: Record<string, unknown>):
   return rpc<RewardReplyWire>(`${SUB.outgressRpc}.channelpoints.${verb}`, { broadcaster_id: userId, ...req }, 8000);
 }
 
-// bindingFromReply builds a light's binding from the saved-reward reply,
-// mirroring the colour + cooldown Twitch echoed back so the editor re-populates.
 function bindingFromReply(
   device: GoveeDevice,
   draft: RewardDraft,
@@ -196,23 +143,17 @@ function bindingFromReply(
   };
 }
 
-// GoveeStore is the per-broadcaster operation set returned by goveeStore.
 export interface GoveeStore {
   read(): Promise<GoveeView>;
   setKey(key: string): Promise<GoveeResult>;
   clearKey(): Promise<GoveeResult>;
   listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }>;
   setEnabled(enabled: boolean): Promise<GoveeResult>;
-  // saveReward creates or updates the reward bound to one light.
   saveReward(device: GoveeDevice, draft: RewardDraft): Promise<GoveeResult>;
-  // deleteReward removes the reward + binding for one light (by device id).
   deleteReward(deviceId: string): Promise<GoveeResult>;
 }
 
-// goveeStore binds every per-broadcaster operation to one broadcaster id.
 export function goveeStore(userId: string): GoveeStore {
-  // keyPresent is a direct (uncached) status read: cheap, always authoritative,
-  // and safe to run on every load. A blip degrades to false, exactly as before.
   async function keyPresent(): Promise<boolean> {
     try {
       const r = await rpc<{ present?: boolean }>(`${SUB.goveeKey}.status`, { user_id: userId }, 3000);
@@ -223,9 +164,6 @@ export function goveeStore(userId: string): GoveeStore {
   }
 
   async function read(): Promise<GoveeView> {
-    // The module blob and the key-presence flag are independent
-    // reads; run them together so the page's server load is one round trip deep,
-    // not two.
     const [blob, present] = await Promise.all([
       readModuleBlob<unknown>(userId, GOVEE_MODULE),
       keyPresent()
@@ -233,8 +171,6 @@ export function goveeStore(userId: string): GoveeStore {
     return { enabled: blob.enabled, keyPresent: present, bindings: readBindings(blob.configs) };
   }
 
-  // writeBindings persists the whole binding list under the module blob's
-  // "bindings" key, preserving the module enable flag.
   async function writeBindings(enabled: boolean, bindings: GoveeBinding[]): Promise<void> {
     await upsertModule(userId, GOVEE_MODULE, enabled, { bindings } as unknown as Record<string, unknown>);
   }
@@ -242,8 +178,6 @@ export function goveeStore(userId: string): GoveeStore {
   async function setKey(key: string): Promise<GoveeResult> {
     const r = await rpcReply<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
     if (r.error) return { ok: false, error: r.error };
-    // A new key can front a different Govee account: drop the cached device list
-    // so the next read reflects the new account immediately.
     invalidate(devicesCacheKey(userId));
     return { ok: true };
   }
@@ -255,18 +189,13 @@ export function goveeStore(userId: string): GoveeStore {
     return { ok: true };
   }
 
-  // listDevices is SWR-cached (POLICY.govee). Only a successful device list is
-  // cached; on any error the loader throws so the fabric caches nothing and, if
-  // a recent list exists, serves it stale instead of flashing an error. A cold
-  // error surfaces as { devices: [], error }, same shape as before.
   async function listDevices(): Promise<{ devices: GoveeDevice[]; error?: string }> {
     try {
       const devices = await fabric.readKey(devicesCacheKey(userId), POLICY.govee, async () => {
         const r = await rpc<{ devices?: GoveeDevice[] }>(
           `${SUB.gossip}.govee.devices`,
           { channel_id: userId },
-          // Just over gossip's devices handler budget (8s) so this RPC
-          // never abandons a fetch gossip is still completing.
+          // Just over gossip's 8 s devices handler budget.
           9000
         );
         return Array.isArray(r.devices) ? r.devices : [];
@@ -288,7 +217,6 @@ export function goveeStore(userId: string): GoveeStore {
     if (reply.missing_scope) return { ok: false, missingScope: true };
     if (reply.error || !reply.reward) return { ok: false, error: reply.error ?? `${verb} failed` };
 
-    // One reward per light: replace any existing binding for this device.
     const binding = bindingFromReply(device, draft, reply.reward, existingId);
     await writeBindings(cur.enabled, [...cur.bindings.filter((b) => b.device !== device.device), binding]);
     if (!existingId) await publishEventSubEnsureOptional(userId);

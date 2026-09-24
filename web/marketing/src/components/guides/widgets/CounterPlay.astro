@@ -2,16 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * CounterPlay: press the same three moves a mod types in chat and watch a
- * counter answer for real. The mod line replays the bot's actual reply
- * templates (loyalty.counter.set / loyalty.counter.show, see
- * app/twitch/sesame/modules/loyalty.go and internal/domain/i18n/locales); the
- * second line shows the same number through a {counter:deaths}-style command
- * response, so a reader sees both the management command and the token
- * update from one shared value. No JS: the window renders the starting value
- * and the buttons are simply inert, so the page still reads fine.
- */
 interface Props {
     labels?: Record<string, string>;
     props?: Record<string, unknown>;
@@ -95,7 +85,6 @@ const start = typeof props.start === 'number' ? props.start : 12;
     }
 
     .gcplay__bar i { width: 7px; height: 7px; border-radius: 50%; background: #e06262; box-shadow: 0 0 8px rgba(224, 98, 98, 0.6); }
-    /* Named, not `.gcplay__bar span`: the mock window's own title part. */
     .gcplay__title { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.75rem; color: var(--white, #f0ece4); }
     .gcplay__bar b { margin-left: auto; font-family: var(--font-mono, "DM Mono", monospace); font-weight: 400; font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted, #888077); }
 
@@ -145,7 +134,6 @@ const start = typeof props.start === 'number' ? props.start : 12;
 <script>
     import { bindOnce } from '../../../script/bind';
 
-    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     function setupCounterPlay(root: HTMLElement) {
         const start = Number(root.dataset.start ?? '0');
         const name = root.dataset.name ?? 'deaths';

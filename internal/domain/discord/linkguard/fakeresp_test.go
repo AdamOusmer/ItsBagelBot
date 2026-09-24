@@ -1,11 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// RESP2 wire helpers for the fake valkey: header/bulk readers on the inbound
-// side and the reply encoders on the outbound side. Ported unchanged in
-// shape from internal/projection/fakeresp_test.go -- split from the fake's
-// command logic so each file stays a review of one concern.
-
 package linkguard
 
 import (
@@ -16,7 +11,6 @@ import (
 	"strings"
 )
 
-// respCount reads one "*N"/"$N" header line and returns N.
 func respCount(r *bufio.Reader, prefix byte) (int, error) {
 	line, err := readLine(r)
 	if err != nil {
@@ -33,7 +27,7 @@ func readBulkString(r *bufio.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	buf := make([]byte, size+2) // payload + CRLF
+	buf := make([]byte, size+2)
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return "", err
 	}

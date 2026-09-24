@@ -5,9 +5,6 @@ package usersrpc
 
 import "time"
 
-// GiveawayCandidate is the complete, canonical entry snapshot returned by
-// Users. ContactEmail is deliberately represented as presence only; the
-// address remains encrypted and is fetched through the existing mail RPC.
 type GiveawayCandidate struct {
 	UserID                    uint64     `json:"user_id"`
 	Username                  string     `json:"username"`
@@ -22,7 +19,6 @@ type GiveawayCandidate struct {
 	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
 }
 
-// PremiumGrant is the stable wire representation of one Users-owned award.
 type PremiumGrant struct {
 	ID                  int       `json:"id"`
 	GiveawayID          string    `json:"giveaway_id"`
@@ -34,8 +30,6 @@ type PremiumGrant struct {
 	IntervalRuleVersion string    `json:"interval_rule_version"`
 }
 
-// PremiumCoverage carries the paid agreement fields without exposing contact
-// data and lists all committed giveaway intervals for the account.
 type PremiumCoverage struct {
 	UserID             uint64         `json:"user_id"`
 	Locale             string         `json:"locale,omitempty"`
@@ -79,8 +73,6 @@ type GiveawayPoolRequest struct {
 	CreatedBefore *time.Time `json:"created_before,omitempty"`
 }
 
-// GiveawayPoolReply is kept separate from repository.GiveawayPool so the
-// wire package remains importable by Transactions without importing Ent.
 type GiveawayPoolReply struct {
 	Candidates  []GiveawayCandidate `json:"candidates,omitempty"`
 	SnapshotAt  time.Time           `json:"snapshot_at"`

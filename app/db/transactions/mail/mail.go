@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package mail renders transactional email and delivers it through Resend.
-// The caller owns the delivery ledger; this package never stores recipients.
 package mail
 
 import (
@@ -25,8 +23,6 @@ var (
 	ErrRateLimited    = errors.New("email provider rate limit reached")
 )
 
-// Receipt records provider acceptance, not inbox delivery. The durable caller
-// saves this identifier together with its stable message identity.
 type Receipt struct{ ProviderID string }
 
 type emailSender interface {
@@ -59,8 +55,6 @@ func New(apiKey, from, dashboardURL string) *Mailer {
 }
 
 func (m *Mailer) SendGift(ctx context.Context, msg GiftMessage) error {
-	// Notes are checked at checkout too. Keep this boundary in case a basket
-	// was created outside the dashboard.
 	if validate.ContainsLink(msg.PersonalMessage) {
 		msg.PersonalMessage = ""
 	}
@@ -84,8 +78,6 @@ func (m *Mailer) SendGiveaway(ctx context.Context, msg GiveawayMessage) error {
 	return err
 }
 
-// DeliverGiveaway is used by the Transactions outbox so it can persist the
-// acceptance ID. Retries must reuse both the message content and its key.
 func (m *Mailer) DeliverGiveaway(ctx context.Context, msg GiveawayMessage) (Receipt, error) {
 	content, err := m.PrepareGiveaway(msg)
 	if err != nil {
@@ -143,7 +135,6 @@ func safeDeliveryError(err error) error {
 	if errors.As(err, &limited) {
 		return ErrRateLimited
 	}
-	// Resend errors and network URLs can contain recipient data or request
-	// details. Persist an allowlisted category, never wrap the provider text.
+	// Never wrap the provider text: it can contain recipient data.
 	return ErrUnconfirmed
 }

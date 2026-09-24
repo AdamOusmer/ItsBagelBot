@@ -12,8 +12,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/users/ent"
-	// Wire the ent schema runtime (field defaults/hooks); without this blank
-	// import every write fails: "forgotten import ent/runtime?".
+	// Without the ent runtime import every write fails.
 	_ "ItsBagelBot/app/db/users/ent/runtime"
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/app/db/users/rpc"
@@ -33,9 +32,6 @@ const (
 	queueGroup  = "users-rpc"
 )
 
-// shutdownFlushBudget bounds the final write-behind drain on SIGTERM: long
-// enough for a healthy flush window plus its event publishes, short enough
-// that a rolling restart is not slowed by a database that stopped answering.
 const shutdownFlushBudget = 10 * time.Second
 
 func main() {
@@ -46,9 +42,6 @@ func main() {
 	client, dbPool, packer := openStore(ctx, core)
 	defer func() { _ = client.Close() }()
 
-	// EnsureStreams first: users owns BAGEL_DATA, and the publisher MustNATS
-	// opens is what writes to it. TWITCH_INGRESS is owned by sesame; keeping
-	// ownership separate is what lets NATS scope stream-management ACLs.
 	svcboot.FatalIf(log, bus.EnsureStreams(ctx, core.NATSURL, []bus.StreamSpec{bus.BagelDataStream}, log),
 		"failed to provision BAGEL_DATA stream")
 	n, closeIntake := svcboot.MustNATS(core)
@@ -58,8 +51,6 @@ func main() {
 	repo.SetInvalidationPrefix(env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate"))
 	repo.SetInvalidationConn(n.RPC)
 	defer func() {
-		// Bounded so a shutdown cannot hang on the final preference drain;
-		// the batcher's own flush deadline caps each window inside it.
 		flushCtx, cancel := context.WithTimeout(context.Background(), shutdownFlushBudget)
 		defer cancel()
 		repo.Close(flushCtx)
@@ -88,9 +79,6 @@ func main() {
 	core.Await()
 }
 
-// openStore reads the encryption keyset, opens the database, runs migrations,
-// and returns the ent client, the underlying pool (for the health check) and
-// the field-crypto packer.
 func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *crypto.Crypto) {
 	log := core.Log
 
@@ -106,11 +94,6 @@ func openStore(ctx context.Context, core svcboot.Core) (*ent.Client, *sql.DB, *c
 	return client, driver.DB(), packer
 }
 
-// startConsumers wires the two event-plane consumers onto the connections
-// svcboot already opened: the groupless broadcast subscriber drops each
-// instance's cached view on any user change, and the durable-group subscriber
-// picks exactly one instance to answer a reproject by replaying the table.
-// Closing them is svcboot's closeIntake, not this function's business.
 func startConsumers(ctx context.Context, n svcboot.NATS, repo *repository.Users, log *zap.Logger) {
 	svcboot.FatalIf(log, bus.Consume(ctx, nil, n.Broadcast, data.SubjectUserChanged, consumers.OnChangeInvalidate(changedUserID, repo.Invalidate), log),
 		"failed to subscribe to user changes")
@@ -120,12 +103,8 @@ func startConsumers(ctx context.Context, n svcboot.NATS, repo *repository.Users,
 	}, log), "failed to subscribe to reproject requests")
 }
 
-// changedUserID reads the account off a user change event. Go cannot reach a
-// field through a type parameter, so the shared invalidation consumer takes
-// this accessor rather than a reflective one.
 func changedUserID(dto data.UserChangedDTO) uint64 { return dto.UserID }
 
-// rpcSubjects records the subjects the RPC surfaces bound to, for the ready log.
 type rpcSubjects struct {
 	dashboard  string
 	admin      string
@@ -143,8 +122,6 @@ func (s rpcSubjects) logReady(log *zap.Logger) {
 		zap.String("giveaway_prefix", s.giveaway))
 }
 
-// subscribeRPCs binds every RPC surface the users service serves and seeds the
-// bootstrap staff, returning the subjects for the ready log.
 func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, log *zap.Logger) rpcSubjects {
 	invalidationPrefix := env.Get("NATS_CACHE_INVALIDATION_PREFIX", "bagel.cache.invalidate")
 
@@ -166,9 +143,6 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 	svcboot.FatalIf(log, rpc.SubscribeBilling(wiring, s.billing, invalidationPrefix), "failed to subscribe billing rpc")
 	svcboot.FatalIf(log, rpc.SubscribeGiveaways(wiring, s.giveaway, invalidationPrefix), "failed to subscribe giveaway rpc")
 
-	// Admin authorization + audit. Seed the bootstrap owners/admins so a fresh
-	// DB is never locked out, then serve the auth.check / auth.* / audit.*
-	// surface the console uses in place of the old static env allowlist.
 	seedBootstrapStaff(ctx, client, log)
 	authPrefix := env.Get("NATS_ADMIN_AUTH_SUBJECT_PREFIX", "bagel.rpc.admin.user.auth")
 	auditPrefix := env.Get("NATS_ADMIN_AUDIT_SUBJECT_PREFIX", "bagel.rpc.admin.user.audit")
@@ -187,9 +161,6 @@ func subscribeRPCs(ctx context.Context, wiring rpc.Wiring, client *ent.Client, l
 	return s
 }
 
-// seedBootstrapStaff guarantees the configured owners/admins exist so a fresh
-// DB is never locked out. The owner default is itsmavey's Twitch id; override
-// via OWNER_BOOTSTRAP_IDS.
 func seedBootstrapStaff(ctx context.Context, client *ent.Client, log *zap.Logger) {
 	owners := parseIDs(env.Get("OWNER_BOOTSTRAP_IDS", "804932984"))
 	admins := parseIDs(env.Get("ADMIN_BOOTSTRAP_IDS", ""))
@@ -200,27 +171,6 @@ func seedBootstrapStaff(ctx context.Context, client *ent.Client, log *zap.Logger
 		"failed to seed bootstrap staff")
 }
 
-// subscriptionSweepInterval is deliberately configurable and defaults far
-// looser than the old hardcoded 1m. Measured live over 20.6 days uptime:
-// ExpireSubscriptions was 87,561 executions / 1,632,597 rows examined / 0 rows
-// sent (58% of all application server-side DB time), and users runs 3
-// replicas with no leader election, so a 1-minute ticker fired the full-scan
-// sweep 3x/minute (verified: +6 executions in a 120s window). Investigated
-// giving this a real leader election instead of just slowing it down: grepped
-// the repo for an existing lease/leader primitive users-svc could reach.
-// app/twitch/outgress has one (ValkeyBatchStore, pkg/ratelimit's LeaseManager), but
-// both are built on a Valkey client outgress already has wired for other
-// reasons, and users-svc has no Valkey client at all -- wiring one solely to
-// elect a sweep leader would be a new infra dependency for a job that isn't
-// latency sensitive. Deferred; if users-svc ever gets a Valkey client for
-// another reason, revisit a SET NX PX lease here instead of just widening the
-// interval further. Expiry sweeping has no need for 60s precision -- a paid
-// subscription that outlives its expiry by a few extra minutes is not a
-// correctness problem (ApplyBilling and the per-candidate re-checked UPDATE
-// below are what enforce correctness) -- so the tradeoff is: up to
-// USERS_SUBSCRIPTION_SWEEP_INTERVAL of extra time before an expired grant is
-// actually revoked, in exchange for 1/5th the full-table-scan traffic (and
-// still 3x that per replica until leader election lands).
 func subscriptionSweepInterval() time.Duration {
 	return env.GetDuration("USERS_SUBSCRIPTION_SWEEP_INTERVAL", 5*time.Minute)
 }
@@ -234,11 +184,6 @@ func expireSubscriptions(ctx context.Context, repo *repository.Users, log *zap.L
 		})
 }
 
-// Premium access expiry is kept on a short independent sweep because the
-// historical subscription sweep intentionally defaults to five minutes for a
-// full users-table scan. Grant rows are indexed and cheap to sweep, so a
-// committed giveaway never remains effective for an entire five-minute
-// interval after its end.
 func premiumGrantSweepInterval() time.Duration {
 	return env.GetDuration("USERS_PREMIUM_GRANT_SWEEP_INTERVAL", 30*time.Second)
 }
@@ -271,8 +216,6 @@ func runPeriodicSweep(ctx context.Context, log *zap.Logger, interval, timeout ti
 	}
 }
 
-// parseIDs splits a comma-separated list of Twitch ids, dropping blanks and
-// non-numeric entries (defensive against a malformed ADMIN_BOOTSTRAP_IDS).
 func parseIDs(csv string) []uint64 {
 	var out []uint64
 	for _, part := range strings.Split(csv, ",") {

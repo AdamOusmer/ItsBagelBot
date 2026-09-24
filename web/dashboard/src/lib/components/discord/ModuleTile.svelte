@@ -1,14 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One module on the guild overview: what it is, whether it is on, whether it
-  // can actually run, and one click to each of those.
-  //
-  // The switch is a form submit rather than a control feeding a page-wide
-  // draft, and it posts ONE key. That is what makes the overview safe to flip
-  // things from: `save` merges a partial draft, so a tile toggled here cannot
-  // carry along a half-finished edit somebody left open on Channels. The flip
-  // is optimistic and reverts on refusal, the same idiom MasterToggle uses.
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -40,14 +32,10 @@
 
   const { t } = getI18n();
 
-  // null = "show what the server says". A boolean is the optimistic guess held
-  // only for the round trip.
   let flipped = $state<boolean | null>(null);
   let pending = $state(false);
 
   const on = $derived(flipped ?? tile.on);
-  // The value posted is the OPPOSITE of what is rendered, because the button is
-  // the switch: by the time the form submits, the intent is the flip.
   const payload = $derived(JSON.stringify({ [tile.flag]: flagValue(!on) }));
 
   const submit: SubmitFunction = () => {
@@ -84,8 +72,6 @@
   </div>
 
   <div class="foot">
-    <!-- On but missing a pick. Discord silently drops the post in that state,
-         which from here is indistinguishable from the bot being broken. -->
     {#if on && !tile.ready}
       <Chip on>{t('discord.overview.needsSetup')}</Chip>
     {:else}
@@ -138,8 +124,6 @@
     padding-top: 12px;
     border-top: 1px solid var(--glass-border);
   }
-  /* Holds the row height steady whether or not the chip is there, so a grid of
-     tiles does not jitter as modules are configured. */
   .spacer {
     display: block;
     min-height: 28px;

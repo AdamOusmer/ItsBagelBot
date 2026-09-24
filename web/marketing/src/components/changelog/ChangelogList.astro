@@ -2,11 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Changelog timeline. Newest version tag first. Each JSON entry from the
- * `changelog` collection becomes a card: stylized tag, version, date, title,
- * short highlight bullets, and a link to the GitHub release.
- */
 import type { CollectionEntry } from 'astro:content';
 import CardAtmosphere from '@bagel/ui/astro/CardAtmosphere.astro';
 import ReleaseTag from './ReleaseTag.astro';
@@ -112,7 +107,6 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
         list-style: none;
     }
 
-    /* Vertical ember rail behind the cards. */
     .clog__list::before {
         content: "";
         position: absolute;
@@ -174,19 +168,6 @@ const tagLabel: Record<CollectionEntry<'changelog'>['data']['tag'], string> = {
             transform 260ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
     }
 
-    /* Content rides above the atmosphere layer, and `isolation: isolate` on
-       `.clog__card` above is what makes that true: inside a stacking context
-       the atmosphere's z-index:-1 lands between this card's background and
-       its in-flow content, which is the same arrangement
-       @bagel/ui/styles/elements/card.css makes for a real `.bb-card`. The
-       rule that used to sit here lifted every child except the atmosphere to
-       z-index 1 by hand, which the isolation already did.
-
-       The three atmosphere values below are the contract's own inherited
-       knobs (`--card-atmo-flip`, `--card-atmo-glow`, `--card-atmo-ring`,
-       ui/styles/card-atmosphere.css), set on the card rather than reached
-       into on the layer: this page draws its own card shape rather than a
-       `.bb-card`, so it cannot inherit the card's hover wiring. */
     .clog__item:nth-child(even) .clog__card {
         --card-atmo-flip: -1;
     }

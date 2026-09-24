@@ -25,12 +25,10 @@ const (
 	kindCronJob    = "CronJob"
 )
 
-// workload is the part of a Deployment, DaemonSet or CronJob the watcher
-// reads, so every verb walks one shape instead of one per kind.
 type workload struct {
 	template  corev1.PodTemplateSpec
-	selector  *metav1.LabelSelector // nil for a CronJob: its pods are short-lived Jobs
-	unsettled string                // "" when fully rolled out and available
+	selector  *metav1.LabelSelector
+	unsettled string
 }
 
 type fetchFunc func(ctx context.Context, cs kubernetes.Interface, ref ports.WorkloadRef) (*workload, error)
@@ -41,9 +39,6 @@ var fetchers = map[string]fetchFunc{
 	kindCronJob:    fetchCronJob,
 }
 
-// eachWorkload skips a workload that does not exist yet: a service added in
-// this release has nothing live to be unsettled or to report images for,
-// and refusing it would block the very run that creates it.
 func (w *Watcher) eachWorkload(ctx context.Context, refs []ports.WorkloadRef, fn func(ports.WorkloadRef, *workload) error) error {
 	for _, ref := range refs {
 		wl, err := w.workload(ctx, ref)
@@ -93,8 +88,6 @@ func fetchDaemonSet(ctx context.Context, cs kubernetes.Interface, ref ports.Work
 	return &workload{template: ds.Spec.Template, selector: ds.Spec.Selector, unsettled: unsettled(ds.Generation, s.ObservedGeneration, s.DesiredNumberScheduled, c)}, nil
 }
 
-// fetchCronJob reports a CronJob settled: it has no rollout, the next
-// scheduled Job simply starts on the new template.
 func fetchCronJob(ctx context.Context, cs kubernetes.Interface, ref ports.WorkloadRef) (*workload, error) {
 	cj, err := cs.BatchV1().CronJobs(string(ref.Namespace)).Get(ctx, ref.Name, metav1.GetOptions{})
 	if err != nil {
@@ -105,9 +98,6 @@ func fetchCronJob(ctx context.Context, cs kubernetes.Interface, ref ports.Worklo
 
 type counts struct{ current, updated, ready, available int32 }
 
-// unsettled is "" once the controller has observed the latest generation
-// and every replica is updated, ready and available, with no old pod left
-// (current above want means an old ReplicaSet still holds pods).
 func unsettled(gen, observed int64, want int32, c counts) string {
 	if observed < gen {
 		return fmt.Sprintf("generation %d not observed yet (at %d)", gen, observed)
@@ -131,8 +121,6 @@ func deploymentUnsettled(d *appsv1.Deployment) string {
 	return unsettled(d.Generation, s.ObservedGeneration, desired(d.Spec.Replicas), c)
 }
 
-// desired mirrors the API server's default of one replica for an unset
-// spec.replicas instead of dereferencing nil.
 func desired(replicas *int32) int32 {
 	if replicas == nil {
 		return 1
@@ -140,8 +128,6 @@ func desired(replicas *int32) int32 {
 	return *replicas
 }
 
-// pods lists a workload's pods sorted by name, so node dots and mismatch
-// lists come out in the same order on every poll.
 func (w *Watcher) pods(ctx context.Context, ns ports.Namespace, sel *metav1.LabelSelector) ([]corev1.Pod, error) {
 	s, err := metav1.LabelSelectorAsSelector(sel)
 	if err != nil {

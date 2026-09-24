@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/** Track the last section above a viewport line. Unlike hash-active, this
- * follows scrolling without changing the URL. Returns a complete teardown. */
 export function mountScrollSpy(
   sections: readonly HTMLElement[],
   links: ReadonlyMap<string, HTMLElement>,

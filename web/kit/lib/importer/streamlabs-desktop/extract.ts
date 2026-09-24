@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Feature-table readers and row parsers: the port of extract.go. Commands,
-// timers and quotes each get one reader over the SectionContext built by
-// ./index; quote dates parse through the strict layout table below.
-
 import type { Database } from 'sql.js';
 import type { ImportDiagnostic, ImportManifest, ManifestFetch } from '../types';
 import { CODE, canonicalizeResponse, clampCooldown, normalizeName } from '../validate';
@@ -28,29 +24,17 @@ const QUOTE_TEXT_COLUMNS = ['quote', 'quotetext', 'text', 'message'];
 const QUOTE_DATE_COLUMNS = ['date', 'createdate', 'creationdate', 'createdat', 'datetime'];
 const QUOTE_AUTHOR_COLUMNS = ['addedby', 'author', 'creator'];
 
-// truthy lists the string spellings SLCB's persistence layer has been seen to
-// store booleans with (.NET "True"/"False" among them).
 const TRUTHY = new Set(['1', 'true', 'yes']);
 
-// defaultTimerIntervalSeconds backs timers whose source rows carry no usable
-// interval column. SLCB keeps the timer interval in one global settings blob
-// ("the interval is completely based on the Setting at the top" per its own
-// docs), which lives outside the tables this parser reads; 600s is the bot's
-// long-standing UI default (10 minutes). A wrong guess lands in the dashboard
-// as an editable number, whereas dropping every timer would lose them outright.
 export const DEFAULT_TIMER_INTERVAL_SECONDS = 600;
 
 export interface SectionContext {
   db: Database;
   tables: Map<string, string>;
   diags: ImportDiagnostic[];
-  // fetchDefs accumulates $readapi(URL) shells across every command in the
-  // export, same as every $(…)-syntax source's own fetchDefs map (phase 6).
   fetchDefs: Map<string, ManifestFetch>;
 }
 
-// missingTableNotes degrades each absent feature table to a manifest-level
-// note instead of failing the import.
 export function missingTableNotes(tables: Map<string, string>): ImportDiagnostic[] {
   const sections = [
     ['commands', COMMAND_TABLE_CANDIDATES],
@@ -71,15 +55,10 @@ export function manifestWarn(message: string): ImportDiagnostic {
   return warnDiag(-1, SLCB_CODE.manifestSourceNote, message);
 }
 
-// reindex rewrites item-level diagnostics onto the item's final manifest index
-// after the name-sort, so preview highlights the right row.
 function reindex(diags: ImportDiagnostic[], idx: number): void {
   for (const d of diags) d.item_index = idx;
 }
 
-// readTable selects one feature table and scans it whole; a missing table or
-// read failure degrades to an empty list plus one manifest-level diagnostic,
-// the shared preamble every extractor used to repeat.
 function readTable(ctx: SectionContext, candidates: string[]): Row[] {
   const table = findTable(ctx.tables, candidates);
   if (table === '') return [];
@@ -97,11 +76,6 @@ function readTable(ctx: SectionContext, candidates: string[]): Row[] {
   }
 }
 
-// --- extraction ---------------------------------------------------------------
-
-// extractCommands reads the commands table into canonical commands. Disabled
-// rows are skipped (counted into one manifest-level warn); rows with neither
-// name nor response are treated as junk and dropped silently.
 export function extractCommands(ctx: SectionContext): NonNullable<ImportManifest['commands']> {
   const { db, tables, diags } = ctx;
   const entries: NonNullable<ImportManifest['commands']>[number][] = [];
@@ -119,7 +93,6 @@ export function extractCommands(ctx: SectionContext): NonNullable<ImportManifest
     allWarns.push(warns);
   }
 
-  // Stable sort by normalized name, then reindex diagnostics onto final slots.
   orderStable(entries, allWarns, (c) => normalizeName(c.name), diags);
 
   if (disabled > 0) {
@@ -140,11 +113,6 @@ function isDisabledCommandRow(r: Row): boolean {
   return enabled.present && !TRUTHY.has(enabled.value.trim().toLowerCase());
 }
 
-// buildCommandRow translates one live command row. Canonicalization findings
-// carry index 0 here; the post-sort reindex pass rewrites them onto final
-// manifest slots. The fetch slot sink is keyed by the command's own
-// normalized name (fetchDefSlug('slcb', normName)), same slug rule as every
-// other $(…)-syntax source.
 function buildCommandRow(
   r: Row,
   ctx: SectionContext
@@ -160,9 +128,6 @@ function buildCommandRow(
   const res = translateVariables(response, normName, sink);
   const canon = canonicalizeResponse(res.text, 0);
 
-  // The untranslated line exactly as Streamlabs Chatbot published it, same
-  // split rule as responses so the two line up index for index; its own
-  // diagnostics are discarded, already reported once above via canon.diags.
   const sourceLines = canonicalizeResponse(response, 0).lines;
   const cmd: NonNullable<ImportManifest['commands']>[number] = {
     name: nameRaw,
@@ -209,17 +174,9 @@ function applyRowCooldown(r: Row, cmd: NonNullable<ImportManifest['commands']>[n
   const cd = r.first(COMMAND_COOLDOWN_COLUMNS);
   if (!cd.present) return;
   const secs = goAtoi(cd.value.trim());
-  // SLCB stores command cooldowns in seconds (its chat helper
-  // "!Command Cooldown <cmd> <minutes>" converts before write); the
-  // minutes reading was rejected: FORMAT_NOTES.md carries why.
-  // omitempty parity: a clamped 0 is omitted, like the Go manifest.
   if (secs !== null && clampCooldown(secs) > 0) cmd.cooldown_seconds = clampCooldown(secs);
 }
 
-// extractTimers reads timer messages. SLCB fires all timers off one global
-// interval stored in its settings blob rather than per row, so a per-row
-// interval column is used only when present; otherwise every timer carries
-// DEFAULT_TIMER_INTERVAL_SECONDS with a single manifest-level warn saying so.
 export function extractTimers(ctx: SectionContext): NonNullable<ImportManifest['timers']> {
   const { db, tables, diags } = ctx;
   const entries: NonNullable<ImportManifest['timers']>[number][] = [];
@@ -244,9 +201,6 @@ export function extractTimers(ctx: SectionContext): NonNullable<ImportManifest['
   return entries;
 }
 
-// parseTimerRow translates one live timer row; null drops it silently. A row
-// with no usable interval marks `defaulted` even if its message later
-// collapses, matching the upstream flag's timing.
 function parseTimerRow(r: Row): { entry: NonNullable<ImportManifest['timers']>[number]; warns: ImportDiagnostic[]; defaulted: boolean } | null {
   const read = r.first(TIMER_MESSAGE_COLUMNS);
   if (!read.present || read.value.trim() === '') return null;
@@ -258,7 +212,7 @@ function parseTimerRow(r: Row): { entry: NonNullable<ImportManifest['timers']>[n
 
   const res = translateVariables(message, '');
   const translated = res.text.trim();
-  if (translated === '') return null; // translation collapsed the message entirely
+  if (translated === '') return null;
 
   return {
     entry: { message: translated, interval_seconds: interval },
@@ -267,10 +221,6 @@ function parseTimerRow(r: Row): { entry: NonNullable<ImportManifest['timers']>[n
   };
 }
 
-// timerInterval resolves one timer row's interval in confirmed units: SLCB's
-// UI expresses the setting in minutes (its docs say timers post "after an
-// interval of X minutes"), so minute-named columns multiply by 60 and only an
-// explicit seconds-named column passes through raw.
 function timerInterval(r: Row): { seconds: number; known: boolean } {
   const minutes = positiveInt(r.valueOf(TIMER_MINUTES_COLUMNS));
   if (minutes !== null) return { seconds: minutes * 60, known: true };
@@ -284,10 +234,6 @@ function positiveInt(raw: string): number | null {
   return n !== null && n > 0 ? n : null;
 }
 
-// extractQuotes reads saved quotes. ExtraQuotes (the separate user-repurposed
-// list feature) is deliberately NOT read: those entries are usually GIF/URL
-// collections wired to custom commands, not quotes; importing them as quotes
-// would surprise (decision recorded in FORMAT_NOTES.md).
 export function extractQuotes(ctx: SectionContext): NonNullable<ImportManifest['quotes']> {
   const { db, tables, diags } = ctx;
   const entries: NonNullable<ImportManifest['quotes']>[number][] = [];
@@ -318,9 +264,6 @@ function parseQuoteRow(r: Row): { entry: NonNullable<ImportManifest['quotes']>[n
   const date = r.first(QUOTE_DATE_COLUMNS);
   if (date.present) {
     const ts = parseQuoteDate(date.value);
-    // Date format is channel-configurable in SLCB (default shown in its
-    // docs is MM/DD/YYYY); an unparseable value must not block the quote
-    // itself, it just loses created_at.
     if (ts !== null) q.created_at = ts;
     else warns.push(quoteDateDiag(date.value));
   }
@@ -335,9 +278,6 @@ function quoteDateDiag(dateRaw: string): ImportDiagnostic {
   );
 }
 
-// orderStable sorts items by key (ties keep insertion order, matching Go's
-// sort.SliceStable), reindexes each item's diagnostics onto its final slot and
-// appends them to the section's diagnostic stream.
 function orderStable<T>(items: T[], warns: ImportDiagnostic[][], key: (item: T) => string, sink: ImportDiagnostic[]): void {
   const order = items
     .map((item, i) => ({ item, key: key(item), i }))
@@ -354,15 +294,8 @@ function orderStable<T>(items: T[], warns: ImportDiagnostic[][], key: (item: T) 
   for (const w of sortedWarns) sink.push(...w);
 }
 
-// --- dates ---------------------------------------------------------------------
-
-// parseQuoteDate tries the layouts SLCB is known to persist dates with (its
-// configurable display format plus the two storage formats .NET's SQLite layer
-// emits natively), and returns RFC 3339 (UTC) on success.
 export function parseQuoteDate(raw: string): string | null {
   raw = raw.trim();
-  // Ordered like the Go layout table; each parser is strict about padding so
-  // day-first ("31/12/2015") is rejected rather than guessed.
   const parsers: ((s: string) => DateUTC | null)[] = [
     parseRFC3339,
     exact(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/, 'YMDHMS'),
@@ -378,8 +311,6 @@ export function parseQuoteDate(raw: string): string | null {
   return null;
 }
 
-// DateUTC is a plain UTC calendar tuple; no timezone arithmetic anywhere in
-// this module, so output formatting cannot drift across runtimes.
 class DateUTC {
   constructor(
     readonly y: number,
@@ -400,8 +331,6 @@ function daysInMonth(y: number, mo: number): number {
   return [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mo - 1];
 }
 
-// CalendarStamp is a raw date/time tuple as captured by one of the layout
-// regexes; time fields default to midnight when a layout omits them.
 interface CalendarStamp {
   y: number;
   mo: number;
@@ -411,7 +340,6 @@ interface CalendarStamp {
   s?: number;
 }
 
-// ResolvedCalendar is a stamp with the omitted time fields filled in.
 interface ResolvedCalendar extends CalendarStamp {
   h: number;
   mi: number;
@@ -436,9 +364,6 @@ function validTimeOfDay(time: ResolvedCalendar): boolean {
   return time.h <= 23 && time.mi <= 59 && time.s <= 59;
 }
 
-// parseRFC3339 accepts exactly RFC 3339 (fractional seconds optional; Z or a
-// numeric offset). A non-Z offset normalizes to UTC, mirroring Go's
-// t.UTC().Format(RFC3339).
 function parseRFC3339(s: string): DateUTC | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d+)?(?:[Zz]|([+-]\d{2}):(\d{2}))$/.exec(s);
   if (!m) return null;
@@ -452,9 +377,6 @@ function parseRFC3339(s: string): DateUTC | null {
   return new DateUTC(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate(), t.getUTCHours(), t.getUTCMinutes(), t.getUTCSeconds());
 }
 
-// exact builds strict parsers for the fixed .NET storage/display shapes.
-// "MM" requires two digits, "M/D" one or two, "H" one or two with "PM"
-// uppercase-only, matching Go time.Parse's fixed vs flexible numeric widths.
 function exact(re: RegExp, shape: 'YMDHMS' | 'MDYHM' | 'MDYHM12' | 'MDY'): (s: string) => DateUTC | null {
   return (s) => {
     const m = re.exec(s);
@@ -469,7 +391,7 @@ function exact(re: RegExp, shape: 'YMDHMS' | 'MDYHM' | 'MDYHM12' | 'MDY'): (s: s
       }
       case 'MDYHM12': {
         let h = +m[4];
-        if (h < 1 || h > 12) return null; // a 12-hour clock never shows 0 or 13+
+        if (h < 1 || h > 12) return null;
         if (m[6] === 'PM') h = h === 12 ? 12 : h + 12;
         else h = h === 12 ? 0 : h;
         return mkDate({ y: +m[3], mo: +m[1], d: +m[2], h, mi: +m[5] });

@@ -27,8 +27,6 @@ type delegationRPC struct {
 	log                *zap.Logger
 }
 
-// SubscribeDelegation serves the single-use dashboard-delegation surface under
-// the configured prefix. Mirrors SubscribeDashboard's queue-group wiring.
 func SubscribeDelegation(w Wiring, prefix, invalidationPrefix string) error {
 	d := &delegationRPC{repo: w.Repo, nc: w.NC, invalidationPrefix: invalidationPrefix, log: w.Log}
 
@@ -82,9 +80,6 @@ func (d *delegationRPC) handleCreate(ctx context.Context, msg *nats.Msg) {
 	ctx, cancel := timeout(ctx)
 	defer cancel()
 
-	// No expiry: the link stays valid until the invitee accepts it (binding them
-	// permanently) or the owner revokes it. Access is permanent + revocable, not
-	// time-boxed.
 	if err := d.repo.CreateDelegation(ctx, token, ownerID, req.OwnerLogin, req.Sections, nil); err != nil {
 		monitor.TxnLogger(ctx, d.log).Error("delegation create", zap.Error(err))
 		respondErr(msg, err.Error())
@@ -206,9 +201,6 @@ func (d *delegationRPC) handleRevoke(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, res)
 }
 
-// writeThenOK runs a delegation mutation and replies with the ok-shaped result:
-// {"ok":false,"error":...} on failure, else {"ok":true} after invalidating each
-// affected user's cache.
 func (d *delegationRPC) writeThenOK(msg *nats.Msg, write func() error, invalidateIDs ...uint64) {
 	if err := write(); err != nil {
 		bus.Respond(msg, map[string]any{"ok": false, "error": err.Error()})

@@ -1,30 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Live chat rehearsal: acts out a response as it will look in Twitch chat:
-  // a viewer types the trigger, the bot "types" for a beat, then replies with
-  // sample values substituted into the tokens. Re-runs (debounced) as the
-  // response is edited, so authors see the real thing, not a template string.
-  //
-  // This component only RENDERS. What the bot would actually send (which
-  // tokens expand, whether a leading /announce, /shoutout, /pin or /me becomes
-  // a native Twitch action, how many messages a multi-line response mints)
-  // is computed by the shared rehearsal core (@bagel/kit rehearsal.ts),
-  // which mirrors the Go engine line by line. `kind` picks the surface:
-  //
-  //   kind="command": custom "!command" responses: full command tokens,
-  //   slash-verb routing per line, up to 5 messages (one per line).
-  //
-  //   kind="reply": module replies (alerts, triggers, rewards, built-ins,
-  //   gossip commands): ONLY the tokens in `samples` (plus the dynamic set
-  //   unless dynamic={false}), one message. A leading slash-verb routes the
-  //   same as a command line: the pipeline translates every emitted output.
-  //
-  //   kind="timer": a timer's message (engine/timer_vars.go timerChain):
-  //   Go's timer scope chain, mirrored by rehearsal.ts's rehearseTimer, one
-  //   message, no viewer line — a tick has no chatter behind it to type a
-  //   trigger, so `showViewer` is forced off regardless of what a caller
-  //   passes.
   import { page } from '$app/state';
   import { translate, type Locale } from '@bagel/kit/i18n';
   import {
@@ -57,39 +33,23 @@
     name?: string;
     response?: string;
     args?: string;
-    // Which bot expansion path this surface rehearses (see header comment).
     kind?: 'command' | 'reply' | 'timer';
     showViewer?: boolean;
-    // viewerText renders the viewer line verbatim (a plain chat message, no "!"
-    // trigger), used by trigger-word rehearsals where a normal message fires the
-    // reply. When unset the viewer types the "!command" trigger.
     viewerText?: string;
     tag?: string;
-    /** The channel owner when the rehearsal is shown outside the app layout. */
     broadcasterName?: string;
-    /** Live language selection when shown in the onboarding journey. */
     locale?: Locale;
-    // kind="command": overrides merged over the standard command samples.
-    // kind="reply": the surface's OWN token map: nothing else substitutes.
     samples?: Record<string, string>;
-    // kind="reply" only: false for surfaces whose bot path is a bare string
-    // replacer with no {random}/{choice:…} fallback (govee, clip).
     dynamic?: boolean;
   } = $props();
   const t = (key: string, params?: Record<string, string | number>) => translate(locale ?? i18n.locale, key, params);
 
-  // The sample viewer typing the trigger; reply surfaces may carry no {user}.
   const viewerName = $derived(samples?.user ?? COMMAND_SAMPLES.user);
 
-  // The bot's face is the BROADCASTER's bolota, not its own: in chat the bot
-  // speaks as the channel, so the rehearsal shows the channel's creature. The
-  // (app) layout always loads displayName; the fallback only covers surfaces
-  // rendered outside it (none today).
   const botSeed = $derived(broadcasterName ?? (page.data.displayName as string | undefined) ?? 'ItsBagelBot');
 
   const trigger = $derived('!' + (normName(name) || 'command') + (args ? ' ' + args : ''));
 
-  // Twitch announcement accent colors. "primary" is the channel accent.
   const ACCENT: Record<string, string> = {
     primary: 'var(--bb-tan-light)',
     blue: '#4a9eff',
@@ -104,11 +64,8 @@
     return rehearseReply(response, samples, { dynamic });
   });
 
-  // A timer fires on its own; nobody typed anything, so it never shows a
-  // viewer line regardless of what a caller passes for showViewer.
   const effectiveShowViewer = $derived(kind === 'timer' ? false : showViewer);
 
-  // Human label for the "uses Twitch command" badge.
   function verbLabelOf(v: RehearsedLine): string {
     if (v.mode === 'announce') {
       return v.color === 'primary' ? '/announce' : `/announce (${v.color})`;
@@ -116,12 +73,7 @@
     return v.verb ?? '';
   }
 
-  // Typing beat: edits flip to the dots, settle back to the reply. Debounced so
-  // the bot doesn't stutter on every keystroke.
   let typing = $state(false);
-  // The viewer's bolota runs its live engine only while the rehearsal is being
-  // re-acted (typing beat) or the pointer is on the box, same budget rule as
-  // the Topbar/AccountFoot avatars: no idle engines on a screen full of chrome.
   let hovered = $state(false);
   let settle: ReturnType<typeof setTimeout> | undefined;
   let first = true;
@@ -141,8 +93,6 @@
 
 {#snippet botName()}
   <span class="who bot-name">
-    <!-- Seeded by the broadcaster's name: the bot speaks as the channel, so it
-         wears the channel owner's creature, same face as the topbar avatar. -->
     <span class="avatar" aria-hidden="true"><Bolota name={botSeed} size={20} active={typing || hovered} /></span>
     ItsBagelBot
   </span>
@@ -183,7 +133,6 @@
       <span class="msg empty">{t('chatPreview.nothingToSay')}</span>
     </div>
   {:else}
-    <!-- One bot message per rehearsed line, staggered like the worker's send order. -->
     {#each views as v, li (li)}
       <div
         class="line bot"
@@ -252,8 +201,6 @@
     flex-direction: column;
     gap: 8px;
   }
-  /* Bare .bb-tag: the box already draws the frame this label sits on, so it
-     keeps only the notch (opaque background cutting the border) and its green. */
   .chat-tag {
     position: absolute;
     top: -8px;
@@ -265,8 +212,6 @@
   }
 
   .line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-  /* Slash-verb actions render a block (announcement box / shoutout card), so the
-     bot line stacks its name above the action instead of sharing a baseline. */
   .line.bot.special { flex-direction: column; align-items: flex-start; gap: 6px; }
   .who {
     font-family: var(--bb-font-body);
@@ -278,11 +223,6 @@
     gap: 5px;
   }
   .viewer-name { color: var(--bb-tan-light); }
-  /* Sized to the 20px Bolota and clipped to a circle so the blob cannot
-     hang off the name row or shove the rehearsal's sticky box. The old
-     `translateY(4px)` was compensating for `overflow: visible` hanging
-     above the baseline; with a clipped plate the who-row's
-     `align-items: center` already sits it on the name. */
   .avatar {
     display: inline-flex;
     align-items: center;
@@ -294,7 +234,6 @@
     overflow: hidden;
   }
   .viewer-name::after, .bot-name::after { content: ':'; color: var(--bb-muted); font-weight: 400; }
-  /* /me actions carry no colon (Twitch renders them as "name action…"). */
   .line.bot.me .bot-name::after { content: none; }
   .line.bot.special .bot-name::after { content: none; }
   .bot-name { color: var(--bb-green-glow); }
@@ -308,7 +247,6 @@
     min-width: 0;
   }
   .line.viewer .msg { font-family: var(--bb-font-mono); color: var(--bb-tan-light); font-size: 12.5px; }
-  /* A plain viewer message (trigger-word rehearsal) reads like normal chat. */
   .line.viewer .msg.plain { font-family: var(--bb-font-body); color: var(--bb-white); font-size: 13px; }
 
   .reply { animation: reply-in 320ms var(--bb-ease-out-expo, ease-out) both; animation-delay: var(--reply-delay, 0ms); }
@@ -331,7 +269,6 @@
   }
   .msg.empty { color: var(--bb-muted); font-style: italic; }
 
-  /* "uses Twitch command" badge: names the verb the response fires. */
   .via {
     font-family: var(--bb-font-mono);
     font-weight: 600;
@@ -346,7 +283,6 @@
   }
   .via.inline { margin-right: 2px; }
 
-  /* Twitch announcement: a highlighted callout with the announce color accent. */
   .announce {
     width: 100%;
     box-sizing: border-box;
@@ -371,8 +307,6 @@
     color: var(--acc);
   }
 
-  /* Twitch shoutout: a compact card, the native /shoutout is an action, not a
-     chat line, so it reads as "shouts out @channel". */
   .shoutout {
     display: inline-flex;
     align-items: center;
@@ -387,7 +321,6 @@
   }
   .shoutout .reply strong { color: var(--bb-green-glow); }
 
-  /* /pin sends a real bot message and anchors it for the current stream. */
   .pin {
     width: 100%;
     box-sizing: border-box;
@@ -410,11 +343,8 @@
     font-size: 10.5px;
   }
 
-  /* /me action: italic, tinted like the bot's name (no colon before it). */
   .msg.action { font-style: italic; color: var(--bb-green-glow); }
 
-  /* Three bouncing .tdot circles (tbounce) replaced by one .bb-drawline, which
-     brings its own reduced-motion guard. */
   .typing { display: inline-flex; align-items: center; padding: 4px 0; }
 
   @media (prefers-reduced-motion: reduce) {

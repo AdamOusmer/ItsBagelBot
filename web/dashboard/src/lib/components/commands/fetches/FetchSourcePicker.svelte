@@ -1,9 +1,6 @@
 <script module lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Shape of one saved data source as the page load and the save/delete actions
-  // all return it. Lives in the module script so consumers can import the type
-  // straight from the component that owns it.
   export interface SourceDef {
     name: string;
     url: string;
@@ -13,23 +10,6 @@
 </script>
 
 <script lang="ts">
-  // The {urlfetch:…} palette chip and the whole data-source lifecycle behind it.
-  //
-  // This replaces the standalone /commands/fetches page. That page made a fetch
-  // definition feel like a second product you had to go configure before you
-  // could write a command; authors did not find it, and the ones who did were
-  // met with a builder that asked them to paste raw JSON. Here a data source is
-  // what it actually is (a variable you insert into a reply) so it is created
-  // and picked from inside the command editor, and never named anywhere else.
-  //
-  // Two surfaces:
-  //   chip -> popover  pick a saved source (inserts its token) or delete one.
-  //   popover -> modal the builder: name, URL, optional key, then FETCH one
-  //                    real response and click the value you want.
-  //
-  // The builder deliberately never asks for a "response kind". Clicking a value
-  // in the tree means json + that path; skipping the tree means plain text. The
-  // author answers "which value do you want?", not "what shape is your API?".
   import { deserialize } from '$app/forms';
   import { Button, Code, Field, Input, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/kit';
   import { PickerPanel } from '@bagel/kit';
@@ -47,22 +27,17 @@
     defs?: SourceDef[];
     keys?: { label: string }[];
     onInsert: (token: string) => void;
-    /** Hands the server's refreshed list back to the page that owns it. */
     onDefsChanged?: (defs: SourceDef[]) => void;
   } = $props();
 
   let open = $state(false);
   let building = $state(false);
   let btnEl = $state<HTMLButtonElement>();
-  /** Failure text for the popover itself (delete refusals), not the builder. */
   let panelErr = $state('');
 
   function toggle() {
     open = !open;
     if (!open) return;
-    // Clear on open, not on close: PickerPanel closes on scroll/outside-click
-    // without going through here, so an armed delete could otherwise still be
-    // primed the next time the popover appears.
     armedDelete = '';
     panelErr = '';
   }
@@ -76,7 +51,6 @@
     open = false;
   }
 
-  // --- builder state -------------------------------------------------------
   let displayName = $state('');
   let slug = $state('');
   let slugTouched = $state(false);
@@ -124,7 +98,6 @@
     const f = new FormData();
     f.set('name', slug);
     f.set('url', url.trim());
-    // Kind is inferred, never asked: a picked value means json + that path.
     f.set('kind', pathPicked && path.length > 0 ? 'json' : 'plain');
     f.set('path', buildJsonPath(path));
     f.set('key_label', keyLabel);
@@ -137,9 +110,6 @@
     return deserialize(await res.text());
   }
 
-  // Fetch one real response so the author can click a value out of it. Sent
-  // with an EMPTY path on purpose: we want the whole document to build a tree
-  // from, and a path the author has not chosen yet would fail validation.
   async function fetchSample() {
     urlAttempted = true;
     if (!url.trim()) {
@@ -160,12 +130,8 @@
       if (d?.sample) {
         sample = d.sample;
         showPaste = false;
-        // A non-ok status still yields a body worth showing: the fetch reached
-        // the API, and the tree is what lets the author fix whatever was wrong.
         if (d.status && d.status !== 'ok') notice = t(`fetches.test_${d.status}`);
       } else if (d?.ok) {
-        // Reached the API, but gossip declined to hand back the body (too large
-        // or not UTF-8). Paste is the honest fallback.
         notice = t('fetches.builderNoSample');
         showPaste = true;
       } else {
@@ -216,10 +182,6 @@
     creating = false;
   }
 
-  // Delete is two-tap rather than one: the × arms, a second click commits.
-  // There is no undo, and the old page guarded this with a full confirm dialog
-  // listing the commands that quote the source (too heavy for a popover), but
-  // deleting on a single stray click would be worse than either.
   let armedDelete = $state('');
 
   async function remove(name: string) {
@@ -241,9 +203,6 @@
         onDefsChanged?.(d.defs);
         return;
       }
-      // The service refuses while a command still quotes the source. Saying so
-      // matters more here than anywhere else: the row simply not disappearing
-      // reads as a dead button.
       panelErr = d?.error ?? t('fetches.toastDeleteFailed', { name });
     } catch {
       panelErr = t('fetches.toastDeleteFailed', { name });
@@ -252,9 +211,6 @@
 </script>
 
 <div class="fsp">
-  <!-- Labelled as what it does, not as the token it eventually inserts. Wearing
-       the same mono pill as {user}/{args} made a menu look like a literal you
-       could drop into the reply, and put eight identical pills in one row. -->
   <button
     type="button"
     class="picker bb-chip bb-chip--muted"
@@ -412,11 +368,6 @@
 <style>
   .fsp { position: relative; display: inline-flex; }
 
-  /* Menu trigger, not a token chip: body font and a caret so it reads as
-     "opens something" next to the literal {user}/{args} pills. */
-  /* Frame/sizing come from the global .bb-chip control. The body font is
-     kept deliberately (see the comment on the trigger above): in mono this
-     read as a literal {user}/{args} token rather than a menu. */
   .picker { gap: 5px; font-family: var(--bb-font-body); color: var(--bb-muted); }
   .picker:hover,
   .picker[aria-expanded='true'] {
@@ -478,7 +429,6 @@
     line-height: 1;
   }
   .opt-del:hover { color: var(--bb-status-error, #cf8a78); background: rgba(207, 138, 120, 0.12); }
-  /* Armed state reads as the destructive commit, not a second dismiss. */
   .opt-del.armed {
     color: var(--bb-status-error, #cf8a78);
     background: rgba(207, 138, 120, 0.16);
@@ -498,18 +448,9 @@
   }
   .new:hover { background: rgba(82, 183, 136, 0.14); }
 
-  /* --- builder --- */
-  /* No min-width: Modal's card is max-width 420px with 28px padding, so
-     anything wider than the ~364px content box overflows it and is clipped
-     rather than widening the card. Fill what the card gives us instead; the
-     tree scrolls inside its own box. */
   .build { display: flex; flex-direction: column; gap: 12px; width: 100%; min-width: 0; }
   .intro { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
 
-  /* The fields are `Field` blocks. This form is a popover, so its rhythm is
-     tighter than a page form's: 5px between label and control, no bottom
-     margin (the `.build` column already gaps at 12px). Both are the
-     contract's own knobs. */
   .build { --field-gap: 5px; --field-mb: 0; }
   .in {
     width: 100%;
@@ -544,12 +485,7 @@
 
   .pick-prompt { margin: 0; font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-tan-light); }
   .chosen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-  /* Was a plain muted body run; now the global .bb-tag--bare label. */
   .chosen-tag { flex: none; }
-  /* A deep path is longer than the card is wide. `.bb-code` already breaks
-     anywhere; what is local here is that the picked path is GREEN -- it is
-     the thing you just clicked in the tree, not a neutral identifier -- and
-     that it may shrink below its content width inside the flex row. */
   :global(.chosen-path) { color: var(--bb-green-glow, #52b788); min-width: 0; }
 
   .foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }

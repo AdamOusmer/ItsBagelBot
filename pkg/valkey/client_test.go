@@ -11,8 +11,6 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// TestPrimaryOption verifies that the authoritative client never delegates
-// reads to a random Sentinel replica. Node-local routing belongs to Client.
 func TestPrimaryOption(t *testing.T) {
 	t.Run("Standard Address", func(t *testing.T) {
 		opts := BuildClientOption("valkey:6379", "password")

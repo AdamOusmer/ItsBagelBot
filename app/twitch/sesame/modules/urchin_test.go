@@ -21,14 +21,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeGossip records calls and answers each provider.endpoint with a canned
-// reply value (marshaled into the caller's typed out). err short-circuits.
 type fakeGossip struct {
 	mu      sync.Mutex
 	calls   []fakeGossipCall
 	replies map[string]any
 	err     error
-	done    chan struct{} // closed on first call, for async handlers
+	done    chan struct{}
 }
 
 type fakeGossipCall struct {
@@ -67,8 +65,6 @@ func (f *fakeGossip) lastCall(t *testing.T) fakeGossipCall {
 	return f.calls[len(f.calls)-1]
 }
 
-// urchinCtx builds a chat Context for broadcaster "2" (login streamer) with the
-// given module config.
 func urchinCtx(config string) *module.Context {
 	c := &module.Context{
 		Env: lane.Envelope{
@@ -107,7 +103,6 @@ func TestUrchinDailyDefaultTemplate(t *testing.T) {
 	assert.Equal(t, "2", col.out[0].BroadcasterID)
 	assert.Equal(t, "Techno today: 5W 2L · 21 finals · 9 beds · 7.00 FKDR", col.out[0].Text)
 
-	// No linked account and no arg: falls back to the broadcaster's login.
 	assert.Equal(t, "streamer", gw.lastCall(t).req.Account)
 }
 
@@ -116,16 +111,12 @@ func TestUrchinAccountResolution(t *testing.T) {
 	cmd := urchinCmd(t, gw, "weekly")
 
 	var col collector
-	// Linked account from config wins over the broadcaster login.
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"LinkedAcc"}`), "", col.emit))
 	assert.Equal(t, "LinkedAcc", gw.lastCall(t).req.Account)
 
-	// An explicit argument wins over the linked account.
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"LinkedAcc"}`), "@SomePlayer extra words", col.emit))
 	assert.Equal(t, "SomePlayer", gw.lastCall(t).req.Account)
 
-	// A stored uuid is used for the linked-account path (Hypixel/Coral accept
-	// or require it) so a rename does not force a Mojang hop on every command.
 	require.NoError(t, cmd.Run(context.Background(), urchinCtx(`{"account":"LinkedAcc","accountUuid":"deadbeefdeadbeefdeadbeefdeadbeef"}`), "", col.emit))
 	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", gw.lastCall(t).req.Account)
 }
@@ -151,8 +142,6 @@ func TestUrchinPerCommandToggleOff(t *testing.T) {
 }
 
 func TestUrchinCustomTemplate(t *testing.T) {
-	// !bwstats rides gossip's hypixel provider (its own external system);
-	// the command stays on the urchin dashboard module.
 	gw := &fakeGossip{replies: map[string]any{
 		"hypixel.stats": gossiprpc.HypixelStatsReply{Player: "Techno", Stars: 402, Wins: 1000, Losses: 100},
 	}}
@@ -175,9 +164,6 @@ func TestUrchinReplyErrorChatsBack(t *testing.T) {
 	assert.Equal(t, "ghostplayer: player not found", col.out[0].Text)
 }
 
-// An infrastructure failure (cold lookup outliving the RPC budget, gossip
-// down) still chats a retry hint — the first attempt must not be silent — while
-// the error propagates for logging.
 func TestUrchinInfraErrorPropagatesAndChatsRetry(t *testing.T) {
 	gw := &fakeGossip{err: context.DeadlineExceeded}
 	cmd := urchinCmd(t, gw, "daily")

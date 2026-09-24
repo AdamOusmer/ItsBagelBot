@@ -1,16 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The overview's heaviest panel, and what is left of the deleted /analytics
-  // route: a window selector, the signups curve, and the three totals that
-  // answer "is growth moving" without leaving the page.
-  //
-  // The curve is the shared AreaSeries, not the old page-local EnrollmentChart.
-  // That component drew a second panel (a cumulative "registered" line derived
-  // BACKWARDS from today's total) which was approximate by construction --
-  // deletions make every historical point a guess, and it carried an "est."
-  // label saying so. A stat tile with the live total is the honest version of
-  // the same answer, so the derived line went with the component.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
@@ -39,10 +29,6 @@
     90: 'admin.overview.window90'
   } as const;
 
-  // SegmentedControl keys its options by their displayed string, so the labels
-  // are the option set and the pick is resolved back by index. Function binding
-  // (get/set) rather than a plain bind: the URL owns the window, so a click has
-  // to navigate instead of writing local state the next load would contradict.
   const labels = $derived(ENROLLMENT_WINDOWS.map((d) => t(WINDOW_LABEL[d])));
   const current = $derived(labels[ENROLLMENT_WINDOWS.indexOf(days)] ?? labels[1]);
 

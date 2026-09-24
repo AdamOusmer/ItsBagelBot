@@ -17,8 +17,6 @@ import (
 
 func TestKVErrMapsOntoPortsSentinels(t *testing.T) {
 	other := errors.New("nats: timeout")
-	// A lost Create on the R3 hub bucket: nats.go wraps the 10164 API error
-	// with ErrKeyExists instead of matching it by code.
 	replicatedCreate := fmt.Errorf("%w: %w",
 		&jetstream.APIError{ErrorCode: jetstream.JSErrCodeStreamWrongLastSequenceConstant}, jetstream.ErrKeyExists)
 	cases := map[string]struct {

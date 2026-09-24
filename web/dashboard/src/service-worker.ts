@@ -4,28 +4,15 @@
 /// <reference types="@sveltejs/kit" />
 import { build, files, version } from '$service-worker';
 
-// SvelteKit types the worker global as a plain WorkerGlobalScope; narrow it to
-// the service-worker scope so skipWaiting()/clients/location are typed.
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
-// `version` is the commit SHA (svelte.config.js version.name), so the cache is
-// deploy-scoped and activate() can drop every prior generation.
 const CACHE = `bagel-dashboard-${version}`;
 
-// Large static files with no offline value; kept out of the precache so we
-// don't push megabytes of imagery to every install. /robots.txt used to be
-// listed here too and no longer needs to be: it is served by a route now
-// (routes/robots.txt), because one static file cannot answer differently for
-// the three hostnames this build serves, so `files` never mentions it.
 const PRECACHE_EXCLUDE = new Set(['/og-image.png', '/logo.png', '/premium-logo.png']);
 
-// Content-hashed build output (always safe to cache) plus the static files we
-// actually want offline: icons, the web manifest, and offline.html.
 const PRECACHE = [...build, ...files.filter((file) => !PRECACHE_EXCLUDE.has(file))];
 const PRECACHE_SET = new Set(PRECACHE);
 
-// Navigation fallback shown when an SSR page can't be reached. It lives in
-// static/ so SvelteKit lists it in `files` and it is part of PRECACHE above.
 const OFFLINE_URL = '/offline.html';
 
 async function precache(): Promise<void> {
@@ -50,15 +37,12 @@ function isPrecached(pathname: string): boolean {
   return PRECACHE_SET.has(pathname);
 }
 
-// Cache-first for precached assets: under a fixed version they never change, so
-// a hit is authoritative and the network is only touched on a miss.
 async function serveFromCache(request: Request): Promise<Response> {
   const cached = await caches.match(request);
   return cached ?? fetch(request);
 }
 
-// Online navigations always hit the network (SSR carries private, no-store
-// data we must never cache); only a network failure falls back to the shell.
+// Navigations always hit the network: SSR carries private, no-store data that must never be cached.
 async function handleNavigation(request: Request): Promise<Response> {
   try {
     return await fetch(request);
@@ -68,16 +52,12 @@ async function handleNavigation(request: Request): Promise<Response> {
   }
 }
 
-// Requests the worker refuses to touch: non-GET, ranged/streamed media, and
-// cross-origin. Bypassed requests behave exactly as if no worker existed.
 function isBypassed(request: Request, url: URL): boolean {
   if (request.method !== 'GET') return true;
   if (request.headers.has('range')) return true;
   return url.origin !== sw.location.origin;
 }
 
-// Returns a Response promise to serve, or undefined to let the request pass
-// through untouched (SSR HTML, __data.json and API calls are never cached).
 function route(request: Request, url: URL): Promise<Response> | undefined {
   if (isPrecached(url.pathname)) return serveFromCache(request);
   if (request.mode === 'navigate') return handleNavigation(request);

@@ -15,58 +15,27 @@ import (
 	"go.uber.org/zap"
 )
 
-// QueueStore holds the per-broadcaster play queue: an ordered line of chatter
-// logins plus an open/closed flag gating joins. The queue module drives it from
-// chat (!queue open/close/next/remove, !join, !list); nothing else writes it.
 type QueueStore interface {
-	// SetOpen opens (true) or closes (false) the queue to new joins. Closing
-	// keeps the line intact so the streamer can play through the remainder.
 	SetOpen(ctx context.Context, broadcasterID uint64, open bool) error
-	// IsOpen reports whether the queue currently accepts joins.
 	IsOpen(ctx context.Context, broadcasterID uint64) (bool, error)
-	// Join appends login to the line if not already in it. It returns the
-	// login's 1-based position, the line's size, and whether this call added it
-	// (false: it was already queued, pos is the existing spot).
 	Join(ctx context.Context, broadcasterID uint64, login string) (pos, size int64, joined bool, err error)
-	// Remove takes login out of the line, reporting whether it was in it. It
-	// serves both a viewer's leave and a moderator's remove.
 	Remove(ctx context.Context, broadcasterID uint64, login string) (bool, error)
-	// Pop dequeues and returns the front of the line plus how many remain
-	// behind them. An empty queue returns login "".
 	Pop(ctx context.Context, broadcasterID uint64) (login string, remaining int64, err error)
-	// List returns the first n logins in order plus the line's total size.
 	List(ctx context.Context, broadcasterID uint64, n int64) (entries []string, total int64, err error)
-	// Clear empties the line without touching the open/closed flag.
 	Clear(ctx context.Context, broadcasterID uint64) error
 }
 
-// Queue keyspace: queue:open:<broadcaster_id> is the joins-accepted flag,
-// queue:line:<broadcaster_id> is the line itself — a sorted set of chatter
-// logins scored by join time (unix millis), so ZADD NX is an atomic
-// join-once-keep-spot and ZPOPMIN is "next player up".
 const (
 	queueOpenPrefix = "queue:open:"
 	queueLinePrefix = "queue:line:"
 )
 
-// ValkeyQueueStore backs QueueStore with one sorted set and one flag key per
-// broadcaster. Both carry a safety TTL (re-armed on open and on every join) so
-// a queue abandoned after a stream reclaims itself.
 type ValkeyQueueStore struct {
 	client valkey.Client
 	ttl    time.Duration
 	log    *zap.Logger
 }
 
-// NewValkeyQueueStore builds the store on a primary-consistent view. One
-// broadcaster's chat drives the whole queue in sequence, so every read follows
-// a write chat just made: IsOpen gates joins against the flag SetOpen wrote,
-// and List renders the line Join and Pop just changed. Join and Pop already
-// reach the master because their batches mix in a write, but a node-local
-// replica serving IsOpen or List makes chat contradict itself — a viewer told
-// the queue is closed right after the streamer opened it, or a !list missing
-// the person who just joined. This is one broadcaster's feature, not the
-// firehose, and the view borrows the client's connections.
 func NewValkeyQueueStore(client valkey.Client, ttl time.Duration, log *zap.Logger) *ValkeyQueueStore {
 	if ttl <= 0 {
 		ttl = 24 * time.Hour
@@ -87,7 +56,6 @@ func (s *ValkeyQueueStore) SetOpen(ctx context.Context, broadcasterID uint64, op
 	seconds := int64(s.ttl.Seconds())
 	for _, r := range s.client.DoMulti(ctx,
 		s.client.B().Set().Key(queueOpenKey(broadcasterID)).Value("1").ExSeconds(seconds).Build(),
-		// Re-arm the line's safety expiry too: an open queue is an active one.
 		s.client.B().Expire().Key(queueLineKey(broadcasterID)).Seconds(seconds).Build(),
 	) {
 		if err := r.Error(); err != nil && !valkey.IsValkeyNil(err) {
@@ -107,11 +75,6 @@ func (s *ValkeyQueueStore) IsOpen(ctx context.Context, broadcasterID uint64) (bo
 
 func (s *ValkeyQueueStore) Join(ctx context.Context, broadcasterID uint64, login string) (pos, size int64, joined bool, err error) {
 	key := queueLineKey(broadcasterID)
-	// One round trip: claim the spot (NX keeps an existing one and its score),
-	// read the resulting rank and size, re-arm the safety expiries. The open
-	// flag is re-armed alongside the line: joins prove the queue is in active
-	// use, so a stream running past the TTL never has its open queue silently
-	// close mid-session. (EXPIRE on an absent flag is a harmless no-op.)
 	seconds := int64(s.ttl.Seconds())
 	resps := s.client.DoMulti(ctx,
 		s.client.B().Zadd().Key(key).Nx().ScoreMember().ScoreMember(float64(time.Now().UnixMilli()), login).Build(),

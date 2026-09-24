@@ -24,8 +24,6 @@ defmodule Ingress.HotPathTest do
       lane_subject_standard: "lane.before"
     )
 
-    # Registered after put_env/1, so it unwinds first: the snapshot is gone
-    # before the config it was taken from is restored.
     on_exit(&Config.uninstall_hot_path/0)
     Config.install_hot_path()
 

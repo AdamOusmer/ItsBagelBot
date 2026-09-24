@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The commands_page invalidation-bus routing: SCOPES and userPrefixes are pure
-// data, so asserting their shape directly is cheaper (and catches a typo'd key
-// sooner) than exercising a whole bus round trip.
 import { describe, expect, mock, test } from 'bun:test';
 
 mock.module('newrelic', () => ({

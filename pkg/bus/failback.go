@@ -32,7 +32,7 @@ type failbackConfig struct {
 func leafFailbackOption() nats.Option {
 	cfg := loadFailbackConfig()
 	if cfg.nodeName == "" {
-		return nil // Local development and tests do not need topology failback.
+		return nil
 	}
 	return nats.ConnectHandler(func(nc *nats.Conn) {
 		go runLeafFailback(nc, cfg)
@@ -42,13 +42,7 @@ func leafFailbackOption() nats.Option {
 func loadFailbackConfig() failbackConfig {
 	return failbackConfig{
 		nodeName: env.Get("NODE_NAME", ""),
-		// The namespace qualifier is load-bearing: the nats-leaf-local Service
-		// exists only in messaging, while every workload runs in app/db. The
-		// original short-name default resolved through the caller's search
-		// path, NXDOMAINed from those namespaces, and left the failback loop
-		// permanently inert — audited live 2026-08-30: 28 of 39 leaf client
-		// connections were parked on a wrong-node leaf for days with zero
-		// ForceReconnect attempts, because localLeafReady never returned true.
+		// Keep the .messaging qualifier: other namespaces cannot resolve the short name.
 		healthURL: env.Get("NATS_LOCAL_LEAF_HEALTH_URL", "http://nats-leaf-local.messaging:8222/healthz"),
 		interval:  durationEnv("NATS_FAILBACK_INTERVAL", defaultFailbackInterval),
 		successes: positiveIntEnv("NATS_FAILBACK_SUCCESSES", defaultFailbackSuccesses),
@@ -57,7 +51,6 @@ func loadFailbackConfig() failbackConfig {
 }
 
 func runLeafFailback(nc *nats.Conn, cfg failbackConfig) {
-	// Spread checks from replicas that were started by the same rollout.
 	initial := time.NewTimer(time.Duration(rand.Int64N(int64(cfg.interval))))
 	defer initial.Stop()
 	<-initial.C
@@ -84,9 +77,6 @@ func runLeafFailback(nc *nats.Conn, cfg failbackConfig) {
 			continue
 		}
 
-		// ForceReconnect preserves subscriptions and buffers new publishes using
-		// the normal NATS reconnect machinery. Reset first so a slow reconnect
-		// cannot trigger repeatedly.
 		consecutive = 0
 		_ = nc.ForceReconnect()
 	}

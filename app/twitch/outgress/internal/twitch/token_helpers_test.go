@@ -10,9 +10,6 @@ import (
 	"testing"
 )
 
-// fakeTokenHTTP swaps the package-level tokenHTTP client for the duration of
-// the test, so postToken's request to id.twitch.tv never leaves the process.
-// Restored automatically via t.Cleanup.
 func fakeTokenHTTP(t *testing.T, handler roundTripFunc) {
 	t.Helper()
 	orig := tokenHTTP
@@ -20,8 +17,6 @@ func fakeTokenHTTP(t *testing.T, handler roundTripFunc) {
 	t.Cleanup(func() { tokenHTTP = orig })
 }
 
-// fakeOAuthResponse builds the http.Response postToken expects from a
-// successful grant.
 func fakeOAuthResponse(body string) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,

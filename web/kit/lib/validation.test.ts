@@ -4,8 +4,6 @@
 import { describe, expect, test } from 'bun:test';
 import { containsLink } from './validation';
 
-// Invisible / full-width characters are built from code points so the source
-// stays ASCII-clean (a raw BOM is even illegal in some toolchains).
 const ZWSP = String.fromCodePoint(0x200b);
 const ZWNJ = String.fromCodePoint(0x200c);
 const BOM = String.fromCodePoint(0xfeff);
@@ -15,8 +13,6 @@ const FULLWIDTH_EXAMPLE_COM = [0xff45, 0xff58, 0xff41, 0xff4d, 0xff50, 0xff4c, 0
 	.join('') + '.' + [0xff43, 0xff4f, 0xff4d].map((c) => String.fromCodePoint(c)).join('');
 
 describe('containsLink', () => {
-	// Anti-bypass corpus: every one of these must be caught. Kept in sync with
-	// internal/domain/validate/link_test.go.
 	test('catches links and obfuscated links', () => {
 		const links = [
 			'http://example.com',
@@ -64,7 +60,6 @@ describe('containsLink', () => {
 		}
 	});
 
-	// Realistic clean notes must pass (no false positives on normal punctuation).
 	test('allows clean gift notes', () => {
 		const clean = [
 			'',

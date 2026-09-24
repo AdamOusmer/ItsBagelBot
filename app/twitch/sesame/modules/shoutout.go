@@ -17,17 +17,10 @@ import (
 const defaultShoutoutTemplate = "Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}"
 
 type shoutoutConfig struct {
-	Message string `json:"message"`
-	// NativeShoutout is a dashboard toggle stored as "on"/"off"; only an
-	// explicit "on" enables it, so a freshly opted-in module posts just the
-	// custom chat line until the broadcaster turns this on. When on, the raid
-	// also fires Twitch's own Send a Shoutout (the same call /shoutout makes),
-	// which renders the raider's current category in Twitch's native card — no
-	// template token can do that without a live Helix lookup.
+	Message        string `json:"message"`
 	NativeShoutout string `json:"native_shoutout"`
 }
 
-// raidEvent is the subset of the channel.raid EventSub payload we use.
 type raidEvent struct {
 	FromBroadcasterUserLogin string `json:"from_broadcaster_user_login"`
 	FromBroadcasterUserName  string `json:"from_broadcaster_user_name"`
@@ -35,10 +28,6 @@ type raidEvent struct {
 	Viewers                  int    `json:"viewers"`
 }
 
-// Shoutout posts a shoutout when another channel raids in. It is a named, opt-in
-// module (KindOptIn): a broadcaster enables it on the dashboard and customizes
-// the message template via config. Off by default. It reads its template from the
-// module config the pipeline wires into the Context.
 func Shoutout(_ engine.Deps) module.Module {
 	m := module.NewModule("shoutout", module.KindOptIn)
 
@@ -71,18 +60,12 @@ func Shoutout(_ engine.Deps) module.Module {
 			"viewers", strconv.Itoa(ev.Viewers),
 		).WithLocale(module.Locale(c.Locale)).ExpandString(text)
 
-		// The raid event names the receiving channel as to_broadcaster_user_id.
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
 			BroadcasterID: ev.ToBroadcasterUserID,
 			Text:          msg,
 		})
 
-		// Also fire Twitch's native /shoutout on the raider when the broadcaster
-		// opted in: outgress resolves To (a login) and calls Helix Send a
-		// Shoutout, which Twitch renders with the raider's live category — the
-		// custom chat line above can never show that without a live Helix call
-		// of our own.
 		if explicitOn(cfg.NativeShoutout) {
 			emit(&module.Output{
 				Type:          outgress.TypeShoutout,

@@ -11,7 +11,6 @@ import (
 	"testing"
 )
 
-// emoteServer serves the three provider shapes on distinct paths.
 func emoteServer() *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/bttv", func(w http.ResponseWriter, _ *http.Request) {
@@ -42,7 +41,6 @@ func TestFetchMergesAndDedups(t *testing.T) {
 	codes := cat.Codes()
 
 	sort.Strings(codes)
-	// KEKW appears in both BTTV and FFZ but is deduped.
 	want := []string{"Clap", "KEKW", "LUL", "OMEGALUL", "PagMan"}
 	if len(codes) != len(want) {
 		t.Fatalf("got %v, want %v", codes, want)
@@ -73,7 +71,6 @@ func TestFetchPartialFailureStillReturnsCodes(t *testing.T) {
 	srv := emoteServer()
 	defer srv.Close()
 
-	// Point FFZ at a 404 path; BTTV and 7TV still resolve.
 	eps := endpointsFor(srv.URL)
 	eps.FFZ = srv.URL + "/missing"
 
@@ -83,7 +80,6 @@ func TestFetchPartialFailureStillReturnsCodes(t *testing.T) {
 		t.Fatal("expected a per-source error from the 404 provider")
 	}
 	codes := cat.Codes()
-	// BTTV (KEKW, OMEGALUL) + 7TV (PagMan, Clap) survive the FFZ failure.
 	if len(codes) != 4 {
 		t.Fatalf("partial fetch got %d codes, want 4: %v", len(codes), codes)
 	}
@@ -96,7 +92,7 @@ func TestRefreshKeepsPreviousSetOnTotalFailure(t *testing.T) {
 	if _, err := f.Refresh(context.Background(), g); err != nil {
 		t.Fatalf("seed refresh: %v", err)
 	}
-	srv.Close() // every source now fails
+	srv.Close()
 
 	n, err := f.Refresh(context.Background(), g)
 	if err == nil {
@@ -110,9 +106,6 @@ func TestRefreshKeepsPreviousSetOnTotalFailure(t *testing.T) {
 	}
 }
 
-// The per-provider split is what the {7tvemotes} family reads, so it is pinned
-// separately from the merged set: a code that lands in the wrong provider's
-// list would print under the wrong token name in chat.
 func TestFetchCatalogKeepsProvidersApart(t *testing.T) {
 	srv := emoteServer()
 	defer srv.Close()
@@ -123,15 +116,11 @@ func TestFetchCatalogKeepsProvidersApart(t *testing.T) {
 		t.Fatalf("fetch: %v", err)
 	}
 
-	// Sorted per provider, and KEKW is in BOTH BTTV and FFZ: only the merged
-	// view dedups across providers.
 	assertCodes(t, "bttv", cat.BTTV, []string{"KEKW", "OMEGALUL"})
 	assertCodes(t, "ffz", cat.FFZ, []string{"KEKW", "LUL"})
 	assertCodes(t, "7tv", cat.SevenTV, []string{"Clap", "PagMan"})
 }
 
-// The catalog a fetcher has never refreshed is empty rather than nil-checked
-// by every reader; the command lane renders that as an empty list.
 func TestCatalogIsEmptyBeforeFirstRefresh(t *testing.T) {
 	f := NewEmoteFetcher(nil, DefaultEmoteEndpoints)
 	cat := f.Catalog()
@@ -140,8 +129,6 @@ func TestCatalogIsEmptyBeforeFirstRefresh(t *testing.T) {
 	}
 }
 
-// Refresh publishes the catalog on the same call that installs the gate's set,
-// which is the whole reason the tokens cost no extra HTTP path.
 func TestRefreshPublishesTheCatalog(t *testing.T) {
 	srv := emoteServer()
 	defer srv.Close()

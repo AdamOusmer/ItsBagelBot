@@ -10,21 +10,17 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 )
 
-// Emoji built from code points per house style - no emoji rune sits in source.
-// Hype lines alternate distinct code points because eight IDENTICAL runes in a
-// row raise the repeat heuristic (correctly - it is a different flag), which
-// would defeat the only-symbol precondition these tests are about.
 var (
-	zwj      = string(rune(0x200d)) // zero width joiner
-	vs16     = string(rune(0xfe0f)) // variation selector-16
-	zwnj     = string(rune(0x200c)) // zero width non-joiner (stays evasion)
+	zwj      = string(rune(0x200d))
+	vs16     = string(rune(0xfe0f))
+	zwnj     = string(rune(0x200c))
 	man      = string(rune(0x1f468))
 	woman    = string(rune(0x1f469))
 	child    = string(rune(0x1f466))
 	whiteFlg = string(rune(0x1f3f3))
 	rainbow  = string(rune(0x1f308))
-	family   = man + zwj + woman + zwj + child // 👨‍👩‍👧 shape
-	pride    = whiteFlg + vs16 + zwj + rainbow // 🏳️‍🌈 shape
+	family   = man + zwj + woman + zwj + child
+	pride    = whiteFlg + vs16 + zwj + rainbow
 	party    = string(rune(0x1f389))
 	cake     = string(rune(0x1f382))
 	fire     = string(rune(0x1f525))
@@ -136,7 +132,6 @@ func TestSymbolSpamStillDeleted(t *testing.T) {
 		line string
 	}{
 		{"punctuation wall", strings.Repeat("!", 9) + " " + party},
-		// Caps AND symbol together: runs kept under 8 so repeat stays out.
 		{"caps co-flagged", hype + " !!!!!???? AHHH"},
 		{"zero-width co-flagged", hype + zwsp + " padding padding"},
 	}

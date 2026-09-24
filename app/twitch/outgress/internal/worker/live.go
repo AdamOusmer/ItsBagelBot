@@ -16,21 +16,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// LiveWriter persists the result of a Twitch live re-check into the shared live
-// projection and fans the change out to the worker fleet. It is the write-back
-// side of the worker's key-expiry / cold-miss escalation: outgress owns the
-// Twitch call, the worker owns reading the key.
 type LiveWriter struct {
 	client          valkey.Client
 	nc              *nats.Conn
-	cacheInvalidate string // core-NATS prefix; subject = prefix + "." + scope
+	cacheInvalidate string
 	ttl             time.Duration
 	log             *zap.Logger
 
-	// The two writes apply through the shared versioned scripts
-	// (internal/domain/live): the re-check result carries its own instant as
-	// the version, so a stale stream.offline event landing after this write
-	// cannot delete what Twitch just confirmed, whichever replica processes it.
 	setScript   *valkey.Lua
 	clearScript *valkey.Lua
 }
@@ -46,9 +38,6 @@ func NewLiveWriter(client valkey.Client, nc *nats.Conn, cacheInvalidatePrefix st
 	}
 }
 
-// Write stores the live state for broadcasterID (versioned SET with TTL when
-// live, conditional DEL when offline) and broadcasts a live cache invalidation
-// so worker replicas drop their cached bool and read the fresh state.
 func (w *LiveWriter) Write(ctx context.Context, broadcasterID string, isLive bool) error {
 	key := livekey.KeyString(broadcasterID)
 	version := livekey.VersionNow()

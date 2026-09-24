@@ -1,15 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package mcsr is the gossip provider for the MCSR Ranked public API: a
-// player's current ranked standing, plus the per-channel stream-session delta
-// sesame's !session command shows.
-//
-// The session flow is snapshot-based: when a stream goes online sesame calls
-// session_start, which stores the player's standing under the broadcaster's
-// channel id. A later session call diffs the live standing against that
-// snapshot, so "this stream" means exactly the live session — the value the
-// dashboard module page promises.
 package mcsr
 
 import (
@@ -31,71 +22,30 @@ import (
 )
 
 const (
-	// userTTL keeps chat spam off the MCSR API (500 req / 10 min fleet-wide).
-	// Sized against the game, not against a round number: the world record sits
-	// around 6:35, so no run can start and finish inside this window, and a
-	// viewer asking twice about the same player is asking about the same run.
-	// At one minute the entry expired faster than the upstream answered on a
-	// cold call, so essentially every !mcsr paid a full round trip to an API
-	// that returns the same numbers.
-	userTTL = 6 * time.Minute
-	// snapshotTTL outlives any plausible single stream; Twitch caps broadcasts
-	// at 48h.
+	userTTL     = 6 * time.Minute
 	snapshotTTL = 49 * time.Hour
 
-	// lastMatchTTL: a finished match is a discrete event, not a slowly moving
-	// stat block, so a viewer asking "what just happened" wants it fresher
-	// than userTTL's season aggregate. Half of userTTL keeps a second !lastmatch
-	// from a chat pile-on off the API without going so short that a match
-	// finishing mid-window costs its own round trip anyway.
-	lastMatchTTL = 3 * time.Minute
-	// recordTTL: the head-to-head total between two specific players only
-	// moves when those two specific players finish a match against each
-	// other, a far rarer event than either one finishing any match, so it can
-	// sit longer than lastMatchTTL without going stale in practice.
-	recordTTL = 10 * time.Minute
-	// leaderboardTTL covers the elo and phase-point boards: both are full,
-	// unbounded arrays (see fetchEloLeaderboard/fetchPhaseLeaderboard), the
-	// heaviest single payload this provider pulls, and the ranking only
-	// reshuffles at the pace of completed ranked matches across the entire
-	// player base, not per viewer request.
-	leaderboardTTL = 5 * time.Minute
-	// recordLeaderboardTTL: season-best times move even less often than elo —
-	// only when someone actually beats a existing personal best on that
-	// seed pool — so it can sit longer than the rating boards.
+	lastMatchTTL         = 3 * time.Minute
+	recordTTL            = 10 * time.Minute
+	leaderboardTTL       = 5 * time.Minute
 	recordLeaderboardTTL = 10 * time.Minute
-	// raceTTL: the weekly race leaderboard updates whenever any entrant
-	// submits a faster run against the shared seed, a similar cadence to a
-	// single player's match history, so it reuses lastMatchTTL's reasoning.
-	raceTTL = lastMatchTTL
-	// negativeTTL is shared by every mcsr.* cache below (cachedUser inlines
-	// the same 5-minute value; a "not found" answer is worth remembering
-	// almost as long as a real one, since retrying it costs a full round trip
-	// for the same negative result).
-	negativeTTL = 5 * time.Minute
+	raceTTL              = lastMatchTTL
+	negativeTTL          = 5 * time.Minute
 
 	httpTimeout    = 10 * time.Second
 	handlerTimeout = 15 * time.Second
 )
 
-// Config carries the provider's environment. APIKey is optional: MCSR grants
-// expanded rate limits to keyed clients via the Private-Key header.
 type Config struct {
 	BaseURL   string
 	APIKey    string
 	RateLimit float64
 }
 
-// providerName is the subject token this provider answers under.
 const providerName = "mcsr"
 
-// rateWindowSeconds is the MCSR budget window (10 minutes: 500 requests).
 const rateWindowSeconds = 600.0
 
-// api holds the provider's runtime pieces; the declared endpoints capture it.
-// The endpoints stay bespoke handlers (not byte-flows): they answer typed
-// replies whose snapshot side effects and elo semantics do not fit the shared
-// cached-bytes skeleton.
 type api struct {
 	http    *core.HTTPClient
 	cache   *core.Cache
@@ -104,9 +54,6 @@ type api struct {
 	buckets core.Buckets
 }
 
-// New builds the mcsr provider.
-//
-// Trusted is declared before any client exists — trust is positional.
 func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d).Trusted()
 	p := newAPI(cfg, d, b)
@@ -142,12 +89,6 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	}
 }
 
-// --- upstream shapes -----------------------------------------------------------
-
-// userResponse is the /users/{identifier} envelope subset gossip reads.
-// eloRate/eloRank are null for an unrated player. statistics.season maps a
-// category name to per-queue counters; the ranked queue is the one MCSR Ranked
-// is about.
 type userResponse struct {
 	Status string `json:"status"`
 	Data   struct {
@@ -164,7 +105,6 @@ type userResponse struct {
 	} `json:"data"`
 }
 
-// snapshot is the stream-start standing stored per channel.
 type snapshot struct {
 	Account  string `json:"account"`
 	Nickname string `json:"nickname"`
@@ -177,9 +117,6 @@ type snapshot struct {
 
 func snapshotKey(channelID string) string { return core.Key("mcsr", "session", channelID) }
 
-// friendlyError maps an upstream failure onto a user-facing reply error, or
-// returns "" for an infrastructure failure. The MCSR API answers 400 for "data
-// not found" and 401 for wrong parameters.
 func friendlyError(err error) string {
 	var ue *core.UpstreamError
 	if errors.As(err, &ue) {
@@ -193,28 +130,15 @@ func friendlyError(err error) string {
 	return ""
 }
 
-// enforceRateLimit consumes one request from the MCSR budget under the shared
-// premium/standard bucket discipline (see core.Buckets).
 func (p *api) enforceRateLimit(ctx context.Context, isPremium bool) error {
 	return p.buckets.Enforce(ctx, p.limiter, isPremium)
 }
 
-// admit binds the budget to one lane for a cached lookup. It is handed to
-// core.Cached rather than written inside the fill because a fill runs once per
-// singleflight flight: a check in there is charged to whichever caller won the
-// flight and its verdict is served to everyone joined to it, so a drained
-// standard bucket would deny premium callers the reserve they are entitled to.
 func (p *api) admit(isPremium bool) func(context.Context) error {
 	return func(ctx context.Context) error { return p.enforceRateLimit(ctx, isPremium) }
 }
 
-// fetchUser loads a player's live standing straight from the API.
-//
-// Account is raw chat text and was proven live (red-team F2) to parse as URL
-// syntax when interpolated bare: "?x=1" became a query string, "#x" a
-// fragment, each forcing upstream calls with attacker-chosen shape while
-// carrying the provider's API-key headers. Every path segment below is
-// therefore escaped individually - a segment may never change the request.
+// Escape every path segment: raw chat text with "?" or "#" would reshape the keyed request.
 func (p *api) fetchUser(ctx context.Context, account string) (gossiprpc.McsrUserReply, error) {
 	var resp userResponse
 	if err := p.http.GetJSON(ctx, "/users/"+url.PathEscape(strings.TrimSpace(account)), nil, &resp); err != nil {
@@ -253,15 +177,12 @@ func (p *api) fetchUser(ctx context.Context, account string) (gossiprpc.McsrUser
 	return reply, nil
 }
 
-// cachedUser is fetchUser behind the shared 60s cache.
 func (p *api) cachedUser(ctx context.Context, account string, isPremium bool) (gossiprpc.McsrUserReply, error) {
 	key := core.Key(providerName, "user", strings.ToLower(strings.TrimSpace(account)))
 	return core.Cached(ctx, p.cache, key, userTTL, 5*time.Minute, p.admit(isPremium), func(ctx context.Context) (gossiprpc.McsrUserReply, error) {
 		return p.fetchUser(ctx, account)
 	})
 }
-
-// --- endpoints ------------------------------------------------------------------
 
 func (p *api) user(ctx context.Context, req gossiprpc.Request) any {
 	log := monitor.TxnLogger(ctx, p.log)
@@ -280,18 +201,12 @@ func (p *api) user(ctx context.Context, req gossiprpc.Request) any {
 	return reply
 }
 
-// sessionStart snapshots the player's live standing for the channel. It
-// fetches fresh (not through the 60s cache): the snapshot is the session
-// baseline, so it must not predate the stream by a stale cache window.
 func (p *api) sessionStart(ctx context.Context, req gossiprpc.Request) any {
 	log := monitor.TxnLogger(ctx, p.log)
 	account := strings.TrimSpace(req.Account)
 	if account == "" || req.ChannelID == "" {
 		return gossiprpc.McsrSnapshotReply{Error: "missing account or channel"}
 	}
-	// Spent inline: this path deliberately bypasses the cache (the snapshot is the
-	// session baseline and must not predate the stream), so no cached admission
-	// carries the debit for it.
 	if err := p.enforceRateLimit(ctx, req.IsPremium); err != nil {
 		return gossiprpc.McsrSnapshotReply{Error: friendlyError(err)}
 	}
@@ -322,12 +237,6 @@ func (p *api) writeSnapshot(ctx context.Context, channelID, account string, user
 	}, snapshotTTL)
 }
 
-// sessionEnd drops the channel's stream-start snapshot when the stream ends.
-// The snapshot TTL would eventually reclaim it, but a rapid stop/restart cycle
-// that raced its handlers (#561) left the old baseline diffing against the new
-// stream; clearing here makes "this stream" start clean on the next go-live
-// even when the online snapshot lost that race. Pure store delete: no upstream
-// call, no rate-limit spent. Reuses McsrSnapshotReply as the ack shape.
 func (p *api) sessionEnd(ctx context.Context, req gossiprpc.Request) any {
 	if req.ChannelID == "" {
 		return gossiprpc.McsrSnapshotReply{Error: "missing channel"}
@@ -338,17 +247,6 @@ func (p *api) sessionEnd(ctx context.Context, req gossiprpc.Request) any {
 	return gossiprpc.McsrSnapshotReply{}
 }
 
-// session answers the delta since the channel's stream-start snapshot. Without
-// a usable snapshot (none stored, or it tracks a different account) it takes
-// one now and reports HasSnapshot=false so the caller can say "tracking from
-// now". Split into sessionUser/sessionSnapshot/startSession/sessionDelta below
-// (each a self-contained step: fetch, read, take-fresh, build) rather than one
-// function carrying every branch — the "Bumpy Road" shape CodeScene flags when
-// several independent conditionals sit at the same nesting level.
-// sessionRequest bundles !session's per-call values threaded through
-// sessionUser/sessionSnapshot/startSession: the txn-scoped logger, channel
-// and account. Passing one value keeps each step's own signature short
-// instead of growing by one parameter every time the flow needs another.
 type sessionRequest struct {
 	log       *zap.Logger
 	channelID string
@@ -380,10 +278,6 @@ func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
 	return sessionDelta(user, snap)
 }
 
-// sessionUser fetches !session's account standing, turning an upstream
-// failure into the reply's Error field (ok=false) instead of propagating it —
-// the same "always answer something" contract every endpoint in this file
-// follows.
 func (p *api) sessionUser(ctx context.Context, req sessionRequest) (user gossiprpc.McsrUserReply, errReply gossiprpc.McsrSessionReply, ok bool) {
 	user, err := p.cachedUser(ctx, req.account, req.isPremium)
 	if err != nil {
@@ -396,10 +290,6 @@ func (p *api) sessionUser(ctx context.Context, req sessionRequest) (user gossipr
 	return user, gossiprpc.McsrSessionReply{}, true
 }
 
-// sessionSnapshot reads the channel's stream-start snapshot. hasSnapshot is
-// false both when none is stored and when it tracks a different account (a
-// linked-account change mid-stream starts a fresh baseline instead of
-// diffing against someone else's numbers).
 func (p *api) sessionSnapshot(ctx context.Context, req sessionRequest) (snap snapshot, hasSnapshot bool) {
 	ok, err := p.cache.GetJSON(ctx, snapshotKey(req.channelID), &snap)
 	if err != nil {
@@ -411,9 +301,6 @@ func (p *api) sessionSnapshot(ctx context.Context, req sessionRequest) (snap sna
 	return snap, true
 }
 
-// startSession takes a fresh stream-start snapshot and answers
-// HasSnapshot=false so the caller can say "tracking from now" instead of a
-// fake zero delta.
 func (p *api) startSession(ctx context.Context, req sessionRequest, user gossiprpc.McsrUserReply) gossiprpc.McsrSessionReply {
 	if err := p.writeSnapshot(ctx, req.channelID, req.account, user); err != nil {
 		req.log.Warn("mcsr snapshot write failed", zap.String("channel_id", req.channelID), zap.Error(err))
@@ -426,8 +313,6 @@ func (p *api) startSession(ctx context.Context, req sessionRequest, user gossipr
 	}
 }
 
-// sessionDelta builds the !session reply from the account's current standing
-// and the channel's stream-start snapshot.
 func sessionDelta(user gossiprpc.McsrUserReply, snap snapshot) gossiprpc.McsrSessionReply {
 	reply := gossiprpc.McsrSessionReply{
 		Nickname:    user.Nickname,
@@ -438,38 +323,27 @@ func sessionDelta(user gossiprpc.McsrUserReply, snap snapshot) gossiprpc.McsrSes
 		SinceUnix:   snap.AtUnix,
 		HasSnapshot: true,
 	}
-	// Elo change only means something when both ends are rated.
 	if user.Elo >= 0 && snap.Elo >= 0 {
 		reply.EloChange = user.Elo - snap.Elo
 	}
 	return reply
 }
 
-// --- upstream shapes: match history / versus --------------------------------
-
-// matchPlayer is one entry in a matchInfo/versus players[] array.
 type matchPlayer struct {
 	UUID     string `json:"uuid"`
 	Nickname string `json:"nickname"`
 }
 
-// matchChange is one player's elo delta from a matchInfo.changes[] entry.
-// Change is nil for a player who was unrated going into the match.
 type matchChange struct {
 	UUID   string `json:"uuid"`
 	Change *int   `json:"change"`
 }
 
-// matchResultRef is a matchInfo's winner pointer: UUID nil means a draw or no
-// result, otherwise it names the winning player and Time is their completion
-// time in milliseconds.
 type matchResultRef struct {
 	UUID *string `json:"uuid"`
 	Time int64   `json:"time"`
 }
 
-// matchInfo is the MatchInfo shape shared by /users/{id}/matches and
-// /matches/{id}: one match, completed, forfeited, or decayed.
 type matchInfo struct {
 	Date        int64          `json:"date"`
 	SeedType    *string        `json:"seedType"`
@@ -486,9 +360,6 @@ type matchesResponse struct {
 	Data   []matchInfo `json:"data"`
 }
 
-// versusResponse is /users/{a}/versus/{b}'s envelope. Ranked/Casual key
-// player uuids to that queue's win count, plus a fixed "total" key for the
-// queue's match count; !record sums both queues for its grand total.
 type versusResponse struct {
 	Status string `json:"status"`
 	Data   struct {
@@ -500,10 +371,6 @@ type versusResponse struct {
 	} `json:"data"`
 }
 
-// --- upstream shapes: leaderboards ------------------------------------------
-
-// lbUser is one row shared by the elo and phase-point leaderboards: a
-// UserProfile plus the one season-scoped number each board ranks on.
 type lbUser struct {
 	Nickname     string `json:"nickname"`
 	SeasonResult struct {
@@ -520,8 +387,6 @@ type usersLeaderboardResponse struct {
 	} `json:"data"`
 }
 
-// recordEntry is one row of /record-leaderboard: flat, not nested under a
-// "users" key like the other two boards.
 type recordEntry struct {
 	Rank int   `json:"rank"`
 	Time int64 `json:"time"`
@@ -534,8 +399,6 @@ type recordLeaderboardResponse struct {
 	Status string        `json:"status"`
 	Data   []recordEntry `json:"data"`
 }
-
-// --- upstream shapes: weekly race -------------------------------------------
 
 type weeklyRaceEntry struct {
 	Rank   int `json:"rank"`
@@ -553,17 +416,8 @@ type weeklyRaceResponse struct {
 	} `json:"data"`
 }
 
-// --- shared helpers ----------------------------------------------------------
-
-// leaderboardLimit is !lb's "top 5" — chat gets one line, not the full
-// (sometimes unbounded) board the upstream returns.
 const leaderboardLimit = 5
 
-// mcsrFormatTime renders a completion time in milliseconds the way MCSR
-// Ranked's own clients display a run: minutes:seconds.milliseconds. A
-// non-positive input (no completion — a draw, or a forfeit called before
-// anyone finished) renders as "" so the module can dash it like any other
-// missing split.
 func mcsrFormatTime(ms int64) string {
 	if ms <= 0 {
 		return ""
@@ -574,8 +428,6 @@ func mcsrFormatTime(ms int64) string {
 	return fmt.Sprintf("%d:%02d.%03d", minutes, seconds, millis)
 }
 
-// mcsrTitleCase renders an upstream SCREAMING_SNAKE_CASE enum
-// ("DESERT_TEMPLE") as words ("Desert Temple") for chat display.
 func mcsrTitleCase(s string) string {
 	parts := strings.Split(s, "_")
 	for i, part := range parts {
@@ -587,21 +439,10 @@ func mcsrTitleCase(s string) string {
 	return strings.Join(parts, " ")
 }
 
-// mcsrCacheID folds an account and season into one cache-key id so two
-// different seasons of the same lookup never collide on one entry; "0"
-// stands for "current season" the same way an unset Season does on the wire.
 func mcsrCacheID(account string, season int) string {
 	return core.CacheID(account, strconv.Itoa(season))
 }
 
-// matchSelf splits a match's two players into (self, opponent). It matches
-// by nickname (the common case: a viewer types a Minecraft username) then by
-// dashless uuid; when neither typed identifier is recognized (a discord.<id>
-// identifier, which the players[] array carries no field for) it falls back
-// to positional order rather than failing the whole command — a second
-// upstream call to resolve it is not on the table for a one-call command.
-// Only the first two entries are read (1v1 assumed, per the spec's own note
-// that an FFA match is shaped differently).
 func matchSelf(account string, players []matchPlayer) (self, opponent matchPlayer, ok bool) {
 	if len(players) < 2 {
 		return matchPlayer{}, matchPlayer{}, false
@@ -621,7 +462,6 @@ func matchPlayerIs(account string, p matchPlayer) bool {
 	return strings.EqualFold(strings.ReplaceAll(p.UUID, "-", ""), strings.ReplaceAll(needle, "-", ""))
 }
 
-// matchResult reports a match's outcome from selfUUID's perspective.
 func matchResult(m matchInfo, selfUUID string) string {
 	switch {
 	case m.Result.UUID == nil:
@@ -633,8 +473,6 @@ func matchResult(m matchInfo, selfUUID string) string {
 	}
 }
 
-// matchEloChange finds selfUUID's elo delta among a match's changes[],
-// answering 0 for a player who was unrated going in (Change is nil then).
 func matchEloChange(changes []matchChange, selfUUID string) int {
 	for _, c := range changes {
 		if c.UUID == selfUUID && c.Change != nil {
@@ -643,8 +481,6 @@ func matchEloChange(changes []matchChange, selfUUID string) int {
 	}
 	return 0
 }
-
-// --- fetch: match history / versus ------------------------------------------
 
 func (p *api) fetchLastMatch(ctx context.Context, account string, season int) (matchesResponse, error) {
 	var resp matchesResponse
@@ -665,9 +501,6 @@ func (p *api) cachedLastMatch(ctx context.Context, account string, season int, i
 	})
 }
 
-// versusQuery bundles !record's two accounts and season so fetchVersus and
-// cachedVersus take one named value instead of three loose parameters
-// alongside ctx (and isPremium, for the cached variant).
 type versusQuery struct {
 	A      string
 	B      string
@@ -695,8 +528,6 @@ func (p *api) cachedVersus(ctx context.Context, q versusQuery, isPremium bool) (
 	})
 }
 
-// --- fetch: leaderboards -----------------------------------------------------
-
 func leaderboardQuery(season int, country string) url.Values {
 	q := url.Values{}
 	if season > 0 {
@@ -716,10 +547,6 @@ func (p *api) fetchEloLeaderboard(ctx context.Context, season int, country strin
 	return resp.Data.Users, nil
 }
 
-// lbQuery bundles a leaderboard lookup's season/country/predicted filters so
-// cachedPhaseLeaderboard and fetchPhaseLeaderboard take one named value
-// instead of three loose parameters alongside ctx (and isPremium, for the
-// cached variant).
 type lbQuery struct {
 	Season    int
 	Country   string
@@ -738,11 +565,6 @@ func (p *api) fetchPhaseLeaderboard(ctx context.Context, q lbQuery) ([]lbUser, e
 	return resp.Data.Users, nil
 }
 
-// fetchRecordLeaderboard always sends season explicitly (default "0"), never
-// omits it: /record-leaderboard's own default for a missing param is "all
-// seasons combined" (spec section 3), the one board whose "unset" behavior
-// differs from the rest of mcsr's "unset means current season" convention.
-// Sending "0" is what actually asks for the current season here.
 func (p *api) fetchRecordLeaderboard(ctx context.Context, season int) ([]recordEntry, error) {
 	var resp recordLeaderboardResponse
 	q := url.Values{"season": {strconv.Itoa(season)}}
@@ -781,8 +603,6 @@ func (p *api) cachedRecordLeaderboard(ctx context.Context, season int, isPremium
 	})
 }
 
-// --- fetch: weekly race -------------------------------------------------------
-
 func (p *api) fetchWeeklyRace(ctx context.Context) (weeklyRaceResponse, error) {
 	var resp weeklyRaceResponse
 	if err := p.http.GetJSON(ctx, "/weekly-race", nil, &resp); err != nil {
@@ -791,18 +611,12 @@ func (p *api) fetchWeeklyRace(ctx context.Context) (weeklyRaceResponse, error) {
 	return resp, nil
 }
 
-// cachedWeeklyRace caches the whole current-week leaderboard under one key,
-// not per requesting account: the upstream has no per-player filter for this
-// endpoint, so every viewer asking about a different player this week still
-// shares one cached response and one upstream call — see weeklyRace's doc.
 func (p *api) cachedWeeklyRace(ctx context.Context, isPremium bool) (weeklyRaceResponse, error) {
 	key := core.Key(providerName, "weekly-race", "current")
 	return core.Cached(ctx, p.cache, key, raceTTL, negativeTTL, p.admit(isPremium), func(ctx context.Context) (weeklyRaceResponse, error) {
 		return p.fetchWeeklyRace(ctx)
 	})
 }
-
-// --- endpoints: match history / versus ---------------------------------------
 
 func (p *api) lastMatch(ctx context.Context, req gossiprpc.Request) any {
 	log := monitor.TxnLogger(ctx, p.log)
@@ -870,12 +684,6 @@ func (p *api) versus(ctx context.Context, req gossiprpc.Request) any {
 	return buildRecordReply(a, b, resp)
 }
 
-// matchVersusUUIDs maps the two typed identifiers onto the upstream's
-// players[] uuids; that array is not guaranteed to list them in request
-// order (the spec's own sample shows identifier2 listed first). Matches by
-// nickname against b, falling back to positional order otherwise — the same
-// best-effort tradeoff as matchSelf, and for the same reason (no second call
-// budgeted to resolve a uuid/discord.id identifier).
 func matchVersusUUIDs(a string, players []matchPlayer) (uuidA, uuidB string) {
 	if len(players) < 2 {
 		return "", ""
@@ -906,8 +714,6 @@ func buildRecordReply(a, b string, resp versusResponse) gossiprpc.McsrRecordRepl
 		Played:  int(d.Results.Ranked["total"] + d.Results.Casual["total"]),
 	}
 }
-
-// --- endpoints: leaderboards ---------------------------------------------------
 
 func (p *api) leaderboard(ctx context.Context, req gossiprpc.Request) any {
 	log := monitor.TxnLogger(ctx, p.log)
@@ -1001,8 +807,6 @@ func recordEntries(entries []recordEntry) []gossiprpc.McsrLeaderboardEntry {
 	return out
 }
 
-// --- endpoints: weekly race ------------------------------------------------
-
 func (p *api) weeklyRace(ctx context.Context, req gossiprpc.Request) any {
 	log := monitor.TxnLogger(ctx, p.log)
 	account := strings.TrimSpace(req.Account)
@@ -1030,14 +834,6 @@ func buildWeeklyRaceReply(account string, board []weeklyRaceEntry) gossiprpc.Mcs
 		LeaderName: board[0].Player.Nickname,
 		LeaderTime: mcsrFormatTime(board[0].Time),
 	}
-	// asciiEqualFold instead of lowering both sides: the old form allocated a
-	// new string per board entry (~150 entries per !mcsr call) purely to throw
-	// it away. Rejected building a nickname->entry map: the board is decoded
-	// fresh per upstream fetch and looked up exactly once, so a map costs a
-	// full pass plus allocations to save part of one pass. Also rejected
-	// strings.EqualFold, which folds Unicode: it matches "\u017fome" to "Some"
-	// where the old ToLower compare did not, so a non-ASCII account could take
-	// an unrelated player's rank and time.
 	for _, e := range board {
 		if asciiEqualFold(e.Player.Nickname, account) {
 			reply.PlayerTime = mcsrFormatTime(e.Time)
@@ -1049,12 +845,6 @@ func buildWeeklyRaceReply(account string, board []weeklyRaceEntry) gossiprpc.Mcs
 	return reply
 }
 
-// asciiEqualFold reports whether a and b are equal ignoring ASCII case only.
-// It is exactly strings.ToLower(a) == strings.ToLower(b) for the ASCII
-// alphabet Minecraft nicknames use, without either allocation, and unlike
-// strings.EqualFold it folds nothing outside A-Z: a non-ASCII byte compares
-// literally, so no account outside that alphabet can match a nickname inside
-// it.
 func asciiEqualFold(a, b string) bool {
 	if len(a) != len(b) {
 		return false
@@ -1067,7 +857,6 @@ func asciiEqualFold(a, b string) bool {
 	return true
 }
 
-// lowerASCII lowercases one ASCII letter and leaves every other byte alone.
 func lowerASCII(c byte) byte {
 	if c >= 'A' && c <= 'Z' {
 		return c + ('a' - 'A')

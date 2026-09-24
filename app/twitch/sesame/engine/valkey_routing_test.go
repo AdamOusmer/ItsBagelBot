@@ -11,11 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Reads default to the node-local replica, which lags the primary. These stores
-// read back state their own caller just wrote, so their reads are pinned; a
-// refactor that drops a Primary wrap fails here instead of silently serving
-// chat a value that contradicts the write that produced it.
-
 func TestLoyaltyCounterViewIsPrimaryAndTheBalanceCacheIsNot(t *testing.T) {
 	store := NewValkeyLoyaltyStore(nil, nil, nil, nil)
 

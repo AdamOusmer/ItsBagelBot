@@ -32,8 +32,6 @@ func testConfig() ports.Config {
 	}
 }
 
-// fakeSink is the engine side of a RunCtx: edits apply in place, in order.
-// waits records every distinct waiting message a stage showed.
 type fakeSink struct {
 	mu    sync.Mutex
 	run   deploy.Run
@@ -95,7 +93,6 @@ func (f *fixture) stageOf(id deploy.StageID) deploy.Stage {
 	return *run.Stage(id)
 }
 
-// runStage drives a stage the way the engine does: Done first, Run when not.
 func (f *fixture) runStage(t *testing.T, id deploy.StageID) (done bool, err error) {
 	t.Helper()
 	s := stageByID(t, id)
@@ -123,8 +120,6 @@ type fixedClock struct{}
 
 func (fixedClock) Now() time.Time { return time.Date(2026, 9, 23, 23, 30, 0, 0, time.UTC) }
 
-// loadManifests reads testdata/k8s, the real deploy/k8s files copied as they
-// were when the pin rewrite was written, keyed by their repo path.
 func loadManifests(t *testing.T) ports.Files {
 	t.Helper()
 	entries, err := os.ReadDir(filepath.Join("testdata", "k8s"))
@@ -144,18 +139,13 @@ func loadManifests(t *testing.T) ports.Files {
 
 type fakePR struct {
 	ports.PullRequest
-	files ports.Files
-	// behind is how many update-branch calls it takes to catch up with main.
+	files  ports.Files
 	behind int
 }
 
-// fakeGitHub is a linear main, branches with one commit each, and PRs that
-// merge by overlaying their files on main. Mutations are logged in calls.
 type fakeGitHub struct {
-	mu      sync.Mutex
-	history []deploy.SHA
-	// offMain are commits outside main's history (a PR head, a fork commit):
-	// main...sha reports them ahead.
+	mu       sync.Mutex
+	history  []deploy.SHA
 	offMain  map[deploy.SHA]bool
 	trees    map[deploy.SHA]ports.Files
 	branches map[ports.Branch]deploy.SHA
@@ -172,7 +162,6 @@ type fakeGitHub struct {
 	seq      int
 }
 
-// runStep is what one poll of a workflow run sees.
 type runStep struct {
 	run  ports.WorkflowRun
 	jobs []ports.Job
@@ -190,7 +179,6 @@ func newFakeGitHub() *fakeGitHub {
 
 func (g *fakeGitHub) head() deploy.SHA { return g.history[len(g.history)-1] }
 
-// commitMain appends a main commit carrying files over the current head.
 func (g *fakeGitHub) commitMain(sha deploy.SHA, files ports.Files) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -342,8 +330,6 @@ func (g *fakeGitHub) DeleteBranch(_ context.Context, b ports.Branch) error {
 	return nil
 }
 
-// CommitFiles keeps only the branch's own files in the tree it records, so a
-// merge overlays exactly what the PR changed.
 func (g *fakeGitHub) CommitFiles(_ context.Context, spec ports.CommitSpec) (deploy.SHA, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -367,9 +353,6 @@ func sortedFilePaths(files ports.Files) []string {
 	return out
 }
 
-// Checks pops one summary per call until the last, which repeats. They are
-// keyed by the head before any update-branch ("u" suffixes). No entry means
-// every check passed.
 func (g *fakeGitHub) Checks(_ context.Context, sha deploy.SHA) (ports.CheckSummary, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -438,11 +421,8 @@ func (g *fakeGitHub) FindWorkflowRun(_ context.Context, q ports.RunQuery) (ports
 	return ports.WorkflowRun{}, false, nil
 }
 
-// current is the step the last WorkflowRun poll reached.
 func (g *fakeGitHub) current(id int64) runStep { return g.steps[id][0] }
 
-// WorkflowRun advances the run one step (the first step is the run as
-// FindWorkflowRun sees it); RunJobs reads the step reached.
 func (g *fakeGitHub) WorkflowRun(_ context.Context, id int64) (ports.WorkflowRun, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -482,8 +462,6 @@ func (g *fakeGitHub) AttestationExists(_ context.Context, d deploy.Digest) (bool
 	return g.attested[d], nil
 }
 
-// fakeRegistry answers from images; refused holds the errors the real
-// adapter returns for an index it rejects itself.
 type fakeRegistry struct {
 	images  map[ports.ImageRef]ports.ImageInfo
 	tags    map[deploy.ImageName][]deploy.Tag
@@ -507,14 +485,11 @@ func (r *fakeRegistry) Tags(_ context.Context, img deploy.ImageName) ([]deploy.T
 
 var bothArches = []string{"linux/amd64", "linux/arm64"}
 
-// testDigest is a stable, valid digest derived from a seed.
 func testDigest(seed string) deploy.Digest {
 	hex := strings.Repeat(fmt.Sprintf("%x", seed), 64)
 	return deploy.Digest("sha256:" + hex[:64])
 }
 
-// publish puts a good multi-arch, attested build of every image in the
-// registry under tag, built from rev.
 func (f *fixture) publish(images []deploy.ImageName, tag deploy.Tag, rev deploy.SHA) map[deploy.ImageName]deploy.ImagePin {
 	pins := map[deploy.ImageName]deploy.ImagePin{}
 	for _, img := range images {

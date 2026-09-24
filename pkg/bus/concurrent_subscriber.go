@@ -18,38 +18,20 @@ import (
 	"go.uber.org/zap"
 )
 
-// concurrentDurableSubscriber is the fleet-owned JetStream delivery adapter.
-// nats.go invokes one subscription callback serially, so the callback must not
-// wait for the handler's acknowledgement: doing so hard-caps every pod at one in-flight
-// event. This adapter hands the message through a bounded queue and a pump to
-// the weighted routine pool, returns immediately, and reconciles Ack/Nack
-// concurrently after the handler finishes.
 type concurrentDurableSubscriber struct {
-	nc       *nats.Conn
-	js       nats.JetStreamContext
-	stream   string
-	consumer string
-	group    string
-	delay    maxRetryDelay
-	// handlerDeadline is the ceiling on one handler's total run time, NOT the
-	// consumer's AckWait. Those are different clocks and used to share a name.
-	// awaitResult reports InProgress every `progress`, which resets the server's
-	// AckWait for as long as the handler lives, so the server does not redeliver
-	// underneath a slow-but-healthy handler. This is what stops that from being
-	// unbounded: past it the subscriber stops reporting progress and lets AckWait
-	// take the message back.
+	nc              *nats.Conn
+	js              nats.JetStreamContext
+	stream          string
+	consumer        string
+	group           string
+	delay           maxRetryDelay
 	handlerDeadline time.Duration
 	progress        time.Duration
-	// ackSync confirms each acknowledgement with the server instead of firing it
-	// asynchronously. It is set for work-queue retention only; see ack.
-	ackSync bool
-	log     *zap.Logger
+	ackSync         bool
+	log             *zap.Logger
 
-	// dropped counts deliveries shed when the explicit queue is full; see the
-	// overflow branch in deliveryCallback for why shedding beats blocking.
 	dropped atomic.Int64
-	// wheel drives the shared keep-alive passes; see keepAliveWheel.
-	wheel *keepAliveWheel
+	wheel   *keepAliveWheel
 
 	mu      sync.Mutex
 	closed  bool
@@ -60,9 +42,6 @@ type concurrentDurableSubscriber struct {
 	acks          sync.WaitGroup
 }
 
-// callbackGate makes callback admission and shutdown one atomic decision.
-// nats.go may invoke an async callback just after Unsubscribe returns, so a
-// WaitGroup alone cannot safely guard channel closure: Add could race Wait.
 type callbackGate struct {
 	mu       sync.Mutex
 	stopping bool
@@ -83,56 +62,16 @@ type concurrentSubscriberConfig struct {
 const (
 	terminateDelivery      = time.Duration(-1)
 	subscriberDrainTimeout = 30 * time.Second
-	// laneAckWait is the server-side redelivery clock every lane consumer is
-	// created with (see laneConsumerConfig). It is named here because two things
-	// in this file are sized against it and a literal in three places drifts.
-	laneAckWait = 4 * time.Second
-	// ackSyncTimeout bounds the confirmed acknowledgement on work-queue lanes. It
-	// stays under laneAckWait so a failed confirmation still has room to
-	// NAK before the server redelivers on its own clock.
-	ackSyncTimeout = laneAckWait / 2
+	laneAckWait            = 4 * time.Second
+	ackSyncTimeout         = laneAckWait / 2
 
-	// durableQueueBytesBudget is how much payload the explicit-delivery queue
-	// may hold at once. It exists so the worst case is a stated number rather
-	// than something emergent: the queue decouples nats.go's serial delivery
-	// goroutine from a momentarily slow reader, and this constant is the ceiling
-	// on how much that decoupling can buffer before it starts shedding.
 	durableQueueBytesBudget = 8 << 20
 
-	// durableWireBytesFloor is the smallest lane delivery the queue depth is
-	// sized against. Live ingress runs measured ~865 B per event on the wire;
-	// rounding the average up to a flat 1 KiB deliberately rounds the derived
-	// depth DOWN in count while keeping the payload bound honest — the failure
-	// this budget guards against is unbounded heap under a stalled reader, never
-	// a shallow queue, and the overflow counter below makes any real shallowness
-	// loud instead of silent.
 	durableWireBytesFloor = 1024
 
-	// durableQueueDepth is how many deliveries the callback may hold for the
-	// pump, derived from the byte budget exactly the way flowQueueDepth is
-	// derived from the flow-control window (8 MiB / 1 KiB = 8192).
-	//
-	// Unlike the flow lane, this queue is deliberately sized UNDER the consumer's
-	// MaxAckPending (default 20000, raisable via NATS_LANE_MAX_ACK_PENDING) rather
-	// than above it. The flow lane had to clear its server's ramped byte window
-	// because a drop there loses a receipt permanently; here the brake really is
-	// the message count, and a shed delivery is one delayed event — the server
-	// redelivers it after laneAckWait (4s). Blocking, the alternative this queue
-	// replaced, was measured as strictly worse: parking nats.go's serial callback
-	// on `output <-` stalled every server push until MaxAckPending seats
-	// stranded, capping the lane near 2-3k msg/s. An unbounded queue was rejected
-	// for the opposite reason: it converts downstream stall into unbounded heap.
-	// Sitting under the brake means saturation sheds early and paces itself via
-	// AckWait instead of accumulating resident payload, and the throttled
-	// overflow counter (every 1000th drop logged, matching the flow overrun
-	// counter) is the signal that the derivation needs re-measuring.
 	durableQueueDepth = durableQueueBytesBudget / durableWireBytesFloor
 )
 
-// workQueueRetention reports whether a catalog stream deletes messages on
-// acknowledgement. The two acknowledgement contracts differ in what a lost ACK
-// costs, so the subscriber picks its ack mode from the retention policy rather
-// than from a caller-supplied flag that can drift from the catalog.
 func workQueueRetention(stream string) bool {
 	specs := make([]StreamSpec, 0, len(DataStreams)+2)
 	specs = append(specs, DataStreams...)
@@ -146,12 +85,6 @@ func workQueueRetention(stream string) bool {
 	return false
 }
 
-// maxRetryDelay is the retry pacing the durable lanes run on: a fixed NAK
-// delay until the one-based JetStream NumDelivered counter reaches max, then
-// terminate. It used to sit behind a one-method redeliveryDelay interface with
-// this as the only implementation, in this package, with no test double; the
-// concrete type is the honest shape and a second policy can introduce the
-// interface when it exists.
 type maxRetryDelay struct {
 	delay time.Duration
 	max   uint64
@@ -161,10 +94,6 @@ func newMaxRetryDelay(delay time.Duration, max uint64) maxRetryDelay {
 	return maxRetryDelay{delay: delay, max: max}
 }
 
-// WaitTime paces one redelivery. retry is JetStream's one-based NumDelivered
-// counter. The zero value is the Null Object the broadcast lanes bind with:
-// max 0 means "no pacing policy", answered with a plain immediate NAK rather
-// than the termination that retry >= 0 would otherwise read as.
 func (d maxRetryDelay) WaitTime(retry uint64) time.Duration {
 	if d.max == 0 {
 		return 0
@@ -185,20 +114,11 @@ func newConcurrentDurableSubscriber(cfg concurrentSubscriberConfig) *concurrentD
 		ackSync: workQueueRetention(cfg.stream),
 		subs:    make(map[*nats.Subscription]ownedSubscription), closeCh: make(chan struct{}),
 	}
-	// Keep the WaitGroup positive until Close has unsubscribed every callback;
-	// this prevents an Add racing a Wait while a final delivery is arriving.
 	s.acks.Add(1)
-	// One wheel per subscriber, not one timer per message; see keepAliveWheel.
-	// It lives on closeCh, so both Close paths retire it and it stays running
-	// through the ack drain exactly as the per-message timers used to.
 	s.wheel = newKeepAliveWheel(wheelStepCount(s.handlerDeadline, s.progress), s.progress, s.closeCh)
 	return s
 }
 
-// wheelStepCount is how many progress intervals a watch may survive: the
-// per-message timers reported InProgress at fire k and surrendered once
-// k*progress reached handlerDeadline, so the step count is a ceiling division.
-// A degenerate interval collapses to a single step rather than panicking.
 func wheelStepCount(deadline, progress time.Duration) int {
 	if progress <= 0 || deadline <= 0 {
 		return 1
@@ -241,8 +161,6 @@ func (s *concurrentDurableSubscriber) Subscribe(ctx context.Context, subject str
 	return output, nil
 }
 
-// watchBind retires the subscription when its binding context ends or the
-// subscriber closes, whichever comes first.
 func (s *concurrentDurableSubscriber) watchBind(ctx context.Context, sub *nats.Subscription, callbacks *callbackGate, pump *subscriptionPump) {
 	select {
 	case <-ctx.Done():
@@ -254,8 +172,6 @@ func (s *concurrentDurableSubscriber) watchBind(ctx context.Context, sub *nats.S
 	s.mu.Unlock()
 }
 
-// runPump drains the explicit delivery queue toward the lane channel until the
-// pump halts or a delivery fails, then abandons whatever remains queued.
 func (s *concurrentDurableSubscriber) runPump(ctx context.Context, output chan<- *Message, callbacks *callbackGate, pump *subscriptionPump) {
 	defer close(output)
 	for live := true; live; {
@@ -266,13 +182,6 @@ func (s *concurrentDurableSubscriber) runPump(ctx context.Context, output chan<-
 			live = false
 		}
 	}
-	// A lost handoff races stopSubscription: a callback that already passed
-	// gate enter can still enqueue until stopAndWait returns, so draining
-	// immediately would strand its watch with no pump left to unwind it —
-	// the held ack seat then rides the wheel deadline (up to handlerDeadline)
-	// before Close's drain can clear it. halt runs only after stopAndWait on
-	// every path that can lose a handoff — ctx via watchBind, closeCh and
-	// stopped both inside stopSubscription — so this wait is that barrier.
 	<-pump.stop
 	s.abandon(pump.queue)
 }
@@ -292,24 +201,15 @@ func (s *concurrentDurableSubscriber) subscribe(subject string, callback nats.Ms
 		return s.js.QueueSubscribe(subject, s.group, callback,
 			nats.Bind(s.stream, s.consumer), nats.ManualAck())
 	}
-	// Broadcast subscriptions are ephemeral and start at messages published
-	// after the binding. Each service instance owns a distinct consumer, so a
-	// cache invalidation fans out to every replica.
 	return s.js.Subscribe(subject, callback,
 		nats.BindStream(s.stream), nats.DeliverNew(), nats.AckExplicit(), nats.ManualAck())
 }
 
-// pendingDelivery is one decoded delivery waiting in the explicit queue for
-// the pump to hand it toward the lane channel.
 type pendingDelivery struct {
 	msg   *Message
 	watch *resultWatch
 }
 
-// subscriptionPump owns one subscription's explicit queue and the signal that
-// retires it. halt is idempotent because both shutdown paths — context
-// cancellation via the subscription's own watcher and Close via stopCallbacks
-// — can reach it, potentially concurrently, and each must be able to fire it.
 type subscriptionPump struct {
 	queue chan pendingDelivery
 	stop  chan struct{}
@@ -323,9 +223,7 @@ func newSubscriptionPump() *subscriptionPump {
 	}
 }
 
-// halt releases the pump. It must run strictly after callbacks.stopAndWait:
-// only then is every callback gone, so the pump's final non-blocking drain can
-// unwind the remaining queue without racing an enqueuer.
+// halt must run only after callbacks.stopAndWait, or the pump's final drain races an enqueuer.
 func (p *subscriptionPump) halt() { p.once.Do(func() { close(p.stop) }) }
 
 func (s *concurrentDurableSubscriber) deliveryCallback(
@@ -346,33 +244,11 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 			return
 		}
 		msg.SetContext(ctx)
-		// The result watch MUST be installed before the handoff. A fast
-		// worker resolves the instant the send completes, and a handler
-		// installed after that winning transition is never called — the ack
-		// is silently dropped. This broker never fires AckWait redelivery
-		// while interest stays bound, so every dropped slot strands one
-		// MaxAckPending seat until max_age; that race is what capped the
-		// lane near 2-3k msg/s. This ordering survived a fixed critical bug
-		// and must not move relative to the visibility point: installing
-		// here, ahead of the enqueue, keeps the watch armed before the pump
-		// can ever make the message visible. The non-delivery arms unwind
-		// the watch themselves and resultWatch.finished makes double release
-		// a no-op.
-		//
-		// The handoff itself is the bounded queue, and the enqueue never
-		// blocks: a saturated downstream sheds one delivery instead of
-		// parking nats.go's serial callback and stalling every server push.
+		// The watch must exist before the handoff, or a fast worker's resolve drops the ack.
 		w := s.newResultWatch(natsMsg, msg)
 		select {
 		case queue <- pendingDelivery{msg: msg, watch: w}:
 		default:
-			// Shedding follows the flow-lane precedent: dropping costs one
-			// event, blocking costs the window. On this adapter the shed
-			// delivery comes back on AckWait (<= laneAckWait), so the cost is
-			// delay rather than loss. Throttled like the flow overrun counter
-			// — sustained overflow is exactly the case where a line per drop
-			// emits at lane rate; the counter still moves on every drop, so
-			// the magnitude is never lost, only the repetition.
 			w.unwind()
 			if dropped := s.dropped.Add(1); dropped == 1 || dropped%1_000 == 0 {
 				s.log.Warn("durable delivery queue overflowed; leaving the message to AckWait redelivery",
@@ -383,23 +259,15 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 	}
 }
 
-// newResultWatch arms one message's keep-alive slot on the shared wheel and
-// counts it against the in-flight ack budget. The budget seat is taken before
-// the watch becomes observable: registering into the wheel is the earliest
-// point another goroutine — the wheel ticker — may release the seat, and the
-// Add above it in program order is what keeps the counter from going negative.
 func (s *concurrentDurableSubscriber) newResultWatch(natsMsg *nats.Msg, msg *Message) *resultWatch {
 	w := &resultWatch{s: s, natsMsg: natsMsg}
+	// Add before registering: the wheel may release the seat as soon as the watch is registered.
 	s.acks.Add(1)
 	msg.setResolveHandler(w.resolve)
 	s.wheel.register(w)
 	return w
 }
 
-// deliver hands one queued message to the lane channel with its verdict
-// already wired up. It reports whether the handoff won; a lost handoff
-// releases the watch here so shutdown never waits on an acknowledgement
-// nobody will make.
 func (s *concurrentDurableSubscriber) deliver(
 	ctx context.Context,
 	output chan<- *Message,
@@ -417,10 +285,6 @@ func (s *concurrentDurableSubscriber) deliver(
 	return false
 }
 
-// abandon unwinds every delivery the queue still holds. runPump only reaches
-// it after <-pump.stop, and halt runs strictly after callbacks.stopAndWait,
-// which guarantees no enqueuer remains — so a plain non-blocking drain cannot
-// miss an entry.
 func (s *concurrentDurableSubscriber) abandon(queue <-chan pendingDelivery) {
 	for {
 		select {
@@ -463,8 +327,6 @@ func (g *callbackGate) stopAndWait() {
 func stopSubscription(sub *nats.Subscription, callbacks *callbackGate, pump *subscriptionPump) {
 	_ = sub.Unsubscribe()
 	callbacks.stopAndWait()
-	// Every callback has exited, so nothing can enqueue past this point;
-	// releasing the pump here lets it unwind whatever the queue still holds.
 	pump.halt()
 }
 
@@ -488,12 +350,6 @@ func messageFromNATS(wire *nats.Msg) (*Message, error) {
 	}), nil
 }
 
-// jetStreamStoredAt reads the broker's store time out of a $JS.ACK reply
-// subject: token 7 of the 9-token v1 shape, token 9 of the domain-qualified
-// v2 shape (11 tokens, or 12 with the optional trailing token). nats.go's own
-// Msg.Metadata parses the same subject but insists on a bound subscription,
-// which the pull lane's pooled envelopes never carry, so it is not usable on
-// the hot lane. Anything that is not a JetStream reply yields the zero time.
 func jetStreamStoredAt(reply string) time.Time {
 	if !strings.HasPrefix(reply, "$JS.ACK.") {
 		return time.Time{}
@@ -515,13 +371,6 @@ func jetStreamStoredAt(reply string) time.Time {
 	return time.Unix(0, ns)
 }
 
-// fleetMetadata copies the non-identity headers into delivery metadata. A
-// delivery carrying only identity headers — every firehose event before trace
-// propagation attaches NewRelic headers — returns a nil Metadata rather than
-// an empty map: the unconditional allocation sat on the consume hot path, and
-// readers go through Metadata.Get, whose nil-receiver index is Go's guaranteed
-// zero-value read. Nothing in the fleet writes to delivered metadata (a Set on
-// a nil map panics); callers needing a writable map build their own.
 func fleetMetadata(headers nats.Header) (Metadata, error) {
 	var metadata Metadata
 	for key, values := range headers {
@@ -549,48 +398,20 @@ func messageIdentity(wire *nats.Msg) string {
 	if metadata, err := wire.Metadata(); err == nil && metadata.Sequence.Stream > 0 {
 		return jetStreamIdentity(metadata.Domain, metadata.Stream, metadata.Sequence.Stream)
 	}
-	// This path covers legacy/core messages without JetStream reply metadata.
-	// NUID is process-safe and avoids introducing UUID machinery.
 	return nuid.Next()
 }
 
-// jetStreamIdentity is the fallback identity for an event whose publisher set
-// none. It is derived rather than random so it survives a retry hop: the pull
-// adapter stamps it from the pull API's own metadata (see pullWireMessage),
-// which cannot reach nats.go's subscription-bound parser, and both paths must
-// produce the same string for the same delivery.
 func jetStreamIdentity(domain, stream string, sequence uint64) string {
 	return fmt.Sprintf("js:%s:%s:%d", domain, stream, sequence)
 }
 
-// resultWatch reconciles one delivery without parking a goroutine or a timer
-// on it.
-//
-// The resolve callback runs the acknowledgement on the worker goroutine that
-// finished the handler, and the subscriber's shared keep-alive wheel covers
-// the slow-handler case: each pass reports InProgress (renewing the server's
-// AckWait) until the coarse handlerDeadline, after which ownership is
-// deliberately given up to AckWait redelivery. On the normal path the handler
-// resolves inside one progress interval, so the whole mechanism costs one
-// atomic store; the wheel sweeps the dead entry on its next pass — no timer
-// registration, no timer-heap traffic, no cancellation per message. The
-// finished flag is the single arbiter between a late resolve and the deadline:
-// whoever swaps it first owns the acks slot, exactly one of them releases it.
 type resultWatch struct {
-	s       *concurrentDurableSubscriber
-	natsMsg *nats.Msg
-	// armEpoch is written once under the wheel lock at registration and
-	// read-only afterwards; the wheel's lock provides the happens-before edge
-	// the walk relies on. Watch age is derived per pass from the wheel epoch,
-	// so unlike the per-message timers there is no mutable elapsed field to
-	// serialize.
+	s        *concurrentDurableSubscriber
+	natsMsg  *nats.Msg
 	armEpoch uint64
 	finished atomic.Bool
 }
 
-// unwind releases a watch whose message never reached a worker: mark it
-// finished so the wheel's next pass skips it, and give the ack seat straight
-// back.
 func (w *resultWatch) unwind() {
 	if w.finished.CompareAndSwap(false, true) {
 		w.s.acks.Done()
@@ -599,9 +420,6 @@ func (w *resultWatch) unwind() {
 
 func (w *resultWatch) resolve(acked bool) {
 	if !w.finished.CompareAndSwap(false, true) {
-		// The deadline already surrendered this delivery to AckWait; another
-		// ACK or NAK here would address a message the server may have
-		// redelivered elsewhere.
 		return
 	}
 	defer w.s.acks.Done()
@@ -617,23 +435,6 @@ func (w *resultWatch) resolve(acked bool) {
 	w.s.nack(w.natsMsg)
 }
 
-// keepAliveWheel replaces the per-message time.AfterFunc the result watches
-// used to arm. Arming and stopping a timer per delivery pushed every message
-// through the runtime timer heap at lane rate for a mechanism that usually
-// does nothing: handlers resolve inside one progress interval, so nearly all
-// of that traffic was setup and teardown. The wheel arms nothing per message.
-// Watches join the bucket the next pass will walk, and ONE ticker goroutine
-// per subscriber walks one bucket per progress interval, reporting InProgress
-// for every unfinished watch and sweeping the ones a resolve or unwind has
-// marked finished — resolution never touches the bucket, the walk drops the
-// corpse, so the common path pays nothing beyond the atomic mark.
-//
-// The ring has wheelStepCount(handlerDeadline, progress) buckets, and watch
-// age is computed from wheel epochs rather than stored: at age >= steps the
-// watch surrenders the delivery to AckWait exactly where the per-message
-// timers gave up. Past the deadline no further progress is reported, because
-// the server may already have redelivered to another replica and renewing
-// would reclaim the ownership the deadline exists to give up.
 type keepAliveWheel struct {
 	interval time.Duration
 	steps    int
@@ -643,9 +444,6 @@ type keepAliveWheel struct {
 	cursor  int
 	epoch   uint64
 
-	// done is the subscriber's closeCh: both Close paths close it exactly
-	// once, and keeping the wheel live through the ack drain preserves the old
-	// timers' behaviour of surrendering stuck deliveries while draining.
 	done <-chan struct{}
 }
 
@@ -663,10 +461,6 @@ func newKeepAliveWheel(steps int, interval time.Duration, done <-chan struct{}) 
 	return w
 }
 
-// register files a watch into the bucket the next pass walks. Its armEpoch is
-// the epoch the wheel has completed, so the first pass that sees it computes
-// age 1 and reports progress, matching the per-message timers' first fire one
-// full progress interval after arming.
 func (w *keepAliveWheel) register(watch *resultWatch) {
 	w.mu.Lock()
 	watch.armEpoch = w.epoch
@@ -687,9 +481,6 @@ func (w *keepAliveWheel) spin() {
 	}
 }
 
-// advance walks the bucket due this interval. The slice is detached under the
-// lock and processed outside it: reportProgress is network round-trip work and
-// must not serialize registrations happening mid-pass.
 func (w *keepAliveWheel) advance() {
 	w.mu.Lock()
 	due := w.buckets[w.cursor]
@@ -708,11 +499,6 @@ func (w *keepAliveWheel) advance() {
 	w.refile(survivors)
 }
 
-// sweepDue reports one unfinished watch against its deadline. It returns false
-// when the watch leaves the wheel: resolved or unwound since it was filed
-// (lazy sweep), or past deadline, where it surrenders the delivery to AckWait.
-// That surrender's CAS is the same arbiter resolve() uses, so exactly one side
-// releases the acks seat.
 func (w *keepAliveWheel) sweepDue(epoch uint64, watch *resultWatch) bool {
 	if watch.finished.Load() {
 		return false
@@ -727,13 +513,7 @@ func (w *keepAliveWheel) sweepDue(epoch uint64, watch *resultWatch) bool {
 	return false
 }
 
-// refile returns survivors to the bucket the cursor points at. The bucket is
-// re-read under the lock, never carried from advance: a register landing
-// mid-pass appends to that slice after the snapshot was taken, and rebuilding
-// from the stale header — even one sharing the array — would overwrite or
-// orphan those watches. A watch dropped here is walked by no later pass: it
-// stops reporting progress, never reaches the deadline branch, and holds its
-// acks seat until Close's drain gives up.
+// Re-read the bucket under the lock: the stale slice misses watches registered during the pass.
 func (w *keepAliveWheel) refile(survivors []*resultWatch) {
 	if len(survivors) == 0 {
 		return
@@ -743,14 +523,8 @@ func (w *keepAliveWheel) refile(survivors []*resultWatch) {
 	w.mu.Unlock()
 }
 
-// ack applies the acknowledgement contract the stream's retention actually
-// needs. On a limits/interest stream the ACK only advances a cursor, so it is
-// fired asynchronously: the double-ack proved the cursor had moved at the cost
-// of a round trip per message, which becomes a RAFT quorum round trip per
-// message once the lane's stream is replicated. Handlers are idempotent by
-// contract (ADR 0003), so a lost ACK there only risks one redelivery after
-// AckWait, which is safe; a stalled quorum on every ACK is not.
 func (s *concurrentDurableSubscriber) ack(msg *nats.Msg) {
+	// Work-queue acks must be confirmed: a lost ACK re-runs work that already ran.
 	if s.ackSync {
 		s.ackWorkQueue(msg)
 		return
@@ -761,13 +535,6 @@ func (s *concurrentDurableSubscriber) ack(msg *nats.Msg) {
 	}
 }
 
-// ackWorkQueue confirms the acknowledgement reached the server. Work-queue
-// retention deletes the message on ack, so an ACK that never lands is not a
-// stale cursor but a redelivery of work that already ran — on TWITCH_OUTGRESS
-// that is the same chat line sent twice. A failed confirmation NAKs instead, so
-// the redelivery is deliberate and paced rather than an AckWait surprise; if the
-// ACK did land and only its reply was lost, the NAK addresses a message the
-// server has already removed and does nothing.
 func (s *concurrentDurableSubscriber) ackWorkQueue(msg *nats.Msg) {
 	if err := msg.AckSync(nats.AckWait(ackSyncTimeout)); err != nil {
 		s.log.Warn("work-queue message ack was not confirmed; nacking to force a paced redelivery",
@@ -777,8 +544,6 @@ func (s *concurrentDurableSubscriber) ackWorkQueue(msg *nats.Msg) {
 }
 
 func (s *concurrentDurableSubscriber) reportProgress(msg *nats.Msg) {
-	// Slow RPC-backed commands retain ownership. The normal path never reaches
-	// this ticker because processing finishes in well under one second.
 	if err := msg.InProgress(); err != nil {
 		s.log.Warn("durable message progress ack failed", zap.String("subject", msg.Subject), zap.Error(err))
 	}
@@ -813,7 +578,7 @@ func (s *concurrentDurableSubscriber) Close() error {
 	defer deadline.Stop()
 	s.stopCallbacks(subs)
 
-	s.acks.Done() // no callback can Add after the drain barrier
+	s.acks.Done()
 	if !waitGroupBefore(&s.acks, deadline.C) {
 		return s.abortClose(errors.New("bus: timed out draining durable acknowledgements"))
 	}
@@ -842,8 +607,6 @@ func (s *concurrentDurableSubscriber) beginClose() ([]ownedSubscription, bool) {
 	s.closed = true
 	s.mu.Unlock()
 
-	// beginRegistration serializes Add with the closed flag under mu, so once
-	// closed is set no registration can race this Wait.
 	s.registrations.Wait()
 
 	s.mu.Lock()

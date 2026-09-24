@@ -17,10 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// TestBackfillSetsBumpCounterFromBareToken proves the core migration: a
-// command whose response still carries the old WRITE spelling of a channel
-// counter gets bump_counter populated from it, and the change is announced
-// so sesame's projection sees it without a restart.
 func TestBackfillSetsBumpCounterFromBareToken(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
@@ -43,8 +39,6 @@ func TestBackfillSetsBumpCounterFromBareToken(t *testing.T) {
 	assert.Equal(t, "deaths", dto.BumpCounter)
 }
 
-// TestBackfillTakesTheFirstBareTokenInWrittenOrder proves the "first counter
-// token" rule when a response names more than one.
 func TestBackfillTakesTheFirstBareTokenInWrittenOrder(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
@@ -60,9 +54,6 @@ func TestBackfillTakesTheFirstBareTokenInWrittenOrder(t *testing.T) {
 	assert.Equal(t, "wins", row.BumpCounter)
 }
 
-// TestBackfillSkipsTargetAddressedCounters proves the channel-level rule: a
-// {counter:target:...} span (per-viewer) is not a candidate, so a response
-// naming only that spelling backfills nothing.
 func TestBackfillSkipsTargetAddressedCounters(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
@@ -80,9 +71,6 @@ func TestBackfillSkipsTargetAddressedCounters(t *testing.T) {
 	assert.Len(t, pub.On(data.SubjectCommandChanged), baseline, "an untouched row is never announced")
 }
 
-// TestBackfillSkipsAddressedThenUsesALaterBareToken proves an addressed span
-// does not stop the scan: it is skipped (and logged), not treated as the
-// answer, so a bare span appearing after it still wins.
 func TestBackfillSkipsAddressedThenUsesALaterBareToken(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
@@ -98,9 +86,6 @@ func TestBackfillSkipsAddressedThenUsesALaterBareToken(t *testing.T) {
 	assert.Equal(t, "deaths", row.BumpCounter)
 }
 
-// TestBackfillLeavesAnAlreadySetOptionAlone proves the eligibility filter: a
-// row whose bump_counter is already non-empty (set by hand, or by an earlier
-// pass) is never touched, even if its response also carries the old token.
 func TestBackfillLeavesAnAlreadySetOptionAlone(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
@@ -118,9 +103,6 @@ func TestBackfillLeavesAnAlreadySetOptionAlone(t *testing.T) {
 	assert.Equal(t, "hugs", row.BumpCounter, "an existing choice is never overwritten")
 }
 
-// TestBackfillRunsExactlyOnce proves the migrations marker: a broadcaster who
-// clears bump_counter back to "" after the migration ran must not have it
-// silently repopulated by the next boot.
 func TestBackfillRunsExactlyOnce(t *testing.T) {
 	client, pub, repo := setup(t)
 	ctx := context.Background()
@@ -134,7 +116,6 @@ func TestBackfillRunsExactlyOnce(t *testing.T) {
 
 	assert.Equal(t, 1, client.Migrations.Query().CountX(ctx), "the migration records one marker row")
 
-	// Simulate the broadcaster deliberately clearing the option.
 	client.Commands.Update().Where(commands.NameEQ("so")).SetBumpCounter("").SaveX(ctx)
 
 	repo3 := repository.NewCommands(client, pub, nil, zap.NewNop())

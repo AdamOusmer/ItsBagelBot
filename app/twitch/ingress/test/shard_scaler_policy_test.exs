@@ -41,8 +41,6 @@ defmodule Ingress.ShardScaler.PolicyTest do
 
   describe "scale up" do
     test "trivial traffic never scales up (4 ev/s on one shard, rest idle)" do
-      # The original bug: 240 events/window aggregate on a 4-shard fleet
-      # must not add capacity.
       s = sample(240)
 
       assert {4, %{low: 1, high: 0}, :hold} =
@@ -71,9 +69,6 @@ defmodule Ingress.ShardScaler.PolicyTest do
     end
 
     test "sustained undercapacity jumps straight to the needed count" do
-      # 9.6 shards' worth of budgeted traffic on an 8-shard fleet: above
-      # budget but below the full rating, so it takes the streak, then the
-      # target jumps multi-step to 10, not 9.
       s = sample(div(Policy.budget_per_window() * 96, 10), responsive: 8)
       {8, ticks, :hold} = Policy.evaluate(s, 8, Policy.reset_ticks(), @min, @max)
       assert {10, %{low: 0, high: 0}, :up} = Policy.evaluate(s, 8, ticks, @min, @max)
@@ -202,8 +197,6 @@ defmodule Ingress.ShardScaler.PolicyTest do
     end
 
     test "above the ratio but below the absolute floor is not concentrated (small-fleet false positive guard)" do
-      # 500 is 5x a tiny average, but nowhere near a real shard's rated
-      # budget - routine unevenness on a lightly loaded fleet, not a raid.
       refute Policy.concentrated?(%{responsive_count: 4, avg_load: 100, max_load: 500})
     end
 

@@ -128,8 +128,6 @@ func TestMemVoiceOccupancyJoinAndLeave(t *testing.T) {
 		t.Fatalf("first join should report nothing left, got %q/%v", left, leftEmpty)
 	}
 
-	// A second user joins the same channel; the first leaving must not
-	// report it empty while the second is still there.
 	_, _ = m.UpdateVoiceOccupancy(ctx, VoiceSeat{GuildID: "g1", UserID: "u2", ChannelID: "hub"})
 	left, leftEmpty = m.UpdateVoiceOccupancy(ctx, VoiceSeat{GuildID: "g1", UserID: "u1", ChannelID: "clone-1"})
 	if left != "hub" {
@@ -139,7 +137,6 @@ func TestMemVoiceOccupancyJoinAndLeave(t *testing.T) {
 		t.Fatal("hub still has u2, must not report empty")
 	}
 
-	// The last occupant leaving voice entirely reports the channel empty.
 	left, leftEmpty = m.UpdateVoiceOccupancy(ctx, VoiceSeat{GuildID: "g1", UserID: "u2", ChannelID: ""})
 	if left != "hub" || !leftEmpty {
 		t.Fatalf("left = %q, leftEmpty = %v, want hub/true", left, leftEmpty)
@@ -151,17 +148,12 @@ func TestMemVoiceOccupancySameChannelUpdateIsNotALeave(t *testing.T) {
 	ctx := context.Background()
 	_, _ = m.UpdateVoiceOccupancy(ctx, VoiceSeat{GuildID: "g1", UserID: "u1", ChannelID: "hub"})
 
-	// A mute/deafen toggle re-delivers the same channel id; must never
-	// report the channel as vacated.
 	left, leftEmpty := m.UpdateVoiceOccupancy(ctx, VoiceSeat{GuildID: "g1", UserID: "u1", ChannelID: "hub"})
 	if leftEmpty {
 		t.Fatalf("same-channel update must not report empty (left=%q)", left)
 	}
 }
 
-// The pure-Valkey store cannot number, cap or transcribe a ticket, and says
-// so. The desk refuses to open in that mode rather than handing out a channel
-// it can never manage.
 func TestTicketsDurableIsFalseOnTheValkeyFallback(t *testing.T) {
 	if (valkeyStore{}).TicketsDurable(context.Background()) {
 		t.Fatal("the pure-Valkey fallback must not claim durable tickets")
@@ -171,9 +163,6 @@ func TestTicketsDurableIsFalseOnTheValkeyFallback(t *testing.T) {
 	}
 }
 
-// A remember with no message id is a CLAIM, not an overwrite: letting it win
-// would erase the id of a panel that is actually posted, and the repost path
-// would then stack a second live panel under the first.
 func TestRememberDeskNeverErasesAKnownPanel(t *testing.T) {
 	ctx := context.Background()
 	m := NewMem()
@@ -214,8 +203,6 @@ func TestPendingCloseRoundTrips(t *testing.T) {
 	}
 }
 
-// The summary memo is what keeps a retried close from stacking a second card
-// and a second transcript upload in the log channel.
 func TestClaimSummaryIsOncePerTicket(t *testing.T) {
 	ctx := context.Background()
 	m := NewMem()
@@ -229,7 +216,6 @@ func TestClaimSummaryIsOncePerTicket(t *testing.T) {
 	if !m.ClaimSummary(ctx, 8) {
 		t.Fatal("a different ticket claims independently")
 	}
-	// The fallback has no row ids; a zero always posts rather than never.
 	if !m.ClaimSummary(ctx, 0) || !m.ClaimSummary(ctx, 0) {
 		t.Fatal("a ticket with no row id must always post")
 	}
@@ -248,15 +234,6 @@ func TestTicketOverNamesTheTerminalStates(t *testing.T) {
 	}
 }
 
-// The five tests below came back with the ticket work: they were deleted
-// alongside select_test.go when Select and the DISCORD_DATA_ENABLED switch
-// went away, but only two of the tests in that file were about Select. These
-// cover the memory double's ticket bookkeeping and the two pipe-joined Valkey
-// values, neither of which anything else exercises.
-
-// wantOpened holds what an ACCEPTED open must answer with: no error, no
-// refusal, a row id (the desk names the channel after it) and the live count
-// including this one.
 func wantOpened(t *testing.T, got TicketOpenResult, err error, wantCount int) {
 	t.Helper()
 	if err != nil {
@@ -273,9 +250,6 @@ func wantOpened(t *testing.T, got TicketOpenResult, err error, wantCount int) {
 	}
 }
 
-// TestMemEnforcesTheOpenLimitAndNumbersTickets: the double enforces the limit
-// the Valkey store deliberately does not, which is what the engine's refusal
-// path is tested against.
 func TestMemEnforcesTheOpenLimitAndNumbersTickets(t *testing.T) {
 	m := NewMem()
 	ctx := context.Background()
@@ -301,10 +275,6 @@ func TestMemEnforcesTheOpenLimitAndNumbersTickets(t *testing.T) {
 	}
 }
 
-// wantClaimed holds what a claim must leave behind: the claimant, the status
-// move, and the panel message id -- which the close path needs to edit the
-// card back, and which a claim that rebuilt the record instead of updating it
-// would silently drop.
 func wantClaimed(t *testing.T, got Ticket) {
 	t.Helper()
 	if got.ClaimedBy != "mod1" {
@@ -318,7 +288,6 @@ func wantClaimed(t *testing.T, got Ticket) {
 	}
 }
 
-// wantStoredTranscript reads the transcript back out of the store.
 func wantStoredTranscript(t *testing.T, m *Mem, ticketID int) {
 	t.Helper()
 	stored, ok := m.Transcript(ticketID)
@@ -377,7 +346,6 @@ func TestMemDeskRemembersThePanelMessage(t *testing.T) {
 	}
 }
 
-// wantDesk compares a parsed or stored desk panel field by field.
 func wantDesk(t *testing.T, got DeskPanel, ok bool, want DeskPanel) {
 	t.Helper()
 	if !ok {
@@ -401,8 +369,6 @@ func TestParseDeskValueReadsTheLegacyClaim(t *testing.T) {
 	wantDesk(t, got, ok, DeskPanel{GuildID: "g1", ChannelID: "c1", MessageID: "m1"})
 }
 
-// wantParsedTicket compares a parsed ticket value against the record it must
-// decode to, field by field.
 func wantParsedTicket(t *testing.T, got Ticket, ok bool, want Ticket) {
 	t.Helper()
 	if !ok {
@@ -426,8 +392,6 @@ func wantParsedTicket(t *testing.T, got Ticket, ok bool, want Ticket) {
 }
 
 func TestParseTicketValueReadsBothWidths(t *testing.T) {
-	// The pipe-joined value gained two fields; a value written by an older
-	// build must still parse, with the new halves empty.
 	old, ok := parseTicketValue("c1", "g1|u1")
 	wantParsedTicket(t, old, ok, Ticket{GuildID: "g1", OpenerID: "u1", Status: TicketStatusOpen})
 	full, ok := parseTicketValue("c1", ticketValue(Ticket{GuildID: "g1", OpenerID: "u1", ClaimedBy: "mod1", PanelMessageID: "m1"}))

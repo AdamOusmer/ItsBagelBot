@@ -1,24 +1,11 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The guild tile: the server's own icon when Discord has one, the monogram
-  // otherwise. One component for the hub cards, the picker rows and the guild
-  // header, which used to carry three copies of the same 44px crest.
-  //
-  // The icon is queried, never stored: the URL arrives with every read (the
-  // hash from /users/@me/guilds on the picker, outgress's with_counts lookup
-  // everywhere else), and a server that changes its icon 404s the old file.
-  // A load error therefore falls back to the monogram rather than leaving a
-  // broken box; so does a CSP block on a console that has not opened the CDN.
-  // referrerpolicy keeps the dashboard URL out of the CDN request. The CSP
-  // opens cdn.discordapp.com for images only (web/kit/svelte-config.js).
   import { guildIconSrc, guildMonogram } from '@bagel/kit';
 
   let { name, iconUrl = '' }: { name: string; iconUrl?: string } = $props();
 
   const src = $derived(guildIconSrc(iconUrl));
-  // The url that failed, not a flag: a new url (the switcher moving to
-  // another guild) gets its own chance instead of inheriting the failure.
   let failedSrc = $state('');
 </script>
 

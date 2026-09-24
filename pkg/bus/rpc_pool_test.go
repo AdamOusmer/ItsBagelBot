@@ -17,11 +17,6 @@ import (
 
 const rpcPoolTestTimeout = 5 * time.Second
 
-// overlapProbe is a handler that parks every invocation until it is released,
-// so the test can observe how many handlers the pool runs AT THE SAME INSTANT.
-// That is the only measurement that distinguishes the fix from the bug: an
-// inline callback processes any number of messages quickly, it just never has
-// two of them in flight on the subscription that is receiving them.
 type overlapProbe struct {
 	arrived   chan struct{}
 	release   chan struct{}
@@ -54,8 +49,6 @@ func (o *overlapProbe) recordPeak(current int64) {
 	}
 }
 
-// awaitArrivals blocks until n handlers have started, failing the test rather
-// than hanging forever when the pool never gets there.
 func (o *overlapProbe) awaitArrivals(t *testing.T, n int) {
 	t.Helper()
 	deadline := time.After(rpcPoolTestTimeout)
@@ -68,8 +61,6 @@ func (o *overlapProbe) awaitArrivals(t *testing.T, n int) {
 	}
 }
 
-// submitAll delivers n messages through the production callback wrapper, each
-// from its own goroutine because a saturated pool blocks the sender on purpose.
 func submitAll(pool *RPCPool, n int, handler nats.MsgHandler) *sync.WaitGroup {
 	callback := pool.callback(handler)
 	var senders sync.WaitGroup
@@ -83,8 +74,6 @@ func submitAll(pool *RPCPool, n int, handler nats.MsgHandler) *sync.WaitGroup {
 	return &senders
 }
 
-// drainAsync starts Drain off the test goroutine so the test can observe that it
-// is still waiting, which is the property these tests are about.
 func drainAsync(pool *RPCPool) <-chan error {
 	drained := make(chan error, 1)
 	go func() {
@@ -95,8 +84,6 @@ func drainAsync(pool *RPCPool) <-chan error {
 	return drained
 }
 
-// requireStillDraining fails if Drain has already returned; handlers are parked
-// mid-request and shutdown must not walk away from them.
 func requireStillDraining(t *testing.T, drained <-chan error) {
 	t.Helper()
 	select {
@@ -106,7 +93,6 @@ func requireStillDraining(t *testing.T, drained <-chan error) {
 	}
 }
 
-// requireDrained waits for Drain to return and fails on an error or a timeout.
 func requireDrained(t *testing.T, drained <-chan error) {
 	t.Helper()
 	select {
@@ -142,10 +128,6 @@ func drainWithin(t *testing.T, pool *RPCPool) {
 	}
 }
 
-// TestRPCPoolRunsHandlersConcurrently is the regression test for the bug: a
-// handler that holds the delivery goroutine holds every request behind it. It
-// proves both halves of the fix at once — handlers overlap up to the policy, and
-// never past it.
 func TestRPCPoolRunsHandlersConcurrently(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -201,9 +183,6 @@ func TestRPCPoolRunsHandlersConcurrently(t *testing.T) {
 	}
 }
 
-// TestRPCPoolBoundsOutstandingMessages proves the bound is MaxWorkers +
-// QueueDepth and that the surplus blocks the caller instead of being dropped or
-// queued without limit — the backpressure the ceiling depends on.
 func TestRPCPoolBoundsOutstandingMessages(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -253,8 +232,6 @@ func TestRPCPoolBoundsOutstandingMessages(t *testing.T) {
 				return int(accepted.Load()) == tt.wantAccept
 			}, "timed out waiting for the admitted messages to settle")
 
-			// Everything past the bound is still parked in submit; nothing was
-			// dropped, and nothing extra was admitted.
 			if got := tt.messages - int(accepted.Load()); got != tt.wantBlocked {
 				t.Fatalf("blocked senders = %d, want %d", got, tt.wantBlocked)
 			}
@@ -276,9 +253,6 @@ func TestRPCPoolBoundsOutstandingMessages(t *testing.T) {
 	}
 }
 
-// TestRPCPoolDrainWaitsForInFlightHandlers covers the shutdown contract main
-// depends on: when Drain returns, no handler is still touching the NATS or
-// Valkey connections the deferred closes are about to take away.
 func TestRPCPoolDrainWaitsForInFlightHandlers(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MaxWorkers: 4, QueueDepth: 4})
 	probe := newOverlapProbe(4)
@@ -301,8 +275,6 @@ func TestRPCPoolDrainWaitsForInFlightHandlers(t *testing.T) {
 	}
 }
 
-// TestRPCPoolDrainHonoursDeadline proves a wedged handler cannot hold shutdown
-// open forever: the wait is bounded, and the caller is told the truth about it.
 func TestRPCPoolDrainHonoursDeadline(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MaxWorkers: 2, QueueDepth: 2})
 	probe := newOverlapProbe(2)
@@ -316,17 +288,11 @@ func TestRPCPoolDrainHonoursDeadline(t *testing.T) {
 		t.Fatalf("Drain() = %v, want context.DeadlineExceeded", err)
 	}
 
-	// The teardown is still running; releasing the handlers must let a second
-	// Drain converge rather than deadlock or panic on a double close.
 	close(probe.release)
 	waitGroupWithin(t, senders, "submits to return")
 	drainWithin(t, pool)
 }
 
-// TestRPCPoolRejectsSubmitsAfterDrain covers the two shutdown hazards a pool
-// gets wrong: sending on a closed channel, and swallowing a request that a
-// caller is still waiting on. A late delivery is answered with the fleet's error
-// envelope instead of being run or dropped.
 func TestRPCPoolRejectsSubmitsAfterDrain(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MaxWorkers: 2, QueueDepth: 2})
 
@@ -337,7 +303,6 @@ func TestRPCPoolRejectsSubmitsAfterDrain(t *testing.T) {
 
 	drainWithin(t, pool)
 
-	// nats.go can deliver one more callback just after Unsubscribe returns.
 	for i := 0; i < 8; i++ {
 		callback(&nats.Msg{Subject: "bagel.rpc.test"})
 	}
@@ -346,9 +311,6 @@ func TestRPCPoolRejectsSubmitsAfterDrain(t *testing.T) {
 	}
 }
 
-// TestRPCPoolRetiresIdleWorkers proves the fleet gives its stacks back. A pod
-// that spikes to the ceiling during a raid must not hold that many goroutines
-// for the rest of its life.
 func TestRPCPoolRetiresIdleWorkers(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MinWorkers: 1, MaxWorkers: 6, QueueDepth: 6, IdleTimeout: 10 * time.Millisecond})
 	probe := newOverlapProbe(6)
@@ -369,9 +331,6 @@ func TestRPCPoolRetiresIdleWorkers(t *testing.T) {
 	drainWithin(t, pool)
 }
 
-// TestRPCPoolLeaksNoGoroutines is the counterpart to the persistent-worker
-// design: workers outlive individual messages on purpose, so nothing else in the
-// pool is allowed to.
 func TestRPCPoolLeaksNoGoroutines(t *testing.T) {
 	baseline := runtime.NumGoroutine()
 
@@ -433,9 +392,6 @@ func TestRPCPoolPolicyNormalized(t *testing.T) {
 	}
 }
 
-// TestDrainRPCHandlersCoversRegisteredPools proves the registry a successful
-// QueueSubscribeRPCConcurrent feeds is what makes a single DrainRPCHandlers call
-// in main sufficient, without the service holding any pool handle.
 func TestDrainRPCHandlersCoversRegisteredPools(t *testing.T) {
 	pool := newRPCPool(RPCPoolPolicy{MaxWorkers: 2, QueueDepth: 2})
 	registerRPCPool(pool)
@@ -453,7 +409,6 @@ func TestDrainRPCHandlersCoversRegisteredPools(t *testing.T) {
 	if _, workers := pool.stats(); workers != 0 {
 		t.Fatalf("live workers after DrainRPCHandlers = %d, want 0", workers)
 	}
-	// Idempotent: a second sweep over the same registry must not panic.
 	if err := DrainRPCHandlers(ctx); err != nil {
 		t.Fatalf("second DrainRPCHandlers() = %v", err)
 	}

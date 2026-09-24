@@ -19,23 +19,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// This file is the raffle's engine-side voice: the deadline auto-close and
-// reminder ticks have no invoking chat message, so this store posts its own
-// lines — localized off the broadcaster's console language, floor-checked,
-// and sent down whichever premium/standard lane the broadcaster's tier
-// resolves to.
-
-// autoDraw draws with the state's configured winner count and announces.
 func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) {
 	dctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	res, err := s.Draw(dctx, broadcasterID, 0) // 0: use the state's configured count
+	res, err := s.Draw(dctx, broadcasterID, 0)
 	if err != nil {
 		s.log.Warn("raffle: auto-close draw failed", module.BIDField(broadcasterID), zap.Error(err))
 		return
 	}
 	if res == nil {
-		return // manual draw beat the expiry and tore the raffle down first
+		return
 	}
 	locale := s.localeOf(dctx, broadcasterID)
 	var text string
@@ -55,10 +48,6 @@ func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) 
 	s.post(dctx, broadcasterID, text)
 }
 
-// remindTick posts the time-left line and re-arms the reminder clock until the
-// deadline key is gone (drawn or cancelled): the next expiry lands at min(
-// configured interval, time actually left), so the last reminder never
-// overshoots the draw. A raffle opened without reminders has no key here.
 func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64) {
 	dctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -70,7 +59,7 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 	)
 	left, err := resps[0].AsInt64()
 	if err != nil || left <= 0 {
-		return // drawn or cancelled between expiry and tick: stay quiet
+		return
 	}
 	st := RaffleState{}
 	if v, err := resps[2].ToString(); err == nil {
@@ -90,10 +79,9 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 		},
 	}))
 
-	// Re-arm at min(interval, left): the final tick lands just before the draw.
 	next := st.RemindSeconds
 	if next <= 0 {
-		next = raffleDefaultRemind // legacy state without a cadence field
+		next = raffleDefaultRemind
 	}
 	if next > left {
 		next = left
@@ -102,8 +90,6 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 		Value("1").ExSeconds(next).Build())
 }
 
-// localeOf resolves the broadcaster's console language for engine-side lines,
-// degrading to the catalog default on any projection failure.
 func (s *ValkeyRaffleStore) localeOf(ctx context.Context, broadcasterID uint64) string {
 	if u, err := s.cfg.Proj.User(ctx, broadcasterID); err == nil {
 		return u.Locale
@@ -111,9 +97,6 @@ func (s *ValkeyRaffleStore) localeOf(ctx context.Context, broadcasterID uint64) 
 	return ""
 }
 
-// post sends one engine-side chat line the way the timer store fires its
-// message: the send-time floor guard first, then whichever premium/standard
-// lane the broadcaster's own tier resolves to.
 func (s *ValkeyRaffleStore) post(ctx context.Context, broadcasterID uint64, text string) {
 	if text == "" {
 		return

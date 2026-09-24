@@ -1,13 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The loyalty wager games' catalog definitions, split out of types.ts to keep
-// that file's declaration count sane: these two are among the longest entries in
-// the MODULE_CATALOG (settings + customizable replies) and change together
-// with the sesame modules they mirror (app/twitch/sesame/modules/gamble.go,
-// duel.go, same config keys, same defaults). They nest under loyalty
-// (`parent: 'loyalty'`): no index tile, no independent master switch, no
-// second currency name. Odds and chat lines stay on /modules/[id].
 import { replyTokens, type ModuleDef } from './module-def';
 
 export const GAME_MODULE_DEFS: ModuleDef[] = [
@@ -20,11 +13,6 @@ export const GAME_MODULE_DEFS: ModuleDef[] = [
     category: 'Points',
     defaultEnabled: false,
     parent: 'loyalty',
-    // The numeric knobs are plain settings the generic page patches into the
-    // module blob; sesame clamps them server-side (engine.ClampGambleSettings),
-    // so an out-of-range save can never arm an unlimited machine. Currency
-    // name lives on loyalty, not here: a second copy drifted from the ledger
-    // word and let this module look like its own economy.
     settings: [
       { key: 'winPercent', label: 'Win chance %', type: 'number', placeholder: '50', help: 'A roll of this number or lower wins. 50 is a fair coin; 1-99 allowed.' },
       { key: 'minBet', label: 'Minimum bet', type: 'number', placeholder: '1' },

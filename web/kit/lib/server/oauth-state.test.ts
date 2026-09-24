@@ -45,8 +45,6 @@ describe('oauth-state', () => {
   });
 
   test('label and uid cannot be re-split into a different pair', () => {
-    // "ab" + "cd" and "a" + "bcd" concatenate identically; the length prefix is
-    // what keeps them apart.
     const a = sealOAuthState(key, 'ab', 'cd', STATE);
     expect(openOAuthState(key, 'a', 'bcd', a)).toBeNull();
   });

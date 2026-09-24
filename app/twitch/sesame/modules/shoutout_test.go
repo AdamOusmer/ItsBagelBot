@@ -47,7 +47,7 @@ func TestShoutoutDefaultTemplate(t *testing.T) {
 	require.Len(t, col.out, 1)
 	o := col.out[0]
 	assert.Equal(t, outgress.TypeChat, o.Type)
-	assert.Equal(t, "2", o.BroadcasterID) // the receiving channel
+	assert.Equal(t, "2", o.BroadcasterID)
 	assert.Contains(t, o.Text, "CoolStreamer")
 	assert.Contains(t, o.Text, "42")
 	assert.Contains(t, o.Text, "coolstreamer")

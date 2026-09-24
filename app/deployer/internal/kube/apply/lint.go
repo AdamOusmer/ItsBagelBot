@@ -16,8 +16,6 @@ import (
 
 const hostnameKey = "kubernetes.io/hostname"
 
-// strategy locates a workload kind's rolling-update block and the maxSurge
-// the API server defaults when the manifest leaves it out.
 type strategy struct {
 	path         []string
 	defaultSurge string
@@ -28,17 +26,6 @@ var strategies = map[schema.GroupKind]strategy{
 	{Group: "apps", Kind: "DaemonSet"}:  {path: []string{"spec", "updateStrategy"}, defaultSurge: "0"},
 }
 
-// lint refuses one-pod-per-node workloads that surge. The fleet has exactly as
-// many application nodes as such a workload has replicas and no spare node to
-// surge onto (see the maxSurge note in deploy/k8s/discord.yaml), so the surge
-// pod stays Pending and the rollout never progresses. That is why
-// notifications rolls at maxSurge 0 / maxUnavailable 1; a manifest edit that
-// loses it is caught here, before anything is applied, instead of by the 8
-// minute rollout timeout. A DoNotSchedule hostname spread
-// scoped with matchLabelKeys [pod-template-hash] counts only the incoming
-// ReplicaSet's pods, so its surge pod may share a host with an old one: that
-// is how console-admin rolls at maxSurge 1 / maxUnavailable 0 and stays
-// allowed. Required podAntiAffinity matches old pods too, so it gets no pass.
 func lint(objs ports.Objects) []ports.LintFinding {
 	var out []ports.LintFinding
 	for _, o := range objs {
@@ -70,7 +57,6 @@ func lintOne(o *unstructured.Unstructured, st strategy) (ports.LintFinding, bool
 	}, true
 }
 
-// onePerNode names the constraint that pins o to one pod per node, "" if none.
 func onePerNode(o *unstructured.Unstructured) string {
 	podSpec := []string{"spec", "template", "spec"}
 	anti, _, _ := unstructured.NestedSlice(o.Object, slices.Concat(podSpec,
@@ -104,9 +90,6 @@ func anyMap(items []any, pred func(map[string]any) bool) bool {
 	return false
 }
 
-// surgeOf returns the effective maxSurge and whether it is above zero.
-// Recreate and OnDelete never surge; an unparsable value counts as surging so
-// the lint fails closed.
 func surgeOf(o *unstructured.Unstructured, st strategy) (intstr.IntOrString, bool) {
 	typ, _, _ := unstructured.NestedString(o.Object, slices.Concat(st.path, []string{"type"})...)
 	if typ == "Recreate" || typ == "OnDelete" {

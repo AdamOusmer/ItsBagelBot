@@ -13,28 +13,18 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// Counter is one named counter of one broadcaster. A channel-scoped counter
-// keeps its value here; a viewer-scoped counter keeps this row as the
-// definition and its per-viewer values in CounterEntry. Rows are created
-// explicitly (dashboard / !counter create) or implicitly by the first bump a
-// worker reports, so a counter referenced from a command template just works.
 type Counter struct {
 	ent.Schema
 }
 
-// Fields of the Counter.
 func (Counter) Fields() []ent.Field {
 	return []ent.Field{
 		field.Uint64("user_id").Immutable(),
 
 		field.String("name").NotEmpty().MaxLen(64),
 
-		// data.CounterScopeChannel or data.CounterScopeViewer. Stored as a
-		// plain string so adding a scope never needs a column migration; the
-		// trust boundary validates it.
 		field.String("scope").Default("channel"),
 
-		// The channel-scope value. Unused (kept 0) for viewer-scoped counters.
 		field.Int64("value").Default(0),
 
 		field.Time("created_at").Default(time.Now),
@@ -47,10 +37,6 @@ func (Counter) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("user_id", "name").
 			Unique(),
-		// Cross-broadcaster board read (repository.CounterBoard): one counter
-		// name, every channel, ordered by value. The unique index above leads
-		// with user_id, so it cannot serve a name-only lookup — without this
-		// one the public stats boards full-scan the counters table.
 		index.Fields("name", "value"),
 	}
 }
@@ -61,9 +47,7 @@ func (Counter) Hooks() []ent.Hook {
 	}
 }
 
-// normalizeNameHook stores the bare counter key: no leading "!", lower-cased,
-// trimmed — the same normalization the commands service applies to command
-// names, so "{counter:Deaths}" and "!counter add deaths" hit the same row.
+// Must match the commands service's name normalization, or template tokens and chat verbs split rows.
 func normalizeNameHook() ent.Hook {
 	return func(next ent.Mutator) ent.Mutator {
 		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {

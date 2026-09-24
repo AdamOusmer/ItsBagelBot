@@ -16,9 +16,6 @@ import (
 	domain "ItsBagelBot/internal/domain/discord"
 )
 
-// recordingWithHeader is recording plus the request's Content-Type, which is
-// the whole point of the multipart path: the boundary lives in the header and
-// a body written without it is unparseable.
 func recordingWithHeader(t *testing.T, status int, reply string) (*Client, *capture, *string) {
 	t.Helper()
 	client, got := recording(t, status, reply)
@@ -49,16 +46,11 @@ func TestSendFileSendsPayloadJSONAndFilesZero(t *testing.T) {
 
 	parts := parseMultipart(t, *contentType, got.body)
 	wantPayloadJSON(t, parts)
-	// The attachments entry's id must match the files[N] index, or Discord
-	// accepts the message and silently drops the file.
 	if parts["files[0]"] != "[2026-01-01 00:00 UTC] ada: hi\n" {
 		t.Fatalf("files[0] = %q", parts["files[0]"])
 	}
 }
 
-// wantPayloadJSON checks the JSON part carries the message body Discord binds
-// the attachment to: the attachments entry, its index-matching id and
-// filename, plus the content and embed posted alongside it.
 func wantPayloadJSON(t *testing.T, parts map[string]string) {
 	t.Helper()
 	payload, ok := parts["payload_json"]

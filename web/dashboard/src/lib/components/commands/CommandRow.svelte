@@ -2,10 +2,6 @@
   import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One ledger line in the command deck, on the shared ManagementRow: the
-  // clickable primary is a real button and the quick actions (toggle, delete)
-  // are siblings of it, never nested inside. The page passes the enhance
-  // handlers so all optimistic-UI state lives in one place.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Icon, PermBadge, SaveStatus, ManagementRow, Switch, Tag, getI18n, usesCount, type CommandView, type Perm } from '@bagel/kit';
@@ -26,7 +22,6 @@
   }: {
     command: CommandView;
     index?: number;
-    /** Largest use count in the visible deck; sets the bar's full width. */
     usesMax?: number;
     status?: SaveState;
     unsaved?: boolean;
@@ -40,9 +35,6 @@
   const cd = $derived(c.cooldown && c.cooldown > 0 ? `${c.cooldown}s` : '\u2014');
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
   const uses = $derived(usesCount(c));
-  // Share of the deck's busiest command. Clamped so a stale usesMax (a row
-  // arriving from an optimistic save before the page re-derives the max) can
-  // never draw a bar past its track.
   const barPct = $derived(usesMax > 0 ? Math.min(100, Math.round((uses / usesMax) * 100)) : 0);
 </script>
 
@@ -90,9 +82,6 @@
             <span class="m-val uses">{uses.toLocaleString()}</span>
             <span class="m-lbl">{t('commandRow.uses')}</span>
           </span>
-          <!-- Relative-use bar: the deck ranks by use, so the row carries the
-               proportion it is ranked on instead of leaving the reader to
-               compare raw numbers down the column. -->
           <span class="u-track" aria-hidden="true">
             <span class="u-fill" class:is-off={!c.is_active} style="width:{barPct}%"></span>
           </span>
@@ -124,44 +113,27 @@
 </div>
 
 <style>
-  /* The selection accent is `ManagementRow accent` now: the same 2px green
-     edge, owned by the contract instead of reached into from here. See
-     @bagel/ui/styles/elements/management-row.css. */
-
   .prow {
     display: grid;
-    /* One fixed track per cell rather than a nested metadata grid: the deck
-       reads as columns, so permission / uses / cooldown / state must land on
-       the same x on every row, including rows whose response is short. */
     grid-template-columns: 22px 190px minmax(0, 1fr) 104px 92px 44px auto;
     align-items: center;
     gap: 14px;
-    /* Pin every row to one height: the tallest cell (perm pill vs uses stack)
-       differs by a rounding pixel between custom and built-in rows otherwise. */
     min-height: 26px;
   }
 
   .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
 
-  /* Single-line cell: aliases ride inline after the name so every row is the
-     same height. A second stacked line made alias rows taller than the rest. */
   .cmd { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
   .cmd-name {
     display: inline-flex; align-items: center; gap: 2px;
     font-family: var(--bb-font-mono); font-size: 13.5px; color: var(--bb-tan-light);
-    /* Never wraps: a name + badge combo wider than the 190px name column used
-       to fold to a second line and make that row taller than its neighbors. */
     white-space: nowrap;
   }
   .lock { display: inline-flex; color: var(--bb-muted); margin-left: 6px; vertical-align: middle; }
 
-  /* Offset from the command name; the label itself is Tag. */
   .name-tag { margin-left: 8px; display: inline-flex; }
 
-  /* Gap widened from 4px: bare labels have no frame to separate them. */
   .aliases { display: flex; flex-wrap: nowrap; gap: 12px; min-width: 0; overflow: hidden; }
-  /* The casing an alias was saved with survives via `.bb-tag--literal`, which
-     is the contract's own answer to "this tag's text is user data". */
 
   .resp {
     font-family: var(--bb-font-body);
@@ -184,10 +156,6 @@
     background: var(--bb-green-glow, #52b788);
     transition: width var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, ease);
   }
-  /* A disabled command keeps its history but stops being a live signal. Read
-     off this row's own `c.is_active` rather than off the row contract's
-     `.is-off` class, so the bar does not depend on which class ManagementRow
-     happens to emit. */
   .u-fill.is-off { background: var(--bb-muted); }
 
   .m-cd {
@@ -220,8 +188,6 @@
   :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
   .mini-spacer { width: 32px; height: 32px; flex: none; }
 
-  /* Mid width: the index and the cooldown are the first things to go, the
-     row still ranks by use, and the cooldown lives in the inspector. */
   @media (max-width: 1080px) {
     .prow { grid-template-columns: 190px minmax(0, 1fr) 104px 92px auto; }
     .idx, .m-cd { display: none; }

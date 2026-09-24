@@ -17,8 +17,6 @@ import { env } from '$env/dynamic/private';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { actionError } from '$lib/server/action-errors';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
 function gateModules(session: Session | null | undefined): void {
@@ -27,9 +25,6 @@ function gateModules(session: Session | null | undefined): void {
   }
 }
 
-// Coerce a stored module config blob into a flat string map for the reply forms,
-// pulling the server's revision mirror (__rev) out into a separate number the
-// client echoes back on patch. __rev never appears as a user-facing config key.
 function asConfig(raw: unknown): { config: Record<string, string>; revision: number } {
   const config: Record<string, string> = {};
   let revision = 0;
@@ -49,18 +44,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   gateModules(locals.session);
   const def = moduleDef(params.id);
   if (!def || def.hidden) throw error(404, actionError(locals.locale, 'Unknown module'));
-  // href modules (channel points, timers, govee) own a bespoke page; the generic
-  // reply inspector cannot render them, so send any direct hit there.
   if (def.href) throw redirect(302, def.href);
 
-  // Beta on a free channel: the page still renders (read-only, with the
-  // upgrade banner) but every write below is refused by resolveWrite. Read
-  // before moduleLoad because gateModules() above is this page's real delegate
-  // gate (the 'modules' grant); moduleLoad's per-module gate is the defence in
-  // depth under it, and is a no-op for the href-less defs that land here.
   const locked = await moduleLocked(locals, def);
-  // Defaults rather than a blank page when the read is momentarily down, and
-  // the same shape the demo build serves.
   const blank = () => ({ def, locked, enabled: def.defaultEnabled, config: {} as Record<string, string>, revision: 0 });
 
   return moduleLoad(def.id, locals.session, {
@@ -75,11 +61,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   });
 };
 
-// buildConfig reads the posted draft into the module's stored config: a
-// customized message per reply (blank falls back to the sesame default), an
-// explicit "off" for a per-reply toggle the user turned off (empty/absent = on,
-// matching sesame's alertOn semantics), and each non-blank plain setting. Only
-// non-default values are stored, so the blob stays minimal.
 function buildConfig(def: ModuleDef, f: FormData): Record<string, string> {
   const get = (key: string) => String(f.get(`cfg.${key}`) ?? '').trim();
   const config: Record<string, string> = {};
@@ -91,20 +72,12 @@ function buildConfig(def: ModuleDef, f: FormData): Record<string, string> {
   for (const field of (def.settings ?? []).filter((s) => get(s.key))) {
     config[field.key] = get(field.key);
   }
-  // Triggers persists its whole rule list as one "rules" string (one rule per
-  // line); the sesame module parses it (app/twitch/sesame/modules/triggers.go).
   const rules = def.id === MOD.triggers ? get('rules') : '';
   if (rules) config.rules = rules;
   return config;
 }
 
-// allowedConfigKeys names every key a module's own page can legitimately
-// write, mirroring buildConfig above key for key: each reply's message and
-// (if it has one) enable toggle, each plain setting, and triggers' own
-// "rules" blob. patch takes a client-authored JSON delta rather than a form
-// buildConfig can walk field by field, so without this a delegate (or a
-// forged request) could stash arbitrary keys into the stored config that no
-// UI ever reads back.
+// Mirrors buildConfig key for key, so a forged patch cannot stash arbitrary keys.
 function allowedConfigKeys(def: ModuleDef): Set<string> {
   const keys = new Set<string>();
   for (const reply of def.replies) {
@@ -116,13 +89,6 @@ function allowedConfigKeys(def: ModuleDef): Set<string> {
   return keys;
 }
 
-// resolveWrite gates a write action and resolves what it writes: the module
-// def and the id whose row it touches. Every rejection is returned as `denied`
-// for the action to hand straight back, so both actions read as a single gate
-// call instead of repeating the same four checks and drifting apart from each
-// other (and from the load) the way the read and write paths already did once.
-// href modules are refused here for the same reason the load redirects them:
-// their bespoke page owns the write.
 type WriteTarget = { denied: ReturnType<typeof fail> } | { def: ModuleDef; uid: string };
 
 async function resolveWrite(id: string, locals: App.Locals): Promise<WriteTarget> {
@@ -130,27 +96,18 @@ async function resolveWrite(id: string, locals: App.Locals): Promise<WriteTarget
   gateModules(session);
   const def = moduleDef(id);
   if (!def || def.href) return { denied: fail(404, { ok: false, error: actionError(locals.locale, 'Unknown module.') }) };
-  // gateModules above only proves the 'modules' section; a module with its
-  // own delegation grant (channel points) needs its own scope checked too.
   if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: actionError(locals.locale, 'Not allowed.') }) };
   if (await moduleLocked(locals, def)) return { denied: fail(403, { ok: false, error: actionError(locals.locale, 'Premium only while in beta.') }) };
   if (!DEMO && !session) return { denied: fail(401, { ok: false, error: actionError(locals.locale, 'Not signed in.') }) };
   return { def, uid: effectiveId(session) };
 }
 
-// Nested games cannot be enabled while their parent is off. Config writes
-// still go through (odds and replies stay editable); the enable flag is
-// forced off so a settings patch cannot resurrect !gamble against a
-// currency that is not running.
 async function gatedEnabled(uid: string, def: ModuleDef, requested: boolean): Promise<boolean> {
   if (!requested || !def.parent) return requested;
   return parentIsEnabled(uid, def.parent);
 }
 
 export const actions: Actions = {
-  // One save persists the whole module config (enable + every reply message and
-  // per-reply toggle). The client always posts the full draft, so upsertModule's
-  // config replace is authoritative.
   save: async ({ request, params, locals }) => {
     const target = await resolveWrite(params.id, locals);
     if ('denied' in target) return target.denied;
@@ -173,11 +130,6 @@ export const actions: Actions = {
     return { ok: true, enabled };
   },
 
-  // Patch merges only the changed keys (client-authored delta) into the stored
-  // config under optimistic concurrency. `partial` is a JSON object of the keys
-  // to set (an explicit "" clears one); `expected_rev` is the revision the client
-  // last read. A conflict means another writer moved the revision on: the client
-  // reloads and retries instead of clobbering it.
   patch: async ({ request, params, locals }) => {
     const target = await resolveWrite(params.id, locals);
     if ('denied' in target) return target.denied;
@@ -196,9 +148,6 @@ export const actions: Actions = {
   }
 };
 
-// applyPatch performs the optimistic-concurrency write itself, so the action
-// above stays a straight read of the request. A conflict is a normal outcome
-// the client retries after refetching, not a failure.
 async function applyPatch(
   def: ModuleDef,
   uid: string,
@@ -222,11 +171,6 @@ async function applyPatch(
   }
 }
 
-// parsePartial coerces the posted patch JSON into a flat string map, dropping
-// any key the module def does not declare (allowedConfigKeys), or null when
-// the payload is not a valid object at all. The keys are the only thing that
-// makes it into the stored config, so an unknown key never has anywhere to
-// land, no matter what the request tries to smuggle in.
 function parsePartial(raw: FormDataEntryValue | null, def: ModuleDef): Record<string, string> | null {
   try {
     const obj = JSON.parse(String(raw ?? '{}'));

@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Live upstream probe, gated behind VALORANT_LIVE=1 plus a real
-// VALORANT_API_KEY (injected from Doppler, never logged). It exercises the
-// actual wire path — headers, paths, envelopes, shaping — against the real
-// HenrikDev and content hosts, spending about six requests of the key's
-// budget. Everything it prints is public game data.
-
 package valorant
 
 import (
@@ -40,8 +34,6 @@ func TestLiveUpstream(t *testing.T) {
 	fmt.Printf("leaderboard: %s top=%s tier=%d rr=%d\n", board.Board, top.Player, top.Tier, top.RR)
 	require.Contains(t, top.Player, "#", "board row missing tagline")
 
-	// No Region on the player probes: this deliberately exercises the
-	// auto-detect path (one shared identity resolve feeding all three).
 	player := gossiprpc.Request{Account: top.Player}
 
 	account := decodeReply[accountReply](t, endpoint(t, p, "account")(ctx, player))
@@ -71,6 +63,4 @@ func TestLiveUpstream(t *testing.T) {
 	}
 }
 
-// These tests stage plain-http loopback upstreams the gate rightly refuses;
-// production binaries never set this (see core.SetSSRFCheckForTests).
 func init() { core.SetSSRFCheckForTests(false) }

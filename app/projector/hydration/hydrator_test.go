@@ -274,10 +274,6 @@ func TestEnsureAsyncLeavesFailedSectionUnprojectedForRetry(t *testing.T) {
 		"an always-failing section must be retried hydrationRetryAttempts times, no more")
 }
 
-// TestEnsureAsyncRetriesTransientFetchFailureThenSucceeds covers the actual
-// bug fix: a section that fails on its first attempts but recovers within
-// hydrationRetryAttempts must still end up written, instead of sitting cold
-// until a later EnsureAsync or the TTL lapses.
 func TestEnsureAsyncRetriesTransientFetchFailureThenSucceeds(t *testing.T) {
 	writes := make(chan write, 3)
 	store := noOpStore()
@@ -364,12 +360,6 @@ func collectWrites(t *testing.T, ch <-chan write, count int) []write {
 	return out
 }
 
-// writesBySection collects count writes keyed by section. fill() now runs
-// each section in its own goroutine that writes as soon as its own
-// fetch-retry-then-write finishes, so sections no longer complete in a fixed
-// order the way the old fetch-everything-then-write-everything fill() did;
-// tests that only care about per-section content, not arrival order, should
-// use this instead of collectWrites.
 func writesBySection(t *testing.T, ch <-chan write, count int) map[string]write {
 	t.Helper()
 	out := make(map[string]write, count)

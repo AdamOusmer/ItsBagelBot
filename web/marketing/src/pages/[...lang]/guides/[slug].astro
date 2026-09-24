@@ -2,9 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// One file for every guide in every locale. The copy lives in
-// src/content/guides/<slug>.<lang>.ts; this page only decides which one to
-// render and wires the shell, the body and the pager around it.
 import Layout from '../../../layouts/Layout.astro';
 import PageHero from '@bagel/ui/astro/PageHero.astro';
 import GuideShell from '../../../components/guides/GuideShell.astro';
@@ -22,18 +19,12 @@ export function getStaticPaths() {
 const { slug } = Astro.params;
 const lang = getLangFromUrl(Astro.url);
 const guide = getGuide(toGuideSlug(slug as string), lang);
-// Pager labels are the neighbour's own hero heading, so a renamed guide renames
-// itself everywhere instead of leaving a stale label behind. guideSlugs is the
-// reading order, so the neighbours are just the slugs either side of this one.
 const here = guideSlugs.indexOf(guide.slug);
 const pager = (at: number) =>
     guideSlugs[at] ? { href: guidePath(guideSlugs[at], lang), label: getGuide(guideSlugs[at], lang).meta.heading } : undefined;
 const prev = pager(here - 1);
 const next = pager(here + 1);
 
-// Guides are the site's only long-form content; TechArticle + BreadcrumbList
-// give them page-type context and rich-result eligibility the site-wide
-// Organization/WebSite/SoftwareApplication graph alone doesn't provide.
 const origin = new URL(Astro.site!).origin;
 const pageUrl = new URL(Astro.url.pathname, Astro.site).href;
 const guideSchema: Record<string, unknown>[] = [

@@ -16,7 +16,7 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,7 +33,6 @@ func setup(t *testing.T) (*ent.Client, *bustest.Publisher, *repository.Commands)
 	return client, pub, repository.NewCommands(client, pub, nil, zap.NewNop())
 }
 
-// spec builds a CommandSpec with the fields these tests vary.
 func spec(name, response string, streamOnlineOnly bool, cooldown uint) repository.CommandSpec {
 	return repository.CommandSpec{
 		Name:             name,
@@ -53,7 +52,7 @@ func TestUpsertCoalescesEdits(t *testing.T) {
 	repo.Upsert(1001, spec("!hello", "draft two", false, 0))
 	repo.Upsert(1001, spec("!hello", "final wording", true, 0))
 
-	repo.Close(ctx) // deterministic flush
+	repo.Close(ctx)
 
 	rows := client.Commands.Query().AllX(ctx)
 	require.Len(t, rows, 1)
@@ -63,24 +62,19 @@ func TestUpsertCoalescesEdits(t *testing.T) {
 	require.Len(t, pub.On(data.SubjectCommandChanged), 1)
 }
 
-// TestUpsertNormalizesMultiLineResponse proves the response canonicalization:
-// CRLF folds to LF, trailing whitespace and blank lines vanish, and what lands
-// in the row is the newline-delimited form the worker splits on.
 func TestUpsertNormalizesMultiLineResponse(t *testing.T) {
 	client, _, repo := setup(t)
 	ctx := context.Background()
 
 	require.NoError(t, repo.Upsert(1001, spec("!multi", "line one  \r\n\r\nline two\r\nline three", false, 0)))
 
-	repo.Close(ctx) // deterministic flush
+	repo.Close(ctx)
 
 	rows := client.Commands.Query().AllX(ctx)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "line one\nline two\nline three", rows[0].Response)
 }
 
-// TestUpsertRejectsTooManyLines proves the six-line response is refused at the
-// trust boundary (five is the ceiling).
 func TestUpsertRejectsTooManyLines(t *testing.T) {
 	_, _, repo := setup(t)
 
@@ -123,19 +117,16 @@ func TestRenameUpdatesRowInPlace(t *testing.T) {
 	repo2 := repository.NewCommands(client, pub, nil, zap.NewNop())
 	defer repo2.Close(ctx)
 
-	baseline := len(pub.On(data.SubjectCommandChanged)) // the create flush above
+	baseline := len(pub.On(data.SubjectCommandChanged))
 
 	require.NoError(t, repo2.Rename(ctx, 1001, "!old", spec("!new", "the response", true, 7)))
 
-	// Exactly one row, same primary key (updated in place, not deleted+recreated).
 	rows := client.Commands.Query().AllX(ctx)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "new", rows[0].Name)
 	assert.Equal(t, originalID, rows[0].ID, "rename must preserve the row identity")
 	assert.True(t, rows[0].StreamOnlineOnly)
 
-	// A delete for the old name and a change for the new name are announced so
-	// name-keyed consumers drop the stale key.
 	events := pub.On(data.SubjectCommandChanged)
 	require.Len(t, events, baseline+2)
 	renameEvents := events[baseline:]
@@ -155,7 +146,7 @@ func TestRenameMissingRowFallsBackToCreate(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, repo.Rename(ctx, 1001, "!ghost", spec("!new", "resp", true, 0)))
-	repo.Close(ctx) // flush the fallback upsert
+	repo.Close(ctx)
 
 	rows := client.Commands.Query().AllX(ctx)
 	require.Len(t, rows, 1)

@@ -20,10 +20,6 @@ type maintenanceRPC struct {
 	log  *zap.Logger
 }
 
-// SubscribeMaintenance registers the internal janitor verb the k3s cron drives.
-// The subject is NOT exported from the NOTIFICATIONS_RPC account, so only a
-// client holding the notifications credentials (the cron reuses them) can reach
-// it. The queue group means exactly one replica runs the sweep per cron tick.
 func SubscribeMaintenance(w Wiring, subject string) error {
 	m := &maintenanceRPC{repo: w.Repo, log: w.Log}
 	return bus.Serve(w.Within(cleanupBudget), subject, m.cleanup)

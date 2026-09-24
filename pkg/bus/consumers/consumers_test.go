@@ -17,9 +17,6 @@ import (
 	"ItsBagelBot/pkg/bus/consumers"
 )
 
-// A payload the service can never act on must be dropped, not returned: the
-// bus would redeliver it forever. A failing sweep is the opposite -- worth a
-// retry -- so the two cases are pinned together.
 func TestOnUserDeletedDropsUnusablePayloadsAndRetriesSweeps(t *testing.T) {
 	sweepErr := errors.New("mysql gone")
 
@@ -64,8 +61,6 @@ func TestOnChangeInvalidateDropsTheNamedUser(t *testing.T) {
 	assert.Equal(t, []uint64{1001}, dropped)
 }
 
-// A change event that cannot be decoded is returned for redelivery: a missed
-// invalidation leaves a stale view in front of a real user.
 func TestOnChangeInvalidateReturnsMalformedPayloads(t *testing.T) {
 	handle := consumers.OnChangeInvalidate(
 		func(dto data.ModuleChangedDTO) uint64 { return dto.UserID },

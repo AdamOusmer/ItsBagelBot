@@ -32,9 +32,6 @@ import {
   type StartRequest
 } from '$lib/deploys/types';
 
-// This module is only dynamically imported from branches guarded directly by
-// SvelteKit's build-time `dev` constant. If a future edit makes it reachable
-// during a production build, the build scan catches this sentinel and fails.
 if (!dev) throw new Error('ADMIN_DEV_FIXTURE_INCLUDED_IN_PRODUCTION');
 
 export function demoAdminIdentity(): AdminIdentity {
@@ -245,13 +242,6 @@ export function demoFeedEvent(sequence: number, statusPrefix: string): FeedEvent
   };
 }
 
-// ── Deploys ─────────────────────────────────────────────────────────────────
-//
-// An in-memory run store with the live DeployApi's shape, so the Deploys page
-// runs end to end without NATS: start records a run, and a watched run
-// advances one step per tick, rollout one service at a time with its pods
-// turning new node by node, the way a real train moves.
-
 const DEMO_TICK_MS = 1500;
 const DEMO_NODES = ['node1', 'node2', 'node3'];
 const DEMO_SERVICES = ['users', 'gossip', 'twitch-ingress', 'console-admin'] as const;
@@ -348,8 +338,6 @@ function demoList(): DeployRuns {
   return { runs: runs.map(demoSummary), activeRunId: active?.id ?? null };
 }
 
-// The live deployer refuses a second run while the cluster lock is held; the
-// fixture refuses the same way so the page's 409 path can be exercised.
 function demoStart(req: StartRequest): DeployRun {
   if (demoList().activeRunId) throw new RpcError('a deploy is already running', 'conflict');
   return demoPut(demoRunFrom(req, `demo-${Date.now().toString(36)}`));
@@ -401,7 +389,6 @@ function demoDeployPlan(): DeployPlan {
   };
 }
 
-// One finished release, so the history is not empty on first load.
 demoPut({
   ...demoRunFrom({ actor_id: 'demo-admin', kind: 'release', version: 'v0.2.0-beta', target_sha: DEMO_SHA }, 'demo-v0-2-0'),
   state: 'succeeded',

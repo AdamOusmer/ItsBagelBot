@@ -39,9 +39,6 @@
   const commandsPageUrl = $derived(commandsHref((data.login ?? '').toLowerCase()));
   const commandsPageDelayed = $derived(form?.action === 'commands_page' && !!form?.edgeDelayed);
   const levelLabel = (l: string) => l.charAt(0).toUpperCase() + l.slice(1);
-  // Severity -> shared .bb-tag variant. Same map as NotificationBell, so one
-  // level reads identically in both surfaces. No variant is red, so critical
-  // takes --alpha plus the danger colour in .level.critical below.
   const LEVEL_TAG: Record<string, string> = {
     info: 'bb-tag--quiet',
     success: 'bb-tag--live',
@@ -55,9 +52,6 @@
     if (!createdGrant || grants.some((g) => g.token === createdGrant.token)) return grants;
     return [createdGrant, ...grants];
   });
-  // The two halves of a share link's life. They read as different objects (one
-  // names a person, the other is a URL still waiting for one), so they get their
-  // own lists instead of a single list carrying a stage strip per row.
   const inUse = $derived(given.filter((g) => g.consumed));
   const pending = $derived(given.filter((g) => !g.consumed));
   const received = $derived(
@@ -66,7 +60,6 @@
   const origin = $derived(page.url.origin);
   const unreadIds = $derived(notifications.filter((n) => !n.read).map((n) => n.id));
 
-  // Sections an owner can grant (from the server so it stays in one place).
   const grantable = $derived(
     (data.grantableSections ?? ['commands', 'modules', 'discord', 'channelpoints', 'billing']) as string[]
   );
@@ -89,8 +82,6 @@
   const pickerOptions = (checkedFor: (sec: string) => boolean) =>
     grantable.map((sec) => ({ value: sec, label: sectionLabel(sec), checked: checkedFor(sec) }));
 
-  // The in-page section nav. Anchors, not ARIA tabs: each targets a
-  // <section tabindex=-1> below.
   const navItems = $derived([
     { href: '#account', label: t('settings.account') },
     { href: '#access', label: t('settings.sharedAccess') },
@@ -102,12 +93,6 @@
     { href: '#danger-zone', label: t('settings.dangerZone') }
   ]);
 
-  // API keys for data sources. They sit in Settings rather than beside the
-  // commands that spend them because they are account-level secrets, and this
-  // page is already owner-only: a delegate with 'commands' access can use a
-  // key through a data source but never read, rotate or destroy one.
-  // Seeded once, then owned locally so a seal/rotate/delete can swap in the
-  // server's refreshed list without a full page invalidation.
   // svelte-ignore state_referenced_locally
   let fetchKeys = $state(data.fetchKeys ?? []);
   // svelte-ignore state_referenced_locally
@@ -156,7 +141,6 @@
     if (d) toast('ok', t('fetches.keyDeletedToast', { label }));
   }
 
-  // Which grant's access is being edited inline (add/remove sections).
   let editingToken = $state<string | null>(null);
   function openEdit(token: string) {
     editError = '';
@@ -166,13 +150,8 @@
     editingToken = null;
   }
 
-  // Client-side "pick at least one section" guard for the share-link forms. The
-  // server validates the same thing; this just surfaces it as inline text before
-  // the round-trip. Both messages name the affected control (the section group).
   let createError = $state('');
   let editError = $state('');
-  // The section picker is a disclosure behind the header's "New share link"
-  // button: creating a link is the rarer act than reading who already has one.
   let creating = $state(false);
   function hasSelection(formData: FormData): boolean {
     return grantable.some((sec) => formData.get(sec) === 'on');
@@ -182,8 +161,6 @@
     return `${origin}/delegate/accept?t=${token}`;
   }
 
-  // One-tap copy with per-grant "copied" feedback (lifecycle: created -> link
-  // copied -> consumed).
   let copied = $state<Record<string, boolean>>({});
   async function copy(token: string) {
     if (await copyText(linkFor(token))) {
@@ -195,8 +172,6 @@
     }
   }
 
-  // Surface action results as toasts (replaces the old inline banners). A table
-  // rather than an if-chain: every new action is one row, not another branch.
   const actionToast: Record<string, () => string> = {
     created: () => t('settings.toastCreated'),
     updated: () => t('settings.toastAccessUpdated'),
@@ -218,26 +193,16 @@
     if (message) toast('ok', message());
   });
 
-  // Revoke is irreversible (tokens are single-use), so it gets a confirm
-  // dialog rather than optimistic apply + undo.
   let revokeTarget = $state<DelegationGrant | null>(null);
   let revokeForm = $state<HTMLFormElement | null>(null);
 
-  // Leaving a shared dashboard removes this user's access. Confirm the choice
-  // before submitting the existing opt-out action.
   let leaveTarget = $state<{ owner_user_id: string; owner_login: string } | null>(null);
   let leaveForm = $state<HTMLFormElement | null>(null);
 
-  // Delete: a destructive ConfirmDialog that spells out the consequence and
-  // opens with Cancel focused. It submits a hidden form to ?/delete (the server
-  // contract is unchanged; the action redirects to /goodbye on success).
   let deleteOpen = $state(false);
   let deleting = $state(false);
   let deleteForm = $state<HTMLFormElement | null>(null);
 
-  // Sign out everywhere: same destructive-confirm shape as delete. The action
-  // revokes every session server-side, this one included, so it ends on the
-  // login page rather than back here.
   let signOutOpen = $state(false);
   let signingOut = $state(false);
   let signOutForm = $state<HTMLFormElement | null>(null);
@@ -284,9 +249,6 @@
   <PageHead eyebrow={t('settings.eyebrow')} description={t('settings.description')}>{t('settings.titlePre')}<em>{t('settings.titleEm')}</em></PageHead>
 
   <div class="layout">
-    <!-- Section rail. SectionNav stacks itself into a hairline rail once its
-         container is narrow (container query, not a viewport hide), so the
-         same markup is the chip row on a phone. -->
     <aside class="rail">
       <SectionNav label={t('settings.navSections')} items={navItems} />
       <Card class="board">
@@ -298,7 +260,6 @@
     </aside>
 
     <div class="stack">
-  <!-- ACCOUNT -->
   <Card as="section" id="account" class="settings-section" tabindex="-1" aria-labelledby="h-account">
     <Heading level={2} class="sec-title" id="h-account">{t('settings.account')}</Heading>
     <p class="hint">{t('settings.accountHint')}</p>
@@ -315,7 +276,6 @@
     </div>
   </Card>
 
-  <!-- SHARED ACCESS: links you granted + dashboards shared with you. -->
   <Card as="section" id="access" class="settings-section" tabindex="-1" aria-labelledby="h-access">
     <div class="sec-head">
       <div>
@@ -439,7 +399,6 @@
     </div>
   </Card>
 
-  <!-- NOTIFICATIONS: the bell dropdown's "view all" target (/settings#notifications). -->
   <Card as="section" id="notifications" class="settings-section" tabindex="-1" aria-labelledby="h-notifications">
     <div class="sec-head">
       <Heading level={2} class="sec-title" id="h-notifications">{t('settings.notifications')}</Heading>
@@ -474,7 +433,6 @@
     {/if}
   </Card>
 
-  <!-- PREFERENCES -->
   <Card as="section" id="preferences" class="settings-section" tabindex="-1" aria-labelledby="h-preferences">
     <Heading level={2} class="sec-title" id="h-preferences">{t('settings.preferences')}</Heading>
     <div class="row">
@@ -493,9 +451,6 @@
     </div>
   </Card>
 
-  <!-- PUBLIC PAGES: the owner-only off switch for the public commands page
-       (/user/<login>). Off answers 404 to viewers and stops !cmd sharing the
-       link; see docs/specs/commands-page-toggle.md. -->
   <Card as="section" id="public-pages" class="settings-section" tabindex="-1" aria-labelledby="h-public-pages">
     <Heading level={2} class="sec-title" id="h-public-pages">{t('settings.publicPages')}</Heading>
     <div class="row">
@@ -513,9 +468,6 @@
     </div>
   </Card>
 
-  <!-- API KEYS: account-level secrets for data sources. Owner-only, like the
-       rest of this page. Data sources themselves are created inside the command
-       editor; only the keys they spend are managed here. -->
   <Card as="section" id="api-keys" class="settings-section" tabindex="-1" aria-labelledby="h-api-keys">
     <Heading level={2} class="sec-title" id="h-api-keys">{t('fetches.keysTitle')}</Heading>
     <p class="hint">{t('settings.keysHint')}</p>
@@ -528,8 +480,6 @@
     />
   </Card>
 
-  <!-- IMPORT: the doorway to /settings/import, which is a settings section that
-       needs a page of its own. -->
   <Card as="section" id="import" class="settings-section" tabindex="-1" aria-labelledby="h-import">
     <div class="sec-head">
       <div>
@@ -540,7 +490,6 @@
     </div>
   </Card>
 
-  <!-- DANGER ZONE: visually separated, last. -->
   <Card as="section" id="danger-zone" class="settings-section danger-section" tabindex="-1" aria-labelledby="h-danger">
     <Heading level={2} class="sec-title" id="h-danger">{t('settings.dangerZone')}</Heading>
     <p class="hint">{t('settings.dangerZoneHint')}</p>
@@ -563,7 +512,6 @@
   </div>
 </section>
 
-<!-- Revoke confirm -->
 <ConfirmDialog
   open={revokeTarget !== null}
   title={t('settings.revokeTitle')}
@@ -585,7 +533,6 @@
   </form>
 {/if}
 
-<!-- Leave shared dashboard confirm -->
 <ConfirmDialog
   open={leaveTarget !== null}
   title={t('settings.leaveTitle', { login: leaveTarget?.owner_login ?? '' })}
@@ -605,7 +552,6 @@
   </form>
 {/if}
 
-<!-- Sign out everywhere: destructive, names the consequence, Cancel focused. -->
 <ConfirmDialog
   open={signOutOpen}
   title={t('settings.signOutEverywhereTitle')}
@@ -624,7 +570,6 @@
   <form method="POST" action="?/signOutEverywhere" use:enhance bind:this={signOutForm} hidden></form>
 {/if}
 
-<!-- Delete confirm: destructive, names the consequence, Cancel focused. -->
 <ConfirmDialog
   open={deleteOpen}
   title={t('settings.deleteTitle')}
@@ -644,19 +589,11 @@
 {/if}
 
 <style>
-  /* Surface (bg/border/radius/padding) comes from <Card>; only the layout and
-     scroll-anchoring live here. :global because the class rides a component
-     root, which the parent's scoping hash never reaches. */
   :global(.settings-section) {
-    /* Anchor + programmatic focus land below the sticky topbar. */
     scroll-margin-top: calc(80px + env(safe-area-inset-top, 0px));
   }
   :global(.settings-section:focus) { outline: none; }
 
-  /* Rail + column, same shape as the modules index: one column on a phone
-     (the rail lies down as a horizontal row of tabs), two once there is room
-     for a ~12rem rail, where it stands up. The switch is a container query
-     inside the `.bb-tabs` contract, so nothing here hides anything. */
   .layout {
     display: grid;
     gap: 18px 40px;
@@ -666,8 +603,6 @@
     .layout { grid-template-columns: 12rem minmax(0, 1fr); align-items: start; }
   }
   .rail { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
-  /* The board card only makes sense beside the rail; in the phone's single
-     column it would sit between the chip row and the first section. */
   .rail :global(.board) { display: none; }
   @media (min-width: 761px) {
     .rail :global(.board) {
@@ -691,13 +626,9 @@
 
   .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 
-  /* The section titles are `Heading` blocks. 16px is between the l4 (20px)
-     and l5 (17px) steps because a settings section head sits inside a card,
-     under a rail, and has to stay quieter than the page title above it. */
   :global(.sec-title) { margin-bottom: 6px; font-size: 16px; }
   .hint { color: var(--bb-muted, #998f82); font-size: 13px; margin: 0 0 12px; }
 
-  /* Card header: title block left, its one primary action right. */
   .sec-head {
     display: flex;
     align-items: flex-start;
@@ -725,7 +656,6 @@
   }
   .sub-block .group-label { margin-top: 0; }
 
-  /* --- account identity --- */
   .identity {
     display: flex;
     align-items: center;
@@ -758,7 +688,6 @@
   }
   .create-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
 
-  /* --- Grant rows --- */
   .grants { display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 0; }
   .grant {
     display: grid;
@@ -787,23 +716,13 @@
   }
 
   .grant-sections { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  /* A pending row's chips and its open editor both sit under the whole row. */
   .grant.pending .grant-sections { grid-column: 1 / -1; }
   .grant-edit { grid-column: 1 / -1; margin-top: 4px; display: flex; flex-direction: column; gap: 12px; }
   .grant-edit-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
   .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  /* Standalone actions get a full 44px target; the dense inline "sm" buttons stay
-     compact but keep a 36px target (well above the 24px AA floor) and 8px+ gaps. */
   :global(.settings-section) { --btn-min-h: 44px; }
-  /* The 36px floor for the dense inline buttons is `.bb-btn--sm`'s own now
-     (@bagel/ui/styles/elements/button.css). The rule that used to sit here
-     never matched: these call sites pass `class="sm"`, which lands as a bare
-     `sm` class on the element, while the contract class is `.bb-btn--sm` --
-     so the buttons were full size and the 44px floor above applied to them.
-     They pass `size="sm"` now, which is what the rule was reaching for. */
 
-  /* --- notifications section --- */
   .notif-list { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
   .notif-item {
     display: flex; align-items: flex-start; gap: 12px;
@@ -815,13 +734,9 @@
   .notif-text b { font-size: 14px; color: var(--bb-white); }
   :global(.notif-body) { margin: 4px 0; }
   .notif-meta { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); opacity: 0.8; }
-  /* Pill triad retired for the shared .bb-tag variants (LEVEL_TAG above), so a
-     level reads the same here and in NotificationBell. Only the layout and
-     critical's red, which no variant carries, stay scoped. */
   .level { font-size: 10px; letter-spacing: 0.1em; white-space: nowrap; align-self: flex-start; }
   .level.critical { color: #d98a8a; border-bottom-color: rgba(217, 138, 138, 0.45); }
 
-  /* --- danger zone --- */
   :global(.danger-section) {
     margin-top: 28px;
     border-color: var(--bb-status-error-border, rgba(176, 90, 70, 0.4));
@@ -831,17 +746,9 @@
   @media (max-width: 760px) {
     .row, .identity { flex-direction: column; align-items: stretch; }
     .sec-head { --btn-w: 100%; --btn-justify: center; }
-    /* A phone has no room for three grid tracks; every part of a row stacks
-       and the link wraps instead of ellipsing. */
     .grant { grid-template-columns: minmax(0, 1fr); }
-    /* The button contract's own knobs, handed down: two buttons sharing the
-       row, each centred. `width: 100%` with the default flex-shrink is what
-       `flex: 1` spelled, and it is one declaration the contract already
-       exposes rather than a rule reaching into `.bb-btn`. */
     .grant .actions { --btn-w: 100%; --btn-justify: center; }
     .grant-link { white-space: normal; word-break: break-all; }
-    /* Level pill and Read button share the first line; the message gets the
-       full width rather than a column three words wide. */
     .notif-item { flex-wrap: wrap; }
     .notif-text { flex-basis: 100%; }
   }

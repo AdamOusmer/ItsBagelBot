@@ -12,9 +12,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// GiveawayOutbox makes fulfillment and notification intent survive process,
-// NATS, and browser failures. Workers claim rows with a lease and retry the
-// same event identity.
 type GiveawayOutbox struct{ ent.Schema }
 
 func (GiveawayOutbox) Fields() []ent.Field {

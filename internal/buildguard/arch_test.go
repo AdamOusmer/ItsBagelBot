@@ -11,7 +11,6 @@ import (
 	"testing"
 )
 
-// deps returns the full transitive dependency set of pkg via `go list -deps`.
 func deps(t *testing.T, pkg string) []string {
 	t.Helper()
 	goBin := filepath.Join(runtime.GOROOT(), "bin", "go")
@@ -22,14 +21,6 @@ func deps(t *testing.T, pkg string) []string {
 	return strings.Fields(string(out))
 }
 
-// TestSesameIsReadOnlyToData asserts sesame never links a database or an ent
-// package. sesame (the Twitch event worker) is a read-only consumer of the
-// projection (Valkey + the projector RPC); only the projector writes Valkey and
-// only the data services own a DB. A refactor that pulls an ent client or a SQL
-// driver into sesame would silently grant it a write path it must not have, so
-// fail the build here. The stdlib database/sql package is not itself the guard
-// line: the New Relic security agent links it for instrumentation hooks, and
-// without a registered driver it cannot open a connection.
 func TestSesameIsReadOnlyToData(t *testing.T) {
 	for _, dep := range deps(t, "ItsBagelBot/app/twitch/sesame") {
 		if isDataAccessPackage(dep) {
@@ -38,19 +29,12 @@ func TestSesameIsReadOnlyToData(t *testing.T) {
 	}
 }
 
-// isDataAccessPackage reports whether dep gives a binary a usable database
-// path: the repo's ent code, the shared DB helper, or a concrete SQL driver.
 func isDataAccessPackage(dep string) bool {
 	isEnt := strings.HasPrefix(dep, "ItsBagelBot/") && (strings.HasSuffix(dep, "/ent") || strings.Contains(dep, "/ent/"))
 	isDriver := strings.HasPrefix(dep, "github.com/go-sql-driver/") || strings.Contains(dep, "/nrmysql")
 	return isEnt || isDriver || dep == "ItsBagelBot/pkg/db"
 }
 
-// TestEngineDoesNotImportModules enforces the DIP boundary: the engine (registry,
-// pipeline, gate) depends only on the module abstractions (module.Module and the
-// store interfaces), never the concrete feature package. modules.All is wired by
-// main, the single composition root. If the engine starts importing the modules
-// package, adding a feature would force engine edits (OCP violation).
 func TestEngineDoesNotImportModules(t *testing.T) {
 	const modules = "ItsBagelBot/app/twitch/sesame/modules"
 	for _, dep := range deps(t, "ItsBagelBot/app/twitch/sesame/engine") {

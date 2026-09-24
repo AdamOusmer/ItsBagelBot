@@ -14,9 +14,6 @@ import (
 	ddiscord "ItsBagelBot/internal/domain/discord"
 )
 
-// Rank ports app/dingress/internal/community/slash.go's daily/rank commands
-// and the daily-claim button. Crumbs XP itself is awarded by Message; this
-// module only reads and spends it.
 func Rank(store discordstore.Store) module.Module {
 	h := rankModule{store: store}
 	b := module.NewModule("rank")

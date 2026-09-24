@@ -23,7 +23,6 @@ const testRepo = "ghcr.io/adamousmer/itsbagelbot"
 
 var t0 = time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)
 
-// fakeSink is the engine side of a RunCtx: one run, edited in place.
 type fakeSink struct {
 	mu  sync.Mutex
 	run deploy.Run
@@ -58,7 +57,6 @@ func (s *fakeSink) cancel() {
 	_ = s.Update(context.Background(), func(r *deploy.Run) { r.CancelRequested = true })
 }
 
-// rows is the stage's rows as "state done/total" by key.
 func (s *fakeSink) rows(id deploy.StageID) map[string]string {
 	run := s.View()
 	out := map[string]string{}
@@ -70,7 +68,7 @@ func (s *fakeSink) rows(id deploy.StageID) map[string]string {
 
 type fakeGitHub struct {
 	ports.GitHub
-	changed []ports.FilePath // Compare's files
+	changed []ports.FilePath
 }
 
 func (g *fakeGitHub) Tree(_ context.Context, dir ports.FilePath, _ ports.Ref) (ports.Files, error) {
@@ -85,8 +83,6 @@ func (g *fakeGitHub) Compare(context.Context, ports.Ref, ports.Ref) (ports.Compa
 	return ports.Comparison{Files: g.changed}, nil
 }
 
-// fakeApplier builds from a fixed set per root and records every Apply call
-// as the "Kind/name" of each object in it.
 type fakeApplier struct {
 	builds  map[ports.FilePath]ports.Objects
 	changed []ports.ObjectRef
@@ -115,7 +111,7 @@ type fakeWatcher struct {
 	servers   []ports.NATSServer
 	live      []ports.LiveImage
 	unsettled []ports.Unsettled
-	off       map[string][]ports.Mismatch // VerifyImageIDs answer by workload name
+	off       map[string][]ports.Mismatch
 	codes     map[ports.URL]int
 }
 
@@ -131,7 +127,6 @@ func (w *fakeWatcher) WaitRollout(_ context.Context, spec ports.RolloutSpec, pro
 
 func (w *fakeWatcher) NATSServers(context.Context) ([]ports.NATSServer, error) { return w.servers, nil }
 
-// LiveImages answers for the asked workloads only, as the real watcher does.
 func (w *fakeWatcher) LiveImages(_ context.Context, refs []ports.WorkloadRef) ([]ports.LiveImage, error) {
 	var out []ports.LiveImage
 	for _, l := range w.live {
@@ -175,7 +170,6 @@ func testConfig() ports.Config {
 	}
 }
 
-// harness is one stage's RunCtx over the fakes.
 type harness struct {
 	sink    *fakeSink
 	gh      *fakeGitHub
@@ -206,8 +200,6 @@ func object(ref ports.ObjectRef) *unstructured.Unstructured {
 	return o
 }
 
-// service is a Deployment named after, and running, its own first-party
-// image.
 func service(ns ports.Namespace, name deploy.ImageName) *unstructured.Unstructured {
 	o := object(ports.ObjectRef{Kind: kindDeployment, Namespace: ns, Name: string(name)})
 	c := map[string]any{"name": string(name), "image": imageOf(name)}
@@ -229,8 +221,6 @@ func ingressRoute(ref ports.ObjectRef, matches ...string) *unstructured.Unstruct
 	return o
 }
 
-// errCode names an outcome for comparison: "" for nil, "skipped",
-// "cancelled", a Fail's code, or the error text.
 func errCode(err error) string {
 	if f, ok := ports.AsFail(err); ok {
 		return string(f.Code)

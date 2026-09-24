@@ -20,10 +20,6 @@ type idRep struct {
 
 func (r *idRep) Failed(message string) { r.Error = message }
 
-// TestUserIDRefusals pins the two wire strings this guard answers with. They
-// are what a caller reads out of an RPC reply's error field, so collapsing the
-// sixteen hand-copied spellings onto these two only stays a collapse if the
-// bytes are held to a number.
 func TestUserIDRefusals(t *testing.T) {
 	got := map[string]string{
 		"empty":       refusal(t, ""),
@@ -51,9 +47,6 @@ func refusal(t *testing.T, raw string) string {
 	return err.Error()
 }
 
-// TestForUserGuard covers the skeleton: a valid id reaches load with the
-// parsed value, and a load error lands in the reply's error field rather than
-// escaping as a transport failure.
 func TestForUserGuard(t *testing.T) {
 	handle := ForUser[idReq, idRep](func(_ context.Context, _ idReq, id uint64) (idRep, error) {
 		if id == 7 {

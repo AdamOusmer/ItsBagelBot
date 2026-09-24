@@ -108,7 +108,6 @@ func TestUpsertRelease(t *testing.T) {
 	}
 }
 
-// TestReleases skips drafts: a draft has no tag to roll back to yet.
 func TestReleases(t *testing.T) {
 	c, fake, _ := newClient(t, routes{
 		"GET /repos/o/r/releases": reply(http.StatusOK, `[

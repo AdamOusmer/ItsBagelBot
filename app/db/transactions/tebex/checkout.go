@@ -42,8 +42,6 @@ type PauseRequest struct {
 	PausedUntil time.Time `json:"paused_until"`
 }
 
-// Reactivation belongs to Tebex's verified paused_until behavior. The worker
-// has no Active mutation that could override a customer's cancellation.
 type RecurringProvider interface {
 	GetRecurring(context.Context, string) (RecurringPayment, error)
 	PauseRecurring(context.Context, string, time.Time) (RecurringPayment, error)
@@ -105,8 +103,7 @@ func (c *CheckoutClient) PauseRecurring(ctx context.Context, reference string, u
 }
 
 func (c *CheckoutClient) pauseAndVerify(ctx context.Context, op checkoutOperation) (RecurringPayment, error) {
-	// Always read after a mutation, even if its reply was lost. Its target is
-	// absolute; this method never adds another duration on retry.
+	// Always read back after a mutation, even if its reply was lost.
 	_, mutationErr := c.execute(ctx, op)
 	after, readErr := c.GetRecurring(ctx, op.Reference)
 	if readErr == nil && after.ProtectedThrough(op.Reference, op.Pause.PausedUntil) {

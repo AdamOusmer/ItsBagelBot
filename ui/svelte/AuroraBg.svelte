@@ -2,13 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for the `.bb-aurora` contract
-  // (../styles/elements/aurora.css). No Astro twin: nothing static renders it.
-  //
-  // The ambient backdrop behind the console's login and onboarding screens.
-  // Pure CSS by requirement rather than by taste — those are the screens a
-  // visitor sits on while an OAuth round trip is in flight, so the backdrop
-  // must not compete for the main thread.
   import '../styles/orbs.css';
   import '../styles/elements/aurora.css';
 

@@ -35,8 +35,6 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  // Local list, reseeded when a fresh SSR load lands (the /events invalidation
-  // stream re-runs the loader after every confirmed write).
   // svelte-ignore state_referenced_locally
   let timers = $state<TimerDef[]>(data.timers ?? []);
   // svelte-ignore state_referenced_locally
@@ -53,30 +51,21 @@
 
   const rows = $derived(timers.toSorted((a, b) => a.intervalSeconds - b.intervalSeconds));
 
-  // --- Inspector (shared controller over the pure state machine) --------------
   const NEW = '__new__';
   const inspector = createInspector<TimerDef>();
-  // The editor binds this draft; edits flow into the machine for dirty tracking.
   let draft = $state<TimerDef | null>(null);
   let busy = $state(false);
   let validationAttempted = $state(false);
   let formEl = $state<HTMLFormElement | null>(null);
 
-  // Push editor changes into the machine for dirty tracking. The spread reads
-  // each field so the effect re-runs on any field mutation; the edit itself is
-  // untracked because it both reads and writes the machine's state, which would
-  // otherwise make the effect depend on state it also mutates (an unsafe cycle).
   $effect(() => {
     const snap = draft ? { ...draft } : null;
     if (snap) untrack(() => inspector.edit(snap));
   });
 
   const creating = $derived(inspector.selectedId === NEW);
-  // New editors always let Create be attempted so validation can explain an
-  // empty required field. Existing clean timers still have nothing to save.
   const canSave = $derived(creating || inspector.dirty);
 
-  // --- Dirty guard: every close/switch/new routes through one confirmation ----
   const discard = createDiscardGuard(() => inspector.dirty, () => {
     inspector.reset();
     draft = null;
@@ -111,7 +100,6 @@
   }
   const failed = toastFailure(toast, t);
 
-  // --- Save: immutable snapshot + request id; a late response can't cross rows -
   const saveSubmit: SubmitFunction = (input) => {
     if (
       !draft ||
@@ -134,14 +122,9 @@
       busy = false;
       const payload = actionPayload(result);
       const ok = result.type === 'success' && payload?.ok === true;
-      // applied is false when the selection moved on during the request, so a
-      // late response for one timer never mutates another's editor.
       const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
       if (ok) {
         toast('ok', t(wasCreating ? 'timers.toastCreated' : 'timers.toastSaved'));
-        // A create has no client-side id to keep editing, so it closes, but only
-        // if this response still owns the open editor. An update stays open and
-        // clean (Save does not close the inspector).
         if (wasCreating && applied) {
           inspector.reset();
           draft = null;
@@ -153,7 +136,6 @@
     };
   };
 
-  // --- Row quick toggle (pause/resume, optimistic) ----------------------------
   const toggleSubmit =
     (tmr: TimerDef): SubmitFunction =>
     () => {
@@ -167,7 +149,6 @@
       };
     };
 
-  // --- Delete: optimistic remove + Undo (timers are locally recreatable) ------
   function postAction(action: string, body: FormData): Promise<ActionOk | null> {
     return fetch(`?/${action}`, { method: 'POST', body })
       .then(async (res) => actionPayload(deserialize(await res.text())) ?? null)
@@ -229,8 +210,6 @@
     {/snippet}
   </PageToolbar>
 
-  <!-- The deck: full-width ledger list until a selection opens the docked
-       inspector (no idle panel reserving a third of the row). -->
   <div class="deck {inspector.isOpen ? 'inspecting' : ''}">
     <DeckList>
       <div class="list">
@@ -270,10 +249,6 @@
         >
           <input type="hidden" name="timer" value={JSON.stringify(draft)} />
           <Scroller fill padding="16px" smooth>
-            <!-- Keyed on the selection so switching timers mounts a FRESH editor;
-                 TimerEditor snapshots minutes from the draft at mount, and reusing
-                 one instance would write the previous timer's interval into the
-                 new draft. -->
             {#key inspector.selectedId}
               <TimerEditor bind:draft attempted={validationAttempted} />
             {/key}
@@ -296,7 +271,6 @@
   </div>
 </section>
 
-<!-- Dirty guard: one confirmation for close / row-switch / new / cancel. -->
 <ConfirmDialog
   open={discard.open}
   title={t('timers.discardTitle')}
@@ -309,7 +283,6 @@
 />
 
 <style>
-  /* the deck: full-width list, docked inspector only when a row is open. */
   .deck {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -322,7 +295,5 @@
 
   .list :global(.row-shell:last-child) { border-bottom: none; }
 
-  /* The editor form fills the inspector surface below its head; the Scroller
-     scrolls and the EditorFooter stays pinned at the bottom. */
   .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 </style>

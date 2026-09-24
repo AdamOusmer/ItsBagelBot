@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Server-only NATS RPC client. One lazily-dialed, process-wide connection
-// reused across requests (connection setup is the expensive part; a warm conn
-// keeps request/reply in the low-ms range, which is what the p99 budget needs).
 import newrelic from 'newrelic';
 import { rpcCode, type CodedReply, type RpcCode } from './rpc-code';
 import {
@@ -19,8 +16,6 @@ import type {
 } from '@nats-io/jetstream';
 import { requestLocalFirst, rpcSubjectsForNode } from './nats-rpc-locality';
 
-// Collapse numeric/id path tokens so per-subject RPC segments stay low-cardinality
-// in New Relic (e.g. `...status.12345` -> `...status.*`).
 function rpcSegment(subject: string): string {
   return subject
     .split('.')
@@ -28,17 +23,6 @@ function rpcSegment(subject: string): string {
     .join('.');
 }
 
-// The console holds two connections on two accounts (per-account isolation):
-//
-//   * 'rpc'  : the per-service RPC account (NATS_RPC_USER/PASSWORD): request/reply
-//     (bagel.rpc.*) and the cache-invalidation subscription (bagel.cache.*).
-//   * 'bus'  : the shared BUS account (NATS_USER/PASSWORD): the JetStream lane
-//     view (admin) and the outgress-system stream-feed publish (twitch.*).
-//
-// RPC connects to the strict same-node leaf. Requests use a node-qualified
-// subject first, then the canonical subject only when NATS reports that no
-// local responder exists; the leaf route cluster supplies that HA fallback.
-// BUS connects directly to the hub so JetStream never pays a leaf hop.
 type Role = 'rpc' | 'bus';
 
 interface Pool {
@@ -72,11 +56,6 @@ export async function localLeafReady(healthURL: string, timeoutMs: number): Prom
   }
 }
 
-/**
- * Re-home a connection only after it is known to be remote and the strict
- * same-node probe has succeeded repeatedly. Reconnects are serialized across
- * the process and initially jittered to avoid a fleet-wide recovery stampede.
- */
 export function enableLeafFailback(nc: NatsConnection): void {
   const nodeName = process.env.NODE_NAME;
   if (!nodeName || failbackEnabled.has(nc)) return;
@@ -85,8 +64,6 @@ export function enableLeafFailback(nc: NatsConnection): void {
   const intervalMs = positiveNumber(process.env.NATS_FAILBACK_INTERVAL_MS, 30_000);
   const required = positiveNumber(process.env.NATS_FAILBACK_SUCCESSES, 3);
   const timeoutMs = positiveNumber(process.env.NATS_FAILBACK_PROBE_TIMEOUT_MS, 1_000);
-  // `||` not `??`: a set-but-blank URL must fall through to the default, or
-  // the failback probe would fetch('') forever and never fire.
   const healthURL =
     process.env.NATS_LOCAL_LEAF_HEALTH_URL || 'http://nats-leaf-local:8222/healthz';
   let consecutive = 0;
@@ -108,17 +85,12 @@ export function enableLeafFailback(nc: NatsConnection): void {
       consecutive++;
       if (consecutive < required) return;
       consecutive = 0;
-      // The queued task must never reject: a rejecting reconnect() would leave
-      // the queue tail rejected and stall every later failback until the next
-      // .catch() re-arms it. Swallow inside the task; the probe cycle retries.
       failbackQueue = failbackQueue.then(async () => {
         try {
           if (!nc.isClosed() && !nc.info?.server_name?.startsWith(`${nodeName}--`)) {
             await nc.reconnect();
           }
-        } catch {
-          /* reconnect failed; next probe cycle retries */
-        }
+        } catch {}
       });
       await failbackQueue;
     } catch {
@@ -137,13 +109,10 @@ export function enableLeafFailback(nc: NatsConnection): void {
 }
 
 function fallbackServer(override: string | undefined): string {
-  // `||` not `??`: a blank override/host must fall through to the default:
-  // through `??` a blank NATS_HOST builds 'nats://:4222' and every dial fails.
+  // `||`, not `??`: a blank NATS_HOST would build 'nats://:4222'.
   return override || `nats://${process.env.NATS_HOST || '127.0.0.1'}:${process.env.NATS_PORT || '4222'}`;
 }
 
-// Ordered RPC pool. Legacy NATS_LEAF_URL values are intentionally ignored so
-// a stale secret cannot override the strict local-only NATS_RPC_URL.
 function rpcServerList(override: string | undefined): string[] {
   return [fallbackServer(override)];
 }
@@ -152,13 +121,6 @@ function busServerList(override: string | undefined): string[] {
   return [process.env.NATS_HUB_URL || fallbackServer(override)];
 }
 
-// Verify the NATS server's TLS cert against the fleet CA (NATS_CA_PEM, the
-// trust-manager fleet-ca ConfigMap); no CA (local dev against a plaintext
-// server) keeps the connection plaintext. mTLS: also present the fleet client
-// cert when the NATS_CLIENT_CERT_FILE/NATS_CLIENT_KEY_FILE pair is set
-// (cert-manager secret mount; file paths so renewals are re-read on
-// reconnect). Both or neither: a half-set pair fails loudly rather than
-// silently downgrading to server-auth only.
 export function tlsOptions(): ConnectionOptions['tls'] | undefined {
   const caPem = process.env.NATS_CA_PEM;
   if (!caPem) return undefined;
@@ -172,10 +134,7 @@ export function tlsOptions(): ConnectionOptions['tls'] | undefined {
   return { ca: caPem };
 }
 
-// Role-scoped env lookup: the RPC tier reads its dedicated variable with the
-// shared one as fallback; every other tier reads only the shared variable.
-// The fallback chain is `||`, not `??`: a set-but-blank Doppler var must fall
-// through, or through `??` the caller authenticates with an empty string.
+// `||`, not `??`: a set-but-blank Doppler var must fall back, not authenticate with ''.
 function roleEnv(
   isRpc: boolean,
   rpcVar: string | undefined,
@@ -190,19 +149,12 @@ function options(role: Role): ConnectionOptions {
     servers: isRpc
       ? rpcServerList(process.env.NATS_RPC_URL)
       : busServerList(process.env.NATS_URL),
-    // RPC stays on the leaf tier; the Service handles cross-node leaf failover.
     noRandomize: true,
     name: `${process.env.NATS_CLIENT_NAME || 'console'}-${role}`,
     maxReconnectAttempts: -1,
     reconnectTimeWait: 500,
-    // Broker auth/config and Doppler-driven app restarts can briefly land out
-    // of order during a rollout. Keep reconnecting through that window instead
-    // of permanently closing after the client's default two auth failures.
     ignoreAuthErrorAbort: true,
     pingInterval: 20_000,
-    // Bound the initial dial so a cold/unreachable NATS fails fast (and re-dials
-    // on the next request) instead of hanging SSR to the 20s default and surfacing
-    // a gateway "server connection error" the user has to refresh past.
     timeout: 3_000
   };
   const user = roleEnv(isRpc, process.env.NATS_RPC_USER, process.env.NATS_USER);
@@ -219,20 +171,10 @@ async function get(role: Role): Promise<NatsConnection> {
   const pool = pools[role];
   if (pool.conn && !pool.conn.isClosed()) return pool.conn;
   if (pool.dialing) return pool.dialing;
-  // Clear `dialing` in finally, not in the success handler: if connect() rejects
-  // (NATS down at dial time) the success handler never runs, so leaving it set
-  // would pin a rejected promise here and fail every later request until the
-  // process restarts. finally lets the next get() re-dial.
   pool.dialing = connect(options(role))
     .then((c) => {
-      // Tolerate a close that raced the dial (e.g. shutdown mid-connect): treat
-      // it as a failed dial so the next get() re-dials instead of pinning a
-      // dead connection in the pool.
       if (c.isClosed()) throw new Error('nats connection closed during dial');
       pool.conn = c;
-      // JetStream wrappers retain the connection they were created from. If a
-      // fully closed BUS connection is replaced (as opposed to reconnecting in
-      // place), force lane/KV callers to derive fresh wrappers from this one.
       if (role === 'bus') {
         jsClient = null;
         jsManager = null;
@@ -249,12 +191,7 @@ async function get(role: Role): Promise<NatsConnection> {
 let jsClient: JetStreamClient | null = null;
 let jsManager: JetStreamManager | null = null;
 
-// BUS connects directly to the hub, so its JetStream API is the standard
-// $JS.API prefix. Using domain:'hub' here makes the client generate a domain
-// alias that the server remaps before account permission checks; the admin
-// account then sees a denied $JS.API request and every lane view times out.
-// Skip the extra enablement probe and return a fresh options object because the
-// NATS client normalizes/mutates JetStream options internally.
+// Not domain:'hub': its alias is remapped after the permission check and every lane request is denied.
 export function hubJetStreamOptions(): JetStreamManagerOptions {
   return { apiPrefix: '$JS.API', checkAPI: false };
 }
@@ -271,12 +208,6 @@ export async function jsm(): Promise<JetStreamManager> {
   return jsManager;
 }
 
-/**
- * Pre-dial the connection at server boot so the first user request hits a warm
- * conn instead of paying the cold dial on the hot path (the cause of the
- * intermittent "server connection error, refresh fixes it"). Best-effort: a
- * failed warm-up just leaves the next get() to re-dial.
- */
 export function warm(): void {
   get('rpc').catch(() => {});
   get('bus').catch(() => {});
@@ -296,7 +227,6 @@ async function within<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 
 export async function ready(timeoutMs = 750): Promise<boolean> {
   try {
-    // The RPC connection is the SSR hot path; readiness tracks it.
     const nc = await within(get('rpc'), timeoutMs);
     await within(nc.flush(), timeoutMs);
     return !nc.isClosed();
@@ -305,12 +235,6 @@ export async function ready(timeoutMs = 750): Promise<boolean> {
   }
 }
 
-/**
- * A reply that carried an `error` field. `code` is the machine-readable half
- * of that refusal (see rpc-code.ts); it is '' when the answering service has
- * not shipped codes yet, so a caller must treat '' as "unclassified", never
- * as "no failure" -- the throw itself is what says a failure happened.
- */
 export class RpcError extends Error {
   readonly code: RpcCode | '';
 
@@ -320,11 +244,6 @@ export class RpcError extends Error {
   }
 }
 
-/**
- * Core NATS request/reply with a JSON body. Rejects on transport failure, on a
- * missing responder, or when the reply carries an `error` field. `timeoutMs`
- * defaults to 5s to match the Go callers.
- */
 export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs = 5000): Promise<T> {
   const reply = await rpcReply<T>(subject, payload, timeoutMs);
   const refusal = rpcRefusal(reply);
@@ -332,14 +251,6 @@ export async function rpc<T>(subject: string, payload: unknown = {}, timeoutMs =
   return reply;
 }
 
-/**
- * The refusal a reply carries, or null when it carries none.
- *
- * `code` is read through the SHARED vocabulary only. A service with a
- * vocabulary of its own (outgress's `not_bound`, `bound_elsewhere`) lands here
- * as code '', which says "refused, unclassified" -- the caller that needs the
- * real code reads the reply itself through rpcReply.
- */
 export function rpcRefusal(reply: unknown): RpcError | null {
   if (!reply || typeof reply !== 'object') return null;
   const r = reply as CodedReply;
@@ -347,26 +258,10 @@ export function rpcRefusal(reply: unknown): RpcError | null {
   return new RpcError(r.error, rpcCode(r));
 }
 
-/**
- * Request/reply that hands the reply back as the service sent it, `error` and
- * `code` included. Transport failures (timeout, no responders) still reject.
- *
- * For a caller whose refusal vocabulary is its own. `rpc` throws on any reply
- * carrying an `error`, and the RpcError it throws reads `code` through the
- * shared vocabulary, so a code that vocabulary does not know arrives as ''.
- * The Discord store branched on `reply.code` after `rpc` returned and never
- * got there: outgress's `not_bound` on a first install reached the callback as
- * an RpcError with code '' and was rendered as "Discord did not answer"
- * (console-dashboard, 2026-09-10 and 2026-09-15, err.code "").
- */
 export async function rpcReply<T>(subject: string, payload: unknown = {}, timeoutMs = 5000): Promise<T> {
-  // Time each request/reply as its own New Relic segment so the SSR transaction
-  // breakdown shows which RPC subject dominates a slow page. Safe no-op (runs the
-  // handler directly) when no agent/transaction is active.
   return newrelic.startSegment(`NATS/request/${rpcSegment(subject)}`, true, async () => {
     const nc = await get('rpc');
     const subjects = rpcSubjectsForNode(subject, process.env.NODE_NAME);
-    // v3 clients accept string payloads directly (JSONCodec was removed).
     const data = JSON.stringify(payload);
     const msg = await requestLocalFirst(subjects, (routedSubject) =>
       nc.request(routedSubject, data, { timeout: timeoutMs })
@@ -375,19 +270,8 @@ export async function rpcReply<T>(subject: string, payload: unknown = {}, timeou
   });
 }
 
-/**
- * Fire-and-forget JSON publish (e.g. the outgress system lane). JetStream
- * streams capture core publishes to their subjects, so this enqueues the job
- * without needing a JetStream client.
- *
- * Routed by subject: stream-feed subjects (twitch.*) are captured by BUS-account
- * JetStream streams and must go on the bus connection; everything else stays on
- * the per-service RPC account.
- */
 export async function publish(subject: string, payload: unknown = {}): Promise<void> {
   return newrelic.startSegment(`NATS/publish/${rpcSegment(subject)}`, true, async () => {
-    // Stream-feed subjects (twitch.* / data.*) are captured by BUS-account
-    // JetStream streams and must use the bus connection; RPC + cache stay on rpc.
     const role: Role = subject.startsWith('twitch.') || subject.startsWith('data.') ? 'bus' : 'rpc';
     const nc = await get(role);
     nc.publish(subject, JSON.stringify(payload));
@@ -404,36 +288,17 @@ export async function closeNats(): Promise<void> {
   jsManager = null;
 }
 
-/**
- * Subscribe to a core NATS subject and call onMsg for every message. No queue
- * group: every replica receives every message, which is what the cache
- * invalidation bus needs (each process owns its own in-process cache).
- *
- * The callback receives both the message subject and raw data. For wildcard
- * subscriptions (e.g. `prefix.>`) the subject carries the full matched subject
- * of each individual message, letting callers derive scope from the last token.
- *
- * Fire-and-forget: resilient to dial failure (next get() re-dials), and
- * iterator errors just terminate the async loop silently rather than crashing
- * the server. Callers should call this once at boot (e.g. from hooks.server.ts)
- * and never await it.
- */
 export function subscribe(subject: string, onMsg: (subject: string, data: Uint8Array) => void): void {
-  // Cache-invalidation (bagel.cache.*) rides the per-service RPC account.
   get('rpc')
     .then((nc) => {
       const sub = nc.subscribe(subject);
       (async () => {
         try {
           for await (const m of sub) onMsg(m.subject, m.data);
-        } catch {
-          // Iterator closed (connection dropped / process shutting down), ignore.
-        }
+        } catch {}
       })();
     })
-    .catch(() => {
-      // Dial failed at subscribe time; the next request will re-dial via get().
-    });
+    .catch(() => {});
 }
 
 function sleep(ms: number): Promise<void> {
@@ -445,28 +310,9 @@ function sleep(ms: number): Promise<void> {
 
 function backoffMs(attempt: number): number {
   const base = Math.min(500 * 2 ** Math.min(attempt, 6), 30_000);
-  return base / 2 + Math.random() * (base / 2); // jitter: [base/2, base)
+  return base / 2 + Math.random() * (base / 2);
 }
 
-/**
- * Durable core subscription for the cache-invalidation bus. Unlike subscribe(),
- * this NEVER gives up:
- *
- *   * a failed dial (NATS down at boot) is retried forever with exponential
- *     backoff + jitter (previously a boot-time outage silently killed the
- *     invalidation bus for the process lifetime, leaving replicas to decay by
- *     TTL alone);
- *   * if the message iterator terminates (connection closed/errored), the loop
- *     re-dials and resubscribes;
- *   * `onGap` fires after every window in which messages may have been missed:
- *     each client-level reconnect, every resubscribe after an iterator death,
- *     and an initial subscribe that only succeeded after failed attempts.
- *     Callers use it to flush their cache: a missed invalidation must not
- *     leave poisoned long-TTL entries.
- *
- * No queue group: every replica receives every message (each owns its own
- * in-process cache). onMsg exceptions are swallowed per message.
- */
 export function subscribeDurable(
   subject: string,
   onMsg: (subject: string, data: Uint8Array) => void,
@@ -475,9 +321,7 @@ export function subscribeDurable(
   const gap = () => {
     try {
       onGap?.();
-    } catch {
-      /* gap handler must not kill the loop */
-    }
+    } catch {}
   };
 
   void (async () => {
@@ -493,17 +337,12 @@ export function subscribeDurable(
         continue;
       }
 
-      // Messages published while we were not subscribed were lost: anything
-      // after a failed first dial or a dead iterator is a gap.
       if (attempt > 0) {
         newrelic.recordMetric('Custom/NatsBus/gap_flush', 1);
         gap();
       }
       attempt = 0;
 
-      // Client-level reconnects resubscribe automatically but drop whatever was
-      // published while disconnected: flush on every reconnect notification.
-      // The watcher dies with the connection; the outer loop replaces it.
       void (async () => {
         try {
           for await (const s of nc.status()) {
@@ -512,9 +351,7 @@ export function subscribeDurable(
               gap();
             }
           }
-        } catch {
-          /* status iterator ends with the connection */
-        }
+        } catch {}
       })();
 
       try {
@@ -522,16 +359,10 @@ export function subscribeDurable(
         for await (const m of sub) {
           try {
             onMsg(m.subject, m.data);
-          } catch {
-            /* per-message handler error, keep consuming */
-          }
+          } catch {}
         }
-      } catch {
-        /* subscription iterator died, fall through to re-dial */
-      }
+      } catch {}
 
-      // Iterator ended: connection closed (shutdown) or errored. Back off and
-      // loop; get() re-dials since the pooled conn is closed.
       attempt++;
       newrelic.recordMetric('Custom/NatsBus/resubscribe', 1);
       await sleep(backoffMs(attempt));

@@ -12,10 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestEvictScopeCommandsPageDropsUserEntry pins the client.go addition to
-// evictScope's "status"/"grant"/"live"/"locale" case (spec §4.2): the
-// commands-page flag lives on the same cached User, so the scope must drop
-// it too, closing the projector-fold race the scope exists for.
 func TestEvictScopeCommandsPageDropsUserEntry(t *testing.T) {
 	c := NewClient(Config{Store: NewStore(nil), TTL: time.Minute})
 	t.Cleanup(c.Close)
@@ -29,7 +25,6 @@ func TestEvictScopeCommandsPageDropsUserEntry(t *testing.T) {
 		return User{}, nil
 	}
 
-	// Sanity: before eviction the seeded entry serves without the loader.
 	v, err := c.users.GetOrLoad(context.Background(), key("user", userID), reload)
 	require.NoError(t, err)
 	assert.False(t, loaded)

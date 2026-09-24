@@ -4,11 +4,6 @@
 import { describe, expect, test } from 'bun:test';
 import { connectionUiState, type ConnSignals, type SubState } from './connection-state';
 
-// Characterization + invariant tests for the honest connection mapping. These
-// pin the P0 fixes: pending/failing/unknown can never say online, a down core
-// read is `unavailable` (not "not connected" / "free"), and a failed account
-// read never resolves to a plan.
-
 const base: ConnSignals = { grant: true, active: true, status: 'vip', sub: 'ok' };
 
 describe('connectionUiState', () => {
@@ -53,18 +48,14 @@ describe('connectionUiState', () => {
 	});
 
 	test('a blocked state outranks the active flag outgress cleared', () => {
-		// Outgress deactivates a revoked or banned channel itself; the panel
-		// must still name the block instead of a generic "not connected".
 		expect(connectionUiState({ ...base, active: false, sub: 'revoked' }).kind).toBe('reauth_required');
 		expect(connectionUiState({ ...base, active: false, sub: 'chat_banned' }).kind).toBe('bot_banned');
-		// A user disconnect leaves no enroll state and still reads disabled.
 		expect(connectionUiState({ ...base, active: false, sub: 'unenrolled' }).kind).toBe('disabled');
 	});
 
 	test('a down core read is unavailable, not a definite state', () => {
 		expect(connectionUiState({ ...base, grant: 'unknown' }).kind).toBe('unavailable');
 		expect(connectionUiState({ ...base, active: 'unknown' }).kind).toBe('unavailable');
-		// Unavailable offers a retry and no confident action.
 		const u = connectionUiState({ ...base, active: 'unknown' });
 		expect(u.canRetry).toBe(true);
 		expect(u.live).toBe(false);
@@ -105,7 +96,6 @@ describe('connectionUiState', () => {
 				for (const sub of subs) {
 					const r = connectionUiState({ grant, active, status: 'unknown', sub });
 					expect(typeof r.kind).toBe('string');
-					// online is reachable only through the one true path.
 					if (r.kind === 'online') {
 						expect(grant).toBe(true);
 						expect(active).toBe(true);

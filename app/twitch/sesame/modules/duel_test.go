@@ -13,11 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeDuel is an in-memory DuelStore for the module tests: every method
-// records its request and replays a scripted outcome, so the router's reply
-// mapping is pinned without any Valkey or wallet underneath.
 type fakeDuel struct {
-	openSpec engine.DuelOpenSpec // last Open request
+	openSpec engine.DuelOpenSpec
 	openRes  engine.DuelOpenResult
 	openErr  error
 
@@ -74,8 +71,6 @@ func duelDeps(f *fakeDuel) engine.Deps {
 	return engine.Deps{Duel: f, Log: zap.NewNop()}
 }
 
-// --- status ---
-
 func TestDuelStatusNone(t *testing.T) {
 	m := Duel(duelDeps(&fakeDuel{}))
 	out := runGames(t, m, gamesCtx("alice", ""), "")
@@ -107,8 +102,6 @@ func TestDuelStatusChallenge(t *testing.T) {
 	assert.Contains(t, out[0].Text, "@maya vs @crust")
 	assert.Contains(t, out[0].Text, "500 points each")
 }
-
-// --- stake: open-or-join ---
 
 func TestDuelJoinRunningPot(t *testing.T) {
 	f := &fakeDuel{joinRes: engine.DuelJoinResult{Open: true, Joined: true, Entrants: 3, Pot: 450}}
@@ -185,8 +178,6 @@ func TestDuelJoinRefusals(t *testing.T) {
 	}
 }
 
-// --- challenge ---
-
 func TestDuelChallengeSent(t *testing.T) {
 	f := &fakeDuel{openRes: engine.DuelOpenResult{Started: true}}
 	m := Duel(duelDeps(f))
@@ -233,8 +224,6 @@ func TestDuelChallengeSelf(t *testing.T) {
 	assert.Contains(t, out[0].Text, "can't duel yourself")
 	assert.Empty(t, f.openSpec.Kind, "a self-duel never reaches the store")
 }
-
-// --- accept ---
 
 func TestDuelAcceptOutcomes(t *testing.T) {
 	cases := []struct {
@@ -288,8 +277,6 @@ func TestDuelAcceptRefusals(t *testing.T) {
 	}
 }
 
-// --- decline / cancel ---
-
 func TestDuelDeclineRefundsOpener(t *testing.T) {
 	f := &fakeDuel{declineRes: engine.DuelDeclineResult{
 		Found: true, Declined: true, Opener: "maya", Refund: 400,
@@ -330,8 +317,6 @@ func TestDuelCancelAuthorization(t *testing.T) {
 		assert.True(t, f.cancelCalled, "the module asks the store; the store's not-found drives the reply")
 	})
 }
-
-// --- inert without a store ---
 
 func TestGambleAndDuelInertWithoutStores(t *testing.T) {
 	var col collector

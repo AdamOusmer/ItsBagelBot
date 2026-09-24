@@ -2,14 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// i18n parity gate, run before each app's `vite build`. fs-only (no app imports)
-// so it works in the Containerfile build stage before Vite has run.
-//
-// Fails the build (exit 1) ONLY on structural problems that would ship a broken
-// catalog: a missing en.json, unparseable JSON, or a leaf that is not a string
-// or an array of strings (with the offending file + JSON path). Key gaps between
-// locales are reported as warnings and NEVER fail the build: a missing key
-// falls back to English at runtime, so a partial translation can ship safely.
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -35,8 +27,6 @@ function isBranch(v) {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-// Collect leaf dot-paths into `out`; fail() on any leaf that is not a string or
-// an array of strings.
 function collectLeaves(tree, prefix, out, file) {
   for (const [key, value] of Object.entries(tree)) {
     const path = prefix ? `${prefix}.${key}` : key;

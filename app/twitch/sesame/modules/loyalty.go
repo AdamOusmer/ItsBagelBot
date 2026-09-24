@@ -20,23 +20,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// loyaltyTickTimeout bounds each fire-and-forget watch-tick arm/disarm, the
-// same posture as the live module's writes.
 const loyaltyTickTimeout = 5 * time.Second
 
-// counterAddMax bounds one !counter add step so a typo cannot warp a counter
-// beyond repair (set remains the unbounded escape hatch).
 const counterAddMax = 1_000_000
 
-// Leaderboard sizes for "!leaderboard [n]": five by default, ten at most —
-// chat lines are short, and the web page carries the long form.
 const (
 	defaultLeaderboardLimit = 5
 	maxLeaderboardLimit     = 10
 )
 
-// Event subsets. Only the fields the accrual math needs; the broadcaster id
-// comes from the Context.
 type loyaltySubEvent struct {
 	UserID    string `json:"user_id"`
 	UserLogin string `json:"user_login"`
@@ -62,17 +54,6 @@ type loyaltyCheerEvent struct {
 	Bits        int    `json:"bits"`
 }
 
-// Loyalty is the channel points-and-viewtime economy. It is a named, opt-in
-// module (KindOptIn): subs, resubs, gift subs and cheers award points at the
-// configured rates, and while the stream is live a watch tick (see
-// engine.ValkeyLoyaltyClock) awards points plus watch time to everyone in
-// chat. Storage lives in the loyalty service; every accrual here is a
-// fire-and-forget hand-off to the worker-side reporter.
-//
-// It owns three commands: !points (a viewer's own standing, plus the
-// broadcaster-configurable grant and transfer verbs), !leaderboard (the
-// channel's top standings) and !counter (mod management of the named counters
-// the {counter:...} response token and the channel-points bindings bump).
 func Loyalty(d engine.Deps) module.Module {
 	log := d.Log
 	if log == nil {
@@ -89,8 +70,6 @@ func Loyalty(d engine.Deps) module.Module {
 		return accrual{ev.UserID, ev.UserLogin, ev.UserName, cfg.EffectiveResubPoints() * engine.TierMultiplier(ev.Tier)}
 	}))
 
-	// Gift recipients earn through their own channel.subscribe events; this
-	// credits the gifter (an anonymous one has nobody to credit).
 	m.On("channel.subscription.gift", onAccrual(d, func(cfg engine.LoyaltyModuleConfig, ev loyaltyGiftEvent) accrual {
 		if ev.IsAnonymous || ev.Total <= 0 {
 			return accrual{}
@@ -105,9 +84,6 @@ func Loyalty(d engine.Deps) module.Module {
 		return accrual{ev.UserID, ev.UserLogin, ev.UserName, cfg.EffectiveCheerPointsPer100() * int64(ev.Bits) / 100}
 	}))
 
-	// The watch tick follows the stream lifecycle, mirroring the timers module:
-	// online arms it (the clock re-checks the module's enable state itself),
-	// offline stops it immediately.
 	m.On("stream.online", onStreamTick(d, true))
 	m.On("stream.offline", onStreamTick(d, false))
 
@@ -120,8 +96,6 @@ func Loyalty(d engine.Deps) module.Module {
 	return m.Build()
 }
 
-// accrual is one event's award: who earns and how much. A zero value (no
-// viewer or nothing earned) is dropped by earn.
 type accrual struct {
 	userID, login, name string
 	points              int64
@@ -133,10 +107,6 @@ type pointsGiveRequest struct {
 	senderID uint64
 }
 
-// onAccrual builds the shared event-handler shell for every point source:
-// decode the module config and the event subset, ask award what it is worth,
-// and hand the result to the store. The per-event logic shrinks to the award
-// closure.
 func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, ev T) accrual) module.EventHandler {
 	return func(ctx context.Context, c *module.Context, _ module.Emit) error {
 		var cfg engine.LoyaltyModuleConfig
@@ -156,11 +126,6 @@ func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, 
 	}
 }
 
-// onStreamTick builds the stream.online/offline handlers: the watch tick
-// follows the stream lifecycle, mirroring the timers module. Fire-and-forget
-// on a Background-derived context, like the live module's writes, and run
-// through d.Seq like them so an offline's Disarm cannot race past an online's
-// Arm on this replica (#561).
 func onStreamTick(d engine.Deps, arm bool) module.EventHandler {
 	return func(_ context.Context, c *module.Context, _ module.Emit) error {
 		if d.LoyaltyTick == nil {
@@ -180,13 +145,6 @@ func onStreamTick(d engine.Deps, arm bool) module.EventHandler {
 	}
 }
 
-// loyaltyCmd bundles the per-invocation state the !points/!counter helpers
-// share, so each helper reads as (ctx, arguments) instead of a six-way
-// parameter list — the same shape as the queue module's queueCmd.
-// loyaltyRun adapts a loyaltyCmd method into a command handler. All three
-// commands open the same way — bail when the loyalty client is absent, then
-// bind the per-invocation context — and spelling that out inline meant every
-// command body carried two branches before reaching its own logic.
 func loyaltyRun(d engine.Deps, log *zap.Logger, fn func(loyaltyCmd, context.Context, string) error) func(context.Context, *module.Context, string, module.Emit) error {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		if d.Loyalty == nil {
@@ -200,20 +158,11 @@ func loyaltyRun(d engine.Deps, log *zap.Logger, fn func(loyaltyCmd, context.Cont
 	}
 }
 
-// pointsGrant is one moderator grant verb: the capability that gates it and
-// the write it performs. Table-driven because set/add/remove differ only in
-// those two, and as switch cases each one repeated the moderator check and the
-// capability check around its own body.
 type pointsGrant struct {
 	allowed func(engine.LoyaltyModuleConfig) bool
 	run     func() error
 }
 
-// pointsRun routes "!points <verb> <target> <amount>". "give" moves the
-// chatter's OWN points and belongs to everyone; set/add/remove are mod grants,
-// gated here rather than on the command so a plain "!points" stays open to
-// everyone — with per-verb toggles from the module config so a broadcaster can
-// hand moderators exactly as much power as they want.
 func (lc loyaltyCmd) pointsRun(ctx context.Context, args string) error {
 	fields := strings.Fields(args)
 	if len(fields) != 3 {
@@ -227,15 +176,11 @@ func (lc loyaltyCmd) pointsRun(ctx context.Context, args string) error {
 	}
 	grant, ok := lc.grant(ctx, verb, fields[1], fields[2])
 	if !ok || !lc.c.Chatter().Allows(module.RoleModerator) {
-		// A non-mod typing a grant verb (or anything unparseable) just gets
-		// their own standing — never an error, never a hint of a gate.
 		return lc.pointsShow(ctx)
 	}
 	return lc.grantVerb(grant.allowed(cfg) || lc.owner(), grant.run)
 }
 
-// grant maps a grant verb onto its capability and its write. ok=false for
-// anything that is not one.
 func (lc loyaltyCmd) grant(ctx context.Context, verb, target, amount string) (pointsGrant, bool) {
 	switch verb {
 	case "set":
@@ -254,9 +199,6 @@ func (lc loyaltyCmd) grant(ctx context.Context, verb, target, amount string) (po
 	return pointsGrant{}, false
 }
 
-// owner reports whether the caller owns the channel. The owner outranks every
-// capability toggle: those gate what the owner delegates to moderators, never
-// what the owner can do.
 func (lc loyaltyCmd) owner() bool {
 	return lc.c.Env.ChatterUserID == lc.c.Env.BroadcasterUserID
 }
@@ -268,16 +210,8 @@ type loyaltyCmd struct {
 	log  *zap.Logger
 }
 
-// pointsAdjustMax bounds one mod grant so a typo cannot warp a balance beyond
-// repair.
 const pointsAdjustMax = 100_000_000
 
-// boundedAmount parses a grant or transfer amount, bounded by pointsAdjustMax
-// so a typo cannot warp a balance beyond repair. positiveOnly is the transfer
-// rule: a viewer moves points they hold, so a negative "gift" that would debit
-// the recipient is not a transfer. Shared because the grant and transfer verbs
-// were each spelling the parse and the bound out as one four-operand
-// conditional.
 func boundedAmount(amount string, positiveOnly bool) (int64, bool) {
 	v, err := strconv.ParseInt(amount, 10, 64)
 	if err != nil {
@@ -292,10 +226,6 @@ func boundedAmount(amount string, positiveOnly bool) (int64, bool) {
 	return v, true
 }
 
-// pointsAdjust runs one mod grant: "!points set/add @user <n>". The target is
-// addressed by login; the loyalty service resolves it against the balances it
-// has seen, so a viewer with no accrual yet cannot be granted (they get a row
-// the moment they chat while live, sub, or cheer).
 func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, absolute bool) error {
 	value, ok := boundedAmount(amount, false)
 	if !ok {
@@ -333,9 +263,6 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 	return nil
 }
 
-// grantVerb runs one enabled mod grant; a moderator whose channel switched
-// this capability off gets the denial line instead. (A non-mod never gets
-// here — the dispatcher routes them to their own standing.)
 func (lc loyaltyCmd) grantVerb(enabled bool, run func() error) error {
 	if !enabled {
 		lc.reply("loyalty.points.disabled")
@@ -344,11 +271,6 @@ func (lc loyaltyCmd) grantVerb(enabled bool, run func() error) error {
 	return run()
 }
 
-// pointsGive moves the chatter's OWN points to someone else ("!points give
-// @user 500" — StreamElements-parity transfers, available to mods and viewers
-// alike while the channel keeps them enabled). The service debits the sender
-// under a points >= amount guard and credits the recipient in the same
-// transaction, so a refused move leaves both balances untouched.
 func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enabled bool) error {
 	var cfg engine.LoyaltyModuleConfig
 	_ = lc.c.Decode(&cfg)
@@ -409,10 +331,6 @@ func (lc loyaltyCmd) pointsGiveRequest(target, amount string) (pointsGiveRequest
 	return pointsGiveRequest{login: login, value: value, senderID: senderID}, true
 }
 
-// pointsRemove subtracts from a viewer's balance ("!points remove @user 100"),
-// the positive-amount spelling of "!points add @user -100". The negation of a
-// MinInt64-sized typo wraps to itself, which pointsAdjust's bound then
-// rejects as usage — so the overflow never reaches the ledger.
 func (lc loyaltyCmd) pointsRemove(ctx context.Context, target, amount string) error {
 	value, err := strconv.ParseInt(amount, 10, 64)
 	if err != nil {
@@ -425,8 +343,6 @@ func (lc loyaltyCmd) pointsRemove(ctx context.Context, target, amount string) er
 	return lc.pointsAdjust(ctx, target, strconv.FormatInt(value, 10), false)
 }
 
-// leaderboardShow answers "!leaderboard [n]": the channel's top standings by
-// {name}, names bare so a spammy invocation cannot ping half the roster.
 func (lc loyaltyCmd) leaderboardShow(ctx context.Context, args string) error {
 	limit, ok := leaderboardLimit(args)
 	if !ok {
@@ -449,8 +365,6 @@ func (lc loyaltyCmd) leaderboardShow(ctx context.Context, args string) error {
 	return nil
 }
 
-// leaderboardLimit reads the optional "[n]". ok=false is a usage error, kept
-// distinct from the empty argument that means "use the default".
 func leaderboardLimit(args string) (int, bool) {
 	args = strings.TrimSpace(args)
 	if args == "" {
@@ -463,8 +377,6 @@ func leaderboardLimit(args string) (int, bool) {
 	return n, true
 }
 
-// standingsLine renders the one-line chat form. Names are bare — never an @ —
-// so a spammy invocation cannot ping half the roster.
 func standingsLine(top []loyaltyrpc.Balance) string {
 	var b strings.Builder
 	for i, row := range top {
@@ -480,7 +392,6 @@ func standingsLine(top []loyaltyrpc.Balance) string {
 	return b.String()
 }
 
-// pointsShow answers a plain "!points": the caller's own standing.
 func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
 	viewerID, err := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
 	if err != nil || viewerID == 0 {
@@ -501,9 +412,6 @@ func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
 	return nil
 }
 
-// earn parses the event's viewer identity and hands the accrual to the store.
-// A non-positive award (a source switched off, a sub-100-bit cheer at low
-// rates) is skipped before it can publish an empty entry.
 func earn(ctx context.Context, d engine.Deps, c *module.Context, a accrual) {
 	if a.points <= 0 {
 		return
@@ -518,8 +426,6 @@ func earn(ctx context.Context, d engine.Deps, c *module.Context, a accrual) {
 	d.Loyalty.Earn(c.BroadcasterID, viewerID, a.login, a.name, a.points, 0)
 }
 
-// runCounterCommand routes "!counter ..." — a bare name shows it, the
-// management verbs mutate through the loyalty service.
 func (lc loyaltyCmd) runCounter(ctx context.Context, args string) error {
 	fields := strings.Fields(args)
 	if len(fields) == 0 {
@@ -543,18 +449,10 @@ func (lc loyaltyCmd) runCounter(ctx context.Context, args string) error {
 	case "list":
 		return lc.counterList(ctx)
 	default:
-		// "!counter <name> [source...]": the optional trailing words select a
-		// viewer+command counter's bucket — a command trigger or a
-		// channel-point reward title (which may span several words).
 		return lc.counterShow(ctx, verb, strings.Join(rest, " "))
 	}
 }
 
-// counterCreate makes a counter one of the four channel ways:
-// "!counter create <name>" a single global value, "... <name> user" one value
-// per viewer, "... <name> command" one pooled value per command/reward,
-// "... <name> user+command" one value per viewer per command. Bot-scope
-// counters are admin-only and cannot be created from chat.
 func (lc loyaltyCmd) counterCreate(ctx context.Context, rest []string) error {
 	if len(rest) == 0 {
 		lc.reply("loyalty.counter.usage")
@@ -572,10 +470,6 @@ func (lc loyaltyCmd) counterCreate(ctx context.Context, rest []string) error {
 	return nil
 }
 
-// createScope maps a "!counter create <name> <word>" scope word; anything
-// unrecognized (or absent) is a channel counter. "command" used to mean
-// user+command; it now means the pooled per-command scope, matching the
-// dashboard's naming.
 func createScope(word string) string {
 	switch strings.ToLower(word) {
 	case "user", "viewer", "per-viewer", "perviewer":
@@ -589,7 +483,6 @@ func createScope(word string) string {
 	}
 }
 
-// scopeLabel is the chat-facing name of a scope.
 func scopeLabel(scope string) string {
 	switch scope {
 	case data.CounterScopeViewer:
@@ -603,20 +496,14 @@ func scopeLabel(scope string) string {
 	}
 }
 
-// counterAddArgs is one parsed "!counter add <name> [delta] [bucket...]".
 type counterAddArgs struct {
 	name    string
 	delta   int64
 	command string
 }
 
-// counterAddLine is the argument tail of one add verb. It parses itself so
-// the reader stays inside the line's own vocabulary (name, delta, bucket)
-// rather than indexing a bare slice at three call sites.
 type counterAddLine []string
 
-// parse reads the line. ok is false on a malformed line, which the caller
-// answers with the usage reply.
 func (l counterAddLine) parse() (counterAddArgs, bool) {
 	if len(l) == 0 {
 		return counterAddArgs{}, false
@@ -628,8 +515,6 @@ func (l counterAddLine) parse() (counterAddArgs, bool) {
 	return counterAddArgs{name: l[0], delta: delta, command: l.bucket()}, true
 }
 
-// delta is the optional second word: defaults to 1, refuses 0 and anything
-// past counterAddMax so a typo cannot warp a counter.
 func (l counterAddLine) delta() (int64, bool) {
 	if len(l) < 2 {
 		return 1, true
@@ -644,9 +529,6 @@ func (l counterAddLine) delta() (int64, bool) {
 	return n, true
 }
 
-// bucket is everything after the value: a viewer+command counter's manual
-// add can name its bucket (a command trigger or a multi-word reward title),
-// and without one the bump lands in the empty bucket.
 func (l counterAddLine) bucket() string {
 	if len(l) > 2 {
 		return strings.Join(l[2:], " ")
@@ -670,8 +552,6 @@ func (lc loyaltyCmd) counterAdd(ctx context.Context, rest []string) error {
 		Delta:         args.delta,
 	})
 	if errors.Is(err, engine.ErrReservedCounter) {
-		// Hidden from the dashboard list, so "no such counter" is the
-		// honest answer, and it does not confirm the name exists.
 		lc.reply("loyalty.counter.not_found", "counter", engine.NormalizeCounterName(args.name))
 		return nil
 	}
@@ -786,18 +666,12 @@ func (lc loyaltyCmd) counterShow(ctx context.Context, name, command string) erro
 	return nil
 }
 
-// fail logs the failure and posts the generic error line; the error is
-// swallowed (the pipeline would only drop it anyway).
 func (lc loyaltyCmd) fail(op string, err error) error {
 	lc.log.Warn("loyalty: counter "+op+" failed", lc.c.BID(), zap.Error(err))
 	lc.reply("loyalty.counter.err")
 	return nil
 }
 
-// reply posts one localized system line. loyalty binds emit for the whole
-// invocation and has no customizable templates, so it hands the shared
-// replier those two fixed arguments rather than repeating them at 40 call
-// sites.
 func (lc loyaltyCmd) reply(key replyKey, kv ...string) {
 	lc.chatReplier.reply(lc.emit, "", key, kv...)
 }

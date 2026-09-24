@@ -56,7 +56,6 @@ func TestClipReplyTextCustomTemplate(t *testing.T) {
 }
 
 func TestClipExpand(t *testing.T) {
-	// {clipper} and {title} aliases, plus an unknown token left untouched.
 	got := clipExpand(clipMeta{
 		Clipper: "viewer",
 		Title:   "sick play",
@@ -80,9 +79,6 @@ func TestClipExpandCaseInsensitive(t *testing.T) {
 	}
 }
 
-// The viewer-typed title cannot mint a slash-verb through a template that
-// leads with {title}/{target}: leading slashes/spaces are stripped, while
-// non-leading slashes (URLs) survive.
 func TestClipExpandSanitizesLeadingSlashTitle(t *testing.T) {
 	got := clipExpand(clipMeta{
 		Clipper: "viewer",
@@ -95,18 +91,6 @@ func TestClipExpandSanitizesLeadingSlashTitle(t *testing.T) {
 	}
 }
 
-// TestExpandTokensResolvesDynamic pins the behaviour CHANGE that came with
-// moving the dynamic spans into pkg/tmpl: a clip or stream reply now resolves
-// {random} and {choice:…} the way a sesame reward template always did.
-//
-// They could not before, and the reason was structural rather than deliberate:
-// the dynamic vars lived in app/twitch/sesame/module, which outgress must not
-// import (internal/buildguard keeps the two services apart), so this side had
-// a token map and nothing else. A broadcaster reading one token list got two
-// behaviours depending on which surface the line landed on.
-//
-// The {choice} / {choice:} pair is pinned here too: no payload names no
-// options and stays literal, an empty payload resolves to "".
 func TestExpandTokensResolvesDynamic(t *testing.T) {
 	tokens := map[string]string{"user": "sam"}
 	for _, tc := range [][2]string{

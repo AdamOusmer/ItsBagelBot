@@ -49,8 +49,6 @@ describe('command response normalization', () => {
     const n = URLFETCH_TOKEN_CAP;
     const many = Array.from({ length: n + 1 }, (_, i) => `{urlfetch:def_${i}}`).join(' ');
     expect(validateCommand({ ...validFields, response: many }).response).toContain('at most');
-    // Repeats of the same def collapse: occurrences above the cap are fine
-    // when they resolve to fewer distinct names (the engine dedupes too).
     const repeats = Array.from({ length: n + 3 }, () => '{urlfetch:def_0}').join(' ');
     expect(validateCommand({ ...validFields, response: repeats }).response).toBeUndefined();
     expect(validateCommand({ ...validFields, response: `{urlfetch:a} ok` }).response).toBeUndefined();
@@ -102,8 +100,6 @@ describe('bump_counter option validation', () => {
   });
 });
 
-// --- urlfetch definitions ---------------------------------------------------
-
 const validDef = {
   name: 'weather',
   url: 'https://api.example.com/v1/wx?q=london',
@@ -119,8 +115,6 @@ describe('fetch-def validation parity table', () => {
     expect(validateFetchDef({ ...validDef, name: 'a'.repeat(FETCH_NAME_MAX + 1) }).name).toContain('32');
     expect(validateFetchDef({ ...validDef, name: 'Weather' }).name).toBeDefined();
     expect(validateFetchDef({ ...validDef, name: 'has space' }).name).toBeDefined();
-    // The def-name grammar has no hyphen: the stored name charset is exactly
-    // [a-z0-9_], matching Go's FetchDefName sentinel table.
     expect(validateFetchDef({ ...validDef, name: 'ok_name1' }).name).toBeUndefined();
     expect(validateFetchDef({ ...validDef, name: 'bad-name' }).name).toBeDefined();
   });
@@ -145,7 +139,7 @@ describe('fetch-def validation parity table', () => {
       validateFetchDef({ ...validDef, path: Array.from({ length: JSON_PATH_MAX_DEPTH + 1 }, (_, i) => `s${i}`) }).path
     ).toContain('8');
     expect(validateFetchDef({ ...validDef, path: ['a', 'b c'] }).path).toBeDefined();
-    expect(validateFetchDef({ ...validDef, path: ['items', '0'] }).path).toBeUndefined(); // array index as bare digits
+    expect(validateFetchDef({ ...validDef, path: ['items', '0'] }).path).toBeUndefined();
     expect(validateFetchDef({ ...validDef, path: [], kind: 'plain' }).path).toBeUndefined();
     expect(validateFetchDef({ ...validDef, path: ['x'], kind: 'plain' }).path).toBeDefined();
   });
@@ -161,7 +155,6 @@ describe('fetch-def validation parity table', () => {
 describe('slugifyName', () => {
   test('mirrors normName discipline then folds to the grammar', () => {
     expect(slugifyName('  Weather Now! ')).toBe('weather_now');
-    // Contiguous non-grammar runes fold to ONE underscore; edge underscores trim.
     expect(slugifyName('ÀÉÎ -- cool??')).toBe('cool');
     expect(slugifyName('!!!')).toBe('');
   });
@@ -185,7 +178,7 @@ describe('urlfetch token scanning', () => {
   test('first-appearance order, deduped, fast-path bail', () => {
     expect(urlFetchNames('no tokens here')).toEqual([]);
     expect(urlFetchNames('{urlfetch:b} {urlfetch:a} {urlfetch:b}')).toEqual(['b', 'a']);
-    expect(urlFetchNames('{urlfetch:WEATHER.CURRENT}')).toEqual(['weather.current']); // payload folded
+    expect(urlFetchNames('{urlfetch:WEATHER.CURRENT}')).toEqual(['weather.current']);
     expect(urlFetchNames('{urlfetch broken')).toEqual([]);
     expect(urlFetchNames('{user} typed {urlfetch:w.x} and {choice:a,b}')).toEqual(['w.x']);
   });
@@ -200,28 +193,19 @@ describe('urlfetch token scanning', () => {
     ]);
   });
 
-  // The hand scanner these two functions replaced looked for the literal bytes
-  // '{urlfetch' and the next '}'. It was wrong about the shipped grammar in
-  // two ways; both are pinned here by name so a revert fails loudly.
   test('a fallback belongs to the span, not to the definition name', () => {
-    // Old behaviour: name "weather|n/a", and the span reported as malformed.
     expect(urlFetchNames('temp is {urlfetch:weather|n/a}')).toEqual(['weather']);
     expect(malformedUrlFetchTokens('temp is {urlfetch:weather|n/a}')).toEqual([]);
-    // Only the LAST pipe splits, so a payload keeping one is still refused.
     expect(malformedUrlFetchTokens('{urlfetch:a|b|c}')).toEqual(['{urlfetch:a|b|c}']);
   });
 
   test('token names are case-insensitive, as the lexer folds them', () => {
-    // Old behaviour: both invisible to the console while sesame planned them.
     expect(urlFetchNames('{URLFETCH:Weather}')).toEqual(['weather']);
     expect(malformedUrlFetchTokens('{UrlFetch:}')).toEqual(['{UrlFetch:}']);
   });
 
   test('distinct definitions are counted the way scope.External keys them', () => {
-    // Spellings of ONE definition collapse: case, the leading "!", surrounding
-    // space and a fallback are all folded away before the dedupe.
     expect(urlFetchNames('{urlfetch:w} {URLFETCH:W} {urlfetch: w } {urlfetch:!w} {urlfetch:w|-}')).toEqual(['w']);
-    // Distinct dotted paths are distinct fetches, not one.
     expect(urlFetchNames('{urlfetch:w.temp} {urlfetch:w.hum}')).toEqual(['w.temp', 'w.hum']);
   });
 
@@ -241,15 +225,6 @@ describe('urlfetch token scanning', () => {
     expect(parseJsonPath('a b.c')).toBeNull();
   });
 });
-
-// --- path-builder property vs a local resolver mirror ------------------------
-//
-// The Go gossip resolver reads `$.seg.seg[0].seg` shapes over decoded JSON;
-// this mirror is the smallest honest stand-in: walk segments over an object,
-// bare-digit segments index arrays. The property under test: for every leaf
-// the picker can produce from a fixture, buildJsonPath -> parseJsonPath ->
-// mirror-resolve lands on the same leaf value. If the builder ever emits a
-// spelling the grammar (or the resolver) disagrees with, this catches it.
 
 interface Leaf {
   path: string[];
@@ -293,11 +268,11 @@ describe('picker path-building property', () => {
       const dotted = buildJsonPath(leaf.path);
       const parsed = parseJsonPath(dotted);
       expect(parsed).not.toBeNull();
-      expect(parsed).toEqual(leaf.path); // builder -> parser identity
-      expect(resolveMirror(fixture, parsed!)).toEqual(leaf.value); // parser -> resolver identity
+      expect(parsed).toEqual(leaf.path);
+      expect(resolveMirror(fixture, parsed!)).toEqual(leaf.value);
       if (leaf.path.length > 0) {
         expect(dotted.length).toBeGreaterThan(0);
-        expect(malformedUrlFetchTokens(`{urlfetch:name.${dotted}}`)).toEqual([]); // grammar-clean token
+        expect(malformedUrlFetchTokens(`{urlfetch:name.${dotted}}`)).toEqual([]);
       }
     }
   });
@@ -313,14 +288,6 @@ describe('picker path-building property', () => {
   });
 });
 
-// --- rehearsal limiter numbers -----------------------------------------------
-//
-// The fetches page wires ValkeyRateLimiter({ capacity: 6, refillPerSec: 0.1 })
-// keyed fetchtest:<uid> (one dry-run per 10s sustained, burst 6) because
-// each run dials a third-party API. The Valkey limiter degrades to this exact
-// in-memory bucket semantics, so the numbers are pinned here against that
-// class: the 7th immediate call must reject with a ~10s retry horizon.
-
 describe('fetchtest limiter numbers (capacity 6, refill 0.1/s)', () => {
   let t = 0;
   const limiter = new RateLimiter({ capacity: 6, refillPerSec: 0.1, now: () => t });
@@ -331,13 +298,13 @@ describe('fetchtest limiter numbers (capacity 6, refill 0.1/s)', () => {
     for (let i = 0; i < 6; i++) expect(limiter.check(key).allowed).toBe(true);
     const rejected = limiter.check(key);
     expect(rejected.allowed).toBe(false);
-    expect(rejected.retryAfterSec).toBe(10); // one token at 0.1/s
+    expect(rejected.retryAfterSec).toBe(10);
   });
 
   test('sustained rate is one run per 10 seconds', () => {
-    t += 9999; // just short of a full refill
+    t += 9999;
     expect(limiter.check(key).allowed).toBe(false);
-    t += 1; // 10s elapsed since the burst drained: exactly one token back
+    t += 1;
     expect(limiter.check(key).allowed).toBe(true);
     expect(limiter.check(key).allowed).toBe(false);
     limiter.dispose();

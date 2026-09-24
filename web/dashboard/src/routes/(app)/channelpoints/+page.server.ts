@@ -18,8 +18,6 @@ import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
 export const load: PageServerLoad = ({ locals }) =>
@@ -34,9 +32,8 @@ export const load: PageServerLoad = ({ locals }) =>
     blank: () => ({ enabled: false, rewards: [] as ChannelPointReward[] })
   });
 
-// parseReward validates and normalizes the posted reward JSON into a full
-// ChannelPointReward. Returns null on anything malformed; the action strings are
-// constrained to the known sets so a crafted post cannot inject an unknown kind.
+const TWITCH_REWARD_TITLE_MAX_CHARS = 45;
+
 function parseReward(raw: string): ChannelPointReward | null {
   let obj: Partial<ChannelPointReward>;
   try {
@@ -45,7 +42,7 @@ function parseReward(raw: string): ChannelPointReward | null {
     return null;
   }
   const title = String(obj.title ?? '').trim();
-  if (!title || title.length > 45) return null; // Twitch caps reward titles at 45 chars
+  if (!title || title.length > TWITCH_REWARD_TITLE_MAX_CHARS) return null;
 
   const action: RewardActionKind = REWARD_ACTIONS.includes(obj.action as RewardActionKind)
     ? (obj.action as RewardActionKind)
@@ -72,8 +69,6 @@ function parseReward(raw: string): ChannelPointReward | null {
     action,
     message: String(obj.message ?? '').slice(0, 400),
     onRedeem,
-    // Loyalty hooks. The counter name mirrors sesame's normalization (bare
-    // key, lower-cased); points are clamped to the same ceiling as a mod grant.
     counter: String(obj.counter ?? '').trim().replace(/^!/, '').toLowerCase().slice(0, 64),
     counterScope: COUNTER_SCOPES.includes(obj.counterScope as CounterScope)
       ? (obj.counterScope as CounterScope)
@@ -83,10 +78,6 @@ function parseReward(raw: string): ChannelPointReward | null {
   };
 }
 
-// The JSON cannot carry the editor's "counter enabled" state: a deliberately
-// disabled counter and an enabled-but-empty counter both serialize as an empty
-// name. Keep that UI intent as a separate form field and reject the latter at
-// the server boundary, even if client-side validation is bypassed.
 function parseRewardForm(form: FormData): ChannelPointReward | null {
   const draft = parseReward(String(form.get('reward') ?? ''));
   if (!draft) return null;
@@ -95,20 +86,12 @@ function parseRewardForm(form: FormData): ChannelPointReward | null {
   return draft;
 }
 
-// resultFail maps a store RewardResult failure to a SvelteKit fail(): a
-// missing-scope rejection carries a flag so the page shows the reconnect CTA,
-// and a duplicate title carries one so the page names the cause.
-// Returned from the verb rather than thrown: it is a reason the broadcaster
-// acts on, not a fault, so it must not become moduleAction's generic line.
 function resultFail(r: Extract<RewardResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
   if (r.duplicateTitle) return fail(409, { ok: false, duplicateTitle: true });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
 }
 
-// mutate binds one POST action to the module write skeleton
-// ($lib/server/module-action): delegate gate, form, demo short-circuit, error
-// mapping, audit. Each verb below is only its own parse plus its store call.
 function mutate(op: string, invalid: string, run: ModuleMutation) {
   return moduleAction('channelpoints', op, run, { demo: DEMO, invalid });
 }
@@ -136,7 +119,6 @@ export const actions: Actions = {
     return res.ok ? id : resultFail(res);
   }),
 
-  // Master on/off for whether the bot acts on redemptions at all.
   toggle: mutate('toggle', 'Invalid reward.', async (uid, f) => {
     const enabled = f.get('is_enabled') === 'on';
     await setChannelPointsEnabled(uid, enabled);

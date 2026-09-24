@@ -1,15 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Pointer tracker. Owns the raw input listeners and exposes the cursor
- * position as `nx`/`ny` normalized to [-1, 1] from the viewport center.
- *
- * Each frame the orchestrator calls `step(ease)` to lerp the smoothed
- * `smoothNX`/`smoothNY` values toward the raw ones. Subsystems read the
- * smoothed values so their motion shares the same eased trajectory.
- */
-
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
 }

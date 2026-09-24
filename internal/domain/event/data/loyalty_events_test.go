@@ -9,10 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The predicate and the list must agree: the repository's list filter takes
-// the list while every write guard takes the predicate, and a name present in
-// one but not the other is exactly the gap that once showed commands_answered
-// on the dashboard.
 func TestSystemCounterNamesMatchPredicate(t *testing.T) {
 	names := SystemCounterNames()
 	require.ElementsMatch(t, []string{

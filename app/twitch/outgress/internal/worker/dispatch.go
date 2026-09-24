@@ -28,7 +28,6 @@ func (w *Worker) Process(msg *bus.Message) error {
 		return nil
 	}
 	annotateTxn(ctx, &payload)
-	// Refuse trial output before a batch can acquire its lease.
 	if w.rejectTrialOutput(ctx, &payload) {
 		return nil
 	}
@@ -48,11 +47,6 @@ func (w *Worker) Process(msg *bus.Message) error {
 	return w.processPayload(ctx, &payload)
 }
 
-// processPayload dispatches one decoded, admitted action through the immutable
-// action registry: an O(1) lookup by type, the route fill (declared defaults,
-// explicit fields win), then the action's Run. Batch jobs call it serially for
-// each child; ordinary jobs call it once. Everything before Run is in-process,
-// so the only wait a message pays after this point is its own Twitch call.
 func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) error {
 	if w.rejectTrialOutput(ctx, payload) {
 		return nil
@@ -72,13 +66,7 @@ func (w *Worker) processPayload(ctx context.Context, payload *outgress.Message) 
 	return act.Run(ctx, payload)
 }
 
-// rejectTrialOutput refuses output whose triggering event came from a trial
-// channel. Provenance is the whole guard: ingress stamps origin=trial at
-// admission and it survives lanes, cohorts, retries and batch children, so the
-// stop still holds after the trial is removed. A trial-membership lookup used to
-// back this up for untagged output; it put a Valkey round trip on every send and
-// turned any Valkey error into a fleet-wide output stall, while trial channels
-// only receive chat and every chat reply leaves sesame tagged.
+// Origin tag only: a trial-membership lookup here would stall every send on a Valkey error.
 func (w *Worker) rejectTrialOutput(ctx context.Context, payload *outgress.Message) bool {
 	if payload.Origin != "trial" {
 		return false
@@ -87,8 +75,6 @@ func (w *Worker) rejectTrialOutput(ctx context.Context, payload *outgress.Messag
 	return true
 }
 
-// countTrialBlocked feeds the admin page's blocked-action counter. It is best
-// effort and bounded so a slow Valkey never holds a lane worker.
 func (w *Worker) countTrialBlocked(ctx context.Context, id string) {
 	if w.trialStore == nil || id == "" {
 		return
@@ -98,13 +84,6 @@ func (w *Worker) countTrialBlocked(ctx context.Context, id string) {
 	_ = w.trialStore.Do(ctx, w.trialStore.B().Hincrby().Key("trial:channel:"+id).Field("blocked").Increment(1).Build()).Error()
 }
 
-// sendBotLine routes one synthetic bot line, honoring a leading slash-verb
-// the same way sesame's pipeline does for module outputs: outgress.CutSlash
-// owns the grammar, so "/announce hi" becomes a native announcement, "/pin"
-// a pin, "/shoutout <target>" a shoutout, and anything else (including /me,
-// which Twitch chat renders itself) a plain chat line. A routed action with
-// no usable payload (empty announce/pin message, shoutout without a target)
-// is dropped rather than sent for Twitch to reject.
 func (w *Worker) sendBotLine(ctx context.Context, broadcasterID, text string) error {
 	sc, ok := outgress.CutSlash(text)
 	if !ok {
@@ -117,10 +96,6 @@ func (w *Worker) sendBotLine(ctx context.Context, broadcasterID, text string) er
 	return w.processPayload(ctx, msg)
 }
 
-// slashMessage builds the outgress message for a routed slash action. It
-// returns a nil message (and nil error) when the action carries no usable
-// payload — an /announce or /pin with no text, a /shoutout with no target —
-// so the caller drops it instead of sending a call Twitch would reject.
 func slashMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
 	if sc.Type == outgress.TypeShoutout {
 		return shoutoutMessage(broadcasterID, sc), nil
@@ -128,8 +103,6 @@ func slashMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Mes
 	return textActionMessage(broadcasterID, sc)
 }
 
-// shoutoutMessage builds the Send a Shoutout job: the target rides a dedicated
-// field, so the body is empty.
 func shoutoutMessage(broadcasterID string, sc outgress.SlashCommand) *outgress.Message {
 	if sc.To == "" {
 		return nil
@@ -142,9 +115,6 @@ func shoutoutMessage(broadcasterID string, sc outgress.SlashCommand) *outgress.M
 	}
 }
 
-// textActionMessage builds the /announce and /pin jobs, which share everything
-// but their body. Color is empty for a pin (CutSlash sets it only on an
-// announce), so it can be assigned unconditionally.
 func textActionMessage(broadcasterID string, sc outgress.SlashCommand) (*outgress.Message, error) {
 	if sc.Text == "" {
 		return nil, nil
@@ -161,9 +131,6 @@ func textActionMessage(broadcasterID string, sc outgress.SlashCommand) (*outgres
 	}, nil
 }
 
-// textActionBody marshals the body Twitch wants: an announcement carries only
-// the message, while a pin reuses the Send Chat Message body because the pin
-// action posts the line first and then pins it for the current stream.
 func textActionBody(broadcasterID string, sc outgress.SlashCommand) ([]byte, error) {
 	if sc.Type == outgress.TypeAnnounce {
 		return codec.Marshal(&struct {
@@ -176,10 +143,6 @@ func textActionBody(broadcasterID string, sc outgress.SlashCommand) ([]byte, err
 	}{broadcasterID, sc.Text})
 }
 
-// sendBotChat routes one synthetic bot chat line (a clip reply, the reauth
-// beacon) through the ordinary chat action — registry route defaults, bot
-// sender injection, per-channel chat rate bucket — exactly as if a lane job
-// carried it.
 func (w *Worker) sendBotChat(ctx context.Context, broadcasterID, text string) error {
 	body, err := codec.Marshal(&struct {
 		BroadcasterID string `json:"broadcaster_id"`

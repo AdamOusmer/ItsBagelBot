@@ -7,20 +7,16 @@ import (
 	"bytes"
 	"testing"
 
-	// 1. Your Package
 	"ItsBagelBot/pkg/crypto"
 
-	// 2. Test Tools
 	"github.com/stretchr/testify/assert"
 
-	// 3. Tink Imports
 	"github.com/tink-crypto/tink-go/v2/aead"
 	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
 	"github.com/tink-crypto/tink-go/v2/keyset"
-	"github.com/tink-crypto/tink-go/v2/mac" // <--- ADDED: To generate "Wrong Type" keys
+	"github.com/tink-crypto/tink-go/v2/mac"
 )
 
-// HELPER: Generates a 100% valid Tink Keyset in memory.
 func generateValidKeyset() []byte {
 	handle, err := keyset.NewHandle(aead.AES256GCMKeyTemplate())
 	if err != nil {
@@ -34,39 +30,30 @@ func generateValidKeyset() []byte {
 	return buf.Bytes()
 }
 
-// TEST 1: The "Garbage Data" Path (Fails at Step 1: Read)
 func TestNewCrypto_InvalidJSON(t *testing.T) {
 	c, err := crypto.NewCrypto([]byte("this-is-not-valid-json-data"))
 	assert.Error(t, err, "Should fail on invalid JSON")
 	assert.Nil(t, c)
 }
 
-// TEST 2: The "Wrong Key Type" Path (Fails at Step 2: aead.New) <--- THIS IS THE FIX
-// TEST 2: The "Wrong Key Type" Path (Fails at Step 2: aead.New)
 func TestNewCrypto_WrongKeyType(t *testing.T) {
-	// 1. Generate a valid key, but for MAC (Signature), not AEAD (Encryption)
 	handle, err := keyset.NewHandle(mac.HMACSHA256Tag128KeyTemplate())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// 2. Write it to JSON
 	buf := new(bytes.Buffer)
 	_ = insecurecleartextkeyset.Write(handle, keyset.NewJSONWriter(buf))
 	validMacKeyJSON := buf.Bytes()
 
-	// 3. Act: Try to use a MAC key as an AEAD key
 	c, err := crypto.NewCrypto(validMacKeyJSON)
 
-	// 4. Assert: Read() succeeded, but aead.New() should fail
 	assert.Error(t, err, "Should fail when passing a MAC key to AEAD constructor")
 
-	// FIX: Updated the expected error string to match the actual output
 	assert.Contains(t, err.Error(), "primitive is not a tink.AEAD", "Error should be about primitive type mismatch")
 	assert.Nil(t, c)
 }
 
-// TEST 3: The "Happy Path" Round Trip
 func TestTinkAdapter_RoundTrip(t *testing.T) {
 	validKeyJSON := generateValidKeyset()
 
@@ -93,7 +80,6 @@ func TestTinkAdapter_RoundTrip(t *testing.T) {
 	}
 }
 
-// TEST 4: Security Check (Context Mismatch)
 func TestTinkAdapter_ContextMismatch(t *testing.T) {
 	adapter, err := crypto.NewCrypto(generateValidKeyset())
 	if err != nil {
@@ -106,7 +92,6 @@ func TestTinkAdapter_ContextMismatch(t *testing.T) {
 
 	envelope, _ := adapter.Pack(plaintext, originalUser)
 
-	// SIMULATE ATTACK
 	envelope.AttachedData = hackerUser
 
 	_, err = adapter.Unpack(envelope)
@@ -116,7 +101,6 @@ func TestTinkAdapter_ContextMismatch(t *testing.T) {
 	}
 }
 
-// TEST 5: Table-Driven Scenarios
 func TestPacker_Scenarios(t *testing.T) {
 	adapter, _ := crypto.NewCrypto(generateValidKeyset())
 

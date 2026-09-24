@@ -31,17 +31,12 @@ const (
 
 	modulesCacheTTL = 5 * time.Minute
 
-	// modulesCacheCapacity ceilings the view cache. It is keyed one entry per
-	// user (the whole module list), so a few thousand covers the users read
-	// within the 5m TTL without holding the generic cache.DefaultCapacity ten
-	// thousand resident at rest.
 	modulesCacheCapacity int64 = 4096
 
 	flushInterval = 2 * time.Second
 	flushMaxSize  = 256
 )
 
-// ModuleView is the read model for one module of one user.
 type ModuleView = projection.ModuleView
 
 type moduleKey struct {
@@ -49,12 +44,6 @@ type moduleKey struct {
 	name   string
 }
 
-// Modules persists the per-user module toggles and configs. Writes are
-// write-behind: a user flipping the same switch five times in a second costs
-// one row write, and a burst of changes lands as a single transaction instead
-// of hammering the database once per click. Events go out only after the
-// flush commits, so downstream projections never see state that failed to
-// persist.
 type Modules struct {
 	client  *ent.Client
 	views   *cache.Cache[[]ModuleView]
@@ -62,11 +51,7 @@ type Modules struct {
 	batcher *batch.Batcher[moduleKey, data.ModuleChangedDTO]
 	app     *newrelic.Application
 	log     *zap.Logger
-	// govee is this service's per-broadcaster Govee API-key sub-store (sealed at
-	// rest). nil when no keyset is provisioned; every use is nil-safe.
-	govee *GoveeCreds
-	// spotify is the spotify twin: the per-broadcaster OAuth refresh-token
-	// sub-store, sealed under the same keyset. nil-safe like govee.
+	govee   *GoveeCreds
 	spotify *SpotifyCreds
 }
 
@@ -87,7 +72,6 @@ func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application
 	return r
 }
 
-// List returns every module row of the user from the in-process cache.
 func (r *Modules) List(ctx context.Context, userID uint64) ([]ModuleView, error) {
 
 	return r.views.GetOrLoad(ctx, cache.UserKey(modulesKeyPrefix, userID), func(ctx context.Context) ([]ModuleView, error) {
@@ -115,8 +99,6 @@ func (r *Modules) List(ctx context.Context, userID uint64) ([]ModuleView, error)
 	})
 }
 
-// Set validates and queues a toggle or config change. Consecutive changes to
-// the same module coalesce into the latest state before the next flush.
 func (r *Modules) Set(userID uint64, name string, enabled bool, configs codec.RawMessage) error {
 
 	if err := validate.UserID(userID); err != nil {
@@ -139,9 +121,6 @@ func (r *Modules) Set(userID uint64, name string, enabled bool, configs codec.Ra
 	return nil
 }
 
-// Reproject republishes the current state of every module row as ordinary
-// change events, paged by row ID so the table is never loaded at once. The
-// projector requests this on a cold start to rebuild the Valkey projection.
 func (r *Modules) Reproject(ctx context.Context) error {
 
 	const pageSize = 500
@@ -179,9 +158,6 @@ func (r *Modules) Reproject(ctx context.Context) error {
 	}
 }
 
-// DeleteAllForUser removes every module row belonging to the user and drops the
-// cached view. Called when the user-deleted event arrives; idempotent — deleting
-// absent rows succeeds silently.
 func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
@@ -193,9 +169,6 @@ func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 		return err
 	}
 
-	// The govee key lives outside the module rows (sealed in its own table), so
-	// it is swept here too; nil-safe and best-effort. The spotify token rides
-	// its own table under the same rule.
 	r.sweepGovee(ctx, userID)
 	r.sweepSpotify(ctx, userID)
 
@@ -203,17 +176,10 @@ func (r *Modules) DeleteAllForUser(ctx context.Context, userID uint64) error {
 	return nil
 }
 
-// Govee exposes the key sub-store so the RPC layer can wire its custody verbs.
-// nil when govee key custody is disabled.
 func (r *Modules) Govee() *GoveeCreds { return r.govee }
 
-// Spotify exposes the refresh-token sub-store for wireSpotify. nil when
-// spotify token custody is disabled.
 func (r *Modules) Spotify() *SpotifyCreds { return r.spotify }
 
-// sweepGovee removes a deleted user's stored Govee key. nil-safe (custody
-// disabled) and best-effort: a failure is logged, never propagated, since the
-// module rows are already gone and the key is unreadable without its keyset.
 func (r *Modules) sweepGovee(ctx context.Context, userID uint64) {
 	if r.govee == nil {
 		return
@@ -223,7 +189,6 @@ func (r *Modules) sweepGovee(ctx context.Context, userID uint64) {
 	}
 }
 
-// sweepSpotify is sweepGovee for the connected-account refresh token.
 func (r *Modules) sweepSpotify(ctx context.Context, userID uint64) {
 	if r.spotify == nil {
 		return
@@ -233,21 +198,11 @@ func (r *Modules) sweepSpotify(ctx context.Context, userID uint64) {
 	}
 }
 
-// PatchResult reports a Patch outcome: the row's revision after the attempt, and
-// whether the write was rejected because the caller's expected revision was stale.
 type PatchResult struct {
 	Rev      int
 	Conflict bool
 }
 
-// Patch merges partial config keys into a module's stored config under optimistic
-// concurrency. When expectedRev is non-nil it must equal the row's current
-// revision, or the write is rejected as a conflict (no mutation) so the caller can
-// refetch and retry; nil skips the check (last-write-wins). On success the
-// revision is bumped and the change is announced like any other write. A missing
-// row is created at revision 1. Unlike Set, Patch is synchronous and does not go
-// through the write-behind batcher: config edits are low-frequency, and the
-// compare-and-swap needs the current row, so batching would defeat the check.
 func (r *Modules) Patch(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev *int) (PatchResult, error) {
 	if err := validate.UserID(userID); err != nil {
 		return PatchResult{}, err
@@ -284,8 +239,6 @@ func (r *Modules) Patch(ctx context.Context, userID uint64, name string, enabled
 	return res, nil
 }
 
-// patchInsert creates a module row at revision 1. A non-zero expected revision on
-// a missing row is a conflict (the row the caller thought it was editing is gone).
 func (r *Modules) patchInsert(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev *int) (PatchResult, []byte, error) {
 	if expectedRev != nil && *expectedRev != 0 {
 		return PatchResult{Conflict: true}, nil, nil
@@ -304,10 +257,6 @@ func (r *Modules) patchInsert(ctx context.Context, userID uint64, name string, e
 	return PatchResult{Rev: created.Revision}, blob, nil
 }
 
-// patchUpdate merges into an existing row with a compare-and-swap on the revision:
-// the write lands only if the revision is still what we read, so a concurrent
-// patch that landed in between loses the race and its caller retries. Portable and
-// lock-free (a conditional UPDATE, no FOR UPDATE).
 func (r *Modules) patchUpdate(ctx context.Context, row *ent.Modules, enabled bool, partial map[string]codec.RawMessage, expectedRev *int) (PatchResult, []byte, error) {
 	if expectedRev != nil && *expectedRev != row.Revision {
 		return PatchResult{Conflict: true, Rev: row.Revision}, nil, nil
@@ -329,8 +278,6 @@ func (r *Modules) patchUpdate(ctx context.Context, row *ent.Modules, enabled boo
 	return PatchResult{Rev: row.Revision + 1}, blob, nil
 }
 
-// mergedBlob overlays partial onto cur, stamps the revision mirror, and marshals
-// the validated config blob.
 func mergedBlob(cur, partial map[string]codec.RawMessage, rev int) ([]byte, error) {
 	mergeConfig(cur, partial)
 	setRev(cur, rev)
@@ -344,8 +291,6 @@ func mergedBlob(cur, partial map[string]codec.RawMessage, rev int) ([]byte, erro
 	return blob, nil
 }
 
-// announcePatch drops the cached view and publishes the change, mirroring flush so
-// the projection converges.
 func (r *Modules) announcePatch(ctx context.Context, userID uint64, name string, enabled bool, blob []byte) {
 	r.Invalidate(userID)
 	if pubErr := bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, data.ModuleChangedDTO{
@@ -356,8 +301,6 @@ func (r *Modules) announcePatch(ctx context.Context, userID uint64, name string,
 	}
 }
 
-// decodeConfig parses a stored config blob into a mutable key map; a nil or
-// corrupt blob yields an empty map so a patch can still proceed.
 func decodeConfig(raw []byte) map[string]codec.RawMessage {
 	out := map[string]codec.RawMessage{}
 	if len(raw) == 0 {
@@ -367,13 +310,8 @@ func decodeConfig(raw []byte) map[string]codec.RawMessage {
 	return out
 }
 
-// revKey mirrors the row's revision inside the config blob so it flows to the
-// dashboard through the existing config projection (the client strips it). The
-// authoritative revision for the compare-and-swap is the column, not this mirror.
 const revKey = "__rev"
 
-// mergeConfig overlays partial's keys onto cfg (partial wins), ignoring any
-// client-sent revision mirror — the server owns it.
 func mergeConfig(cfg, partial map[string]codec.RawMessage) {
 	for k, v := range partial {
 		if k == revKey {
@@ -383,36 +321,20 @@ func mergeConfig(cfg, partial map[string]codec.RawMessage) {
 	}
 }
 
-// setRev writes the revision mirror into the config blob.
 func setRev(cfg map[string]codec.RawMessage, rev int) {
 	b, _ := codec.Marshal(rev)
 	cfg[revKey] = b
 }
 
-// Invalidate drops the cached view of one user; called when a change event
-// arrives from another instance of this service.
 func (r *Modules) Invalidate(userID uint64) {
 	r.views.Invalidate(cache.UserKey(modulesKeyPrefix, userID))
 }
 
-// Close flushes pending writes and stops the background machinery.
 func (r *Modules) Close(ctx context.Context) {
 	r.batcher.Close(ctx)
 	r.views.Close()
 }
 
-// flush lands one window of coalesced changes, then invalidates the local
-// cache and announces every landed change on the bus. It runs detached from
-// any request, so it reports as its own background transaction.
-//
-// The commands service runs the same skeleton (background txn, one bulk
-// upsert, per-item fallback, then invalidate + publish per landed row) and is
-// deliberately not shared with it: commands re-reads every landed row and
-// publishes database truth, because a command row carries a counter (uses)
-// that the queued edit never held and event-carried state transfer must not
-// regress it. A module row is fully described by the edit, so there is
-// nothing to re-read. Merging the two would mean a reload hook with exactly
-// one caller, which is more indirection than the ~20 shared lines buy.
 func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) error {
 
 	txn := r.app.StartTransaction("flush modules")
@@ -421,10 +343,6 @@ func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) erro
 	ctx = newrelic.NewContext(ctx, txn)
 	log := monitor.TxnLogger(ctx, r.log)
 
-	// Fast path: the whole window lands as one INSERT ... ON DUPLICATE KEY
-	// UPDATE. If that statement fails, fall back to per-item writes so one
-	// unpersistable row cannot wedge the entire batch in the retry loop
-	// forever (the old whole-batch rollback + requeue did exactly that).
 	landed := items
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		return bulkUpsertModules(ctx, r.client, items)
@@ -438,8 +356,6 @@ func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) erro
 		r.Invalidate(item.UserID)
 
 		if err := bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, item); err != nil {
-			// The row is committed; losing the event only delays convergence
-			// until the next change or projector rebuild, so log and move on.
 			log.Error("failed to publish module change",
 				zap.Uint64("user_id", item.UserID),
 				zap.String("module", item.Name),
@@ -451,8 +367,6 @@ func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) erro
 	return nil
 }
 
-// bulkUpsertModules lands one flush window as a single
-// INSERT ... ON DUPLICATE KEY UPDATE keyed on the (user_id, name) unique index.
 func bulkUpsertModules(ctx context.Context, client *ent.Client, items []data.ModuleChangedDTO) error {
 
 	builders := make([]*ent.ModulesCreate, 0, len(items))
@@ -464,8 +378,6 @@ func bulkUpsertModules(ctx context.Context, client *ent.Client, items []data.Mod
 			SetConfigs(item.Configs))
 	}
 
-	// MySQL ignores the conflict target (ON DUPLICATE KEY UPDATE is index-less);
-	// SQLite (tests) requires it.
 	return client.Modules.CreateBulk(builders...).
 		OnConflict(entsql.ConflictColumns(modules.FieldUserID, modules.FieldName)).
 		Update(func(u *ent.ModulesUpsert) {
@@ -476,11 +388,6 @@ func bulkUpsertModules(ctx context.Context, client *ent.Client, items []data.Mod
 		Exec(ctx)
 }
 
-// upsertEach persists a failed window one item at a time and returns the
-// items that landed. Rows the database will never accept (validation or
-// constraint errors) are dropped with an error log; transiently failing rows
-// are requeued into the batcher so the next window retries them without
-// holding the rest of the batch hostage.
 func (r *Modules) upsertEach(ctx context.Context, txn *newrelic.Transaction, items []data.ModuleChangedDTO) []data.ModuleChangedDTO {
 
 	landed := make([]data.ModuleChangedDTO, 0, len(items))

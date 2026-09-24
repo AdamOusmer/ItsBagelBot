@@ -26,7 +26,6 @@ func TestContactEmailRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "real@example.com", got)
 
-	// Ciphertext at rest, never the plaintext address.
 	row := client.User.Query().Where(user.IDEQ(42)).OnlyX(ctx)
 	assert.NotEmpty(t, row.EmailEnc)
 	assert.NotContains(t, string(row.EmailEnc), "real@example.com")
@@ -60,8 +59,6 @@ func TestContactEmailEnvelopeBoundToUser(t *testing.T) {
 	require.NoError(t, repo.Register(ctx, 46, "other", "other", "46@twitch.tv"))
 	require.NoError(t, repo.SetContactEmail(ctx, 45, "bound@example.com"))
 
-	// Copy user 45's envelope onto user 46: the AAD mismatch must fail the
-	// unseal, so a swapped ciphertext can never leak another user's address.
 	sealed := client.User.Query().Where(user.IDEQ(45)).OnlyX(ctx).EmailEnc
 	client.User.UpdateOneID(46).SetEmailEnc(sealed).ExecX(ctx)
 

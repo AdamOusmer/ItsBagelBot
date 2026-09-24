@@ -1,17 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package discordapi is the Discord REST API v10 client. Outgress uses it for
-// live embeds, clip posts, and the 1-click guild fill; dingress uses the
-// same types for welcomes, auto-voice, and slash replies. Every call
-// authenticates with the static bot token, which never rotates through
-// outgress: resetting bot credentials on the Discord developer portal
-// invalidates the token instantly and takes every send down until the env
-// var is updated and the pod restarts.
-//
-// Error classification is the load-bearing contract: the worker maps these
-// onto the lane's ack/nack discipline, where a wrong class either spins a
-// dead message forever or silently drops a retryable one.
 package discordapi
 
 import (
@@ -30,19 +19,10 @@ import (
 const (
 	defaultBaseURL = "https://discord.com/api/v10"
 
-	// requestTimeout bounds one REST call end to end. Sends are perishable
-	// (the lane's MaxAge is 5s), so a hung call must fail fast enough that the
-	// ack/nack decision still lands inside the message's useful life.
 	requestTimeout = 5 * time.Second
 
-	// maxBody caps a success body. A guild channel listing is ~400 B per
-	// channel and a message-create echo carries the author and embed back, so
-	// the 2 KiB error cap silently truncated both (the id decoded empty and
-	// the go-offline edit never found its message). 1 MiB admits any listing
-	// Discord returns today while still bounding a runaway body.
-	maxBody = 1 << 20
-	// maxErrorBody bounds what an error message carries into the logs.
-	maxErrorBody = 2048
+	maxBodyBytes      = 1 << 20
+	maxErrorBodyBytes = 2048
 )
 
 type Client struct {
@@ -51,27 +31,12 @@ type Client struct {
 	token string
 }
 
-// Typed errors. The worker maps each to drop (nil return) or nack (error).
 var (
-	// ErrAuth means the token was rejected (401): revoked by a credential
-	// reset or simply wrong. Redelivery cannot succeed; this is dropped
-	// loudly like a revoked Helix token.
-	ErrAuth = errors.New("discord: unauthorized")
-	// ErrForbidden covers 403: the bot lacks permission in the target channel,
-	// was blocked, or the channel forbids the bot outright. A dashboard fix
-	// (role/permission change) can make future sends work, but THIS message's
-	// redelivery cannot succeed within its lifetime.
-	ErrForbidden = errors.New("discord: forbidden")
-	// ErrChannelNotFound (404 unknown channel): the channel was deleted or
-	// the id is wrong. Permanent for this message.
+	ErrAuth            = errors.New("discord: unauthorized")
+	ErrForbidden       = errors.New("discord: forbidden")
 	ErrChannelNotFound = errors.New("discord: channel not found")
-	// ErrBadRequest (400): Discord rejected the body itself. Nothing about
-	// redelivery changes the payload, so it is permanent.
-	ErrBadRequest = errors.New("discord: bad request")
-	// ErrRateLimited is transient pressure (429). The lane nacks and paced
-	// redelivery retries it; a chat line older than its retry budget dies at
-	// MaxAge instead of arriving late, which is the intended trade.
-	ErrRateLimited = errors.New("discord: rate limited")
+	ErrBadRequest      = errors.New("discord: bad request")
+	ErrRateLimited     = errors.New("discord: rate limited")
 )
 
 func NewClient(botToken string) *Client {
@@ -94,8 +59,6 @@ func (c *Client) SendChat(ctx context.Context, post ChatPost) error {
 	return c.SendMessage(ctx, post.ChannelID, post.Content, post.TTS)
 }
 
-// SendMessage posts one text message into a channel. tts passes through to
-// Discord's TTS flag; content is validated upstream (the worker bounds it).
 func (c *Client) SendMessage(ctx context.Context, channelID, content string, tts bool) error {
 	body := map[string]any{"content": content}
 	if tts {
@@ -104,14 +67,10 @@ func (c *Client) SendMessage(ctx context.Context, channelID, content string, tts
 	return c.do(ctx, request{method: http.MethodPost, path: "/channels/" + url.PathEscape(channelID) + "/messages", body: body})
 }
 
-// request is one REST call before encoding. A nil body sends no payload.
 type request struct {
 	method string
 	path   string
 	body   any
-	// reason rides X-Audit-Log-Reason where the endpoint supports it. Empty
-	// sends no header at all: Discord shows an empty reason as a blank line
-	// in the audit log, which reads worse than no reason.
 	reason string
 }
 
@@ -126,16 +85,11 @@ func (r request) payload() ([]byte, error) {
 	return raw, nil
 }
 
-// do runs one classified API call and discards the body. There is no
-// refresh dance: the bot token is static, so any rejection classifies once.
 func (c *Client) do(ctx context.Context, req request) error {
 	_, err := c.doBytes(ctx, req)
 	return err
 }
 
-// doInto runs the call and decodes the success body into out. A body that
-// does not decode is an error, never a silently zero result: a zero id here
-// used to strand go-live posts as LIVE forever.
 func (c *Client) doInto(ctx context.Context, req request, out any) error {
 	raw, err := c.doBytes(ctx, req)
 	if err != nil {
@@ -154,7 +108,7 @@ func (c *Client) doBytes(ctx context.Context, req request) ([]byte, error) {
 	}
 	res, err := c.send(ctx, req, payload)
 	if err != nil {
-		return nil, err // network/transient: caller nacks
+		return nil, err
 	}
 	defer drain(res)
 
@@ -184,17 +138,8 @@ func (c *Client) send(ctx context.Context, req request, payload []byte) (*http.R
 	return c.http.Do(httpReq)
 }
 
-// auditReasonMax is Discord's documented 512-character cap on
-// X-Audit-Log-Reason. The cap is on the DECODED value, so the truncation
-// happens before escaping; sending more is a 400 on an otherwise valid
-// moderation call, which is the worst possible moment to fail.
 const auditReasonMax = 512
 
-// auditReason percent-encodes a reason for the header. Discord documents the
-// value as URL-encoded, and PathEscape (not QueryEscape) is the right one:
-// QueryEscape writes a space as "+", which Discord's decoder shows literally,
-// and an unescaped newline in a header value is a request-splitting hazard
-// that Go's http client rejects outright.
 func auditReason(reason string) string {
 	r := []rune(reason)
 	if len(r) > auditReasonMax {
@@ -203,8 +148,6 @@ func auditReason(reason string) string {
 	return url.PathEscape(string(r))
 }
 
-// classify maps a non-2xx status onto the typed errors above. The body is
-// truncated to maxErrorBody before it reaches an error string.
 func classify(res *http.Response, raw []byte) error {
 	detail := errorDetail(raw)
 	switch res.StatusCode {
@@ -223,18 +166,12 @@ func classify(res *http.Response, raw []byte) error {
 }
 
 func errorDetail(raw []byte) string {
-	if len(raw) > maxErrorBody {
-		raw = raw[:maxErrorBody]
+	if len(raw) > maxErrorBodyBytes {
+		raw = raw[:maxErrorBodyBytes]
 	}
 	return string(raw)
 }
 
-// RateLimitError carries Discord's 429 verdict: RetryAfter is the wait the
-// server dictated (header first, JSON body second) and Global says whether
-// the whole bot is throttled rather than one channel bucket. The setup fill
-// sleeps RetryAfter before its next create; the lanes surface it in logs so
-// per-channel pressure can be told from a fleet-wide bucket. It is
-// classified exactly like ErrRateLimited.
 type RateLimitError struct {
 	RetryAfter time.Duration
 	Global     bool
@@ -260,12 +197,9 @@ func newRateLimitError(res *http.Response, raw []byte, detail string) *RateLimit
 func (e *RateLimitError) Error() string { return "discord: rate limited: " + e.detail }
 func (e *RateLimitError) Unwrap() error { return ErrRateLimited }
 func (e *RateLimitError) Is(target error) bool {
-	// errors.Is must reach ErrRateLimited both via Unwrap (for wrapped use) and
-	// directly (for the worker's switch on the concrete type).
 	return target == ErrRateLimited
 }
 
-// RetryAfterOf returns the server-dictated wait when err is a 429, else 0.
 func RetryAfterOf(err error) time.Duration {
 	var rl *RateLimitError
 	if errors.As(err, &rl) {
@@ -275,13 +209,11 @@ func RetryAfterOf(err error) time.Duration {
 }
 
 func readBody(res *http.Response) []byte {
-	raw, _ := io.ReadAll(io.LimitReader(res.Body, maxBody))
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, maxBodyBytes))
 	return raw
 }
 
-// drain makes small responses reusable without letting a large or
-// non-terminating body pin the worker.
 func drain(res *http.Response) {
-	_, _ = io.CopyN(io.Discard, res.Body, maxBody+1)
+	_, _ = io.CopyN(io.Discard, res.Body, maxBodyBytes+1)
 	_ = res.Body.Close()
 }

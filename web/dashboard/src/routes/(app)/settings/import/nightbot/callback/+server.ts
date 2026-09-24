@@ -1,11 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Nightbot OAuth callback for the config importer: verifies the state cookie,
-// exchanges the code, and parks the access token in a short-lived HttpOnly
-// cookie the preview action reads. Every failure lands back on the wizard
-// with ?e=nb_oauth: the import page renders the retry prose, this route
-// never renders anything itself.
 import type { RequestHandler } from './$types';
 import type { Cookies } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
@@ -21,10 +16,6 @@ import {
   importOwner
 } from '$lib/server/nightbot-oauth';
 
-// consumeCallback validates the provider callback against the HttpOnly state
-// cookie (always deleting it, single use) and returns the code, or null:
-// provider-reported errors, a missing code, and a state mismatch all collapse
-// to the same retry path so no detail leaks into the URL.
 function consumeCallback(cookies: Cookies, url: URL): string | null {
   const stored = cookies.get(NB_STATE_COOKIE);
   cookies.delete(NB_STATE_COOKIE, { path: NB_STATE_COOKIE_PATH });
@@ -35,9 +26,6 @@ function consumeCallback(cookies: Cookies, url: URL): string | null {
   return stored && state === stored ? code : null;
 }
 
-// parkToken exchanges the code and parks the access token for the preview
-// action; false means the exchange failed (already logged) and the wizard
-// shows the retry prose.
 async function parkToken(cookies: Cookies, url: URL, code: string): Promise<boolean> {
   let token: string;
   try {
@@ -56,8 +44,6 @@ async function parkToken(cookies: Cookies, url: URL, code: string): Promise<bool
   return true;
 }
 
-// wizardReturn consumes the single-use return cookie the connect route set,
-// so the round trip lands back in whichever wizard started it.
 function wizardReturn(cookies: Cookies): string {
   const welcome = cookies.get(NB_RETURN_COOKIE) === 'welcome';
   cookies.delete(NB_RETURN_COOKIE, { path: NB_STATE_COOKIE_PATH });

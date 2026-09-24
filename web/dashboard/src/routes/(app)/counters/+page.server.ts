@@ -13,12 +13,8 @@ import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 import { moduleAction } from '$lib/server/module-action';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
-// The optional ?c=<name> selects one entry-scoped counter whose stored values
-// (the per-viewer buckets) are loaded alongside the list.
 export const load: PageServerLoad = ({ locals, url }) => {
   const selected = normalizeCounterName(url.searchParams.get('c'));
   return moduleLoad('counters', locals.session, {
@@ -37,7 +33,6 @@ export const load: PageServerLoad = ({ locals, url }) => {
         try {
           entries = await counterEntries(uid, selected, 25);
         } catch {
-          /* entries are decorative next to the list */
         }
       }
       return { counters, selected, entries };
@@ -46,11 +41,6 @@ export const load: PageServerLoad = ({ locals, url }) => {
   });
 };
 
-// mutate binds one POST action to the module write skeleton
-// ($lib/server/module-action): gate, form, demo short-circuit, error mapping,
-// audit. A UserError carries a message written for the broadcaster, so it is
-// answered as this verb's own refusal; anything else is ours and reaches
-// moduleAction's generic handler (logged, generic line).
 type Mutation = (uid: string, f: FormData) => Promise<string | null>;
 
 function mutate(op: string, run: Mutation) {
@@ -78,11 +68,8 @@ export const actions: Actions = {
     return `${name} (${scope})`;
   }),
 
-  // Absolute value for a channel counter; on entry scopes value 0 doubles as
-  // the reset. An optional target (viewer_id and/or command) writes one bucket.
   set: mutate('set', runSet),
 
-  // Manual add of one bucket to an entry-scoped counter.
   addEntry: mutate('addEntry', runAddEntry),
 
   rename: mutate('rename', async (uid, f) => {
@@ -102,6 +89,5 @@ export const actions: Actions = {
     return name;
   }),
 
-  // Remove one stored bucket of an entry-scoped counter.
   deleteEntry: mutate('deleteEntry', runDeleteEntry)
 };

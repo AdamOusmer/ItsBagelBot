@@ -41,9 +41,6 @@ func TestSanitizeChannelNameOutputIsAlwaysAcceptable(t *testing.T) {
 	}
 }
 
-// wantAcceptableChannelName holds the whole output contract in one place:
-// Discord refuses a channel name outside [a-z0-9-], and a doubled or edge
-// separator renders as a typo the streamer cannot fix from the dashboard.
 func wantAcceptableChannelName(t *testing.T, in, got string) {
 	t.Helper()
 	if strings.Contains(got, "--") {
@@ -55,7 +52,6 @@ func wantAcceptableChannelName(t *testing.T, in, got string) {
 	wantChannelNameRunes(t, in, got)
 }
 
-// wantChannelNameRunes checks the alphabet, rune by rune.
 func wantChannelNameRunes(t *testing.T, in, got string) {
 	t.Helper()
 	for _, r := range got {
@@ -87,10 +83,8 @@ func TestTicketChannelName(t *testing.T) {
 	}
 }
 
-// A long username must not push the name past Discord's 100-character ceiling,
-// and the truncation must not leave the name ending in the separator.
 func TestTicketChannelNameStaysUnderTheCeiling(t *testing.T) {
-	long := strings.Repeat("ada ", 60) // 240 characters, 120 of them separators
+	long := strings.Repeat("ada ", 60)
 	got := TicketChannelName(long, 123456)
 
 	if len(got) > ChannelNameMax {

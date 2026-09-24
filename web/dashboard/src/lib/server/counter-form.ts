@@ -1,25 +1,14 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Form-parsing helpers shared by the /counters page actions. Kept out of the
-// route module so +page.server.ts stays a thin list of actions: each one reads
-// its inputs through these, then calls the loyalty store.
 import type { CounterScope } from '@bagel/kit';
 import { normalizeCounterName } from '@bagel/kit/validation';
 import { resolveViewerId, type CounterTarget } from './loyalty-store';
 
-// UserError carries a safe, machine-readable failure code out of an action so
-// the route's catch can surface it (anything else stays masked) and the client
-// maps it to localized copy.
 export class UserError extends Error {}
 
-// Re-exported so the counters actions keep one import for their form helpers;
-// the fold itself lives in @bagel/kit/validation, shared with the admin
-// console's bot-counter page (same keyspace, same normalization).
 export { normalizeCounterName };
 
-// namedValue reads the (name, integer value) pair the value-writing actions
-// share; null when either is missing or non-numeric.
 export function namedValue(f: FormData): { name: string; value: number } | null {
   const name = normalizeCounterName(f.get('name'));
   const value = Math.trunc(Number(f.get('value')));
@@ -27,27 +16,17 @@ export function namedValue(f: FormData): { name: string; value: number } | null 
   return { name, value };
 }
 
-// bucketTarget reads the optional (viewer_id, command) that address one stored
-// bucket. Returns null only when viewer_id is present but malformed; an empty
-// target is valid (an untargeted channel set / reset).
 export function bucketTarget(f: FormData): CounterTarget | null {
   const viewerId = String(f.get('viewer_id') ?? '').trim();
   if (viewerId && !/^\d+$/.test(viewerId)) return null;
   return { viewerId, command: normalizeCounterName(f.get('command')) };
 }
 
-// bucketLabel renders the audit-line suffix for a targeted write; '' when the
-// write is untargeted (the whole counter).
 export function bucketLabel(t: CounterTarget): string {
   if (!t.viewerId && !t.command) return '';
   return `[${t.viewerId}${t.command ? ':' + t.command : ''}]`;
 }
 
-// resolveAddTarget turns the manual-add form into a bucket target for one
-// entry-scoped counter. Command scope keys on the command alone; the viewer
-// scopes resolve the typed username to its Twitch id (throwing when no such
-// account) and stamp the login. Returns null when the form lacks the key part
-// the scope needs. The caller maps that to a validation failure.
 export async function resolveAddTarget(
   scope: CounterScope,
   login: string,

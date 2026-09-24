@@ -29,9 +29,6 @@ func TestIsExpectedNack(t *testing.T) {
 	}
 }
 
-// testLane builds a lane whose sampling cursor and counters belong to the test
-// alone, so nothing here mutates the package-level telemetry registry or starts
-// its flusher.
 func testLane(app *newrelic.Application, rate uint64, log *zap.Logger, handle func(*Message) error) consumeLane {
 	return consumeLane{
 		app:     app,
@@ -43,10 +40,6 @@ func testLane(app *newrelic.Application, rate uint64, log *zap.Logger, handle fu
 	}
 }
 
-// handlerSawTransaction records, per delivery, whether the handler was given a
-// transaction. That is the observable difference between the sampled and the
-// unsampled path: the trace join, the segment and the datastore spans all hang
-// off the transaction in the message context.
 func handlerSawTransaction(seen *[]bool, err error) func(*Message) error {
 	return func(msg *Message) error {
 		*seen = append(*seen, newrelic.FromContext(msg.Context()) != nil)
@@ -64,7 +57,6 @@ func TestConsumeLaneSamplesOneMessageInN(t *testing.T) {
 		lane.process(NewMessage("id", nil))
 	}
 
-	// The first delivery is always sampled so a quiet lane traces immediately.
 	want := []bool{true, false, false, true, false, false}
 	for i, expected := range want {
 		if seen[i] != expected {
@@ -88,9 +80,6 @@ func TestConsumeLaneAtRateOneInstrumentsEveryMessage(t *testing.T) {
 		lane.process(messages[i])
 	}
 
-	// The shipped rate is fixed at 1-in-100 (consumeNRSampleRate); rate 1 remains
-	// the degenerate case the sampler must keep exact, because it is what every
-	// message did before sampling existed.
 	if consumeNRSampleRate != 100 {
 		t.Fatalf("shipped sample rate = %d, want 100", consumeNRSampleRate)
 	}
@@ -112,8 +101,6 @@ func TestConsumeLaneInstrumentsUnsampledFailures(t *testing.T) {
 	app := newLocalApplication(t, nil)
 	core, logs := observer.New(zap.DebugLevel)
 
-	// A rate this high means only the warm-up delivery is sampled; the failure
-	// lands squarely in the unsampled majority.
 	lane := testLane(app, 1000, zap.New(core), func(msg *Message) error {
 		if msg.UUID == "boom" {
 			return errors.New("handler exploded")
@@ -130,8 +117,6 @@ func TestConsumeLaneInstrumentsUnsampledFailures(t *testing.T) {
 	if len(warnings) != 1 {
 		t.Fatalf("got %d warn lines, want exactly 1", len(warnings))
 	}
-	// A trace id on the line is the proof that a transaction was built
-	// retroactively: monitor.TraceLogger adds those fields only when it holds one.
 	if _, ok := warnings[0].ContextMap()["trace.id"]; !ok {
 		t.Fatalf("unsampled failure logged without a transaction: %v", warnings[0].ContextMap())
 	}
@@ -165,8 +150,6 @@ func TestConsumeLaneUnsampledBackpressureCreatesNoTransaction(t *testing.T) {
 	if len(debugs) != 1 {
 		t.Fatalf("got %d debug lines, want exactly 1", len(debugs))
 	}
-	// Expected backpressure must stay free: an overload cannot be allowed to buy
-	// back a transaction per delivery attempt.
 	if _, ok := debugs[0].ContextMap()["trace.id"]; ok {
 		t.Fatalf("quiet unsampled nack created a transaction: %v", debugs[0].ContextMap())
 	}
@@ -183,7 +166,6 @@ func TestConsumeLaneUnsampledBackpressureCreatesNoTransaction(t *testing.T) {
 	}
 }
 
-// laneOutcomeByID maps a delivery id onto the outcome its counter must record.
 func laneOutcomeByID(msg *Message) error {
 	switch msg.UUID {
 	case "deferred":
@@ -195,8 +177,6 @@ func laneOutcomeByID(msg *Message) error {
 	}
 }
 
-// processQueued runs deliveries that already spent the given wait in the lane
-// queue, which is what the queue-time counters measure.
 func processQueued(lane *consumeLane, queued time.Duration, ids ...string) {
 	for _, id := range ids {
 		msg := NewMessage(id, nil)
@@ -205,8 +185,6 @@ func processQueued(lane *consumeLane, queued time.Duration, ids ...string) {
 	}
 }
 
-// laneCounts is a lane's outcome ledger read as one value, so the whole state
-// is compared at once and reported at once.
 type laneCounts struct {
 	ok, deferred, failed uint64
 }
@@ -231,8 +209,6 @@ func requireQueueWaitRecorded(t *testing.T, stats *laneStats, wantPeak, wantSum 
 }
 
 func TestConsumeLaneCountsEveryOutcomeWithoutAnApplication(t *testing.T) {
-	// A nil application is the local-development and unit-test shape: both the
-	// sampled and unsampled paths must run clean through it.
 	lane := testLane(nil, 2, zap.NewNop(), laneOutcomeByID)
 
 	processQueued(&lane, 3*time.Millisecond, "ok", "deferred", "failed", "ok")
@@ -242,16 +218,12 @@ func TestConsumeLaneCountsEveryOutcomeWithoutAnApplication(t *testing.T) {
 }
 
 func TestNewConsumeLaneSharesOneCounterSetPerLane(t *testing.T) {
-	// A nil application registers counters without starting the flusher, so this
-	// exercises the real wiring without leaving a goroutine behind.
 	first := newConsumeLane(nil, "twitch.outgress.premium", nil, zap.NewNop())
 	second := newConsumeLane(nil, "twitch.outgress.premium", nil, zap.NewNop())
 
 	if first.stats == nil {
 		t.Fatal("newConsumeLane left the lane without counters")
 	}
-	// The weighted consumer builds one consumeLane per consumer unit; sharing the
-	// cursor is what keeps the sample rate per lane instead of per unit.
 	if first.stats != second.stats {
 		t.Fatal("two units on one lane got separate sampling cursors")
 	}

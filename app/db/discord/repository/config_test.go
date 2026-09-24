@@ -16,32 +16,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// configFixture is one test's store together with the context its calls run
-// under. The three travel as one value because every helper below needs all
-// of them, and passed separately they are three of the five arguments on a
-// two-line helper -- the argument list stops saying what the call does.
 type configFixture struct {
 	t    *testing.T
 	repo *repository.Store
 	ctx  context.Context
 }
 
-// newConfigFixture opens the store one test works against.
 func newConfigFixture(t *testing.T, name string) configFixture {
 	t.Helper()
 	repo, ctx := newStore(t, name)
 	return configFixture{t: t, repo: repo, ctx: ctx}
 }
 
-// newConcurrentConfigFixture is the same over the store the race tests need
-// (see newConcurrentStore for why those two differ).
 func newConcurrentConfigFixture(t *testing.T, name string) configFixture {
 	t.Helper()
 	repo, ctx := newConcurrentStore(t, name)
 	return configFixture{t: t, repo: repo, ctx: ctx}
 }
 
-// bind binds one guild so the config paths under test have an owner.
 func (f configFixture) bind(guildID string, broadcasterID uint64) {
 	f.t.Helper()
 	require.NoError(f.t, f.repo.BindingSet(f.ctx, repository.BindParams{GuildID: guildID, BroadcasterID: broadcasterID}))
@@ -94,8 +86,6 @@ func TestConfigSetRefusesAStaleVersion(t *testing.T) {
 	_, err := f.repo.ConfigSet(f.ctx, repository.SetConfigParams{GuildID: "g1", BroadcasterID: 42})
 	require.NoError(t, err)
 
-	// The second tab still holds version 0, the version it read before the
-	// first tab saved.
 	_, err = f.repo.ConfigSet(f.ctx, repository.SetConfigParams{
 		GuildID: "g1", BroadcasterID: 42, ExpectedVersion: 0,
 		Config: ddiscord.Config{LogChannelID: "789"},
@@ -125,8 +115,6 @@ func TestConfigSetRefusesAGuildTheCallerDoesNotOwn(t *testing.T) {
 	_, err := f.repo.ConfigSet(f.ctx, repository.SetConfigParams{GuildID: "g1", BroadcasterID: 43})
 	assert.ErrorIs(t, err, repository.ErrNotBound)
 
-	// An unbound guild is the same refusal, so a caller cannot probe which
-	// guild ids exist.
 	_, err = f.repo.ConfigSet(f.ctx, repository.SetConfigParams{GuildID: "g9", BroadcasterID: 43})
 	assert.ErrorIs(t, err, repository.ErrNotBound)
 }
@@ -164,9 +152,6 @@ func TestConfigIsPerGuild(t *testing.T) {
 	assert.Equal(t, "222", two.LiveChannelID)
 }
 
-// writers runs callers concurrent ConfigSet calls that all claim expected and
-// reports how many were accepted. Every refusal must be ErrVersionConflict: a
-// losing writer is a conflict, never an internal error.
 func (f configFixture) writers(expected int) int {
 	f.t.Helper()
 	const callers = 4
@@ -195,10 +180,6 @@ func (f configFixture) writers(expected int) int {
 	return won
 }
 
-// TestConfigSetFirstEverWriteHasOneWinner is the insert race. A row lock takes
-// nothing on a row that does not exist, so several first-ever saves can all
-// reach the INSERT; the unique index on guild_id decides, and the losers must
-// surface as version conflicts rather than as constraint errors.
 func TestConfigSetFirstEverWriteHasOneWinner(t *testing.T) {
 	f := newConcurrentConfigFixture(t, "configinsertrace")
 	f.bind("g1", 42)
@@ -211,10 +192,6 @@ func TestConfigSetFirstEverWriteHasOneWinner(t *testing.T) {
 	assert.Equal(t, 1, version)
 }
 
-// TestConfigSetUpdateHasOneWinner is the update race, and the reason the write
-// is a conditional UPDATE rather than a read followed by UpdateOne: two tabs
-// holding version 1 must not both save, because each holds a whole Config and
-// the loser's blob would silently replace the winner's.
 func TestConfigSetUpdateHasOneWinner(t *testing.T) {
 	f := newConcurrentConfigFixture(t, "configupdaterace")
 	f.bind("g1", 42)

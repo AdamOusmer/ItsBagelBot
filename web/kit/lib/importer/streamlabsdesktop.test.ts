@@ -1,17 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Parity suite for streamlabsdesktop.ts, the port of
-// app/importer/source/streamlabsdesktop. Two layers:
-//
-//  1. Golden replay: testdata/slcb-golden.json pins Parse's full manifest +
-//     diagnostics for the Go suite's programmatically built Chatbot.db corpus
-//     (decoded from its golden.txt during the port). The DBs are rebuilt here
-//     with sql.js from the SAME fixtureSpec tables, never committed binaries.
-//     A diff means every future SLCB import's translation changed on purpose.
-//  2. Unit vectors lifted verbatim from the Go package's tests (parameters,
-//     permission table, quote-date layouts, schema fallbacks, detect).
-
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { beforeAll, describe, expect, test } from 'bun:test';
@@ -31,12 +20,10 @@ import { CODE, validateManifest } from './validate';
 const here = dirname(import.meta.path);
 const SQL = await initSqlJs();
 
-// --- fixture DB builder (ported from streamlabsdesktop_test.go) ---------------
-
 interface CmdRow {
   name: string;
   response: string;
-  perm?: string; // '-' omits the Permission column entirely
+  perm?: string;
   cooldown?: number;
   enabled?: string;
   typ?: string;
@@ -44,8 +31,8 @@ interface CmdRow {
 interface Spec {
   commands?: CmdRow[];
   timers?: string[];
-  quotes?: [string, string][]; // [text, date]
-  dropTables?: string[]; // names to omit entirely (missing-table paths)
+  quotes?: [text: string, date: string][];
+  dropTables?: string[];
 }
 
 const SCHEMA = [
@@ -70,8 +57,6 @@ const SCHEMA = [
 	)`
 ];
 
-// openFixtureDB creates the schema minus any dropped tables; one builder per
-// table fills it.
 function openFixtureDB(spec: Spec) {
   const db = new SQL.Database();
   for (const stmt of SCHEMA) {
@@ -82,9 +67,6 @@ function openFixtureDB(spec: Spec) {
   return db;
 }
 
-// buildCommandsTable inserts one row per command, omitting each optional
-// column whose value is unset ('-' on perm omits the Permission column
-// entirely).
 function buildCommandsTable(db: ReturnType<typeof SQL.Database>, commands: CmdRow[]): void {
   for (const c of commands) {
     const cols = ['Name', 'Response'];
@@ -174,7 +156,7 @@ describe('golden replay', () => {
       const { manifest, diagnostics } = await parseStreamLabsDesktop(buildFixtureDB(spec));
       const want = golden.find((g) => g.name === label)!;
       expect(manifest).toEqual(want.manifest as never);
-      expect(diagnostics).toEqual(want.diags as never); // messages included
+      expect(diagnostics).toEqual(want.diags as never);
     });
   }
 
@@ -187,8 +169,6 @@ describe('golden replay', () => {
   });
 });
 
-// unitSpec mirrors the fixture in Go's TestParse_FullFixture (one command and
-// one quote fewer than the golden corpus's full_spec).
 const unitSpec: Spec = {
   ...fullSpec,
   commands: fullSpec.commands!.filter((c) => c.name !== '!quote'),
@@ -207,7 +187,6 @@ describe('phase 6: $readapi urlfetch synthesis', () => {
     expect(manifest.fetches).toEqual([
       { name: 'slcb_weather', url: 'https://api.example.com/w', source: 'streamlabs_desktop' }
     ]);
-    // phase 6: a successful synthesis now warns, naming the slug and URL.
     expect(diagnostics.map((d) => d.code)).toEqual(['fetch_def_created']);
   });
 
@@ -268,20 +247,12 @@ describe('full-fixture assertions (from TestParse_FullFixture)', () => {
     expect(byName.get('caster')!.permission).toBe('broadcaster');
     expect(byName.get('editor')!.permission).toBe('lead_mod');
 
-    // Diagnostic attribution spot-checks (indexes are post-sort positions).
     const idxOf = (name: string): number =>
       parsed.manifest.commands!.findIndex((c) => c.name.toLowerCase().replace(/^!/, '') === name);
     const codesAt = (i: number): Set<string> =>
       new Set(parsed.diagnostics.filter((d) => d.item_index === i).map((d) => d.code));
     expect(codesAt(idxOf('cookie'))).toContain('command_permission_unmapped');
-    // phase 6: $readapi(...) now maps onto {urlfetch:slcb_cookie} + a real
-    // definition (see the fixture's own fetches assertion below) instead of
-    // marking the whole command script-dependent.
     expect(codesAt(idxOf('cookie'))).not.toContain('command_script_dependent');
-    // !slots ($arg1 vs $arg2) no longer trips a variable_unmapped warning
-    // (phase 6 deleted the all-or-nothing $argN rule this used to hit): both
-    // slots map onto their own positional word independently. Its perm
-    // ('Wizard') is still unrecognized, so that diagnostic remains.
     expect(codesAt(idxOf('slots'))).toEqual(new Set(['command_permission_unmapped']));
   });
 
@@ -295,7 +266,7 @@ describe('full-fixture assertions (from TestParse_FullFixture)', () => {
   test('quotes: date layouts parse to UTC RFC 3339 or drop with a warn', () => {
     expect(parsed.manifest.quotes).toHaveLength(2);
     expect(parsed.manifest.quotes![0].created_at).toBe('2015-01-02T15:04:00Z');
-    expect(parsed.manifest.quotes![0].added_by).toBeUndefined(); // no author column value in this spec
+    expect(parsed.manifest.quotes![0].added_by).toBeUndefined();
     expect(parsed.manifest.quotes![1].created_at).toBeUndefined();
     expect(parsed.diagnostics.some((d) => d.code === 'quote_date_unparsed')).toBe(true);
 
@@ -316,8 +287,6 @@ describe('schema fallbacks', () => {
     const db = new SQL.Database();
     db.run(`CREATE TABLE Timer (Message TEXT)`);
     const r = await parseStreamLabsDesktop(db.export());
-    // The singular spelling satisfies the timer candidates, so no timers
-    // section diagnostic fires, exactly like the Go fixture asserts.
     expect(r.manifest.timers).toBeUndefined();
     expect(r.diagnostics.some((d) => d.message.includes('"timers"'))).toBe(false);
     expect(r.diagnostics.some((d) => d.message.includes('"commands"'))).toBe(true);
@@ -397,13 +366,6 @@ describe('$parameter translation (vectors from parameters_test)', () => {
       want: 'roll $randnum(abc)',
       warnSub: ['$randnum']
     },
-    // $count auto-increments per run upstream, same as {count}/{uses} here, so
-    // it maps onto that rather than a named {counter:<cmdName>} (which would
-    // silently create/bind a channel counter the broadcaster never named).
-    // {count} takes no payload, so the command name plays no part any more.
-    // Mapped, but its MEANING changed (a live running total -> this bot's own
-    // use count from zero), so it warns once even though the span itself
-    // translated cleanly — see SLCB_CODE.countRemapped.
     { name: 'count in a command', input: '$count times', cmd: 'Death', want: '{count} times', warnSub: ['{count}'] },
     { name: 'count ignores the command name entirely', input: '!c $count', cmd: '!Cookie', want: '!c {count}', warnSub: ['{count}'] },
     { name: 'count in timer stays', input: 'timer $count', cmd: '', want: 'timer $count', warnSub: ['$count'] },
@@ -415,11 +377,6 @@ describe('$parameter translation (vectors from parameters_test)', () => {
       noWarn: true
     },
     {
-      // phase 6: $readapi now maps onto {urlfetch:<slug>} (see the golden
-      // replay fixture and the dedicated readapi tests below) when a sink is
-      // available; this vector table calls translateVariables directly with
-      // no sink (only extract.ts wires one, per command), so both remaining
-      // cases here exercise the no-sink degrade path instead of "external".
       name: 'readapi with no sink stays literal and warns',
       input: 'temp: $readapi(http://x/y?a=b)',
       cmd: 'x',
@@ -488,8 +445,6 @@ describe('$parameter translation (vectors from parameters_test)', () => {
       noWarn: true
     },
     { name: 'arg1 becomes positional word 1', input: 'slaps $arg1', cmd: 'x', want: 'slaps {1}', noWarn: true },
-    // phase 6: $numN's own numeric-only check has no equivalent in this
-    // bot's plain positional word, so it warns even though it maps cleanly.
     {
       name: 'num1 becomes positional word 1, warns about the lost numeric check',
       input: 'bet $num1',
@@ -603,7 +558,7 @@ describe('quote date layouts (from TestParseQuoteDateLayouts)', () => {
     '2015-01-02 15:04:05': '2015-01-02T15:04:05Z',
     '01/02/2015 3:04 PM': '2015-01-02T15:04:00Z',
     '01/02/2015': '2015-01-02T00:00:00Z',
-    '31/12/2015': null // day-first is NOT an SLCB layout; must not guess
+    '31/12/2015': null
   };
   for (const [input, want] of Object.entries(cases)) {
     test(`${input}`, () => expect(parseQuoteDate(input)).toBe(want));

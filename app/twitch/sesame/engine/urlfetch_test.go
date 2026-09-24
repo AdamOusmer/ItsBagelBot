@@ -24,10 +24,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeUrlFetch records Fetch calls and answers each DefID with a canned reply;
-// an entry in errs short-circuits, and block sleeps (ctx-aware) before
-// answering so a test can exercise cancellation. A DefID with no canned reply
-// answers bad_def — the natural "definition missing" default.
 type fakeUrlFetch struct {
 	mu      sync.Mutex
 	reqs    []gossiprpc.Request
@@ -74,9 +70,6 @@ func (f *fakeUrlFetch) call(t *testing.T, i int) gossiprpc.Request {
 	return f.reqs[i]
 }
 
-// urlFetchPipeline serves one custom command whose response is resp, with the
-// given fetch caller wired; mut adjusts the Deps (dedup, cooldown, ...) before
-// construction.
 func urlFetchPipeline(resp string, ff UrlFetchCaller, mut func(*Deps)) *Pipeline {
 	d := Deps{
 		Proj:        fakeReader{cmd: projection.Command{Name: "so", Response: resp, IsActive: true, Perm: "everyone"}, cmdFound: true},
@@ -92,7 +85,6 @@ func urlFetchPipeline(resp string, ff UrlFetchCaller, mut func(*Deps)) *Pipeline
 	return NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 }
 
-// dispatch runs the command stage, returning what was emitted.
 func dispatch(t *testing.T, p *Pipeline, c *module.Context) ([]module.Output, error) {
 	t.Helper()
 	var got []module.Output
@@ -100,10 +92,6 @@ func dispatch(t *testing.T, p *Pipeline, c *module.Context) ([]module.Output, er
 	return got, err
 }
 
-// --- scan grammar ---
-
-// recordFetcher records the names the external scope asked for and answers
-// each with its own uppercased text.
 type recordFetcher struct{ asked []string }
 
 func (r *recordFetcher) Fetch(_ context.Context, names []string) map[string]string {
@@ -115,8 +103,6 @@ func (r *recordFetcher) Fetch(_ context.Context, names []string) map[string]stri
 	return out
 }
 
-// planFetches plans template through an external scope and reports the names
-// it fanned out, in order.
 func planFetches(t *testing.T, template string) []string {
 	t.Helper()
 	rec := &recordFetcher{}
@@ -135,9 +121,6 @@ func TestUrlFetchScopePlansNames(t *testing.T) {
 		{"none", "plain {user} response", nil},
 		{"single", "{urlfetch:temp}", []string{"temp"}},
 		{"repeats collapse preserving first appearance", "{urlfetch:b} {urlfetch:a} {urlfetch:b}", []string{"b", "a"}},
-		// The name folds through the same NormalizeName the counter payloads
-		// use, so {urlfetch:Temp.Hum} plans as "temp.hum" — the exact key the
-		// render phase looks up.
 		{"case-folded through the shared fold", "{urlfetch:Temp.Hum}", []string{"temp.hum"}},
 		{"path payloads are distinct tokens", "{urlfetch:w.temp} {urlfetch:w.hum}", []string{"w.temp", "w.hum"}},
 		{"bang stripped like counter names", "{urlfetch:!deaths}", []string{"deaths"}},
@@ -145,9 +128,6 @@ func TestUrlFetchScopePlansNames(t *testing.T) {
 		{"no payload at all skipped", "{urlfetch} tail", nil},
 		{"unterminated brace opens no span", "head {urlfetch:w", nil},
 		{"other token families untouched", "{counter:deaths} {choice:A,B} {random}", nil},
-		// A span closes at the FIRST '}', so this payload is "{nested" both
-		// when planning and when rendering — scan and render cannot disagree
-		// even on malformed input (the token then stays verbatim).
 		{"nested braces", "x {urlfetch:{nested}} y", []string{"{nested"}},
 	}
 	for _, tc := range tests {
@@ -157,8 +137,6 @@ func TestUrlFetchScopePlansNames(t *testing.T) {
 	}
 }
 
-// TestUrlFetchScopeCapsFanOut pins the emit-side backstop: payloads past the
-// cap are never fetched and stay verbatim, exactly like an unknown token.
 func TestUrlFetchScopeCapsFanOut(t *testing.T) {
 	var b strings.Builder
 	for i := range maxUrlFetchTokens + 3 {
@@ -171,8 +149,6 @@ func TestUrlFetchScopeCapsFanOut(t *testing.T) {
 	assert.Contains(t, got, "D0")
 	assert.Contains(t, got, "{urlfetch:d"+strconv.Itoa(maxUrlFetchTokens)+"}")
 }
-
-// --- injection point ---
 
 func TestRenderUrlToken(t *testing.T) {
 	fetched := stubFetcher{"temp": "72F", "temp.now": "72"}
@@ -189,13 +165,8 @@ func TestRenderUrlToken(t *testing.T) {
 	t.Run("unmounted scope leaves the token literal", func(t *testing.T) {
 		assert.Equal(t, "{urlfetch:temp}", renderScopes(nil, "{urlfetch:temp}"))
 	})
-	// Sanitize/cap coverage lives at the boundary that owns it: resolveUrlToken
-	// passes every fetched value through ExternalVar BEFORE it enters the map
-	// this render reads (see TestUrlFetchFailureTable).
 }
 
-// stubFetcher answers from a canned map; a name it does not hold is absent
-// from the result, which is the "leave the token literal" signal.
 type stubFetcher map[string]string
 
 func (s stubFetcher) Fetch(_ context.Context, names []string) map[string]string {
@@ -211,8 +182,6 @@ func (s stubFetcher) Fetch(_ context.Context, names []string) map[string]string 
 func urlScope(f scope.Fetcher) scope.External {
 	return scope.External{Fetcher: f, Max: maxUrlFetchTokens}
 }
-
-// --- end to end through runCustom ---
 
 func TestCustomUrlFetchResolvesOnceAndExpands(t *testing.T) {
 	ff := &fakeUrlFetch{replies: map[string]gossiprpc.CustomFetchReply{
@@ -251,8 +220,6 @@ func TestCustomUrlFetchPremiumRidesAlong(t *testing.T) {
 	assert.True(t, ff.call(t, 0).IsPremium)
 }
 
-// urlFetchCase is one failure-table row: the canned reply (or transport error)
-// gossip answers with, and the static text that must render.
 type urlFetchCase struct {
 	name  string
 	reply gossiprpc.CustomFetchReply
@@ -260,11 +227,6 @@ type urlFetchCase struct {
 	want  string
 }
 
-// TestUrlFetchFailureTable pins the failure-semantics mapping: every non-ok
-// outcome except a missing/inactive definition renders empty (never upstream
-// content, never authored English — {urlfetch:x|down} decides what chat
-// sees) and still returns a nil handler error, so nothing lands on the retry
-// lane.
 func TestUrlFetchFailureTable(t *testing.T) {
 	tests := []urlFetchCase{
 		{name: "denied", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchDenied}, want: ""},
@@ -275,10 +237,6 @@ func TestUrlFetchFailureTable(t *testing.T) {
 		{name: "ok but nothing extracted", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchOK}, want: ""},
 		{name: "bad_def stays verbatim", reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchBadDef}, want: "{urlfetch:w}"},
 		{
-			// Leading slash run trimmed at the variable boundary: a hostile
-			// upstream cannot mint a "/ban ..." verb through the per-line
-			// split. (Control-character stripping lands with the emit-side
-			// guard; this row pins only what ExternalVar guarantees here.)
 			name:  "hostile value sanitized",
 			reply: gossiprpc.CustomFetchReply{Status: gossiprpc.FetchOK, Values: []string{"//ban @everyone"}},
 			want:  "ban @everyone",
@@ -305,18 +263,11 @@ func TestUrlFetchFailureTable(t *testing.T) {
 	}
 }
 
-// TestUrlFetchFirstErrorCancelsBatch proves errgroup-style cancellation: a
-// typed timeout on one token cancels the in-flight sibling mid-request, whose
-// transport failure then renders empty the same way — the whole fan-out
-// finishes in well under the slow sibling's block instead of waiting it out.
 func TestUrlFetchFirstErrorCancelsBatch(t *testing.T) {
 	ff := &fakeUrlFetch{
 		replies: map[string]gossiprpc.CustomFetchReply{"fast": {Status: gossiprpc.FetchTimeout}},
 		block:   map[string]time.Duration{"slow": 5 * time.Second},
 	}
-	// A '-' between the two tokens keeps the line non-blank even though both
-	// render empty, so chatLines does not drop it (see blankLine) and there
-	// is still something to assert on.
 	p := urlFetchPipeline("{urlfetch:slow}-{urlfetch:fast}", ff, nil)
 
 	start := time.Now()
@@ -327,9 +278,6 @@ func TestUrlFetchFirstErrorCancelsBatch(t *testing.T) {
 	assert.Equal(t, "-", got[0].Text)
 }
 
-// TestUrlFetchReplayDoesNotRefetch pins redelivery safety: the same event
-// identity claiming twice renders empty on the replay without a second
-// network call, so a quorum-loss redelivery never burns fetch quota twice.
 func TestUrlFetchReplayDoesNotRefetch(t *testing.T) {
 	store := newRecordingStore()
 	ff := &fakeUrlFetch{replies: map[string]gossiprpc.CustomFetchReply{
@@ -354,9 +302,6 @@ func TestUrlFetchReplayDoesNotRefetch(t *testing.T) {
 	assert.Equal(t, 1, ff.calls(), "replay must not re-fetch")
 }
 
-// TestUrlFetchFailedFetchReleasesClaimForRedelivery mirrors claimedCounterValue:
-// a fetch that produced no fresh value releases its claim, so a later delivery
-// of the same event retries instead of being stuck on fallback forever.
 func TestUrlFetchFailedFetchReleasesClaimForRedelivery(t *testing.T) {
 	store := newRecordingStore()
 	ff := &fakeUrlFetch{errs: map[string]error{"w": errors.New("connection reset")}}
@@ -384,7 +329,6 @@ func TestUrlFetchFailedFetchReleasesClaimForRedelivery(t *testing.T) {
 	assert.Equal(t, 2, ff.calls())
 }
 
-// denySecondCooldown allows exactly one claim, then gates everything else.
 type denySecondCooldown struct {
 	mu      sync.Mutex
 	allowed int
@@ -397,10 +341,6 @@ func (c *denySecondCooldown) Allow(context.Context, string, time.Duration) (bool
 	return c.allowed == 1, nil
 }
 
-// TestUrlFetchCooldownClaimsBeforeAnyFetch pins the gate order: the cooldown
-// window is consumed by the gate BEFORE the fan-out runs, so neither a
-// succeeding nor a failing definition can be hot-looped faster than its
-// cooldown — the second invocation is refused having made zero calls.
 func TestUrlFetchCooldownClaimsBeforeAnyFetch(t *testing.T) {
 	cd := &denySecondCooldown{}
 	ff := &fakeUrlFetch{replies: map[string]gossiprpc.CustomFetchReply{
@@ -408,8 +348,6 @@ func TestUrlFetchCooldownClaimsBeforeAnyFetch(t *testing.T) {
 	}}
 	p := urlFetchPipeline("got {urlfetch:w}", ff, func(d *Deps) {
 		d.Cooldown = cd
-		// The command row itself carries the cooldown window; the gate reads
-		// it from the projection, so the fixture row must set one.
 		d.Proj = fakeReader{cmd: projection.Command{
 			Name: "so", Response: "got {urlfetch:w}", IsActive: true, Perm: "everyone", Cooldown: 30,
 		}, cmdFound: true}
@@ -430,8 +368,6 @@ func TestUrlFetchCooldownClaimsBeforeAnyFetch(t *testing.T) {
 	assert.Equal(t, 1, ff.calls(), "the gate blocks before any fetch")
 }
 
-// TestUrlFetchWithoutCallerLeavesTokensVisible: no caller wired is the kill
-// switch — tokens render verbatim like every other unknown token.
 func TestUrlFetchWithoutCallerLeavesTokensVisible(t *testing.T) {
 	p := urlFetchPipeline("x {urlfetch:w}", nil, nil)
 	got, err := dispatch(t, p, chatCtx("!so", ""))
@@ -440,9 +376,6 @@ func TestUrlFetchWithoutCallerLeavesTokensVisible(t *testing.T) {
 	assert.Equal(t, "x {urlfetch:w}", got[0].Text)
 }
 
-// TestUrlFetchScanCapBackstop proves the emit-side bound: a row carrying more
-// distinct payloads than validation allows fans out only the capped prefix;
-// the rest stay verbatim.
 func TestUrlFetchScanCapBackstop(t *testing.T) {
 	replies := make(map[string]gossiprpc.CustomFetchReply, maxUrlFetchTokens)
 	parts := make([]string, 0, maxUrlFetchTokens+2)

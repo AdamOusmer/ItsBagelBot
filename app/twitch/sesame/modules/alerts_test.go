@@ -20,21 +20,18 @@ import (
 )
 
 const (
-	followJSON = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2"}`
-	// A follow payload with no user id: the dedupe has nothing to key on.
-	followNoIDJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2"}`
-	// The same follower on a different channel.
+	followJSON             = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2"}`
+	followNoIDJSON         = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2"}`
 	followOtherChannelJSON = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"9"}`
 	subscribeJSON          = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
-	// A subscribe payload with no user id: the dedupe has nothing to key on.
-	subscribeNoIDJSON = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
-	giftedSubJSON     = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","is_gift":true}`
-	resubJSON         = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","cumulative_months":7,"streak_months":7,"message":{"text":"7 months!"}}`
-	giftJSON          = `{"is_anonymous":false,"user_name":"GenerousViewer","user_login":"generousviewer","broadcaster_user_id":"2","total":5,"tier":"1000"}`
-	anonGiftJSON      = `{"is_anonymous":true,"broadcaster_user_id":"2","total":3,"tier":"1000"}`
-	cheerJSON         = `{"is_anonymous":false,"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","bits":100}`
-	anonCheerJSON     = `{"is_anonymous":true,"broadcaster_user_id":"2","bits":50}`
-	adBreakJSON       = `{"broadcaster_user_id":"2","duration_seconds":90,"is_automatic":true}`
+	subscribeNoIDJSON      = `{"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000"}`
+	giftedSubJSON          = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","is_gift":true}`
+	resubJSON              = `{"user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","tier":"1000","cumulative_months":7,"streak_months":7,"message":{"text":"7 months!"}}`
+	giftJSON               = `{"is_anonymous":false,"user_name":"GenerousViewer","user_login":"generousviewer","broadcaster_user_id":"2","total":5,"tier":"1000"}`
+	anonGiftJSON           = `{"is_anonymous":true,"broadcaster_user_id":"2","total":3,"tier":"1000"}`
+	cheerJSON              = `{"is_anonymous":false,"user_name":"CoolViewer","user_login":"coolviewer","broadcaster_user_id":"2","bits":100}`
+	anonCheerJSON          = `{"is_anonymous":true,"broadcaster_user_id":"2","bits":50}`
+	adBreakJSON            = `{"broadcaster_user_id":"2","duration_seconds":90,"is_automatic":true}`
 )
 
 func alertsCtx(eventType, payload, config string) *module.Context {
@@ -54,8 +51,6 @@ func alertsHandler(t *testing.T, eventType string) module.EventHandler {
 	return alertsHandlerWith(t, eventType, engine.Deps{Log: zap.NewNop()})
 }
 
-// alertsHandlerWith builds the module from a caller-supplied Deps, for the
-// tests that need a cooldown store wired in.
 func alertsHandlerWith(t *testing.T, eventType string, d engine.Deps) module.EventHandler {
 	t.Helper()
 	m := Alerts(d)
@@ -66,7 +61,6 @@ func alertsHandlerWith(t *testing.T, eventType string, d engine.Deps) module.Eve
 	return h
 }
 
-// alertsDeps wires a scripted cooldown into an otherwise bare Deps.
 func alertsDeps(cd engine.CooldownStore) engine.Deps {
 	return engine.Deps{Log: zap.NewNop(), Cooldown: cd}
 }
@@ -79,16 +73,12 @@ func TestAlertActivityTextUsesBroadcasterLocale(t *testing.T) {
 	assert.Equal(t, "Someone just made your day. s'est abonné·e (1000)", sub.activityText(&module.Context{Locale: "fr"}))
 }
 
-// alertInput is one event fired at the alerts module: the EventSub type, its
-// payload and the module config it runs under.
 type alertInput struct {
 	event   string
 	payload string
 	cfg     string
 }
 
-// runAlert fires one event through the alerts module and returns what it
-// emitted.
 func runAlert(t *testing.T, in alertInput) []module.Output {
 	t.Helper()
 	var col collector
@@ -96,8 +86,6 @@ func runAlert(t *testing.T, in alertInput) []module.Output {
 	return col.out
 }
 
-// runAlertOn fires one event through a handler the caller already built, so a
-// dedupe test can send several events at the same module instance.
 func runAlertOn(t *testing.T, h module.EventHandler, in alertInput) []module.Output {
 	t.Helper()
 	var col collector
@@ -105,8 +93,6 @@ func runAlertOn(t *testing.T, h module.EventHandler, in alertInput) []module.Out
 	return col.out
 }
 
-// The first follow claims the per-channel, per-follower window; a re-follow
-// inside it is silent, so unfollow/refollow cannot drive the alert line.
 func TestAlertsFollowDedupeSuppressesRefollow(t *testing.T) {
 	cd := &fakeCooldown{allow: []bool{true, false}}
 	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
@@ -120,8 +106,6 @@ func TestAlertsFollowDedupeSuppressesRefollow(t *testing.T) {
 	assert.Equal(t, 72*time.Hour, followAlertWindow, "follow dedupe window must stay multi-day")
 }
 
-// The same follower on another channel must still be thanked: the key carries
-// the broadcaster id.
 func TestAlertsFollowDedupeIsPerChannel(t *testing.T) {
 	cd := &fakeCooldown{}
 	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
@@ -132,7 +116,6 @@ func TestAlertsFollowDedupeIsPerChannel(t *testing.T) {
 	assert.Equal(t, []string{"alert:follow:2:7", "alert:follow:9:7"}, cd.keys)
 }
 
-// Valkey unreachable must not swallow thank-yous: the gate fails open.
 func TestAlertsFollowDedupeFailsOpen(t *testing.T) {
 	cd := &fakeCooldown{err: errors.New("valkey down")}
 	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
@@ -140,8 +123,6 @@ func TestAlertsFollowDedupeFailsOpen(t *testing.T) {
 	assert.Len(t, runAlertOn(t, h, alertInput{event: "channel.follow", payload: followJSON}), 1)
 }
 
-// No user id on the payload means nothing stable to key on, so the alert fires
-// rather than claiming a window every follower would share.
 func TestAlertsFollowWithoutUserIDSkipsDedupe(t *testing.T) {
 	cd := &fakeCooldown{allow: []bool{false}}
 	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
@@ -150,8 +131,6 @@ func TestAlertsFollowWithoutUserIDSkipsDedupe(t *testing.T) {
 	assert.Empty(t, cd.keys)
 }
 
-// A channel with follow alerts off must not burn a window it would want the
-// moment the broadcaster turns them back on.
 func TestAlertsFollowDisabledClaimsNoWindow(t *testing.T) {
 	cd := &fakeCooldown{}
 	h := alertsHandlerWith(t, "channel.follow", alertsDeps(cd))
@@ -161,8 +140,6 @@ func TestAlertsFollowDisabledClaimsNoWindow(t *testing.T) {
 	assert.Empty(t, cd.keys)
 }
 
-// Gift, cheer, raid and ad break each cost their sender something (or are the
-// channel's own ad break), so none of them are deduplicated.
 func TestAlertsNonFollowAlertsAreNotDeduped(t *testing.T) {
 	cd := &fakeCooldown{}
 	d := alertsDeps(cd)
@@ -179,8 +156,6 @@ func TestAlertsNonFollowAlertsAreNotDeduped(t *testing.T) {
 	assert.Empty(t, cd.keys)
 }
 
-// A renewal fires channel.subscribe, then the viewer's share click fires
-// channel.subscription.message seconds later; the second must stay silent.
 func TestAlertsSubDedupeSuppressesShareAfterRenewal(t *testing.T) {
 	cd := &fakeCooldown{allow: []bool{true, false}}
 	d := alertsDeps(cd)
@@ -197,7 +172,6 @@ func TestAlertsSubDedupeSuppressesShareAfterRenewal(t *testing.T) {
 	assert.Equal(t, 15*time.Minute, subAlertWindow, "sub dedupe window must stay short")
 }
 
-// Valkey unreachable must not swallow welcomes: the gate fails open.
 func TestAlertsSubDedupeFailsOpen(t *testing.T) {
 	cd := &fakeCooldown{err: errors.New("valkey down")}
 	h := alertsHandlerWith(t, "channel.subscribe", alertsDeps(cd))
@@ -205,8 +179,6 @@ func TestAlertsSubDedupeFailsOpen(t *testing.T) {
 	assert.Len(t, runAlertOn(t, h, alertInput{event: "channel.subscribe", payload: subscribeJSON}), 1)
 }
 
-// No user id on the payload means nothing stable to key on, so the alert
-// fires rather than claiming a window every subscriber would share.
 func TestAlertsSubWithoutUserIDSkipsDedupe(t *testing.T) {
 	cd := &fakeCooldown{allow: []bool{false}}
 	h := alertsHandlerWith(t, "channel.subscribe", alertsDeps(cd))
@@ -215,8 +187,6 @@ func TestAlertsSubWithoutUserIDSkipsDedupe(t *testing.T) {
 	assert.Empty(t, cd.keys)
 }
 
-// A gifted recipient must not claim the sub window: it is announced through
-// the gift alert instead, and the cooldown must not even be consulted.
 func TestAlertsGiftedRecipientClaimsNoSubWindow(t *testing.T) {
 	cd := &fakeCooldown{}
 	h := alertsHandlerWith(t, "channel.subscribe", alertsDeps(cd))
@@ -225,8 +195,6 @@ func TestAlertsGiftedRecipientClaimsNoSubWindow(t *testing.T) {
 	assert.Empty(t, cd.keys)
 }
 
-// Every alert with its default template: one chat line to the broadcaster's
-// channel containing the substituted sample values.
 func TestAlertsDefaultTemplates(t *testing.T) {
 	cases := []struct {
 		name string
@@ -235,8 +203,6 @@ func TestAlertsDefaultTemplates(t *testing.T) {
 	}{
 		{"follow", alertInput{"channel.follow", followJSON, ""}, []string{"CoolViewer"}},
 		{"subscribe", alertInput{"channel.subscribe", subscribeJSON, ""}, []string{"CoolViewer"}},
-		// A resub (channel.subscription.message) posts the same sub alert
-		// under the same toggle and template as a fresh channel.subscribe.
 		{"resub", alertInput{"channel.subscription.message", resubJSON, ""}, []string{"CoolViewer"}},
 		{"gift", alertInput{"channel.subscription.gift", giftJSON, ""}, []string{"GenerousViewer", "5"}},
 		{"anonymous gift", alertInput{"channel.subscription.gift", anonGiftJSON, ""}, []string{"anonymous", "3"}},
@@ -258,7 +224,6 @@ func TestAlertsDefaultTemplates(t *testing.T) {
 	}
 }
 
-// Custom templates substitute every token the alert documents.
 func TestAlertsCustomTemplates(t *testing.T) {
 	cases := []struct {
 		name string
@@ -280,9 +245,6 @@ func TestAlertsCustomTemplates(t *testing.T) {
 	}
 }
 
-// Events that must stay silent: toggled-off alerts, empty payloads, and the
-// gifted recipient's channel.subscribe (the gift alert announces the gifter
-// once instead, so a gift bomb cannot flood chat with welcome lines).
 func TestAlertsSilentCases(t *testing.T) {
 	cases := []struct {
 		name string
@@ -307,15 +269,12 @@ func TestAlertsSilentCases(t *testing.T) {
 }
 
 func TestAlertsAdBreakDefaultOff(t *testing.T) {
-	// Unlike every other alert, the ads alert must not fire until the
-	// broadcaster explicitly turns it on: absent, empty and "off" all suppress.
 	for _, cfg := range []string{``, `{}`, `{"adsEnabled":""}`, `{"adsEnabled":"off"}`} {
 		assert.Empty(t, runAlert(t, alertInput{"channel.ad_break.begin", adBreakJSON, cfg}), "cfg=%q must stay silent", cfg)
 	}
 }
 
 func TestAlertsEnabledOnAndBlankBothFire(t *testing.T) {
-	// "on" and an absent flag both fire (default-on); only "off" suppresses.
 	for _, cfg := range []string{`{"followEnabled":"on"}`, `{}`, ``} {
 		assert.Len(t, runAlert(t, alertInput{"channel.follow", followJSON, cfg}), 1, "cfg=%q should fire", cfg)
 	}

@@ -25,12 +25,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// The SSRF gate refuses plain-http loopback fakes; these tests predate it and
-// dial httptest servers, so the process-wide test switch turns the gate off.
-// The gate's own semantics are pinned by core's table tests.
 func init() { core.SetSSRFCheckForTests(false) }
 
-// memStore is an in-memory core.Store for tests.
 type memStore struct {
 	mu sync.Mutex
 	m  map[string][]byte
@@ -67,19 +63,12 @@ func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, 
 	return true, nil
 }
 
-// newTestProvider wires the provider with BOTH upstreams faked: stats is the
-// api-fortnite.com double (account lookup + raw stats), shop the
-// fortnite-api.com double. extra tweaks the config before building. It returns
-// the inner api so tests can also seed provider-owned state (snapshots)
-// directly; endpoint handlers come from build() via handle.
 func newTestProvider(t *testing.T, stats, shop http.Handler, extra func(*Config)) *api {
 	t.Helper()
 	p, _ := newTestProviderWithStore(t, stats, shop, extra)
 	return p
 }
 
-// newTestProviderWithStore is newTestProvider plus the backing store, for the
-// tests that need to age one cache entry out from under the provider.
 func newTestProviderWithStore(t *testing.T, stats, shop http.Handler, extra func(*Config)) (*api, *memStore) {
 	t.Helper()
 	statsSrv := httptest.NewServer(stats)
@@ -113,7 +102,6 @@ func handle(t *testing.T, p *api, name string) func(context.Context, gossiprpc.R
 	return nil
 }
 
-// asReply decodes one handler result (raw wire bytes or typed guard reply).
 func asReply[T any](t *testing.T, res any) T {
 	t.Helper()
 	if v, ok := res.(T); ok {
@@ -126,7 +114,6 @@ func asReply[T any](t *testing.T, res any) T {
 	return v
 }
 
-// asStats / asShop are the endpoint-typed instantiations the tests read with.
 var (
 	asStats    = asReply[gossiprpc.FortniteStatsReply]
 	asShop     = asReply[gossiprpc.FortniteShopReply]
@@ -134,9 +121,6 @@ var (
 	asSession  = asReply[gossiprpc.FortniteSessionReply]
 )
 
-// mutableStatsUpstream is statsUpstream with a stats body the test can change
-// between calls (to simulate games played between the snapshot and the session
-// read); it serves lifetime only, so the season endpoint is never touched.
 func mutableStatsUpstream(t *testing.T, account string, body *string, reqs *[]*http.Request) http.Handler {
 	t.Helper()
 	var mu sync.Mutex
@@ -156,10 +140,6 @@ func mutableStatsUpstream(t *testing.T, account string, body *string, reqs *[]*h
 	})
 }
 
-// statsUpstream fakes api-fortnite.com: the display-name lookup answers
-// account, the stats path answers body, the season endpoint answers a fixed
-// 2026-05-30T13:00:00Z begin (epoch 1780146000). Requests are recorded onto
-// reqs in a thread-safe manner.
 func statsUpstream(t *testing.T, account, body string, reqs *[]*http.Request) http.Handler {
 	t.Helper()
 	var mu sync.Mutex
@@ -168,7 +148,6 @@ func statsUpstream(t *testing.T, account, body string, reqs *[]*http.Request) ht
 		*reqs = append(*reqs, r.Clone(context.Background()))
 		mu.Unlock()
 		switch {
-		// Lookups match the display name case-insensitively, like Epic's.
 		case strings.EqualFold(r.URL.Path, "/api/v1/account/displayName/"+account):
 			_, _ = w.Write([]byte(`{"id":"deadbeef","displayName":"` + account + `"}`))
 		case r.URL.Path == "/api/v2/stats/deadbeef":
@@ -182,9 +161,6 @@ func statsUpstream(t *testing.T, account, body string, reqs *[]*http.Request) ht
 	})
 }
 
-// syntheticBlob is a hand-checkable raw stats body: two inputs summed on the
-// solo pubs playlists, one zero-build duo playlist, one LTM playlist (overall
-// only) and noise keys the parser must skip.
 const syntheticBlob = `{
 	"accountId": "deadbeef",
 	"stats": {
@@ -212,8 +188,6 @@ func TestStatsResolvesAndAggregates(t *testing.T) {
 	reply := asStats(t, handle(t, p, "stats")(context.Background(), gossiprpc.Request{Account: "ninja"}))
 	require.Empty(t, reply.Error)
 
-	// Lookup then stats, both carrying the x-api-key header. The lookup uses
-	// the viewer's spelling; the reply carries the canonical one.
 	require.Len(t, reqs, 2)
 	assert.Equal(t, "/api/v1/account/displayName/ninja", reqs[0].URL.Path)
 	for _, r := range reqs {
@@ -222,8 +196,6 @@ func TestStatsResolvesAndAggregates(t *testing.T) {
 	assert.Equal(t, "Ninja", reply.Player)
 	assert.Equal(t, "lifetime", reply.Window)
 
-	// Overall spans every playlist (LTM included); the mode buckets span the
-	// core pubs playlists only; score/arena/battle-pass noise is skipped.
 	assert.Equal(t, int64(20), reply.Overall.Wins)
 	assert.Equal(t, int64(150), reply.Overall.Matches)
 	assert.Equal(t, int64(450), reply.Overall.Kills)
@@ -234,19 +206,13 @@ func TestStatsResolvesAndAggregates(t *testing.T) {
 	assert.Equal(t, int64(45), reply.Duo.Matches)
 	assert.Zero(t, reply.Squad.Matches)
 
-	// Derived values: deaths = matches - wins.
 	assert.InDelta(t, 300.0/88.0, reply.Solo.KD, 1e-9)
 	assert.InDelta(t, 12.0, reply.Solo.WinRate, 1e-9)
 
-	// Second call is served from the reply cache: no new upstream hits.
 	_ = asStats(t, handle(t, p, "stats")(context.Background(), gossiprpc.Request{Account: "Ninja"}))
 	assert.Len(t, reqs, 2)
 }
 
-// add routes one counter into the aggregate. Production code aggregates via
-// parse.go's addMetric (integer metric constants, zero-alloc); this string-keyed
-// form is now only the legacy reference implementation's helper (see
-// aggregate in parse_test.go), kept to cross-check parseRawStats' output.
 func (a *modeAgg) add(metric string, v int64) {
 	switch metric {
 	case "placetop1":
@@ -258,8 +224,6 @@ func (a *modeAgg) add(metric string, v int64) {
 	}
 }
 
-// The real 66KB blob the probe captured from api-fortnite.com for Ninja's
-// account; expected numbers computed independently from the same fixture.
 func TestStatsRealBlobAggregation(t *testing.T) {
 	body, err := os.ReadFile("testdata/stats_v2_real.json")
 	require.NoError(t, err)
@@ -278,7 +242,6 @@ func TestStatsRealBlobAggregation(t *testing.T) {
 	assert.Equal(t, wantModes[1], resp.Modes[1])
 	assert.Equal(t, wantModes[2], resp.Modes[2])
 
-	// Also verify legacy map-based aggregate produces identical results.
 	var mapResp struct {
 		Stats map[string]float64 `json:"stats"`
 	}
@@ -288,7 +251,6 @@ func TestStatsRealBlobAggregation(t *testing.T) {
 	assert.Equal(t, wantModes, mapModes)
 }
 
-// requestPaths projects the recorded upstream requests to their paths.
 func requestPaths(reqs []*http.Request) []string {
 	out := make([]string, 0, len(reqs))
 	for _, r := range reqs {
@@ -297,9 +259,6 @@ func requestPaths(reqs []*http.Request) []string {
 	return out
 }
 
-// The season window auto-resolves its start from the upstream's own season
-// endpoint (cached, so a second season lookup hits nothing new) and filters
-// the stats call via startTime; lifetime never touches the season endpoint.
 func TestStatsSeasonAutoResolved(t *testing.T) {
 	var reqs []*http.Request
 	p := newTestProvider(t, statsUpstream(t, "Ninja", syntheticBlob, &reqs), noUpstream(t, "shop"), nil)
@@ -313,7 +272,6 @@ func TestStatsSeasonAutoResolved(t *testing.T) {
 	require.Empty(t, reply.Error)
 	assert.Equal(t, "lifetime", reply.Window)
 
-	// lookup + season (run concurrently) + season-scoped stats, then just the lifetime stats.
 	require.Len(t, reqs, 4, "paths: %v", requestPaths(reqs))
 	wantStart := time.Date(2026, 5, 30, 13, 0, 0, 0, time.UTC).Unix()
 	firstTwo := []string{reqs[0].URL.Path, reqs[1].URL.Path}
@@ -323,7 +281,6 @@ func TestStatsSeasonAutoResolved(t *testing.T) {
 	assert.Empty(t, reqs[3].URL.Query().Get("startTime"))
 }
 
-// A manual season-start override skips the upstream season endpoint entirely.
 func TestStatsSeasonManualOverride(t *testing.T) {
 	var reqs []*http.Request
 	p := newTestProvider(t, statsUpstream(t, "Ninja", syntheticBlob, &reqs), noUpstream(t, "shop"),
@@ -338,8 +295,6 @@ func TestStatsSeasonManualOverride(t *testing.T) {
 	assert.Equal(t, "1746000000", reqs[1].URL.Query().Get("startTime"))
 }
 
-// With the season endpoint down the season window degrades to lifetime (and
-// says so) instead of failing the command.
 func TestStatsSeasonResolveFailureFallsBack(t *testing.T) {
 	var mu sync.Mutex
 	var reqs []*http.Request
@@ -366,14 +321,6 @@ func TestStatsSeasonResolveFailureFallsBack(t *testing.T) {
 	assert.Empty(t, reqs[2].URL.Query().Get("startTime"))
 }
 
-// seasonRaceUpstream is the fake api-fortnite.com used by
-// TestStatsSeasonSurvivesAccountFailure. It sequences the season and account
-// legs of a single "season" request so the account leg's failure is
-// provably delivered while the season leg is still in flight: the season
-// handler blocks until accountFailed closes before it records its request
-// context's error and responds, and the account handler (for the known-bad
-// name "Ghosty") blocks until seasonStarted closes before it 404s. A
-// healthy "Ninja" lookup and the stats fetch pass straight through.
 type seasonRaceUpstream struct {
 	seasonCalls   int32
 	seasonStarted chan struct{}
@@ -388,12 +335,10 @@ func newSeasonRaceUpstream() *seasonRaceUpstream {
 	}
 }
 
-// calls reports how many times the season endpoint has been hit so far.
 func (u *seasonRaceUpstream) calls() int32 {
 	return atomic.LoadInt32(&u.seasonCalls)
 }
 
-// handler builds the sequenced fake stats upstream.
 func (u *seasonRaceUpstream) handler(t *testing.T) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -412,10 +357,6 @@ func (u *seasonRaceUpstream) handler(t *testing.T) http.Handler {
 	})
 }
 
-// serveSeason answers the season endpoint. On its first call it announces
-// seasonStarted, waits for the account leg to fail (or times out), then
-// records whether its own request context was canceled by that failure
-// before responding -- the fact under test.
 func (u *seasonRaceUpstream) serveSeason(t *testing.T, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 	if atomic.AddInt32(&u.seasonCalls, 1) == 1 {
@@ -430,9 +371,6 @@ func (u *seasonRaceUpstream) serveSeason(t *testing.T, w http.ResponseWriter, r 
 	_, _ = w.Write([]byte(`{"seasonDateBegin":"2026-05-30T13:00:00Z","seasonDateEnd":"2026-08-21T13:00:00Z","seasonNumber":41}`))
 }
 
-// serveFailingAccount answers the known-bad "Ghosty" lookup: it waits for
-// the season leg to be provably in flight before 404ing, so the failure
-// lands while the season fetch is still running.
 func (u *seasonRaceUpstream) serveFailingAccount(t *testing.T, w http.ResponseWriter) {
 	t.Helper()
 	select {
@@ -445,15 +383,6 @@ func (u *seasonRaceUpstream) serveFailingAccount(t *testing.T, w http.ResponseWr
 	close(u.accountFailed)
 }
 
-// TestStatsSeasonSurvivesAccountFailure pins down the opposite of the
-// cancellation this function used to have: seasonStartTime rides a shared
-// singleflight (see resolveStatsWindow's doc comment), so a bad account name
-// on one caller must not cancel or poison the season fetch other callers are
-// joined on. It orders the two upstream calls so the account leg fails while
-// the season leg is still in flight, asserts the season leg's request
-// context was never canceled, then proves the resolved value actually
-// landed in cache (a second, healthy request reuses it instead of
-// re-fetching or degrading to lifetime).
 func TestStatsSeasonSurvivesAccountFailure(t *testing.T) {
 	race := newSeasonRaceUpstream()
 	p := newTestProvider(t, race.handler(t), noUpstream(t, "shop"), nil)
@@ -495,8 +424,6 @@ func TestStatsSeasonOverrideSkipsConcurrentPath(t *testing.T) {
 	assert.Equal(t, "1746000000", reqs[1].URL.Query().Get("startTime"))
 }
 
-// PSN/Xbox lookups are Pro-plan upstream features: friendly error, no
-// upstream call. Epic (and blank) pass through.
 func TestStatsPlatformNotSupported(t *testing.T) {
 	p := newTestProvider(t, noUpstream(t, "stats"), noUpstream(t, "shop"), nil)
 
@@ -507,8 +434,6 @@ func TestStatsPlatformNotSupported(t *testing.T) {
 	}
 }
 
-// An unknown name 404s at the lookup with the upstream's wordy passthrough
-// body; the reply must chat plain "player not found" and negative-cache.
 func TestStatsUnknownPlayerNegativeCached(t *testing.T) {
 	var hits int
 	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -532,11 +457,8 @@ func TestStatsMissingAccount(t *testing.T) {
 	assert.Equal(t, "missing account", reply.Error)
 }
 
-// A stream-start snapshot records the baseline; after games are played the
-// session endpoint reports the lifetime delta with K/D and win rate derived
-// over the session's own games.
 func TestSessionStartThenDelta(t *testing.T) {
-	body := syntheticBlob // overall wins=20, matches=150, kills=450
+	body := syntheticBlob
 	var reqs []*http.Request
 	p := newTestProvider(t, mutableStatsUpstream(t, "Ninja", &body, &reqs), noUpstream(t, "shop"), nil)
 
@@ -545,7 +467,6 @@ func TestSessionStartThenDelta(t *testing.T) {
 	require.Empty(t, snap.Error)
 	assert.Equal(t, "Ninja", snap.Player)
 
-	// Games played: overall climbs +5 wins, +20 matches, +150 kills.
 	body = `{"accountId":"deadbeef","stats":{
 		"br_placetop1_keyboardmouse_m0_playlist_defaultsolo": 25,
 		"br_matchesplayed_keyboardmouse_m0_playlist_defaultsolo": 170,
@@ -560,14 +481,11 @@ func TestSessionStartThenDelta(t *testing.T) {
 	assert.Equal(t, int64(5), sess.Wins)
 	assert.Equal(t, int64(20), sess.Matches)
 	assert.Equal(t, int64(150), sess.Kills)
-	// deaths = 20 - 5 = 15; K/D = 150/15 = 10; win rate = 5*100/20 = 25.
 	assert.InDelta(t, 10.0, sess.KD, 1e-9)
 	assert.InDelta(t, 25.0, sess.WinRate, 1e-9)
 	assert.Positive(t, sess.SinceUnix)
 }
 
-// Without a snapshot (module enabled mid-stream) the first session call starts
-// tracking and says so; the snapshot it writes gives the next call a baseline.
 func TestSessionNoSnapshotStartsTracking(t *testing.T) {
 	body := syntheticBlob
 	var reqs []*http.Request
@@ -579,7 +497,6 @@ func TestSessionNoSnapshotStartsTracking(t *testing.T) {
 	assert.False(t, sess.HasSnapshot)
 	assert.Equal(t, "Ninja", sess.Player)
 
-	// The baseline now exists: a follow-up reports a zero delta, not "tracking".
 	sess = asSession(t, h(context.Background(), gossiprpc.Request{Account: "Ninja", ChannelID: "77"}))
 	assert.True(t, sess.HasSnapshot)
 	assert.Zero(t, sess.Wins)
@@ -587,14 +504,11 @@ func TestSessionNoSnapshotStartsTracking(t *testing.T) {
 	assert.Zero(t, sess.Kills)
 }
 
-// A snapshot keyed to a different account is not diffed against: the endpoint
-// re-snapshots for the new account instead of reporting a bogus delta.
 func TestSessionAccountMismatchResnapshots(t *testing.T) {
 	body := syntheticBlob
 	var reqs []*http.Request
 	p := newTestProvider(t, mutableStatsUpstream(t, "Ninja", &body, &reqs), noUpstream(t, "shop"), nil)
 
-	// Seed a snapshot for a different account on this channel.
 	require.NoError(t, p.writeSnapshot(context.Background(), "42", "someoneelse", gossiprpc.FortniteStatsReply{Player: "SomeoneElse"}))
 
 	sess := asSession(t, handle(t, p, "session")(context.Background(),
@@ -611,8 +525,6 @@ func TestSessionMissingArgs(t *testing.T) {
 		asSession(t, handle(t, p, "session")(context.Background(), gossiprpc.Request{ChannelID: "1"})).Error)
 }
 
-// Platform lookups the free plan cannot do answer a friendly error on the
-// session endpoints too, with no upstream call.
 func TestSessionPlatformNotSupported(t *testing.T) {
 	p := newTestProvider(t, noUpstream(t, "stats"), noUpstream(t, "shop"), nil)
 	assert.Equal(t, "only Epic display names are supported right now",
@@ -623,8 +535,6 @@ func TestSessionPlatformNotSupported(t *testing.T) {
 			gossiprpc.Request{Account: "Ninja", ChannelID: "42", AccountType: "xbl"})).Error)
 }
 
-// Keyless (shop-only mode): the stats endpoint is not registered, the shop
-// still answers.
 func TestKeylessServesShopOnly(t *testing.T) {
 	p := newTestProvider(t, noUpstream(t, "stats"), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(shopBody))
@@ -699,10 +609,6 @@ func BenchmarkStatsLegacyMapAggregate(b *testing.B) {
 	}
 }
 
-// TestStatsCacheIDBytes pins the exact id bytes stats lookups key on. The id is
-// the tail of a live Valkey key: changing one byte orphans every cached entry
-// for that lookup until its TTL expires, so these literals are the contract
-// rather than a restatement of the implementation.
 func TestStatsCacheIDBytes(t *testing.T) {
 	cases := []struct {
 		window  string

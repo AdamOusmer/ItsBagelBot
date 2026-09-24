@@ -46,7 +46,7 @@ type BorrowReply struct {
 	GrantID     string `json:"grant_id,omitempty"`
 	Paid        uint8  `json:"paid,omitempty"`
 	RemainingMS int64  `json:"remaining_ms,omitempty"`
-	Status      string `json:"status"` // granted, empty, stale, invalid
+	Status      string `json:"status"`
 }
 
 type cachedGrant struct {
@@ -67,8 +67,6 @@ func NewPermitService(nc *nats.Conn, region, podID string, _ *BucketStore) (*Per
 	if region == "" || podID == "" {
 		return nil, errors.New("ratelimit: permit region and pod ID are required")
 	}
-	// Grants live for permitTTL (250ms), and each pod caps in-flight borrows at
-	// 64, so even a large fleet keeps well under this many live entries.
 	dedupe, err := theine.NewBuilder[string, cachedGrant](2048).Build()
 	if err != nil {
 		return nil, err
@@ -108,8 +106,6 @@ func permitSubject(region, podID string) string {
 	return "bagel.outgress.permit.v2." + region + "." + podID
 }
 
-// borrowDeadline caps a borrow's deadline at permitTTL from now: the context's
-// own deadline when it is sooner, else the TTL horizon.
 func borrowDeadline(ctx context.Context, now time.Time) time.Time {
 	deadline, ok := ctx.Deadline()
 	if !ok || deadline.After(now.Add(permitTTL)) {
@@ -137,16 +133,13 @@ func (ps *PermitService) Borrow(ctx context.Context, donor Member, request Borro
 	if !reply.validFor(request) {
 		return BorrowReply{}, errors.New("ratelimit: invalid permit reply")
 	}
-	// Subtract the whole observed RTT. This is deliberately more conservative
-	// than estimating one-way latency from unsynchronized clocks.
+	// Charge the whole round trip: one-way estimates from unsynchronized clocks over-spend.
 	if reply.Paid != 0 && time.Since(now) >= time.Duration(reply.RemainingMS)*time.Millisecond {
 		return BorrowReply{}, context.DeadlineExceeded
 	}
 	return reply, nil
 }
 
-// validFor reports whether a reply is a well-formed answer to request: right
-// protocol version and epoch, and it never grants more than was asked.
 func (r BorrowReply) validFor(request BorrowRequest) bool {
 	return r.Version == planVersion && r.Epoch == request.Epoch && r.Paid&^request.Need == 0
 }
@@ -179,9 +172,6 @@ func (ps *PermitService) handleRequest(req micro.Request) {
 	ps.respond(req, reply)
 }
 
-// wellFormed validates an inbound borrow request: right protocol version, a
-// request id and bucket scope, a non-empty need drawn only from the valid
-// bits, and a deadline still in the future.
 func (r BorrowRequest) wellFormed(now time.Time) bool {
 	if r.Version != planVersion {
 		return false
@@ -195,15 +185,10 @@ func (r BorrowRequest) wellFormed(now time.Time) bool {
 	return now.UnixMilli() < r.DeadlineMS
 }
 
-// validNeed reports whether a need mask is non-empty and carries only known
-// need bits.
 func validNeed(need uint8) bool {
 	return need != 0 && need&^validNeeds == 0
 }
 
-// agedGrant re-times a cached grant reply against its expiry: an expired entry
-// is downgraded to a spent "stale" reply, else its remaining budget is
-// refreshed for this response.
 func agedGrant(cached cachedGrant) BorrowReply {
 	reply := cached.reply
 	remaining := time.Until(cached.expiresAt)

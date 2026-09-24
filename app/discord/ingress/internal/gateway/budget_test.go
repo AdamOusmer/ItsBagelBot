@@ -16,18 +16,12 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// budgetClock is hand-cranked: the budget's whole job is measured in
-// minutes and hours, and a test that slept through a 24h window would not be
-// a test.
 type budgetClock struct{ t time.Time }
 
 func (c *budgetClock) now() time.Time { return c.t }
 
 func (c *budgetClock) advance(d time.Duration) { c.t = c.t.Add(d) }
 
-// testBudget is the production schedule with the ceiling shrunk to something
-// a test can reach. The durations stay real so the assertions below are
-// assertions about the shipped numbers.
 func testBudget(ceiling int) (*connectBudget, *budgetClock) {
 	c := &budgetClock{t: time.Unix(1_700_000_000, 0)}
 	sched := defaultBudgetSchedule()
@@ -35,9 +29,6 @@ func testBudget(ceiling int) (*connectBudget, *budgetClock) {
 	return &connectBudget{sched: sched, now: c.now}, c
 }
 
-// Rule (a): one connect per minConnectInterval, which is Discord's own
-// published IDENTIFY rate. This is the rule that would have capped the
-// 2026-09-05 loop at 720 attempts/hour instead of ~1800.
 func TestBudgetSpacesConnects(t *testing.T) {
 	b, c := testBudget(dailyConnectCeiling)
 
@@ -58,9 +49,6 @@ func TestBudgetSpacesConnects(t *testing.T) {
 	}
 }
 
-// Rule (b): five consecutive sessions each dying young is a flap, and a flap
-// escalates the wait to flapWait. One healthy session clears it -- a bot that
-// reconnects cleanly once an hour must never be treated as flapping.
 func TestBudgetEscalatesOnFlapAndRecovers(t *testing.T) {
 	b, _ := testBudget(dailyConnectCeiling)
 	b.note()
@@ -78,7 +66,6 @@ func TestBudgetEscalatesOnFlapAndRecovers(t *testing.T) {
 		t.Fatalf("delay while flapping = %s, want %s", d, flapWait)
 	}
 
-	// A session that survived flapMinUptime is evidence the loop ended.
 	if st := b.record(flapMinUptime); st.Flapping {
 		t.Fatalf("state after a healthy session = %+v, want flapping cleared", st)
 	}
@@ -87,9 +74,6 @@ func TestBudgetEscalatesOnFlapAndRecovers(t *testing.T) {
 	}
 }
 
-// Rule (c): the hard ceiling parks the next connect until the oldest attempt
-// ages out of the rolling window -- a park that ends on its own, unlike a
-// fatal close.
 func TestBudgetParksAtTheCeilingUntilTheWindowFrees(t *testing.T) {
 	const ceiling = 3
 	b, c := testBudget(ceiling)
@@ -102,7 +86,6 @@ func TestBudgetParksAtTheCeilingUntilTheWindowFrees(t *testing.T) {
 	if !st.AtCeiling || st.Connects != ceiling {
 		t.Fatalf("state at the ceiling = %+v", st)
 	}
-	// The first attempt was 3h ago, so the window frees 21h from now.
 	if d := b.delay(); d != connectWindow-3*time.Hour {
 		t.Fatalf("ceiling delay = %s, want %s", d, connectWindow-3*time.Hour)
 	}
@@ -117,26 +100,20 @@ func TestBudgetParksAtTheCeilingUntilTheWindowFrees(t *testing.T) {
 	}
 }
 
-// The ceiling counts attempts, not successful sessions: a dial that never
-// completes a handshake spends the same Identify allowance as one that does.
 func TestBudgetCountsFailedAttempts(t *testing.T) {
 	b, c := testBudget(dailyConnectCeiling)
 	for range 4 {
 		b.note()
 		c.advance(minConnectInterval)
-		b.record(0) // never reached READY
+		b.record(0)
 	}
 	if st := b.snapshot(); st.Connects != 4 {
 		t.Fatalf("connects = %d, want 4", st.Connects)
 	}
 }
 
-// The budget floors the reconnect backoff rather than replacing it: whichever
-// says "wait longer" wins.
 func TestRunHonoursTheConnectFloor(t *testing.T) {
 	dial, dials := dialCounter(4000)
-	// Backoff alone dials again within backoffMin (1s), so without the floor
-	// this window holds at least two attempts.
 	ctx, cancel := context.WithTimeout(context.Background(), 1600*time.Millisecond)
 	defer cancel()
 
@@ -153,17 +130,11 @@ func TestRunHonoursTheConnectFloor(t *testing.T) {
 	}
 }
 
-// The flap verdict has to reach both the status key and the log: "offline"
-// and "offline, and this process is deliberately down to one attempt every
-// five minutes" need different answers from whoever is looking, and the log
-// line is what names the close code that caused it.
 func TestFlappingIsPublishedLoggedAndWaited(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	st := &recStatus{}
 	sess := Session{Status: st, Log: zap.New(core)}
 	bud, _ := testBudget(dailyConnectCeiling)
-	// draw = identity: the backoff schedule is asserted elsewhere, and here
-	// it must be the loser -- the budget's escalation is what decides.
 	rc := &reconnect{draw: func(d time.Duration) time.Duration { return d }}
 
 	var wait time.Duration
@@ -180,9 +151,6 @@ func TestFlappingIsPublishedLoggedAndWaited(t *testing.T) {
 	wantFlapLog(t, logs, 4000, "socket died")
 }
 
-// wantFlapStates asserts the published run: one state per short session, with
-// the verdict landing only on the flapStreak-th. Publishing it earlier is what
-// would make an ordinary hourly reconnect read as a flap on the status key.
 func wantFlapStates(t *testing.T, states []Budget) {
 	t.Helper()
 	if len(states) != flapStreak {
@@ -200,9 +168,6 @@ func wantFlapStates(t *testing.T, states []Budget) {
 	}
 }
 
-// wantFlapLog asserts the one ERROR line the verdict owes an operator, and
-// that it names the close code and error of the session that tipped it: the
-// status key says "flapping", only the log says what kept killing the socket.
 func wantFlapLog(t *testing.T, logs *observer.ObservedLogs, code int64, cause string) {
 	t.Helper()
 	errs := logs.FilterLevelExact(zapcore.ErrorLevel).All()
@@ -221,9 +186,6 @@ func wantFlapLog(t *testing.T, logs *observer.ObservedLogs, code int64, cause st
 	}
 }
 
-// At the ceiling the loop parks the way a fatal close does, with its own
-// ERROR line -- the difference being that this park ends when the window
-// frees rather than when a human rotates a secret.
 func TestCeilingParksWithItsOwnErrorLine(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	sess := Session{Log: zap.New(core)}
@@ -245,8 +207,6 @@ func TestCeilingParksWithItsOwnErrorLine(t *testing.T) {
 	}
 }
 
-// The budget must never turn a fatal close into a wait: a 4004 parks
-// immediately, budget or not.
 func TestBudgetDoesNotDelayTheFatalPath(t *testing.T) {
 	dial, dials := dialCounter(ddiscord.CloseAuthenticationFailed)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)

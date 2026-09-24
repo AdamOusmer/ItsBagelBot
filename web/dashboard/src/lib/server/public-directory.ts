@@ -1,11 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Shared shaping for the public, unauthenticated channel pages: every surface
-// that lists a channel's !commands (the /user/<channel> page and the
-// leaderboard host page) must present them identically, so the filtering and
-// labeling live here once.
-
 import {
   BUILTIN_COMMANDS,
   MODULE_CATALOG,
@@ -45,13 +40,6 @@ export type PublicModule = {
   events: ModuleDetail[];
 };
 
-/**
- * The name a public page labels a channel with: the Twitch display name (the
- * login in the owner's casing) when the users service holds one, else the
- * stored login, else the caller's fallback (the URL segment, or a placeholder
- * for an id-only lookup). One place, so the commands page and the leaderboard
- * cannot drift on which name wins.
- */
 export function channelLabel(
   record: { displayName?: string; username?: string } | null | undefined,
   fallback: string
@@ -76,7 +64,6 @@ function activeReply(config: Record<string, string>, enableKey?: string): boolea
   return !enableKey || enabledFlag(config[enableKey]);
 }
 
-/** The channel's custom !commands as the public pages show them. */
 export function publicCommands(rows: CommandView[], locale: Locale = 'en'): PublicCommand[] {
   const builtinNames = new Set(BUILTIN_COMMANDS.map((cmd) => cmd.id));
   return rows
@@ -98,16 +85,11 @@ export function publicCommands(rows: CommandView[], locale: Locale = 'en'): Publ
     .sort((a, b) => a.trigger.localeCompare(b.trigger));
 }
 
-/** The channel's active modules and built-ins with their chat surfaces. */
-// activeModule resolves a module's on/off state: the stored row wins, and a
-// module the broadcaster never touched falls back to its catalog default.
 function activeModule(byName: Map<string, ModuleView>, id: string, fallback: boolean): boolean {
   const row = byName.get(id);
   return row ? row.is_enabled : fallback;
 }
 
-// catalogEntry shapes one catalog module, splitting its replies into the
-// commands a viewer can type and the events that fire on their own.
 function catalogEntry(def: (typeof MODULE_CATALOG)[number], byName: Map<string, ModuleView>, locale: Locale): PublicModule[] {
   if (!activeModule(byName, def.id, def.defaultEnabled)) return [];
   const config = asConfig(byName.get(def.id)?.configs);
@@ -116,8 +98,6 @@ function catalogEntry(def: (typeof MODULE_CATALOG)[number], byName: Map<string, 
     {
       id: def.id,
       label: tModuleLabel((key) => translate(locale, key), def),
-      // Catalog modules share one bucket; built-ins get their own 'Built-in'
-      // category below. ModuleDef itself carries no category field.
       category: 'Module',
       tagline: tModuleTagline((key) => translate(locale, key), def),
       commands: live
@@ -133,8 +113,6 @@ function catalogEntry(def: (typeof MODULE_CATALOG)[number], byName: Map<string, 
   ];
 }
 
-// builtinEntry shapes one built-in command, which is always a single command
-// and never carries events.
 function localizedBuiltin(locale: Locale, id: string, part: 'label' | 'summary', fallback: string): string {
   const key = `builtinDirectory.${id}.${part}`;
   const value = translate(locale, key);

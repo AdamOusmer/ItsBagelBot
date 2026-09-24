@@ -12,7 +12,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// TebexAgreement preserves subscription identity and provider snapshots.
 type TebexAgreement struct{ ent.Schema }
 
 func (TebexAgreement) Fields() []ent.Field {

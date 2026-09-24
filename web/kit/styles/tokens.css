@@ -1,57 +1,23 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* ItsBagelBot: Colors & Type
- * The palette, the shape scale, the easing curves, the type stack, the motion
- * durations and the focus ring come from the design library
- * (@bagel/ui/styles/brand.css), shared with marketing/ and docs/. This file
- * adds what is genuinely the CONSOLE's: the status system, the account-tier
- * colours, the spacing scale and the elevation shadows. Brand palette is a
- * dark canvas with deep evergreen + warm tan accents, tied together with a
- * film-grain texture overlay.
- *
- * Both @imports have to stay at the top: CSS only honours @import before any
- * other rule, so a declaration added above them silently disables them.
- */
-/* layers.css goes first of all: it only declares the @layer order, and that
-   order is fixed by whichever declaration the browser sees first. */
+/* The @imports must stay first: CSS ignores an @import after any other rule. */
 @import '@bagel/ui/styles/layers.css';
 @import '@bagel/ui/styles/brand.css';
 
-/* Self-hosted fonts: no third-party origin, satisfies CSP font-src 'self'.
-   The four @font-face rules that used to be written out here are now five in
-   @bagel/ui/styles/fonts.css (the console never had a real italic cut and was
-   letting the browser shear the upright), shared with marketing/ and docs/.
-   The url()s in that file are relative to it, so the package owns both the
-   rules and the woff2 payloads and a consumer resolves neither. */
 @import '@bagel/ui/styles/fonts.css';
 
-/* The type scale, as the `.bb-h`/`.bb-text` contract plus the bare-element
-   fallback this file used to own. Imported globally rather than pulled in by
-   the Heading/Text adapters alone, because the fallback half has to cover
-   prose nobody wrote a component for. */
 @import '@bagel/ui/styles/elements/typography.css';
 
-/* The layout primitives (container, section, stack, cluster, grid, divider,
-   spacer). Global for the same reason: `.bb-container` is applied to markup a
-   page author writes, not only through the adapter. */
 @import '@bagel/ui/styles/elements/layout.css';
 
-/* The data table, which used to live in console.css. Global because three
-   pages write the `<table class="bb-tbl">` markup by hand rather than through
-   the adapter. */
 @import '@bagel/ui/styles/elements/table.css';
 
-/* Layer order, restated. layers.css declares it too, but the statement is
-   idempotent and the file that OPENS a layer has to name the order first: the
-   order is fixed by whichever declaration the browser sees first, and a bundler
-   is free to emit a Svelte adapter's element CSS ahead of this stylesheet. Same
-   rule ui/scripts/assert-layer-order.mjs enforces inside the package. */
+/* Restated: an adapter's element CSS may load first, and the first @layer declaration fixes the order. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
 @layer bb.tokens {
   :root {
-    /* semantic aliases */
     --bb-fg-1: var(--bb-white);
     --bb-fg-2: var(--bb-muted);
     --bb-bg-0: var(--bb-black);
@@ -60,51 +26,26 @@
     --bb-accent-glow: var(--bb-green-glow);
     --bb-warm: var(--bb-tan);
 
-    /* ────────────────────────── spacing ──────────────────────────── */
-    /* (the radius scale is in brand.css) */
+    --bb-status-success: #52b788;
+    --bb-status-success-fg: #8fe0b4;
+    --bb-status-success-bg: #0f2118;
+    --bb-status-success-border: #2f7355;
 
-    /* ────────────────────────── status system ────────────────────── */
-    /* Brand-coherent semantic states. Each triad is meant to be composed as:
-    background: var(--bb-status-X-bg);   (subtle dark tint)
-    color:      var(--bb-status-X-fg);   (body text, >=4.5:1 on -bg)
-    border:     var(--bb-status-X-border); (>=3:1 vs the dark canvas)
-    and the base --bb-status-X is the icon/accent (>=3:1 on -bg). Ratios are
-    computed, not guessed. See the numbers beside each value.
-    green = success, warm amber = warning, muted red = error, cool = info. */
-    --bb-status-success: #52b788;         /* icon 8.00:1 canvas / 6.78:1 on -bg */
-    --bb-status-success-fg: #8fe0b4;      /* text 10.78:1 on -bg */
-    --bb-status-success-bg: #0f2118;      /* subtle fill on the dark canvas */
-    --bb-status-success-border: #2f7355;  /* 3.49:1 vs canvas / 3.33:1 vs card */
-
-    --bb-status-warning: #e0c49a;         /* icon 11.81:1 canvas / 10.04:1 on -bg */
-    --bb-status-warning-fg: #eccfa3;      /* text 11.23:1 on -bg */
+    --bb-status-warning: #e0c49a;
+    --bb-status-warning-fg: #eccfa3;
     --bb-status-warning-bg: #241c10;
-    --bb-status-warning-border: #8a6f43;  /* 4.18:1 vs canvas / 3.99:1 vs card */
+    --bb-status-warning-border: #8a6f43;
 
-    --bb-status-error: #cf8a78;           /* icon 7.13:1 canvas / 6.30:1 on -bg */
-    --bb-status-error-fg: #f0b0a4;        /* text 9.55:1 on -bg */
+    --bb-status-error: #cf8a78;
+    --bb-status-error-fg: #f0b0a4;
     --bb-status-error-bg: #2a1310;
-    --bb-status-error-border: #b05a46;    /* 4.15:1 vs canvas / 3.96:1 vs card */
+    --bb-status-error-border: #b05a46;
 
-    --bb-status-info: #7bb5d9;            /* icon 8.91:1 canvas / 7.64:1 on -bg */
-    --bb-status-info-fg: #a9d0e8;        /* text 10.41:1 on -bg */
+    --bb-status-info: #7bb5d9;
+    --bb-status-info-fg: #a9d0e8;
     --bb-status-info-bg: #0f1e28;
-    --bb-status-info-border: #3f6d86;    /* 3.53:1 vs canvas / 3.37:1 vs card */
+    --bb-status-info-border: #3f6d86;
 
-    /* ────────────────────────── account tiers ────────────────────── */
-    /* One triad per account tier, composed the same way as the status system
-    above: the base is the text/icon colour, -bg the subtle fill, -border the
-    hairline. Both consoles label the same account in their own vocabulary
-    (the dashboard's perm badges, the admin console's status chips) and each
-    had spelled the rgba out by hand, which is how VIP once shipped purple
-    (#d9aaff) on one surface: VIP is SILVER here and never purple.
-    Two deliberate reuses rather than new colours: banned IS the error state
-    of an account, so it takes the error triad wholesale, and inactive is
-    plain muted foreground -- an account that is doing nothing should not be
-    louder than one that is.
-    Alphas are consolidated on the dashboard's badge values where the two apps
-    had drifted (VIP hairline 0.34 vs 0.40, paid 0.40 vs 0.38); the drift was
-    the reason for the tokens, so it is closed here rather than preserved. */
     --bb-tier-free: var(--bb-green-glow);
     --bb-tier-free-bg: rgba(82, 183, 136, 0.12);
     --bb-tier-free-border: rgba(82, 183, 136, 0.35);
@@ -125,65 +66,12 @@
     --bb-tier-inactive-bg: rgba(255, 255, 255, 0.04);
     --bb-tier-inactive-border: rgba(201, 168, 124, 0.20);
 
-    /* (the type stack and the tracking scale are in brand.css) */
-
-    /* (the spacing ramp --bb-space-1..9 is in brand.css now: the shared layout
-       elements read it, so it could not stay console-only) */
-
-    /* (the easing curves and the durations are in brand.css) */
-
-    /* ────────────────────────── elevation ────────────────────────── */
     --bb-shadow-soft: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 30px rgba(0,0,0,0.35);
     --bb-shadow-glow: 0 0 0 1px rgba(82,183,136,0.35), 0 0 24px rgba(82,183,136,0.25);
     --bb-shadow-tan-glow: 0 0 0 1px rgba(201,168,124,0.35), 0 0 24px rgba(201,168,124,0.18);
-
-    /* (--bb-nav-height and --bb-content-max are in brand.css) */
   }
 }
 
-/* The reset and the semantic type live in `bb.base`, NOT unlayered.
-
-   Unlayered CSS beats every layer at any specificity, so while this block sat
-   outside the cascade layers its bare element selectors -- `h1`, `p`, `small`,
-   `code`, specificity 0,0,1 -- outranked every contract @bagel/ui ships in
-   `bb.elements`. Measured on the built console (build/client/_app/immutable/
-   assets, all 45 stylesheets loaded, getComputedStyle):
-     `.bb-page-head h1`  resolved to 40px / weight 700 from `.bb-h1, h1` below,
-        not the clamp(32px, 4vw, 48px) / 800 that ui/styles/elements/shell.css
-        asks for;
-     `.bb-page-head__description`  resolved to 16px from `.bb-body, p` below,
-        not 14.5px.
-   Contracts whose selectors never meet a bare element selector were unaffected
-   (`.bb-page-head__eyebrow` measured its correct 11.52px), which is why the
-   regression read as "body, headings and rail labels are all bigger" while
-   every size token in this file was byte-identical to the console's pre-split
-   copy. Nothing changed here; the contracts moved INTO a layer around it.
-
-   Ruled out first, both by measurement: the woff2 payloads (git ls-tree of
-   console/shared/styles/fonts at ac369cb2b and of ui/fonts are the same four
-   blobs, byte-for-byte) and font loading (document.fonts reports Syne, DM Sans
-   and DM Mono `loaded` on the built console, and the computed families are the
-   brand stacks, not a system-ui fallback).
-
-   `bb.base` is the layer layers.css reserves for element defaults and resets,
-   so a component contract in `bb.elements` overrides one with a plain class.
-   Do not lift this block back out of the layer to make a heading stick: a
-   heading that needs a different size inside a component belongs to that
-   component's contract. */
 @layer bb.base {
-  /* ────────────────────────── base / reset ──────────────────────── */
   * , *::before, *::after { box-sizing: border-box; }
-
-  /* ────────────────────────── semantic type ─────────────────────── */
-  /* Moved to @bagel/ui/styles/elements/typography.css, imported at the top of
-     this file. It ships the same numbers twice: as the `.bb-h` / `.bb-text`
-     contract in `bb.elements`, and as the bare `h1`-`h6`/`p`/`small`/`code`
-     fallback in `bb.base` — which is what this block was, minus the dead
-     `.bb-display`/`.bb-h1`/`.bb-body`/`.bb-mono` aliases (grepped on
-     2026-09-10: zero call sites across web/ and ui/, so they were deleted
-     rather than carried into the new file).
-
-     The console keeps the reset above and nothing else here: a heading that
-     needs a different size inside a component belongs to that component's
-     contract, and now there IS a contract to reach for. */
 }

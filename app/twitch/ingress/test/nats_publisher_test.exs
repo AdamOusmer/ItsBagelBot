@@ -2,10 +2,12 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Nats.PublisherTest do
-  # async: false — the publisher uses a named process, a named ETS table and a
-  # global persistent_term context, so it cannot share the VM with a parallel
-  # instance of itself.
   use Ingress.PublisherCase, async: false
+
+  @idx_pending 1
+  @idx_acked 3
+  @idx_retried 4
+  @idx_failed 5
 
   describe "id_from_topic/2" do
     @prefix "_INBOX.ingresspub.abc123."
@@ -29,20 +31,16 @@ defmodule Ingress.Nats.PublisherTest do
     setup do
       put_env(publish_max_pending: 2)
 
-      # Stand in for PublisherPool: one shard, its BUS connection deliberately
-      # absent so the underlying pub never leaves the VM.
       start_publisher(:gnat_bus_pub_test)
     end
 
     test "refuses once the in-flight window is full and does not leak a slot", %{ctx: ctx} do
-      # Index 1 is the outstanding-publish count. Saturate it directly.
-      :atomics.put(ctx.counter, 1, 2)
+      :atomics.put(ctx.counter, @idx_pending, 2)
 
       assert Publisher.enqueue("twitch.ingress.event.standard", "{}") ==
                {:error, :overloaded}
 
-      # A refused admission must roll its increment back.
-      assert :atomics.get(ctx.counter, 1) == 2
+      assert :atomics.get(ctx.counter, @idx_pending) == 2
     end
 
     test "uses a constant-time hash set for pending publishes", %{ctx: ctx} do
@@ -50,25 +48,23 @@ defmodule Ingress.Nats.PublisherTest do
     end
 
     test "drops to :not_connected when the shard's BUS connection is absent", %{ctx: ctx} do
-      # The shard's connection is not registered, so the underlying pub exits and
-      # the publish is undone rather than left outstanding.
       assert Publisher.enqueue("twitch.ingress.event.standard", "{}") ==
                {:error, :not_connected}
 
-      assert :atomics.get(ctx.counter, 1) == 0
+      assert :atomics.get(ctx.counter, @idx_pending) == 0
     end
 
     test "flushes aggregate outcome counters instead of emitting per-event metrics", %{ctx: ctx} do
-      :atomics.put(ctx.counter, 3, 12_000)
-      :atomics.put(ctx.counter, 4, 7)
-      :atomics.put(ctx.counter, 5, 2)
+      :atomics.put(ctx.counter, @idx_acked, 12_000)
+      :atomics.put(ctx.counter, @idx_retried, 7)
+      :atomics.put(ctx.counter, @idx_failed, 2)
 
       send(Publisher.process_name(0), :gauge)
       _state = :sys.get_state(Publisher.process_name(0))
 
-      assert :atomics.get(ctx.counter, 3) == 0
-      assert :atomics.get(ctx.counter, 4) == 0
-      assert :atomics.get(ctx.counter, 5) == 0
+      assert :atomics.get(ctx.counter, @idx_acked) == 0
+      assert :atomics.get(ctx.counter, @idx_retried) == 0
+      assert :atomics.get(ctx.counter, @idx_failed) == 0
     end
 
     test "a saturated local shard falls through to spare publisher capacity", %{ctx: ctx} do
@@ -81,11 +77,11 @@ defmodule Ingress.Nats.PublisherTest do
 
       :persistent_term.put({Publisher, :n}, 2)
 
-      :atomics.put(ctx.counter, 1, 2)
+      :atomics.put(ctx.counter, @idx_pending, 2)
 
       assert Publisher.enqueue("twitch.ingress.event.standard", "{}") == :ok
       assert_receive {:pub, "twitch.ingress.event.standard", "{}", _opts}, 500
-      assert :atomics.get(ctx.counter, 1) == 2
+      assert :atomics.get(ctx.counter, @idx_pending) == 2
     end
   end
 
@@ -96,8 +92,6 @@ defmodule Ingress.Nats.PublisherTest do
       put_env(
         publish_batch_size: 2,
         publish_batch_wait_ms: 100,
-        # These cases are about the single wire specifically; the shipped
-        # default is :atomic, which would send this cohort as one batch instead.
         publish_wire: :single
       )
 
@@ -147,7 +141,7 @@ defmodule Ingress.Nats.PublisherTest do
 
       _state = :sys.get_state(publisher)
       ctx = :persistent_term.get({Publisher, :ctx, 0})
-      assert :atomics.get(ctx.counter, 1) == 0
+      assert :atomics.get(ctx.counter, @idx_pending) == 0
       assert :ets.info(ctx.table, :size) == 0
     end
 
@@ -190,18 +184,10 @@ defmodule Ingress.Nats.PublisherTest do
       publisher: publisher,
       ctx: ctx
     } do
-      # Every wire write is a blocking GenServer.call. While the collector sits
-      # in one, a :sweep tick and the PubAcks it should have applied both pile
-      # up — and the monotonic clock the sweep reads advanced through the block
-      # too. Reading that clock first expires every row whose acknowledgement
-      # is sitting a few messages further down THIS mailbox: up to
-      # publish_max_pending = 16384 stored events counted as publish failures
-      # per shard, from one stalled socket write.
       assert Publisher.enqueue("twitch.ingress.event.standard", "{}") == :ok
       assert_receive {:pub, _topic, _json, opts}, 500
       reply = Keyword.fetch!(opts, :reply_to)
 
-      # Suspend first so no real sweep can run while the scenario is staged.
       :sys.suspend(publisher)
       age_pending_rows(ctx)
       send(publisher, :sweep)
@@ -209,21 +195,15 @@ defmodule Ingress.Nats.PublisherTest do
       :sys.resume(publisher)
       _state = :sys.get_state(publisher)
 
-      # Counter 3 is acked, 5 is failed, 1 is the in-flight window.
-      assert :atomics.get(ctx.counter, 3) == 1
-      assert :atomics.get(ctx.counter, 5) == 0
-      assert :atomics.get(ctx.counter, 1) == 0
+      assert :atomics.get(ctx.counter, @idx_acked) == 1
+      assert :atomics.get(ctx.counter, @idx_failed) == 0
+      assert :atomics.get(ctx.counter, @idx_pending) == 0
       assert :ets.info(ctx.table, :size) == 0
     end
   end
 
   describe "connection monitors" do
     test "the monitor is taken only by the path that stores it" do
-      # Gnat.sub/3 is a 5s GenServer.call, so a connection that never answers
-      # holds the collector inside it — the same call that a hub roll makes
-      # exit outright, which is the branch that used to drop the ref on the
-      # floor. GenServer.call takes its own monitor for the duration of the
-      # call, so exactly one entry here means this module took none of its own.
       conn = :gnat_bus_pub_monitor_test
       silent = spawn(fn -> Process.sleep(:infinity) end)
       Process.register(silent, conn)

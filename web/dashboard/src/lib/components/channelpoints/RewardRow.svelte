@@ -2,13 +2,6 @@
   import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One ledger line in the reward deck, on the shared ManagementRow: the
-  // clickable primary is a real button and the quick actions (show/hide switch,
-  // delete) are SIBLINGS of it, never nested. The line reads its whole state
-  // without opening the editor: reward name, its Twitch visibility as TEXT (a
-  // "Visible" / "Hidden" tag, never colour alone), and a binding summary of the
-  // reward's limits and loyalty hooks. The page passes the enhance handlers so
-  // all optimistic-UI state lives in one place.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Icon, ManagementRow, Switch, getI18n, type ChannelPointReward } from '@bagel/kit';
@@ -46,8 +39,6 @@
             <span class="swatch" style="--sw: {r.backgroundColor || '#9147ff'}" aria-hidden="true"></span>
             <span class="title-text">{r.title}</span>
           </span>
-          <!-- Binding summary: limits + loyalty hooks, so what the reward does
-               is legible from the list. -->
           <span class="tags">
             {#if r.maxPerStreamEnabled && r.maxPerStream === 1}
               <span class="bb-tag bb-tag--bare">{t('channelpoints.chipOnce')}</span>
@@ -69,7 +60,6 @@
             <span class="silent">{t('channelpoints.chipSilent')}</span>
           {/if}
         </span>
-        <!-- Cost + visibility STATE as labelled TEXT (never colour alone). -->
         <span class="meta">
           <span class="cost"><span class="bb-sr-only">{t('channelpoints.fieldCost')}: </span>{r.cost.toLocaleString()}</span>
           <span class="bb-tag {r.isEnabled ? 'bb-tag--live' : 'bb-tag--quiet'}">
@@ -124,8 +114,6 @@
     border: 1px solid color-mix(in srgb, var(--sw) 55%, transparent);
   }
 
-  /* Was a row of bordered 8px-radius pills; the tags now use the global
-     .bb-tag--bare labels, so the gap carries the separation, not a frame. */
   .tags { display: flex; flex-wrap: wrap; gap: 4px 14px; }
   .resp {
     font-family: var(--bb-font-body);
@@ -138,7 +126,6 @@
   }
   .silent { opacity: 0.6; font-style: italic; }
 
-  /* Cost over a text visibility state, right-aligned. */
   .meta { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; }
   .cost {
     font-family: var(--bb-font-mono);
@@ -160,8 +147,6 @@
     }
     .idx { display: none; }
     .reward { grid-area: reward; }
-    /* Legacy -webkit- clamp needs the box display + orient; the standard
-       line-clamp is added alongside to clear the compiler warning. */
     .resp {
       grid-area: resp;
       white-space: normal;

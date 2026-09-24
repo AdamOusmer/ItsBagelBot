@@ -10,8 +10,6 @@ resources:
   - dopplersecrets.yaml
   - valkey.yaml
 
-# Base config is generated with a content hash so any edit rolls the
-# StatefulSet (kustomize rewrites the volume reference to the hashed name).
 configMapGenerator:
   - name: valkey-config
     files:

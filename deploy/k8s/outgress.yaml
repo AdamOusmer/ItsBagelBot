@@ -1,18 +1,5 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-#
-# Discord is a standalone vertical (deploy/k8s/discord.yaml): outgress no
-# longer holds a Discord REST client, the Discord outgress lane, or the guild
-# setup RPC, and no longer receives DISCORD_BOT_TOKEN or any discord.* NATS
-# grant. The dashboard's DISCORD_CLIENT_ID / DISCORD_REDIRECT_URI /
-# DISCORD_TEMPLATE_CODE still come from Doppler via dashboard-env -- those are
-# OAuth-flow config, not the bot client, and stay where they are.
-#
-# The one thing that survives the split: outgress is the only place Helix
-# Create Clip actually runs, so it publishes data.twitch.clip.created (a fact
-# on BAGEL_DATA, not a Discord command) after a successful clip. discord-engine
-# subscribes; see internal/domain/event/data/clip_events.go and
-# deploy/messaging/nats-auth.conf.
 
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
@@ -62,8 +49,6 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      # Application tier only, selected by role so the rule cannot go stale
-      # when the fleet changes shape.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -73,14 +58,6 @@ spec:
                     operator: NotIn
                     values: [cp, worker]
       topologySpreadConstraints:
-        # matchLabelKeys scopes the skew to the CURRENT ReplicaSet: during a
-        # maxSurge=0 roll the outgoing pods no longer count, so every rollout
-        # re-spreads one-per-node instead of piling onto whichever node freed
-        # capacity first (bit the ingress on 2026-07-10: 3/0/1). Soft constraint
-        # stays soft, so a node outage never wedges scheduling; the KEDA floor
-        # (>= one per hot-path node) plus the ReplicaSet downscaler's
-        # remove-co-located-duplicates-first ranking keep steady state at
-        # >= 1 per node.
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: DoNotSchedule
@@ -88,34 +65,6 @@ spec:
           labelSelector:
             matchLabels:
               app: outgress
-      # DaemonSet placement keeps one outgress pod per schedulable node.
-      # Resolving api.twitch.tv is on the hot path. With the default ndots:5 the
-      # external FQDN first fans out into cluster-domain queries (…svc.cluster.local
-      # etc.), each a chance to hit the cross-node DNS stall; ndots:1 sends the
-      # absolute name first. A shorter timeout with a retry caps a stall well under
-      # the 5s outgress message lifetime instead of blowing it.
-      # Resolver options, uniform across every first-party workload.
-      #
-      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
-      # fewer than 5 dots is tried against all three search domains BEFORE
-      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
-      # an external name like api.twitch.tv costs 4 too -- three guaranteed
-      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
-      # denial cache hits against 10368 success hits, so 62% of everything
-      # served was the junk half of that expansion.
-      #
-      # single-request-reopen: glibc sends the A and AAAA queries in parallel
-      # from one socket; the two replies can race in conntrack and one gets
-      # dropped, which costs a full resolver timeout. Reopening the socket
-      # for the second query removes the race.
-      #
-      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
-      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
-      # worst case instead of 10s. The 1s matters specifically because Valkey
-      # Sentinel resolves hostnames inside its event loop and declares "tilt"
-      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
-      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
-      # See deploy/cache/valkey.yaml for the measurement that found it.
       dnsConfig:
         options:
           - {name: ndots, value: "1"}
@@ -123,12 +72,6 @@ spec:
           - {name: timeout, value: "1"}
           - {name: attempts, value: "3"}
       securityContext:
-        # Keep the congestion window across an idle gap. This sysctl is
-        # per-netns: the nodes run 0, but a pod netns inherits the kernel
-        # default 1 and resets cwnd to initcwnd after one idle RTO, so the
-        # first burst on a lane that has been quiet crawls back through slow
-        # start. Both ends of a connection need it. See deploy/messaging/
-        # nats.yaml for the full note and the kubelet prerequisite.
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
             value: "0"
@@ -144,15 +87,6 @@ spec:
           env:
             - name: NATS_HOST
               value: nats
-            # Split planes: the BUS / JetStream connection dials the hub directly
-            # (NATS_HUB_URL) so stream traffic never pays a leaf forwarding hop;
-            # the RPC + cache plane (NATS_RPC_URL / NATS_LEAF_URL) stays on the
-            # node-local leaf. NATS_URL is the local-dev fallback only.
-            # The lane consumers dial nats-1 directly: TWITCH_OUTGRESS is
-            # placement-pinned there (pkg/bus/provision.go), so the
-            # PreferSameNode `nats` Service would route every delivery and ack
-            # through a non-leader member on other nodes. The per-pod headless
-            # name is a hub cert SAN and follows the pod across nodes.
             - name: NATS_URL
               value: tls://nats-leaf.messaging:4222
             - name: NATS_HUB_URL
@@ -161,9 +95,6 @@ spec:
               value: atomic
             - name: NATS_ATOMIC_PUBLISH_BATCH_SIZE
               value: "1000"
-            # Fleet CA (trust-manager fleet-ca ConfigMap) to verify the NATS
-            # server's native-TLS cert; read as RootCAs by pkg/bus (Go services)
-            # and the console nats lib (TS).
             - name: NATS_CA_PEM
               valueFrom:
                 configMapKeyRef:
@@ -178,10 +109,6 @@ spec:
               value: valkey.cache.svc.cluster.local
             - name: VALKEY_ADDR
               value: valkey.cache.svc.cluster.local:26380
-            # mTLS: pkg/valkey's clientTLSConfig() treats these two as
-            # both-or-neither. Land this (a no-op while tls-auth-clients is
-            # still "no") on every consumer BEFORE flipping the statefulset,
-            # not after.
             - name: VALKEY_TLS_CLIENT_CERT_FILE
               value: /etc/valkey/client-tls/tls.crt
             - name: VALKEY_TLS_CLIENT_KEY_FILE
@@ -202,24 +129,7 @@ spec:
               value: valkey-local.cache.svc.cluster.local:6380
             - name: GOMEMLIMIT
               value: 512MiB
-            # Receipt-level consumption is deliberately absent here, not merely
-            # unset. Outgress drains work-queue streams, whose retention deletes
-            # a message on ack and therefore requires a per-message explicit ack
-            # (pkg/bus isHotIngressLane excludes them by that rule); its
-            # TWITCH_INGRESS bindings are the stream and authz subjects, which
-            # the same guard declines. Both shapes are structurally wrong for
-            # this service, so these stay commented and outgress_bus holds no
-            # $JS.API.CONSUMER.MSG.NEXT grant to match:
-            #
-            #   - name: NATS_CONSUME_FLOW
-            #     value: "on"
-            #   - name: NATS_CONSUME_MODE
-            #     value: pull
-            #
-            # The rollout that flips the hot lanes is sesame's alone.
-            # Sized for the 50-100k firehose (see sesame.yaml). A high MIN keeps
-            # send concurrency resident so throughput does not wait on the slow
-            # +1-per-tick autoscaler to climb from a cold floor under a burst.
+            # No NATS_CONSUME_FLOW/MODE: outgress_bus has no MSG.NEXT grant, so a pull lane delivers nothing.
             - name: OUTGRESS_MIN_ROUTINES
               value: "50"
             - name: OUTGRESS_MAX_ROUTINES
@@ -234,38 +144,17 @@ spec:
               value: "25"
             - name: OUTGRESS_SYSTEM_WORKERS
               value: "4"
-            # Use the scheduled node as the conservative locality boundary.
-            # Kubernetes cannot expose a node topology label through the
-            # downward API, and the fleet intentionally runs one outgress pod
-            # per node. Distinct node localities therefore use the safe remote
-            # peer-borrow timeout instead of misclassifying WAN peers as local.
-            # This is operational identity, not a secret, so do not make pod
-            # startup depend on Doppler carrying it.
             - name: OUTGRESS_REGION
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-                  # Remaining lease tuning (replicas, epoch, etc.) may be supplied
-                  # by outgress-env via Doppler.
-            # Reject a quota plan that does not reflect a real multi-pod fleet.
-            # Two is the safe floor: a lone member borrows from nobody and would
-            # claim the full Twitch quota (fail open -> 429s), whereas any plan of
-            # 2+ divides the leased share so the fleet total stays <= 100%. Below
-            # this floor the coordinator defers and every pod runs on the shared,
-            # serialized emergency partition (fail closed). 2 (not 3) still forms a
-            # valid plan during a maxUnavailable:1 rollout, when only 2 pods are up.
+            # Minimum 2: a lone member would claim the full Twitch quota and draw 429s.
             - name: OUTGRESS_LEASE_MIN_MEMBERS
               value: "2"
-            # Serve HTTPS on 8080 with the cert-manager outgress-tls cert so the
-            # traefik hop to /status is TLS end-to-end (pkg/health reads the
-            # pair; both or neither, a half-set pair fails the listener).
             - name: TLS_CERT_FILE
               value: /etc/outgress/tls/tls.crt
             - name: TLS_KEY_FILE
               value: /etc/outgress/tls/tls.key
-            # mTLS client identity for both NATS planes (nats-client-tls,
-            # cert-manager). Presented on every dial; harmless until the
-            # listeners flip verify:true.
             - name: NATS_CLIENT_CERT_FILE
               value: /etc/nats-client/tls/tls.crt
             - name: NATS_CLIENT_KEY_FILE
@@ -330,16 +219,6 @@ spec:
     matchLabels:
       app: outgress
 ---
-# Scales on whichever of the three lanes backs up worst (HPA takes the max
-# recommended replicas across triggers), plus a CPU floor for load that isn't
-# lane-shaped. minReplicaCount 3 matches the old static replicas; outgress is
-# ultimately Twitch-rate-limited (quota is tracked fleet-wide in Valkey, not
-# per-pod - see docs/microservices/outgress.md), so maxReplicaCount stays
-# modest: this buys resilience and headroom under sustained backlog, not more
-# Twitch throughput. Consumer names are bus.durableName(group, subject) from
-# app/twitch/outgress/main.go's three LaneConfigs; lag = num_pending + num_ack_pending
-# on that durable (see pkg/bus/bus.go laneConsumerConfig). Tune thresholds from
-# the admin lane-telemetry view (reads $JS.hub.API.CONSUMER.INFO.> live).
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -351,8 +230,6 @@ spec:
   pollingInterval: 15
   cooldownPeriod: 300
   minReplicaCount: 3
-  # 4 per application node. Outgress is Twitch-rate-limited,
-  # so headroom here is for lag-driven burst drain, not sustained throughput.
   maxReplicaCount: 12
   fallback:
     failureThreshold: 3
@@ -375,10 +252,6 @@ spec:
         value: "75"
     - type: nats-jetstream
       metadata:
-        # ClusterIP, not the tailnet Service. See the long note in sesame.yaml:
-        # KEDA's clustered scaler follows the cluster to the leader's advertised
-        # POD IP, so a single tailnet Service does not remove the pod-network
-        # dependency.
         natsServerMonitoringEndpoint: nats.messaging.svc.cluster.local:8222
         account: BUS
         stream: TWITCH_OUTGRESS

@@ -14,9 +14,6 @@ func main() {
 	core, done := svcboot.NewCore(serviceName)
 	defer done()
 
-	// Loaded but unused: this binary is still a stub, and the load is kept so
-	// the config package stays wired for whatever finishes it. Valkey's own
-	// endpoints now come from svcboot.Infra, which reads the same two vars.
 	_ = config.Load()
 
 	valkeyClient := svcboot.MustValkey(core)

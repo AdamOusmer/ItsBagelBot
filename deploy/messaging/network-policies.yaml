@@ -1,15 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# East-west gate for the messaging namespace (red-team finding F5). app/db ship
-# default-deny policies; messaging had none, so one popped pod anywhere could
-# enumerate the fleet over NATS's UNAUTHENTICATED monitor/profiling listeners —
-# connz/jsz/subsz leak account names, consumer lag and peer IPs.
-#
-# Shape mirrors deploy/k8s/network-policies.yaml: default-deny first, then
-# explicit allows (policies union). Data-plane ports stay reachable cluster-
-# wide on purpose — every service already holds NATS credentials by design;
-# the monitor ports are what needed gating.
+# The monitor and profiling listeners are unauthenticated: this policy is their only gate.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -27,8 +19,6 @@ metadata:
   name: allow-nats-data-plane
   namespace: messaging
 spec:
-  # Clients live across the app and db namespaces; leafnodes and cluster routes
-  # stay inside messaging itself. 7422 is the websocket listener.
   podSelector:
     matchLabels:
       app: nats
@@ -57,9 +47,6 @@ metadata:
   name: allow-nats-monitor
   namespace: messaging
 spec:
-  # Monitor/profiling only from namespaces with a reason to look: the
-  # observability stack, and the tailscale ProxyGroup fronting
-  # nats-monitoring.tail451e6d.ts.net.
   podSelector:
     matchLabels:
       app: nats
@@ -72,28 +59,13 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: tailscale
-        # KEDA's nats-jetstream scaler reads /jsz through the nats Service and
-        # then follows the cluster to the consumer's leader, dialling THAT
-        # member's advertised pod IP — so it needs 8222 both via the Service
-        # and pod-to-pod, which the ipBlock below deliberately denies. Without
-        # this the scaler fails QUIET: it suppresses the error, serves the
-        # ScaledObject's static `fallback` replicas, and the HPA reads healthy.
-        #
-        # Scoped to the operator POD, not the namespace: the two selectors sit
-        # in one `from` element, so they AND together. Only keda-operator
-        # scrapes NATS — the metrics adapter asks the operator over gRPC and
-        # the admission webhook never talks to it — so nothing else in that
-        # namespace, now or later, inherits a monitor grant.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: keda
           podSelector:
             matchLabels:
               app: keda-operator
-        # WORKAROUND for cilium/cilium#43012 (v1.18.4+): kubelet health probes arrive
-        # from cilium_host misclassified as the "world" identity instead of "host".
-        # This ipBlock allows "world" (0.0.0.0/0) but excludes the cluster's pod CIDR,
-        # securely allowing kubelet probes while keeping pod-to-pod monitor access blocked.
+        # WORKAROUND cilium/cilium#43012: kubelet probes arrive as "world"; the pod CIDR stays excluded.
         - ipBlock:
             cidr: 0.0.0.0/0
             except:

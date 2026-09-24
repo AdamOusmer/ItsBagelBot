@@ -16,11 +16,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// wantFollowup pins the exact line the presser is shown. Every desk action
-// answers with one ephemeral followup and nothing else, so this three-line
-// claim was repeated once per case below; the copies are what the duplication
-// gate was reading, and a shared helper also keeps the "want" half in the
-// failure message, which half the copies had dropped.
 func wantFollowup(t *testing.T, cmds []ddiscord.Command, want string) {
 	t.Helper()
 	if got := followupText(t, cmds); got != want {
@@ -28,8 +23,6 @@ func wantFollowup(t *testing.T, cmds []ddiscord.Command, want string) {
 	}
 }
 
-// wantFollowupContains is the same claim where only a fragment can be pinned:
-// an id the fixture chose, or a count the config chose.
 func wantFollowupContains(t *testing.T, cmds []ddiscord.Command, want string) {
 	t.Helper()
 	if got := followupText(t, cmds); !strings.Contains(got, want) {
@@ -37,9 +30,6 @@ func wantFollowupContains(t *testing.T, cmds []ddiscord.Command, want string) {
 	}
 }
 
-// wantTicketRow asserts whether the live ticket index still resolves c-new in
-// g1. Open and gone are the only two states these cases care about, and the
-// lookup is long enough that it was copied verbatim four times.
 func (f *deskFixture) wantTicketRow(t *testing.T, live bool, why string) {
 	t.Helper()
 	_, ok := f.store.Ticket(context.Background(), discordstore.Guild{ID: "g1"}, discordstore.Channel{ID: "c-new"})
@@ -48,8 +38,6 @@ func (f *deskFixture) wantTicketRow(t *testing.T, live bool, why string) {
 	}
 }
 
-// addPress runs /ticket add u7 as in. Two cases below differ only by who
-// presses it, so the option tree is built once here.
 func (f *deskFixture) addPress(t *testing.T, in decode.InteractionEvent) []ddiscord.Command {
 	t.Helper()
 	sub := decode.InteractionOption{Name: "add", Options: []decode.InteractionOption{
@@ -74,12 +62,8 @@ func TestTicketOpenCreatesRecordsAndAnswers(t *testing.T) {
 	wantFollowupContains(t, cmds, "<#c-new>")
 }
 
-// A reopened ticket is numbered from the ROW id, not from how many the opener
-// currently holds. The old count-based name gave this second channel
-// "ticket-ada-1" all over again, and after archiving the guild had two
-// indistinguishable "closed-ticket-ada-1" channels.
 func TestTicketChannelNumberComesFromTheRowNotTheCount(t *testing.T) {
-	f := newDesk(t, baseConfig()) // limit 1: the first must be closed first
+	f := newDesk(t, baseConfig())
 	ctx := context.Background()
 
 	f.press(t, f.mod.open, opener("u1", "Ada"))
@@ -98,7 +82,7 @@ func TestTicketChannelNumberComesFromTheRowNotTheCount(t *testing.T) {
 	}
 }
 func TestTicketOpenRefusesAtTheLimitWithoutTouchingDiscord(t *testing.T) {
-	f := newDesk(t, baseConfig()) // default limit is 1
+	f := newDesk(t, baseConfig())
 	f.press(t, f.mod.open, opener("u1", "Ada"))
 
 	cmds := f.press(t, f.mod.open, opener("u1", "Ada"))
@@ -112,8 +96,6 @@ func TestTicketOpenRollsTheChannelBackWhenTheRowLoses(t *testing.T) {
 	cfg := baseConfig()
 	cfg.TicketOpenLimit = "2"
 	f := newDesk(t, cfg)
-	// Two rows already exist for this opener, so the pre-check passes only
-	// because it ran before them: this is the racing-presses backstop.
 	ctx := context.Background()
 	_, _ = f.store.TrackTicket(ctx, discordstore.TicketOpen{GuildID: "g1", ChannelID: "old1", OpenerID: "u1"})
 	_, _ = f.store.TrackTicket(ctx, discordstore.TicketOpen{GuildID: "g1", ChannelID: "old2", OpenerID: "u1"})
@@ -179,7 +161,6 @@ func TestTicketClaimRecordsAndEditsTheCardOnce(t *testing.T) {
 		t.Fatalf("stored claim = %+v", stored)
 	}
 
-	// A second claim is refused rather than silently moving the ticket over.
 	cmds = f.press(t, f.mod.claim, inTicket("mod2", []string{"helper"}))
 	wantFollowupContains(t, cmds, "already claimed by <@mod1>")
 	if len(f.tickets.claimed) != 1 {
@@ -271,8 +252,6 @@ func wantCloseRequest(t *testing.T, req discordoutgress.TicketCloseRequest, tran
 	}
 }
 
-// wantTranscriptStored pins that a transcript exists exactly when the close
-// asked for one, and that what was stored is the rendered body.
 func (f *deskFixture) wantTranscriptStored(t *testing.T, ticketID int, want bool) {
 	t.Helper()
 	stored, ok := f.store.Transcript(ticketID)
@@ -318,8 +297,6 @@ func TestTicketAddRefusesAStranger(t *testing.T) {
 	wantFollowup(t, cmds, "Only the opener or ticket staff can add someone.")
 }
 
-// rpcFailed treats a transport error and an error string in the reply the
-// same way; the desk relies on that, so it is pinned here.
 func TestRPCFailedCoversBothShapes(t *testing.T) {
 	if !rpcFailed(errors.New("boom"), "") {
 		t.Fatal("a transport error must count as a failure")
@@ -332,12 +309,6 @@ func TestRPCFailedCoversBothShapes(t *testing.T) {
 	}
 }
 
-// The ticket keyspace is keyed on the channel id alone, so an unscoped row
-// written for one guild answers a lookup made from any other. Without the
-// guild scope a member of guild B could claim, close or add people to guild
-// A's private support channel. The scope lives in the Store call now, so the
-// other guild's row simply does not resolve and the desk answers the same way
-// it does for any non-ticket channel.
 func TestTicketActionsRefuseAnotherGuildsTicket(t *testing.T) {
 	const refusal = "This is not a ticket."
 	cases := []struct {
@@ -364,7 +335,7 @@ func TestTicketActionsRefuseAnotherGuildsTicket(t *testing.T) {
 				Status: discordstore.TicketStatusOpen,
 			})
 
-			in := inTicket("u1", []string{"helper"}) // opener AND staff: only the guild refuses
+			in := inTicket("u1", []string{"helper"})
 			cmds := tc.run(f, in)
 
 			wantFollowup(t, cmds, refusal)
@@ -375,10 +346,6 @@ func TestTicketActionsRefuseAnotherGuildsTicket(t *testing.T) {
 	}
 }
 
-// The close button stays pressable on a ticket that is already done: the row
-// survives the close and an archived channel keeps its buttons. Running the
-// sequence again would re-page a channel that may not exist and post a second
-// summary.
 func TestTicketCloseRefusesAnAlreadyClosedTicket(t *testing.T) {
 	for _, status := range []string{discordstore.TicketStatusClosed, discordstore.TicketStatusArchived} {
 		t.Run(status, func(t *testing.T) {
@@ -397,9 +364,6 @@ func TestTicketCloseRefusesAnAlreadyClosedTicket(t *testing.T) {
 	}
 }
 
-// A close Discord performed but the row never took is retried on the next
-// interaction that touches the channel. Without it the row says "open"
-// forever and the opener's count never comes back down.
 func TestTicketPendingCloseIsRetriedOnTheNextInteraction(t *testing.T) {
 	f := newDesk(t, baseConfig())
 	ctx := context.Background()
@@ -422,8 +386,6 @@ func TestTicketPendingCloseIsRetriedOnTheNextInteraction(t *testing.T) {
 	}
 }
 
-// The pure-Valkey fallback cannot number, cap or transcribe a ticket, so the
-// desk refuses rather than handing out a channel it can never manage.
 func TestTicketOpenRefusesWithoutADurableStore(t *testing.T) {
 	f := newDesk(t, baseConfig())
 	f.mod.store = fallbackStore{Store: f.store}

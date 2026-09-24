@@ -3,13 +3,6 @@
 
 package spotifyrpc
 
-// Requested and Failed let every verb on these subjects ride bus.ServeForUser.
-// They replace a pair of package-local helpers (spotifyMutate / spotifyRead)
-// that reimplemented the same guard with an envelope-constructor callback
-// instead, because a generic cannot fill in a field it does not know about --
-// which is exactly what the Failing interface solves. Structural, so this
-// package still imports nothing.
-
 func (r RefreshTokenSetRequest) Requested() string    { return r.UserID }
 func (r RefreshTokenClearRequest) Requested() string  { return r.UserID }
 func (r RefreshTokenStatusRequest) Requested() string { return r.UserID }

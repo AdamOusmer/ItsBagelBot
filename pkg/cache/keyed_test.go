@@ -14,16 +14,8 @@ import (
 
 func uintKey(id uint64) string { return strconv.FormatUint(id, 10) }
 
-// TestKeyedHitSavesStringAlloc is the reason Keyed exists: keying by the uint64
-// directly avoids the per-read string-key allocation that a string-keyed cache
-// forces on the caller. The live-check hot path (every live-only command gate and
-// every bagel check) is a hit, so this allocation matters. The uint64 hit stays
-// at theine's read-tracking floor (<=1 alloc) and strictly beats building the
-// "live:<id>" key for a Cache[string] read.
 func TestKeyedHitSavesStringAlloc(t *testing.T) {
 	ctx := context.Background()
-	// A large id forces strconv to actually allocate the key string (small ints
-	// come from strconv's cached-string table and would hide the saving).
 	const id uint64 = 123456789
 
 	keyed := NewKeyed[uint64, bool](DefaultCapacity, time.Minute, uintKey)
@@ -42,8 +34,6 @@ func TestKeyedHitSavesStringAlloc(t *testing.T) {
 	uintAllocs := testing.AllocsPerRun(1000, func() {
 		_, _ = keyed.GetOrLoad(ctx, id, loader)
 	})
-	// The string-keyed caller must rebuild the key each read (what the worker did
-	// before): that is the allocation we eliminate.
 	stringAllocs := testing.AllocsPerRun(1000, func() {
 		_, _ = stringKeyed.GetOrLoad(ctx, uintKey(id), loader)
 	})
@@ -56,8 +46,6 @@ func TestKeyedHitSavesStringAlloc(t *testing.T) {
 	}
 }
 
-// TestKeyedSingleflightCollapsesMisses asserts concurrent misses on one key run
-// the loader once.
 func TestKeyedSingleflightCollapsesMisses(t *testing.T) {
 	c := NewKeyed[uint64, bool](DefaultCapacity, time.Minute, uintKey)
 	defer c.Close()
@@ -66,7 +54,7 @@ func TestKeyedSingleflightCollapsesMisses(t *testing.T) {
 	release := make(chan struct{})
 	loader := func(context.Context) (bool, error) {
 		calls.Add(1)
-		<-release // hold the flight open so the others pile onto it
+		<-release
 		return true, nil
 	}
 
@@ -79,7 +67,7 @@ func TestKeyedSingleflightCollapsesMisses(t *testing.T) {
 			_, _ = c.GetOrLoad(context.Background(), 7, loader)
 		}()
 	}
-	time.Sleep(20 * time.Millisecond) // let the goroutines queue on the flight
+	time.Sleep(20 * time.Millisecond)
 	close(release)
 	wg.Wait()
 
@@ -88,9 +76,6 @@ func TestKeyedSingleflightCollapsesMisses(t *testing.T) {
 	}
 }
 
-// TestKeyedInvalidateReloads asserts Invalidate drops the entry so the next read
-// re-runs the loader: the live store relies on this when a stream.offline event
-// arrives.
 func TestKeyedInvalidateReloads(t *testing.T) {
 	c := NewKeyed[uint64, bool](DefaultCapacity, time.Minute, uintKey)
 	defer c.Close()
@@ -104,7 +89,6 @@ func TestKeyedInvalidateReloads(t *testing.T) {
 		t.Fatal("first load should be true")
 	}
 
-	// Underlying state flips; without invalidation the cache would still say true.
 	val.Store(false)
 	if got, _ := c.GetOrLoad(ctx, 1, loader); !got {
 		t.Fatal("cached value should still be true before invalidation")

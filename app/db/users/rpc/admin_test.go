@@ -31,8 +31,6 @@ func setupAdminRPCTest(t *testing.T) (*adminRPC, *ent.Client) {
 
 	client := testdb.Open(t, "adminrpc", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
 
-	// packer and pub are nil because the list/search tests do not exercise
-	// write or token paths that would call them.
 	repo := repository.NewUsers(client, nil, nil, nil, zap.NewNop())
 	t.Cleanup(func() { repo.Close(context.Background()) })
 
@@ -104,7 +102,6 @@ func TestAdminEnrollmentBucketsPerDay(t *testing.T) {
 	ctx := context.Background()
 
 	fixtureDay := time.Now().UTC().Truncate(24 * time.Hour)
-	// Two signups today, one yesterday, one outside the 7-day window.
 	stamps := []time.Time{
 		fixtureDay,
 		fixtureDay.Add(time.Second),
@@ -139,9 +136,7 @@ func TestAdminEnrollmentBucketsPerDay(t *testing.T) {
 	require.Contains(t, countsByDate, emptyDate)
 	assert.Equal(t, 2, countsByDate[fixtureDate])
 	assert.Equal(t, 1, countsByDate[yesterdayDate])
-	// Window days without signups are present and zero-filled.
 	assert.Equal(t, 0, countsByDate[emptyDate])
-	// Totals cover the whole base, including rows outside the window.
 	assert.Equal(t, 4, reply.Enrollment.Stats.TotalUsers)
 }
 
@@ -174,8 +169,8 @@ func TestAdminUserListFiltersByState(t *testing.T) {
 		{6001, user.StatusVip, true, false},
 		{6002, user.StatusPaid, true, false},
 		{6003, user.StatusFree, true, false},
-		{6004, user.StatusVip, false, false}, // inactive beats tier
-		{6005, user.StatusPaid, false, true}, // banned beats everything
+		{6004, user.StatusVip, false, false},
+		{6005, user.StatusPaid, false, true},
 	}
 	for i, s := range seed {
 		client.User.Create().
@@ -206,16 +201,11 @@ func TestAdminUserListFiltersByState(t *testing.T) {
 		assert.Equal(t, want, ids, state)
 	}
 
-	// Unknown state applies no filter.
 	all := a.list(ctx, usersrpc.AdminRequest{Page: 1, Limit: adminUserPageSize, State: "nope"})
 	require.Empty(t, all.Error)
 	assert.Len(t, all.Users, len(seed))
 }
 
-// ── Role ladder ─────────────────────────────────────────────────────────────
-
-// staffedAdminRPC is the admin surface wired to a real staff table, which the
-// role tests need and the list/search tests do not.
 func staffedAdminRPC(t *testing.T) (*adminRPC, *ent.Client) {
 	t.Helper()
 	a, client := setupAdminRPCTest(t)
@@ -231,8 +221,6 @@ const (
 	absentTarget = "999999"
 )
 
-// handlerFor returns the guarded handler bound to one verb name, i.e. exactly
-// what SubscribeAdmin binds to the subject, guard included.
 func handlerFor(t *testing.T, a *adminRPC, verb string) func(context.Context, usersrpc.AdminRequest) usersrpc.AdminReply {
 	t.Helper()
 	for _, v := range a.verbs() {
@@ -244,12 +232,6 @@ func handlerFor(t *testing.T, a *adminRPC, verb string) func(context.Context, us
 	return nil
 }
 
-// TestAdminVerbRoleLadder drives every guarded verb through the ladder.
-//
-// The allowed cases address a user id that does not exist, so the assertion is
-// "the guard let this through" (not_found from the handler) rather than
-// "the write succeeded": the write paths publish over a nil bus in this
-// harness, and what is under test here is authorization, not persistence.
 func TestAdminVerbRoleLadder(t *testing.T) {
 	a, client := staffedAdminRPC(t)
 	createStaff(t, client, staffFixture{id: modActor, role: adminuser.RoleModerator, active: true})
@@ -293,9 +275,6 @@ func TestAdminVerbRoleLadder(t *testing.T) {
 	}
 }
 
-// TestAdminVerbsCoverEverySubject pins the registry: a verb added without a
-// role row cannot exist (the struct requires one), and this asserts the set of
-// subjects the console depends on is still bound.
 func TestAdminVerbsCoverEverySubject(t *testing.T) {
 	a, _ := staffedAdminRPC(t)
 	got := make(map[string]adminuser.Role, len(a.verbs()))
@@ -322,12 +301,6 @@ func TestAdminVerbsCoverEverySubject(t *testing.T) {
 	}, got)
 }
 
-// TestInternalGetAnswersWithoutActor pins the pair SubscribeAdmin binds: the
-// `get` verb refuses a caller that names no operator, and the same handler on
-// bagel.rpc.internal.users.get answers it. The service callers (transactions'
-// gift recipient vetting, notifications' target resolution) send no actor_id
-// at all, so a regression that gated the internal subject would break them
-// silently -- the broker would return the refusal, not an error.
 func TestInternalGetAnswersWithoutActor(t *testing.T) {
 	a, _ := staffedAdminRPC(t)
 	req := usersrpc.AdminRequest{UserID: absentTarget}
@@ -335,9 +308,6 @@ func TestInternalGetAnswersWithoutActor(t *testing.T) {
 	guarded := handlerFor(t, a, "get")(context.Background(), req)
 	assert.Equal(t, domainrpc.CodeForbidden, guarded.Code)
 
-	// a.get is what SubscribeAdmin binds to the internal subject, unwrapped by
-	// guarded(): no role is consulted, so the reply is the store's answer for
-	// a user that does not exist rather than a refusal to ask.
 	internal := a.get(context.Background(), req)
 	assert.NotEqual(t, domainrpc.CodeForbidden, internal.Code)
 	assert.Equal(t, domainrpc.CodeNotFound, internal.Code)

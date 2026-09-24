@@ -1,12 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The guild shell's identity strip: which server you are in, whether its bot
-  // is up, and how to get to another one without going back to the list.
-  //
-  // It lives in the layout rather than on each page because it is the answer to
-  // "where am I", and a page that renders it itself is a page that can render a
-  // different answer.
   import { goto } from '$app/navigation';
   import {
     ButtonLink,
@@ -43,9 +37,6 @@
   const guildName = $derived(name || t('discord.unknownServer'));
   const members = $derived(memberCount > 0 ? memberCount.toLocaleString() : '');
 
-  // now stays 0 until the browser sets it, so the server and the first client
-  // render agree: an uptime rendered during SSR is stale by the time it lands
-  // and hydration screams about the mismatch.
   let now = $state(0);
   $effect(() => {
     now = Date.now();
@@ -62,13 +53,6 @@
     return parts ? t(SINCE_KEYS[parts.unit], { n: String(parts.n) }) : '';
   });
 
-  /**
-   * Switcher labels, made unique.
-   *
-   * Discord happily lets one person own two servers with the same name, and
-   * SegmentedControl keys its options by their string. Without the suffix the
-   * second one would be unclickable and the first would look selected for both.
-   */
   function uniqueLabels(names: string[]): string[] {
     const seen = new Map<string, number>();
     return names.map((raw) => {
@@ -82,9 +66,6 @@
   const switchLabels = $derived(uniqueLabels(guilds.map((g) => g.name)));
   const switchIndex = $derived(guilds.findIndex((g) => g.guildId === guildId));
   const switchValue = $derived(switchLabels[switchIndex] ?? switchLabels[0] ?? '');
-  // Segmented up to three, a select past that: four pills already wrap the
-  // strip on a laptop, and the hub is the right surface for browsing more than
-  // a handful.
   const SEGMENTED_MAX = 3;
 
   function switchTo(next: string) {
@@ -125,10 +106,6 @@
       />
     {:else if guilds.length > SEGMENTED_MAX}
       <label class="bb-sr-only" for="dc-switcher">{t('discord.switcherLabel')}</label>
-      <!-- The `Select` block. This was a bare <select> with its own frame,
-           its own 6px radius and an `option { color: #1a1814 }` rule for the
-           native dropdown; the contract (@bagel/ui/styles/elements/input.css)
-           owns all three, chevron included. -->
       <Select id="dc-switcher" class="guild-select" value={guildId} onchange={(e: Event) => switchTo((e.currentTarget as HTMLSelectElement).value)}>
         {#each guilds as g, i (g.guildId)}
           <option value={g.guildId}>{switchLabels[i]}</option>
@@ -153,8 +130,6 @@
     min-width: 0;
     flex: 1;
   }
-  /* The page's one h1: the guild IS the page here, so the shell owns the
-     heading and no sub-page renders a second one. */
   .name {
     margin: 0;
     font-family: var(--bb-font-display);
@@ -184,8 +159,5 @@
     flex-wrap: wrap;
     min-width: 0;
   }
-  /* `--input-w` is `.bb-input`'s own width knob (elements/field.css). The
-     switcher shrinks with the viewport because it shares a wrapping row with
-     the "all servers" link and a long guild name. */
   .switcher { --input-w: min(220px, 60vw); }
 </style>

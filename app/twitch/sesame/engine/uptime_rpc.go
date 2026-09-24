@@ -21,9 +21,6 @@ const (
 	uptimePositiveTTL = time.Minute
 	uptimeOfflineTTL  = 30 * time.Second
 
-	// uptimeCacheCapacity ceilings the uptime cache. It is keyed per
-	// broadcaster only -- one entry per enrolled channel, not per viewer --
-	// so a small ceiling covers the fleet many times over.
 	uptimeCacheCapacity int64 = 1024
 )
 
@@ -36,9 +33,6 @@ type UptimeLookup interface {
 	Lookup(ctx context.Context, broadcasterID string) (UptimeResult, error)
 }
 
-// UptimeRPC is Sesame's cached stream-uptime reader. Outgress supplies only the
-// authenticated Twitch read; command freshness, singleflight and cache policy
-// live here with the command runtime.
 type UptimeRPC struct {
 	cache   *cache.Cache[UptimeResult]
 	request func(context.Context, outgressrpc.UptimeRequest) (outgressrpc.UptimeReply, error)

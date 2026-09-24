@@ -10,9 +10,7 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"ItsBagelBot/app/db/loyalty/ent"
-	// Wire the ent schema runtime (field defaults like updated_at, and the name
-	// normalization hook). Without this blank import the generated descriptors
-	// stay uninitialized and every write fails: "forgotten import ent/runtime?".
+	// Without the ent runtime import every write fails.
 	_ "ItsBagelBot/app/db/loyalty/ent/runtime"
 	"ItsBagelBot/app/db/loyalty/repository"
 	"ItsBagelBot/app/db/loyalty/rpc"
@@ -33,9 +31,7 @@ const (
 	queueGroup  = "loyalty-rpc"
 )
 
-// registerConsumers wires the event subscriptions onto repo. Everything here
-// is delta folding or cleanup that must happen exactly once per event, so all
-// subjects ride the grouped (queue) subscriber.
+// Grouped subscriber only: every event must be folded exactly once.
 func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Loyalty, grouped bus.Subscriber, log *zap.Logger) error {
 	subs := []struct {
 		name    string
@@ -54,8 +50,6 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 	return nil
 }
 
-// recordEarned folds a worker earned event into the repo's accumulator. A
-// malformed payload is dropped (nil), not retried.
 func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
@@ -69,7 +63,6 @@ func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) 
 	}
 }
 
-// recordBumps folds a worker counter event into the repo's accumulator.
 func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
@@ -83,9 +76,6 @@ func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) e
 	}
 }
 
-// deleteAllForUser removes every loyalty row of a deleted account. The
-// payload guards and the log line are shared with the other data services;
-// only the sweep is this service's own.
 func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
 	return consumers.OnUserDeleted(serviceName, log, repo.DeleteAllForUser)
 }
@@ -102,11 +92,8 @@ func main() {
 	databoot.AutoMigrate(core.Ctx, log, func(ctx context.Context) error { return client.Schema.Create(ctx) })
 
 	repo := repository.NewLoyalty(client, driver, core.NR, log)
-	defer repo.Close(context.Background()) // flushes pending deltas on shutdown
+	defer repo.Close(context.Background())
 
-	// Only the RPC connection and the durable group, not the full MustNATS set:
-	// loyalty publishes nothing and needs no broadcast subscriber -- every
-	// subject it reads is a delta that exactly one instance must fold.
 	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 	defer nc.Close()
 
@@ -122,10 +109,7 @@ func main() {
 		Repo:      repo,
 	}, loyaltyPrefix),
 		"failed to subscribe loyalty rpc")
-	// The lane check covers the durable group folding data.loyalty.earned,
-	// data.loyalty.counters and data.users.deleted. Its verdict is hard, not
-	// degrading: a consumer that stays bound while failing to fetch stops points
-	// accruing entirely, with NATS and MySQL both still reading green.
+	// The lane check must stay hard: a wedged consumer stops points accruing while health reads green.
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{
 			Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,

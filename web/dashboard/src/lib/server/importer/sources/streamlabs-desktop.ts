@@ -1,17 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// StreamLabs Chatbot: the export is a SQLite Chatbot.db, so it uploads whole
-// and is decoded here (sql.js, lazily imported by the parser). Console CSP
-// forbids WASM, which is what rules out the browser-side parse Moobot gets.
 import { parseStreamLabsDesktop } from '@bagel/kit/importer/streamlabs-desktop';
 import { CODE } from '@bagel/kit/importer/validate';
 import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';
 import { fileSourceInput, type ServerSourceStrategy } from '../strategy';
 
-// Server-side backstop on uploaded files (was the RPC handler's gate). The
-// form action refuses >20MB before encoding; this holds for any future caller
-// of this module and bounds what the SQLite parser ever materializes.
 const MAX_DECODED_FILE_BYTES = 25 << 20;
 
 async function streamlabsDesktopLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
