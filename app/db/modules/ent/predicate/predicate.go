@@ -12,6 +12,9 @@ type ChannelFeedCounter func(*sql.Selector)
 // FeedCounter is the predicate function for feedcounter builders.
 type FeedCounter func(*sql.Selector)
 
+// FeedReceipt is the predicate function for feedreceipt builders.
+type FeedReceipt func(*sql.Selector)
+
 // GoveeCredential is the predicate function for goveecredential builders.
 type GoveeCredential func(*sql.Selector)
 

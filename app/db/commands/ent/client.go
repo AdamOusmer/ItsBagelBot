@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/db/commands/ent/migrate"
 
 	"ItsBagelBot/app/db/commands/ent/commands"
+	"ItsBagelBot/app/db/commands/ent/commandusebatch"
 	"ItsBagelBot/app/db/commands/ent/fetchdefinition"
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
 	"ItsBagelBot/app/db/commands/ent/migrations"
@@ -26,6 +27,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// CommandUseBatch is the client for interacting with the CommandUseBatch builders.
+	CommandUseBatch *CommandUseBatchClient
 	// Commands is the client for interacting with the Commands builders.
 	Commands *CommandsClient
 	// FetchDefinition is the client for interacting with the FetchDefinition builders.
@@ -45,6 +48,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.CommandUseBatch = NewCommandUseBatchClient(c.config)
 	c.Commands = NewCommandsClient(c.config)
 	c.FetchDefinition = NewFetchDefinitionClient(c.config)
 	c.FetchKey = NewFetchKeyClient(c.config)
@@ -141,6 +145,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:             ctx,
 		config:          cfg,
+		CommandUseBatch: NewCommandUseBatchClient(cfg),
 		Commands:        NewCommandsClient(cfg),
 		FetchDefinition: NewFetchDefinitionClient(cfg),
 		FetchKey:        NewFetchKeyClient(cfg),
@@ -164,6 +169,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:             ctx,
 		config:          cfg,
+		CommandUseBatch: NewCommandUseBatchClient(cfg),
 		Commands:        NewCommandsClient(cfg),
 		FetchDefinition: NewFetchDefinitionClient(cfg),
 		FetchKey:        NewFetchKeyClient(cfg),
@@ -174,7 +180,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Commands.
+//		CommandUseBatch.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -196,6 +202,7 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.CommandUseBatch.Use(hooks...)
 	c.Commands.Use(hooks...)
 	c.FetchDefinition.Use(hooks...)
 	c.FetchKey.Use(hooks...)
@@ -205,6 +212,7 @@ func (c *Client) Use(hooks ...Hook) {
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.CommandUseBatch.Intercept(interceptors...)
 	c.Commands.Intercept(interceptors...)
 	c.FetchDefinition.Intercept(interceptors...)
 	c.FetchKey.Intercept(interceptors...)
@@ -214,6 +222,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *CommandUseBatchMutation:
+		return c.CommandUseBatch.mutate(ctx, m)
 	case *CommandsMutation:
 		return c.Commands.mutate(ctx, m)
 	case *FetchDefinitionMutation:
@@ -224,6 +234,139 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Migrations.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// CommandUseBatchClient is a client for the CommandUseBatch schema.
+type CommandUseBatchClient struct {
+	config
+}
+
+// NewCommandUseBatchClient returns a client for the CommandUseBatch from the given config.
+func NewCommandUseBatchClient(c config) *CommandUseBatchClient {
+	return &CommandUseBatchClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `commandusebatch.Hooks(f(g(h())))`.
+func (c *CommandUseBatchClient) Use(hooks ...Hook) {
+	c.hooks.CommandUseBatch = append(c.hooks.CommandUseBatch, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `commandusebatch.Intercept(f(g(h())))`.
+func (c *CommandUseBatchClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CommandUseBatch = append(c.inters.CommandUseBatch, interceptors...)
+}
+
+// Create returns a builder for creating a CommandUseBatch entity.
+func (c *CommandUseBatchClient) Create() *CommandUseBatchCreate {
+	mutation := newCommandUseBatchMutation(c.config, OpCreate)
+	return &CommandUseBatchCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CommandUseBatch entities.
+func (c *CommandUseBatchClient) CreateBulk(builders ...*CommandUseBatchCreate) *CommandUseBatchCreateBulk {
+	return &CommandUseBatchCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CommandUseBatchClient) MapCreateBulk(slice any, setFunc func(*CommandUseBatchCreate, int)) *CommandUseBatchCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CommandUseBatchCreateBulk{err: fmt.Errorf("calling to CommandUseBatchClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CommandUseBatchCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CommandUseBatchCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CommandUseBatch.
+func (c *CommandUseBatchClient) Update() *CommandUseBatchUpdate {
+	mutation := newCommandUseBatchMutation(c.config, OpUpdate)
+	return &CommandUseBatchUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CommandUseBatchClient) UpdateOne(_m *CommandUseBatch) *CommandUseBatchUpdateOne {
+	mutation := newCommandUseBatchMutation(c.config, OpUpdateOne, withCommandUseBatch(_m))
+	return &CommandUseBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CommandUseBatchClient) UpdateOneID(id string) *CommandUseBatchUpdateOne {
+	mutation := newCommandUseBatchMutation(c.config, OpUpdateOne, withCommandUseBatchID(id))
+	return &CommandUseBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CommandUseBatch.
+func (c *CommandUseBatchClient) Delete() *CommandUseBatchDelete {
+	mutation := newCommandUseBatchMutation(c.config, OpDelete)
+	return &CommandUseBatchDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CommandUseBatchClient) DeleteOne(_m *CommandUseBatch) *CommandUseBatchDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CommandUseBatchClient) DeleteOneID(id string) *CommandUseBatchDeleteOne {
+	builder := c.Delete().Where(commandusebatch.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CommandUseBatchDeleteOne{builder}
+}
+
+// Query returns a query builder for CommandUseBatch.
+func (c *CommandUseBatchClient) Query() *CommandUseBatchQuery {
+	return &CommandUseBatchQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCommandUseBatch},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CommandUseBatch entity by its id.
+func (c *CommandUseBatchClient) Get(ctx context.Context, id string) (*CommandUseBatch, error) {
+	return c.Query().Where(commandusebatch.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CommandUseBatchClient) GetX(ctx context.Context, id string) *CommandUseBatch {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CommandUseBatchClient) Hooks() []Hook {
+	return c.hooks.CommandUseBatch
+}
+
+// Interceptors returns the client interceptors.
+func (c *CommandUseBatchClient) Interceptors() []Interceptor {
+	return c.inters.CommandUseBatch
+}
+
+func (c *CommandUseBatchClient) mutate(ctx context.Context, m *CommandUseBatchMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CommandUseBatchCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CommandUseBatchUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CommandUseBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CommandUseBatchDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CommandUseBatch mutation op: %q", m.Op())
 	}
 }
 
@@ -764,9 +907,10 @@ func (c *MigrationsClient) mutate(ctx context.Context, m *MigrationsMutation) (V
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Commands, FetchDefinition, FetchKey, Migrations []ent.Hook
+		CommandUseBatch, Commands, FetchDefinition, FetchKey, Migrations []ent.Hook
 	}
 	inters struct {
-		Commands, FetchDefinition, FetchKey, Migrations []ent.Interceptor
+		CommandUseBatch, Commands, FetchDefinition, FetchKey,
+		Migrations []ent.Interceptor
 	}
 )

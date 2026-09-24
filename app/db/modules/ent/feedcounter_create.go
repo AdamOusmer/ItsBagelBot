@@ -22,13 +22,13 @@ type FeedCounterCreate struct {
 }
 
 // SetCount sets the "count" field.
-func (_c *FeedCounterCreate) SetCount(v uint64) *FeedCounterCreate {
+func (_c *FeedCounterCreate) SetCount(v int64) *FeedCounterCreate {
 	_c.mutation.SetCount(v)
 	return _c
 }
 
 // SetNillableCount sets the "count" field if the given value is not nil.
-func (_c *FeedCounterCreate) SetNillableCount(v *uint64) *FeedCounterCreate {
+func (_c *FeedCounterCreate) SetNillableCount(v *int64) *FeedCounterCreate {
 	if v != nil {
 		_c.SetCount(*v)
 	}
@@ -87,6 +87,11 @@ func (_c *FeedCounterCreate) check() error {
 	if _, ok := _c.mutation.Count(); !ok {
 		return &ValidationError{Name: "count", err: errors.New(`ent: missing required field "FeedCounter.count"`)}
 	}
+	if v, ok := _c.mutation.Count(); ok {
+		if err := feedcounter.CountValidator(v); err != nil {
+			return &ValidationError{Name: "count", err: fmt.Errorf(`ent: validator failed for field "FeedCounter.count": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -121,7 +126,7 @@ func (_c *FeedCounterCreate) createSpec() (*FeedCounter, *sqlgraph.CreateSpec) {
 		_spec.ID.Value = id
 	}
 	if value, ok := _c.mutation.Count(); ok {
-		_spec.SetField(feedcounter.FieldCount, field.TypeUint64, value)
+		_spec.SetField(feedcounter.FieldCount, field.TypeInt64, value)
 		_node.Count = value
 	}
 	return _node, _spec
@@ -177,7 +182,7 @@ type (
 )
 
 // SetCount sets the "count" field.
-func (u *FeedCounterUpsert) SetCount(v uint64) *FeedCounterUpsert {
+func (u *FeedCounterUpsert) SetCount(v int64) *FeedCounterUpsert {
 	u.Set(feedcounter.FieldCount, v)
 	return u
 }
@@ -189,7 +194,7 @@ func (u *FeedCounterUpsert) UpdateCount() *FeedCounterUpsert {
 }
 
 // AddCount adds v to the "count" field.
-func (u *FeedCounterUpsert) AddCount(v uint64) *FeedCounterUpsert {
+func (u *FeedCounterUpsert) AddCount(v int64) *FeedCounterUpsert {
 	u.Add(feedcounter.FieldCount, v)
 	return u
 }
@@ -243,14 +248,14 @@ func (u *FeedCounterUpsertOne) Update(set func(*FeedCounterUpsert)) *FeedCounter
 }
 
 // SetCount sets the "count" field.
-func (u *FeedCounterUpsertOne) SetCount(v uint64) *FeedCounterUpsertOne {
+func (u *FeedCounterUpsertOne) SetCount(v int64) *FeedCounterUpsertOne {
 	return u.Update(func(s *FeedCounterUpsert) {
 		s.SetCount(v)
 	})
 }
 
 // AddCount adds v to the "count" field.
-func (u *FeedCounterUpsertOne) AddCount(v uint64) *FeedCounterUpsertOne {
+func (u *FeedCounterUpsertOne) AddCount(v int64) *FeedCounterUpsertOne {
 	return u.Update(func(s *FeedCounterUpsert) {
 		s.AddCount(v)
 	})
@@ -478,14 +483,14 @@ func (u *FeedCounterUpsertBulk) Update(set func(*FeedCounterUpsert)) *FeedCounte
 }
 
 // SetCount sets the "count" field.
-func (u *FeedCounterUpsertBulk) SetCount(v uint64) *FeedCounterUpsertBulk {
+func (u *FeedCounterUpsertBulk) SetCount(v int64) *FeedCounterUpsertBulk {
 	return u.Update(func(s *FeedCounterUpsert) {
 		s.SetCount(v)
 	})
 }
 
 // AddCount adds v to the "count" field.
-func (u *FeedCounterUpsertBulk) AddCount(v uint64) *FeedCounterUpsertBulk {
+func (u *FeedCounterUpsertBulk) AddCount(v int64) *FeedCounterUpsertBulk {
 	return u.Update(func(s *FeedCounterUpsert) {
 		s.AddCount(v)
 	})

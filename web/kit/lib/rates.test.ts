@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import { RATE_AVG_SECONDS, RATE_NOW_SECONDS, perSecond, rateWindow, rateWindows, type RateSample as Sample } from './rates';
+import { RATE_AVG_SECONDS, RATE_NOW_SECONDS, exactRateWindow, perSecond, rateWindow, rateWindows, type RateSample as Sample } from './rates';
 
 const TICK_MS = 2000;
 
@@ -65,6 +65,14 @@ describe('rateWindow', () => {
 });
 
 describe('shared rate windows', () => {
+  test('exact rate samples retain increments above the JavaScript safe integer', () => {
+    const next = exactRateWindow(60_000);
+    next({ messages: 9223372036854775700n, events: 9223372036854775700n, at: 0 });
+    const rate = next({ messages: 9223372036854775800n, events: 9223372036854775800n, at: 2000 });
+    expect(rate.msg).toBe(50);
+    expect(rate.event).toBe(50);
+  });
+
   test('now and avg use the windows ingress uses', () => {
     expect(RATE_NOW_SECONDS).toBe(10);
     expect(RATE_AVG_SECONDS).toBe(60);

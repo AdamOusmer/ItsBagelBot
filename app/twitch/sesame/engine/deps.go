@@ -73,38 +73,38 @@ type Deps struct {
 }
 
 type FeedCounts struct {
-	Today uint64
-	Total uint64
+	Today int64
+	Total int64
 }
 
 type FeedBoardEntry struct {
 	BroadcasterID uint64
 	Name          string
-	Count         uint64
+	Count         int64
 }
 
 type FeedBoard struct {
 	Entries []FeedBoardEntry
 	Ranked  uint64
-	Channel uint64
+	Channel int64
 	Rank    uint64
 }
 
 type PersonalityStore interface {
 	FactCursor(ctx context.Context, broadcasterID uint64) (int64, error)
-	Feed(ctx context.Context, broadcasterID uint64, name string) (FeedCounts, error)
+	Feed(ctx context.Context, broadcasterID uint64, name, eventID string) (FeedCounts, error)
 	FeedBoard(ctx context.Context, broadcasterID uint64, limit int) (FeedBoard, error)
 	Mood(ctx context.Context, broadcasterID uint64, candidate string) (string, error)
 }
 
 type FeedTotals struct {
-	Total   uint64
-	Channel uint64
+	Total   int64
+	Channel int64
 	Rank    uint64
 }
 
 type FeedTotalPersister interface {
-	FeedBump(ctx context.Context, broadcasterID uint64, name string) (FeedTotals, error)
+	FeedBump(ctx context.Context, broadcasterID uint64, name, eventID string) (FeedTotals, error)
 	FeedBoard(ctx context.Context, broadcasterID uint64, limit int) (FeedBoard, error)
 }
 

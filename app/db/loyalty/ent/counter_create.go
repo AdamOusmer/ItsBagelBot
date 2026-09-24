@@ -171,6 +171,11 @@ func (_c *CounterCreate) check() error {
 	if _, ok := _c.mutation.Value(); !ok {
 		return &ValidationError{Name: "value", err: errors.New(`ent: missing required field "Counter.value"`)}
 	}
+	if v, ok := _c.mutation.Value(); ok {
+		if err := counter.ValueValidator(v); err != nil {
+			return &ValidationError{Name: "value", err: fmt.Errorf(`ent: validator failed for field "Counter.value": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Counter.created_at"`)}
 	}

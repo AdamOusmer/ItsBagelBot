@@ -5,6 +5,7 @@ import { masterClient } from '@bagel/kit/server/valkey-master';
 import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
 import { liveTotals } from './live-counters';
 import { degradedStreamCounters, type StreamCounters } from '$lib/overview-live';
+import { parseCounterValue } from '@bagel/kit/validation';
 
 const SETTINGS_PREFIX = 'settings:';
 
@@ -23,12 +24,12 @@ const breaker = new CircuitBreaker({ name: 'valkey-stream-counters', failureThre
 
 interface Baseline {
   known: boolean;
-  messages: number;
-  answered: number;
-  modActions: number;
+  messages: string;
+  answered: string;
+  modActions: string;
 }
 
-const MISS_BASELINE: Baseline = { known: false, messages: 0, answered: 0, modActions: 0 };
+const MISS_BASELINE: Baseline = { known: false, messages: '0', answered: '0', modActions: '0' };
 
 async function readBaseline(uid: string): Promise<Baseline> {
   const c = masterClient();
@@ -42,19 +43,26 @@ async function readBaseline(uid: string): Promise<Baseline> {
       )
     );
     if (messages === null) return MISS_BASELINE;
+    const msg = parseCounterValue(messages);
+    const ans = parseCounterValue(answered ?? '0');
+    const mods = parseCounterValue(modActions ?? '0');
+    if (msg === null) return MISS_BASELINE;
+    if (ans === null) return MISS_BASELINE;
+    if (mods === null) return MISS_BASELINE;
     return {
       known: true,
-      messages: Number(messages) || 0,
-      answered: Number(answered) || 0,
-      modActions: Number(modActions) || 0
+      messages: msg,
+      answered: ans,
+      modActions: mods
     };
   } catch {
     return MISS_BASELINE;
   }
 }
 
-function clampDelta(current: number, baseline: number): number {
-  return Math.max(current - baseline, 0);
+function clampDelta(current: string, baseline: string): string {
+  const delta = BigInt(current) - BigInt(baseline);
+  return delta > 0n ? delta.toString() : '0';
 }
 
 const COUNTERS = [COUNTER_MESSAGES, COUNTER_ANSWERED, COUNTER_MOD_ACTIONS] as const;

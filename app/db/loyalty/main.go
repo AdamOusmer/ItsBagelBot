@@ -71,8 +71,10 @@ func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) e
 			log.Warn("loyalty: bad counter payload", zap.Error(err))
 			return nil
 		}
-		repo.RecordBumps(dto)
-		return nil
+		if dto.BatchID == "" {
+			dto.BatchID = msg.UUID
+		}
+		return repo.ApplyBumps(msg.Context(), dto)
 	}
 }
 

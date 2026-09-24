@@ -60,10 +60,10 @@ func TestBulkUpsertPreservesUses(t *testing.T) {
 
 	row := client.Commands.Query().OnlyX(ctx)
 	assert.Equal(t, "new wording", row.Response)
-	assert.Equal(t, uint64(42), row.Uses)
+	assert.Equal(t, int64(42), row.Uses)
 }
 
-func TestPersistUsesGroupsByIncrement(t *testing.T) {
+func TestRecordUsePreservesProducerBatchIncrements(t *testing.T) {
 	client := enttest.Open(t, testdb.Driver, testdb.MemDSN("commandsusesgroup"))
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -79,20 +79,21 @@ func TestPersistUsesGroupsByIncrement(t *testing.T) {
 			SaveX(ctx)
 	}
 
-	pend := map[commandKey]uint64{
+	pend := map[commandKey]int64{
 		{userID: 1001, name: "a"}:       1,
 		{userID: 1001, name: "b"}:       1,
 		{userID: 1001, name: "c"}:       3,
 		{userID: 1001, name: "deleted"}: 1,
 	}
-	landed, err := r.persistUses(ctx, nil, pend)
-	require.NoError(t, err)
-	assert.Len(t, landed, 4)
+	for key, count := range pend {
+		require.NoError(t, r.RecordUse(ctx, "batch-"+key.name, data.CommandUsedDTO{UserID: key.userID, Name: key.name, Count: count}))
+	}
+	defer r.Close(ctx)
 
 	rows := client.Commands.Query().AllX(ctx)
-	got := map[string]uint64{}
+	got := map[string]int64{}
 	for _, row := range rows {
 		got[row.Name] = row.Uses
 	}
-	assert.Equal(t, map[string]uint64{"a": 11, "b": 11, "c": 13}, got)
+	assert.Equal(t, map[string]int64{"a": 11, "b": 11, "c": 13}, got)
 }

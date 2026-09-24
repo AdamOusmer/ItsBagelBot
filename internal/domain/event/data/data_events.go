@@ -48,7 +48,7 @@ type CommandChangedDTO struct {
 	Perm             string   `json:"perm,omitempty"`
 	Cooldown         uint     `json:"cooldown,omitempty"`
 	AllowedUserID    uint64   `json:"allowed_user_id,omitempty"`
-	Uses             uint64   `json:"uses,omitempty"`
+	Uses             int64    `json:"uses,omitempty,string"`
 	BumpCounter      string   `json:"bump_counter,omitempty"`
 	Deleted          bool     `json:"deleted"`
 }
@@ -64,7 +64,8 @@ type FetchChangedDTO struct {
 }
 
 type CommandUsedDTO struct {
-	UserID uint64 `json:"user_id"`
-	Name   string `json:"name"`
-	Count  uint64 `json:"count,omitempty"`
+	BatchID string `json:"batch_id,omitempty"`
+	UserID  uint64 `json:"user_id"`
+	Name    string `json:"name"`
+	Count   int64  `json:"count,omitempty"`
 }

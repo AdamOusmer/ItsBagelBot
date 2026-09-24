@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/db/loyalty/ent/balance"
 	"ItsBagelBot/app/db/loyalty/ent/counter"
+	"ItsBagelBot/app/db/loyalty/ent/counterbatch"
 	"ItsBagelBot/app/db/loyalty/ent/counterentry"
 	"context"
 	"errors"
@@ -77,6 +78,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			balance.Table:      balance.ValidColumn,
 			counter.Table:      counter.ValidColumn,
+			counterbatch.Table: counterbatch.ValidColumn,
 			counterentry.Table: counterentry.ValidColumn,
 		})
 	})

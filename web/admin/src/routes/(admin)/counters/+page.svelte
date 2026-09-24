@@ -116,7 +116,7 @@
       counters = counters.map((c) => (c.name === snapshot.name ? { ...c, value: snapshot.value } : c));
       return;
     }
-    counters = [...counters, { name: snapshot.name, scope: 'bot', value: snapshot.value }];
+    counters = [...counters, { name: snapshot.name, scope: 'bot', value: '0' }];
   }
 
   const saveSubmit: SubmitFunction = () => {
@@ -211,7 +211,7 @@
                       <span class="name">{c.name}</span>
                       <span class="meta">{t('admin.counters.rowMeta', { scope: c.scope })}</span>
                     </span>
-                    <StatePill tone="neutral">{c.value.toLocaleString()}</StatePill>
+                    <StatePill tone="neutral">{BigInt(c.value).toLocaleString()}</StatePill>
                   </span>
                 {/snippet}
               </ManagementRow>
@@ -239,7 +239,7 @@
             use:enhance={saveSubmit}
           >
             <input type="hidden" name="name" value={draft.name} />
-            <input type="hidden" name="value" value={String(draft.value)} />
+            {#if !creating}<input type="hidden" name="value" value={String(draft.value)} />{/if}
 
             <Scroller fill padding="18px" smooth>
               <div class="body">
@@ -262,15 +262,17 @@
                   </div>
                 {/if}
 
-                <Field label={t('admin.counters.fieldValue')}>
-                  <Input
-                    fill mono
-                    type="number"
-                    step="1"
-                    bind:value={draft.value}
-                  />
-                </Field>
-                <p class="note">{t('admin.counters.valueHint')}</p>
+                {#if !creating}
+                  <Field label={t('admin.counters.fieldValue')}>
+                    <Input
+                      fill mono
+                      type="text"
+                      inputmode="numeric"
+                      bind:value={draft.value}
+                    />
+                  </Field>
+                  <p class="note">{t('admin.counters.valueHint')}</p>
+                {/if}
 
                 {#if selected}
                   <section class="block">

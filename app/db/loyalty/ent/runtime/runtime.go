@@ -5,6 +5,7 @@ package runtime
 import (
 	"ItsBagelBot/app/db/loyalty/ent/balance"
 	"ItsBagelBot/app/db/loyalty/ent/counter"
+	"ItsBagelBot/app/db/loyalty/ent/counterbatch"
 	"ItsBagelBot/app/db/loyalty/ent/counterentry"
 	"ItsBagelBot/app/db/loyalty/ent/schema"
 	"time"
@@ -72,6 +73,22 @@ func init() {
 	counterDescValue := counterFields[3].Descriptor()
 	// counter.DefaultValue holds the default value on creation for the value field.
 	counter.DefaultValue = counterDescValue.Default.(int64)
+	// counter.ValueValidator is a validator for the "value" field. It is called by the builders before save.
+	counter.ValueValidator = func() func(int64) error {
+		validators := counterDescValue.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(value int64) error {
+			for _, fn := range fns {
+				if err := fn(value); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	// counterDescCreatedAt is the schema descriptor for created_at field.
 	counterDescCreatedAt := counterFields[4].Descriptor()
 	// counter.DefaultCreatedAt holds the default value on creation for the created_at field.
@@ -82,6 +99,16 @@ func init() {
 	counter.DefaultUpdatedAt = counterDescUpdatedAt.Default.(func() time.Time)
 	// counter.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	counter.UpdateDefaultUpdatedAt = counterDescUpdatedAt.UpdateDefault.(func() time.Time)
+	counterbatchFields := schema.CounterBatch{}.Fields()
+	_ = counterbatchFields
+	// counterbatchDescCreatedAt is the schema descriptor for created_at field.
+	counterbatchDescCreatedAt := counterbatchFields[1].Descriptor()
+	// counterbatch.DefaultCreatedAt holds the default value on creation for the created_at field.
+	counterbatch.DefaultCreatedAt = counterbatchDescCreatedAt.Default.(func() time.Time)
+	// counterbatchDescID is the schema descriptor for id field.
+	counterbatchDescID := counterbatchFields[0].Descriptor()
+	// counterbatch.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	counterbatch.IDValidator = counterbatchDescID.Validators[0].(func(string) error)
 	counterentryHooks := schema.CounterEntry{}.Hooks()
 	counterentry.Hooks[0] = counterentryHooks[0]
 	counterentryFields := schema.CounterEntry{}.Fields()
@@ -122,6 +149,22 @@ func init() {
 	counterentryDescValue := counterentryFields[6].Descriptor()
 	// counterentry.DefaultValue holds the default value on creation for the value field.
 	counterentry.DefaultValue = counterentryDescValue.Default.(int64)
+	// counterentry.ValueValidator is a validator for the "value" field. It is called by the builders before save.
+	counterentry.ValueValidator = func() func(int64) error {
+		validators := counterentryDescValue.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(value int64) error {
+			for _, fn := range fns {
+				if err := fn(value); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	// counterentryDescUpdatedAt is the schema descriptor for updated_at field.
 	counterentryDescUpdatedAt := counterentryFields[7].Descriptor()
 	// counterentry.DefaultUpdatedAt holds the default value on creation for the updated_at field.

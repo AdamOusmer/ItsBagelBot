@@ -12,6 +12,8 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 
+	"github.com/google/uuid"
+
 	"go.uber.org/zap"
 )
 
@@ -56,9 +58,11 @@ type LoyaltyReporter struct {
 	finished chan struct{}
 	wake     chan struct{}
 
-	mu    sync.Mutex
-	earn  map[earnKey]*earnAgg
-	bumps map[counterAgg]*bumpAgg
+	flushMu sync.Mutex
+	pending []counterPublication
+	mu      sync.Mutex
+	earn    map[earnKey]*earnAgg
+	bumps   map[counterAgg]*bumpAgg
 }
 
 func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
@@ -143,7 +147,7 @@ func (r *LoyaltyReporter) BumpChannel(broadcasterID uint64, name string, delta i
 
 func (r *LoyaltyReporter) Bump(target CounterBumpTarget, delta int64) {
 	name, viewer := target.Name, target.Viewer
-	if name == "" || delta == 0 || (target.BroadcasterID == 0) != (target.Scope == data.CounterScopeBot) {
+	if !target.acceptsDelta(counterDelta(delta)) {
 		return
 	}
 	key := counterAgg{
@@ -160,6 +164,11 @@ func (r *LoyaltyReporter) Bump(target CounterBumpTarget, delta int64) {
 		agg = &bumpAgg{}
 		r.bumps[key] = agg
 	}
+	if !agg.acceptsDelta(counterDelta(delta)) {
+		r.mu.Unlock()
+		r.log.Error("counter window exceeds signed integer range")
+		return
+	}
 	agg.delta += delta
 	if viewer.Login != "" {
 		agg.login = viewer.Login
@@ -175,6 +184,29 @@ func (r *LoyaltyReporter) Bump(target CounterBumpTarget, delta int64) {
 	}
 }
 
+// counterDelta is a signed change, including decrements for custom counters.
+type counterDelta int64
+
+func (target CounterBumpTarget) acceptsDelta(delta counterDelta) bool {
+	if target.Name == "" {
+		return false
+	}
+	if delta == 0 || delta < counterDelta(-data.MaxCounter) {
+		return false
+	}
+	if data.SystemCounter(target.Name) && delta < 0 {
+		return false
+	}
+	return (target.BroadcasterID == 0) == (target.Scope == data.CounterScopeBot)
+}
+
+func (agg *bumpAgg) acceptsDelta(delta counterDelta) bool {
+	if delta > 0 {
+		return agg.delta <= data.MaxCounter-int64(delta)
+	}
+	return agg.delta >= -data.MaxCounter-int64(delta)
+}
+
 func (r *LoyaltyReporter) nudge() {
 	select {
 	case r.wake <- struct{}{}:
@@ -183,8 +215,15 @@ func (r *LoyaltyReporter) nudge() {
 }
 
 func (r *LoyaltyReporter) flush(ctx context.Context) {
+	r.flushMu.Lock()
+	defer r.flushMu.Unlock()
+	r.pending = retryCounterPublications(ctx, r.pub, r.log, r.pending)
 	r.mu.Lock()
-	earn, bumps := r.earn, r.bumps
+	earn := r.earn
+	var bumps map[counterAgg]*bumpAgg
+	if len(r.pending) == 0 {
+		bumps = r.bumps
+	}
 	if len(earn) > 0 {
 		r.earn = map[earnKey]*earnAgg{}
 	}
@@ -195,6 +234,7 @@ func (r *LoyaltyReporter) flush(ctx context.Context) {
 
 	r.publishEarned(ctx, earn)
 	r.publishBumps(ctx, bumps)
+	r.pending = retryCounterPublications(ctx, r.pub, r.log, r.pending)
 }
 
 func (r *LoyaltyReporter) publishEarned(ctx context.Context, earn map[earnKey]*earnAgg) {
@@ -227,7 +267,7 @@ func (r *LoyaltyReporter) publishBumps(ctx context.Context, bumps map[counterAgg
 		})
 	}
 	publishPerUser(ctx, r, perUser, data.SubjectLoyaltyCounters, func(userID uint64, chunk []data.CounterBumpEntry) any {
-		return data.CounterBumpedDTO{UserID: userID, Bumps: chunk}
+		return data.CounterBumpedDTO{BatchID: uuid.NewString(), UserID: userID, Bumps: chunk}
 	})
 }
 
@@ -235,7 +275,12 @@ func publishPerUser[E any](ctx context.Context, r *LoyaltyReporter, perUser map[
 	for userID, entries := range perUser {
 		for start := 0; start < len(entries); start += loyaltyChunk {
 			chunk := entries[start:min(start+loyaltyChunk, len(entries))]
-			if err := bus.PublishJSON(ctx, r.pub, subject, wrap(userID, chunk)); err != nil {
+			payload := wrap(userID, chunk)
+			if subject == data.SubjectLoyaltyCounters {
+				r.pending = append(r.pending, counterPublication{id: payload.(data.CounterBumpedDTO).BatchID, subject: subject, payload: payload})
+				continue
+			}
+			if err := bus.PublishJSON(ctx, r.pub, subject, payload); err != nil {
 				r.log.Debug("failed to publish loyalty window",
 					zap.String("subject", subject),
 					module.BIDField(userID),
@@ -251,4 +296,7 @@ func (r *LoyaltyReporter) Close() {
 	close(r.done)
 	<-r.finished
 	r.flush(context.Background())
+	if len(r.pending) > 0 {
+		r.log.Error("counter batches remain unconfirmed at shutdown", zap.Int("batches", len(r.pending)))
+	}
 }

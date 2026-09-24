@@ -74,7 +74,7 @@ func feedBoardStanding(c *module.Context, board engine.FeedBoard) string {
 
 func feedStandingArgs(board engine.FeedBoard) []string {
 	return []string{
-		"count", strconv.FormatUint(board.Channel, 10),
+		"count", strconv.FormatInt(board.Channel, 10),
 		"rank", strconv.FormatUint(board.Rank, 10),
 		"ranked", strconv.FormatUint(board.Ranked, 10),
 	}
@@ -84,7 +84,7 @@ func feedBoardPlaces(entries []engine.FeedBoardEntry) []string {
 	places := make([]string, 0, len(entries))
 	for i, entry := range entries {
 		places = append(places, strconv.Itoa(i+1)+". "+feedBoardName(entry)+
-			" ("+strconv.FormatUint(entry.Count, 10)+")")
+			" ("+strconv.FormatInt(entry.Count, 10)+")")
 	}
 	return places
 }

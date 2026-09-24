@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"entgo.io/ent"
+	"entgo.io/ent/dialect/entsql"
+	entschema "entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
 )
@@ -37,7 +39,7 @@ func (Commands) Fields() []ent.Field {
 
 		field.Uint64("allowed_user_id").Default(0),
 
-		field.Uint64("uses").Default(0),
+		field.Int64("uses").Default(0).Min(0),
 
 		field.String("bump_counter").Default("").MaxLen(64),
 
@@ -72,4 +74,8 @@ func (Commands) Hooks() []ent.Hook {
 			})
 		},
 	}
+}
+
+func (Commands) Annotations() []entschema.Annotation {
+	return []entschema.Annotation{entsql.Checks(map[string]string{"command_uses_exact_range": "uses >= 0"})}
 }

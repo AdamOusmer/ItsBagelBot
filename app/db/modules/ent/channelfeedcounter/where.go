@@ -54,7 +54,7 @@ func IDLTE(id uint64) predicate.ChannelFeedCounter {
 }
 
 // Count applies equality check predicate on the "count" field. It's identical to CountEQ.
-func Count(v uint64) predicate.ChannelFeedCounter {
+func Count(v int64) predicate.ChannelFeedCounter {
 	return predicate.ChannelFeedCounter(sql.FieldEQ(FieldCount, v))
 }
 
@@ -64,42 +64,42 @@ func Name(v string) predicate.ChannelFeedCounter {
 }
 
 // CountEQ applies the EQ predicate on the "count" field.
-func CountEQ(v uint64) predicate.ChannelFeedCounter {
+func CountEQ(v int64) predicate.ChannelFeedCounter {
 	return predicate.ChannelFeedCounter(sql.FieldEQ(FieldCount, v))
 }
 
 // CountNEQ applies the NEQ predicate on the "count" field.
-func CountNEQ(v uint64) predicate.ChannelFeedCounter {
+func CountNEQ(v int64) predicate.ChannelFeedCounter {
 	return predicate.ChannelFeedCounter(sql.FieldNEQ(FieldCount, v))
 }
 
 // CountIn applies the In predicate on the "count" field.
-func CountIn(vs ...uint64) predicate.ChannelFeedCounter {
+func CountIn(vs ...int64) predicate.ChannelFeedCounter {
 	return predicate.ChannelFeedCounter(sql.FieldIn(FieldCount, vs...))
 }
 
 // CountNotIn applies the NotIn predicate on the "count" field.
-func CountNotIn(vs ...uint64) predicate.ChannelFeedCounter {
+func CountNotIn(vs ...int64) predicate.ChannelFeedCounter {
 	return predicate.ChannelFeedCounter(sql.FieldNotIn(FieldCount, vs...))
 }
 
 // CountGT applies the GT predicate on the "count" field.
-func CountGT(v uint64) predicate.ChannelFeedCounter {
+func CountGT(v int64) predicate.ChannelFeedCounter {
 	return predicate.ChannelFeedCounter(sql.FieldGT(FieldCount, v))
 }
 
 // CountGTE applies the GTE predicate on the "count" field.
-func CountGTE(v uint64) predicate.ChannelFeedCounter {
+func CountGTE(v int64) predicate.ChannelFeedCounter {
 	return predicate.ChannelFeedCounter(sql.FieldGTE(FieldCount, v))
 }
 
 // CountLT applies the LT predicate on the "count" field.
-func CountLT(v uint64) predicate.ChannelFeedCounter {
+func CountLT(v int64) predicate.ChannelFeedCounter {
 	return predicate.ChannelFeedCounter(sql.FieldLT(FieldCount, v))
 }
 
 // CountLTE applies the LTE predicate on the "count" field.
-func CountLTE(v uint64) predicate.ChannelFeedCounter {
+func CountLTE(v int64) predicate.ChannelFeedCounter {
 	return predicate.ChannelFeedCounter(sql.FieldLTE(FieldCount, v))
 }
 

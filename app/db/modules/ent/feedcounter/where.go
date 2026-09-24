@@ -54,47 +54,47 @@ func IDLTE(id int) predicate.FeedCounter {
 }
 
 // Count applies equality check predicate on the "count" field. It's identical to CountEQ.
-func Count(v uint64) predicate.FeedCounter {
+func Count(v int64) predicate.FeedCounter {
 	return predicate.FeedCounter(sql.FieldEQ(FieldCount, v))
 }
 
 // CountEQ applies the EQ predicate on the "count" field.
-func CountEQ(v uint64) predicate.FeedCounter {
+func CountEQ(v int64) predicate.FeedCounter {
 	return predicate.FeedCounter(sql.FieldEQ(FieldCount, v))
 }
 
 // CountNEQ applies the NEQ predicate on the "count" field.
-func CountNEQ(v uint64) predicate.FeedCounter {
+func CountNEQ(v int64) predicate.FeedCounter {
 	return predicate.FeedCounter(sql.FieldNEQ(FieldCount, v))
 }
 
 // CountIn applies the In predicate on the "count" field.
-func CountIn(vs ...uint64) predicate.FeedCounter {
+func CountIn(vs ...int64) predicate.FeedCounter {
 	return predicate.FeedCounter(sql.FieldIn(FieldCount, vs...))
 }
 
 // CountNotIn applies the NotIn predicate on the "count" field.
-func CountNotIn(vs ...uint64) predicate.FeedCounter {
+func CountNotIn(vs ...int64) predicate.FeedCounter {
 	return predicate.FeedCounter(sql.FieldNotIn(FieldCount, vs...))
 }
 
 // CountGT applies the GT predicate on the "count" field.
-func CountGT(v uint64) predicate.FeedCounter {
+func CountGT(v int64) predicate.FeedCounter {
 	return predicate.FeedCounter(sql.FieldGT(FieldCount, v))
 }
 
 // CountGTE applies the GTE predicate on the "count" field.
-func CountGTE(v uint64) predicate.FeedCounter {
+func CountGTE(v int64) predicate.FeedCounter {
 	return predicate.FeedCounter(sql.FieldGTE(FieldCount, v))
 }
 
 // CountLT applies the LT predicate on the "count" field.
-func CountLT(v uint64) predicate.FeedCounter {
+func CountLT(v int64) predicate.FeedCounter {
 	return predicate.FeedCounter(sql.FieldLT(FieldCount, v))
 }
 
 // CountLTE applies the LTE predicate on the "count" field.
-func CountLTE(v uint64) predicate.FeedCounter {
+func CountLTE(v int64) predicate.FeedCounter {
 	return predicate.FeedCounter(sql.FieldLTE(FieldCount, v))
 }
 

@@ -49,11 +49,16 @@ describe('public directory locale shaping', () => {
         perm: 'sub',
         cooldown: 0,
         stream_online_only: false,
-        uses: 0,
+        uses: '0',
         is_active: true
       }
     ], 'fr');
     expect(rows[0]?.perm).toBe('Abonnés');
     expect(rows[0]?.response).toBe('Welcome to the channel!');
   });
+});
+
+test('public commands retain every digit of a maximum int64 use count', () => {
+  const [command] = publicCommands([{ name: 'hello', response: 'Hello', is_active: true, uses: '9223372036854775807' }], 'en');
+  expect(command.uses).toBe('9,223,372,036,854,775,807');
 });

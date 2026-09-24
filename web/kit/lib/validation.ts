@@ -92,6 +92,8 @@ export function normalizeCounterName(raw: unknown): string {
 		.slice(0, 64);
 }
 
+export { MAX_COUNTER_VALUE, parseCounterValue, isCounterValue, formatCounterValue } from './counter-value';
+
 export function clampInt(raw: unknown, min: number, max: number, dflt: number): number {
 	const n = Math.trunc(Number(raw));
 	if (!Number.isFinite(n)) return dflt;

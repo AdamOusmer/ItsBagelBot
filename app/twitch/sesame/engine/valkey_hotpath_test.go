@@ -120,20 +120,20 @@ func (f hotPathFixture) testGreetClaim(t *testing.T) {
 }
 
 func (f hotPathFixture) testFeedCounters(t *testing.T) {
-	totalKey, todayKey := f.prefix+":feed-total", f.prefix+":feed-today"
-	f.cleanupKeys(t, totalKey, todayKey)
-	_, err := decodeFeedCounts(feedWarmScript.Exec(f.ctx, f.client, []string{totalKey, todayKey}, []string{"60"}))
-	require.True(t, valkey.IsValkeyNil(err), "missing total must decode as Valkey nil")
-	seeded, err := decodeFeedCounts(feedSeedScript.Exec(f.ctx, f.client, []string{totalKey, todayKey}, []string{"100", "60"}))
+	todayKey, receipt := f.prefix+":feed-today", f.prefix+":feed-receipt"
+	f.cleanupKeys(t, todayKey, receipt, receipt+"2")
+	first, err := decodeFeedCounts(feedTodayScript.Exec(f.ctx, f.client, []string{todayKey, receipt}, []string{"9223372036854775807", "60", "120"}))
 	require.NoError(t, err)
-	require.Equal(t, FeedCounts{Today: 1, Total: 100}, seeded)
-	warm, err := decodeFeedCounts(feedWarmScript.Exec(f.ctx, f.client, []string{totalKey, todayKey}, []string{"60"}))
+	require.Equal(t, FeedCounts{Today: 1, Total: 9223372036854775807}, first)
+	replay, err := decodeFeedCounts(feedTodayScript.Exec(f.ctx, f.client, []string{todayKey, receipt}, []string{"9223372036854775807", "60", "120"}))
 	require.NoError(t, err)
-	require.Equal(t, FeedCounts{Today: 2, Total: 101}, warm)
-	stale, err := decodeFeedCounts(feedSeedScript.Exec(f.ctx, f.client, []string{totalKey, todayKey}, []string{"99", "60"}))
+	require.Equal(t, first, replay)
+	require.NoError(t, f.client.Do(f.ctx, f.client.B().Set().Key(todayKey).Value("9223372036854775806").Build()).Error())
+	last, err := decodeFeedCounts(feedTodayScript.Exec(f.ctx, f.client, []string{todayKey, receipt + "2"}, []string{"9223372036854775807", "60", "120"}))
 	require.NoError(t, err)
-	require.Equal(t, FeedCounts{Today: 3, Total: 101}, stale)
-	requirePositiveTTL(t, f.ctx, f.client, todayKey)
+	require.Equal(t, int64(9223372036854775807), last.Today)
+	_, err = decodeFeedCounts(feedTodayScript.Exec(f.ctx, f.client, []string{todayKey, receipt + "3"}, []string{"9223372036854775807", "60", "120"}))
+	require.Error(t, err)
 }
 
 func (f hotPathFixture) cleanupKeys(tb testingTB, keys ...string) {
@@ -177,8 +177,8 @@ func (f hotPathBenchmark) benchmarkLoyalty(b *testing.B) {
 func (f hotPathBenchmark) benchmarkFeed(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		if _, err := decodeFeedCounts(feedWarmScript.Exec(f.ctx, f.client,
-			[]string{f.total, f.today}, []string{"60"})); err != nil {
+		if _, err := decodeFeedCounts(feedTodayScript.Exec(f.ctx, f.client,
+			[]string{f.today, f.total + ":receipt"}, []string{"1", "60", "120"})); err != nil {
 			b.Fatal(err)
 		}
 	}

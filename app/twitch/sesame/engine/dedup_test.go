@@ -50,7 +50,7 @@ func (r *recordingStore) keys() []string {
 	return append([]string(nil), r.seen...)
 }
 
-func usedCount(t *testing.T, pub *rawPublisher) uint64 {
+func usedCount(t *testing.T, pub *rawPublisher) int64 {
 	t.Helper()
 	msgs := pub.payloads[data.SubjectCommandUsed]
 	require.Len(t, msgs, 1, "expected exactly one summed command-use publish")
@@ -92,7 +92,7 @@ func TestGuardedHandlerDedupsReplay(t *testing.T) {
 	p.Close()
 
 	require.Contains(t, store.keys(), "m1:"+effectUse, "the use-counter effect should consult the guard")
-	require.Equal(t, uint64(1), usedCount(t, pub), "a replayed command must count once, not twice")
+	require.Equal(t, int64(1), usedCount(t, pub), "a replayed command must count once, not twice")
 }
 
 func TestFirehoseSkipsGuard(t *testing.T) {

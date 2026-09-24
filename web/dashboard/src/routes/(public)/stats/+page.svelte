@@ -7,6 +7,8 @@
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
   import { visibleEventSource } from '$lib/visible-stream';
+  import { exactDisplay, formatStatTotal, validBoards, validStats } from '$lib/stats-values';
+  import { formatCounterValue } from '@bagel/kit/validation';
 
   let { data }: { data: PageData } = $props();
 
@@ -20,17 +22,27 @@
   const MAX_PROJECT_S = 10;
   const MIN_CRAWL = 0.25;
 
-  const seed = untrack(() => data.stats);
-  type Snapshot = typeof seed;
-
+  const seed = untrack(() => validStats(data.stats) ?? {
+    messages_total: '0',
+    events_total: '0',
+    msg_rate: null,
+    event_rate: null,
+    msg_rate_now: null,
+    event_rate_now: null,
+    degraded: true
+  });
   let live = $state(seed);
   let degraded = $state(seed.degraded);
 
-  let boards = $state(untrack(() => data.boards));
+  let boards = $state(untrack(() => validBoards(data.boards) ?? {
+    channels: [],
+    feed: { total: '0', ranked: '0', entries: [] },
+    degraded: true
+  }));
 
   let display = $state({
-    messages: seed.messages_total,
-    events: seed.events_total,
+    messages: exactDisplay(Number(seed.messages_total)),
+    events: exactDisplay(Number(seed.events_total)),
     msgRate: seed.msg_rate_now ?? seed.msg_rate ?? 0,
     eventRate: seed.event_rate_now ?? seed.event_rate ?? 0
   });
@@ -49,8 +61,8 @@
     const msgAvg = live.msg_rate ?? 0;
     const eventAvg = live.event_rate ?? 0;
     return {
-      messages: live.messages_total + msgAvg * secs,
-      events: live.events_total + eventAvg * secs,
+      messages: exactDisplay(Number(live.messages_total) + msgAvg * secs),
+      events: exactDisplay(Number(live.events_total) + eventAvg * secs),
       msgRate: live.msg_rate_now ?? msgAvg,
       eventRate: live.event_rate_now ?? eventAvg
     };
@@ -68,12 +80,16 @@
   }
 
   function advance(cur: number, target: number, rate: number, dt: number, k: number): number {
-    return Math.max(lerp(cur, target, k), cur + rate * (dt / 1000) * MIN_CRAWL);
+    return exactDisplay(Math.max(lerp(cur, target, k), cur + rate * (dt / 1000) * MIN_CRAWL));
   }
 
   function tick(now: number): void {
     const dt = Math.min(now - lastFrame, MAX_DT_MS);
     lastFrame = now;
+    if (degraded) {
+      raf = requestAnimationFrame(tick);
+      return;
+    }
     const target = targetFrame(now);
     const k = closingFraction(now, dt);
     const rateK = 1 - Math.exp(-dt / RATE_TAU_MS);
@@ -91,7 +107,12 @@
     display = targetFrame(now);
   }
 
-  function applySnapshot(next: Snapshot): void {
+  function applySnapshot(raw: unknown): void {
+    const next = validStats(raw);
+    if (!next) {
+      degraded = true;
+      return;
+    }
     degraded = next.degraded;
     if (next.degraded) return;
     const prev = live;
@@ -101,8 +122,8 @@
       snap(snapAt);
       return;
     }
-    if (next.messages_total < prev.messages_total) display.messages = next.messages_total;
-    if (next.events_total < prev.events_total) display.events = next.events_total;
+    if (BigInt(next.messages_total) < BigInt(prev.messages_total)) display.messages = exactDisplay(Number(next.messages_total));
+    if (BigInt(next.events_total) < BigInt(prev.events_total)) display.events = exactDisplay(Number(next.events_total));
   }
 
   async function refresh(): Promise<void> {
@@ -120,7 +141,9 @@
     try {
       const res = await fetch('/stats/boards', { headers: { accept: 'application/json' } });
       if (!res.ok) return;
-      boards = await res.json();
+      boards = validBoards(await res.json()) ?? {
+        channels: [], feed: { total: '0', ranked: '0', entries: [] }, degraded: true
+      };
     } catch {
     }
   }
@@ -131,7 +154,7 @@
     es.onerror = () => (streamDown = true);
     es.onmessage = (ev) => {
       try {
-        applySnapshot(JSON.parse(ev.data) as Snapshot);
+        applySnapshot(JSON.parse(ev.data));
       } catch {
         return;
       }
@@ -141,7 +164,9 @@
     };
     es.addEventListener('boards', (ev) => {
       try {
-        boards = JSON.parse((ev as MessageEvent<string>).data) as typeof boards;
+        boards = validBoards(JSON.parse((ev as MessageEvent<string>).data)) ?? {
+          channels: [], feed: { total: '0', ranked: '0', entries: [] }, degraded: true
+        };
       } catch {
       }
     });
@@ -198,14 +223,14 @@
   const tiles = $derived([
     {
       label: t('stats.messagesLabel'),
-      value: totalFmt.format(Math.round(display.messages)),
+      value: formatStatTotal(live.messages_total, display.messages, locale),
       rate: live.msg_rate === null ? null : rateFmt.format(display.msgRate),
       average: live.msg_rate === null ? null : rateFmt.format(live.msg_rate),
       rateLabel: t('stats.messageRateLabel')
     },
     {
       label: t('stats.eventsLabel'),
-      value: totalFmt.format(Math.round(display.events)),
+      value: formatStatTotal(live.events_total, display.events, locale),
       rate: live.event_rate === null ? null : rateFmt.format(display.eventRate),
       average: live.event_rate === null ? null : rateFmt.format(live.event_rate),
       rateLabel: t('stats.eventRateLabel')
@@ -321,8 +346,8 @@
                         <span class="unnamed">{t('stats.unknownChannel')}</span>
                       {/if}
                     </td>
-                    <td class="n">{totalFmt.format(row.messages)}</td>
-                    <td class="n">{totalFmt.format(row.events)}</td>
+                    <td class="n">{formatCounterValue(row.messages, locale)}</td>
+                    <td class="n">{formatCounterValue(row.events, locale)}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -343,7 +368,7 @@
           </header>
         {/snippet}
         <div class="feed-total">
-          <span class="num tan">{totalFmt.format(feed.total)}</span>
+          <span class="num tan">{formatCounterValue(feed.total, locale)}</span>
           <span class="label">{t('stats.feedTotalLabel')}</span>
         </div>
         {#if feed.entries.length === 0}
@@ -360,11 +385,11 @@
                     <span class="unnamed">{t('stats.unknownChannel')}</span>
                   {/if}
                 </span>
-                <span class="n">{totalFmt.format(row.count)}</span>
+                <span class="n">{formatCounterValue(row.count, locale)}</span>
               </li>
             {/each}
           </ol>
-          <p class="ranked">{t('stats.feedRankedNote', { count: totalFmt.format(feed.ranked) })}</p>
+          <p class="ranked">{t('stats.feedRankedNote', { count: formatCounterValue(feed.ranked, locale) })}</p>
         {/if}
       </Card>
     </div>

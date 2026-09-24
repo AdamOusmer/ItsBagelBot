@@ -151,6 +151,11 @@ func (_u *CounterUpdate) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Counter.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Value(); ok {
+		if err := counter.ValueValidator(v); err != nil {
+			return &ValidationError{Name: "value", err: fmt.Errorf(`ent: validator failed for field "Counter.value": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -338,6 +343,11 @@ func (_u *CounterUpdateOne) check() error {
 	if v, ok := _u.mutation.Name(); ok {
 		if err := counter.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Counter.name": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Value(); ok {
+		if err := counter.ValueValidator(v); err != nil {
+			return &ValidationError{Name: "value", err: fmt.Errorf(`ent: validator failed for field "Counter.value": %w`, err)}
 		}
 	}
 	return nil

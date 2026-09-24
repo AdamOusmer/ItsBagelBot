@@ -95,7 +95,7 @@ func AllowedUserID(v uint64) predicate.Commands {
 }
 
 // Uses applies equality check predicate on the "uses" field. It's identical to UsesEQ.
-func Uses(v uint64) predicate.Commands {
+func Uses(v int64) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldUses, v))
 }
 
@@ -460,42 +460,42 @@ func AllowedUserIDLTE(v uint64) predicate.Commands {
 }
 
 // UsesEQ applies the EQ predicate on the "uses" field.
-func UsesEQ(v uint64) predicate.Commands {
+func UsesEQ(v int64) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldUses, v))
 }
 
 // UsesNEQ applies the NEQ predicate on the "uses" field.
-func UsesNEQ(v uint64) predicate.Commands {
+func UsesNEQ(v int64) predicate.Commands {
 	return predicate.Commands(sql.FieldNEQ(FieldUses, v))
 }
 
 // UsesIn applies the In predicate on the "uses" field.
-func UsesIn(vs ...uint64) predicate.Commands {
+func UsesIn(vs ...int64) predicate.Commands {
 	return predicate.Commands(sql.FieldIn(FieldUses, vs...))
 }
 
 // UsesNotIn applies the NotIn predicate on the "uses" field.
-func UsesNotIn(vs ...uint64) predicate.Commands {
+func UsesNotIn(vs ...int64) predicate.Commands {
 	return predicate.Commands(sql.FieldNotIn(FieldUses, vs...))
 }
 
 // UsesGT applies the GT predicate on the "uses" field.
-func UsesGT(v uint64) predicate.Commands {
+func UsesGT(v int64) predicate.Commands {
 	return predicate.Commands(sql.FieldGT(FieldUses, v))
 }
 
 // UsesGTE applies the GTE predicate on the "uses" field.
-func UsesGTE(v uint64) predicate.Commands {
+func UsesGTE(v int64) predicate.Commands {
 	return predicate.Commands(sql.FieldGTE(FieldUses, v))
 }
 
 // UsesLT applies the LT predicate on the "uses" field.
-func UsesLT(v uint64) predicate.Commands {
+func UsesLT(v int64) predicate.Commands {
 	return predicate.Commands(sql.FieldLT(FieldUses, v))
 }
 
 // UsesLTE applies the LTE predicate on the "uses" field.
-func UsesLTE(v uint64) predicate.Commands {
+func UsesLTE(v int64) predicate.Commands {
 	return predicate.Commands(sql.FieldLTE(FieldUses, v))
 }
 

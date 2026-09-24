@@ -65,8 +65,11 @@ func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) er
 			log.Warn("commands: bad command_used payload", zap.Error(err))
 			return nil
 		}
-		repo.RecordUse(dto.UserID, dto.Name, dto.Count)
-		return nil
+		batchID := dto.BatchID
+		if batchID == "" {
+			batchID = msg.UUID
+		}
+		return repo.RecordUse(msg.Context(), batchID, dto)
 	}
 }
 

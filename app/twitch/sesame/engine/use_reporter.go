@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
+	"github.com/google/uuid"
 
 	"go.uber.org/zap"
 )
@@ -27,27 +27,36 @@ type useKey struct {
 }
 
 type useReporter struct {
-	pub  bus.Publisher
-	log  *zap.Logger
-	done chan struct{}
+	pub      bus.Publisher
+	log      *zap.Logger
+	done     chan struct{}
+	finished chan struct{}
+	wake     chan struct{}
+	flushMu  sync.Mutex
+	pending  []counterPublication
 
 	mu   sync.Mutex
-	pend map[useKey]uint64
+	pend map[useKey]int64
 }
 
 func newUseReporter(pub bus.Publisher, log *zap.Logger) *useReporter {
 	r := &useReporter{
-		pub:  pub,
-		log:  log,
-		done: make(chan struct{}),
-		pend: map[useKey]uint64{},
+		pub:      pub,
+		log:      log,
+		done:     make(chan struct{}),
+		finished: make(chan struct{}),
+		wake:     make(chan struct{}, 1),
+		pend:     map[useKey]int64{},
 	}
 	go func() {
+		defer close(r.finished)
 		ticker := time.NewTicker(useFlushInterval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
+				r.flush(context.Background())
+			case <-r.wake:
 				r.flush(context.Background())
 			case <-r.done:
 				return
@@ -64,42 +73,47 @@ func (r *useReporter) Record(userID uint64, name string) {
 	key := useKey{userID: userID, name: name}
 
 	r.mu.Lock()
-	if _, tracked := r.pend[key]; !tracked && len(r.pend) >= useMaxKeys {
+	if r.pend[key] >= data.MaxCounter {
 		r.mu.Unlock()
-		go r.flush(context.Background())
+		r.log.Error("command use window exceeds exact integer range")
 		return
 	}
 	r.pend[key]++
+	full := len(r.pend) >= useMaxKeys
 	r.mu.Unlock()
-}
-
-func (r *useReporter) flush(ctx context.Context) {
-	r.mu.Lock()
-	if len(r.pend) == 0 {
-		r.mu.Unlock()
-		return
-	}
-	pend := r.pend
-	r.pend = map[useKey]uint64{}
-	r.mu.Unlock()
-
-	for key, n := range pend {
-		if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandUsed, data.CommandUsedDTO{
-			UserID: key.userID,
-			Name:   key.name,
-			Count:  n,
-		}); err != nil {
-			r.log.Debug("failed to publish command uses",
-				module.BIDField(key.userID),
-				zap.String("command", key.name),
-				zap.Uint64("count", n),
-				zap.Error(err),
-			)
+	if full {
+		select {
+		case r.wake <- struct{}{}:
+		default:
 		}
 	}
 }
 
+func (r *useReporter) flush(ctx context.Context) {
+	r.flushMu.Lock()
+	defer r.flushMu.Unlock()
+	r.pending = retryCounterPublications(ctx, r.pub, r.log, r.pending)
+	if len(r.pending) > 0 {
+		return
+	}
+	r.mu.Lock()
+	pend := r.pend
+	r.pend = map[useKey]int64{}
+	r.mu.Unlock()
+	for key, n := range pend {
+		batchID := uuid.NewString()
+		r.pending = append(r.pending, counterPublication{id: batchID, subject: data.SubjectCommandUsed, payload: data.CommandUsedDTO{
+			BatchID: batchID, UserID: key.userID, Name: key.name, Count: n,
+		}})
+	}
+	r.pending = retryCounterPublications(ctx, r.pub, r.log, r.pending)
+}
+
 func (r *useReporter) Close() {
 	close(r.done)
+	<-r.finished
 	r.flush(context.Background())
+	if len(r.pending) > 0 {
+		r.log.Error("command use batches remain unconfirmed at shutdown", zap.Int("batches", len(r.pending)))
+	}
 }

@@ -28,14 +28,14 @@ func (_u *FeedCounterUpdate) Where(ps ...predicate.FeedCounter) *FeedCounterUpda
 }
 
 // SetCount sets the "count" field.
-func (_u *FeedCounterUpdate) SetCount(v uint64) *FeedCounterUpdate {
+func (_u *FeedCounterUpdate) SetCount(v int64) *FeedCounterUpdate {
 	_u.mutation.ResetCount()
 	_u.mutation.SetCount(v)
 	return _u
 }
 
 // SetNillableCount sets the "count" field if the given value is not nil.
-func (_u *FeedCounterUpdate) SetNillableCount(v *uint64) *FeedCounterUpdate {
+func (_u *FeedCounterUpdate) SetNillableCount(v *int64) *FeedCounterUpdate {
 	if v != nil {
 		_u.SetCount(*v)
 	}
@@ -80,7 +80,20 @@ func (_u *FeedCounterUpdate) ExecX(ctx context.Context) {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (_u *FeedCounterUpdate) check() error {
+	if v, ok := _u.mutation.Count(); ok {
+		if err := feedcounter.CountValidator(v); err != nil {
+			return &ValidationError{Name: "count", err: fmt.Errorf(`ent: validator failed for field "FeedCounter.count": %w`, err)}
+		}
+	}
+	return nil
+}
+
 func (_u *FeedCounterUpdate) sqlSave(ctx context.Context) (_node int, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
+	}
 	_spec := sqlgraph.NewUpdateSpec(feedcounter.Table, feedcounter.Columns, sqlgraph.NewFieldSpec(feedcounter.FieldID, field.TypeInt))
 	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
@@ -90,10 +103,10 @@ func (_u *FeedCounterUpdate) sqlSave(ctx context.Context) (_node int, err error)
 		}
 	}
 	if value, ok := _u.mutation.Count(); ok {
-		_spec.SetField(feedcounter.FieldCount, field.TypeUint64, value)
+		_spec.SetField(feedcounter.FieldCount, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AddedCount(); ok {
-		_spec.AddField(feedcounter.FieldCount, field.TypeUint64, value)
+		_spec.AddField(feedcounter.FieldCount, field.TypeInt64, value)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -116,14 +129,14 @@ type FeedCounterUpdateOne struct {
 }
 
 // SetCount sets the "count" field.
-func (_u *FeedCounterUpdateOne) SetCount(v uint64) *FeedCounterUpdateOne {
+func (_u *FeedCounterUpdateOne) SetCount(v int64) *FeedCounterUpdateOne {
 	_u.mutation.ResetCount()
 	_u.mutation.SetCount(v)
 	return _u
 }
 
 // SetNillableCount sets the "count" field if the given value is not nil.
-func (_u *FeedCounterUpdateOne) SetNillableCount(v *uint64) *FeedCounterUpdateOne {
+func (_u *FeedCounterUpdateOne) SetNillableCount(v *int64) *FeedCounterUpdateOne {
 	if v != nil {
 		_u.SetCount(*v)
 	}
@@ -181,7 +194,20 @@ func (_u *FeedCounterUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (_u *FeedCounterUpdateOne) check() error {
+	if v, ok := _u.mutation.Count(); ok {
+		if err := feedcounter.CountValidator(v); err != nil {
+			return &ValidationError{Name: "count", err: fmt.Errorf(`ent: validator failed for field "FeedCounter.count": %w`, err)}
+		}
+	}
+	return nil
+}
+
 func (_u *FeedCounterUpdateOne) sqlSave(ctx context.Context) (_node *FeedCounter, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
+	}
 	_spec := sqlgraph.NewUpdateSpec(feedcounter.Table, feedcounter.Columns, sqlgraph.NewFieldSpec(feedcounter.FieldID, field.TypeInt))
 	id, ok := _u.mutation.ID()
 	if !ok {
@@ -208,10 +234,10 @@ func (_u *FeedCounterUpdateOne) sqlSave(ctx context.Context) (_node *FeedCounter
 		}
 	}
 	if value, ok := _u.mutation.Count(); ok {
-		_spec.SetField(feedcounter.FieldCount, field.TypeUint64, value)
+		_spec.SetField(feedcounter.FieldCount, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AddedCount(); ok {
-		_spec.AddField(feedcounter.FieldCount, field.TypeUint64, value)
+		_spec.AddField(feedcounter.FieldCount, field.TypeInt64, value)
 	}
 	_node = &FeedCounter{config: _u.config}
 	_spec.Assign = _node.assignValues

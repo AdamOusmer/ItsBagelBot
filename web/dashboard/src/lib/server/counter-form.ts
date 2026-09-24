@@ -2,17 +2,17 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { CounterScope } from '@bagel/kit';
-import { normalizeCounterName } from '@bagel/kit/validation';
+import { normalizeCounterName, parseCounterValue } from '@bagel/kit/validation';
 import { resolveViewerId, type CounterTarget } from './loyalty-store';
 
 export class UserError extends Error {}
 
 export { normalizeCounterName };
 
-export function namedValue(f: FormData): { name: string; value: number } | null {
+export function namedValue(f: FormData): { name: string; value: string } | null {
   const name = normalizeCounterName(f.get('name'));
-  const value = Math.trunc(Number(f.get('value')));
-  if (!name || !Number.isFinite(value)) return null;
+  const value = parseCounterValue(f.get('value'));
+  if (!name || value === null) return null;
   return { name, value };
 }
 

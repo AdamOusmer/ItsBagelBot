@@ -82,6 +82,7 @@ type CounterBumpEntry struct {
 }
 
 type CounterBumpedDTO struct {
-	UserID uint64             `json:"user_id"`
-	Bumps  []CounterBumpEntry `json:"bumps"`
+	BatchID string             `json:"batch_id,omitempty"`
+	UserID  uint64             `json:"user_id"`
+	Bumps   []CounterBumpEntry `json:"bumps"`
 }

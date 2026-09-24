@@ -248,7 +248,14 @@ func feedReply(ctx context.Context, d engine.Deps, c *module.Context) string {
 	if d.Personality == nil {
 		return ""
 	}
-	counts, err := d.Personality.Feed(ctx, c.BroadcasterID, c.Env.BroadcasterName())
+	eventID := c.Env.MsgID
+	if eventID == "" {
+		eventID = c.Env.ChatMessageID
+	}
+	if eventID == "" {
+		eventID = c.Env.EventID
+	}
+	counts, err := d.Personality.Feed(ctx, c.BroadcasterID, c.Env.BroadcasterName(), eventID)
 	if err != nil {
 		return ""
 	}

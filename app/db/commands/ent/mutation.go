@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/db/commands/ent/commands"
+	"ItsBagelBot/app/db/commands/ent/commandusebatch"
 	"ItsBagelBot/app/db/commands/ent/fetchdefinition"
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
 	"ItsBagelBot/app/db/commands/ent/migrations"
@@ -27,11 +28,575 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
+	TypeCommandUseBatch = "CommandUseBatch"
 	TypeCommands        = "Commands"
 	TypeFetchDefinition = "FetchDefinition"
 	TypeFetchKey        = "FetchKey"
 	TypeMigrations      = "Migrations"
 )
+
+// CommandUseBatchMutation represents an operation that mutates the CommandUseBatch nodes in the graph.
+type CommandUseBatchMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *string
+	user_id       *uint64
+	adduser_id    *int64
+	name          *string
+	count         *int64
+	addcount      *int64
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*CommandUseBatch, error)
+	predicates    []predicate.CommandUseBatch
+}
+
+var _ ent.Mutation = (*CommandUseBatchMutation)(nil)
+
+// commandusebatchOption allows management of the mutation configuration using functional options.
+type commandusebatchOption func(*CommandUseBatchMutation)
+
+// newCommandUseBatchMutation creates new mutation for the CommandUseBatch entity.
+func newCommandUseBatchMutation(c config, op Op, opts ...commandusebatchOption) *CommandUseBatchMutation {
+	m := &CommandUseBatchMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCommandUseBatch,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCommandUseBatchID sets the ID field of the mutation.
+func withCommandUseBatchID(id string) commandusebatchOption {
+	return func(m *CommandUseBatchMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CommandUseBatch
+		)
+		m.oldValue = func(ctx context.Context) (*CommandUseBatch, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CommandUseBatch.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCommandUseBatch sets the old CommandUseBatch of the mutation.
+func withCommandUseBatch(node *CommandUseBatch) commandusebatchOption {
+	return func(m *CommandUseBatchMutation) {
+		m.oldValue = func(context.Context) (*CommandUseBatch, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CommandUseBatchMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CommandUseBatchMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of CommandUseBatch entities.
+func (m *CommandUseBatchMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CommandUseBatchMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CommandUseBatchMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CommandUseBatch.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *CommandUseBatchMutation) SetUserID(u uint64) {
+	m.user_id = &u
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *CommandUseBatchMutation) UserID() (r uint64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the CommandUseBatch entity.
+// If the CommandUseBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandUseBatchMutation) OldUserID(ctx context.Context) (v uint64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds u to the "user_id" field.
+func (m *CommandUseBatchMutation) AddUserID(u int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += u
+	} else {
+		m.adduser_id = &u
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *CommandUseBatchMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *CommandUseBatchMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetName sets the "name" field.
+func (m *CommandUseBatchMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *CommandUseBatchMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the CommandUseBatch entity.
+// If the CommandUseBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandUseBatchMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *CommandUseBatchMutation) ResetName() {
+	m.name = nil
+}
+
+// SetCount sets the "count" field.
+func (m *CommandUseBatchMutation) SetCount(i int64) {
+	m.count = &i
+	m.addcount = nil
+}
+
+// Count returns the value of the "count" field in the mutation.
+func (m *CommandUseBatchMutation) Count() (r int64, exists bool) {
+	v := m.count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCount returns the old "count" field's value of the CommandUseBatch entity.
+// If the CommandUseBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandUseBatchMutation) OldCount(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCount: %w", err)
+	}
+	return oldValue.Count, nil
+}
+
+// AddCount adds i to the "count" field.
+func (m *CommandUseBatchMutation) AddCount(i int64) {
+	if m.addcount != nil {
+		*m.addcount += i
+	} else {
+		m.addcount = &i
+	}
+}
+
+// AddedCount returns the value that was added to the "count" field in this mutation.
+func (m *CommandUseBatchMutation) AddedCount() (r int64, exists bool) {
+	v := m.addcount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCount resets all changes to the "count" field.
+func (m *CommandUseBatchMutation) ResetCount() {
+	m.count = nil
+	m.addcount = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CommandUseBatchMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CommandUseBatchMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CommandUseBatch entity.
+// If the CommandUseBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandUseBatchMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CommandUseBatchMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the CommandUseBatchMutation builder.
+func (m *CommandUseBatchMutation) Where(ps ...predicate.CommandUseBatch) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CommandUseBatchMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CommandUseBatchMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CommandUseBatch, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CommandUseBatchMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CommandUseBatchMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CommandUseBatch).
+func (m *CommandUseBatchMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CommandUseBatchMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.user_id != nil {
+		fields = append(fields, commandusebatch.FieldUserID)
+	}
+	if m.name != nil {
+		fields = append(fields, commandusebatch.FieldName)
+	}
+	if m.count != nil {
+		fields = append(fields, commandusebatch.FieldCount)
+	}
+	if m.created_at != nil {
+		fields = append(fields, commandusebatch.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CommandUseBatchMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case commandusebatch.FieldUserID:
+		return m.UserID()
+	case commandusebatch.FieldName:
+		return m.Name()
+	case commandusebatch.FieldCount:
+		return m.Count()
+	case commandusebatch.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CommandUseBatchMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case commandusebatch.FieldUserID:
+		return m.OldUserID(ctx)
+	case commandusebatch.FieldName:
+		return m.OldName(ctx)
+	case commandusebatch.FieldCount:
+		return m.OldCount(ctx)
+	case commandusebatch.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown CommandUseBatch field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CommandUseBatchMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case commandusebatch.FieldUserID:
+		v, ok := value.(uint64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case commandusebatch.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case commandusebatch.FieldCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCount(v)
+		return nil
+	case commandusebatch.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CommandUseBatch field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CommandUseBatchMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, commandusebatch.FieldUserID)
+	}
+	if m.addcount != nil {
+		fields = append(fields, commandusebatch.FieldCount)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CommandUseBatchMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case commandusebatch.FieldUserID:
+		return m.AddedUserID()
+	case commandusebatch.FieldCount:
+		return m.AddedCount()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CommandUseBatchMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case commandusebatch.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case commandusebatch.FieldCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCount(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CommandUseBatch numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CommandUseBatchMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CommandUseBatchMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CommandUseBatchMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CommandUseBatch nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CommandUseBatchMutation) ResetField(name string) error {
+	switch name {
+	case commandusebatch.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case commandusebatch.FieldName:
+		m.ResetName()
+		return nil
+	case commandusebatch.FieldCount:
+		m.ResetCount()
+		return nil
+	case commandusebatch.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown CommandUseBatch field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CommandUseBatchMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CommandUseBatchMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CommandUseBatchMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CommandUseBatchMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CommandUseBatchMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CommandUseBatchMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CommandUseBatchMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CommandUseBatch unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CommandUseBatchMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CommandUseBatch edge %s", name)
+}
 
 // CommandsMutation represents an operation that mutates the Commands nodes in the graph.
 type CommandsMutation struct {
@@ -52,7 +617,7 @@ type CommandsMutation struct {
 	addcooldown        *int
 	allowed_user_id    *uint64
 	addallowed_user_id *int64
-	uses               *uint64
+	uses               *int64
 	adduses            *int64
 	bump_counter       *string
 	created_at         *time.Time
@@ -575,13 +1140,13 @@ func (m *CommandsMutation) ResetAllowedUserID() {
 }
 
 // SetUses sets the "uses" field.
-func (m *CommandsMutation) SetUses(u uint64) {
-	m.uses = &u
+func (m *CommandsMutation) SetUses(i int64) {
+	m.uses = &i
 	m.adduses = nil
 }
 
 // Uses returns the value of the "uses" field in the mutation.
-func (m *CommandsMutation) Uses() (r uint64, exists bool) {
+func (m *CommandsMutation) Uses() (r int64, exists bool) {
 	v := m.uses
 	if v == nil {
 		return
@@ -592,7 +1157,7 @@ func (m *CommandsMutation) Uses() (r uint64, exists bool) {
 // OldUses returns the old "uses" field's value of the Commands entity.
 // If the Commands object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CommandsMutation) OldUses(ctx context.Context) (v uint64, err error) {
+func (m *CommandsMutation) OldUses(ctx context.Context) (v int64, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldUses is only allowed on UpdateOne operations")
 	}
@@ -606,12 +1171,12 @@ func (m *CommandsMutation) OldUses(ctx context.Context) (v uint64, err error) {
 	return oldValue.Uses, nil
 }
 
-// AddUses adds u to the "uses" field.
-func (m *CommandsMutation) AddUses(u int64) {
+// AddUses adds i to the "uses" field.
+func (m *CommandsMutation) AddUses(i int64) {
 	if m.adduses != nil {
-		*m.adduses += u
+		*m.adduses += i
 	} else {
-		m.adduses = &u
+		m.adduses = &i
 	}
 }
 
@@ -954,7 +1519,7 @@ func (m *CommandsMutation) SetField(name string, value ent.Value) error {
 		m.SetAllowedUserID(v)
 		return nil
 	case commands.FieldUses:
-		v, ok := value.(uint64)
+		v, ok := value.(int64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}

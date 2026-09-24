@@ -27,8 +27,8 @@ func NewPersonalityRPC(nc *nats.Conn, modulesPrefix string) *PersonalityRPC {
 	return &PersonalityRPC{nc: nc, subject: subject, boardSubject: subject + ".board"}
 }
 
-func (c *PersonalityRPC) FeedBump(ctx context.Context, broadcasterID uint64, name string) (FeedTotals, error) {
-	request := modulesrpc.FeedBumpRequest{BroadcasterID: broadcasterID, Name: name}
+func (c *PersonalityRPC) FeedBump(ctx context.Context, broadcasterID uint64, name, eventID string) (FeedTotals, error) {
+	request := modulesrpc.FeedBumpRequest{BroadcasterID: broadcasterID, Name: name, EventID: eventID}
 	reply, err := bus.RequestJSONTimeout[modulesrpc.FeedBumpReply](ctx, c.nc, c.subject, request, personalityRPCTimeout)
 	if err != nil {
 		return FeedTotals{}, err

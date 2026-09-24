@@ -6,7 +6,10 @@ package schema
 import (
 	"time"
 
+	"ItsBagelBot/internal/domain/event/data"
 	"entgo.io/ent"
+	"entgo.io/ent/dialect/entsql"
+	entschema "entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
 )
@@ -28,7 +31,7 @@ func (CounterEntry) Fields() []ent.Field {
 		field.String("viewer_login").Optional().MaxLen(64),
 		field.String("viewer_name").Optional().MaxLen(64),
 
-		field.Int64("value").Default(0),
+		field.Int64("value").Default(0).NonNegative().Max(data.MaxCounter),
 
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}
@@ -45,4 +48,8 @@ func (CounterEntry) Hooks() []ent.Hook {
 	return []ent.Hook{
 		normalizeNameHook(),
 	}
+}
+
+func (CounterEntry) Annotations() []entschema.Annotation {
+	return []entschema.Annotation{entsql.Checks(map[string]string{"counter_entry_value_exact_range": "value >= 0 AND value <= 9223372036854775807"})}
 }

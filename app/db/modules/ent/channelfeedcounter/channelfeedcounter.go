@@ -38,7 +38,9 @@ func ValidColumn(column string) bool {
 
 var (
 	// DefaultCount holds the default value on creation for the "count" field.
-	DefaultCount uint64
+	DefaultCount int64
+	// CountValidator is a validator for the "count" field. It is called by the builders before save.
+	CountValidator func(int64) error
 	// DefaultName holds the default value on creation for the "name" field.
 	DefaultName string
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.

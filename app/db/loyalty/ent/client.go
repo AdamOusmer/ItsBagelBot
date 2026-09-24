@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/db/loyalty/ent/balance"
 	"ItsBagelBot/app/db/loyalty/ent/counter"
+	"ItsBagelBot/app/db/loyalty/ent/counterbatch"
 	"ItsBagelBot/app/db/loyalty/ent/counterentry"
 
 	"entgo.io/ent"
@@ -29,6 +30,8 @@ type Client struct {
 	Balance *BalanceClient
 	// Counter is the client for interacting with the Counter builders.
 	Counter *CounterClient
+	// CounterBatch is the client for interacting with the CounterBatch builders.
+	CounterBatch *CounterBatchClient
 	// CounterEntry is the client for interacting with the CounterEntry builders.
 	CounterEntry *CounterEntryClient
 }
@@ -44,6 +47,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Balance = NewBalanceClient(c.config)
 	c.Counter = NewCounterClient(c.config)
+	c.CounterBatch = NewCounterBatchClient(c.config)
 	c.CounterEntry = NewCounterEntryClient(c.config)
 }
 
@@ -139,6 +143,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:       cfg,
 		Balance:      NewBalanceClient(cfg),
 		Counter:      NewCounterClient(cfg),
+		CounterBatch: NewCounterBatchClient(cfg),
 		CounterEntry: NewCounterEntryClient(cfg),
 	}, nil
 }
@@ -161,6 +166,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:       cfg,
 		Balance:      NewBalanceClient(cfg),
 		Counter:      NewCounterClient(cfg),
+		CounterBatch: NewCounterBatchClient(cfg),
 		CounterEntry: NewCounterEntryClient(cfg),
 	}, nil
 }
@@ -192,6 +198,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	c.Balance.Use(hooks...)
 	c.Counter.Use(hooks...)
+	c.CounterBatch.Use(hooks...)
 	c.CounterEntry.Use(hooks...)
 }
 
@@ -200,6 +207,7 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.Balance.Intercept(interceptors...)
 	c.Counter.Intercept(interceptors...)
+	c.CounterBatch.Intercept(interceptors...)
 	c.CounterEntry.Intercept(interceptors...)
 }
 
@@ -210,6 +218,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Balance.mutate(ctx, m)
 	case *CounterMutation:
 		return c.Counter.mutate(ctx, m)
+	case *CounterBatchMutation:
+		return c.CounterBatch.mutate(ctx, m)
 	case *CounterEntryMutation:
 		return c.CounterEntry.mutate(ctx, m)
 	default:
@@ -484,6 +494,139 @@ func (c *CounterClient) mutate(ctx context.Context, m *CounterMutation) (Value, 
 	}
 }
 
+// CounterBatchClient is a client for the CounterBatch schema.
+type CounterBatchClient struct {
+	config
+}
+
+// NewCounterBatchClient returns a client for the CounterBatch from the given config.
+func NewCounterBatchClient(c config) *CounterBatchClient {
+	return &CounterBatchClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `counterbatch.Hooks(f(g(h())))`.
+func (c *CounterBatchClient) Use(hooks ...Hook) {
+	c.hooks.CounterBatch = append(c.hooks.CounterBatch, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `counterbatch.Intercept(f(g(h())))`.
+func (c *CounterBatchClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CounterBatch = append(c.inters.CounterBatch, interceptors...)
+}
+
+// Create returns a builder for creating a CounterBatch entity.
+func (c *CounterBatchClient) Create() *CounterBatchCreate {
+	mutation := newCounterBatchMutation(c.config, OpCreate)
+	return &CounterBatchCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CounterBatch entities.
+func (c *CounterBatchClient) CreateBulk(builders ...*CounterBatchCreate) *CounterBatchCreateBulk {
+	return &CounterBatchCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CounterBatchClient) MapCreateBulk(slice any, setFunc func(*CounterBatchCreate, int)) *CounterBatchCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CounterBatchCreateBulk{err: fmt.Errorf("calling to CounterBatchClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CounterBatchCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CounterBatchCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CounterBatch.
+func (c *CounterBatchClient) Update() *CounterBatchUpdate {
+	mutation := newCounterBatchMutation(c.config, OpUpdate)
+	return &CounterBatchUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CounterBatchClient) UpdateOne(_m *CounterBatch) *CounterBatchUpdateOne {
+	mutation := newCounterBatchMutation(c.config, OpUpdateOne, withCounterBatch(_m))
+	return &CounterBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CounterBatchClient) UpdateOneID(id string) *CounterBatchUpdateOne {
+	mutation := newCounterBatchMutation(c.config, OpUpdateOne, withCounterBatchID(id))
+	return &CounterBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CounterBatch.
+func (c *CounterBatchClient) Delete() *CounterBatchDelete {
+	mutation := newCounterBatchMutation(c.config, OpDelete)
+	return &CounterBatchDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CounterBatchClient) DeleteOne(_m *CounterBatch) *CounterBatchDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CounterBatchClient) DeleteOneID(id string) *CounterBatchDeleteOne {
+	builder := c.Delete().Where(counterbatch.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CounterBatchDeleteOne{builder}
+}
+
+// Query returns a query builder for CounterBatch.
+func (c *CounterBatchClient) Query() *CounterBatchQuery {
+	return &CounterBatchQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCounterBatch},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CounterBatch entity by its id.
+func (c *CounterBatchClient) Get(ctx context.Context, id string) (*CounterBatch, error) {
+	return c.Query().Where(counterbatch.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CounterBatchClient) GetX(ctx context.Context, id string) *CounterBatch {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CounterBatchClient) Hooks() []Hook {
+	return c.hooks.CounterBatch
+}
+
+// Interceptors returns the client interceptors.
+func (c *CounterBatchClient) Interceptors() []Interceptor {
+	return c.inters.CounterBatch
+}
+
+func (c *CounterBatchClient) mutate(ctx context.Context, m *CounterBatchMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CounterBatchCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CounterBatchUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CounterBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CounterBatchDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CounterBatch mutation op: %q", m.Op())
+	}
+}
+
 // CounterEntryClient is a client for the CounterEntry schema.
 type CounterEntryClient struct {
 	config
@@ -621,9 +764,9 @@ func (c *CounterEntryClient) mutate(ctx context.Context, m *CounterEntryMutation
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Balance, Counter, CounterEntry []ent.Hook
+		Balance, Counter, CounterBatch, CounterEntry []ent.Hook
 	}
 	inters struct {
-		Balance, Counter, CounterEntry []ent.Interceptor
+		Balance, Counter, CounterBatch, CounterEntry []ent.Interceptor
 	}
 )

@@ -94,7 +94,9 @@ var (
 	// DefaultAllowedUserID holds the default value on creation for the "allowed_user_id" field.
 	DefaultAllowedUserID uint64
 	// DefaultUses holds the default value on creation for the "uses" field.
-	DefaultUses uint64
+	DefaultUses int64
+	// UsesValidator is a validator for the "uses" field. It is called by the builders before save.
+	UsesValidator func(int64) error
 	// DefaultBumpCounter holds the default value on creation for the "bump_counter" field.
 	DefaultBumpCounter string
 	// BumpCounterValidator is a validator for the "bump_counter" field. It is called by the builders before save.

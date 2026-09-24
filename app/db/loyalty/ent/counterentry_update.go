@@ -173,6 +173,11 @@ func (_u *CounterEntryUpdate) check() error {
 			return &ValidationError{Name: "viewer_name", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.viewer_name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Value(); ok {
+		if err := counterentry.ValueValidator(v); err != nil {
+			return &ValidationError{Name: "value", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.value": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -388,6 +393,11 @@ func (_u *CounterEntryUpdateOne) check() error {
 	if v, ok := _u.mutation.ViewerName(); ok {
 		if err := counterentry.ViewerNameValidator(v); err != nil {
 			return &ValidationError{Name: "viewer_name", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.viewer_name": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Value(); ok {
+		if err := counterentry.ValueValidator(v); err != nil {
+			return &ValidationError{Name: "value", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.value": %w`, err)}
 		}
 	}
 	return nil

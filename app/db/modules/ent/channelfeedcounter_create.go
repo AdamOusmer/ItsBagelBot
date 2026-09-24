@@ -22,13 +22,13 @@ type ChannelFeedCounterCreate struct {
 }
 
 // SetCount sets the "count" field.
-func (_c *ChannelFeedCounterCreate) SetCount(v uint64) *ChannelFeedCounterCreate {
+func (_c *ChannelFeedCounterCreate) SetCount(v int64) *ChannelFeedCounterCreate {
 	_c.mutation.SetCount(v)
 	return _c
 }
 
 // SetNillableCount sets the "count" field if the given value is not nil.
-func (_c *ChannelFeedCounterCreate) SetNillableCount(v *uint64) *ChannelFeedCounterCreate {
+func (_c *ChannelFeedCounterCreate) SetNillableCount(v *int64) *ChannelFeedCounterCreate {
 	if v != nil {
 		_c.SetCount(*v)
 	}
@@ -105,6 +105,11 @@ func (_c *ChannelFeedCounterCreate) check() error {
 	if _, ok := _c.mutation.Count(); !ok {
 		return &ValidationError{Name: "count", err: errors.New(`ent: missing required field "ChannelFeedCounter.count"`)}
 	}
+	if v, ok := _c.mutation.Count(); ok {
+		if err := channelfeedcounter.CountValidator(v); err != nil {
+			return &ValidationError{Name: "count", err: fmt.Errorf(`ent: validator failed for field "ChannelFeedCounter.count": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.Name(); !ok {
 		return &ValidationError{Name: "name", err: errors.New(`ent: missing required field "ChannelFeedCounter.name"`)}
 	}
@@ -147,7 +152,7 @@ func (_c *ChannelFeedCounterCreate) createSpec() (*ChannelFeedCounter, *sqlgraph
 		_spec.ID.Value = id
 	}
 	if value, ok := _c.mutation.Count(); ok {
-		_spec.SetField(channelfeedcounter.FieldCount, field.TypeUint64, value)
+		_spec.SetField(channelfeedcounter.FieldCount, field.TypeInt64, value)
 		_node.Count = value
 	}
 	if value, ok := _c.mutation.Name(); ok {
@@ -207,7 +212,7 @@ type (
 )
 
 // SetCount sets the "count" field.
-func (u *ChannelFeedCounterUpsert) SetCount(v uint64) *ChannelFeedCounterUpsert {
+func (u *ChannelFeedCounterUpsert) SetCount(v int64) *ChannelFeedCounterUpsert {
 	u.Set(channelfeedcounter.FieldCount, v)
 	return u
 }
@@ -219,7 +224,7 @@ func (u *ChannelFeedCounterUpsert) UpdateCount() *ChannelFeedCounterUpsert {
 }
 
 // AddCount adds v to the "count" field.
-func (u *ChannelFeedCounterUpsert) AddCount(v uint64) *ChannelFeedCounterUpsert {
+func (u *ChannelFeedCounterUpsert) AddCount(v int64) *ChannelFeedCounterUpsert {
 	u.Add(channelfeedcounter.FieldCount, v)
 	return u
 }
@@ -285,14 +290,14 @@ func (u *ChannelFeedCounterUpsertOne) Update(set func(*ChannelFeedCounterUpsert)
 }
 
 // SetCount sets the "count" field.
-func (u *ChannelFeedCounterUpsertOne) SetCount(v uint64) *ChannelFeedCounterUpsertOne {
+func (u *ChannelFeedCounterUpsertOne) SetCount(v int64) *ChannelFeedCounterUpsertOne {
 	return u.Update(func(s *ChannelFeedCounterUpsert) {
 		s.SetCount(v)
 	})
 }
 
 // AddCount adds v to the "count" field.
-func (u *ChannelFeedCounterUpsertOne) AddCount(v uint64) *ChannelFeedCounterUpsertOne {
+func (u *ChannelFeedCounterUpsertOne) AddCount(v int64) *ChannelFeedCounterUpsertOne {
 	return u.Update(func(s *ChannelFeedCounterUpsert) {
 		s.AddCount(v)
 	})
@@ -534,14 +539,14 @@ func (u *ChannelFeedCounterUpsertBulk) Update(set func(*ChannelFeedCounterUpsert
 }
 
 // SetCount sets the "count" field.
-func (u *ChannelFeedCounterUpsertBulk) SetCount(v uint64) *ChannelFeedCounterUpsertBulk {
+func (u *ChannelFeedCounterUpsertBulk) SetCount(v int64) *ChannelFeedCounterUpsertBulk {
 	return u.Update(func(s *ChannelFeedCounterUpsert) {
 		s.SetCount(v)
 	})
 }
 
 // AddCount adds v to the "count" field.
-func (u *ChannelFeedCounterUpsertBulk) AddCount(v uint64) *ChannelFeedCounterUpsertBulk {
+func (u *ChannelFeedCounterUpsertBulk) AddCount(v int64) *ChannelFeedCounterUpsertBulk {
 	return u.Update(func(s *ChannelFeedCounterUpsert) {
 		s.AddCount(v)
 	})

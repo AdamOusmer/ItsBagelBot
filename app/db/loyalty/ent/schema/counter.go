@@ -8,7 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"ItsBagelBot/internal/domain/event/data"
 	"entgo.io/ent"
+	"entgo.io/ent/dialect/entsql"
+	entschema "entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
 )
@@ -25,7 +28,7 @@ func (Counter) Fields() []ent.Field {
 
 		field.String("scope").Default("channel"),
 
-		field.Int64("value").Default(0),
+		field.Int64("value").Default(0).NonNegative().Max(data.MaxCounter),
 
 		field.Time("created_at").Default(time.Now),
 
@@ -64,4 +67,8 @@ func normalizeNameHook() ent.Hook {
 			return next.Mutate(ctx, m)
 		})
 	}
+}
+
+func (Counter) Annotations() []entschema.Annotation {
+	return []entschema.Annotation{entsql.Checks(map[string]string{"counter_value_exact_range": "value >= 0 AND value <= 9223372036854775807"})}
 }

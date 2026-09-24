@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
+	"ItsBagelBot/app/db/modules/ent/feedreceipt"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/quote"
@@ -22,7 +23,23 @@ func init() {
 	// channelfeedcounterDescCount is the schema descriptor for count field.
 	channelfeedcounterDescCount := channelfeedcounterFields[1].Descriptor()
 	// channelfeedcounter.DefaultCount holds the default value on creation for the count field.
-	channelfeedcounter.DefaultCount = channelfeedcounterDescCount.Default.(uint64)
+	channelfeedcounter.DefaultCount = channelfeedcounterDescCount.Default.(int64)
+	// channelfeedcounter.CountValidator is a validator for the "count" field. It is called by the builders before save.
+	channelfeedcounter.CountValidator = func() func(int64) error {
+		validators := channelfeedcounterDescCount.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(count int64) error {
+			for _, fn := range fns {
+				if err := fn(count); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	// channelfeedcounterDescName is the schema descriptor for name field.
 	channelfeedcounterDescName := channelfeedcounterFields[2].Descriptor()
 	// channelfeedcounter.DefaultName holds the default value on creation for the name field.
@@ -34,7 +51,73 @@ func init() {
 	// feedcounterDescCount is the schema descriptor for count field.
 	feedcounterDescCount := feedcounterFields[1].Descriptor()
 	// feedcounter.DefaultCount holds the default value on creation for the count field.
-	feedcounter.DefaultCount = feedcounterDescCount.Default.(uint64)
+	feedcounter.DefaultCount = feedcounterDescCount.Default.(int64)
+	// feedcounter.CountValidator is a validator for the "count" field. It is called by the builders before save.
+	feedcounter.CountValidator = func() func(int64) error {
+		validators := feedcounterDescCount.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(count int64) error {
+			for _, fn := range fns {
+				if err := fn(count); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	feedreceiptFields := schema.FeedReceipt{}.Fields()
+	_ = feedreceiptFields
+	// feedreceiptDescTotal is the schema descriptor for total field.
+	feedreceiptDescTotal := feedreceiptFields[1].Descriptor()
+	// feedreceipt.DefaultTotal holds the default value on creation for the total field.
+	feedreceipt.DefaultTotal = feedreceiptDescTotal.Default.(int64)
+	// feedreceipt.TotalValidator is a validator for the "total" field. It is called by the builders before save.
+	feedreceipt.TotalValidator = func() func(int64) error {
+		validators := feedreceiptDescTotal.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(total int64) error {
+			for _, fn := range fns {
+				if err := fn(total); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// feedreceiptDescChannel is the schema descriptor for channel field.
+	feedreceiptDescChannel := feedreceiptFields[2].Descriptor()
+	// feedreceipt.DefaultChannel holds the default value on creation for the channel field.
+	feedreceipt.DefaultChannel = feedreceiptDescChannel.Default.(int64)
+	// feedreceipt.ChannelValidator is a validator for the "channel" field. It is called by the builders before save.
+	feedreceipt.ChannelValidator = func() func(int64) error {
+		validators := feedreceiptDescChannel.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(channel int64) error {
+			for _, fn := range fns {
+				if err := fn(channel); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// feedreceiptDescCreatedAt is the schema descriptor for created_at field.
+	feedreceiptDescCreatedAt := feedreceiptFields[3].Descriptor()
+	// feedreceipt.DefaultCreatedAt holds the default value on creation for the created_at field.
+	feedreceipt.DefaultCreatedAt = feedreceiptDescCreatedAt.Default.(func() time.Time)
+	// feedreceiptDescID is the schema descriptor for id field.
+	feedreceiptDescID := feedreceiptFields[0].Descriptor()
+	// feedreceipt.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	feedreceipt.IDValidator = feedreceiptDescID.Validators[0].(func(string) error)
 	goveecredentialFields := schema.GoveeCredential{}.Fields()
 	_ = goveecredentialFields
 	// goveecredentialDescUpdatedAt is the schema descriptor for updated_at field.

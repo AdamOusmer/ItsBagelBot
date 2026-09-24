@@ -14,6 +14,8 @@ import {
   type Locale,
   type Perm
 } from '@bagel/kit';
+import { usesCount } from '@bagel/kit/uses';
+import { formatCounterValue } from '@bagel/kit/validation';
 import type { ModuleView } from '$lib/server/commands-store';
 
 export type PublicCommand = {
@@ -79,7 +81,7 @@ export function publicCommands(rows: CommandView[], locale: Locale = 'en'): Publ
         perm: localizedPerm === permKey ? (PERM_LABELS[perm] ?? PERM_LABELS.everyone) : localizedPerm,
         cooldown: Math.max(0, Number(cmd.cooldown ?? 0) || 0),
         liveOnly: cmd.stream_online_only === true,
-        uses: cmd.uses == null ? '' : String(cmd.uses)
+        uses: cmd.uses == null ? '' : formatCounterValue(usesCount(cmd).toString(), locale)
       };
     })
     .sort((a, b) => a.trigger.localeCompare(b.trigger));
