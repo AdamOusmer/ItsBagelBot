@@ -1,0 +1,225 @@
+global:
+  cluster: bagelbot
+  customSecretLicenseKey: licenseKey
+  customSecretName: newrelic-license
+  lowDataMode: true
+k8s-agents-operator:
+  enabled: false
+kube-state-metrics:
+  enabled: true
+  nodeSelector:
+    role: cp
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+    operator: Exists
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+    operator: Exists
+  - key: role
+    operator: Equal
+    value: cp
+    effect: NoSchedule
+kubeEvents:
+  enabled: false
+newrelic-infra-operator:
+  enabled: false
+newrelic-infrastructure:
+  controlPlane:
+    controlplane:
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 10m
+          memory: 64Mi
+    enabled: true
+    forwarder:
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 10m
+          memory: 64Mi
+    tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+      operator: Exists
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/master
+      operator: Exists
+    - key: role
+      operator: Equal
+      value: cp
+      effect: NoSchedule
+  enabled: true
+  ksm:
+    enabled: true
+    forwarder:
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 10m
+          memory: 64Mi
+    ksm:
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 10m
+          memory: 64Mi
+    nodeSelector:
+      role: cp
+    tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+      operator: Exists
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/master
+      operator: Exists
+    - key: role
+      operator: Equal
+      value: cp
+      effect: NoSchedule
+  kubelet:
+    agent:
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 10m
+          memory: 64Mi
+    kubelet:
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 10m
+          memory: 64Mi
+    tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+      operator: Exists
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/master
+      operator: Exists
+    - key: role
+      operator: Equal
+      value: cp
+      effect: NoSchedule
+    extraEnv:
+    - name: VALKEY_CORE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: newrelic-license
+          key: VALKEY_CORE_PASSWORD
+    extraPassthroughEnv:
+    - VALKEY_CORE_PASSWORD
+  integrations:
+    redis-config:
+      discovery:
+        command:
+          exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+          match:
+            name: valkey
+            label.app.kubernetes.io/name: valkey
+      integrations:
+      - name: nri-redis
+        env:
+          METRICS: 'true'
+          HOSTNAME: ${discovery.ip}
+          PORT: '6380'
+          PASSWORD: '{{ VALKEY_CORE_PASSWORD }}'
+          USE_TLS: 'true'
+          TLS_INSECURE_SKIP_VERIFY: 'true'
+          REMOTE_MONITORING: 'true'
+          CONFIG_INVENTORY: 'false'
+newrelic-k8s-metrics-adapter:
+  enabled: false
+newrelic-logging:
+  enabled: true
+  lowDataMode: true
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+    operator: Exists
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+    operator: Exists
+  - key: role
+    operator: Equal
+    value: cp
+    effect: NoSchedule
+newrelic-pixie:
+  enabled: false
+newrelic-prometheus-agent:
+  config:
+    newrelic_remote_write:
+      extra_write_relabel_configs:
+      - action: drop
+        regex: coredns_.*_bucket|traefik_.*_bucket
+        source_labels:
+        - __name__
+  enabled: true
+  lowDataMode: true
+  nodeSelector:
+    role: cp
+  resources:
+    configurator:
+      limits:
+        cpu: 50m
+        memory: 64Mi
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    prometheus:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+  tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+    operator: Exists
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+    operator: Exists
+  - key: role
+    operator: Equal
+    value: cp
+    effect: NoSchedule
+nr-ebpf-agent:
+  enabled: false
+nri-kube-events:
+  enabled: false
+nri-metadata-injection:
+  enabled: false
+nri-prometheus:
+  enabled: false
+pixie-chart:
+  enabled: false
+webhook:
+  enabled: false
