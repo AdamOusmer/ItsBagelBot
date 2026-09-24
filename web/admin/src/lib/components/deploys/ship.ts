@@ -65,7 +65,6 @@ export function changelogJSON(d: ChangelogDraft): string {
 export type ShipState = {
   kind: RunKind;
   uses: KindUses;
-  active: boolean;
   version: string;
   targetSha: string;
   rollbackTo: string;
@@ -74,18 +73,45 @@ export type ShipState = {
   planFailed: boolean;
 };
 
-const BLOCKERS: readonly (readonly [(s: ShipState) => boolean, string])[] = [
-  [(s) => s.active, 'admin.deploys.runActive'],
-  [(s) => s.replanning, 'admin.deploys.planWait'],
-  [(s) => s.planFailed, 'admin.deploys.planFailed'],
-  [(s) => s.uses.target && !s.targetSha, 'admin.deploys.needPlan'],
-  [(s) => s.uses.version && !s.version.trim(), 'admin.deploys.needVersion'],
-  [(s) => s.uses.rollback && !s.rollbackTo, 'admin.deploys.needRollback'],
-  [(s) => s.uses.changelog && !s.titleEn.trim(), 'admin.deploys.needTitle']
+export type ShipStep = 'kind' | 'build' | 'rollback' | 'prs' | 'changelog' | 'review';
+
+const STEP_USE: readonly (readonly [ShipStep, (u: KindUses) => boolean])[] = [
+  ['kind', () => true],
+  ['build', (u) => u.target],
+  ['rollback', (u) => u.rollback],
+  ['prs', (u) => u.prs],
+  ['changelog', (u) => u.changelog],
+  ['review', () => true]
+];
+
+export function stepsFor(uses: KindUses): ShipStep[] {
+  return STEP_USE.filter(([, on]) => on(uses)).map(([step]) => step);
+}
+
+type Blocker = readonly [ShipStep | 'any', (s: ShipState) => boolean, string];
+
+const BLOCKERS: readonly Blocker[] = [
+  ['any', (s) => s.replanning, 'admin.deploys.planWait'],
+  ['any', (s) => s.planFailed, 'admin.deploys.planFailed'],
+  ['build', (s) => s.uses.target && !s.targetSha, 'admin.deploys.needPlan'],
+  ['build', (s) => s.uses.version && !s.version.trim(), 'admin.deploys.needVersion'],
+  ['rollback', (s) => s.uses.rollback && !s.rollbackTo, 'admin.deploys.needRollback'],
+  ['changelog', (s) => s.uses.changelog && !s.titleEn.trim(), 'admin.deploys.needTitle']
 ];
 
 export function blocker(s: ShipState): string | null {
-  return BLOCKERS.find(([blocked]) => blocked(s))?.[1] ?? null;
+  return BLOCKERS.find(([, blocked]) => blocked(s))?.[2] ?? null;
+}
+
+export function stepBlocker(s: ShipState, step: ShipStep): string | null {
+  if (step === 'review') return blocker(s);
+  return BLOCKERS.find(([at, blocked]) => (at === step || at === 'any') && blocked(s))?.[2] ?? null;
+}
+
+export function reachable(s: ShipState, steps: ShipStep[], furthest: number): number {
+  const last = steps.length - 1;
+  const stuck = steps.findIndex((step, i) => i < last && stepBlocker(s, step) !== null);
+  return Math.min(furthest + 1, stuck === -1 ? last : stuck);
 }
 
 const SHIP_KEY: Record<RunKind, string> = {
@@ -125,3 +151,30 @@ export async function fetchPlan(kind: RunKind, rollbackTo = ''): Promise<DeployP
     return null;
   }
 }
+
+export const STEP_RAIL_KEY: Record<ShipStep, string> = {
+  kind: 'admin.deploys.flow.rail.kind',
+  build: 'admin.deploys.flow.rail.build',
+  rollback: 'admin.deploys.flow.rail.rollback',
+  prs: 'admin.deploys.flow.rail.prs',
+  changelog: 'admin.deploys.flow.rail.changelog',
+  review: 'admin.deploys.flow.rail.review'
+};
+
+export const STEP_TITLE_KEY: Record<ShipStep, string> = {
+  kind: 'admin.deploys.flow.title.kind',
+  build: 'admin.deploys.flow.title.build',
+  rollback: 'admin.deploys.flow.title.rollback',
+  prs: 'admin.deploys.flow.title.prs',
+  changelog: 'admin.deploys.flow.title.changelog',
+  review: 'admin.deploys.flow.title.review'
+};
+
+export const STEP_BODY_KEY: Record<ShipStep, string> = {
+  kind: 'admin.deploys.flow.body.kind',
+  build: 'admin.deploys.flow.body.build',
+  rollback: 'admin.deploys.flow.body.rollback',
+  prs: 'admin.deploys.flow.body.prs',
+  changelog: 'admin.deploys.flow.body.changelog',
+  review: 'admin.deploys.flow.body.review'
+};

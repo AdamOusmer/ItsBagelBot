@@ -1,8 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import LightField from '@bagel/ui/svelte/LightField.svelte';
-  import '@bagel/ui/styles/orbs.css';
+  import LightField from './LightField.svelte';
+  import '../styles/orbs.css';
 
   let {
     shift = 0,

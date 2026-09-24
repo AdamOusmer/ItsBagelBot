@@ -10,12 +10,10 @@
 
   let {
     prs,
-    picked = $bindable([]),
-    disabled = false
+    picked = $bindable([])
   }: {
     prs: DeployPRInfo[];
     picked: number[];
-    disabled?: boolean;
   } = $props();
 
   const { t } = getI18n();
@@ -38,10 +36,8 @@
       <li class="pr-row" class:blocked={!tickable(pr)}>
         <Checkbox
           class="pick"
-          name="pr"
-          value={String(pr.number)}
           checked={picked.includes(pr.number)}
-          disabled={disabled || !tickable(pr)}
+          disabled={!tickable(pr)}
           onchange={(e: Event) => toggle(pr, (e.currentTarget as HTMLInputElement).checked)}
         >
           <span class="pr-label">
@@ -80,7 +76,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    height: 40px;
+    min-height: 44px;
+    padding: 6px 0;
     border-bottom: 1px solid var(--rule);
   }
   .pr-row:last-child {
@@ -105,10 +102,13 @@
     color: var(--bb-muted);
   }
   .title {
+    display: -webkit-box;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 13px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    font-size: 13.5px;
+    line-height: 1.35;
   }
   .meta {
     display: inline-flex;

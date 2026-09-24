@@ -20,7 +20,7 @@
   import { LOCALES, ensureCatalog, translate, type Locale } from '@bagel/kit/i18n';
   import '@bagel/ui/styles/elements/nav.css';
   import CursorSwitch from '$lib/components/CursorSwitch.svelte';
-  import Sky from '$lib/components/welcome/Sky.svelte';
+  import Sky from '@bagel/ui/svelte/Sky.svelte';
   import StepRail from '$lib/components/welcome/StepRail.svelte';
   import Completion from '$lib/components/welcome/Completion.svelte';
   import ImportWizard from '$lib/components/welcome/ImportWizard.svelte';

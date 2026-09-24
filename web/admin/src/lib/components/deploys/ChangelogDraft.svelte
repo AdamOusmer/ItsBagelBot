@@ -7,32 +7,26 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ChangelogDraft } from './ship';
 
-  let {
-    draft = $bindable(),
-    disabled = false
-  }: {
-    draft: ChangelogDraft;
-    disabled?: boolean;
-  } = $props();
+  let { draft = $bindable() }: { draft: ChangelogDraft } = $props();
 
   const { t } = getI18n();
 </script>
 
-<div class="draft" class:off={disabled}>
+<div class="draft">
   <div class="pair">
     <Field label={t('admin.deploys.changelogTitleEn')} for="cl-title-en">
-      <Input id="cl-title-en" fill bind:value={draft.titleEn} {disabled} />
+      <Input id="cl-title-en" fill bind:value={draft.titleEn} />
     </Field>
     <Field label={t('admin.deploys.changelogTitleFr')} for="cl-title-fr">
-      <Input id="cl-title-fr" fill bind:value={draft.titleFr} {disabled} lang="fr" />
+      <Input id="cl-title-fr" fill bind:value={draft.titleFr} lang="fr" />
     </Field>
   </div>
   <div class="pair">
     <Field label={t('admin.deploys.changelogHighlightsEn')} for="cl-hl-en">
-      <Textarea id="cl-hl-en" fill rows={7} bind:value={draft.highlightsEn} {disabled} />
+      <Textarea id="cl-hl-en" fill rows={7} bind:value={draft.highlightsEn} />
     </Field>
     <Field label={t('admin.deploys.changelogHighlightsFr')} for="cl-hl-fr">
-      <Textarea id="cl-hl-fr" fill rows={7} bind:value={draft.highlightsFr} {disabled} lang="fr" />
+      <Textarea id="cl-hl-fr" fill rows={7} bind:value={draft.highlightsFr} lang="fr" />
     </Field>
   </div>
 </div>
@@ -42,9 +36,6 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-  }
-  .draft.off {
-    opacity: 0.5;
   }
   .pair {
     display: grid;

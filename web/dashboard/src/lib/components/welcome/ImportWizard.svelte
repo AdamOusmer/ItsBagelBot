@@ -8,7 +8,7 @@
   import { bezier } from '@bagel/ui/lib/tween';
   import { hasFinePointer, prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import Brand from '@bagel/ui/svelte/Brand.svelte';
-  import Sky from '$lib/components/welcome/Sky.svelte';
+  import Sky from '@bagel/ui/svelte/Sky.svelte';
   import StepRail from '$lib/components/welcome/StepRail.svelte';
   import Completion from '$lib/components/welcome/Completion.svelte';
   import { deserialize } from '$app/forms';
