@@ -4,6 +4,7 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/codec"
 	"context"
+	"maps"
 	"testing"
 
 	"go.uber.org/zap"
@@ -80,8 +81,12 @@ func TestBlockedTrialOutputsSummarizePerChannelAndType(t *testing.T) {
 	}
 	w.blocked.Flush()
 	summaries := blockedSummaries(logs)
-	if len(summaries) != 2 || summaries["chat"]["count"] != int64(100) || summaries["clip"]["count"] != int64(50) {
-		t.Fatalf("want chat=100 clip=50, got %+v", summaries)
+	counts := map[string]any{}
+	for kind, summary := range summaries {
+		counts[kind] = summary["count"]
+	}
+	if want := map[string]any{"chat": int64(100), "clip": int64(50)}; !maps.Equal(counts, want) {
+		t.Fatalf("want %v, got %v", want, counts)
 	}
 	if summaries["chat"]["sample_payload"] != `{"message":"one"}` {
 		t.Fatalf("sample: %v", summaries["chat"]["sample_payload"])
