@@ -32,8 +32,10 @@
 
   onMount(() => {
     let running = false;
+    let hiddenTicks = 0;
     const refresh = async () => {
-      if (running || document.hidden) return;
+      if (running) return;
+      if (document.hidden && hiddenTicks++ % 3 !== 0) return;
       running = true;
       try {
         const response = await fetch('/trials/snapshot');

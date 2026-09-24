@@ -10,15 +10,58 @@
   import type { TrialSnapshot } from '$lib/server/services';
   import type { Panel } from '../../../routes/(admin)/+page.server';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import { onMount } from 'svelte';
+  import { livePoll } from '@bagel/kit/live-poll';
 
   let { snapshot, ok, trialRead, showTrials }: { snapshot: ShardSnapshot; ok: boolean; trialRead: Promise<Panel<TrialSnapshot>>; showTrials: boolean } = $props();
 
   const { t } = getI18n();
 
-  const connected = $derived(snapshot.shards.filter((s) => s.state === 'connected').length);
-  const total = $derived(snapshot.shard_count || snapshot.shards.length);
+  let polled = $state<ShardSnapshot | null>(null);
+  let trials = $state<Panel<TrialSnapshot> | null>(null);
+  let trialsPolled = false;
+  const view = $derived(polled ?? snapshot);
+  const live = $derived(polled !== null || ok);
+
+  $effect(() => {
+    let alive = true;
+    trialRead.then((read) => {
+      if (alive && !trialsPolled) trials = read;
+    });
+    return () => {
+      alive = false;
+    };
+  });
+
+  onMount(() =>
+    livePoll(
+      async () => {
+        try {
+          const res = await fetch('/shards/snapshot');
+          if (!res.ok) return false;
+          const body = (await res.json()) as { snapshot?: ShardSnapshot | null; trials?: TrialSnapshot | null };
+          if (body.snapshot) polled = body.snapshot;
+          if (showTrials && body.trials) {
+            trialsPolled = true;
+            trials = { ok: true, value: body.trials };
+          }
+        } catch {
+          return false;
+        }
+        return false;
+      },
+      {
+        firstDelayMs: 8000,
+        delayMs: () => (document.hidden ? 15000 : 8000),
+        timeoutMs: Number.POSITIVE_INFINITY
+      }
+    )
+  );
+
+  const connected = $derived(view.shards.filter((s) => s.state === 'connected').length);
+  const total = $derived(view.shard_count || view.shards.length);
   const tone = $derived(
-    !ok ? statusTone('unavailable') : statusTone(total > 0 && connected === total ? 'online' : 'degraded')
+    !live ? statusTone('unavailable') : statusTone(total > 0 && connected === total ? 'online' : 'degraded')
   );
 </script>
 
@@ -35,22 +78,22 @@
       {t('admin.overview.fleetSummary', {
         connected: String(connected),
         total: String(total),
-        nodes: String(snapshot.nodes.length)
+        nodes: String(view.nodes.length)
       })}
     </span>
-    {#if snapshot.conduit_manager}
+    {#if view.conduit_manager}
       <span class="conduit">
         {t('admin.overview.fleetConduit', {
-          state: snapshot.conduit_manager.state,
-          node: snapshot.conduit_manager.node || '-'
+          state: view.conduit_manager.state,
+          node: view.conduit_manager.node || '-'
         })}
       </span>
     {/if}
   </p>
 
-  {#if snapshot.shards.length}
+  {#if view.shards.length}
     <div class="node-list">
-      {#each snapshot.shards as s (s.shard_id)}
+      {#each view.shards as s (s.shard_id)}
         <div class="node-row">
           <StatusDot tone={statusTone(s.state === 'connected' ? 'online' : 'degraded')} />
           <span class="nm">{t('admin.overview.fleetShard', { id: String(s.shard_id) })}</span>
@@ -64,13 +107,12 @@
   {/if}
 
   {#if showTrials}
-    {#await trialRead}
+    {#if trials === null}
       <p class="trial-hint">{t('admin.shards.trialLoading')}</p>
-    {:then result}
-      {#if !result.ok}
+    {:else if !trials.ok}
         <p class="trial-hint">{t('admin.shards.trialUnavailable')}</p>
-      {:else}
-        {@const activeTrials = result.value.trials.filter((row) => row.state !== 'removed' && row.state !== 'promoted')}
+    {:else}
+        {@const activeTrials = trials.value.trials.filter((row) => row.state !== 'removed' && row.state !== 'promoted')}
         {#if activeTrials.length}
           <h3 class="trial-title">{t('admin.shards.trialConnections')}</h3>
           <div class="node-list">
@@ -84,8 +126,7 @@
             {/each}
           </div>
         {/if}
-      {/if}
-    {/await}
+    {/if}
   {/if}
 </Card>
 
