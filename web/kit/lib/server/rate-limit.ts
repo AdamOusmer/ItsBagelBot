@@ -11,6 +11,7 @@ import {
 } from './valkey-connection';
 import { getServerConfig, hasServerConfig } from './config';
 import { CircuitBreaker, withTimeout } from './resilience';
+import { logger } from './logger';
 
 export interface RateLimiterOptions {
   capacity: number;
@@ -137,10 +138,16 @@ interface RateLimitClient extends Redis {
 }
 
 const OP_TIMEOUT_MS = 150;
+// A Sentinel client that loses its master in a failover can stay out of `ready`
+// for good (2026-09-24: 40 min until a pod restart); a fresh one finds the new master.
+const STUCK_REBUILD_MS = 30_000;
+const ERROR_LOG_EVERY_MS = 60_000;
 
 let writeClient: RateLimitClient | null = null;
 let writeDisabled = false;
 let writeBreaker = newWriteBreaker();
+let notReadySince = 0;
+let lastErrorLog = 0;
 
 function newWriteBreaker(): CircuitBreaker {
   return new CircuitBreaker({ name: 'valkey-ratelimit', failureThreshold: 3, resetMs: 5_000 });
@@ -148,6 +155,7 @@ function newWriteBreaker(): CircuitBreaker {
 
 function getWriteClient(): RateLimitClient | null {
   if (writeDisabled) return null;
+  rebuildIfStuck(Date.now());
   if (writeClient) return writeClient;
   const cfg = hasServerConfig() ? getServerConfig().valkey : undefined;
   if (!cfg) {
@@ -189,9 +197,33 @@ function getWriteClient(): RateLimitClient | null {
     });
   }
 
-  client.on('error', () => {});
+  client.on('error', logWriteError);
   client.defineCommand('rateLimit', { numberOfKeys: 1, lua: TOKEN_BUCKET_LUA });
   writeClient = client as RateLimitClient;
+  notReadySince = Date.now();
+  return writeClient;
+}
+
+function rebuildIfStuck(now: number): void {
+  if (!writeClient || writeClient.status === 'ready') {
+    notReadySince = 0;
+    return;
+  }
+  if (notReadySince === 0) notReadySince = now;
+  if (now - notReadySince < STUCK_REBUILD_MS) return;
+  logger.warn({ status: writeClient.status }, 'valkey rate-limit client stuck, rebuilding');
+  writeClient.disconnect();
+  writeClient = null;
+}
+
+function logWriteError(err: Error): void {
+  const now = Date.now();
+  if (now - lastErrorLog < ERROR_LOG_EVERY_MS) return;
+  lastErrorLog = now;
+  logger.warn({ err: err.message }, 'valkey rate-limit client error');
+}
+
+export function rateLimitClientForTests(): Redis | null {
   return writeClient;
 }
 
