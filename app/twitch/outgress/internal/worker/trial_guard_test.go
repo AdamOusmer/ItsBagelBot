@@ -51,8 +51,8 @@ func TestUntaggedOutputSkipsTrialGuard(t *testing.T) {
 	}
 }
 
-func TestBlockedTrialOutputsSummarizePerChannelAndType(t *testing.T) {
-	w, logs := observedWorker()
+func blockedTrialBatch(t *testing.T) *outgress.Message {
+	t.Helper()
 	items := []outgress.Message{
 		{Type: outgress.TypeChat, BroadcasterID: "42", Origin: "trial", Payload: codec.RawMessage(`{"message":"one"}`)},
 		{Type: outgress.TypeChat, BroadcasterID: "42", Origin: "trial", Payload: codec.RawMessage(`{"message":"two"}`)},
@@ -62,27 +62,38 @@ func TestBlockedTrialOutputsSummarizePerChannelAndType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 50 {
-		if !w.rejectTrialOutput(context.Background(), &outgress.Message{Type: outgress.TypeBatch, BroadcasterID: "42", Origin: "trial", Payload: body}) {
-			t.Fatal("trial batch was not refused")
-		}
-	}
-	w.blocked.Flush()
+	return &outgress.Message{Type: outgress.TypeBatch, BroadcasterID: "42", Origin: "trial", Payload: body}
+}
+
+func blockedSummaries(logs *observer.ObservedLogs) map[string]map[string]any {
 	summaries := map[string]map[string]any{}
 	for _, entry := range logs.FilterMessage("trial output blocked").All() {
 		summaries[entry.ContextMap()["type"].(string)] = entry.ContextMap()
 	}
-	if len(summaries) != 2 {
-		t.Fatalf("want one line per type, got %d", len(summaries))
+	return summaries
+}
+
+func TestBlockedTrialOutputsSummarizePerChannelAndType(t *testing.T) {
+	w, logs := observedWorker()
+	for range 50 {
+		w.rejectTrialOutput(context.Background(), blockedTrialBatch(t))
 	}
-	if summaries["chat"]["count"] != int64(100) || summaries["clip"]["count"] != int64(50) {
-		t.Fatalf("counts: chat=%v clip=%v", summaries["chat"]["count"], summaries["clip"]["count"])
+	w.blocked.Flush()
+	summaries := blockedSummaries(logs)
+	if len(summaries) != 2 || summaries["chat"]["count"] != int64(100) || summaries["clip"]["count"] != int64(50) {
+		t.Fatalf("want chat=100 clip=50, got %+v", summaries)
 	}
 	if summaries["chat"]["sample_payload"] != `{"message":"one"}` {
 		t.Fatalf("sample: %v", summaries["chat"]["sample_payload"])
 	}
+}
+
+func TestAnEmptyMinuteLogsNothing(t *testing.T) {
+	w, logs := observedWorker()
+	w.rejectTrialOutput(context.Background(), blockedTrialBatch(t))
+	w.blocked.Flush()
 	w.blocked.Flush()
 	if n := logs.FilterMessage("trial output blocked").Len(); n != 2 {
-		t.Fatalf("an empty minute must not log, got %d lines", n)
+		t.Fatalf("want only the first minute's two lines, got %d", n)
 	}
 }
