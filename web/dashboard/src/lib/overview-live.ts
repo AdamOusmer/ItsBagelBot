@@ -15,9 +15,9 @@ export type StreamMeta = {
 };
 
 export type StreamCounters = {
-  messages: number;
-  answered: number;
-  modActions: number;
+  messages: string;
+  answered: string;
+  modActions: string;
   ok: boolean;
 };
 
@@ -72,7 +72,7 @@ export function degradedStreamMeta(): StreamMeta {
 }
 
 export function degradedStreamCounters(): StreamCounters {
-  return { messages: 0, answered: 0, modActions: 0, ok: false };
+  return { messages: '0', answered: '0', modActions: '0', ok: false };
 }
 
 export function degradedChatVolume(): ChatVolume {

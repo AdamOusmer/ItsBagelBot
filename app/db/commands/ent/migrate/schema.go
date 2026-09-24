@@ -3,11 +3,26 @@
 package migrate
 
 import (
+	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/dialect/sql/schema"
 	"entgo.io/ent/schema/field"
 )
 
 var (
+	// CommandUseBatchesColumns holds the columns for the "command_use_batches" table.
+	CommandUseBatchesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Size: 128},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "name", Type: field.TypeString},
+		{Name: "count", Type: field.TypeInt64},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// CommandUseBatchesTable holds the schema information for the "command_use_batches" table.
+	CommandUseBatchesTable = &schema.Table{
+		Name:       "command_use_batches",
+		Columns:    CommandUseBatchesColumns,
+		PrimaryKey: []*schema.Column{CommandUseBatchesColumns[0]},
+	}
 	// CommandsColumns holds the columns for the "commands" table.
 	CommandsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -20,7 +35,7 @@ var (
 		{Name: "perm", Type: field.TypeString, Default: "everyone"},
 		{Name: "cooldown", Type: field.TypeUint, Default: 0},
 		{Name: "allowed_user_id", Type: field.TypeUint64, Default: 0},
-		{Name: "uses", Type: field.TypeUint64, Default: 0},
+		{Name: "uses", Type: field.TypeInt64, Default: 0},
 		{Name: "bump_counter", Type: field.TypeString, Size: 64, Default: ""},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -100,6 +115,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		CommandUseBatchesTable,
 		CommandsTable,
 		FetchDefinitionsTable,
 		FetchKeysTable,
@@ -108,4 +124,8 @@ var (
 )
 
 func init() {
+	CommandsTable.Annotation = &entsql.Annotation{}
+	CommandsTable.Annotation.Checks = map[string]string{
+		"command_uses_exact_range": "uses >= 0",
+	}
 }

@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
+	"ItsBagelBot/app/db/modules/ent/feedreceipt"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/predicate"
@@ -31,6 +32,7 @@ const (
 	// Node types.
 	TypeChannelFeedCounter = "ChannelFeedCounter"
 	TypeFeedCounter        = "FeedCounter"
+	TypeFeedReceipt        = "FeedReceipt"
 	TypeGoveeCredential    = "GoveeCredential"
 	TypeModules            = "Modules"
 	TypeQuote              = "Quote"
@@ -43,7 +45,7 @@ type ChannelFeedCounterMutation struct {
 	op            Op
 	typ           string
 	id            *uint64
-	count         *uint64
+	count         *int64
 	addcount      *int64
 	name          *string
 	clearedFields map[string]struct{}
@@ -157,13 +159,13 @@ func (m *ChannelFeedCounterMutation) IDs(ctx context.Context) ([]uint64, error) 
 }
 
 // SetCount sets the "count" field.
-func (m *ChannelFeedCounterMutation) SetCount(u uint64) {
-	m.count = &u
+func (m *ChannelFeedCounterMutation) SetCount(i int64) {
+	m.count = &i
 	m.addcount = nil
 }
 
 // Count returns the value of the "count" field in the mutation.
-func (m *ChannelFeedCounterMutation) Count() (r uint64, exists bool) {
+func (m *ChannelFeedCounterMutation) Count() (r int64, exists bool) {
 	v := m.count
 	if v == nil {
 		return
@@ -174,7 +176,7 @@ func (m *ChannelFeedCounterMutation) Count() (r uint64, exists bool) {
 // OldCount returns the old "count" field's value of the ChannelFeedCounter entity.
 // If the ChannelFeedCounter object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *ChannelFeedCounterMutation) OldCount(ctx context.Context) (v uint64, err error) {
+func (m *ChannelFeedCounterMutation) OldCount(ctx context.Context) (v int64, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldCount is only allowed on UpdateOne operations")
 	}
@@ -188,12 +190,12 @@ func (m *ChannelFeedCounterMutation) OldCount(ctx context.Context) (v uint64, er
 	return oldValue.Count, nil
 }
 
-// AddCount adds u to the "count" field.
-func (m *ChannelFeedCounterMutation) AddCount(u int64) {
+// AddCount adds i to the "count" field.
+func (m *ChannelFeedCounterMutation) AddCount(i int64) {
 	if m.addcount != nil {
-		*m.addcount += u
+		*m.addcount += i
 	} else {
-		m.addcount = &u
+		m.addcount = &i
 	}
 }
 
@@ -324,7 +326,7 @@ func (m *ChannelFeedCounterMutation) OldField(ctx context.Context, name string) 
 func (m *ChannelFeedCounterMutation) SetField(name string, value ent.Value) error {
 	switch name {
 	case channelfeedcounter.FieldCount:
-		v, ok := value.(uint64)
+		v, ok := value.(int64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -465,7 +467,7 @@ type FeedCounterMutation struct {
 	op            Op
 	typ           string
 	id            *int
-	count         *uint64
+	count         *int64
 	addcount      *int64
 	clearedFields map[string]struct{}
 	done          bool
@@ -578,13 +580,13 @@ func (m *FeedCounterMutation) IDs(ctx context.Context) ([]int, error) {
 }
 
 // SetCount sets the "count" field.
-func (m *FeedCounterMutation) SetCount(u uint64) {
-	m.count = &u
+func (m *FeedCounterMutation) SetCount(i int64) {
+	m.count = &i
 	m.addcount = nil
 }
 
 // Count returns the value of the "count" field in the mutation.
-func (m *FeedCounterMutation) Count() (r uint64, exists bool) {
+func (m *FeedCounterMutation) Count() (r int64, exists bool) {
 	v := m.count
 	if v == nil {
 		return
@@ -595,7 +597,7 @@ func (m *FeedCounterMutation) Count() (r uint64, exists bool) {
 // OldCount returns the old "count" field's value of the FeedCounter entity.
 // If the FeedCounter object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *FeedCounterMutation) OldCount(ctx context.Context) (v uint64, err error) {
+func (m *FeedCounterMutation) OldCount(ctx context.Context) (v int64, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldCount is only allowed on UpdateOne operations")
 	}
@@ -609,12 +611,12 @@ func (m *FeedCounterMutation) OldCount(ctx context.Context) (v uint64, err error
 	return oldValue.Count, nil
 }
 
-// AddCount adds u to the "count" field.
-func (m *FeedCounterMutation) AddCount(u int64) {
+// AddCount adds i to the "count" field.
+func (m *FeedCounterMutation) AddCount(i int64) {
 	if m.addcount != nil {
-		*m.addcount += u
+		*m.addcount += i
 	} else {
-		m.addcount = &u
+		m.addcount = &i
 	}
 }
 
@@ -702,7 +704,7 @@ func (m *FeedCounterMutation) OldField(ctx context.Context, name string) (ent.Va
 func (m *FeedCounterMutation) SetField(name string, value ent.Value) error {
 	switch name {
 	case feedcounter.FieldCount:
-		v, ok := value.(uint64)
+		v, ok := value.(int64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -825,6 +827,515 @@ func (m *FeedCounterMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *FeedCounterMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown FeedCounter edge %s", name)
+}
+
+// FeedReceiptMutation represents an operation that mutates the FeedReceipt nodes in the graph.
+type FeedReceiptMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *string
+	total         *int64
+	addtotal      *int64
+	channel       *int64
+	addchannel    *int64
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*FeedReceipt, error)
+	predicates    []predicate.FeedReceipt
+}
+
+var _ ent.Mutation = (*FeedReceiptMutation)(nil)
+
+// feedreceiptOption allows management of the mutation configuration using functional options.
+type feedreceiptOption func(*FeedReceiptMutation)
+
+// newFeedReceiptMutation creates new mutation for the FeedReceipt entity.
+func newFeedReceiptMutation(c config, op Op, opts ...feedreceiptOption) *FeedReceiptMutation {
+	m := &FeedReceiptMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeFeedReceipt,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withFeedReceiptID sets the ID field of the mutation.
+func withFeedReceiptID(id string) feedreceiptOption {
+	return func(m *FeedReceiptMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *FeedReceipt
+		)
+		m.oldValue = func(ctx context.Context) (*FeedReceipt, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().FeedReceipt.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withFeedReceipt sets the old FeedReceipt of the mutation.
+func withFeedReceipt(node *FeedReceipt) feedreceiptOption {
+	return func(m *FeedReceiptMutation) {
+		m.oldValue = func(context.Context) (*FeedReceipt, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m FeedReceiptMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m FeedReceiptMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of FeedReceipt entities.
+func (m *FeedReceiptMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *FeedReceiptMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *FeedReceiptMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().FeedReceipt.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetTotal sets the "total" field.
+func (m *FeedReceiptMutation) SetTotal(i int64) {
+	m.total = &i
+	m.addtotal = nil
+}
+
+// Total returns the value of the "total" field in the mutation.
+func (m *FeedReceiptMutation) Total() (r int64, exists bool) {
+	v := m.total
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTotal returns the old "total" field's value of the FeedReceipt entity.
+// If the FeedReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FeedReceiptMutation) OldTotal(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTotal is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTotal requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTotal: %w", err)
+	}
+	return oldValue.Total, nil
+}
+
+// AddTotal adds i to the "total" field.
+func (m *FeedReceiptMutation) AddTotal(i int64) {
+	if m.addtotal != nil {
+		*m.addtotal += i
+	} else {
+		m.addtotal = &i
+	}
+}
+
+// AddedTotal returns the value that was added to the "total" field in this mutation.
+func (m *FeedReceiptMutation) AddedTotal() (r int64, exists bool) {
+	v := m.addtotal
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTotal resets all changes to the "total" field.
+func (m *FeedReceiptMutation) ResetTotal() {
+	m.total = nil
+	m.addtotal = nil
+}
+
+// SetChannel sets the "channel" field.
+func (m *FeedReceiptMutation) SetChannel(i int64) {
+	m.channel = &i
+	m.addchannel = nil
+}
+
+// Channel returns the value of the "channel" field in the mutation.
+func (m *FeedReceiptMutation) Channel() (r int64, exists bool) {
+	v := m.channel
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChannel returns the old "channel" field's value of the FeedReceipt entity.
+// If the FeedReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FeedReceiptMutation) OldChannel(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChannel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChannel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChannel: %w", err)
+	}
+	return oldValue.Channel, nil
+}
+
+// AddChannel adds i to the "channel" field.
+func (m *FeedReceiptMutation) AddChannel(i int64) {
+	if m.addchannel != nil {
+		*m.addchannel += i
+	} else {
+		m.addchannel = &i
+	}
+}
+
+// AddedChannel returns the value that was added to the "channel" field in this mutation.
+func (m *FeedReceiptMutation) AddedChannel() (r int64, exists bool) {
+	v := m.addchannel
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetChannel resets all changes to the "channel" field.
+func (m *FeedReceiptMutation) ResetChannel() {
+	m.channel = nil
+	m.addchannel = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *FeedReceiptMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *FeedReceiptMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the FeedReceipt entity.
+// If the FeedReceipt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FeedReceiptMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *FeedReceiptMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the FeedReceiptMutation builder.
+func (m *FeedReceiptMutation) Where(ps ...predicate.FeedReceipt) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the FeedReceiptMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *FeedReceiptMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.FeedReceipt, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *FeedReceiptMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *FeedReceiptMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (FeedReceipt).
+func (m *FeedReceiptMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *FeedReceiptMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.total != nil {
+		fields = append(fields, feedreceipt.FieldTotal)
+	}
+	if m.channel != nil {
+		fields = append(fields, feedreceipt.FieldChannel)
+	}
+	if m.created_at != nil {
+		fields = append(fields, feedreceipt.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *FeedReceiptMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case feedreceipt.FieldTotal:
+		return m.Total()
+	case feedreceipt.FieldChannel:
+		return m.Channel()
+	case feedreceipt.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *FeedReceiptMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case feedreceipt.FieldTotal:
+		return m.OldTotal(ctx)
+	case feedreceipt.FieldChannel:
+		return m.OldChannel(ctx)
+	case feedreceipt.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown FeedReceipt field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FeedReceiptMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case feedreceipt.FieldTotal:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTotal(v)
+		return nil
+	case feedreceipt.FieldChannel:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChannel(v)
+		return nil
+	case feedreceipt.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FeedReceipt field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *FeedReceiptMutation) AddedFields() []string {
+	var fields []string
+	if m.addtotal != nil {
+		fields = append(fields, feedreceipt.FieldTotal)
+	}
+	if m.addchannel != nil {
+		fields = append(fields, feedreceipt.FieldChannel)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *FeedReceiptMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case feedreceipt.FieldTotal:
+		return m.AddedTotal()
+	case feedreceipt.FieldChannel:
+		return m.AddedChannel()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FeedReceiptMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case feedreceipt.FieldTotal:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTotal(v)
+		return nil
+	case feedreceipt.FieldChannel:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddChannel(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FeedReceipt numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *FeedReceiptMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *FeedReceiptMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *FeedReceiptMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown FeedReceipt nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *FeedReceiptMutation) ResetField(name string) error {
+	switch name {
+	case feedreceipt.FieldTotal:
+		m.ResetTotal()
+		return nil
+	case feedreceipt.FieldChannel:
+		m.ResetChannel()
+		return nil
+	case feedreceipt.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown FeedReceipt field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *FeedReceiptMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *FeedReceiptMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *FeedReceiptMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *FeedReceiptMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *FeedReceiptMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *FeedReceiptMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *FeedReceiptMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown FeedReceipt unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *FeedReceiptMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown FeedReceipt edge %s", name)
 }
 
 // GoveeCredentialMutation represents an operation that mutates the GoveeCredential nodes in the graph.

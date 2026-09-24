@@ -4,7 +4,9 @@
 package projection
 
 import (
+	"ItsBagelBot/internal/domain/event/data"
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 	"time"
@@ -14,12 +16,13 @@ import (
 
 // web/dashboard/src/lib/server/live-counters.ts reads these keys; change both together.
 const (
-	liveCounterPrefix  = "ctr:live:"
-	liveBoardPrefix    = "ctr:board:"
-	liveBoardSeedFlag  = "ctr:board-seeded:"
-	liveSeenPrefix     = "ctr:seen:"
-	liveSeededAtField  = "seeded_at"
-	liveSeenTTLSeconds = "900"
+	liveCounterPrefix     = "ctr:live:"
+	liveBoardPrefix       = "ctr:board:v2:"
+	liveBoardMemberPrefix = "ctr:board-member:v2:"
+	liveBoardSeedFlag     = "ctr:board-seeded:v2:"
+	liveSeenPrefix        = "ctr:seen:"
+	liveSeededAtField     = "seeded_at"
+	liveSeenTTLSeconds    = "900"
 )
 
 type LiveOutcome int
@@ -50,32 +53,137 @@ type BoardEntry struct {
 	Value  int64
 }
 
-var applyLiveScript = valkey.NewLuaScript(`
+// Keep arithmetic in decimal strings: Redis Lua numbers cannot represent all
+// signed BIGINT values. All values are checked before any mutation or receipt.
+const liveDecimalLua = `
+local function trim(s)
+ s = string.gsub(s, '^0+', '')
+ if s == '' then return '0' end
+ return s
+end
+local function cmp(a, b)
+ if #a ~= #b then return #a < #b and -1 or 1 end
+ if a == b then return 0 end
+ return a < b and -1 or 1
+end
+local function add(a, delta)
+ local negative = string.sub(delta, 1, 1) == '-'
+ local b = negative and string.sub(delta, 2) or delta
+ if not string.match(a, '^%d+$') or not string.match(b, '^%d+$') then return nil end
+ a, b = trim(a), trim(b)
+ if negative and cmp(a,b) < 0 then return nil end
+ local out, carry, j = '', 0, #b
+ for i = #a, 1, -1 do
+  local x = tonumber(string.sub(a,i,i))
+  local y = j > 0 and tonumber(string.sub(b,j,j)) or 0
+  local digit
+  if negative then
+   digit = x-y-carry
+   carry = digit < 0 and 1 or 0
+   if digit < 0 then digit = digit+10 end
+  else
+   digit = x+y+carry
+   carry = math.floor(digit/10)
+   digit = digit%10
+  end
+  out = tostring(digit)..out
+  j = j-1
+ end
+ while j > 0 do
+  local digit = tonumber(string.sub(b,j,j))+carry
+  carry = math.floor(digit/10)
+  out = tostring(digit%10)..out
+  j = j-1
+ end
+ if carry > 0 then out = tostring(carry)..out end
+ out = trim(out)
+ if cmp(out,'9223372036854775807') > 0 then return nil end
+ return out
+end
+local function validateBoard(key)
+ local members = 'ctr:board-member:v2:'..string.sub(key,#'ctr:board:v2:'+1)
+ redis.call('ZCARD',key)
+ redis.call('HLEN',members)
+end
+local function board(key, user, value)
+ local members = 'ctr:board-member:v2:'..string.sub(key,#'ctr:board:v2:'+1)
+ local old = redis.call('HGET',members,user)
+ if old then redis.call('ZREM',key,old) end
+ local member = string.rep('0',19-#value)..value..':'..user
+ redis.call('ZADD',key,0,member)
+ redis.call('HSET',members,user,member)
+end
+`
+
+var applyLiveScript = valkey.NewLuaScript(liveDecimalLua + `
 local seeded = redis.call('HGET', KEYS[1], 'seeded_at')
 if not seeded then return 2 end
 if tonumber(ARGV[2]) < tonumber(seeded) then return 1 end
-if not redis.call('SET', KEYS[2], '1', 'NX', 'EX', ARGV[3]) then return 1 end
+if redis.call('EXISTS',KEYS[2]) == 1 then return 1 end
+for k = 3, #KEYS do validateBoard(KEYS[k]) end
+local totals = {}
 local i = 4
+while ARGV[i] do
+ local old = totals[ARGV[i]] or redis.call('HGET',KEYS[1],ARGV[i]) or '0'
+ local value = add(old,ARGV[i+1])
+ if not value then return redis.error_reply('counter outside signed BIGINT range') end
+ totals[ARGV[i]] = value
+ i = i+2
+end
+redis.call('SET', KEYS[2], '1', 'EX', ARGV[3])
+i = 4
 local n = 0
 while ARGV[i] do
-  local total = redis.call('HINCRBY', KEYS[1], ARGV[i], ARGV[i + 1])
+  local total = totals[ARGV[i]]
+  redis.call('HSET', KEYS[1], ARGV[i], total)
   n = n + 1
-  if KEYS[2 + n] then redis.call('ZADD', KEYS[2 + n], total, ARGV[1]) end
+  if KEYS[2 + n] then board(KEYS[2+n],ARGV[1],total) end
   i = i + 2
 end
 return 0`)
 
-var seedLiveScript = valkey.NewLuaScript(`
+var seedLiveScript = valkey.NewLuaScript(liveDecimalLua + `
 if redis.call('HEXISTS', KEYS[1], 'seeded_at') == 1 then return 0 end
+for k = 2, #KEYS do validateBoard(KEYS[k]) end
 local i = 3
 local n = 0
 while ARGV[i] do
   redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1])
   n = n + 1
-  if KEYS[1 + n] then redis.call('ZADD', KEYS[1 + n], ARGV[i + 1], ARGV[1]) end
+  if KEYS[1 + n] then board(KEYS[1+n],ARGV[1],ARGV[i+1]) end
   i = i + 2
 end
 redis.call('HSET', KEYS[1], 'seeded_at', ARGV[2])
+return 1`)
+
+var seedBoardScript = valkey.NewLuaScript(liveDecimalLua + `
+validateBoard(KEYS[1])
+local i = 1
+while ARGV[i] do
+ local existing = redis.call('HGET',KEYS[2],ARGV[i])
+ if existing then
+  redis.call('ZADD',KEYS[1],'NX',0,existing)
+ else
+  board(KEYS[1],ARGV[i],ARGV[i+1])
+ end
+ i = i+2
+end
+redis.call('SET',KEYS[3],'1')
+return 1`)
+
+// Read and validate every board before removing anything; a type error must
+// not leave the hash and leaderboard indexes only partly deleted.
+var deleteLiveCountersScript = valkey.NewLuaScript(`
+local members = {}
+for i = 2, #KEYS, 2 do
+ members[i] = redis.call('HGET',KEYS[i+1],ARGV[1])
+ redis.call('ZCARD',KEYS[i])
+end
+for i = 2, #KEYS, 2 do
+ if members[i] then redis.call('ZREM',KEYS[i],members[i]) end
+ redis.call('HDEL',KEYS[i+1],ARGV[1])
+end
+redis.call('DEL',KEYS[1])
 return 1`)
 
 func liveCounterKey(userID uint64) string { return liveCounterPrefix + strconv.FormatUint(userID, 10) }
@@ -126,6 +234,11 @@ func (v *Store) ApplyLiveCounters(ctx context.Context, b LiveBatch) (LiveOutcome
 }
 
 func (v *Store) SeedLiveCounters(ctx context.Context, userID uint64, values []CounterValue, seededAt time.Time) error {
+	for _, value := range values {
+		if value.Value < 0 {
+			return fmt.Errorf("negative live counter: %s", value.Name)
+		}
+	}
 	defer segment(ctx, "EVALSHA")()
 
 	ordered, boards := boardsFirst(values)
@@ -150,36 +263,49 @@ func (v *Store) GetLiveCounters(ctx context.Context, userID uint64, names []Coun
 	}
 	values := make(map[CounterName]int64, len(names))
 	for i, name := range names {
-		raw, _ := res[i+1].ToString()
-		values[name], _ = strconv.ParseInt(raw, 10, 64)
+		raw, readErr := res[i+1].ToString()
+		if valkey.IsValkeyNil(readErr) {
+			values[name] = 0
+			continue
+		}
+		if readErr != nil {
+			return nil, true, readErr
+		}
+		value, parseErr := strconv.ParseInt(raw, 10, 64)
+		if parseErr != nil || value < 0 {
+			return nil, true, fmt.Errorf("invalid live counter %s: %q", name, raw)
+		}
+		values[name] = value
 	}
 	return values, true, nil
 }
 
 func (v *Store) BoardSeeded(ctx context.Context, name CounterName) (bool, error) {
-	n, err := v.primary.Do(ctx, v.primary.B().Exists().Key(liveBoardSeedFlag+string(name)).Build()).AsInt64()
-	return n > 0, err
+	n, err := v.primary.Do(ctx, v.primary.B().Exists().Key(liveBoardSeedFlag+string(name), liveBoardKey(name)).Build()).AsInt64()
+	return n == 2, err
 }
 
-// NX keeps a channel's seeded or live total when the older board read lands after it.
+// The member index keeps a channel's fresher total when an older board seed arrives.
+// Reversed lexicographic order preserves the previous board's descending user-ID ties.
 func (v *Store) SeedBoard(ctx context.Context, name CounterName, entries []BoardEntry) error {
 	defer segment(ctx, "ZADD")()
 
-	cmds := make([]valkey.Completed, 0, len(entries)+1)
+	args := make([]string, 0, len(entries)*2)
 	for _, e := range entries {
-		cmds = append(cmds, v.client.B().Zadd().Key(liveBoardKey(name)).Nx().ScoreMember().
-			ScoreMember(float64(e.Value), strconv.FormatUint(e.UserID, 10)).Build())
+		if e.Value < 0 || e.Value > data.MaxCounter {
+			return fmt.Errorf("invalid board value: %d", e.Value)
+		}
+		args = append(args, strconv.FormatUint(e.UserID, 10), strconv.FormatInt(e.Value, 10))
 	}
-	cmds = append(cmds, v.client.B().Set().Key(liveBoardSeedFlag+string(name)).Value("1").Build())
-	return v.pipeline(ctx, cmds...)
+	return seedBoardScript.Exec(ctx, v.primary, []string{liveBoardKey(name), liveBoardMemberPrefix + string(name), liveBoardSeedFlag + string(name)}, args).Error()
 }
 
 func (v *Store) DeleteLiveCounters(ctx context.Context, userID uint64, boards []CounterName) error {
 	defer segment(ctx, "DEL")()
 
-	cmds := []valkey.Completed{v.client.B().Del().Key(liveCounterKey(userID)).Build()}
+	keys := []string{liveCounterKey(userID)}
 	for _, name := range boards {
-		cmds = append(cmds, v.client.B().Zrem().Key(liveBoardKey(name)).Member(strconv.FormatUint(userID, 10)).Build())
+		keys = append(keys, liveBoardKey(name), liveBoardMemberPrefix+string(name))
 	}
-	return v.pipeline(ctx, cmds...)
+	return deleteLiveCountersScript.Exec(ctx, v.primary, keys, []string{strconv.FormatUint(userID, 10)}).Error()
 }

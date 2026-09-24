@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatCounterValue } from '@bagel/kit/validation';
   import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
@@ -12,7 +13,7 @@
   let {
     command,
     index = undefined as number | undefined,
-    usesMax = 0,
+    usesMax = 0n,
     status = 'idle' as SaveState,
     unsaved = false,
     expanded = false,
@@ -22,7 +23,7 @@
   }: {
     command: CommandView;
     index?: number;
-    usesMax?: number;
+    usesMax?: bigint;
     status?: SaveState;
     unsaved?: boolean;
     expanded?: boolean;
@@ -35,7 +36,7 @@
   const cd = $derived(c.cooldown && c.cooldown > 0 ? `${c.cooldown}s` : '\u2014');
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
   const uses = $derived(usesCount(c));
-  const barPct = $derived(usesMax > 0 ? Math.min(100, Math.round((uses / usesMax) * 100)) : 0);
+  const barPct = $derived(usesMax > 0n ? Math.min(100, Number((uses * 100n + usesMax / 2n) / usesMax)) : 0);
 </script>
 
 <div class="row-wrap" class:flash-save={status === 'saved'}>
@@ -79,7 +80,7 @@
         <span class="m-perm"><PermBadge perm={(c.perm ?? 'everyone') as Perm} /></span>
         <span class="m-uses">
           <span class="u-line">
-            <span class="m-val uses">{uses.toLocaleString()}</span>
+            <span class="m-val uses">{formatCounterValue(uses.toString())}</span>
             <span class="m-lbl">{t('commandRow.uses')}</span>
           </span>
           <span class="u-track" aria-hidden="true">

@@ -264,7 +264,7 @@ func (_q *FeedCounterQuery) Clone() *FeedCounterQuery {
 // Example:
 //
 //	var v []struct {
-//		Count uint64 `json:"count,omitempty"`
+//		Count int64 `json:"count,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
@@ -287,7 +287,7 @@ func (_q *FeedCounterQuery) GroupBy(field string, fields ...string) *FeedCounter
 // Example:
 //
 //	var v []struct {
-//		Count uint64 `json:"count,omitempty"`
+//		Count int64 `json:"count,omitempty"`
 //	}
 //
 //	client.FeedCounter.Query().

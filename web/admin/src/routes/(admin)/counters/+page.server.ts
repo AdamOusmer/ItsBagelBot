@@ -4,7 +4,7 @@
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { mutateAction } from '@bagel/kit/server/form-action';
-import { normalizeCounterName } from '@bagel/kit/validation';
+import { normalizeCounterName, parseCounterValue } from '@bagel/kit/validation';
 import { dev } from '$app/environment';
 import { allows, requireRole, type AdminIdentity } from '$lib/server/access';
 import { audit } from '$lib/server/audit';
@@ -31,7 +31,7 @@ export const load: PageServerLoad = async ({ parent }) => {
   if (!allows(layout.role, 'counters.manage')) throw redirect(302, '/');
 
   const bundle: Promise<BotCountersBundle> = DEMO
-    ? Promise.resolve({ counters: [{ name: 'feeds', scope: 'bot', value: 12873 }], degraded: false })
+    ? Promise.resolve({ counters: [{ name: 'feeds', scope: 'bot', value: '12873' }], degraded: false })
     : botCounterList()
         .then((counters) => ({ counters, degraded: false }))
         .catch(() => ({ counters: [], degraded: true }));
@@ -69,8 +69,8 @@ export const actions: Actions = {
 
   set: mutate('set', async (f) => {
     const name = normalizeCounterName(f.get('name'));
-    const value = Math.trunc(Number(f.get('value')));
-    if (!validName(name) || !Number.isFinite(value)) return null;
+		const value = parseCounterValue(f.get('value'));
+		if (!validName(name) || value === null) return null;
     await botCounterSet(name, value);
     return `${name}=${value}`;
   }),

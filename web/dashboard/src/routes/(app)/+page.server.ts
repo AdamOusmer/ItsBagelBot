@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { Actions, PageServerLoad } from './$types';
+import { usesCount, compareUses } from '@bagel/kit/uses';
 import type { CommandView } from '@bagel/kit/types';
 import { MODULE_CATALOG, catalogIndexable } from '@bagel/kit/types';
 import {
@@ -83,30 +84,21 @@ async function connState(uid: string): Promise<ConnData> {
   return { signals, ui: connectionUiState(signals) };
 }
 
-function usesCount(raw: number | string | undefined): number {
-  if (typeof raw === 'number') return raw;
-  if (!raw) return 0;
-  const m = raw.trim().toLowerCase().match(/^([\d.]+)(k|m)?$/);
-  if (!m) return 0;
-  const n = Number(m[1]) || 0;
-  return m[2] === 'm' ? n * 1_000_000 : m[2] === 'k' ? n * 1000 : n;
-}
-
 export type CommandDigest = {
   top: CommandView[];
   active: number;
   total: number;
-  uses: number;
+  uses: string;
   ok: boolean;
 };
 
 function digest(cmds: CommandView[]): Omit<CommandDigest, 'ok'> {
   const active = cmds.filter((c) => c.is_active);
   return {
-    top: [...active].toSorted((a, b) => usesCount(b.uses) - usesCount(a.uses)).slice(0, 3),
+    top: [...active].toSorted((a, b) => compareUses(b, a)).slice(0, 3),
     active: active.length,
     total: cmds.length,
-    uses: cmds.reduce((n, c) => n + usesCount(c.uses), 0)
+    uses: cmds.reduce((n, c) => n + usesCount(c), 0n).toString()
   };
 }
 
@@ -121,7 +113,7 @@ function demoOr<T>(pick: (m: typeof import('$lib/server/demo-data')) => T, real:
 function commandDigest(uid: string): Promise<CommandDigest> {
   return listCommands(uid)
     .then((c) => ({ ...digest(c), ok: true }))
-    .catch(() => ({ top: [], active: 0, total: 0, uses: 0, ok: false }));
+    .catch(() => ({ top: [], active: 0, total: 0, uses: '0', ok: false }));
 }
 
 function moduleDigest(uid: string): Promise<ModuleDigest> {

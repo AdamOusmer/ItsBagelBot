@@ -63,7 +63,7 @@ type Command struct {
 	Perm             string   `json:"perm,omitempty"`
 	Cooldown         uint     `json:"cooldown,omitempty"`
 	AllowedUserID    string   `json:"allowed_user_id,omitempty"`
-	Uses             uint64   `json:"uses,omitempty"`
+	Uses             int64    `json:"uses,omitempty,string"`
 	BumpCounter      string   `json:"bump_counter,omitempty"`
 }
 

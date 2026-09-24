@@ -22,7 +22,7 @@ func SubscribePersonality(w bus.RPCWiring, repo *repository.Personality, prefix 
 
 func feedBump(repo *repository.Personality) func(context.Context, modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
 	return func(ctx context.Context, req modulesrpc.FeedBumpRequest) modulesrpc.FeedBumpReply {
-		totals, err := repo.FeedBump(ctx, req.BroadcasterID, req.Name)
+		totals, err := repo.FeedBump(ctx, req.BroadcasterID, req.Name, req.EventID)
 		if err != nil {
 			return modulesrpc.FeedBumpReply{Refusal: bus.Classify(err)}
 		}

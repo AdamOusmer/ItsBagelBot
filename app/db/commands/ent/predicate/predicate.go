@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// CommandUseBatch is the predicate function for commandusebatch builders.
+type CommandUseBatch func(*sql.Selector)
+
 // Commands is the predicate function for commands builders.
 type Commands func(*sql.Selector)
 

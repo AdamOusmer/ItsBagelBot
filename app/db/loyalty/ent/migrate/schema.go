@@ -3,6 +3,7 @@
 package migrate
 
 import (
+	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/dialect/sql/schema"
 	"entgo.io/ent/schema/field"
 )
@@ -66,6 +67,17 @@ var (
 			},
 		},
 	}
+	// CounterBatchesColumns holds the columns for the "counter_batches" table.
+	CounterBatchesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Size: 255},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// CounterBatchesTable holds the schema information for the "counter_batches" table.
+	CounterBatchesTable = &schema.Table{
+		Name:       "counter_batches",
+		Columns:    CounterBatchesColumns,
+		PrimaryKey: []*schema.Column{CounterBatchesColumns[0]},
+	}
 	// CounterEntriesColumns holds the columns for the "counter_entries" table.
 	CounterEntriesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -95,9 +107,21 @@ var (
 	Tables = []*schema.Table{
 		BalancesTable,
 		CountersTable,
+		CounterBatchesTable,
 		CounterEntriesTable,
 	}
 )
 
 func init() {
+	CountersTable.Annotation = &entsql.Annotation{}
+	CountersTable.Annotation.Checks = map[string]string{
+		"counter_value_exact_range": "value >= 0 AND value <= 9223372036854775807",
+	}
+	CounterBatchesTable.Annotation = &entsql.Annotation{
+		Collation: "utf8mb4_bin",
+	}
+	CounterEntriesTable.Annotation = &entsql.Annotation{}
+	CounterEntriesTable.Annotation.Checks = map[string]string{
+		"counter_entry_value_exact_range": "value >= 0 AND value <= 9223372036854775807",
+	}
 }

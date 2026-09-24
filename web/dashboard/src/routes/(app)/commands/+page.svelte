@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatCounterValue } from '@bagel/kit/validation';
   import { Kbd, SearchInput } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
@@ -30,6 +31,7 @@
     overlayLiveActive,
     commandContentSnapshot,
     usesCount,
+    compareUses,
     PERMS,
     COMMAND_NAME_MAX,
     COOLDOWN_MAX,
@@ -173,7 +175,7 @@
           c.response.toLowerCase().includes(q)
         );
       })
-      .toSorted((a, b) => usesCount(b) - usesCount(a) || a.name.localeCompare(b.name))
+      .toSorted((a, b) => compareUses(b, a) || a.name.localeCompare(b.name))
   );
 
   const groups = $derived(
@@ -193,9 +195,9 @@
     ].filter((g) => g.rows.length > 0)
   );
 
-  const usesMax = $derived(Math.max(1, ...rows.map(usesCount)));
+  const usesMax = $derived(rows.reduce((max, c) => usesCount(c) > max ? usesCount(c) : max, 1n));
 
-  const fires = $derived(items.reduce((n, c) => n + usesCount(c), 0));
+  const fires = $derived(items.reduce((n, c) => n + usesCount(c), 0n));
   const busiest = $derived(
     items.length === 0
       ? null
@@ -661,7 +663,7 @@
         <div class="ds-rule" aria-hidden="true"></div>
         <div class="ds-cell">
           <dt>{t('commands.statFires')}</dt>
-          <dd><span class="big">{fires.toLocaleString()}</span></dd>
+          <dd><span class="big">{formatCounterValue(fires.toString())}</span></dd>
         </div>
         <div class="ds-rule" aria-hidden="true"></div>
         <div class="ds-cell">

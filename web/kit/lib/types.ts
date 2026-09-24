@@ -26,7 +26,7 @@ export interface CommandView {
   cooldown?: number;
   allowed_user_id?: string;
   bump_counter?: string;
-  uses?: number;
+  uses?: string;
   builtin?: boolean;
 }
 

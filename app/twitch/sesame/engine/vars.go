@@ -52,7 +52,7 @@ type commandRun struct {
 	command string
 	args    string
 
-	uses uint64
+	uses int64
 }
 
 func messageVars(run commandRun) scope.Message {

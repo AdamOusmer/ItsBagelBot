@@ -9,6 +9,7 @@ import { POLICY, type CachePolicy } from '@bagel/kit/server/cache-keys';
 import { getServerConfig } from '@bagel/kit/server/config';
 import type { ScopeMap } from '@bagel/kit/server/invalidation';
 import type { ShardSnapshot, UserStats } from '@bagel/kit';
+import { parseCounterValue } from '@bagel/kit/validation';
 import { adminL1CacheCapacity } from './config-sanity';
 import {
   DEPLOY_EVENTS_PREFIX,
@@ -186,8 +187,16 @@ export async function trialList(): Promise<TrialSnapshot> {
 }
 
 function trialCounters(broadcasterId: string): Promise<Map<string, number> | null> {
-  return rpc<{ counters?: { name: string; value: number }[] }>(`${SUB.loyalty}.counter.trial`, { user_id: broadcasterId })
-    .then((reply) => new Map((reply.counters ?? []).map((c) => [c.name, c.value])))
+  return rpc<{ counters?: { name: string; value: string | number }[] }>(`${SUB.loyalty}.counter.trial`, { user_id: broadcasterId })
+    .then((reply) => {
+      const counts = new Map<string, number>();
+      for (const counter of reply.counters ?? []) {
+        const value = parseCounterValue(counter.value);
+        if (value === null || BigInt(value) > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+        counts.set(counter.name, Number(value));
+      }
+      return counts;
+    })
     .catch(() => null);
 }
 
@@ -740,14 +749,14 @@ export async function auditPage(page = 1, search = '', actorFilter = ''): Promis
 export interface BotCounter {
   name: string;
   scope: string;
-  value: number;
+  value: string;
 }
 
 const BOT_NS = '0';
 
 interface LoyaltyReplyWire {
-  counter?: BotCounter;
-  counters?: BotCounter[];
+  counter?: Omit<BotCounter, 'value'> & { value: string | number };
+  counters?: (Omit<BotCounter, 'value'> & { value: string | number })[];
   found?: boolean;
   error?: string;
 }
@@ -759,18 +768,25 @@ function loyaltyCall(verb: string, req: Record<string, unknown>): Promise<Loyalt
 export async function botCounterList(): Promise<BotCounter[]> {
   const r = await loyaltyCall('list', {});
   if (r.error) throw new Error(r.error);
-  return r.counters ?? [];
+  const counters = r.counters ?? [];
+  return counters.map((c) => {
+    const value = parseCounterValue(c.value);
+    if (value === null) throw new Error('invalid counter value from loyalty');
+    return { ...c, value };
+  });
 }
 
 export async function botCounterCreate(name: string): Promise<BotCounter> {
   const r = await loyaltyCall('create', { name, scope: 'bot' });
   if (r.error) throw new Error(r.error);
   if (!r.counter) throw new Error('empty counter reply');
-  return r.counter;
+  const value = parseCounterValue(r.counter.value);
+  if (value === null) throw new Error('invalid counter value from loyalty');
+  return { ...r.counter, value };
 }
 
-export async function botCounterSet(name: string, value: number): Promise<void> {
-  const r = await loyaltyCall('set', { name, value });
+export async function botCounterSet(name: string, value: string): Promise<void> {
+  const r = await loyaltyCall('set', { name, counter_value: value });
   if (r.error) throw new Error(r.error);
   if (!r.found) throw new Error('unknown counter');
 }

@@ -3,29 +3,41 @@
 
 import { masterClient } from '@bagel/kit/server/valkey-master';
 import { CircuitBreaker, withTimeout } from '@bagel/kit/server/resilience';
+import { parseCounterValue } from '@bagel/kit/validation';
 
 // internal/projection/valkey_live.go writes these keys; change both together.
 const LIVE_PREFIX = 'ctr:live:';
-const BOARD_PREFIX = 'ctr:board:';
-const BOARD_SEEDED_PREFIX = 'ctr:board-seeded:';
+const BOARD_PREFIX = 'ctr:board:v2:';
+const BOARD_SEEDED_PREFIX = 'ctr:board-seeded:v2:';
 const SEEDED_FIELD = 'seeded_at';
 
 const OP_TIMEOUT_MS = 200;
 
 const breaker = new CircuitBreaker({ name: 'valkey-live-counters', failureThreshold: 3, resetMs: 5_000 });
 
-export type LiveTotals = Record<string, number>;
+export type LiveTotals = Record<string, string>;
 
 export function parseTotals(names: readonly string[], reply: (string | null)[]): LiveTotals | null {
   const [seeded, ...values] = reply;
   if (seeded === null || seeded === undefined) return null;
-  return Object.fromEntries(names.map((name, i) => [name, Number(values[i]) || 0]));
+  const totals: LiveTotals = {};
+  for (let i = 0; i < names.length; i++) {
+    const value = parseCounterValue(values[i] ?? '0');
+    if (value === null) return null;
+    totals[names[i]] = value;
+  }
+  return totals;
 }
 
-export function parseBoard(seeded: number, flat: string[]): Map<string, number> | null {
+export function parseBoard(seeded: number, members: string[]): Map<string, string> | null {
   if (!seeded) return null;
-  const ranked = new Map<string, number>();
-  for (let i = 0; i + 1 < flat.length; i += 2) ranked.set(flat[i], Number(flat[i + 1]) || 0);
+  const ranked = new Map<string, string>();
+  for (const member of members) {
+    if (!/^\d{19}:[1-9]\d*$/.test(member)) return null;
+    const count = parseCounterValue(member.slice(0, 19));
+    if (count === null) return null;
+    ranked.set(member.slice(20), count);
+  }
   return ranked;
 }
 
@@ -43,14 +55,14 @@ export async function liveTotals(userId: string, names: readonly string[]): Prom
   }
 }
 
-export async function liveBoard(name: string, limit: number): Promise<Map<string, number> | null> {
+export async function liveBoard(name: string, limit: number): Promise<Map<string, string> | null> {
   const c = masterClient();
   if (!c) return null;
   try {
-    const [seeded, flat] = await guarded(() =>
-      Promise.all([c.exists(BOARD_SEEDED_PREFIX + name), c.zrevrange(BOARD_PREFIX + name, 0, limit - 1, 'WITHSCORES')])
+    const [seeded, members] = await guarded(() =>
+      Promise.all([c.exists(BOARD_SEEDED_PREFIX + name), c.zrevrange(BOARD_PREFIX + name, 0, limit - 1)])
     );
-    return parseBoard(seeded, flat);
+    return parseBoard(seeded, members);
   } catch {
     return null;
   }

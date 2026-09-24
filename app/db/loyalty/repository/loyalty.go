@@ -77,6 +77,9 @@ type Loyalty struct {
 	app    *newrelic.Application
 	log    *zap.Logger
 
+	// A transaction-scoped writer reuses the same bulk statement builders.
+	writeChunk func(context.Context, chunkStmt)
+
 	mu       sync.Mutex
 	earnPend map[balKey]*earnSum
 	bumpPend map[bumpKey]*bumpSum
@@ -314,6 +317,10 @@ func (r *Loyalty) upsertRows(ctx context.Context, txn *newrelic.Transaction, spe
 
 // Safe only while every flush statement is additive: an absolute SET would let an older chunk win.
 func (r *Loyalty) execChunk(ctx context.Context, txn *newrelic.Transaction, stmt chunkStmt) {
+	if r.writeChunk != nil {
+		r.writeChunk(ctx, stmt)
+		return
+	}
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		_, execErr := r.sqldb.ExecContext(ctx, stmt.sql, stmt.args...)
 		return execErr

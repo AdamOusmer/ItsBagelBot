@@ -12,7 +12,7 @@ COPY internal/moderation internal/moderation
 COPY internal/utils internal/utils
 COPY pkg pkg
 COPY app/db/loyalty app/db/loyalty
-RUN go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert ./app/db/loyalty/ent/schema \
+RUN go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert,sql/lock ./app/db/loyalty/ent/schema \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /loyalty ./app/db/loyalty
 
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab

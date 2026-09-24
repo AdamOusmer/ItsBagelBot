@@ -32,6 +32,7 @@
   } from '@bagel/kit';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
   import { focusFirstInvalid } from '@bagel/kit';
+  import { formatCounterValue, parseCounterValue } from '@bagel/kit/validation';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -80,7 +81,7 @@
 
   async function postSet(
     name: string,
-    value: number,
+    value: string,
     target?: { viewerId?: string; command?: string }
   ): Promise<ActionOk | null> {
     const body = new FormData();
@@ -106,7 +107,7 @@
   let creating = $state(false);
   let nameError = $state('');
 
-  let setValue = $state(0);
+  let setValue = $state('0');
   let setting = $state(false);
 
   const selected = $derived(expanded && expanded !== NEW ? items.find((c) => c.name === expanded) : undefined);
@@ -139,7 +140,7 @@
     renameError = '';
     addUser = '';
     addCommand = '';
-    addValue = 0;
+    addValue = '0';
     addAttempted = false;
     expanded = c.name;
     if (c.scope === 'channel') {
@@ -256,7 +257,7 @@
 
   let addUser = $state('');
   let addCommand = $state('');
-  let addValue = $state(0);
+  let addValue = $state('0');
   let adding = $state(false);
   let addAttempted = $state(false);
   let addForm = $state<HTMLFormElement | null>(null);
@@ -285,7 +286,7 @@
         toast('ok', t('counters.toastAdded'));
         addUser = '';
         addCommand = '';
-        addValue = 0;
+        addValue = '0';
         addAttempted = false;
         await invalidateAll();
         return;
@@ -306,11 +307,10 @@
     return scope === 'command' ? e.command !== '' : e.viewerId !== '0';
   }
 
-  function entryDraftValue(e: CounterEntryView): number | null {
+  function entryDraftValue(e: CounterEntryView): string | null {
     const raw = entryEdits[entryKey(e)];
     if (raw === undefined || raw.trim() === '') return null;
-    const n = Math.trunc(Number(raw));
-    return Number.isFinite(n) ? n : null;
+    return parseCounterValue(raw);
   }
 
   function entryDirty(e: CounterEntryView): boolean {
@@ -509,7 +509,7 @@
 
               <div class="sec">
                 <Field label={t('counters.colValue')}>
-                  <input class="bb-input num big-num" type="number" name="value" step="1" bind:value={setValue} use:focusSelect />
+                  <input class="bb-input num big-num" type="text" inputmode="numeric" name="value" bind:value={setValue} use:focusSelect />
                 </Field>
               </div>
 
@@ -565,8 +565,8 @@
                                 {#if entryEditable(selected.scope, e)}
                                   <input
                                     class="bb-input num entry-num"
-                                    type="number"
-                                    step="1"
+                                    type="text"
+                                    inputmode="numeric"
                                     aria-label={t('counters.colValue')}
                                     value={entryEdits[entryKey(e)] ?? e.value}
                                     oninput={(ev) => (entryEdits[entryKey(e)] = ev.currentTarget.value)}
@@ -582,7 +582,7 @@
                                     onclick={() => saveEntry(selected, e)}
                                   />
                                 {:else}
-                                  <span class="entry-ro">{e.value.toLocaleString()}</span>
+                                  <span class="entry-ro">{formatCounterValue(e.value)}</span>
                                   <span class="entry-slot" aria-hidden="true"></span>
                                 {/if}
                               </span>
@@ -649,7 +649,7 @@
                   <div class="add-foot">
                     <div class="add-val">
                       <Field label={t('counters.colValue')}>
-                        <input class="bb-input num" type="number" name="value" step="1" bind:value={addValue} />
+                        <input class="bb-input num" type="text" inputmode="numeric" name="value" bind:value={addValue} />
                       </Field>
                     </div>
                     <Button variant="secondary" type="submit" loading={adding} class="add-btn">

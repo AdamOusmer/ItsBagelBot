@@ -51,3 +51,35 @@ export function rateWindows(): (next: RateSample) => { now: Rates; avg: Rates } 
   const avg = rateWindow(RATE_AVG_SECONDS * 1000);
   return (next) => ({ now: now(next), avg: avg(next) });
 }
+
+export interface ExactRateSample {
+  messages: bigint;
+  events: bigint;
+  at: number;
+}
+
+export function exactRateWindow(windowMs: number): (next: ExactRateSample) => Rates {
+  const samples: ExactRateSample[] = [];
+  let rates: Rates = { msg: null, event: null };
+  return (next) => {
+    const last = samples.at(-1);
+    if (last && (next.messages < last.messages || next.events < last.events)) samples.length = 0;
+    samples.push(next);
+    while (samples.length > 1 && next.at - samples[1].at >= windowMs) samples.shift();
+    const first = samples[0];
+    const spanMs = next.at - first.at;
+    if (spanMs < MIN_SPAN_MS) return rates;
+    const secs = spanMs / 1000;
+    rates = {
+      msg: Number(next.messages - first.messages) / secs,
+      event: Number(next.events - first.events) / secs
+    };
+    return rates;
+  };
+}
+
+export function exactRateWindows(): (next: ExactRateSample) => { now: Rates; avg: Rates } {
+  const now = exactRateWindow(RATE_NOW_SECONDS * 1000);
+  const avg = exactRateWindow(RATE_AVG_SECONDS * 1000);
+  return (next) => ({ now: now(next), avg: avg(next) });
+}

@@ -17,7 +17,7 @@ type FeedCounter struct {
 	// ID of the ent.
 	ID int `json:"id,omitempty"`
 	// Count holds the value of the "count" field.
-	Count        uint64 `json:"count,omitempty"`
+	Count        int64 `json:"count,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -53,7 +53,7 @@ func (_m *FeedCounter) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field count", values[i])
 			} else if value.Valid {
-				_m.Count = uint64(value.Int64)
+				_m.Count = value.Int64
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])

@@ -117,13 +117,13 @@ func (_c *CommandsCreate) SetNillableAllowedUserID(v *uint64) *CommandsCreate {
 }
 
 // SetUses sets the "uses" field.
-func (_c *CommandsCreate) SetUses(v uint64) *CommandsCreate {
+func (_c *CommandsCreate) SetUses(v int64) *CommandsCreate {
 	_c.mutation.SetUses(v)
 	return _c
 }
 
 // SetNillableUses sets the "uses" field if the given value is not nil.
-func (_c *CommandsCreate) SetNillableUses(v *uint64) *CommandsCreate {
+func (_c *CommandsCreate) SetNillableUses(v *int64) *CommandsCreate {
 	if v != nil {
 		_c.SetUses(*v)
 	}
@@ -293,6 +293,11 @@ func (_c *CommandsCreate) check() error {
 	if _, ok := _c.mutation.Uses(); !ok {
 		return &ValidationError{Name: "uses", err: errors.New(`ent: missing required field "Commands.uses"`)}
 	}
+	if v, ok := _c.mutation.Uses(); ok {
+		if err := commands.UsesValidator(v); err != nil {
+			return &ValidationError{Name: "uses", err: fmt.Errorf(`ent: validator failed for field "Commands.uses": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.BumpCounter(); !ok {
 		return &ValidationError{Name: "bump_counter", err: errors.New(`ent: missing required field "Commands.bump_counter"`)}
 	}
@@ -371,7 +376,7 @@ func (_c *CommandsCreate) createSpec() (*Commands, *sqlgraph.CreateSpec) {
 		_node.AllowedUserID = value
 	}
 	if value, ok := _c.mutation.Uses(); ok {
-		_spec.SetField(commands.FieldUses, field.TypeUint64, value)
+		_spec.SetField(commands.FieldUses, field.TypeInt64, value)
 		_node.Uses = value
 	}
 	if value, ok := _c.mutation.BumpCounter(); ok {
@@ -553,7 +558,7 @@ func (u *CommandsUpsert) AddAllowedUserID(v uint64) *CommandsUpsert {
 }
 
 // SetUses sets the "uses" field.
-func (u *CommandsUpsert) SetUses(v uint64) *CommandsUpsert {
+func (u *CommandsUpsert) SetUses(v int64) *CommandsUpsert {
 	u.Set(commands.FieldUses, v)
 	return u
 }
@@ -565,7 +570,7 @@ func (u *CommandsUpsert) UpdateUses() *CommandsUpsert {
 }
 
 // AddUses adds v to the "uses" field.
-func (u *CommandsUpsert) AddUses(v uint64) *CommandsUpsert {
+func (u *CommandsUpsert) AddUses(v int64) *CommandsUpsert {
 	u.Add(commands.FieldUses, v)
 	return u
 }
@@ -785,14 +790,14 @@ func (u *CommandsUpsertOne) UpdateAllowedUserID() *CommandsUpsertOne {
 }
 
 // SetUses sets the "uses" field.
-func (u *CommandsUpsertOne) SetUses(v uint64) *CommandsUpsertOne {
+func (u *CommandsUpsertOne) SetUses(v int64) *CommandsUpsertOne {
 	return u.Update(func(s *CommandsUpsert) {
 		s.SetUses(v)
 	})
 }
 
 // AddUses adds v to the "uses" field.
-func (u *CommandsUpsertOne) AddUses(v uint64) *CommandsUpsertOne {
+func (u *CommandsUpsertOne) AddUses(v int64) *CommandsUpsertOne {
 	return u.Update(func(s *CommandsUpsert) {
 		s.AddUses(v)
 	})
@@ -1192,14 +1197,14 @@ func (u *CommandsUpsertBulk) UpdateAllowedUserID() *CommandsUpsertBulk {
 }
 
 // SetUses sets the "uses" field.
-func (u *CommandsUpsertBulk) SetUses(v uint64) *CommandsUpsertBulk {
+func (u *CommandsUpsertBulk) SetUses(v int64) *CommandsUpsertBulk {
 	return u.Update(func(s *CommandsUpsert) {
 		s.SetUses(v)
 	})
 }
 
 // AddUses adds v to the "uses" field.
-func (u *CommandsUpsertBulk) AddUses(v uint64) *CommandsUpsertBulk {
+func (u *CommandsUpsertBulk) AddUses(v int64) *CommandsUpsertBulk {
 	return u.Update(func(s *CommandsUpsert) {
 		s.AddUses(v)
 	})

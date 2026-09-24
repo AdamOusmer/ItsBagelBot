@@ -5,7 +5,7 @@ import { dev } from '$app/environment';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import { fabric } from './services';
 import { liveTotals } from './live-counters';
-import { rateWindows } from '@bagel/kit/rates';
+import { exactRateWindows } from '@bagel/kit/rates';
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 const DEMO = dev && process.env.DEMO === '1';
@@ -18,8 +18,8 @@ const COUNTER_EVENTS = 'events_processed';
 const COUNTERS = [COUNTER_MESSAGES, COUNTER_EVENTS] as const;
 
 export interface PublicStats {
-  messages_total: number;
-  events_total: number;
+  messages_total: string;
+  events_total: string;
   msg_rate: number | null;
   event_rate: number | null;
   msg_rate_now: number | null;
@@ -27,12 +27,12 @@ export interface PublicStats {
   degraded: boolean;
 }
 
-const sampleRates = rateWindows();
+const sampleRates = exactRateWindows();
 
 function degradedStats(): PublicStats {
   return {
-    messages_total: 0,
-    events_total: 0,
+    messages_total: '0',
+    events_total: '0',
     msg_rate: null,
     event_rate: null,
     msg_rate_now: null,
@@ -47,7 +47,7 @@ async function loadStats(): Promise<PublicStats> {
 
   const messages = totals[COUNTER_MESSAGES];
   const events = totals[COUNTER_EVENTS];
-  const rates = sampleRates({ messages, events, at: Date.now() });
+  const rates = sampleRates({ messages: BigInt(messages), events: BigInt(events), at: Date.now() });
   return {
     messages_total: messages,
     events_total: events,

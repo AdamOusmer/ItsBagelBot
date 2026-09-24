@@ -6,15 +6,16 @@ package loyaltyrpc
 import "ItsBagelBot/internal/domain/rpc"
 
 type Request struct {
-	UserID      string `json:"user_id"`
-	ViewerID    string `json:"viewer_id,omitempty"`
-	ViewerLogin string `json:"viewer_login,omitempty"`
-	Name        string `json:"name,omitempty"`
-	NewName     string `json:"new_name,omitempty"`
-	Scope       string `json:"scope,omitempty"`
-	Command     string `json:"command,omitempty"`
-	Value       int64  `json:"value,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	UserID       string `json:"user_id"`
+	ViewerID     string `json:"viewer_id,omitempty"`
+	ViewerLogin  string `json:"viewer_login,omitempty"`
+	Name         string `json:"name,omitempty"`
+	NewName      string `json:"new_name,omitempty"`
+	Scope        string `json:"scope,omitempty"`
+	Command      string `json:"command,omitempty"`
+	Value        int64  `json:"value,omitempty"`
+	CounterValue string `json:"counter_value,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
 }
 
 type Balance struct {
@@ -28,7 +29,7 @@ type Balance struct {
 type Counter struct {
 	Name  string `json:"name"`
 	Scope string `json:"scope"`
-	Value int64  `json:"value"`
+	Value int64  `json:"value,string"`
 }
 
 type CounterEntry struct {
@@ -36,12 +37,12 @@ type CounterEntry struct {
 	ViewerLogin string `json:"viewer_login,omitempty"`
 	ViewerName  string `json:"viewer_name,omitempty"`
 	Command     string `json:"command,omitempty"`
-	Value       int64  `json:"value"`
+	Value       int64  `json:"value,string"`
 }
 
 type CounterRank struct {
 	UserID string `json:"user_id"`
-	Value  int64  `json:"value"`
+	Value  int64  `json:"value,string"`
 }
 
 type Reply struct {

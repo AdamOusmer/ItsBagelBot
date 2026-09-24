@@ -70,7 +70,7 @@ func statsPipeline(t *testing.T, bumper CounterBumper) *Pipeline {
 		Proj:     fakeReader{},
 		Live:     liveAlways{},
 		Cooldown: NoopCooldown{},
-		Pub:      &fakePublisher{},
+		Pub:      &rawPublisher{},
 		Log:      zap.NewNop(),
 		Stats:    bumper,
 	}
@@ -94,8 +94,8 @@ func TestProcessCountsChatAsMessageAndEvent(t *testing.T) {
 	p := statsPipeline(t, &fakeBumper{})
 
 	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
-	assert.Equal(t, int64(1), p.stats.events.Load())
-	assert.Equal(t, int64(1), p.stats.messages.Load())
+	assert.Equal(t, int64(1), publishedStats(t, p, 0)[counterEventsProcessed])
+	assert.Equal(t, int64(1), publishedStats(t, p, 0)[counterMessagesProcessed])
 }
 
 func TestProcessCountsPerChannel(t *testing.T) {
@@ -104,19 +104,16 @@ func TestProcessCountsPerChannel(t *testing.T) {
 	require.NoError(t, p.Process(chatMsg(t, "standard", "hi")))
 	require.NoError(t, p.Process(eventMsg(t, "stream.online")))
 
-	p.stats.mu.Lock()
-	defer p.stats.mu.Unlock()
-	tally := p.stats.channels[123]
-	require.NotNil(t, tally)
-	assert.Equal(t, int64(2), tally.events)
-	assert.Equal(t, int64(1), tally.messages)
+	totals := publishedStats(t, p, 123)
+	assert.Equal(t, int64(2), totals[counterEventsProcessed])
+	assert.Equal(t, int64(1), totals[counterMessagesProcessed])
 }
 
 func TestProcessCountsFilteredEventOnly(t *testing.T) {
 	p := statsPipeline(t, &fakeBumper{})
 
 	require.NoError(t, p.Process(eventMsg(t, "stream.online")))
-	assert.Equal(t, int64(1), p.stats.events.Load())
+	assert.Equal(t, int64(1), publishedStats(t, p, 0)[counterEventsProcessed])
 	assert.Zero(t, p.stats.messages.Load())
 }
 
@@ -243,7 +240,7 @@ func TestProcessCountsEnvelopeBeforeModuleViews(t *testing.T) {
 		Proj:     fakeReader{modErr: errors.New("projection down")},
 		Live:     liveAlways{},
 		Cooldown: NoopCooldown{},
-		Pub:      &fakePublisher{},
+		Pub:      &rawPublisher{},
 		Log:      zap.NewNop(),
 		Stats:    &fakeBumper{},
 	}
@@ -252,8 +249,8 @@ func TestProcessCountsEnvelopeBeforeModuleViews(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	assert.Error(t, p.Process(chatMsg(t, "standard", "hi")))
-	assert.Equal(t, int64(1), p.stats.events.Load())
-	assert.Equal(t, int64(1), p.stats.messages.Load())
+	assert.Equal(t, int64(1), publishedStats(t, p, 0)[counterEventsProcessed])
+	assert.Equal(t, int64(1), publishedStats(t, p, 0)[counterMessagesProcessed])
 }
 
 func TestFlagBucketClassification(t *testing.T) {
@@ -468,4 +465,34 @@ func TestBotStatsCountsASquashedCohortAsEveryMessageInIt(t *testing.T) {
 	if got := s.events.Load(); got != 8 {
 		t.Fatalf("events = %d, want 8", got)
 	}
+}
+
+func publishedStats(t *testing.T, p *Pipeline, userID uint64) map[string]int64 {
+	t.Helper()
+	out := map[string]int64{}
+	for _, body := range p.pub.(*rawPublisher).payloads[data.SubjectLoyaltyCounters] {
+		var dto data.CounterBumpedDTO
+		require.NoError(t, codec.Unmarshal(body, &dto))
+		if dto.UserID == userID {
+			for _, b := range dto.Bumps {
+				out[b.Name] += b.Delta
+			}
+		}
+	}
+	return out
+}
+
+func TestDecodedCounterFailurePreventsSourceSuccessAndPreservesIdentity(t *testing.T) {
+	p := statsPipeline(t, &fakeBumper{})
+	pub := &uncertainCounterPublisher{fail: true}
+	p.pub = pub
+	msg := chatMsg(t, "standard", "hi")
+	require.Error(t, p.Process(msg))
+	require.Len(t, pub.payloads[data.SubjectLoyaltyCounters], 1)
+	pub.fail = false
+	require.NoError(t, p.Process(msg))
+	bodies := pub.payloads[data.SubjectLoyaltyCounters]
+	require.Len(t, bodies, 3)
+	require.JSONEq(t, string(bodies[0]), string(bodies[1]))
+	require.Zero(t, p.stats.events.Load(), "decoded counters must not also enter volatile batching")
 }

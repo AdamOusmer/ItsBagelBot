@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { getI18n } from '@bagel/kit/i18n/context';
+  import { formatCounterValue } from '@bagel/kit/validation';
   import ChatVolumeChart from './ChatVolumeChart.svelte';
   import {
     formatDuration,
@@ -34,19 +35,19 @@
   const stats = $derived.by<Stat[]>(() => [
     {
       id: 'messages',
-      value: counters.messages.toLocaleString(),
+      value: formatCounterValue(counters.messages),
       label: t('overview.statMessagesSeen'),
       tone: 'plain'
     },
     {
       id: 'answered',
-      value: counters.answered.toLocaleString(),
+      value: formatCounterValue(counters.answered),
       label: t('overview.statAnswered'),
       tone: 'green'
     },
     {
       id: 'mod',
-      value: counters.modActions.toLocaleString(),
+      value: formatCounterValue(counters.modActions),
       label: t('overview.statModActions'),
       tone: 'tan'
     }

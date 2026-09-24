@@ -154,9 +154,10 @@ type botStats struct {
 	mu       sync.Mutex
 	channels map[uint64]*chanTally
 
-	log    *zap.Logger
-	bumper CounterBumper
-	done   chan struct{}
+	log      *zap.Logger
+	bumper   CounterBumper
+	done     chan struct{}
+	finished chan struct{}
 }
 
 type chanTally struct {
@@ -173,8 +174,9 @@ func newBotStats(bumper CounterBumper, log ...*zap.Logger) *botStats {
 	if len(log) > 0 && log[0] != nil {
 		l = log[0]
 	}
-	s := &botStats{bumper: bumper, done: make(chan struct{}), channels: map[uint64]*chanTally{}, log: l}
+	s := &botStats{bumper: bumper, done: make(chan struct{}), finished: make(chan struct{}), channels: map[uint64]*chanTally{}, log: l}
 	go func() {
+		defer close(s.finished)
 		ticker := time.NewTicker(botStatsFlushInterval)
 		defer ticker.Stop()
 		ticks := 0
@@ -203,8 +205,8 @@ func (s *botStats) count(broadcasterID uint64, d delta) {
 	if s == nil {
 		return
 	}
-	s.events.Add(d.events)
-	s.messages.Add(d.messages)
+	addStat(&s.events, d.events)
+	addStat(&s.messages, d.messages)
 	if broadcasterID != 0 {
 		s.countChannel(broadcasterID, d)
 	}
@@ -215,12 +217,12 @@ func (s *botStats) flag(broadcasterID uint64, rule flagRule, enforced bool) {
 		return
 	}
 	b := flagBucket(rule)
-	s.flagsTotal.Add(1)
-	s.flagsByRule[b].Add(1)
+	addStat(&s.flagsTotal, 1)
+	addStat(&s.flagsByRule[b], 1)
 	var enforcedDelta int64
 	if enforced {
 		enforcedDelta = 1
-		s.flagsEnforced.Add(1)
+		addStat(&s.flagsEnforced, 1)
 	}
 	if broadcasterID != 0 {
 		s.flagChannel(broadcasterID, b, enforcedDelta)
@@ -234,8 +236,8 @@ func (s *botStats) countChannel(broadcasterID uint64, d delta) {
 	if tally == nil {
 		return
 	}
-	tally.events += d.events
-	tally.messages += d.messages
+	addTally(&tally.events, d.events)
+	addTally(&tally.messages, d.messages)
 }
 
 func (s *botStats) countAnswered(broadcasterID uint64) {
@@ -248,7 +250,7 @@ func (s *botStats) countAnswered(broadcasterID uint64) {
 	if tally == nil {
 		return
 	}
-	tally.answered++
+	addTally(&tally.answered, 1)
 }
 
 func (s *botStats) flagChannel(broadcasterID uint64, b flagRuleBucket, enforcedDelta int64) {
@@ -258,18 +260,19 @@ func (s *botStats) flagChannel(broadcasterID uint64, b flagRuleBucket, enforcedD
 	if tally == nil {
 		return
 	}
-	tally.flags++
-	tally.enforced += enforcedDelta
+	addTally(&tally.flags, 1)
+	addTally(&tally.enforced, enforcedDelta)
 	if tally.rules == nil {
 		tally.rules = new([bktCount]int64)
 	}
-	tally.rules[b]++
+	addTally(&tally.rules[b], 1)
 }
 
 func (s *botStats) channelTallyLocked(broadcasterID uint64) *chanTally {
 	tally := s.channels[broadcasterID]
 	if tally == nil {
 		if len(s.channels) >= channelStatsMaxKeys {
+			s.log.Error("channel counter window capacity exceeded", zap.Uint64("broadcaster_id", broadcasterID))
 			return nil
 		}
 		tally = &chanTally{}
@@ -370,5 +373,29 @@ func (s *botStats) bumpChannel(broadcasterID uint64, name string, delta int64) {
 
 func (s *botStats) Close() {
 	close(s.done)
+	<-s.finished
 	s.flush()
+}
+
+// Counter windows must remain nonnegative and within the signed integer range.
+func addStat(counter *atomic.Int64, delta int64) {
+	if delta <= 0 || delta > data.MaxCounter {
+		return
+	}
+	for {
+		old := counter.Load()
+		if old < 0 || old > data.MaxCounter-delta {
+			return
+		}
+		if counter.CompareAndSwap(old, old+delta) {
+			return
+		}
+	}
+}
+
+// Callers hold botStats.mu.
+func addTally(value *int64, delta int64) {
+	if delta > 0 && delta <= data.MaxCounter && *value >= 0 && *value <= data.MaxCounter-delta {
+		*value += delta
+	}
 }

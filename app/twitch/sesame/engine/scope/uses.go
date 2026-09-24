@@ -11,7 +11,7 @@ import (
 const usesName = "uses"
 
 type Uses struct {
-	Count uint64
+	Count int64
 }
 
 func (Uses) Owns(v Var) bool {
@@ -25,5 +25,5 @@ func (u Uses) Get(v Var) (string, bool) {
 	if !owned || v.HasPayload {
 		return "", false
 	}
-	return strconv.FormatUint(u.Count, 10), true
+	return strconv.FormatInt(u.Count, 10), true
 }

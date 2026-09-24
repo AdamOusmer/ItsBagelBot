@@ -202,6 +202,11 @@ func (_c *CounterEntryCreate) check() error {
 	if _, ok := _c.mutation.Value(); !ok {
 		return &ValidationError{Name: "value", err: errors.New(`ent: missing required field "CounterEntry.value"`)}
 	}
+	if v, ok := _c.mutation.Value(); ok {
+		if err := counterentry.ValueValidator(v); err != nil {
+			return &ValidationError{Name: "value", err: fmt.Errorf(`ent: validator failed for field "CounterEntry.value": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "CounterEntry.updated_at"`)}
 	}

@@ -160,14 +160,14 @@ func (_u *CommandsUpdate) AddAllowedUserID(v int64) *CommandsUpdate {
 }
 
 // SetUses sets the "uses" field.
-func (_u *CommandsUpdate) SetUses(v uint64) *CommandsUpdate {
+func (_u *CommandsUpdate) SetUses(v int64) *CommandsUpdate {
 	_u.mutation.ResetUses()
 	_u.mutation.SetUses(v)
 	return _u
 }
 
 // SetNillableUses sets the "uses" field if the given value is not nil.
-func (_u *CommandsUpdate) SetNillableUses(v *uint64) *CommandsUpdate {
+func (_u *CommandsUpdate) SetNillableUses(v *int64) *CommandsUpdate {
 	if v != nil {
 		_u.SetUses(*v)
 	}
@@ -273,6 +273,11 @@ func (_u *CommandsUpdate) check() error {
 			return &ValidationError{Name: "response", err: fmt.Errorf(`ent: validator failed for field "Commands.response": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Uses(); ok {
+		if err := commands.UsesValidator(v); err != nil {
+			return &ValidationError{Name: "uses", err: fmt.Errorf(`ent: validator failed for field "Commands.uses": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.BumpCounter(); ok {
 		if err := commands.BumpCounterValidator(v); err != nil {
 			return &ValidationError{Name: "bump_counter", err: fmt.Errorf(`ent: validator failed for field "Commands.bump_counter": %w`, err)}
@@ -332,10 +337,10 @@ func (_u *CommandsUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		_spec.AddField(commands.FieldAllowedUserID, field.TypeUint64, value)
 	}
 	if value, ok := _u.mutation.Uses(); ok {
-		_spec.SetField(commands.FieldUses, field.TypeUint64, value)
+		_spec.SetField(commands.FieldUses, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AddedUses(); ok {
-		_spec.AddField(commands.FieldUses, field.TypeUint64, value)
+		_spec.AddField(commands.FieldUses, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.BumpCounter(); ok {
 		_spec.SetField(commands.FieldBumpCounter, field.TypeString, value)
@@ -497,14 +502,14 @@ func (_u *CommandsUpdateOne) AddAllowedUserID(v int64) *CommandsUpdateOne {
 }
 
 // SetUses sets the "uses" field.
-func (_u *CommandsUpdateOne) SetUses(v uint64) *CommandsUpdateOne {
+func (_u *CommandsUpdateOne) SetUses(v int64) *CommandsUpdateOne {
 	_u.mutation.ResetUses()
 	_u.mutation.SetUses(v)
 	return _u
 }
 
 // SetNillableUses sets the "uses" field if the given value is not nil.
-func (_u *CommandsUpdateOne) SetNillableUses(v *uint64) *CommandsUpdateOne {
+func (_u *CommandsUpdateOne) SetNillableUses(v *int64) *CommandsUpdateOne {
 	if v != nil {
 		_u.SetUses(*v)
 	}
@@ -623,6 +628,11 @@ func (_u *CommandsUpdateOne) check() error {
 			return &ValidationError{Name: "response", err: fmt.Errorf(`ent: validator failed for field "Commands.response": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Uses(); ok {
+		if err := commands.UsesValidator(v); err != nil {
+			return &ValidationError{Name: "uses", err: fmt.Errorf(`ent: validator failed for field "Commands.uses": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.BumpCounter(); ok {
 		if err := commands.BumpCounterValidator(v); err != nil {
 			return &ValidationError{Name: "bump_counter", err: fmt.Errorf(`ent: validator failed for field "Commands.bump_counter": %w`, err)}
@@ -699,10 +709,10 @@ func (_u *CommandsUpdateOne) sqlSave(ctx context.Context) (_node *Commands, err 
 		_spec.AddField(commands.FieldAllowedUserID, field.TypeUint64, value)
 	}
 	if value, ok := _u.mutation.Uses(); ok {
-		_spec.SetField(commands.FieldUses, field.TypeUint64, value)
+		_spec.SetField(commands.FieldUses, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AddedUses(); ok {
-		_spec.AddField(commands.FieldUses, field.TypeUint64, value)
+		_spec.AddField(commands.FieldUses, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.BumpCounter(); ok {
 		_spec.SetField(commands.FieldBumpCounter, field.TypeString, value)

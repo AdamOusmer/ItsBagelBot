@@ -80,7 +80,7 @@ func (f *fakePersonality) FactCursor(context.Context, uint64) (int64, error) {
 	return f.cursor, f.err
 }
 
-func (f *fakePersonality) Feed(_ context.Context, broadcasterID uint64, name string) (engine.FeedCounts, error) {
+func (f *fakePersonality) Feed(_ context.Context, broadcasterID uint64, name, eventID string) (engine.FeedCounts, error) {
 	f.writes = append(f.writes, "feed")
 	f.fedBy, f.fedName = broadcasterID, name
 	return f.feed, f.err

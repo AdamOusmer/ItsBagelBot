@@ -92,6 +92,29 @@ export function normalizeCounterName(raw: unknown): string {
 		.slice(0, 64);
 }
 
+export const MAX_COUNTER_VALUE = 9223372036854775807n;
+
+// JSON numbers above 2^53 lose digits. Counter RPC replies carry decimal
+// strings; safe legacy numbers are accepted while services roll forward.
+export function parseCounterValue(raw: unknown): string | null {
+	if (typeof raw === 'number') {
+		return Number.isSafeInteger(raw) && raw >= 0 ? String(raw) : null;
+	}
+	if (typeof raw !== 'string') return null;
+	const digits = raw.trim();
+	if (digits.length === 0 || digits.length > 19 || !/^\d+$/.test(digits)) return null;
+	const value = BigInt(digits);
+	return value <= MAX_COUNTER_VALUE ? value.toString() : null;
+}
+
+export function isCounterValue(raw: unknown): raw is string {
+	return typeof raw === 'string' && parseCounterValue(raw) !== null;
+}
+
+export function formatCounterValue(raw: string, locale?: string): string {
+	return BigInt(raw).toLocaleString(locale);
+}
+
 export function clampInt(raw: unknown, min: number, max: number, dflt: number): number {
 	const n = Math.trunc(Number(raw));
 	if (!Number.isFinite(n)) return dflt;

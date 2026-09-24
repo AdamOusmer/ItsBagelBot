@@ -12,6 +12,8 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// CommandUseBatch is the client for interacting with the CommandUseBatch builders.
+	CommandUseBatch *CommandUseBatchClient
 	// Commands is the client for interacting with the Commands builders.
 	Commands *CommandsClient
 	// FetchDefinition is the client for interacting with the FetchDefinition builders.
@@ -151,6 +153,7 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.CommandUseBatch = NewCommandUseBatchClient(tx.config)
 	tx.Commands = NewCommandsClient(tx.config)
 	tx.FetchDefinition = NewFetchDefinitionClient(tx.config)
 	tx.FetchKey = NewFetchKeyClient(tx.config)
@@ -164,7 +167,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: Commands.QueryXXX(), the query will be executed
+// applies a query, for example: CommandUseBatch.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

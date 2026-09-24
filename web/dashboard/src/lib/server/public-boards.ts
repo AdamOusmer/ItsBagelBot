@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { rpc } from '@bagel/kit/server/nats';
+import { parseCounterValue } from '@bagel/kit/validation';
 import { dev } from '$app/environment';
 import { POLICY } from '@bagel/kit/server/cache-keys';
 import { sharedSnapshot } from '@bagel/kit/server/shared-snapshot';
@@ -29,31 +30,27 @@ const BOARD_FETCH = BOARD_SIZE * 3;
 export interface ChannelTraffic {
   id: string;
   name: string;
-  messages: number;
-  events: number;
+  messages: string;
+  events: string;
 }
 
 export interface FeedEntry {
   id: string;
   name: string;
-  count: number;
+  count: string;
 }
 
 export interface PublicBoards {
   channels: ChannelTraffic[];
-  feed: { total: number; ranked: number; entries: FeedEntry[] };
+  feed: { total: string; ranked: string; entries: FeedEntry[] };
   degraded: boolean;
 }
 
 interface FeedBoardWire {
-  entries?: { broadcaster_id?: number | string; name?: string; count?: number }[];
-  total?: number;
-  ranked?: number;
+  entries?: { broadcaster_id?: number | string; name?: string; count?: string | number }[];
+  total?: string | number;
+  ranked?: string | number;
   error?: string;
-}
-
-function count(raw: unknown): number {
-  return Number.isFinite(raw) ? Number(raw) : 0;
 }
 
 async function channelName(id: string): Promise<string> {
@@ -64,13 +61,18 @@ async function channelName(id: string): Promise<string> {
   }
 }
 
-function mergeTraffic(messages: Map<string, number>, events: Map<string, number>): ChannelTraffic[] {
+function compareCounts(a: string, b: string): number {
+  const left = BigInt(a), right = BigInt(b);
+  return left > right ? -1 : left < right ? 1 : 0;
+}
+
+function mergeTraffic(messages: Map<string, string>, events: Map<string, string>): ChannelTraffic[] {
   const ids = new Set([...messages.keys(), ...events.keys()]);
   const rows: ChannelTraffic[] = [];
   for (const id of ids) {
-    rows.push({ id, name: '', messages: messages.get(id) ?? 0, events: events.get(id) ?? 0 });
+    rows.push({ id, name: '', messages: messages.get(id) ?? '0', events: events.get(id) ?? '0' });
   }
-  rows.sort((a, b) => b.messages - a.messages || b.events - a.events);
+  rows.sort((a, b) => compareCounts(a.messages, b.messages) || compareCounts(a.events, b.events));
   return rows;
 }
 
@@ -94,7 +96,7 @@ async function loadTraffic(known: Map<string, string>): Promise<ChannelTraffic[]
   return nameTraffic(mergeTraffic(messages, events), known);
 }
 
-const EMPTY_FEED = { total: 0, ranked: 0, entries: [] as FeedEntry[] };
+const EMPTY_FEED = { total: '0', ranked: '0', entries: [] as FeedEntry[] };
 
 async function loadFeed(): Promise<PublicBoards['feed'] | null> {
   try {
@@ -103,13 +105,20 @@ async function loadFeed(): Promise<PublicBoards['feed'] | null> {
       { limit: BOARD_SIZE },
       RPC_TIMEOUT_MS
     );
-    if (reply.error) return null;
-    const entries = (reply.entries ?? []).map((row) => ({
-      id: String(row.broadcaster_id ?? ''),
-      name: (row.name ?? '').trim(),
-      count: count(row.count)
-    }));
-    return { total: count(reply.total), ranked: count(reply.ranked), entries };
+    const total = parseCounterValue(reply.total);
+    const ranked = parseCounterValue(reply.ranked);
+    if (reply.error || total === null || ranked === null) return null;
+    const entries: FeedEntry[] = [];
+    for (const row of reply.entries ?? []) {
+      const count = parseCounterValue(row.count);
+      if (count === null) return null;
+      entries.push({
+        id: String(row.broadcaster_id ?? ''),
+        name: (row.name ?? '').trim(),
+        count
+      });
+    }
+    return { total, ranked, entries };
   } catch {
     return null;
   }

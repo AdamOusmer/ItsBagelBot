@@ -7,6 +7,7 @@ import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob } from './module-blob';
+import { parseCounterValue } from '@bagel/kit/validation';
 
 const LOYALTY_MODULE = MOD.loyalty;
 
@@ -26,7 +27,7 @@ interface BalanceWire {
 interface CounterWire {
   name: string;
   scope: string;
-  value: number;
+  value: string | number;
 }
 
 interface EntryWire {
@@ -34,7 +35,7 @@ interface EntryWire {
   viewer_login?: string;
   viewer_name?: string;
   command?: string;
-  value: number;
+  value: string | number;
 }
 
 interface LoyaltyReplyWire {
@@ -81,12 +82,18 @@ function toScope(raw: string | undefined): CounterScope {
   return COUNTER_SCOPES.includes(raw as CounterScope) ? (raw as CounterScope) : 'channel';
 }
 
+function counterValue(raw: unknown): string {
+  const value = parseCounterValue(raw);
+  if (value === null) throw new Error('invalid counter value from loyalty');
+  return value;
+}
+
 export async function listCounters(userId: string): Promise<CounterDef[]> {
   const reply = await callLoyalty('counter.list', { user_id: userId });
   return (reply.counters ?? []).map((c) => ({
     name: c.name,
     scope: toScope(c.scope),
-    value: c.value
+		value: counterValue(c.value)
   }));
 }
 
@@ -94,7 +101,7 @@ export async function createCounter(userId: string, name: string, scope: Counter
   const reply = await callLoyalty('counter.create', { user_id: userId, name, scope });
   const c = reply.counter;
   if (!c) throw new Error('empty counter reply');
-  return { name: c.name, scope: toScope(c.scope), value: c.value };
+  return { name: c.name, scope: toScope(c.scope), value: counterValue(c.value) };
 }
 
 export interface CounterTarget {
@@ -104,11 +111,11 @@ export interface CounterTarget {
 }
 
 // Untargeted on an entry-scoped counter, 0 resets every stored bucket.
-export async function setCounter(userId: string, name: string, value: number, target: CounterTarget = {}): Promise<boolean> {
+export async function setCounter(userId: string, name: string, value: string, target: CounterTarget = {}): Promise<boolean> {
   const reply = await callLoyalty('counter.set', {
     user_id: userId,
     name,
-    value,
+    counter_value: value,
     viewer_id: target.viewerId || undefined,
     command: target.command || undefined,
     viewer_login: target.viewerLogin || undefined
@@ -119,7 +126,7 @@ export async function setCounter(userId: string, name: string, value: number, ta
 export async function getCounter(userId: string, name: string): Promise<CounterDef | null> {
   const reply = await callLoyalty('counter.get', { user_id: userId, name });
   if (reply.found !== true || !reply.counter) return null;
-  return { name: reply.counter.name, scope: toScope(reply.counter.scope), value: reply.counter.value };
+  return { name: reply.counter.name, scope: toScope(reply.counter.scope), value: counterValue(reply.counter.value) };
 }
 
 export async function resolveViewerId(login: string): Promise<string> {
@@ -158,7 +165,7 @@ export async function counterEntries(userId: string, name: string, limit = 25): 
     viewerLogin: e.viewer_login ?? '',
     viewerName: e.viewer_name ?? '',
     command: e.command ?? '',
-    value: e.value
+		value: counterValue(e.value)
   }));
 }
 

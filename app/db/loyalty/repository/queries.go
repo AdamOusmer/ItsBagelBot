@@ -348,6 +348,9 @@ type SetTarget struct {
 }
 
 func (r *Loyalty) CounterSet(ctx context.Context, userID uint64, name string, target SetTarget, value int64) (bool, error) {
+	if value < 0 || value > data.MaxCounter {
+		return false, fmt.Errorf("%w: counter value", ErrInvalidInput)
+	}
 	if _, err := writableCounterName(userID, name); err != nil {
 		return false, err
 	}

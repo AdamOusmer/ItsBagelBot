@@ -5,6 +5,7 @@ package ent
 import (
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
+	"ItsBagelBot/app/db/modules/ent/feedreceipt"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/quote"
@@ -80,6 +81,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			channelfeedcounter.Table: channelfeedcounter.ValidColumn,
 			feedcounter.Table:        feedcounter.ValidColumn,
+			feedreceipt.Table:        feedreceipt.ValidColumn,
 			goveecredential.Table:    goveecredential.ValidColumn,
 			modules.Table:            modules.ValidColumn,
 			quote.Table:              quote.ValidColumn,

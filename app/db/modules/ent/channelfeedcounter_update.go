@@ -28,14 +28,14 @@ func (_u *ChannelFeedCounterUpdate) Where(ps ...predicate.ChannelFeedCounter) *C
 }
 
 // SetCount sets the "count" field.
-func (_u *ChannelFeedCounterUpdate) SetCount(v uint64) *ChannelFeedCounterUpdate {
+func (_u *ChannelFeedCounterUpdate) SetCount(v int64) *ChannelFeedCounterUpdate {
 	_u.mutation.ResetCount()
 	_u.mutation.SetCount(v)
 	return _u
 }
 
 // SetNillableCount sets the "count" field if the given value is not nil.
-func (_u *ChannelFeedCounterUpdate) SetNillableCount(v *uint64) *ChannelFeedCounterUpdate {
+func (_u *ChannelFeedCounterUpdate) SetNillableCount(v *int64) *ChannelFeedCounterUpdate {
 	if v != nil {
 		_u.SetCount(*v)
 	}
@@ -96,6 +96,11 @@ func (_u *ChannelFeedCounterUpdate) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *ChannelFeedCounterUpdate) check() error {
+	if v, ok := _u.mutation.Count(); ok {
+		if err := channelfeedcounter.CountValidator(v); err != nil {
+			return &ValidationError{Name: "count", err: fmt.Errorf(`ent: validator failed for field "ChannelFeedCounter.count": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Name(); ok {
 		if err := channelfeedcounter.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "ChannelFeedCounter.name": %w`, err)}
@@ -117,10 +122,10 @@ func (_u *ChannelFeedCounterUpdate) sqlSave(ctx context.Context) (_node int, err
 		}
 	}
 	if value, ok := _u.mutation.Count(); ok {
-		_spec.SetField(channelfeedcounter.FieldCount, field.TypeUint64, value)
+		_spec.SetField(channelfeedcounter.FieldCount, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AddedCount(); ok {
-		_spec.AddField(channelfeedcounter.FieldCount, field.TypeUint64, value)
+		_spec.AddField(channelfeedcounter.FieldCount, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(channelfeedcounter.FieldName, field.TypeString, value)
@@ -146,14 +151,14 @@ type ChannelFeedCounterUpdateOne struct {
 }
 
 // SetCount sets the "count" field.
-func (_u *ChannelFeedCounterUpdateOne) SetCount(v uint64) *ChannelFeedCounterUpdateOne {
+func (_u *ChannelFeedCounterUpdateOne) SetCount(v int64) *ChannelFeedCounterUpdateOne {
 	_u.mutation.ResetCount()
 	_u.mutation.SetCount(v)
 	return _u
 }
 
 // SetNillableCount sets the "count" field if the given value is not nil.
-func (_u *ChannelFeedCounterUpdateOne) SetNillableCount(v *uint64) *ChannelFeedCounterUpdateOne {
+func (_u *ChannelFeedCounterUpdateOne) SetNillableCount(v *int64) *ChannelFeedCounterUpdateOne {
 	if v != nil {
 		_u.SetCount(*v)
 	}
@@ -227,6 +232,11 @@ func (_u *ChannelFeedCounterUpdateOne) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *ChannelFeedCounterUpdateOne) check() error {
+	if v, ok := _u.mutation.Count(); ok {
+		if err := channelfeedcounter.CountValidator(v); err != nil {
+			return &ValidationError{Name: "count", err: fmt.Errorf(`ent: validator failed for field "ChannelFeedCounter.count": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Name(); ok {
 		if err := channelfeedcounter.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "ChannelFeedCounter.name": %w`, err)}
@@ -265,10 +275,10 @@ func (_u *ChannelFeedCounterUpdateOne) sqlSave(ctx context.Context) (_node *Chan
 		}
 	}
 	if value, ok := _u.mutation.Count(); ok {
-		_spec.SetField(channelfeedcounter.FieldCount, field.TypeUint64, value)
+		_spec.SetField(channelfeedcounter.FieldCount, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AddedCount(); ok {
-		_spec.AddField(channelfeedcounter.FieldCount, field.TypeUint64, value)
+		_spec.AddField(channelfeedcounter.FieldCount, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(channelfeedcounter.FieldName, field.TypeString, value)

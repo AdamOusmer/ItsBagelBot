@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { formatCounterValue } from '@bagel/kit/validation';
+  import { usesCount } from '@bagel/kit/uses';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -23,7 +25,7 @@
             <b class="mono">!{c.name}</b>
             <span class="clip">{c.response}</span>
           </span>
-          <span class="fw uses">{t('overview.usesN', { n: c.uses ?? '0' })}</span>
+          <span class="fw uses">{t('overview.usesN', { n: formatCounterValue(usesCount(c).toString()) })}</span>
         </li>
       {/each}
       <li class="feed-row">

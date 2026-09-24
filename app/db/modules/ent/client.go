@@ -13,6 +13,7 @@ import (
 
 	"ItsBagelBot/app/db/modules/ent/channelfeedcounter"
 	"ItsBagelBot/app/db/modules/ent/feedcounter"
+	"ItsBagelBot/app/db/modules/ent/feedreceipt"
 	"ItsBagelBot/app/db/modules/ent/goveecredential"
 	"ItsBagelBot/app/db/modules/ent/modules"
 	"ItsBagelBot/app/db/modules/ent/quote"
@@ -32,6 +33,8 @@ type Client struct {
 	ChannelFeedCounter *ChannelFeedCounterClient
 	// FeedCounter is the client for interacting with the FeedCounter builders.
 	FeedCounter *FeedCounterClient
+	// FeedReceipt is the client for interacting with the FeedReceipt builders.
+	FeedReceipt *FeedReceiptClient
 	// GoveeCredential is the client for interacting with the GoveeCredential builders.
 	GoveeCredential *GoveeCredentialClient
 	// Modules is the client for interacting with the Modules builders.
@@ -53,6 +56,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.ChannelFeedCounter = NewChannelFeedCounterClient(c.config)
 	c.FeedCounter = NewFeedCounterClient(c.config)
+	c.FeedReceipt = NewFeedReceiptClient(c.config)
 	c.GoveeCredential = NewGoveeCredentialClient(c.config)
 	c.Modules = NewModulesClient(c.config)
 	c.Quote = NewQuoteClient(c.config)
@@ -151,6 +155,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:             cfg,
 		ChannelFeedCounter: NewChannelFeedCounterClient(cfg),
 		FeedCounter:        NewFeedCounterClient(cfg),
+		FeedReceipt:        NewFeedReceiptClient(cfg),
 		GoveeCredential:    NewGoveeCredentialClient(cfg),
 		Modules:            NewModulesClient(cfg),
 		Quote:              NewQuoteClient(cfg),
@@ -176,6 +181,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:             cfg,
 		ChannelFeedCounter: NewChannelFeedCounterClient(cfg),
 		FeedCounter:        NewFeedCounterClient(cfg),
+		FeedReceipt:        NewFeedReceiptClient(cfg),
 		GoveeCredential:    NewGoveeCredentialClient(cfg),
 		Modules:            NewModulesClient(cfg),
 		Quote:              NewQuoteClient(cfg),
@@ -209,8 +215,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.ChannelFeedCounter, c.FeedCounter, c.GoveeCredential, c.Modules, c.Quote,
-		c.SpotifyCredential,
+		c.ChannelFeedCounter, c.FeedCounter, c.FeedReceipt, c.GoveeCredential,
+		c.Modules, c.Quote, c.SpotifyCredential,
 	} {
 		n.Use(hooks...)
 	}
@@ -220,8 +226,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.ChannelFeedCounter, c.FeedCounter, c.GoveeCredential, c.Modules, c.Quote,
-		c.SpotifyCredential,
+		c.ChannelFeedCounter, c.FeedCounter, c.FeedReceipt, c.GoveeCredential,
+		c.Modules, c.Quote, c.SpotifyCredential,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -234,6 +240,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ChannelFeedCounter.mutate(ctx, m)
 	case *FeedCounterMutation:
 		return c.FeedCounter.mutate(ctx, m)
+	case *FeedReceiptMutation:
+		return c.FeedReceipt.mutate(ctx, m)
 	case *GoveeCredentialMutation:
 		return c.GoveeCredential.mutate(ctx, m)
 	case *ModulesMutation:
@@ -510,6 +518,139 @@ func (c *FeedCounterClient) mutate(ctx context.Context, m *FeedCounterMutation) 
 		return (&FeedCounterDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown FeedCounter mutation op: %q", m.Op())
+	}
+}
+
+// FeedReceiptClient is a client for the FeedReceipt schema.
+type FeedReceiptClient struct {
+	config
+}
+
+// NewFeedReceiptClient returns a client for the FeedReceipt from the given config.
+func NewFeedReceiptClient(c config) *FeedReceiptClient {
+	return &FeedReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `feedreceipt.Hooks(f(g(h())))`.
+func (c *FeedReceiptClient) Use(hooks ...Hook) {
+	c.hooks.FeedReceipt = append(c.hooks.FeedReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `feedreceipt.Intercept(f(g(h())))`.
+func (c *FeedReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.FeedReceipt = append(c.inters.FeedReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a FeedReceipt entity.
+func (c *FeedReceiptClient) Create() *FeedReceiptCreate {
+	mutation := newFeedReceiptMutation(c.config, OpCreate)
+	return &FeedReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of FeedReceipt entities.
+func (c *FeedReceiptClient) CreateBulk(builders ...*FeedReceiptCreate) *FeedReceiptCreateBulk {
+	return &FeedReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FeedReceiptClient) MapCreateBulk(slice any, setFunc func(*FeedReceiptCreate, int)) *FeedReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FeedReceiptCreateBulk{err: fmt.Errorf("calling to FeedReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FeedReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FeedReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for FeedReceipt.
+func (c *FeedReceiptClient) Update() *FeedReceiptUpdate {
+	mutation := newFeedReceiptMutation(c.config, OpUpdate)
+	return &FeedReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FeedReceiptClient) UpdateOne(_m *FeedReceipt) *FeedReceiptUpdateOne {
+	mutation := newFeedReceiptMutation(c.config, OpUpdateOne, withFeedReceipt(_m))
+	return &FeedReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FeedReceiptClient) UpdateOneID(id string) *FeedReceiptUpdateOne {
+	mutation := newFeedReceiptMutation(c.config, OpUpdateOne, withFeedReceiptID(id))
+	return &FeedReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for FeedReceipt.
+func (c *FeedReceiptClient) Delete() *FeedReceiptDelete {
+	mutation := newFeedReceiptMutation(c.config, OpDelete)
+	return &FeedReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FeedReceiptClient) DeleteOne(_m *FeedReceipt) *FeedReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FeedReceiptClient) DeleteOneID(id string) *FeedReceiptDeleteOne {
+	builder := c.Delete().Where(feedreceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FeedReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for FeedReceipt.
+func (c *FeedReceiptClient) Query() *FeedReceiptQuery {
+	return &FeedReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFeedReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a FeedReceipt entity by its id.
+func (c *FeedReceiptClient) Get(ctx context.Context, id string) (*FeedReceipt, error) {
+	return c.Query().Where(feedreceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FeedReceiptClient) GetX(ctx context.Context, id string) *FeedReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *FeedReceiptClient) Hooks() []Hook {
+	return c.hooks.FeedReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *FeedReceiptClient) Interceptors() []Interceptor {
+	return c.inters.FeedReceipt
+}
+
+func (c *FeedReceiptClient) mutate(ctx context.Context, m *FeedReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FeedReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FeedReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FeedReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FeedReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown FeedReceipt mutation op: %q", m.Op())
 	}
 }
 
@@ -1048,11 +1189,11 @@ func (c *SpotifyCredentialClient) mutate(ctx context.Context, m *SpotifyCredenti
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		ChannelFeedCounter, FeedCounter, GoveeCredential, Modules, Quote,
+		ChannelFeedCounter, FeedCounter, FeedReceipt, GoveeCredential, Modules, Quote,
 		SpotifyCredential []ent.Hook
 	}
 	inters struct {
-		ChannelFeedCounter, FeedCounter, GoveeCredential, Modules, Quote,
+		ChannelFeedCounter, FeedCounter, FeedReceipt, GoveeCredential, Modules, Quote,
 		SpotifyCredential []ent.Interceptor
 	}
 )

@@ -3,6 +3,7 @@
 package migrate
 
 import (
+	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/dialect/sql/schema"
 	"entgo.io/ent/schema/field"
 )
@@ -11,7 +12,7 @@ var (
 	// ChannelFeedCountersColumns holds the columns for the "channel_feed_counters" table.
 	ChannelFeedCountersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUint64, Increment: true},
-		{Name: "count", Type: field.TypeUint64, Default: 0},
+		{Name: "count", Type: field.TypeInt64, Default: 0},
 		{Name: "name", Type: field.TypeString, Size: 64, Default: ""},
 	}
 	// ChannelFeedCountersTable holds the schema information for the "channel_feed_counters" table.
@@ -30,13 +31,26 @@ var (
 	// FeedCountersColumns holds the columns for the "feed_counters" table.
 	FeedCountersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "count", Type: field.TypeUint64, Default: 0},
+		{Name: "count", Type: field.TypeInt64, Default: 0},
 	}
 	// FeedCountersTable holds the schema information for the "feed_counters" table.
 	FeedCountersTable = &schema.Table{
 		Name:       "feed_counters",
 		Columns:    FeedCountersColumns,
 		PrimaryKey: []*schema.Column{FeedCountersColumns[0]},
+	}
+	// FeedReceiptsColumns holds the columns for the "feed_receipts" table.
+	FeedReceiptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Size: 255},
+		{Name: "total", Type: field.TypeInt64, Default: 0},
+		{Name: "channel", Type: field.TypeInt64, Default: 0},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// FeedReceiptsTable holds the schema information for the "feed_receipts" table.
+	FeedReceiptsTable = &schema.Table{
+		Name:       "feed_receipts",
+		Columns:    FeedReceiptsColumns,
+		PrimaryKey: []*schema.Column{FeedReceiptsColumns[0]},
 	}
 	// GoveeCredentialsColumns holds the columns for the "govee_credentials" table.
 	GoveeCredentialsColumns = []*schema.Column{
@@ -130,6 +144,7 @@ var (
 	Tables = []*schema.Table{
 		ChannelFeedCountersTable,
 		FeedCountersTable,
+		FeedReceiptsTable,
 		GoveeCredentialsTable,
 		ModulesTable,
 		QuotesTable,
@@ -138,4 +153,15 @@ var (
 )
 
 func init() {
+	ChannelFeedCountersTable.Annotation = &entsql.Annotation{}
+	ChannelFeedCountersTable.Annotation.Checks = map[string]string{
+		"channel_feed_count_range": "count >= 0 AND count <= 9223372036854775807",
+	}
+	FeedCountersTable.Annotation = &entsql.Annotation{}
+	FeedCountersTable.Annotation.Checks = map[string]string{
+		"feed_count_range": "count >= 0 AND count <= 9223372036854775807",
+	}
+	FeedReceiptsTable.Annotation = &entsql.Annotation{
+		Collation: "utf8mb4_bin",
+	}
 }

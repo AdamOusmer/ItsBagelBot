@@ -4,6 +4,7 @@ package runtime
 
 import (
 	"ItsBagelBot/app/db/commands/ent/commands"
+	"ItsBagelBot/app/db/commands/ent/commandusebatch"
 	"ItsBagelBot/app/db/commands/ent/fetchdefinition"
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
 	"ItsBagelBot/app/db/commands/ent/migrations"
@@ -15,6 +16,34 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	commandusebatchFields := schema.CommandUseBatch{}.Fields()
+	_ = commandusebatchFields
+	// commandusebatchDescCount is the schema descriptor for count field.
+	commandusebatchDescCount := commandusebatchFields[3].Descriptor()
+	// commandusebatch.CountValidator is a validator for the "count" field. It is called by the builders before save.
+	commandusebatch.CountValidator = commandusebatchDescCount.Validators[0].(func(int64) error)
+	// commandusebatchDescCreatedAt is the schema descriptor for created_at field.
+	commandusebatchDescCreatedAt := commandusebatchFields[4].Descriptor()
+	// commandusebatch.DefaultCreatedAt holds the default value on creation for the created_at field.
+	commandusebatch.DefaultCreatedAt = commandusebatchDescCreatedAt.Default.(func() time.Time)
+	// commandusebatchDescID is the schema descriptor for id field.
+	commandusebatchDescID := commandusebatchFields[0].Descriptor()
+	// commandusebatch.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	commandusebatch.IDValidator = func() func(string) error {
+		validators := commandusebatchDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	commandsHooks := schema.Commands{}.Hooks()
 	commands.Hooks[0] = commandsHooks[0]
 	commandsFields := schema.Commands{}.Fields()
@@ -64,7 +93,9 @@ func init() {
 	// commandsDescUses is the schema descriptor for uses field.
 	commandsDescUses := commandsFields[9].Descriptor()
 	// commands.DefaultUses holds the default value on creation for the uses field.
-	commands.DefaultUses = commandsDescUses.Default.(uint64)
+	commands.DefaultUses = commandsDescUses.Default.(int64)
+	// commands.UsesValidator is a validator for the "uses" field. It is called by the builders before save.
+	commands.UsesValidator = commandsDescUses.Validators[0].(func(int64) error)
 	// commandsDescBumpCounter is the schema descriptor for bump_counter field.
 	commandsDescBumpCounter := commandsFields[10].Descriptor()
 	// commands.DefaultBumpCounter holds the default value on creation for the bump_counter field.

@@ -4,6 +4,7 @@ package ent
 
 import (
 	"ItsBagelBot/app/db/commands/ent/commands"
+	"ItsBagelBot/app/db/commands/ent/commandusebatch"
 	"ItsBagelBot/app/db/commands/ent/fetchdefinition"
 	"ItsBagelBot/app/db/commands/ent/fetchkey"
 	"ItsBagelBot/app/db/commands/ent/migrations"
@@ -76,6 +77,7 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
+			commandusebatch.Table: commandusebatch.ValidColumn,
 			commands.Table:        commands.ValidColumn,
 			fetchdefinition.Table: fetchdefinition.ValidColumn,
 			fetchkey.Table:        fetchkey.ValidColumn,

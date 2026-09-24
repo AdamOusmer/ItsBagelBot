@@ -5,34 +5,56 @@ package modulesrpc
 
 import "ItsBagelBot/internal/domain/rpc"
 
+// FeedBumpRequest asks the modules service to record one "feed the bagel"
+// (bagel.rpc.modules.personality.feed): always on the permanent fleet-wide
+// counter, and on the feeding channel's own row when the caller names one. A
+// zero BroadcasterID bumps the fleet counter only.
 type FeedBumpRequest struct {
+	EventID       string `json:"event_id,omitempty"`
 	BroadcasterID uint64 `json:"broadcaster_id,omitempty"`
-	Name          string `json:"name,omitempty"`
+	// Name is the channel's display name at this feeding; it is stored so a
+	// leaderboard line can name the channel without a users-service lookup.
+	// Empty leaves the stored name alone.
+	Name string `json:"name,omitempty"`
 }
 
+// FeedBumpReply returns the lifetime totals after the bump: fleet-wide, this
+// channel's own, and the channel's standing (1 = fed the most). Channel and
+// Rank are 0 when the request named no broadcaster.
 type FeedBumpReply struct {
-	Total   uint64 `json:"total"`
-	Channel uint64 `json:"channel,omitempty"`
+	Total   int64  `json:"total,string"`
+	Channel int64  `json:"channel,omitempty,string"`
 	Rank    uint64 `json:"rank,omitempty"`
 	rpc.Refusal
 }
 
+// FeedBoardRequest reads the feed leaderboard
+// (bagel.rpc.modules.personality.feed.board) without feeding anything. Limit
+// caps the returned entries; 0 means every ranked channel and a negative limit
+// asks for no entries at all (the !bagels command, which wants a standing and
+// nothing else). A non-zero BroadcasterID also asks for that channel's own
+// standing, which may sit below the returned entries.
 type FeedBoardRequest struct {
 	Limit         int    `json:"limit,omitempty"`
 	BroadcasterID uint64 `json:"broadcaster_id,omitempty"`
 }
 
+// FeedBoardReply is the leaderboard, highest count first, plus how many
+// channels are ranked in total and the asking channel's own place in them.
 type FeedBoardReply struct {
 	Entries []FeedBoardEntry `json:"entries,omitempty"`
-	Total   uint64           `json:"total"`
-	Ranked  uint64           `json:"ranked"`
-	Channel uint64           `json:"channel,omitempty"`
-	Rank    uint64           `json:"rank,omitempty"`
+	// Total is the fleet-wide lifetime count (one bagel, every channel feeds
+	// it) — the same number a feeding returns, read without feeding anything.
+	Total   int64  `json:"total,string"`
+	Ranked  uint64 `json:"ranked"`
+	Channel int64  `json:"channel,omitempty,string"`
+	Rank    uint64 `json:"rank,omitempty"`
 	rpc.Refusal
 }
 
+// FeedBoardEntry is one channel's place on the feed leaderboard.
 type FeedBoardEntry struct {
 	BroadcasterID uint64 `json:"broadcaster_id"`
 	Name          string `json:"name,omitempty"`
-	Count         uint64 `json:"count"`
+	Count         int64  `json:"count,string"`
 }

@@ -37,7 +37,7 @@ type Commands struct {
 	// AllowedUserID holds the value of the "allowed_user_id" field.
 	AllowedUserID uint64 `json:"allowed_user_id,omitempty"`
 	// Uses holds the value of the "uses" field.
-	Uses uint64 `json:"uses,omitempty"`
+	Uses int64 `json:"uses,omitempty"`
 	// BumpCounter holds the value of the "bump_counter" field.
 	BumpCounter string `json:"bump_counter,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -143,7 +143,7 @@ func (_m *Commands) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field uses", values[i])
 			} else if value.Valid {
-				_m.Uses = uint64(value.Int64)
+				_m.Uses = value.Int64
 			}
 		case commands.FieldBumpCounter:
 			if value, ok := values[i].(*sql.NullString); !ok {

@@ -274,8 +274,12 @@ func (l *loyaltyRPC) handleCounterSet(ctx context.Context, req loyaltyrpc.Reques
 	if !ok {
 		return reply
 	}
+	value, err := counterSetValue(req)
+	if err != nil {
+		return l.fail("loyalty counter.set", err)
+	}
 	target := repository.SetTarget{ViewerID: viewerID, Command: req.Command, ViewerLogin: req.ViewerLogin}
-	found, err := l.repo.CounterSet(ctx, userID, req.Name, target, req.Value)
+	found, err := l.repo.CounterSet(ctx, userID, req.Name, target, value)
 	return l.foundReply("loyalty counter.set", found, err)
 }
 
@@ -340,4 +344,21 @@ func (l *loyaltyRPC) counterRows(ctx context.Context, req loyaltyrpc.Request, al
 		counters = append(counters, loyaltyrpc.Counter{Name: row.Name, Scope: row.Scope, Value: row.Value})
 	}
 	return loyaltyrpc.Reply{Counters: counters, Found: true}
+}
+
+// CounterValue preserves a dashboard decimal beyond JavaScript's numeric range.
+// Value remains available for existing Go callers.
+func counterSetValue(req loyaltyrpc.Request) (int64, error) {
+	value := req.Value
+	if req.CounterValue != "" {
+		parsed, err := strconv.ParseInt(req.CounterValue, 10, 64)
+		if err != nil {
+			return 0, repository.ErrInvalidInput
+		}
+		value = parsed
+	}
+	if value < 0 {
+		return 0, repository.ErrInvalidInput
+	}
+	return value, nil
 }

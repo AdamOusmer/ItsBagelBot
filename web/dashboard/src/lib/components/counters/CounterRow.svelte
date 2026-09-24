@@ -3,6 +3,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { Icon, ManagementRow, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
+  import { formatCounterValue } from '@bagel/kit/validation';
 
   const { t } = getI18n();
 
@@ -46,7 +47,7 @@
       <span class="meta">
         {#if isChannel}
           <span class="m-val">
-            <span class="bb-sr-only">{t('counters.colValue')} </span>{c.value.toLocaleString()}
+            <span class="bb-sr-only">{t('counters.colValue')} </span>{formatCounterValue(c.value)}
           </span>
         {:else}
           <span class="m-note">{perScopeNote}</span>

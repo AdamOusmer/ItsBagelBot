@@ -197,23 +197,23 @@ export function demoStandings(): LoyaltyStanding[] {
 
 export function demoCounters(): CounterDef[] {
   return [
-    { name: 'deaths', scope: 'channel', value: 137 },
-    { name: 'hugs', scope: 'viewer', value: 0 },
-    { name: 'raids', scope: 'command', value: 0 },
-    { name: 'redeems', scope: 'viewer_command', value: 0 }
+    { name: 'deaths', scope: 'channel', value: '137' },
+    { name: 'hugs', scope: 'viewer', value: '0' },
+    { name: 'raids', scope: 'command', value: '0' },
+    { name: 'redeems', scope: 'viewer_command', value: '0' }
   ];
 }
 
 export function demoEntries(name: string): CounterEntryView[] {
   if (name === 'raids') {
     return [
-      { viewerId: '0', viewerLogin: '', viewerName: '', command: 'raid', value: 41 },
-      { viewerId: '0', viewerLogin: '', viewerName: '', command: 'so', value: 12 }
+      { viewerId: '0', viewerLogin: '', viewerName: '', command: 'raid', value: '41' },
+      { viewerId: '0', viewerLogin: '', viewerName: '', command: 'so', value: '12' }
     ];
   }
   return [
-    { viewerId: '101', viewerLogin: 'sesame_sam', viewerName: 'Sesame_Sam', command: name === 'redeems' ? 'hydrate' : '', value: 23 },
-    { viewerId: '102', viewerLogin: 'bagel_fan', viewerName: 'Bagel_Fan', command: name === 'redeems' ? 'hydrate' : '', value: 9 }
+    { viewerId: '101', viewerLogin: 'sesame_sam', viewerName: 'Sesame_Sam', command: name === 'redeems' ? 'hydrate' : '', value: '23' },
+    { viewerId: '102', viewerLogin: 'bagel_fan', viewerName: 'Bagel_Fan', command: name === 'redeems' ? 'hydrate' : '', value: '9' }
   ];
 }
 
@@ -502,22 +502,22 @@ export function demoFetchTestRun(): { status: string; values: string[]; ms: numb
 }
 
 export const demoCommandRows: CommandView[] = [
-  { name: 'dice', aliases: ['roll'], response: '{user} rolls the dice… {random:1-6}!', perm: 'everyone', cooldown: 5, uses: 412, is_active: true, stream_online_only: true },
-  { name: 'socials', aliases: ['social', 'links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: 288, is_active: true },
-  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: 1200, is_active: true },
-  { name: 'so', response: 'Go show some love to twitch.tv/{target}, absolute legend', perm: 'mod', cooldown: 0, uses: 96, is_active: true },
-  { name: 'discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: 203, is_active: true },
-  { name: 'debug', response: 'node={node} replica={id} lag={ms}ms', perm: 'broadcaster', cooldown: 0, uses: 14, is_active: false },
-  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, uses: 521, is_active: true },
-  { name: 'deaths', response: '{channel} has died {counter:deaths} times. {choice:F,RIP,ouch}', perm: 'sub', cooldown: 15, uses: 177, is_active: true }
+  { name: 'dice', aliases: ['roll'], response: '{user} rolls the dice… {random:1-6}!', perm: 'everyone', cooldown: 5, uses: '412', is_active: true, stream_online_only: true },
+  { name: 'socials', aliases: ['social', 'links'], response: 'Follow along → twitch.tv/itsmavey · @itsmavey everywhere', perm: 'everyone', cooldown: 30, uses: '288', is_active: true },
+  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', perm: 'everyone', cooldown: 10, uses: '1200', is_active: true },
+  { name: 'so', response: 'Go show some love to twitch.tv/{target}, absolute legend', perm: 'mod', cooldown: 0, uses: '96', is_active: true },
+  { name: 'discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: '203', is_active: true },
+  { name: 'debug', response: 'node={node} replica={id} lag={ms}ms', perm: 'broadcaster', cooldown: 0, uses: '14', is_active: false },
+  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, uses: '521', is_active: true },
+  { name: 'deaths', response: '{channel} has died {counter:deaths} times. {choice:F,RIP,ouch}', perm: 'sub', cooldown: 15, uses: '177', is_active: true }
 ];
 
 export const demoDigestRows: CommandView[] = [
-  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', is_active: true, uses: 1200 },
-  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', is_active: true, uses: 521 },
-  { name: 'dice', response: '{user} rolls the dice… {random:1-6}!', is_active: true, uses: 412 },
-  { name: 'socials', response: 'Follow along → twitch.tv/itsmavey', is_active: true, uses: 288 },
-  { name: 'debug', response: 'node={node}', is_active: false, uses: 14 }
+  { name: 'bagel', response: '{user} tosses a warm bagel to {target}. Toasty.', is_active: true, uses: '1200' },
+  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', is_active: true, uses: '521' },
+  { name: 'dice', response: '{user} rolls the dice… {random:1-6}!', is_active: true, uses: '412' },
+  { name: 'socials', response: 'Follow along → twitch.tv/itsmavey', is_active: true, uses: '288' },
+  { name: 'debug', response: 'node={node}', is_active: false, uses: '14' }
 ];
 
 export function demoConn(connectionUiState: (s: ConnData['signals']) => ConnData['ui']): ConnData {
@@ -547,7 +547,7 @@ export const demoPublicCommands = [
     perm: PERM_LABELS.everyone,
     cooldown: 10,
     liveOnly: false,
-    uses: '1.2k'
+    uses: '1200'
   },
   {
     trigger: '!socials',
@@ -578,8 +578,8 @@ export function demoStats(now: number): PublicStats {
   const msgRate = 84 + 12 * Math.sin(now / 45_000);
   const eventRate = 137 + 18 * Math.sin(now / 60_000 + 1.7);
   return {
-    messages_total: Math.floor(1_508_000_000 + secs * 84),
-    events_total: Math.floor(2_430_000_000 + secs * 137),
+    messages_total: String(Math.floor(1_508_000_000 + secs * 84)),
+    events_total: String(Math.floor(2_430_000_000 + secs * 137)),
     msg_rate: msgRate,
     event_rate: eventRate,
     msg_rate_now: msgRate,
@@ -613,11 +613,11 @@ export function demoBoards(now: number): PublicBoards {
     };
   });
   return {
-    channels: grown.map(({ id, name, messages, events }) => ({ id, name, messages, events })),
+    channels: grown.map(({ id, name, messages, events }) => ({ id, name, messages: String(messages), events: String(events) })),
     feed: {
-      total: grown.reduce((sum, c) => sum + c.feeds, 0),
-      ranked: 57,
-      entries: grown.map(({ id, name, feeds }) => ({ id, name, count: feeds }))
+      total: String(grown.reduce((sum, c) => sum + c.feeds, 0)),
+      ranked: '57',
+      entries: grown.map(({ id, name, feeds }) => ({ id, name, count: String(feeds) }))
     },
     degraded: false
   };
@@ -639,9 +639,9 @@ export function demoStreamMeta(now: number): StreamMeta {
 }
 
 export const demoStreamCounters: StreamCounters = {
-  messages: 9412,
-  answered: 148,
-  modActions: 7,
+  messages: '9412',
+  answered: '148',
+  modActions: '7',
   ok: true
 };
 

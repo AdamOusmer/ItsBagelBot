@@ -17,7 +17,7 @@ type ChannelFeedCounter struct {
 	// ID of the ent.
 	ID uint64 `json:"id,omitempty"`
 	// Count holds the value of the "count" field.
-	Count uint64 `json:"count,omitempty"`
+	Count int64 `json:"count,omitempty"`
 	// Name holds the value of the "name" field.
 	Name         string `json:"name,omitempty"`
 	selectValues sql.SelectValues
@@ -57,7 +57,7 @@ func (_m *ChannelFeedCounter) assignValues(columns []string, values []any) error
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field count", values[i])
 			} else if value.Valid {
-				_m.Count = uint64(value.Int64)
+				_m.Count = value.Int64
 			}
 		case channelfeedcounter.FieldName:
 			if value, ok := values[i].(*sql.NullString); !ok {

@@ -7,8 +7,6 @@ import (
 	"context"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"ItsBagelBot/app/db/commands/ent"
@@ -79,9 +77,6 @@ const (
 
 	flushInterval = 2 * time.Second
 	flushMaxSize  = 256
-
-	usesFlushInterval = 30 * time.Second
-	usesFlushMaxKeys  = 512
 )
 
 type CommandView = projection.CommandView
@@ -98,40 +93,19 @@ type Commands struct {
 	batcher *batch.Batcher[commandKey, data.CommandChangedDTO]
 	app     *newrelic.Application
 	log     *zap.Logger
-
-	usesMu     sync.Mutex
-	usesPend   map[commandKey]uint64
-	usesTicker *time.Ticker
-	usesDone   chan struct{}
-
-	usesFlushing atomic.Bool
 }
 
 func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Commands {
 
 	r := &Commands{
-		client:   client,
-		views:    cache.New[[]CommandView](commandsCacheCapacity, commandsCacheTTL),
-		pub:      pub,
-		app:      app,
-		log:      log,
-		usesPend: map[commandKey]uint64{},
-		usesDone: make(chan struct{}),
+		client: client,
+		views:  cache.New[[]CommandView](commandsCacheCapacity, commandsCacheTTL),
+		pub:    pub,
+		app:    app,
+		log:    log,
 	}
 
 	r.batcher = batch.New[commandKey, data.CommandChangedDTO](flushInterval, flushMaxSize, r.flush, log)
-
-	r.usesTicker = time.NewTicker(usesFlushInterval)
-	go func() {
-		for {
-			select {
-			case <-r.usesTicker.C:
-				r.flushUses(context.Background())
-			case <-r.usesDone:
-				return
-			}
-		}
-	}()
 
 	return r
 }
@@ -353,92 +327,6 @@ func (r *Commands) Invalidate(userID uint64) {
 	r.views.Invalidate(cache.UserKey(commandsKeyPrefix, userID))
 }
 
-func (r *Commands) RecordUse(userID uint64, name string, count uint64) {
-	name = normalizeName(name)
-	if userID == 0 || name == "" {
-		return
-	}
-	if count == 0 {
-		count = 1
-	}
-	r.usesMu.Lock()
-	r.usesPend[commandKey{userID: userID, name: name}] += count
-	overflow := len(r.usesPend) >= usesFlushMaxKeys
-	r.usesMu.Unlock()
-	if overflow && r.usesFlushing.CompareAndSwap(false, true) {
-		go func() {
-			defer r.usesFlushing.Store(false)
-			r.flushUses(context.Background())
-		}()
-	}
-}
-
-func (r *Commands) flushUses(ctx context.Context) {
-
-	pend := r.drainPendingUses()
-	if len(pend) == 0 {
-		return
-	}
-
-	txn := r.app.StartTransaction("flush command uses")
-	defer txn.End()
-	ctx = newrelic.NewContext(ctx, txn)
-
-	keys, err := r.persistUses(ctx, txn, pend)
-	if err != nil {
-		txn.NoticeError(err)
-		return
-	}
-
-	r.publishUseEvents(ctx, txn, keys)
-}
-
-func (r *Commands) drainPendingUses() map[commandKey]uint64 {
-	r.usesMu.Lock()
-	defer r.usesMu.Unlock()
-	if len(r.usesPend) == 0 {
-		return nil
-	}
-	pend := r.usesPend
-	r.usesPend = map[commandKey]uint64{}
-	return pend
-}
-
-func (r *Commands) persistUses(ctx context.Context, txn *newrelic.Transaction, pend map[commandKey]uint64) ([]commandKey, error) {
-	byCount := map[uint64][]commandKey{}
-	for key, n := range pend {
-		byCount[n] = append(byCount[n], key)
-	}
-	keys := make([]commandKey, 0, len(pend))
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		for n, group := range byCount {
-			preds := make([]predicate.Commands, 0, len(group))
-			for _, key := range group {
-				preds = append(preds, commands.And(
-					commands.UserIDEQ(key.userID),
-					commands.NameEQ(key.name),
-				))
-			}
-			_, err := r.client.Commands.Update().
-				Where(commands.Or(preds...)).
-				AddUses(int64(n)). //nolint:gosec // n is a small per-window count
-				Save(ctx)
-			if err != nil {
-				txn.NoticeError(err)
-				r.log.Warn("failed to persist command uses",
-					zap.Int("commands", len(group)),
-					zap.Uint64("delta", n),
-					zap.Error(err),
-				)
-				continue
-			}
-			keys = append(keys, group...)
-		}
-		return nil
-	})
-	return keys, err
-}
-
 func (r *Commands) publishUseEvents(ctx context.Context, txn *newrelic.Transaction, keys []commandKey) {
 	states, err := r.rowStates(ctx, keys)
 	if err != nil {
@@ -504,9 +392,6 @@ func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[comman
 }
 
 func (r *Commands) Close(ctx context.Context) {
-	r.usesTicker.Stop()
-	close(r.usesDone)
-	r.flushUses(ctx)
 	r.batcher.Close(ctx)
 	r.views.Close()
 }

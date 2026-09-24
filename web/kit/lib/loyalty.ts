@@ -45,7 +45,7 @@ export const COUNTER_SCOPES: readonly CounterScope[] = ['channel', 'viewer', 'co
 export interface CounterDef {
   name: string;
   scope: CounterScope;
-  value: number;
+  value: string;
 }
 
 export interface CounterEntryView {
@@ -53,7 +53,7 @@ export interface CounterEntryView {
   viewerLogin: string;
   viewerName: string;
   command: string;
-  value: number;
+  value: string;
 }
 
 export interface LoyaltyStanding {

@@ -8,6 +8,18 @@ import (
 	"fmt"
 )
 
+// The CommandUseBatchFunc type is an adapter to allow the use of ordinary
+// function as CommandUseBatch mutator.
+type CommandUseBatchFunc func(context.Context, *ent.CommandUseBatchMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CommandUseBatchFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CommandUseBatchMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CommandUseBatchMutation", m)
+}
+
 // The CommandsFunc type is an adapter to allow the use of ordinary
 // function as Commands mutator.
 type CommandsFunc func(context.Context, *ent.CommandsMutation) (ent.Value, error)

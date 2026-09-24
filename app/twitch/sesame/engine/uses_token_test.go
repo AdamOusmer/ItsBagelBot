@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func usesPipeline(t *testing.T, response string, uses uint64) *Pipeline {
+func usesPipeline(t *testing.T, response string, uses int64) *Pipeline {
 	t.Helper()
 	d := Deps{
 		Proj: fakeReader{
