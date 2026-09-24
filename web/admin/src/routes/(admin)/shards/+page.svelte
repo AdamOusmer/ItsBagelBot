@@ -60,8 +60,9 @@
   const SETTLE_WINDOW_MS = 30_000;
   let fastUntil = 0;
 
+  const HIDDEN_MS = 15_000;
+
   async function pollSnapshot(): Promise<boolean> {
-    if (typeof document !== 'undefined' && document.hidden) return false;
     try {
       const res = await fetch('/shards/snapshot');
       if (!res.ok) return false;
@@ -84,7 +85,7 @@
   onMount(() => {
     const stop = livePoll(pollSnapshot, {
       firstDelayMs: 1500,
-      delayMs: () => (Date.now() < fastUntil ? FAST_MS : SLOW_MS),
+      delayMs: () => (document.hidden ? HIDDEN_MS : Date.now() < fastUntil ? FAST_MS : SLOW_MS),
       timeoutMs: Number.POSITIVE_INFINITY
     });
     const onVis = () => {
