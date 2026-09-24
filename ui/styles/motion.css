@@ -29,6 +29,7 @@
        copies in one grid cell, each copy fading in with opacity. */
     .bb-stack {
         display: grid;
+        grid-template: minmax(0, 1fr) / minmax(0, 1fr);
     }
 
     .bb-stack > * {
