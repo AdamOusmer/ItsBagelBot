@@ -31,6 +31,7 @@ type Projector struct {
 	cacheInvalidatePrefix string
 	hydrator              *hydration.Hydrator
 	loyalty               loyaltyCounterReader
+	live                  liveCounterStore
 	log                   *zap.Logger
 }
 
@@ -41,6 +42,7 @@ type Deps struct {
 	CacheInvalidatePrefix string
 	Hydrator              *hydration.Hydrator
 	Loyalty               loyaltyCounterReader
+	Live                  liveCounterStore
 	Log                   *zap.Logger
 }
 
@@ -52,6 +54,7 @@ func NewProjector(d Deps) *Projector {
 		cacheInvalidatePrefix: d.CacheInvalidatePrefix,
 		hydrator:              d.Hydrator,
 		loyalty:               d.Loyalty,
+		live:                  d.Live,
 		log:                   d.Log,
 	}
 }
@@ -121,6 +124,11 @@ func validateUserDeleted(dto data.UserDeletedDTO) error {
 func (p *Projector) applyUserDeleted(ctx context.Context, dto data.UserDeletedDTO) error {
 	if err := p.store.DeleteUser(ctx, dto.UserID); err != nil {
 		return err
+	}
+	if p.live != nil {
+		if err := p.live.DeleteLiveCounters(ctx, dto.UserID, boardCounters); err != nil {
+			return err
+		}
 	}
 	p.broadcastInvalidate(dto.UserID)
 	return nil
@@ -263,30 +271,21 @@ func isGoLiveEdge(wasLive, isLive bool) bool {
 	return isLive && !wasLive
 }
 
+var baselineCounters = []projection.CounterName{data.CounterMessagesProcessed, data.CounterCommandsAnswered, data.CounterModActionsTaken}
+
 func (p *Projector) snapshotCounterBaseline(ctx context.Context, broadcasterID uint64, log *zap.Logger) {
-	if p.loyalty == nil {
+	vals, ok := p.liveTotals(ctx, broadcasterID, baselineCounters)
+	if !ok {
+		log.Warn("skipping stream counter baseline: live counters unavailable", zap.Uint64("user_id", broadcasterID))
 		return
 	}
 
-	uid := strconv.FormatUint(broadcasterID, 10)
-	names := []string{
-		data.CounterMessagesProcessed,
-		data.CounterCommandsAnswered,
-		data.CounterModActionsTaken,
+	b := projection.StreamCounters{
+		Messages:   vals[data.CounterMessagesProcessed],
+		Answered:   vals[data.CounterCommandsAnswered],
+		ModActions: vals[data.CounterModActionsTaken],
 	}
-	vals := make([]int64, 0, len(names))
-	for _, name := range names {
-		v, ok := p.loyalty.get(ctx, uid, name)
-		if !ok {
-			log.Warn("skipping stream counter baseline: loyalty read failed",
-				zap.Uint64("user_id", broadcasterID), zap.String("counter", name))
-			return
-		}
-		vals = append(vals, v)
-	}
-
-	b := projection.StreamCounters{Messages: vals[0], Answered: vals[1], ModActions: vals[2]}
-	if err := p.store.SetStreamCounterBaseline(ctx, uid, b); err != nil {
+	if err := p.store.SetStreamCounterBaseline(ctx, strconv.FormatUint(broadcasterID, 10), b); err != nil {
 		log.Warn("failed to write stream counter baseline", zap.Uint64("user_id", broadcasterID), zap.Error(err))
 	}
 }
