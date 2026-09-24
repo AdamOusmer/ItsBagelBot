@@ -110,7 +110,7 @@
   );
 </script>
 
-<Scroller fill padding="18px">
+<Scroller fill padding="18px" smooth>
   <div class="detail">
     <div class="ident">
       <Bolota name={user.username} size={44} active />

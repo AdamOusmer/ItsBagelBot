@@ -123,7 +123,7 @@
      scroll; the EditorFooter stays pinned so Save/Cancel never fall below the
      fold. -->
 <form method="POST" action="?/save" class="editor-form" novalidate use:enhance={submit} bind:this={formEl}>
-  <Scroller fill padding="16px">
+  <Scroller fill padding="16px" smooth>
    <div class="editor">
   {#if draft.edit}
     <input type="hidden" name="edit" value="1" />

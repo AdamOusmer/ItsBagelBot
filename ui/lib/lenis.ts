@@ -47,6 +47,8 @@ import { subscribe } from './raf-loop';
  */
 const LERP = 0.1;
 
+const SHARED_OPTIONS = { lerp: LERP, smoothWheel: true, syncTouch: false } satisfies LenisOptions;
+
 type LenisWindow = Window & { __lenis?: Lenis };
 
 /**
@@ -101,9 +103,7 @@ export function createSmoothScroll(options: SmoothScrollOptions = {}): SmoothScr
 
     const gate = createNestedScrollGate(options);
     const lenis = new Lenis({
-        lerp: LERP,
-        smoothWheel: true,
-        syncTouch: false,
+        ...SHARED_OPTIONS,
         ...options,
         prevent: gate.prevent,
         virtualScroll: gate.virtualScroll,
@@ -125,6 +125,47 @@ export function createSmoothScroll(options: SmoothScrollOptions = {}): SmoothScr
         destroy() {
             unsubscribe();
             if ((window as LenisWindow).__lenis === lenis) delete (window as LenisWindow).__lenis;
+            lenis.destroy();
+        },
+    };
+}
+
+/**
+ * Smooth scroll for one overflow panel (an inspector, not the page).
+ *
+ * Deliberately NOT published on `window.__lenis`: that global is the page
+ * scroller, and `overlay-stack` stops it whenever a sheet opens, which on a
+ * phone-width window is this very panel. The page scroller's nested-scroll
+ * gate already yields the wheel while the panel can move.
+ *
+ * The panel runs the same gate one level down, so a wheel over an inner
+ * scroller (the response textarea, the fetch JSON tree) stays with it. A panel
+ * with nothing to scroll declines the wheel outright, leaving it to the page.
+ * `naiveDimensions` reads the panel's scroll height live: the rehearsal grows
+ * while it types, and the default debounced ResizeObserver would clamp the
+ * wheel short of the bottom until the typing stops.
+ */
+export function createPaneScroll(wrapper: HTMLElement): SmoothScroll | null {
+    if (typeof window === 'undefined' || prefersReducedMotion()) return null;
+
+    const gate = createNestedScrollGate({ virtualScroll: () => lenis.limit > 0 });
+    const lenis: Lenis = new Lenis({
+        ...SHARED_OPTIONS,
+        wrapper,
+        content: wrapper,
+        autoResize: false,
+        naiveDimensions: true,
+        prevent: gate.prevent,
+        virtualScroll: gate.virtualScroll,
+    });
+    const unsubscribe = subscribe((now) => {
+        lenis.raf(now);
+    });
+
+    return {
+        lenis,
+        destroy() {
+            unsubscribe();
             lenis.destroy();
         },
     };

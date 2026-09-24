@@ -500,7 +500,7 @@
       >
         {#if expanded === NEW}
           <form method="POST" action="?/create" class="ins-form" novalidate use:enhance={createSubmit}>
-            <Scroller fill padding="16px">
+            <Scroller fill padding="16px" smooth>
               <Field label={t('counters.fieldName')}>
                 <input
                   id="counter-name"
@@ -540,7 +540,7 @@
         {:else if selected?.scope === 'channel'}
           <form method="POST" action="?/set" class="ins-form" novalidate use:enhance={setSubmit}>
             <input type="hidden" name="name" value={selected.name} />
-            <Scroller fill padding="16px">
+            <Scroller fill padding="16px" smooth>
               <p class="ins-sub">{scopeLabel[selected.scope]}</p>
 
               <div class="sec">
@@ -565,7 +565,7 @@
           {@const showViewer = selected.scope !== 'command'}
           {@const showSource = selected.scope !== 'viewer'}
           <div class="ins-form">
-            <Scroller fill padding="16px">
+            <Scroller fill padding="16px" smooth>
               <p class="ins-sub">{scopeLabel[selected.scope]}</p>
 
               <!-- Values lead: the stored buckets are the point of this panel. -->

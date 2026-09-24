@@ -218,8 +218,8 @@ const ENTRIES: {
     name: "lenis",
     budget: 1250,
     external: ["lenis"],
-    source: `import { createSmoothScroll, getSmoothScroll } from "../../lib/lenis";
-             globalThis.x = [createSmoothScroll, getSmoothScroll];`,
+    source: `import { createPaneScroll, createSmoothScroll, getSmoothScroll } from "../../lib/lenis";
+             globalThis.x = [createPaneScroll, createSmoothScroll, getSmoothScroll];`,
   },
   {
     // The mobile nav panel's choreography: three concurrent tweens, the SVG

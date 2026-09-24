@@ -32,7 +32,7 @@
 </script>
 
 <div class="detail">
-  <Scroller fill padding="18px">
+  <Scroller fill padding="18px" smooth>
     <div class="body">
       <div class="marks">
         <StatePill tone={LEVEL_TONE[notification.level]}>
