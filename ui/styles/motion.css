@@ -66,6 +66,15 @@
         to { transform: none; }
     }
 
+    /* Off-screen gate: lib/motion-gate.ts flips a region to `off` once it
+       leaves the viewport. */
+    [data-motion="off"],
+    [data-motion="off"] *,
+    [data-motion="off"] *::before,
+    [data-motion="off"] *::after {
+        animation-name: none !important;
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .bb-wipe,
         .bb-wipe > * {

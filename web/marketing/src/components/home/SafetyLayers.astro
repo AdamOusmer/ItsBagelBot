@@ -29,7 +29,7 @@ const NETWORK_WAVES = [0, 1];
 const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === wave);
 ---
 
-<section class="safe" id="safety-layers">
+<section class="safe" id="safety-layers" data-motion>
     <LightField class="bb-light-field--bleed" />
     {/* One chip for the section, not one per card. Three identical BETA tags
         down a row of three cards read as three separate disclaimers; the state
