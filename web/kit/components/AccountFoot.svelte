@@ -9,6 +9,7 @@
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import type { DashboardLink } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
+  import { SITE } from '../lib/site-links';
 
   const { t } = getI18n();
 
@@ -32,13 +33,69 @@
 
   const hasMenu = $derived(dashboards.length > 0 || isDelegate);
   let menuOpen = $state(false);
+  let supportOpen = $state(false);
 
-  afterNavigate(() => (menuOpen = false));
+  const supportLines = [
+    { title: 'Discord', hint: t('topbar.supportDiscordHint'), href: SITE.discord, icon: 'discord', external: true },
+    { title: 'Support', hint: SITE.supportEmail, href: `mailto:${SITE.supportEmail}`, icon: 'link', external: false },
+    { title: 'Enterprise', hint: SITE.enterpriseEmail, href: `mailto:${SITE.enterpriseEmail}`, icon: 'server', external: false },
+    { title: 'GitHub', hint: t('topbar.supportGithubHint'), href: SITE.github, icon: 'github', external: true },
+  ] as const;
+
+  function closeMenus() {
+    menuOpen = false;
+    supportOpen = false;
+  }
+
+  afterNavigate(closeMenus);
 </script>
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape') menuOpen = false; }} />
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeMenus(); }} />
 
 <div class="bb-profile-rail__side-foot">
+  <div class="bb-profile-rail__help">
+    <button
+      class="bb-profile-rail__help-btn"
+      class:bb-profile-rail__open={supportOpen}
+      type="button"
+      aria-expanded={supportOpen}
+      aria-haspopup="menu"
+      onclick={() => { menuOpen = false; supportOpen = !supportOpen; }}
+    >
+      {t('topbar.support')}
+    </button>
+    <a class="bb-profile-rail__help-btn" href={SITE.newIssue} target="_blank" rel="noopener noreferrer">
+      {t('topbar.feedback')}
+    </a>
+  </div>
+  {#if menuOpen || supportOpen}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="bb-profile__scrim"
+      role="presentation"
+      onclick={closeMenus}
+      onkeydown={(e) => { if (e.key === 'Enter') closeMenus(); }}
+    ></div>
+  {/if}
+  {#if supportOpen}
+    <div class="bb-profile-rail__foot-menu" role="menu" aria-label={t('topbar.support')}>
+      {#each supportLines as line (line.title)}
+        <a
+          class="bb-profile__link"
+          href={line.href}
+          role="menuitem"
+          target={line.external ? '_blank' : undefined}
+          rel={line.external ? 'noopener noreferrer' : undefined}
+        >
+          <span class="bb-profile__glyph"><Icon name={line.icon} size={16} /></span>
+          <span class="bb-profile__line">
+            <span class="bb-profile__name">{line.title}</span>
+            <span class="bb-profile__hint" title={line.hint}>{line.hint}</span>
+          </span>
+        </a>
+      {/each}
+    </div>
+  {/if}
   {#if hasMenu}
     <button
       class="bb-profile-rail__account bb-profile-rail__account--btn"
@@ -46,7 +103,7 @@
       type="button"
       aria-expanded={menuOpen}
       aria-haspopup="menu"
-      onclick={() => (menuOpen = !menuOpen)}
+      onclick={() => { supportOpen = false; menuOpen = !menuOpen; }}
       onpointerenter={() => (hovered = true)}
       onpointerleave={() => (hovered = false)}
     >
@@ -60,13 +117,6 @@
       </span>
     </button>
     {#if menuOpen}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="bb-profile__scrim"
-        role="presentation"
-        onclick={() => (menuOpen = false)}
-        onkeydown={(e) => { if (e.key === 'Enter') menuOpen = false; }}
-      ></div>
       <div class="bb-profile-rail__foot-menu" role="menu">
         <div class="bb-profile__head">
           <span class="bb-profile__portrait">

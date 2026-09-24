@@ -3842,7 +3842,11 @@
     "roleBroadcaster": "Diffuseur",
     "notifications": "Notifications",
     "logout": "Se déconnecter",
-    "dashboards": "Tableaux partagés"
+    "dashboards": "Tableaux partagés",
+    "support": "Assistance",
+    "supportDiscordHint": "généralement quelques minutes",
+    "supportGithubHint": "source disponible",
+    "feedback": "Bug ou idée"
   },
   "perm": {
     "everyone": "Tout le monde",
