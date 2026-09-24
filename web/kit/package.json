@@ -35,6 +35,7 @@
     "./server/impersonation": "./lib/server/impersonation.ts",
     "./server/valkey-store": "./lib/server/valkey-store.ts",
     "./server/valkey-connection": "./lib/server/valkey-connection.ts",
+    "./server/valkey-master": "./lib/server/valkey-master.ts",
     "./server/songqueue-store": "./lib/server/songqueue-store.ts",
     "./server/shared-snapshot": "./lib/server/shared-snapshot.ts",
     "./server/session-revocation": "./lib/server/session-revocation.ts",
