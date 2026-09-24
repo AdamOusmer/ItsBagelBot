@@ -89,7 +89,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: commands
-          image: ghcr.io/adamousmer/itsbagelbot/commands:v0.2.3-beta@sha256:2ef85ceb743de59cc32a5f6e10e3788d27b316325dde35396534ea0a9ca338cb
+          image: ghcr.io/adamousmer/itsbagelbot/commands:main-1790276953-955cc12a0caf@sha256:3a488447bd0c3c0c4f005fb11e9043163a706fb8184aff9b12ddefb2d790c9f8
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_HOST
