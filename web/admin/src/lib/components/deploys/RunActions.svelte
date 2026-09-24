@@ -135,16 +135,17 @@
 
 <style>
   .slot {
-    min-height: 48px;
     margin-bottom: 8px;
+  }
+  .slot:empty {
+    display: none;
   }
   .bar {
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 8px;
     min-height: 36px;
-    margin-bottom: 16px;
   }
   .bar form {
     display: contents;

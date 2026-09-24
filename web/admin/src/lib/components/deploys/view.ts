@@ -3,6 +3,7 @@
 
 import type {
   CheckState,
+  DeployItem,
   DeployPRInfo,
   DeployRun,
   DeployRunSummary,
@@ -58,6 +59,30 @@ export const STAGE_KEY: Record<StageId, string> = {
   acl: 'admin.deploys.stage.acl',
   rollout: 'admin.deploys.stage.rollout',
   verify: 'admin.deploys.stage.verify'
+};
+
+export const STAGE_ABOUT_KEY: Record<StageId, string> = {
+  preflight: 'admin.deploys.run.about.preflight',
+  merge_prs: 'admin.deploys.run.about.merge_prs',
+  changelog: 'admin.deploys.run.about.changelog',
+  tag: 'admin.deploys.run.about.tag',
+  release: 'admin.deploys.run.about.release',
+  build: 'admin.deploys.run.about.build',
+  digests: 'admin.deploys.run.about.digests',
+  pin_pr: 'admin.deploys.run.about.pin_pr',
+  acl: 'admin.deploys.run.about.acl',
+  rollout: 'admin.deploys.run.about.rollout',
+  verify: 'admin.deploys.run.about.verify'
+};
+
+export const STAGE_STATE_BODY_KEY: Record<StageState, string> = {
+  pending: 'admin.deploys.run.state.pending',
+  running: 'admin.deploys.run.state.running',
+  waiting: 'admin.deploys.run.state.waiting',
+  succeeded: 'admin.deploys.run.state.succeeded',
+  failed: 'admin.deploys.run.state.failed',
+  skipped: 'admin.deploys.run.state.skipped',
+  cancelled: 'admin.deploys.run.state.cancelled'
 };
 
 export const RUN_STATE_KEY: Record<RunState, string> = {
@@ -200,6 +225,10 @@ export function currentStageId(run: Pick<DeployRun, 'stages'>): StageId {
   return (open ?? run.stages[run.stages.length - 1])?.id ?? 'preflight';
 }
 
+export function liveStageId(run: Pick<DeployRun, 'stages'>): StageId {
+  return run.stages.find((s) => s.state === 'failed')?.id ?? currentStageId(run);
+}
+
 export function failedStage(run: DeployRun): DeployStage | undefined {
   return run.stages.find((s) => s.state === 'failed');
 }
@@ -219,6 +248,17 @@ export function stageMeta(s: DeployStage, t: Translate): string {
   if (s.progress.total > 0) parts.push(`${s.progress.done}/${s.progress.total}`);
   if ((s.attempts ?? 0) > 1) parts.push(t('admin.deploys.attempt', { n: String(s.attempts) }));
   return parts.join(' · ');
+}
+
+const LIVE_ITEM: ReadonlySet<StageState> = new Set(['running', 'waiting', 'failed']);
+
+export function currentItem(stage: Pick<DeployStage, 'items' | 'state'>): DeployItem | undefined {
+  const items = stage.items ?? [];
+  return (
+    items.find((i) => LIVE_ITEM.has(i.state)) ??
+    (stage.state === 'succeeded' ? undefined : items.find((i) => i.state === 'pending')) ??
+    items[items.length - 1]
+  );
 }
 
 export function groupNodes(pods: NodePod[] | undefined): { node: string; pods: NodePod[] }[] {
