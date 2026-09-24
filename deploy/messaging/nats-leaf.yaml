@@ -77,6 +77,7 @@ spec:
             - {name: certs, mountPath: /etc/nats/certs, readOnly: true}
             - {name: intermediate-ca, mountPath: /etc/nats/intermediate-ca, readOnly: true}
             - {name: pid, mountPath: /var/run/nats}
+            - {name: resolver, mountPath: /data/resolver}
           resources:
             requests: {cpu: 50m, memory: 96Mi}
             limits: {cpu: 2000m, memory: 512Mi}
@@ -153,6 +154,8 @@ spec:
           secret:
             secretName: nats-leaf-tls
         - name: pid
+          emptyDir: {}
+        - name: resolver
           emptyDir: {}
 ---
 apiVersion: v1
