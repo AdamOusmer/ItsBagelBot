@@ -4,9 +4,6 @@
 import type { ShardSnapshot, UserStats } from '@bagel/kit';
 import type { EnrollmentWire } from './services';
 
-// Production outage fallbacks are deliberately neutral. They preserve the
-// response shapes used by the pages without presenting seeded fixture values
-// as if they were live control-plane state.
 export const EMPTY_USER_STATS: UserStats = {
   total_users: 0,
   active_users: 0,

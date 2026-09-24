@@ -1,15 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The dock's folding rule, tested directly. It is the only DECISION in the
-// application shell -- everything else there is layout -- and it used to live
-// as four `$derived` expressions inside a Svelte component, where the only way
-// to check it was to render an admin board and count buttons.
-//
-// The cases below are the ones that were reasoned about when the rule was
-// written and are the ones a change to it would break: the flat board, the
-// hoist, the group the hoist empties, and a count that must not render as `0`.
-
 import { expect, test } from 'bun:test';
 import {
   dockGroups,

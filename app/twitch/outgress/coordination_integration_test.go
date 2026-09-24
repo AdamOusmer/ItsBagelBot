@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Uses only a explicitly supplied local three-node fixture, never production.
 func TestSendingCoordinationQuorumIntegration(t *testing.T) {
 	url := os.Getenv("OUTGRESS_COORDINATION_TEST_URL")
 	if url == "" {

@@ -13,30 +13,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// DeskRepostRequest reposts one guild's ticket panel with freshly saved copy.
-//
-// The panel spec travels in the request rather than being read here. Outgress
-// owns no per-guild config -- the dashboard is the only caller, it has just
-// saved the copy the streamer typed, and reading it back would mean either a
-// modules-blob reader in a service that deliberately has none, or a round trip
-// to a config RPC for a value the caller already holds.
 type DeskRepostRequest struct {
 	GuildID       string
 	BroadcasterID string
-	// ChannelID is where the panel goes. Empty falls back to the channel the
-	// previous panel was posted in, so a repost from a dashboard that has not
-	// reloaded its layout still lands in the right place.
-	ChannelID string
-	Panel     ddiscord.TicketPanelSpec
+	ChannelID     string
+	Panel         ddiscord.TicketPanelSpec
 }
 
-// RepostDesk deletes the remembered panel message and posts a fresh one.
-//
-// Delete-then-post, not edit-in-place: the button's label is part of the
-// message components, and a streamer who renamed it wants the new panel to be
-// the newest message in the channel anyway -- an edited message thirty
-// messages up is one nobody sees changed. A delete that fails (the message was
-// already removed by hand) is not fatal; the post is what matters.
 func (w *Worker) RepostDesk(ctx context.Context, req DeskRepostRequest) (string, error) {
 	if w.discord == nil {
 		return "", ErrDiscordUnavailable

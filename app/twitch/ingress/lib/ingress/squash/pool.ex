@@ -2,13 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Squash.Pool do
-  @moduledoc """
-  Runs one duplicate-cohort owner per online scheduler.
-
-  Cohorts are partitioned by `{broadcaster, text}`, so all updates for one
-  cohort remain ordered while unrelated chat floods are aggregated in parallel.
-  """
-
   use Supervisor
 
   alias Ingress.Config.Squash, as: SquashConfig
@@ -20,9 +13,6 @@ defmodule Ingress.Squash.Pool do
 
   @impl true
   def init(_opts) do
-    # Partition count comes from config only. The `:partitions` start option it
-    # used to accept had no caller, and two ways to set the same number is how
-    # a pool ends up sized differently from the `persistent_term` it publishes.
     count = SquashConfig.partitions()
 
     names =

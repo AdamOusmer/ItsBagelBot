@@ -1,15 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// purgeEdge never throws: every failure mode (unset config, refusal, timeout)
-// degrades to `false` so the caller can surface edgeDelayed instead of failing
-// a write that already landed.
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-// `env` from $env/dynamic/private is captured by reference when edge-purge.ts
-// first imports it, so tests MUTATE this one object rather than reassigning
-// the binding below (a reassignment would only rebind the local variable, not
-// the object edge-purge.ts already destructured `env` out of).
 const envVars: Record<string, string | undefined> = {};
 function setEnv(next: Record<string, string | undefined>): void {
   for (const k of Object.keys(envVars)) delete envVars[k];

@@ -1,11 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // One deploy run, live. The load's snapshot renders first; ./stream then
-  // sends every state change as a full Run, and RunStream keeps the newest
-  // by seq. A verb's reply (resume, cancel, approve) is also a full Run and
-  // goes through the same seq check, so whichever of the two lands last
-  // cannot roll the page back.
   import { untrack } from 'svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
@@ -43,8 +38,6 @@
   const runId = $derived(run.id);
   $effect(() => stream.connect(`/deploys/${encodeURIComponent(runId)}/stream`));
 
-  // The clock only ticks while the run moves; a finished run's elapsed time
-  // is fixed at its last update.
   let now = $state(Date.now());
   $effect(() => {
     if (isTerminal(run.state)) return;

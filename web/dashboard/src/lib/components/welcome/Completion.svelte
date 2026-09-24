@@ -8,9 +8,7 @@
     label,
     oncomplete
   }: {
-    /** The translated confirmation word, e.g. "Done". */
     label: string;
-    /** Called after the closing beat, so the parent can navigate. */
     oncomplete: () => void;
   } = $props();
 
@@ -23,8 +21,6 @@
 
     if (prefersReducedMotion()) {
       phase = 'done';
-      // Keep the confirmation available long enough to register visually and
-      // with a screen reader even when motion is disabled.
       later(oncomplete, 900);
     } else {
       later(() => { phase = 'done'; }, 880);
@@ -46,8 +42,6 @@
         <path class="check" d="m69 63 13 13 28-29" />
       </svg>
       <span class="inner-glow"></span>
-      <!-- The landing beat: one ripple leaves the ring and eight sparks fly
-           out along the radii the moment the check is drawn. -->
       <span class="ripple"></span>
       {#each Array.from({ length: 8 }) as _, i (i)}
         <span class="spark" style="--a: {i * 45 + 22.5}deg; --d: {i % 2 ? 1 : 0.78};"></span>

@@ -1,100 +1,27 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* ItsBagelBot brand primitives: the one definition of the palette, the shape
-   scale and the easing curves, for all three front ends (web/, docs/,
-   console/). Everything here is a fact about the brand rather than a fact
-   about one app.
-
-   Why this file exists: the same values were written out three times, and the
-   copies had already drifted. `--bb-border` was `rgba(201, 168, 124, 0.15)` in
-   the console and `rgb(var(--bb-tan-rgb) / 0.15)` in the docs, and the second
-   form is not valid CSS in either grammar (comma-separated channels cannot
-   take a slash alpha), so every border built on it in docs/ resolved to
-   invalid and fell back to currentColor. Measured in Chrome: the comma form
-   computes to rgb(0, 0, 0), the two legal forms to rgba(201, 168, 124, 0.15).
-   The values below are the web/ ones, which style.css has always been named
-   as the source of truth for.
-
-   Lives in the standalone @bagel/ui library at the repo root, not in web/kit
-   and not beside one of the apps: these are design tokens with no bot
-   knowledge in them, and kit is the bot-specific glue. The three consumers
-   that used to reach in by relative path (`../../../kit/styles/brand.css`)
-   now all say `@import '@bagel/ui/styles/brand.css'`, resolved through the
-   package's subpath exports, so the depth of the importing file stopped being
-   part of the answer.
-
-   That cost the console images their narrow build context: they built with
-   `web/` as the whole context and nothing above that line can be COPYed. They
-   build from the repo root now, behind a per-image whitelist ignorefile
-   (web/dashboard/Containerfile.ignore). The whitelist is the price of the
-   library being extractable to its own repo later.
-
-   Cascade layers: the :root block below is in `bb.tokens`, the weakest layer
-   styles/layers.css declares. Custom properties DO take part in the cascade
-   (a `--bb-*` declaration is won like any other declaration), and an unlayered
-   one beats every layered one regardless of order, so putting the brand
-   defaults in the weakest layer is what lets an app override a token with a
-   plain `:root { --bb-x: … }` without depending on which stylesheet the
-   bundler happened to emit last. That was already the de-facto arrangement,
-   because every consumer @imports this file first; the layer makes it a fact
-   instead of an accident of import order. fonts.css deliberately stays
-   unlayered -- see the note at the top of that file.
-
-   What belongs here: facts about the brand that no app is allowed to have its
-   own answer to. That now includes the type stack and the motion durations.
-   It did not before, and the paragraph that used to sit here said fonts could
-   never be shared because "the three apps legitimately name different
-   families". That was describing three DELIVERY mechanisms (Fontsource
-   packages, hand-written @font-face, Google Fonts) and mistaking them for
-   three intents: all three were asking for Syne, DM Sans and DM Mono, and the
-   only real differences were the fallback chains ("Syne Variable" vs "Syne")
-   and docs' 520ms slow duration against the console's 600ms. One @font-face
-   file (fonts.css) removed the delivery difference, so the tokens follow.
-
-   Still NOT here, and still app-specific: spacing scales, status colours,
-   account-tier colours, the Starlight `--sl-*` remap, and anything whose value
-   is a layout decision one surface makes on its own. */
 
 @layer bb.tokens {
 
 :root {
-    /* ── core palette ──────────────────────────────────────────── */
-    --bb-black: #0a0a0a;          /* page canvas */
-    --bb-card-bg: #111110;        /* surfaces, cards */
-    --bb-white: #f0ece4;          /* primary text: warm off-white, never pure */
-    --bb-muted: #888077;          /* secondary text, captions */
+    --bb-black: #0a0a0a;
+    --bb-card-bg: #111110;
+    --bb-white: #f0ece4;
+    --bb-muted: #888077;
 
-    /* greens: the "always-on" brand accent */
-    --bb-green: #2d6a4f;          /* primary green */
-    --bb-green-light: #40916c;    /* hover / active */
-    --bb-green-glow: #52b788;     /* glows, focus, success */
+    --bb-green: #2d6a4f;
+    --bb-green-light: #40916c;
+    --bb-green-glow: #52b788;
 
-    /* tans: warmth, bagel, sesame */
-    --bb-tan: #c9a87c;            /* secondary accent */
-    --bb-tan-light: #e0c49a;      /* highlights */
-    --bb-tan-pale: #f5e6cf;       /* cream / wash */
+    --bb-tan: #c9a87c;
+    --bb-tan-light: #e0c49a;
+    --bb-tan-pale: #f5e6cf;
 
-    /* borders & strokes: tan at 15% on dark */
     --bb-border: rgba(201, 168, 124, 0.15);
     --bb-border-strong: rgba(201, 168, 124, 0.35);
 
-    /* ── the same palette as RGB channels, for alpha math ──────────
-       `rgba(var(--bb-tan-rgb), 0.15)`. Shipped here rather than left to
-       each app because docs/ used to re-type the channels of these exact
-       hexes, and a hand-typed triplet is a copy of a colour that no tool
-       can check: docs' --bb-danger-rgb is still 220, 90, 90 while its
-       --bb-danger is #e07a7a. Only roles this file already names AND some
-       app actually uses get a triplet; an app's own colour keeps its own
-       triplet next to it. Comma-separated on purpose (see above). */
     --bb-black-rgb: 10, 10, 10;
     --bb-green-rgb: 45, 106, 79;
     --bb-green-light-rgb: 64, 145, 108;
@@ -102,123 +29,41 @@
     --bb-tan-rgb: 201, 168, 124;
     --bb-tan-pale-rgb: 245, 230, 207;
 
-    /* ── shape scale ───────────────────────────────────────────── */
-    /* Concentric corners: inner radius = outer radius minus the gap between
-       the two edges, snapped to the 4px grid and floored at xs. True circles
-       use 50%, never a token. */
     --bb-radius-xs: 4px;
     --bb-radius-sm: 8px;
     --bb-radius-md: 12px;
     --bb-radius-lg: 16px;
     --bb-radius-pill: 999px;
 
-    /* ── motion ────────────────────────────────────────────────── */
     --bb-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
     --bb-ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-    /* Three durations, and only three. fast = a state that must feel
-       instantaneous (hover, focus ring, press); base = anything the eye is
-       meant to follow (colour and border transitions, small transforms);
-       slow = a movement with distance in it (reveals, drawer and menu
-       travel).
-       600ms for slow is the console's value, adopted here over the docs'
-       520ms. The two had drifted apart with no reason recorded on either
-       side, so the tie is broken on coverage: 600ms was the value on the two
-       surfaces with the most motion, and the one place docs actually used
-       --bb-dur-slow is a transform on the sidebar, where the extra 80ms is
-       not a visible regression. Rejected splitting the difference at 560ms,
-       which would have changed BOTH surfaces to a number nobody had ever
-       looked at. docs keeps --bb-dur-med as a plain alias of --bb-dur-base
-       so its ~35 uses did not all have to be renamed in the same commit. */
     --bb-dur-fast: 180ms;
     --bb-dur-base: 320ms;
     --bb-dur-slow: 600ms;
 
-    /* ── type ──────────────────────────────────────────────────── */
-    /* One stack per role, for all three surfaces. The families come from
-       styles/fonts.css; the tail of each stack is what renders before the
-       woff2 lands (font-display: swap) and if it never lands.
-       The family NAME is the plain one, not the Fontsource "Syne Variable" /
-       "DM Sans Variable" spelling marketing used to carry. Fontsource
-       suffixes "Variable" so a page can load its variable and static builds
-       side by side without one shadowing the other; nothing here loads both,
-       and the suffix leaked the delivery mechanism into ~900 declarations.
-       Marketing's old stack listed BOTH ("Syne Variable", "Syne") to keep
-       working for a browser still holding the pre-Fontsource Google Fonts CSS
-       in cache; that cache entry expired long ago and the Google stylesheet is
-       gone from every surface as of this commit, so the alias is dropped
-       rather than carried forever. */
     --bb-font-display: "Syne", "Inter Tight", sans-serif;
     --bb-font-body:    "DM Sans", "Inter", system-ui, sans-serif;
     --bb-font-mono:    "DM Mono", "JetBrains Mono", ui-monospace, monospace;
 
-    /* Tracking scale. Negative on display sizes because Syne's default
-       sidebearings are drawn for text sizes and read loose above ~40px;
-       positive and large on the eyebrow because that is uppercase mono at
-       11-12px, where the counters need the air. All four move together rather
-       than only the eyebrow: they are one scale, and the semantic type
-       classes that read them (.bb-display, .bb-h1, .bb-h2, .bb-eyebrow, still
-       in kit/styles/tokens.css until the elements PRs) read three of the four
-       from the same rule set. */
     --bb-tracking-tight: -0.03em;
     --bb-tracking-display: -0.02em;
     --bb-tracking-body: 0em;
-    --bb-tracking-eyebrow: 0.18em; /* uppercase mono labels */
+    --bb-tracking-eyebrow: 0.18em;
 
-    /* ── focus ─────────────────────────────────────────────────── */
-    /* Single shared focus-ring colour. Warm tan reads as brand and clears 3:1
-       against every surface: vs canvas #0a0a0a = 11.81:1, vs card #111110 =
-       11.27:1 (WCAG 2.2 SC 1.4.11 needs 3:1). One token so every
-       :focus-visible rule agrees. Spelled as a literal rather than
-       var(--bb-tan-light) so the contrast numbers above stay attached to the
-       value they were measured on. */
     --bb-focus: #e0c49a;
 
-    /* ── accents ───────────────────────────────────────────────── */
-    /* The only border alpha between --bb-border (15%) and the 35% hover
-       state. Controls need to out-read labels without going solid. */
     --bb-border-chip: rgba(201, 168, 124, 0.28);
 
-    /* Ambient wash behind hero and card surfaces: the same two accents as the
-       orbs, at the alpha where they tint a dark panel without becoming a
-       shape you can point at. Green sits 2 points lower than tan because
-       #52b788 is the brighter of the two on this canvas (8.00:1 vs 11.81:1
-       against #0a0a0a) and matches it at a lower alpha. */
     --bb-glow-tan: rgba(201, 168, 124, 0.18);
     --bb-glow-green: rgba(82, 183, 136, 0.16);
 
-    /* ── layout ────────────────────────────────────────────────── */
-    /* Both surfaces with a fixed top nav landed on the same two numbers
-       independently (marketing --nav-height/--content-max, console
-       --bb-nav-height/--bb-content-max), which is the definition of a shared
-       fact. 76px is the nav band ONLY: the iOS safe-area inset is added by
-       the consumer (marketing's --nav-offset) because it is an environment
-       value, not a design one. */
     --bb-nav-height: 76px;
     --bb-content-max: 1200px;
 
-    /* Two narrower measures, because "wide" is not the only content width the
-       three surfaces need and both were being spelled as a literal at the call
-       site. 960px is the console's editor column; 68ch is a reading measure and
-       is deliberately in `ch` rather than px -- it tracks the body font, so it
-       stays 60-75 characters when the type scale moves, which a px width does
-       not. Consumed by `.bb-container--narrow` / `--text`
-       (styles/elements/layout.css). */
     --bb-content-narrow: 960px;
     --bb-content-text: 68ch;
 
-    /* ── spacing ───────────────────────────────────────────────── */
-    /* A 4px-based ramp that opens up as it climbs (4 8 12 16 24 32 48 64 96):
-       linear at the bottom where the steps are paddings inside a control, then
-       roughly x1.5 where they are gaps between blocks. A pure geometric scale
-       has no 12px, and 12px is the single most-used gap in the console.
-
-       Lived in web/kit/styles/tokens.css and was therefore console-only, so the
-       layout elements (`.bb-stack`, `.bb-cluster`, `.bb-grid`, `.bb-section`)
-       could not be shared with marketing or docs without either duplicating the
-       ramp or hard-coding pixels into a contract. Moved here rather than copied:
-       a second copy is what --bb-border and the type stack each did before, and
-       both had drifted by the time anyone looked. */
     --bb-space-1: 4px;
     --bb-space-2: 8px;
     --bb-space-3: 12px;
@@ -229,17 +74,6 @@
     --bb-space-8: 64px;
     --bb-space-9: 96px;
 
-    /* ── type scale ────────────────────────────────────────────── */
-    /* The five body sizes `.bb-text` selects between (styles/elements/
-       typography.css). Named xs-xl rather than by px so a caller writes the
-       ROLE it wants; the px values are the ones the console and the marketing
-       site had independently converged on (13px captions, 16px body, 18px lead).
-
-       Fixed px and not a clamp(): these are text sizes, and a body paragraph
-       that grows with the viewport re-wraps at every breakpoint and reads
-       wrong at both ends. Only headings clamp here -- see `.bb-h`, whose
-       display sizes are the ones that genuinely have to survive a 320px phone
-       and a 2560px monitor. */
     --bb-text-xs: 12px;
     --bb-text-sm: 13px;
     --bb-text-md: 16px;
@@ -247,4 +81,4 @@
     --bb-text-xl: 20px;
 }
 
-} /* @layer bb.tokens */
+}

@@ -65,8 +65,6 @@ func TestEngineRestartDoesNotDuplicatePreparedGrant(t *testing.T) {
 	usersPort := &fakeUsers{}
 	cfg := EngineConfig{Store: NewStore(client), Users: usersPort, Config: Config{PromotionalGrantsEnabled: true}, Now: func() time.Time { return now }}
 	require.NoError(t, NewEngine(cfg).DispatchOnce(context.Background()))
-	// A fresh Engine instance sees the durable completed work and cannot issue
-	// another grant, even though all process-local state was discarded.
 	require.Error(t, NewEngine(cfg).DispatchOnce(context.Background()))
 	usersPort.mu.Lock()
 	prepares, commits, rule := usersPort.prepares, usersPort.commits, usersPort.lastPrepare.IntervalRuleVersion

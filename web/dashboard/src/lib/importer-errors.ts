@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * The importer server runs before a locale-aware component exists, so its
- * finite set of input refusals remains stable English prose on the wire.
- * Translate those known refusals at the page boundary; parser and upstream
- * diagnostics are dynamic and pass through unchanged.
- */
 const SERVER_ERROR_KEYS: Record<string, string> = {
   'Choose a file to upload.': 'import.errFileMissing',
   'Paste your StreamElements JWT first.': 'import.errJwtMissing',

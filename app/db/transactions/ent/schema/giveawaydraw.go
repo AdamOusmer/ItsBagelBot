@@ -11,7 +11,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// GiveawayDraw records the one committed sampling operation for a campaign.
 type GiveawayDraw struct{ ent.Schema }
 
 func (GiveawayDraw) Fields() []ent.Field {

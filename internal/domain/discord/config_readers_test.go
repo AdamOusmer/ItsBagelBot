@@ -9,19 +9,6 @@ import (
 	"testing"
 )
 
-// configReaders names, for every Config field, the thing that READS it.
-//
-// This exists because four fields (the subs/VIP room ids) shipped with a
-// setup fill that produced them, an RPC reply that carried them, and nothing
-// anywhere that ever read them -- they were dead weight in the blob for
-// months, and a dashboard control for them would have written into a void.
-// A field with nowhere to be read is either a bug or a deletion, and both
-// are cheaper to notice here than in a support thread.
-//
-// An entry of the exact form "Config.Method" (no spaces) names a method on
-// Config and is checked to exist. Any other entry names the function or
-// package that consumes the field; those are documentation, verified by a
-// human at review time.
 var configReaders = map[string]string{
 	"GuildID":            "Config.Connected",
 	"LiveChannelID":      "app/discord/engine/modules.Live",
@@ -89,8 +76,6 @@ func TestEveryConfigFieldHasADocumentedReader(t *testing.T) {
 	}
 }
 
-// The reverse direction: a field deleted from Config must lose its entry
-// too, or the table rots into a list of things that used to exist.
 func TestConfigReadersHasNoStaleEntries(t *testing.T) {
 	typ := reflect.TypeOf(Config{})
 	known := make(map[string]bool, typ.NumField())
@@ -104,8 +89,6 @@ func TestConfigReadersHasNoStaleEntries(t *testing.T) {
 	}
 }
 
-// isCamelCaseTag is the shape the console's DiscordConfig keys are written
-// in: a non-empty name, no separator, first letter lowercase.
 func isCamelCaseTag(name string) bool {
 	if name == "" {
 		return false
@@ -116,9 +99,6 @@ func isCamelCaseTag(name string) bool {
 	return name[0] >= 'a' && name[0] <= 'z'
 }
 
-// Every field must also carry a camelCase json tag: the console's
-// DiscordConfig is keyed by these exact strings, and a missing or snake_case
-// tag silently drops the setting on the way to the dashboard.
 func TestEveryConfigFieldHasACamelCaseJSONTag(t *testing.T) {
 	typ := reflect.TypeOf(Config{})
 	for i := 0; i < typ.NumField(); i++ {

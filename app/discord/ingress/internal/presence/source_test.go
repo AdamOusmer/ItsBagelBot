@@ -20,8 +20,6 @@ func fetchOf(values ...int) Fetch {
 	}
 }
 
-// TestRefreshSendsOnCountChange covers the ticker's normal path: a changed
-// count is always reported as a send.
 func TestRefreshSendsOnCountChange(t *testing.T) {
 	s := &Source{Fetch: fetchOf(5, 9)}
 
@@ -36,9 +34,6 @@ func TestRefreshSendsOnCountChange(t *testing.T) {
 	}
 }
 
-// TestRefreshSkipsUnchangedCount is the dedup path a plain ticker tick must
-// take: Discord already has this status, resending it buys nothing and only
-// spends the 5-per-20s budget.
 func TestRefreshSkipsUnchangedCount(t *testing.T) {
 	s := &Source{Fetch: fetchOf(42)}
 
@@ -50,9 +45,6 @@ func TestRefreshSkipsUnchangedCount(t *testing.T) {
 	}
 }
 
-// TestForgetForcesResendOnReconnect is what makes presence survive a
-// reconnect: gateway.Session calls Forget once per fresh Identify, so the
-// next Refresh reports ok=true even though the count never moved.
 func TestForgetForcesResendOnReconnect(t *testing.T) {
 	s := &Source{Fetch: fetchOf(7)}
 
@@ -70,11 +62,6 @@ func TestForgetForcesResendOnReconnect(t *testing.T) {
 	}
 }
 
-// TestRefreshRPCFailureLeavesPreviousStatus asserts the RPC-failure contract:
-// Refresh never returns an error for the gateway to propagate (an outage in
-// the users service must not take the gateway down or stall event relay),
-// and the failed attempt does not clear or otherwise disturb the dedup state
-// -- Discord keeps showing whatever was last actually sent.
 func TestRefreshRPCFailureLeavesPreviousStatus(t *testing.T) {
 	calls := 0
 	failing := func(context.Context) (int, error) {
@@ -95,8 +82,6 @@ func TestRefreshRPCFailureLeavesPreviousStatus(t *testing.T) {
 		t.Fatalf("failed fetch should not report a send, got %q", name)
 	}
 
-	// The dedup state must still hold the last successfully sent value: a
-	// third call with the same count reports no send (not a fresh one).
 	if name, ok := s.Refresh(context.Background()); ok {
 		t.Fatalf("unchanged count after a failed fetch should still skip, got %q", name)
 	}

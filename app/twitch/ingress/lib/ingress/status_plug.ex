@@ -2,18 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.StatusPlug do
-  @moduledoc """
-  HTTP health surface, same contract as the Go services' pkg/health: /healthz
-  is process liveness, /readyz gates on the critical checks, and /status
-  reports every check as JSON for the Better Stack status page.
-
-  The verdict itself lives in Ingress.Health, which Ingress.HealthRpc reads
-  too, so the HTTP body and the NATS reply can never disagree about the same
-  instant. /status answers 200 ok, 207 degraded, 503 down — see
-  `Ingress.Health.http_status/1` for why the degraded case gets its own code
-  instead of a keyword in the body.
-  """
-
   @behaviour Plug
   import Plug.Conn
 
@@ -25,8 +13,6 @@ defmodule Ingress.StatusPlug do
   @impl true
   def call(%Plug.Conn{request_path: "/healthz"} = conn, _opts), do: send_resp(conn, 200, "ok\n")
 
-  # Only "down" pulls the pod out of the Kubernetes endpoints: a degraded
-  # ingress still takes traffic, and /status is where that shows up.
   def call(%Plug.Conn{request_path: "/readyz"} = conn, _opts) do
     if Health.up?(Health.report()) do
       send_resp(conn, 200, "ok\n")

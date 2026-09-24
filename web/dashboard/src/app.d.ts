@@ -11,17 +11,7 @@ declare global {
       session: Session | null;
       locale: Locale;
       cursorEnabled: boolean;
-      /**
-       * The account-state read guardSession already made for the request's
-       * gates, so the (app) layout reuses it instead of paying a second RPC.
-       * Settled result, never a live rejected promise: `{ ghost: true }` means
-       * the users service authoritatively reported no such user; an unset
-       * field means the read blipped and the caller may retry.
-       */
       accountState?: { value: AccountState } | { ghost: true };
-      /** Set by the public commands-page load when the channel hid its page,
-       *  so hooks.server.ts can edge-cache that 404 (an unknown login stays
-       *  no-store). */
       edgeCache404?: boolean;
     }
     interface PageData {
@@ -29,13 +19,9 @@ declare global {
       displayName?: string;
       locale?: Locale;
       cursorEnabled?: boolean;
-      // Import wizard: per source, whether its connect flow has parked an
-      // unexpired access-token cookie for this browser (settings/import load
-      // builds it from the sources that declare a connect step).
       connected?: Record<string, boolean>;
     }
     interface PageState {
-      // /welcome: the import wizard opened from the tour (shallow route).
       importing?: boolean;
     }
   }

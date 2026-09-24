@@ -23,7 +23,6 @@ func TestBackoffCeilingGrowsAndCaps(t *testing.T) {
 			t.Fatalf("backoffCeiling(%d) = %s, want %s", attempt, got, w)
 		}
 	}
-	// A gateway can stay unreachable for days; the shift must not wrap.
 	if got := backoffCeiling(200); got != backoffMax {
 		t.Fatalf("backoffCeiling(200) = %s, want %s", got, backoffMax)
 	}
@@ -48,7 +47,6 @@ func TestFullJitterStaysInBounds(t *testing.T) {
 }
 
 func TestReconnectSchedulesAndResetsAfterStableSocket(t *testing.T) {
-	// draw = identity so the schedule itself is asserted, not a draw from it.
 	rc := &reconnect{draw: func(d time.Duration) time.Duration { return d }}
 	for _, want := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second} {
 		if got := rc.next(time.Millisecond); got != want {
@@ -63,7 +61,6 @@ func TestReconnectSchedulesAndResetsAfterStableSocket(t *testing.T) {
 	}
 }
 
-// recStatus records the lifecycle callbacks Session makes.
 type recStatus struct {
 	mu       sync.Mutex
 	ups      []Up
@@ -114,16 +111,10 @@ func (r *recStatus) events() int {
 	return r.eventHit
 }
 
-// openBudget is a connect budget that holds nothing back. Tests that assert
-// the *backoff* schedule install it so the 5s connect floor (budget.go) does
-// not decide their timing for them; tests about the budget itself build one
-// with a real schedule and a fake clock.
 func openBudget() *connectBudget {
 	return &connectBudget{now: time.Now, sched: budgetSchedule{ceiling: 1 << 30, window: connectWindow}}
 }
 
-// dialCounter builds a Dial that hands out a socket dying with code every
-// time, counting how many times Run asked for one.
 func dialCounter(code int) (Dial, func() int) {
 	var mu sync.Mutex
 	n := 0
@@ -151,17 +142,12 @@ func TestFatalCloseStopsReconnecting(t *testing.T) {
 		t.Fatalf("Run err = %v, want the context error (Run must park, not return early)", err)
 	}
 
-	// One dial, not a loop: 4014 is not fixable by dialing again, and the
-	// old flat-2s loop would have made ~75 attempts in this window.
 	if got := dials(); got != 1 {
 		t.Fatalf("dials = %d, want exactly 1 after a fatal close", got)
 	}
 	wantFatalDown(t, st, ddiscord.CloseDisallowedIntents)
 }
 
-// wantFatalDown asserts the session published exactly one Down, marked fatal
-// and carrying code. Exactly one is half the assertion: a fatal close parks,
-// so a second Down means the loop kept dialling something it cannot fix.
 func wantFatalDown(t *testing.T, st *recStatus, code int) {
 	t.Helper()
 	downs := st.downs()
@@ -178,15 +164,10 @@ func wantFatalDown(t *testing.T, st *recStatus, code int) {
 
 func TestNonFatalCloseKeepsReconnecting(t *testing.T) {
 	dial, dials := dialCounter(4000)
-	// The first backoff ceiling is backoffMin, so a second dial is due
-	// within 1s no matter what the jitter draws; 1.5s makes that certain
-	// without depending on the draw.
 	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 	defer cancel()
 
 	st := &recStatus{}
-	// openBudget: this test is about the backoff schedule, and the real
-	// connect budget's 5s floor would make one dial the correct answer.
 	sess := Session{Token: "bot-token", Dial: dial, Status: st, budget: openBudget()}
 	if err := sess.Run(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Run err = %v, want the context error", err)

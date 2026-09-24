@@ -5,10 +5,6 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { delegationGet } from '$lib/server/services';
 
-// Entry point for an invitee opening a share link. Validates the token is real
-// and unconsumed, stashes it in a short-lived HttpOnly cookie, then hands off to
-// the normal Twitch login. The actual single-use binding happens in the OAuth
-// callback once we know who logged in.
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const token = url.searchParams.get('t');
   if (!token) throw redirect(302, '/login?e=link');

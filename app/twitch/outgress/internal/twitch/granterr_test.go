@@ -9,8 +9,6 @@ import (
 	"testing"
 )
 
-// incidentBody is the exact payload Twitch returned for the dead grant that
-// this classification exists to catch.
 const incidentBody = `{"status":400,"message":"Invalid refresh token"}`
 
 func TestGrantDeadClassification(t *testing.T) {
@@ -41,8 +39,6 @@ func TestGrantDeadClassification(t *testing.T) {
 	}
 }
 
-// TestGrantDeadThroughWrapping matters because the incident's error reached the
-// worker wrapped by client.do as "twitch token: %w".
 func TestGrantDeadThroughWrapping(t *testing.T) {
 	wrapped := fmt.Errorf("twitch token: %w", &TokenError{Status: 400, Body: incidentBody})
 	if !GrantDead(wrapped) {
@@ -50,9 +46,6 @@ func TestGrantDeadThroughWrapping(t *testing.T) {
 	}
 }
 
-// TestStatusErrorIsNotGrantDead pins the separation from Helix errors. A Helix
-// 401 is recoverable by refreshing, and worker.isPermanent depends on that, so
-// it must never be mistaken for a dead grant.
 func TestStatusErrorIsNotGrantDead(t *testing.T) {
 	for _, status := range []int{400, 401, 403} {
 		err := &StatusError{Status: status, Body: "helix says no"}
@@ -62,8 +55,6 @@ func TestStatusErrorIsNotGrantDead(t *testing.T) {
 	}
 }
 
-// TestTokenErrorMessageUnchanged keeps the rendered text byte-identical to the
-// fmt.Errorf it replaced, so existing log greps and dashboards keep matching.
 func TestTokenErrorMessageUnchanged(t *testing.T) {
 	got := (&TokenError{Status: 400, Body: incidentBody}).Error()
 	want := fmt.Sprintf("token request failed: %d %s", 400, incidentBody)

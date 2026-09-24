@@ -13,11 +13,6 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
-// Transactions keeps the Tebex webhook audit log and nothing else. Tebex is
-// the merchant of record, so payment and transaction records stay on their
-// side; the audit rows (webhook id, type, status, transaction id, user id)
-// are what we need for entitlement forensics. This is the money path: every
-// write goes straight to the database, no caching, no batching.
 type Transactions struct {
 	client *ent.Client
 }

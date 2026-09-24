@@ -21,8 +21,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// --- test doubles ---
-
 type fakeCommandManager struct {
 	upsertCalls []upsertCall
 	deleteCalls []deleteCall
@@ -80,8 +78,6 @@ func cmdDeps(proj projection.Reader, cmds engine.CommandManager) engine.Deps {
 	}
 }
 
-// cmdCtx builds a moderator chatter context: command management is mod-gated, so
-// the add/edit/remove tests run as a mod.
 func cmdCtx(chatterLogin, text string) *module.Context {
 	return &module.Context{
 		Env: lane.Envelope{
@@ -99,15 +95,11 @@ func cmdCtx(chatterLogin, text string) *module.Context {
 	}
 }
 
-// viewerCtx is a plain (non-mod) chatter: it may fetch the public link but must
-// not manage commands.
 func viewerCtx(chatterLogin, text string) *module.Context {
 	c := cmdCtx(chatterLogin, text)
 	c.Env.Badges = nil
 	return c
 }
-
-// --- !cmd add ---
 
 func TestCmdAddSuccess(t *testing.T) {
 	cmds := &fakeCommandManager{}
@@ -176,8 +168,6 @@ func TestCmdAddMissingName(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "Usage")
 }
 
-// --- !cmd edit ---
-
 func TestCmdEditSuccess(t *testing.T) {
 	cmds := &fakeCommandManager{}
 	proj := &fakeProj{commands: map[string]projection.Command{
@@ -212,8 +202,6 @@ func TestCmdEditNotFound(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "!cmd add")
 }
 
-// --- !cmd remove ---
-
 func TestCmdRemoveSuccess(t *testing.T) {
 	cmds := &fakeCommandManager{}
 	proj := &fakeProj{commands: map[string]projection.Command{}}
@@ -244,9 +232,6 @@ func TestCmdRemoveAcceptsDeleteAlias(t *testing.T) {
 	assert.Equal(t, "test", cmds.deleteCalls[0].Name)
 }
 
-// --- error paths ---
-
-// A bare invocation is the public link, not a usage error.
 func TestCmdNoSubcommand(t *testing.T) {
 	cmds := &fakeCommandManager{}
 	proj := &fakeProj{commands: map[string]projection.Command{}}
@@ -261,10 +246,6 @@ func TestCmdNoSubcommand(t *testing.T) {
 	assert.Empty(t, cmds.upsertCalls)
 }
 
-// The URL carries the login only. The display name is chat-facing copy, never
-// part of the link: the page used to read its channel label out of a ?channel=
-// query, which let anyone edit a shared link and show one channel's commands
-// under another streamer's name.
 func TestCmdLinkCarriesLoginNotDisplayName(t *testing.T) {
 	cmds := &fakeCommandManager{}
 	proj := &fakeProj{commands: map[string]projection.Command{}}
@@ -279,14 +260,10 @@ func TestCmdLinkCarriesLoginNotDisplayName(t *testing.T) {
 
 	require.Len(t, col.out, 1)
 	assert.Contains(t, col.out[0].Text, "/user/streamer")
-	// The display name still appears in the chat copy ("StreamerName's
-	// commands"); what must not carry it is the URL.
 	assert.NotContains(t, col.out[0].Text, "/user/StreamerName")
 	assert.NotContains(t, col.out[0].Text, "channel=")
 }
 
-// An event with no login (non-chat sources can omit it) falls back to the
-// broadcaster id, which the page still resolves.
 func TestCmdLinkFallsBackToIDWithoutLogin(t *testing.T) {
 	cmds := &fakeCommandManager{}
 	proj := &fakeProj{commands: map[string]projection.Command{}}
@@ -303,7 +280,6 @@ func TestCmdLinkFallsBackToIDWithoutLogin(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "/user/100")
 }
 
-// An unknown subcommand also falls through to the public link.
 func TestCmdInvalidSubcommand(t *testing.T) {
 	cmds := &fakeCommandManager{}
 	proj := &fakeProj{commands: map[string]projection.Command{}}
@@ -316,8 +292,6 @@ func TestCmdInvalidSubcommand(t *testing.T) {
 	require.Len(t, col.out, 1)
 	assert.Contains(t, col.out[0].Text, "/user/streamer")
 }
-
-// --- public link + permission gate ---
 
 func TestCmdEveryonePermAndAliases(t *testing.T) {
 	m := Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{}))
@@ -342,8 +316,6 @@ func TestCmdLinkForViewer(t *testing.T) {
 	assert.Empty(t, cmds.upsertCalls)
 }
 
-// A viewer who tries a management subcommand is denied the mutation and handed
-// the link instead.
 func TestCmdManageDeniedForViewer(t *testing.T) {
 	cmds := &fakeCommandManager{}
 	proj := &fakeProj{commands: map[string]projection.Command{}}
@@ -358,9 +330,6 @@ func TestCmdManageDeniedForViewer(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "/user/streamer")
 }
 
-// The link's origin: a configured PublicBaseURL verbatim minus any trailing
-// slash, and otherwise the short commands host the deploy routes to the same
-// console app -- not the dashboard host the link used to name.
 func TestCmdLinkBase(t *testing.T) {
 	cases := []struct {
 		name string
@@ -387,9 +356,6 @@ func TestCmdLinkBase(t *testing.T) {
 	}
 }
 
-// --- commands-page gate ---
-
-// A hidden commands page answers with the one-liner, no URL.
 func TestCmdLinkHiddenPage(t *testing.T) {
 	proj := &fakeProj{commands: map[string]projection.Command{}, user: projection.User{CommandsPageHidden: true}}
 	m := Cmd(cmdDeps(proj, &fakeCommandManager{}))
@@ -404,7 +370,6 @@ func TestCmdLinkHiddenPage(t *testing.T) {
 	assert.Equal(t, want, col.out[0].Text)
 }
 
-// A visible commands page (the default) is unaffected by the gate.
 func TestCmdLinkVisiblePage(t *testing.T) {
 	proj := &fakeProj{commands: map[string]projection.Command{}, user: projection.User{CommandsPageHidden: false}}
 	m := Cmd(cmdDeps(proj, &fakeCommandManager{}))
@@ -417,8 +382,6 @@ func TestCmdLinkVisiblePage(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "/user/streamer")
 }
 
-// A projection read error fails open: the link still prints (spec D6) rather
-// than hiding every channel's page on an outage.
 func TestCmdLinkProjectionErrorFailsOpen(t *testing.T) {
 	proj := &fakeProj{commands: map[string]projection.Command{}, userErr: errors.New("projection unavailable")}
 	m := Cmd(cmdDeps(proj, &fakeCommandManager{}))
@@ -440,7 +403,6 @@ func TestCmdAddRPCError(t *testing.T) {
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), cmdCtx("alice", "!cmd add test Hi"), "add test Hi", col.emit))
 
-	// On RPC error: no reply emitted, error is logged.
 	assert.Empty(t, col.out)
 }
 
@@ -456,8 +418,6 @@ func TestCmdStripsExclamationFromName(t *testing.T) {
 	require.Len(t, cmds.upsertCalls, 1)
 	assert.Equal(t, "test", cmds.upsertCalls[0].Name, "should strip leading ! from name")
 }
-
-// --- splitFirst helper ---
 
 func TestSplitFirst(t *testing.T) {
 	tests := []struct {
@@ -477,8 +437,6 @@ func TestSplitFirst(t *testing.T) {
 		assert.Equal(t, tt.wantRest, rest, "splitFirst(%q) rest", tt.input)
 	}
 }
-
-// --- stream editor ---
 
 func TestStreamEditorCommandShape(t *testing.T) {
 	m := Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{}))

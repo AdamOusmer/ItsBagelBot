@@ -22,24 +22,14 @@ const (
 	timeCooldown   = 15 * time.Second
 )
 
-// timeConfig is the module's dashboard configuration. It lives in the engine
-// (engine.TimeModuleConfig) because the {time} response token decodes the same
-// blob and the engine cannot import this package; the alias keeps every use
-// here reading as the module's own type.
 type timeConfig = engine.TimeModuleConfig
 
-// TimeOfDay owns !time: it answers with the broadcaster's current local time in
-// their configured timezone. It is a named, opt-in module (KindOptIn): off by
-// default, enabled and configured on its dashboard module page.
 func TimeOfDay(d engine.Deps) module.Module {
 	m := module.NewModule(timeModuleName, module.KindOptIn)
 	m.Command("time").Everyone().Cooldown(timeCooldown).Run(timeRun(d))
 	return m.Build()
 }
 
-// timeRun emits the !time reply. The engine has already gated the command on
-// the module's enable state, so this only renders. args carries the optional
-// place lookup ("!time tokyo"); blank args is the original home-zone reply.
 func timeRun(d engine.Deps) module.RunFunc {
 	return func(_ context.Context, c *module.Context, args string, emit module.Emit) error {
 		emit(&module.Output{
@@ -51,9 +41,6 @@ func timeRun(d engine.Deps) module.RunFunc {
 	}
 }
 
-// timeReply picks the home-zone reply or a place lookup: any non-blank,
-// normalizable args routes to the lookup, which needs no broadcaster
-// configuration at all, so it answers even on a channel that never set one.
 func timeReply(log *zap.Logger, c *module.Context, now time.Time, args string) string {
 	if place := tzname.Normalize(args); place != "" {
 		return timeLookupReply(c, now, place)
@@ -61,9 +48,6 @@ func timeReply(log *zap.Logger, c *module.Context, now time.Time, args string) s
 	return timeHomeReply(log, c, now)
 }
 
-// timeHomeReply renders bare !time: the template expanded with the
-// broadcaster's local time, or a fixed notice when the timezone is unset or
-// no longer loads.
 func timeHomeReply(log *zap.Logger, c *module.Context, now time.Time) string {
 	var cfg timeConfig
 	_ = c.Decode(&cfg)
@@ -83,9 +67,6 @@ func timeHomeReply(log *zap.Logger, c *module.Context, now time.Time) string {
 	return expandTimeTemplate(text, timeRender{local: now.In(loc), format: cfg.Format, timezone: strings.TrimSpace(cfg.Timezone)}, c)
 }
 
-// timeLookupReply renders !time <place>: an unknown place echoes the
-// normalized query back in time.unknown, a known one expands the lookup
-// template (or the built-in default) in the place's own zone.
 func timeLookupReply(c *module.Context, now time.Time, place string) string {
 	m, ok := tzname.Resolve(place)
 	if !ok {
@@ -100,17 +81,10 @@ func timeLookupReply(c *module.Context, now time.Time, place string) string {
 	return expandTimeTemplate(text, timeRender{local: now.In(m.Loc), format: cfg.Format, timezone: m.Zone, place: m.Label}, c)
 }
 
-// unknownPlaceReply fills time.unknown's {place} placeholder with the
-// normalized query, so chat sees back what it typed even after case-folding
-// and accent-stripping.
 func unknownPlaceReply(c *module.Context, place string) string {
 	return module.KV("place", place).WithLocale(module.Locale(c.Locale)).ExpandString(i18n.T(c.Locale, "time.unknown"))
 }
 
-// timeRender is one instant ready to print: the local time plus the strings
-// the reply's variables read. It is what differs between the home reply and a
-// place lookup (place is empty on the home path, which never carries {place}
-// in practice but resolves harmlessly if it did).
 type timeRender struct {
 	local    time.Time
 	format   string
@@ -118,12 +92,6 @@ type timeRender struct {
 	place    string
 }
 
-// timeReplySpec is every token the shared expander below can fill in for
-// EITHER of its two callers: timeHomeReply's cfg.Message (documented as
-// time.time in reply_tokens.go) and timeLookupReply's cfg.LookupMessage
-// (time.lookup). One spec binds both because it is one expander — {place}
-// resolves to "" on the home path, which never carries it in practice but
-// resolves harmlessly if it did, same as before this moved onto Palette.
 var timeReplySpec = module.Spec{Entries: []module.SpecEntry{
 	{Name: "time", Doc: "the local clock time, formatted per the module's Format setting"},
 	{Name: "date", Doc: "the local date, e.g. \"Monday, January 2\""},
@@ -132,8 +100,6 @@ var timeReplySpec = module.Spec{Entries: []module.SpecEntry{
 	{Name: "user", Doc: "the invoking chatter's display name"},
 }}
 
-// expandTimeTemplate fills a reply template's tokens from one timeRender.
-// Both the home reply and the place lookup share it.
 func expandTimeTemplate(text string, r timeRender, c *module.Context) string {
 	p := timeReplySpec.Bind(func(name string) func() string {
 		switch name {

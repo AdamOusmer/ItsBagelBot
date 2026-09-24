@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// betaLocked is the one rule the tile grid and every write gate share, so a
-// drift here would let a free channel toggle a beta module through a stale
-// form while sesame silently drops it on the standard lane.
 import { describe, expect, it } from 'bun:test';
 import { betaLocked, type ModuleDef } from './module-def';
 

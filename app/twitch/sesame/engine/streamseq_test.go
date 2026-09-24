@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// seqRecorder collects the order tasks actually ran in, safe because the
-// Sequencer itself serializes the runs it orders.
 type seqRecorder struct {
 	mu  sync.Mutex
 	ran []string
@@ -61,8 +59,6 @@ func TestSequencerKeepsBroadcasterQueuesIndependent(t *testing.T) {
 	wg.Wait()
 	names := rec.names()
 	assert.Len(t, names, 40)
-	// Within one broadcaster's slice of the log the relative order must hold;
-	// interleaving across broadcasters is allowed and irrelevant.
 	for _, id := range []uint64{1, 2, 3, 4} {
 		prefix := string(rune('a' + id - 1))
 		var got []string
@@ -88,7 +84,6 @@ func TestSequencerWaitsForSlowTaskBeforeStartingNext(t *testing.T) {
 		<-release
 	})
 	s.Do(9, func() { rec.record("after") })
-	// The second task must not start while the first is still blocked.
 	assert.Never(t, func() bool { return len(rec.names()) > 1 }, 50*time.Millisecond, 5*time.Millisecond,
 		"task ran before its predecessor completed")
 	close(release)
@@ -101,7 +96,6 @@ func TestSequencerRespawnsPumpAfterIdle(t *testing.T) {
 	rec := &seqRecorder{}
 	s.Do(5, func() { rec.record("first") })
 	assert.Eventually(t, func() bool { return len(rec.names()) == 1 }, time.Second, time.Millisecond)
-	// The pump exits once the queue drains; a later event must still run.
 	assert.Eventually(t, func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -119,7 +113,6 @@ func TestSequencerIgnoresZeroIDAndNilTask(t *testing.T) {
 		s.Do(0, func() { rec.record("zero-id") })
 		s.Do(3, nil)
 	})
-	// Only a task with a real broadcaster id and a body may ever run.
 	s.Do(3, func() { rec.record("real") })
 	assert.Eventually(t, func() bool { return len(rec.names()) == 1 }, time.Second, time.Millisecond)
 	assert.Equal(t, []string{"real"}, rec.names())

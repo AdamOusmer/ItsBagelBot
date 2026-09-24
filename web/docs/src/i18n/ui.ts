@@ -5,7 +5,6 @@ const catalogs = import.meta.glob<Record<string, string>>('./locales/*.json', {
   import: 'default'
 });
 
-/** Starlight uses an undefined locale for English routes at the root. */
 export function docsI18n(routeLocale: string | undefined) {
   const locale = routeLocale && routeLocale !== 'root' ? routeLocale : 'en';
   const catalog = catalogs[`./locales/${locale}.json`] ?? en;

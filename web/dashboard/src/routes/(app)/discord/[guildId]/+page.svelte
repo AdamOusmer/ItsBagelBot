@@ -1,14 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The guild overview: what is running in this server, and what is stopping
-  // the rest from running.
-  //
-  // It replaces the old page's status card as the landing surface. The tiles
-  // are derived, not authored: guildModuleTiles reads each flag at its real
-  // default and reports whether the channel or role it needs was ever picked,
-  // which is the difference between "off" and "on but silently dropping every
-  // post" -- a distinction the old page never made anywhere.
   import { AlertBanner, ButtonLink, Card, getI18n, guildModuleTiles, tilesNeedingSetup, type ModuleTileId } from '@bagel/kit';
   import ModuleTile from '$lib/components/discord/ModuleTile.svelte';
   import { CLOSE_KEYS, type I18nKey } from '$lib/discord/guild-fields';
@@ -24,10 +16,6 @@
   const pillState = $derived(pillStateOf(data));
   const layoutDown = $derived(layoutDownOf(data.layout));
   const closeKey = $derived(CLOSE_KEYS[data.status?.lastCloseCode ?? 0]);
-
-  // Typed literal maps rather than a built key: the i18n generator only sees
-  // literals, so a tile added without copy fails the type check instead of
-  // rendering its own key at a streamer.
 
   const TILE_NAME_KEYS: Record<ModuleTileId, I18nKey> = {
     announcementsLive: 'discord.overview.tiles.announcementsLive.name',
@@ -58,8 +46,6 @@
   };
 </script>
 
-<!-- Bound but never saved: nothing in this server has been set up yet, so the
-     one useful action is the fill, not a settings page. -->
 {#if !data.found}
   <AlertBanner variant="warn">
     {t('discord.overview.notSetUp')}
@@ -97,9 +83,6 @@
       <p class="hint state">{t('discord.statusReconnecting')}</p>
     {/if}
 
-    <!-- The pickers on Channels and Roles are what a layout outage disables, so
-         it is worth saying here too: an overview that looks fine and a Channels
-         page full of dead dropdowns reads as a broken dashboard. -->
     {#if layoutDown}
       <p class="hint state">{t('discord.layoutUnavailable')}</p>
     {/if}

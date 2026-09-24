@@ -12,9 +12,6 @@ import (
 	"time"
 )
 
-// TestConsumeSkipAdoptAppliesOnce pins consumeSkipAdopt's read-and-clear
-// contract in isolation: Invalidate must arm it, and reading it once must
-// clear it so a single transient 401 does not permanently disable adoption.
 func TestConsumeSkipAdoptAppliesOnce(t *testing.T) {
 	s := &Source{token: "dead-token"}
 	s.Invalidate()
@@ -27,10 +24,6 @@ func TestConsumeSkipAdoptAppliesOnce(t *testing.T) {
 	}
 }
 
-// TestSkipAdoptClearsSoLaterRefreshAdoptsAgain exercises the same contract
-// through adoptCandidate, the way NewStoredUserTokenSource's closure
-// actually uses it: the invalidated token is rejected while the flag is
-// live, and the identical token value is adoptable again once it clears.
 func TestSkipAdoptClearsSoLaterRefreshAdoptsAgain(t *testing.T) {
 	s := &Source{token: "dead-token"}
 	s.Invalidate()
@@ -42,22 +35,12 @@ func TestSkipAdoptClearsSoLaterRefreshAdoptsAgain(t *testing.T) {
 		t.Fatal("adoptCandidate adopted the token that was just invalidated")
 	}
 
-	_, forbid = s.consumeSkipAdopt() // flag already consumed above; this should be a no-op read
+	_, forbid = s.consumeSkipAdopt()
 	if _, _, ok := adoptCandidate(stored, forbid); !ok {
 		t.Fatal("adoptCandidate still rejected the token after the skip flag cleared")
 	}
 }
 
-// newInFlightRaceSource builds the Source that
-// TestInvalidateDuringInFlightRefreshDoesNotResurrectDeadToken races against
-// Invalidate: its refresh closure blocks on the first call (so the test can
-// invalidate mid-flight) and returns the pre-invalidation "dead-token";
-// every later call returns "fresh-token", simulating the retried refresh
-// that runs under the new generation.
-//
-// expires is inside refreshMargin so cached(refreshMargin) reports "due for
-// renewal" and Token() actually calls refresh, instead of the fast cached
-// path short-circuiting before any race can happen.
 func newInFlightRaceSource(entered, release chan struct{}, callCount *int32) *Source {
 	return &Source{
 		token:   "dead-token",
@@ -66,10 +49,6 @@ func newInFlightRaceSource(entered, release chan struct{}, callCount *int32) *So
 			if atomic.AddInt32(callCount, 1) == 1 {
 				close(entered)
 				<-release
-				// Simulates the in-flight call's view of the world as of
-				// BEFORE Invalidate ran: it still sees (and would
-				// adopt/return) the token that is about to be -- or already
-				// has been -- rejected.
 				return "dead-token", time.Hour, nil
 			}
 			return "fresh-token", time.Hour, nil
@@ -77,16 +56,11 @@ func newInFlightRaceSource(entered, release chan struct{}, callCount *int32) *So
 	}
 }
 
-// tokenOutcome is Token()'s result pair, carried through a channel so a
-// background goroutine can hand it back to the test.
 type tokenOutcome struct {
 	token string
 	err   error
 }
 
-// awaitSignal blocks until ch closes or timeout elapses, failing the test on
-// timeout. Used to keep the race tests' select/timeout boilerplate out of
-// the test bodies themselves.
 func awaitSignal(t *testing.T, ch <-chan struct{}, timeout time.Duration, timeoutMsg string) {
 	t.Helper()
 	select {
@@ -96,8 +70,6 @@ func awaitSignal(t *testing.T, ch <-chan struct{}, timeout time.Duration, timeou
 	}
 }
 
-// awaitTokenOutcome blocks until done delivers a result or timeout elapses,
-// failing the test on timeout.
 func awaitTokenOutcome(t *testing.T, done <-chan tokenOutcome, timeout time.Duration) tokenOutcome {
 	t.Helper()
 	select {
@@ -109,19 +81,6 @@ func awaitTokenOutcome(t *testing.T, done <-chan tokenOutcome, timeout time.Dura
 	return tokenOutcome{}
 }
 
-// TestInvalidateDuringInFlightRefreshDoesNotResurrectDeadToken is a logic-
-// race regression test (go test -race cannot catch this: every access goes
-// through s.mu, so there is no data race, only a stale-write ordering bug).
-//
-// Sequence: a refresh is already in flight (blocked on the network) using
-// generation 0, having already read consumeSkipAdopt as false because
-// nothing needed skipping yet. While it is blocked, a concurrent 401 calls
-// Invalidate: the cached token is cleared and gen becomes 1. The in-flight
-// refresh then completes and would, before the storeIfGen fix, publish its
-// result -- the token as it looked BEFORE the invalidation -- straight over
-// what Invalidate just did, resurrecting a token Twitch has already
-// rejected. This test drives exactly that interleaving and asserts the
-// resurrected value is never what Token() hands back.
 func TestInvalidateDuringInFlightRefreshDoesNotResurrectDeadToken(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
@@ -159,10 +118,6 @@ func TestInvalidateDuringInFlightRefreshDoesNotResurrectDeadToken(t *testing.T) 
 	}
 }
 
-// TestInvalidateForcesMintPastStillValidStoredToken is the Problem 3
-// regression test: a 401 must force the next refresh to mint for real, even
-// though the users service still reports the just-rejected access token as
-// unexpired (it has no way to know Twitch revoked it early).
 func TestInvalidateForcesMintPastStillValidStoredToken(t *testing.T) {
 	var mintCalls int32
 	fakeTokenHTTP(t, func(*http.Request) (*http.Response, error) {
@@ -173,9 +128,6 @@ func TestInvalidateForcesMintPastStillValidStoredToken(t *testing.T) {
 	expiresAt := time.Now().Add(2 * time.Hour)
 	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh-token", StoredTokenIO{
 		Load: func(context.Context) StoredLoad {
-			// The store never changes across this whole test: it always
-			// reports the same access token, exactly as it would if nobody
-			// else has minted anything yet.
 			return StoredLoad{
 				AccessToken:          "dead-access-token",
 				AccessTokenExpiresAt: &expiresAt,
@@ -196,7 +148,6 @@ func TestInvalidateForcesMintPastStillValidStoredToken(t *testing.T) {
 		t.Fatalf("mint calls before any 401 = %d, want 0", got)
 	}
 
-	// This is what client.go's request() does on a 401.
 	src.Invalidate()
 
 	token, err = src.Token(context.Background())
@@ -211,11 +162,6 @@ func TestInvalidateForcesMintPastStillValidStoredToken(t *testing.T) {
 	}
 }
 
-// TestLoserAfterInvalidateDoesNotAdoptSameDeadToken is Problem 3's lease
-// interaction case: a replica that just had a token 401 and lost the mint
-// lease must not adopt that exact token value back out of the store, even
-// though ordinary adoption logic would otherwise accept it (unexpired,
-// present). It must keep waiting/falling through instead.
 func TestLoserAfterInvalidateDoesNotAdoptSameDeadToken(t *testing.T) {
 	var mintCalls int32
 	fakeTokenHTTP(t, func(*http.Request) (*http.Response, error) {
@@ -230,10 +176,6 @@ func TestLoserAfterInvalidateDoesNotAdoptSameDeadToken(t *testing.T) {
 	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh-token", StoredTokenIO{
 		Load: func(context.Context) StoredLoad {
 			atomic.AddInt32(&loadCalls, 1)
-			// The store keeps reporting the SAME dead token throughout --
-			// e.g. the lease key expired without anyone ever actually
-			// rotating it. adoptCandidate must reject every one of these,
-			// not just the first.
 			return StoredLoad{
 				AccessToken:          "dead-access-token",
 				AccessTokenExpiresAt: &future,
@@ -243,8 +185,6 @@ func TestLoserAfterInvalidateDoesNotAdoptSameDeadToken(t *testing.T) {
 		Persist: func(context.Context, string, string, time.Time) error { return nil },
 	}, lease)
 
-	// Prime the Source: first refresh has no skip flag, so it adopts the
-	// (at this point still ordinary-looking) stored token normally.
 	token, err := src.Token(context.Background())
 	if err != nil {
 		t.Fatalf("Token() error = %v", err)
@@ -268,17 +208,11 @@ func TestLoserAfterInvalidateDoesNotAdoptSameDeadToken(t *testing.T) {
 	if got := atomic.LoadInt32(&mintCalls); got != 1 {
 		t.Fatalf("mint calls = %d, want exactly 1 (the deliberate fallback)", got)
 	}
-	// 1 (priming) + 1 (initial Load of the post-Invalidate refresh) + the
-	// full waitForAdoption budget, all rejected because they equal forbid.
 	if got, want := atomic.LoadInt32(&loadCalls), int32(2+leaseWaitAttempts); got != want {
 		t.Fatalf("load calls = %d, want %d", got, want)
 	}
 }
 
-// TestSkipAdoptSurvivesFailedMintAfterInvalidate covers the window between a
-// 401 and a successful replacement. consumeSkipAdopt clears the guard when a
-// refresh starts, so a refresh that then FAILS must re-arm it; otherwise the
-// next refresh adopts the very token the 401 rejected, one attempt later.
 func TestSkipAdoptSurvivesFailedMintAfterInvalidate(t *testing.T) {
 	var mintShouldFail atomic.Bool
 	mintShouldFail.Store(true)
@@ -290,8 +224,6 @@ func TestSkipAdoptSurvivesFailedMintAfterInvalidate(t *testing.T) {
 		return fakeOAuthResponse(`{"access_token":"finally-minted","refresh_token":"rotated","expires_in":14400}`), nil
 	})
 
-	// The store keeps reporting the rejected token as unexpired for the whole
-	// test: no other replica ever mints a replacement.
 	expiresAt := time.Now().Add(2 * time.Hour)
 	src := NewStoredUserTokenSource(ClientCredentials{}, "seed-refresh-token", StoredTokenIO{
 		Load: func(context.Context) StoredLoad {
@@ -309,13 +241,10 @@ func TestSkipAdoptSurvivesFailedMintAfterInvalidate(t *testing.T) {
 	}
 	src.Invalidate()
 
-	// First refresh after the 401: consumes the guard, tries to mint, fails.
 	if _, err := src.Token(context.Background()); err == nil {
 		t.Fatal("Token() after Invalidate succeeded, want the mint failure")
 	}
 
-	// The guard must still be armed, so this must NOT hand back the dead
-	// token even though the store still calls it unexpired.
 	if _, err := src.Token(context.Background()); err == nil {
 		t.Fatal("second Token() succeeded, want the dead token still refused")
 	}

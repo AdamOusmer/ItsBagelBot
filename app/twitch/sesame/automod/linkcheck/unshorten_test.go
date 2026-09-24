@@ -15,9 +15,6 @@ import (
 	"time"
 )
 
-// testClient is an expander client WITHOUT the production dial guard, because
-// httptest servers live on 127.0.0.1 - exactly the range guardDial refuses.
-// The guard itself is unit-tested directly in TestGuardDial.
 func testClient() *http.Client {
 	return &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -37,14 +34,9 @@ func redirectServer(t *testing.T, location string) *httptest.Server {
 	return s
 }
 
-// tok converts an httptest URL into the token shape iterLinkTokens yields
-// (scheme stripped) — hostOf and the expander consume tokens, not raw URLs.
 func tok(url string) string { return trimLinkToken(url) }
 
-// fakeDNS maps pretend hostnames ("shead.test") onto real httptest listeners,
-// so expansion tests run on domain-shaped names instead of 127.0.0.1:port
-// (which validHost rightly rejects as an IP literal).
-type dnsMap map[string]string // hostname -> listener addr
+type dnsMap map[string]string
 
 func clientFor(t *testing.T, m dnsMap) *http.Client {
 	t.Helper()
@@ -106,7 +98,7 @@ func TestDestinationNonShortenerInputIsUntouched(t *testing.T) {
 }
 
 func TestDestinationInterstitialReturnsShortenerItself(t *testing.T) {
-	wall := redirectServer(t, "") // serves a 200 landing page: bot wall
+	wall := redirectServer(t, "")
 	e := newExpanderScheme(clientFor(t, dnsMap{"swall.test": tok(wall.URL)}), []string{"swall.test"}, "http")
 	got, err := e.Destination(context.Background(), "swall.test/xyz")
 	if err != nil {
@@ -118,7 +110,7 @@ func TestDestinationInterstitialReturnsShortenerItself(t *testing.T) {
 }
 
 func TestDestinationLoopCappedAtHops(t *testing.T) {
-	loop := redirectServer(t, "/self") // relative Location: redirects into itself
+	loop := redirectServer(t, "/self")
 	e := newExpanderScheme(clientFor(t, dnsMap{"sloop.test": tok(loop.URL)}), []string{"sloop.test"}, "http")
 	if _, err := e.Destination(context.Background(), "sloop.test/start"); err == nil {
 		t.Fatal("redirect loop resolved without error")
@@ -140,14 +132,14 @@ func TestGuardDial(t *testing.T) {
 	}{
 		{"8.8.8.8:443", true},
 		{"1.1.1.1:53", true},
-		{"2606:4700::1111", false}, // no port: SplitHostPort errors
+		{"2606:4700::1111", false},
 		{"127.0.0.1:8080", false},
 		{"10.1.2.3:443", false},
 		{"192.168.0.20:443", false},
 		{"172.16.9.9:443", false},
-		{"100.64.0.9:443", false}, // CGNAT
+		{"100.64.0.9:443", false},
 		{"169.254.169.254:80", false},
-		{"[fd00::5]:443", false}, // ULA
+		{"[fd00::5]:443", false},
 		{"224.0.0.1:5353", false},
 		{"not-an-address:443", false},
 	}
@@ -166,7 +158,7 @@ func TestGuardDialBlocksLiveLoopbackDial(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
 	defer srv.Close()
 
-	e := NewExpander(nil, []string{hostOf(tok(srv.URL))}) // default client carries guardDial
+	e := NewExpander(nil, []string{hostOf(tok(srv.URL))})
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
 	if _, err := e.client.Do(req); err == nil {
 		t.Fatal("loopback dial succeeded despite guardDial")

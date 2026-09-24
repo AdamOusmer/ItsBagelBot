@@ -1,11 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-#
-# One budget per component. Without these a drain can take both replicas of a
-# synchronous apiserver dependency at once: while the metrics adapter is gone
-# every HPA reading external metrics fails, and while the webhook is gone every
-# ScaledObject create or update is rejected. maxUnavailable 1 against 2
-# replicas keeps a drain moving one pod at a time.
+
+# maxUnavailable 1 against 2 replicas: a drain must never take both replicas of an apiserver dependency.
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

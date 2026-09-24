@@ -12,12 +12,6 @@ export const RAFFLE_MODULE: ModuleDef =
     'Open a raffle and viewers type !join to enter. While it runs the bot posts a time-left reminder every few minutes (the cadence is yours to set), and when time runs out it draws automatically. Winners are picked uniformly at random from everyone who entered, every entry counts once, and the draw leaves a verifiable receipt behind. Winners confirm with !claim inside a 15-minute window. You (and your mods) also control everything from chat: !raffle open starts one, !raffle draw closes early and announces, !raffle cancel tears it down without drawing. When both this and the Play Queue are on, !join belongs to the raffle and the queue is reachable through !queue join.',
   category: 'Play',
   defaultEnabled: false,
-  // The viewer-facing conversational replies are customizable per broadcaster
-  // and each rehearses as its command (a viewer types the trigger, the bot
-  // answers) with this reply's own sample values. The status readout, mod
-  // confirmations and claim outcomes beyond the first stay fixed system text
-  // (see app/twitch/sesame/modules/raffle.go); so do the engine-posted auto-close
-  // and reminder announcements.
   replies: [
     {
       key: 'joined',

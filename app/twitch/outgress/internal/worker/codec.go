@@ -11,8 +11,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// wireMessage keeps the nested payload as a zero-copy view into the native bus
-// message buffer. The buffer remains owned for the whole synchronous handler.
 type wireMessage struct {
 	Type          string                 `json:"type"`
 	BroadcasterID string                 `json:"broadcaster_id"`
@@ -29,8 +27,6 @@ type wireMessage struct {
 	Status        string                 `json:"status,omitempty"`
 }
 
-// PrepareJSON compiles the decoders during startup rather than on the first
-// latency-sensitive message.
 func PrepareJSON() error {
 	return codec.Pretouch(
 		reflect.TypeOf(wireMessage{}),
@@ -58,33 +54,20 @@ func decodeBatch(data []byte, destination *outgress.Batch) error {
 	return codec.FastUnmarshal(data, destination)
 }
 
-// withSenderID ensures the chat body carries sender_id without disturbing the
-// other fields the producer set. A sender_id already present is left untouched.
 func withSenderID(body []byte, senderID string) []byte {
 	return withField(body, "sender_id", senderID)
 }
 
-// withField inserts "field":"value" into a JSON object body without decoding it.
-// If the field already appears, body is returned unchanged. Used to inject the
-// bot identity (sender_id / moderator_id) Twitch requires but producers omit, or
-// a default announce color, without paying a full marshal/unmarshal round-trip.
-//
-// Twitch ids/logins and the fixed color/identity values are alphanumeric plus
-// underscore, so value needs no JSON escaping; callers pass only such safe
-// strings.
+// value is not escaped: pass only ids, logins and fixed [A-Za-z0-9_] values.
 func withField(body []byte, field, value string) []byte {
 	if bytes.Contains(body, []byte("\""+field+"\"")) {
-		return body // already present; leave the producer's value alone
+		return body
 	}
 
 	insert := "\"" + field + "\":\"" + value + "\""
 
 	end := bytes.LastIndexByte(body, '}')
 	if end < 0 {
-		// No closing '}' to splice into. Only synthesize a fresh object when the
-		// body is empty or all whitespace; a non-empty, non-object body (e.g. a
-		// top-level JSON array) is not ours to rewrite, so return it unchanged
-		// rather than discarding it.
 		if len(bytes.TrimSpace(body)) == 0 {
 			return []byte("{" + insert + "}")
 		}
@@ -102,10 +85,6 @@ func withField(body []byte, field, value string) []byte {
 	return out
 }
 
-// needsComma reports whether a field spliced in before body[end] follows an
-// existing field (so it needs a comma), by finding the previous non-space
-// byte: if that is the opening '{' the object is empty and the field goes in
-// bare.
 func needsComma(body []byte, end int) bool {
 	for i := end - 1; i >= 0; i-- {
 		switch body[i] {

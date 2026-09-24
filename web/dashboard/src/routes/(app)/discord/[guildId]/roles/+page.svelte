@@ -1,8 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Which Discord role each Bagel slot means, and which of them setup must
-  // adopt rather than create.
   import {
     AlertBanner,
     Chip,
@@ -59,8 +57,6 @@
     return id !== '' && pins[row.slot] === id;
   }
 
-  // Pinning a slot tells setup to adopt the role that is selected right now
-  // instead of creating (or renaming) one by name on the next fill.
   function togglePin(row: RoleRow) {
     const next = { ...pins };
     if (isPinned(row)) delete next[row.slot];

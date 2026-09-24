@@ -91,11 +91,6 @@ func TestDispatchFollowupUsesApplicationID(t *testing.T) {
 	if len(rest.followups) != 1 {
 		t.Fatalf("followups = %+v", rest.followups)
 	}
-	// Checked field by field, not as one f.ApplicationID != "app-1" ||
-	// f.Token != "tok" || !f.Ephemeral condition: CodeScene's Complex
-	// Conditional flags any single expression combining more than one
-	// && / ||, and a three-field "something about this followup is wrong"
-	// check is three separate claims, not one.
 	f := rest.followups[0]
 	if f.ApplicationID != "app-1" {
 		t.Fatalf("followup ApplicationID = %q, want app-1 (followup %+v)", f.ApplicationID, f)

@@ -19,8 +19,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// gamesCtx builds a chat Context for chatter `login` carrying an optional
-// module config blob, the shape both wager games decode.
 func gamesCtx(login, config string) *module.Context {
 	c := &module.Context{
 		Env: lane.Envelope{
@@ -38,8 +36,6 @@ func gamesCtx(login, config string) *module.Context {
 	return c
 }
 
-// runGames runs a wager game's single command (each registers exactly one)
-// against ctx and returns what it emitted.
 func runGames(t *testing.T, m module.Module, c *module.Context, args string) []module.Output {
 	t.Helper()
 	var col collector
@@ -47,7 +43,6 @@ func runGames(t *testing.T, m module.Module, c *module.Context, args string) []m
 	return col.out
 }
 
-// pinRoll pins the gamble dice for the duration of one test.
 func pinRoll(t *testing.T, roll int64) {
 	t.Helper()
 	old := engine.RollGamble
@@ -69,7 +64,6 @@ func TestGambleWinCreditsStake(t *testing.T) {
 	assert.Contains(t, out[0].Text, "won 300")
 	assert.Contains(t, out[0].Text, "1534", "the reply carries the post-wager standing")
 
-	// Escrow-first: the stake was taken, then the win paid it back doubled.
 	require.Len(t, fake.spends, 1)
 	assert.Equal(t, int64(300), fake.spends[0].amount)
 	require.Len(t, fake.adjusts, 1)
@@ -77,7 +71,7 @@ func TestGambleWinCreditsStake(t *testing.T) {
 }
 
 func TestGambleLossDebitsThroughSpend(t *testing.T) {
-	pinRoll(t, 87) // misses the default 50
+	pinRoll(t, 87)
 	fake := &fakeLoyalty{}
 	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
 
@@ -113,19 +107,16 @@ func TestGambleRefusedWagersNeverClaimCooldown(t *testing.T) {
 }
 
 func TestGambleDerivedAndOverBalance(t *testing.T) {
-	pinRoll(t, 50) // boundary wins at the default chance
+	pinRoll(t, 50)
 	fake := &fakeLoyalty{}
 	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
 
-	// The fake's standing is 1234; "all" caps at the default 1000 max.
 	out := runGames(t, m, gamesCtx("bob", ""), "all")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "won 1000")
 	require.Len(t, fake.adjusts, 1)
 	assert.Equal(t, int64(2000), fake.adjusts[0].value, "the credit is stake plus match")
 
-	// An explicit number under a raised cap but over the standing refuses on
-	// funds rather than driving the balance negative.
 	out = runGames(t, m, gamesCtx("bob", `{"maxBet":5000}`), "2000")
 	assert.Contains(t, out[0].Text, "can't cover that")
 	assert.Len(t, fake.adjusts, 1, "refusal moved nothing")
@@ -147,7 +138,6 @@ func TestGamblePerUserCooldown(t *testing.T) {
 	out = runGames(t, m, ctx, "10")
 	assert.Contains(t, out[0].Text, "breather", "second wager inside the window is cooled")
 
-	// Another viewer is unaffected by carol's claim.
 	cd.allow = append(cd.allow, true)
 	out = runGames(t, m, gamesCtx("dave", `{"cooldownSeconds":30}`), "10")
 	assert.NotContains(t, out[0].Text, "breather")
@@ -203,9 +193,6 @@ func TestGambleInertWhenLoyaltyOff(t *testing.T) {
 	assert.Empty(t, fake.spends)
 }
 
-// loyaltyProj is the projector slice the wager games read for the currency
-// name and the loyalty-on gate. Tests that omit Proj keep the historical
-// fallback (blob pointsName, always on).
 type loyaltyProj struct {
 	on   bool
 	name string

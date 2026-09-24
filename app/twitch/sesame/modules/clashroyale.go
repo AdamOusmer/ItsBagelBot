@@ -12,17 +12,10 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 )
 
-// clashroyaleModuleName is the ModuleView key; the console MODULE_CATALOG entry
-// and the dashboard module page use the same id.
 const clashroyaleModuleName = "clashroyale"
 
-// clashroyaleCooldown is the shared per-command window; gossip caches the one
-// shared player profile all four commands project, so this only shields chat
-// from command spam, not the API.
 const clashroyaleCooldown = 10 * time.Second
 
-// Default reply templates. The broadcaster customizes them per command on the
-// module page; blank falls back to these.
 const (
 	defaultClashStatsTemplate  = "{player} · level {level} · {wins}W/{losses}L · {winrate}% WR · {crowns} three-crowns · {clan}"
 	defaultClashDecksTemplate  = "{player}'s deck ({count}/8): {cards} · avg elixir {elixir}"
@@ -30,22 +23,9 @@ const (
 	defaultClashRoadTemplate   = "{player}: {trophies} trophies · best {besttrophies} · {arena}"
 )
 
-// clashroyaleUnrankedText replaces !crranked's template when gossip answers
-// Unranked: every numeric token would render zero, so the default line says
-// why instead (the same shape as !fn session's no-snapshot case).
 const clashroyaleUnrankedText = "has no Path of Legends record this season"
 
-// clashroyaleConfig is the module's dashboard configuration. Account is the
-// linked player tag (blank = the broadcaster's own Twitch login, which the
-// provider almost always rejects — Clash Royale has no name lookup, so a tag
-// is required). The *Enabled toggles are stored "on"/"off" — empty means on,
-// matching the alerts module's semantics — and each *Message is a customized
-// template (blank = default).
 type clashroyaleConfig struct {
-	// linkedAccountConfig carries account/accountUuid/linkedOnly. Clash Royale
-	// has no uuid of its own (a player tag is the identity), so accountUuid
-	// stays unset here and is never consulted: the resolution asks for it only
-	// under PreferUUID, which this module does not set.
 	linkedAccountConfig
 
 	StatsEnabled  string `json:"statsEnabled"`
@@ -58,29 +38,13 @@ type clashroyaleConfig struct {
 	RoadMessage   string `json:"roadMessage"`
 }
 
-// ClashRoyale owns the Clash Royale chat commands backed by the gossip
-// service. It is a named, opt-in module (KindOptIn): off by default, enabled
-// on the dashboard, where the broadcaster links their player tag. Viewers can
-// always target another player explicitly: "!cr #P2LQ0GR".
-//
-// The command surface mirrors fortnite's: one root with subcommands plus the
-// squashed forms as direct triggers.
-//
-//	!cr [tag]           lifetime profile (also !crstats)
-//	!cr decks [tag]     current battle deck (also !crdecks)
-//	!cr ranked [tag]    Path of Legends standing (also !crranked)
-//	!cr road [tag]      trophy-road standing (also !crroad)
-//
-// All four ride gossip's one shared profile cache, so a viewer reading several
-// views of the same player spends a single upstream request per 5 minutes.
 func ClashRoyale(d engine.Deps) module.Module {
 	statsRun := externalCommand[clashroyaleConfig, gossiprpc.ClashRoyaleStatsReply]{
-		route:    clashRoute("stats"),
-		enabled:  func(c clashroyaleConfig) string { return c.StatsEnabled },
-		message:  func(c clashroyaleConfig) string { return c.StatsMessage },
-		fallback: defaultClashStatsTemplate,
-		tokens:   clashStatsTokens(),
-		// Clash Royale is tag-keyed: never substitute a stored uuid.
+		route:      clashRoute("stats"),
+		enabled:    func(c clashroyaleConfig) string { return c.StatsEnabled },
+		message:    func(c clashroyaleConfig) string { return c.StatsMessage },
+		fallback:   defaultClashStatsTemplate,
+		tokens:     clashStatsTokens(),
 		preferName: true,
 	}.run(d)
 	decksRun := externalCommand[clashroyaleConfig, gossiprpc.ClashRoyaleDecksReply]{
@@ -127,15 +91,10 @@ func ClashRoyale(d engine.Deps) module.Module {
 	return m.Build()
 }
 
-// clashRoute names one Clash Royale endpoint. All four ride gossip's one
-// shared profile cache, so a viewer reading several views of the same player
-// spends a single upstream request per 5 minutes.
 func clashRoute(endpoint string) engine.GossipRoute {
 	return engine.GossipRoute{Provider: "clashroyale", Endpoint: endpoint}
 }
 
-// clashRankedSpecial answers !crranked when the player has no Path of Legends
-// record: every numeric token would render zero, so the line says why instead.
 func clashRankedSpecial(_ statsCall[clashroyaleConfig], r *gossiprpc.ClashRoyaleRankedReply) (string, bool) {
 	if !r.Unranked {
 		return "", false
@@ -143,7 +102,6 @@ func clashRankedSpecial(_ statsCall[clashroyaleConfig], r *gossiprpc.ClashRoyale
 	return unrankedText(r.Player), true
 }
 
-// clashStatsTokens is the !crstats template palette over the gossip reply.
 func clashStatsTokens() module.TokenExpander[gossiprpc.ClashRoyaleStatsReply] {
 	type reply = gossiprpc.ClashRoyaleStatsReply
 	return module.TokenExpander[reply]{
@@ -169,9 +127,6 @@ func clashStatsTokens() module.TokenExpander[gossiprpc.ClashRoyaleStatsReply] {
 	}
 }
 
-// clashDecksTokens is the !crdecks palette: the deck joined as names (bounded
-// by the game at 8 cards plus one tower troop, so no truncation budget is
-// needed), the elixir average gossip precomputed, and the count.
 func clashDecksTokens() module.TokenExpander[gossiprpc.ClashRoyaleDecksReply] {
 	type reply = gossiprpc.ClashRoyaleDecksReply
 	names := func(cards []gossiprpc.ClashRoyaleCard) string {
@@ -191,8 +146,6 @@ func clashDecksTokens() module.TokenExpander[gossiprpc.ClashRoyaleDecksReply] {
 	}
 }
 
-// clashRankedTokens is the !crranked palette over the PoL result (gossip
-// already fell back to legacy league seasons where they are the only record).
 func clashRankedTokens() module.TokenExpander[gossiprpc.ClashRoyaleRankedReply] {
 	type reply = gossiprpc.ClashRoyaleRankedReply
 	return module.TokenExpander[reply]{
@@ -209,7 +162,6 @@ func clashRankedTokens() module.TokenExpander[gossiprpc.ClashRoyaleRankedReply] 
 	}
 }
 
-// clashRoadTokens is the !crroad palette.
 func clashRoadTokens() module.TokenExpander[gossiprpc.ClashRoyaleTrophyRoadReply] {
 	type reply = gossiprpc.ClashRoyaleTrophyRoadReply
 	return module.TokenExpander[reply]{
@@ -221,7 +173,6 @@ func clashRoadTokens() module.TokenExpander[gossiprpc.ClashRoyaleTrophyRoadReply
 	}
 }
 
-// unrankedText renders !crranked's answer when the player has no PoL record.
 func unrankedText(player string) string {
 	return player + " " + clashroyaleUnrankedText
 }

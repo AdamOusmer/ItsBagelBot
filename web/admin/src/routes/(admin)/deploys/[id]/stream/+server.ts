@@ -7,14 +7,8 @@ import { requireRole } from '$lib/server/access';
 import { deployApi, deployStatus, RunRelay } from '$lib/server/deploys';
 import type { DeployRun, RunRequest } from '$lib/deploys/types';
 
-// Matches the events stream: often enough that no proxy on the tailnet path
-// idles the connection out during a quiet stage (a build can sit on one job
-// for minutes without a state change).
 const KEEPALIVE_MS = 20_000;
 
-// SSE bridge for one run: the current snapshot first, then one `run` frame per
-// state change from bagel.deploy.events.<id>. Every frame is a full snapshot,
-// so a client that reconnects needs nothing but this endpoint again.
 export const GET: RequestHandler = async ({ locals, params }) => {
   const admin = await requireRole({ locals }, 'deploys.manage');
   if (!admin) throw error(403, 'forbidden');

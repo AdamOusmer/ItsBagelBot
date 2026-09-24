@@ -11,70 +11,17 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 )
 
-// The tokens this scope answers. Each takes a bare spelling for the channel
-// the command ran in and, except the viewer count, a payloaded one naming
-// somebody else's channel ({game:pokimane}).
-//
-// They are exported for the reason the viewer scope's names are: the engine
-// has to recognize them in a lexed template BEFORE it reads a module row, so
-// that a command mentioning none of them costs no projection read, and a name
-// re-spelled on that side would be a token that silently stays literal.
-//
-// {channel.viewers} is dotted while the other three are bare because bare
-// {channel} is already the display name in the message scope. The lexer
-// lower-cases a whole name that carries no ':', so the dotted spelling is one
-// key, not a name plus a payload.
-//
-// It also stays dotted rather than folding to the bare {viewers} the
-// simplification pass tried: {viewers} is already spoken for, by
-// modules/reply_tokens.go's raid/shoutout reply ("alerts.raid",
-// "shoutout.shoutout") where it names the raiding party's size. One word
-// cannot mean two different numbers in the same product, so the rename was
-// reverted rather than shipped alongside a second {viewers} that answers a
-// different question depending on which reply it is in.
 const (
-	UptimeToken  = "uptime"
-	TitleToken   = "title"
-	GameToken    = "game"
-	ViewersToken = "channel.viewers"
-	// FollowersToken and SubsToken are the two headline audience counts. They
-	// take no payload — unlike Title/Game they never address another
-	// channel, since Twitch only ever answers the calling identity's own
-	// channel for both reads — so a span carrying one is an authoring
-	// mistake and stays literal, the rule {channel.viewers} already follows.
+	UptimeToken    = "uptime"
+	TitleToken     = "title"
+	GameToken      = "game"
+	ViewersToken   = "channel.viewers"
 	FollowersToken = "followers"
 	SubsToken      = "subs"
 )
 
-// MaxChannelLogins bounds how many OTHER channels one response may look up.
-//
-// Decision record. Each named login is a Twitch round trip through outgress
-// (Get Users to resolve it, then Get Streams), where the bare spellings are
-// one lookup of a channel this bot is already in. Three is the cap for the
-// same reason three is the quote and chatter-draw cap: a Twitch line is 500
-// bytes, and a shoutout template that says something about each channel runs
-// out of room well before a fourth — while the cost of NOT capping is paid in
-// somebody else's Helix budget, on a command any viewer can run.
-//
-// The channel the command ran in does not count against it. It is the common
-// case, it is one lookup however many of the four tokens name it, and a
-// template that spends its three on other channels must still be able to say
-// what its own is playing.
-//
-// Past the cap a span renders empty (so its fallback speaks) rather than
-// staying literal: the template is not wrong, it is only asking for more than
-// one chat line's worth of lookups, and a literal "{title:foo}" in chat would
-// read as the bot not knowing the token at all.
 const MaxChannelLogins = 3
 
-// Stream is one channel's current session as these tokens read it.
-//
-// UserFound separates "Twitch has no such channel" from "that channel is
-// offline", and the two render differently: an unknown channel is empty
-// everywhere, while an offline one has a real title, a real category and a
-// viewer count of zero. A zero-value convention could not tell them apart, and
-// a template naming a misspelled login would then claim the channel exists and
-// is merely dark.
 type Stream struct {
 	UserFound   bool
 	Live        bool
@@ -84,24 +31,10 @@ type Stream struct {
 	StartedAt   time.Time
 }
 
-// Streams reads one channel's session. The engine implements it over the same
-// cached reader !uptime calls, so a chat that just asked pays no second round
-// trip.
-//
-// An empty login means the channel the command ran in. Implementations never
-// return an error: a failed read is the zero Stream (UserFound false), which
-// renders every span in the family empty rather than blanking the reply.
 type Streams interface {
 	Stream(ctx context.Context, login string) Stream
 }
 
-// ChannelCountsResult is one channel's headline audience counts, read once
-// per response and shared by both spans. The two halves are independently
-// degradable: Followers rides the bot's moderator-scoped token and Subs the
-// broadcaster's own (channel:read:subscriptions), so a grant can answer one
-// and not the other. *OK false means "cannot say" — a missing scope, never a
-// real zero — and renders the span literal, the same UserFound precedent
-// Stream follows for an unknown channel.
 type ChannelCountsResult struct {
 	Followers   int
 	FollowersOK bool
@@ -109,55 +42,22 @@ type ChannelCountsResult struct {
 	SubsOK      bool
 }
 
-// ChannelCounts reads {followers}/{subs}. Unlike Streams it never fails
-// outright: a read that could not be attempted at all is the zero result,
-// which renders both spans literal exactly like the dependency being nil.
 type ChannelCounts interface {
 	Counts(ctx context.Context) ChannelCountsResult
 }
 
-// Channel answers the tokens that describe a CHANNEL rather than a viewer:
-// {uptime}, {title}, {game} and {channel.viewers}.
-//
-// One dependency answers all four, because one Twitch read carries all four —
-// so a response naming three of them costs one round trip, not three. What is
-// per-token is the GATE: {uptime}, {title} and {game} are each toggled by the
-// same per-broadcaster row as the built-in command that prints them (!uptime,
-// !title, !game), so a channel that turned !title off must leave {title}
-// visible while {game} still expands. A false flag means this scope does not
-// own that name and its spans stay literal, exactly like a typo.
 type Channel struct {
-	// Locale is the broadcaster's language, for the shared humanizer.
-	Locale string
-	// Streams is the channel read. nil means nothing is wired and the scope
-	// owns nothing.
-	Streams Streams
-	// OwnLogin is the broadcaster's own login, already lower-cased. A span
-	// that names it ({title:my_own_login}) folds onto the bare spelling: one
-	// read instead of two, and — the part that would be a visible bug
-	// otherwise — it does not spend one of the three named-login slots on the
-	// channel the command is already running in.
+	Locale   string
+	Streams  Streams
 	OwnLogin string
-	// Uptime, Title, Game and Viewers are the per-token mounts the engine
-	// resolved from this broadcaster's module rows.
-	Uptime  bool
-	Title   bool
-	Game    bool
-	Viewers bool
-	// Now is the clock {uptime} measures against. nil means time.Now; a test
-	// pins it so a humanized span is an assertion rather than a race.
-	Now func() time.Time
-	// Counts is the {followers}/{subs} read. nil means unwired and both
-	// stay literal; unlike Uptime/Title/Game/Viewers there is no per-token
-	// module row behind it — Stream Management has no toggle for either, so
-	// mounting follows the dependency alone, the same rule Viewers follows.
-	Counts ChannelCounts
+	Uptime   bool
+	Title    bool
+	Game     bool
+	Viewers  bool
+	Now      func() time.Time
+	Counts   ChannelCounts
 }
 
-// Owns claims a name only when the read is wired and, for the four
-// Streams-backed tokens, that token's own module row is on for this
-// broadcaster. {followers}/{subs} answer from a separate dependency with no
-// module row of its own.
 func (c Channel) Owns(v Var) bool {
 	name := v.Name
 	if name == FollowersToken || name == SubsToken {
@@ -179,13 +79,6 @@ func (c Channel) Owns(v Var) bool {
 	return false
 }
 
-// Plan reads every channel the template names, once each, before a byte is
-// rendered.
-//
-// The batching is the deduplication: "{title} — {game} for {uptime}" is three
-// spans over ONE read, and "{title:Bob}" beside "{game:@bob}" is two spans
-// over one more. It never returns an error, because a read that failed is
-// already the empty answer its own span renders (see Streams).
 func (c Channel) Plan(ctx context.Context, wants []Var) (Values, error) {
 	out := &channelValues{
 		locale: c.Locale, now: c.Now, ownLogin: c.OwnLogin,
@@ -200,10 +93,6 @@ func (c Channel) Plan(ctx context.Context, wants []Var) (Values, error) {
 	return out, nil
 }
 
-// planOne reads one span's channel unless an earlier span already did, or the
-// template has spent its named-login budget. {followers}/{subs} take no
-// address at all: a bare span marks the read wanted (batched once in Plan,
-// after this loop), and a payloaded one is left for Get to render literal.
 func (c Channel) planOne(ctx context.Context, out *channelValues, want Var) {
 	if want.Name == FollowersToken || want.Name == SubsToken {
 		out.wantCounts = out.wantCounts || !want.HasPayload
@@ -222,16 +111,6 @@ func (c Channel) planOne(ctx context.Context, out *channelValues, want Var) {
 	out.streams[login] = c.Streams.Stream(ctx, login)
 }
 
-// loginOf reads the channel a span addresses: its payload, or the channel the
-// command ran in when it carries none — and the command's own channel again
-// when the payload names it, so both spellings share one read.
-//
-// ok=false marks a span that addresses nothing and must stay literal: an empty
-// or unusable payload ({title:}), and any payload at all on
-// {channel.viewers}, which counts the channel the command ran in and has no
-// use for a name. Leaving those visible shows the author their mistake instead
-// of quietly answering a different question, the rule {time} and the chatter
-// tokens already follow.
 func (v *channelValues) loginOf(tok Var) (string, bool) {
 	if !tok.HasPayload {
 		return "", true
@@ -249,25 +128,16 @@ func (v *channelValues) loginOf(tok Var) (string, bool) {
 	return login, true
 }
 
-// channelValues is one run's resolved reads, keyed by the login each addresses
-// ("" being the channel the command ran in).
 type channelValues struct {
-	locale   string
-	ownLogin string
-	now      func() time.Time
-	streams  map[string]Stream
-	// named counts the OTHER channels this template has already looked up, to
-	// hold it under MaxChannelLogins.
-	named int
-	// wantCounts and counts back {followers}/{subs}: one read answers both,
-	// planned once after the loop above rather than per span.
+	locale     string
+	ownLogin   string
+	now        func() time.Time
+	streams    map[string]Stream
+	named      int
 	wantCounts bool
 	counts     ChannelCountsResult
 }
 
-// admit reports whether a not-yet-read channel may be looked up, charging it
-// against the named-login budget. The channel the command ran in is always
-// admitted and never charged (see MaxChannelLogins).
 func (v *channelValues) admit(login string) bool {
 	if login == "" {
 		return true
@@ -279,10 +149,6 @@ func (v *channelValues) admit(login string) bool {
 	return true
 }
 
-// Get answers every span this scope owns. ok is true throughout for a span
-// with a usable address: the read ran (or was deliberately not run, past the
-// cap), and an empty result is a resolved-empty value that renders the span's
-// fallback — never a literal, which would claim this bot has no such token.
 func (v *channelValues) Get(tok Var) (string, bool) {
 	if tok.Name == FollowersToken || tok.Name == SubsToken {
 		return v.count(tok)
@@ -294,11 +160,6 @@ func (v *channelValues) Get(tok Var) (string, bool) {
 	return v.render(tok.Name, v.streams[login]), true
 }
 
-// count answers {followers}/{subs}. A payload stays literal (see planOne);
-// a half the read could not answer (missing scope, or the whole read never
-// ran) stays literal too — never the pinned "0" viewerCount uses for an
-// offline channel, because "cannot say" and "genuinely zero" are different
-// claims here and only one of them is true.
 func (v *channelValues) count(tok Var) (string, bool) {
 	if tok.HasPayload {
 		return "", false
@@ -315,9 +176,6 @@ func (v *channelValues) count(tok Var) (string, bool) {
 	return strconv.Itoa(v.counts.Subs), true
 }
 
-// render turns one channel's session into one token's text. A channel Twitch
-// does not know renders empty everywhere: there is no title to print and no
-// zero to report about a channel that does not exist.
 func (v *channelValues) render(name string, s Stream) string {
 	if !s.UserFound {
 		return ""
@@ -333,10 +191,6 @@ func (v *channelValues) render(name string, s Stream) string {
 	return v.uptime(s)
 }
 
-// viewerCount renders the audience. Offline is the pinned "0" rather than
-// empty: nobody is watching an offline channel, and that is a number the
-// template can say out loud, where an empty span would fire a fallback written
-// for "we could not find out".
 func viewerCount(s Stream) string {
 	if !s.Live {
 		return "0"
@@ -344,15 +198,6 @@ func viewerCount(s Stream) string {
 	return strconv.Itoa(s.ViewerCount)
 }
 
-// uptime renders how long the channel has been live, through the shared
-// humanizer !uptime itself prints with.
-//
-// An offline channel renders EMPTY, and that is the pinned decision: the
-// lookup succeeded, so the span must not stay literal, but there is no
-// duration to name either. Empty fires the span's fallback, which lets a
-// broadcaster write "live for {uptime|not right now}" in their own voice
-// instead of the bot dropping !uptime's whole offline sentence into the middle
-// of theirs.
 func (v *channelValues) uptime(s Stream) string {
 	if !s.Live {
 		return ""

@@ -22,12 +22,6 @@ type endView struct {
 	LockHeld bool
 }
 
-// TestStoreFaultsDoNotStrandTheRun pins that a write whose ack was lost
-// (it landed) is adopted rather than read as a takeover, that a heartbeat
-// whose ack was lost does not fail the run, and that an ending write the
-// hub refuses for a while is retried until it lands. Each fault is armed
-// from inside verify, the last stage, so it hits the writes that settle and
-// end the run.
 func TestStoreFaultsDoNotStrandTheRun(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -61,9 +55,6 @@ func TestStoreFaultsDoNotStrandTheRun(t *testing.T) {
 	}
 }
 
-// TestOrphanedRunCanBeCancelledOrResumed covers an active run no process
-// drives and whose lock expired: its ending write never landed before the
-// execution stopped. Both verbs used to refuse it as "not stopped".
 func TestOrphanedRunCanBeCancelledOrResumed(t *testing.T) {
 	cases := []struct {
 		name string
@@ -76,7 +67,7 @@ func TestOrphanedRunCanBeCancelledOrResumed(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t).boot()
-			<-h.eng.ready // seeded after boot, so resumeActive never sees it
+			<-h.eng.ready
 			seedInterrupted(t, h.store)
 
 			_, err := tc.verb(h.eng, deploy.RunRequest{RunID: "r1"})
@@ -87,8 +78,6 @@ func TestOrphanedRunCanBeCancelledOrResumed(t *testing.T) {
 	}
 }
 
-// TestDrivenRunIsNotOrphaned pins the other side: a run whose lock another
-// process still heartbeats is refused, since that process drives it.
 func TestDrivenRunIsNotOrphaned(t *testing.T) {
 	h := newHarness(t).boot()
 	<-h.eng.ready
@@ -100,11 +89,6 @@ func TestDrivenRunIsNotOrphaned(t *testing.T) {
 	assert.ErrorIs(t, err, ports.ErrNotResumable)
 }
 
-// TestRestartMidCancelFinishesTheInFlightRollout: the cancel landed while
-// rollout had a service in flight and the pod restarted before rollout
-// reached its safe point. The next driver runs rollout once more, with the
-// cancel already signalled, instead of concluding and leaving the service
-// rolling unwatched.
 func TestRestartMidCancelFinishesTheInFlightRollout(t *testing.T) {
 	h := newHarness(t)
 	now := time.Now()

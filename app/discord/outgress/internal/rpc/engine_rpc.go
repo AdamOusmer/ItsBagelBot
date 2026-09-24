@@ -16,12 +16,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// engineHandleTimeout bounds one channel-management or go-live call: a
-// handful of REST calls at most, so this is generous, matching
-// rpcclient.Client's own client-side timeout on the engine side.
 const engineHandleTimeout = 8 * time.Second
 
-// engineREST is the REST slice engine_rpc.go's handlers need.
 type engineREST interface {
 	CreateChannel(ctx context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error)
 	DeleteChannel(ctx context.Context, ch discapi.Snowflake) error
@@ -34,13 +30,6 @@ type engineREST interface {
 	GetInvite(ctx context.Context, code string) (discapi.Invite, error)
 }
 
-// SubscribeEngine wires the internal channel-management and go-live RPC
-// engine calls for the operations internal/domain/rpc/discordoutgress
-// exists to cover (see that package's doc).
-//
-// errors.Join, not a return on the first failure: main Fatals on any error
-// here, so the only thing an early return changes is that the report names one
-// broken subject instead of all of them.
 func SubscribeEngine(rest engineREST, live kv.LiveStore, wire Wiring) error {
 	h := &engineRPC{rest: rest, live: live, log: wire.Log}
 	at := func(name string) verb { return verb{Name: name, Timeout: engineHandleTimeout} }
@@ -109,12 +98,6 @@ func (h *engineRPC) handleMove(ctx context.Context, req discordoutgress.MemberMo
 	return discordoutgress.MemberMoveReply{}
 }
 
-// handlePurge lists then bulk-deletes: the two REST calls a Command cannot
-// bundle into one (see internal/domain/rpc/discordoutgress's doc). Deleted
-// reports how many ids the list call found and were sent to bulk-delete,
-// even below Discord's 2-message minimum -- the caller (engine's /purge
-// slash handler) is the one that decides whether that count means anything
-// worth telling the moderator.
 func (h *engineRPC) handlePurge(ctx context.Context, req discordoutgress.PurgeRequest) discordoutgress.PurgeReply {
 	msgs, err := h.rest.ListMessages(ctx, discapi.MessageQuery{ChannelID: req.ChannelID, Limit: req.Count})
 	if err != nil {
@@ -133,9 +116,6 @@ func (h *engineRPC) handlePurge(ctx context.Context, req discordoutgress.PurgeRe
 	return discordoutgress.PurgeReply{Deleted: len(ids)}
 }
 
-// handleLiveOnline is discordOnline moved onto the RPC boundary unchanged:
-// a stream already announced (the live-message key still resolves) is a
-// no-op, so a repeat call for the same stream never double-posts.
 func (h *engineRPC) handleLiveOnline(ctx context.Context, req discordoutgress.LiveOnlineRequest) discordoutgress.LiveOnlineReply {
 	if h.live == nil {
 		return discordoutgress.LiveOnlineReply{}
@@ -153,9 +133,6 @@ func (h *engineRPC) handleLiveOnline(ctx context.Context, req discordoutgress.Li
 	return discordoutgress.LiveOnlineReply{}
 }
 
-// handleLiveOffline is discordOffline moved onto the RPC boundary
-// unchanged: a message the streamer deleted (404) is forgotten too, so the
-// stale key is not re-edited on every later offline event.
 func (h *engineRPC) handleLiveOffline(ctx context.Context, req discordoutgress.LiveOfflineRequest) discordoutgress.LiveOfflineReply {
 	if h.live == nil {
 		return discordoutgress.LiveOfflineReply{}
@@ -172,13 +149,6 @@ func (h *engineRPC) handleLiveOffline(ctx context.Context, req discordoutgress.L
 	return discordoutgress.LiveOfflineReply{}
 }
 
-// handleInviteResolve is GET /invites/{code}, classified down to exactly
-// what linkguard needs: a guild id, or NotFound. A 404 (dead code) and a
-// resolved invite with no Guild (a group-DM code) both become NotFound --
-// see InviteResolveReply's doc for why that collapse is safe here. Any
-// other error (network, 5xx, the shared rate-limit bucket) is returned as
-// Error so engine can tell "confirmed no guild" from "could not check" and
-// fail safe on the latter (see linkguard.go's tripIsOwnInvite doc).
 func (h *engineRPC) handleInviteResolve(ctx context.Context, req discordoutgress.InviteResolveRequest) discordoutgress.InviteResolveReply {
 	inv, err := h.rest.GetInvite(ctx, req.Code)
 	if err != nil {

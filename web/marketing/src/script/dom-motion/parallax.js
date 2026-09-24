@@ -1,16 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Page-level parallax. Writes CSS custom properties on the document root that
- * the global stylesheet consumes via `translate` and `transform` on top-level
- * page regions (header/main/section/footer) and on the ornaments frame.
- *
- * The motion is intentionally more pronounced than a subtle micro-interaction:
- * the goal is to make the page feel slightly weightless, drifting against
- * the cursor with a soft 3D tilt.
- */
-
 const PAGE_OFFSET_X = 4;
 const PAGE_OFFSET_Y = 3;
 const PAGE_TILT_X = 0.25;

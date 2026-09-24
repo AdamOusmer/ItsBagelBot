@@ -19,17 +19,10 @@ import (
 )
 
 const (
-	// planReleases is how many releases the rollback picker offers. Older
-	// ones pin images a long-running cluster has moved far past; rolling
-	// back that far is a hand operation.
-	planReleases = 10
-	// tagLookups bounds the concurrent registry tag listings a bump plan
-	// makes, one per first-party image (16 today).
-	tagLookups = 4
+	rollbackPickerReleases   = 10
+	concurrentTagLookupLimit = 4
 )
 
-// Plan gathers what the Deploys page shows before a run. The reads are
-// independent, so they run side by side, each filling its own fields.
 func (e *Engine) Plan(ctx context.Context, _ deploy.Actor, req deploy.PlanRequest) (deploy.Plan, error) {
 	var p deploy.Plan
 	g, gctx := errgroup.WithContext(ctx)
@@ -44,8 +37,6 @@ func (e *Engine) Plan(ctx context.Context, _ deploy.Actor, req deploy.PlanReques
 	return p, nil
 }
 
-// planCluster compares main's pins with what runs and names the release
-// that runs and the services the requested run would roll.
 func (e *Engine) planCluster(ctx context.Context, p *deploy.Plan, req deploy.PlanRequest) error {
 	s, err := e.snapshot(ctx)
 	if err != nil {
@@ -60,8 +51,6 @@ func (e *Engine) planCluster(ctx context.Context, p *deploy.Plan, req deploy.Pla
 	return err
 }
 
-// planHistory reads the last release tag and what main gained since. A
-// repository without a release tag yet plans from nothing.
 func (e *Engine) planHistory(ctx context.Context, p *deploy.Plan) error {
 	gh := e.d.Stage.GitHub
 	tag, err := gh.LatestTag(ctx)
@@ -78,7 +67,7 @@ func (e *Engine) planHistory(ctx context.Context, p *deploy.Plan) error {
 }
 
 func (e *Engine) planReleases(ctx context.Context, p *deploy.Plan) error {
-	rels, err := e.d.Stage.GitHub.Releases(ctx, planReleases)
+	rels, err := e.d.Stage.GitHub.Releases(ctx, rollbackPickerReleases)
 	for _, r := range rels {
 		p.Releases = append(p.Releases, deploy.ReleaseInfo{
 			Version: r.Tag, SHA: commitish(r.TargetCommitish), URL: r.URL, PublishedAt: r.PublishedAt,
@@ -95,8 +84,6 @@ func (e *Engine) planActive(ctx context.Context, p *deploy.Plan) error {
 	return err
 }
 
-// commitish keeps a release target that is a commit. A branch name there
-// ("main") says nothing about which commit the release was cut from.
 func commitish(target string) deploy.SHA {
 	if shaPattern.MatchString(target) {
 		return deploy.SHA(target)
@@ -104,8 +91,6 @@ func commitish(target string) deploy.SHA {
 	return ""
 }
 
-// planServices is every rollout unit in rollout order, or only those that
-// run an image carrying the tag the run pins (see serviceTag).
 func (e *Engine) planServices(ctx context.Context, req deploy.PlanRequest, s snapshot) ([]string, error) {
 	match := serviceTag(req, s.main)
 	if match == nil {
@@ -122,12 +107,6 @@ func (e *Engine) planServices(ctx context.Context, req deploy.PlanRequest, s sna
 	return out, err
 }
 
-// serviceTag picks the tag that marks an image as pinned by the run, or nil
-// when the run rolls every service. A bump pins the main-<ts>-<sha12> tag
-// of main's head: publish-images on a main push builds only what changed,
-// so the tag's presence is what "this image changed" means. A rollback pins
-// the target release's tag and leaves images without that build on their
-// current pin, so only services with such a build change.
 func serviceTag(req deploy.PlanRequest, main deploy.SHA) func(deploy.Tag) bool {
 	switch {
 	case req.Kind == deploy.KindBump:
@@ -139,13 +118,11 @@ func serviceTag(req deploy.PlanRequest, main deploy.SHA) func(deploy.Tag) bool {
 	return nil
 }
 
-// taggedImages returns, per first-party image main pins, whether any of its
-// registry tags matches.
 func (e *Engine) taggedImages(ctx context.Context, s snapshot, match func(deploy.Tag) bool) (map[deploy.ImageName]bool, error) {
 	var mu sync.Mutex
 	built := map[deploy.ImageName]bool{}
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(tagLookups)
+	g.SetLimit(concurrentTagLookupLimit)
 	for _, img := range s.images(e.repo()) {
 		g.Go(func() error {
 			tags, err := e.d.Stage.Registry.Tags(gctx, img)
@@ -162,7 +139,6 @@ func mainBuild(t deploy.Tag, suffix string) bool {
 	return strings.HasPrefix(string(t), "main-") && strings.HasSuffix(string(t), suffix)
 }
 
-// liveRelease is the release the cluster runs and its tag's commit.
 func (e *Engine) liveRelease(ctx context.Context) (deploy.Version, deploy.SHA, error) {
 	s, err := e.snapshot(ctx)
 	if err != nil {
@@ -171,11 +147,6 @@ func (e *Engine) liveRelease(ctx context.Context) (deploy.Version, deploy.SHA, e
 	return e.releaseOf(ctx, s.live)
 }
 
-// releaseOf picks the newest vX.Y.Z-beta tag among the first-party images
-// that run. A bump leaves main-<ts>-<sha> tags beside a release's, and a
-// rollback runs an older release throughout, so the newest release tag is
-// the base the cluster was last released from; its tag commit is an
-// ancestor of every later pin commit, which keeps the acl diff a superset.
 func (e *Engine) releaseOf(ctx context.Context, live []ports.LiveImage) (deploy.Version, deploy.SHA, error) {
 	v := newestRelease(live, e.repo())
 	if v == "" {
@@ -190,16 +161,12 @@ func (e *Engine) releaseOf(ctx context.Context, live []ports.LiveImage) (deploy.
 
 func (e *Engine) repo() imageRepo { return imageRepo(e.d.Stage.Config.ImageRepo) }
 
-// snapshot is main's manifests beside what the cluster runs.
 type snapshot struct {
 	main      deploy.SHA
 	workloads []workload
 	live      []ports.LiveImage
 }
 
-// snapshot builds main's manifests the way the rollout will (namespaces
-// come from the kustomization, not the files) and reads the live images of
-// every workload they declare.
 func (e *Engine) snapshot(ctx context.Context) (snapshot, error) {
 	d := e.d.Stage
 	main, err := d.GitHub.BranchHead(ctx, d.Config.MainBranch)
@@ -223,7 +190,6 @@ func (e *Engine) snapshot(ctx context.Context) (snapshot, error) {
 	return snapshot{main: main, workloads: wls, live: live}, err
 }
 
-// runners names the workloads that run one of images.
 func (s snapshot) runners(images map[deploy.ImageName]bool, r imageRepo) map[string]bool {
 	out := map[string]bool{}
 	for _, w := range s.workloads {
@@ -234,7 +200,6 @@ func (s snapshot) runners(images map[deploy.ImageName]bool, r imageRepo) map[str
 	return out
 }
 
-// images lists the first-party images main pins, each once.
 func (s snapshot) images(r imageRepo) []deploy.ImageName {
 	var out []deploy.ImageName
 	for _, w := range s.workloads {
@@ -244,14 +209,11 @@ func (s snapshot) images(r imageRepo) []deploy.ImageName {
 	return slices.Compact(out)
 }
 
-// workload is one pod-running object in main's manifests and the image
-// each of its containers pins.
 type workload struct {
 	ref    ports.WorkloadRef
 	images map[string]string
 }
 
-// imageNames are the first-party images the workload's containers pin.
 func (w workload) imageNames(r imageRepo) []deploy.ImageName {
 	var out []deploy.ImageName
 	for _, image := range w.images {
@@ -262,7 +224,6 @@ func (w workload) imageNames(r imageRepo) []deploy.ImageName {
 	return out
 }
 
-// podSpecs is where each pod-running kind keeps its pod spec.
 var podSpecs = map[string][]string{
 	"Deployment": {"spec", "template", "spec"},
 	"DaemonSet":  {"spec", "template", "spec"},
@@ -304,8 +265,6 @@ func addImages(images map[string]string, containers []any) {
 	}
 }
 
-// drift lists every running container whose image is not main's pin. A
-// container main does not declare is not drift: nothing pins it.
 func drift(wls []workload, live []ports.LiveImage) []deploy.DriftItem {
 	pinned := make(map[ports.WorkloadRef]map[string]string, len(wls))
 	for _, w := range wls {
@@ -324,7 +283,6 @@ func drift(wls []workload, live []ports.LiveImage) []deploy.DriftItem {
 	return out
 }
 
-// imageRepo parses first-party references, <repo>/<name>:<tag>@<digest>.
 type imageRepo string
 
 func (r imageRepo) parse(image string) (deploy.ImageName, deploy.Tag, bool) {
@@ -363,8 +321,6 @@ func parseVersion(v deploy.Version) (semver, bool) {
 
 func (s semver) less(o semver) bool { return slices.Compare(s[:], o[:]) < 0 }
 
-// nextVersion bumps the patch: the train cuts patch releases, and a minor
-// bump is the operator typing it.
 func nextVersion(v deploy.Version) deploy.Version {
 	s, ok := parseVersion(v)
 	if !ok {

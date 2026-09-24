@@ -1,16 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Builder inspector for one trigger-word rule, the module twin of ReplyEditor,
-  // extended with the two fields a trigger owns: the phrase to watch for and how
-  // it matches. The response reuses the exact command builder surface
-  // (ResponseEditor + its variable palette) and the ChatPreview rehearsal, so a
-  // trigger reply is authored just like a command reply, tokens and all. Here the
-  // rehearsal's viewer types a plain message containing the phrase (no "!"), which
-  // is what actually fires the reply.
-  //
-  // Save/Cancel/Delete are handled by the page so the whole rule list persists in
-  // one place.
   import { Button, Cluster, Field, getI18n } from '@bagel/kit';
   import { focusFirstInvalid } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
@@ -51,8 +41,6 @@
   const effectiveMessage = $derived(message.trim() ? message : DEFAULT_RESPONSE);
   const modeHint = $derived(modes.find((m) => m.value === match)?.hint ?? '');
 
-  // A sample chat line that would fire this rule, shaped per match mode so the
-  // rehearsed viewer message actually triggers the reply.
   const sampleMessage = $derived.by(() => {
     const p = phrase.trim() || t('modules.triggerPhraseExample');
     switch (match) {
@@ -65,9 +53,6 @@
     }
   });
 
-  // Issue #967 exposed the same silent gate as the reward editor: the example
-  // text looked like a value while Save was disabled. Let Save explain what's
-  // missing, associate the feedback with each control, and focus the first one.
   const PHRASE_ERR_ID = 'trigger-phrase-err';
   const RESPONSE_ERR_ID = 'trigger-response-err';
   let attempted = $state(false);
@@ -116,8 +101,6 @@
     />
   </Field>
 
-  <!-- kind="reply": trigger replies expand only {user} plus the dynamic
-       tokens (see app/twitch/sesame/modules/triggers.go firstReply). -->
   <ChatPreview
     kind="reply"
     name=""
@@ -127,16 +110,9 @@
     response={effectiveMessage}
   />
 
-  <!-- Blocks, not a local re-skin. `.rule-btn` was this editor's own drawing
-       of a button (body font, 13px, its own quiet red for Delete) laid ON TOP
-       of `.bb-btn`, so three of its rules reached into the shared contract to
-       undo parts of it. Delete is the destructive variant now and the row is
-       a Cluster: the look changes slightly, the number of button definitions
-       in this repo goes from two to one. -->
   <div class="actions">
   <Cluster gap={3}>
     {#if !isNew}
-      <!-- Only an existing rule can be deleted; a new one is cancelled, not deleted. -->
       <Button variant="destructive" onclick={onDelete} disabled={busy}>{t('common.delete')}</Button>
     {/if}
     <span class="spacer"></span>
@@ -151,9 +127,6 @@
 <style>
   .editor { padding: 4px 2px 2px; }
 
-  /* Composition only. The fields are `Field` blocks, the controls wear
-     `.bb-input` and the buttons are `Button` blocks; what is left here is
-     where this editor's action row sits and how it behaves on a phone. */
   .actions { margin-top: 12px; }
   .spacer { flex: 1; }
 

@@ -1,8 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Community ops: one declared list, one loop. Every row here is a flag, and
-  // the channel each one posts to is picked on the Channels page.
   import { getI18n } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import SwitchRow from '$lib/components/discord/SwitchRow.svelte';

@@ -34,16 +34,7 @@ function assertBotIdentity(identity: BotIdentity): void {
   }
 }
 
-// Twitch redirects the bot account's browser here after consent. Same cookie
-// state check as the operator callback. No admin session is minted for the bot
-// account (it is not staff); the OWNER's session in this browser authorizes the
-// write, and its id is what the users service checks against its staff table.
-// The token is stored under the configured bot id. The callback refuses to
-// exchange or store a token unless ADMIN_BOT_USER_ID is set.
 export const GET: RequestHandler = async ({ url, cookies, locals }) => {
-  // hooks.server.ts already refused a non-owner here; resolving again gives
-  // the actor id the users service needs to authorize token_set, and keeps
-  // this endpoint correct on its own if the hook's prefix list ever changes.
   const owner = await requireRole({ locals }, 'bot.token');
   if (!owner) throw redirect(302, '/auth/bot/done?e=denied');
 

@@ -18,8 +18,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// GiveawayMailer separates durable delivery decisions from template rendering
-// and Resend transport. A prepared body contains no recipient address.
 type GiveawayMailer interface {
 	PrepareGiveaway(mail.GiveawayMessage) (mail.PreparedContent, error)
 	DeliverPrepared(context.Context, mail.Delivery) (mail.Receipt, error)
@@ -171,8 +169,6 @@ func (e *Engine) deliverEmail(ctx context.Context, row *ent.AwardEmail, address 
 	if codec.Unmarshal([]byte(row.ContentJSON), &content) != nil {
 		return e.reviewEmail(ctx, row, "saved email content cannot be recovered")
 	}
-	// Persist ambiguity before the request: a process exit after sending but
-	// before saving the receipt must still observe the original 24-hour window.
 	update := row.Update().SetState("uncertain").SetRecipientHash(recipientHash(address)).AddAttempts(1).SetUpdatedAt(e.now())
 	if row.FirstAttemptAt == nil {
 		update.SetFirstAttemptAt(e.now())
@@ -220,8 +216,6 @@ func (e *Engine) afterEmailAccepted(ctx context.Context, row *ent.AwardEmail) er
 	return nil
 }
 
-// queueConfirmation is replayable, including after a crash between the Users
-// commit and enqueue. Selection must have been accepted first to preserve order.
 func (e *Engine) queueConfirmation(ctx context.Context, awardID string) error {
 	award, err := e.store.DB.GiveawayAward.Get(ctx, awardID)
 	if err != nil || !confirmedAward(award) {

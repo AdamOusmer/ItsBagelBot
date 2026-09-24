@@ -17,18 +17,14 @@ import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
 import { actionError } from '$lib/server/action-errors';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
-// A delegate needs the 'modules' section to be here; a normal login always may.
 function gateModules(session: Session | null | undefined): void {
   if (session?.delegate_of && !(session.sections ?? []).includes('modules')) {
     throw redirect(302, '/');
   }
 }
 
-// Coerce a stored module config blob into a flat string map.
 function asConfig(raw: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (raw && typeof raw === 'object') {
@@ -39,12 +35,6 @@ function asConfig(raw: unknown): Record<string, string> {
   return out;
 }
 
-// Merge the catalog (the modules we expose) with the broadcaster's stored rows.
-// Modules absent from the catalog (system, bagel, ...) are never surfaced, and
-// a delegate's grid drops tiles their grant cannot open (delegateCanOpen).
-// Such a tile would only bounce off the route guard. Owners see everything.
-// A beta module stays listed for a free channel but locked (betaLocked), so
-// the tile can sell the feature rather than hide it.
 function merge(rows: ModuleView[], session: Session | null | undefined, premium: boolean): ModuleState[] {
   const byName = new Map(rows.map((r) => [r.name, r]));
   return MODULE_CATALOG.filter((def) => catalogIndexable(def) && delegateCanOpen(def, session)).map((def) => {
@@ -58,8 +48,6 @@ function merge(rows: ModuleView[], session: Session | null | undefined, premium:
   });
 }
 
-// Tiles read state for the status + quick toggle; each module's own page owns the
-// reply builder and per-reply toggles.
 export const load: PageServerLoad = async ({ locals }) => {
   gateModules(locals.session);
   const uid = effectiveId(locals.session);
@@ -72,11 +60,6 @@ export const load: PageServerLoad = async ({ locals }) => {
   }
 };
 
-// resolveToggle gates the tile toggle against the module it actually names.
-// Rejections come back as `denied` for the action to hand straight back.
-// gateModules only proves the 'modules' section, so the per-module check
-// matters here: channel points is its own delegation grant and would
-// otherwise flip through this generic toggle.
 type ToggleTarget = { denied: ReturnType<typeof fail> } | { uid: string };
 
 async function resolveToggle(name: string, locals: App.Locals): Promise<ToggleTarget> {
@@ -88,9 +71,6 @@ async function resolveToggle(name: string, locals: App.Locals): Promise<ToggleTa
   return { uid: effectiveId(session) };
 }
 
-// The prologue the tile toggle shares with every other module write: section
-// gate, auth check, form parse. DEMO runs without a session (the action
-// short-circuits before the store call).
 async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
   gateModules(locals.session);
   if (!DEMO && !locals.session) return null;
@@ -98,7 +78,6 @@ async function actionContext({ request, locals }: { request: Request; locals: Ap
 }
 
 export const actions: Actions = {
-  // Quick tile on/off: flips enabled while preserving the stored config.
   toggle: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return fail(401, { ok: false, error: actionError(event.locals.locale, 'Not signed in.') });
@@ -115,12 +94,7 @@ export const actions: Actions = {
   }
 };
 
-// flipModule writes the enable flag, preserving the stored config. The tile
-// only flips enabled: re-read the stored config and write it back untouched.
-// Never rebuild it from the tile form: the page flattens every config value
-// to a string for its reply inputs, which would corrupt the nested blobs some
-// modules own (channel-points rewards, timers) into "[object Object]" and wipe
-// them on a toggle.
+// Write the stored config back untouched: rebuilding it from the form stringifies nested blobs.
 async function flipModule(
   flip: { name: string; uid: string; enabled: boolean },
   session: Session | null | undefined
@@ -128,8 +102,6 @@ async function flipModule(
   const { name, uid, enabled } = flip;
   try {
     await setModuleEnabled(uid, name, enabled);
-    // Nested games cannot outlive their parent: flipping loyalty off from
-    // this tile must clear gamble/duel too, matching the loyalty page toggle.
     if (!enabled) await disableChildren(uid, name);
   } catch (e) {
     logger.error({ err: e }, `[modules] toggle ${name} failed`);

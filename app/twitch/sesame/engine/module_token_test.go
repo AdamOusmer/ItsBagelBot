@@ -19,10 +19,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// stubQuotes answers the two read verbs the token family uses from a fixture
-// and counts them, so both the rendered span and the fan-out are pinned. Every
-// mutating verb stays on the nil embedded interface: reaching one from the
-// token path would panic the test, which is the assertion.
 type stubQuotes struct {
 	QuotesStore
 	random []modulesrpc.Quote
@@ -46,7 +42,6 @@ func (s *stubQuotes) QuoteGet(_ context.Context, _, number uint64) (modulesrpc.Q
 	return quote, found, s.err
 }
 
-// stubGossip answers the spotify nowplaying endpoint from a fixture.
 type stubGossip struct {
 	reply gossiprpc.SpotifyNowPlayingReply
 	err   error
@@ -61,8 +56,6 @@ func (s *stubGossip) Call(_ context.Context, route GossipRoute, _ gossiprpc.Requ
 	return s.err
 }
 
-// peekLoyalty answers CounterPeek from a fixture and records every bump, so a
-// read-only token that bumped anything fails the test.
 type peekLoyalty struct {
 	LoyaltyStore
 	values map[string]int64
@@ -81,8 +74,6 @@ func (f *peekLoyalty) CounterBump(_ context.Context, b CounterBump) (int64, erro
 	return 43, nil
 }
 
-// moduleFixture is one channel's wiring for the module-fact tokens: which
-// modules are on, and which readers answer them.
 type moduleFixture struct {
 	response string
 	modules  map[string]projection.ModuleView
@@ -91,8 +82,6 @@ type moduleFixture struct {
 	loyalty  LoyaltyStore
 }
 
-// timeOn is the module row a broadcaster gets after setting a timezone and a
-// clock face on the Local Time module page.
 func timeOn(tz, format string) projection.ModuleView {
 	return projection.ModuleView{IsEnabled: true, Configs: []byte(`{"timezone":"` + tz + `","format":"` + format + `"}`)}
 }
@@ -127,16 +116,12 @@ func playing(title string, artists ...string) gossiprpc.SpotifyNowPlayingReply {
 	}
 }
 
-// moduleCase is one row of the tables below: a template, the module rows the
-// channel has, and the line chat sees.
 type moduleCase struct {
 	name    string
 	fixture moduleFixture
 	want    string
 }
 
-// runModuleCases expands each row's template through a pipeline built from its
-// fixture, so every table asserts on the one path a real !brag takes.
 func runModuleCases(t *testing.T, cases []moduleCase) {
 	t.Helper()
 	for _, tc := range cases {
@@ -146,9 +131,6 @@ func runModuleCases(t *testing.T, cases []moduleCase) {
 	}
 }
 
-// TestQuoteAndTimeTokensExpandThroughTheModuleGates covers the two tokens
-// whose value comes from the module's own row: the saved quote and the
-// configured clock.
 func TestQuoteAndTimeTokensExpandThroughTheModuleGates(t *testing.T) {
 	runModuleCases(t, []moduleCase{
 		{
@@ -214,9 +196,6 @@ func TestQuoteAndTimeTokensExpandThroughTheModuleGates(t *testing.T) {
 	})
 }
 
-// TestSongTokensExpandThroughTheModuleGate covers the now-playing family,
-// which reads an upstream over gossip and therefore has one more way to say
-// nothing than the rest.
 func TestSongTokensExpandThroughTheModuleGate(t *testing.T) {
 	runModuleCases(t, []moduleCase{
 		{
@@ -258,10 +237,6 @@ func TestSongTokensExpandThroughTheModuleGate(t *testing.T) {
 	})
 }
 
-// TestCounterReadTokensExpandThroughTheModuleGate covers the read-only counter
-// spans, which are gated by the loyalty store being wired rather than by a
-// module row, and the mixed template that pins an unknown token staying
-// literal beside a resolved one.
 func TestCounterReadTokensExpandThroughTheModuleGate(t *testing.T) {
 	runModuleCases(t, []moduleCase{
 		{
@@ -299,9 +274,6 @@ func TestCounterReadTokensExpandThroughTheModuleGate(t *testing.T) {
 	})
 }
 
-// The clock renders on the face the module configures, in the zone it names.
-// Asserted as a shape rather than against a pinned instant: the value is the
-// wall clock, and pinning it would fail once a minute.
 func TestTimeTokenRendersTheConfiguredClockFace(t *testing.T) {
 	twelve := modulePipeline(t, moduleFixture{
 		response: "it is {time} here",
@@ -316,17 +288,11 @@ func TestTimeTokenRendersTheConfiguredClockFace(t *testing.T) {
 	assert.Regexp(t, `^it is [0-2][0-9]:[0-5][0-9] here$`, expandViewer(t, twentyFour, "!brag"))
 }
 
-// {time:<place>} needs no Local Time enrollment at all: a channel that never
-// touched the module still resolves a place, on the 12-hour default face —
-// the same answer !time <place> already gives.
 func TestTimePlaceTokenAnswersUngated(t *testing.T) {
 	p := modulePipeline(t, moduleFixture{response: "it is {time:Tokyo} in Tokyo"})
 	assert.Regexp(t, `^it is ([1-9]|1[0-2]):[0-5][0-9] (AM|PM) in Tokyo$`, expandViewer(t, p, "!brag"))
 }
 
-// The payload form renders on whichever clock face the broadcaster already
-// picked, read from the same row the bare form uses — even with the module
-// off, since the face is a plain preference, not an enrollment.
 func TestTimePlaceTokenUsesTheConfiguredClockFace(t *testing.T) {
 	p := modulePipeline(t, moduleFixture{
 		response: "it is {time:Tokyo}",
@@ -335,15 +301,11 @@ func TestTimePlaceTokenUsesTheConfiguredClockFace(t *testing.T) {
 	assert.Regexp(t, `^it is [0-2][0-9]:[0-5][0-9]$`, expandViewer(t, p, "!brag"))
 }
 
-// A place tzname cannot resolve renders empty (its fallback speaks), never
-// the broadcaster's own home time.
 func TestTimePlaceTokenRendersAnUnknownPlaceAsEmpty(t *testing.T) {
 	p := modulePipeline(t, moduleFixture{response: "{time:nowhere|unknown place}"})
 	assert.Equal(t, "unknown place", expandViewer(t, p, "!brag"))
 }
 
-// Past MaxTimePlaces a distinct place renders empty rather than a repeat or
-// a literal span.
 func TestTimePlaceTokenCapsDistinctPlaces(t *testing.T) {
 	p := modulePipeline(t, moduleFixture{response: "{time:tokyo}|{time:paris}|{time:cairo}|{time:lima}"})
 	got := expandViewer(t, p, "!brag")
@@ -355,8 +317,6 @@ func TestTimePlaceTokenCapsDistinctPlaces(t *testing.T) {
 	assert.Empty(t, parts[3], "the fourth distinct place is past the cap")
 }
 
-// A timezone the tz database does not know reads as an unset one: the module
-// is on, so the span resolves empty and its fallback speaks.
 func TestTimeTokenRendersAnUnknownZoneAsEmpty(t *testing.T) {
 	p := modulePipeline(t, moduleFixture{
 		response: "it is {time|anyone's guess}",
@@ -365,8 +325,6 @@ func TestTimeTokenRendersAnUnknownZoneAsEmpty(t *testing.T) {
 	assert.Equal(t, "it is anyone's guess", expandViewer(t, p, "!brag"))
 }
 
-// Two bare {quote} spans are two independent draws, planned before a byte is
-// rendered — the pinned decision, asserted end to end.
 func TestQuoteTokenDrawsIndependentlyPerSpan(t *testing.T) {
 	quotes := &stubQuotes{random: []modulesrpc.Quote{quoteAt(1, "first"), quoteAt(2, "second")}}
 	p := modulePipeline(t, moduleFixture{
@@ -380,8 +338,6 @@ func TestQuoteTokenDrawsIndependentlyPerSpan(t *testing.T) {
 	assert.Equal(t, 2, quotes.draws)
 }
 
-// A template naming one quote number twice costs one read; the {song} family
-// costs one gossip call however many spellings it uses.
 func TestModuleTokensFanOutOncePerFamily(t *testing.T) {
 	quotes := &stubQuotes{byNum: map[uint64]modulesrpc.Quote{7: quoteAt(7, "hi")}}
 	gossip := &stubGossip{reply: playing("Bagel Song", "The Ovens")}
@@ -401,8 +357,6 @@ func TestModuleTokensFanOutOncePerFamily(t *testing.T) {
 	assert.Equal(t, spotifyNowPlaying, gossip.calls[0])
 }
 
-// A template naming none of these tokens reads no module row at all: the
-// mounting is driven by the lexed template, not by what is wired.
 func TestModuleTokensReadNoModuleRowWhenUnused(t *testing.T) {
 	quotes := &stubQuotes{}
 	gossip := &stubGossip{}
@@ -413,10 +367,6 @@ func TestModuleTokensReadNoModuleRowWhenUnused(t *testing.T) {
 	assert.Empty(t, gossip.calls)
 }
 
-// counter and count are read aliases of the same value: naming a counter
-// twice in one template, once with each spelling, costs one lookup and never
-// bumps. {counter:x} stopped writing when the write moved to the command-run
-// "bump a counter" option (ent/schema/commands.go's bump_counter field).
 func TestCounterAndCountAreReadAliasesOfOneLookup(t *testing.T) {
 	loyalty := &peekLoyalty{values: map[string]int64{"deaths": 42}}
 	p := modulePipeline(t, moduleFixture{
@@ -429,7 +379,6 @@ func TestCounterAndCountAreReadAliasesOfOneLookup(t *testing.T) {
 	assert.Empty(t, loyalty.bumps, "a template read never bumps")
 }
 
-// Reading a counter writes nothing, ever.
 func TestReadOnlyCounterNeverBumps(t *testing.T) {
 	loyalty := &peekLoyalty{values: map[string]int64{"deaths": 42}}
 	p := modulePipeline(t, moduleFixture{response: "{count:deaths} {count:deaths}", loyalty: loyalty})

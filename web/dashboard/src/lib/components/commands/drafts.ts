@@ -1,12 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// sessionStorage-backed command drafts: the editor mirrors work-in-progress
-// here so a stray navigation or refresh can't eat it; the list shows an
-// "unsaved" chip for rows with a lingering draft and restores it on reopen.
 import type { Perm } from '@bagel/kit';
 
-// The editor's working copy of one command (create + edit share the shape).
 export interface CommandDraft {
   edit: boolean;
   name: string;
@@ -16,14 +12,9 @@ export interface CommandDraft {
   perm: Perm;
   cooldown: number;
   allowed_user_id: string;
-  // Name of a loyalty counter this command bumps by one on every successful
-  // run; '' means it bumps nothing.
   bump_counter: string;
   stream_online_only: boolean;
   is_active: boolean;
-  // Set for a built-in command: the inspector renders a read-only preview +
-  // toggle instead of the editable form. Built-ins are never persisted as
-  // drafts.
   builtin?: boolean;
 }
 
@@ -45,9 +36,7 @@ export function loadDraft(originalName: string, edit: boolean): CommandDraft | n
 export function clearDraft(originalName: string, edit: boolean): void {
   try {
     sessionStorage.removeItem(draftKey(originalName, edit));
-  } catch {
-    /* best-effort */
-  }
+  } catch {}
 }
 
 export function hasDraft(originalName: string): boolean {

@@ -17,9 +17,7 @@ type giftData struct {
 	NoteLabel string
 }
 
-// giftMessageHTML escapes the buyer's note for the HTML email and keeps line
-// breaks as <br>. The result is a template.HTML so the template inserts it
-// verbatim — escaping must happen here, never rely on the note being safe.
+// giftMessageHTML must escape here: the template inserts the result verbatim.
 func giftMessageHTML(msg string) template.HTML {
 	escaped := template.HTMLEscapeString(msg)
 	escaped = strings.ReplaceAll(escaped, "\n", "<br>")

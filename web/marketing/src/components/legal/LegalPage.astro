@@ -2,14 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * LegalPage: assembles one legal document from its content collection. Given a
- * `doc` ('terms' | 'privacy' | 'creator-terms'), it loads the meta.json and the
- * NN-<anchor>.md sections for the URL's locale, rendering each section body to a
- * Content component for LegalShell. A locale with no sections falls back to the
- * default locale (with a build-time warning); the build never fails on a missing
- * translation.
- */
 import Layout from '../../layouts/Layout.astro';
 import PageHero from '@bagel/ui/astro/PageHero.astro';
 import LegalShell from './LegalShell.astro';
@@ -42,7 +34,6 @@ const metaEntry =
 if (!metaEntry) throw new Error(`[legal] missing meta for ${doc}`);
 const meta = metaEntry.data;
 
-// Recover each section's stable anchor from its filename (strip "doc/loc/NN-").
 const prefix = `${doc}/${localeUsed}/`;
 const sections = await Promise.all(
     sectionEntries.map(async (entry) => {

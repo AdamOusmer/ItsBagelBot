@@ -5,16 +5,6 @@
 
 package engine
 
-// allocCeiling is the per-Process allocation limit used by
-// TestProcessNoOutputAllocCeiling.  The race detector instruments sync.Pool and
-// context operations, adding 2-3 allocations that do not exist in production
-// builds.  The wider ceiling keeps the test useful as a structural regression
-// guard without flaking under -race.
 const allocCeiling = 16.0
 
-// allocViewsCeiling bounds the automod-wired shape of the same hot path
-// (TestProcessWithViewsAllocCeiling). Measured at 15 allocs/op under -race
-// after the ModuleView map moved into viewsPool (race instrumentation adds one
-// over the non-race 12, M1 Pro, 2026-08-22); the extra headroom mirrors
-// allocCeiling's treatment of detector noise.
 const allocViewsCeiling = 17.0

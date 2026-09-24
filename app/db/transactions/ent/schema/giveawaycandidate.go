@@ -11,7 +11,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// GiveawayCandidate is the frozen eligibility evidence supplied by Users.
 type GiveawayCandidate struct{ ent.Schema }
 
 func (GiveawayCandidate) Fields() []ent.Field {

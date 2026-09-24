@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// StreamElements: the channel JWT the user pastes is posted on the form and
-// fetched with server-side (kappa v2), then translated by the shared parser.
 import { fetchStreamElements, parseStreamElements } from '@bagel/kit/importer/streamelements';
 import { CODE } from '@bagel/kit/importer/validate';
 import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';

@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package tebex is the minimal Tebex Headless API client the checkout RPC
-// needs: create a basket carrying the buyer's user id and put the premium
-// package in it. Everything else (payment, receipts, subscription state)
-// stays on Tebex's side and comes back through the webhook.
 package tebex
 
 import (
@@ -24,27 +20,15 @@ import (
 const DefaultBaseURL = "https://headless.tebex.io"
 
 type Config struct {
-	// WebstoreToken is the public Headless API token (Tebex webstore identifier).
-	WebstoreToken string
-	// PrivateKey is the Headless API private key. When set, backend-created
-	// baskets use HTTP Basic auth (public token as username, private key as
-	// password) so Tebex accepts the customer's IPv4 address.
-	PrivateKey string
-	// IncludeUsername sends the store/customer username at Tebex's top level.
-	// Minecraft/Overwolf stores require it; Universal stores reject it. Twitch
-	// account attribution for ItsBagelBot does not depend on this field because
-	// user_id/username are always carried in the custom payload.
+	WebstoreToken   string
+	PrivateKey      string
 	IncludeUsername bool
-	// PackageID is the premium package to place in every basket.
-	PackageID int
-	// PackageType is "subscription" or "single"; premium is a monthly
-	// subscription so that is the default.
-	PackageType string
-	// CompleteURL / CancelURL are where hosted checkout returns the browser.
-	CompleteURL string
-	CancelURL   string
-	BaseURL     string
-	HTTPClient  *http.Client
+	PackageID       int
+	PackageType     string
+	CompleteURL     string
+	CancelURL       string
+	BaseURL         string
+	HTTPClient      *http.Client
 }
 
 type Client struct {
@@ -56,7 +40,6 @@ type Basket struct {
 	CheckoutURL string
 }
 
-// basketData is the shared shape of the Headless API's basket envelope.
 type basketData struct {
 	Data struct {
 		Ident string      `json:"ident"`
@@ -64,11 +47,6 @@ type basketData struct {
 	} `json:"data"`
 }
 
-// basketLinks accepts both Tebex shapes seen in production/docs:
-//   - {"checkout":"https://pay.tebex.io/..."} once a package is in the basket
-//   - [] on a freshly created basket before packages have been added
-//
-// Some API surfaces also model links as rel/href arrays, so tolerate that too.
 type basketLinks struct {
 	Checkout string
 }
@@ -149,28 +127,17 @@ func New(cfg Config) (*Client, error) {
 	return &Client{cfg: cfg}, nil
 }
 
-// BasketSpec names who the entitlement lands on (UserID/Username) and, for
-// gifts, who pays (GiftedByID/GiftedByLogin). For a self-purchase the gifted-by
-// fields stay zero.
 type BasketSpec struct {
 	UserID        uint64
 	Username      string
 	IPAddress     string
 	GiftedByID    uint64
 	GiftedByLogin string
-	// PackageType overrides Config.PackageType for this basket ("single" buys
-	// one period one-time, "subscription" auto-renews). Empty uses the config.
-	PackageType string
-	// GiftMessage is the buyer's optional personal note. Carried in the basket
-	// custom payload (gift baskets only) so the webhook can put it in the
-	// recipient's gift email. Already sanitized/capped by the caller.
-	GiftMessage string
+	PackageType   string
+	GiftMessage   string
 }
 
-// CreateBasket mints a basket and adds the premium package. The recipient's
-// user id rides in the basket's custom payload, which Tebex echoes back on the
-// payment webhook — that is the whole attribution chain; gifted_by is carried
-// alongside for the gift notification and the audit trail.
+// Tebex echoes the custom payload on the payment webhook: it is the whole attribution chain.
 func (c *Client) CreateBasket(ctx context.Context, spec BasketSpec) (Basket, error) {
 
 	custom := map[string]string{
@@ -255,8 +222,6 @@ func (c *Client) post(ctx context.Context, path string, payload any, out any) er
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Cap the read: Tebex baskets are small, and an error body only needs enough
-	// bytes to be diagnosable.
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return err

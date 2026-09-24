@@ -18,7 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeRep records Bumps and serves configurable Scores.
 type fakeRep struct {
 	mu     sync.Mutex
 	bumps  map[string]int
@@ -44,16 +43,10 @@ func TestEscalateByReputation(t *testing.T) {
 	assert.Equal(t, automod.ActionBan, escalateByReputation(timeout, repEscalateThreshold).Action)
 	assert.Equal(t, automod.ActionTimeout, escalateByReputation(timeout, repEscalateThreshold-1).Action)
 
-	// A non-timeout verdict is never escalated by reputation.
 	del := automod.Verdict{Action: automod.ActionDelete, Rule: "heuristic"}
 	assert.Equal(t, automod.ActionDelete, escalateByReputation(del, 99).Action)
 }
 
-// Strikes now require an enforceable hostile verdict, so the fan-out test
-// arms enforcement and uses raid text: a benign or unenforced fold bumps nobody.
-// Rationale for the changed expectation: strikes used to accrue before the
-// verdict existed at all — even benign copypasta folds built repeat-offender
-// records that later escalated punishments nobody had served.
 func TestCohortFansOutReputationPerSender(t *testing.T) {
 	rep := newFakeRep()
 	d := Deps{
@@ -82,8 +75,6 @@ func TestCohortFansOutReputationPerSender(t *testing.T) {
 	assert.Equal(t, 1, rep.bumps["b"])
 }
 
-// A hostile fold only builds strikes when its punishment will actually be
-// served: shadow mode and clean copypasta folds both leave scores untouched.
 func TestCohortStrikesRequireEnforcedVerdict(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -116,9 +107,6 @@ func TestCohortStrikesRequireEnforcedVerdict(t *testing.T) {
 	}
 }
 
-// Shadow-mode single-chatter verdicts are logged but must not score the
-// chatter: arming enforcement day one would otherwise inherit escalated
-// punishments from un-actioned history.
 func TestShadowSingleChatterDoesNotBumpReputation(t *testing.T) {
 	rep := newFakeRep()
 	pub := &fakePublisher{}
@@ -137,7 +125,7 @@ func TestShadowSingleChatterDoesNotBumpReputation(t *testing.T) {
 
 func TestReputationEscalatesTimeoutToBan(t *testing.T) {
 	rep := newFakeRep()
-	rep.scores["999"] = repEscalateThreshold + 2 // a repeat offender
+	rep.scores["999"] = repEscalateThreshold + 2
 
 	pub := &fakePublisher{}
 	d := Deps{

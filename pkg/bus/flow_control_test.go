@@ -43,9 +43,6 @@ func TestIdleHeartbeatIsAnsweredOnlyWhileStalled(t *testing.T) {
 	if response == nil || response.Subject != "$JS.FC.TWITCH_INGRESS.worker_premium.stall" {
 		t.Fatalf("stalled heartbeat response = %#v", response)
 	}
-	// The server reports what it sent, not what arrived. Answering with the
-	// server's cursor would advance the replicated ack floor past deliveries
-	// this process never received.
 	if response.Header.Get(lastConsumerHeader) != "42" || response.Header.Get(lastStreamHeader) != "99" {
 		t.Fatalf("stalled response used the server cursor: %#v", response.Header)
 	}
@@ -55,8 +52,6 @@ func TestFlowControlIsAnsweredBeforeAnyDelivery(t *testing.T) {
 	control := flowStatus("FlowControl Request")
 	control.Reply = "$JS.FC.TWITCH_INGRESS.worker_premium.abcd"
 
-	// The window only reopens on the response arriving, so an empty cursor must
-	// still answer — it simply claims no ack floor.
 	response := flowControlResponse(control, flowPosition{})
 	if response == nil {
 		t.Fatal("empty cursor produced no response")
@@ -71,7 +66,6 @@ func TestReceiptCursorTracksTheStreamSequence(t *testing.T) {
 	if !cursor.record(10, 100) {
 		t.Fatal("first sample was refused")
 	}
-	// Stale samples inside the same session never move the floor backwards.
 	if cursor.record(4, 40) {
 		t.Fatal("a stale sample advanced the cursor")
 	}
@@ -87,9 +81,6 @@ func TestReceiptCursorSurvivesAConsumerSequenceReset(t *testing.T) {
 	cursor := &flowCursor{}
 	cursor.record(5_000_000, 9_000_000)
 
-	// A delete + recreate restarts the consumer sequence at 1 while the stream
-	// sequence keeps climbing. Gating on the consumer sequence would reject every
-	// delivery of the new session forever.
 	if !cursor.record(1, 9_000_001) {
 		t.Fatal("the recreated consumer's first delivery was refused")
 	}
@@ -97,8 +88,6 @@ func TestReceiptCursorSurvivesAConsumerSequenceReset(t *testing.T) {
 		t.Fatalf("cursor after reset = %+v", got)
 	}
 
-	// A recreation at an earlier start sequence moves both coordinates back: the
-	// backwards jump in consumer sequence is the server's own reset signature.
 	rewound := &flowCursor{}
 	rewound.record(5_000_000, 9_000_000)
 	if !rewound.record(2, 12) {
@@ -120,7 +109,6 @@ func TestReceiptCursorResetsOnSelfInitiatedRecreate(t *testing.T) {
 
 func TestStatusHandlingNeverWaitsOnTheDataPath(t *testing.T) {
 	sub := testFlowSubscriber()
-	// One slot, no pump: the data path is as blocked as a saturated routine pool.
 	sub.queue = make(chan flowDelivery, 1)
 
 	done := make(chan struct{})
@@ -140,9 +128,6 @@ func TestStatusHandlingNeverWaitsOnTheDataPath(t *testing.T) {
 	}
 }
 
-// The queue must clear the server's own brake, and that brake is the byte
-// window, not MaxAckPending: 32 MiB of ~865 B deliveries ramps to ~38k messages
-// in flight, so a queue cut at 20k drops deliveries during healthy delivery.
 func TestReceiptQueueIsSizedOffTheFlowControlByteWindow(t *testing.T) {
 	if flowQueueDepth != flowControlPendingBytes/flowWireBytesFloor {
 		t.Fatalf("queue depth %d is no longer derived from the byte window", flowQueueDepth)
@@ -159,9 +144,6 @@ func TestReceiptQueueIsSizedOffTheFlowControlByteWindow(t *testing.T) {
 	}
 }
 
-// The server heartbeats a STALLED consumer forever, so heartbeat silence can
-// never expose an unanswered flow-control conversation: lastControl stays fresh
-// while delivery is frozen. The streak is the only signal that survives that.
 func TestStalledHeartbeatStreakIsReportedAsAWedge(t *testing.T) {
 	sub := testFlowSubscriber()
 
@@ -177,8 +159,6 @@ func TestStalledHeartbeatStreakIsReportedAsAWedge(t *testing.T) {
 		t.Fatalf("wedged counter = %d after %d consecutive stalls, want 1",
 			sub.wedged.Load(), flowWedgeStreak)
 	}
-	// Reported, never repaired: recreating the consumer cannot grant a denied
-	// $JS.FC publish permission, and would churn the lane once a second.
 	if sub.recovering.Load() {
 		t.Fatal("a wedge triggered a consumer re-provision")
 	}
@@ -201,8 +181,6 @@ func TestADeliveryClearsTheWedgeStreak(t *testing.T) {
 	}
 }
 
-// An unstalled heartbeat is the healthy case and must not accumulate anything:
-// the server sends one every second for the life of a quiet lane.
 func TestQuietHeartbeatsNeverAccumulateAWedge(t *testing.T) {
 	sub := testFlowSubscriber()
 	for i := 0; i < 4*flowWedgeStreak; i++ {
@@ -226,8 +204,6 @@ func TestHeartbeatSilenceIsWhatDetectsADeletedConsumer(t *testing.T) {
 
 func TestStatusesOtherThanControlNeverReprovision(t *testing.T) {
 	sub := testFlowSubscriber()
-	// 2.14.3 publishes nothing but 100-class control messages to a push delivery
-	// subject, so a 409 here is noise and must not destroy the binding.
 	deleted := flowStatus("Consumer Deleted")
 	deleted.Header.Set(statusHeader, "409")
 	sub.handleStatus(deleted, "409")
@@ -238,7 +214,6 @@ func TestStatusesOtherThanControlNeverReprovision(t *testing.T) {
 }
 
 func TestDeliveryGapIsBoundedByTheAckWindow(t *testing.T) {
-	// Everything inside MaxAckPending is legitimately in flight.
 	if deliveriesWereLost(flowMaxAckPending, 0) {
 		t.Fatal("a full in-flight window was reported as loss")
 	}
@@ -254,9 +229,6 @@ func flowStatus(description string) *nats.Msg {
 	return control
 }
 
-// stalledFlowStatus is the heartbeat a server sends while it is holding the
-// delivery window shut: the stalled marker carries the flow-control id the
-// response has to go to.
 func stalledFlowStatus() *nats.Msg {
 	stalled := flowStatus("Idle Heartbeat")
 	stalled.Header.Set(consumerStalledHeader, "$JS.FC.TWITCH_INGRESS.worker_standard.stall")

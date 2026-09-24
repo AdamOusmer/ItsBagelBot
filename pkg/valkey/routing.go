@@ -9,8 +9,6 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// Do sends read-only commands to the local instance and everything else to the
-// primary via Sentinel.
 func (c *Client) Do(ctx context.Context, cmd valkey_go.Completed) valkey_go.ValkeyResult {
 	return c.do(ctx, cmd, false, false)
 }
@@ -25,8 +23,6 @@ func (c *Client) do(ctx context.Context, cmd valkey_go.Completed, primary, throu
 	}, classifyValkeyResult)
 }
 
-// DoMulti sends a batch to the local instance only when every command is
-// read-only; any write in the batch routes the whole batch to the primary.
 func (c *Client) DoMulti(ctx context.Context, multi ...valkey_go.Completed) []valkey_go.ValkeyResult {
 	return c.doMulti(ctx, multi, false)
 }
@@ -73,38 +69,18 @@ func allReadOnly(multi []valkey_go.Completed) bool {
 	return true
 }
 
-// Primary returns a lightweight borrowed view whose commands are routed to the
-// Sentinel-elected primary. It shares the original client's connections and
-// telemetry. Closing the view is a no-op; the source client owns the shared
-// connection lifecycle.
-//
-// Primary consistency is available for clients created by this package. A
-// foreign valkey-go Client is delegated to unchanged because its native
-// replica-routing policy cannot be overridden after construction.
 func Primary(client valkey_go.Client) valkey_go.Client {
 	return clientViewFor(client, true, false)
 }
 
-// Throughput returns a lightweight borrowed view that opts single write
-// commands into valkey-go auto-pipelining with Completed.ToPipe. Node-local
-// reads already auto-pipeline, while primary reads remain on the consistency
-// and latency path. Explicit DoMulti calls retain their existing batch and
-// routing semantics. No additional pool or connection is created.
 func Throughput(client valkey_go.Client) valkey_go.Client {
 	return clientViewFor(client, false, true)
 }
 
-// PrimaryThroughput combines primary-consistent routing with the selective
-// single-command throughput policy of Throughput, using the same client pool.
 func PrimaryThroughput(client valkey_go.Client) valkey_go.Client {
 	return clientViewFor(client, true, true)
 }
 
-// IsPrimary reports whether client routes its read-only commands to the
-// Sentinel-elected primary rather than the node-local replica. Stores that
-// read back their own writes assert this on the client they were built with,
-// so dropping a Primary wrap during a refactor fails a test instead of
-// silently reintroducing replica-lag staleness.
 func IsPrimary(client valkey_go.Client) bool {
 	view, ok := client.(*clientView)
 	return ok && view.primary
@@ -149,6 +125,4 @@ func (v *clientView) DoMulti(ctx context.Context, multi ...valkey_go.Completed) 
 	return v.Client.DoMulti(ctx, multi...)
 }
 
-// Close is intentionally a no-op: clientView borrows the source client's
-// connection pools and must not invalidate other users of that source.
 func (v *clientView) Close() {}

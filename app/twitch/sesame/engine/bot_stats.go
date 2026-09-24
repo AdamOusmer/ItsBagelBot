@@ -16,62 +16,21 @@ import (
 )
 
 const (
-	// botStatsFlushInterval is how often the two totals are handed to the
-	// loyalty reporter, which batches again before it publishes. Short because
-	// the flush costs two Bump calls regardless of how much traffic it folds.
 	botStatsFlushInterval = 2 * time.Second
 
-	// The counter names, read back by the dashboard through counter.get under
-	// the reserved broadcaster-0 namespace (fleet totals) and through
-	// counter.board across broadcasters (the per-channel split). The loyalty
-	// service's bump flush creates the rows on first use, so neither needs a
-	// counter.create; it also treats both names as system-owned, so a channel
-	// cannot rewrite its own row.
 	counterMessagesProcessed = data.CounterMessagesProcessed
 	counterEventsProcessed   = data.CounterEventsProcessed
 
-	// The Overview's per-stream panel reads these two the same way it reads
-	// messages_processed: a lifetime channel-scope total, minus the baseline
-	// snapshotted when the stream went live. Both are system-owned, so a
-	// channel cannot rewrite its own row.
 	counterCommandsAnswered = data.CounterCommandsAnswered
 	counterModActions       = data.CounterModActionsTaken
 
-	// channelStatsFlushTicks is how many flush intervals the per-channel split
-	// waits before it is published: 15 ticks, so every 30s. It rides a slower
-	// clock than the fleet totals on purpose. The fleet pair is two counter
-	// bumps whatever the traffic, but the split is two per *active channel*, and
-	// each broadcaster's bumps leave the reporter as their own NATS message —
-	// at the 2s cadence a few hundred live channels would turn a two-message
-	// flush into a few hundred. The board it feeds is a lifetime ranking behind
-	// a 15s page cache, so 30s of batching costs it nothing and cuts the
-	// publish volume 15x. The counts themselves are unaffected: a longer window
-	// folds more deltas into the same row.
 	channelStatsFlushTicks = 15
 
-	// channelStatsMaxKeys bounds the per-channel tally held between two
-	// flushes. The fleet serves far fewer live channels than this in any
-	// window, so the cap is a memory backstop against a pathological fan-out
-	// (or a bug that mints broadcaster ids), not a working limit: a channel
-	// turned away by a full map is simply counted in the next window.
 	channelStatsMaxKeys = 4096
 
-	// flagRuleSlotCap bounds the per-rule flag buckets at ~24 slots. Only
-	// bktCount are used today; the rest is headroom so adding a rule never
-	// grows the structure dynamically — the bucket set is closed over the
-	// constants below, and anything unrecognized folds into "other".
 	flagRuleSlotCap = 24
 )
 
-// flagRule is the verdict rule string the automod emits (gate.go's
-// heuristicVerdict/blockTermVerdict, lexVerdict's "lex:<cat>:<term>" prefixes,
-// moderate.go's council/reputation suffixes), named so the per-rule flag
-// buckets stay in sync with what moderate.go logs: the whole lookup chain
-// below (flag -> flagBucket -> baseRuleBucket) is typed on it, and a Verdict
-// crosses over at the stats boundary via flagRule(v.Rule). A verdict carrying
-// suffixes is classified by its base rule, so "scam+campaign+repeat" lands on
-// scam: enumerating every suffix combination would triple the bucket set for
-// little audit value.
 type flagRule string
 
 const (
@@ -87,13 +46,10 @@ const (
 	ruleCouncil        flagRule = "council:campaign"
 	ruleSuffixRepeat   flagRule = "+repeat"
 	ruleSuffixCampaign flagRule = "+campaign"
-	// ruleShieldMode mirrors outgress.TypeShieldMode: the mass-raid channel
-	// escalation counted as its own detection event.
-	ruleShieldMode flagRule = "shield_mode"
-	ruleOther      flagRule = "other"
+	ruleShieldMode     flagRule = "shield_mode"
+	ruleOther          flagRule = "other"
 )
 
-// flagRuleBucket indexes flagsByRule; the order defines the log-field names.
 type flagRuleBucket int
 
 const (
@@ -127,18 +83,10 @@ var flagRuleNames = [bktCount]flagRule{
 	bktOther:         ruleOther,
 }
 
-// flagBucket maps a full verdict rule string onto its bucket: strip the known
-// escalation suffixes, then match the base exactly (floor/heuristic/block
-// term/council) or by lexicon category prefix.
 func flagBucket(rule flagRule) flagRuleBucket {
 	return baseRuleBucket(stripRuleSuffixes(rule))
 }
 
-// stripRuleSuffixes folds the known escalation suffixes off a verdict rule so
-// classification sees its base. The suffixes stack in any order and number
-// ("scam+campaign+repeat"), so the fold loops until neither matches; a verdict
-// carrying suffixes is classified by its base rule, since enumerating every
-// suffix combination would triple the bucket set for little audit value.
 func stripRuleSuffixes(rule flagRule) flagRule {
 	base := rule
 	for {
@@ -155,10 +103,6 @@ func stripRuleSuffixes(rule flagRule) flagRule {
 	return base
 }
 
-// baseRuleBuckets resolves the exact-match base rules onto their buckets,
-// built once at package init. The lexicon categories are absent on purpose:
-// their verdict strings carry a term suffix ("lex:hate:slur"), so they match
-// by prefix in baseRuleBucket's fallback, not by whole-string equality.
 var baseRuleBuckets = map[flagRule]flagRuleBucket{
 	ruleIPLogger:   bktIPLogger,
 	ruleScam:       bktScam,
@@ -169,10 +113,6 @@ var baseRuleBuckets = map[flagRule]flagRuleBucket{
 	ruleShieldMode: bktShieldMode,
 }
 
-// lexBaseRules pairs the lexicon category prefixes with their buckets, in the
-// flagRuleBucket order the log fields expect. A linear scan over four
-// disjoint, non-overlapping prefixes is cheaper to keep correct than a second
-// map keyed on truncated strings.
 var lexBaseRules = [...]struct {
 	prefix flagRule
 	bucket flagRuleBucket
@@ -183,9 +123,6 @@ var lexBaseRules = [...]struct {
 	{ruleLexProfanity, bktLexProfanity},
 }
 
-// baseRuleBucket resolves a suffix-free base rule onto its bucket: an exact
-// hit against the floor/heuristic/block-term/council/shield set, else a
-// lexicon category prefix, else other.
 func baseRuleBucket(base flagRule) flagRuleBucket {
 	if bkt, ok := baseRuleBuckets[base]; ok {
 		return bkt
@@ -198,18 +135,6 @@ func baseRuleBucket(base flagRule) flagRuleBucket {
 	return bktOther
 }
 
-// Log field names for the detection-flag flushes.
-//
-// These used to be log-only in full, on the grounds that a new bot-namespace
-// counter name would not join the SystemCounter set (internal/domain/event/data)
-// and so would be a loyalty-schema change without its protection. That reason
-// no longer applies to the enforced total: mod_actions is now a registered
-// SystemCounter, so it carries the same protection as messages_processed and is
-// published per channel for the Overview's per-stream panel.
-//
-// The per-RULE split stays log-only, and the original reasoning still holds for
-// it: rule names churn with the automod ruleset, and each new one would mint an
-// unprotected counter name. Publish the total, log the breakdown.
 const (
 	flagFieldTotal    = "flags_total"
 	flagFieldEnforced = "flags_enforced"
@@ -218,28 +143,14 @@ const (
 	flagFieldChanID   = "broadcaster_id"
 )
 
-// botStats keeps sesame's bot-wide lifetime totals: every envelope the consumer
-// decoded, and the chat subset of it. The hot path only touches the atomics — no lock, no map, no allocation — and a flusher goroutine swaps them
-// onto the loyalty reporter, which owns the batching from there.
-//
-// The deltas are loss-tolerant by design: the reporter drops a window whose
-// publish failed, so a bad minute costs counts, never correctness elsewhere.
 type botStats struct {
 	events   atomic.Int64
 	messages atomic.Int64
 
-	// Automod detection observability: every non-none verdict bumps the total,
-	// an enforced one also the enforced count, and each lands on its rule's
-	// bucket. Sized to flagRuleSlotCap so the structure itself carries the
-	// documented bound; only the first bktCount buckets are named and swept.
 	flagsTotal    atomic.Int64
 	flagsEnforced atomic.Int64
 	flagsByRule   [flagRuleSlotCap]atomic.Int64
 
-	// The same totals split per broadcaster, which is what the public
-	// stats board ranks. A map behind a mutex rather than more atomics: the
-	// key set is discovered at runtime, and the lock is held for two adds on
-	// a path that already costs a JSON decode.
 	mu       sync.Mutex
 	channels map[uint64]*chanTally
 
@@ -248,27 +159,16 @@ type botStats struct {
 	done   chan struct{}
 }
 
-// chanTally is one channel's slice of the current flush window.
 type chanTally struct {
 	events   int64
 	messages int64
 	flags    int64
 	enforced int64
-	// answered counts command dispatches that actually ran. Tallied here
-	// rather than off the observer hook because that hook sheds events under
-	// backpressure by design: a counter fed from a lossy path would drift
-	// down over a long stream and never recover.
 	answered int64
-	// rules is allocated lazily on a channel's first flagged line: most
-	// channels are never moderated, so the common case pays nothing beyond
-	// the two ints above.
-	rules *[bktCount]int64
+	rules    *[bktCount]int64
 }
 
 func newBotStats(bumper CounterBumper, log ...*zap.Logger) *botStats {
-	// The logger is optional so tests can construct the sink bare; production
-	// wiring (NewPipeline) always passes d.Log - a Nop here would silently
-	// discard both detection-flag windows.
 	l := zap.NewNop()
 	if len(log) > 0 && log[0] != nil {
 		l = log[0]
@@ -294,11 +194,6 @@ func newBotStats(bumper CounterBumper, log ...*zap.Logger) *botStats {
 	return s
 }
 
-// count records one decoded envelope, fleet-wide and against the channel it
-// came from. A nil receiver is the "no stats sink wired" case (tests, and any
-// build without a reporter), so the hot path stays a single call either way.
-// broadcasterID 0 is an envelope whose channel could not be read: it still
-// counts fleet-wide, because the fleet totals are "everything that decoded".
 func (s *botStats) count(broadcasterID uint64, isChat bool) {
 	if s == nil {
 		return
@@ -312,10 +207,6 @@ func (s *botStats) count(broadcasterID uint64, isChat bool) {
 	}
 }
 
-// flag records one automod verdict: fleet total, enforced subset when the
-// action was actually emitted, and the rule's bucket. broadcasterID 0 (an
-// unreadable channel) still counts fleet-wide, like count. The rule crosses
-// from Verdict.Rule via flagRule(v.Rule) at the moderate.go call sites.
 func (s *botStats) flag(broadcasterID uint64, rule flagRule, enforced bool) {
 	if s == nil {
 		return
@@ -346,7 +237,6 @@ func (s *botStats) countChannel(broadcasterID uint64, isChat bool) {
 	}
 }
 
-// countAnswered records one command that dispatched and ran on this channel.
 func (s *botStats) countAnswered(broadcasterID uint64) {
 	if s == nil || broadcasterID == 0 {
 		return
@@ -375,8 +265,6 @@ func (s *botStats) flagChannel(broadcasterID uint64, b flagRuleBucket, enforcedD
 	tally.rules[b]++
 }
 
-// channelTallyLocked returns the channel's row, or nil when the map hit its
-// backstop cap; callers must hold s.mu.
 func (s *botStats) channelTallyLocked(broadcasterID uint64) *chanTally {
 	tally := s.channels[broadcasterID]
 	if tally == nil {
@@ -389,26 +277,17 @@ func (s *botStats) channelTallyLocked(broadcasterID uint64) *chanTally {
 	return tally
 }
 
-// flush hands over everything pending, both clocks at once: the shutdown path
-// and the tests, where waiting out the slow channel tick would be pointless.
 func (s *botStats) flush() {
 	s.flushTotals()
 	s.flushChannels()
 }
 
-// flushTotals swaps both fleet totals onto the reporter under the reserved bot
-// namespace (broadcaster 0, bot scope). A zero delta is skipped: the reporter
-// ignores it anyway, and an idle window should touch nothing.
 func (s *botStats) flushTotals() {
 	s.bump(counterEventsProcessed, s.events.Swap(0))
 	s.bump(counterMessagesProcessed, s.messages.Swap(0))
 	s.flushFlags()
 }
 
-// flushFlags publishes the detection-flag window as log fields (the goal is
-// auditable precision per rule, not new dashboard counters). An empty window
-// logs nothing. Buckets are only swept when the total is nonzero — every flag
-// increments both, so a zero total implies all-zero buckets.
 func (s *botStats) flushFlags() {
 	total := s.flagsTotal.Swap(0)
 	if total == 0 {
@@ -426,14 +305,6 @@ func (s *botStats) flushFlags() {
 	s.log.Debug("automod detection flags", fields...)
 }
 
-// flushChannels hands each channel's window to the reporter as two channel-scope
-// counter bumps. The map is swapped out under the lock so the hot path never
-// waits on the publish, and the reporter's own batching folds the per-channel
-// rows into the same per-broadcaster events it already sends.
-//
-// Channels that saw automod verdicts additionally surface their flag split as
-// one log line; per-rule precision stays on the fleet flush (which runs 15x
-// more often) to keep this line bounded at three fields per entry.
 func (s *botStats) flushChannels() {
 	s.mu.Lock()
 	channels := s.channels
@@ -446,9 +317,6 @@ func (s *botStats) flushChannels() {
 	for id, tally := range channels {
 		s.bumpChannel(id, counterEventsProcessed, tally.events)
 		s.bumpChannel(id, counterMessagesProcessed, tally.messages)
-		// enforced was already tallied for the flag log line; it is exactly
-		// the "mod actions" figure the Overview wants, so it is published as a
-		// counter here rather than counted a second time somewhere else.
 		s.bumpChannel(id, counterCommandsAnswered, tally.answered)
 		s.bumpChannel(id, counterModActions, tally.enforced)
 		if tally.flags > 0 {
@@ -461,7 +329,6 @@ func (s *botStats) flushChannels() {
 	}
 }
 
-// flagChannelEntry is one channel's slice of the flag window.
 type flagChannelEntry struct {
 	id       uint64
 	total    int64
@@ -500,7 +367,6 @@ func (s *botStats) bumpChannel(broadcasterID uint64, name string, delta int64) {
 	s.bumper.BumpChannel(broadcasterID, name, delta)
 }
 
-// Close stops the ticker and flushes the remainder.
 func (s *botStats) Close() {
 	close(s.done)
 	s.flush()

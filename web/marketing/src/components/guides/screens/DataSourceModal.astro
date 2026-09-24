@@ -4,17 +4,6 @@
 
 import Tag from '@bagel/ui/astro/Tag.astro';
 
-/**
- * The "Add a data source" dialog as the command editor opens it: the two
- * names, the web address, the optional key, the sample button, and the JSON
- * tree with one leaf already picked. It is the real `Modal` element, drawn
- * open; only the JSON tree is local, because the picker that walks a fetched
- * response is the editor's own live component and has no ui element.
- *
- * Labels are the console catalog's own strings (fetches.* in
- * web/kit/lib/i18n/locales), so a reader recognises the panel when they open
- * it for real.
- */
 import Button from '@bagel/ui/astro/Button.astro';
 import Field from '@bagel/ui/astro/Field.astro';
 import Modal from '@bagel/ui/astro/Modal.astro';

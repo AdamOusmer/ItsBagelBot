@@ -17,30 +17,18 @@ import (
 )
 
 type userRPC struct {
-	repo *repository.Notifications
-	// fullReadTTL is how long a fully-read notification lingers for a user
-	// before it drops out of their list; peekTTL is the (longer) reduced life a
-	// dropdown peek grants an as-yet-unread one.
+	repo        *repository.Notifications
 	fullReadTTL time.Duration
 	peekTTL     time.Duration
 	log         *zap.Logger
 }
 
-// UserConfig carries the subject prefix and the TTL tiers for the
-// dashboard-facing RPC surface. The connection, queue group, New Relic app and
-// logger ride the shared Wiring instead.
 type UserConfig struct {
-	Prefix string
-	// FullReadTTL is how long a fully-read notification lingers for a user
-	// before it drops out of their list; PeekTTL is the (longer) reduced life a
-	// dropdown peek grants an as-yet-unread one.
+	Prefix      string
 	FullReadTTL time.Duration
 	PeekTTL     time.Duration
 }
 
-// SubscribeUser registers the dashboard-facing verbs: list what a user can
-// see (broadcast + direct, newest first), fully read one, and soft-acknowledge
-// (peek) all of them when the bell dropdown opens.
 func SubscribeUser(w Wiring, cfg UserConfig) error {
 	u := &userRPC{repo: w.Repo, fullReadTTL: cfg.FullReadTTL, peekTTL: cfg.PeekTTL, log: w.Log}
 
@@ -93,10 +81,6 @@ func (u *userRPC) markRead(ctx context.Context, req notificationsrpc.MarkReadReq
 	return notificationsrpc.MarkReadReply{}
 }
 
-// markPeeked soft-acknowledges every notification the user can currently see:
-// opening the bell dropdown counts as "seen", so unread items get the reduced
-// peek cutoff and the badge clears, while a later full read can still shorten an
-// item's life further.
 func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeekedRequest) notificationsrpc.MarkPeekedReply {
 	userID, err := parseUserID(req.UserID)
 	if err != nil {
@@ -109,7 +93,4 @@ func (u *userRPC) markPeeked(ctx context.Context, req notificationsrpc.MarkPeeke
 	return notificationsrpc.MarkPeekedReply{Peeked: peeked}
 }
 
-// parseUserID is bus.UserID under this package's name: the admin send verb
-// resolves a recipient partway through its own validation, so the guard cannot
-// be the bind-time bus.ServeForUser prologue here.
 func parseUserID(s string) (uint64, error) { return bus.UserID(s) }

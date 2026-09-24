@@ -6,15 +6,7 @@ import { redirect } from '@sveltejs/kit';
 import { delegationAccess } from '$lib/server/services';
 import { COOKIE, seal } from '$lib/server/session';
 
-// Open a dashboard that was shared with the signed-in user. Requires a NORMAL
-// (non-delegate, non-impersonated) session, verifies the grant still exists,
-// then swaps the cookie for a section-limited delegate session over the
-// owner's board. An admin "view as" session is refused: swapping it here would
-// launder the 1h impersonation into a session without the impersonator_*
-// fields, losing both the short cap and the audit trail.
-//
-// The re-seal keeps the original iat/expires_at: switching boards must never
-// extend a session's lifetime: only a fresh OAuth login does that.
+// Normal sessions only: re-sealing a view-as session would drop its 1h cap and audit trail.
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
   const s = locals.session;
   if (!s || s.delegate_of || s.impersonator_id) throw redirect(302, '/login');
@@ -37,8 +29,7 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
     login: s.login,
     display_name: s.display_name,
     role: 'streamer',
-    // Re-seal, not a mint: keep the original sid so a revocation targeting
-    // this browser's session still finds it after switching boards.
+    // Keep sid, iat and expires_at: a new sid escapes revocation and a new iat extends the session.
     sid: s.sid,
     iat: s.iat,
     expires_at: s.expires_at,

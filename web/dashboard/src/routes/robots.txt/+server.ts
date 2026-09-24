@@ -4,24 +4,6 @@
 import type { RequestHandler } from './$types';
 import { seoHost, type SeoHost } from '$lib/server/seo-hosts';
 
-// Per-host robots.txt, replacing static/robots.txt.
-//
-// It had to stop being a static file: SvelteKit serves static/ from one build
-// to all four hostnames, so the dashboard's `Disallow: /` was also the answer
-// leaderboard.itsbagelbot.com gave for every channel board it publishes. The
-// pages exist, render server-side for exactly this reason, and were told to
-// every crawler as off-limits. A static file cannot say four things.
-//
-// The rule applied below: each public page is opened on exactly ONE host, the
-// one its URL is handed out under, and disallowed on the other three. The app
-// serves every route on every hostname, so without that the same document is
-// four URLs and search engines pick the winner themselves. /user/<login> is the
-// case that matters: the bot posts commands.itsbagelbot.com/user/<login> in
-// chat, so that is its host, and routes/user/[channel] now 308s every other
-// host there. Deliberately NOT also disallowed off-host: a crawler that cannot
-// fetch the URL cannot see the redirect either, and the redirect is the
-// stronger signal. Let it follow.
-
 const DASHBOARD = `# ItsBagelBot Dashboard: https://dashboard.itsbagelbot.com
 # A private, auth-gated app. Only the public sign-in landing should be indexed;
 # everything else sits behind login and must not be crawled or indexed.
@@ -101,10 +83,6 @@ const BODY: Readonly<Record<SeoHost, string>> = {
 };
 
 export const GET: RequestHandler = ({ url }) =>
-  // harden() in hooks.server.ts forces no-store on HTML and redirects only, so
-  // this Cache-Control survives to the edge. Crawl rules change on deploys, not
-  // on traffic, so a long shared TTL costs nothing and keeps bot fetches off
-  // the pods entirely.
   new Response(BODY[seoHost(url)], {
     headers: {
       'content-type': 'text/plain; charset=utf-8',

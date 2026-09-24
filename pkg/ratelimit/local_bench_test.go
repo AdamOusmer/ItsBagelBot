@@ -15,8 +15,6 @@ func BenchmarkLeaseManagerLocalPremium(b *testing.B) {
 	now := time.Now()
 	plan := Plan{
 		Version: planVersion, Epoch: 1, Generation: 1,
-		// Wide window: the bench advances a fake clock per iteration to refill the
-		// bucket, so the plan must stay valid across all b.N iterations.
 		ValidFromMS: now.Add(-time.Second).UnixMilli(), ValidUntilMS: now.Add(100 * 365 * 24 * time.Hour).UnixMilli(),
 		Members: []Member{{PodID: "pod-a", Region: "local"}},
 	}
@@ -30,13 +28,11 @@ func BenchmarkLeaseManagerLocalPremium(b *testing.B) {
 	req := spec.ForDynamicKey("ratelimit:chat:", "chat", "123456789")
 	ctx := context.Background()
 	clock := now
-	_, _ = manager.allowAt(ctx, &req, clock) // create and drain the local bucket
+	_, _ = manager.allowAt(ctx, &req, clock)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Advance the clock so the realistic per-pod refill keeps a token
-		// available; this isolates the hot-path cost, not bucket exhaustion.
 		clock = clock.Add(time.Second)
 		req = spec.ForDynamicKey("ratelimit:chat:", "chat", "123456789")
 		allowed, err := manager.allowAt(ctx, &req, clock)
@@ -52,8 +48,6 @@ func BenchmarkLeaseManagerLocalStandard(b *testing.B) {
 	now := time.Now()
 	plan := Plan{
 		Version: planVersion, Epoch: 1, Generation: 1,
-		// Wide window: the bench advances a fake clock per iteration to refill the
-		// bucket, so the plan must stay valid across all b.N iterations.
 		ValidFromMS: now.Add(-time.Second).UnixMilli(), ValidUntilMS: now.Add(100 * 365 * 24 * time.Hour).UnixMilli(),
 		Members: []Member{{PodID: "pod-a", Region: "local"}},
 	}

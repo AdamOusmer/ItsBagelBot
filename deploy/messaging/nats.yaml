@@ -1,10 +1,6 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Hub NATS server. The nats-config configmap is generated from
-# nats-server.conf + nats-auth.conf by the Flux kustomize configMapGenerator
-# (deploy/k8s/kustomization.yaml); bcrypt hashes come from the nats-auth-env
-# secret.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -17,12 +13,6 @@ spec:
   replicas: 3
   podManagementPolicy: Parallel
   revisionHistoryLimit: 10
-  # Ready is not the same as settled. A member reports healthy as soon as its
-  # own assigned assets are current, but the peers that just caught it up are
-  # still flushing snapshots and re-forming consumer groups. 30s of quiet before
-  # the rolling update takes the next member stops a roll from chaining three
-  # catch-ups back to back — which on a memory-backed R3 catalog is three full
-  # replica re-syncs with no gap between them.
   minReadySeconds: 30
   selector:
     matchLabels:
@@ -30,24 +20,13 @@ spec:
   template:
     metadata:
       annotations:
-        # Wire encryption is NATS-native TLS (nats-server.conf). The pods run in
-        # the host netns, so that TLS is the only encryption layer: the CNI's
-        # WireGuard tunnel is not in the path and does not re-encrypt it.
         prometheus.io/path: /metrics
         prometheus.io/port: "7777"
         prometheus.io/scrape: "true"
-        # newrelic-prometheus-agent's default job gates prometheus.io/scrape
-        # behind its integrations_filter app allowlist, which has no nats entry;
-        # the chart's "newrelic" job scrapes this annotation unfiltered.
         newrelic.io/scrape: "true"
       labels:
         app: nats
     spec:
-      # The hub listens on the node's own addresses: client 4222, cluster 6222,
-      # monitor 8222, exporter 7777. Kubernetes promotes each declared
-      # containerPort to a host port here, so the scheduler already refuses to
-      # place two members on one node. Cluster DNS is still required, because
-      # the routes below resolve through the headless Service.
       tolerations:
         - key: node.kubernetes.io/unreachable
           operator: Exists
@@ -57,54 +36,17 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 60
-      # No taint tolerations beyond the eviction pair above, and no host
-      # allowlist. The app tier is uniform hardware, so the scheduler is left to
-      # place members freely; the control plane is excluded because it carries a
-      # role taint this spec deliberately does not tolerate.
-      #
-      # What went: a dedicated=nats-ingress toleration that existed so a member
-      # could follow its node-bound volume onto a specific host, and a hostname
-      # exclusion for a home-wifi node now retired. Both encoded a
-      # hardware asymmetry that no longer exists, and with node1 now the 2-core
-      # control plane the toleration had become actively harmful.
       affinity:
-        # Hard one-member-per-node, replacing a ScheduleAnyway hostname spread.
-        # The soft form permitted two members on a single host, which quietly
-        # turned any single node loss into a QUORUM loss (2 of 3 gone at once).
-        # Required anti-affinity makes surviving one node loss structural rather
-        # than a scheduling accident, and with three members on three app-tier
-        # nodes it is exactly satisfiable.
+        # Required one member per node: two members on one host turn a node loss into a quorum loss.
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - topologyKey: kubernetes.io/hostname
               labelSelector:
                 matchLabels:
                   app: nats
-      # nats runs as uid/gid 1000; fsGroup makes the JetStream PVC writable.
-      # Shared PID namespace lets the config-reloader sidecar SIGHUP the
-      # nats-server process (same uid 1000) when the mounted config changes.
       shareProcessNamespace: true
-      # nats runs as uid/gid 1000; fsGroup makes the JetStream PVC writable.
       securityContext:
-        # Keep the congestion window across an idle gap.
-        #
-        # net.ipv4.tcp_slow_start_after_idle is per-netns. The nodes have run 0
-        # since the 2026-07 network tune, but that does NOT reach pods: a fresh
-        # pod netns gets the kernel default 1, and under Cilium WireGuard the
-        # pod TCP flow is encapsulated as UDP, so the host stack's setting never
-        # applies to it. Both ends of every app-to-NATS connection therefore sat
-        # at 1, reset cwnd to initcwnd (10 MSS) after one idle RTO, and made the
-        # first burst after a quiet lane crawl back through slow start. The 20s
-        # client PingInterval keeps the socket alive but does not keep the
-        # window open.
-        #
-        # PREREQUISITE: allowed-unsafe-sysctls=net.ipv4.tcp_slow_start_after_idle
-        # must already be live on EVERY kubelet (k3s config.yaml, needs a k3s
-        # restart). "Unsafe" here means "not on kubelet's short hardcoded safe
-        # list", not dangerous. A pod that requests an unsafe sysctl a node does
-        # not allow is rejected with SysctlForbidden rather than started
-        # untuned, so this block must land after the flag, never before it, and
-        # any node added later needs the flag before it can take these pods.
+        # PREREQUISITE: every kubelet must allow net.ipv4.tcp_slow_start_after_idle, or pods fail SysctlForbidden.
         sysctls:
           - name: net.ipv4.tcp_slow_start_after_idle
             value: "0"
@@ -113,28 +55,6 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         seccompProfile: {type: RuntimeDefault}
-      # Resolver options, uniform across every first-party workload.
-      #
-      # ndots 1, not the kubelet default of 5: under ndots:5 any name with
-      # fewer than 5 dots is tried against all three search domains BEFORE
-      # being tried as written, so a 4-dot cluster FQDN costs 4 queries and
-      # an external name like api.twitch.tv costs 4 too -- three guaranteed
-      # NXDOMAINs, then the answer. Measured on coredns 2026-08-20: 16704
-      # denial cache hits against 10368 success hits, so 62% of everything
-      # served was the junk half of that expansion.
-      #
-      # single-request-reopen: glibc sends the A and AAAA queries in parallel
-      # from one socket; the two replies can race in conntrack and one gets
-      # dropped, which costs a full resolver timeout. Reopening the socket
-      # for the second query removes the race.
-      #
-      # timeout 1 + attempts 3, rather than the previous 2/2 and the glibc
-      # default 5/2. A dropped UDP packet costs 1s instead of 5s, and 3s
-      # worst case instead of 10s. The 1s matters specifically because Valkey
-      # Sentinel resolves hostnames inside its event loop and declares "tilt"
-      # -- refusing failover for a fixed 30s -- when that loop stalls beyond
-      # 2s. At timeout 2 a single lost packet sat exactly on that threshold.
-      # See deploy/cache/valkey.yaml for the measurement that found it.
       dnsConfig:
         options:
           - {name: ndots, value: "1"}
@@ -144,20 +64,10 @@ spec:
       priorityClassName: bagel-data-plane
       containers:
         - name: nats
-          # 2.14.6 (sha256:ad7a43eb7e3337c3c38ce5d784d1461791f95f730f252d2b25eee699752a0ca3)
-          # was retested live on 2026-09-02 with the bench footgun fixed
-          # (NATS_ATOMIC_ACK_FIRST on): publish-only admit 105k vs 106-123k
-          # here, one shared R3 AckNone durable drained 56-66k vs 73k here.
-          # No gain on either path, so the pin stays.
-          # Stock upstream, pinned by digest. A patched build lived here briefly
-          # (deploy/messaging/nats-server, removed in the same commit): it bought
-          # 87k -> 142k msg/s on one stream, but carrying a 17-file patch against
-          # a broker is a maintenance bill, so the fixes go upstream instead.
           image: nats:2.14.6-alpine@sha256:ad7a43eb7e3337c3c38ce5d784d1461791f95f730f252d2b25eee699752a0ca3
 
 
           imagePullPolicy: IfNotPresent
-          # --pid writes a pidfile the reloader reads to signal this process.
           args: ["--config", "/etc/nats/nats.conf", "--pid", "/var/run/nats/nats.pid"]
 
 
@@ -165,23 +75,8 @@ spec:
             - secretRef:
                 name: nats-auth-env
           env:
-            # The Go runtime sizes its scheduler from the cgroup CPU limit, but
-            # only when one is set; with requests-only it reads the host's core
-            # count (12 here) and starts that many Ps against a much smaller
-            # quota, paying CFS throttling and scheduler contention on a commit
-            # path that is already lock-heavy. Pinning it to the limit measured
-            # lower hub CPU and higher throughput at once. Keep equal to
-            # resources.limits.cpu.
             - name: GOMAXPROCS
               value: "5"
-            # GOGC 400 (Go default 100) since 2026-09-01. The stream leader
-            # allocates on the order of 0.5-1 GB/s at 100k msg/s (atomic batch
-            # staging copies every message twice, deliveries copy again), so at
-            # GOGC 100 with ~1 GB live it collects every couple of seconds and
-            # each mark lands on the single-threaded ingest and delivery loops.
-            # GOMEMLIMIT below still caps the heap; 400 only spaces the cycles.
-            # Measured on a loopback 3-node rig the GC cadence set the e2e p99
-            # until relaxed; this is the live A/B of the same lever.
             - name: GOGC
               value: "400"
 
@@ -189,21 +84,7 @@ spec:
 
 
 
-            # Without this the Go GC has no idea a ceiling exists: JetStream is
-            # allowed 4GiB of memory streams, and the heap grows toward that plus
-            # the RAFT WAL and connection buffers until the kernel OOM-kills the
-            # member - which is exactly how two members were lost under load.
-            # A soft limit below the container limit makes the GC work harder
-            # instead of dying. Keep it ~80% of resources.limits.memory.
-            #
-            # Raised 2026-08-23 from 4GiB, which sat inside a rounding error of
-            # the real workload: live heap reached 3.9GiB under load, so the GC
-            # cycled continuously against the cliff and stalled the read loop.
-            # 6656MiB (6.5Gi) keeps the ~80%-of-limit ratio over the new 8Gi
-            # container limit and puts the GC target well clear of worst-case
-            # heap. It MUST be spelled as an integer: the Go runtime aborts at
-            # startup on fractional forms like "6.5GiB" (fatal error:
-            # malformed GOMEMLIMIT) — measured, not guessed.
+            # Integer bytes only: the Go runtime aborts on a value like "6.5GiB".
             - name: GOMEMLIMIT
               value: "6656MiB"
             - name: POD_NAME
@@ -223,70 +104,7 @@ spec:
 
             - {name: pid, mountPath: /var/run/nats}
           resources:
-            # The LIMITS are the real ceiling: 5 cores because GOMAXPROCS is
-            # pinned to them, and 8Gi because memory-backed streams need
-            # headroom above JetStream's 4GB max_mem for dedup indexes,
-            # connections and the Go runtime — and with every stream R3, each
-            # member holds a copy of all of them rather than only the ones it
-            # leads. Keep max_mem in nats-server.conf under this ceiling:
-            # JetStream sizes memory streams against max_mem and cannot see the
-            # container limit. The OOM that briefly justified an 8Gi ceiling was
-            # a 1 GiB memory-backed R3 bench stream resident on every member on
-            # top of this catalog, not the catalog itself.
-            #
-            # Limit back at 8Gi as of 2026-08-23, for a different reason than
-            # that old ceiling: nodes have 12Gi allocatable each and sit
-            # otherwise idle, and at 5Gi with GOMEMLIMIT=4GiB the GC — not
-            # memory scarcity — was the bottleneck (live heap 3.9GiB, GC thrash,
-            # readloop stalls of seconds, commit p50 ~800ms). Required
-            # anti-affinity already puts exactly one member per node, so the
-            # extra 3Gi is reserved for nothing else.
-            #
-            # The REQUESTS are deliberately below them, which makes this pod
-            # Burstable rather than Guaranteed. The upstream NATS chart
-            # recommends requests == limits so the member is eligible for the
-            # kubelet's static CPU policy — but this fleet runs
-            # cpuManagerPolicy: none, so that eligibility buys nothing.
-            #
-            # Sized 2026-08-20 against what the stream catalog can actually
-            # reach, not against max_mem. Four streams are storage=memory and
-            # every one is R3, so each member holds all of them:
-            #   TWITCH_INGRESS_STANDARD  640Mi
-            #   TWITCH_INGRESS           384Mi
-            #   TWITCH_OUTGRESS          256Mi
-            #   TWITCH_INGRESS_RETRY      32Mi
-            #                          ------
-            #   reachable total         1312Mi
-            # Measured resident at 64 connections is 138Mi, so 2Gi covers the
-            # full catalog plus ~700Mi for dedup indexes, connections and the
-            # Go runtime. The older ~4.2 GiB worst case was derived from
-            # max_mem 4096Mi, which is 3x more than this catalog can consume —
-            # the request should track the catalog, not a config ceiling the
-            # streams cannot reach. max_mem stays put above the larger
-            # ceiling, so the pathological case is still absorbed.
-            #
-            # What makes this safe now and did not before: this pod carries
-            # priorityClassName bagel-data-plane (900000). The kubelet's
-            # memory-pressure eviction ranking sorts by whether usage exceeds
-            # the request and THEN by pod priority, so among pods over their
-            # request a hub member is evicted after every third-party workload
-            # on the node (all of which sit at priority 0). The protection that
-            # used to come from an oversized request now comes from the class,
-            # which is what a priority class is for.
-            #
-            # CPU 2 -> 1000m: a CPU request is a contention-time floor and
-            # never throttles, measured steady state is ~1.3 cores on the
-            # leader at load, and the 5-core limit still lets a catch-up burst
-            # take every core. Nodes sit at 28% of 12 cores committed.
-            #
-            # Together this reserves 1 core and 4Gi per app node. The 2026-08-23
-            # bump from 2Gi trades half of the headroom kept for the incoming
-            # BEAM service (twitch-ingress, already here, requests 500m) for a
-            # reservation that sits above where a member actually runs under
-            # load; nodes are 12Gi and otherwise idle, so it costs nothing.
-            # If a hub member is ever evicted under node pressure, re-check this
-            # arithmetic before looking anywhere else. If cpuManagerPolicy ever
-            # becomes static, revisit the CPU request too.
+            # Keep nats-server.conf max_mem under this limit: JetStream cannot see the container limit.
             requests: {cpu: "1000m", memory: 4Gi}
             limits: {cpu: "5", memory: 8Gi}
           securityContext:
@@ -296,32 +114,15 @@ spec:
           lifecycle:
             preStop:
               exec:
-                # Allow in-flight JetStream operations and client reconnects to
-                # drain before the socket closes. Shortens the 500 blast radius
-                # during NATS restarts.
                 command: ["/bin/sh", "-c", "sleep 10"]
           startupProbe:
-            # 10 minutes, not 50 seconds. Full /healthz stays 503 until every
-            # assigned stream and consumer is current, and an R3 memory-backed
-            # catalog re-syncs its whole dataset from the leader on boot: a
-            # restarted member measured 6.5 minutes to go green. A budget shorter
-            # than that is self-perpetuating - the kubelet kills the member
-            # mid-catchup, the restart begins the catchup again, and the pod
-            # never leaves CrashLoopBackOff. Restarting during startup is free;
-            # killing a member that is doing exactly what it should is not.
+            # 10 minutes: the boot re-sync takes ~6.5 min, and a shorter budget crash-loops the member.
             httpGet: {path: /healthz, port: monitor}
             periodSeconds: 5
             failureThreshold: 120
             timeoutSeconds: 1
           livenessProbe:
-            # js-server-only: liveness must ask "is this process alive", never
-            # "is every replica current". Plain /healthz returns 503 while a
-            # follower is catching up ("RAFT falling behind in health check,
-            # commit != applied", logged on nats-1 during a 90k msg/s run on
-            # 2026-09-02 while all three members took 503s). Twelve of those in
-            # a row would restart the one member that is busy catching up, which
-            # makes it fall further behind. Readiness below keeps the JetStream
-            # check; that only removes the member from the Service.
+            # js-server-only: plain /healthz is 503 while a follower catches up, and a restart sets it further back.
             httpGet: {path: "/healthz?js-server-only=true", port: monitor}
             initialDelaySeconds: 5
             periodSeconds: 15
@@ -332,12 +133,6 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
-        # Watches the mounted config (nats.conf + auth.conf, sourced from the
-        # nats-config configmap) and SIGHUPs nats-server on change, so a
-        # kubectl apply of the kustomize configMapGenerator hot-reloads without
-        # a manual signal or a pod restart. There is no Flux in this cluster:
-        # every deploy here is a hand-pinned kubectl apply.
-        # TODO(deploy): pin to a digest like the other images.
         - name: reloader
           image: natsio/nats-server-config-reloader:0.23.0@sha256:64cb6c858e794906d3167378e02b7e0feb83c4e14c07b371eb8d921ef8c4a60b
           imagePullPolicy: IfNotPresent
@@ -348,8 +143,6 @@ spec:
             - "/etc/nats/nats.conf"
             - "-config"
             - "/etc/nats/auth.conf"
-            # Watch the TLS cert so a cert-manager renewal SIGHUPs nats to reload
-            # the new cert without a pod restart.
             - "-config"
             - "/etc/nats/certs/tls.crt"
           volumeMounts:
@@ -379,8 +172,6 @@ spec:
       volumes:
 
 
-        # verify:true anchor: the intermediate CA alone, distributed by the
-        # fleet-intermediate-ca trust-manager Bundle.
         - name: intermediate-ca
           configMap:
             name: fleet-intermediate-ca
@@ -392,33 +183,6 @@ spec:
             secretName: nats-hub-tls
         - name: pid
           emptyDir: {}
-  # JetStream keeps a PERSISTENT volume, chosen with both failure modes measured
-  # on 2026-07-27.
-  #
-  # The cost of NOT having one: a member restarts with no store directory, logs
-  # "JetStream cluster bootstrapping", and must re-establish every stream AND all
-  # 24+ consumer RAFT groups from its peers. Measured that day, members sat
-  # "not current" on 10-27 groups for many minutes after each restart, which
-  # shows up as chat replies that are slow or dropped past MaxDeliver. The
-  # expense is the GROUP COUNT, not the data: the streams held under a thousand
-  # messages.
-  #
-  # The cost of having one: local-path binds the PV to the node that provisioned
-  # it, so a member whose node dies sits Pending forever on "didn't match
-  # PersistentVolume's node affinity". That is what happened to nats-1 when node5
-  # was lost, and it took JetStream below quorum and crashlooped every service
-  # that opens a consumer at startup.
-  #
-  # Note what the volume does and does not buy. TWITCH_INGRESS and
-  # TWITCH_OUTGRESS are MemoryStorage, so their data never touches this disk and
-  # a restart always re-fetches them. What the volume actually preserves is the
-  # file-backed streams (BAGEL_DATA, KV_admin_lanes, TWITCH_OUTGRESS_SYSTEM) and,
-  # crucially, the consumer/RAFT state that makes a restart cheap.
-  #
-  # RECOVERY when a node dies and a member is stranded: delete that member's PVC.
-  # The StatefulSet provisions a fresh one on a live node and the member re-syncs
-  # from its two peers. It is one command, and it is the documented answer rather
-  # than something to rediscover under pressure.
   volumeClaimTemplates:
     - apiVersion: v1
       kind: PersistentVolumeClaim
@@ -431,16 +195,7 @@ spec:
           requests:
             storage: 4Gi
 ---
-# The hub is a three-voter RAFT quorum: losing two members at once loses every
-# stream's write path, and for the memory-backed ones it loses the data too. The
-# rolling update is already serial and readiness-gated, but a VOLUNTARY
-# disruption is not — a node drain or a cluster-autoscaler action will happily
-# evict two hub pods in parallel unless something says otherwise. This is that
-# something.
-#
-# It matters more here than it looks: the required podAntiAffinity puts exactly
-# one member on each of the three app nodes, so there is no slack to reschedule
-# into. Draining two nodes without this budget is an outage, not a migration.
+# Losing two members loses every stream's write path; without this budget a two-node drain is an outage.
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -462,8 +217,6 @@ metadata:
   name: nats
   namespace: messaging
 spec:
-  # JetStream clients dial this Service directly. Prefer the hub on the same
-  # node so app-tier clients avoid an unnecessary cross-node hop.
   trafficDistribution: PreferSameNode
   selector:
     app: nats
@@ -486,32 +239,6 @@ spec:
   ports:
     - {name: cluster, port: 6222, targetPort: cluster}
 ---
-# NATS monitoring (/jsz) published on the tailnet. Kept for humans (and for
-# anything off-cluster that wants consumer lag); KEDA does NOT use it.
-#
-# WHY THIS EXISTS
-# ---------------
-# It was built when KEDA's three components were pinned beside the apiserver on
-# the then-control-plane node1, which made the operator's NATS poll the last
-# piece of cross-node POD traffic leaving that node -- precisely what the
-# private-VLAN topology must not require, since node1 sat at OCI with no path to
-# 10.10.0.0/24 and reaching it through a tailscale SUBNET ROUTE puts every
-# advertiser in the failure path.
-#
-# Post-rebuild that pin is gone: KEDA runs on the application tier and polls
-# nats.messaging.svc.cluster.local:8222 over the pod mesh (see
-# deploy/operators/keda.yaml). This Ingress is no longer in any scaling path.
-#
-# Routing it through the ts-ingress ProxyGroup means an off-cluster client dials a
-# stable tailnet name over HOST networking. The ProxyGroup runs 3 ha-spread
-# replicas, so no single proxy or node carries it, unlike a NodePort pinned to one
-# node's address. The cert is a real MagicDNS cert, so no custom CA is involved.
-#
-# Do NOT repoint the ScaledObject triggers here. It was tried on 2026-07-27: the
-# /jsz fetch works, but KEDA's clustered-JetStream scaler then follows the stream
-# to the consumer leader and dials that member at the address NATS advertises,
-# which is a POD IP, so a single fronting Service cannot satisfy it. Full write-up
-# in deploy/k8s/sesame.yaml's trigger comment.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

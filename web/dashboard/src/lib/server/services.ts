@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Dashboard-facing RPC wrappers over the shared NATS client. Subjects come from
-// env with the same defaults as the retired Go dashboard tier.
 import newrelic from 'newrelic';
 import { rpc, publish } from '@bagel/kit/server/nats';
 import { createCacheFabric } from '@bagel/kit/server/cache-fabric';
@@ -15,19 +13,8 @@ import type { Session } from './session';
 import * as liveHub from './live-hub';
 import { dashboardL1CacheCapacity } from './config-sanity';
 
-// Subjects come from process.env, NOT $env/dynamic/private. This module is
-// imported at boot (hooks.server.ts -> startInvalidationListener), and reading
-// SvelteKit's dynamic-env proxy at module-eval time during server.init()
-// deadlocks the handler import (unsettled top-level await -> exit 13). In
-// adapter-node process.env carries the same values.
-//
-// Every env fallback below is `||`, never `??`: Doppler has shipped set-but-
-// blank vars before, and `??` passes one straight through, collapsing every
-// subject built from it to a leading-dot fragment ('.modules.get') that no
-// responder answers, a silent RPC timeout, not a config error. The identical
-// pattern once delivered a blank Valkey master name and took writes down; that
-// fix was also `||`. All defaults here are non-empty strings, so there is no
-// legitimate falsy value `||` could discard.
+// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// `||`, not `??`: a set-but-blank env var would build subjects no responder answers.
 export const SUB = {
   broadcaster: process.env.NATS_BROADCASTER_STATUS_SUBJECT || 'bagel.rpc.broadcaster.status.get',
   dashboard: process.env.NATS_DASHBOARD_SUBJECT_PREFIX || 'bagel.rpc.dashboard',
@@ -36,14 +23,7 @@ export const SUB = {
   projector: process.env.NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX || 'bagel.rpc.projector.dashboard',
   outgress: process.env.NATS_OUTGRESS_SYSTEM_SUBJECT || 'twitch.outgress.system',
   outgressRpc: process.env.NATS_OUTGRESS_RPC_PREFIX || 'bagel.rpc.outgress',
-  // Discord guild setup/layout/unbind moved off outgress when Discord became
-  // its own vertical: dingress-egress serves them now, under its own account.
-  // Hard cutover, no outgress fallback -- outgress deleted the handlers and
-  // the dashboard's NATS account no longer imports bagel.rpc.outgress.discord.>,
-  // so a fallback could only ever time out.
   dingressRpc: process.env.NATS_DINGRESS_RPC_PREFIX || 'bagel.rpc.dingress',
-  // Hard cutover from the gateway rename: no NATS_GATEWAY_SUBJECT_PREFIX
-  // fallback (the old account/user no longer exist).
   gossip: process.env.NATS_GOSSIP_SUBJECT_PREFIX || 'bagel.rpc.gossip',
   loyalty: process.env.NATS_LOYALTY_SUBJECT_PREFIX || 'bagel.rpc.loyalty',
   goveeKey: process.env.NATS_MODULES_GOVEE_SUBJECT_PREFIX || 'bagel.rpc.modules.govee',
@@ -54,19 +34,12 @@ export const SUB = {
   transactions: process.env.NATS_TRANSACTIONS_SUBJECT_PREFIX || 'bagel.rpc.transactions'
 };
 
-// Exported for the invalidation-routing tests: both are pure data, and
-// asserting the map/list shape directly is cheaper than exercising the whole
-// bus round trip for a scope that is easy to typo out of one of them.
 export function userPrefixes(id: string): string[] {
   return [`grant:${id}`, `account:${id}`, `tier:${id}`, `billing-state:${id}`, `commands:${id}`, `modules:${id}`, `delegations:${id}`, `locale:${id}`, `cursor:${id}`, `govee-devices:${id}`, `commands_page:${id}`];
 }
 
-// Scope -> cache key routing for the invalidation bus, declared as data. The
-// shared router picks the scope from the subject's last segment; unknown or
-// missing scopes fall through to '*' (coarse per-user flush, back-compat).
 export const SCOPES: ScopeMap = {
   grant: (id) => [`grant:${id}`, `account:${id}`],
-  // Billing webhooks land as status invalidations after entitlement changes.
   status: (id) => [`account:${id}`, `tier:${id}`, `ban:${id}`, `billing-state:${id}`],
   commands: (id) => [`commands:${id}`],
   modules: (id) => [`modules:${id}`],
@@ -78,12 +51,6 @@ export const SCOPES: ScopeMap = {
   '*': (id) => [...userPrefixes(id), `ban:${id}`]
 };
 
-// Hybrid read path: L1 SwrCache (+ push invalidation, SWR, stale-if-error) over
-// per-key Valkey readers over RPC. Freshness policy per data class lives in the
-// shared POLICY table; the bus, not the clock, is the main freshness lever.
-// onInvalidation forwards each applied bus event to the live hub, which pushes it
-// to that board's open browser SSE connections (see routes/events) so an open
-// page re-fetches instantly, no client polling.
 export const fabric = createCacheFabric({
   app: 'dashboard',
   scopes: SCOPES,
@@ -103,8 +70,6 @@ function invalidateUser(userId: string) {
   invalidate(...userPrefixes(userId));
 }
 
-// Single-use dashboard delegation. Owners mint scoped links; invitees consume
-// them once on login to gain a section-limited session over the owner's board.
 export type DelegationGrant = {
   token: string;
   sections: string[];
@@ -112,8 +77,6 @@ export type DelegationGrant = {
   consumed: boolean;
 };
 
-// Custom error mapping (create failed / revoke failed / opt out failed) doesn't
-// fit defineWrite's identity/map result shape cleanly, so this stays hand-written.
 export async function delegationCreate(
   ownerId: string,
   ownerLogin: string,
@@ -187,7 +150,6 @@ export const delegationList = defineRead({
   }
 });
 
-// Re-scope an existing grant (pending or consumed) to a new set of sections.
 export async function delegationUpdate(ownerId: string, token: string, sections: string[]): Promise<void> {
   const r = await rpc<{ ok?: boolean; error?: string; delegate_user_id?: string }>(`${SUB.delegation}.update`, {
     owner_user_id: ownerId,
@@ -238,9 +200,6 @@ export const delegationAccess = defineRead({
   }
 });
 
-// Enqueue an EventSub on/off job on the outgress system lane. Outgress runs the
-// Helix calls under the shared rate-limit bucket: enabled=true (re)creates the
-// channel's EventSub subscriptions, false deletes them.
 export async function publishEventSub(broadcasterId: string, enabled: boolean): Promise<void> {
   await publish(SUB.outgress, {
     type: 'eventsub',
@@ -249,8 +208,6 @@ export async function publishEventSub(broadcasterId: string, enabled: boolean): 
   });
 }
 
-// Enqueue an atomic reconnect job: outgress drops all existing subs and
-// recreates them in a single-flight, all-or-nothing operation.
 export async function publishEventSubReconnect(broadcasterId: string): Promise<void> {
   await publish(SUB.outgress, {
     type: 'eventsub',
@@ -259,12 +216,6 @@ export async function publishEventSubReconnect(broadcasterId: string): Promise<v
   });
 }
 
-// Enqueue an ensure-optional job: outgress (re)creates only the optional
-// subscriptions (the channel-points redemption sub) without touching the
-// mandatory set. Idempotent (409) and non-affiliate-tolerant, so it is safe to
-// fire after every reward create/enable: it is how a channel that just gained
-// channel points (or just re-consented with the redemption scope) starts
-// receiving redemption events without a full reconnect.
 export async function publishEventSubEnsureOptional(broadcasterId: string): Promise<void> {
   await publish(SUB.outgress, {
     type: 'eventsub',
@@ -283,25 +234,13 @@ function unknownSubState(): ChannelSubState {
   return { state: 'unknown', error: '', checkedAt: null };
 }
 
-// 'revoked' must stay a known state: folding it into 'unenrolled' would let
-// the home page's self-heal publish enables against a channel outgress
-// deliberately refuses to enroll until the broadcaster re-consents.
-// 'revoked' and 'chat_banned' MUST stay here: an unknown state folds into
-// 'unenrolled', which the self-heal answers with a fresh enable, spamming
-// enrolls that cannot succeed until the streamer acts.
+// Keep 'revoked' and 'chat_banned' known: unknown reads as 'unenrolled' and triggers futile enables.
 const KNOWN_SUB_STATES = ['ok', 'pending', 'failing', 'revoked', 'chat_banned'] as const;
 
 function isKnownSubState(s: string): s is (typeof KNOWN_SUB_STATES)[number] {
   return (KNOWN_SUB_STATES as readonly string[]).includes(s);
 }
 
-// Read the persisted EventSub enroll state for a channel. Two distinct
-// negatives: 'unenrolled' means outgress answered and holds no enrollment for
-// this channel (never enrolled, or cleared by a disconnect), callers may
-// safely (re)enroll on it. 'unknown' is reserved for transport failure and
-// fails safe: a transient outage never blocks page render and must never
-// trigger writes. The fail-open catch doesn't fit defineRead cleanly (no cache
-// involved either), so this stays hand-written.
 export async function channelSubState(broadcasterId: string): Promise<ChannelSubState> {
   try {
     const r = await rpc<{
@@ -322,17 +261,12 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
   }
 }
 
-// Resolve a Tier from the raw billing status, mirroring the projector's
-// tierFromStatus rule so the Valkey-served tier agrees with the RPC one.
+// Must match the projector's tierFromStatus.
 function tierFromStatus(status: string): Tier {
   const s = status.toLowerCase();
   return s === 'premium' || s === 'vip' || s === 'paid' ? 'premium' : 'standard';
 }
 
-// 3-tier read: tier-1 LRU (cached) -> tier-2 Valkey settings hash -> tier-3
-// projector/broadcaster RPC on a cold key. The Valkey miss path is transparent
-// (getUser returns known:false on any failure) so a Valkey outage just falls to
-// RPC, never breaking SSR.
 export const tier = defineRead({
   subject: SUB.broadcaster,
   request: (broadcasterId: string) => ({ broadcaster_id: broadcasterId }),
@@ -350,16 +284,6 @@ export const tier = defineRead({
   }
 });
 
-// isBanned reports whether the platform has banned the user (completes the
-// admin "ban from service" action by blocking dashboard login). Routed through
-// the shared cached() infra so concurrent cold reads coalesce on one promise
-// instead of thundering-herding the RPC on a busy login burst.
-// Outage posture: the `security` policy serves the last KNOWN state on loader
-// error (stale-if-error window), so an already-banned user stays banned through
-// a users-service outage. Only users with no cached state at all fail OPEN
-// (return false), fail-closed would lock every user out during any outage.
-// The fail-open catch around the whole cached() call doesn't fit defineRead
-// (which has no outer error handling), so this stays hand-written.
 export async function isBanned(userId: string): Promise<boolean> {
   try {
     return await cached(`ban:${userId}`, POLICY.security, async () => {
@@ -385,9 +309,6 @@ export type AuditEntry = {
   detail: string;
 };
 
-// auditImpersonation records a dashboard write performed while an admin is
-// viewing as the user. Best-effort: a logging failure must never block the
-// action it describes, so callers fire-and-forget and we swallow errors here.
 export async function auditImpersonation(entry: AuditEntry): Promise<void> {
   try {
     await rpc(`${SUB.audit}.append`, {
@@ -399,13 +320,9 @@ export async function auditImpersonation(entry: AuditEntry): Promise<void> {
       ok: true,
       error: ''
     });
-  } catch {
-    /* best-effort */
-  }
+  } catch {}
 }
 
-// Helper for dashboard actions taken during an admin "view as" session. Keeps
-// target as the user dashboard and puts the exact action context in detail.
 export function auditDashboardImpersonation(
   session: Session | null | undefined,
   action: string,
@@ -441,9 +358,6 @@ function normalizeStatus(raw: string | undefined): AccountStatus {
   return s === 'paid' || s === 'vip' ? (s as AccountStatus) : 'free';
 }
 
-// Receive toggle and billing tier (free/paid/vip) in one round trip. The users
-// service loads a single cached user view to answer both, so the page render
-// asks once via state_get instead of separate active_get + status_get calls.
 export const accountState = defineRead({
   subject: `${SUB.dashboard}.state_get`,
   request: (userId: string) => ({ broadcaster_user_id: userId }),
@@ -459,11 +373,7 @@ export const accountState = defineRead({
     status: normalizeStatus(r.status),
     onboarded: !!r.onboarded,
     creatorCode: r.creator_code?.trim() ? r.creator_code : null,
-    // Authoritative Twitch login from the users service. The public command
-    // page labels the channel with this, never with a caller-supplied string.
     username: (r.username ?? '').trim(),
-    // Twitch display name (the login in the owner's casing); empty for a row
-    // that predates the field, until that user's next login refreshes it.
     displayName: (r.display_name ?? '').trim()
   }),
   timeoutMs: READ_TIMEOUT_MS,
@@ -474,13 +384,6 @@ export const accountState = defineRead({
     l2: async (userId: string) => {
       const u = await valkey.getUser(userId);
       if (!u.known) return { hit: false, value: { active: false, status: 'free' as AccountStatus, onboarded: false, creatorCode: null, username: '', displayName: '' } };
-      // Valkey L2 does not cache onboarded or creator codes, so we fail the hit if we care about it,
-      // but since it's just projected data, we'll let it pass or say hit: false if we must have onboarded.
-      // Actually, since we need onboarded reliably on first load, and L2 is used for fast SSR, 
-      // missing it in L2 means we should probably miss the cache to fetch it from L1/RPC.
-      // For now, let's just return false and let SWR correct it if it was true, but this might flash.
-      // Since it's only critical when false (to show modal), assuming true here would hide the modal until SWR finishes.
-      // We will assume hit: false to force an RPC call to get the authoritative onboarded state.
       return { hit: false, value: { active: u.active, status: normalizeStatus(u.status), onboarded: false, creatorCode: null, username: '', displayName: '' } };
     }
   }
@@ -498,11 +401,6 @@ export const setOnboarded = defineWrite({
   after: (_result: unknown, userId: string) => invalidate(`account:${userId}`)
 });
 
-// Single-user console preferences (locale, custom cursor). Each carries back on
-// state_get and owns its own cache key with no Valkey L2 (the projected user
-// hash has neither field); both are only read at login to seed a preference
-// cookie, so a little staleness is harmless. prefRead/prefWrite capture the one
-// shape both share so a new preference is a two-line declaration, not a copy.
 function prefRead<T>(scope: string, map: (r: Record<string, unknown>) => T) {
   return defineRead<[string], Record<string, unknown>, T>({
     subject: `${SUB.dashboard}.state_get`,
@@ -513,9 +411,6 @@ function prefRead<T>(scope: string, map: (r: Record<string, unknown>) => T) {
   });
 }
 
-// The console mirrors each choice into a cookie for an immediate flip; the
-// write-through here is what makes it follow the account to another
-// browser/device, and the `after` drop keeps this replica's cache honest.
 function prefWrite<V>(verb: string, field: string, scope: string) {
   return defineWrite<[string, V], unknown>({
     subject: `${SUB.dashboard}.${verb}`,
@@ -527,18 +422,12 @@ function prefWrite<V>(verb: string, field: string, scope: string) {
 export const userLocale = prefRead('locale', (r) => (typeof r.locale === 'string' && r.locale ? r.locale : 'en'));
 export const setLocale = prefWrite<string>('locale_set', 'locale', 'locale');
 
-// Cursor defaults to on when the field is absent (older accounts, failed read).
 export const userCursor = prefRead('cursor', (r) => r.custom_cursor !== false);
 export const setCursor = prefWrite<boolean>('cursor_set', 'custom_cursor', 'cursor');
 
-// Page is public unless the account explicitly hid it; an absent field
-// (older users service, failed read) keeps the pre-feature behaviour.
 export const userCommandsPage = prefRead('commands_page', (r) => r.commands_page_hidden !== true);
 export const setCommandsPage = prefWrite<boolean>('commands_page_set', 'commands_page_hidden', 'commands_page');
 
-// Persist the broadcaster's Twitch OAuth grant (the per-channel bot token the
-// dashboard consent mints). Called once on login: without it the user row exists
-// but the bot has no token to act in the channel.
 export const saveGrant = defineWrite({
   subject: `${SUB.dashboard}.grant_save`,
   request: (userId: string, accessToken: string, refreshToken: string) => ({
@@ -548,9 +437,6 @@ export const saveGrant = defineWrite({
   }),
   after: (_result: unknown, userId: string) => invalidate(`grant:${userId}`, `account:${userId}`)
 });
-
-// ---------------------------------------------------------------------------
-// Billing (local entitlement status; checkout/account management live on Tebex)
 
 export type BillingGrantSource = 'tebex' | 'admin' | '';
 
@@ -565,18 +451,6 @@ export type BillingState = {
 
 export type ResolvedChannel = { userId: string; username: string; displayName: string };
 
-// Login -> broadcaster id for the public command page, whose URL is keyed by
-// the channel's login (/user/<login>) so a shared link names the channel it
-// serves. Only the id it returns selects what the page renders; the login is a
-// lookup key, never a label. The page previously carried the channel name in a
-// query string, which let anyone edit a link and pass one channel's commands
-// off as another streamer's.
-//
-// Cached under the login, not the id: it is the request key, and the page is
-// unauthenticated so one hot channel would otherwise hit the users service on
-// every view. The SWR tail means a Twitch rename can serve the old login for
-// up to the policy window; a rename is rare and the page it lands on is still
-// the right channel (the id behind the row does not change).
 export const resolveLogin = defineRead({
   subject: `${SUB.dashboard}.login_resolve`,
   request: (login: string) => ({ login }),
@@ -593,9 +467,7 @@ export const resolveLogin = defineRead({
   }
 });
 
-// Billing-page variant of accountState: same state_get RPC but carrying the
-// paid-until date and grant source. Deliberately no Valkey L2 (the projected
-// user hash has no expiry), so a cache hit can never silently drop the date.
+// No Valkey L2: an L2 hit on the projected user hash would drop the paid-until date.
 export const billingState = defineRead({
   subject: `${SUB.dashboard}.state_get`,
   request: (userId: string) => ({ broadcaster_user_id: userId }),
@@ -622,14 +494,6 @@ export const billingState = defineRead({
   }
 });
 
-// Mint a Tebex Headless basket via the transactions service. The checkout URL
-// is always Tebex-hosted; the dashboard redirects the browser there instead of
-// embedding payment UI. When recipientUsername is set the basket is a gift: the
-// transactions service resolves and vets the recipient (registered, not banned,
-// not already premium) and the entitlement lands on them while this user pays.
-// Never cached: every checkout attempt gets a fresh basket. Basket creation is
-// two Tebex HTTP calls upstream, so the timeout is looser than the in-cluster
-// read budget.
 export type CheckoutBasket = { ident: string; checkoutUrl: string | null; recipientLogin: string | null };
 
 export type CheckoutPackageType = 'single' | 'subscription';
@@ -660,9 +524,6 @@ export async function checkoutBasketCreate(req: CheckoutRequest): Promise<Checko
   return { ident: r.ident, checkoutUrl: r.checkout_url ?? null, recipientLogin: r.recipient_login ?? null };
 }
 
-// ---------------------------------------------------------------------------
-// Notifications (notifications service)
-
 export type NotificationWire = {
   id: number;
   scope: 'broadcast' | 'direct';
@@ -680,10 +541,6 @@ export type NotificationsForUser = {
   unreadCount: number;
 };
 
-// Broadcast sends can't be push-invalidated per user (the sender doesn't know
-// every recipient's cache key), so this rides a short freshness window
-// instead of relying solely on the invalidation bus, same tradeoff as the
-// shard snapshot's `live` policy.
 export const notificationsForUser = defineRead({
   subject: `${SUB.notifications}.list`,
   request: (userId: string) => ({ user_id: userId }),
@@ -708,20 +565,13 @@ export const notificationMarkRead = defineWrite({
   after: (_result: unknown, userId: string) => invalidate(`notifications:${userId}`)
 });
 
-// Dropdown-open "peek": soft-acknowledge every notification the user can see,
-// shortening each unread one's per-user life to the reduced peek TTL and
-// clearing the unread badge. The notifications service picks the affected set,
-// so the request carries only the user id.
 export const notificationMarkPeeked = defineWrite({
   subject: `${SUB.notifications}.mark_peeked`,
   request: (userId: string) => ({ user_id: userId }),
   after: (_result: unknown, userId: string) => invalidate(`notifications:${userId}`)
 });
 
-// Irreversibly delete the user's own account (and their owned delegations,
-// cleared server-side). The caller drops the session cookie after this resolves.
-// Custom error mapping (throw on !ok) doesn't fit defineWrite's result shape
-// cleanly, so this stays hand-written.
+/** Irreversible; the caller must drop the session cookie after it resolves. */
 export async function deleteSelf(userId: string): Promise<void> {
   const r = await rpc<{ ok?: boolean; error?: string }>(`${SUB.dashboard}.delete_self`, {
     user_id: userId
@@ -730,12 +580,6 @@ export async function deleteSelf(userId: string): Promise<void> {
   invalidateUser(userId);
 }
 
-/**
- * Subscribe to the cache-invalidation bus so writes in other services (Go)
- * push-drop the affected keys without waiting on TTL expiry. Call once at
- * server boot (hooks.server.ts init). Scope -> key routing is the SCOPES map
- * above; the shared router owns transport, parsing, retry, and gap flushes.
- */
 export function startInvalidationListener(): void {
   fabric.start();
 }

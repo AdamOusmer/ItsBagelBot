@@ -14,7 +14,6 @@ import (
 	api "ItsBagelBot/internal/discordapi"
 )
 
-// fakeGate is a Gate that counts calls and can be told to refuse them.
 type fakeGate struct {
 	calls int
 	deny  bool
@@ -28,10 +27,6 @@ func (g *fakeGate) Take(context.Context) error {
 	return nil
 }
 
-// countingTransport stands in for the network: it counts every request that
-// got past the gate and answers with an empty JSON object. Bodies that fail to
-// decode are fine here -- these tests assert what reached the wire, not what
-// came back.
 type countingTransport struct {
 	requests int
 }
@@ -46,9 +41,6 @@ func (t *countingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	}, nil
 }
 
-// gatedClient wires a real *api.Client through the gate onto a counting
-// transport. It bypasses NewClient only to substitute the network; the gating
-// half under test is the same value NewClient installs.
 func gatedClient(gate Gate) (*api.Client, *countingTransport) {
 	next := &countingTransport{}
 	client := api.NewClient("test-token")
@@ -61,23 +53,10 @@ type restCall struct {
 	call func(context.Context, *api.Client) error
 }
 
-// ret adapts a value-returning REST method to restCall.call. These tests
-// assert what reached the wire, so the value is deliberately dropped.
 func ret[T any](call func(context.Context, *api.Client) (T, error)) func(context.Context, *api.Client) error {
 	return func(ctx context.Context, c *api.Client) error { _, err := call(ctx, c); return err }
 }
 
-// restCalls is every REST method the two Discord services call, driven through
-// the real client. It is the transport-shaped heir of the old LimitedClient
-// table: that one had to prove each of 34 forwarders remembered the gate, and
-// a reflection sweep caught any method missing from it. Neither is a risk any
-// more -- the transport gates whatever the client sends -- so this table now
-// proves the weaker but sufficient thing, that these calls really do go out
-// over the gated transport rather than around it.
-//
-// ModifyGuild carries a real field because an empty patch sends no request at
-// all: that is exactly the call the old wrapper charged a token for and this
-// one does not.
 func restCalls() []restCall {
 	level := 1
 	return []restCall{
@@ -180,8 +159,6 @@ func TestRefusedCallNeverReachesDiscord(t *testing.T) {
 	}
 }
 
-// TestNewClientInstallsTheGate pins the wiring NewClient does, which the tests
-// above bypass to substitute the network.
 func TestNewClientInstallsTheGate(t *testing.T) {
 	gate := &fakeGate{deny: true}
 	if err := NewClient("test-token", gate).SendChat(context.Background(), api.ChatPost{}); !errors.Is(err, ErrRateLimited) {

@@ -1,9 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Shard roll-call. The summary line answers the only question this panel is
-  // asked at a glance ("are they all up"); the rows are there for the one time
-  // a month the answer is no.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
@@ -20,8 +17,6 @@
 
   const connected = $derived(snapshot.shards.filter((s) => s.state === 'connected').length);
   const total = $derived(snapshot.shard_count || snapshot.shards.length);
-  // `ok` is whether the READ landed, which is a different question from whether
-  // the fleet is healthy: a failed read is neutral (we cannot tell), never green.
   const tone = $derived(
     !ok ? statusTone('unavailable') : statusTone(total > 0 && connected === total ? 'online' : 'degraded')
   );

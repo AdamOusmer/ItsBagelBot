@@ -18,8 +18,6 @@ func TestAckIsReceiptLevelAndCostsNothing(t *testing.T) {
 
 	msg.Ack()
 
-	// The resolve callback runs on this goroutine, so the count is already back
-	// by the time Ack returns; Wait is the assertion that it was released at all.
 	sub.pending.Wait()
 	if sub.retried.Load() != 0 || sub.dropped.Load() != 0 {
 		t.Fatalf("a receipt-level ack produced traffic: %d retries, %d drops",
@@ -27,23 +25,16 @@ func TestAckIsReceiptLevelAndCostsNothing(t *testing.T) {
 	}
 }
 
-// TestNackRunsTheRetryPathExactlyOnce is the other half of the resolve contract.
-// The verdict no longer has a goroutine of its own, so a callback invoked twice
-// would schedule the event twice and one invoked never would leak the pending
-// count for the whole drain window.
 func TestNackRunsTheRetryPathExactlyOnce(t *testing.T) {
 	sub := testFlowSubscriber()
 	defer close(sub.closeCh)
 	wire := laneDelivery("logical-id", []byte(`{"text":"hello"}`))
-	// An exhausted budget refuses inside the shared helper, before it reaches the
-	// connection, which is what lets the retry path run here without a broker.
 	wire.Header.Set(RetryCountHeader, "1")
 	msg := deliverToLane(t, sub, wire)
 
 	if !msg.Nack() {
 		t.Fatal("the first Nack must win")
 	}
-	// Losing calls must not re-enter the callback.
 	msg.Nack()
 	msg.Ack()
 
@@ -54,16 +45,11 @@ func TestNackRunsTheRetryPathExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestADeliveryLostToShutdownReleasesItsPendingCount guards the one path where
-// the resolve callback provably never runs: the send lost the race to closeCh,
-// so no handler ever saw the message. Without the explicit release the count
-// would sit there and shutdown would burn its whole drain budget on it.
 func TestADeliveryLostToShutdownReleasesItsPendingCount(t *testing.T) {
 	sub := testFlowSubscriber()
 	wire := laneDelivery("logical-id", []byte(`{"text":"hello"}`))
 	msg := mustFlowMessage(t, wire)
 
-	// Nothing reads the lane channel and the binding is already closing.
 	close(sub.closeCh)
 	if sub.deliver(flowDelivery{wire: wire, msg: msg}) {
 		t.Fatal("a delivery was accepted after the binding closed")
@@ -76,8 +62,6 @@ func TestADeliveryLostToShutdownReleasesItsPendingCount(t *testing.T) {
 	}
 }
 
-// deliverToLane runs the real deliver path with a reader standing in for a
-// consumer unit, and hands back the message that unit received.
 func deliverToLane(t *testing.T, sub *flowSubscriber, wire *nats.Msg) *Message {
 	t.Helper()
 	received := make(chan *Message, 1)
@@ -112,8 +96,6 @@ func TestEveryUnitSharesOnePodLaneChannel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// One consumer per pod means one delivery stream per pod: the units compete
-	// for the same channel instead of each binding its own consumer.
 	if first != second {
 		t.Fatal("a second consumer unit was handed its own lane channel")
 	}

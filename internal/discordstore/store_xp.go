@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// XP keyspace: message XP, the per-member award cooldown and the daily bonus.
-//
-// One of the four keyspace files store.go was split into; see store_voice.go
-// for why the split runs by keyspace across both implementations rather than
-// by implementation.
-
 package discordstore
 
 import (
@@ -73,10 +67,6 @@ func (s valkeyStore) Rank(ctx context.Context, m Member) (int, int) {
 	return xp, levelOf(xp)
 }
 
-// levelOf is the XP->level curve, owned by internal/domain/discord so the
-// discord-data repository (which stores the level column) and this fast path
-// cannot drift apart. Kept as a local shim because every caller here holds an
-// int, not the int64 the stored column uses.
 func levelOf(xp int) int { return ddiscord.LevelOf(int64(xp)) }
 
 func (m *Mem) AddXP(_ context.Context, mem Member) (int, bool, int) {
@@ -116,7 +106,6 @@ type XPSeed struct {
 	Amount int
 }
 
-// SeedXP is a test helper that sets crumbs without touching the cooldown.
 func (m *Mem) SeedXP(s XPSeed) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -17,8 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// stubFollowage answers the followage RPC from a fixture and counts calls, so
-// a test can pin both the rendered span and the fan-out.
 type stubFollowage struct {
 	result FollowageResult
 	err    error
@@ -41,9 +39,6 @@ func (s *stubAccountAge) Lookup(_ context.Context, targetID, targetLogin string)
 	return s.result, s.err
 }
 
-// balanceLoyalty answers BalanceGet per viewer id; every other verb is
-// unreachable from the custom-command path, so the embedded interface stays
-// nil.
 type balanceLoyalty struct {
 	LoyaltyStore
 	balances map[uint64]loyaltyrpc.Balance
@@ -56,8 +51,6 @@ func (f *balanceLoyalty) BalanceGet(_ context.Context, _, viewerID uint64) (loya
 	return f.balances[viewerID], f.err
 }
 
-// viewerFixture is one channel's wiring for the viewer tokens: which modules
-// are on, and which readers answer them.
 type viewerFixture struct {
 	response   string
 	modules    map[string]projection.ModuleView
@@ -66,8 +59,6 @@ type viewerFixture struct {
 	loyalty    LoyaltyStore
 }
 
-// on is the module row a broadcaster gets by enabling a module in the
-// dashboard; loyaltyOn carries the currency name blob !points reads.
 func on() projection.ModuleView  { return projection.ModuleView{IsEnabled: true} }
 func off() projection.ModuleView { return projection.ModuleView{IsEnabled: false} }
 
@@ -94,8 +85,6 @@ func viewerPipeline(t *testing.T, f viewerFixture) *Pipeline {
 	return NewPipeline(d, NewRegistry(zap.NewNop()), Config{OutgressPremium: premiumSubj, OutgressStandard: standardSubj})
 }
 
-// expandViewer runs "!brag" through the real dispatch path and returns the one
-// chat line it produced.
 func expandViewer(t *testing.T, p *Pipeline, line string) string {
 	t.Helper()
 	got := collectDispatch(p, chatCtx(line, ""))
@@ -103,16 +92,12 @@ func expandViewer(t *testing.T, p *Pipeline, line string) string {
 	return got[0].Text
 }
 
-// viewerCase is one row of the tables below: a template, the module rows the
-// channel has, and the line chat sees.
 type viewerCase struct {
 	name    string
 	fixture viewerFixture
 	want    string
 }
 
-// runViewerCases expands each row's template through a pipeline built from its
-// fixture, so the two tables assert on the one path a real !brag takes.
 func runViewerCases(t *testing.T, cases []viewerCase) {
 	t.Helper()
 	for _, tc := range cases {
@@ -123,9 +108,6 @@ func runViewerCases(t *testing.T, cases []viewerCase) {
 	}
 }
 
-// TestSpanTokensExpandThroughTheModuleGates covers the two duration families,
-// which share a gate (the built-in's own module row, which ships enabled) and
-// share the rule that every unresolvable outcome renders the fallback.
 func TestSpanTokensExpandThroughTheModuleGates(t *testing.T) {
 	followedAt := time.Now().Add(-90 * 24 * time.Hour)
 	createdAt := time.Now().Add(-3 * 365 * 24 * time.Hour)
@@ -142,8 +124,6 @@ func TestSpanTokensExpandThroughTheModuleGates(t *testing.T) {
 			want: "alice has followed for 3 months on an account 3 years old",
 		},
 		{
-			// A built-in module ships enabled, so a channel with no row at all
-			// still expands the token — the same polarity !followage runs on.
 			name: "an explicit module-off leaves the span literal",
 			fixture: viewerFixture{
 				response:  "followed for {followage|a while}",
@@ -173,9 +153,6 @@ func TestSpanTokensExpandThroughTheModuleGates(t *testing.T) {
 	})
 }
 
-// TestLoyaltyTokensExpandThroughTheModuleGate covers the loyalty family, whose
-// gate is the opposite polarity: the module is opt-in, so no row means the
-// tokens stay literal rather than printing a zero.
 func TestLoyaltyTokensExpandThroughTheModuleGate(t *testing.T) {
 	runViewerCases(t, []viewerCase{
 		{
@@ -188,7 +165,6 @@ func TestLoyaltyTokensExpandThroughTheModuleGate(t *testing.T) {
 			want: "alice: 1280 bagels, 2 hours, 30 minutes watched",
 		},
 		{
-			// The currency name falls back exactly the way !points does.
 			name: "an enabled module with no configured name uses the default",
 			fixture: viewerFixture{
 				response: "{points} {pointsname}",
@@ -198,8 +174,6 @@ func TestLoyaltyTokensExpandThroughTheModuleGate(t *testing.T) {
 			want: "7 points",
 		},
 		{
-			// Loyalty is opt-in: no row means the broadcaster never turned it
-			// on, so the tokens stay literal rather than printing a zero.
 			name: "loyalty off leaves every loyalty token literal",
 			fixture: viewerFixture{
 				response: "{points} {pointsname} {watchtime}",
@@ -209,9 +183,6 @@ func TestLoyaltyTokensExpandThroughTheModuleGate(t *testing.T) {
 			want: "{points} {pointsname} {watchtime}",
 		},
 		{
-			// A named viewer nobody has spoken where this replica could see is
-			// not resolvable to an id, so the span renders its fallback rather
-			// than the sender's own balance under someone else's name.
 			name: "an unresolvable named viewer renders the fallback",
 			fixture: viewerFixture{
 				response: "ferret_king has {points:ferret_king|no} points",
@@ -232,8 +203,6 @@ func TestLoyaltyTokensExpandThroughTheModuleGate(t *testing.T) {
 	})
 }
 
-// A template naming one viewer several ways costs one lookup per family: the
-// scope plans before it renders, and folds the spellings first.
 func TestViewerTokensLookUpEachViewerOnce(t *testing.T) {
 	follow := &stubFollowage{result: FollowageResult{UserFound: true, Following: true, FollowedAt: time.Now().Add(-time.Hour)}}
 	loyalty := &balanceLoyalty{balances: map[uint64]loyaltyrpc.Balance{999: {Points: 3, WatchSeconds: 60}}}
@@ -250,9 +219,6 @@ func TestViewerTokensLookUpEachViewerOnce(t *testing.T) {
 	assert.Equal(t, []uint64{999}, loyalty.calls, "{points} and {watchtime} share one balance read")
 }
 
-// A named viewer the roster has seen speak resolves through the same path a
-// target-addressed counter uses, and carries no id into the followage RPC —
-// the shape parseLookupTarget hands !followage for an explicit "@name".
 func TestViewerTokensResolveANamedViewer(t *testing.T) {
 	follow := &stubFollowage{result: FollowageResult{UserFound: true, Following: true, FollowedAt: time.Now().Add(-48 * time.Hour)}}
 	loyalty := &balanceLoyalty{balances: map[uint64]loyaltyrpc.Balance{7: {Points: 55}}}
@@ -269,8 +235,6 @@ func TestViewerTokensResolveANamedViewer(t *testing.T) {
 	assert.Equal(t, []uint64{7}, loyalty.calls)
 }
 
-// Nothing on this path grants, spends or bumps: the family is read-only, so a
-// response spamming {points} moves no balance.
 func TestViewerTokensNeverMutate(t *testing.T) {
 	loyalty := &balanceLoyalty{balances: map[uint64]loyaltyrpc.Balance{999: {Points: 10}}}
 	p := viewerPipeline(t, viewerFixture{
@@ -283,8 +247,6 @@ func TestViewerTokensNeverMutate(t *testing.T) {
 	assert.Equal(t, []uint64{999}, loyalty.calls, "read once, rendered three times")
 }
 
-// An unknown token stays literal beside a resolved one, the rule every token
-// family in this palette shares.
 func TestViewerTokensLeaveUnknownSpansLiteral(t *testing.T) {
 	p := viewerPipeline(t, viewerFixture{
 		response:  "{followage} {followage_years} {pointsrank}",

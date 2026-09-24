@@ -25,13 +25,7 @@ type workloadKey struct {
 	name string
 }
 
-// dropScaledReplicas returns objs with spec.replicas removed from every
-// Deployment a KEDA ScaledObject targets, whether that ScaledObject is in objs
-// or only live in the Deployment's namespace. The manifests keep replicas
-// (sesame.yaml, outgress.yaml) as the floor for a fresh apply; re-applying it
-// with force would snap a scaled-out Deployment back to that floor on every
-// deploy until the HPA caught up. Callers' objects are never mutated: the
-// stage reuses them for lint and verify.
+// objs must not be mutated: the stage reuses them for lint and verify.
 func (a *Applier) dropScaledReplicas(ctx context.Context, objs ports.Objects) (ports.Objects, error) {
 	targets, nss := scan(objs)
 	for ns := range nss {
@@ -58,8 +52,6 @@ func withoutReplicas(o *unstructured.Unstructured, targets map[workloadKey]bool)
 	return c
 }
 
-// liveScaledTargets adds the targets of ScaledObjects live in ns. A cluster
-// without the KEDA CRD has none, which is an answer, not an error.
 func (a *Applier) liveScaledTargets(ctx context.Context, ns ports.Namespace, into map[workloadKey]bool) error {
 	m, err := a.mapper.RESTMapping(scaledObjectKind)
 	if meta.IsNoMatchError(err) {
@@ -78,8 +70,6 @@ func (a *Applier) liveScaledTargets(ctx context.Context, ns ports.Namespace, int
 	return nil
 }
 
-// scan collects the targets of the ScaledObjects in objs and the namespaces
-// holding a Deployment (the only namespaces worth a live ScaledObject list).
 func scan(objs ports.Objects) (map[workloadKey]bool, map[ports.Namespace]bool) {
 	targets := map[workloadKey]bool{}
 	nss := map[ports.Namespace]bool{}
@@ -94,8 +84,6 @@ func scan(objs ports.Objects) (map[workloadKey]bool, map[ports.Namespace]bool) {
 	return targets, nss
 }
 
-// addTarget records so's scaleTargetRef. An empty kind means Deployment (the
-// KEDA default); any other kind is not a Deployment this applier touches.
 func addTarget(into map[workloadKey]bool, so *unstructured.Unstructured) {
 	ref, _, _ := unstructured.NestedStringMap(so.Object, "spec", "scaleTargetRef")
 	kind := ref["kind"]

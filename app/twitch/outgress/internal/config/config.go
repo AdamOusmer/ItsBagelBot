@@ -11,8 +11,6 @@ import (
 )
 
 type Config struct {
-	// Infra is the shared NATS/Valkey/listen block (see svcboot.Infra); its
-	// fields are promoted, so cfg.NATSURL and cfg.ListenAddr read unchanged.
 	svcboot.Infra
 
 	PremiumSubject  string
@@ -20,11 +18,6 @@ type Config struct {
 	SystemSubject   string
 	RPCPrefix       string
 
-	// The central premium + standard consumer autoscales its routine pool.
-	// MinRoutines/MaxRoutines bound the routines per consumer; MaxConsumers
-	// caps how many consumers spin up once routines are maxed; the ScaleAfter
-	// windows pace growth and shrink. PremiumReserve is the percentage of the
-	// pool kept for premium so a standard flood never starves it.
 	MinRoutines    int
 	MaxRoutines    int
 	MaxConsumers   int
@@ -32,71 +25,31 @@ type Config struct {
 	ScaleDownAfter time.Duration
 	PremiumReserve int
 
-	// SystemWorkers sizes the system lane's own, independent consumer (the
-	// dashboard's EventSub create/delete jobs), kept off the weighted budget.
 	SystemWorkers int
 
 	TwitchClientID     string
 	TwitchClientSecret string
 
-	// TwitchConduitID is a fallback seed used only when the ingress RPC
-	// (bagel.rpc.ingress.conduit.get) is unreachable. The authoritative conduit
-	// id is resolved at runtime via NATS RPC so it tracks the conduit ingress
-	// actually owns. Without both this fallback and a reachable ingress,
-	// eventsub jobs are dropped; chat and api traffic is unaffected.
 	TwitchConduitID string
 
-	// ConduitSubject is the NATS request-reply subject outgress uses to resolve
-	// the active conduit id from ingress. Defaults to
-	// bagel.rpc.ingress.conduit.get. Override with NATS_CONDUIT_SUBJECT.
 	ConduitSubject string
 
-	// TwitchBotUserID identifies the bot account for moderation lookups.
-	// When empty, the sender_id carried by each message is used instead.
 	TwitchBotUserID string
 
-	// TwitchBotRefreshToken unlocks user-token endpoints (mod status
-	// verification). Optional: without it the service runs on the app token
-	// alone and treats unverified channels as non-mod, which never
-	// over-sends. When TwitchBotUserID is set this is only the seed; the
-	// stored token managed through the admin panel takes precedence.
 	TwitchBotRefreshToken string
 
-	// TokensSubjectPrefix is the users service token RPC outgress loads the
-	// bot account's token from and persists rotations back to.
 	TokensSubjectPrefix string
 
-	// CacheInvalidatePrefix is the core-NATS prefix used for live-state and
-	// outgress channel-registry invalidations. The latter keeps moderator status
-	// coherent across outgress replicas.
 	CacheInvalidatePrefix string
 
-	// LiveTTL is the TTL stamped on a live key written by a stream_status
-	// re-check; it must match the worker so re-confirmed streams keep their
-	// expiry-driven re-check cadence.
 	LiveTTL time.Duration
 
-	// StreamLaneSubject is the ingress event lane carrying real Twitch
-	// stream.online / stream.offline EventSub messages. Outgress binds its OWN
-	// durable consumer here to re-verify the bot's mod status on go-live (the
-	// projector binds its own group on the same subject and still gets every
-	// event once). Defaults to twitch.ingress.event.stream, matching the
-	// projector's NATS_SUBJECT_LANE_STREAM.
 	StreamLaneSubject string
 
-	// Authz*Subject are the ingress status subjects carrying the authorization
-	// lifecycle: a user re-consented (granted), a user's authorization died
-	// (revoked), or Twitch revoked one concrete subscription (subrevoked).
-	// Outgress binds a durable consumer per subject to reconcile channel
-	// enrollment state.
 	AuthzGrantedSubject    string
 	AuthzRevokedSubject    string
 	AuthzSubRevokedSubject string
 
-	// NotifySendSubject is the notifications service direct-send verb the
-	// reauth nudge goes through; UsersStateSubject is the users service verb
-	// the streamer's locale is read from; UsersActiveSubject is the verb a
-	// channel blocked by a revocation or a chat ban is deactivated through.
 	NotifySendSubject  string
 	UsersStateSubject  string
 	UsersActiveSubject string

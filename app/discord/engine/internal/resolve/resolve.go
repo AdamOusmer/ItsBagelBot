@@ -1,15 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package resolve looks up the Discord module config every engine module
-// needs, in the two directions engine's two input families require: a
-// Discord guild id (every discord.ingress.event.* subject) and a Twitch
-// broadcaster id (twitch.ingress.event.stream, data.twitch.clip.created).
-// Ported from app/dingress/internal/community's Bot.bound (guild direction)
-// and app/dingress/internal/egress's Worker.discordConfig (broadcaster
-// direction) -- two copies of nearly the same three checks before this
-// split, because ROLE=gateway and ROLE=egress each had their own. One
-// process (engine) now needs both directions, so they are one package.
 package resolve
 
 import (
@@ -24,53 +15,24 @@ import (
 	"go.uber.org/zap"
 )
 
-// Modules reads the Discord module blob for a Twitch broadcaster id. Satisfied
-// by *projection.Store in production.
 type Modules interface {
 	GetModule(ctx context.Context, userID uint64, name string) (projection.ModuleView, bool, error)
 }
 
-// Status returns a broadcaster's projected account status ("free", "paid",
-// "vip") and whether it could be read at all.
 type Status func(ctx context.Context, broadcasterID uint64) (string, bool)
 
-// Resolver ties a guild-binding store to the module-blob reader.
 type Resolver struct {
 	Store   discordstore.Store
 	Modules Modules
-	// Tier gates the beta: Discord is premium-only while
-	// ddiscord.BetaPremiumOnly holds. It sits HERE, on the one lookup every
-	// module and both input families already go through, rather than in each
-	// module. A per-module check is a check a new module can forget, and the
-	// failure mode of forgetting is handing a paid beta to everyone.
-	//
-	// Nil while the gate is on resolves nothing, so a service that forgets to
-	// wire it fails closed and loudly rather than serving every channel.
-	Tier Status
-	// Warned dedupes the invalid-config warning. It is a POINTER so the
-	// copies of this value that dispatch and every module hold share one
-	// record; nil (tests, and any caller that forgets it) simply warns
-	// every time, which is noisy rather than wrong.
-	Warned *ConfigWarnings
-	Log    *zap.Logger
+	Tier    Status
+	Warned  *ConfigWarnings
+	Log     *zap.Logger
 }
 
-// ConfigWarnings remembers which (guild, field) pairs have already been
-// warned about.
-//
-// Without it the warning fires on EVERY event for a guild whose stored
-// config holds one bad field -- thousands of identical lines an hour, which
-// is how a real signal gets filtered out of the log pipeline and then
-// ignored. Deduping is per field rather than per guild because a second bad
-// field is new information.
 type ConfigWarnings struct{ seen sync.Map }
 
-// NewConfigWarnings builds an empty record. Its lifetime is the process:
-// the set is bounded by (guilds x Config fields) and each entry is two
-// short strings, so nothing here needs eviction.
 func NewConfigWarnings() *ConfigWarnings { return &ConfigWarnings{} }
 
-// first reports whether this pair has not been warned about yet.
 func (w *ConfigWarnings) first(guildID, field string) bool {
 	if w == nil {
 		return true
@@ -79,23 +41,12 @@ func (w *ConfigWarnings) first(guildID, field string) bool {
 	return !seen
 }
 
-// ByBroadcaster lists every guild a Twitch broadcaster's Discord is live in,
-// with that guild's settings.
-//
-// It returns a slice, not one config, because one broadcaster owns many
-// guilds: a Twitch event (go-live, a new clip) fans out to all of them. The
-// broadcaster-level gate runs once, before any per-guild work, so a channel
-// with Discord switched off or outside the premium beta costs one module read
-// and no guild lookups at all.
 func (r Resolver) ByBroadcaster(ctx context.Context, broadcasterID uint64) []discordstore.GuildConfigOf {
 	if r.Store == nil || !r.gateOpen(ctx, broadcasterID) {
 		return nil
 	}
 	guilds, err := r.Store.GuildsOf(ctx, discordstore.Broadcaster{ID: strconv.FormatUint(broadcasterID, 10)})
 	if err != nil {
-		// Fanning out to nothing is still what happens, but it is now said
-		// out loud: an unreachable store used to be indistinguishable from a
-		// streamer who connected no servers.
 		r.log().Error("discord guild list failed; this Twitch event fans out to nothing",
 			zap.Uint64("broadcaster_id", broadcasterID), zap.Error(err))
 		return nil
@@ -111,15 +62,6 @@ func (r Resolver) ByBroadcaster(ctx context.Context, broadcasterID uint64) []dis
 	return out
 }
 
-// ByGuild resolves a Discord guild id to its settings and the broadcaster it
-// is bound to. Ported from community's Bot.bound, minus the ensureDesk side
-// effect (the dispatcher runs that explicitly, since it needs to emit a
-// Command -- see app/discord/engine/modules/ticket.go's EnsureDesk).
-//
-// The settings no longer come from the broadcaster's module blob: that blob is
-// keyed by broadcaster and so could only ever describe one guild. It keeps the
-// master switch, which is what gateOpen still reads; everything per-guild
-// comes from discord-data.
 func (r Resolver) ByGuild(ctx context.Context, guildID string) (ddiscord.Config, string, bool) {
 	if r.Store == nil {
 		return ddiscord.Config{}, "", false
@@ -142,11 +84,6 @@ func (r Resolver) ByGuild(ctx context.Context, guildID string) (ddiscord.Config,
 	return cfg, b.ID, true
 }
 
-// sanitize drops the fields the stored blob got wrong and warns once per
-// guild per field. It runs on every resolve rather than at write time
-// because the blob is also written by older console builds and by hand; the
-// validation pass it costs is a map build and a sort, well under the
-// projection read it follows.
 func (r Resolver) sanitize(guildID string, cfg ddiscord.Config) ddiscord.Config {
 	clean, bad := ddiscord.SanitizeConfig(cfg)
 	for _, fe := range bad {
@@ -160,39 +97,16 @@ func (r Resolver) sanitize(guildID string, cfg ddiscord.Config) ddiscord.Config 
 	return clean
 }
 
-// configOf reads one guild's settings and stamps the guild id into them.
-//
-// The stamp matters: Config.Connected() is "GuildID is set", every module
-// gates on it, and a guild whose settings row was written before the id field
-// was filled would otherwise read as disconnected despite holding a live
-// binding. A bound guild IS connected, by definition, so the binding is the
-// authority here rather than a field the dashboard may not have sent.
 func (r Resolver) configOf(ctx context.Context, g discordstore.Guild) (ddiscord.Config, bool) {
 	cfg, _, ok := r.Store.GuildConfig(ctx, g)
 	if !ok {
 		return ddiscord.Config{}, false
 	}
-	// Merge note (2026-09-05): sanitize used to run on the module blob at
-	// the top of the broadcaster path. Settings now come per guild from
-	// discord-data, and BOTH directions funnel through here, so the
-	// validation pass moved to the one place that reads a stored Config --
-	// it is still one map build and a sort, cheaper than the read it
-	// follows, and it now also covers rows written by an older console.
-	//
-	// The stamp lands AFTER the sanitize, and the guild id is passed in
-	// rather than read off the config: sanitizing a stamped config zeroes
-	// the id whenever the stored row disagrees with the binding, which is
-	// the one field the binding is authoritative for.
 	cfg = r.sanitize(g.ID, cfg)
 	cfg.GuildID = g.ID
 	return cfg, true
 }
 
-// gateOpen reports whether a broadcaster's Discord may act at all: the module
-// row exists, its master switch is on, and the premium beta lets this channel
-// through. It is the broadcaster half of what ByBroadcaster used to do inline,
-// split out because both directions now need it and neither needs the blob's
-// other fields any more.
 func (r Resolver) gateOpen(ctx context.Context, broadcasterID uint64) bool {
 	if r.Modules == nil {
 		return false
@@ -209,9 +123,6 @@ func (r Resolver) gateOpen(ctx context.Context, broadcasterID uint64) bool {
 	return r.premiumOK(ctx, broadcasterID)
 }
 
-// premiumOK applies the beta gate. It runs LAST, after the row is known to
-// exist and be connected, so the common free-channel case (no Discord row at
-// all) never pays a tier lookup.
 func (r Resolver) premiumOK(ctx context.Context, broadcasterID uint64) bool {
 	if !ddiscord.BetaPremiumOnly {
 		return true

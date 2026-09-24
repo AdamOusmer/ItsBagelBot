@@ -14,8 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// ---- pure read-side reconstruction: no Valkey needed ----
-
 func TestBuildChatVolumeEmptyRingIsAllZero(t *testing.T) {
 	cv := buildChatVolume(map[string]string{}, 1_000_000)
 	require.Len(t, cv.Buckets, ringWidth)
@@ -27,36 +25,36 @@ func TestBuildChatVolumeEmptyRingIsAllZero(t *testing.T) {
 	require.Equal(t, 0, cv.Peak)
 }
 
-func TestBuildChatVolumeReadsCurrentLapOnly(t *testing.T) {
-	now := int64(1_000_100) // anchor + 100
-	slot := slotName(now)
-	fields := map[string]string{
-		"a":  "1000000",
-		slot: "100:7:1", // current minute (delta 100), 7 messages, handled
+func TestBuildChatVolumeLaps(t *testing.T) {
+	cases := []struct {
+		name      string
+		now       int64
+		anchor    string
+		slotValue string
+		wantNow   int
+		wantTick  bool
+	}{
+		{name: "current lap", now: 1_000_100, anchor: "1000000", slotValue: "100:7:1", wantNow: 7, wantTick: true},
+		{name: "stale lap reads as zero", now: 2_000_200, anchor: "2000000", slotValue: "999:42:1"},
 	}
-	cv := buildChatVolume(fields, now)
-	require.Equal(t, 7, cv.Now)
-	require.Contains(t, cv.CommandTicks, ringWidth-1)
-	require.Equal(t, 7, cv.Peak)
-}
-
-func TestBuildChatVolumeStaleLapReadsAsZero(t *testing.T) {
-	now := int64(2_000_200)
-	slot := slotName(now)
-	fields := map[string]string{
-		"a":  "2000000",
-		slot: "999:42:1", // wrong delta for this lap (should be 200)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fields := map[string]string{"a": tc.anchor, slotName(tc.now): tc.slotValue}
+			cv := buildChatVolume(fields, tc.now)
+			require.Equal(t, tc.wantNow, cv.Now)
+			require.Equal(t, tc.wantNow, cv.Peak)
+			if tc.wantTick {
+				require.Contains(t, cv.CommandTicks, ringWidth-1)
+			} else {
+				require.Empty(t, cv.CommandTicks)
+			}
+		})
 	}
-	cv := buildChatVolume(fields, now)
-	require.Equal(t, 0, cv.Now)
-	require.Empty(t, cv.CommandTicks)
 }
 
 func TestBuildChatVolumeMissingAnchorIsAllZero(t *testing.T) {
 	slot := slotName(500)
 	cv := buildChatVolume(map[string]string{slot: "0:9:1"}, 500)
-	// anchor parses to 0, so delta-for-target(500-0=500) must equal the
-	// stored delta(0) to count -- it does not, so this reads as zero too.
 	require.Equal(t, 0, cv.Now)
 }
 
@@ -65,7 +63,7 @@ func TestParseSlotValueRejectsMalformed(t *testing.T) {
 	for _, raw := range cases {
 		_, _, _, ok := parseSlotValue(raw)
 		if raw == "1:2:0:extra-is-fine-since-splitn3" {
-			require.True(t, ok, raw) // SplitN(3) folds the rest into the 3rd field
+			require.True(t, ok, raw)
 			continue
 		}
 		require.False(t, ok, raw)
@@ -76,12 +74,6 @@ func TestPeakOf(t *testing.T) {
 	require.Equal(t, 9, peakOf([]int{0, 3, 9, 1}))
 	require.Equal(t, 0, peakOf(nil))
 }
-
-// ---- integration: real Lua semantics need a real Valkey ----
-//
-// Opt-in like app/twitch/sesame/engine's hot-path tests (same VALKEY_TEST_ADDR
-// convention): the reset-vs-increment decision lives in bumpScript, a Lua
-// state machine that only exists inside a real Valkey interpreter.
 
 func newChatVolumeTestClient(t *testing.T) valkey.Client {
 	t.Helper()
@@ -147,8 +139,6 @@ func TestStoreRingCollisionAfterFullLapReadsFresh(t *testing.T) {
 	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: base, Handled: false})
 	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: base, Handled: false})
 
-	// A full lap later, same ring slot: must read as a fresh minute (count 1),
-	// not 3+1=4 leaking across the wraparound.
 	lapLater := base.Add(time.Duration(ringWidth) * time.Minute)
 	s.Observe(Event{BroadcasterID: broadcaster, Type: typeChatMessage, At: lapLater, Handled: false})
 
@@ -184,7 +174,6 @@ func TestStoreObserveIgnoresOtherEventTypes(t *testing.T) {
 	now := time.Unix(1_800_600*60, 0).UTC()
 	s.Observe(Event{BroadcasterID: broadcaster, Type: "channel.follow", At: now, Handled: false})
 
-	// No key was ever created.
 	exists, err := client.Do(ctx, client.B().Exists().Key(chatVolKey(broadcaster)).Build()).AsInt64()
 	require.NoError(t, err)
 	require.Equal(t, int64(0), exists)

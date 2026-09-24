@@ -1,11 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // A read-only command row on a module page: the static twin of ReplyRow. It
-  // lists a chat command the module unlocks (trigger + summary), with a small
-  // role tag when the command is moderator- or lead-mod-only. Unlike ReplyRow it is not a
-  // button and carries no toggle or inspector: nothing here is editable, so it
-  // is deliberately not clickable.
   import { Code, getI18n, tModuleCommandSummary, type ModuleCommandInfo } from '@bagel/kit';
 
   const { t } = getI18n();
@@ -36,8 +31,6 @@
   .row-shell {
     border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.08));
   }
-  /* Named `crow` rather than `trow`: shared app.css hides `.trow .resp` under
-     761px (old table columns). This row's summary lives on the same cell. */
   .crow {
     display: grid;
     grid-template-columns: 28px minmax(0, 1fr) auto;
@@ -59,8 +52,6 @@
     min-width: 0;
   }
 
-  /* Was a 4px-radius tan-outlined pill; the role label is now the global
-     .bb-tag--bare, frameless because the row already has its own rule. */
   .mini-spacer { width: 0; }
 
   @media (max-width: 760px) {

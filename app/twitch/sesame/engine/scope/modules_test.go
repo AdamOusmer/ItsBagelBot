@@ -12,9 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeQuotes hands out a fresh quote per random draw and a canned one per
-// number, counting both so the "independent draws, one read per number" claim
-// is asserted rather than assumed.
 type fakeQuotes struct {
 	numbered map[uint64]string
 	draws    int
@@ -41,9 +38,6 @@ func (f *fakeClock) LocalTime() string {
 	return f.value
 }
 
-// fakePlaces answers every normalized place it is given "<place> time",
-// except "nowhere" which it cannot resolve, mirroring the real Places
-// contract (empty means unresolvable) without pulling in tzname.
 type fakePlaces struct {
 	calls []string
 }
@@ -78,8 +72,6 @@ func TestModulesMountsEachFamilyOnItsOwn(t *testing.T) {
 	assert.Equal(t, "quote 1 / {time} / {song}", render(t, "{quote} / {time} / {song}", chain, nil))
 }
 
-// The pinned decision: two bare {quote} spans are two independent draws, so a
-// template that prints two quotes prints two different ones.
 func TestModulesDrawsEachBareQuoteIndependently(t *testing.T) {
 	quotes := &fakeQuotes{}
 	chain := Chain{Modules{QuoteDraws: 2, Quotes: quotes}}
@@ -88,8 +80,6 @@ func TestModulesDrawsEachBareQuoteIndependently(t *testing.T) {
 	assert.Equal(t, 2, quotes.draws, "one round trip per bare span, planned before rendering")
 }
 
-// Past the cap the draws repeat rather than going empty: a repeated quote
-// reads as a template mistake, a blank reads as a broken bot.
 func TestModulesCapsTheNumberOfDraws(t *testing.T) {
 	quotes := &fakeQuotes{}
 	chain := Chain{Modules{QuoteDraws: MaxQuoteDraws + 2, Quotes: quotes}}
@@ -99,8 +89,6 @@ func TestModulesCapsTheNumberOfDraws(t *testing.T) {
 	assert.Equal(t, MaxQuoteDraws, quotes.draws)
 }
 
-// A numbered quote is one read however many times it is named, and a number
-// nobody has used resolves EMPTY so the span's fallback speaks.
 func TestModulesReadsEachNumberedQuoteOnce(t *testing.T) {
 	quotes := &fakeQuotes{numbered: map[uint64]string{12: "Quote #12: hi (2026-01-31)"}}
 	chain := Chain{Modules{Quotes: quotes}}
@@ -112,8 +100,6 @@ func TestModulesReadsEachNumberedQuoteOnce(t *testing.T) {
 	assert.Zero(t, quotes.draws, "a numbered span never draws at random")
 }
 
-// A payload that is not a quote number is an authoring mistake, and stays
-// visible rather than silently drawing a random quote.
 func TestModulesLeavesUnusableQuoteSpansLiteral(t *testing.T) {
 	quotes := &fakeQuotes{}
 	chain := Chain{Modules{Quotes: quotes}}
@@ -133,9 +119,6 @@ func TestModulesRendersTheLocalClockOnce(t *testing.T) {
 	assert.Equal(t, 1, clock.calls)
 }
 
-// A module that is on but has no timezone set renders empty, so the span's
-// fallback speaks — the broadcaster DID enable the module, so a visible
-// {time} would send them looking at the wrong switch.
 func TestModulesRendersTheClockEmptyWithoutATimezone(t *testing.T) {
 	chain := Chain{Modules{Clock: &fakeClock{}}}
 	assert.Equal(t, "", render(t, "{time}", chain, nil))
@@ -156,8 +139,6 @@ func TestModulesRendersTheTitleAloneWithoutAnArtist(t *testing.T) {
 	assert.Equal(t, "Untitled", render(t, "{song}", chain, nil))
 }
 
-// Nothing playing is a successful read with nothing to say: every spelling
-// renders empty so the fallback speaks.
 func TestModulesRendersNothingPlayingAsEmpty(t *testing.T) {
 	songs := &fakeSongs{}
 	chain := Chain{Modules{Songs: songs}}
@@ -167,8 +148,6 @@ func TestModulesRendersNothingPlayingAsEmpty(t *testing.T) {
 	assert.Equal(t, "silence", render(t, "{song|silence}", chain, nil))
 }
 
-// {time} and the {song} family take no payload; one carrying anything is an
-// authoring mistake and stays visible, even beside a bare span that resolved.
 func TestModulesLeavesPayloadedClockAndSongSpansLiteral(t *testing.T) {
 	clock := &fakeClock{value: "3:04 PM"}
 	songs := &fakeSongs{track: Track{Title: "Bagel Song", Playing: true}}
@@ -178,8 +157,6 @@ func TestModulesLeavesPayloadedClockAndSongSpansLiteral(t *testing.T) {
 		render(t, "{time} {time:America/Toronto} {song} {song:2}", chain, nil))
 }
 
-// {time:<place>} answers with no Clock mounted at all: the payload form needs
-// no Local Time enrollment, unlike the bare form beside it.
 func TestModulesResolvesTimePlaceSpansWithoutAHomeClock(t *testing.T) {
 	places := &fakePlaces{}
 	chain := Chain{Modules{Places: places}}
@@ -189,16 +166,12 @@ func TestModulesResolvesTimePlaceSpansWithoutAHomeClock(t *testing.T) {
 	assert.Equal(t, []string{"tokyo"}, places.calls, "two spans naming one place cost one resolve")
 }
 
-// A place tzname cannot resolve renders empty so the fallback speaks, never
-// the broadcaster's own home time.
 func TestModulesRendersAnUnresolvablePlaceAsEmpty(t *testing.T) {
 	chain := Chain{Modules{Places: &fakePlaces{}}}
 	assert.Equal(t, "", render(t, "{time:nowhere}", chain, nil))
 	assert.Equal(t, "unknown", render(t, "{time:nowhere|unknown}", chain, nil))
 }
 
-// Past MaxTimePlaces a distinct place renders empty rather than literal or a
-// repeat: the template asked for more lookups than fit in one line.
 func TestModulesCapsDistinctTimePlaces(t *testing.T) {
 	places := &fakePlaces{}
 	chain := Chain{Modules{Places: places}}
@@ -208,16 +181,11 @@ func TestModulesCapsDistinctTimePlaces(t *testing.T) {
 	assert.Len(t, places.calls, MaxTimePlaces)
 }
 
-// An empty payload addresses nothing, so it stays literal even with Places
-// wired — the same rule {title:} follows.
 func TestModulesLeavesAnEmptyTimePlaceSpanLiteral(t *testing.T) {
 	chain := Chain{Modules{Places: &fakePlaces{}}}
 	assert.Equal(t, "{time:}", render(t, "{time:}", chain, nil))
 }
 
-// Without Places wired at all the payload form stays literal, matching every
-// other unwired-dependency token — even though the bare form beside it (via
-// Clock) is mounted and resolves.
 func TestModulesLeavesTimePlaceSpanLiteralWithoutPlaces(t *testing.T) {
 	chain := Chain{Modules{Clock: &fakeClock{value: "3:04 PM"}}}
 	assert.Equal(t, "3:04 PM {time:tokyo}", render(t, "{time} {time:tokyo}", chain, nil))

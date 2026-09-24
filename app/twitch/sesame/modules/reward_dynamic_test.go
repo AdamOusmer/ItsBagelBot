@@ -5,28 +5,6 @@ package modules
 
 import "testing"
 
-// The dynamic-span fallthrough on every reward surface. Decision record.
-//
-// A broadcaster's reward reply is one line of copy, and the same line gets
-// pasted from one reward into another. Until this change two surfaces did not
-// resolve the generic dynamic spans: govee and songqueue_redeem ended their
-// repl switch in `return "", false` while channelpoints, alerts, shoutout,
-// timeofday and emoteplay ended it in the dynamic vars. So
-// "{choice:nice,great} pick, @{user}" worked in a channel-points reward and
-// printed literal braces in the song-request one, with nothing on either
-// surface explaining why.
-//
-// The drift had already leaked out of Go: the web command builder carries a
-// hand-written per-surface exception for it. Making the surfaces agree is what
-// lets that exception be deleted rather than kept in sync forever, so the two
-// tests below are the contract the console and web sides now build against:
-// {random} and {choice:…} resolve on ALL reward surfaces.
-//
-// The rows deliberately include the {choice} / {choice:} pair, because that is
-// the one distinction a "just make it resolve" fix tends to flatten: no
-// payload names no options and stays literal, an empty payload names an empty
-// option and resolves to "".
-
 func rewardTestEvent() redemptionEvent {
 	var ev redemptionEvent
 	ev.UserName = "Sam"

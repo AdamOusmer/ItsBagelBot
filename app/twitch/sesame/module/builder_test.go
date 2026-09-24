@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-// noop is a valid RunFunc/EventHandler for tests that only care about assembly.
 func noopRun(context.Context, *Context, string, Emit) error { return nil }
 func noopEvt(context.Context, *Context, Emit) error         { return nil }
 
@@ -124,7 +123,7 @@ func TestValidateKindNamePairing(t *testing.T) {
 
 func TestValidateCommandWithoutRun(t *testing.T) {
 	m := NewModule("", KindCore)
-	m.Command("ping") // no .Run
+	m.Command("ping")
 	if err := m.Validate(); err == nil {
 		t.Fatal("want error for command without Run, got nil")
 	}
@@ -163,11 +162,9 @@ func TestBuildPanicsOnInvalid(t *testing.T) {
 			t.Fatal("Build did not panic on an invalid module")
 		}
 	}()
-	NewModule("", KindDefault).Build() // named module with an empty name: must panic
+	NewModule("", KindDefault).Build()
 }
 
-// TestNamedCoreBuilds is the named built-in: a KindCore module may carry a name
-// (for identity) while staying always-on, never toggled or configured.
 func TestNamedCoreBuilds(t *testing.T) {
 	m := NewModule("system", KindCore)
 	m.Command("sys").Run(noopRun)

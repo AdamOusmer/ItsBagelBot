@@ -15,16 +15,9 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// requirement decides which reported checks gate a sha.
 type requirement struct {
-	// names are the contexts that gate; nil means every check that did not
-	// skip gates.
-	names map[string]bool
-	// expect must report before the set can pass: GitHub creates a check run
-	// only once its workflow starts, so absence early in a PR's life means
-	// "not yet", never "not needed".
-	expect []string
-	// codescene is folded on its own into CheckSummary.CodeScene.
+	names     map[string]bool
+	expect    []string
 	codescene string
 }
 
@@ -35,7 +28,6 @@ func (r requirement) gates(name string, skipped bool) bool {
 	return r.names[name]
 }
 
-// missing is a pending state per expected check that has not reported.
 func (r requirement) missing(checks []ports.Check) []deploy.CheckState {
 	seen := make(map[string]bool, len(checks))
 	for _, ch := range checks {
@@ -50,15 +42,12 @@ func (r requirement) missing(checks []ports.Check) []deploy.CheckState {
 	return out
 }
 
-// headLookup reports whether sha is an open PR's head.
 type headLookup func(ctx context.Context, sha deploy.SHA) (bool, error)
 
-// Checks is cached per sha for cacheTTL; the Checks slice is the caller's.
 func (c *Client) Checks(ctx context.Context, sha deploy.SHA) (ports.CheckSummary, error) {
 	return c.checksFor(ctx, sha, c.openPRHead)
 }
 
-// knownHead is the lookup for a sha read off an open PR, which needs no call.
 func knownHead(context.Context, deploy.SHA) (bool, error) { return true, nil }
 
 func (c *Client) checksFor(ctx context.Context, sha deploy.SHA, isHead headLookup) (ports.CheckSummary, error) {
@@ -81,12 +70,6 @@ func (c *Client) fetchChecks(ctx context.Context, sha deploy.SHA, isHead headLoo
 	return summarize(checks, req), nil
 }
 
-// requirementFor applies main's rulesets only to an open PR's head, the one
-// commit GitHub evaluates them against. Measured 2026-09-23: main's ruleset
-// requires only "CodeScene Code Health Review (main)", which CodeScene posts
-// on PR heads alone; origin/main's head carried 13 check runs and no
-// CodeScene, so expecting it there held preflight pending forever. A pushed
-// commit is gated instead by every check that ran on it and did not skip.
 func (c *Client) requirementFor(ctx context.Context, sha deploy.SHA, isHead headLookup) (requirement, error) {
 	head, err := isHead(ctx, sha)
 	if err != nil || !head {
@@ -97,8 +80,6 @@ func (c *Client) requirementFor(ctx context.Context, sha deploy.SHA, isHead head
 	})
 }
 
-// openPRHead reads the PRs containing sha. For a commit already on main that
-// is only the merged PR that introduced it, whose head is another sha.
 func (c *Client) openPRHead(ctx context.Context, sha deploy.SHA) (bool, error) {
 	prs, resp, err := c.gh.PullRequests.ListPullRequestsWithCommit(ctx, c.owner, c.repo, string(sha),
 		&github.ListOptions{PerPage: 100})
@@ -110,16 +91,8 @@ func (c *Client) openPRHead(ctx context.Context, sha deploy.SHA) (bool, error) {
 	}), nil
 }
 
-// rulesUnavailable are the answers where the ruleset endpoint cannot say
-// (rulesets not on the plan, or the endpoint hidden from the App). They fall
-// back to gating on every check that did not skip, a superset of what any
-// ruleset requires, so a degraded answer only ever makes the train stricter.
 var rulesUnavailable = map[int]bool{http.StatusForbidden: true, http.StatusNotFound: true}
 
-// fetchRequired reads the required status checks from the rulesets that
-// apply to main. Classic branch protection is not read: it needs the
-// administration permission, which the App deliberately lacks. CodeScene is
-// expected ruleset or not: merge_prs waits on it by name.
 func (c *Client) fetchRequired(ctx context.Context) (requirement, error) {
 	cs := c.cfg.Deploy.CodeSceneCheck
 	req := requirement{expect: []string{cs}, codescene: cs}
@@ -150,8 +123,6 @@ func requiredNames(rules *github.BranchRules) map[string]bool {
 	return names
 }
 
-// reported merges check runs (Actions jobs, CodeScene) with commit statuses
-// (older integrations that post statuses rather than check runs).
 func (c *Client) reported(ctx context.Context, sha deploy.SHA, req requirement) ([]ports.Check, error) {
 	opts := &github.ListCheckRunsOptions{Filter: github.Ptr("latest"), ListOptions: github.ListOptions{PerPage: 100}}
 	runs, err := collect(&opts.ListOptions, func() ([]*github.CheckRun, *github.Response, error) {
@@ -183,9 +154,6 @@ func (c *Client) reported(ctx context.Context, sha deploy.SHA, req requirement) 
 	return checks, nil
 }
 
-// passing conclusions. neutral and skipped pass: a skipped job is a path
-// filter or an if: saying there is nothing to check, which is how this
-// repo's workflows report a no-op.
 var passing = map[string]bool{"success": true, "neutral": true, "skipped": true}
 
 func runState(run *github.CheckRun) deploy.CheckState {
@@ -198,8 +166,6 @@ func runState(run *github.CheckRun) deploy.CheckState {
 	return deploy.ChecksFailure
 }
 
-// failedSummary is a red run's output.summary. A green run's summary is
-// dropped so a passing CodeScene report never lands in a failure's log tail.
 func failedSummary(run *github.CheckRun) string {
 	if runState(run) != deploy.ChecksFailure {
 		return ""
@@ -207,7 +173,6 @@ func failedSummary(run *github.CheckRun) string {
 	return run.GetOutput().GetSummary()
 }
 
-// statusState: a commit status is success, pending, failure or error.
 func statusState(st *github.RepoStatus) deploy.CheckState {
 	switch st.GetState() {
 	case "success":
@@ -232,8 +197,6 @@ func summarize(checks []ports.Check, req requirement) ports.CheckSummary {
 	return ports.CheckSummary{State: fold(gating), CodeScene: fold(codescene), Checks: checks}
 }
 
-// severity ranks failure over pending over success: one red check fails the
-// set while others still run, so the train stops waiting at the first red.
 var severity = map[deploy.CheckState]int{
 	deploy.ChecksNone:    0,
 	deploy.ChecksSuccess: 1,

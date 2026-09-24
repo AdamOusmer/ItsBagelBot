@@ -16,17 +16,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// The desk's handler deadlines come from the shared table in
-// internal/domain/rpc/discordoutgress/timeouts.go, which pairs each with the
-// client deadline engine waits under. They are NOT written here: the two used
-// to live in two files and drifted, with the engine giving up before outgress
-// stopped -- see that file's doc for the outage shape that produces.
 const (
 	ticketOpenTimeout  = discordoutgress.TicketOpenServerTimeout
 	ticketCloseTimeout = discordoutgress.TicketCloseServerTimeout
 )
 
-// ticketREST is the REST slice the desk orchestrations need.
 type ticketREST interface {
 	CreateChannel(ctx context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error)
 	DeleteChannel(ctx context.Context, ch discapi.Snowflake) error
@@ -40,30 +34,15 @@ type ticketREST interface {
 	SetChannelOverwrite(ctx context.Context, o discapi.ChannelOverwrite) error
 }
 
-// summaryMemo is the one thing the close path needs from the shared store: a
-// set-if-absent per ticket id, so a retried close does not post the summary
-// and upload the transcript twice. Declared as a one-method interface rather
-// than taking discordstore.Store whole, because that is the whole of the
-// dependency and a test can supply it in three lines.
 type summaryMemo interface {
 	ClaimSummary(ctx context.Context, ticketID int) bool
 }
 
-// TicketDeps is what the desk handlers need beyond REST.
 type TicketDeps struct {
-	// Memo makes the close summary idempotent. Nil posts every time.
-	Memo summaryMemo
-	// BotID is the application id, which for a bot account IS the bot user's
-	// snowflake. It is used to grant the bot itself an explicit overwrite on
-	// every ticket channel: a ticket category whose @everyone deny the bot
-	// inherits leaves the desk unable to read its own ticket, so the close
-	// pages an empty history and the transcript comes out blank.
+	Memo  summaryMemo
 	BotID string
 }
 
-// SubscribeTickets wires the ticket-desk orchestrations (see
-// internal/domain/rpc/discordoutgress/ticket.go for why they are RPCs). Split
-// from SubscribeEngine so neither function is a wall of registrations.
 func SubscribeTickets(rest ticketREST, deps TicketDeps, wire Wiring) error {
 	h := &ticketRPC{rest: rest, memo: deps.Memo, botID: deps.BotID, log: wire.Log}
 	open := func(name string) verb { return verb{Name: name, Timeout: ticketOpenTimeout} }
@@ -76,14 +55,11 @@ func SubscribeTickets(rest ticketREST, deps TicketDeps, wire Wiring) error {
 			wire, open("ticket.add"), h.add),
 		register[discordoutgress.TicketPanelRequest, discordoutgress.TicketPanelReply](
 			wire, open("ticket.panel"), h.panel),
-		// The close runs the whole transcript sequence, so it gets the longer
-		// deadline of the pair; see discordoutgress's timeout table.
 		register[discordoutgress.TicketCloseRequest, discordoutgress.TicketCloseReply](
 			wire, verb{Name: "ticket.close", Timeout: ticketCloseTimeout}, h.close),
 	)
 }
 
-// add grants one member VIEW|SEND|READ_HISTORY on the ticket channel.
 func (h *ticketRPC) add(ctx context.Context, req discordoutgress.TicketMemberAddRequest) discordoutgress.TicketMemberAddReply {
 	err := h.rest.SetChannelOverwrite(ctx, discapi.ChannelOverwrite{
 		ChannelID: req.ChannelID,
@@ -104,9 +80,6 @@ type ticketRPC struct {
 	log   *zap.Logger
 }
 
-// panel posts the persistent desk panel and returns its message id, which the
-// engine stores so a later repost can delete this one instead of stacking a
-// second panel under it.
 func (h *ticketRPC) panel(ctx context.Context, req discordoutgress.TicketPanelRequest) discordoutgress.TicketPanelReply {
 	if req.ChannelID == "" {
 		return discordoutgress.TicketPanelReply{Error: "missing channel_id", Code: outgressrpc.CodeInvalid}
@@ -141,23 +114,11 @@ func (h *ticketRPC) open(ctx context.Context, req discordoutgress.TicketOpenRequ
 	msg, err := h.rest.SendPanel(ctx,
 		discapi.EmbedPost{ChannelID: got.ID, Content: req.Content, Embed: req.Embed}, ticketButtons(req.Buttons))
 	if err != nil {
-		// The channel exists either way, and the reply says so: the caller
-		// must record or roll it back rather than leak an orphan channel that
-		// no ticket row points at.
 		return discordoutgress.TicketOpenReply{ChannelID: got.ID, Error: err.Error(), Code: codeFor(err)}
 	}
 	return discordoutgress.TicketOpenReply{ChannelID: got.ID, MessageID: msg.ID}
 }
 
-// withBotOverwrite appends the bot's own allow overwrite to the engine's set.
-//
-// It is added HERE, not in the engine, because only this process knows the
-// application id -- the engine never sees a bot token. Without it the ticket
-// channel's permissions are whatever the bot inherits from the category, and a
-// staff-only ticket category that denies @everyone denies the bot too: the
-// card posts (the create still carries MANAGE_CHANNELS), and then every later
-// call into the channel 403s. The visible failure is a blank transcript on
-// close, which reads as a transcript bug rather than a permissions one.
 func (h *ticketRPC) withBotOverwrite(in []discapi.PermissionOverwrite) []discapi.PermissionOverwrite {
 	if h.botID == "" {
 		return in
@@ -177,9 +138,6 @@ func ticketButtons(specs []ddiscord.ButtonSpec) []discapi.Button {
 
 func (h *ticketRPC) claim(ctx context.Context, req discordoutgress.TicketClaimRequest) discordoutgress.TicketClaimReply {
 	if req.MessageID == "" {
-		// A ticket opened before the card's id was recorded has nothing to
-		// edit. The claim itself already succeeded in the database, so this is
-		// not an error the user should see.
 		return discordoutgress.TicketClaimReply{}
 	}
 	err := h.rest.EditMessage(ctx,
@@ -192,8 +150,6 @@ func (h *ticketRPC) claim(ctx context.Context, req discordoutgress.TicketClaimRe
 	return discordoutgress.TicketClaimReply{}
 }
 
-// note posts the in-channel line. Best effort: the card already carries the
-// claim, so a failed note is not worth failing the claim over.
 func (h *ticketRPC) note(ctx context.Context, channelID, note string) {
 	if note == "" {
 		return
@@ -203,17 +159,7 @@ func (h *ticketRPC) note(ctx context.Context, channelID, note string) {
 	}
 }
 
-// close pages the history, DISPOSES of the channel, and only then posts the
-// summary.
-//
-// The dispose comes before the post on purpose. It used to come after, and the
-// ordering matters because the summary is the step most likely to fail slowly:
-// the log channel can be missing, forbidden, or rate-limited, and a close that
-// dies in the log channel used to leave the ticket channel still sitting in
-// the open category -- visible, writable, with a closed row behind it. Posting
-// last means the worst outcome is a closed ticket with no card in the log,
-// which is a missing record rather than a broken desk. The transcript is still
-// collected FIRST, because a deleted channel has no history left to page.
+// Page the transcript before disposing of the channel: a deleted channel has no history.
 func (h *ticketRPC) close(ctx context.Context, req discordoutgress.TicketCloseRequest) discordoutgress.TicketCloseReply {
 	body, count, truncated := h.transcript(ctx, req)
 	archived, err := h.disposeChannel(ctx, req)
@@ -229,10 +175,6 @@ func (h *ticketRPC) close(ctx context.Context, req discordoutgress.TicketCloseRe
 	return reply
 }
 
-// transcript pages the channel and renders it, or returns nothing when the
-// guild turned transcripts off. A paging failure is logged and degrades to the
-// partial transcript collected so far: losing the close summary because page
-// 14 of 20 hit a 429 would be the worse outcome.
 func (h *ticketRPC) transcript(ctx context.Context, req discordoutgress.TicketCloseRequest) (string, int, bool) {
 	if !req.Transcript {
 		return "", 0, false
@@ -252,9 +194,6 @@ func (h *ticketRPC) transcript(ctx context.Context, req discordoutgress.TicketCl
 	return ddiscord.RenderTranscript(doc), len(msgs), truncated
 }
 
-// collect pages the channel newest-first with a before-cursor until Discord
-// returns a short page or the cap is reached. The returned slice is in
-// Discord's own order (newest first); transcriptMessages reverses it.
 func (h *ticketRPC) collect(ctx context.Context, channelID string) ([]discapi.FullMessage, error) {
 	var out []discapi.FullMessage
 	before := ""
@@ -276,8 +215,6 @@ func (h *ticketRPC) collect(ctx context.Context, channelID string) ([]discapi.Fu
 	return out, nil
 }
 
-// pageLimit asks for only as many as the cap still allows, so the last page
-// does not overshoot TranscriptMessageCap and get trimmed after the fact.
 func pageLimit(have int) int {
 	left := ddiscord.TranscriptMessageCap - have
 	if left > discapi.MessagePageMax {
@@ -286,8 +223,6 @@ func pageLimit(have int) int {
 	return left
 }
 
-// transcriptMessages maps the REST page onto the domain's render input,
-// reversing into conversation order (oldest first).
 func transcriptMessages(in []discapi.FullMessage) []ddiscord.TranscriptMessage {
 	out := make([]ddiscord.TranscriptMessage, 0, len(in))
 	for i := len(in) - 1; i >= 0; i-- {
@@ -322,18 +257,12 @@ func attachmentURLs(in []discapi.MessageAttachment) []string {
 	return out
 }
 
-// summaryPost is the close card's inputs as one value: postSummary and its
-// two halves would otherwise pass four positional arguments between them.
 type summaryPost struct {
 	req   discordoutgress.TicketCloseRequest
 	body  string
 	count int
 }
 
-// postSummary posts the close card, with the transcript attached when there is
-// one, exactly once per ticket. Best effort throughout: the channel is already
-// archived or deleted by the time this runs, and a guild with no log channel
-// configured simply gets no summary.
 func (h *ticketRPC) postSummary(ctx context.Context, p summaryPost) {
 	if p.req.LogChannelID == "" || !h.claimSummary(ctx, p.req.TicketID) {
 		return
@@ -351,18 +280,11 @@ func (h *ticketRPC) postSummary(ctx context.Context, p summaryPost) {
 	if err == nil {
 		return
 	}
-	// The upload is the half that fails on its own: a 40005 (payload too
-	// large) or a proxy that rejects multipart takes the CARD with it if the
-	// card only ever travelled attached to the file. Posting the card again on
-	// its own, saying so, is what keeps the close visible in the log.
 	h.logger().Warn("ticket transcript upload failed",
 		zap.String("channel_id", p.req.LogChannelID), zap.Error(err))
 	h.sendSummary(ctx, p.req.LogChannelID, withUploadNote(embed))
 }
 
-// claimSummary reports whether this close is the one that posts. Without a
-// memo (or without a ticket id, which the pure-Valkey fallback never has)
-// every close posts, which is the old behaviour.
 func (h *ticketRPC) claimSummary(ctx context.Context, ticketID int) bool {
 	if h.memo == nil {
 		return true
@@ -384,7 +306,6 @@ func (h *ticketRPC) sendSummary(ctx context.Context, channelID string, embed ddi
 	}
 }
 
-// uploadFailedNote is what the fallback card says instead of the file.
 const uploadFailedNote = "transcript upload failed"
 
 func withUploadNote(embed ddiscord.Embed) ddiscord.Embed {
@@ -396,9 +317,6 @@ func withUploadNote(embed ddiscord.Embed) ddiscord.Embed {
 	return embed
 }
 
-// openFor is how long the ticket was open. A zero or future opened_at yields
-// zero rather than a negative or absurd duration: the card would rather say
-// "0m" than lie about a clock skew.
 func openFor(openedAtUnixMs int64) time.Duration {
 	if openedAtUnixMs <= 0 {
 		return 0
@@ -417,9 +335,6 @@ func transcriptFilename(channelName string) string {
 	return channelName + ".txt"
 }
 
-// disposeChannel archives the channel when the guild configured a category for
-// it, and deletes it otherwise. Archiving returns the (unchanged) channel id so
-// the ticket row can point at a channel that still exists.
 func (h *ticketRPC) disposeChannel(ctx context.Context, req discordoutgress.TicketCloseRequest) (string, error) {
 	if req.ArchiveCategoryID == "" {
 		return "", h.rest.DeleteChannel(ctx, discapi.Snowflake{ID: req.ChannelID})
@@ -437,8 +352,6 @@ func (h *ticketRPC) disposeChannel(ctx context.Context, req discordoutgress.Tick
 	return req.ChannelID, nil
 }
 
-// archivedName prefixes the closed channel so the archive category reads as a
-// list of closed tickets rather than a second set of live ones.
 func archivedName(channelName string) string {
 	if channelName == "" {
 		return ""
@@ -446,10 +359,6 @@ func archivedName(channelName string) string {
 	return "closed-" + channelName
 }
 
-// archiveOverwrites is the archived channel's permission set: @everyone and
-// the opener denied VIEW, staff keeping it. The opener loses access on purpose
-// -- the archive is the staff's record, and the transcript is what the opener
-// keeps.
 func archiveOverwrites(req discordoutgress.TicketCloseRequest) []discapi.PermissionOverwrite {
 	out := []discapi.PermissionOverwrite{denyView(req.GuildID, overwriteRole)}
 	if req.OpenerID != "" {
@@ -464,35 +373,16 @@ func archiveOverwrites(req discordoutgress.TicketCloseRequest) []discapi.Permiss
 	return out
 }
 
-// Discord's overwrite target kinds.
 const (
 	overwriteRole   = 0
 	overwriteMember = 1
 )
 
-// Permission bits used by the archive overwrites, as Discord's own decimal
-// strings. VIEW_CHANNEL is 1<<10, READ_MESSAGE_HISTORY is 1<<16.
 const (
-	// permNoBits is the "grants nothing / denies nothing" half of an
-	// overwrite. Discord's overwrite object types allow and deny as
-	// STRINGS, and an omitted or empty one is not the same as "0" on the
-	// receiving end -- an empty string is rejected outright by newer API
-	// versions, and older ones treated it as "leave the existing value",
-	// which on an archive PATCH means the deny we are writing lands on top
-	// of an allow we meant to clear. decode.OverwriteAllow/OverwriteDeny on
-	// the engine side have always written "0" for the unused half; these are
-	// the same convention on this side.
-	permNoBits       = "0"
-	permViewBits     = "1024"
-	permViewReadBits = "66560"
-	// permTicketBotBits is VIEW|SEND|READ_HISTORY|MANAGE_MESSAGES|
-	// ATTACH_FILES (1<<10 | 1<<11 | 1<<16 | 1<<13 | 1<<15): what the desk
-	// itself needs inside a ticket -- read the history it transcribes, post
-	// and edit the card, pin and clean up, and attach the transcript.
-	permTicketBotBits = "109568"
-	// permTicketMemberBits is VIEW|SEND|READ_HISTORY: what a member added to
-	// someone else's ticket needs to read it and answer in it, and nothing
-	// more.
+	permNoBits           = "0"
+	permViewBits         = "1024"
+	permViewReadBits     = "66560"
+	permTicketBotBits    = "109568"
 	permTicketMemberBits = "68608"
 )
 

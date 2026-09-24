@@ -1,13 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Tests for the DryRun rehearsal sample: the raw upstream body gossip hands
-// back so the dashboard can build a clickable field picker.
-//
-// Its own file rather than more weight on custom_test.go, which already covers
-// caching, rate limits, the SSRF gate, extraction and breakers. One more
-// unrelated concern in there buys nothing and costs the reader.
-
 package custom
 
 import (
@@ -20,9 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The sample exists for the dashboard's field picker and must never widen the
-// chat lane's blast radius, so both halves are pinned in one test: whatever
-// makes DryRun return a body must also leave a non-DryRun reply empty.
 func TestFetchDryRunReturnsSampleButChatNeverDoes(t *testing.T) {
 	h := newHarness(t)
 	const body = `{"forecast":{"temp":71.2}}`

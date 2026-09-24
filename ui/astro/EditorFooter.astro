@@ -2,16 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro adapter for the `.bb-editor-foot` contract
-// (../styles/elements/editor-footer.css). Svelte twin:
-// ../svelte/EditorFooter.svelte.
-//
-// It must be rendered as a sibling AFTER the scroll area, never inside it: the
-// element is sticky, and inside the scroller it scrolls away with the form,
-// which is the below-the-fold Save button the audit flagged.
-//
-// The two actions are ./Button.astro, the sibling adapter, matching the Svelte
-// twin: cancel is `ghost`, save is the default `primary` at type="submit".
 import '../styles/elements/editor-footer.css';
 import Button from './Button.astro';
 
@@ -44,9 +34,6 @@ const {
 
 const classes = ['bb-editor-foot', className].filter(Boolean).join(' ');
 
-// One derived pair rather than a chain in the template, so the two adapters'
-// branch order cannot drift: conflict reads as error, and `dirty` only shows
-// when nothing more specific is happening.
 const state =
     status === 'saving'
         ? { mod: 'saving', label: savingLabel }

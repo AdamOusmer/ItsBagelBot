@@ -25,14 +25,7 @@
   const staffGrant = $derived(account.status === 'paid' && account.source === 'admin');
   const tebexPaid = $derived((account.status === 'paid' && account.source === 'tebex') || optimisticPaid);
   const paidUntil = $derived(account.expiresAt);
-  // Basket minting happens server-side on click; the browser is then redirected
-  // to Tebex-hosted checkout so payment collection never happens in our frame.
-  // Owners and billing-granted delegates share the same CTAs (the server gates
-  // access + targets the owner's account).
   const canSubscribe = $derived(!isPaid);
-  // Rendered for every Tebex subscriber even when TEBEX_CANCEL_URL is not
-  // configured: the ?/cancel action then answers 503 with a clear toast, which
-  // beats silently hiding the only cancellation path.
   const canManage = $derived(tebexPaid);
   const statusLabel = $derived(isVip ? 'VIP' : isPaid ? t('billing.premium') : t('billing.free'));
 
@@ -52,29 +45,19 @@
   let launching = $state(false);
   let subscribeForm = $state<HTMLFormElement | null>(null);
 
-  // Manage/cancel both POST ?/cancel (the server gates the session, verifies the
-  // plan, then redirects to Tebex-hosted management). Cancel routes through a
-  // ConfirmDialog first; the hidden form below is what it submits.
   let managing = $state(false);
   let cancelDialogOpen = $state(false);
   let cancelling = $state(false);
   let cancelForm = $state<HTMLFormElement | null>(null);
 
-  // Gift modal state.
   let giftModalOpen = $state(false);
   let giftLaunching = $state(false);
   let giftRecipient = $state('');
   let giftMessage = $state('');
 
-  // Gift notes are emailed to the recipient, so links are refused. Checked live
-  // for instant feedback, again in the server action, and a third time in the
-  // transactions service (@bagel/kit/validation mirrors the Go detector).
   const giftMessageHasLink = $derived(giftMessage.trim().length > 0 && containsLink(giftMessage));
-  // The gift submit is disabled until there is a recipient; the reason is
-  // surfaced via aria-describedby so the block is never silent.
   const giftNeedsRecipient = $derived(giftRecipient.trim().length === 0);
 
-  // Celebratory purchase-complete modal (replaces the old top ribbon).
   let celebrateOpen = $state(false);
   let celebrateKind = $state<'premium' | 'gift'>('premium');
   let celebrateRecipient = $state('');
@@ -93,8 +76,6 @@
       h: number;
     }[]
   >([]);
-  // Where the explosion starts: the blob's own centre, in viewport coordinates,
-  // read at the moment it goes off.
   let confettiOrigin = $state({ x: 0, y: 0 });
 
   const INTENT_KEY = 'bagel_checkout_intent';
@@ -104,7 +85,6 @@
     try {
       sessionStorage.setItem(INTENT_KEY, JSON.stringify({ kind, recipient }));
     } catch {
-      /* private mode / storage disabled: modal falls back to the premium copy */
     }
   }
 
@@ -120,8 +100,6 @@
     }
   }
 
-  // Drop ?checkout=complete from the URL. Kept in the URL while polling so each
-  // invalidateAll re-runs the load's fresh-read path; stripped once we stop.
   function stripCheckoutParam() {
     const url = new URL(window.location.href);
     if (!url.searchParams.has('checkout')) return;
@@ -133,67 +111,35 @@
 
   function burst() {
     if (prefersReducedMotion()) return;
-    // The confetti leaves the blob, so the origin is the badge's own centre.
     const badge = document.querySelector('.celebrate-badge')?.getBoundingClientRect();
     confettiOrigin = {
       x: badge ? badge.left + badge.width / 2 : window.innerWidth / 2,
       y: badge ? badge.top + badge.height / 2 : window.innerHeight / 2
     };
-    // Thrown, not sprayed: every piece is launched into the upper half
-    // (-170deg to -10deg, screen coordinates, so up and out to either side),
-    // rises to a peak, then falls past the bottom of the window. A single
-    // outward translate, which is what this used to be, reads as an explosion
-    // of debris; an arc reads as confetti.
     const rise = window.innerHeight * 0.28;
     const toFloor = window.innerHeight - confettiOrigin.y;
     confetti = Array.from({ length: 90 }, () => {
       const angle = (-170 + Math.random() * 160) * (Math.PI / 180);
       const power = 0.55 + Math.random() * 0.75;
       return {
-        // Sideways travel over the whole flight.
         tx: Math.round(Math.cos(angle) * window.innerWidth * 0.42 * power),
-        // How far above the launch point the piece gets before gravity wins.
         peak: Math.round(Math.abs(Math.sin(angle)) * rise * power),
-        // And how far below it ends up: past the bottom edge, so nothing
-        // visibly stops mid-air.
         fall: Math.round(toFloor + 120 + Math.random() * 200),
         rot: Math.round((Math.random() - 0.5) * 720),
         delay: Math.round(Math.random() * 320),
-        // Slower, and spread wider apart, so the fall reads as weight rather
-        // than as everything being flung at once.
         dur: Math.round(2600 + Math.random() * 1600),
         color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
         w: 6 + Math.round(Math.random() * 6),
         h: 3 + Math.round(Math.random() * 4)
       };
     });
-    // Cleared once the slowest piece (delay + duration) is done, so a re-open
-    // starts from nothing.
     setTimeout(() => (confetti = []), 4600);
   }
 
-  // Celebration choreography, in order: the blob swirls in, bursts, the burst
-  // throws the confetti, and the face settles on love and holds it. The badge
-  // used to be a static heart icon; the blob now plays that beat itself.
-  // Windows handed to the library, not durations mirrored from it: the engine
-  // covers each one the way that state declares (the swirl stretches its own
-  // timeline so the rings enter and leave once, the burst plays at its own
-  // speed and holds afterwards) and blends back into the resting face on its
-  // own. A window shorter than the state is a floor, never a truncation.
   const SWIRL_MS = 1500;
-  // The burst's own choreography is done at 2.2s (body collapsed by 0.2s,
-  // particles peaking to 0.4s, regrown from 1.6s and settled by 2.2s); the
-  // state runs to 2.6s, and that tail is dead time. The window ends just past
-  // the regrow so the hand-back starts when the gesture actually finishes.
   const BURST_MS = 2400;
-  // Where the paper leaves: the regrow's last frame, so the pieces are already
-  // in the air as the engine blends the burst back into the resting face.
   const BURST_SETTLED_MS = 2200;
 
-  // True from the moment the choreography schedules its launch until that
-  // launch happens. The activation burst below must not pre-empt it:
-  // `optimisticPaid` flips in the same tick the celebration starts, so "the
-  // plan went live" fired its own confetti at t=0, before the swirl had begun.
   let confettiPending = $state(false);
   let celebrateSeq = $state<'entrance' | 'burst' | null>(null);
   let celebrateSeqKey = $state(0);
@@ -208,17 +154,12 @@
 
   function playCelebration() {
     clearChoreo();
-    // Reduced motion gets the end state with none of the travel: love, held.
     if (prefersReducedMotion()) {
       celebrateSeq = null;
       celebrateExpr = 'love';
-      // No travel means no confetti either, so nothing is owed a launch and
-      // the activation burst below stays free to fire on its own terms.
       confettiPending = false;
       return;
     }
-    // Love is held for the whole celebration: an expression stacks on top of the
-    // state, so it survives both sequences instead of arriving after them.
     celebrateExpr = 'love';
     celebrateSeq = 'entrance';
     celebrateSeqKey += 1;
@@ -228,8 +169,6 @@
         celebrateSeqKey += 1;
       }, SWIRL_MS)
     );
-    // Confetti launches as the burst finishes regrowing, just before the
-    // engine hands back and the face blends to love.
     confettiPending = true;
     choreo.push(
       setTimeout(() => {
@@ -251,7 +190,6 @@
     stashIntent('premium');
   }
   function onGiftSubmit(e: SubmitEvent) {
-    // Block the round-trip if a link is present; the inline error already shows.
     if (giftMessageHasLink) {
       e.preventDefault();
       return;
@@ -267,8 +205,6 @@
     confetti = [];
   }
 
-  // Cancellation: confirm the consequence first, then submit the hidden ?/cancel
-  // form (which redirects to Tebex-hosted management).
   function openCancel() {
     cancelDialogOpen = true;
   }
@@ -292,9 +228,6 @@
     cancelForm?.requestSubmit();
   }
 
-  // Auto-open checkout when the pricing page sent the visitor here with
-  // ?subscribe=1 (possibly via the login flow). One shot: the param is stripped
-  // so a refresh does not re-launch.
   onMount(() => {
     if (!data.autostart) return;
     const url = new URL(window.location.href);
@@ -303,12 +236,6 @@
     if (canSubscribe && !launching) subscribeForm?.requestSubmit();
   });
 
-  // Returning from hosted checkout with a completed payment: open the
-  // celebratory modal with copy that matches what the buyer did (self-purchase
-  // vs gift, recovered from the sessionStorage intent stashed at submit time).
-  // A self-purchase immediately optimistically updates the UI to show Premium,
-  // bypassing the spinner, while the backend syncs.
-  // A gift changes nothing on the buyer's own account so it does not poll.
   onMount(() => {
     if (page.url.searchParams.get('checkout') !== 'complete') return;
 
@@ -319,22 +246,15 @@
     playCelebration();
     stripCheckoutParam();
 
-    // A gift never changes the buyer's own plan, so there is nothing to wait for.
     if (celebrateKind === 'gift') {
       toast('ok', t('billing.toastGiftSent'));
       return;
     }
 
     toast('ok', t('billing.toastPaymentReceived'));
-    // Optimistically update the UI to show premium immediately.
     optimisticPaid = true;
   });
 
-  // When a self-purchase flips to paid while the modal is open, mark the
-  // activation with confetti, unless the choreography is about to throw it
-  // anyway. `optimisticPaid` is set in the same tick as `playCelebration`, so
-  // without that guard this always won the race and the celebration opened
-  // with its own finale.
   $effect(() => {
     if (
       celebrateOpen &&
@@ -353,7 +273,6 @@
       ? new Date(iso).toLocaleDateString(i18n.locale, { year: 'numeric', month: 'long', day: 'numeric' })
       : '';
 
-  // A cancelled checkout only needs the one toast.
   let checkoutToasted = false;
   $effect(() => {
     if (checkoutToasted) return;
@@ -368,17 +287,12 @@
     if (form === lastForm) return;
     lastForm = form;
     if (!form) return;
-    // A form result means the action did not redirect to Tebex, so re-enable the
-    // buttons instead of leaving them stuck on the loading state, and drop the
-    // cancel confirmation so its error surfaces as a toast.
     launching = false;
     giftLaunching = false;
     managing = false;
     cancelling = false;
     cancelDialogOpen = false;
     if (form.error) toast('err', String(form.error));
-    // A gift error re-renders the whole page (plain POST), losing the modal:
-    // reopen it and repopulate the fields the action echoed back.
     if (form.gift) {
       giftModalOpen = true;
       if ('recipient' in form) giftRecipient = String(form.recipient);
@@ -387,9 +301,6 @@
   });
 </script>
 
-<!-- Aurora + drifting light motes, the same premium backdrop the login page
-     uses. Decorative, sits behind the content, and LightField bails out under
-     prefers-reduced-motion. -->
 <AuroraBg />
 <div class="starfield" aria-hidden="true"><LightField warmth={0.7} /></div>
 
@@ -401,7 +312,6 @@
     {isPaid ? t('billing.managePre') : t('billing.choosePre')}<em>{t('billing.planEm')}</em>
   </PageHead>
 
-  <!-- 6. Error / unavailable state: announced (AlertBanner is role="alert"). -->
   {#if data.degraded}
     <AlertBanner>{t('billing.degraded')}</AlertBanner>
   {/if}
@@ -430,18 +340,14 @@
   {/if}
 
   {#if !isPaid}
-    <!-- ────── SELECTION VIEW (free plan) ────── -->
 
-    <!-- 1. Current plan + status: TEXT, announced on change. -->
     <p class="plan-status">
       <Tag tone="quiet">{t('billing.currentPlan')}</Tag>
       <Tag tone="live" status>{statusLabel}</Tag>
     </p>
 
-    <!-- 3. Plan comparison. Heading kept for structure, hidden visually. -->
     <h2 class="bb-sr-only">{t('billing.comparePlans')}</h2>
     <div class="plans">
-      <!-- Free: the whole product -->
       <Card class="plan-card">
         <span class="plan-eyebrow">{t('billing.currentPlan')}</span>
         <h3 class="plan-headline">{t('billing.free')}</h3>
@@ -450,7 +356,6 @@
           <span class="plan-per">{t('billing.priceForever')}</span>
         </p>
         <p class="plan-desc">{t('billing.freeDesc')}</p>
-        <!-- 4. Features: semantic list. -->
         <ul class="plan-feats">
           {#each freeFeatures as feature}
             <li>{feature}</li>
@@ -461,7 +366,6 @@
         </div>
       </Card>
 
-      <!-- Premium: the upgrade -->
       <Card class="plan-card plan-card--premium">
         <span class="plan-badge">{t('billing.priorityLane')}</span>
         <span class="plan-eyebrow">{t('billing.upgrade')}</span>
@@ -471,13 +375,11 @@
           <span class="plan-per">{t('billing.perMonth')}</span>
         </p>
         <p class="plan-desc">{t('billing.premiumDesc')}</p>
-        <!-- 4. Features: semantic list. -->
         <ul class="plan-feats">
           {#each premiumFeatures as feature}
             <li>{feature}</li>
           {/each}
         </ul>
-        <!-- 2. Primary billing action: the ONE primary on the page. -->
         <div class="plan-buttons">
           <form method="POST" action="?/subscribe" bind:this={subscribeForm} onsubmit={onSubscribeSubmit}>
             <input type="hidden" name="plan" value="monthly" />
@@ -503,7 +405,6 @@
 
     <p class="oath">{t('billing.oath')}</p>
 
-    <!-- 5. Billing-management action: gift Premium to someone else. -->
     <div class="gift-link-row">
       <button type="button" class="gift-link" onclick={openGift}>{t('billing.giftLink')}</button>
     </div>
@@ -511,13 +412,11 @@
       <p class="form-error center" role="alert">{form.error}</p>
     {/if}
   {:else}
-    <!-- ────── MANAGEMENT VIEW (premium / vip) ────── -->
     <div class="premium-dashboard-hero">
       <div class="premium-hero-content">
         <div class="premium-hero-badge">
           <img src="/premium-logo.png" alt="" />
         </div>
-        <!-- 1. Current plan + status: TEXT, announced on change. -->
         <div class="premium-hero-text" role="status">
           <span class="premium-eyebrow">{t('billing.currentPlan')}</span>
           <h2 class="premium-title">{statusLabel}</h2>
@@ -551,13 +450,11 @@
       <div class="premium-hero-actions">
         {#if canManage}
           <div class="premium-actions-row">
-            <!-- 2. Primary billing action: the ONE primary. -->
             <form method="POST" action="?/cancel" onsubmit={() => (managing = true)}>
               <Button type="submit" variant="primary" loading={managing} aria-describedby="manage-note">
                 {t('billing.manageSubscription')}
               </Button>
             </form>
-            <!-- 5. Cancellation: confirmed first via ConfirmDialog. -->
             <Button variant="destructive" onclick={openCancel}>
               {t('billing.cancelSubscription')}
             </Button>
@@ -570,7 +467,6 @@
       </div>
     </div>
 
-    <!-- 4. Features: what the current plan includes. -->
     <section class="premium-includes">
       <h3 class="includes-h">{t('billing.premiumIncludes')}</h3>
       <ul class="plan-feats plan-feats--flow">
@@ -580,7 +476,6 @@
       </ul>
     </section>
 
-    <!-- Gift: available whatever your own plan is. -->
     <Card class="billing-card premium-gift-card">
       <div class="gift-cta">
         <div>
@@ -597,7 +492,6 @@
   {/if}
 </section>
 
-<!-- ────── CANCEL CONFIRMATION ────── -->
 <ConfirmDialog
   open={cancelDialogOpen}
   title={t('billing.cancelConfirmTitle')}
@@ -611,10 +505,8 @@
   onConfirm={confirmCancel}
   onCancel={closeCancel}
 />
-<!-- Submitted programmatically by the confirmation above. -->
 <form method="POST" action="?/cancel" bind:this={cancelForm} hidden></form>
 
-<!-- ────── GIFT MODAL (both views) ────── -->
 <Modal open={giftModalOpen} title={t('billing.giftPremium')} closeModal={closeGift}>
   <p class="modal-body">
     {t('billing.giftModalBody')}
@@ -650,8 +542,6 @@
       ></textarea>
       <span id="gift-msg-counter" class="counter" class:counter--full={giftMessage.length >= 280}>{giftMessage.length}/280</span>
       {#if giftMessageHasLink}
-        <!-- Wrapped so the textarea's aria-describedby target resolves; the shared
-             FieldError takes only `message`. -->
         <span id="gift-msg-error"><FieldError message={t('billing.giftNoteLink')} /></span>
       {/if}
     </label>
@@ -676,7 +566,6 @@
   </form>
 </Modal>
 
-<!-- ────── CELEBRATORY PURCHASE-COMPLETE MODAL ────── -->
 <Modal open={celebrateOpen} closeModal={closeCelebrate}>
   <div class="celebrate">
     <div class="celebrate-badge" class:celebrate-badge--gift={celebrateKind === 'gift'}>
@@ -728,9 +617,6 @@
 </Modal>
 
 {#if confetti.length}
-  <!-- Portalled to the body for the same reason the modal is: .app is a
-       stacking context (position: relative, z-index: 1), so a layer left inside
-       it can never paint above a modal that portals out of it. -->
   <div
     class="confetti-layer"
     aria-hidden="true"
@@ -747,16 +633,12 @@
 {/if}
 
 <style>
-  /* Mote field sits above the aurora but below the page content. Fixed to the
-     viewport so it backs the whole billing screen, like the login page. */
   .starfield {
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
   }
-  /* Lift the content above the decorative backdrop. Scoped to this page, so it
-     does not affect .screen elsewhere. */
   .screen {
     position: relative;
     z-index: 1;
@@ -790,7 +672,6 @@
     font-size: 12px;
   }
 
-  /* ── Current-plan status (selection view) ── */
   .plan-status {
     display: inline-flex;
     align-items: center;
@@ -798,7 +679,6 @@
     margin: 0 0 4px;
   }
 
-  /* ── Selection view: plan cards ── */
   .plans {
     display: grid;
     grid-template-columns: 1fr;
@@ -822,8 +702,6 @@
     box-shadow: 0 0 44px rgba(201, 168, 124, 0.08);
   }
 
-  /* Seated inside the card's top-right corner: the shared Card clips overflow,
-     so a badge straddling the top border (translateY(-50%)) gets cut off. */
   .plan-badge {
     position: absolute;
     top: 16px;
@@ -943,7 +821,6 @@
     font-family: var(--bb-font-body);
     font-size: 13.5px;
     color: var(--bb-tan-light);
-    /* >=44px hit target while staying a text-style link. */
     min-height: 44px;
     display: inline-flex;
     align-items: center;
@@ -956,7 +833,6 @@
     text-underline-offset: 3px;
   }
 
-  /* ── Premium Management View ── */
   .premium-dashboard-hero {
     margin-top: 24px;
     padding: 32px;
@@ -1074,7 +950,6 @@
     }
   }
 
-  /* ── Premium "includes" list ── */
   .premium-includes {
     margin-top: 22px;
   }
@@ -1098,7 +973,6 @@
     }
   }
 
-  /* ── Premium Gift Card ── */
   :global(.premium-gift-card) {
     border-color: rgba(201, 168, 124, 0.2) !important;
     background: linear-gradient(180deg, rgba(201, 168, 124, 0.02) 0%, rgba(10, 10, 10, 0) 100%), var(--bb-card-bg, #111110) !important;
@@ -1109,8 +983,6 @@
     justify-content: space-between;
     gap: 18px;
   }
-  /* Keyed on the button's own class, not on the contract: this is where THIS
-     button sits in the gift row. */
   :global(.gift-cta-btn) {
     flex-shrink: 0;
   }
@@ -1124,7 +996,6 @@
     margin-top: 14px;
   }
 
-  /* ── Gift modal form ── */
   .gift-form {
     display: flex;
     flex-direction: column;
@@ -1178,7 +1049,6 @@
     color: var(--bb-tan-light);
   }
 
-  /* ── Celebratory modal ── */
   .celebrate {
     text-align: center;
     padding: 4px 2px 0;
@@ -1267,12 +1137,9 @@
     }
   }
 
-  /* ── Confetti ── */
   .confetti-layer {
     position: fixed;
     inset: 0;
-    /* Above the celebration modal, which portals to the body and stacks from
-       200 upward. The confetti falls in front of it, not behind. */
     z-index: 400;
     pointer-events: none;
     overflow: hidden;
@@ -1283,28 +1150,20 @@
     left: var(--ox, 50%);
     border-radius: var(--bb-radius-xs);
     opacity: 0;
-    /* `linear` on the animation itself: the arc's two halves need OPPOSITE
-       curves (decelerating on the way up, accelerating on the way down), and
-       one timing function across the whole thing cannot do that. Each keyframe
-       carries its own instead. */
     animation: confetti var(--dur, 3000ms) linear var(--delay, 0ms) forwards;
   }
   @keyframes confetti {
     0% {
       transform: translate(-50%, -50%) rotate(0deg) scale(0.6);
       opacity: 0;
-      /* Thrown: fast off the mark, slowing as it climbs. */
       animation-timing-function: cubic-bezier(0.12, 0.7, 0.35, 1);
     }
     6% {
       opacity: 1;
     }
     42% {
-      /* Apex: most of the sideways travel is still to come, so the piece
-         drifts on rather than stopping dead over its launch point. */
       transform: translate(calc(-50% + var(--tx) * 0.42), calc(-50% - var(--peak)))
         rotate(calc(var(--rot) * 0.45)) scale(1);
-      /* Gravity: slow at the top, quickening all the way down. */
       animation-timing-function: cubic-bezier(0.45, 0, 0.75, 0.55);
     }
     88% {

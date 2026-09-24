@@ -15,7 +15,7 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -134,8 +134,6 @@ func TestMarkReadCutoffHidesAfterExpiry(t *testing.T) {
 	row, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "cutoff-1", Scope: notification.ScopeBroadcast, Title: "Heads up", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
 	require.NoError(t, err)
 
-	// A cutoff already in the past hides the row from that user immediately,
-	// while every other user still sees it (per-user, not global, expiry).
 	require.NoError(t, repo.MarkRead(ctx, row.ID, 1001, time.Now().Add(-time.Minute)))
 
 	rows, _, err := repo.ListForUser(ctx, 1001, 50)
@@ -159,8 +157,6 @@ func TestMarkPeekedAcknowledgesWithoutClobberingFullRead(t *testing.T) {
 	b, _, err := repo.Create(ctx, repository.CreateParams{RequestID: "peek-b", Scope: notification.ScopeBroadcast, Title: "B", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
 	require.NoError(t, err)
 
-	// Full-read b first with a short cutoff, then peek. The peek must not extend
-	// b's cutoff, and must acknowledge the still-unread a.
 	shortCutoff := time.Now().Add(time.Minute)
 	require.NoError(t, repo.MarkRead(ctx, b.ID, 1001, shortCutoff))
 
@@ -181,7 +177,6 @@ func TestMarkPeekedAcknowledgesWithoutClobberingFullRead(t *testing.T) {
 	assert.WithinDuration(t, shortCutoff, *bRead.ExpiresAt, time.Second,
 		"peek must not extend a full-read cutoff")
 
-	// A second peek is a no-op: everything already has a read row.
 	peeked, err = repo.MarkPeeked(ctx, 1001, time.Now().Add(24*time.Hour))
 	require.NoError(t, err)
 	assert.Equal(t, 0, peeked)
@@ -203,7 +198,6 @@ func TestDeleteExpiredSweepsGloballyExpired(t *testing.T) {
 	_, _, err = repo.Create(ctx, repository.CreateParams{RequestID: "live-1", Scope: notification.ScopeBroadcast, Title: "Live", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey", ExpiresAt: &future})
 	require.NoError(t, err)
 
-	// Never-expires row (nil global cutoff) must survive the sweep.
 	_, _, err = repo.Create(ctx, repository.CreateParams{RequestID: "keep-1", Scope: notification.ScopeBroadcast, Title: "Keep", Body: "Body", Level: notification.LevelInfo, CreatedBy: 1, CreatedByLogin: "itsmavey"})
 	require.NoError(t, err)
 

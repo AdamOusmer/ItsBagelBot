@@ -10,11 +10,6 @@ import (
 	"testing"
 )
 
-// sourceFile reads a file relative to this package's directory. NATS moved to
-// deploy/messaging (see nats.yaml's reference below), so this is a second,
-// package-local copy of the same tiny helper deploy/messaging/nats_auth_test.go
-// defines for its own package — not shared, because the two packages read from
-// two different directories and Go has no cross-package file-relative helper.
 type sourceFile struct {
 	name string
 }
@@ -45,12 +40,6 @@ func TestJetStreamPublishersUseNodeLocalHubService(t *testing.T) {
 	for _, publisher := range publishers {
 		t.Run(publisher.manifest, func(t *testing.T) {
 			manifest := sourceFile{name: publisher.manifest}.read(t)
-			// Either spelling of the hub Service satisfies the contract: the
-			// point is that the publisher dials the hub Service rather than a
-			// leaf or a pod, and `nats.messaging` and its
-			// `.svc.cluster.local` FQDN are the same Service. Pinning only the
-			// short form failed the manifests that (correctly) spell it out to
-			// skip the search-domain walk.
 			value := strings.Replace(regexp.QuoteMeta(publisher.value),
 				`nats\.messaging`, `nats\.messaging(?:\.svc\.cluster\.local)?`, 1)
 			pattern := regexp.MustCompile(`(?m)^\s*- name: ` + regexp.QuoteMeta(publisher.variable) +
@@ -63,7 +52,6 @@ func TestJetStreamPublishersUseNodeLocalHubService(t *testing.T) {
 }
 
 func TestHubServicePrefersSameNode(t *testing.T) {
-	// nats.yaml lives in deploy/messaging now, not this directory.
 	manifest := sourceFile{name: "../messaging/nats.yaml"}.read(t)
 	service := regexp.MustCompile(`(?s)kind: Service\nmetadata:.*?\n  name: nats\n.*?trafficDistribution: PreferSameNode`).FindString(manifest)
 	if service == "" {

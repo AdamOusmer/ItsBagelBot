@@ -1,34 +1,6 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Server certs for the NATS hub and leaf, issued from the fleet intermediate CA
-# (fleet-selfsigned -> fleet-ca-issuer -> fleet-intermediate-issuer). Each writes
-# a tls.crt/tls.key/ca.crt Secret in `messaging`; nats.yaml/nats-leaf.yaml mount
-# it as both the server cert AND, with every peer on the pod network, the same
-# cert, the client cert their own `cluster { tls { verify: true } }` block
-# presents to other hub/leaf peers — see nats-server.conf and
-# nats-leaf-server.conf for that reuse. cert-manager's CA issuer walks the
-# signing secret's own ca.crt when building the output bundle, so ca.crt here
-# still ends up as the ROOT certificate (not the intermediate) and tls.crt ends
-# up as leaf+intermediate. Clients verify the server against the CA
-# (distributed as the fleet-ca ConfigMap by trust-manager, once that Bundle is
-# recreated on this cluster — see the mTLS matrix note in nats-server.conf) —
-# no per-client certs on the CLIENT listeners yet; see that same note for why.
-#
-# SANs must cover every name a peer dials: the Service name, its FQDN, the
-# per-pod/per-node headless names the cluster routes use, and localhost (the
-# reloader sidecar and the prometheus exporter both dial 127.0.0.1).
-#
-# NATS runs on the Cilium pod network (hostNetwork removed 2026-08-18): peers
-# advertise and dial the headless FQDNs below, so no node IP SANs are needed
-# and the anti-affinity + per-node listener design carries over unchanged
-# rather than needing to be
-# reconstructed later. Verified against `kubectl get nodes -o wide` before
-# writing this file, not assumed. If the fleet is ever genuinely down to one
-# node, drop the ipAddresses below to that one node's address and nats.yaml's
-# replicas/anti-affinity to match — do not carry stale IP SANs for nodes that
-# no longer exist, the old fleet hit exactly that failure mode (see nats.yaml's
-# git history, commit a8b810e5) after node4 rotated out.
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -37,8 +9,8 @@ metadata:
   namespace: messaging
 spec:
   secretName: nats-hub-tls
-  duration: 2160h # 90d
-  renewBefore: 360h # 15d
+  duration: 2160h
+  renewBefore: 360h
   privateKey:
     algorithm: ECDSA
     size: 256
@@ -67,8 +39,8 @@ metadata:
   namespace: messaging
 spec:
   secretName: nats-leaf-tls
-  duration: 2160h # 90d
-  renewBefore: 360h # 15d
+  duration: 2160h
+  renewBefore: 360h
   privateKey:
     algorithm: ECDSA
     size: 256

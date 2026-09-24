@@ -421,7 +421,6 @@ func TestLocalDenialDoesNotArmCooldown(t *testing.T) {
 	assert.False(t, found)
 }
 
-// Run against a disposable local Valkey with VALKEY_TEST_ADDR set.
 func TestValidationRateAccountingIntegration(t *testing.T) {
 	newFakeSOCKS(t)
 	calls := 0

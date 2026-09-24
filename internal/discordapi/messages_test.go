@@ -22,8 +22,6 @@ func TestListMessagesFullDecodesAuthorsAndAttachments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListMessagesFull: %v", err)
 	}
-	// The limit is clamped to Discord's own page maximum: a larger one is
-	// rejected outright, not clamped by Discord.
 	wantRequest(t, got, http.MethodGet, "/channels/c1/messages")
 	if len(page) != 2 {
 		t.Fatalf("page = %+v", page)
@@ -34,26 +32,12 @@ func TestListMessagesFullDecodesAuthorsAndAttachments(t *testing.T) {
 	})
 }
 
-// wantMessage is everything one decoded message must show.
-//
-// The three checks travel as one case rather than as three helpers each
-// taking a loose string, because they are assertions about the SAME message:
-// split up, a reader has to re-pair "second" with page[1] by counting
-// arguments, and adding a fourth field to a message means adding a fourth
-// helper with its own indexing convention.
 type wantMessage struct {
-	// displayName pins the author fallback: global_name when Discord sent
-	// one, the username otherwise.
-	displayName string
-	// attachmentURL is the one attachment the message carried; empty means it
-	// carried none.
+	displayName   string
 	attachmentURL string
-	// timeParses holds the degradation rule: a malformed timestamp costs that
-	// message its own time, not the whole page.
-	timeParses bool
+	timeParses    bool
 }
 
-// wantMessages checks a decoded page against one case per message.
 func wantMessages(t *testing.T, page []FullMessage, want []wantMessage) {
 	t.Helper()
 	if len(page) != len(want) {
@@ -64,7 +48,6 @@ func wantMessages(t *testing.T, page []FullMessage, want []wantMessage) {
 	}
 }
 
-// wantMessageDecoded checks one message against its case.
 func wantMessageDecoded(t *testing.T, msg FullMessage, want wantMessage) {
 	t.Helper()
 	if msg.Author.DisplayName() != want.displayName {
@@ -76,7 +59,6 @@ func wantMessageDecoded(t *testing.T, msg FullMessage, want wantMessage) {
 	}
 }
 
-// wantAttachment pins the attachments one message carried.
 func wantAttachment(t *testing.T, msg FullMessage, want wantMessage) {
 	t.Helper()
 	if want.attachmentURL == "" {
@@ -134,18 +116,13 @@ func TestModifyChannelParentIDDistinguishesUnsetFromNull(t *testing.T) {
 	}
 }
 
-// parentCase is one ParentID shape and what the encoded body must show for it.
 type parentCase struct {
 	name   string
 	parent *string
 	want   string
-	// absent is the nil case: parent_id must not appear in the body AT ALL.
-	// An explicit null is a different instruction to Discord (move the
-	// channel out of every category), so "unset" cannot be encoded as null.
 	absent bool
 }
 
-// wantParentID checks the recorded request body against one parentCase.
 func wantParentID(t *testing.T, got *capture, tc parentCase) {
 	t.Helper()
 	if tc.absent {

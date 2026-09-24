@@ -14,7 +14,6 @@ import (
 
 func nopRun(context.Context, *outgress.Message) error { return nil }
 
-// route flattens an action's route triple for single-comparison assertions.
 func route(a Action) [3]string { return [3]string{a.Method, a.Endpoint, a.As} }
 
 func TestBuildProducesImmutableRegistry(t *testing.T) {

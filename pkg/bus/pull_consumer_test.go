@@ -14,48 +14,32 @@ import (
 	jsapi "github.com/nats-io/nats.go/jetstream"
 )
 
-// Pull-mode binding and lifecycle: the fleet-shared durable identity, cheap
-// floor acknowledgement config, the push->pull mode flip and its conversion
-// semantics across pods.
-
 func TestPullConsumerIsOneSharedDurableForTheWholeFleet(t *testing.T) {
 	t.Setenv("POD_NAME", "sesame-6d9f7c8b45-tq2xz")
 	name := pullConsumerName("worker", "twitch.ingress.event.premium")
 
-	// The absence of pod identity IS the design: every pod binding the same
-	// durable is what makes the server distribute the lane instead of copying it.
 	if name != durableName("worker", "twitch.ingress.event.premium") {
 		t.Fatalf("consumer name = %q, want the plain fleet-wide durable", name)
 	}
 	if strings.Contains(name, "tq2xz") || strings.Contains(name, podIdentity()) {
 		t.Fatalf("consumer name %q carries pod identity and would fan the lane out", name)
 	}
-	// The flow lane's per-pod name is the shape this one exists to replace.
 	if name == flowConsumerName("worker", "twitch.ingress.event.premium") {
 		t.Fatal("pull and flow durables collide")
 	}
 }
 
 func TestPullConsumerConfigIsCheapFloorAcknowledgement(t *testing.T) {
-	// The floor contract is the AckAll shape; AckNone is the default now (see
-	// pullAckPolicy) and has its own test in pull_ack_policy_test.go.
 	t.Setenv("NATS_PULL_ACK_POLICY", "all")
 	cfg := pullConsumerConfig("twitch.ingress.event.premium", "worker_twitch_ingress_event_premium")
 
 	requireContract(t,
-		// A floor ack costs one publish per batch; explicit acks would cost one per
-		// message, which is the ack stream this lane shape exists to avoid.
 		contractClause{cfg.AckPolicy == jsapi.AckAllPolicy,
 			fmt.Sprintf("ack policy = %v, want AckAll", cfg.AckPolicy)},
-		// A pull consumer must carry no delivery subject: one would make it a push
-		// consumer and the server would stop honouring MSG.NEXT for it.
 		contractClause{cfg.DeliverSubject == "" && !cfg.FlowControl,
 			fmt.Sprintf("pull consumer was given push delivery: %#v", cfg)},
 		contractClause{cfg.DeliverPolicy == jsapi.DeliverNewPolicy,
 			fmt.Sprintf("deliver policy = %v, want DeliverNew on a first creation", cfg.DeliverPolicy)},
-		// Quorum-replicated consumer state, in memory. R1 put the whole fleet's
-		// ability to consume on one peer: on 2026-08-16 that peer churned, the
-		// durable was lost, and every pod spun on a name that no longer resolved.
 		contractClause{cfg.Replicas == defaultPullReplicas && cfg.MemoryStorage,
 			fmt.Sprintf("consumer state must be replicated in memory: %#v", cfg)},
 		contractClause{cfg.InactiveThreshold == flowInactiveThreshold,
@@ -77,8 +61,6 @@ func TestPullConsumerKnobsRejectNonPositiveOverrides(t *testing.T) {
 	if cfg.AckWait != 45*time.Second || cfg.MaxAckPending != 70000 {
 		t.Fatalf("valid overrides were ignored: %v/%d", cfg.AckWait, cfg.MaxAckPending)
 	}
-	// Every knob is a rate or a ceiling, so a zero or negative one is a manifest
-	// typo rather than an instruction: it must not reshape the consumer.
 	if pullFetchBatch() != defaultPullFetchBatch || pullFetchMaxWait() != defaultPullFetchMaxWait {
 		t.Fatalf("non-positive override was accepted: batch=%d wait=%v",
 			pullFetchBatch(), pullFetchMaxWait())
@@ -88,8 +70,6 @@ func TestPullConsumerKnobsRejectNonPositiveOverrides(t *testing.T) {
 	}
 }
 
-// TestPullFloorAckCoversTheWholeBatch is the ack-cadence contract: one publish
-// for every message the batch handed out, naming the last of them.
 func TestPullWireCarriesAStableIdentity(t *testing.T) {
 	wire := fakePullDelivery(99)
 	first := pullWireMessage(wire)
@@ -103,8 +83,6 @@ func TestPullWireCarriesAStableIdentity(t *testing.T) {
 		t.Fatal("two deliveries of the same sequence got different identities")
 	}
 
-	// A publisher-set id is never overwritten: it is the fleet's own identity and
-	// outranks the derived one.
 	authored := fakePullDelivery(100)
 	authored.header.Set(MessageIDHeader, "authored-id")
 	if got := pullWireMessage(authored).Header.Get(MessageIDHeader); got != "authored-id" {
@@ -124,8 +102,6 @@ func TestPullSubscriberIsBoundToOneSubject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// One fetch loop per pod means one delivery stream per pod: the units compete
-	// for the same channel instead of each opening its own fetch loop.
 	if first != second {
 		t.Fatal("a second consumer unit was handed its own lane channel")
 	}
@@ -145,21 +121,13 @@ func TestConsumeModeIsThreeWayAndDefaultsToPull(t *testing.T) {
 		mode string
 		want laneConsumeMode
 	}{
-		// Unset is the deployed state: receipt-level modes are opt-in, so an
-		// unconfigured lane keeps per-message explicit acks whatever the mode says.
 		{"unset", "", "", laneModeExplicit},
 		{"mode without the opt-in", "", "pull", laneModeExplicit},
 		{"flow", "on", "flow", laneModeFlow},
 		{"pull", "on", "pull", laneModePull},
 		{"explicit", "on", "explicit", laneModeExplicit},
-		// A typo must not silently reshape the lane away from the default.
 		{"garbage", "on", "puull", laneModePull},
-		// Unset mode with the opt-in takes the pull default: the fan-out flow
-		// shape multiplies delivery per pod, pull divides it.
 		{"default", "on", "", laneModePull},
-		// NATS_CONSUME_FLOW=off is the deployed kill switch and outranks the mode
-		// outright: an operator reaching for it must not have to know that a
-		// second variable exists.
 		{"backcompat off", "off", "pull", laneModeExplicit},
 		{"backcompat off over flow", "off", "flow", laneModeExplicit},
 	} {
@@ -183,20 +151,11 @@ func TestPullModeStillRefusesLanesOutsideTheHotIngress(t *testing.T) {
 	if got := subscriber.laneModeFor(hot); got != laneModePull {
 		t.Fatalf("hot lane mode = %q, want pull", got)
 	}
-	// The scope guard is unchanged by the new mode: replay-sensitive lanes keep
-	// per-message explicit acks whichever receipt-level mode is configured.
 	if got := subscriber.laneModeFor(control); got != laneModeExplicit {
 		t.Fatalf("control lane mode = %q, want explicit", got)
 	}
 }
 
-// TestPullBindingReplacesThePushDurableOnTheModeFlip covers the transition the
-// shared consumer name makes unavoidable. durableName(group, subject) carries no
-// mode token, so flipping NATS_CONSUME_MODE to pull re-provisions the very
-// durable the explicit push consumer occupies — and nats-server refuses to
-// convert a push consumer to a pull one in place. Without the replacement the
-// flip fails every pod's lane binding identically and the lane just stops
-// consuming, which is the least visible way a lane can break.
 func TestPullBindingReplacesThePushDurableOnTheModeFlip(t *testing.T) {
 	t.Setenv("NATS_PULL_ACK_POLICY", "all")
 	js := &pullConsumerSpy{live: livePushLaneConsumer(9_100)}
@@ -225,8 +184,6 @@ func TestPullBindingReplacesThePushDurableOnTheModeFlip(t *testing.T) {
 			fmt.Sprintf("replacement carries delivery subject %q; it is still a push consumer", got.DeliverSubject)},
 		contractClause{got.AckPolicy == jsapi.AckAllPolicy,
 			fmt.Sprintf("replacement ack policy = %v, want the pull lane's floor-based AckAll", got.AckPolicy)},
-		// The fleet's acknowledged position survives the delete: resuming anywhere
-		// earlier re-executes chat commands the previous consumer already handled.
 		contractClause{got.DeliverPolicy == jsapi.DeliverByStartSequencePolicy && got.OptStartSeq == 9_101,
 			fmt.Sprintf("replacement resumed at %v/%d, want the predecessor's ack floor + 1",
 				got.DeliverPolicy, got.OptStartSeq)},
@@ -234,8 +191,6 @@ func TestPullBindingReplacesThePushDurableOnTheModeFlip(t *testing.T) {
 }
 
 func TestPullReplacementNeverOpensOnTheWholeRetainedFirehose(t *testing.T) {
-	// A push durable that never acked anything. Inheriting its DeliverAll would
-	// replay every retained event to the converted lane at once.
 	js := &pullConsumerSpy{live: livePushLaneConsumer(0)}
 
 	if _, err := bindPullConsumer(
@@ -249,14 +204,7 @@ func TestPullReplacementNeverOpensOnTheWholeRetainedFirehose(t *testing.T) {
 	}
 }
 
-// TestPullBindingBindsAConversionAnotherPodAlreadyMade is the guard on the
-// difference between the two receipt-level paths. A flow consumer is per-pod, so
-// replacing one costs the caller its own cursor; this durable is fleet-wide, so
-// a delete takes it out from under every other pod fetching from it. On a
-// simultaneous fleet restart every pod would otherwise delete the successor the
-// previous one just built.
 func TestPullBindingBindsAConversionAnotherPodAlreadyMade(t *testing.T) {
-	// The conversion lands between our INFO and our second update.
 	js := &pullConsumerSpy{live: livePushLaneConsumer(9_100), convertAfter: 2}
 
 	consumer, err := bindPullConsumer(
@@ -275,8 +223,6 @@ func TestPullBindingBindsAConversionAnotherPodAlreadyMade(t *testing.T) {
 }
 
 func TestPullBindingNeverDeletesOnATransientFailure(t *testing.T) {
-	// No responders during a meta election is the canonical one: deleting here
-	// would turn a retryable blip into a fleet-wide delivery reset.
 	js := &pullConsumerSpy{live: livePushLaneConsumer(9_100), createErr: nats.ErrNoResponders}
 
 	_, err := bindPullConsumer(

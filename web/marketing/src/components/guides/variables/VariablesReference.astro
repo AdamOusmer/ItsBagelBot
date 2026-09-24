@@ -2,18 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * The variables guide: a header, then one table per group, in manifest
- * group order (docs/specs/variables-catalog.md phase 7). Replaces the
- * search-and-filter, rail-and-<details> layout (docs/specs/variables-
- * catalog.md D7, phase 3-6) with a flat page a browser's own Ctrl-F already
- * searches: every row is always in the DOM, so there is nothing to filter
- * and nothing that moves when a visitor clicks a copy button.
- *
- * Still takes the manifest as data (`catalog: variableReferenceData(lang)`)
- * rather than importing it itself -- the page owns the localization call,
- * this component only presents the result.
- */
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import Group from './Group.astro';
 import './reference.css';
@@ -53,10 +41,6 @@ const clientCopy = {
     copyFailed: t('guides.variables.copyFailed'),
 };
 
-// The one-line note under "Your stream": which groups a timer's message can
-// draw variables from, derived straight from the surface kit itself owns
-// rather than a second hand-kept list (a timer has no invoking viewer, so
-// this is not simply "every group").
 const timerGroupIds = new Set(forSurface('timer').map((def) => def.group));
 const timerGroupLabels = GROUP_ORDER
     .filter((group) => timerGroupIds.has(group))

@@ -1,9 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Inline reward editor (create + edit share it), rendered in the page's
-  // docked inspector, the same surface as the command editor. The whole draft
-  // travels as one JSON field; the server validates and normalizes it.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Field, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
@@ -28,13 +25,11 @@
 
   const { t } = getI18n();
 
-  // The bot-reply switch IS the action kind: on = 'chat', off = 'none'.
   let replyOn = $state(draft.action === 'chat');
   $effect(() => {
     draft.action = replyOn ? 'chat' : 'none';
   });
 
-  // Twitch renders the reward tile in this color; empty means Twitch's default.
   let color = $state(draft.backgroundColor || '#9147ff');
   $effect(() => {
     draft.backgroundColor = color;
@@ -43,9 +38,6 @@
   const DEFAULT_MESSAGE = '{user} redeemed {reward}!';
   const payload = $derived(JSON.stringify(draft));
 
-  // Rehearsal samples: the reward tokens expandReward resolves (see
-  // app/twitch/sesame/modules/channelpoints.go), with the draft's own values so the
-  // preview shows the real reply, not placeholders.
   const samples = $derived<Record<string, string>>({
     user: 'sesame_sam',
     input: draft.isUserInputRequired ? 'good luck!' : '',
@@ -56,9 +48,6 @@
     points: String(draft.points || 0)
   });
 
-  // Loyalty hooks are opt-in per reward: two toggles gate the counter and the
-  // points award, so an ordinary reward's editor stays clean. Toggling off
-  // clears the underlying value, so a hidden field never saves a stale binding.
   let counterOn = $state(!!draft.counter.trim());
   let pointsOn = $state(draft.points > 0);
   $effect(() => {
@@ -68,7 +57,6 @@
     if (!pointsOn && draft.points) draft.points = 0;
   });
 
-  // Scope choices for a NEW counter, in the order a reward usually wants them.
   const SCOPES: readonly { value: CounterScope; label: string; desc: string }[] = [
     { value: 'viewer_command', label: t('rewardCounter.scopeViewerReward'), desc: t('rewardCounter.scopeViewerRewardDesc') },
     { value: 'command', label: t('rewardCounter.scopeReward'), desc: t('rewardCounter.scopeRewardDesc') },
@@ -78,11 +66,6 @@
   const scopeOptions = SCOPES.map((s) => ({ value: s.value, label: s.label }));
   const scopeDesc = $derived(SCOPES.find((s) => s.value === draft.counterScope)?.desc ?? '');
 
-  // Required-field feedback belongs on the attempted save, not behind a
-  // disabled button. In particular, an enabled counter with no name used to
-  // serialize as an empty binding and appear to save; reopening the reward then
-  // showed the counter switch as off. Keep the user's intent explicit and land
-  // focus on the first field that needs attention.
   const TITLE_ERR_ID = 'reward-title-err';
   const COUNTER_ERR_ID = 'reward-counter-err';
   let attempted = $state(false);
@@ -127,8 +110,6 @@
     />
   </Field>
 
-  <!-- Cost and colour share a row. `Cluster` and not `Grid`: the colour swatch
-       is a fixed 110px, so the two are not equal columns. -->
   <div class="field-row">
     <Field label={t('channelpoints.fieldCost')} class="cost-field">
       <input class="bb-input" type="number" min="1" bind:value={draft.cost} />
@@ -154,8 +135,6 @@
     <Field label={t('channelpoints.fieldMessage')}>
       <ResponseEditor bind:value={draft.message} surface="reward:channelpoints" placeholder={DEFAULT_MESSAGE} />
     </Field>
-    <!-- kind="reply": expandReward substitutes the reward tokens plus the
-         dynamic set ({random}/{choice:…}); nothing else. -->
     <ChatPreview
       kind="reply"
       response={draft.message || DEFAULT_MESSAGE}
@@ -173,9 +152,6 @@
     </select>
   </Field>
 
-  <!-- Loyalty hooks: an opt-in counter and/or a points award per redemption.
-       Each is a toggle that reveals its own controls, so a plain reward's
-       editor never shows loyalty plumbing it isn't using. -->
   <section class="hooks">
     <header class="hooks-head">
       <span>{t('channelpoints.loyaltyTitle')}</span>
@@ -227,8 +203,6 @@
     </div>
 
     {#if counterOn || pointsOn}
-      <!-- Live-only gate: offline redeems still reply in chat, but don't touch
-           the counter or grant points. Only meaningful when a hook is on. -->
       <div class="hook live-gate">
         <Checkbox bind:checked={draft.liveOnly}>{t('rewardCounter.liveOnly')}</Checkbox>
         <small class="live-hint">{t('rewardCounter.liveOnlyHint')}</small>
@@ -279,9 +253,6 @@
 <style>
   .editor { padding: 4px 2px 2px; }
 
-  /* Composition only: the fields are `Field` blocks
-     (@bagel/ui/styles/elements/field.css). What is left is how two of them
-     share a row on this form, which no library can know. */
   .field-row { display: flex; gap: 12px; }
   :global(.cost-field) { flex: 1; min-width: 0; }
   :global(.color-field) { flex: none; width: 110px; }
@@ -297,7 +268,6 @@
 
   .check { margin: 4px 0 14px; --bb-check-align: center; }
 
-  /* ── Loyalty hooks: two toggle-gated blocks ───────────────────────────── */
   .hooks {
     display: flex;
     flex-direction: column;
@@ -320,8 +290,6 @@
   .hook { display: flex; flex-direction: column; --bb-check-align: center; }
   .hook + .hook { border-top: 1px solid rgba(240, 236, 228, 0.06); padding-top: 12px; margin-top: 6px; }
 
-  /* Revealed controls sit indented under their toggle, with a soft rail so the
-     grouping reads at a glance. */
   .hook-body {
     display: flex;
     flex-direction: column;
@@ -330,10 +298,6 @@
     padding-left: 14px;
     border-left: 2px solid var(--ui-accent-soft, rgba(240, 236, 228, 0.1));
   }
-  /* `--field-mb` is `.bb-field`'s own knob (elements/field.css): the revealed
-     block is already indented and ruled, so its fields do not each need the
-     14px they carry in a flat form. Set on the container rather than reached
-     into per field. */
   .hook-body { --field-mb: 0; }
 
   .token-note {

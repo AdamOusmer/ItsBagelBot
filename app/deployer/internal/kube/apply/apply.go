@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package apply implements ports.Applier: kustomize build from in-memory
-// files, the manifest lint, and allowlisted server-side apply.
 package apply
 
 import (
@@ -23,10 +21,8 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// FieldManager is the server-side apply field manager.
 const FieldManager = "bagel-deployer"
 
-// Applier implements ports.Applier.
 type Applier struct {
 	dyn    dynamic.Interface
 	mapper meta.RESTMapper
@@ -34,7 +30,6 @@ type Applier struct {
 
 var _ ports.Applier = (*Applier)(nil)
 
-// New builds the dynamic client and REST mapper from rc.
 func New(rc *rest.Config) (*Applier, error) {
 	dyn, err := dynamic.NewForConfig(rc)
 	if err != nil {
@@ -51,26 +46,16 @@ func newApplier(dyn dynamic.Interface, mapper meta.RESTMapper) *Applier {
 	return &Applier{dyn: dyn, mapper: mapper}
 }
 
-// Build renders spec with kustomize; see build.go.
 func (a *Applier) Build(_ context.Context, spec ports.BuildSpec) (ports.Objects, error) {
 	return build(spec)
 }
 
-// Lint runs the one-pod-per-node surge check; see lint.go.
 func (a *Applier) Lint(objs ports.Objects) []ports.LintFinding { return lint(objs) }
 
-// Apply server-side applies objs, cluster-scoped objects first, one object at
-// a time, and stops at the first error with the objects applied so far. The
-// allowlist is checked for the whole set before anything is sent, so a refused
-// object never leaves the set half applied.
 func (a *Applier) Apply(ctx context.Context, objs ports.Objects) (ports.ApplyResult, error) {
 	if err := refuse(objs); err != nil {
 		return ports.ApplyResult{}, err
 	}
-	// The process lives for weeks while KEDA and Traefik CRDs are installed
-	// and upgraded under it; a mapper cached at boot answers "no match" for a
-	// kind that appeared later until the pod restarts. One rediscovery per
-	// Apply costs two requests against aggregated discovery.
 	meta.MaybeResetRESTMapper(a.mapper)
 	work, err := a.dropScaledReplicas(ctx, objs)
 	if err != nil {
@@ -87,10 +72,6 @@ func (a *Applier) Apply(ctx context.Context, objs ports.Objects) (ports.ApplyRes
 	return res, nil
 }
 
-// applyOne applies o and reports whether its resourceVersion moved. A no-op
-// server-side apply keeps the resourceVersion, so the GET before is the only
-// way to tell "applied" from "changed"; managedFields timestamps move only
-// when this manager's field set changes, which misses value edits.
 func (a *Applier) applyOne(ctx context.Context, o *unstructured.Unstructured) (bool, error) {
 	ri, err := a.resource(o)
 	if err != nil {
@@ -119,8 +100,6 @@ func (a *Applier) resource(o *unstructured.Unstructured) (dynamic.ResourceInterf
 	return a.dyn.Resource(m.Resource).Namespace(o.GetNamespace()), nil
 }
 
-// resourceVersion is the live object's resourceVersion, "" when it does not
-// exist yet (so an apply that creates it counts as changed).
 func resourceVersion(ctx context.Context, ri dynamic.ResourceInterface, o *unstructured.Unstructured) (string, error) {
 	live, err := ri.Get(ctx, o.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
@@ -145,10 +124,6 @@ func applyFailed(o *unstructured.Unstructured, err error) error {
 	return fmt.Errorf("%w: %w", f, err)
 }
 
-// staged puts cluster-scoped objects (PriorityClasses) ahead of everything
-// else, keeping manifest order inside each stage: a pod naming a missing
-// PriorityClass is rejected at admission, which is why priorityclasses.yaml
-// also leads deploy/k8s/kustomization.yaml.
 func staged(objs ports.Objects) ports.Objects {
 	out := make(ports.Objects, 0, len(objs))
 	var namespaced ports.Objects

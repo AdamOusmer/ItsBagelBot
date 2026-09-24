@@ -15,9 +15,6 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
-// ApplyBilling applies one verified Tebex lifecycle event. Event timestamps
-// make delivery order monotonic, while recurring-reference matching prevents
-// a late event from an old subscription revoking a newer one.
 func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (bool, error) {
 	if err := validate.UserID(req.UserID); err != nil {
 		return false, err
@@ -37,8 +34,6 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 	}
 	if u.BillingEventAt != nil && req.OccurredAt.Equal(*u.BillingEventAt) &&
 		u.BillingEventID != nil && *u.BillingEventID == req.EventID {
-		// The database commit may have succeeded while the change-event publish
-		// failed. A Tebex retry of that exact event must re-announce the state.
 		return true, r.publishChanged(ctx, req.UserID)
 	}
 	if u.Status == user.StatusVip {
@@ -91,13 +86,7 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 	return true, nil
 }
 
-// countGiftForGifter bumps the gifter's gifts_sent by one when this apply is a
-// first-time gift activation (a gift carries a non-zero GifterID distinct from
-// the recipient; self-purchases and renewals do not). Idempotent because event
-// replays return early in ApplyBilling before this runs, so a gift counts once.
-// Best-effort: a counter failure must never fail the already applied
-// entitlement (that would make Tebex retry and re-apply), so its error is
-// intentionally dropped.
+// Best effort: failing here makes Tebex retry and re-apply the entitlement.
 func (r *Users) countGiftForGifter(ctx context.Context, req billingrpc.ApplyRequest) {
 	if req.Action != billingrpc.ActionActivate || req.GifterID == 0 || req.GifterID == req.UserID {
 		return
@@ -107,30 +96,7 @@ func (r *Users) countGiftForGifter(ctx context.Context, req billingrpc.ApplyRequ
 	})
 }
 
-// applyPaidUpdate sets the paid-tier fields common to a Tebex activation and a
-// cancellation-requested event; the two differ only in whether the cancellation
-// is pending. One place, so the update chain is not duplicated per action.
-//
-// storedExpiresAt is the row's expiry before this update runs. The caller
-// (transactions/web's applyBilling) already backfills a fallback expiry for
-// every action that reaches this function, but that is a second place trusted
-// to get it right, not a guarantee. A payment.dispute.won lands here as
-// ActionCancelAborted after the preceding payment.dispute.opened already
-// cleared subscription_expires_at via ActionRevoke; if req.ExpiresAt were
-// ever nil for that event (a one-time purchase carries no payment-subject
-// expiry), setting StatusPaid with no expiry at all would reinstate the user
-// with permanent premium; see the incident this function's fallback exists
-// for. This is the backstop that makes it structurally impossible from this
-// side too: when the request carries no expiry and the stored row has none
-// either, clamp to one month from the event instead of leaving it open. A
-// hard reject was considered and rejected: SetAdminStatus can afford to
-// reject because it is a synchronous, operator-driven call the caller retries
-// by hand, but this path is a Tebex webhook, and ApplyBilling's contract is
-// that a returned error makes Tebex retry the delivery (see its doc comment).
-// That retry path exists for transient NATS/users outages, not a condition
-// that Tebex redelivering the identical event can ever resolve, so rejecting
-// here would leave a legitimately paid customer (a won dispute) stuck in an
-// infinite retry loop instead of holding a bounded grant.
+// An open expiry grants permanent premium; rejecting would loop Tebex retries forever.
 func applyPaidUpdate(q *ent.UserUpdate, req billingrpc.ApplyRequest, cancelPending bool, storedExpiresAt *time.Time) {
 	q.SetStatus(user.StatusPaid).
 		SetSubscriptionSource("tebex").
@@ -148,8 +114,6 @@ func applyPaidUpdate(q *ent.UserUpdate, req billingrpc.ApplyRequest, cancelPendi
 	}
 }
 
-// SetAdminStatus owns operator grants. Paid grants require an expiry and are
-// marked "admin" so Tebex lifecycle events can never revoke them.
 func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Status, expiresAt *time.Time) error {
 	if err := validate.UserID(id); err != nil {
 		return err
@@ -184,21 +148,7 @@ func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Statu
 	return r.publishChanged(ctx, id)
 }
 
-// ExpireSubscriptions is the safety net for grants whose terminal event never
-// arrives. Operator grants expire exactly on time; Tebex gets a grace period
-// so a briefly delayed renewal webhook cannot interrupt a paying customer.
 func (r *Users) ExpireSubscriptions(ctx context.Context, now time.Time, tebexGrace time.Duration) (int, error) {
-	// Narrowed to the two columns the loop below actually reads (candidate.ID,
-	// candidate.SubscriptionSource): before this the query hydrated every
-	// column of every matched row, including the Tink-encrypted email_enc blob
-	// and the whole billing block, for rows that (measured live) numbered zero
-	// 100% of the time. .Select is a no-op on correctness here since ent always
-	// re-adds the id column regardless of selection (app/users/ent/user_query.go
-	// sqlAll), and this candidate is never passed anywhere that reads another
-	// field -- only .ID and .SubscriptionSource are touched below. Combined
-	// with the (status, subscription_source, subscription_expires_at) index on
-	// User (see ent/schema/user.go), this select list is fully covered by the
-	// index, so the query never reaches the clustered row at all.
 	expired, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
 		return r.client.User.Query().Where(
 			user.StatusEQ(user.StatusPaid),

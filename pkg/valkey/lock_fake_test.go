@@ -17,23 +17,6 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// A stateful in-process fake Valkey speaking RESP2, just wide enough for the
-// lock idioms: SET with NX/EX/PX, GET, DEL and the one compare-and-delete
-// script. The real valkey-go client dials it, so the tests exercise the actual
-// wire encoding and, crucially, the real client's Nil-error surfacing of a
-// declined NX — the case wonClaim exists to split.
-//
-// Why not the recording stub in client_fake_test.go: it answers every command
-// with a zero ValkeyResult, so it cannot express "the key already exists".
-// Exclusion is decided from SERVER state, so the double must remember keys and
-// expiries. Why not reuse internal/projection's fake: it is an unexported test
-// helper in another package, built around hashes and a command surface this
-// package does not issue. Why not miniredis: not a dependency here, and this
-// is five verbs.
-//
-// The clock is injected (advance) rather than slept on: expiry is the property
-// under test in two cases, and a test that sleeps a real TTL is both slow and
-// flaky on a loaded machine.
 type lockFake struct {
 	ln     net.Listener
 	client valkey_go.Client
@@ -45,8 +28,6 @@ type lockFake struct {
 	failSET bool
 }
 
-// newLockFake boots the listener and a client pointed at it. Cleanup is
-// registered on t.
 func newLockFake(t *testing.T) *lockFake {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -62,7 +43,7 @@ func newLockFake(t *testing.T) *lockFake {
 	go f.serve()
 	client, err := valkey_go.NewClient(valkey_go.ClientOption{
 		InitAddress:  []string{ln.Addr().String()},
-		DisableCache: true, // no CLIENT TRACKING init; the fake speaks plain RESP2
+		DisableCache: true,
 	})
 	if err != nil {
 		t.Fatalf("fake valkey client: %v", err)
@@ -75,22 +56,18 @@ func newLockFake(t *testing.T) *lockFake {
 	return f
 }
 
-// advance moves the fake's clock, expiring whatever that passes.
 func (f *lockFake) advance(d time.Duration) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.now = f.now.Add(d)
 }
 
-// breakSET makes every following SET answer with a server error, so a test can
-// prove a backend failure is reported rather than read as a lost race.
 func (f *lockFake) breakSET() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.failSET = true
 }
 
-// value returns a key's stored value, honouring expiry.
 func (f *lockFake) value(key string) (string, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -124,13 +101,8 @@ func (f *lockFake) session(c net.Conn) {
 	}
 }
 
-// respArgs is one decoded RESP command: the verb followed by its arguments,
-// or (once exec has split the verb off) the arguments alone. Named so the
-// fake's handlers say what they take rather than passing bare string slices
-// around.
 type respArgs []string
 
-// exec runs one command under the fake's lock.
 func (f *lockFake) exec(args respArgs) []byte {
 	if len(args) == 0 {
 		return lockErr("empty command")
@@ -141,7 +113,6 @@ func (f *lockFake) exec(args respArgs) []byte {
 	defer f.mu.Unlock()
 	switch cmd {
 	case "HELLO":
-		// Match valkey-go's noHello regex so it falls back to RESP2.
 		return lockErr("unknown command 'HELLO'")
 	case "AUTH", "CLIENT", "SELECT", "COMMAND", "PING":
 		return lockSimple("OK")
@@ -193,9 +164,6 @@ func (f *lockFake) execDEL(args respArgs) []byte {
 	return lockInt(deleted)
 }
 
-// execEVAL implements only releaseIfOwner: DEL KEYS[1] while its value equals
-// ARGV[1]. Any other script is an error, so a caller that grows a second
-// script cannot silently get this one's behaviour.
 func (f *lockFake) execEVAL(args respArgs) []byte {
 	script, numkeys := args[0], mustAtoi(args[1])
 	if script != releaseIfOwner || numkeys != 1 {
@@ -210,9 +178,6 @@ func (f *lockFake) execEVAL(args respArgs) []byte {
 	return lockInt(1)
 }
 
-// setOptions decodes the SET flags this fake understands. An unknown flag is
-// ignored rather than rejected: the tests assert on outcomes, and a flag that
-// changed nothing here would fail its own assertion anyway.
 func setOptions(args respArgs) (bool, time.Duration) {
 	nx, ttl := false, time.Duration(0)
 	for i := 0; i < len(args); i++ {
@@ -228,7 +193,6 @@ func setOptions(args respArgs) (bool, time.Duration) {
 	return nx, ttl
 }
 
-// aliveLocked applies lazy expiry; the caller holds mu.
 func (f *lockFake) aliveLocked(key string) bool {
 	if deadline, ok := f.expires[key]; ok && !f.now.Before(deadline) {
 		delete(f.strs, key)
@@ -243,8 +207,6 @@ func mustAtoi(s string) int64 {
 	n, _ := strconv.ParseInt(s, 10, 64)
 	return n
 }
-
-// --- RESP2 wire helpers ---
 
 func lockSimple(s string) []byte { return []byte("+" + s + "\r\n") }
 func lockInt(v int64) []byte     { return []byte(":" + strconv.FormatInt(v, 10) + "\r\n") }
@@ -273,7 +235,7 @@ func readLockBulk(r *bufio.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	buf := make([]byte, size+2) // payload + CRLF
+	buf := make([]byte, size+2)
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return "", err
 	}

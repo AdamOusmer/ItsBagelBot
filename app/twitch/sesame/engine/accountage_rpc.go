@@ -32,10 +32,6 @@ type AccountAgeLookup interface {
 	Lookup(ctx context.Context, targetID, targetLogin string) (AccountAgeResult, error)
 }
 
-// AccountAgeRPC is Sesame's cached account-age reader. Outgress supplies only
-// the authenticated Twitch read; command freshness, singleflight and cache
-// policy live here with the command runtime. A Twitch account's creation date
-// never changes, so a hit stays valid for the full positive TTL.
 type AccountAgeRPC struct {
 	cache   *cache.Cache[AccountAgeResult]
 	request func(context.Context, outgressrpc.AccountAgeRequest) (outgressrpc.AccountAgeReply, error)

@@ -17,7 +17,6 @@ func TestRewardStatusErrorClassifiesHelixRefusals(t *testing.T) {
 		body   string
 		want   error
 	}{
-		// Body captured from the prod create failure on 2026-09-23.
 		"duplicate create": {http.StatusBadRequest, `{"error":"Bad Request","status":400,"message":"CREATE_CUSTOM_REWARD_DUPLICATE_REWARD"}`, ErrDuplicateReward},
 		"duplicate update": {http.StatusBadRequest, `{"error":"Bad Request","status":400,"message":"UPDATE_CUSTOM_REWARD_DUPLICATE_REWARD"}`, ErrDuplicateReward},
 		"missing scope":    {http.StatusUnauthorized, `{"error":"Unauthorized","status":401,"message":"Missing scope: channel:manage:redemptions"}`, ErrMissingScope},

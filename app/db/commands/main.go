@@ -10,9 +10,7 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 
 	"ItsBagelBot/app/db/commands/ent"
-	// Wire the ent schema runtime (field defaults like updated_at, and the name
-	// normalization hook). Without this blank import the generated descriptors
-	// stay uninitialized and every write fails: "forgotten import ent/runtime?".
+	// Without the ent runtime import every write fails.
 	_ "ItsBagelBot/app/db/commands/ent/runtime"
 	"ItsBagelBot/app/db/commands/repository"
 	"ItsBagelBot/app/db/commands/rpc"
@@ -35,12 +33,7 @@ const (
 	queueGroup  = "commands-rpc"
 )
 
-// registerConsumers wires the event subscriptions onto repo: cache
-// invalidation fans out to every instance (broadcast), while use-counter and
-// account-deletion events are handled once per event (grouped).
 func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Commands, fetches *repository.Fetches, broadcast, grouped bus.Subscriber, log *zap.Logger) error {
-	// Use-counter events from the worker: exactly one instance sums each event
-	// (queue group), the repo batches them and flushes uses = uses + n.
 	subs := []struct {
 		name    string
 		sub     bus.Subscriber
@@ -60,15 +53,10 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 	return nil
 }
 
-// changedUserID and fetchChangedUserID read the account off a change event.
-// Go cannot reach a field through a type parameter, so the shared
-// invalidation consumer takes these instead of one reflective accessor.
 func changedUserID(dto data.CommandChangedDTO) uint64 { return dto.UserID }
 
 func fetchChangedUserID(dto data.FetchChangedDTO) uint64 { return dto.UserID }
 
-// recordUse folds a worker use-counter event into the repo's accumulator. A
-// malformed payload is dropped (nil), not retried.
 func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
@@ -82,9 +70,6 @@ func recordUse(repo *repository.Commands, log *zap.Logger) func(*bus.Message) er
 	}
 }
 
-// deleteAllForUser removes every command, fetch definition and sealed key of
-// a deleted account. The payload guards and the log line are shared with the
-// other data services; only the two sweeps are this service's own.
 func deleteAllForUser(repo *repository.Commands, fetches *repository.Fetches, log *zap.Logger) func(*bus.Message) error {
 	return consumers.OnUserDeleted(serviceName, log, func(ctx context.Context, userID uint64) error {
 		if err := repo.DeleteAllForUser(ctx, userID); err != nil {
@@ -111,27 +96,14 @@ func main() {
 	defer func() { _ = n.Pub.Close() }()
 
 	repo := repository.NewCommands(client, n.Pub, core.NR, log)
-	defer repo.Close(context.Background()) // flushes pending writes on shutdown
-	defer closeIntake()                    // stops intake before the repo flush above
+	defer repo.Close(context.Background())
+	defer closeIntake() // stops intake before the repo flush above
 
-	// One-time backfill for the {counter:x} deprecation: bump_counter
-	// defaults to "", so a command whose response still carries the old
-	// WRITE spelling would otherwise silently stop incrementing its counter
-	// the moment this deploy lands. Gated on a migrations marker row (see
-	// BackfillBumpCounterFromTokens), so it costs one query on every boot
-	// after the first and never re-applies to a broadcaster who later
-	// clears the option by hand. Runs before the service starts accepting
-	// RPC/consumer traffic so a concurrent edit can't race it.
+	// Must run before RPC and consumer traffic so a concurrent edit cannot race it.
 	if err := repo.BackfillBumpCounterFromTokens(core.Ctx); err != nil {
 		log.Error("bump_counter backfill failed; commands keep their prior (unset) bump_counter", zap.Error(err))
 	}
 
-	// Best-effort keyset load (modules-style): an unset path or an absent
-	// optional mount warns and disables key custody — definitions keep
-	// working keyless — while a present-but-invalid keyset is fatal inside
-	// NewFetchesFromEnv. commands rides the core chat path even with zero
-	// keys ever sealed, so it must not crash-loop on a secret that may not be
-	// provisioned yet.
 	fetches := repository.NewFetches(client, repository.NewFetchesFromEnv(log), n.Pub, log)
 	defer fetches.Close()
 
@@ -168,11 +140,6 @@ func main() {
 		log.Fatal("failed to subscribe fetch key rpc", zap.Error(err))
 	}
 
-	// The lane check covers the durable group folding data.commands.used and
-	// data.users.deleted: a consumer that stays bound while failing to fetch
-	// stops the use counters silently, with NATS and MySQL both still reading
-	// green. The broadcast subscriber is not checked -- it has no fetch loop to
-	// wedge.
 	databoot.ServeHealth(databoot.Health{
 		Health: svcboot.Health{
 			Log: log, NC: n.RPC, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,

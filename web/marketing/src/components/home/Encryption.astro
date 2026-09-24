@@ -53,7 +53,6 @@ const t = useTranslations(lang);
 </section>
 
 <style>
-    /* Override the global `section` constraints (max-width 1200px, padding) */
     .enc {
         height: 520vh;
         width: 100%;
@@ -109,11 +108,6 @@ const t = useTranslations(lang);
         --node-scale: 0;
     }
 
-    /* Length rides on scaleX over a fixed 100px box, never on `width`. A
-       per-frame width change repaints the glow shadow every frame, and WebKit
-       cycles a pool of fresh backing surfaces for a layer repainted that often:
-       measured 2026-09-23 in a WKWebView at 390x844, device scale 3, the pinned
-       act sat at ~535 MB with width-driven segments and ~350 MB with scaleX. */
     .enc-node-line__segment {
         position: absolute;
         left: 0;
@@ -152,13 +146,11 @@ const t = useTranslations(lang);
         transform: translate3d(calc(var(--node-x) - 4.5px), calc(var(--node-y) - 4.5px), 0) scale(var(--node-scale));
     }
 
-    /* Text overlays */
     .enc-overlay {
         position: absolute;
         top: 50%;
         left: 6vw;
         transform: translateY(-50%);
-        /* Container scales with viewport but caps at 480px */
         width: min(480px, calc(100vw - 12vw));
         opacity: 0;
         pointer-events: none;
@@ -175,7 +167,6 @@ const t = useTranslations(lang);
         transform-origin: right center;
     }
 
-    /* Override global `overflow-wrap: break-word` so words never split mid-letter */
     .enc-overlay :where(h2, p, span) {
         overflow-wrap: normal;
         word-break: normal;
@@ -197,7 +188,6 @@ const t = useTranslations(lang);
 
     .enc-h2 {
         font-family: var(--font-display, "Syne", sans-serif);
-        /* Smaller upper bound + smaller min so words always fit, even on narrow screens */
         font-size: clamp(1.7rem, 3.6vw, 3rem);
         font-weight: 800;
         line-height: 1.1;
@@ -287,7 +277,6 @@ const t = useTranslations(lang);
         }) => void;
     };
 
-    /* ─── helpers ────────────────────────────────────────────────── */
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
     const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
@@ -296,14 +285,12 @@ const t = useTranslations(lang);
         return t * t * (3 - 2 * t);
     }
 
-    /* ─── palette ────────────────────────────────────────────────── */
     const GREEN = 0x52b788;
     const LIGHT = 0xa7f3d0;
     const TAN = 0xc9a87c;
     const WHITE = 0xf0ece4;
 
     function setupEncryption() {
-    /* ─── dom ────────────────────────────────────────────────────── */
     const canvas = document.getElementById('enc-canvas') as HTMLCanvasElement | null;
     const section = document.getElementById('enc-section') as HTMLElement | null;
     if (!canvas || !section) return;
@@ -311,9 +298,6 @@ const t = useTranslations(lang);
     const pin = section.querySelector('.enc-pin') as HTMLElement | null;
     if (!pin) return;
 
-    // One source of truth for the cinematic: every beat owns an overlay, a
-    // connector, a camera waypoint group and an equal slice of the scroll
-    // track. Change BEAT_COUNT and the markup, nothing else.
     const BEAT_COUNT = 3;
     const BEAT_SPAN = 1 / BEAT_COUNT;
     const beatIndices = Array.from({length: BEAT_COUNT}, (_, i) => i);
@@ -327,7 +311,6 @@ const t = useTranslations(lang);
     const TITLE_SCRAMBLE_SPAN = 0.115;
     const TEXT_ENTER_SPAN = 0.06;
     const TEXT_EXIT_SPAN = 0.045;
-    // Each beat snaps at the middle of its own slice of the track.
     const SNAP_POINTS = beatIndices.map(i => (i + 0.5) * BEAT_SPAN);
     const SNAP_PROXIMITY = 0.09;
     const SNAP_ACTIVE_MIN = 0.045;
@@ -379,8 +362,6 @@ const t = useTranslations(lang);
 
     function preloadEncryptionModules() {
         if (!preloadModulesPromise) {
-            // three-slim re-exports only the names the scene uses, so the
-            // bundler tree-shakes the rest of three out of the chunk.
             preloadModulesPromise = Promise.all([
                 import('../../script/three-slim.js'),
                 import('three/addons/postprocessing/RenderPass.js'),
@@ -403,16 +384,6 @@ const t = useTranslations(lang);
         void preloadEncryptionScene();
     }
 
-    // Do not fetch the scene's modules while the boot loader is still up and the
-    // visitor has not scrolled. The observer below watches with a 900px
-    // rootMargin and this section sits that close to the fold, so on / it fired
-    // during the initial load and pulled the three chunk (49.8 KiB, 33 of it
-    // unused that early) into the page-load trace, against LCP. Gate it on boot
-    // (or a real scroll) and then take an idle slice, with a timeout matching
-    // the post-boot start delay so the modules are still in flight before
-    // startEncryption() needs them. Nothing breaks if a scroll beats the idle
-    // callback: initEncryption() awaits the same memoized promise and imports on
-    // demand -- the gate only moves WHEN the fetch starts, never whether.
     function schedulePreloadEncryption() {
         const ready = bootCompleted || window.scrollY >= POST_BOOT_SCROLL_THRESHOLD;
         if (preloadScheduled || destroyed || !ready) return;
@@ -552,10 +523,6 @@ const t = useTranslations(lang);
         const mediaQuery = window.matchMedia('(max-width: 900px)');
         const isCompact = mediaQuery.matches;
         const maxPixelRatio = isCompact ? 1.25 : 1.5;
-        // Drawing buffer capped near 3 MP: at 2560x1440@2 the 1.5x
-        // supersample held ~175 MB of WebGL buffers in a WKWebView. Chosen
-        // over full resolution knowing the wireframe lines stair-step slightly
-        // on 5K; the 0.75 floor keeps a 4K@1 screen from going softer than that.
         const MAX_DRAW_PIXELS = 3e6;
         const pixelRatioFor = (width: number, height: number) => Math.min(
             devicePixelRatio,
@@ -570,7 +537,6 @@ const t = useTranslations(lang);
             preloadRegistry.encryptionData = geometryData;
         }
 
-        /* ─── renderer (transparent) ─────────────────────────────── */
         const renderer = new WebGLRenderer({
             canvas,
             antialias: false,
@@ -584,14 +550,12 @@ const t = useTranslations(lang);
         renderer.toneMappingExposure = 1.0;
         renderer.outputColorSpace = SRGBColorSpace;
 
-        /* ─── scene / camera ─────────────────────────────────────── */
         const scene = new Scene();
         const world = new Group();
         scene.add(world);
 
         const camera = new PerspectiveCamera(50, 1, 0.1, 100);
 
-        /* ─── shared materials (cuts draw-call cost) ─────────────── */
         const matNodeGreen = new LineBasicMaterial({color: GREEN, transparent: true, opacity: 0.9});
         const matNodeTan = new LineBasicMaterial({color: TAN, transparent: true, opacity: 0.9});
         const matCoreOuter = new LineBasicMaterial({color: GREEN, transparent: true, opacity: 0.55});
@@ -600,7 +564,6 @@ const t = useTranslations(lang);
         const matConnInter = new LineBasicMaterial({color: TAN, transparent: true, opacity: 0.22});
         const matNodeCenter = new MeshBasicMaterial({color: LIGHT});
 
-        /* ─── core ──────────────────────────────────────────────── */
         const coreGroup = new Group();
         world.add(coreGroup);
 
@@ -623,7 +586,6 @@ const t = useTranslations(lang);
             new MeshBasicMaterial({color: LIGHT}),
         ));
 
-        /* ─── satellite nodes (fibonacci sphere, positions prebuilt) */
         const NODE_GEOS = [
             new OctahedronGeometry(0.30, 0),
             new TetrahedronGeometry(0.32, 0),
@@ -655,7 +617,6 @@ const t = useTranslations(lang);
             nodes.push({group: g, pos});
         }
 
-        /* ─── connections (prebuilt segment buffers) ─────────────── */
         const nodeConnGeo = new BufferGeometry();
         nodeConnGeo.setAttribute('position', new BufferAttribute(geometryData.nodeConnectionPoints, 3));
         world.add(new LineSegments(nodeConnGeo, matConnNode));
@@ -664,11 +625,10 @@ const t = useTranslations(lang);
         interConnGeo.setAttribute('position', new BufferAttribute(geometryData.interConnectionPoints, 3));
         world.add(new LineSegments(interConnGeo, matConnInter));
 
-        /* ─── flowing particles on connections (sample sets prebuilt) */
         const partCount = geometryData.flowCount;
         const partSamples = geometryData.flowSamples;
         const partSpeed = geometryData.flowSpeed;
-        const partT = new Float32Array(geometryData.flowT); // copy: mutated each frame
+        const partT = new Float32Array(geometryData.flowT);
 
         const partGeo = new BufferGeometry();
         const partPos = new Float32Array(partCount * 3);
@@ -679,9 +639,8 @@ const t = useTranslations(lang);
             sizeAttenuation: true, depthWrite: false, blending: AdditiveBlending,
         })));
 
-        /* ─── ambient particle field (initial state prebuilt) ────── */
-        const bgPos = new Float32Array(geometryData.bgPositions); // copy: positions integrate each frame
-        const bgVel = new Float32Array(geometryData.bgVelocities); // copy: velocities flip on bounce
+        const bgPos = new Float32Array(geometryData.bgPositions);
+        const bgVel = new Float32Array(geometryData.bgVelocities);
         const bgGeo = new BufferGeometry();
         const bgPositionAttr = new BufferAttribute(bgPos, 3);
         bgGeo.setAttribute('position', bgPositionAttr);
@@ -690,7 +649,6 @@ const t = useTranslations(lang);
             sizeAttenuation: true, depthWrite: false,
         })));
 
-        /* ─── orbital rings ──────────────────────────────────────── */
         const rings: LineSegments[] = [];
         [2.5, 3.0, 3.5].forEach((r, i) => {
             const pts: Vector3[] = [];
@@ -711,7 +669,6 @@ const t = useTranslations(lang);
             rings.push(ring);
         });
 
-        /* ─── post-processing ────────────────────────────────────── */
         const renderPass = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new Vector2(256, 256), 0.7, 0.5, 0.15);
         renderer.setEffects([renderPass, bloomPass]);
@@ -725,10 +682,6 @@ const t = useTranslations(lang);
 
         const FEATURE_NODES = [1, 5, 12];
 
-        // Camera shape of one beat, as fractions of that beat's slice of the
-        // track. The wide shot opens the slice, then the two node-relative
-        // waypoints bracket the snap point at 0.5 so the camera is already
-        // settled on the node while the overlay is fully readable.
         const BEAT_WIDE_AT = 0.10;
         const BEAT_NODE_IN_AT = 0.42;
         const BEAT_NODE_OUT_AT = 0.80;
@@ -739,9 +692,6 @@ const t = useTranslations(lang);
             nodeOut: {pos: Vector3; fov: number};
         };
 
-        // Offsets on the node waypoints are relative to the node itself, so
-        // they read as small orbits. The wide shots are absolute and are what
-        // gives each transition its own direction.
         const BEAT_CAMERAS: BeatCamera[] = [
             {
                 wide: {pos: new Vector3(2.5, 1.5, 6.0), fov: 52},
@@ -950,10 +900,6 @@ const t = useTranslations(lang);
         let curP = 0;
         let snapTimer = 0;
         let isSnapping = false;
-        // Trackpad escape guard: accumulate sustained one-direction wheel input
-        // so a deliberate scroll away from a node can suppress the snap-back
-        // (otherwise a trackpad's gentle deltas get damped below escape velocity
-        // and the magnet re-snaps, locking the user at the node).
         let escapeDir = 0;
         let escapeAccum = 0;
 
@@ -1019,9 +965,6 @@ const t = useTranslations(lang);
             const snapProgress = nearestSnapPoint(progress);
             if (snapProgress === null) return;
 
-            // If the user is deliberately scrolling away from this node (same
-            // direction, past the magnet zone's worth of input), don't yank them
-            // back. Lets a trackpad pass through instead of getting trapped.
             const {total: escTotal} = scrollMetrics();
             const movedPast = Math.sign(progress - snapProgress);
             if (escapeDir !== 0 && movedPast === escapeDir && escapeAccum > escTotal * SNAP_PROXIMITY) {
@@ -1080,13 +1023,6 @@ const t = useTranslations(lang);
             queueSnap(SNAP_DEBOUNCE_MS + 90);
         }
 
-        // The scene draws only while its section is near the viewport AND the
-        // page has scrolled at all. The -100vh overlap puts the pinned canvas
-        // under the hero, where --hero-p holds its opacity at 0, so without the
-        // scroll check it rendered invisible frames on the first screen every
-        // visitor lands on. Not drawing is not enough either: the drawing
-        // buffer and the bloom chain stay allocated (~250 MB at 2560x1440@2),
-        // so a parked scene shrinks them to 1x1 until it is needed again.
         let inView = true;
         let revealed = window.scrollY > 0;
         let drawing = true;
@@ -1126,7 +1062,6 @@ const t = useTranslations(lang);
         }
         document.addEventListener('visibilitychange', onVisibilityChange);
 
-        /** Per-frame easing factor `k`, tuned at 60 Hz, applied over `steps` 60 Hz frames. */
         const easeOver = (k: number, steps: number) => 1 - Math.pow(1 - k, steps);
 
         function update(p: number, t: number, steps: number) {
@@ -1184,7 +1119,6 @@ const t = useTranslations(lang);
             }
             partPositionAttr.needsUpdate = true;
 
-            // bgVel was tuned as one step per two 60 Hz frames.
             const drift = steps / 2;
             for (let i3 = 0; i3 < bgPos.length; i3 += 3) {
                 const x = bgPos[i3] + bgVel[i3] * drift;
@@ -1205,7 +1139,6 @@ const t = useTranslations(lang);
                 const start = i * BEAT_SPAN;
                 const end = start + BEAT_SPAN;
                 const fadeIn = ss(start, start + TEXT_ENTER_SPAN, p);
-                // The last beat never exits: it holds while the section unpins.
                 const isLastBeat = i === overlays.length - 1;
                 const exitProgress = isLastBeat ? 0 : ss(end - TEXT_EXIT_SPAN, end + 0.012, p);
                 const fadeOut = 1 - exitProgress;
@@ -1351,10 +1284,6 @@ const t = useTranslations(lang);
             else disposeGpu();
         };
 
-        // Capped at 48 fps. The motion constants were tuned per 60 Hz frame,
-        // so each rendered frame advances them by the real time it covers
-        // (clamped, so resuming after a park does not jump); the scene moves at
-        // the same speed at the cap and on 120 Hz screens.
         const FRAME_MS = 1000 / 48;
         const TUNED_FRAME_MS = 1000 / 60;
         let frameClock = 0;

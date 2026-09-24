@@ -14,10 +14,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// tag: the annotated version tag, created through the App token so its push
-// triggers publish-images (a push made with the workflow's own GITHUB_TOKEN
-// would not start another workflow).
-
 func tagDone(ctx context.Context, rc *stage.RunCtx) (bool, error) {
 	run := rc.View()
 	ref, found, err := rc.Deps.GitHub.Tag(ctx, run.Version)
@@ -55,8 +51,6 @@ func runTag(ctx context.Context, rc *stage.RunCtx) error {
 	return rc.SetOutputs(ctx, func(o *deploy.Outputs) { o.TagSHA = ref.CommitSHA })
 }
 
-// requireOnMain repeats the start-time check right before the tag is
-// written, so a resumed run cannot tag a commit force-pushed off main since.
 func requireOnMain(ctx context.Context, rc *stage.RunCtx, target deploy.SHA) error {
 	ok, err := OnMain(ctx, rc.Deps.GitHub, rc.Deps.Config.MainBranch, target)
 	if err != nil || ok {
@@ -65,9 +59,6 @@ func requireOnMain(ctx context.Context, rc *stage.RunCtx, target deploy.SHA) err
 	return fail(deploy.FailGitHub, "refusing to tag %s: it is not on %s", short(target), rc.Deps.Config.MainBranch)
 }
 
-// mayMoveTag reports whether the run may force-move an existing tag: only a
-// hotfix, and only forward. A tag moved to an older or diverged commit would
-// rebuild a version with less in it than the one already released.
 func mayMoveTag(ctx context.Context, rc *stage.RunCtx, run deploy.Run, target deploy.SHA) (bool, error) {
 	if run.Kind != deploy.KindHotfix {
 		return false, nil
@@ -85,9 +76,6 @@ func mayMoveTag(ctx context.Context, rc *stage.RunCtx, run deploy.Run, target de
 	}
 	return true, nil
 }
-
-// release: the GitHub release for the tag, marked Latest, pointed at the
-// tag commit (a hotfix re-points it).
 
 func releaseDone(ctx context.Context, rc *stage.RunCtx) (bool, error) {
 	run := rc.View()
@@ -121,9 +109,6 @@ func recordRelease(ctx context.Context, rc *stage.RunCtx, rel ports.Release) err
 	return rc.SetOutputs(ctx, func(o *deploy.Outputs) { o.ReleaseURL = rel.URL })
 }
 
-// releaseNotes are read from the changelog at the tag commit, not from the
-// request: a hotfix without a refresh and a hand-committed release changelog
-// have no entry in the run, and the tag is what the release describes.
 func releaseNotes(ctx context.Context, rc *stage.RunCtx, run deploy.Run) (string, error) {
 	p := changelogPath(rc.Deps.Config, run.Version)
 	f, err := readChangelog(ctx, rc.Deps.GitHub, p, ports.Ref(run.Outputs.TagSHA))
@@ -136,8 +121,6 @@ func releaseNotes(ctx context.Context, rc *stage.RunCtx, run deploy.Run) (string
 	return f.notes(), nil
 }
 
-// notes renders the English highlights the way the hand-made releases
-// (v0.2.1-beta, v0.2.2-beta) did: one heading, one bullet per paragraph.
 func (f changelogFile) notes() string {
 	var b strings.Builder
 	b.WriteString("## Highlights\n")

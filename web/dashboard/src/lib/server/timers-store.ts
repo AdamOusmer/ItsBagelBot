@@ -1,13 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Timers store: a broadcaster's repeating chat messages, stream-only.
-//
-// Unlike channel points there is no external Twitch entity to CRUD, the
-// "timers" module blob (the same modules service every other feature uses) is
-// the sole source of truth. sesame arms every enabled timer on stream.online,
-// disarms them on stream.offline, and fires each off its own Valkey key expiry
-// (app/twitch/sesame/engine/timers_valkey.go), re-reading this same blob every cycle.
 import { randomUUID } from 'node:crypto';
 import { type TimerDef, MOD } from '@bagel/kit';
 import { upsertModule } from './commands-store';
@@ -22,7 +15,6 @@ export interface TimersView {
 
 export type TimerResult = { ok: true; timer?: TimerDef } | { ok: false; error?: string };
 
-// readTimers loads the current blob (enable flag + timer records).
 export async function readTimers(userId: string): Promise<TimersView> {
   const { enabled, configs } = await readModuleBlob<{ timers?: TimerDef[] }>(userId, TIMERS_MODULE);
   return { enabled, timers: Array.isArray(configs.timers) ? configs.timers : [] };
@@ -35,8 +27,6 @@ async function writeTimers(userId: string, enabled: boolean, timers: TimerDef[])
 export async function createTimer(userId: string, draft: TimerDef): Promise<TimerResult> {
   const created: TimerDef = { ...draft, id: draft.id || randomUUID() };
   const cur = await readTimers(userId);
-  // Adding the first timer turns the module on; later adds preserve whatever
-  // enable state the broadcaster set.
   const enabled = cur.timers.length === 0 ? true : cur.enabled;
   await writeTimers(userId, enabled, [...cur.timers, created]);
   return { ok: true, timer: created };
@@ -60,8 +50,6 @@ export async function deleteTimer(userId: string, timerId: string): Promise<Time
   return { ok: true };
 }
 
-// setTimersEnabled flips the whole module on/off (whether sesame arms any
-// timer at all) without touching the timers themselves.
 export async function setTimersEnabled(userId: string, enabled: boolean): Promise<void> {
   await setModuleEnabled(userId, TIMERS_MODULE, enabled);
 }

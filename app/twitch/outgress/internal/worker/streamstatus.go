@@ -21,17 +21,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// processStreamStatus resolves one broadcaster's live state from Twitch (Helix
-// Get Streams) and writes it back into the live projection. It pays the reserved
-// system Helix bucket and runs only on the system lane (where SetLiveWriter has
-// attached the write-back). Both the Twitch call and the projection write hand
-// their errors to streamStatusFailure, which drops the permanent ones and nacks
-// the transient ones so the paced redelivery retries.
-//
-// It calls StreamDetails rather than IsStreamLive so the same Helix response
-// also carries the title/game/viewer snapshot persistStreamInfo projects for
-// the Overview dashboard -- Helix budget on this path is scarce, and a second
-// call just to re-fetch what this one already returned would waste it.
 func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Message) error {
 	if w.live == nil {
 		w.log.Error("dropping stream_status job off the system lane")
@@ -58,7 +47,6 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Mess
 	w.persistStreamInfo(ctx, payload.BroadcasterID, isLive, details)
 
 	if isLive {
-		// Proactively re-verify in the background when a channel goes live.
 		w.scheduleModStatus(payload.BroadcasterID, payload.SenderID)
 	}
 
@@ -67,14 +55,6 @@ func (w *Worker) processStreamStatus(ctx context.Context, payload *outgress.Mess
 	return nil
 }
 
-// persistStreamInfo projects one Get Streams sample into the per-stream
-// metadata row the Overview dashboard reads (internal/projection's
-// settings:<user_id> hash). This is a DIFFERENT store from w.live above: live
-// writes outgress's own flat live:<id> key, the one every live-gated command
-// actually depends on. Conflating the two would mean a stream-info write
-// failure could look like a live-state failure, so this stays best-effort and
-// separate -- a Valkey error here is logged, never returned, and never blocks
-// or retries the job.
 func (w *Worker) persistStreamInfo(ctx context.Context, broadcasterID string, isLive bool, details twitch.StreamDetails) {
 	if w.streamInfo == nil {
 		return
@@ -93,16 +73,6 @@ func (w *Worker) persistStreamInfo(ctx context.Context, broadcasterID string, is
 	}
 }
 
-// nextStreamInfo folds one Get Streams sample onto the previously projected
-// row. It does no I/O so the merge rules can be unit tested plainly.
-//
-// PeakViewers caveat: this is a high-water mark of the samples outgress
-// happens to observe (this job and the cold-live escalation), never a true
-// stream maximum. A fixed poll would keep it fresher, but was rejected: this
-// path already pays a scarce reserved system Helix bucket per call, and a
-// poll loop would multiply that cost for a number that is advisory ("stream
-// is genuinely popular right now") rather than depended on. Between samples
-// the real peak can run higher and this field will never know it.
 func nextStreamInfo(prev projection.StreamInfo, isLive bool, details twitch.StreamDetails) projection.StreamInfo {
 	if !isLive {
 		prev.EndedAt = time.Now().UTC()
@@ -122,14 +92,6 @@ func nextStreamInfo(prev projection.StreamInfo, isLive bool, details twitch.Stre
 	return prev
 }
 
-// seedLiveStatus resolves the broadcaster's current live state right after an
-// EventSub enroll. Twitch only delivers stream.online for sessions that start
-// after the subscription exists, so a channel enrolled (or re-enrolled) while
-// its stream is already running never receives the go-live event for the
-// session in progress; without this seed the live projection stays cold and
-// every live-gated command reads offline until the next stream. Best-effort:
-// the enroll itself already succeeded, and the worker's cold-miss escalation
-// remains the safety net when the seed fails.
 func (w *Worker) seedLiveStatus(ctx context.Context, broadcasterID string) {
 	if w.live == nil {
 		return
@@ -157,10 +119,6 @@ func (w *Worker) seedLiveStatus(ctx context.Context, broadcasterID string) {
 		zap.String("broadcaster_id", broadcasterID), zap.Bool("live", isLive))
 }
 
-// streamStatusFailure drops failures redelivery can never fix and nacks the
-// rest so the paced redelivery retries. Both the Twitch call and the live
-// projection write route through here so the drop rules stay in one table
-// rather than one classifier per call site.
 func (w *Worker) streamStatusFailure(ctx context.Context, broadcasterID string, err error) error {
 	reason, drop := streamStatusDrop(err)
 	if drop {
@@ -175,31 +133,6 @@ func (w *Worker) streamStatusFailure(ctx context.Context, broadcasterID string, 
 	return err
 }
 
-// streamStatusDrop reports whether err is permanent for a stream_status job,
-// and the log line naming why. Permanent means ack-drop: this stream is a
-// WorkQueue, so the ack removes the job.
-//
-// A Twitch 4xx (isPermanent) is permanent for the obvious reason: the same
-// request will be rejected the same way.
-//
-// A *valkey.ValkeyError is permanent because it is a SERVER REPLY, not a
-// transport failure: Valkey parsed the request and refused it. The live write
-// sends a fixed Lua script with a fixed argument count, so a refusal is
-// deterministic and all seven deliveries fail identically. That is not free:
-// each redelivery re-spends a reserved system Helix bucket in
-// processStreamStatus BEFORE it ever reaches Valkey, so nacking buys nothing
-// and costs the scarcest budget on this path. Observed in production when
-// ClearScript read one argument too many (#561, fixed in
-// internal/domain/live): 42 of 42 offline jobs burned six retries each over
-// ~90s traces.
-//
-// Tradeoff, deliberately accepted: OOM, READONLY and MISCONF are also
-// ValkeyError, and those ARE transient, so this drops a write that a later
-// retry could have landed. stream_status is best-effort by design and the
-// worker's cold-miss escalation is the safety net that re-resolves the state
-// (see seedLiveStatus's note below), so a lost write self-heals while a retry
-// storm on a deterministic rejection does not. Transport failures (timeouts,
-// dropped connections) are not ValkeyError and still nack.
 func streamStatusDrop(err error) (string, bool) {
 	var verr *valkey.ValkeyError
 	switch {
@@ -212,32 +145,13 @@ func streamStatusDrop(err error) (string, bool) {
 	}
 }
 
-// HandleStreamEvent reacts to a real Twitch stream.online / stream.offline
-// EventSub message off the ingress stream lane (env NATS_SUBJECT_LANE_STREAM).
-//
-// Background: the worker fleet escalates a cold live query to the system lane's
-// stream_status path, which re-verifies the bot's mod status as a side effect.
-// Once stream.online events flow and the projector writes the live key directly,
-// that live query is no longer cold, so the escalation (and its mod-status
-// re-verify) never runs. This handler restores the re-verify by reacting to the
-// real go-live event itself.
-//
-// It is bound under outgress's OWN durable group (separate from the projector's),
-// so every event is delivered here once in addition to the projector's copy. It
-// does NOT write live state (that is the projector's job); it only re-verifies
-// mod status, best-effort. Decoding is shared with the projector via the domain
-// stream_status decoder. Always acks (returns nil): a re-verify is advisory and
-// must never poison or replay the lane.
 func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
 	log := monitor.TxnLogger(msg.Context(), w.log)
 	status, ok := eventtwitch.DecodeStreamStatus(msg.Payload)
 	if !ok {
-		// Not a stream.online/offline we understand (or malformed). Ack and move
-		// on; the decoder already rejects everything but those two types.
 		return nil
 	}
 
-	// Only go-live triggers the re-verify; an offline event needs no mod check.
 	if !status.Live {
 		return nil
 	}
@@ -252,18 +166,8 @@ func (w *Worker) HandleStreamEvent(msg *bus.Message) error {
 	return nil
 }
 
-// reauthBeaconTTL spaces the go-live reconnect nudge: one chat line per
-// channel per window, however many times the stream restarts.
 const reauthBeaconTTL = 12 * time.Hour
 
-// reauthBeaconOnLive asks the streamer to reconnect, in their own chat, when
-// they go live on a channel whose authorization Twitch revoked. stream.online
-// survives a revocation (it needs no user grant) and chat send runs on the
-// app token backed by the bot's own user:bot grant plus its moderator seat,
-// so this path stays alive exactly when everything scoped is dead. That makes
-// go-live the one reliable moment the bot can still reach the streamer where
-// they are looking. Best-effort at every step; the beacon must never disturb
-// the go-live pipeline.
 func (w *Worker) reauthBeaconOnLive(ctx context.Context, broadcasterID string) {
 	if w.reauth == nil {
 		return
@@ -282,7 +186,6 @@ func (w *Worker) reauthBeaconOnLive(ctx context.Context, broadcasterID string) {
 		return
 	}
 
-	// One locale lookup feeds both surfaces.
 	locale := w.reauth.ResolveLocale(ctx, broadcasterID)
 	w.reauth.NotifyLocalized(ctx, broadcasterID, locale, n)
 
@@ -296,11 +199,6 @@ func (w *Worker) reauthBeaconOnLive(ctx context.Context, broadcasterID string) {
 		zap.String("reason", n.request))
 }
 
-// liveNotice picks which reconnect notice a channel needs at go-live, if any.
-//
-// Revocation wins when both are set: it is the stronger statement (Twitch threw
-// the grant away) and the remedy is identical, so the shared beacon claim
-// deliberately yields one line rather than two for one problem.
 func liveNotice(ch manage.Channel) (notice, bool) {
 	switch {
 	case ch.SubState == subStateRevoked:
@@ -314,10 +212,6 @@ func liveNotice(ch manage.Channel) (notice, bool) {
 	}
 }
 
-// sendReauthChat pushes the localized reconnect line through the ordinary
-// chat action (registry route defaults + bot sender injection + per-channel
-// chat rate bucket), exactly as if a lane job carried it. A notice without a
-// chat line (the bot is banned from that chat) is bell-only and returns nil.
 func (w *Worker) sendReauthChat(ctx context.Context, broadcasterID, locale string, n notice) error {
 	if n.chat == "" {
 		return nil

@@ -1,17 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Domain colours stay here; the shared Badge owns the hairline label.
-  //
-  // shape="pill" plus --badge-bg is the retired status chip: a 999px filled
-  // lozenge. Status is a tag you read now (tags.css: hairline, no frame). The
-  // --badge-tone seam is the same one PermBadge uses, because the colour
-  // comes from admin data (tier / role / serving / giveaway state) the
-  // library must not know about. --badge-bg is omitted on purpose: it only
-  // exists to paint the pill fill, and there is no fill.
-  //
-  // `shape` is still accepted because giveaway and user rows pass
-  // shape="tag". It is ignored: both values are the hairline Badge default.
   import Badge from '@bagel/ui/svelte/Badge.svelte';
   import type { Snippet } from 'svelte';
 
@@ -66,10 +55,6 @@
     --badge-tone: var(--bb-muted);
     --badge-tone-rule: var(--glass-border);
   }
-  /* The staff ladder borrows the tier palette rather than inventing a second
-     three-step scale: the eye already reads tan < silver as "higher" from the
-     user rows, and two palettes for two ladders is how they end up disagreeing
-     about which colour means "most authority". */
   :global(.state-badge.admin) {
     --badge-tone: var(--bb-tier-paid);
     --badge-tone-rule: var(--bb-tier-paid-border);

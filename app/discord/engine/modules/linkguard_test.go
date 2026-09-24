@@ -16,10 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeGuard is a Guarder that returns canned Verdicts by normalized link,
-// falling back to a below-threshold allow for anything not stubbed. It
-// never touches Valkey (or any network) at all, matching this task's "no
-// network" style for the neighbouring linkguard package's own tests.
 type fakeGuard struct {
 	verdicts map[string]linkguard.Verdict
 	seen     []linkguard.Sighting
@@ -34,23 +30,16 @@ func (f *fakeGuard) Observe(_ context.Context, s linkguard.Sighting) linkguard.V
 	return linkguard.Verdict{Allow: true, Reason: linkguard.ReasonBelowThreshold, NormalizedLink: norm, IsInvite: invite}
 }
 
-// trip returns a tripped, non-allow Verdict for link under reason.
 func trip(link, reason string) linkguard.Verdict {
 	norm, invite := linkguard.NormalizeLink(link)
 	return linkguard.Verdict{Allow: false, Reason: reason, NormalizedLink: norm, IsInvite: invite, GuildTripped: true}
 }
 
-// fakeOwnInvite is an OwnInviteChecker that returns a canned answer (or a
-// canned error) per raw link, and records every link it was asked about --
-// this is what proves resolution only ever happens lazily: never for an
-// Allowed link, never for a non-invite link, at most once per tripped
-// invite link in one message. It never touches Valkey or the RPC bus, the
-// same "no network" style as fakeGuard above.
 type fakeOwnInvite struct {
-	own map[string]bool // raw link -> IsOwnGuildInvite's answer
-	err error           // returned instead of a canned answer when set
+	own map[string]bool
+	err error
 
-	calls []string // raw links this was asked about, in call order
+	calls []string
 }
 
 func (f *fakeOwnInvite) IsOwnGuildInvite(_ context.Context, _ string, rawLink string) (bool, error) {
@@ -61,10 +50,6 @@ func (f *fakeOwnInvite) IsOwnGuildInvite(_ context.Context, _ string, rawLink st
 	return f.own[rawLink], nil
 }
 
-// messageEventInput is messageEventRaw's (id, guildID, channelID, authorID,
-// content, bot, roles) tuple collapsed into one struct, matching this
-// codebase's convention for bundling a call's varying parts (see
-// linkguard.Sighting) (CodeScene: Excess Number of Function Arguments).
 type messageEventInput struct {
 	ID        string
 	GuildID   string
@@ -75,9 +60,6 @@ type messageEventInput struct {
 	Roles     []string
 }
 
-// messageEventRaw marshals the minimal MESSAGE_CREATE JSON shape
-// decode.MessageEvent reads, roles included, matching what ingress relays
-// verbatim from Discord's gateway.
 func messageEventRaw(t *testing.T, in messageEventInput) []byte {
 	t.Helper()
 	raw, err := codec.Marshal(map[string]any{
@@ -104,20 +86,11 @@ func onGuardConfig() ddiscord.Config {
 	return ddiscord.Config{GuildID: "g1", ModsRoleID: "modsrole", LinkGuardEnabled: "on"}
 }
 
-// runLinkGuard drives one MESSAGE_CREATE through LinkGuard's handler and
-// collects whatever Commands it emits, using an OwnInviteChecker that is
-// never consulted for a non-tripping run (returns false, nil if it is).
-// Tests that care about invite resolution itself use runLinkGuardWithOwn
-// directly so they can inspect fakeOwnInvite.calls afterward.
 func runLinkGuard(t *testing.T, guard *fakeGuard, cfg ddiscord.Config, raw []byte) []ddiscord.Command {
 	t.Helper()
 	return runLinkGuardWithOwn(t, linkGuardRun{Guard: guard, Own: &fakeOwnInvite{}, Cfg: cfg, Raw: raw})
 }
 
-// linkGuardRun is runLinkGuardWithOwn's (guard, own, cfg, raw) tuple
-// collapsed into one struct, the same messageEventInput convention above
-// (CodeScene: Excess Number of Function Arguments -- five parameters
-// including t, over its 4-parameter limit).
 type linkGuardRun struct {
 	Guard *fakeGuard
 	Own   *fakeOwnInvite
@@ -224,13 +197,6 @@ func TestLinkGuardAllowListedExempt(t *testing.T) {
 	}
 }
 
-// TestLinkGuardOwnInviteTripIsNotDeleted is the regression test for the bug
-// this RPC exists to fix: a guild pinning its OWN invite across enough
-// channels to trip ChannelThreshold (e.g. #rules, #welcome,
-// #announcements) must not have that message deleted. The Verdict still
-// trips (guard.Observe was called with OwnGuildInvite always false -- see
-// observeLinks' doc), but tripIsOwnInvite resolves it afterward and
-// suppresses the action.
 func TestLinkGuardOwnInviteTripIsNotDeleted(t *testing.T) {
 	const link = "discord.gg/ourownserver"
 	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
@@ -247,16 +213,11 @@ func TestLinkGuardOwnInviteTripIsNotDeleted(t *testing.T) {
 	if len(own.calls) != 1 || own.calls[0] != link {
 		t.Fatalf("IsOwnGuildInvite calls = %v, want exactly [%q]", own.calls, link)
 	}
-	// The sighting itself is still counted -- see tripIsOwnInvite's doc for
-	// why that is acceptable rather than a corrupted verdict.
 	if len(guard.seen) != 1 {
 		t.Fatalf("guard.Observe called %d times, want 1 (the trip is still counted)", len(guard.seen))
 	}
 }
 
-// TestLinkGuardOtherGuildInviteStillDeleted proves the fix is narrow: an
-// invite that resolves to some OTHER guild still gets deleted once
-// tripped, exactly like before this RPC existed.
 func TestLinkGuardOtherGuildInviteStillDeleted(t *testing.T) {
 	const link = "discord.gg/someoneelses"
 	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
@@ -275,12 +236,6 @@ func TestLinkGuardOtherGuildInviteStillDeleted(t *testing.T) {
 	}
 }
 
-// TestLinkGuardResolutionNotAttemptedForNonTrippingLink proves the lazy
-// half of the cost guard: a link that never crosses a linkguard threshold
-// (guard.Observe's default fake Verdict is Allow) must never trigger
-// invite resolution at all -- resolving on every posted link, rather than
-// only a tripped one, is exactly the REST-call amplification LinkGuard's
-// own doc warns about.
 func TestLinkGuardResolutionNotAttemptedForNonTrippingLink(t *testing.T) {
 	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
 	own := &fakeOwnInvite{}
@@ -293,12 +248,6 @@ func TestLinkGuardResolutionNotAttemptedForNonTrippingLink(t *testing.T) {
 	}
 }
 
-// TestLinkGuardOwnInviteRPCFailureSkipsAction proves the documented
-// fail-safe direction: when resolution itself cannot be completed (the RPC
-// or the Discord call behind it failed), the module treats the link as the
-// guild's own -- i.e. it does NOT delete -- rather than proceeding with the
-// trip. See tripIsOwnInvite's doc for why a false delete against a real
-// community was judged worse than a missed spam message during an outage.
 func TestLinkGuardOwnInviteRPCFailureSkipsAction(t *testing.T) {
 	const link = "discord.gg/unresolvable"
 	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{}}
@@ -331,10 +280,6 @@ func TestLinkGuardBotAuthorIgnored(t *testing.T) {
 func TestLinkGuardValkeyErrorAllows(t *testing.T) {
 	const link = "discord.gg/spamcode"
 	norm, _ := linkguard.NormalizeLink(link)
-	// A Valkey error surfaces from linkguard.Observe as an Allow verdict
-	// (see linkguard.ReasonValkeyError's doc) -- this fake reproduces that
-	// exact shape, since the module itself has no error path to special-
-	// case: Allow: true is Allow: true regardless of why.
 	guard := &fakeGuard{verdicts: map[string]linkguard.Verdict{
 		norm: {Allow: true, Reason: linkguard.ReasonValkeyError, NormalizedLink: norm},
 	}}

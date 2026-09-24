@@ -16,7 +16,7 @@ func TestDurablePauseSurvivesValkeyLossAndRestart(t *testing.T) {
 	kv := kvtest.New()
 	_, err := kv.Create(ctx, "paused", []byte("true"))
 	require.NoError(t, err)
-	r := New(nil) // Any accidental Valkey call panics.
+	r := New(nil)
 	defer r.Close()
 	require.NoError(t, r.UseDurablePause(ctx, kv))
 	state, err := r.loadPauseSnapshot(ctx)

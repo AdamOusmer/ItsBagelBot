@@ -1,22 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The bot half of the badge: a Perm in, a label and a tone out.
-  //
-  // Was Badge.svelte, and it was the whole component -- the generic label
-  // shape and the permission ladder in one file, in @bagel/kit's ancestor.
-  // The shape is @bagel/ui/svelte/Badge.svelte now; what stays here is the
-  // part that could never move, because `Perm` is a bot domain type
-  // (../lib/types.ts) and the six permission labels are bot copy. A design
-  // library that ships `.bb-tag--broadcaster` has stopped being reusable.
-  //
-  // The seam is --badge-tone (colour) and --badge-tone-rule (its hairline).
-  // House palette, unchanged by the move: steel for everyone, tan for subs,
-  // SILVER for VIP (it shipped purple #d9aaff by mistake; VIP is never purple
-  // here), green deepening with mod authority. The first three read the
-  // account-tier tokens (../styles/tokens.css) so they cannot drift from the
-  // same tiers spelled elsewhere; the mod ramp keeps its own alphas because
-  // it encodes authority depth, not a tier.
   import Badge from '@bagel/ui/svelte/Badge.svelte';
   import { getI18n } from '../lib/i18n/context';
   import { tPermBadge } from '../lib/module-copy';

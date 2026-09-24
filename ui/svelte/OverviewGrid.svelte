@@ -2,13 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for the `.bb-ov-row` contract
-  // (../styles/elements/overview-grid.css). Astro twin: ../astro/OverviewGrid.astro.
-  //
-  // The working row both overview pages are built around: one wide column
-  // carrying the page's heaviest panel, and a rail of smaller reads beside it.
-  // Both consoles land on this shape, so the grid, its collapse point and the
-  // margin rule live in the contract rather than in each page's stylesheet.
   import '../styles/elements/overview-grid.css';
   import type { Snippet } from 'svelte';
 
@@ -19,9 +12,7 @@
     ...rest
   }: {
     class?: string;
-    /** The wide column. */
     main?: Snippet;
-    /** The rail of smaller panels beside it. */
     side?: Snippet;
     [key: string]: unknown;
   } = $props();

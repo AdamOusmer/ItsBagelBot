@@ -15,9 +15,6 @@ import Letter from '../../components/home/Letter.astro'
 import Finale from '../../components/home/Finale.astro'
 import { getLangFromUrl, useTranslations, localeStaticPaths } from '../../i18n/ui';
 
-// One route per locale: the default locale emits the bare path (params.lang
-// undefined → '/'), every other locale gets its own prefix ('/fr/'). The page
-// body is shared; components self-translate from the URL locale.
 export const getStaticPaths = localeStaticPaths;
 
 const t = useTranslations(getLangFromUrl(Astro.url));

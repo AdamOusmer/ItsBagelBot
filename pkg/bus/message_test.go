@@ -47,16 +47,11 @@ func TestZeroValueMessageInitializesAcknowledgementSignals(t *testing.T) {
 	assertSignalState(t, nacked.Acked(), false, "acked after nack")
 }
 
-// TestNewMessageDoesNotPreallocateSignals is a cost assertion, not a behaviour
-// one. The receipt-level lane adapters resolve through the callback and never
-// read either signal, so allocating both per delivery was two channels of pure
-// garbage at lane rate.
 func TestNewMessageDoesNotPreallocateSignals(t *testing.T) {
 	msg := NewMessage("id", nil)
 	if msg.ack != nil || msg.nack != nil {
 		t.Fatal("acknowledgement signals were allocated before anyone asked for one")
 	}
-	// A caller that does ask still gets the pair in the state the message is in.
 	assertSignalState(t, msg.Acked(), false, "acked")
 	assertSignalState(t, msg.Nacked(), false, "nacked")
 	if !msg.Ack() {
@@ -66,10 +61,6 @@ func TestNewMessageDoesNotPreallocateSignals(t *testing.T) {
 	assertSignalState(t, msg.Nacked(), false, "nacked after ack")
 }
 
-// TestResolveHandlerFiresOnceOnTheWinningResult is the lane adapters' contract.
-// They replaced a per-message goroutine with this callback, so a second
-// invocation schedules a second retry and a missing one leaks the adapter's
-// pending count until shutdown times the drain out.
 func TestResolveHandlerFiresOnceOnTheWinningResult(t *testing.T) {
 	for _, testCase := range []struct {
 		name    string
@@ -92,7 +83,6 @@ func TestResolveHandlerFiresOnceOnTheWinningResult(t *testing.T) {
 			if !testCase.resolve(msg) {
 				t.Fatal("the first resolution must win")
 			}
-			// Every later call, winning side or losing side, is a no-op.
 			msg.Ack()
 			msg.Nack()
 
@@ -108,12 +98,6 @@ func TestResolveHandlerFiresOnceOnTheWinningResult(t *testing.T) {
 	}
 }
 
-// TestResolveHandlerRunsOutsideTheMessageLock is what makes the callback safe to
-// do real work in: the lane adapters publish a retry schedule from it. Touching
-// the message from inside is the cheap proof — Ack and Nack hold a plain
-// sync.Mutex, so a callback invoked under it would deadlock here instead of
-// returning, and it also shows the transition is already committed when the
-// callback sees it.
 func TestResolveHandlerRunsOutsideTheMessageLock(t *testing.T) {
 	msg := NewMessage("id", nil)
 	sawResolved := make(chan bool, 1)

@@ -21,14 +21,9 @@ type dashboardRPC struct {
 	log  *zap.Logger
 }
 
-// SubscribeDashboard wires the modules dashboard verbs (list, upsert, patch)
-// under prefix, mirroring the commands service so the console manages modules
-// the same way it manages commands.
 func SubscribeDashboard(w Wiring, prefix string) error {
 	d := &dashboardRPC{repo: w.Repo, log: w.Log}
 
-	// VerbForUser, not At: the user-id guard is the whole prologue of all three
-	// handlers, so it is bound once here rather than re-derived in each.
 	if err := bus.ServeVerbs(w.RPCWiring, prefix,
 		bus.VerbForUser[modulesrpc.DashboardRequest, modulesrpc.DashboardReply]("list", d.handleList),
 		bus.VerbForUser[modulesrpc.DashboardRequest, modulesrpc.DashboardReply]("upsert", d.handleUpsert),
@@ -37,11 +32,6 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 		return err
 	}
 
-	// The Govee key-custody verbs (set/clear/status for the dashboard, plus the
-	// gossip-only internal decrypt) are part of the modules service's RPC
-	// surface, wired here so main keeps a single subscribe call. A no-op when
-	// key custody is disabled (no keyset). wireSpotify rides the same split
-	// for the connected-account refresh tokens.
 	if err := wireGovee(w.RPCWiring, w.Repo.Govee()); err != nil {
 		return err
 	}
@@ -60,10 +50,6 @@ func (d *dashboardRPC) handleUpsert(_ context.Context, req modulesrpc.DashboardR
 	return modulesrpc.DashboardReply{}, d.repo.Set(id, req.Name, req.IsEnabled, req.Configs)
 }
 
-// handlePatch merges a subset of config keys into a module under optimistic
-// concurrency: Configs carries only the keys to change, and ExpectedRev (when
-// set) must match the stored revision or the write is reported as a conflict for
-// the client to refetch and retry.
 func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
 	partial := map[string]codec.RawMessage{}
 	if len(req.Configs) > 0 {

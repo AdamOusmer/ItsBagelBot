@@ -1,19 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Clickable JSON tree over one response document. Given raw JSON text it
-  // renders a browsable tree and calls onPick with the dotted segments of
-  // whichever leaf the author clicks.
-  //
-  // Extracted from the old FetchPathPicker so the data-source builder and any
-  // other caller share ONE implementation of the parse guards below. Two copies
-  // drifting apart would mean a path that the tree offers but the save
-  // validator rejects, which is the worst possible failure here: the author
-  // clicks a value and is told the value is invalid.
-  //
-  // The grammar enforced is the Go resolver's: segments [A-Za-z0-9_-]+ (array
-  // indices arrive as bare digits), depth <= JSON_PATH_MAX_DEPTH, so a path
-  // picked here always parses server-side.
   import { JSON_PATH_MAX_DEPTH, buildJsonPath, getI18n, parseJsonPath } from '@bagel/kit';
 
   const { t } = getI18n();
@@ -23,35 +10,19 @@
     onPick,
     leafTitle
   }: {
-    /** Raw response text. Empty renders nothing. */
     json: string;
     onPick: (segments: string[]) => void;
-    /** Optional tooltip builder for a pickable leaf. */
     leafTitle?: (segments: string[]) => string;
   } = $props();
 
-  // Pasted or fetched responses are capped well above any real single-value
-  // payload: gossip refuses upstream bodies past 1 MiB post-decompression, and
-  // typical JSON APIs answer in tens of KB. 128 KB keeps JSON.parse plus the
-  // rendered tree inside the panel's interaction budget (measured jank-free to
-  // ~200 KB on mid hardware; chosen at half that).
-  //
-  // Deliberately equal to maxSampleBytes in gossip's custom provider: the
-  // server refuses to send more than this, so a smaller number here would
-  // reject bodies it was willing to produce.
-  //
-  // Rejected alternative: silently truncating. That would rehearse a document
-  // the real fetch never returns, so leaves could resolve against phantom data.
+  // Must equal gossip's maxSampleBytes.
   const SAMPLE_MAX_BYTES = 128 * 1024;
 
-  // Node count is bounded so a hostile 128KB of nested arrays cannot mint a
-  // page-freezing DOM even though parsing succeeds.
   const NODE_CAP = 600;
 
   interface TreeNode {
     label: string;
     segs: string[];
-    /** null = leaf (primitive). */
     children: TreeNode[] | null;
     preview: string;
   }
@@ -79,8 +50,6 @@
     return { label, segs, children: null, preview: truncate(JSON.stringify(value) ?? '', 48) };
   }
 
-  // Parsing is derived, not an event handler, so the tree tracks `json`
-  // regardless of whether it arrived from a paste or from a server sample.
   const parsed = $derived.by<{ tree: TreeNode[]; error: string }>(() => {
     if (json.trim() === '') return { tree: [], error: '' };
     if (encoder.encode(json).length > SAMPLE_MAX_BYTES) {
@@ -97,8 +66,6 @@
     return { tree: [root], error: '' };
   });
 
-  // A path is pickable only when it survives the shared grammar AND fits the
-  // depth budget: what the save validator would say later, said earlier.
   function canPick(segs: string[]): boolean {
     return segs.length <= JSON_PATH_MAX_DEPTH && parseJsonPath(buildJsonPath(segs)) !== null;
   }
@@ -114,8 +81,6 @@
   </div>
 {/if}
 
-<!-- Recursive renderer: objects/arrays render their children indented; every
-     primitive is a button whose click reports its path. -->
 {#snippet node(n: TreeNode)}
   {#if n.children === null}
     <button

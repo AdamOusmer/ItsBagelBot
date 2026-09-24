@@ -1,18 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The operator audit trail, on the shared deck + inspector. Manager-only; the
-  // gate is in +page.server.ts and /audit/data re-asks it, so a page that
-  // rendered would still get nothing without the role.
-  //
-  // Paging moved from prev/next to load-more. The trail is read backwards from
-  // "what just happened", and a numbered pager makes that a sequence of
-  // full-list replacements: page 2 threw page 1 away, so an entry seen a moment
-  // ago could not be scrolled back to. Appending keeps everything read so far on
-  // screen.
-  //
-  // Search stays server-side (it covers the whole trail, not the loaded page);
-  // the kind filter is client-side over what has been loaded, and says so.
   import { onMount } from 'svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
@@ -36,8 +24,6 @@
 
   const { t } = getI18n();
 
-  // ── Client-fetched pages from /audit/data ──────────────────────────────────
-  // null = the first page is still in flight; [] = it landed empty.
   let entries = $state<AuditEntry[] | null>(null);
   let page = $state(1);
   let hasMore = $state(false);
@@ -53,9 +39,6 @@
     error?: string;
   };
 
-  // A generation counter, not an AbortController: the request that lost the race
-  // has usually already resolved, and the bug this prevents is a slow FIRST page
-  // overwriting a fast second search, which cancelling cannot help with.
   let seq = 0;
 
   async function fetchPage(wanted: number, q: string, append: boolean) {
@@ -70,7 +53,7 @@
       const res = await fetch(`/audit/data?${params}`);
       if (!res.ok) throw new Error(`audit fetch failed (${res.status})`);
       const body = (await res.json()) as AuditWire;
-      if (mine !== seq) return; // a newer request superseded this one
+      if (mine !== seq) return;
       if (body.error) fetchError = body.error;
       apply(body, wanted, append);
     } catch (e) {
@@ -99,7 +82,6 @@
     fetchPage(1, q.trim(), false);
   }
 
-  // ── Kind filter (client-side, over what is loaded) ─────────────────────────
   const kindLabels = $derived(AUDIT_KINDS.map((k) => t(KIND_LABEL[k])));
   let kind = $state<AuditKind>('all');
   const kindLabel = $derived(kindLabels[AUDIT_KINDS.indexOf(kind)]);
@@ -113,7 +95,6 @@
   const rows = $derived(loaded.filter((e) => inKind(e, kind)));
   const failCount = $derived(loaded.filter((e) => !e.ok).length);
 
-  // ── Selection ──────────────────────────────────────────────────────────────
   let selectedId = $state<number | null>(null);
   const selected = $derived(loaded.find((e) => e.id === selectedId) ?? null);
 
@@ -125,9 +106,6 @@
     selectedId = selectedId === entry.id ? null : entry.id;
   }
 
-  // Exports what is ON SCREEN, kind filter included -- not everything loaded.
-  // An export that quietly carries rows the operator has filtered out is how a
-  // "failed actions only" spreadsheet ends up with successes in it.
   function exportCsv() {
     const suffix = search.trim() ? `-${search.trim()}` : '';
     downloadCsv(`audit-${kind}${suffix}.csv`, auditCsv(rows));

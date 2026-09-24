@@ -5,21 +5,6 @@ package automod
 
 import "strings"
 
-// hasNonClipLink reports whether text carries a link-shaped token that is not
-// a Twitch clip URL. Used only when the clips_only section is on: clip links
-// stay, every other host shape is deleted. Chat links arrive bare
-// ("discord.gg/x"), which url.Parse rejects, so this is a whitespace-token
-// scanner rather than a parser - same shape as the campaign linkish signal,
-// but host-validated so prose ellipses ("wait...") never mint a delete.
-//
-// Allowed clip forms (scheme and leading www. optional):
-//
-//	clips.twitch.tv/<slug>
-//	twitch.tv/<login>/clip/<slug>
-//
-// Bare twitch.tv/<login>, clips.twitch.tv with no slug, and every other host
-// count as non-clip. Shorteners are never treated as clips: the destination is
-// not fetched (same account-safety rule as the IP-logger floor).
 func hasNonClipLink(text string) bool {
 	for i := 0; i < len(text); {
 		start, end := nextSpaceToken(text, i)
@@ -34,15 +19,10 @@ func hasNonClipLink(text string) bool {
 	return false
 }
 
-// maybeLinkText is the cheap pre-filter before forcing the deep path for
-// clips_only: a line with no '.' and no http scheme cannot carry a host-shaped
-// token, so the clean path may still bail.
 func maybeLinkText(text string) bool {
 	if strings.Contains(text, ".") {
 		return true
 	}
-	// Caps-heavy hype arrives as HTTPS://…; ContainsFold keeps the pre-filter
-	// aligned with stripScheme without allocating a lowered copy.
 	return containsFoldASCII(text, "http://") || containsFoldASCII(text, "https://")
 }
 
@@ -65,8 +45,6 @@ func isSpaceByte(b byte) bool {
 	return false
 }
 
-// trimLinkToken strips a leading http(s) scheme, a leading www., and trailing
-// prose punctuation so "HTTPS://www.clips.twitch.tv/Slug!" compares as a clip.
 func trimLinkToken(tok string) string {
 	tok = stripScheme(tok)
 	if len(tok) >= 4 && equalFoldASCII(tok[:4], "www.") {
@@ -97,9 +75,6 @@ func stripTrailingPunct(tok string) string {
 	return tok
 }
 
-// looksLikeLinkHost reports whether tok (already trimmed) has a DNS-shaped
-// host worth judging as a link. Rejects ellipsis debris and single-label
-// tokens so the clips_only delete cannot fire on ordinary prose.
 func looksLikeLinkHost(tok string) bool {
 	host := hostOf(tok)
 	if len(host) < 4 || len(host) > 253 {
@@ -166,9 +141,6 @@ func isPortSuffix(s string) bool {
 	return true
 }
 
-// isTwitchClipToken reports whether a trimmed token is a Twitch clip URL.
-// Matching is ASCII-fold only: clip slugs and logins are ASCII in practice,
-// and folding the whole token avoids a lowered allocation on every candidate.
 func isTwitchClipToken(tok string) bool {
 	const clipsHost = "clips.twitch.tv/"
 	const twitchHost = "twitch.tv/"
@@ -180,7 +152,6 @@ func isTwitchClipToken(tok string) bool {
 		return false
 	}
 	rest := tok[len(twitchHost):]
-	// login/clip/slug - login must be non-empty (Index of /clip/ > 0).
 	i := indexFold(rest, clipPath)
 	if i <= 0 {
 		return false

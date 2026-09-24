@@ -4,26 +4,6 @@
 
 ---
 <style is:global>
-/* ════════════════════════════════════════════════════════════════════
-   Mermaid diagrams — astro-mermaid emits `<pre class="mermaid">`, then
-   replaces its contents with an `<svg>` after client-side render. We
-   style both the pre wrapper and the rendered SVG.
-
-   Readability rules:
-   • DARK MODE  — light tan/cream nodes on a dark panel.
-   • LIGHT MODE — same tan nodes (baked by Mermaid from themeVariables)
-     on a cream panel; ALL edges, arrows, and floating text must flip
-     to dark ink so they're visible against the light surface.
-   ════════════════════════════════════════════════════════════════════ */
-
-/* The rendered (post-render) state. astro-mermaid adds
-   data-processed="true" once the SVG is in place.
-
-   Container goals:
-   - Generous internal padding so the SVG never crowds the border
-   - Solid darker fill so light tan nodes pop against it
-   - Horizontal scroll when the native-size SVG exceeds column width
-   - Subtle inset glow so the box reads as "a panel" not "a card" */
 pre.mermaid[data-processed] {
     display: block;
     margin: 2rem 0;
@@ -65,9 +45,6 @@ pre.mermaid[data-processed]::-webkit-scrollbar-thumb {
     border-radius: 999px;
 }
 
-/* Pre-render skeleton — while mermaid.js loads + parses, the raw
-   source is briefly visible. Fade it so it doesn't flash as bright
-   plain text on dark backgrounds. */
 pre.mermaid:not([data-processed]) {
     display: block;
     margin: 1.5rem 0;
@@ -83,20 +60,15 @@ pre.mermaid:not([data-processed]) {
     min-height: 6rem;
 }
 
-/* Native-size SVG with crisp rendering hints. */
 pre.mermaid svg {
     height: auto;
     margin: 0 auto;
     display: inline-block;
     shape-rendering: geometricPrecision;
     text-rendering: geometricPrecision;
-    /* Subtle ambient lift — not so heavy that it muddies node edges */
     filter: drop-shadow(0 4px 12px rgba(var(--bb-shadow-rgb), 0.30));
 }
 
-/* ── Edges / arrows ────────────────────────────────────────────────
-   Heavier strokes so direction reads from across the room. Targets
-   every edge selector Mermaid emits across diagram types. */
 pre.mermaid svg .edgePath .path,
 pre.mermaid svg .flowchart-link,
 pre.mermaid svg path.relation,
@@ -111,15 +83,12 @@ pre.mermaid svg .transition {
     fill: none !important;
 }
 
-/* The vertical lifelines under sequence actors — keep them quieter
-   than message arrows so the messages dominate. */
 pre.mermaid svg .actor-line {
     stroke-width: 1.5px !important;
     stroke-dasharray: 0;
     opacity: 0.55;
 }
 
-/* Arrowhead markers — match the new heavier shafts. */
 pre.mermaid svg marker path,
 pre.mermaid svg #arrowhead path,
 pre.mermaid svg .arrowheadPath,
@@ -129,9 +98,6 @@ pre.mermaid svg .marker {
     fill: var(--bb-tan-light);
 }
 
-/* ── Edge labels — solid pill + text halo for max readability ──────
-   The pill is --bb-elev-2 (#1d1a14) — dark enough to anchor the
-   label but visibly lighter than the panel bg (#0d0c0a). */
 pre.mermaid svg .edgeLabel {
     background-color: transparent !important;
 }
@@ -163,9 +129,6 @@ pre.mermaid svg .edgeLabel p {
     line-height: 1.2 !important;
 }
 
-/* SVG-text edge labels (Mermaid uses these when htmlLabels are off,
-   or for state diagrams). Dark stroke + light fill via paint-order
-   creates a halo so the label is readable wherever it lands. */
 pre.mermaid svg .edgeLabel text,
 pre.mermaid svg .edgeLabel text tspan,
 pre.mermaid svg g.edgeLabel text,
@@ -177,7 +140,6 @@ pre.mermaid svg g.edgeLabel text tspan {
     stroke-linejoin: round;
 }
 
-/* ── Nodes — sticky-note feel ────────────────────────────────────── */
 pre.mermaid svg .node rect,
 pre.mermaid svg .node circle,
 pre.mermaid svg .node ellipse,
@@ -188,16 +150,6 @@ pre.mermaid svg .node path {
     ry: 8;
 }
 
-/* Node label text — semi-bold, sans, dark on the tan fills.
-   Two paths to cover here:
-   1. HTML labels (default): Mermaid wraps text in <foreignObject>
-      with a div.nodeLabel. CSS `color` controls this.
-   2. SVG text labels (cylinder, circle, diamond shapes — and what
-      Mermaid falls back to when htmlLabels is off): plain SVG
-      <text>/<tspan>. CSS `color` is inert on SVG text; we need
-      `fill` instead.
-   Both paths force the same dark color so every shape reads the
-   same regardless of which renderer Mermaid picked for it. */
 pre.mermaid svg .nodeLabel,
 pre.mermaid svg .nodeLabel p,
 pre.mermaid svg .nodeLabel span,
@@ -208,7 +160,6 @@ pre.mermaid svg .node foreignObject span {
     line-height: 1.25 !important;
 }
 
-/* SVG-native text inside any node — fill, not color. */
 pre.mermaid svg .node text,
 pre.mermaid svg .node text tspan,
 pre.mermaid svg g.node text,
@@ -218,7 +169,6 @@ pre.mermaid svg .nodeLabel tspan {
     fill: var(--bb-ink) !important;
 }
 
-/* ── Sequence diagram — actors styled like primary nodes ─────────── */
 pre.mermaid svg .actor {
     stroke-width: 2px !important;
     rx: 8;
@@ -245,14 +195,12 @@ pre.mermaid svg .noteText tspan {
     fill: var(--bb-tan-pale) !important;
 }
 
-/* Loop/alt/opt boxes around grouped messages — quieter outline. */
 pre.mermaid svg .labelBox {
     stroke-width: 1.5px !important;
     rx: 4;
     ry: 4;
 }
 
-/* ── Clusters / subgraphs — soft-edged grouping ──────────────────── */
 pre.mermaid svg .cluster rect {
     rx: 14 !important;
     ry: 14 !important;
@@ -262,8 +210,6 @@ pre.mermaid svg .cluster rect {
     stroke: rgba(82, 183, 136, 0.50) !important;
 }
 
-/* Cluster / subgraph labels — nuclear approach to target EVERYTHING
-   inside a cluster wrapper. */
 pre.mermaid svg [class*="cluster"] text,
 pre.mermaid svg [class*="cluster"] tspan,
 pre.mermaid svg [class*="cluster"] span,
@@ -279,26 +225,17 @@ pre.mermaid svg .cluster .nodeLabel {
     fill: var(--bb-green-glow) !important;
 }
 
-/* ── Diagram title — .titleText ──────────────────────────────────
-   Mermaid renders `---\ntitle: Foo\n---` as a <text class="titleText">.
-   themeVariables.titleColor bakes as #f0ece4 (light) which is fine
-   on dark but invisible on light — CSS handles the flip. */
 pre.mermaid svg .titleText,
 pre.mermaid svg .titleText tspan {
     fill: var(--bb-white) !important;
 }
 
-/* ── Generic / fallback text selectors ───────────────────────────
-   Mermaid emits text under many different class names depending on
-   diagram type. These catch-all selectors ensure nothing renders as
-   invisible white-on-white or dark-on-dark. */
 pre.mermaid svg .label text,
 pre.mermaid svg .label tspan,
 pre.mermaid svg .label foreignObject > div,
 pre.mermaid svg .label foreignObject > div > span {
 }
 
-/* State diagrams — state names */
 pre.mermaid svg .statediagram-state .nodeLabel,
 pre.mermaid svg .state-note-text,
 pre.mermaid svg .stateLabel text,
@@ -307,7 +244,6 @@ pre.mermaid svg .stateLabel tspan {
     color: var(--bb-ink) !important;
 }
 
-/* ER diagrams — entity and relationship labels */
 pre.mermaid svg .entityLabel,
 pre.mermaid svg .entityLabel tspan,
 pre.mermaid svg .relationshipLabel,
@@ -315,17 +251,6 @@ pre.mermaid svg .relationshipLabel tspan {
     fill: var(--bb-ink) !important;
 }
 
-
-/* ════════════════════════════════════════════════════════════════════
-   LIGHT MODE — unified overrides for ALL diagram types.
-
-   The mermaidDarkVars bake tan fills / light text into the SVG at
-   build time. In light mode the panel flips to cream, so every
-   "floating" element (edges, arrows, markers, labels) that was
-   designed for dark-on-light must now become dark-on-light too.
-   ════════════════════════════════════════════════════════════════════ */
-
-/* Panel container */
 :root[data-theme="light"] pre.mermaid[data-processed] {
     border-color: rgba(var(--bb-green-rgb), 0.25) !important;
     background:
@@ -352,20 +277,15 @@ pre.mermaid svg .relationshipLabel tspan {
     border-color: rgba(var(--bb-green-rgb), 0.18);
 }
 
-/* SVG shadow — lighter on cream so it doesn't look muddy */
 :root[data-theme="light"] pre.mermaid svg {
     filter: drop-shadow(0 2px 8px rgba(var(--bb-ink-rgb), 0.10));
 }
 
-/* ── Light: diagram title ─────────────────────────────────────── */
 :root[data-theme="light"] pre.mermaid svg .titleText,
 :root[data-theme="light"] pre.mermaid svg .titleText tspan {
     fill: var(--bb-ink) !important;
 }
 
-/* ── Light: edges / arrows → dark ink ─────────────────────────────
-   This applies to ALL diagram types (flowchart, sequence, ER, etc.)
-   so nothing is invisible on cream. */
 :root[data-theme="light"] pre.mermaid svg .edgePath .path,
 :root[data-theme="light"] pre.mermaid svg .flowchart-link,
 :root[data-theme="light"] pre.mermaid svg path.relation,
@@ -385,7 +305,6 @@ pre.mermaid svg .relationshipLabel tspan {
     fill: var(--bb-ink-soft) !important;
 }
 
-/* ── Light: edge labels → dark text on cream pill ─────────────── */
 :root[data-theme="light"] pre.mermaid svg .edgeLabel rect {
     fill: var(--bb-paper-sidebar) !important;
     stroke: rgba(var(--bb-green-rgb), 0.30) !important;
@@ -417,12 +336,6 @@ pre.mermaid svg .relationshipLabel tspan {
     stroke: var(--bb-paper) !important;
 }
 
-/* ── Light: ALL text/tspan fallback ───────────────────────────────
-   Catch-all for any text Mermaid renders that doesn't match a
-   specific selector above. Nodes already have --bb-ink (dark on
-   tan fills, which is readable on either bg). This targets the
-   remaining "floating" text: edge labels, cluster labels, notes,
-   state labels, ER labels, etc. */
 :root[data-theme="light"] pre.mermaid svg .messageText {
     fill: var(--bb-ink) !important;
 }
@@ -465,7 +378,6 @@ pre.mermaid svg .relationshipLabel tspan {
     stroke: var(--bb-green) !important;
 }
 
-/* ── Light: clusters / subgraphs ──────────────────────────────── */
 :root[data-theme="light"] pre.mermaid svg .cluster rect {
     fill: rgba(var(--bb-green-rgb), 0.06) !important;
     stroke: rgba(var(--bb-green-rgb), 0.30) !important;
@@ -486,7 +398,6 @@ pre.mermaid svg .relationshipLabel tspan {
     fill: var(--bb-green) !important;
 }
 
-/* ── Light: state diagram labels ──────────────────────────────── */
 :root[data-theme="light"] pre.mermaid svg .statediagram-state .nodeLabel,
 :root[data-theme="light"] pre.mermaid svg .state-note-text,
 :root[data-theme="light"] pre.mermaid svg .stateLabel text,
@@ -495,7 +406,6 @@ pre.mermaid svg .relationshipLabel tspan {
     color: var(--bb-ink) !important;
 }
 
-/* ── Light: ER diagram labels ─────────────────────────────────── */
 :root[data-theme="light"] pre.mermaid svg .entityLabel,
 :root[data-theme="light"] pre.mermaid svg .entityLabel tspan,
 :root[data-theme="light"] pre.mermaid svg .relationshipLabel,
@@ -504,8 +414,6 @@ pre.mermaid svg .relationshipLabel tspan {
 }
 
 
-/* The fullscreen viewer covers the whole window, so panels should
-   advertise their interactivity without screaming. */
 pre.mermaid[data-processed].mermaid-interactive-ready {
     cursor: zoom-in;
     transition: border-color 180ms ease, box-shadow 180ms ease;
@@ -517,7 +425,6 @@ pre.mermaid[data-processed].mermaid-interactive-ready:hover {
         0 6px 24px rgba(var(--bb-shadow-rgb), 0.45);
 }
 
-/* ── Expand button — bottom-right corner of each panel ─────────── */
 .mermaid-fullscreen-btn {
     position: absolute;
     bottom: 0.85rem;
@@ -575,12 +482,6 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
     border-color: var(--bb-green);
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   FULLSCREEN MODAL — covers the viewport, holds the cloned SVG that
-   panzoom drives. Theme variables on <html> still apply, so the
-   cloned SVG inherits all the same node/edge/label styling from the
-   rules above.
-   ════════════════════════════════════════════════════════════════════ */
 .mermaid-modal {
     position: fixed;
     inset: 0;
@@ -595,9 +496,6 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
 .mermaid-modal__backdrop {
     position: absolute;
     inset: 0;
-    /* Tinted backdrop: brand-green wash bleeding into tan, then a
-       deep ink vignette. Pulls the eye onto the diagram while still
-       feeling like part of the ItsBagelBot palette. */
     background:
         radial-gradient(
             70% 60% at 18% 12%,
@@ -636,10 +534,6 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
         );
 }
 
-/* Stage = panzoom's owner element. The pre.mermaid wrapper is its
-   only child and lives at the centered grid cell — so the diagram
-   starts centered without any JS measurement. Panzoom's transform
-   is applied on top of that layout position. */
 .mermaid-modal__stage {
     position: absolute;
     inset: 0;
@@ -654,16 +548,6 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
     cursor: grabbing;
 }
 
-/* Passive wrapper: the cloned SVG sits inside `pre.mermaid` so every
-   `pre.mermaid svg X` rule in this file (edges, nodes, clusters,
-   etc.) automatically applies. All inline panel chrome is stripped
-   so the diagram sits on the tinted backdrop, not on a
-   card-within-a-card. */
-/* Belt-and-suspenders: the modal host pre is `pre.mermaid[data-processed]`
-   too, so the inline hover rule below would otherwise reveal any
-   `.mermaid-fullscreen-btn` descendant. The cloned SVG isn't supposed
-   to contain a button (it's a sibling of the inline svg, not a
-   descendant), but enforce it here in case anything ever changes. */
 .mermaid-modal__stage .mermaid-fullscreen-btn {
     display: none !important;
 }
@@ -687,15 +571,6 @@ pre.mermaid[data-processed]:focus-within .mermaid-fullscreen-btn,
     transform-origin: 0 0;
 }
 
-/* The cloned SVG: explicit width/height are set inline by
-   MermaidInteractive's openModal() so the SVG actually has an
-   intrinsic box inside the grid-centered host (CSS auto + grid
-   collapses to 0 without a starting size). Panzoom drives the
-   visual transform from there.
-
-   `filter: none` is critical — the inline drop-shadow on
-   `pre.mermaid svg` would otherwise rasterize the SVG on the GPU and
-   blur vector strokes above ~1.5× zoom. */
 .mermaid-modal__stage pre.mermaid.mermaid-modal-host > svg {
     display: block;
     filter: none !important;

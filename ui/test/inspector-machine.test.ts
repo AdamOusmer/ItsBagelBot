@@ -22,32 +22,28 @@ describe('inspector-machine', () => {
 		expect(s.selectedId).toBe('a');
 		expect(s.dirty).toBe(false);
 		expect(s.draft).toEqual(A);
-		expect(s.draft).not.toBe(A); // cloned, not aliased
+		expect(s.draft).not.toBe(A);
 	});
 
 	test('editing toward and back from committed toggles dirty', () => {
 		let s = openClean('a', A);
 		s = edit(s, { ...A, response: 'changed' });
 		expect(s.dirty).toBe(true);
-		s = edit(s, { ...A }); // back to original value
+		s = edit(s, { ...A });
 		expect(s.dirty).toBe(false);
 	});
 
-	// THE core guard: a delayed response for A must not touch selected B.
 	test('a stale save response for A cannot affect B', () => {
-		// Edit + submit A.
 		let s = openClean('a', A);
 		s = edit(s, { ...A, response: 'A-edited' });
 		s = requestSave(s, 'req-A');
 		expect(s.status).toBe('saving');
 
-		// Before A resolves, the user abandons it and opens B, edits B.
 		s = openClean('b', B);
 		s = edit(s, { ...B, response: 'B-edited' });
 
-		// A's response finally lands. It must be ignored entirely.
 		const after = resolveSave(s, 'req-A', { type: 'success' });
-		expect(after).toBe(s); // no-op, same reference
+		expect(after).toBe(s);
 		expect(after.selectedId).toBe('b');
 		expect(after.draft?.response).toBe('B-edited');
 		expect(after.status).not.toBe('saved');
@@ -60,7 +56,7 @@ describe('inspector-machine', () => {
 		s = resolveSave(s, 'req-A', { type: 'success' });
 		expect(s.status).toBe('saved');
 		expect(s.dirty).toBe(false);
-		expect(s.selectedId).toBe('a'); // Save leaves the inspector open
+		expect(s.selectedId).toBe('a');
 		expect(s.submitted).toBeUndefined();
 	});
 
@@ -68,10 +64,10 @@ describe('inspector-machine', () => {
 		let s = openClean('a', A);
 		s = edit(s, { ...A, response: 'first' });
 		s = requestSave(s, 'req-1');
-		s = edit(s, { ...A, response: 'second' }); // user keeps typing during save
+		s = edit(s, { ...A, response: 'second' });
 		s = resolveSave(s, 'req-1', { type: 'success' });
 		expect(s.draft?.response).toBe('second');
-		expect(s.dirty).toBe(true); // the newer edit is not falsely marked saved
+		expect(s.dirty).toBe(true);
 		expect(s.status).toBe('idle');
 	});
 
@@ -91,8 +87,6 @@ describe('inspector-machine', () => {
 	});
 
 	test('requestSave snapshots a proxied draft (structuredClone rejects proxies)', () => {
-		// At runtime the draft arrives wrapped in a Svelte 5 $state proxy, which
-		// structuredClone throws DataCloneError on; the clone must fall back.
 		let s = openClean('a', A);
 		s = edit(s, new Proxy({ ...A, response: 'changed' }, {}));
 		s = requestSave(s, 'req-p');

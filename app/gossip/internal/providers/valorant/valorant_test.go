@@ -23,9 +23,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// The SSRF gate refuses plain-http loopback fakes; these tests predate it and
-// dial httptest servers, so the process-wide test switch turns the gate off.
-// The gate's own semantics are pinned by core's table tests.
 func init() { core.SetSSRFCheckForTests(false) }
 
 type memStore struct {
@@ -144,8 +141,6 @@ const accountBody = `{
 }`
 
 func TestRankFetchesMMRWithPlainAuthorizationHeader(t *testing.T) {
-	// HenrikDev takes the raw key, not "Bearer <key>"; this pins the exact
-	// header because a Bearer prefix yields a 401 that looks like a bad key.
 	var gotAuth string
 	henrik := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
@@ -464,10 +459,6 @@ func TestEndpointSurface(t *testing.T) {
 	assert.ElementsMatch(t, []string{"rank", "matches", "account", "leaderboard", "shop"}, names)
 }
 
-// TestCacheIDBytes pins the exact id bytes valorant lookups key on. The id is
-// the tail of a live Valkey key: changing one byte orphans every cached entry
-// for that lookup until its TTL expires, so these literals are the contract
-// rather than a restatement of the implementation.
 func TestCacheIDBytes(t *testing.T) {
 	cases := []struct {
 		name string

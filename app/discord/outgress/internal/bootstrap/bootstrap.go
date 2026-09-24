@@ -1,13 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package bootstrap is outgress's one-time startup REST work: learning the
-// bot's own application id and registering the slash-command catalog.
-// Ported from app/dingress/internal/community/slash.go's slashCatalog and
-// Bot.Ready, moved here because outgress -- not ingress -- is the one
-// process left with a REST client after the split (see
-// internal/discordapi's GetCurrentApplication doc for why this no longer
-// waits on the gateway's READY payload).
 package bootstrap
 
 import (
@@ -16,16 +9,11 @@ import (
 	"ItsBagelBot/internal/discordapi"
 )
 
-// AppRegistrar is the REST slice this package needs.
 type AppRegistrar interface {
 	GetCurrentApplication(ctx context.Context) (discordapi.Snowflake, error)
 	BulkOverwriteCommands(ctx context.Context, cat discordapi.CommandCatalog) error
 }
 
-// Register learns the bot's application id and registers the slash-command
-// catalog. It returns the application id (also needed for interaction
-// followups, see ../commands.Handlers) even on a registration failure, since
-// the id itself was still learned successfully.
 func Register(ctx context.Context, rest AppRegistrar) (applicationID string, err error) {
 	app, err := rest.GetCurrentApplication(ctx)
 	if err != nil {
@@ -38,8 +26,6 @@ func Register(ctx context.Context, rest AppRegistrar) (applicationID string, err
 	return app.ID, err
 }
 
-// Catalog is the bot's slash-command catalog, unchanged from community's
-// slashCatalog().
 func Catalog() []discordapi.AppCommand {
 	user := discordapi.AppCommandOption{Type: 6, Name: "user", Description: "Member", Required: true}
 	return []discordapi.AppCommand{

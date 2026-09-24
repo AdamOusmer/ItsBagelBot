@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-// pinTime overrides nowNanos for the test and restores it on cleanup,
-// returning a setter that advances the fake clock.
 func pinTime(t *testing.T) func(advance time.Duration) {
 	t.Helper()
 	now := time.Now()
@@ -27,24 +25,19 @@ func TestCacheTTLs(t *testing.T) {
 	c.put("ok.example", Clean, false)
 	c.put("bit.ly/abc", Clean, true)
 
-	// +1h: the shortener slot lapses first (destinations rotate server-side);
-	// host slots hold.
 	advance(shortTTL + time.Minute)
-	requireExpired(t, c, "bit.ly/abc")   // shortener slot lapses first
+	requireExpired(t, c, "bit.ly/abc")
 	requireCached(t, c, "ok.example", Clean)
 	requireCached(t, c, "bad.example", Bad)
 
-	// +6h: clean lapses, bad still holds its day.
 	advance(cleanTTL - shortTTL)
 	requireExpired(t, c, "ok.example")
 	requireCached(t, c, "bad.example", Bad)
 
-	// +24h: bad lapses too.
 	advance(badTTL - cleanTTL)
 	requireExpired(t, c, "bad.example")
 }
 
-// requireCached asserts key resolves to want and is still live.
 func requireCached(t *testing.T, c *cache, key string, want Verdict) {
 	t.Helper()
 	if v, ok := c.get(key); !ok || v != want {
@@ -52,7 +45,6 @@ func requireCached(t *testing.T, c *cache, key string, want Verdict) {
 	}
 }
 
-// requireExpired asserts key has lapsed out of the cache.
 func requireExpired(t *testing.T, c *cache, key string) {
 	t.Helper()
 	if _, ok := c.get(key); ok {
@@ -71,7 +63,6 @@ func TestCacheCapEvictsAndSelfHeals(t *testing.T) {
 		t.Fatalf("cache grew past cap: %d", len(c.m))
 	}
 
-	// Re-inserting an evicted hot host re-caches it: eviction is not a ban list.
 	c.put("hot.example", Bad, false)
 	if v, ok := c.get("hot.example"); !ok || v != Bad {
 		t.Fatalf("re-put after eviction = (%v,%v)", v, ok)

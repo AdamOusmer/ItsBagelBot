@@ -1,10 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One reply slot in a module's page, on the shared ManagementRow: the clickable
-  // primary is a real button and the per-reply on/off switch is its sibling, not
-  // nested inside it. The page passes the toggle handler so all optimistic state
-  // stays in one place.
   import { SaveStatus, ManagementRow, Switch, getI18n, tModuleReplyPart, tModuleReplyDefault, type ModuleReply } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
@@ -27,7 +23,6 @@
     index?: number;
     status?: SaveState;
     expanded?: boolean;
-    // undefined => the reply has no per-reply toggle (governed by the module enable).
     enabled?: boolean;
     onExpand: () => void;
     onToggle?: () => void;

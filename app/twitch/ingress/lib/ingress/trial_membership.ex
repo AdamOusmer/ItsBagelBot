@@ -2,10 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.TrialMembership do
-  @moduledoc """
-  Small replicated read snapshot for the normal Conduit transport. Only a
-  broadcaster in the current four-ID trial set pays the Valkey dedup round trip.
-  """
   use GenServer
   alias Ingress.Trials
 
@@ -27,7 +23,6 @@ defmodule Ingress.TrialMembership do
         active = Enum.reject(rows, &(&1.state in ["removed", "promoted"]))
         :persistent_term.put({__MODULE__, :rows}, Map.new(active, &{&1.broadcaster_id, &1}))
 
-      # keep the last authoritative snapshot during an outage
       _ ->
         :ok
     end

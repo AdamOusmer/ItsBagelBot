@@ -16,7 +16,6 @@ import (
 func noRun(context.Context, *module.Context, string, module.Emit) error { return nil }
 func noEvt(context.Context, *module.Context, module.Emit) error         { return nil }
 
-// evtModule builds a module that handles the given event types (no commands).
 func evtModule(name string, kind module.Kind, events ...string) module.Module {
 	b := module.NewModule(name, kind)
 	for _, e := range events {
@@ -25,7 +24,6 @@ func evtModule(name string, kind module.Kind, events ...string) module.Module {
 	return b.Build()
 }
 
-// cmdModule builds a module owning one command with the given trigger and perm.
 func cmdModule(name string, kind module.Kind, trigger string, perm module.Role) module.Module {
 	b := module.NewModule(name, kind)
 	c := b.Command(trigger)
@@ -56,24 +54,18 @@ func TestNeedsModuleViews(t *testing.T) {
 	named := evtModule("bagel", module.KindDefault, "stream.online")
 	reg := NewRegistry(nil, core, named)
 
-	// Plain chat hits only the core module: no ModuleView fetch needed.
 	assert.False(t, reg.NeedsModuleViews(chatType))
-	// stream.online has a name-gated module: the pipeline must fetch views.
 	assert.True(t, reg.NeedsModuleViews("stream.online"))
 	assert.False(t, reg.NeedsModuleViews("unmapped"))
 }
 
 func TestNeedsModuleViewsForNamedCommand(t *testing.T) {
-	// A named module that owns a chat command forces the chat path to fetch views
-	// so the command can be gated by the module's enable flag.
 	named := cmdModule("extra", module.KindOptIn, "hi", module.RoleEveryone)
 	reg := NewRegistry(nil, named)
 	assert.True(t, reg.NeedsModuleViews(chatType))
 }
 
 func TestNamedCoreSkipsModuleViews(t *testing.T) {
-	// A named built-in (KindCore with a name) still skips the ModuleView fetch: it
-	// is always on and never toggled, so it must not force a projection read.
 	m := cmdModule("system", module.KindCore, "sys", module.RoleEveryone)
 	reg := NewRegistry(nil, m)
 	assert.False(t, reg.NeedsModuleViews(chatType))
@@ -110,11 +102,11 @@ func TestRegistryAliasesIndexed(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "so", bc.Cmd.Name)
 
-	bc, ok = reg.Command("shoutout") // alias resolves to the same command
+	bc, ok = reg.Command("shoutout")
 	assert.True(t, ok)
 	assert.Equal(t, "so", bc.Cmd.Name)
 
-	assert.Len(t, reg.Commands(), 2) // name + alias
+	assert.Len(t, reg.Commands(), 2)
 }
 
 func TestRegistryDuplicateCommandFirstWins(t *testing.T) {
@@ -124,7 +116,6 @@ func TestRegistryDuplicateCommandFirstWins(t *testing.T) {
 
 	bc, ok := reg.Command("dup")
 	assert.True(t, ok)
-	// First registration wins: the everyone perm and module "a" as owner.
 	assert.Equal(t, module.RoleEveryone, bc.Cmd.Perm)
 	assert.Equal(t, "a", bc.Owner.Name)
 	assert.Len(t, reg.Commands(), 1)
@@ -148,26 +139,22 @@ func TestSplitTrailingDigits(t *testing.T) {
 func TestResolveCommandNumericSuffix(t *testing.T) {
 	b := module.NewModule("", module.KindCore)
 	b.Command("clip").Everyone().NumericSuffix().Run(noRun)
-	b.Command("ping").Everyone().Run(noRun) // no numeric suffix
+	b.Command("ping").Everyone().Run(noRun)
 	reg := NewRegistry(nil, b.Build())
 
-	// Exact match: no digits absorbed.
 	bc, num, ok := reg.ResolveCommand("clip")
 	assert.True(t, ok)
 	assert.Equal(t, "", num)
 	assert.Equal(t, "clip", bc.Cmd.Name)
 
-	// Numeric suffix resolves to the base and reports the digits.
 	bc, num, ok = reg.ResolveCommand("clip30")
 	assert.True(t, ok)
 	assert.Equal(t, "30", num)
 	assert.Equal(t, "clip", bc.Cmd.Name)
 
-	// A command without NumericSuffix does not absorb a trailing number.
 	_, _, ok = reg.ResolveCommand("ping5")
 	assert.False(t, ok)
 
-	// Unknown trigger and digits-only both miss.
 	_, _, ok = reg.ResolveCommand("nope")
 	assert.False(t, ok)
 	_, _, ok = reg.ResolveCommand("30")

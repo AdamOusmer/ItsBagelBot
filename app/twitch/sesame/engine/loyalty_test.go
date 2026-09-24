@@ -21,12 +21,9 @@ import (
 func TestCounterScopePlanNames(t *testing.T) {
 	assert.Empty(t, planCounters(t, "no tokens here {user}").asked)
 	assert.Equal(t, []string{"deaths"}, planCounters(t, "we died {counter:deaths} times").asked)
-	// Dedup, normalization and multiple names in first-appearance order.
 	assert.Equal(t, []string{"deaths", "wins"},
 		planCounters(t, "{counter:Deaths} {counter:wins} {counter:deaths}").asked)
-	// Unclosed token opens no span, so it names no counter.
 	assert.Empty(t, planCounters(t, "{counter:deaths").asked)
-	// Empty name skipped.
 	assert.Empty(t, planCounters(t, "{counter:}").asked)
 }
 
@@ -34,9 +31,6 @@ func TestRenderCounterToken(t *testing.T) {
 	out := renderScopes(nil, "died {counter:deaths} times", scope.Store{Peeks: &recordPeeks{}})
 	assert.Equal(t, "died 42 times", out)
 
-	// No resolved value: the read answered "nothing", so the span renders
-	// empty (its fallback would speak here, matching every other counter
-	// read) rather than staying literal.
 	out = renderScopes(nil, "died {counter:deaths} times", scope.Store{Peeks: emptyPeeks{}})
 	assert.Equal(t, "died  times", out)
 }
@@ -50,7 +44,6 @@ func TestLoyaltyConfigDefaults(t *testing.T) {
 	assert.Equal(t, int64(defaultCheerPointsPer100), cfg.EffectiveCheerPointsPer100())
 	assert.Equal(t, int64(defaultWatchPointsPerTick), cfg.EffectiveWatchPointsPerTick())
 
-	// Explicit value wins; negative switches the source off.
 	cfg = LoyaltyModuleConfig{PointsName: "bagels", SubPoints: 100, CheerPointsPer100: -1}
 	assert.Equal(t, "bagels", cfg.Name())
 	assert.Equal(t, int64(100), cfg.EffectiveSubPoints())
@@ -65,7 +58,6 @@ func TestTierMultiplier(t *testing.T) {
 	assert.Equal(t, int64(1), TierMultiplier("prime"))
 }
 
-// rawPublisher captures published payloads verbatim, keyed by subject.
 type rawPublisher struct {
 	payloads map[string][][]byte
 }
@@ -89,7 +81,6 @@ func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
 
-	// Two accruals for the same viewer fold into one entry; a big tick chunks.
 	r.Earn(1, 7, "viewer7", "", 100, 300)
 	r.Earn(1, 7, "", "Viewer7", 50, 0)
 	for i := uint64(100); i < 100+1200; i++ {
@@ -99,7 +90,7 @@ func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 	r.Bump(ChannelBump(1, "deaths"), 2)
 	r.Bump(CounterBumpTarget{BroadcasterID: 1, Name: "hugs", Scope: data.CounterScopeViewer, Viewer: Viewer{ID: 7, Login: "viewer7", Name: "Viewer7"}}, 1)
 	r.Bump(CounterBumpTarget{BroadcasterID: 1, Name: "uses", Scope: data.CounterScopeViewerCommand, Viewer: Viewer{ID: 7}, Command: "hug"}, 4)
-	r.Close() // flushes
+	r.Close()
 
 	earned := pub.payloads[data.SubjectLoyaltyEarned]
 	require.Len(t, earned, 2, "1201 entries must chunk into 2 events")
@@ -145,13 +136,13 @@ func TestLoyaltyReporterAggregatesAndChunks(t *testing.T) {
 func TestLoyaltyReporterSkipsEmpty(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
-	r.Earn(0, 7, "", "", 10, 0)                                                                // no broadcaster
-	r.Earn(1, 0, "", "", 10, 0)                                                                // no viewer
-	r.Earn(1, 7, "", "", 0, 0)                                                                 // nothing earned
-	r.Bump(ChannelBump(1, ""), 1)                                                              // no name
-	r.Bump(ChannelBump(1, "deaths"), 0)                                                        // no delta
-	r.Bump(ChannelBump(0, "deaths"), 1)                                                        // channel bump without broadcaster
-	r.Bump(CounterBumpTarget{BroadcasterID: 1, Name: "feeds", Scope: data.CounterScopeBot}, 1) // bot bump outside bot namespace
+	r.Earn(0, 7, "", "", 10, 0)
+	r.Earn(1, 0, "", "", 10, 0)
+	r.Earn(1, 7, "", "", 0, 0)
+	r.Bump(ChannelBump(1, ""), 1)
+	r.Bump(ChannelBump(1, "deaths"), 0)
+	r.Bump(ChannelBump(0, "deaths"), 1)
+	r.Bump(CounterBumpTarget{BroadcasterID: 1, Name: "feeds", Scope: data.CounterScopeBot}, 1)
 	r.Close()
 	assert.Empty(t, pub.payloads)
 }
@@ -175,11 +166,11 @@ func TestLoyaltyReporterBotNamespace(t *testing.T) {
 func TestBumpTargetRouting(t *testing.T) {
 	scope, viewer, cmd := bumpTarget(data.CounterScopeCommand, 7, "raid")
 	assert.Equal(t, data.CounterScopeCommand, scope)
-	assert.Equal(t, uint64(0), viewer) // pooled across viewers
+	assert.Equal(t, uint64(0), viewer)
 	assert.Equal(t, "raid", cmd)
 
 	scope, viewer, cmd = bumpTarget(data.CounterScopeViewer, 0, "raid")
-	assert.Equal(t, data.CounterScopeChannel, scope) // viewerless fallback
+	assert.Equal(t, data.CounterScopeChannel, scope)
 	assert.Equal(t, uint64(0), viewer)
 	assert.Empty(t, cmd)
 
@@ -191,10 +182,6 @@ func TestBumpTargetRouting(t *testing.T) {
 	assert.Equal(t, "7", entryField(data.CounterScopeViewer, 7, ""))
 }
 
-// A broadcaster-controlled bump may not touch a fleet stats name: the chat
-// "!counter add", a reward's counter and a {counter:} token all enter here,
-// and the public stats boards rank channels on exactly these rows. The check
-// runs before any Valkey call, which is why a zero-value store suffices.
 func TestCounterBumpRefusesSystemCounters(t *testing.T) {
 	s := &ValkeyLoyaltyStore{}
 	for _, name := range data.SystemCounterNames() {
@@ -215,7 +202,6 @@ func TestLoyaltyConfigRejectsMalformedRates(t *testing.T) {
 	}
 }
 
-// blockedLoyaltyPublisher holds a drained reporter snapshot in flight.
 type blockedLoyaltyPublisher struct {
 	rawPublisher
 	started chan struct{}

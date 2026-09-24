@@ -38,10 +38,6 @@ func localCollectorResponse(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-// collectorRecorder answers like the fake collector and keeps every payload the
-// agent posted, so a test can assert on what was actually harvested rather than
-// on the agent's internal buffers, which are not reachable from outside the
-// go-agent module.
 type collectorRecorder struct {
 	mu    sync.Mutex
 	posts []string
@@ -58,7 +54,6 @@ func (r *collectorRecorder) RoundTrip(req *http.Request) (*http.Response, error)
 	return localCollectorResponse(req)
 }
 
-// posted reports whether any harvested payload contains needle.
 func (r *collectorRecorder) posted(needle string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -70,9 +65,6 @@ func (r *collectorRecorder) posted(needle string) bool {
 	return false
 }
 
-// readCollectorPayload undoes the agent's transport encoding. Small payloads go
-// out as plain JSON and larger ones gzipped, so both have to be understood or
-// the assertion would silently depend on payload size.
 func readCollectorPayload(req *http.Request) (string, error) {
 	raw, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -90,10 +82,6 @@ func readCollectorPayload(req *http.Request) (string, error) {
 	return string(plain), err
 }
 
-// newLocalApplication builds a fully connected agent that never leaves the
-// process, so tests can assert on real transactions (a nil application makes
-// StartTransaction return nil and hides every difference between the sampled and
-// unsampled paths). transport may be nil for the plain fake collector.
 func newLocalApplication(t *testing.T, transport http.RoundTripper) *newrelic.Application {
 	t.Helper()
 
@@ -235,8 +223,6 @@ func TestLaneStatsDrainAggregatesAndResets(t *testing.T) {
 		t.Fatalf("drain destination = %v", got)
 	}
 
-	// The window is consumed by the read: a silent lane must emit nothing rather
-	// than a zero event per interval.
 	if _, ok := stats.drain(); ok {
 		t.Fatal("second drain reported a window, want the counters reset and silent")
 	}
@@ -246,14 +232,10 @@ func TestLaneTelemetryInternsCountersByDestination(t *testing.T) {
 	registry := newLaneTelemetry()
 
 	premium := registry.register(nil, "twitch.ingress.event.premium", 7)
-	// A second consumer unit on the same lane must share the cursor and counters,
-	// or the sample rate would multiply by the unit count.
 	again := registry.register(nil, "twitch.ingress.event.premium", 7)
 	if premium != again {
 		t.Fatal("re-registering a lane created a second counter set")
 	}
-	// Subjects that share a normalized family share one entry: that is what keeps
-	// the registry bounded when subjects carry identifiers.
 	if sibling := registry.register(nil, "bagel.rpc.users.get", 7); sibling == premium {
 		t.Fatal("different destinations shared one counter set")
 	}
@@ -273,8 +255,6 @@ func TestLaneTelemetryFlushIsSafeWithoutAnApplication(t *testing.T) {
 	stats := registry.register(nil, "bagel.rpc.commands.run", 1)
 	stats.record(resultOK, time.Millisecond)
 
-	// A nil application starts no flusher, and flushing by hand must still be a
-	// silent no-op rather than a panic — this is the local-development shape.
 	registry.flush(nil)
 
 	if _, ok := stats.drain(); ok {
@@ -292,8 +272,6 @@ func TestLaneTelemetryFlushEmitsCustomEvents(t *testing.T) {
 	stats.record("error", time.Millisecond)
 	registry.flush(app)
 
-	// Shutdown forces the final harvest, so the assertion is on what the agent
-	// actually posted rather than on an internal buffer.
 	app.Shutdown(2 * time.Second)
 
 	if !recorder.posted(laneTelemetryEventType) {

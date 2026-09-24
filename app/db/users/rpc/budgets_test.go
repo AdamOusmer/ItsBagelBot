@@ -9,10 +9,6 @@ import (
 	"time"
 )
 
-// TestHandlerBudgets pins the five budgets the users verbs run on, the way
-// notifications pins its three. Before the shared wiring they were positional
-// arguments spread over six files; a flattening onto one default is silent
-// until production starts timing out.
 func TestHandlerBudgets(t *testing.T) {
 	got := map[string]time.Duration{
 		"tokens":  tokensBudget,

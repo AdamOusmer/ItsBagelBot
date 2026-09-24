@@ -17,8 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// stubEmotePlay records every Bump and replays a canned result, so handler
-// tests never need valkey.
 type stubEmotePlay struct {
 	updates []engine.EmotePlayUpdate
 	result  engine.EmotePlayResult
@@ -78,7 +76,6 @@ func TestEmoteShape(t *testing.T) {
 	}
 }
 
-// repeatToken joins n copies of s with single spaces (test helper).
 func repeatToken(s string, n int) string {
 	out := s
 	for i := 1; i < n; i++ {

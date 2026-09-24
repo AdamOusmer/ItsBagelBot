@@ -21,8 +21,6 @@ describe('scopeGap', () => {
     );
   });
 
-  // The case this surface exists for: custody recorded nothing, so the grant
-  // predates scope tracking and has to be treated as stale.
   test('an unknown grant counts as missing everything', () => {
     expect(scopeGap(REQUIRED, [])).toEqual(REQUIRED);
   });

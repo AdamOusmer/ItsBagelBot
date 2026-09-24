@@ -9,20 +9,12 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// banData is the inner object of a Helix Ban User request body. Duration is
-// omitted for a permanent ban and set (in seconds) for a timeout; reason is
-// optional.
 type banData struct {
 	UserID   string `json:"user_id"`
 	Duration int    `json:"duration,omitempty"`
 	Reason   string `json:"reason,omitempty"`
 }
 
-// buildOutgress translates a module Output into the marshaled bytes of the full
-// outgress.Message wire contract. The inner Payloads are built from small typed
-// structs rather than maps so sonic escapes emoji and quotes in the body
-// correctly. This runs only when a handler actually emits, so the allocation it
-// costs never touches the no-output plain-chat path.
 func buildOutgress(o *module.Output) ([]byte, error) {
 	msg, err := buildOutgressMessage(o)
 	if err != nil {
@@ -59,8 +51,6 @@ func buildOutgressMessage(o *module.Output) (outgress.Message, error) {
 	return msg, nil
 }
 
-// outgressBuilders maps each intent to its wire-message construction; types
-// absent here (generic passthroughs) carry only type + broadcaster.
 var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error){
 	outgress.TypeChat:             chatOutgress,
 	outgress.TypeAnnounce:         announceOutgress,
@@ -78,7 +68,6 @@ var outgressBuilders = map[string]func(*module.Output) (outgress.Message, error)
 	outgress.TypeRedemptionUpdate: redemptionUpdateOutgress,
 }
 
-// payloadMessage marshals one typed payload and wraps it in the wire message.
 func payloadMessage(msgType, broadcasterID string, payload any) (outgress.Message, error) {
 	body, err := codec.Marshal(payload)
 	if err != nil {
@@ -99,9 +88,6 @@ func pinOutgress(o *module.Output) (outgress.Message, error) {
 	return textOutgress(outgress.TypePin, o)
 }
 
-// textOutgress builds the Send Chat Message body shared by ordinary chat and
-// /pin. The pin worker sends this body first, then uses Twitch's returned
-// message id for the pin endpoint.
 func textOutgress(msgType string, o *module.Output) (outgress.Message, error) {
 	return payloadMessage(msgType, o.BroadcasterID, &struct {
 		BroadcasterID string `json:"broadcaster_id"`
@@ -126,12 +112,6 @@ func shoutoutOutgress(o *module.Output) (outgress.Message, error) {
 	}, nil
 }
 
-// clipOutgress builds the Create Clip job. The call takes no body:
-// broadcaster_id, title and duration all ride the query string, which outgress
-// builds. This payload carries what outgress needs — the title and duration to
-// pass to Twitch, the clipper's display name, and the broadcaster's custom reply
-// template — to compose the reply posted with the clip URL (outgress expands
-// its {clip} token). Duration 0 (plain !clip) and an empty reply are omitted.
 func clipOutgress(o *module.Output) (outgress.Message, error) {
 	return payloadMessage(outgress.TypeClip, o.BroadcasterID, &struct {
 		Title    string  `json:"title,omitempty"`
@@ -141,11 +121,6 @@ func clipOutgress(o *module.Output) (outgress.Message, error) {
 	}{o.Text, o.To, o.Duration, o.Template})
 }
 
-// channelUpdateOutgress builds a Modify Channel Information job. Field is
-// title/game/tags; Value empty means "read the current value and reply",
-// non-empty means PATCH. Locale and the chatter's name ride so outgress can
-// compose the chat reply — only it sees the Helix response (the resolved
-// category name, the stored tags).
 func channelUpdateOutgress(o *module.Output) (outgress.Message, error) {
 	return payloadMessage(outgress.TypeChannelUpdate, o.BroadcasterID, &struct {
 		Field  string `json:"field"`
@@ -171,21 +146,12 @@ func commercialOutgress(o *module.Output) (outgress.Message, error) {
 	}{int(o.Duration), o.Template, o.To})
 }
 
-// banOutgress builds the Helix Ban User body: {"data":{"user_id","duration",
-// "reason"}}. A ban omits duration (permanent); a timeout sets it (whole
-// seconds; Output shares the Duration field with clip, which carries a
-// fraction). broadcaster_id and moderator_id are added by outgress on the
-// query string, not here.
 func banOutgress(o *module.Output) (outgress.Message, error) {
 	return payloadMessage(o.Type, o.BroadcasterID, &struct {
 		Data banData `json:"data"`
 	}{banData{UserID: o.TargetUserID, Duration: int(o.Duration), Reason: o.Reason}})
 }
 
-// shieldOutgress builds the Helix Update Shield Mode Status body:
-// {"is_active":true}. The automod only ever activates (mass-raid escalation);
-// deactivation stays a human decision. broadcaster_id and moderator_id ride
-// the query string, added by outgress.
 func shieldOutgress(o *module.Output) (outgress.Message, error) {
 	return outgress.Message{
 		Type:          outgress.TypeShieldMode,
@@ -194,9 +160,6 @@ func shieldOutgress(o *module.Output) (outgress.Message, error) {
 	}, nil
 }
 
-// deleteOutgress builds the Delete Chat Messages job; Helix takes everything
-// on the query string (broadcaster_id + moderator_id added by outgress,
-// message_id from MsgID); no body.
 func deleteOutgress(o *module.Output) (outgress.Message, error) {
 	return outgress.Message{
 		Type:          outgress.TypeDelete,
@@ -205,18 +168,12 @@ func deleteOutgress(o *module.Output) (outgress.Message, error) {
 	}, nil
 }
 
-// warnOutgress builds the Helix Warn Chat User body: {"data":{"user_id",
-// "reason"}} (a warning requires a reason; Twitch shows it to the chatter).
-// broadcaster_id and moderator_id ride the query string, added by outgress.
 func warnOutgress(o *module.Output) (outgress.Message, error) {
 	return payloadMessage(outgress.TypeWarn, o.BroadcasterID, &struct {
 		Data banData `json:"data"`
 	}{banData{UserID: o.TargetUserID, Reason: o.Reason}})
 }
 
-// redemptionUpdateOutgress builds the Update Redemption Status job. Everything
-// rides dedicated Message fields (reward id, redemption id, target status) that
-// outgress puts on the query string / a small body; there is no payload here.
 func redemptionUpdateOutgress(o *module.Output) (outgress.Message, error) {
 	return outgress.Message{
 		Type:          outgress.TypeRedemptionUpdate,

@@ -15,39 +15,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// raffleModuleName is the ModuleView key; the console MODULE_CATALOG entry and
-// the dashboard module page use the same id.
 const raffleModuleName = "raffle"
 
-// raffleWinnerCooldown throttles !winner per channel: a receipt read is one
-// cheap valkey op, but the reply names users, so a spam window keeps chat
-// clean without dropping anyone's raffle entry (joins stay uncooled).
 const raffleWinnerCooldown = 5 * time.Second
 
-// raffleDefaultMinutes for a bare "!raffle open". Winner and reminder
-// defaults, plus every ceiling, live store-side in clampRaffleOpen.
 const raffleDefaultMinutes = 10
 
-// Raffle owns the channel raffle: a timed pool viewers join with !join that
-// closes itself on its deadline and draws winners uniformly at random. It is
-// a named, opt-in module (KindOptIn): off by default, enabled on the
-// dashboard.
-//
-//	!raffle                  → status (open/closed, entries, time left)
-//	!raffle open [min] [n] [r] → mod: start a raffle; r is the reminder cadence
-//	                           in minutes (default 5, 0 = off). The bot posts a
-//	                           time-left line each tick and draws automatically
-//	                           when the deadline runs out.
-//	!raffle draw [n]         → mod: close now and announce n winners
-//	!raffle close            → mod: same as draw with the configured count
-//	!raffle cancel           → mod: tear down without drawing
-//	!join                    → enter the running raffle
-//	!claim                   → winners confirm their prize inside the window
-//	!winner                  → recall the last draw's winners and claims
-//
-// This module registers BEFORE the queue module in All() and owns !join:
-// when a channel runs both features, the raffle wins the standalone spelling,
-// and the queue stays reachable through !queue join / !queue leave.
 func Raffle(d engine.Deps) module.Module {
 	log := d.Log
 	if log == nil {
@@ -62,28 +35,15 @@ func Raffle(d engine.Deps) module.Module {
 	return m.Build()
 }
 
-// raffleConfig holds the broadcaster's customized reply templates for the
-// viewer-facing conversational lines. Each field is a dashboard-editable
-// message; empty falls back to that reply's localized default (see i18n, keyed
-// by the constant next to each field). Only the conversational replies are
-// customizable — the status readout, moderator-action confirmations, claim
-// outcomes beyond the first confirmation and the usage/error lines stay fixed
-// system text, so their keys have no field here. (The engine-posted auto-close
-// and reminder lines are system announcements, not broadcaster voice: they
-// keep their localized defaults.)
 type raffleConfig struct {
-	OpenedMessage   string `json:"openedMessage"`   // i18n raffle.opened      {mins}
-	JoinMessage     string `json:"joinMessage"`     // i18n raffle.joined      {user} {count}
-	AlreadyMessage  string `json:"alreadyMessage"`  // i18n raffle.join.already {user} {count}
-	NoRaffleMessage string `json:"noRaffleMessage"` // i18n raffle.join.closed {user}
-	WonMessage      string `json:"wonMessage"`      // i18n raffle.won         {targets} {count} {entrants} {claim}
-	ClaimOkMessage  string `json:"claimOkMessage"`  // i18n raffle.claim.ok    {user}
+	OpenedMessage   string `json:"openedMessage"`
+	JoinMessage     string `json:"joinMessage"`
+	AlreadyMessage  string `json:"alreadyMessage"`
+	NoRaffleMessage string `json:"noRaffleMessage"`
+	WonMessage      string `json:"wonMessage"`
+	ClaimOkMessage  string `json:"claimOkMessage"`
 }
 
-// raffleCmd bundles the per-invocation state every handler shares (the store,
-// the message context, the decoded config, the logger) so each handler is a
-// method taking only its own arguments instead of threading the same five
-// values through every call.
 type raffleCmd struct {
 	chatReplier
 	r   engine.RaffleStore
@@ -91,9 +51,6 @@ type raffleCmd struct {
 	log *zap.Logger
 }
 
-// newRaffleCmd assembles the shared state for one invocation, decoding the
-// broadcaster's reply-template overrides. ok is false when the raffle store is
-// absent (the module is inert), so callers return without acting.
 func newRaffleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (rc raffleCmd, ok bool) {
 	if d.Raffle == nil {
 		return raffleCmd{}, false
@@ -103,8 +60,6 @@ func newRaffleCmd(d engine.Deps, c *module.Context, log *zap.Logger) (rc raffleC
 	return rc, true
 }
 
-// raffleStandalone adapts a raffleCmd method into a RunFunc for the
-// argument-less commands (!join, !claim, !winner).
 func raffleStandalone(d engine.Deps, log *zap.Logger, fn func(raffleCmd, context.Context, module.Emit) error) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, _ string, emit module.Emit) error {
 		rc, ok := newRaffleCmd(d, c, log)
@@ -115,17 +70,11 @@ func raffleStandalone(d engine.Deps, log *zap.Logger, fn func(raffleCmd, context
 	}
 }
 
-// raffleRoute is one !raffle subcommand's dispatch row: the handler plus
-// whether it is moderator-gated. The gate lives in the router, so every route
-// spends zero branches on permission itself.
 type raffleRoute struct {
 	mod bool
 	run func(rc raffleCmd, ctx context.Context, args string, emit module.Emit) error
 }
 
-// raffleRoutes maps each !raffle subcommand ("" for bare !raffle) to its row.
-// A subcommand not in the table gets usage; a mod-only row typed by a non-mod
-// is silently ignored, matching the engine gate's silence.
 var raffleRoutes = map[string]raffleRoute{
 	"": {run: func(rc raffleCmd, ctx context.Context, _ string, emit module.Emit) error { return rc.status(ctx, emit) }},
 	"open": {mod: true, run: func(rc raffleCmd, ctx context.Context, args string, emit module.Emit) error {
@@ -140,8 +89,6 @@ var raffleRoutes = map[string]raffleRoute{
 	"cancel": {mod: true, run: func(rc raffleCmd, ctx context.Context, _ string, emit module.Emit) error { return rc.cancel(ctx, emit) }},
 }
 
-// raffleDispatch handles !raffle and routes its subcommands. The engine's
-// command gate runs it for everyone; per-row mod flags re-check the role.
 func raffleDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 	return func(ctx context.Context, c *module.Context, args string, emit module.Emit) error {
 		rc, ok := newRaffleCmd(d, c, log)
@@ -161,8 +108,6 @@ func raffleDispatch(d engine.Deps, log *zap.Logger) module.RunFunc {
 	}
 }
 
-// status answers a bare !raffle with whether one runs, its pool size and the
-// minutes left on its deadline.
 func (rc raffleCmd) status(ctx context.Context, emit module.Emit) error {
 	st, err := rc.r.Status(ctx, rc.c.BroadcasterID)
 	if err != nil {
@@ -179,19 +124,11 @@ func (rc raffleCmd) status(ctx context.Context, emit module.Emit) error {
 	return nil
 }
 
-// optInt parses one optional integer argument; ok=false leaves the field at
-// the caller's default. Non-numeric text (a stray word after !raffle open) is
-// simply not a number.
 func optInt(s string) (n int64, ok bool) {
 	n, err := strconv.ParseInt(s, 10, 64)
 	return n, err == nil
 }
 
-// parseOpenArgs decodes "!raffle open [minutes] [winners] [remind]". Absent
-// minutes/winners keep their zero values (module and store defaults); an
-// absent remind keeps zero (store's default cadence), while an explicit
-// remind of zero-or-less becomes a negative duration — the store's explicit
-// disable.
 func parseOpenArgs(args string) (minutes, winners int64, remind time.Duration) {
 	minArg, rest := splitFirst(args)
 	winArg, remRest := splitFirst(rest)
@@ -213,10 +150,6 @@ func parseOpenArgs(args string) (minutes, winners int64, remind time.Duration) {
 	return minutes, winners, remind
 }
 
-// open starts a raffle from "<minutes> <winners> <remind>" args; all optional,
-// all clamped by the store. remind is the reminder cadence in minutes — 0 or
-// negative disables the time-left ticker, empty uses the store's default.
-// ok=false means the deadline gate found one running.
 func (rc raffleCmd) open(ctx context.Context, args string, emit module.Emit) error {
 	minutes, winners, remind := parseOpenArgs(args)
 
@@ -238,8 +171,6 @@ func (rc raffleCmd) open(ctx context.Context, args string, emit module.Emit) err
 	return nil
 }
 
-// join enters the invoking chatter. Joining twice answers with the standing
-// entry count rather than re-adding (the ZADD NX guarantee).
 func (rc raffleCmd) join(ctx context.Context, emit module.Emit) error {
 	login := strings.ToLower(rc.c.Env.ChatterUserLogin)
 	if login == "" {
@@ -262,8 +193,6 @@ func (rc raffleCmd) join(ctx context.Context, emit module.Emit) error {
 	return nil
 }
 
-// draw closes the raffle now and announces. countOverride parses an explicit
-// winner count; empty/invalid falls back to the state's configured count.
 func (rc raffleCmd) draw(ctx context.Context, arg string, emit module.Emit) error {
 	override := int64(0)
 	if n, err := strconv.ParseInt(strings.TrimSpace(arg), 10, 64); err == nil && n > 0 {
@@ -282,7 +211,6 @@ func (rc raffleCmd) draw(ctx context.Context, arg string, emit module.Emit) erro
 	return nil
 }
 
-// cancel tears the running raffle down without drawing anything.
 func (rc raffleCmd) cancel(ctx context.Context, emit module.Emit) error {
 	ok, err := rc.r.Cancel(ctx, rc.c.BroadcasterID)
 	if err != nil {
@@ -297,8 +225,6 @@ func (rc raffleCmd) cancel(ctx context.Context, emit module.Emit) error {
 	return nil
 }
 
-// last recalls the previous draw's winners for !winner, splitting confirmed
-// claims from unclaimed prizes once any winner has used !claim.
 func (rc raffleCmd) last(ctx context.Context, emit module.Emit) error {
 	res, found, err := rc.r.LastResult(ctx, rc.c.BroadcasterID)
 	if err != nil {
@@ -324,9 +250,6 @@ func (rc raffleCmd) last(ctx context.Context, emit module.Emit) error {
 	return nil
 }
 
-// claimConfirm handles a winner's !claim against the latest draw. Non-winners
-// share the no-prize reply — chat has no business learning who did or didn't
-// win beyond what the announcement already said.
 func (rc raffleCmd) claimConfirm(ctx context.Context, emit module.Emit) error {
 	login := strings.ToLower(rc.c.Env.ChatterUserLogin)
 	if login == "" {
@@ -350,8 +273,6 @@ func (rc raffleCmd) claimConfirm(ctx context.Context, emit module.Emit) error {
 	return nil
 }
 
-// announceResult posts a draw outcome shared by the manual command and usable
-// verbatim by tests: empty pool says nobody won, otherwise the winners line.
 func (rc raffleCmd) announceResult(emit module.Emit, res *engine.RaffleResult) {
 	if len(res.Winners) == 0 {
 		rc.reply(emit, "", "raffle.draw.empty")
@@ -363,8 +284,6 @@ func (rc raffleCmd) announceResult(emit module.Emit, res *engine.RaffleResult) {
 		"entrants", strconv.FormatInt(res.Entrants, 10))
 }
 
-// mentionTargets renders winners as chat mentions: "@a, @b". Entries are
-// stored as logins (the queue precedent), so a prefix is all it takes.
 func mentionTargets(winners []string) string {
 	prefixed := make([]string, len(winners))
 	for i, w := range winners {

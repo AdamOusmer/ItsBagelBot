@@ -1,18 +1,12 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Namespace policy for the data-owning services (the db tier of the
-# app/db/messaging/cache split). Mirrors deploy/k8s/network-policies.yaml's
-# model: default-deny scoped to our own pods, explicit egress grants per
-# dependency, and the probe-port workaround for cilium/cilium#43012.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-db
   namespace: db
 spec:
-  # Scoped to our apps so operators or debug pods in the namespace are not
-  # silently firewalled.
   podSelector:
     matchExpressions:
       - key: app
@@ -22,20 +16,14 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Peers in this namespace.
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: db
-    # The app tier (consoles and workers talk to these services only over NATS
-    # RPC, but keep the grant symmetric with the old shared-namespace model so
-    # any direct HTTP hop that exists today keeps working).
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: app
-    # traefik (networking namespace): the transactions webhook route and the
-    # per-service /status routes terminate on these pods.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -51,26 +39,20 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    # Peers in this namespace.
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: db
-    # NATS hub + leaf.
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: messaging
-    # Valkey.
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: cache
 ---
-# WORKAROUND for cilium/cilium#43012 (v1.18.4+): kubelet health probes arrive
-# from cilium_host misclassified as "world" instead of "host", so default-deny
-# eats every httpGet probe. Same shape and same REVERT-when-fixed note as the
-# app namespace's copy; 8080 covers every service here (TLS health listeners).
+# WORKAROUND cilium/cilium#43012: kubelet probes arrive as "world"; without this default-deny drops them.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -89,11 +71,6 @@ spec:
         - port: 8080
           protocol: TCP
 ---
-# APM exports to New Relic, Resend mail (notifications, transactions gift
-# email) and Tebex (transactions) all ride HTTPS. Explicit so a workload cannot
-# inherit public egress merely by joining default-deny-db. discord-data is on
-# the list for the New Relic export alone: it calls neither Discord nor any
-# other public API, and reaches its own dependencies over NATS and 3306.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -112,15 +89,7 @@ spec:
         - port: 443
           protocol: TCP
 ---
-# Data owners reach the managed HeatWave endpoint. projector is deliberately
-# absent: it reads projections over NATS RPC and owns no schema
-# (data-and-state rules).
-#
-# Two destinations, one per path. 204.216.107.73/32 is nlb-mysql, the public
-# OCI Network LB in front of HeatWave (2026-08-27): services dial it via
-# DB_ADDR so the DB path no longer rides the witness1 tailscale subnet route
-# (SPOF). 10.0.0.0/16 stays because any direct-VCN fallback (a DB_ADDR
-# rollback) still uses it; removing it turns a Doppler rollback into an outage.
+# 10.0.0.0/16 stays for a DB_ADDR rollback to the direct VCN path; removing it breaks that rollback.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

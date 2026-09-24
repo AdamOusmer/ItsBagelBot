@@ -11,23 +11,16 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// Floor-acknowledgement behaviour: the batch floor covering acked messages,
-// partial drains, close-time acks, malformed deliveries and the retry path.
-
 func TestPullFloorAckCoversTheWholeBatch(t *testing.T) {
 	sub := testPullSubscriber()
 	drain := drainLane(sub)
 
 	batch := deliverPullBatch(t, sub, 1, 2, 3)
-	// Nothing is acked until the batch is done: the floor is what makes the
-	// per-message ack unnecessary, so a per-message ack here would be the bug.
 	requireNoAcksYet(t, batch)
 
 	sub.advanceFloor()
 	requireFloorAckedOnce(t, batch)
 
-	// The floor is published once per receipt: a second flush with nothing new
-	// received must not re-ack a sequence the server already has.
 	sub.advanceFloor()
 	if last := batch[len(batch)-1]; last.acks() != 1 {
 		t.Fatalf("floor was re-published: acks = %d", last.acks())
@@ -36,8 +29,6 @@ func TestPullFloorAckCoversTheWholeBatch(t *testing.T) {
 	drain()
 }
 
-// deliverPullBatch hands the subscriber one fetch batch through the real deliver
-// path, in sequence order.
 func deliverPullBatch(t *testing.T, sub *pullSubscriber, sequences ...uint64) []*fakePullMsg {
 	t.Helper()
 	batch := make([]*fakePullMsg, 0, len(sequences))
@@ -60,8 +51,6 @@ func requireNoAcksYet(t *testing.T, batch []*fakePullMsg) {
 	}
 }
 
-// requireFloorAckedOnce states the cadence: one publish for the whole batch,
-// naming its last message and no other.
 func requireFloorAckedOnce(t *testing.T, batch []*fakePullMsg) {
 	t.Helper()
 	last := batch[len(batch)-1]
@@ -75,9 +64,6 @@ func requireFloorAckedOnce(t *testing.T, batch []*fakePullMsg) {
 	}
 }
 
-// TestPullFloorAckTimerCoversAPartiallyDrainedBatch is the other half of the
-// cadence. A pod blocked on a slow handler pool must not hold the shared pending
-// set open for the messages it has already handed out.
 func TestPullFloorAckTimerCoversAPartiallyDrainedBatch(t *testing.T) {
 	sub := testPullSubscriber()
 	sub.ackEvery = 5 * time.Millisecond
@@ -99,8 +85,6 @@ func TestPullFloorAckTimerCoversAPartiallyDrainedBatch(t *testing.T) {
 	drain()
 }
 
-// TestPullCloseAcksTheFinalFloor guards the shutdown path: a pod that exits
-// without publishing its floor hands its whole last batch back to the fleet.
 func TestPullCloseAcksTheFinalFloor(t *testing.T) {
 	sub := testPullSubscriber()
 	drain := drainLane(sub)
@@ -108,8 +92,6 @@ func TestPullCloseAcksTheFinalFloor(t *testing.T) {
 	last := fakePullDelivery(42)
 	sub.deliver(last)
 
-	// The real shutdown flushes and closes the connection; this asserts the step
-	// that has to happen before it, in the order it happens.
 	close(sub.closeCh)
 	sub.advanceFloor()
 	if last.acks() != 1 {
@@ -123,9 +105,6 @@ func TestPullMalformedDeliveryStillAdvancesTheFloor(t *testing.T) {
 	defer close(sub.closeCh)
 
 	wire := fakePullDelivery(11)
-	// A multi-valued header is what the decoder rejects; the delivery still
-	// happened, and a hole in the floor for it would stall the shared durable at
-	// MaxAckPending for every pod on the lane.
 	wire.header["Bagelbot-Lane"] = []string{"premium", "standard"}
 
 	if !sub.deliver(wire) {
@@ -137,8 +116,6 @@ func TestPullMalformedDeliveryStillAdvancesTheFloor(t *testing.T) {
 	}
 }
 
-// TestPullNackUsesTheSharedRetryHelper proves the pull path reaches the same
-// one-hop budget check the flow path does, rather than a second copy of it.
 func TestPullNackUsesTheSharedRetryHelper(t *testing.T) {
 	sub := testPullSubscriber()
 	defer close(sub.closeCh)
@@ -147,8 +124,6 @@ func TestPullNackUsesTheSharedRetryHelper(t *testing.T) {
 	msg.Metadata.Set(RetryCountHeader, "1")
 	delivery := pullDelivery{wire: nats.NewMsg(sub.subject), msg: msg}
 
-	// The budget is exhausted, so the helper refuses before it ever touches the
-	// connection — which is also what lets this run without a broker.
 	sub.scheduleRetry(delivery)
 	if sub.dropped.Load() != 1 {
 		t.Fatalf("dropped = %d, want the exhausted retry budget to drop the event", sub.dropped.Load())
@@ -159,17 +134,11 @@ func TestPullNackUsesTheSharedRetryHelper(t *testing.T) {
 	}
 }
 
-// TestPullNackReachesTheRetryPathFromTheResolveCallback runs the verdict through
-// the real deliver path. There is no goroutine parked on the message's signals
-// any more, so the callback deliver installs is the only thing that can carry a
-// failure to the retry helper.
 func TestPullNackReachesTheRetryPathFromTheResolveCallback(t *testing.T) {
 	sub := testPullSubscriber()
 	defer close(sub.closeCh)
 
 	wire := fakePullDelivery(12)
-	// An exhausted budget refuses inside the shared helper before it reaches the
-	// connection, which is what lets the retry path run here without a broker.
 	wire.header.Set(RetryCountHeader, "1")
 
 	received := make(chan *Message, 1)
@@ -182,7 +151,6 @@ func TestPullNackReachesTheRetryPathFromTheResolveCallback(t *testing.T) {
 	if !msg.Nack() {
 		t.Fatal("the first Nack must win")
 	}
-	// A losing call must not schedule the event a second time.
 	msg.Nack()
 
 	sub.inflight.Wait()
@@ -192,13 +160,8 @@ func TestPullNackReachesTheRetryPathFromTheResolveCallback(t *testing.T) {
 	}
 }
 
-// TestPullDeliveryLostToShutdownReleasesItsInflightCount guards the one path
-// where the resolve callback provably never runs: the send lost the race to
-// closeCh, so no handler ever saw the message. Without the explicit release,
-// shutdown would spend its whole drain budget on a count nobody owns.
 func TestPullDeliveryLostToShutdownReleasesItsInflightCount(t *testing.T) {
 	sub := testPullSubscriber()
-	// Nothing reads the lane channel and the binding is already closing.
 	close(sub.closeCh)
 
 	if sub.deliver(fakePullDelivery(5)) {
@@ -210,8 +173,3 @@ func TestPullDeliveryLostToShutdownReleasesItsInflightCount(t *testing.T) {
 		t.Fatal("a delivery lost to shutdown leaked its inflight count")
 	}
 }
-
-// TestPullWireCarriesAStableIdentity guards the retry hop. The pull API's
-// message cannot be read through nats.go's subscription-bound metadata parser,
-// so without the stamp an ingress-origin event would get a fresh NUID per
-// delivery and its retry would be unmatchable by any dedup guard.

@@ -2,16 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * QuietWork: a bento of the bot's chores, each card running its own tiny
- * live demo instead of a feature blurb. Built on the shared Card's housing
- * band (instrument-panel shell): each demo sits in the band with a mono
- * channel label, copy on the plate below. Demos are CSS loops, with one
- * small script for the giveaway name-shuffle and the poll bars (which want
- * a reveal trigger). The Spotify song-request card leads the bento: it is the
- * feature people arrive searching for, so it gets the full-width housing and
- * the section's first heading.
- */
 import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
@@ -28,7 +18,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     <SectionHeading eyebrow={t('qw.eyebrow')} title={t('qw.title')} />
 
     <div class="qw__grid">
-        <!-- Spotify song requests: chat's !sr lands in the real queue -->
         <Card atmo hover class="qw__card qw__card--full" data-reveal>
             <div class="qw__demo qw__demo--song" slot="band" aria-hidden="true">
                 <span class="qw-song__art">
@@ -51,7 +40,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
             </a>
         </Card>
 
-        <!-- Govee: bulb lights up and washes the stage in chat's colour -->
         <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 1">
             <div class="qw__demo qw__demo--govee" slot="band" aria-hidden="true">
                 <span class="qw-govee__glow bb-stack">
@@ -75,7 +63,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
             <p class="qw__desc">{t('qw.goveeDesc')}</p>
         </Card>
 
-        <!-- Commands: typewriter call + response -->
         <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 2">
             <div class="qw__demo qw__demo--cmd" slot="band" aria-hidden="true">
                 <span class="qw-cmd__in">!welcome moth_lamp</span>
@@ -85,7 +72,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
             <p class="qw__desc">{t('qw.cmdDesc')}</p>
         </Card>
 
-        <!-- Polls: racing bars, triggered on reveal -->
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 3">
             <div class="qw__demo qw__demo--poll" slot="band" aria-hidden="true" data-qw-poll>
                 <span class="qw-poll__bar"><i style="--w: 68%"></i><b>68%</b></span>
@@ -98,7 +84,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
             <p class="qw__desc">{t('qw.pollDesc')}</p>
         </Card>
 
-        <!-- Giveaways: name shuffle that lands -->
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 4">
             <div class="qw__demo qw__demo--win" slot="band" aria-hidden="true">
                 <span class="qw-win__label">{t('qw.winLabel')}</span>
@@ -108,7 +93,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
             <p class="qw__desc">{t('qw.winDesc')}</p>
         </Card>
 
-        <!-- Always on: heartbeat -->
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 5">
             <div class="qw__demo qw__demo--beat" slot="band" aria-hidden="true">
                 <span class="qw-beat">
@@ -139,7 +123,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
-        /* One housing height for the whole bento so every seam lines up. */
         --card-band-h: 112px;
     }
 
@@ -153,10 +136,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         .qw__card--wide { grid-column: span 3; }
     }
 
-    /* The song-request card is the section's lead: one row to itself at every
-       breakpoint, so the demo has room for request → queue → now playing.
-       Declared after the 6-column block: same specificity as .qw__card, so
-       source order is what keeps it full-width there. */
     .qw__card--full { grid-column: 1 / -1; }
 
     .qw__title {
@@ -182,11 +161,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         margin: 0;
     }
 
-    /* ── Demo stage shared ──
-       The demo lives in the Card's housing band now (slot="band"), so the
-       chip chrome (own border/background/radius) is gone, the band is the
-       fixture. Height comes from the band's 104px minimum. */
-
     .qw__demo {
         display: flex;
         flex-direction: column;
@@ -197,9 +171,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.74rem;
     }
-
-    /* ── Spotify song requests: !sr slides in, the queue answers, the
-       track plays on. Lateral motion only, one ease-out curve. ── */
 
     .qw__demo--song {
         flex-direction: row;
@@ -246,8 +217,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         to   { transform: scaleY(1);   opacity: 1; }
     }
 
-    /* The player reads as a player, not a page-wide rule: cap it and let the
-       band's empty middle carry the request over to the queue on the right. */
     .qw-song__meta {
         display: flex;
         flex-direction: column;
@@ -294,7 +263,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         100% { transform: scaleX(1); }
     }
 
-    /* The request arrives from the right, the queue acknowledges it. */
     .qw-song__req {
         flex: none;
         display: flex;
@@ -332,12 +300,9 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         97%, 100% { opacity: 0; transform: translateX(12px); }
     }
 
-    /* Narrow cards keep the player; the request line is the first thing to go. */
     @media (max-width: 560px) {
         .qw-song__req { display: none; }
     }
-
-    /* ── Govee: bulb wakes on redeem, light washes the stage ── */
 
     .qw__demo--govee {
         position: relative;
@@ -346,7 +311,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         gap: 16px;
     }
 
-    /* ambient spill from the bulb across the stage */
     .qw-govee__glow {
         position: absolute;
         inset: 0;
@@ -370,7 +334,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 16px currentColor);
     }
 
-    /* :global: the bulb is Icon's root svg, outside this component's scope. */
     .qw-govee__bulb :global(svg) { width: 44px; height: 44px; }
 
     .qw-govee__redeem {
@@ -395,8 +358,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         box-shadow: 0 0 8px currentColor;
     }
 
-    /* off → redeem lands → warm sunset wash → eases back to dark. One static
-       copy per tone crossfading on opacity (bb-stack), not an animated color. */
     .qw-govee__tone {
         opacity: 0;
         animation-duration: 9s;
@@ -451,8 +412,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         94%, 100% { opacity: 0; }
     }
 
-    /* ── Commands: typewriter in, reply out ── */
-
     .qw-cmd__in {
         color: var(--tan-light, #e0c49a);
         width: 18ch;
@@ -483,8 +442,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 
 
 
-    /* ── Polls: bars fill when revealed ── */
-
     .qw-poll__bar {
         display: grid;
         grid-template-columns: 1fr auto;
@@ -498,13 +455,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         width: 4%;
         border-radius: var(--radius-xs);
         background: linear-gradient(90deg, rgba(201, 168, 124, 0.5), var(--tan, #c9a87c));
-        /* Stays `width`, not a composited transform, on purpose. scaleX() on a
-           7px-tall bar scales its 4px radius-xs corners horizontally too, so the
-           pill ends flatten to near-square for the whole fill (worst at the 4%
-           start: 0.16px of radius). Lighthouse lists this as a non-composited
-           animation; it is a one-shot 1200ms reveal on a handful of 7px bars,
-           which is a cheaper trade than distorted corners on the design system's
-           radius scale. */
         transition: width 1200ms var(--ease-out-expo);
     }
 
@@ -521,8 +471,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 
     .qw__demo--poll.is-live .qw-poll__bar i { width: var(--w, 50%); }
 
-    /* ── Giveaway winner ── */
-
     .qw__demo--win { align-items: flex-start; gap: 4px; }
 
     .qw-win__label {
@@ -538,14 +486,8 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         text-shadow: 0 0 18px rgba(201, 168, 124, 0.35);
     }
 
-    /* ── Heartbeat ── */
-
     .qw__demo--beat { color: var(--green-glow, #52b788); padding: 18px 12px; }
 
-    /* The trace draws in with a wipe (bb-wipe) instead of stroke-dashoffset:
-       linear() reaches the right edge at 62% of the loop and holds there while
-       the fade runs, the same beats the dash offset used to hit. The window is
-       padded past the demo so it does not clip the glow. */
     .qw-beat {
         display: block;
         width: 100%;
@@ -605,7 +547,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     import { bindOnce } from '../../script/bind';
     import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
-    /* Poll bars fill the first time the card scrolls into view */
     const pollsIn = new IntersectionObserver((entries, obs) => {
         entries.forEach((entry) => {
             if (!entry.isIntersecting) return;
@@ -614,7 +555,6 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         });
     }, { threshold: 0.4 });
 
-    /* Giveaway name shuffles, then lands. Loops slowly while visible. */
     const NAMES = ['night_owl_77', 'gg_beans', 'moth_lamp', 'soupdream', 'tiny_cactus', 'pixel_pal'];
     const GLYPHS = 'abcdefghijklmnopqrstuvwxyz_0123456789';
 

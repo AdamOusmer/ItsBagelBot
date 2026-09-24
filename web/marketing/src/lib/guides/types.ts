@@ -1,19 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * The guides content model. Everything a broadcaster reads lives in a content
- * English structure under src/content/guides/<slug>.en.ts shaped by these types; the
- * components under src/components/guides render them and hold no copy of their
- * own. Type-only import of Lang so a content file never pulls the i18n runtime.
- */
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 import type { Lang } from '../../i18n/ui';
 import type { GuideSlug } from './slugs';
 
 export type { Lang };
 
-/** One line in a ChatMock vignette. Mirrors ChatMock.astro's own props. */
 export interface ChatLine {
   who: 'viewer' | 'mod' | 'bot' | 'system';
   name?: string;
@@ -21,16 +14,11 @@ export interface ChatLine {
   time?: string;
 }
 
-/** A numbered annotation under a dashboard mock, paired with a gs-mark anchor in the screen; the legend line lights that element on hover. */
 export interface Note {
   n: number;
   text: string;
 }
 
-/**
- * Dashboard mock screens. One component per distinct mock UI under
- * src/components/guides/screens; add a name here and a file there together.
- */
 export type ScreenName =
   | 'DashboardHome'
   | 'CommandsList'
@@ -42,15 +30,8 @@ export type ScreenName =
   | 'DataSourceModal'
   | 'DataSourcePicker';
 
-/**
- * A screen or widget component, as the two dispatchers hold it. Astro exports
- * a component factory from a .astro module; naming it here is what lets the
- * dispatchers stay typed maps instead of `Record<string, unknown>` that
- * GuideBody has to cast element by element.
- */
 export type GuideComponent = AstroComponentFactory;
 
-/** Interactive widgets. Resolved through src/components/guides/widgets/index.ts. */
 export type WidgetName =
   | 'Checklist'
   | 'PathPicker'
@@ -60,11 +41,7 @@ export type WidgetName =
   | 'Rehearsal'
   | 'CounterPlay';
 
-/**
- * One piece of a section. `html` fields are authored, trusted HTML: they are
- * written by us in the content files and rendered with set:html, never built
- * from anything a visitor types.
- */
+/** Trusted authored HTML rendered with set:html; never build it from visitor input. */
 export type Block =
   | { kind: 'prose'; html: string }
   | { kind: 'callout'; tone: 'tip' | 'warn' | 'note'; html: string }
@@ -75,7 +52,6 @@ export type Block =
   | { kind: 'cards'; columns?: 2 | 3; items: { title: string; html: string; chips?: string[]; badge?: string }[] }
   | { kind: 'widget'; name: WidgetName; labels?: Record<string, string>; props?: Record<string, unknown> };
 
-/** A numbered chapter of a guide: the TOC entry, the glance note, the body. */
 export interface Section {
   id: string;
   heading: string;
@@ -83,11 +59,6 @@ export interface Section {
   blocks: Block[];
 }
 
-/**
- * Everything outside the body: the <head>, the hero, and the hub card.
- * title/description are the <head> pair; heading/lead are the PageHero pair
- * (they say different things, so they are separate fields, not one reused).
- */
 export interface GuideMeta {
   title: string;
   description: string;
@@ -104,7 +75,6 @@ export interface GuideContent {
   sections: Section[];
 }
 
-/** A link in the hub's help strip. `external` opens in a new tab. */
 export interface HubLink {
   href: string;
   label: string;
@@ -113,7 +83,6 @@ export interface HubLink {
 
 export interface HubContent {
   meta: { title: string; description: string; eyebrow: string; heading: string; lead: string };
-  /** Label of the button on every guide row. */
   readCta: string;
   tool: {
     href: string;

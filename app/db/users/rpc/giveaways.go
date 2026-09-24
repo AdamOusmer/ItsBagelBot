@@ -14,8 +14,6 @@ import (
 	"ItsBagelBot/pkg/bus"
 )
 
-// SubscribeGiveaways exposes the private Users-owned premium grant contract.
-// The prefix is imported only by Transactions through NATS permissions.
 func SubscribeGiveaways(w Wiring, prefix string, invalidationPrefixes ...string) error {
 	rpc := giveawayRPC{w: w, invalidationPrefix: firstPrefix(invalidationPrefixes)}
 	bind := func(suffix string, handler any) error { return bindGiveawayVerb(w, prefix+"."+suffix, handler) }

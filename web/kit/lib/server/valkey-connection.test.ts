@@ -42,14 +42,6 @@ describe('Valkey native TLS connection policy', () => {
     ).not.toHaveProperty('cert');
   });
 
-  // Refs #560: the client cert must be re-read from disk on every reconnect,
-  // not baked in once at options-build time, or a cert-manager rotation at
-  // day 75 leaves the process presenting an expired cert at day 90. iovalkey's
-  // connectors re-copy the `tls` options object into the socket options on
-  // every connect() call, and Object.assign invokes property getters at copy
-  // time -- so re-reading `options.cert`/`options.key` here stands in for
-  // that per-reconnect re-copy and proves the getter, not a cached value, is
-  // what iovalkey will observe on the next handshake.
   test('mTLS cert/key are re-read from disk on every access, not cached from construction', () => {
     const dir = mkdtempSync(join(tmpdir(), 'valkey-mtls-'));
     const certFile = join(dir, 'tls.crt');
@@ -67,7 +59,6 @@ describe('Valkey native TLS connection policy', () => {
     expect(options?.cert?.toString()).toBe('cert-v1');
     expect(options?.key?.toString()).toBe('key-v1');
 
-    // cert-manager's renewal: same path, rotated content.
     writeFileSync(certFile, 'cert-v2');
     writeFileSync(keyFile, 'key-v2');
 

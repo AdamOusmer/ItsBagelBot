@@ -2,10 +2,6 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The bot account's own OAuth state, plus the link that starts its consent
-  // flow. Owner-only (the caller gates on allows(role, 'bot.token')): this is
-  // the one flow that mints a live Twitch credential from a URL that looks
-  // unauthenticated.
   import { onMount } from 'svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
@@ -20,9 +16,6 @@
 
   const { t } = getI18n();
 
-  // Absolute URL of the bot-authorization route. The operator opens it in the
-  // browser signed into the bot account; that browser gets the state cookie and
-  // the callback validates it there, so the link works across the browser switch.
   let botLink = $state('');
   let copied = $state(false);
   onMount(() => {
@@ -108,9 +101,6 @@
     font-size: 12.5px;
     color: var(--bb-muted);
   }
-  /* Keyed on the CTA's own class, not on `.bb-btn`: this is where the button
-     sits in THIS row, which is composition, and reaching into the contract
-     class made it look like a second definition of the button. */
   :global(.bot-cta) {
     margin-left: auto;
     white-space: nowrap;
@@ -135,9 +125,6 @@
     .row {
       flex-wrap: wrap;
     }
-    /* `--btn-w` / `--btn-justify` are the button contract's own knobs
-       (elements/button.css); the row hands them down instead of restating the
-       declarations they set. */
     .row { --btn-w: 100%; --btn-justify: center; }
     :global(.bot-cta) { margin-left: 0; }
   }

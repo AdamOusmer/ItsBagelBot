@@ -2,15 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Metrics do
-  @moduledoc """
-  Batched New Relic metrics for the ingress hot path.
-
-  Counter updates are public ETS increments, so event producers never call the
-  monitoring agent or send a message to a metrics process. The owning process
-  drains those counters periodically into New Relic. Lifecycle events remain
-  immediate because they are rare and carry structured attributes.
-  """
-
   use GenServer
 
   @table __MODULE__.Counters
@@ -21,38 +12,20 @@ defmodule Ingress.Metrics do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @doc "Adds to a counter without leaving the caller's scheduler."
   @spec count(String.t(), integer()) :: :ok
   def count(name, value \\ 1) do
     :ets.update_counter(@table, name, {2, value}, {name, 0})
     :ok
   rescue
-    # The application does not start infrastructure in unit tests, and metrics
-    # must never be part of the service's availability contract.
     ArgumentError -> :ok
   end
 
-  @doc """
-  Counts one drop twice: the `total` every dashboard alerts on, and the
-  per-reason counter under it that says which drop it was.
-
-  The pair was written out by hand at every drop site and had already come
-  apart — one publish path incremented the total with no reason counter at all,
-  so a drop spike there could not be attributed. Deriving the reason counter
-  from the total also keeps the two names in one namespace, which the older
-  hand-written pairs did not (`Nats/PublishDropped` next to
-  `Nats/PublishOverloaded`).
-
-  `reason` must come from a closed set the caller controls — a raw error term
-  would put unbounded cardinality into a metric name.
-  """
   @spec count_drop(String.t(), atom() | String.t()) :: :ok
   def count_drop(total, reason) do
     count(total)
     count("#{total}/#{reason}")
   end
 
-  @doc "Reports a rare lifecycle event immediately."
   @spec event(String.t(), map()) :: :ok
   def event(name, attributes \\ %{}) do
     NewRelic.report_custom_event(
@@ -100,8 +73,6 @@ defmodule Ingress.Metrics do
 
   defp flush_counters do
     for {name, value} <- :ets.tab2list(@table), value != 0 do
-      # Subtract the snapshot rather than replacing with zero: increments that
-      # race this drain remain in the table for the next flush.
       :ets.update_counter(@table, name, {2, -value})
 
       unless report_counter(name, value) do

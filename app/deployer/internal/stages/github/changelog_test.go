@@ -15,9 +15,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// TestChangelogRenderMatchesHandWritten: an entry rendered by the deployer is
-// byte-identical to the hand-written files it continues, so the marketing
-// collection and future hand edits see no churn.
 func TestChangelogRenderMatchesHandWritten(t *testing.T) {
 	for _, name := range []string{"v0.2.1-beta.json", "v0.2.2-beta.json"} {
 		t.Run(name, func(t *testing.T) {
@@ -161,8 +158,6 @@ func TestChangelogStage(t *testing.T) {
 	}
 }
 
-// TestChangelogStageWritesRenderedFile: what lands on main is the rendered
-// entry with the pinned date and the release link.
 func TestChangelogStageWritesRenderedFile(t *testing.T) {
 	run := newRun(deploy.KindRelease)
 	run.Version, run.Changelog = "v0.2.3-beta", validEntry()

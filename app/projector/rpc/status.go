@@ -19,14 +19,11 @@ import (
 	"ItsBagelBot/pkg/cache"
 )
 
-// statusCacheCapacity ceilings the resolved-status cache. It is keyed one entry
-// per broadcaster with a 30s TTL, so a few thousand covers the distinct
-// broadcasters a projector pod answers for within the window without holding the
-// generic cache.DefaultCapacity ten thousand at rest.
-const statusCacheCapacity int64 = 4096
+const (
+	statusCacheCapacity int64 = 4096
+	statusCacheTTL            = 30 * time.Second
+)
 
-// statusEntry is the cached per-broadcaster decision: the resolved tier plus
-// whether the broadcaster is banned from the service.
 type statusEntry struct {
 	Tier   string
 	Banned bool
@@ -34,7 +31,7 @@ type statusEntry struct {
 
 type statusRPC struct {
 	valkey     *projection.Store
-	views      *cache.Cache[statusEntry] // caching the resolved tier + ban flag
+	views      *cache.Cache[statusEntry]
 	nc         *nats.Conn
 	usersTopic string
 	log        *zap.Logger
@@ -43,15 +40,13 @@ type statusRPC struct {
 func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopic, invalidateSubject, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	s := &statusRPC{
 		valkey:     valkey,
-		views:      cache.New[statusEntry](statusCacheCapacity, 30*time.Second), // short lived in-process cache
+		views:      cache.New[statusEntry](statusCacheCapacity, statusCacheTTL),
 		nc:         nc,
 		usersTopic: usersTopic,
 		log:        log,
 	}
 
-	// Core-NATS fan-out (no queue group): every projector pod drops its cached
-	// tier/ban decision the moment a user changes, instead of waiting out the
-	// 30s TTL. Without this a ban or tier change is stale per pod for up to 30s.
+	// No queue group: every pod must drop its cached decision on a user change.
 	if invalidateSubject != "" {
 		if _, err := nc.Subscribe(invalidateSubject, func(msg *nats.Msg) {
 			id, err := strconv.ParseUint(string(msg.Data), 10, 64)
@@ -67,13 +62,10 @@ func SubscribeStatus(nc *nats.Conn, valkey *projection.Store, subject, usersTopi
 	return bus.QueueSubscribeJSON[projectorrpc.StatusRequest, projectorrpc.StatusReply](nc, subject, queueGroup, 1500*time.Millisecond, app, log, s.handleGet)
 }
 
-// tierKey is the in-process cache key for a user's resolved tier+ban entry.
 func tierKey(id uint64) string {
 	return "tier:" + strconv.FormatUint(id, 10)
 }
 
-// Invalidate drops the cached tier+ban decision for one user so the next status
-// query re-resolves it from the freshly projected Valkey state.
 func (s *statusRPC) Invalidate(id uint64) {
 	s.views.Invalidate(tierKey(id))
 }

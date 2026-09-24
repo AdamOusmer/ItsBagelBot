@@ -13,7 +13,6 @@ import (
 
 type bindingRPC struct{ repo BindingStore }
 
-// subscribeBindings registers the four guild-binding verbs.
 func subscribeBindings(w Wiring) error {
 	h := bindingRPC{repo: w.Repo}
 	return errors.Join(

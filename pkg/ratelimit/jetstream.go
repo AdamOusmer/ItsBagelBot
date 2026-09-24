@@ -12,8 +12,6 @@ import (
 	"ItsBagelBot/pkg/kvstate"
 )
 
-// JetStreamManager shares one authoritative bucket across all replicas. There
-// is no backend failover: Valkey availability cannot create a second budget.
 type JetStreamManager struct{ store kvstate.Store }
 
 func NewJetStreamManager(store kvstate.Store) *JetStreamManager {
@@ -46,15 +44,13 @@ func (m *JetStreamManager) allow(ctx context.Context, shared Request, requests [
 				return nil, err
 			}
 		}
+		// The broker's revision timestamp is the clock, never a pod's wall clock.
 		denied = evaluateBudget(state, requests, old.Created)
 		return codec.Marshal(state)
 	})
 	return denied, err
 }
 
-// The previous revision's broker timestamp is the clock, never a pod's wall
-// clock. Refill lags by one decision, deliberately conservative. Even denials
-// advance the revision so paced redelivery can observe newly earned tokens.
 func evaluateBudget(state durableBudget, requests []Request, now time.Time) uint8 {
 	var denied uint8
 	for i, req := range requests {

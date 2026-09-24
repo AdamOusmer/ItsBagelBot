@@ -23,13 +23,9 @@ func TestRetryScheduleMatchesTheServerScheduleContract(t *testing.T) {
 	for _, header := range []scheduleHeaderTerm{
 		{jsapi.ScheduleHeader, "@at 2026-07-27T12:00:03Z", "schedule pattern must be a one-shot @at three seconds out"},
 		{jsapi.ScheduleTargetHeader, "twitch.ingress.retry.premium", "schedule target"},
-		// The server rejects @at outright when a time zone header is present, even UTC.
 		{jsapi.ScheduleTimeZoneHeader, "", "schedule carried a time zone"},
 		{jsapi.ScheduleTTLHeader, retryScheduleTTL, "schedule TTL"},
 		{RetryCountHeader, "1", "retry count must be the first hop"},
-		// Application headers survive the emit; Nats-* headers do not, and the
-		// expectation headers among them would be re-evaluated against the retry
-		// stream and reject the publish.
 		{"traceparent", "00-trace-span-01", "application headers were dropped"},
 		{MessageIDHeader, "logical-id", "fleet identity was dropped"},
 		{"Nats-Expected-Last-Sequence", "", "an expectation header rode the retry"},
@@ -41,8 +37,6 @@ func TestRetryScheduleMatchesTheServerScheduleContract(t *testing.T) {
 	}
 }
 
-// scheduleHeaderTerm is one term of the schedule contract: an empty want is the
-// requirement that the header never rode the retry at all.
 type scheduleHeaderTerm struct {
 	name    string
 	want    string
@@ -57,10 +51,6 @@ func requireScheduleHeader(t *testing.T, schedule *nats.Msg, term scheduleHeader
 }
 
 func TestRetryStampsIdentityWhenIngressWireHasNone(t *testing.T) {
-	// Ingress-origin events reach the lane with no Bagelbot-Message-Id, so the
-	// re-emitted retry would otherwise land under a fresh stream sequence and read
-	// as a different message. The retry must stamp the delivery's resolved
-	// identity so a consumer's dedup guard recognises it as the same event.
 	wire := nats.NewMsg("twitch.ingress.event.standard")
 	wire.Data = []byte(`{"text":"hello"}`)
 	if wire.Header.Get(MessageIDHeader) != "" {
@@ -78,8 +68,6 @@ func TestRetrySchedulesNeverShareASubject(t *testing.T) {
 	first := retryScheduleMsg("twitch.ingress.event.standard", wire, time.Second, time.Now())
 	second := retryScheduleMsg("twitch.ingress.event.standard", wire, time.Second, time.Now())
 
-	// Publishing a schedule rolls its subject up, so a shared subject would purge
-	// the previous retry before it ever fired.
 	if first.Subject == second.Subject {
 		t.Fatalf("two retries shared the schedule subject %q", first.Subject)
 	}
@@ -135,7 +123,6 @@ func TestAMarkedRetryIsDroppedWithACounter(t *testing.T) {
 	wire.Header.Set(RetryCountHeader, "1")
 	msg := mustFlowMessage(t, wire)
 
-	// The budget check runs before anything touches the connection.
 	sub.scheduleRetry(flowDelivery{wire: wire, msg: msg})
 	if sub.dropped.Load() != 1 || sub.retried.Load() != 0 {
 		t.Fatalf("dropped=%d retried=%d, want one drop", sub.dropped.Load(), sub.retried.Load())

@@ -20,9 +20,7 @@ const (
 	providerNearBoundary     = 2 * time.Hour
 )
 
-// reconcileProviders observes protected subscriptions and records provider
-// drift. It never writes Active or otherwise attempts to undo a customer
-// cancellation; an award already granted remains intact for review.
+// Records provider drift only; must never undo a customer cancellation.
 func (e *Engine) reconcileProviders(ctx context.Context) error {
 	if e.provider == nil {
 		return nil

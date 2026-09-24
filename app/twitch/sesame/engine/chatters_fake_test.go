@@ -17,19 +17,6 @@ import (
 	valkey_go "github.com/valkey-io/valkey-go"
 )
 
-// A stateful in-process fake Valkey speaking RESP2, just wide enough for
-// ValkeyChatters' surface: SET with NX/EX, GET and DEL. The real valkey-go
-// client dials it, so these tests exercise genuine wire round trips (a real
-// NX rejection, a real decoded TTL) instead of mocked results.
-//
-// Copied in shape from pkg/valkey/lock_fake_test.go's lockFake rather than
-// imported: that one is an unexported test helper in another package (Go
-// test files are never importable across packages), and its own doc comment
-// already explains why not miniredis (not a dependency here) or
-// internal/projection's larger hash-oriented fake (a different command
-// surface this package does not issue). Renamed locally (chattersFake) to
-// keep this file's identifiers out of the way of the rest of the package's
-// tests.
 type chattersFake struct {
 	ln     net.Listener
 	client valkey_go.Client
@@ -56,7 +43,7 @@ func newChattersFake(t *testing.T) *chattersFake {
 	go f.serve()
 	client, err := valkey_go.NewClient(valkey_go.ClientOption{
 		InitAddress:  []string{ln.Addr().String()},
-		DisableCache: true, // no CLIENT TRACKING init; the fake speaks plain RESP2
+		DisableCache: true,
 	})
 	if err != nil {
 		t.Fatalf("fake valkey client: %v", err)
@@ -69,24 +56,18 @@ func newChattersFake(t *testing.T) *chattersFake {
 	return f
 }
 
-// advance moves the fake's clock, expiring whatever that passes — the TTL
-// tests need a deterministic clock, not a real sleep.
 func (f *chattersFake) advance(d time.Duration) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.now = f.now.Add(d)
 }
 
-// breakGET makes every following GET answer with a server error, so a test
-// can prove a Valkey outage is surfaced (and logged once) rather than read as
-// a clean cache miss.
 func (f *chattersFake) breakGET() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.failGET = true
 }
 
-// rawValue returns a key's stored bytes for assertions, honouring expiry.
 func (f *chattersFake) rawValue(key string) (string, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -132,7 +113,6 @@ func (f *chattersFake) exec(args chattersRESPArgs) []byte {
 	defer f.mu.Unlock()
 	switch cmd {
 	case "HELLO":
-		// Match valkey-go's noHello regex so it falls back to RESP2.
 		return chattersErr("unknown command 'HELLO'")
 	case "AUTH", "CLIENT", "SELECT", "COMMAND", "PING":
 		return chattersSimple("OK")
@@ -197,7 +177,6 @@ func chattersSetOptions(args chattersRESPArgs) (bool, time.Duration) {
 	return nx, ttl
 }
 
-// aliveLocked applies lazy expiry; the caller holds mu.
 func (f *chattersFake) aliveLocked(key string) bool {
 	if deadline, ok := f.expires[key]; ok && !f.now.Before(deadline) {
 		delete(f.strs, key)
@@ -212,8 +191,6 @@ func chattersAtoi(s string) int64 {
 	n, _ := strconv.ParseInt(s, 10, 64)
 	return n
 }
-
-// --- RESP2 wire helpers ---
 
 func chattersSimple(s string) []byte { return []byte("+" + s + "\r\n") }
 func chattersInt(v int64) []byte     { return []byte(":" + strconv.FormatInt(v, 10) + "\r\n") }
@@ -242,7 +219,7 @@ func readChattersBulk(r *bufio.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	buf := make([]byte, size+2) // payload + CRLF
+	buf := make([]byte, size+2)
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return "", err
 	}

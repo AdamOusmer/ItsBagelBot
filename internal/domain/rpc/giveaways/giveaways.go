@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package giveaways defines the private Transactions giveaway API. The
-// structures in this package are deliberately independent of Ent and of the
-// admin/dashboard implementations so every caller shares the same wire
-// contract and no caller can smuggle provider references into a mutation.
 package giveaways
 
 import (
@@ -13,9 +9,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc"
 )
 
-// Private subjects are kept here so service wiring and dashboard callers do
-// not hand-author privileged strings. The admin prefix is intentionally
-// separate from the ordinary transactions RPC namespace.
 const (
 	AdminPrefix          = "bagel.rpc.admin.giveaways"
 	MineSubject          = "bagel.rpc.transactions.giveaways.mine"
@@ -78,11 +71,9 @@ const (
 	EmailMissingContact EmailState = "missing_contact"
 )
 
-// Mutation identifies the authenticated operator and protects retries and
-// stale dashboard tabs. ActorRole is informational; Transactions resolves the
-// actor's role server-side and never trusts this field for authorization.
 type Mutation struct {
-	ActorID         string `json:"actor_id"`
+	ActorID string `json:"actor_id"`
+	// ActorRole is client-supplied; never authorize on it.
 	ActorRole       string `json:"actor_role,omitempty"`
 	IdempotencyKey  string `json:"idempotency_key"`
 	ExpectedVersion uint64 `json:"expected_version,omitempty"`
@@ -329,8 +320,6 @@ type CapabilitiesReply struct {
 
 type CapabilitiesRequest struct{ Mutation }
 
-// ProviderMutationGate makes the launch restriction explicit. A false gate
-// permits read/verification calls but refuses pause/resume mutations.
 type ProviderMutationGate struct {
 	Enabled bool   `json:"enabled"`
 	Reason  string `json:"reason,omitempty"`

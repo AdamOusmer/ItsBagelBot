@@ -14,7 +14,5 @@ export const COUNTERS_MODULE: ModuleDef =
   defaultEnabled: true,
   toggleable: false,
   href: '/counters',
-  // The default Modules delegation scope gives delegates access to the full
-  // counter book; commands-only delegates retain picker access separately.
   replies: []
 };

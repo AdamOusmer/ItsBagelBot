@@ -9,19 +9,12 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 )
 
-// The infra-floor scan (Gate.floorInfra -> moderation.MatchFloor) is word-
-// bounded: these pin the exact shapes released by dropping raw substring
-// matching, and the shapes that must keep hitting. Lines that must hit are
-// kept over shortLen so they reach the deep-path scan rather than bailing
-// clean before the floor runs.
 func TestFloorInfraWordBoundaries(t *testing.T) {
 	g := New()
 	assertInfraFloorCaughtShapes(t, g)
 	assertInfraFloorReleasedShapes(t, g)
 }
 
-// assertInfraFloorCaughtShapes pins the shapes that must keep hitting: every
-// real URL/host form and every punctuation-separated scam spelling.
 func assertInfraFloorCaughtShapes(t *testing.T, g *Gate) {
 	t.Helper()
 	caught := []struct {
@@ -53,8 +46,6 @@ func assertInfraFloorCaughtShapes(t *testing.T, g *Gate) {
 	}
 }
 
-// assertInfraFloorReleasedShapes pins the exact shapes released by dropping raw
-// substring matching.
 func assertInfraFloorReleasedShapes(t *testing.T, g *Gate) {
 	t.Helper()
 	released := []struct {

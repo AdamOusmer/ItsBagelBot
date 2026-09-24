@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// runPoints runs !points with the given args/config as a plain viewer
-// (chatter 7 "coolviewer"). Returns the single reply line.
 func runPoints(t *testing.T, fake *fakeLoyalty, config, args string) (string, *fakeLoyalty) {
 	t.Helper()
 	m := loyaltyModule(t, fake)
@@ -43,30 +41,25 @@ func TestPointsGiveDisabledByConfig(t *testing.T) {
 	assert.Len(t, fake.transfers, 0)
 	assert.Contains(t, strings.ToLower(text), "turned off")
 
-	// A zero value keeps the default: transfers on.
 	fake = &fakeLoyalty{}
 	runPoints(t, fake, `{"viewerTransfers":0}`, "give bagelfan 100")
 	assert.Len(t, fake.transfers, 1)
 }
 
 func TestPointsGiveGuards(t *testing.T) {
-	// Self-transfer is refused before it reaches the ledger.
 	fake := &fakeLoyalty{}
 	text, _ := runPoints(t, fake, "", "give @CoolViewer 10")
 	assert.Len(t, fake.transfers, 0)
 	assert.Contains(t, strings.ToLower(text), "yourself")
 
-	// Insufficient points reports what the sender actually holds.
 	fake = &fakeLoyalty{transferBad: true}
 	text, _ = runPoints(t, fake, "", "give bagelfan 999999")
 	assert.Contains(t, text, "1234")
 
-	// Unknown target.
 	fake = &fakeLoyalty{}
 	text, _ = runPoints(t, fake, "", "give ghost 10")
 	assert.Contains(t, strings.ToLower(text), "haven't seen")
 
-	// Bad amounts fall back to usage.
 	fake = &fakeLoyalty{}
 	text, _ = runPoints(t, fake, "", "give bagelfan nope")
 	assert.Contains(t, strings.ToLower(text), "usage")
@@ -74,24 +67,20 @@ func TestPointsGiveGuards(t *testing.T) {
 }
 
 func TestPointsRemoveSubtracts(t *testing.T) {
-	// The broadcaster removes a positive amount; the ledger sees a negative
-	// delta adjust.
 	fake := &fakeLoyalty{}
 	m := loyaltyModule(t, fake)
 	cmd := loyaltyCommand(t, m, "points")
 	var col collector
 	ctx := loyaltyCtx("channel.chat.message", "", "")
-	ctx.Env.ChatterUserID = "2" // broadcaster shortcut
+	ctx.Env.ChatterUserID = "2"
 	require.NoError(t, cmd.Run(context.Background(), ctx, "remove @CoolViewer 100", col.emit))
 	require.Len(t, fake.adjusts, 1)
 	assert.Equal(t, int64(-100), fake.adjusts[0].value)
 	assert.False(t, fake.adjusts[0].absolute)
-	assert.Contains(t, col.out[0].Text, "1134") // 1234 - 100
+	assert.Contains(t, col.out[0].Text, "1134")
 }
 
 func TestPointsGrantTogglesGateMods(t *testing.T) {
-	// set switched off: a moderator's "!points set" gets the denial instead
-	// of the grant — while add still works.
 	fake := &fakeLoyalty{}
 	m := loyaltyModule(t, fake)
 	cmd := loyaltyCommand(t, m, "points")
@@ -99,8 +88,6 @@ func TestPointsGrantTogglesGateMods(t *testing.T) {
 	modRun := func(config, args string) string {
 		var col collector
 		ctx := loyaltyCtx("channel.chat.message", "", config)
-		// A moderator who is not the channel owner: the badges carry the
-		// role, and the owner shortcut (chatter == broadcaster) stays off.
 		ctx.Env.ChatterUserID = "9"
 		ctx.Env.Badges = []lane.Badge{{SetID: "moderator"}}
 		require.NoError(t, cmd.Run(context.Background(), ctx, args, col.emit))
@@ -112,25 +99,20 @@ func TestPointsGrantTogglesGateMods(t *testing.T) {
 	assert.Contains(t, strings.ToLower(modRun(cfg, "set coolviewer 50")), "turned off")
 	assert.Empty(t, fake.adjusts)
 
-	assert.Contains(t, modRun(cfg, "add coolviewer 50"), "1284") // 1234 + 50
+	assert.Contains(t, modRun(cfg, "add coolviewer 50"), "1284")
 	require.Len(t, fake.adjusts, 1)
 	assert.Equal(t, int64(50), fake.adjusts[0].value)
 
-	// Both deltas switched off.
 	cfg = `{"modAdjustPoints":-1}`
 	assert.Contains(t, strings.ToLower(modRun(cfg, "add coolviewer 50")), "turned off")
 	assert.Len(t, fake.adjusts, 1)
 
-	// A non-mod typing remove still falls through to their own standing,
-	// never the denial (the gate only speaks to moderators).
 	var col collector
 	ctx := loyaltyCtx("channel.chat.message", "", "")
 	require.NoError(t, cmd.Run(context.Background(), ctx, "remove coolviewer 50", col.emit))
 	assert.Len(t, fake.adjusts, 1, "non-mod must not reach the adjust path")
 	assert.Contains(t, col.out[0].Text, "1234")
 
-	// The broadcaster outranks every toggle: set stays available even with
-	// modSetPoints switched off.
 	fake = &fakeLoyalty{}
 	m = loyaltyModule(t, fake)
 	cmd = loyaltyCommand(t, m, "points")
@@ -160,7 +142,6 @@ func TestLeaderboardShowsTopStandings(t *testing.T) {
 	assert.Contains(t, text, "2. Beta 800")
 	assert.NotContains(t, text, "gamma", "the limit caps the list")
 
-	// Default size and empty board.
 	fake = &fakeLoyalty{}
 	m = loyaltyModule(t, fake)
 	cmd = loyaltyCommand(t, m, "leaderboard")
@@ -170,7 +151,6 @@ func TestLeaderboardShowsTopStandings(t *testing.T) {
 	require.Len(t, empty.out, 1)
 	assert.Contains(t, strings.ToLower(empty.out[0].Text), "no standings")
 
-	// A silly argument answers with usage, not a service call.
 	fake = &fakeLoyalty{topViewers: []topViewer{{id: "8", name: "A", points: 1}}}
 	m = loyaltyModule(t, fake)
 	cmd = loyaltyCommand(t, m, "leaderboard")

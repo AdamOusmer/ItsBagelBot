@@ -13,10 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// This file holds paceman's four gossip endpoints (session, nethers,
-// lastfort, personal_best) and their error-reply helpers. The reply-shaping
-// helpers built on their successful-fetch path live in paceman_reply.go.
-
 func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
 	log := monitor.TxnLogger(ctx, p.log)
 	account := strings.TrimSpace(req.Account)
@@ -36,10 +32,6 @@ func (p *api) session(ctx context.Context, req gossiprpc.Request) any {
 	return buildSessionReply(account, stats, nethers)
 }
 
-// sessionErrorReply maps a fetch failure to a paceman.session reply: a
-// friendly hit (upstream 4xx/429) stays quiet in the logs since it is normal
-// upstream behavior, anything else logs a warning and answers a generic
-// message so the viewer still gets a line instead of silence.
 func sessionErrorReply(log *zap.Logger, account string, err error) gossiprpc.PacemanSessionReply {
 	msg := friendlyError(err)
 	if msg == "" {

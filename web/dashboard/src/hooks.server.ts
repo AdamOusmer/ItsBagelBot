@@ -21,44 +21,18 @@ import { detectLocale, isLocale, LOCALE_COOKIE, ensureCatalog } from '@bagel/kit
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 
-// Framework-native one-time boot. SvelteKit calls init() once before the first
-// request; all boot side effects live here instead of at module-eval.
-//
-// Boot config reads process.env, NOT $env/dynamic/private: init() runs under the
-// server entry's top-level `await server.init()`, so reading the dynamic-env
-// proxy here deadlocks that await (unsettled top-level await -> exit 13). In
-// adapter-node process.env carries the same Doppler-injected runtime values, and
-// request-time code (session, oauth, rpc) keeps using $env/dynamic/private.
+// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 export const init: ServerInit = async () => {
   initConsoleRuntime(process.env, assertConfigSane);
 
-  // Pre-connect the Valkey read pool and rate-limit write client so the first
-  // request hits warm connections instead of paying the cold connect on the
-  // hot path.
   warmValkey();
   warmRateLimiter();
   warmSessionRevocation();
 
-  // Subscribe to the cache-invalidation bus so writes in Go services push-drop
-  // the right keys without waiting on TTL expiry.
   startInvalidationListener();
 };
 
-// Fleet-wide rate limits: the buckets live in Valkey (Sentinel master), so
-// every pod enforces the same global budget; on any Valkey failure each tier
-// degrades to a per-pod bucket with the same tuning (see rate-limit.ts).
-// Three tiers, tightest wins by route/method:
-//   * auth: /auth/* + /delegate/*: OAuth redirects/callbacks and session
-//     escalation. Brute-force target, humans hit it a handful of times.
-//   * write: any non-GET/HEAD elsewhere: form actions and API mutations.
-//     Clicking around settings is bursty, so allow a real burst but a modest
-//     sustained rate (the Go batchers coalesce anyway).
-//   * read: everything else: page loads, __data.json, SSE connects.
-// Keyed by session user id only: client IPs are never written to Valkey
-// (hard policy). Anonymous traffic skips these buckets entirely and is
-// limited per IP by traefik's in-memory rateLimit middlewares on the public
-// hostnames (console-dashboard.yaml), which also cover the unauthenticated
-// brute-force surface on /auth/*.
+// Keyed by session user id only: client IPs must never be written to Valkey.
 const authLimiter = new ValkeyRateLimiter({ name: 'auth', capacity: 10, refillPerSec: 10 / 60 });
 const writeLimiter = new ValkeyRateLimiter({ name: 'write', capacity: 30, refillPerSec: 0.5 });
 const readLimiter = new ValkeyRateLimiter({ name: 'read', capacity: 60, refillPerSec: 2 });
@@ -69,11 +43,7 @@ function pickLimiter(pathname: string, method: string): ValkeyRateLimiter {
   return readLimiter;
 }
 
-// enforceRateLimit checks the request against its tier's fleet-wide bucket,
-// keyed by session user id (stable across CGNAT/mobile IP churn). Anonymous
-// requests pass straight through: kubelet probes and the status page must
-// never be limited, and everything else unauthenticated is traefik's job.
-// It returns a 429 Response when the budget is spent, else null to proceed.
+// Anonymous requests pass through: kubelet probes and the status page must never be limited.
 async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<Response | null> {
   const userId = event.locals.session?.user_id;
   if (!userId) {
@@ -94,11 +64,6 @@ async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<
   });
 }
 
-// resolveLocale resolves the UI locale once per request: a valid ?lang override
-// wins (and is pinned to the switcher cookie), else the cookie, else the
-// browser's Accept-Language, else English. Admin view-as sessions always render
-// in English: their language control edits the target account preference, not
-// the administrative UI itself.
 function resolveLocale(event: Parameters<Handle>[0]['event']): ReturnType<typeof detectLocale> {
   const queryLang = event.url.searchParams.get('lang');
   if (isLocale(queryLang)) {
@@ -113,62 +78,18 @@ function resolveLocale(event: Parameters<Handle>[0]['event']): ReturnType<typeof
   });
 }
 
-// Anonymous renders of the public surfaces are identical for every visitor,
-// so they can be served straight from Cloudflare's edge instead of crossing
-// cloudflared -> traefik -> pod on every view (crawlers and drive-by traffic
-// are exactly the load that never needs to reach the cluster). [edgeTtlSec,
-// swrSec] keyed by route id; /login is near-static, /stats is a live snapshot
-// kept tight because its numbers are the point, channel pages change only
-// when a streamer edits settings.
-const EDGE_CACHE: Record<string, readonly [number, number]> = {
+const EDGE_CACHE: Record<string, readonly [edgeTtlSec: number, swrSec: number]> = {
   '/login': [600, 86_400],
   '/(public)/stats': [30, 300],
   '/(public)/[user]': [60, 300],
   '/user/[channel]': [60, 300]
 };
 
-// Returns the Cache-Control that replaces harden()'s blanket HTML no-store
-// when this request provably produced the shared default render, else null.
-//
-// The gates exist because Cloudflare's cache key ignores cookies and
-// Accept-Language: anything request-specific must be excluded at origin
-// rather than varied at the edge.
-//   * anonymous only: an authed render must never be replayed to another
-//     user; guard.ts has already settled locals.session above.
-//   * locale 'en' only: detectLocale falls back to Accept-Language, so
-//     otherwise the first visitor's language would win the cache entry for
-//     every subsequent visitor for the whole TTL.
-//   * no ?lang param: it pins the locale cookie, and Set-Cookie responses
-//     must never be shared from a CDN.
-//   * cursor cookie not '0': the opt-out flips markup server-side; any other
-//     value renders byte-identical to no cookie.
-//
-// max-age=0 keeps browsers revalidating each navigation (kit ETag -> cheap
-// 304) while the edge serves HITs for s-maxage; stale-while-revalidate lets
-// Cloudflare serve its stale copy during background revalidation, so TTL
-// expiry never stampedes origin. Edge hits bypass traefik and the pods
-// entirely, which also means they bypass the per-IP rate limits, intended:
-// abuse of these paths is absorbed by Cloudflare before it reaches us.
-//
-// CSP nonces: SvelteKit mints one per request into both the header and the
-// inline scripts, so a cached page replays a single nonce on every hit; on
-// these public pages anyone can read the nonce by fetching the URL, so
-// sharing it costs nothing. Authenticated pages keep harden()'s no-store.
-//
-// Status gate: 200, or 404 when the load set `locals.edgeCache404`. A hidden
-// channel's 404 (the commands-page toggle, spec commands-page-toggle.md §5.3)
-// is shared and cacheable the same as the 200 it replaces: the render carries
-// no per-visitor state either way. An UNKNOWN login's 404 stays no-store
-// (no flag set, so it falls through this gate): that channel could enroll a
-// minute later, and a cached miss would keep answering 404 for the TTL after
-// it does, which the toggle's 404 has no such freshness need for.
 function cacheableStatus(res: Response, event: Parameters<Handle>[0]['event']): boolean {
   return res.status === 200 || (res.status === 404 && !!event.locals.edgeCache404);
 }
 
-// Exported for direct unit testing: exercising this through the full `handle`
-// pipeline would mean standing up the session/rate-limit/locale machinery for
-// a pure function of (event, res).
+// Cloudflare's cache key ignores cookies and Accept-Language: cache only anonymous default renders.
 export function edgeCacheControl(event: Parameters<Handle>[0]['event'], res: Response): string | null {
   const ttl = EDGE_CACHE[event.route.id ?? ''];
   if (!ttl) return null;
@@ -184,8 +105,6 @@ export function edgeCacheControl(event: Parameters<Handle>[0]['event'], res: Res
 const PERMISSIONS_POLICY =
   'camera=(), microphone=(), geolocation=(), payment=(), join-ad-interest-group=(), run-ad-auction=(), shared-storage=(), browsing-topics=()';
 
-// Session + account gates + the security headers SvelteKit's CSP config does
-// not own.
 export const handle: Handle = async ({ event, resolve }) => {
   event.locals.session = openSessionCookie(event, COOKIE, open);
 
@@ -194,27 +113,16 @@ export const handle: Handle = async ({ event, resolve }) => {
     return limited;
   }
 
-  // Account gates (ban / deleted account / delegation revoke / delegate scope)
-  // for every authenticated request, actions and API endpoints included, which
-  // layout loads never cover. Throws kit-native redirects; runs after the rate
-  // limiter so the gate RPCs sit behind the same request budget.
   if (event.locals.session) {
     event.locals.session = await guardSession(event, event.locals.session);
   }
 
   const locale = resolveLocale(event);
   event.locals.locale = locale;
-  // Actions and server loads run before the universal layout loads its catalog.
   await ensureCatalog(event.locals.locale);
-  // Custom-cursor preference: only an explicit '0' cookie turns it off, so a
-  // fresh visitor (no cookie) keeps the default animated cursor.
   event.locals.cursorEnabled = event.cookies.get(CURSOR_COOKIE) !== '0';
   tagTransaction(newrelic, event, event.locals.session);
 
-  // Compose the RUM injector with a one-shot <html lang> rewrite: the shell's
-  // opening tag ships lang="en" (app.html), so patch it to the resolved locale
-  // on the first chunk that carries it. Both transforms are per-request and
-  // streaming-safe.
   const rum = rumTransform();
   let langPatched = false;
   const res = await resolve(event, {

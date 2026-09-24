@@ -2,32 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Bootstrapper do
-  @moduledoc """
-  Runs on every node and periodically makes sure both cluster-singleton
-  processes are alive somewhere in the cluster:
-
-    * `Ingress.ShardScaler`   — owns the desired shard count and autoscaler.
-    * `Ingress.ConduitManager` — reconciles the Conduit and ShardSessions.
-
-  Horde's registry guarantees at most one instance of each; this loop
-  guarantees at least one, even right after boot when cluster membership is
-  still syncing, or after the node that hosted them disappears.
-
-  "Registered" is not "alive": a registration can wedge on a pid whose node
-  died uncleanly, and `start_child` then answers `:already_started` forever
-  while nothing runs — with ConduitManager down, no shard healing runs
-  anywhere. So an `:already_started` singleton is probed for process
-  liveness (not a mailbox call, so a singleton busy in a long reconcile is
-  never mistaken for dead); one that stays unreachable across consecutive
-  ticks is terminated through the supervisor and restarted by a following
-  tick. Two ticks of misses, not one, so a transient netsplit blip is not
-  answered with a replacement.
-
-  ShardScaler is ensured first so ConduitManager finds it ready when its
-  first reconcile runs. This process is plainly supervised per node and
-  shares no cluster state, so it cannot wedge cluster-wide itself.
-  """
-
   use GenServer
   require Logger
 
@@ -102,8 +76,6 @@ defmodule Ingress.Bootstrapper do
     end
   end
 
-  # Terminate only; the next :ensure tick performs the start. No immediate
-  # restart here, so a replace loop cannot run hotter than the tick interval.
   defp replace_singleton(label, pid) do
     case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
       :ok -> :ok

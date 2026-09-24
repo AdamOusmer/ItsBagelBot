@@ -14,11 +14,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// This file is the Tebex-event domain: the wire shapes, the classification of an
-// event type into a billing action, and the parsing of a verified event into the
-// recordablePayment the rest of the service acts on. It holds no HTTP or storage
-// concern.
-
 type tebexEvent struct {
 	ID      string           `json:"id"`
 	Type    string           `json:"type"`
@@ -36,7 +31,6 @@ type paymentSubject struct {
 	Products []productLine `json:"products"`
 }
 
-// productLine is one item in a Tebex payment subject.
 type productLine struct {
 	Custom    map[string]codec.RawMessage `json:"custom"`
 	Username  usernameRef                 `json:"username"`
@@ -55,9 +49,8 @@ type usernameRef struct {
 }
 
 type recordablePayment struct {
-	TransactionID string
-	UserID        uint64
-	// Gift attribution from the basket custom payload; zero for self-purchases.
+	TransactionID      string
+	UserID             uint64
 	GiftedByID         uint64
 	GiftedByLogin      string
 	GiftMessage        string
@@ -70,10 +63,6 @@ var (
 	errPaymentUserMissing  = errors.New("payment user id missing")
 )
 
-// billingEventActions maps each Tebex event type that changes an entitlement to
-// the action it applies. notify is true for the activation group, where a
-// first-time gift warrants a recipient ping (notifyGift itself skips renewals).
-// Handling a new event type is one entry here, not a new branch.
 var billingEventActions = map[string]struct {
 	action billingrpc.Action
 	notify bool
@@ -90,22 +79,12 @@ var billingEventActions = map[string]struct {
 	"payment.dispute.lost":                     {billingrpc.ActionRevoke, false},
 }
 
-// grantsPaid reports whether action leaves the user paid, as opposed to
-// ActionRevoke which does not. Activate, CancelRequested (cancellation
-// pending but still paid until the term ends) and CancelAborted (a reversed
-// cancellation, or a chargeback the merchant won) all route to
-// applyPaidUpdate in app/users/repository/billing.go and land the user in
-// user.StatusPaid. Every one of them needs a bounded expiry on the way in
-// (see the fallback in applyBilling below), so the paid-producing set is
-// defined once here instead of duplicated per call site.
 func grantsPaid(action billingrpc.Action) bool {
 	return action == billingrpc.ActionActivate ||
 		action == billingrpc.ActionCancelRequested ||
 		action == billingrpc.ActionCancelAborted
 }
 
-// trialAction picks the billing action a trial event drives, or false when the
-// event (ending-soon reminder, trial ended) changes nothing.
 func trialAction(eventType string) (billingrpc.Action, bool) {
 	switch {
 	case strings.Contains(eventType, "cancel"):
@@ -134,8 +113,6 @@ func recordableFromEvent(event tebexEvent) (recordablePayment, error) {
 	}
 }
 
-// recordableFromRecurring parses a recurring-payment event: pick the payment to
-// attribute, then overlay the subscription reference and next-payment expiry.
 func recordableFromRecurring(eventType string, subject codec.RawMessage) (recordablePayment, error) {
 	var recurring recurringSubject
 	if err := codec.Unmarshal(subject, &recurring); err != nil {
@@ -156,9 +133,6 @@ func recordableFromRecurring(eventType string, subject codec.RawMessage) (record
 	return payment, nil
 }
 
-// pickRecurringPayment chooses which embedded payment a recurring event is
-// attributed to: a renewal uses the last payment, otherwise the initial one,
-// falling back to the last.
 func pickRecurringPayment(recurring recurringSubject, eventType string) (*paymentSubject, bool) {
 	if eventType == "recurring-payment.renewed" && recurring.LastPayment != nil {
 		return recurring.LastPayment, true
@@ -184,7 +158,6 @@ func recordableFromPayment(payment paymentSubject) (recordablePayment, error) {
 
 	giftedBy, giftedByLogin := giftFromPayment(payment)
 	giftMessage := giftMessageFromPayment(payment)
-	// A basket gifted to yourself is a plain purchase; drop the markers.
 	if giftedBy == userID {
 		giftedBy, giftedByLogin, giftMessage = 0, "", ""
 	}
@@ -199,8 +172,6 @@ func recordableFromPayment(payment paymentSubject) (recordablePayment, error) {
 	}, nil
 }
 
-// latestProductExpiry returns the furthest-out parseable product expiry, or nil
-// when no product carries one.
 func latestProductExpiry(products []productLine) *time.Time {
 	var latest *time.Time
 	for _, product := range products {
@@ -224,9 +195,6 @@ func parseTebexTime(raw string) (time.Time, bool) {
 	return parsed, err == nil
 }
 
-// giftFromPayment reads the gifted_by attribution the basket carried. Checked
-// on the payment-level custom payload first, then per-product (mirrors
-// userIDFromPayment's search order).
 func giftFromPayment(payment paymentSubject) (uint64, string) {
 
 	if id, ok := rawUint(payment.Custom["gifted_by"]); ok {
@@ -240,9 +208,6 @@ func giftFromPayment(payment paymentSubject) (uint64, string) {
 	return 0, ""
 }
 
-// giftMessageFromPayment reads the buyer's optional gift note the basket
-// carried. Same search order as giftFromPayment: payment-level custom first,
-// then per-product.
 func giftMessageFromPayment(payment paymentSubject) string {
 
 	if msg := rawString(payment.Custom["gift_message"]); msg != "" {
@@ -295,11 +260,6 @@ func userIDFromCustom(custom map[string]codec.RawMessage) (uint64, bool) {
 	return 0, false
 }
 
-// rawUint reads a uint64 id from a raw JSON value that may be a number (123) or
-// a string ("123") — ids ride the custom payload as strings. It parses with
-// strconv directly on the trimmed bytes, avoiding the per-call codec.Decoder and
-// bytes.Reader the naive path allocated; the surrounding quotes of a JSON string
-// id (never escaped for digits) are stripped in place.
 func rawUint(raw codec.RawMessage) (uint64, bool) {
 	raw = unquoteJSON(bytes.TrimSpace(raw))
 	if len(raw) == 0 {
@@ -309,8 +269,6 @@ func rawUint(raw codec.RawMessage) (uint64, bool) {
 	return parsed, err == nil && parsed != 0
 }
 
-// unquoteJSON strips the surrounding quotes of a JSON string value in place; ids
-// ride the custom payload as strings and never contain escapes.
 func unquoteJSON(raw []byte) []byte {
 	if len(raw) < 2 {
 		return raw

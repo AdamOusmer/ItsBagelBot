@@ -1,40 +1,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Small shared micro-interactions wired by data-attributes, so section
- * components only add markup, no per-component scripts.
- *
- *
- *   [data-copy="text"]     click copies `text` to the clipboard and toggles
- *                          `.is-done` (the .bb-chip confirmed state) for the
- *                          library's shared flash duration
- *                          (@bagel/ui/lib/clipboard, 1600ms).
- *
- *   [data-tilt]            pointer-tracked 3D tilt. Optional numeric value =
- *                          max degrees (default 4). Writes `--tilt-x/y`; the
- *                          component's CSS applies the perspective transform.
- *                          Fine pointer + motion-allowed only.
- */
-
 import { copyFlash } from '@bagel/ui/lib/clipboard';
 import { finePointer, reduceMotion } from '@bagel/ui/lib/motion-query';
 
-/**
- * Which copy is currently allowed to own an element's flash.
- *
- * `copyFlash` owns one timer per call, so two clicks 200ms apart schedule two
- * clear-outs and the FIRST one lands while the second copy is still fresh —
- * the confirmation blinks off 1.4s early. The old code avoided that by
- * clearing its own pending timer; the shared helper cannot, because a per-
- * element timer registry is caller state and does not belong in a two-line
- * clipboard wrapper. A sequence number is the same fix from the other side:
- * a stale callback simply finds it is no longer the current copy and does
- * nothing.
- *
- * A WeakMap rather than an expando so a removed element takes its entry with
- * it, and so `checkJs` does not have to be told about a property on Element.
- */
 const copySeq = new WeakMap();
 
 function setupCopy(el) {

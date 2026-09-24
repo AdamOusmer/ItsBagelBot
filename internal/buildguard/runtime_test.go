@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package buildguard holds build-level regression guards that ordinary unit
-// tests cannot catch. Its only test asserts every data service binary links in
-// its ent runtime.
 package buildguard
 
 import (
@@ -14,16 +11,6 @@ import (
 	"testing"
 )
 
-// dataServices construct an ent client in main and therefore MUST blank-import
-// their generated ent/runtime, or every write fails at runtime with
-// "ent: uninitialized ... (forgotten import ent/runtime?)". That import is a
-// side-effect-only dependency, so nothing at compile time forces it and a
-// refactor can silently drop it (unit tests pass because enttest pulls it in).
-// This test fails the build instead, by checking the real dependency graph of
-// each service's main package.
-// Paths are under app/db/ since services were grouped by vertical. Kept as
-// service names plus one prefix rather than full paths, so a regrouping is
-// one edit here.
 var dataServices = []string{"commands", "modules", "users", "transactions"}
 
 func TestDataServicesLinkEntRuntime(t *testing.T) {

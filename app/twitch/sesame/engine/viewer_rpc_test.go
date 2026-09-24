@@ -18,12 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// newTestViewerRPC builds a ViewerRPC over a real ValkeyChatters (fronting
-// the fake Valkey server) and an injected request func, the same
-// bypass-the-NATS-constructor shape uptime_rpc_test.go uses for UptimeRPC:
-// this package's tests can set unexported fields directly, so there is no
-// need for an embedded NATS server just to reach ViewerRPC's Valkey-backed
-// behavior.
 func newTestViewerRPC(f *chattersFake, request func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error)) *ViewerRPC {
 	return &ViewerRPC{
 		store:        NewValkeyChatters(f.client, zap.NewNop()),
@@ -34,10 +28,6 @@ func newTestViewerRPC(f *chattersFake, request func(context.Context, manage.Chat
 	}
 }
 
-// waitFor polls cond for up to a small, generous budget: fetch runs in its
-// own goroutine (Snapshot never blocks on it, by design), so a test proving
-// what that goroutine eventually does has nothing to synchronously wait on
-// except the Valkey key it writes.
 func waitFor(t *testing.T, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -50,16 +40,12 @@ func waitFor(t *testing.T, cond func() bool) {
 	t.Fatal("condition never became true")
 }
 
-// A cold snapshot triggers exactly one background fetch, however many
-// callers race the same cold cache: ValkeyChatters' cross-replica lock
-// blocks every caller after the first from even trying, and the loser
-// answers cold for its own run rather than fetching a second time.
 func TestViewerRPCColdSnapshotFetchesOnceUnderContention(t *testing.T) {
 	f := newChattersFake(t)
 	var calls atomic.Int32
 	r := newTestViewerRPC(f, func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error) {
 		calls.Add(1)
-		time.Sleep(20 * time.Millisecond) // wide enough for both Snapshot calls to race it
+		time.Sleep(20 * time.Millisecond)
 		return manage.ChattersReply{Chatters: []manage.Chatter{{ID: "42", Login: "sam"}}}, nil
 	})
 
@@ -76,12 +62,10 @@ func TestViewerRPCColdSnapshotFetchesOnceUnderContention(t *testing.T) {
 
 	assert.Equal(t, []viewerSnapshotState{viewerSnapshotCold, viewerSnapshotCold}, states, "neither caller waits on the fetch")
 	waitFor(t, func() bool { return calls.Load() == 1 })
-	time.Sleep(30 * time.Millisecond) // outlast the fetch, then confirm it never fired twice
+	time.Sleep(30 * time.Millisecond)
 	assert.Equal(t, int32(1), calls.Load(), "the second caller must not have won a fetch of its own")
 }
 
-// The full lazy-fetch path: a cold Snapshot fires a background fetch, which
-// Stores the result, which the NEXT Snapshot then reads as a hit.
 func TestViewerRPCColdFetchWarmsTheSnapshotForTheNextRead(t *testing.T) {
 	f := newChattersFake(t)
 	r := newTestViewerRPC(f, func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error) {
@@ -104,11 +88,6 @@ func TestViewerRPCColdFetchWarmsTheSnapshotForTheNextRead(t *testing.T) {
 		entries)
 }
 
-// A MissingScope reply latches the channel (Snapshot skips fetching for it
-// from then on) AND releases the fetch lock early, so it does not sit
-// claimed for the lock's full TTL. Once the shared snapshot is warmed some
-// other way (the loyalty tick sharing the same verb), the very next Snapshot
-// clears the latch on its own — no restart required.
 func TestViewerRPCMissingScopeLatchIsClearedByAWarmSnapshot(t *testing.T) {
 	f := newChattersFake(t)
 	r := newTestViewerRPC(f, func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error) {
@@ -119,17 +98,12 @@ func TestViewerRPCMissingScopeLatchIsClearedByAWarmSnapshot(t *testing.T) {
 	assert.Equal(t, viewerSnapshotCold, state, "the triggering call itself is still just cold")
 	waitFor(t, func() bool { return r.isMissingScope(123) })
 
-	// The fetch latches before it releases the lock, so a single probe right
-	// after the latch flips can land between the two on a slow runner. Waiting
-	// still proves an early release: the lock's TTL (10s) outlasts waitFor.
 	waitFor(t, func() bool { return r.store.TryFetchLock(context.Background(), 123) })
-	r.store.ReleaseFetchLock(context.Background(), 123) // undo the probe claim above
+	r.store.ReleaseFetchLock(context.Background(), 123)
 
 	_, state = r.Snapshot(context.Background(), 123)
 	assert.Equal(t, viewerSnapshotMissingScope, state, "latched: no fetch attempted while it holds")
 
-	// The tick (or anything else sharing chatters.get) repopulates the shared
-	// snapshot independently of this latch.
 	r.store.Store(context.Background(), 123, []chattersSnapshotEntry{{ID: 9, Login: "back", Name: "back"}})
 
 	entries, state := r.Snapshot(context.Background(), 123)
@@ -138,9 +112,6 @@ func TestViewerRPCMissingScopeLatchIsClearedByAWarmSnapshot(t *testing.T) {
 	assert.False(t, r.isMissingScope(123), "a snapshot hit must clear the latch")
 }
 
-// An RPC-level failure (transport error, or a reply carrying Error) also
-// releases the fetch lock early, the same as MissingScope, so a transient
-// failure does not block a retry for the lock's full TTL.
 func TestViewerRPCReleasesTheFetchLockOnRPCFailure(t *testing.T) {
 	f := newChattersFake(t)
 	r := newTestViewerRPC(f, func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error) {

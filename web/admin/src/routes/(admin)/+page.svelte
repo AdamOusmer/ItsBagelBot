@@ -1,14 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Operator overview on the shared OverviewGrid: one wide column for the two
-  // panels an operator reads first (growth, then the fleet), a rail for the
-  // reads that only matter when something is wrong.
-  //
-  // Every panel is its own `{#await}` over its own streamed promise. The page
-  // shell (head, grid, headings) is therefore never behind NATS, and a slow
-  // responder costs one skeleton rather than the whole board -- which is what
-  // the previous single-bundle load did.
   import { goto } from '$app/navigation';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
@@ -29,8 +21,6 @@ import type { EnrollmentWindow } from '$lib/enrollment-window';
 
   const { t } = getI18n();
 
-  // The window lives in the URL (see +page.server.ts). keepFocus so the segment
-  // the operator just pressed keeps the ring; the panel re-renders around it.
   function setWindow(days: EnrollmentWindow) {
     goto(days === 30 ? '/' : `/?days=${days}`, { keepFocus: true, noScroll: true });
   }

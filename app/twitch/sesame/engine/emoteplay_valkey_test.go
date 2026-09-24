@@ -13,14 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// These tests are opt-in because the pyramid and streak transitions are a Lua
-// state machine whose semantics only exist inside a real Valkey interpreter.
-// They use the same VALKEY_TEST_ADDR convention as valkey_hotpath_test.go. The
-// script's windows are plain arguments, so expiry is exercised with millisecond
-// windows rather than sleeping out the production values.
-
-// emoteplayFixture hands each test a real client and its own channel id space,
-// so state never collides across tests.
 type emoteplayFixture struct {
 	t     *testing.T
 	ctx   context.Context
@@ -35,18 +27,15 @@ func newEmotePlayFixture(t *testing.T) *emoteplayFixture {
 	return &emoteplayFixture{t: t, ctx: ctx, store: NewValkeyEmotePlay(newHotPathTestClient(t))}
 }
 
-// channel returns a fresh broadcaster id per call; the key namespace is the id.
 func (f *emoteplayFixture) channel() int {
 	f.seq++
 	return f.seq
 }
 
-// emoteBump names one candidate line a test feeds the store. A struct keeps
-// the helper at one argument and reads as a table row.
 type emoteBump struct {
 	channel int
 	msgID   string
-	emote   string // defaults to "Kappa" when blank
+	emote   string
 	width   int
 	copies  int
 }
@@ -77,8 +66,6 @@ func TestEmotePlayPyramidCompletesOnceAtTheBase(t *testing.T) {
 	done := f.bump(emoteBump{channel: ch, msgID: "m1d", width: 1, copies: 1})
 	require.True(t, done.PyramidDone)
 	require.Equal(t, 3, done.Apex)
-	// After completion the state is cleared: repeating the base line starts a
-	// fresh attempt, it does not complete again.
 	require.False(t, f.bump(emoteBump{channel: ch, msgID: "after", width: 1, copies: 1}).PyramidDone)
 }
 
@@ -87,8 +74,6 @@ func TestEmotePlaySameWidthDuplicatesNeverDoubleStep(t *testing.T) {
 	ch := f.channel()
 	f.bump(emoteBump{channel: ch, msgID: "a", width: 1, copies: 1})
 	f.bump(emoteBump{channel: ch, msgID: "b", width: 2, copies: 1})
-	// Two chatters racing the same step (or two pods delivering one line
-	// near-simultaneously): the second must be neutral.
 	f.bump(emoteBump{channel: ch, msgID: "c", width: 2, copies: 1})
 	f.bump(emoteBump{channel: ch, msgID: "d", width: 3, copies: 1})
 	require.False(t, f.bump(emoteBump{channel: ch, msgID: "e", width: 3, copies: 1}).PyramidDone)
@@ -119,7 +104,7 @@ func TestEmotePlayRejectsWidthJumps(t *testing.T) {
 	ch := f.channel()
 	f.bump(emoteBump{channel: ch, msgID: "a", width: 1, copies: 1})
 	f.bump(emoteBump{channel: ch, msgID: "b", width: 2, copies: 1})
-	f.bump(emoteBump{channel: ch, msgID: "c", width: 5, copies: 1}) // jump: attempt is abandoned
+	f.bump(emoteBump{channel: ch, msgID: "c", width: 5, copies: 1})
 	for _, width := range []int{4, 3, 2, 1} {
 		require.False(t, f.bump(emoteBump{channel: ch, msgID: "after-jump" + strconv.Itoa(width), width: width, copies: 1}).PyramidDone)
 	}
@@ -142,7 +127,7 @@ func TestEmotePlayReplayedMessageIDAppliesNothing(t *testing.T) {
 func TestEmotePlayStreakLadderCrossingWithFoldedCohorts(t *testing.T) {
 	f := newEmotePlayFixture(t)
 	ch := f.channel()
-	f.bump(emoteBump{channel: ch, msgID: "s1", width: 1, copies: streakLadder[0] - 1}) // one below the first rung
+	f.bump(emoteBump{channel: ch, msgID: "s1", width: 1, copies: streakLadder[0] - 1})
 	crossed := f.bump(emoteBump{channel: ch, msgID: "s2", width: 1, copies: 2})
 	require.True(t, crossed.StreakMilestone, "the cohort steps over the rung")
 	require.Equal(t, streakLadder[0], crossed.Streak, "the announced value is the rung, not the raw count")
@@ -156,7 +141,7 @@ func TestEmotePlayWideLineBreaksTheStreakSilently(t *testing.T) {
 	f := newEmotePlayFixture(t)
 	ch := f.channel()
 	f.bump(emoteBump{channel: ch, msgID: "w1", width: 1, copies: streakLadder[0] - 1})
-	f.bump(emoteBump{channel: ch, msgID: "w2", width: 3, copies: 1}) // someone starts building: the streak resets
+	f.bump(emoteBump{channel: ch, msgID: "w2", width: 3, copies: 1})
 	wide := f.bump(emoteBump{channel: ch, msgID: "w3", width: 1, copies: 1})
 	require.False(t, wide.StreakMilestone)
 }
@@ -172,7 +157,7 @@ func TestEmotePlayExpiredWindowRestartsBothChains(t *testing.T) {
 	}
 	require.False(t, bumpShort("t1", 1).PyramidDone)
 	require.False(t, bumpShort("t2", 2).PyramidDone)
-	time.Sleep(60 * time.Millisecond) // one window + slack, well inside any redelivery scale
+	time.Sleep(60 * time.Millisecond)
 	require.False(t, bumpShort("t3", 1).StreakMilestone, "the streak expired with the window")
 	require.False(t, bumpShort("t4", 2).PyramidDone,
 		"the pyramid expired: width 2 starts a fresh attempt instead of ascending the dead one")
@@ -195,9 +180,6 @@ func TestEmotePlayConcurrentReplicasCompleteExactlyOnce(t *testing.T) {
 		"exactly one replica may observe the completion; every other racer must linearize behind it")
 }
 
-// raceWidthOneLines fires replicas concurrent final width-1 lines with distinct
-// message ids — the shape of two pods plus a redelivery all seeing the same
-// chat moment — and reports how many observed the completion.
 func raceWidthOneLines(t *testing.T, ctx context.Context, store *ValkeyEmotePlay, replicas int) int {
 	t.Helper()
 	outcomes := make(chan bumpOutcome, replicas)
@@ -224,9 +206,6 @@ func raceWidthOneLines(t *testing.T, ctx context.Context, store *ValkeyEmotePlay
 	return completions
 }
 
-// bumpOutcome carries one racer's result through the channel so the worker
-// closure stays a straight line and every assertion lands on the test
-// goroutine.
 type bumpOutcome struct {
 	res EmotePlayResult
 	err error

@@ -1,30 +1,12 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
-/* The sign-off: a warm goodbye line, the brand, link columns, and a bottom
-   strip. Like the nav, the LINKS here are `.bb-nav-link` and nothing in this
-   file restates them -- the columns light, draw a green line under the label
-   and mark the current page with a tan diamond, exactly as the bar and the
-   console rail do. What this file owns is the layout and the ember behind it. */
 @layer bb.elements {
   .bb-footer {
     --footer-pad: 72px 4% 40px;
     --footer-signoff-sub-font: var(--bb-font-body);
-    /* Transparent by default: the marketing site and docs sit on the body's
-       solid ink and want the page ground to show through. The console's
-       signed-out pages do not -- they run fixed canvases (aurora, starfield)
-       the whole way down, so their footer has to occlude them. That used to be
-       a `:global(.bb-footer) { background: … }` rule in the console's layout,
-       which is a consumer reaching into a contract; it is a custom property
-       here so the consumer sets it the way it sets any other prop. */
     --bb-footer-bg: transparent;
 
     position: relative;
@@ -34,9 +16,6 @@
     overflow: hidden;
   }
 
-  /* A faint hearth ember behind the sign-off. vmin rather than px so it scales
-     with the viewport's short edge: on a phone a px-sized glow is either
-     invisible or the whole screen. */
   .bb-footer::before {
     content: "";
     position: absolute;
@@ -71,12 +50,6 @@
     text-shadow: 0 0 30px rgba(201, 168, 124, 0.16);
   }
 
-  /* The one line on any surface set in a hand face. The library ships Syne, DM
-     Sans and DM Mono and nothing else, so the family is a custom property
-     defaulting to the body face: the marketing site overrides it to Caveat and
-     keeps that dependency, and every other consumer gets a readable line
-     instead of a missing font. The 1-degree tilt stays here -- it is the
-     element's character, not the typeface's. */
   .bb-footer__signoff-sub {
     font-family: var(--footer-signoff-sub-font);
     font-size: clamp(1.2rem, 2.6vw, 1.5rem);
@@ -139,12 +112,6 @@
     letter-spacing: 0.08em;
   }
 
-  /* The legal strip is fine print: a step below the columns, and back at the
-     0.04em the text links here used to carry rather than the nav contract's
-     0.14em. Three long labels share one grid column with the note, and at
-     .14em they grow past it and out of the 1fr track -- measured 2026-09-09 at
-     1280px, the strip overflowed by ~40px and the privacy link sat on top of
-     the note. */
   .bb-footer__legal {
     --bb-nav-link-size: 0.7rem;
     --bb-nav-link-tracking: 0.04em;

@@ -66,9 +66,6 @@ func TestPublishMessageUsesFleetIdentityWithoutBrokerDedup(t *testing.T) {
 	}
 }
 
-// Flush is documented as a per-call result. A latched error would report every
-// later emission on this pooled connection as failed for the life of the
-// process, however healthy its own cohort was.
 func TestFlushReportsAWindowFailureOnceInsteadOfLatchingIt(t *testing.T) {
 	pub := newTestBatchPublisher()
 	want := errors.New("cohort aborted")
@@ -86,8 +83,6 @@ func TestFlushReportsAWindowFailureOnceInsteadOfLatchingIt(t *testing.T) {
 	}
 }
 
-// A cohort that only started resolving once the window had closed belongs to
-// the next Flush, and has to survive this one to reach it.
 func TestFlushWindowLeavesALaterCohortsFailureInPlace(t *testing.T) {
 	pub := newTestBatchPublisher()
 	want := errors.New("later cohort aborted")
@@ -112,8 +107,6 @@ func TestFlushWaitsForItsAdmissionsRatherThanLaterCompletion(t *testing.T) {
 	go func() { finished <- pub.Flush(context.Background()) }()
 	waitForRegisteredFlushes(t, pub, 1)
 
-	// This is the original failure mode: a later admission resolves first and
-	// must not satisfy the snapshot taken before it was admitted.
 	second := pub.markAccepted()
 	pub.completeSequences([]uint64{second}, nil)
 	select {
@@ -169,9 +162,6 @@ func waitForRegisteredFlushes(t *testing.T, pub *batchPublisher, count int) {
 	}
 }
 
-// nats.go refuses a publish once its future set is full, but everything it
-// already took is on the wire and normally stored. Reporting that as a whole
-// failed cohort is what makes a retry store the prefix twice.
 func TestJoinAsyncCohortReportsThePartiallySentPrefix(t *testing.T) {
 	sent := make([]nats.PubAckFuture, 59)
 	stalled := errors.New("nats: too many outstanding async published messages")
@@ -194,8 +184,6 @@ func TestJoinAsyncCohortReportsThePartiallySentPrefix(t *testing.T) {
 	}
 }
 
-// The atomic fallback exists to make a definitely rejected cohort land. It must
-// resolve the messages it did hand to nats.go instead of abandoning them.
 func TestPublishCohortIndividuallyAwaitsTheMessagesItSent(t *testing.T) {
 	js := &stallingJetStream{limit: 3}
 	worker := &publishBatchWorker{js: js}
@@ -216,8 +204,6 @@ func TestPublishCohortIndividuallyAwaitsTheMessagesItSent(t *testing.T) {
 	}
 }
 
-// stallingJetStream accepts a fixed number of async publishes and then refuses
-// the rest the way nats.go does once its future set is full.
 type stallingJetStream struct {
 	nats.JetStreamContext
 	limit   int
@@ -233,8 +219,6 @@ func (s *stallingJetStream) PublishMsgAsync(msg *nats.Msg, _ ...nats.PubOpt) (na
 	return &settledPubAckFuture{owner: s, msg: msg}, nil
 }
 
-// settledPubAckFuture is a PubAck that has already arrived, so awaiting it
-// records the visit and returns immediately.
 type settledPubAckFuture struct {
 	owner *stallingJetStream
 	msg   *nats.Msg

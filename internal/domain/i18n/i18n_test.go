@@ -10,12 +10,6 @@ import (
 	"testing"
 )
 
-// The Gaps tests replace the old strict parity test. The locked product
-// decision is that a key missing from a locale WARNS and falls back to English
-// rather than failing the build, so a partially translated language can ship.
-// They therefore verify the reporting mechanism instead of enforcing parity.
-
-// sortedKeys returns the map's keys, sorted, never nil.
 func sortedKeys(m map[string][]string) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
@@ -25,7 +19,6 @@ func sortedKeys(m map[string][]string) []string {
 	return out
 }
 
-// nonDefaultLocales filters DefaultLocale out of codes, never returning nil.
 func nonDefaultLocales(codes []string) []string {
 	out := make([]string, 0, len(codes))
 	for _, c := range codes {
@@ -50,8 +43,6 @@ func TestGapsKeyedByManifest(t *testing.T) {
 	}
 }
 
-// TestGapsAgreeWithMissing stands in for a fabricated-gap case, which embed
-// makes awkward to inject: Gaps for a locale is exactly Missing for that locale.
 func TestGapsAgreeWithMissing(t *testing.T) {
 	for locale, missing := range Gaps() {
 		if m := Missing(locale); !reflect.DeepEqual(missing, m) {
@@ -66,8 +57,6 @@ func TestGapsShowCompleteLocaleAsComplete(t *testing.T) {
 	}
 }
 
-// TestSupported checks the manifest-backed validation the users service relies
-// on to reject a bogus locale before persisting it.
 func TestSupported(t *testing.T) {
 	cases := map[string]bool{"en": true, "fr": true, "xx": false, "": false}
 	for code, want := range cases {
@@ -77,9 +66,6 @@ func TestSupported(t *testing.T) {
 	}
 }
 
-// TestListSorted verifies List returns the manifest in sorted order and always
-// carries the English source locale. It deliberately does not hardcode the full
-// set: dropping in a new language must keep this test green with no Go edit.
 func TestListSorted(t *testing.T) {
 	got := List()
 	if !sort.StringsAreSorted(got) {
@@ -93,8 +79,6 @@ func TestListSorted(t *testing.T) {
 	}
 }
 
-// TestDashboardTokenRemoved proves parse-time expansion removed the raw
-// placeholder from every loaded catalog value.
 func TestDashboardTokenRemoved(t *testing.T) {
 	for locale := range catalog {
 		for key, val := range catalog[locale] {
@@ -105,8 +89,6 @@ func TestDashboardTokenRemoved(t *testing.T) {
 	}
 }
 
-// TestDashboardURLExpanded verifies every message that used to concatenate the
-// dashboard URL now contains the real URL loaded from the catalog.
 func TestDashboardURLExpanded(t *testing.T) {
 	urlKeys := []string{KeyReauthRevokedBody, KeyReauthRevokedChat, KeyGrantDeadChat, KeyBotBannedBody}
 	for _, locale := range Locales() {
@@ -118,9 +100,6 @@ func TestDashboardURLExpanded(t *testing.T) {
 	}
 }
 
-// TestSharedKeysResolve guards the cross-service copy specifically. T falls back
-// to returning the key itself, so a typo in one of these constants would post
-// the literal string "grant.dead.chat" into a streamer's public chat.
 func TestSharedKeysResolve(t *testing.T) {
 	keys := []string{
 		KeyReauthRevokedTitle, KeyReauthRevokedBody, KeyReauthRevokedChat,
@@ -141,10 +120,6 @@ func TestSharedKeysResolve(t *testing.T) {
 	}
 }
 
-// TestGrantDeadCopyAvoidsRevocationBlame pins the distinction the copy exists to
-// make. A stale refresh token is not a revocation: the app is still connected on
-// Twitch's side, so telling the streamer their authorization was revoked sends
-// them hunting in Twitch Connections for a problem that is not there.
 func TestGrantDeadCopyAvoidsRevocationBlame(t *testing.T) {
 	blame := map[string][]string{
 		"en": {"revoked", "password"},
@@ -163,8 +138,6 @@ func TestGrantDeadCopyAvoidsRevocationBlame(t *testing.T) {
 	}
 }
 
-// TestFallbackChain covers T's three stages: exact hit, English fallback for an
-// unknown locale, and the key itself for an unknown key.
 func TestFallbackChain(t *testing.T) {
 	if got, want := T("fr", KeyGrantDeadTitle), T(DefaultLocale, KeyGrantDeadTitle); got == want {
 		t.Errorf("fr and en copy for %q are identical, so the fr entry is not being used", KeyGrantDeadTitle)

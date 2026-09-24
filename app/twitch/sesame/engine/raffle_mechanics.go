@@ -15,15 +15,8 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// Pure raffle mechanics: key building, open-request clamping, the random
-// pick, receipt digests and announcement text shaping. No I/O lives here —
-// everything takes and returns plain values so tests pin them directly.
-
 func raffleKey(prefix string, id uint64) string { return cache.UserKey(prefix, id) }
 
-// clampRaffleOpen applies the store's floors and ceilings to one open request.
-// Pure, so Open's gate stays a straight line; remindSecs is what the reminder
-// clock arms with (0: no reminders).
 func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
 	if spec.Winners <= 0 {
 		spec.Winners = raffleDefaultWinners
@@ -33,7 +26,7 @@ func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
 
 	var remindSecs int64
 	switch {
-	case spec.Remind < 0: // explicit off
+	case spec.Remind < 0:
 	case spec.Remind == 0:
 		remindSecs = raffleDefaultRemind
 	default:
@@ -42,26 +35,6 @@ func clampRaffleOpen(spec RaffleOpenSpec) (RaffleOpenSpec, int64) {
 	return spec, remindSecs
 }
 
-// pickWinners draws min(n, len(members)) distinct members uniformly at random;
-// fewer entrants than winners means everyone wins. n arrives from chat args or
-// stored JSON, so it is clamped to the winner ceiling first. The draw runs
-// entirely in int64 — indices come from big.Int draws, never narrowed through
-// int — so no platform-width conversion can silently truncate a count.
-//
-// Draw-and-reject against a picked set, not the partial Fisher-Yates shuffle
-// this used to run: that materialized and filled an index slice the size of
-// the entrant pool before drawing anything, so the overwhelmingly common
-// single-winner raffle paid O(M) alloc + O(M) fill to consume one index. Cost
-// is now O(n) with one small map, and n=1 is a single rand.Int call.
-// Rejection cannot degrade here because maxRaffleWinners (20) bounds n: the
-// worst case is n = M-1 with M ≤ 21, ~55 expected draws, and the ordinary
-// n ≪ M case rejects almost never.
-//
-// Floyd's algorithm was the other candidate and was rejected: it is O(n) with
-// no rejection at all, but it emits the sample in a non-uniform order, and
-// these winners are announced as an ordered list (mentionList). Uniform
-// membership AND uniform order is the property a raffle has to be able to
-// defend, so the rejection loop's few extra draws buy the stronger claim.
 func pickWinners(members []string, n int64) []string {
 	total := int64(len(members))
 	if n < 0 {
@@ -79,7 +52,7 @@ func pickWinners(members []string, n int64) []string {
 	for int64(len(out)) < n {
 		k := drawIndex(total)
 		if _, dup := picked[k]; dup {
-			continue // already a winner: redraw, so every survivor stays equally likely
+			continue
 		}
 		picked[k] = struct{}{}
 		out = append(out, members[k])
@@ -87,23 +60,14 @@ func pickWinners(members []string, n int64) []string {
 	return out
 }
 
-// drawIndex returns a uniform index in [0, total) from the CSPRNG. Split out
-// so pickWinners' loop carries no nested error branch, and kept on big.Int so
-// the value never narrows through int.
 func drawIndex(total int64) int64 {
 	j, err := rand.Int(rand.Reader, big.NewInt(total))
 	if err != nil {
-		// CSPRNG unavailable is not survivable for a fair draw; fail loudly.
 		panic("raffle: crypto/rand unavailable: " + err.Error())
 	}
 	return j.Int64()
 }
 
-// DigestPool is the receipt's tamper-evidence: SHA-256 over the version tag
-// and the pool's canonical form (join-time-sorted members, newline-joined).
-// Anyone holding the announced winners, the entrant count and the snapshot can
-// recompute it and detect a pool that changed after the fact. The snapshot key
-// carries the same unix-milli stamp as DrawnAt so the pair is unambiguous.
 func DigestPool(members []string) string {
 	h := sha256.New()
 	h.Write([]byte("raffle-v1\n"))
@@ -111,15 +75,11 @@ func DigestPool(members []string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// marshalJSON is codec.Marshal ignoring the error for the one shape here (a
-// slice and ints cannot fail); kept named so the call site explains itself.
 func marshalJSON(v any) string {
 	b, _ := codec.Marshal(v)
 	return string(b)
 }
 
-// mentionList renders winner ids as chat mentions: "@a, @b". Winners are
-// stored as logins (the queue precedent), so a prefix is all it takes.
 func mentionList(winners []string) string {
 	prefixed := make([]string, len(winners))
 	for i, w := range winners {
@@ -128,44 +88,6 @@ func mentionList(winners []string) string {
 	return strings.Join(prefixed, ", ")
 }
 
-// expandTokens substitutes {token} placeholders with values; unknown tokens
-// pass through untouched.
-//
-// It used to build a strings.NewReplacer over "{name}" literals, which is not
-// the token grammar — it is a substring rewrite that happens to agree with it
-// on the spans the raffle copy uses today. Routing it through tmpl.Expand
-// makes the raffle read the same grammar as every other surface, and pulls in
-// two behaviours the replacer could not have:
-//
-//   - Case folding. {Targets} and {TARGETS} now resolve; the replacer matched
-//     "{targets}" byte for byte, so a broadcaster who capitalised a token in
-//     their raffle copy got the braces printed in chat.
-//   - Fallbacks. {count|0} renders "0" for an empty value instead of being an
-//     unknown span. The '|' grammar shipped with the args PR and the replacer
-//     was the last surface that did not honour it.
-//
-// Neither can change an existing raffle line: TestMentionListAndTokens pins
-// the pre-change outputs, including the unknown-token passthrough, and every
-// raffle string in the i18n catalog is lower-case and pipe-free.
-//
-// It used to stop there — kv or nothing, no dynamic fallthrough — the one
-// reply surface in the tree with no {random}/{choice} at all. Routing it
-// through module.KV instead of tmpl.Expand directly closes that gap: the
-// raffle gets the same pure family ({random}, {choice:…}, {math:…}, …) every
-// other reply now does, for free, because module.KV builds the general
-// Palette rather than a kv-only closure.
-//
-// locale is every caller's channel locale (duel_valkey.go and
-// raffle_announce.go already have it in scope, from the same i18n.T call
-// that picks the template text), threaded through to WithLocale so
-// {countdown}/{countup} word themselves the same way a custom command's do,
-// instead of silently falling back to English on a non-English channel. It
-// is module.Locale rather than a plain string for the same reason the
-// template body and kv pairs below are bundled into tokenExpansion instead
-// of staying loose parameters: a locale/text/kv trio of raw strings tipped
-// this file's String Heavy Function Arguments ratio over CodeScene's
-// threshold, and the pair reads as one thing anyway — a template and the
-// values it substitutes always arrive together, never independently.
 type tokenExpansion struct {
 	text string
 	kv   []string

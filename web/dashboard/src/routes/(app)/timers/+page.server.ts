@@ -18,8 +18,6 @@ import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
 export const load: PageServerLoad = ({ locals }) =>
@@ -32,16 +30,10 @@ export const load: PageServerLoad = ({ locals }) =>
     blank: () => ({ enabled: false, timers: [] as TimerDef[] })
   });
 
-// mutate binds one POST action to the module write skeleton
-// ($lib/server/module-action): delegate gate, form, demo short-circuit, error
-// mapping, audit. Each verb below is only its own parse plus its store call.
 function mutate(op: string, invalid: string, run: ModuleMutation) {
   return moduleAction('timers', op, run, { demo: DEMO, invalid });
 }
 
-// refused answers a store result that failed for a reason the broadcaster can
-// read (sesame refused the shape, the list is full) with that reason, rather
-// than the generic line a thrown error gets.
 function refused(res: Extract<TimerResult, { ok: false }>) {
   return fail(400, { ok: false, error: res.error ?? 'failed' });
 }
@@ -68,7 +60,6 @@ export const actions: Actions = {
     return res.ok ? id : refused(res);
   }),
 
-  // Master on/off for whether sesame arms any timer at all.
   toggle: mutate('toggle', 'Invalid timer.', async (uid, f) => {
     const enabled = f.get('is_enabled') === 'on';
     await setTimersEnabled(uid, enabled);

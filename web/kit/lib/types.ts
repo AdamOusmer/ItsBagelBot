@@ -2,12 +2,10 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { IconName } from '@bagel/ui/lib/icons';
-// Wire types mirroring the Go NATS RPC contracts (JSON over core NATS).
 export type Perm = 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
 export type Tier = 'premium' | 'standard';
 export type Role = 'streamer' | 'mod';
 
-// Ordered low -> high privilege; drives the access <select> in the dashboard.
 export const PERMS: readonly Perm[] = ['everyone', 'sub', 'vip', 'mod', 'lead_mod', 'broadcaster'];
 export const PERM_LABELS: Record<Perm, string> = {
   everyone: 'Everyone',
@@ -20,29 +18,15 @@ export const PERM_LABELS: Record<Perm, string> = {
 
 export interface CommandView {
   name: string;
-  // Alternate names the command also answers to in chat.
   aliases?: string[];
   response: string;
   is_active: boolean;
   stream_online_only?: boolean;
   perm?: Perm;
-  // Cooldown in seconds; 0 or undefined means no cooldown.
   cooldown?: number;
-  // Twitch id of the only user allowed to run the command; '' or undefined = unrestricted.
   allowed_user_id?: string;
-  // Name of a loyalty counter this command bumps by one on every successful
-  // run; '' or undefined means the command bumps nothing. See the
-  // {counter:…}/{count:…} token family (now read-only) for reading the value
-  // back in a response.
   bump_counter?: string;
-  // Lifetime execution counter, always a number. The demo fixtures once carried
-  // human-formatted strings ('1.2k'), which forced every consumer to parse; the
-  // fixtures were normalized to numbers instead (see demo-data.ts).
   uses?: number;
-  // When true this is a built-in command: its behavior is baked into the bot,
-  // it has no editable response, and its on/off state is stored in the modules
-  // service (not the commands service). The dashboard renders it read-only with
-  // a toggle + preview. See BUILTIN_COMMANDS.
   builtin?: boolean;
 }
 
@@ -65,8 +49,6 @@ export interface Shard {
   shard_id: number;
   state: string;
   node: string;
-  // Worker node (machine) name the shard runs on. Falls back to the host part
-  // of `node` when unset (e.g. local dev without the downward-API env).
   host?: string;
   session_id?: string;
   bound: boolean;
@@ -74,10 +56,6 @@ export interface Shard {
   keepalive_ms?: number;
   attempts?: number;
   load?: number;
-  // False when ingress is running this session without a registry entry for
-  // it: the socket serves, but no converge pass can see or steer it. Optional
-  // so a snapshot from an ingress older than the unmanaged-shard sweep still
-  // renders (absent reads as "no claim", not as "unmanaged").
   managed?: boolean;
 }
 
@@ -95,8 +73,6 @@ export interface ShardSnapshot {
   autoscale: boolean;
   max_load?: number;
   max_load_shard_id?: number | null;
-  // Optional during a rolling deployment so a new console can still render a
-  // snapshot returned by an older ingress pod.
   capacity?: IngressCapacity;
 }
 
@@ -120,9 +96,6 @@ export interface IngressCapacity {
   websocket_autoscale_max_shards: number;
 }
 
-// A row nested under a NavLink in the desktop rail (the /modules sections).
-// Deliberately not a NavLink: these have no icon and never carry their own
-// active state -- the parent row owns it, so the rail keeps one highlight.
 export interface NavChild {
   href: string;
   label: string;
@@ -136,7 +109,6 @@ export interface NavLink {
   active?: boolean;
   locked?: boolean;
   count?: string | number;
-  // Rail-only: the dock and the mobile list ignore these.
   children?: NavChild[];
 }
 
@@ -145,24 +117,11 @@ export interface NavGroupDef {
   items: NavLink[];
 }
 
-// A dashboard the signed-in user has been granted access to (a delegation
-// received). Rendered in the topbar account menu as a quick-switch link into
-// the owner's board via /delegate/enter.
 export interface DashboardLink {
-  // Full href to enter the board, e.g. /delegate/enter?owner=<id>.
   href: string;
-  // Owner's Twitch login, shown as the row name + gradient-badge initial.
   name: string;
 }
 
-// Compat barrel: everything that used to live in this god file now lives in
-// the files below: catalog/ for the module catalog and built-in commands,
-// govee/channelpoints/timers/loyalty for the page domain models. This file
-// remains only so existing consumers keep importing from '@bagel/kit'
-// unchanged (`export * from './types'` in index.ts); new code should import
-// from the specific modules instead. The BW/FN preview token palettes are
-// module-private consts inlined into catalog/urchin.ts and catalog/fortnite.ts
-// (each is its own sole consumer) and are deliberately NOT re-exported here.
 export * from './catalog/builtin-commands';
 export * from './catalog/module-def';
 export * from './catalog/index';
@@ -171,11 +130,6 @@ export * from './timers';
 export * from './loyalty';
 export * from './govee';
 
-// --- Config importer -------------------------------------------------------
-// The canonical import shapes live in lib/importer/types.ts since the
-// standalone importer service was folded into the dashboard (2026-08-23) and
-// that module became their single source of truth. Re-exported here so every
-// existing '@bagel/kit' import keeps resolving unchanged.
 export type {
   AutomodTerms,
   CollisionRef,

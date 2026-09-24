@@ -32,8 +32,6 @@ import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
 function gateCommands(session: Session | null | undefined): void {
@@ -42,9 +40,6 @@ function gateCommands(session: Session | null | undefined): void {
   }
 }
 
-// configString reads one string field out of a module's opaque config blob,
-// tolerating any non-object/absent shape. Used to pull a built-in's saved reply
-// template out of the modules-service config.
 function configString(configs: unknown, key: string): string {
   if (configs && typeof configs === 'object') {
     const v = (configs as Record<string, unknown>)[key];
@@ -53,12 +48,6 @@ function configString(configs: unknown, key: string): string {
   return '';
 }
 
-// builtinViews turns the built-in catalog into command rows, reading each
-// built-in's on/off state (and, for editable built-ins, its saved reply
-// template) from the modules service (key = the built-in id). A missing module
-// row means the catalog default. Non-editable built-ins render read-only with a
-// toggle + preview; editable ones (e.g. clip) expose a reply template whose
-// current value seeds the inspector's editor.
 function builtinViews(modules: ModuleView[]): CommandView[] {
   const byName = new Map(modules.map((m) => [m.name, m]));
   return BUILTIN_COMMANDS.map((def) => {
@@ -67,9 +56,6 @@ function builtinViews(modules: ModuleView[]): CommandView[] {
     return {
       name: def.id,
       aliases: def.aliases,
-      // Editable built-ins carry the saved template (or the default) so the
-      // inspector's editor and rehearsal start from the real value; others show
-      // the static summary.
       response: def.editable ? savedReply || def.preview : def.summary,
       is_active: row ? row.is_enabled : def.defaultActive,
       perm: def.defaultPerm,
@@ -80,8 +66,6 @@ function builtinViews(modules: ModuleView[]): CommandView[] {
   });
 }
 
-// mergeCommands lists built-ins first, then the user's custom commands with any
-// name colliding with a built-in dropped (built-ins reserve their trigger).
 function mergeCommands(custom: CommandView[], modules: ModuleView[]): CommandView[] {
   const builtins = builtinViews(modules);
   const customs = custom.filter((c) => !BUILTIN_NAMES.has(c.name));
@@ -96,10 +80,6 @@ export const load: PageServerLoad = async ({ locals }) => {
     return { commands: mergeCommands(demoCommandRows, []), ...demoFetches() };
   }
   try {
-    // Fetch definitions ride the command list because the data-source picker
-    // lives inside the command editor now; there is no separate page to load
-    // them. Their failure is isolated so a gossip outage costs you the picker,
-    // not the ability to edit commands at all.
     const [custom, modules, fetches] = await Promise.all([
       listCommands(uid),
       listModules(uid).catch(() => []),
@@ -107,22 +87,13 @@ export const load: PageServerLoad = async ({ locals }) => {
     ]);
     return { commands: mergeCommands(custom, modules), ...fetches };
   } catch {
-    // Don't show fabricated rows in production; surface a degraded state.
-    // Built-ins still render (their defaults) so the list is never empty.
     return { commands: mergeCommands([], []), defs: [], keys: [], degraded: true };
   }
 };
 
-// Parses and normalizes the shared command fields out of a submitted form.
-// Normalization (normName: drop the leading "!", lower-case) matches the
-// commands service, so the optimistic UI key agrees with what the service
-// returns (no phantom duplicate row on rename).
 function parseCommand(f: FormData) {
   const name = normName(String(f.get('name') ?? ''));
 
-  // Alternate names arrive as repeated `aliases` fields. Trim, drop blanks, and
-  // de-duplicate case-insensitively so the wire payload matches what the
-  // commands service will accept.
   const seen = new Set<string>();
   const aliases: string[] = [];
   for (const raw of f.getAll('aliases')) {
@@ -133,33 +104,21 @@ function parseCommand(f: FormData) {
     aliases.push(a);
   }
 
-  // The editor posts one LF-delimited response line per chat message. Preserve
-  // those separators and canonicalize the value exactly as the commands
-  // service does, so Sesame can fan the stored response out one line at a time.
   const response = normalizeCommandResponse(String(f.get('response') ?? ''));
   const permRaw = String(f.get('perm') ?? 'everyone');
   const perm: Perm = (PERMS as readonly string[]).includes(permRaw) ? (permRaw as Perm) : 'everyone';
 
-  // Cooldown arrives as a string; clamp to a sane non-negative integer.
   const cooldown = Math.max(0, Math.floor(Number(f.get('cooldown') ?? 0) || 0));
 
-  // Optional single-user lock; keep digits only so a stray "@name" can't slip through.
   const allowedUserId = String(f.get('allowed_user_id') ?? '').replace(/\D/g, '');
 
   const streamOnlineOnly = f.get('stream_online_only') === 'on';
 
-  // Same fold the store scope applies to a {counter:...} payload
-  // (normName), so the option and the read token can never disagree about
-  // which counter a name means. The repository re-applies the fold at write
-  // time regardless (it cannot trust the wire), so this is belt-and-braces
-  // for a coherent optimistic echo.
   const bumpCounter = normName(String(f.get('bump_counter') ?? ''));
 
   return { name, aliases, response, perm, cooldown, allowedUserId, streamOnlineOnly, bumpCounter };
 }
 
-// Build the CommandView a DEMO action echoes back (mirrors upsertCommand's
-// optimistic view construction).
 function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): CommandView {
   return {
     name: cmd.name,
@@ -174,10 +133,6 @@ function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): Comm
   };
 }
 
-// actionContext runs the shared action prologue: section gate, effective
-// dashboard id, auth check, and form parse. DEMO runs without a real session;
-// the demo branches in each action short-circuit before any RPC, so only
-// production requests need the auth gate: null means "respond 401".
 async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
   gateCommands(locals.session);
   if (!DEMO && !locals.session) return null;
@@ -191,10 +146,7 @@ async function actionContext({ request, locals }: { request: Request; locals: Ap
 
 const notSignedIn = (locale: App.Locals['locale']) => fail(401, { ok: false, error: actionError(locale, 'Not signed in.') });
 
-// tryRpc runs one store RPC, logging the real failure server-side: RpcError /
-// NATS timeout messages can carry internal service detail, so they go to the
-// logs, never the dashboard. The caller returns a generic fail(); the client
-// shows its own localized "…failed" copy.
+// RPC failure detail can carry internal service information: log it, never return it.
 async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> {
   try {
     return { ok: true, value: await call() };
@@ -204,8 +156,6 @@ async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: 
   }
 }
 
-// builtinRow rebuilds one built-in's CommandView so the optimistic UI
-// reconciles the same way it does for custom rows.
 function builtinRow(def: NonNullable<ReturnType<typeof builtinDef>>, response: string, isActive: boolean): CommandView {
   return {
     name: def.id,
@@ -219,10 +169,6 @@ function builtinRow(def: NonNullable<ReturnType<typeof builtinDef>>, response: s
   };
 }
 
-// parseSaveForm reads the editor's submission: the shared command fields plus
-// the edit/rename bookkeeping. A rename passes original_name so the commands
-// service updates the row's name field in place (single write) instead of
-// delete-old + create-new.
 function parseSaveForm(f: FormData) {
   const cmd = parseCommand(f);
   const isEdit = f.get('edit') === '1';
@@ -236,8 +182,6 @@ function parseSaveForm(f: FormData) {
   };
 }
 
-// saveResult shapes the save action's reply; applyResult only reads the
-// affected row out of `commands`, so echoing just that row is enough in DEMO.
 function saveResult(s: ReturnType<typeof parseSaveForm>, commands: CommandView[]) {
   return {
     ok: true,
@@ -249,10 +193,6 @@ function saveResult(s: ReturnType<typeof parseSaveForm>, commands: CommandView[]
 }
 
 export const actions: Actions = {
-  // The three data-source actions are hosted here because the builder lives in
-  // the command editor, but they are not about commands: each one delegates to
-  // fetch-def-actions.ts and only translates a refusal into fail(), which has
-  // to be written here for SvelteKit to infer ActionData.
   savefetch: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn(event.locals.locale);
@@ -279,9 +219,6 @@ export const actions: Actions = {
     if (!ctx) return notSignedIn(event.locals.locale);
     const s = parseSaveForm(ctx.form);
 
-    // Shared validator: the client editor runs the exact same checks, so this
-    // is the authoritative re-check. errors is a field -> message map for
-    // inline display; error keeps the single-line toast fallback.
     const errors = validateCommand({
       name: s.cmd.name,
       aliases: s.cmd.aliases,
@@ -294,8 +231,6 @@ export const actions: Actions = {
       return fail(400, { ok: false, errors, error: actionError(ctx.locale, firstError(errors) ?? '') });
     }
 
-    // DEMO: echo the row back as a success so the demo console exercises the
-    // full optimistic flow without NATS.
     if (DEMO) {
       return saveResult(s, [demoView(s.cmd, s.isActive)]);
     }
@@ -309,7 +244,6 @@ export const actions: Actions = {
     return saveResult(s, res.value.commands);
   },
 
-  // Lightweight toggle: flips is_active without going through the full editor.
   toggle: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn(event.locals.locale);
@@ -347,9 +281,6 @@ export const actions: Actions = {
     return { ok: true, action: 'deleted', name, commands: res.value.commands };
   },
 
-  // Toggle a built-in command on/off. Built-in state lives in the modules
-  // service (key = the built-in id), not the commands service, so this is a
-  // separate path from the custom-command toggle.
   toggleBuiltin: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn(event.locals.locale);
@@ -372,12 +303,6 @@ export const actions: Actions = {
     return { ok: true, action: 'updated', name, commands: [view], silent: true };
   },
 
-  // Save an editable built-in's custom reply template. Like the toggle, the
-  // value lives in the modules service (under the built-in id, config key
-  // def.replyKey), so this writes there, not the commands service. An empty
-  // reply clears the override (upsertModule omits empty config), so the bot
-  // falls back to the default template. The current on/off state rides along so
-  // the write preserves it.
   saveBuiltinReply: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn(event.locals.locale);
@@ -409,7 +334,6 @@ export const actions: Actions = {
   }
 };
 
-// editableBuiltin resolves a built-in that carries an editable reply template.
 function editableBuiltin(name: string) {
   const def = builtinDef(name);
   if (!def?.editable || !def.replyKey) return undefined;

@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// memStore is an in-memory core.Store for tests.
 type memStore struct {
 	mu sync.Mutex
 	m  map[string][]byte
@@ -61,14 +60,6 @@ func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, 
 	return true, nil
 }
 
-// fakeKeys is a canned credential resolver: key by broadcaster id, err
-// short-circuits.
-// fakeKeys stands in for the modules-side credential resolver. The
-// application half is fixed ("cid"/"csecret", what the fake accounts server
-// asserts on) so existing cases keep reading as "this broadcaster's refresh
-// token is X"; noApp models the broadcaster who has not registered a Spotify
-// application yet, which is the first setup step now that the fleet ships no
-// shared app.
 type fakeKeys struct {
 	key   string
 	noApp bool
@@ -85,9 +76,6 @@ func (f fakeKeys) Credentials(context.Context, string) (core.SpotifyCredentials,
 	return core.SpotifyCredentials{ClientID: "cid", ClientSecret: "csecret", RefreshToken: f.key}, nil
 }
 
-// newMintServer stands in for accounts.spotify.com: it answers the refresh
-// grant, asserts the app credentials rode the form, counts mints and echoes
-// tok as the access token.
 func newMintServer(t *testing.T, tok string) (http.Handler, *atomic.Int32) {
 	t.Helper()
 	var mints atomic.Int32
@@ -273,11 +261,7 @@ func TestSearchMissingQuery(t *testing.T) {
 	assert.Contains(t, reply.Error, "missing search query")
 }
 
-// These tests stage plain-http loopback upstreams the gate rightly refuses;
-// production binaries never set this (see core.SetSSRFCheckForTests).
 func init() { core.SetSSRFCheckForTests(false) }
-
-// --- broadcaster-owned application -------------------------------------------
 
 func TestNoApplicationOnFile(t *testing.T) {
 	mint, _ := newMintServer(t, "unused")
@@ -288,9 +272,6 @@ func TestNoApplicationOnFile(t *testing.T) {
 	assert.Contains(t, reply.Error, "no Spotify app set up")
 }
 
-// newExchangeServer answers the authorization-code half of /api/token,
-// asserting the broadcaster's OWN client credentials and the console's exact
-// redirect_uri ride the form: Spotify rejects the exchange otherwise.
 func newExchangeServer(t *testing.T, refresh string) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -305,11 +286,6 @@ func newExchangeServer(t *testing.T, refresh string) http.Handler {
 	})
 }
 
-// runExchange drives the exchange endpoint with the console's request shape.
-// Every case here shares it, and every case denies the data API: redeeming a
-// code is an accounts.spotify.com conversation and must never touch
-// api.spotify.com, so that assertion belongs in the helper rather than being
-// re-typed (and eventually forgotten) per test.
 func runExchange(t *testing.T, keys fakeKeys, accounts http.Handler, req gossiprpc.Request) gossiprpc.SpotifyExchangeReply {
 	t.Helper()
 	p := newTestProvider(t, keys, denyAll(t), accounts)
@@ -331,9 +307,6 @@ func TestExchangeMintsRefreshToken(t *testing.T) {
 	assert.Equal(t, "rt-new", reply.RefreshToken)
 }
 
-// Spotify reuses consent: a reconnect with unchanged scopes issues no refresh
-// token. That is an empty answer, never an error: the console keeps whatever
-// is already in custody.
 func TestExchangeConsentReuseIsNotAnError(t *testing.T) {
 	reply := runExchange(t, fakeKeys{key: "rt-1"}, newExchangeServer(t, ""), exchangeRequest())
 
@@ -353,9 +326,6 @@ func TestExchangeRequiresCodeAndRedirect(t *testing.T) {
 	assert.Contains(t, reply.Error, "missing authorization code")
 }
 
-// runQueue drives the queue endpoint against a fixed broadcaster/track pair,
-// the shape every case below shares (only the fake Spotify handler and the
-// assertion on the reply differ).
 func runQueue(t *testing.T, api http.Handler) gossiprpc.SpotifyPlayerReply {
 	t.Helper()
 	mint, _ := newMintServer(t, "tok-1")
@@ -364,7 +334,6 @@ func runQueue(t *testing.T, api http.Handler) gossiprpc.SpotifyPlayerReply {
 		endpoint(t, p, "queue")(context.Background(), gossiprpc.Request{ChannelID: "2", TrackID: "3n3Ppam7vgaVa1iaRUc9Lp"}))
 }
 
-// runNext is runQueue's next-endpoint twin; next carries no track id.
 func runNext(t *testing.T, api http.Handler) gossiprpc.SpotifyPlayerReply {
 	t.Helper()
 	mint, _ := newMintServer(t, "tok-1")
@@ -373,9 +342,6 @@ func runNext(t *testing.T, api http.Handler) gossiprpc.SpotifyPlayerReply {
 		endpoint(t, p, "next")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
 }
 
-// spotify403 answers one player-write call with a 403 shaped exactly as
-// Spotify's real API answers it: a nested {"error":{"status":...,"message":
-// "..."}} envelope, never the fleet's flat convention.
 func spotify403(message string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
@@ -383,11 +349,6 @@ func spotify403(message string) http.Handler {
 	})
 }
 
-// TestQueueSendsURIAsQueryParam pins the write contract queueTrack has with
-// Spotify: the track rides the "uri" QUERY parameter on a POST with no body,
-// spotify:track:<id> exactly (not the bare id), and the bearer token from the
-// mint. Spotify answers 204 on success, the shape TestNowPlayingIdleAnswers204
-// also relies on.
 func TestQueueSendsURIAsQueryParam(t *testing.T) {
 	reply := runQueue(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
@@ -399,12 +360,6 @@ func TestQueueSendsURIAsQueryParam(t *testing.T) {
 	assert.Empty(t, reply.Error)
 }
 
-// TestQueueSucceedsOn200WithBody is the regression test for the bug that kept
-// a queued track from ever reaching a broadcaster's Spotify: Do(ctx, req, nil)
-// decoded ANY 2xx that was not EXACTLY 204 by unmarshaling the body into a nil
-// out, which always fails ("json: Unmarshal(nil)") no matter what Spotify
-// actually answered. Spotify's queue endpoint has been observed answering 200
-// with a body rather than 204; that must still read as success.
 func TestQueueSucceedsOn200WithBody(t *testing.T) {
 	reply := runQueue(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -414,8 +369,6 @@ func TestQueueSucceedsOn200WithBody(t *testing.T) {
 	assert.Empty(t, reply.Error, "a 200 with a body is still a Spotify success, not a decode failure")
 }
 
-// TestQueueMapsNoActiveDevice maps Spotify's NO_ACTIVE_DEVICE 404 onto the one
-// reason a broadcaster can act on: start playing something.
 func TestQueueMapsNoActiveDevice(t *testing.T) {
 	reply := runQueue(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
@@ -424,7 +377,6 @@ func TestQueueMapsNoActiveDevice(t *testing.T) {
 	assert.Contains(t, reply.Error, "no active Spotify device")
 }
 
-// TestQueueMissingTrack refuses locally without ever dialing Spotify.
 func TestQueueMissingTrack(t *testing.T) {
 	mint, _ := newMintServer(t, "tok-1")
 	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("must not dial Spotify with no track id") })
@@ -435,10 +387,6 @@ func TestQueueMissingTrack(t *testing.T) {
 	assert.Contains(t, reply.Error, "missing track")
 }
 
-// TestNextSkipsWithNoBody pins next's write contract: a bare POST, no query,
-// no body, 200 with no body on success. It shares TestQueueSucceedsOn200WithBody's
-// fix (Do(ctx, req, nil) must not fail a non-204 2xx), since next answers
-// through the exact same playerWrite/decodeJSON path.
 func TestNextSkipsWithNoBody(t *testing.T) {
 	reply := runNext(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
@@ -449,17 +397,11 @@ func TestNextSkipsWithNoBody(t *testing.T) {
 	assert.Empty(t, reply.Error)
 }
 
-// TestQueueMapsScope403ToReconnect confirms Spotify's own "Insufficient
-// client scope" wording still maps to the reconnect message.
 func TestQueueMapsScope403ToReconnect(t *testing.T) {
 	reply := runQueue(t, spotify403("Insufficient client scope"))
 	assert.Contains(t, reply.Error, "reconnect it on the dashboard")
 }
 
-// TestQueueDoesNotMapUnrecognized403ToReconnect is the regression test for
-// the allowlist gap: a 403 with no "PREMIUM" or "SCOPE" wording (Spotify's
-// development-mode "user not on the app's allowlist" answer, among others)
-// must not tell an unrelated broadcaster to reconnect on the dashboard.
 func TestQueueDoesNotMapUnrecognized403ToReconnect(t *testing.T) {
 	reply := runQueue(t, spotify403("User not registered in the Developer Dashboard"))
 	assert.NotEmpty(t, reply.Error, "a 403 is still a refusal, not a silent success")
@@ -482,7 +424,6 @@ func TestSpotifyRateLimitHonoredAndCached(t *testing.T) {
 	reply1 := asReply[gossiprpc.SpotifyTrackReply](t, endpoint(t, p, "track")(context.Background(), req))
 	assert.Contains(t, reply1.Error, "Spotify is rate limiting requests right now, try again in a moment")
 
-	// Immediate repeat request must be served from cache without dialing upstream API
 	reply2 := asReply[gossiprpc.SpotifyTrackReply](t, endpoint(t, p, "track")(context.Background(), req))
 	assert.Equal(t, reply1.Error, reply2.Error)
 	assert.EqualValues(t, 1, calls.Load(), "rate-limited failure must be pinned so upstream is not hammered")
@@ -500,8 +441,6 @@ func TestSpotifyFriendlyError(t *testing.T) {
 			wantPin: core.PinNegative,
 		},
 		{
-			// Item-agnostic on purpose: one mapper answers search, track,
-			// artist and now-playing alike.
 			err:     &core.UpstreamError{Status: http.StatusNotFound, Message: "non existing id"},
 			wantMsg: "not found on Spotify",
 			wantPin: core.PinNegative,
@@ -522,8 +461,6 @@ func TestSpotifyFriendlyError(t *testing.T) {
 			wantPin: core.PinThrottle,
 		},
 		{
-			// 503 carries Retry-After too, so it must map to a pinned
-			// friendly reply rather than propagate as infrastructure.
 			err:     &core.UpstreamError{Status: http.StatusServiceUnavailable},
 			wantMsg: "Spotify is unavailable right now, try again in a moment",
 			wantPin: core.PinThrottle,

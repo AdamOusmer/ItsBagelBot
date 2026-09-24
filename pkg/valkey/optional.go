@@ -26,9 +26,6 @@ type optionalClient struct {
 	fallback vk.Client
 }
 
-// NewOptionalClient is for services whose correctness state is elsewhere.
-// Invalid TLS configuration still fails startup. An unreachable server does
-// not: commands fail promptly until the normal Sentinel client connects.
 func NewOptionalClient(address, password string) (vk.Client, error) {
 	tlsConfig, err := clientTLSConfig()
 	if err != nil {
@@ -39,15 +36,10 @@ func NewOptionalClient(address, password string) (vk.Client, error) {
 	if client, err := connect(); err == nil {
 		return &Client{Client: client}, nil
 	}
-	// No node-local replica path: optional reads must remain primary-consistent
-	// when a Primary view is taken before the background connection is ready.
 	return &Client{Client: newOptionalClient(connect)}, nil
 }
 
 func newOptionalClient(connect func() (vk.Client, error)) *optionalClient {
-	// ForceSingleClient explicitly returns a usable client even on dial failure.
-	// It supplies native command builders/error results without a fake server or
-	// background network I/O. Never retry its deliberately rejected commands.
 	fallback, _ := vk.NewClient(vk.ClientOption{
 		InitAddress: []string{"unavailable:0"}, ForceSingleClient: true,
 		DisableCache: true, DisableRetry: true,

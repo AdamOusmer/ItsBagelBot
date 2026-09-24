@@ -34,9 +34,6 @@ func passing(name string) Check {
 	return Bool(name, func() bool { return true })
 }
 
-// degrading fails with ErrDegraded instead of being declared optional at wiring
-// time — the shape a check that folds in another service's report produces when
-// that downstream answers "degraded".
 func degrading(name string) Check {
 	return Check{Name: name, Probe: func(context.Context) error {
 		return fmt.Errorf("%w: mysql", ErrDegraded)
@@ -59,16 +56,13 @@ func decode(t *testing.T, rec *httptest.ResponseRecorder) Report {
 	return report
 }
 
-// One table drives every endpoint-verdict combination: which checks fail and
-// whether they are optional decides the HTTP code per endpoint and the
-// aggregate the /status body reports.
 func TestEndpointVerdicts(t *testing.T) {
 	cases := []struct {
 		name       string
 		set        *Set
 		path       string
 		wantCode   int
-		wantStatus string // /status only; empty skips the body assertion
+		wantStatus string
 	}{
 		{"liveness ignores failing checks", NewSet("svc", failing("nats")), "/healthz", http.StatusOK, ""},
 		{"ready with no checks", NewSet("svc"), "/readyz", http.StatusOK, ""},
@@ -103,7 +97,7 @@ func TestStatusReportShape(t *testing.T) {
 
 	report := decode(t, rec)
 	for i := range report.Checks {
-		report.Checks[i].LatencyMS = 0 // wall-clock, not asserted
+		report.Checks[i].LatencyMS = 0
 	}
 	want := Report{Service: "svc", Status: StatusDegraded, Checks: []CheckResult{
 		{Name: "nats", OK: true},
@@ -120,8 +114,6 @@ func TestBoolNilAlwaysPasses(t *testing.T) {
 	}
 }
 
-// fakeConn records whether the probe spent a round trip, so the fast-path
-// (cached state already false) is distinguishable from the heartbeat itself.
 type fakeConn struct {
 	connected bool
 	flushErr  error
@@ -190,8 +182,6 @@ func TestProbeSeesDeadline(t *testing.T) {
 	}
 }
 
-// writeKeyPair writes a fresh self-signed cert+key to dir and returns the
-// paths plus the cert's serial, so rotation is observable.
 func writeKeyPair(t *testing.T, dir string, serial int64) (certFile, keyFile string) {
 	t.Helper()
 
@@ -240,8 +230,6 @@ func serialOf(t *testing.T, cfg *tls.Config) int64 {
 	return leaf.SerialNumber.Int64()
 }
 
-// A cert-manager renewal swaps the mounted files in place; the listener must
-// serve the new cert on the next handshake with no restart.
 func TestTLSConfigReloadsRotatedCert(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeKeyPair(t, dir, 1)
@@ -276,10 +264,6 @@ func TestServeRejectsHalfSetTLSPair(t *testing.T) {
 	}
 }
 
-// TestLivenessGate pins the one exception to "liveness never fails": a check
-// registered with Live fails /healthz, and nothing else does. A regression
-// here either crash-loops every service that has no gate, or silently stops
-// restarting the one that needs it.
 func TestLivenessGate(t *testing.T) {
 	gated := NewSet("svc", failing("nats"))
 	if rec := get(t, gated, "/healthz"); rec.Code != http.StatusOK {
@@ -300,8 +284,6 @@ func TestLivenessGate(t *testing.T) {
 		t.Fatalf("healthz body = %q, want the failing gate named", rec.Body.String())
 	}
 
-	// The gate is liveness-only: readiness still answers off the ordinary
-	// checks, and a gate failure must not double-count there.
 	if rec := get(t, NewSet("svc"), "/readyz"); rec.Code != http.StatusOK {
 		t.Fatalf("readyz = %d, want 200", rec.Code)
 	}

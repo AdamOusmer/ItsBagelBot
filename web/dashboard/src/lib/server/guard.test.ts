@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The ghost-session gate: which users-service refusals clear the cookie.
-// Before the RPC code vocabulary every RpcError cleared it, so one transient
-// `internal` refusal signed a live visitor out mid-session. Only an
-// authoritative "no such user" may do that; an uncoded refusal keeps the
-// pre-code behaviour because the users dashboard handlers still answer
-// uncoded today (see GONE_CODES in guard.ts).
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 
 let accountReply: () => Promise<unknown> = async () => ({});

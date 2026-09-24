@@ -23,24 +23,16 @@ func mcsrModule(gw engine.GossipCaller) module.Module {
 }
 
 func mcsrCtx(config string) *module.Context {
-	c := urchinCtx(config) // same envelope shape
+	c := urchinCtx(config)
 	return c
 }
 
-// mcsrCmdCall bundles a command test's target and inputs — which command,
-// what dashboard config, what typed args — so runMcsrCmd takes one named
-// value instead of three loose strings alongside t and gw.
 type mcsrCmdCall struct {
 	name   string
 	config string
 	args   string
 }
 
-// runMcsrCmd finds the named command on a fresh mcsr module wired to gw,
-// runs it with the given dashboard config and typed args, and returns the
-// chat outputs it collected. This is the "wire the module, run the
-// command, collect the reply" shape almost every test in this file (and in
-// mcsr_ranked_test.go / mcsr_pace_test.go) starts with.
 func runMcsrCmd(t *testing.T, gw engine.GossipCaller, call mcsrCmdCall) collector {
 	t.Helper()
 	cmd := findCmd(t, mcsrModule(gw), call.name)
@@ -73,7 +65,6 @@ func TestMcsrStreamOnlineSnapshots(t *testing.T) {
 	require.NoError(t, h(context.Background(), c, col.emit))
 	assert.Empty(t, col.out, "snapshot handler must not chat")
 
-	// The snapshot call is fire-and-forget on its own goroutine.
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
@@ -116,8 +107,6 @@ func TestMcsrStreamOnlinePrefersStoredUUID(t *testing.T) {
 	assert.Equal(t, "deadbeefdeadbeefdeadbeefdeadbeef", gw.lastCall(t).req.Account)
 }
 
-// --- parseMcsrSeason ---------------------------------------------------------------
-
 func TestParseMcsrSeason(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -142,11 +131,6 @@ func TestParseMcsrSeason(t *testing.T) {
 		})
 	}
 }
-
-// !elo must keep behaving exactly as before this feature: no season token
-// means no Season on the wire, same request shape as today.
-
-// --- parseMcsrPbArgs -----------------------------------------------------------------
 
 func TestParseMcsrPbArgs(t *testing.T) {
 	cases := []struct {

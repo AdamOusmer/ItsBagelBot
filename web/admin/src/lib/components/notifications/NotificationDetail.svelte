@@ -1,9 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The read half of the notifications inspector: what was sent, to whom, and
-  // the one verb a sent message still has (retract). No EditorFooter -- there is
-  // nothing to save, because the notifications service has no update verb.
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -24,8 +21,6 @@
   const { t } = getI18n();
   const audience = $derived(audienceOf(notification));
 
-  // Absolute local timestamp, not `ago`: a sent notification is a record, and
-  // "3d ago" is the wrong precision for deciding whether to retract one.
   function when(iso?: string): string {
     return iso ? new Date(iso).toLocaleString() : '';
   }

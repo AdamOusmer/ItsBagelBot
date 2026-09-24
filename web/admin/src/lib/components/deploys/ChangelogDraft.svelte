@@ -1,14 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // The changelog a release commits, as four plain fields. English is seeded
-  // from the commit subjects and is the only required part; French is left
-  // empty on purpose, because a French line derived from an English subject
-  // reads as a machine translation, and an absent French block falls back to
-  // English on the site.
-  //
-  // The fields stay on screen, disabled, for kinds that write no changelog,
-  // so switching kind never collapses the panel under the pointer.
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';

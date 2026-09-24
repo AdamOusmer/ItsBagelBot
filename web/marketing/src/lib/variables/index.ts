@@ -1,31 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * The exhaustive, broadcaster-facing variable reference.
- *
- * Kit's manifest (`@bagel/kit/variables`) is the source of truth for the
- * custom-command variables: one record below per kit VariableDef, its forms
- * becoming syntaxes/examples, its aliases/requires carried straight through
- * (docs/specs/variables-catalog.md D2/D3, phase 3 section B). A second kind
- * of record covers surface-only tokens: module reply fields (`{tier}`,
- * `{bits}`, `{player}`...) that are not custom-command variables, grouped by
- * their bare token name the same way a broadcaster would recognize them
- * reused across module replies.
- *
- * This is deliberately not a resolver. An unknown `{anything}` is still a
- * perfectly valid token to the lexer and is left literal by the bot. Runtime
- * ownership belongs to the scopes; this catalog describes the public forms
- * that the marketing site promises and uses the shared lexer to check them.
- */
-
 import { lex, type VarToken } from '@bagel/kit/engine/tmpl';
 import { VARIABLES as KIT_VARIABLES, type VariableDef, type VariableGroup } from '@bagel/kit/variables';
 import { builtinDef } from '@bagel/kit/catalog/builtin-commands';
 import { moduleDef } from '@bagel/kit/catalog';
 import { SURFACES, kitText, type VarDef as SurfaceVarDef, type SurfaceDef } from '../../i18n/builder';
-// From lang.ts, not ui.ts: ui.ts's module body runs import.meta.glob, which
-// bun test cannot evaluate (see lang.ts).
 import type { Lang } from '../../i18n/lang';
 import type {
   LocaleText,
@@ -36,7 +16,6 @@ import type {
 } from './types';
 export type { LocaleText, VariableAvailability, VariableGroup, VariableExample, VariableReference, LocalizedVariableReference };
 
-/** Left-rail and sort order for the guide page; also the canonical grouping order used everywhere the catalog is walked by group. Same 5 values and order as kit's VariableGroup. */
 export const GROUP_ORDER: readonly VariableGroup[] = ['who', 'typed', 'stream', 'fun', 'data'];
 
 const GROUP_RANK = new Map(GROUP_ORDER.map((group, index) => [group, index]));
@@ -61,62 +40,31 @@ function isGameSurface(surfaceId: string): boolean {
 
 const STREAM_SURFACES = new Set(['clip', 'time']);
 
-/** Group for a token that is not one of kit's own variables (a module reply
- * field). Kit-backed records use the manifest's own group instead (see
- * kitRecord below); this only covers the surface-only remainder, sorted into
- * the same 5 buckets kit's ids use (docs/specs/variables-catalog.md phase 4;
- * none of these surface ids were on the phase's explicit list, so this picks
- * the closest fit the way an unlisted kit id would): alerts announce
- * something about the stream itself, so 'stream'; a channel-points reward's
- * fields (cost, counter, points) read like the 'data' bucket's economy
- * variables; a play queue and every game-stats command are entertainment
- * content, so 'fun'; clip and time are also stream facts (a clip is stream
- * content, {time}/{time:Paris} matches kit's own 'time' Variable, which is
- * grouped 'stream' — corrected 2026-09-22, was folded into the 'who'
- * fallback below); everything genuinely left (shoutout, triggers) is
- * person-centric — who's being shouted out, who typed the trigger — so
- * 'who'. */
 function surfaceOnlyGroup(surfaceId: string): VariableGroup {
   if (ALERT_SURFACES.has(surfaceId)) return 'stream';
   if (surfaceId === 'channelpoints') return 'data';
   if (surfaceId.startsWith('queue-')) return 'fun';
   if (isGameSurface(surfaceId)) return 'fun';
   if (STREAM_SURFACES.has(surfaceId)) return 'stream';
-  return 'who'; // shoutout, triggers
+  return 'who';
 }
 
 function l10n(key: string): LocaleText {
   return { en: kitText('en', key), fr: kitText('fr', key) };
 }
 
-/** Surface-only records have no kit hint key; the guide falls back to the description's first sentence for these. */
 const EMPTY_LOCALE: LocaleText = Object.freeze({ en: '', fr: '' });
 
 function kitRequirementIds(def: VariableDef): string[] {
   return def.requires ? [def.requires] : [];
 }
 
-/** A requirement is a module (localized label below) or a toggleable
- * built-in command (followage, accountage, uptime, title, game), which has
- * no localized label anywhere: its chat trigger is the name broadcasters
- * know it by in every language, so the chip says "!followage". */
 function kitRequirement(def: VariableDef): string[] {
   if (!def.requires) return [];
   if (builtinDef(def.requires)) return [`!${def.requires}`];
   return [moduleDef(def.requires)?.label ?? def.requires];
 }
 
-/**
- * A module label in the broadcaster's own language, when the kit locales
- * carry one for that module id (modules.catalog.<id>.label, the same string
- * the dashboard module tile shows). `translate()` returns the key
- * unchanged when nothing matches, which is how a miss is told apart from a
- * real (possibly identical) translation without a second lookup.
- *
- * Falls back to the catalog's English label otherwise -- ModuleDef.label is
- * a plain hardcoded string (web/kit/lib/catalog/module-def.ts), not a
- * LocaleText, so most module ids have no French spelling to reach for yet.
- */
 function localizedRequirementLabel(id: string, lang: Lang, fallback: string): string {
   if (builtinDef(id)) return fallback;
   const key = `modules.catalog.${id}.label`;
@@ -124,7 +72,6 @@ function localizedRequirementLabel(id: string, lang: Lang, fallback: string): st
   return text === key ? fallback : text;
 }
 
-/** Mutable while surfaces are attached below; frozen by finalizeReference. */
 interface Draft extends Omit<VariableReference, 'syntaxes' | 'examples' | 'groups' | 'aliases' | 'aliasTokens' | 'surfaceIds' | 'surfaces' | 'requirements'> {
   syntaxes: string[];
   examples: VariableExample[];
@@ -137,8 +84,6 @@ interface Draft extends Omit<VariableReference, 'syntaxes' | 'examples' | 'group
   requirements: string[];
 }
 
-/** One record per kit VariableDef: forms become syntaxes/examples, aliases
- * become aliases/aliasTokens, requires becomes requirements. */
 function kitRecord(def: VariableDef): Draft {
   const canonical = def.forms[0];
   const syntaxes = def.forms.map((form) => form.syntax);
@@ -156,11 +101,6 @@ function kitRecord(def: VariableDef): Draft {
   };
 }
 
-/** One record for a bare token name that is not any kit variable's head
- * (a module reply field like `{tier}` or `{bits}`). First surface to use a
- * name sets its copy; later surfaces sharing the same bare name (matching a
- * broadcaster's own read of "I've seen {player} before") just add their
- * membership, the same simplification the deleted per-surface arrays used. */
 function surfaceOnlyRecord(name: string, varCopy: SurfaceVarDef, surfaceId: string): Draft {
   const { token, sample } = varCopy;
   const syntax = `{${name}}`;
@@ -191,21 +131,6 @@ function finalizeReference(draft: Draft): VariableReference {
 }
 
 function buildCatalog(): VariableReference[] {
-  // Match by head only, never by alias: kit's aliases (`sender`→user,
-  // `target`→touser) describe the custom-command engine's own scope, but a
-  // module reply's `{target}` (a clip title, the next queue player) means
-  // something unrelated that happens to share the spelling. Matching by
-  // head still correctly merges the shared dynamic tokens ({random},
-  // {choice}), which really are the same variable on every surface.
-  //
-  // Head-matching is the FALLBACK, not the rule, because it breaks on a form
-  // whose own lexer head disagrees with its variable's: positional's {:m}
-  // form lexes to the empty name (not "positional"), so byHead.get('') found
-  // nothing and minted a bogus record (id "", syntax "{}"). A VarDef built
-  // from a kit VariableForm carries kitId (see builder.ts's kitVarDef) for
-  // exactly this reason — it names its own owner directly, so this loop never
-  // has to re-derive it from the form text. Only a hand-written module-reply
-  // VarDef (no kit variable behind it) falls through to byHead.
   const byHead = new Map(KIT_VARIABLES.map((def) => [def.head, def]));
   const byId = new Map<string, Draft>(KIT_VARIABLES.map((def) => [def.id, kitRecord(def)]));
 
@@ -230,20 +155,9 @@ function buildCatalog(): VariableReference[] {
   });
 }
 
-// No lexer-safety throw here any more (was validateVariableCatalog):
-// buildCatalog's own tokenParts() null-check above already skips any
-// surface token that is not exactly one lexer var span before
-// surfaceOnlyRecord ever sees it, and every kitRecord's syntax/examples come
-// straight from a kit VariableDef's forms, which kit's own
-// variables/parity.test.ts rule C already asserts lex to exactly one token.
-// A second lexer pass here was checking the same guarantee twice through two
-// different implementations of the same check (docs/specs/
-// variables-catalog.md phase 4: this file shrinks to a localizer).
-/** Canonical, exhaustive family list. The array and its records are immutable. */
 const BUILT_VARIABLES = buildCatalog();
 export const VARIABLES: readonly VariableReference[] = Object.freeze(BUILT_VARIABLES.map((reference) => Object.freeze(reference)));
 
-/** Return the complete reference with copy localized for one marketing locale. */
 export function variableReferenceData(lang: Lang): readonly LocalizedVariableReference[] {
   return VARIABLES.map((reference) => {
     const requirements = reference.requirements.map((fallback, index) =>
@@ -266,7 +180,6 @@ export function variableReferenceData(lang: Lang): readonly LocalizedVariableRef
   });
 }
 
-/** Search-friendly haystack for client-side filtering. */
 export function variableSearchText(reference: VariableReference, lang: Lang = 'en'): string {
   const localized = variableReferenceData(lang).find((item) => item.id === reference.id);
   if (!localized) return '';

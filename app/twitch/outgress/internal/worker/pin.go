@@ -16,10 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// processPin sends the command response as a normal bot chat message, reads the
-// message id Twitch assigns it, then pins that id. duration_seconds is
-// intentionally absent from pinEndpoint: Twitch therefore keeps the pin for the
-// remainder of the current stream instead of applying a 30-1800 second timer.
 func (w *Worker) processPin(ctx context.Context, payload *outgress.Message) error {
 	pin, mod, ok, err := w.preparePin(ctx, payload)
 	if err != nil {
@@ -42,9 +38,6 @@ func (w *Worker) processPin(ctx context.Context, payload *outgress.Message) erro
 	return nil
 }
 
-// preparePin reserves both rate-limit paths before the chat send. Once the
-// message exists, retrying the whole queue item would duplicate it just to retry
-// the pin, so every locally predictable wait must happen first.
 func (w *Worker) preparePin(ctx context.Context, payload *outgress.Message) (outgress.Message, string, bool, error) {
 	mod, ok := w.botIdentity("pin", payload)
 	if !ok {
@@ -75,13 +68,7 @@ func (w *Worker) takePinChat(ctx context.Context, payload *outgress.Message) err
 	return w.takeChat(ctx, payload.BroadcasterID, w.modStatus(ctx, payload, ch, found))
 }
 
-// sendPinChat posts the text through the ordinary chat route and returns the id
-// Twitch assigned. An empty id means Twitch rejected or dropped the send and the
-// pin action is safely consumed.
 func (w *Worker) sendPinChat(ctx context.Context, payload *outgress.Message, mod string) (string, error) {
-	// The pin job arrives with the pin route resolved; the embedded send must
-	// carry the chat action's route instead, read from the same registry the
-	// dispatcher fills from (chat is always registered; Build guarantees it).
 	chatAction, _ := w.actions.Lookup(outgress.TypeChat)
 	chat := *payload
 	chat.Type = outgress.TypeChat
@@ -109,8 +96,6 @@ func (w *Worker) pinMessageID(ctx context.Context, payload, chat *outgress.Messa
 
 	messageID, sent, decodeErr := sentChatMessageID(res.Body)
 	if decodeErr != nil {
-		// Twitch accepted the send, so redelivery would duplicate it. Surface the
-		// bad response and ack this item instead of creating chat spam.
 		w.log.Error("chat sent but pin response could not be decoded",
 			zap.String("broadcaster_id", payload.BroadcasterID), zap.Error(decodeErr))
 		noticeError(ctx, decodeErr)
@@ -126,8 +111,6 @@ func (w *Worker) pinMessageID(ctx context.Context, payload, chat *outgress.Messa
 
 func (w *Worker) finishPin(ctx context.Context, pin *outgress.Message, messageID string) {
 	if err := w.execute(ctx, pin); err != nil {
-		// The chat message already exists. Retrying this compound action would send
-		// it again, so report the pin failure but consume the queue item.
 		w.log.Warn("chat sent but pin failed; skipping unsafe redelivery",
 			zap.String("broadcaster_id", pin.BroadcasterID),
 			zap.String("message_id", messageID), zap.Error(err))
@@ -142,9 +125,6 @@ type sendChatReply struct {
 	} `json:"data"`
 }
 
-// sentChatMessageID reads the Send Chat Message response. A successful Helix
-// response may still carry is_sent=false (for example, chat rejected the line),
-// so callers must check both return values before pinning.
 func sentChatMessageID(r io.Reader) (messageID string, sent bool, err error) {
 	var reply sendChatReply
 	if err := codec.NewDecoder(io.LimitReader(r, 4096)).Decode(&reply); err != nil {
@@ -156,8 +136,6 @@ func sentChatMessageID(r io.Reader) (messageID string, sent bool, err error) {
 	return reply.Data[0].MessageID, reply.Data[0].IsSent, nil
 }
 
-// pinEndpoint deliberately has no duration_seconds. Per Twitch's contract,
-// omission means the message remains pinned until the stream ends.
 func pinEndpoint(broadcasterID, moderatorID, messageID string) string {
 	return "/helix/chat/pins?broadcaster_id=" + url.QueryEscape(broadcasterID) +
 		"&moderator_id=" + url.QueryEscape(moderatorID) +

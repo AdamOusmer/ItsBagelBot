@@ -22,22 +22,6 @@ import (
 	"ItsBagelBot/pkg/monitor"
 )
 
-// adminauth serves the admin console's authorization + audit surface. It is the
-// DB-backed replacement for the old static ADMIN_USER_IDS env allowlist: the
-// console resolves whether a Twitch sign-in is staff via auth.check, manages the
-// staff roster via auth.upsert / auth.remove, and records every mutating
-// operator action via audit.append. The tailnet is the network boundary; this
-// staff allowlist is the identity boundary.
-//
-// Role ladder (moderator < admin < owner) is enforced here as defense in depth,
-// not only in the console: only managers (admin/owner) may change the roster,
-// and only an owner may create, modify, or remove an owner.
-
-// staffGate is the staff allowlist read on its own: the roster surface below
-// and the admin user surface in admin.go both authorize against it, so it is a
-// type of its own rather than a method duplicated on each RPC struct. It holds
-// the ent client (not the repository) because the staff table is not part of
-// the users repository's keyspace.
 type staffGate struct {
 	db *ent.Client
 }
@@ -53,17 +37,10 @@ const (
 	auditMaxSearchLen = 200
 )
 
-// SubscribeAdminAuth wires the auth.* and audit.* verbs. authPrefix defaults to
-// "bagel.rpc.admin.user.auth", auditPrefix to "bagel.rpc.admin.user.audit" so
-// they ride the console admin user's existing "bagel.rpc.admin.user.>" NATS
-// publish permission (no broker ACL change needed).
+// Both prefixes must stay under bagel.rpc.admin.user.>, the console's NATS publish permission.
 func SubscribeAdminAuth(w Wiring, db *ent.Client, authPrefix, auditPrefix string) error {
 	a := &adminAuthRPC{staffGate: staffGate{db: db}, log: w.Log}
 
-	// Two tables rather than one map keyed by full subject: the prefixes
-	// differ, so the map had to pre-concatenate them and lost the property
-	// ServeVerbs exists for -- that a verb name is spelled once, next to its
-	// handler, under a prefix named once.
 	staff := w.Within(adminBudget)
 	if err := bus.ServeVerbs(staff, authPrefix,
 		bus.At("check", a.check),
@@ -79,7 +56,6 @@ func SubscribeAdminAuth(w Wiring, db *ent.Client, authPrefix, auditPrefix string
 	)
 }
 
-// rank orders the role ladder for comparisons. Unknown roles rank lowest.
 func rank(r adminuser.Role) int {
 	switch r {
 	case adminuser.RoleOwner:
@@ -95,13 +71,8 @@ func rank(r adminuser.Role) int {
 
 func isManager(r adminuser.Role) bool { return r == adminuser.RoleAdmin || r == adminuser.RoleOwner }
 
-// authError renders one refusal as the staff-auth surface's reply, taking the
-// whole refusal for the same reason adminError does.
 func authError(r domainrpc.Refusal) usersrpc.AuthReply { return usersrpc.AuthReply{Refusal: r} }
 
-// check resolves whether the Twitch subject is active staff. When login/
-// display_name are supplied (sign-in path), it refreshes them so the allowlist
-// stays current after a Twitch rename.
 func (a *adminAuthRPC) check(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	id, err := parseID(req.UserID)
 	if err != nil {
@@ -127,8 +98,6 @@ func (a *adminAuthRPC) check(ctx context.Context, req usersrpc.AuthRequest) user
 	}
 }
 
-// staleIdentity reports whether the sign-in carries a fresh login or display
-// name the stored row does not yet reflect (a Twitch rename).
 func staleIdentity(row *ent.AdminUser, req usersrpc.AuthRequest) bool {
 	if req.Login == "" {
 		return false
@@ -139,9 +108,6 @@ func staleIdentity(row *ent.AdminUser, req usersrpc.AuthRequest) bool {
 	return req.DisplayName != "" && req.DisplayName != row.DisplayName
 }
 
-// refreshIdentity persists the sign-in's login/display name when they have
-// drifted, returning the saved row (or the original on a write failure — a
-// stale label must never fail an auth check).
 func (a *adminAuthRPC) refreshIdentity(ctx context.Context, row *ent.AdminUser, req usersrpc.AuthRequest) *ent.AdminUser {
 	if !staleIdentity(row, req) {
 		return row
@@ -181,10 +147,6 @@ func (a *adminAuthRPC) listStaff(ctx context.Context, _ usersrpc.AuthRequest) us
 	return usersrpc.AuthReply{Admins: out}
 }
 
-// upsertStaff creates or modifies a staff member. Enforces the role ladder:
-//   - actor must be a manager (admin/owner);
-//   - only an owner may set a target's role to owner;
-//   - only an owner may modify an existing owner.
 func (a *adminAuthRPC) upsertStaff(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	log := monitor.TxnLogger(ctx, a.log)
 	id, newRole, errMsg := a.validateUpsert(ctx, req)
@@ -205,8 +167,6 @@ func (a *adminAuthRPC) upsertStaff(ctx context.Context, req usersrpc.AuthRequest
 	return a.listStaff(ctx, usersrpc.AuthRequest{})
 }
 
-// validateUpsert runs every role-ladder guard for an upsert and resolves the
-// effective new role. A non-empty errMsg means the request is rejected.
 func (a *adminAuthRPC) validateUpsert(ctx context.Context, req usersrpc.AuthRequest) (id uint64, newRole adminuser.Role, errMsg string) {
 	actor, errMsg := a.resolveActiveActor(ctx, req.ActorID)
 	if errMsg != "" {
@@ -228,7 +188,6 @@ func (a *adminAuthRPC) validateUpsert(ctx context.Context, req usersrpc.AuthRequ
 	if errMsg != "" {
 		return 0, "", errMsg
 	}
-	// No self-modification: staff cannot change their own role.
 	if actor.ID == id {
 		return 0, "", "forbidden: cannot change your own role"
 	}
@@ -238,9 +197,7 @@ func (a *adminAuthRPC) validateUpsert(ctx context.Context, req usersrpc.AuthRequ
 	return id, newRole, ""
 }
 
-// resolveActiveActor loads the actor from the staff allowlist. ActorRole is
-// deliberately not consulted: authorization must be based on the persisted
-// role so a caller cannot elevate itself by forging request metadata.
+// Must ignore ActorRole: only the persisted role counts.
 func (g staffGate) resolveActiveActor(ctx context.Context, rawID string) (*ent.AdminUser, string) {
 	actorID, err := parseID(rawID)
 	if err != nil {
@@ -262,8 +219,6 @@ func (g staffGate) resolveActiveActor(ctx context.Context, rawID string) (*ent.A
 	return actor, ""
 }
 
-// resolveNewRole resolves the effective role for an upsert (empty defaults to
-// moderator), validates it, and enforces that only an owner may grant owner.
 func resolveNewRole(raw string, actorRole adminuser.Role) (adminuser.Role, string) {
 	newRole := adminuser.Role(raw)
 	if raw == "" {
@@ -278,9 +233,6 @@ func resolveNewRole(raw string, actorRole adminuser.Role) (adminuser.Role, strin
 	return newRole, ""
 }
 
-// guardExistingTarget applies the guards that depend on the target's current
-// role: an owner's role is immutable, and an admin cannot modify another admin.
-// A missing target is fine (this is a create).
 func (a *adminAuthRPC) guardExistingTarget(ctx context.Context, id uint64, actorRole adminuser.Role) string {
 	existing, err := a.findStaff(ctx, id)
 	if ent.IsNotFound(err) {
@@ -298,9 +250,6 @@ func (a *adminAuthRPC) guardExistingTarget(ctx context.Context, id uint64, actor
 	return ""
 }
 
-// removeStaff soft-disables a staff member (active=false) so historical audit
-// rows keep resolving the actor. Owners may only be removed by owners, and the
-// last active owner can never be removed (lockout guard).
 func (a *adminAuthRPC) removeStaff(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	log := monitor.TxnLogger(ctx, a.log)
 	id, errMsg := a.validateRemove(ctx, req)
@@ -318,8 +267,6 @@ func (a *adminAuthRPC) removeStaff(ctx context.Context, req usersrpc.AuthRequest
 	return a.listStaff(ctx, usersrpc.AuthRequest{})
 }
 
-// validateRemove runs the removal guards and returns the target id. A non-empty
-// errMsg means the request is rejected.
 func (a *adminAuthRPC) validateRemove(ctx context.Context, req usersrpc.AuthRequest) (uint64, string) {
 	actor, errMsg := a.resolveActiveActor(ctx, req.ActorID)
 	if errMsg != "" {
@@ -347,9 +294,6 @@ func (a *adminAuthRPC) validateRemove(ctx context.Context, req usersrpc.AuthRequ
 	return id, a.guardTargetRemoval(ctx, actorRole, target)
 }
 
-// guardTargetRemoval applies the guards that depend on the target's role: an
-// admin cannot remove another admin, and an owner may only be removed under the
-// stricter owner rule (see guardOwnerRemoval).
 func (a *adminAuthRPC) guardTargetRemoval(ctx context.Context, actorRole adminuser.Role, target *ent.AdminUser) string {
 	if actorRole == adminuser.RoleAdmin && target.Role == adminuser.RoleAdmin {
 		return "forbidden: admins cannot remove another admin"
@@ -360,8 +304,6 @@ func (a *adminAuthRPC) guardTargetRemoval(ctx context.Context, actorRole adminus
 	return ""
 }
 
-// guardOwnerRemoval blocks removing an owner unless the actor is an owner and
-// at least one other active owner would remain.
 func (a *adminAuthRPC) guardOwnerRemoval(ctx context.Context, actorRole adminuser.Role) string {
 	if actorRole != adminuser.RoleOwner {
 		return "forbidden: cannot remove an owner"
@@ -407,8 +349,6 @@ func (a *adminAuthRPC) auditAppend(ctx context.Context, req usersrpc.AuthRequest
 
 func (a *adminAuthRPC) auditList(ctx context.Context, req usersrpc.AuthRequest) usersrpc.AuthReply {
 	q := a.db.AdminAudit.Query().Order(ent.Desc(adminaudit.FieldCreatedAt), ent.Desc(adminaudit.FieldID))
-	// Optional actor filter: lazy-load a single operator's own history without
-	// shipping the whole log (actor_filter = their Twitch id).
 	if req.ActorFilter != "" {
 		aid, err := parseID(req.ActorFilter)
 		if err != nil {
@@ -433,7 +373,6 @@ func auditListLimit(limit int) int {
 	return limit
 }
 
-// auditListAll returns the newest rows up to a bounded limit (no pagination).
 func (a *adminAuthRPC) auditListAll(ctx context.Context, q *ent.AdminAuditQuery, limit int) usersrpc.AuthReply {
 	rows, err := dbgate.WithQuery(ctx, func(ctx context.Context) ([]*ent.AdminAudit, error) {
 		return q.Limit(auditListLimit(limit)).All(ctx)
@@ -444,8 +383,6 @@ func (a *adminAuthRPC) auditListAll(ctx context.Context, q *ent.AdminAuditQuery,
 	return usersrpc.AuthReply{Entries: auditViewsOf(rows)}
 }
 
-// auditListPage returns one clamped page, fetching one extra row (except on the
-// last page) to compute has-more without a count query.
 func (a *adminAuthRPC) auditListPage(ctx context.Context, q *ent.AdminAuditQuery, page, limit int) usersrpc.AuthReply {
 	page = clamp(page, 1, auditMaxPages)
 	pageSize := clamp(auditListLimit(limit), 1, auditPageSize)
@@ -472,7 +409,6 @@ func (a *adminAuthRPC) auditListPage(ctx context.Context, q *ent.AdminAuditQuery
 	}
 }
 
-// clamp constrains v to [lo, hi].
 func clamp(v, lo, hi int) int {
 	if v < lo {
 		return lo
@@ -524,16 +460,11 @@ func auditViewsOf(rows []*ent.AdminAudit) []usersrpc.AuditView {
 	return out
 }
 
-// StaffSeed lists the bootstrap operators to guarantee on startup
-// (OWNER_BOOTSTRAP_IDS / ADMIN_BOOTSTRAP_IDS).
 type StaffSeed struct {
 	Owners []uint64
 	Admins []uint64
 }
 
-// SeedStaff bootstraps owners and admins from the seed lists. Existing rows are
-// re-activated and promoted to at least the seeded role, so a redeploy can
-// never lock out or demote a bootstrap operator.
 func SeedStaff(ctx context.Context, db *ent.Client, seed StaffSeed, log *zap.Logger) error {
 	s := staffSeeder{db: db, log: log}
 	if err := s.seedRole(ctx, seed.Owners, adminuser.RoleOwner); err != nil {
@@ -562,7 +493,6 @@ func (s staffSeeder) seedOne(ctx context.Context, id uint64, role adminuser.Role
 	})
 	if err == nil {
 		upd := s.db.AdminUser.UpdateOneID(id).SetActive(true)
-		// Only ever promote via seed; never demote a manually-elevated row.
 		if rank(role) > rank(existing.Role) {
 			upd = upd.SetRole(role)
 		}
@@ -581,7 +511,6 @@ func (s staffSeeder) seedOne(ctx context.Context, id uint64, role adminuser.Role
 	return nil
 }
 
-// staffRow is the persisted shape of one staff member (create or update).
 type staffRow struct {
 	id      uint64
 	login   string
@@ -609,7 +538,6 @@ func upsertStaffRow(ctx context.Context, db *ent.Client, row staffRow) error {
 			SetAddedBy(row.addedBy).
 			SetActive(true).
 			Exec(ctx)
-		// A concurrent create wins the race: fall back to updating the row it made.
 		if ent.IsConstraintError(err) {
 			return updateStaffRow(ctx, db, row)
 		}
@@ -640,7 +568,4 @@ func adminViewOf(r *ent.AdminUser) usersrpc.AdminAcctView {
 	}
 }
 
-// parseID is bus.UserID under this package's name. The staff verbs cannot use
-// the bind-time guard (bus.ServeForUser): auth.list and audit.list carry no
-// user id at all, and audit.append validates the actor before the target.
 func parseID(s string) (uint64, error) { return bus.UserID(s) }

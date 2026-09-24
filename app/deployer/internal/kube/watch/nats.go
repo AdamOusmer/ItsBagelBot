@@ -18,12 +18,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// The NATS servers as deploy/messaging declares them: the hub StatefulSet
-// (app=nats) and the leaf DaemonSet (app=nats-leaf), both with a container
-// named nats. The monitor port is read from the container's port named
-// monitor instead of assumed to be 8222: the leaf listens on 8223, a split
-// kept from when both shared the node netns, and only the Services publish
-// 8222 for it.
 const (
 	natsNamespace   ports.Namespace = "messaging"
 	natsSelector                    = "app in (nats,nats-leaf)"
@@ -31,16 +25,11 @@ const (
 	monitorPortName                 = "monitor"
 )
 
-// varz is the part of /varz this package reads. config_load_time is the
-// field name in nats-server 2.14 (server/monitor.go Varz.ConfigLoadTime),
-// set at start and on every successful reload.
 type varz struct {
 	ConfigLoadTime time.Time `json:"config_load_time"`
 }
 
-// NATSServers errors on the first server it cannot read, pod without an IP
-// included: the acl stage needs every server's answer, and a partial list
-// would read as "all reloaded".
+// Errors on the first unreadable server: a partial list would read as all reloaded.
 func (w *Watcher) NATSServers(ctx context.Context) ([]ports.NATSServer, error) {
 	pods, err := w.listPods(ctx, natsNamespace, natsSelector)
 	if err != nil {

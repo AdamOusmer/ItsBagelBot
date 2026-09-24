@@ -2,17 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * PathPicker: the dashboard's JSON tree, rehearsed on the page. A reader edits
- * a real API response and clicks a value; the widget answers with the path the
- * definition saves, the token they type, the override form, and the line chat
- * would print after the bot's own cleaning and 100-byte cap.
- *
- * The pick rules are the resolver's, not a friendly approximation: segments
- * [A-Za-z0-9_-] up to 64 characters, depth 8, and a leaf that must be a scalar.
- * A tree that offered a path the save validator rejects would teach the wrong
- * thing, which is exactly the failure the dashboard's own JsonTree guards.
- */
 interface Props {
     labels?: Record<string, string>;
     props?: Record<string, unknown>;
@@ -113,7 +102,6 @@ const sample =
     import { intactSpan } from '@bagel/kit/engine/tmpl';
     import { bindOnce } from '../../../script/bind';
 
-    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     const CAP = 100;
 
     function capBytes(text: string): { out: string; cut: boolean } {
@@ -130,8 +118,6 @@ const sample =
         return { out, cut: true };
     }
 
-    // The bot's own cleaning: control characters dropped, leading slashes and
-    // spaces trimmed, then the 100-byte cap.
     function chatValue(raw: string): { out: string; cut: boolean } {
         let text = '';
         for (const ch of raw) {

@@ -10,8 +10,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// RecurringPayment is an allowlisted Checkout view. Provider addresses and
-// payment details are never retained by this adapter.
 type RecurringPayment struct {
 	Reference             string
 	Status                string
@@ -54,8 +52,6 @@ func (p *RecurringPayment) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// SQL-style and timezone-less timestamps cannot establish billing dates. A
-// nonempty cancellation value still establishes intent regardless of its zone.
 func parseProviderTime(raw codec.RawMessage) *time.Time {
 	var value string
 	if codec.Unmarshal(raw, &value) != nil {
@@ -95,9 +91,6 @@ func (p RecurringPayment) HasCancellation() bool {
 	return p.Cancelled || p.CancellationRequested || p.CancellationDate != nil
 }
 
-// CanProtect checks identity and known monthly scheduling/cancellation state.
-// It does not establish that this store has validated Tebex pause semantics;
-// that separate launch gate remains required for every provider mutation.
 func (p RecurringPayment) CanProtect(reference string) bool {
 	if p.Ambiguous || !p.MatchesReference(reference) {
 		return false

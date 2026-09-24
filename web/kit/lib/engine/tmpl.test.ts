@@ -15,13 +15,6 @@ import {
   type VarToken
 } from './tmpl';
 
-// The golden fixture is Go's, read at run time rather than imported, so the
-// TypeScript build never has to reach outside console/ for a module and
-// tsconfig's rootDir stays honest. Regenerating it is a Go-side flag
-// (`go test ./pkg/tmpl/... -run TestTokenGolden -tmpl.write-golden`), never a
-// side effect of running this suite: a fixture either language can rewrite
-// documents whatever that language currently does, which is the opposite of
-// the point of sharing one.
 const GOLDEN_PATH = join(import.meta.dir, '../../../../pkg/tmpl/testdata/tokens.golden.json');
 
 interface GoldenRow {
@@ -33,15 +26,12 @@ interface GoldenRow {
 
 const golden: { note: string; rows: GoldenRow[] } = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8'));
 
-/** A row's values map as a resolver: an absent key is an unknown name, a key
- * mapped to "" is a name that resolved to nothing. */
 function rowResolver(row: GoldenRow): (token: VarToken) => string | null {
   return (token) => (token.key in row.values ? row.values[token.key] : null);
 }
 
 describe('shared lexer golden (pkg/tmpl/testdata/tokens.golden.json)', () => {
   test('the fixture is present and non-trivial', () => {
-    // A silently empty fixture would make every row below vacuously pass.
     expect(golden.rows.length).toBeGreaterThan(30);
   });
 

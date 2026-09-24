@@ -2,20 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for `.bb-topbar`: the call-sign strip. Its Astro twin is
-  // ../astro/Topbar.astro; ../test/parity.test.ts diffs the two.
-  //
-  // This is the CHROME half of the component it replaces. The other half --
-  // the operator chip, its menu, the avatar engine, the shared-board list and
-  // a POST /auth/logout form -- was session data and app routing, and it now
-  // lives in web/kit as its own wrapper, handed in through the `account`
-  // snippet. The split is the plan's own rule: kit keeps what binds bot data,
-  // ui keeps what is an element.
-  //
-  // The notification-bell fallback is gone with it. The strip used to render a
-  // dead <button> when no `actions` snippet was given -- a bell that opened
-  // nothing, on every page of the admin board. A missing slot now renders
-  // nothing.
   import '../styles/elements/shell.css';
   import Brand from './Brand.svelte';
   import { mountClock } from '../lib/clock';
@@ -34,13 +20,9 @@
     ...rest
   }: {
     brand: UiBrand;
-    /** Ancestors first, current page last. The last one is not a link. */
     crumbs?: UiCrumb[];
     crumbAriaLabel?: string;
-    /** The wall clock. Off for a surface that renders a static screenshot. */
     clock?: boolean;
-    /** A railed board owns its account surface in the rail at desktop widths,
-        so the chip here is a phone-only duplicate and is hidden there. */
     railed?: boolean;
     actions?: Snippet;
     account?: Snippet;

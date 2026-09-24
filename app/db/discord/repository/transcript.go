@@ -12,21 +12,8 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
-// MaxTranscriptBytes caps one stored transcript.
-//
-// The engine paginates a closing ticket's history to 2000 messages; at the
-// ~1 KiB a long Discord message plus attachment URLs renders to, that lands
-// just under 2 MiB. The cap exists because this column rides the nightly
-// logical mysqldump of every schema: an unbounded transcript would make the
-// backup grow with chat volume rather than with the dataset. Refusing is the
-// right failure -- a truncated transcript that silently loses the end of a
-// support conversation is worse than a close that logs a refusal and keeps
-// the channel.
 const MaxTranscriptBytes = 2 << 20
 
-// TranscriptPut stores (or replaces) one ticket's rendered transcript.
-// Replacing rather than appending: the engine renders the whole history in one
-// pass at close time, so a second put is a retry of the same render.
 func (s *Store) TranscriptPut(ctx context.Context, ticketID int, body string, messageCount int) error {
 	if ticketID <= 0 {
 		return ErrInvalidInput
@@ -45,17 +32,12 @@ func (s *Store) TranscriptPut(ctx context.Context, ticketID int, body string, me
 	})
 }
 
-// transcriptPut is one rendered transcript on its way to its row: the ticket
-// it belongs to, the render, and the number of messages the render covers.
-// The three never travel apart, so they cross the transaction boundary as one
-// value instead of as three positional arguments a caller can transpose.
 type transcriptPut struct {
 	ticketID     int
 	body         string
 	messageCount int
 }
 
-// putTranscriptInTx is TranscriptPut's body inside the transaction.
 func putTranscriptInTx(ctx context.Context, tx *ent.Tx, p transcriptPut) error {
 	exists, err := tx.Ticket.Query().Where(ticket.IDEQ(p.ticketID)).Exist(ctx)
 	if err != nil {
@@ -84,9 +66,6 @@ func putTranscriptInTx(ctx context.Context, tx *ent.Tx, p transcriptPut) error {
 		Exec(ctx)
 }
 
-// TranscriptGet reads one ticket's transcript back. A ticket with no stored
-// transcript is (nil, false, nil) -- transcripts are off by config for some
-// guilds, so absence is ordinary.
 func (s *Store) TranscriptGet(ctx context.Context, ticketID int) (*ent.TicketTranscript, bool, error) {
 	if ticketID <= 0 {
 		return nil, false, ErrInvalidInput

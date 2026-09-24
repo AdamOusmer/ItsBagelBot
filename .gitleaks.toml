@@ -1,6 +1,5 @@
 title = "ItsBagelBot gitleaks config"
 
-# Keep every default gitleaks rule; only extend the allowlist below.
 [extend]
 useDefault = true
 

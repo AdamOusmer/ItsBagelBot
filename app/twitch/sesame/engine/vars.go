@@ -16,36 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// commandChain builds the scope chain one custom-command run expands through.
-//
-// It replaced expandCommand's switch: a token family is no longer an arm
-// nothing can gate, it is a scope that is present or absent, so "this module
-// is off for this broadcaster" and "this dependency is not wired" are the same
-// statement and both leave the token literal. Order is precedence — pure
-// first, so a broadcaster cannot shadow {random} — and external last, because
-// its Plan is the only one that leaves the process.
-//
-// args is the RAW argument string: the counter scope resolves a mention from
-// it, and that resolution has to see the same bytes the chatter typed.
-//
-// cc is the command row that matched, not just its name: the row already
-// carries the lifetime use counter the commands service maintains, so {uses}
-// is answered from the lookup runCustom has already done rather than from a
-// second store. Everything else reads cc.Name, the canonical key an alias
-// resolves to, so {command}, the counter reads and the use counter all agree
-// on one name.
-//
-// toks is the lexed template, which the channel, viewer and module scopes need
-// BEFORE they mount: their module rows are read only for the token families the
-// template actually names, so a command mentioning none of them costs no
-// projection read. The module scope also counts the template's bare {quote}
-// spans there, because each is an independent draw and the chain would hand it
-// only one distinct span. The chatter scope counts its own bare
-// {random.chatter} spans there for the same reason, but mounts either way:
-// nothing gates it, so a broadcaster who spelled it right never sees it stay
-// literal. The emote scope counts its own bare {random.emote} spans there and
-// mounts on nothing but its source being wired, for the same reason: no module
-// sits behind the emote catalog either.
 func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl.Token) scope.Chain {
 	chain := scope.Chain{
 		scope.Pure{Locale: run.c.Locale},
@@ -77,39 +47,14 @@ func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl
 	return chain
 }
 
-// commandRun is the single custom-command run a chain plans for: the module
-// context it fires in, the canonical command name, and the RAW argument
-// string the chatter typed.
-//
-// The three travel together through every scope the chain mounts — the
-// message tokens, the counter reads and the url fetches each need all three —
-// so they are one value rather than three parameters rethreaded at each hop,
-// which is what let a caller pass them in the wrong order.
 type commandRun struct {
 	c       *module.Context
 	command string
 	args    string
 
-	// uses is the durable count the commands service has already summed for
-	// this command, carried on the run rather than read here: {uses} renders
-	// the value the projection row arrived with, so the token never costs a
-	// second read and never disagrees with the row the gate matched on.
 	uses uint64
 }
 
-// messageVars reads the triggering chat line's identity tokens.
-//
-// The user-controlled halves ({args}, {touser}, {1}..{30}) are run through
-// sanitizeVar here, at the one boundary that mints them, so a crafted
-// argument can never inject a leading slash-verb (/ban, /timeout) into the
-// expanded response for Translate to route. Command CONTENT is validated at
-// save time on the dashboard; this guards only the runtime injection vector.
-// The '@' is trimmed after sanitizing as well as before, so "@@bob" still
-// renders "bob".
-//
-// run.command is the CANONICAL name (runCustom passes cc.Name, the same key
-// recordUse counts against), so {command} prints one name however many
-// aliases reach it.
 func messageVars(run commandRun) scope.Message {
 	sender := run.c.Env.ChatterName()
 	touser := sender
@@ -128,22 +73,6 @@ func messageVars(run commandRun) scope.Message {
 	}
 }
 
-// sanitizeWords splits the raw arguments into the words {1}..{30} and {n:}
-// address, sanitizing each one on its own.
-//
-// Sanitizing the joined string once is NOT enough here, and that difference
-// is the whole reason this exists beside Args. sanitizeVar only trims LEADING
-// slashes, which is the right rule for {args}: it renders where the chatter's
-// own first word renders, so a "/me" in the middle of it stays in the middle.
-// A positional token moves a word: "!so hey /me is a cat" puts "/me" at the
-// START of the rendered line through {2}, and emitCommand's per-line split
-// would then hand outgress a moderation verb the chatter chose. Every word is
-// therefore trimmed as if it began a line, because through a positional token
-// it can.
-//
-// A word that sanitizes away to nothing keeps its slot rather than being
-// dropped: positions are what the template addresses, so collapsing them
-// would shift every later word by one.
 func sanitizeWords(args string) []string {
 	fields := strings.Fields(args)
 	if len(fields) == 0 {
@@ -156,25 +85,12 @@ func sanitizeWords(args string) []string {
 	return words
 }
 
-// logScopeFailure reports a scope whose Plan failed; its tokens then render
-// empty (or their fallback) rather than failing the whole reply.
 func (p *Pipeline) logScopeFailure(c *module.Context) func(error) {
 	return func(err error) {
 		p.log.Warn("command scope plan failed", module.BIDField(c.BroadcasterID), zap.Error(err))
 	}
 }
 
-// counterPeeks is the engine half of the counter READ scope: the grammar
-// (which spellings resolve, how a payload folds) lives in scope.Store, and
-// everything that needs the run — whose identity a "target:" read looks up,
-// the loyalty store itself — lives here. The command-run bump option
-// (cc.BumpCounter, see dispatch.go's runCustom) is a separate write path
-// that never routes through this type: a template read and the option that
-// produces the number it reads are deliberately two different pieces of
-// code, so a read can never itself cause the write it is displaying.
-//
-// The mentioned viewer is resolved lazily and once: a response naming three
-// addressed counters looks the mention up in the roster a single time.
 type counterPeeks struct {
 	p   *Pipeline
 	run commandRun
@@ -193,10 +109,6 @@ func newCounterPeeks(p *Pipeline, run commandRun) *counterPeeks {
 	}
 }
 
-// Peek reads one counter under the run's identity, and writes nothing at
-// all: no bump, and no dedup claim either, because a read has nothing to
-// deduplicate and claiming one would make a redelivered line render an
-// unrelated counter's replay value.
 func (b *counterPeeks) Peek(ctx context.Context, name string, addressed bool) string {
 	return CounterPeekValue(ctx, b.p.loyalty, CounterTarget{
 		BroadcasterID: b.run.c.BroadcasterID,
@@ -206,8 +118,6 @@ func (b *counterPeeks) Peek(ctx context.Context, name string, addressed bool) st
 	})
 }
 
-// viewerFor picks whose bucket a span addresses: the mentioned viewer for the
-// "target:" spelling, the sender otherwise.
 func (b *counterPeeks) viewerFor(addressed bool) Viewer {
 	if addressed {
 		return b.targetViewer()
@@ -215,10 +125,6 @@ func (b *counterPeeks) viewerFor(addressed bool) Viewer {
 	return b.sender
 }
 
-// targetViewer is the viewer the command mentions, resolved through the
-// roster of chatters this replica has seen speak. A mention nobody has spoken
-// where this replica could see falls back to the sender, mirroring how
-// {touser} itself defaults to the sender.
 func (b *counterPeeks) targetViewer() Viewer {
 	if b.resolved {
 		return b.target
@@ -231,8 +137,6 @@ func (b *counterPeeks) targetViewer() Viewer {
 	return b.target
 }
 
-// urlFetches is the engine half of the urlfetch scope: scope.External decides
-// which payloads are asked for, this fans them out to gossip.
 type urlFetches struct {
 	p   *Pipeline
 	run commandRun
@@ -242,32 +146,12 @@ func (f urlFetches) Fetch(ctx context.Context, names []string) map[string]string
 	return f.p.fetchUrlValues(ctx, f.run.c, f.run.command, names)
 }
 
-// sanitizeVar neutralizes a user-supplied command variable so it cannot inject
-// a leading slash-verb into the expanded response. Control characters (C0 plus
-// DEL) are stripped first — an embedded newline would otherwise survive into
-// the expansion and emitCommand's per-line split would mint it a fresh line,
-// which a leading slash then turns into a remote moderation verb — and
-// leading spaces/slashes are trimmed after. The rest is untouched: a URL's
-// "http://" keeps its slashes because they are not leading.
 func sanitizeVar(s string) string {
 	return string(trimLeftSlashSpace(stripControls(rawText(s))))
 }
 
-// rawText is text that has been through at most one half of sanitizeVar.
-//
-// The named type is what stops a caller reaching past sanitizeVar for a
-// single half: stripControls alone still lets a leading "/ban" through, and
-// trimLeftSlashSpace alone still lets an embedded newline mint the second
-// chat line a slash-verb needs, so neither half is safe to hand a template on
-// its own. sanitizeVar is the only function here that returns a plain string,
-// so a plain string is the only thing that has crossed the whole guard.
 type rawText string
 
-// stripControls removes every ASCII control rune before an external value can
-// reach a template: an embedded \n or \r would mint extra chat lines through
-// emitCommand's per-line split, an ESC poisons terminal/IRC rendering, and a
-// NUL truncates downstream writers. Returns s unchanged when it carries none
-// (the overwhelmingly common case pays only the scan).
 func stripControls(s rawText) rawText {
 	i := strings.IndexFunc(string(s), func(r rune) bool { return r < ' ' || r == '\x7f' })
 	if i < 0 {

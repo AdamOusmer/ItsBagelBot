@@ -1,17 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package urchin is the gossip provider for the urchin.gg Coral API: Hypixel
-// Bed Wars session deltas (daily/weekly/monthly) and the Urchin cheater
-// blacklist (sniper score, tags). Lifetime stats live in the hypixel provider:
-// Coral's profile endpoint needs the Player Data permission our key does not
-// carry, and the Hypixel API is a separate external system with its own budget.
-//
-// Every endpoint takes the player as Request.Account (a Minecraft username or
-// UUID; Coral resolves usernames through Mojang) and answers a typed
-// gossiprpc reply. All endpoints are byte-flow: the reply — success or
-// friendly failure (player not found) — is shaped and marshaled once on fetch,
-// and a cache hit answers with the stored wire bytes untouched.
 package urchin
 
 import (
@@ -28,33 +17,21 @@ import (
 	"ItsBagelBot/pkg/ratelimit"
 )
 
-// Cache TTLs. Session deltas move while the player is online, so they stay
-// short; blacklist state can lag a little. The tags fetch (tagsTTL) doubles as
-// the sniper endpoint's uuid source, so the two share one window.
 const (
 	sessionTTL  = 2 * time.Minute
 	sniperTTL   = 10 * time.Minute
 	tagsTTL     = 10 * time.Minute
 	negativeTTL = 5 * time.Minute
 
-	httpTimeout = 10 * time.Second
-	// handlerTimeout leaves headroom over one upstream call plus the uuid
-	// resolution hop the sniper endpoint needs.
+	httpTimeout    = 10 * time.Second
 	handlerTimeout = 15 * time.Second
 
-	// rateWindowSeconds is the Coral key budget window (5 minutes).
 	rateWindowSeconds = 300.0
-	// maxBurst caps instantaneous spend. Coral runs an undocumented edge
-	// limiter (~40 rapid requests, ~4/s refill, measured 2026-07-28) far below
-	// the 600/5min key quota; 8-at-once with ~2/s sustained refill stays under
-	// that wall while still spending the full quota across the window.
-	maxBurst = 8.0
+	maxBurst          = 8.0
+
+	millisPerSecond = 1000
 )
 
-// Config carries the provider's environment: the Coral base URL, the API key
-// every request authenticates with, and the key's request budget per 5-minute
-// window. BatchWindow sizes the cross-channel batch_lookup window (zero takes
-// the default); it exists for tests, which shrink it to keep suites fast.
 type Config struct {
 	BaseURL     string
 	APIKey      string
@@ -62,10 +39,8 @@ type Config struct {
 	BatchWindow time.Duration
 }
 
-// providerName is the subject token this provider answers under.
 const providerName = "urchin"
 
-// api holds the provider's runtime pieces; the declared endpoints capture it.
 type api struct {
 	http    *core.HTTPClient
 	cache   *core.Cache
@@ -75,11 +50,6 @@ type api struct {
 	tags    *tagsBatcher
 }
 
-// New builds the urchin provider: the three session-delta endpoints plus the
-// blacklist pair, all byte-flow. cfg.APIKey must be non-empty (providers.All
-// skips the provider entirely when it is not configured).
-//
-// Trusted is declared before any client exists — trust is positional.
 func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d).Trusted()
 	p := newAPI(cfg, d, b)
@@ -135,21 +105,10 @@ func sessionErrReply(id, msg string) any {
 func sniperErrReply(id, msg string) any { return gossiprpc.UrchinSniperReply{Player: id, Error: msg} }
 func tagsErrReply(id, msg string) any   { return gossiprpc.UrchinTagsReply{Player: id, Error: msg} }
 
-// budget spends one Coral token in the request's OWN lane. It is declared on the
-// endpoint rather than written inside a fetch or a cache fill because both of
-// those run once per singleflight flight: a check in there is charged to
-// whichever caller won the flight and its verdict is served to everyone joined
-// to it, so a drained standard bucket denied premium callers the 25% reserve
-// they are entitled to.
 func (p *api) budget(ctx context.Context, req gossiprpc.Request) error {
 	return p.buckets.Enforce(ctx, p.limiter, req.IsPremium)
 }
 
-// sniperBudget spends TWO tokens because a cold sniper lookup makes two Coral
-// calls: the tags fetch that resolves the uuid, then the cubelify score itself.
-// A warm tags entry makes the first one free and this over-counts by one, which
-// is the safe direction against an allowance whose whole job is to keep the
-// fleet under Coral's measured burst wall.
 func (p *api) sniperBudget(ctx context.Context, req gossiprpc.Request) error {
 	if err := p.budget(ctx, req); err != nil {
 		return err
@@ -157,23 +116,12 @@ func (p *api) sniperBudget(ctx context.Context, req gossiprpc.Request) error {
 	return p.budget(ctx, req)
 }
 
-// account is a Minecraft player identifier (a username or UUID; Coral resolves
-// usernames through Mojang) as supplied by the caller. It is a distinct type so
-// the many handoffs below carry the player's meaning rather than a bare string.
 type account string
 
 func (a account) String() string { return string(a) }
 
-// cacheKey normalizes the identifier for cache keys so "Player" and "player"
-// share an entry.
 func (a account) cacheKey() string { return strings.ToLower(strings.TrimSpace(string(a))) }
 
-// --- session deltas (daily / weekly / monthly) -------------------------------
-
-// sessionResponse is the Coral SessionDeltaResponse subset gossip reads.
-// Delta is the recursive diff of the Hypixel player object: unchanged fields
-// omitted, changed numeric stats as bare numbers, non-numeric changes as
-// {old,new} objects.
 type sessionResponse struct {
 	UUID        string           `json:"uuid"`
 	DisplayName *string          `json:"displayname"`
@@ -181,9 +129,6 @@ type sessionResponse struct {
 	Delta       codec.RawMessage `json:"delta"`
 }
 
-// sessionDelta is the Bed Wars slice of the diff. Fields use codec.RawMessage +
-// numDelta because a stat can surface as a bare number or, for a returning
-// player diffed against a partial snapshot, as an {old,new} object we skip.
 type sessionDelta struct {
 	Stats struct {
 		Bedwars map[string]codec.RawMessage `json:"Bedwars"`
@@ -191,9 +136,6 @@ type sessionDelta struct {
 	Achievements map[string]codec.RawMessage `json:"achievements"`
 }
 
-// numDelta reads a numeric session diff. Bare numbers are true period deltas;
-// the {old,new} object form means the baseline was missing (a lifetime total
-// would masquerade as a period gain), so it reads as 0.
 func numDelta(raw codec.RawMessage) int64 {
 	if len(raw) == 0 {
 		return 0
@@ -209,7 +151,6 @@ func numDelta(raw codec.RawMessage) int64 {
 	return int64(f)
 }
 
-// sessionFetch spends one Coral token and pulls the period's session delta.
 func (p *api) sessionFetch(period string) provider.FetchFunc {
 	return func(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
 		return p.fetchSession(ctx, period, account(id.Display))
@@ -225,7 +166,7 @@ func (p *api) fetchSession(ctx context.Context, period string, acct account) (go
 
 	reply := gossiprpc.UrchinSessionReply{
 		Player:    playerName(acct, resp.DisplayName),
-		SinceUnix: resp.From / 1000, // Coral timestamps are Unix milliseconds
+		SinceUnix: resp.From / millisPerSecond,
 	}
 	if len(resp.Delta) > 0 {
 		var d sessionDelta
@@ -243,19 +184,12 @@ func (p *api) fetchSession(ctx context.Context, period string, acct account) (go
 	return reply, nil
 }
 
-// --- blacklist: tags + sniper score -------------------------------------------
-
-// tagsResponse is the Coral PlayerTagsResponse subset gossip reads. It is
-// also the uuid resolver for the sniper endpoint (it accepts a username and
-// echoes the canonical uuid, without needing the Player Data permission the
-// dedicated /v3/resolve endpoint requires).
 type tagsResponse struct {
 	UUID        string      `json:"uuid"`
 	DisplayName *string     `json:"displayname"`
 	Tags        []playerTag `json:"tags"`
 }
 
-// playerTag is one blacklist tag as the individual tags endpoint reports it.
 type playerTag struct {
 	TagType string `json:"tag_type"`
 	Reason  string `json:"reason"`
@@ -267,21 +201,6 @@ func (p *api) fetchTags(ctx context.Context, acct account) (tagsResponse, error)
 	return resp, p.http.GetJSON(ctx, "/v3/player/tags", url.Values{"player": {acct.String()}}, &resp)
 }
 
-// playerTags fetches the Coral tags response for acct behind a shared cache.
-// Both the tags command and the sniper endpoint's uuid resolution read through
-// it, so a player queried by either costs one lookup rather than two, and a
-// missing player negative-caches once and satisfies both. It spends one
-// rate-limit token only on a real upstream fetch (the enforce lives inside the
-// cache's fill, so a hit costs nothing).
-//
-// UUID-shaped accounts ride the cross-channel batcher (see batch.go): their
-// misses within one window collapse into a single POST /v3/players whose
-// answer hydrates every player's entry here, so the batch's OTHER players are
-// already warm for whoever asks next. Their cache key is the canonical
-// undashed-lowercase uuid, so dashed and mixed-case spellings of one player
-// share an entry. Username accounts keep the individual GET — the batch
-// endpoint does not resolve usernames (batch.go explains why) — and keep the
-// typed-as-lowered key they always had.
 func (p *api) playerTags(ctx context.Context, acct account) (tagsResponse, error) {
 	id := acct.cacheKey()
 	fetch := func(ctx context.Context) (tagsResponse, error) { return p.fetchTags(ctx, acct) }
@@ -293,7 +212,6 @@ func (p *api) playerTags(ctx context.Context, acct account) (tagsResponse, error
 	return core.Cached(ctx, p.cache, key, tagsTTL, negativeTTL, nil, fetch)
 }
 
-// tagsFetch reads the shared tags cache and shapes the blacklist-tags reply.
 func (p *api) tagsFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
 	acct := account(id.Display)
 	resp, err := p.playerTags(ctx, acct)
@@ -305,12 +223,11 @@ func (p *api) tagsFetch(ctx context.Context, req gossiprpc.Request, id provider.
 		Tags:   make([]gossiprpc.UrchinTag, 0, len(resp.Tags)),
 	}
 	for _, t := range resp.Tags {
-		out.Tags = append(out.Tags, gossiprpc.UrchinTag{Type: t.TagType, Reason: t.Reason, AddedOn: t.AddedOn / 1000})
+		out.Tags = append(out.Tags, gossiprpc.UrchinTag{Type: t.TagType, Reason: t.Reason, AddedOn: t.AddedOn / millisPerSecond})
 	}
 	return out, nil
 }
 
-// cubelifyResponse is the Coral CubelifyResponse subset gossip reads.
 type cubelifyResponse struct {
 	Score struct {
 		Value float64 `json:"value"`
@@ -319,9 +236,6 @@ type cubelifyResponse struct {
 	Tags []codec.RawMessage `json:"tags"`
 }
 
-// sniperFetch resolves the uuid through the shared tags cache, spends one
-// Coral token, and pulls the cubelify sniper score. Player is the API
-// display name so a uuid-shaped account still chats a username.
 func (p *api) sniperFetch(ctx context.Context, req gossiprpc.Request, id provider.ID) (any, error) {
 	acct := account(id.Display)
 	tags, err := p.playerTags(ctx, acct)
@@ -331,8 +245,6 @@ func (p *api) sniperFetch(ctx context.Context, req gossiprpc.Request, id provide
 	if strings.TrimSpace(tags.UUID) == "" {
 		return nil, &core.UpstreamError{Status: 404, Message: "player not found"}
 	}
-	// The cubelify endpoint authenticates via the key query parameter (it is
-	// built for the overlay); the client's X-API-Key header rides along too.
 	var resp cubelifyResponse
 	name := playerName(acct, tags.DisplayName)
 	q := url.Values{"uuid": {tags.UUID}, "key": {p.key}, "name": {name}}
@@ -347,22 +259,6 @@ func (p *api) sniperFetch(ctx context.Context, req gossiprpc.Request, id provide
 	}, nil
 }
 
-// playerName is the name every reply chats the player under. A caller who
-// typed a username gets that spelling back verbatim; only a uuid-shaped
-// identifier falls through to the API's display name.
-//
-// Coral's displayname is as fresh as its own Hypixel-sourced snapshot, not as
-// fresh as Mojang. Measured 2026-09-10 on uuid 3bf23977c788...d822: Mojang's
-// session profile reported the current IGN "OFXs" while Coral still answered
-// "Sho__YiYuan", the name that account had renamed away from, so "!tag Ofxs"
-// chatted a dead IGN at a player watching in chat. Preferring the API name
-// (what this did before) is only correct when we have no name of our own.
-//
-// Resolving the name ourselves against Mojang was the alternative and was
-// rejected: it buys nothing for username input, which already arrives as a
-// name, and costs an extra upstream hop plus a second failure mode on a path
-// whose whole budget is measured against Coral's burst wall (see maxBurst).
-// Echoing the caller keeps the reply free of both.
 func playerName(acct account, display *string) string {
 	if _, isUUID := canonicalUUID(acct); !isUUID {
 		return acct.String()
@@ -370,8 +266,6 @@ func playerName(acct account, display *string) string {
 	return displayOr(display, acct.String())
 }
 
-// displayOr prefers the API's display name when present and non-empty.
-// Minecraft color codes (§X) are stripped so Twitch chat gets a clean name.
 func displayOr(display *string, fallback string) string {
 	if display != nil && *display != "" {
 		return stripMinecraftCodes(*display)
@@ -379,9 +273,6 @@ func displayOr(display *string, fallback string) string {
 	return fallback
 }
 
-// stripMinecraftCodes removes Minecraft §X formatting sequences (section sign
-// followed by one character) from s. Returns s unchanged when no codes are
-// present.
 func stripMinecraftCodes(s string) string {
 	if !strings.Contains(s, "§") {
 		return s

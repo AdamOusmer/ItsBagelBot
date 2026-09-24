@@ -24,10 +24,6 @@ func TestHubRoutesRetainMeasuredCompressionMode(t *testing.T) {
 	}
 }
 
-// NATS runs on the Cilium pod network like every other workload (hostNetwork
-// was removed 2026-08-18; it dated from the old fleet's WireGuard carve-out).
-// Guard the regression: hostNetwork reappearing would silently change what the
-// members advertise (node IPs instead of the headless FQDNs the certs cover).
 func TestPodNetworkOnly(t *testing.T) {
 	for _, name := range []string{"nats.yaml", "nats-leaf.yaml"} {
 		if strings.Contains(sourceFile{name: name}.read(t), "hostNetwork") {
@@ -36,8 +32,6 @@ func TestPodNetworkOnly(t *testing.T) {
 	}
 }
 
-// Moving the leaf listeners must stay invisible to callers: the routed
-// Services keep publishing the ports every client URL already names.
 func TestLeafServicesKeepPublishedClientPorts(t *testing.T) {
 	manifest := sourceFile{name: "nats-leaf.yaml"}.read(t)
 	published := map[string]int{

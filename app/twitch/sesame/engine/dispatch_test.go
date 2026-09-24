@@ -18,7 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// chatCtx builds a chat Context for the given text and optional badge role.
 func chatCtx(text, badgeRole string) *module.Context {
 	env := lane.Envelope{
 		Type:              chatType,
@@ -33,7 +32,6 @@ func chatCtx(text, badgeRole string) *module.Context {
 	return &module.Context{Env: env, BroadcasterID: 123, Log: zap.NewNop()}
 }
 
-// collectDispatch runs the command stage and returns the emitted outputs.
 func collectDispatch(p *Pipeline, c *module.Context) []module.Output {
 	var got []module.Output
 	_ = p.dispatchCommand(context.Background(), c, nil, func(o *module.Output) { got = append(got, *o) })
@@ -49,10 +47,8 @@ func chatMessageText(t *testing.T, m outgress.Message) string {
 	return inner.Message
 }
 
-// --- custom (broadcaster-defined) command dispatch ---
-
 func customPipeline(resp, perm string) *Pipeline {
-	reg := NewRegistry(zap.NewNop()) // no baked commands
+	reg := NewRegistry(zap.NewNop())
 	d := Deps{
 		Proj:     fakeReader{cmd: projection.Command{Name: "so", Response: resp, IsActive: true, Perm: perm}, cmdFound: true},
 		Live:     liveAlways{},
@@ -72,9 +68,6 @@ func TestCustomAnnounceAllowedForEveryone(t *testing.T) {
 	assert.Equal(t, "alice says: @bob raid incoming; target=bob", got[0].Text)
 }
 
-// TestCustomTokensUseDisplayName proves {user}/{sender}/{channel} render the
-// chatter's and broadcaster's Twitch display name when the event carries one,
-// not the lowercase login.
 func TestCustomTokensUseDisplayName(t *testing.T) {
 	p := customPipeline("{channel}: {user}/{sender}", "everyone")
 	c := chatCtx("!so", "")
@@ -85,8 +78,6 @@ func TestCustomTokensUseDisplayName(t *testing.T) {
 	assert.Equal(t, "StreamerName: Alice/Alice", got[0].Text)
 }
 
-// TestCustomTokensFallBackToLogin proves the tokens fall back to the login when
-// the event carried no display name.
 func TestCustomTokensFallBackToLogin(t *testing.T) {
 	p := customPipeline("{user}", "everyone")
 	got := collectDispatch(p, chatCtx("!so", ""))
@@ -119,9 +110,6 @@ func TestCustomPlainChatStillEmits(t *testing.T) {
 	assert.Equal(t, outgress.TypeChat, got[0].Type)
 }
 
-// TestCustomMultiLineEmitsOnePerLine proves a newline-delimited response fans
-// out into one chat message per line, in order, with tokens expanded on every
-// line and each line getting its own slash-verb translation.
 func TestCustomMultiLineEmitsOnePerLine(t *testing.T) {
 	p := customPipeline("first {user}\nsecond line\n/announce third", "everyone")
 	c := chatCtx("!so", "")
@@ -139,9 +127,6 @@ func TestCustomMultiLineEmitsOnePerLine(t *testing.T) {
 	assert.Equal(t, "third", got[0].Items[2].Text)
 }
 
-// TestCustomMultiLineCappedAtMax proves the emit-side backstop: a response
-// with more lines than the ceiling (e.g. a stale row predating validation)
-// stops at validate.MaxResponseLines messages.
 func TestCustomMultiLineCappedAtMax(t *testing.T) {
 	p := customPipeline("1\n2\n3\n4\n5\n6\n7", "everyone")
 	got := collectDispatch(p, chatCtx("!so", ""))
@@ -150,9 +135,6 @@ func TestCustomMultiLineCappedAtMax(t *testing.T) {
 	assert.Equal(t, "5", got[0].Items[4].Text)
 }
 
-// TestCustomMultiLineSkipsEmptyLines proves blank lines never become empty
-// chat messages, and an all-verb line with no payload is dropped without
-// suppressing its siblings.
 func TestCustomMultiLineSkipsEmptyLines(t *testing.T) {
 	p := customPipeline("one\n\n/announce\ntwo", "everyone")
 	c := chatCtx("!so", "")
@@ -164,10 +146,6 @@ func TestCustomMultiLineSkipsEmptyLines(t *testing.T) {
 	assert.Equal(t, "two", got[0].Items[1].Text)
 }
 
-// TestCustomIfEmptiedLineIsDropped proves the half of the conditional rule
-// that lives on the emit side (#909): a line a false {if:…} leaves with
-// nothing visible on it is dropped, and its siblings are sent. A multi-line
-// reply must never collapse whole because one of its lines went quiet.
 func TestCustomIfEmptiedLineIsDropped(t *testing.T) {
 	p := customPipeline("hi {user}\n{if:1: you said something}\nlast line", "everyone")
 	c := chatCtx("!so", "")
@@ -179,9 +157,6 @@ func TestCustomIfEmptiedLineIsDropped(t *testing.T) {
 	assert.Equal(t, "last line", got[0].Items[1].Text)
 }
 
-// TestCustomIfEmptiedLineDoesNotEatTheCap proves the drop happens BEFORE the
-// MaxResponseLines count: five written lines with one gone quiet still send
-// four, not three.
 func TestCustomIfEmptiedLineDoesNotEatTheCap(t *testing.T) {
 	p := customPipeline("one\n{if:1:two}\nthree\nfour\nfive", "everyone")
 	got := collectDispatch(p, chatCtx("!so", ""))
@@ -190,9 +165,6 @@ func TestCustomIfEmptiedLineDoesNotEatTheCap(t *testing.T) {
 	assert.Equal(t, "five", got[0].Items[3].Text)
 }
 
-// TestCustomIfWholeReplyNeverCollapses is the footgun this token was allowed
-// to ship without: a false conditional suppresses its own line, never the
-// reply, and a single-line reply that empties itself simply says nothing.
 func TestCustomIfWholeReplyNeverCollapses(t *testing.T) {
 	p := customPipeline("{if:1:you said something}", "everyone")
 	assert.Empty(t, collectDispatch(p, chatCtx("!so", "")))
@@ -213,8 +185,6 @@ func TestCustomMultiLineSuppressionDoesNotLeaveSequenceGap(t *testing.T) {
 	assert.Equal(t, outgress.TypeChat, got[0].Type, "one surviving line does not need a batch")
 }
 
-// TestCustomMultiLineBatchSurvivesPublish proves all lines cross the queue in
-// one job, retaining their order and action types.
 func TestCustomMultiLineBatchSurvivesPublish(t *testing.T) {
 	pub := &fakePublisher{}
 	reader := fakeReader{
@@ -234,9 +204,6 @@ func TestCustomMultiLineBatchSurvivesPublish(t *testing.T) {
 	assert.Equal(t, outgress.TypeChat, batch.Items[1].Type)
 }
 
-// --- baked command dispatch + gate ---
-
-// cmdEmit builds a module owning one everyone-perm command that emits reply.
 func cmdEmit(name string, kind module.Kind, trigger, reply string) module.Module {
 	b := module.NewModule(name, kind)
 	b.Command(trigger).Everyone().Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
@@ -253,11 +220,6 @@ func TestBakedCommandRuns(t *testing.T) {
 	assert.Equal(t, "pong", got[0].Text)
 }
 
-// TestBakedReplyAlwaysHitsTheLexer is the engine-side backstop for catalog
-// copy a module emitted without expanding: songqueue's upstream-failure path
-// used to publish "@{user} the music lookup is down" verbatim because its
-// emit skipped the lexer. The command emit is what must fill {user}, so a
-// module cannot opt out by writing a "raw" chat line.
 func TestBakedReplyAlwaysHitsTheLexer(t *testing.T) {
 	p := newPipelineWith(&fakePublisher{}, fakeReader{},
 		cmdEmit("", module.KindCore, "sr", "@{user} the music lookup is down"))
@@ -286,10 +248,6 @@ func TestBakedReplySlashVerbExpandsThenRoutes(t *testing.T) {
 	assert.Equal(t, "@alice go", got[0].Text)
 }
 
-// TestBakedAndCustomShareEmitPath pins that a stored custom template and a
-// baked module that emits the same body produce the same outputs: one lexer,
-// one line split, one slash-verb translation. A second expander is how a
-// baked path leaked "{user}" while custom commands already filled it.
 func TestBakedAndCustomShareEmitPath(t *testing.T) {
 	const body = "hi {user}\n/announce {args}"
 	c := chatCtx("!so raid incoming", "")
@@ -304,7 +262,6 @@ func TestBakedAndCustomShareEmitPath(t *testing.T) {
 }
 
 func TestBakedCommandPermGate(t *testing.T) {
-	// A mod-only command: an everyone chatter is gated out.
 	b := module.NewModule("", module.KindCore)
 	b.Command("clear").Mod().Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
 		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: "ok"})
@@ -312,15 +269,10 @@ func TestBakedCommandPermGate(t *testing.T) {
 	})
 	p := newPipelineWith(&fakePublisher{}, fakeReader{}, b.Build())
 
-	assert.Empty(t, collectDispatch(p, chatCtx("!clear", "")))            // everyone -> gated
-	require.Len(t, collectDispatch(p, chatCtx("!clear", "moderator")), 1) // mod -> runs
+	assert.Empty(t, collectDispatch(p, chatCtx("!clear", "")))
+	require.Len(t, collectDispatch(p, chatCtx("!clear", "moderator")), 1)
 }
 
-// TestBakedDailyShadowing covers whether a module's baked trigger shadows the
-// broadcaster's custom command of the same name. A disabled opt-in module (nil
-// views) does not reserve the name, an enabled one does, and a Beta module
-// counts as disabled on the standard lane but enabled on the premium lane, so
-// a lapsed broadcaster keeps their row while the feature pauses.
 func TestBakedDailyShadowing(t *testing.T) {
 	enabled := map[string]projection.ModuleView{"urchin": {Name: "urchin", IsEnabled: true}}
 	cases := []struct {
@@ -351,9 +303,6 @@ func TestBakedDailyShadowing(t *testing.T) {
 	}
 }
 
-// TestBakedOutputRoutedByMiddleware proves announce is post-processing, not a
-// command: a baked command that writes "/announce hi" is routed to an announce
-// action by the shared middleware, exactly as a custom command would be.
 func TestBakedOutputRoutedByMiddleware(t *testing.T) {
 	b := module.NewModule("", module.KindCore)
 	b.Command("hype").Everyone().Run(func(_ context.Context, c *module.Context, _ string, emit module.Emit) error {
@@ -369,8 +318,6 @@ func TestBakedOutputRoutedByMiddleware(t *testing.T) {
 	assert.Equal(t, "hi", got[0].Text)
 }
 
-// TestNamedCoreCommandAlwaysRuns proves a named built-in (KindCore) command runs
-// with no ModuleView fetched and cannot be gated off by a missing toggle.
 func TestNamedCoreCommandAlwaysRuns(t *testing.T) {
 	sys := cmdEmit("system", module.KindCore, "sys", "ok")
 	pub := &fakePublisher{}
@@ -380,18 +327,14 @@ func TestNamedCoreCommandAlwaysRuns(t *testing.T) {
 	assert.Equal(t, "ok", chatMessageText(t, pub.got[0].msg))
 }
 
-// --- integration: a command is gated by its owning module's enable state ---
-
 func TestOptInCommandGatedByModule(t *testing.T) {
 	extra := cmdEmit("extra", module.KindOptIn, "hi", "yo")
 
-	// No ModuleView row: the opt-in module is off, so its command must not run.
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{}, extra)
 	require.NoError(t, p.Process(chatMsg(t, "standard", "!hi")))
 	assert.Empty(t, pub.got, "opt-in command must not run while its module is disabled")
 
-	// ModuleView enables it: the command now runs.
 	pub2 := &fakePublisher{}
 	p2 := newPipelineWith(pub2, fakeReader{modules: projection.ModuleMap([]projection.ModuleView{{Name: "extra", IsEnabled: true}})}, extra)
 	require.NoError(t, p2.Process(chatMsg(t, "standard", "!hi")))
@@ -402,13 +345,11 @@ func TestOptInCommandGatedByModule(t *testing.T) {
 func TestDefaultCommandGatedByModule(t *testing.T) {
 	extra := cmdEmit("greet", module.KindDefault, "hey", "hello")
 
-	// No row: a default module ships enabled, so its command runs.
 	pub := &fakePublisher{}
 	p := newPipelineWith(pub, fakeReader{}, extra)
 	require.NoError(t, p.Process(chatMsg(t, "standard", "!hey")))
 	require.Len(t, pub.got, 1)
 
-	// Row disables it: the command must not run.
 	pub2 := &fakePublisher{}
 	p2 := newPipelineWith(pub2, fakeReader{modules: projection.ModuleMap([]projection.ModuleView{{Name: "greet", IsEnabled: false}})}, extra)
 	require.NoError(t, p2.Process(chatMsg(t, "standard", "!hey")))

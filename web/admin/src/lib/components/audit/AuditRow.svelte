@@ -1,10 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One audit entry on the shared ManagementRow. The row shows the four fields
-  // an operator scans for -- who, what, to whom, when -- and nothing else; the
-  // detail and the error text belong to the inspector, because they are the two
-  // fields that are arbitrarily long and were what made the old rows ragged.
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { ago } from '@bagel/kit';

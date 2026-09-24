@@ -18,9 +18,6 @@ import (
 	"ItsBagelBot/app/deployer/internal/ports"
 )
 
-// varzServer answers /varz the way nats-server 2.14 does, trimmed to a few
-// neighbouring fields so the decoder is shown to pick config_load_time out
-// of a larger document.
 func varzServer(t *testing.T, status int, loaded time.Time) (int32, func()) {
 	t.Helper()
 	body := `{"server_id":"NTEST","version":"2.14.6","start":"2026-09-20T08:00:00Z","config_load_time":"` +
@@ -36,8 +33,6 @@ func varzServer(t *testing.T, status int, loaded time.Time) (int32, func()) {
 	return int32(srv.Listener.Addr().(*net.TCPAddr).Port), srv.Close
 }
 
-// natsSpec is a messaging pod whose nats container declares its monitor
-// port under the name the manifests use. port 0 declares none.
 type natsSpec struct {
 	name, app, node, ip string
 	port                int32
@@ -65,7 +60,6 @@ func TestNATSServers(t *testing.T) {
 	leaf := natsSpec{name: "nats-leaf-x7k2p", app: "nats-leaf", node: "node2", ip: "127.0.0.1", port: leafPort}.pod()
 	leaving := natsSpec{name: "nats-1", app: "nats", node: "node3", port: hubPort}.pod()
 	leaving.deleting = true
-	// The exporter's own app label keeps it out: it serves no /varz of its own.
 	exporter := natsSpec{name: "surveyor-0", app: "nats-surveyor", node: "node1", ip: "127.0.0.1", port: brokenPort}.pod()
 
 	cases := []struct {

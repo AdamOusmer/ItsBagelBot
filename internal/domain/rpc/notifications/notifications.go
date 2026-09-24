@@ -1,22 +1,18 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package notificationsrpc holds the shared wire types for the notifications
-// service RPC surface, transcribed verbatim from app/db/notifications/rpc so
-// consumers can reference them without pulling in the full service.
 package notificationsrpc
 
 import "ItsBagelBot/internal/domain/rpc"
 
 import "time"
 
-// NotificationView is a single notification row on the wire.
 type NotificationView struct {
 	ID             int64      `json:"id"`
-	Scope          string     `json:"scope"` // "broadcast" | "direct"
+	Scope          string     `json:"scope"`
 	Title          string     `json:"title"`
 	Body           string     `json:"body"`
-	Level          string     `json:"level"` // "info" | "success" | "warning" | "critical"
+	Level          string     `json:"level"`
 	TargetUserID   *uint64    `json:"target_user_id,omitempty"`
 	CreatedByLogin string     `json:"created_by_login"`
 	CreatedAt      time.Time  `json:"created_at"`
@@ -24,9 +20,6 @@ type NotificationView struct {
 	Read           bool       `json:"read"`
 }
 
-// SendRequest is the payload for the admin send verb. Exactly one of
-// TargetUserID / TargetUsername should be set for scope=direct; both are
-// ignored for scope=broadcast.
 type SendRequest struct {
 	Scope          string     `json:"scope"`
 	TargetUserID   string     `json:"target_user_id,omitempty"`
@@ -45,7 +38,6 @@ type SendReply struct {
 	rpc.Refusal
 }
 
-// ListAdminRequest pages through every notification for the admin console.
 type ListAdminRequest struct {
 	Page  int `json:"page"`
 	Limit int `json:"limit"`
@@ -68,7 +60,6 @@ type DeleteReply struct {
 	rpc.Refusal
 }
 
-// UserListRequest is the payload for the user-facing list verb.
 type UserListRequest struct {
 	UserID string `json:"user_id"`
 }
@@ -79,7 +70,6 @@ type UserListReply struct {
 	rpc.Refusal
 }
 
-// MarkReadRequest is the payload for the user-facing mark_read verb.
 type MarkReadRequest struct {
 	UserID         string `json:"user_id"`
 	NotificationID string `json:"notification_id"`
@@ -89,29 +79,18 @@ type MarkReadReply struct {
 	rpc.Refusal
 }
 
-// MarkPeekedRequest is the payload for the user-facing mark_peeked verb, fired
-// when the topbar bell dropdown is opened. It soft-acknowledges every
-// notification the user can currently see, shortening each one's per-user life
-// to the reduced peek TTL (a full read shortens it further still).
 type MarkPeekedRequest struct {
 	UserID string `json:"user_id"`
 }
 
 type MarkPeekedReply struct {
-	// Peeked is how many previously-unacknowledged notifications this call
-	// newly marked; 0 means everything was already read or peeked.
 	Peeked int `json:"peeked"`
 	rpc.Refusal
 }
 
-// CleanupRequest is the payload for the internal maintenance cleanup verb the
-// k3s cron drives. It carries no arguments; the service sweeps whatever is
-// globally expired at handling time.
 type CleanupRequest struct{}
 
 type CleanupReply struct {
-	// Deleted is the number of globally-expired notifications swept (their read
-	// receipts cascade).
 	Deleted int `json:"deleted"`
 	rpc.Refusal
 }

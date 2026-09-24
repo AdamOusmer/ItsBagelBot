@@ -13,9 +13,6 @@ import (
 	ddiscord "ItsBagelBot/internal/domain/discord"
 )
 
-// Message ports app/dingress/internal/community/message.go: the crumb
-// level-up embed on a chat message, and the message-deleted/edited log
-// lines. All three gateway types ride discord.ingress.event.message.
 func Message(store discordstore.Store) module.Module {
 	h := messageModule{store: store}
 	b := module.NewModule("message")

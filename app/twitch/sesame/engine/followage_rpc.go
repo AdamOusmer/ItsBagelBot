@@ -21,11 +21,6 @@ const (
 	followagePositiveTTL = 15 * time.Minute
 	followageNegativeTTL = time.Minute
 
-	// followageCacheCapacity ceilings the followage cache. It is keyed per
-	// (broadcaster, viewer), so it grows with distinct viewers who run
-	// !followage, not just broadcasters; it gets a larger ceiling than the
-	// per-broadcaster caches but still well under the generic
-	// cache.DefaultCapacity so viewer churn cannot pin ten thousand entries.
 	followageCacheCapacity int64 = 8192
 )
 
@@ -40,9 +35,6 @@ type FollowageLookup interface {
 	Lookup(ctx context.Context, broadcasterID, targetID, targetLogin string) (FollowageResult, error)
 }
 
-// FollowageRPC is Sesame's cached followage reader. Outgress supplies only the
-// authenticated Twitch read; command freshness, singleflight and cache policy
-// live here with the command runtime.
 type FollowageRPC struct {
 	cache   *cache.Cache[FollowageResult]
 	request func(context.Context, outgressrpc.FollowageRequest) (outgressrpc.FollowageReply, error)

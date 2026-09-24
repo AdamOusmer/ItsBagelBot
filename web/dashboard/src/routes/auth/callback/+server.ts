@@ -22,57 +22,38 @@ type IdTokenClaims = {
   aud?: string | string[];
   iss?: string;
   nonce?: string;
-  // Twitch may include granted scope; best-effort check.
   scope?: string;
 };
 
 type Identity = { userId: string; login: string; displayName: string };
 
-// audIssuerOk validates aud == client id and iss == Twitch, guarding against
-// id_token substitution attacks.
 function audIssuerOk(claims: IdTokenClaims): boolean {
   const clientId = env.TWITCH_CLIENT_ID ?? '';
   const audOk = Array.isArray(claims.aud) ? claims.aud.includes(clientId) : claims.aud === clientId;
   return audOk && claims.iss === 'https://id.twitch.tv/oauth2';
 }
 
-// isBotAccount pins the bot's Twitch user id: the bot reauthorizes through the
-// admin bot flow, never this broadcaster callback. ADMIN_BOT_USER_ID is the
-// same env the admin flow uses; no-op if unset.
 function isBotAccount(sub: string): boolean {
   const botId = env.ADMIN_BOT_USER_ID ?? '';
   return botId !== '' && sub === botId;
 }
 
-// nonceMismatch is the replay / token-swap guard: the stored nonce must equal
-// the claim. The shared Twitch client's createAuthorizationURL does not accept
-// a nonce param, so the login route appended it manually and we verify it here.
-// A missing stored nonce skips the check.
 function nonceMismatch(claims: IdTokenClaims, storedNonce: string | undefined): boolean {
   return !!storedNonce && claims.nonce !== storedNonce;
 }
 
-// missingOpenidScope is the best-effort scope guard: when Twitch echoes the
-// granted scope, openid must be present. An absent scope field is not a hard
-// failure.
 function missingOpenidScope(claims: IdTokenClaims): boolean {
   return !!claims.scope && !claims.scope.includes('openid');
 }
 
-// claimRejection returns the /login error slug for the first failed id_token
-// guard, or null when every guard passes.
 function claimRejection(claims: IdTokenClaims, storedNonce: string | undefined): string | null {
   if (!audIssuerOk(claims)) return 'state';
   if (nonceMismatch(claims, storedNonce)) return 'state';
-  // A bot account landing here must not mint a streamer session (which would
-  // drop it onto the user dashboard) or save a grant.
   if (isBotAccount(claims.sub)) return 'bot';
   if (missingOpenidScope(claims)) return 'scope';
   return null;
 }
 
-// verifyClaims rejects a forged or substituted id_token, throwing the matching
-// login redirect on the first failed guard.
 function verifyClaims(claims: IdTokenClaims, storedNonce: string | undefined): void {
   const rejected = claimRejection(claims, storedNonce);
   if (rejected) throw redirect(302, `/login?e=${rejected}`);
@@ -95,20 +76,12 @@ function streamerSession(id: Identity) {
     login: id.login,
     display_name: id.displayName,
     role: 'streamer' as const,
-    // Fresh sid per mint (this is a real login, not a re-seal): 16 random
-    // bytes is the revocation handle's whole identity, so it must not be
-    // guessable or reused.
     sid: randomBytes(16).toString('base64url'),
     iat: now,
     expires_at: now + SESSION_TTL_SECONDS
   };
 }
 
-// Delegated accept flow: if a pending share token rode in on a cookie, bind
-// it to this user now. Single-use: consume always deletes the cookie, and a
-// delegate session is sealed only on success. On any failure we redirect to
-// /login?e=link instead of issuing a normal owner session. No-op without the
-// cookie; when it consumes, it throws the final redirect itself.
 async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity): Promise<void> {
   const pending = cookies.get('pending_delegation');
   if (!pending) return;
@@ -126,11 +99,7 @@ async function acceptPendingDelegation(cookies: Cookies, url: URL, id: Identity)
   throw redirect(302, '/');
 }
 
-// Register the user BEFORE sealing a session. The (app) layout's
-// ghost-session gate treats a missing user row as a deleted account and
-// wipes the cookie, so minting a session for a row that failed to land
-// is an instant sign-out loop. If the upsert cannot land, refuse the
-// session and let the user retry the flow.
+// Register before sealing: the ghost-session gate wipes a session with no user row (sign-out loop).
 async function registerUser(id: Identity, email: string | null): Promise<void> {
   try {
     await rpc(`${DASHBOARD}.upsert_user`, {
@@ -145,17 +114,11 @@ async function registerUser(id: Identity, email: string | null): Promise<void> {
   }
 }
 
-// validOAuthState is the constant-ish state check: reject a missing or
-// mismatched state before any code exchange.
 function validOAuthState(code: string | null, state: string | null, stored: string | undefined): code is string {
   if (!code || !state) return false;
   return !!stored && state === stored;
 }
 
-// seedLocaleCookie seeds the locale cookie from the account's saved
-// preference, or (if the user explicitly set a locale on this device before
-// logging in) persists that choice to the account instead of overwriting it.
-// Best-effort: cookie/Accept-Language still resolve a locale on failure.
 async function seedLocaleCookie(cookies: Cookies, url: URL, userId: string): Promise<void> {
   try {
     const saved = await userLocale(userId);
@@ -179,16 +142,9 @@ async function seedLocaleCookie(cookies: Cookies, url: URL, userId: string): Pro
         maxAge: 60 * 60 * 24 * 365
       });
     }
-  } catch {
-    /* best-effort */
-  }
+  } catch {}
 }
 
-// seedCursorCookie seeds the custom-cursor cookie from the account's saved
-// preference so the choice follows the user to a new browser/device. The pref
-// has no pre-login control (it is toggled in settings/onboarding), so the
-// account is authoritative here. Best-effort: a failure leaves the cookie
-// absent, and hooks.server.ts then defaults the cursor to on.
 async function seedCursorCookie(cookies: Cookies, url: URL, userId: string): Promise<void> {
   try {
     const on = await userCursor(userId);
@@ -199,16 +155,9 @@ async function seedCursorCookie(cookies: Cookies, url: URL, userId: string): Pro
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 365
     });
-  } catch {
-    /* best-effort */
-  }
+  } catch {}
 }
 
-// persistGrant stores the OAuth grant (access + refresh) after the user row
-// exists. The token row references it. Grant failure stays non-fatal: the
-// session is still valid (the row exists), the bot just has no channel token
-// yet, and the home needs-attention strip surfaces that. The user can re-auth
-// to retry.
 async function persistGrant(userId: string, tokens: { accessToken(): string; refreshToken(): string }): Promise<void> {
   try {
     await saveGrant(userId, tokens.accessToken(), tokens.refreshToken());
@@ -217,9 +166,6 @@ async function persistGrant(userId: string, tokens: { accessToken(): string; ref
   }
 }
 
-// callbackGate validates the provider callback against the HttpOnly state /
-// nonce cookies and returns either the exchange inputs or the /login error
-// slug. Keeping both guards here means GET itself spends a single branch.
 function callbackGate(
   code: string | null,
   state: string | null,
@@ -227,15 +173,11 @@ function callbackGate(
   storedNonce: string | undefined
 ): { ok: true; code: string; storedNonce: string } | { ok: false; slug: string } {
   if (!validOAuthState(code, state, storedState)) return { ok: false, slug: 'state' };
-  // The shared client enforces the id_token nonce claim, so the cookie is now
-  // mandatory: a flow that lost it fails closed here instead of logging in
-  // without replay protection.
+  // The nonce cookie is mandatory: a flow that lost it must fail, not log in without replay protection.
   if (!storedNonce) return { ok: false, slug: 'state' };
   return { ok: true, code, storedNonce };
 }
 
-// runLogin performs the exchange and maps OAuth-level failures onto
-// /login?e=oauth; any other error is a real server failure and propagates.
 async function runLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<void> {
   try {
     await completeLogin(cookies, url, code, storedNonce);
@@ -261,14 +203,9 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
   await runLogin(cookies, url, gate.code, gate.storedNonce);
 
-  // Owner session minted: honor the stored deep link (delegate sessions
-  // redirect inside completeLogin and never reach this).
   throw redirect(302, next ?? '/');
 };
 
-// completeLogin exchanges the code, verifies the id_token, and mints the owner
-// session (or hands off to the delegation accept flow, which redirects
-// itself).
 async function completeLogin(cookies: Cookies, url: URL, code: string, storedNonce: string): Promise<void> {
   const tokens = await twitch().validateAuthorizationCode(code, storedNonce);
   const claims = tokens.claims() as unknown as IdTokenClaims;
@@ -280,19 +217,9 @@ async function completeLogin(cookies: Cookies, url: URL, code: string, storedNon
     displayName: claims.preferred_username
   };
 
-  // Platform ban gate: a banned user must not get a session. isBanned fails
-  // open (treats an RPC blip as not-banned) so an outage never locks out
-  // every login; the admin panel re-bans authoritatively.
   if (await isBanned(identity.userId)) throw redirect(302, '/login?e=banned');
 
-  // Register BEFORE the delegation accept can seal a delegate session and
-  // redirect: a brand-new invitee whose first ever login is a share link still
-  // needs their own user row, or the ghost-session gate reads it as a deleted
-  // account, wipes the delegate session on the very next request, and bounces
-  // them to /login. A returning owner just no-ops through the accept below.
-  //
-  // Real account email (user:read:email consent). Null on any failure.
-  // Capture is best-effort and the users service stores it encrypted.
+  // Register before the delegation accept, or the ghost-session gate bounces a first-time invitee.
   const email = await fetchAccountEmail(tokens.accessToken());
   await registerUser(identity, email);
 

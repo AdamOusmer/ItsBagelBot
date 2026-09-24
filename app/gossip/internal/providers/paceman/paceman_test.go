@@ -20,12 +20,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// The SSRF gate refuses plain-http loopback fakes; these tests predate it and
-// dial httptest servers, so the process-wide test switch turns the gate off.
-// The gate's own semantics are pinned by core's table tests.
 func init() { core.SetSSRFCheckForTests(false) }
 
-// memStore is an in-memory core.Store for tests, mirroring mcsr's.
 type memStore struct{ m map[string][]byte }
 
 func newMemStore() *memStore { return &memStore{m: map[string][]byte{}} }
@@ -55,10 +51,6 @@ func newTestProvider(t *testing.T, handler http.Handler) provider.Provider {
 		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 }
 
-// newTestProviderPB is newTestProvider but also points UserBaseURL at the
-// fake server: personal_best is the one endpoint that calls the api/us host
-// instead of stats/api, so its tests need both bases wired to the same
-// httptest server (routed by path, like every other test in this file).
 func newTestProviderPB(t *testing.T, handler http.Handler) provider.Provider {
 	t.Helper()
 	srv := httptest.NewServer(handler)
@@ -78,7 +70,6 @@ func endpoint(t *testing.T, p provider.Provider, name string) func(context.Conte
 	return nil
 }
 
-// sessionStatsBody matches getSessionStats/'s envelope, all splits filled.
 const sessionStatsBody = `{
 	"nether": {"count": 3, "avg": "1:42"},
 	"bastion": {"count": 2, "avg": "3:55"},
@@ -217,7 +208,6 @@ func TestLastFortParsing(t *testing.T) {
 	assert.Equal(t, "5:00", reply.Fortress)
 	assert.Equal(t, "", reply.FirstPortal, "a null split must render blank, not a bogus duration")
 	assert.Equal(t, "", reply.Stronghold)
-	// The run started ~10 minutes ago.
 	assert.InDelta(t, 600, reply.AgoSeconds, 5)
 }
 
@@ -241,9 +231,6 @@ func TestLastFortUpstream4xx(t *testing.T) {
 	assert.Equal(t, "player not found", reply.Error)
 }
 
-// pbBody mirrors the real /user?name=&sortByTime=1 envelope confirmed by
-// hand (curl) against paceman.gg: pbs is null per-window when the player has
-// no best there yet, and a present entry only carries a "time" gossip reads.
 const pbBody = `{
 	"user": {"uuid": "9a8e", "twitchId": "1", "daily": 0, "weekly": 0, "monthly": 0, "bonus": 1, "score": 1},
 	"completions": [],
@@ -269,7 +256,7 @@ func TestPersonalBestWindows(t *testing.T) {
 		{"daily", "6:40.123"},
 		{"weekly", "6:30.456"},
 		{"monthly", "6:20.789"},
-		{"", "6:10.012"}, // bare (no window typed) means all-time
+		{"", "6:10.012"},
 		{"all-time", "6:10.012"},
 	}
 	for _, tc := range cases {
@@ -316,18 +303,10 @@ func TestMissingAccount(t *testing.T) {
 	assert.Equal(t, "missing account", reply.Error)
 }
 
-// jsonFloat renders a float64 without scientific notation for hand-built test
-// JSON bodies (Go's default %v can switch to exponent form for large unix
-// timestamps, which is not valid input for this purpose but is still valid
-// JSON — better to pin the format explicitly).
 func jsonFloat(f float64) string {
 	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
-// TestCacheAccountKeyBytes pins the exact id bytes account-scoped lookups key
-// on. The id is the tail of a live Valkey key: changing one byte orphans every
-// cached entry for that lookup until its TTL expires, so these literals are the
-// contract rather than a restatement of the implementation.
 func TestCacheAccountKeyBytes(t *testing.T) {
 	cases := []struct {
 		account string

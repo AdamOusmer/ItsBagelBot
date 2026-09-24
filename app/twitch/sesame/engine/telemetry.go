@@ -11,9 +11,6 @@ import (
 
 const telemetryResultAttribute = "result"
 
-// startStage deliberately accepts only a fixed call-site name. Event types,
-// module names and broadcaster IDs are attributes on the sampled transaction,
-// never part of a span or metric name.
 func startStage(ctx context.Context, name string) *newrelic.Segment {
 	txn := newrelic.FromContext(ctx)
 	if txn == nil {

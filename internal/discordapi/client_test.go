@@ -13,8 +13,6 @@ import (
 	"testing"
 )
 
-// roundTripFunc fakes the transport without a network (same pattern as
-// internal/twitch/client_test.go).
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -117,7 +115,6 @@ func TestTTSShouldStayOffTheWireWhenUnset(t *testing.T) {
 	}
 }
 
-// permanent mirrors the worker's drop set.
 func permanent(err error) bool {
 	for _, typed := range []error{ErrAuth, ErrForbidden, ErrChannelNotFound, ErrBadRequest} {
 		if errors.Is(err, typed) {
@@ -127,11 +124,6 @@ func permanent(err error) bool {
 	return false
 }
 
-// TestGetGuildWithCounts pins both halves of the one call the dashboard's
-// server card makes: with_counts=true must actually be on the request (the
-// member count is absent from the reply without it, and a missing count
-// looks like a guild of zero people), and the icon hash must render as a CDN
-// URL rather than being handed to the browser raw.
 func TestGetGuildWithCounts(t *testing.T) {
 	var gotURL string
 	client := NewClient("bot-token")

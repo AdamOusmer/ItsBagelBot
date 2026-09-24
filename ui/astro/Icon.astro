@@ -2,23 +2,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro adapter for the icon contract. Its Svelte twin is
-// ../svelte/Icon.svelte and ../test/parity.test.ts diffs the two rendered
-// outputs, so the attribute list and its order here are written to match that
-// file, including `size = 16` and the presence of BOTH `strokeWidth` and
-// `fill` (see the note there: the two components this replaces each exposed
-// one of them and hard-coded the other).
 import '../styles/elements/icon.css';
 import { icons, type IconName } from '../lib/icons';
 
 interface Props {
-  /** A key of the generated set in ../lib/icons.ts. */
   name: IconName;
-  /** Square edge in px. Written to width AND height; the viewBox is 24. */
   size?: number;
-  /** Stroke weight for the Lucide bodies. Brand marks ignore it. */
   strokeWidth?: number;
-  /** `none` for the stroke set. Brand marks carry their own fill. */
   fill?: string;
   class?: string;
   [key: string]: unknown;

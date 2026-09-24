@@ -1,11 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The permission group for a share link: a real <fieldset><legend> so the set
-  // of section checkboxes is announced as one labelled group. Each Checkbox
-  // carries its own name so the enclosing form submits `<section>=on`. When the
-  // caller passes an `error`, the fieldset is marked invalid and points at the
-  // message via aria-describedby.
   import { Checkbox } from '@bagel/kit';
   import { FieldError } from '@bagel/kit';
 
@@ -26,10 +21,6 @@
   const invalid = $derived(error != null && error !== '');
 </script>
 
-<!-- No aria-invalid here: it is not a supported attribute on a <fieldset>'s
-     implicit role="group". The error is associated via aria-describedby (which
-     points at the id-bearing wrapper) and announced by FieldError's role="alert".
-     The shared FieldError takes no id prop, so the wrapper carries it. -->
 <fieldset
   class="section-picker"
   class:compact

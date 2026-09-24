@@ -1,32 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Behaviour contract for the Wizebot parser and its session replay. No Go
-// implementation ever existed for this source, so these expectations ARE the
-// contract: change one only when the mapping itself is meant to change.
-//
-// testdata/wizebot-fixture.json is REAL: 23 rows copied out of the published
-// command lists of two public Wizebot streaming websites (kenth-s and
-// nawielalmyugar, read 2026-09-07), covering every row type, permission chip,
-// cost, entity and multi-alias case those two channels emit. Three synthetic
-// rows are appended, recognizable by their 9999xxx ids, for the cases neither
-// channel happened to have: a currency cost, a bits cost, a $(nick) tag,
-// [b]bold[/b] markup and a multi-line SAY_RANDOM.
-//
-// testdata/wizebot-golden.json pins the manifest AND the diagnostic sequence
-// that fixture produces. It is COMMITTED OUTPUT, generated once by hand and
-// reviewed line by line; nothing in this suite rewrites it. Regenerating it is
-// a deliberate act, run from console/ and followed by reading the diff:
-//
-//	bun -e 'import {parseWizebot} from "./shared/lib/importer/wizebot";
-//	  const p="shared/lib/importer/testdata/";
-//	  const r=parseWizebot(new Uint8Array(await Bun.file(p+"wizebot-fixture.json").arrayBuffer()));
-//	  await Bun.write(p+"wizebot-golden.json", JSON.stringify({manifest:r.manifest,
-//	    diagnostics:r.diagnostics.map(d=>({severity:d.severity,item_index:d.item_index,code:d.code}))},null,2)+"\n")'
-//
-// A golden that regenerates itself proves nothing, which is why that command
-// lives in a comment instead of behind an env var this suite reads.
-
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -49,8 +23,6 @@ const fixtureBytes = (): Uint8Array => new Uint8Array(readFileSync(join(TESTDATA
 
 const codesOf = (diags: ImportDiagnostic[]): string[] => diags.map((d) => d.code);
 
-// Row is one published command in the shape the tests write it, folded onto
-// the positional array the streaming website actually serves.
 interface Row {
   aliases: string;
   text?: string;
@@ -259,9 +231,6 @@ describe('commands', () => {
       ])
     );
     expect(manifest.commands?.[0].responses).toEqual(['up {uptime} playing {game}: {title} x{count}']);
-    // $(cmd_count) is a meaning change (per-command run count starting from
-    // zero here, not Wizebot's own running total), so it warns even though
-    // it mapped cleanly.
     expect(diagnostics.map((d) => d.code)).toEqual([WB_CODE.countRemapped]);
   });
 
@@ -355,10 +324,6 @@ describe('golden', () => {
   });
 });
 
-// --- fetch -------------------------------------------------------------------
-
-// Recorded is one call the stand-in site saw, snapshotted eagerly (Bun recycles
-// Request internals once the handler resolves).
 interface Recorded {
   path: string;
   method: string;
@@ -366,8 +331,6 @@ interface Recorded {
   body: string;
 }
 
-// SiteOptions bends the stand-in away from the happy path one behaviour at a
-// time, which is how each failure mode of the three-call replay is exercised.
 interface SiteOptions {
   notEnabled?: boolean;
   noCookie?: boolean;
@@ -379,10 +342,6 @@ interface SiteOptions {
 const TOKEN = 'a'.repeat(64);
 const LIST = JSON.stringify({ data: [['!hi', '1', 'hello', '-', '', 'SAY', 0, 'x']] });
 
-// wizebotSite emulates the streaming website: call 1 hands out the session
-// cookie, call 2 answers the table fragment only for the p=commands body, and
-// call 3 answers the list only when the cookie came back, which is the exact
-// behaviour the fetch layer was written against.
 function wizebotSite(opts: SiteOptions, seen: Recorded[]) {
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);

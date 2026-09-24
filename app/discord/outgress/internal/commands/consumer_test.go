@@ -21,9 +21,6 @@ var errBoom = errors.New("boom")
 
 func testLogger() *zap.Logger { return zap.NewNop() }
 
-// fakeCommand builds a minimal encoded Command message of the given type,
-// tagged so the test can tell mod and default messages apart in the
-// processed order.
 func fakeCommand(t *testing.T, typ string) *bus.Message {
 	t.Helper()
 	raw, err := codec.Marshal(ddiscord.Command{Type: typ})
@@ -33,10 +30,6 @@ func fakeCommand(t *testing.T, typ string) *bus.Message {
 	return bus.NewMessage("id", raw)
 }
 
-// orderRecorder collects command types in the order pump delivers them and
-// closes done once every expected message has landed. Hoisted out of
-// TestPumpDrainsModBeforeDefault so that test's body reads as arrange/act/
-// assert instead of also carrying this bookkeeping inline as a closure.
 type orderRecorder struct {
 	mu    sync.Mutex
 	order []string
@@ -65,10 +58,6 @@ func (r *orderRecorder) snapshot() []string {
 	return append([]string(nil), r.order...)
 }
 
-// assertModBeforeDefault checks that the first modCount entries in order are
-// TypeBanMember and the rest are TypePostChat. Pulled out of
-// TestPumpDrainsModBeforeDefault so the per-index expectation lives in one
-// small helper instead of a loop-containing-an-if inline in the test.
 func assertModBeforeDefault(t *testing.T, order []string, modCount int) {
 	t.Helper()
 	for i, typ := range order {
@@ -82,14 +71,6 @@ func assertModBeforeDefault(t *testing.T, order []string, modCount int) {
 	}
 }
 
-// TestPumpDrainsModBeforeDefault is the direct test of the invariant the
-// outgress command README (main.go's package doc) promises: LaneMod is
-// drained to empty before LaneDefault is ever touched. Both channels are
-// pre-loaded before pump starts, so the mod-only non-blocking check at the
-// top of each loop iteration keeps winning for as long as mod has anything
-// left -- see pump's own doc for why this is deterministic in that
-// specific shape (both lanes already full) even though the general case
-// has a narrow, self-correcting race.
 func TestPumpDrainsModBeforeDefault(t *testing.T) {
 	const modCount, defaultCount = 5, 5
 	modCh := make(chan *bus.Message, modCount)
@@ -117,9 +98,6 @@ func TestPumpDrainsModBeforeDefault(t *testing.T) {
 	assertModBeforeDefault(t, rec.snapshot(), modCount)
 }
 
-// TestProcessAcksOnSuccessAndNacksOnFailure exercises process's own
-// ack/nack decision: idempotent redelivery on a handler error, a settled
-// message on success.
 func TestProcessAcksOnSuccessAndNacksOnFailure(t *testing.T) {
 	c := &Consumer{Log: testLogger(), Handle: func(context.Context, ddiscord.Command) error { return nil }}
 	ok := fakeCommand(t, ddiscord.TypePostChat)

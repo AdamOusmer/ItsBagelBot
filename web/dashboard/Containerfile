@@ -1,39 +1,17 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Dashboard SSR — separate deploy from admin. Build with bun, run on
-# distroless bun (adapter-node handler hosted by serve-node.js). Native
-# per-node build (ARM on node1, Intel on node2); no cross-arch emulation.
-#
-# BUILD CONTEXT IS THE REPOSITORY ROOT, not web/. It has to be: the design
-# library @bagel/ui is a standalone package at the root (its own lockfile, its
-# own CI, extractable to its own repo), the console bundles it, and nothing
-# above the context line can be COPYed. A root context would otherwise mean
-# sending the whole Go tree to the daemon, so each console image carries its own
-# whitelist ignorefile beside this file — web/dashboard/Containerfile.ignore,
-# passed as `buildah bud --ignorefile` (podman/buildah both accept it; the flag
-# is what lets two images share one context with different contents).
-#
-# Build it by hand the same way CI does, or the context is wrong:
+# Build context is the repository root; build with this image's ignorefile, as CI does:
 #   podman build -f web/dashboard/Containerfile \
 #     --ignorefile web/dashboard/Containerfile.ignore -t cd-test .
 FROM docker.io/oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS build
 WORKDIR /src
-# Pin SvelteKit's version metadata to the commit SHA. sorted-readdir.mjs also
-# makes route-node assignment deterministic across the native ARM/Intel builds.
 ARG BUILD_VERSION=dev
 ENV BUILD_VERSION=$BUILD_VERSION
-# The design library first, with its OWN lockfile. --production leaves just its
-# runtime dependency (lenis): its devDependencies are svelte, astro and the
-# compilers its parity test drives, none of which this image has any use for.
-# web/'s install re-runs this same command through a postinstall hook, so this
-# RUN is really a cache boundary — ui changes rarely, and putting it above the
-# web layer keeps the workspace install cached when only an app changes.
 COPY ui ui
 RUN cd ui && bun install --frozen-lockfile --production
 WORKDIR /src/web
-# Workspace manifests first for cached installs. bunfig.toml MUST be present for
-# the install so the hoisted linker applies (flat node_modules the image can ship).
+# bunfig.toml must be present for the install so the hoisted linker applies.
 COPY web/package.json web/bun.lock web/bunfig.toml ./
 COPY web/tsconfig.base.json tsconfig.base.json
 COPY web/sorted-readdir.mjs sorted-readdir.mjs
@@ -42,51 +20,20 @@ COPY web/dashboard/package.json dashboard/package.json
 COPY web/admin/package.json admin/package.json
 COPY web/marketing/package.json marketing/package.json
 COPY web/docs/package.json docs/package.json
-# The install skips marketing and docs. They are workspace members (one lockfile
-# for the whole web/ tree), but astro, sharp and mermaid are build-time deps of
-# two static sites that this image never runs, and the hoisted linker puts every
-# workspace dep in ONE flat node_modules that the runtime stage copies wholesale
-# -- so without the filter the SSR image carries the entire static-site
-# toolchain. Their package.json files are still COPYed above: --frozen-lockfile
-# re-resolves the whole workspace graph and fails with "lockfile had changes,
-# but lockfile is frozen" if a member named in bun.lock has no manifest on disk.
-# Gate: the image must not contain node_modules/astro.
-#
-# This install's postinstall hook is also what puts @bagel/ui on the resolver's
-# path (node_modules/@bagel/ui -> ../../../ui), which is why ui is COPYed above
-# it rather than beside the app sources.
+# Skip the static sites' toolchain. Their manifests are still copied: --frozen-lockfile fails without every member's package.json.
 RUN bun install --frozen-lockfile --filter '!marketing' --filter '!docs'
 COPY web/kit kit
 COPY web/dashboard dashboard
 RUN cd dashboard && bun run build && bun install --production --omit=optional --frozen-lockfile --filter '!marketing' --filter '!docs'
-# newrelic's optionalDependencies are Node/V8 native addons. The first
-# `bun install` above must keep optional=true: vite/rolldown/lightningcss
-# ship platform bindings as optionalDependencies, and `bun run build` needs
-# those. bun install --production on the v0.2.2-beta image still left
-# @newrelic/fn-inspect on disk — bun does not prune already-installed
-# optional packages. Distroless bun then dlopens the .node and aborts
-# (`undefined symbol GetScriptOrigin`); that is not a catchable
-# MODULE_NOT_FOUND. The JS agent listened, then the first public request
-# 502'd dashboard and stats. native-metrics already failed closed (no
-# libstdc++). --omit=optional is the from-scratch gate; the kit script is
-# the crash we measured (2026-09-15). Runtime stage has no shell, so strip
-# here. Do not set [install] optional=false in bunfig.toml.
+# Distroless bun aborts on dlopen of newrelic's Node/V8 addons (502 on first request), so strip them here; the runtime stage has no shell.
 RUN bun kit/scripts/strip-newrelic-node-addons.ts node_modules
 
 FROM docker.io/oven/bun:1.4.2-distroless@sha256:1a0c31c7c5f9d193aedf60fe1cebdeb76ac8f6e29f24be8dd8cbd6df72df26ec AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
-# adapter-node bundle + external production deps. @bagel/ui needs no entry of
-# its own: it ships source, vite.config.ts lists it under ssr.noExternal, so the
-# adapter bundles it into build/ the same way it bundles @bagel/kit.
 COPY --from=build /src/web/dashboard/build ./build
 COPY --from=build /src/web/node_modules ./node_modules
 COPY web/serve-node.js ./serve-node.js
 EXPOSE 3000
-# Distroless bun's ENTRYPOINT is already `bun`, so this argv is the same
-# `--import newrelic serve-node.js` the Node image used. Keep node:http
-# (serve-node.js) rather than Bun.serve. Optional Node/V8 addons are stripped
-# in the build stage so the JS agent loads; startSegment/noticeError keep
-# working. Outbound HTTP auto-instrumentation is the remaining gap.
 CMD ["--import", "newrelic", "serve-node.js"]

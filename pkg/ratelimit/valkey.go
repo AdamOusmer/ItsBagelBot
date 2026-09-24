@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package ratelimit implements a Valkey-backed token bucket. Capacity and
-// refill rate are properties of the bucket, not the caller: every caller of
-// the same key must use the same Spec, otherwise one caller's lower capacity
-// would clamp away tokens another caller is entitled to.
 package ratelimit
 
 import (
@@ -17,22 +13,6 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// Native Valkey primitives are preferred throughout outgress. A token bucket
-// is the narrow exception: pipelines cannot conditionally skip the shared
-// bucket, MULTI/EXEC has no branching, and WATCH adds read/transaction RTTs and
-// contention retries. One bounded script is therefore the only native Valkey
-// mechanism that preserves the ordered two-bucket invariant in one RTT.
-//
-// The script evaluates one or two buckets in order. It reads every participating
-// key before its first write, so a wrong-type error on bucket two cannot leave
-// bucket one partially consumed. Valkey TIME supplies one authoritative clock
-// for the fleet. The return value is zero on success or the one-based index of
-// the first denied bucket.
-//
-// KEYS: bucket keys, one or two.
-// ARGV: capacity, refill-per-millisecond, TTL-seconds, empty-origin-ms for each
-// key. Origin zero gives legacy/full initialization. A positive origin starts a
-// new lease generation empty and reconstructs only refill earned since then.
 const luaOrderedTokenBucket = `
 local count = #KEYS
 if count < 1 or count > 2 then
@@ -101,9 +81,6 @@ end
 return 0
 `
 
-// Spec is the stable, pre-encoded part of a token bucket. Construct specs once
-// and pair them with a key per request; this keeps float and TTL formatting off
-// the message path.
 type Spec struct {
 	capacityArg string
 	refillArg   string
@@ -117,8 +94,6 @@ type Spec struct {
 	profile        uint8
 }
 
-// NewSpec prepares a token-bucket configuration. Invalid configurations panic
-// because every caller builds process constants during initialization.
 func NewSpec(capacity, refillPerSecond float64) Spec {
 	if capacity <= 0 || refillPerSecond <= 0 || capacity != math.Trunc(capacity) {
 		panic("ratelimit: capacity and refill rate must be positive")
@@ -190,7 +165,6 @@ func detectProfile(capacity int, refill float64) uint8 {
 	}
 }
 
-// Request binds a prepared bucket configuration to its Valkey key.
 type Request struct {
 	Key           string
 	DynamicPrefix string
@@ -203,17 +177,12 @@ type BucketID struct {
 	Value string `json:"value,omitempty"`
 }
 
-// ForKey binds a prepared spec to a key.
 func (s Spec) ForKey(key string) Request { return Request{Key: key, Spec: s} }
 
-// ForDynamicKey defers string concatenation until Valkey is actually used.
-// Local leased admission hashes the comparable BucketID directly.
 func (s Spec) ForDynamicKey(valkeyPrefix, scope, value string) Request {
 	return Request{DynamicPrefix: valkeyPrefix, Bucket: BucketID{Scope: scope, Value: value}, Spec: s}
 }
 
-// Pointer receivers: Request embeds Spec, so a value receiver would copy ~200
-// bytes on every hot-path call.
 func (r *Request) bucketID() BucketID {
 	if r.Bucket.Scope != "" {
 		return r.Bucket
@@ -236,15 +205,13 @@ type Limiter struct {
 func New(client valkey.Client) *Limiter {
 	return &Limiter{
 		client: client,
-		// Deliberately not NewLuaScriptRetryable: after a connection failure the
-		// mutation outcome is ambiguous, and an automatic retry could double-spend.
+		// Not retryable: after a connection failure the outcome is ambiguous and a retry double-spends.
 		script: valkey.NewLuaScript(luaOrderedTokenBucket),
 	}
 }
 
 var errEmptyKey = errors.New("ratelimit: empty bucket key")
 
-// Allow consumes one token from one bucket and reports whether it was available.
 func (l *Limiter) Allow(ctx context.Context, req Request) (bool, error) {
 	denied, err := l.allow(ctx, req, nil)
 	if err != nil {
@@ -253,9 +220,6 @@ func (l *Limiter) Allow(ctx context.Context, req Request) (bool, error) {
 	return denied == 0, nil
 }
 
-// AllowOrdered consumes both buckets in one atomic script execution. A denial
-// consumes neither bucket. denied is zero on success, one for first, and two for
-// second.
 func (l *Limiter) AllowOrdered(ctx context.Context, first, second Request) (denied uint8, err error) {
 	return l.allow(ctx, first, &second)
 }

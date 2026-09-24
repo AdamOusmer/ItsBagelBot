@@ -32,11 +32,9 @@ func TestRaidCooldownPrunesStaleEntries(t *testing.T) {
 	rc := newRaidCooldown(time.Minute)
 	base := time.Unix(1_700_000_000, 0)
 
-	// Fill past the prune threshold with entries that are all stale by `now`.
 	for i := 0; i < raidCooldownPruneAbove+1; i++ {
 		rc.trip(uint64(i), base)
 	}
-	// A trip far in the future prunes the stale entries it sweeps.
 	rc.trip(9_999_999, base.Add(time.Hour))
 	assert.LessOrEqual(t, len(rc.last), 2, "stale entries are swept once the map grows past the bound")
 }

@@ -1,11 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Behaviour contract for the Nightbot parser. Unlike moobot.test.ts and
-// streamelements.test.ts there is no Go implementation to pin against (no Go
-// Nightbot parser ever existed) so these expectations ARE the contract:
-// change one only when the mapping itself is meant to change.
-
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
@@ -145,11 +140,6 @@ describe('commands', () => {
   });
 
   test('$(count) translates to bare {count}, the per-command run count', () => {
-    // Nightbot's $(count) is the unnamed per-command counter, which is the one
-    // thing bare {count} (the {uses} alias) is. It maps without a warning: no
-    // name has to be invented and no increment is dropped, because the bot
-    // counts every custom command's runs whether or not the response prints
-    // the number.
     const { manifest, diagnostics } = parseNightbot(
       bytes({ commands: [command({ message: 'hugged $(count) times' })] })
     );
@@ -158,9 +148,6 @@ describe('commands', () => {
   });
 
   test('$(querystring) translates to {querystring}, not to {args}', () => {
-    // Both sides URL-encode the arguments, so a definition URL built from the
-    // translated response requests the same bytes Nightbot requested. Folding
-    // it onto {args} would quietly change the request.
     const { manifest, diagnostics } = parseNightbot(
       bytes({ commands: [command({ message: 'https://x.test/?q=$(querystring)' })] })
     );
@@ -319,10 +306,6 @@ describe('phase 6: time/countdown/countup/twitch', () => {
   });
 
   test('stray braces around a mapped field refuse the whole call rather than mint a broken span', () => {
-    // A literal "{" right before the minted "{game}" would otherwise merge
-    // into ONE span under tmpl.ts's lexer (it closes at the FIRST "}", which
-    // is {game}'s own) — the round-trip guard must catch this even though
-    // {{game}} mapped cleanly on its own.
     const { manifest, diagnostics } = parseNightbot(
       bytes({ commands: [command({ message: '$(twitch $(channel) "{oops {{game}}")' })] })
     );
@@ -352,9 +335,6 @@ describe('urlfetch synthesis', () => {
     ]);
     for (const f of manifest.fetches ?? []) expect(isValidFetchDefName(f.name)).toBe(true);
     expect(validateManifest(manifest).filter((d) => d.severity === 'error')).toEqual([]);
-    // phase 6: a successful synthesis now warns too, naming the slug and URL,
-    // so the broadcaster knows to review it under Commands → Fetch definitions
-    // instead of finding out only when the def turns out to have no URL.
     expect(codesOf(diagnostics)).toEqual(['fetch_def_created', 'fetch_def_created']);
   });
 
@@ -437,8 +417,6 @@ describe('timers', () => {
 
 describe('spam protection', () => {
   test('live-API filter shape: newline-delimited blacklist string under _type', () => {
-    // Wire shape per api-docs.nightbot.tv (verified 2026-09-01): one filter
-    // object with _type "blacklist" whose terms are ONE \n-joined string.
     const { manifest, diagnostics } = parseNightbot(
       bytes({
         spam_protection: [
@@ -465,11 +443,6 @@ describe('spam protection', () => {
   });
 });
 
-// --- fetch flow (OAuth-token API pull) ---------------------------------------
-
-// Local stand-in server, mirroring streamelements.test.ts: records every
-// request (snapshotted eagerly, Bun recycles Request internals once the
-// handler resolves) and answers via `handler`.
 interface Recorded {
   path: string;
   authorization: string | null;
@@ -588,15 +561,6 @@ describe('fetch flow', () => {
   });
 });
 
-// --- golden ------------------------------------------------------------------
-
-// NIGHTBOT_GOLDEN_ENVELOPE is a small representative command/timer set —
-// simple tokens, positional words, $(count), $(querystring), urlfetch
-// synthesis and an unmappable variable — drawn from the cases already proven
-// above, so emitted-tokens.test.ts's corpus sweep has a Nightbot golden to
-// walk like every other source's (phase 6; no Go implementation ever existed
-// for this source, so unlike moobot/se this golden was never ported, it is
-// authored here).
 const NIGHTBOT_GOLDEN_ENVELOPE = {
   commands: [
     command({ name: '!hello', message: 'Hi $(touser), welcome to $(channel), $(query)', coolDown: 45 }),
@@ -613,22 +577,6 @@ const NIGHTBOT_GOLDEN_ENVELOPE = {
 
 describe('golden', () => {
   test('the representative envelope translates to the committed golden', () => {
-    // testdata/nightbot-golden.json pins the manifest + diagnostic sequence
-    // NIGHTBOT_GOLDEN_ENVELOPE produces. COMMITTED OUTPUT, generated once by
-    // hand and reviewed line by line; nothing in this suite rewrites it.
-    // Regenerating it is a deliberate act, run from web/ and followed by
-    // reading the diff:
-    //
-    //	bun -e 'import {parseNightbot} from "./kit/lib/importer/nightbot";
-    //	  const r=parseNightbot(new TextEncoder().encode(JSON.stringify(ENVELOPE)));
-    //	  await Bun.write("kit/lib/importer/testdata/nightbot-golden.json",
-    //	    JSON.stringify({manifest:r.manifest,diagnostics:r.diagnostics},null,2)+"\n")'
-    //
-    // (ENVELOPE = NIGHTBOT_GOLDEN_ENVELOPE, copied in verbatim — it is not its
-    // own module, matching how this suite defines every other fixture.) A
-    // golden that regenerates itself proves nothing, which is why that
-    // command lives in a comment instead of behind an env var this suite
-    // reads.
     const { manifest, diagnostics } = parseNightbot(bytes(NIGHTBOT_GOLDEN_ENVELOPE));
     const golden = JSON.parse(readFileSync(join(TESTDATA, 'nightbot-golden.json'), 'utf8'));
     expect(manifest).toEqual(golden.manifest);

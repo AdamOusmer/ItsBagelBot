@@ -2,14 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for the `.bb-section-heading` contract
-  // (../styles/elements/section-heading.css). Astro twin:
-  // ../astro/SectionHeading.astro.
-  //
-  // The badge rides the eyebrow line rather than the title; the reason is in
-  // the contract file. The meta row renders when there is an eyebrow OR a
-  // badge, so a heading that is only a badge still gets the 14px above the
-  // title.
   import '../styles/elements/section-heading.css';
   import type { Snippet } from 'svelte';
 

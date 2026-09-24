@@ -23,12 +23,8 @@ import (
 )
 
 func TestRearmAfterFailure(t *testing.T) {
-	// The first two failures may be blips: retry inside a minute so a
-	// transient chatters/live error costs viewers a minute, not a window.
 	assert.Equal(t, watchTickQuickRetry, rearmAfterFailure(1))
 	assert.Equal(t, watchTickQuickRetry, rearmAfterFailure(watchTickQuickRetries))
-	// Past the cap, fall back to the normal cadence instead of spending Helix
-	// calls on a hard-down dependency every minute.
 	assert.Equal(t, watchTickInterval, rearmAfterFailure(watchTickQuickRetries+1))
 	assert.Equal(t, watchTickInterval, rearmAfterFailure(50))
 }
@@ -59,7 +55,7 @@ func TestWatchTickSettleSuccess(t *testing.T) {
 	assert.Equal(t, watchTickInterval, c.settleSuccess(ctx, 77001))
 	assert.Empty(t, c.failures)
 	for range 20 {
-		clock().settleSuccess(ctx, 77001) // a fresh replica cannot reset the cadence
+		clock().settleSuccess(ctx, 77001)
 	}
 	require.Len(t, pub.payloads["test.system"], 1)
 	var msg outgress.Message
@@ -70,12 +66,10 @@ func TestWatchTickSettleSuccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.InDelta(t, watchTickReconfirmInterval.Milliseconds(), ttl, 5000)
 
-	// Expiring the shared guard allows the next replica to reconfirm.
 	require.NoError(t, client.Do(ctx, client.B().Del().Key(key).Build()).Error())
 	clock().settleSuccess(ctx, 77001)
 	require.Len(t, pub.payloads["test.system"], 2)
 
-	// Publish failures release the guard so the next tick retries.
 	require.NoError(t, client.Do(ctx, client.B().Del().Key(key).Build()).Error())
 	c.pub = &fakePublisher{failErr: errors.New("offline")}
 	c.settleSuccess(ctx, 77001)
@@ -168,7 +162,7 @@ func TestWatchTickFireLifecycle(t *testing.T) {
 				return &nats.Msg{Data: body}, err
 			}
 			c.fire(ctx, id)
-			c.fire(ctx, id) // a second replica's same-expiry claim must lose
+			c.fire(ctx, id)
 			reporter.Close()
 			assert.Equal(t, 1, calls)
 			ttl, err := client.Do(ctx, client.B().Ttl().Key(loyaltyTickKey(id)).Build()).AsInt64()

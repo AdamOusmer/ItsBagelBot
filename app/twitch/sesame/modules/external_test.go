@@ -13,15 +13,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// gossipDeps is the deps every external-stats module test builds its module
-// from: a fake gossip caller and a silent logger, nothing else.
 func gossipDeps(gw engine.GossipCaller) engine.Deps {
 	return engine.Deps{Gossip: gw, Log: zap.NewNop()}
 }
 
-// optInCmd asserts that m is the expected opt-in module and returns one of its
-// commands. Four stats modules had grown the same three-line builder, so a
-// fifth would have copied it too.
 func optInCmd(t *testing.T, m module.Module, id, name string) module.Command {
 	t.Helper()
 	assert.Equal(t, id, m.Name)
@@ -31,9 +26,6 @@ func optInCmd(t *testing.T, m module.Module, id, name string) module.Command {
 
 const testUUID = "deadbeefdeadbeefdeadbeefdeadbeef"
 
-// resolveAccount's fallback chain, one row per priority rule: typed arg,
-// linked uuid (only when PreferUUID and one is stored), linked name,
-// broadcaster login. LinkedOnly drops the typed arg silently on every row.
 func TestResolveAccount(t *testing.T) {
 	cases := []struct {
 		name string

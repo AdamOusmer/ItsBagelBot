@@ -1,29 +1,7 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* `.bb-section-heading` — eyebrow, optional badge and title, as one block, so
-   the six sections that use it agree on the 14px between eyebrow and title and
-   the 56px below the whole thing.
-
-   THE BADGE RIDES THE EYEBROW LINE, not the title, and that is the one
-   non-obvious decision in the file. A status chip set beside display type at
-   `clamp(1.6rem, 4.5vw, 2.5rem)` either shrinks the title to fit or is
-   dwarfed by it, and on a phone it wraps under the first word of the heading
-   and reads as a caption for that word. On the eyebrow line it is beside type
-   of its own weight.
-
-   `data-reveal` and `--reveal-i` on the title are the shared scroll-reveal
-   contract (ui/styles/reveal.css): the meta row reveals first, the title one
-   step behind it. The stagger index is on the element rather than a
-   `:nth-child` rule because the meta row is conditional. */
 
 @layer bb.elements {
   .bb-section-heading {

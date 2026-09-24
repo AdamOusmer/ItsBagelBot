@@ -13,7 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeLive is a configurable IsLiveChecker.
 type fakeLive struct {
 	live bool
 	err  error
@@ -21,9 +20,6 @@ type fakeLive struct {
 
 func (f fakeLive) IsLive(context.Context, uint64) (bool, error) { return f.live, f.err }
 
-// countingReader is a projection.Reader that records how many times Modules was
-// asked, so a test can tell whether RearmIfLive reached ArmAll (which is the
-// first thing to read the modules view) without needing a Valkey backend.
 type countingReader struct {
 	modulesCalls int
 }
@@ -33,11 +29,9 @@ func (r *countingReader) User(context.Context, uint64) (projection.User, error) 
 }
 func (r *countingReader) Modules(context.Context, uint64) (map[string]projection.ModuleView, error) {
 	r.modulesCalls++
-	return nil, nil // no "timers" module: config() bails, arm() (and Valkey) never run
+	return nil, nil
 }
 
-// Module is what config() calls now that it reads one row by name; it counts the
-// same way Modules does, since it is the same read from the test's point of view.
 func (r *countingReader) Module(context.Context, uint64, string) (projection.ModuleView, bool, error) {
 	r.modulesCalls++
 	return projection.ModuleView{}, false, nil
@@ -46,10 +40,6 @@ func (r *countingReader) Command(context.Context, uint64, string) (projection.Co
 	return projection.Command{}, false, nil
 }
 
-// storeWith builds a store wired with just the deps RearmIfLive touches. client
-// is deliberately nil: the tests assert the offline/error paths never reach an
-// arm (which would dereference it), and the live path bails at an empty config
-// before any Valkey call.
 func storeWith(live IsLiveChecker, proj projection.Reader) *ValkeyTimerStore {
 	return &ValkeyTimerStore{live: live, proj: proj, log: zap.NewNop()}
 }
@@ -89,8 +79,6 @@ func TestRearmIfLiveSkipsOnLiveError(t *testing.T) {
 
 func TestRearmIfLiveSkipsZeroID(t *testing.T) {
 	r := &countingReader{}
-	// A live checker that would panic if consulted proves id==0 short-circuits
-	// before the IsLive call.
 	s := storeWith(fakeLive{live: true}, r)
 
 	s.RearmIfLive(context.Background(), 0)

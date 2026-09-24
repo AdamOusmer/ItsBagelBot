@@ -17,19 +17,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// purgeClient is the one RPC call this module needs (see
-// internal/domain/rpc/discordoutgress's doc for why /purge cannot be a
-// Command: outgress has to list before it can bulk-delete, and the count
-// deleted is exactly the thing the slash reply needs to report).
 type purgeClient interface {
 	Purge(ctx context.Context, req discordoutgress.PurgeRequest) (discordoutgress.PurgeReply, error)
 }
 
-// Moderation ports app/dingress/internal/community/slash.go's /timeout,
-// /kick, /ban, and /purge. Every action here lands on Command's mod lane
-// (see internal/domain/discord's ModType) except purge, which is REST-shaped
-// (see purgeClient above) and answers through the same RPC round trip
-// instead.
 func Moderation(purge purgeClient, log *zap.Logger) module.Module {
 	h := moderationModule{purgeRPC: purge, log: log}
 	b := module.NewModule("moderation")
@@ -40,16 +31,11 @@ func Moderation(purge purgeClient, log *zap.Logger) module.Module {
 	return b.Build()
 }
 
-// isStaffOrMod is the MODERATION gate: /timeout, /kick, /ban, /purge and the
-// voice-clone owner override. It reads IsModStaff, not IsTicketStaff -- a
-// role added to the ticket desk's staff list must not come with the power to
-// ban, which is exactly what the single IsStaff this replaced handed out.
+// Must read IsModStaff, not IsTicketStaff: ticket desk roles must not gain ban power.
 func isStaffOrMod(cfg ddiscord.Config, in decode.InteractionEvent) bool {
 	return decode.CanMod(in.Member.Permissions) || ddiscord.IsModStaff(in.Member.Roles, cfg)
 }
 
-// isTicketStaffOrMod is the DESK gate: claiming and closing someone else's
-// ticket. Strictly wider than isStaffOrMod by the configured desk roles.
 func isTicketStaffOrMod(cfg ddiscord.Config, in decode.InteractionEvent) bool {
 	return decode.CanMod(in.Member.Permissions) || ddiscord.IsTicketStaff(in.Member.Roles, cfg)
 }
@@ -59,10 +45,6 @@ type moderationModule struct {
 	log      *zap.Logger
 }
 
-// requireMod replies "Mods only." and reports false when the interacting
-// member is neither staff by Bagel role nor moderator by Discord permission
-// bit. Either is enough: see ddiscord.IsModStaff for why the two questions are
-// not the same one.
 func requireMod(c *module.Context, in decode.InteractionEvent, emit module.Emit) bool {
 	if isStaffOrMod(c.Config, in) {
 		return true
@@ -101,23 +83,14 @@ func (h moderationModule) ban(_ context.Context, c *module.Context, emit module.
 	return h.remove(c, emit, removeAction{Title: "Ban", Prefix: "Banned ", Build: cmd.BanMember})
 }
 
-// removeBuilder is cmd.KickMember or cmd.BanMember's shared shape.
 type removeBuilder func(t cmd.Target, reason cmd.Reason) ddiscord.Command
 
-// removeAction is what kick and ban each fix about the shared remove flow:
-// the log/reply title, the reply prefix, and which mod-lane Command to
-// build. Collapsed from separate parameters (CodeScene: Excess Number of
-// Function Arguments) into one struct, matching this codebase's convention
-// for bundling a call's varying parts (see linkguard.Sighting).
 type removeAction struct {
 	Title  string
 	Prefix string
 	Build  removeBuilder
 }
 
-// remove is modTimeout's kick/ban twin: same mods-only gate, same "need a
-// user" validation, same log-then-reply tail, differing only in which
-// mod-lane Command it builds and what it says.
 func (h moderationModule) remove(c *module.Context, emit module.Emit, action removeAction) error {
 	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
 	if err != nil {

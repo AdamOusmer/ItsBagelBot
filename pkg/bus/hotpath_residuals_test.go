@@ -9,9 +9,6 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// identitySlot asserts the pooled envelope's identity invariant — exactly one
-// element, capacity one so no pool cycle ever reallocates it, read back through
-// canonical lookup — and returns the current value.
 func identitySlot(t *testing.T, h nats.Header) string {
 	t.Helper()
 	slot, ok := h[messageIDHeader]
@@ -44,8 +41,6 @@ func TestResetWireHeaderKeepsIdentitySlot(t *testing.T) {
 		t.Fatalf("slot not cleared for reuse: %q", got)
 	}
 
-	// Overwrite cycles stand in for publishes: the slot must take each new id
-	// without growing, which is what makes the reuse allocation-free.
 	for _, id := range []string{"a", "b", "c"} {
 		h[messageIDHeader][0] = id
 		if got := identitySlot(t, h); got != id {

@@ -1,39 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Icon source of truth. Every glyph @bagel/ui draws -- for the console, the
- * marketing site, the docs and anything that consumes this library later --
- * comes from a published set (Lucide for UI strokes, Simple Icons for brand
- * marks) through this manifest; nothing is hand-drawn. Run it after editing
- * the manifest or bumping either @iconify-json package, then commit the
- * generated file:
- *
- *   bun ui/scripts/gen-icons.mjs
- *
- * ONE target, one manifest. It used to emit two files from two manifests
- * (web/kit/lib/icons.ts for the console, web/marketing/src/lib/icons.ts for
- * the site), which is how the two `Icon` components came to disagree about
- * their default size and their props while claiming to draw the same set: a
- * name meant a different glyph depending on which file you were looking at.
- * The manifests are merged here, so a name is a glyph everywhere.
- *
- * The merge had exactly one collision, and it is the reason `brandX` exists:
- * `x` was `lucide:x` (the close mark on every dismissable console surface) in
- * one file and `simple-icons:x` (the social network's logo, in the marketing
- * social rail) in the other. The stroke mark keeps the short name because it
- * is the one used by controls; the brand mark is prefixed like what it is.
- * Brand names stay grouped below so the next collision is visible before it
- * is generated rather than after it renders the wrong glyph.
- *
- * Output is the inner markup of a 24x24 viewBox so a wrapper (svelte/Icon,
- * astro/Icon) owns stroke weight, size and colour. Lucide bodies ship
- * per-path presentation attributes (stroke-width="2" etc.) which would beat
- * the wrapper's; they are stripped here so the existing CSS overrides and
- * the 1.6 weight keep working. Simple Icons are filled marks and keep
- * fill="currentColor" on the path so they render inside the stroke wrapper
- * without a fill prop.
- */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
@@ -43,10 +10,7 @@ const sets = {
   'simple-icons': require('@iconify-json/simple-icons/icons.json')
 };
 
-// name used in code -> "set:icon". One flat map: see the note on `brandX`
-// above before adding a name that already exists in another group.
 const ICONS = {
-  // navigation and page marks
   overview: 'lucide:layout-dashboard',
   commands: 'lucide:terminal',
   modules: 'lucide:layout-grid',
@@ -62,7 +26,6 @@ const ICONS = {
   moderation: 'lucide:shield',
   audit: 'lucide:scroll-text',
   list: 'lucide:list',
-  // icon-only controls and state marks
   x: 'lucide:x',
   trash: 'lucide:trash-2',
   edit: 'lucide:pencil',
@@ -77,13 +40,9 @@ const ICONS = {
   importFile: 'lucide:file-input',
   lock: 'lucide:lock',
   chevron: 'lucide:chevron-down',
-  // editorial glyphs the marketing pages draw
   leaf: 'lucide:leaf',
   bulb: 'lucide:lightbulb',
   copy: 'lucide:copy',
-  // brand marks (filled, Simple Icons). Prefixed `brand` where the plain name
-  // is already a stroke glyph; `discord` keeps its short name because there
-  // has never been a second `discord`.
   discord: 'simple-icons:discord',
   brandX: 'simple-icons:x',
   tiktok: 'simple-icons:tiktok',

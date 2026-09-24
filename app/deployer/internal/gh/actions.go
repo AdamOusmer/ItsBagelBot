@@ -19,17 +19,8 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// activeWindow is how many of a workflow's newest runs ActiveRuns scans.
-// The API filters by one status per call, and a run held by a concurrency
-// group reports pending or waiting rather than queued, so exact filtering
-// is five calls a poll: 3600 an hour at the 5 s cadence, most of the
-// installation's 5000. Active runs are always among the newest, and a
-// release starts one publish-images run, so one call over 100 finds them.
 const activeWindow = 100
 
-// maxLogLine is the longest log line tailLines accepts. bufio.Scanner's
-// 64 KB default fails the whole read on one longer line, which would turn a
-// build failure into a missing log tail; 1 MB caps what one line may cost.
 const maxLogLine = 1 << 20
 
 func toRun(r *github.WorkflowRun) ports.WorkflowRun {
@@ -51,9 +42,6 @@ func toJob(j *github.WorkflowJob) ports.Job {
 	}
 }
 
-// FindWorkflowRun returns the newest matching run. head_branch on a tag
-// push is the tag name, so Ref filters tag and branch pushes alike, and a
-// rerun of failed jobs keeps its run id, so the newest is the one to watch.
 func (c *Client) FindWorkflowRun(ctx context.Context, q ports.RunQuery) (ports.WorkflowRun, bool, error) {
 	runs, resp, err := c.gh.Actions.ListWorkflowRunsByFileName(ctx, c.owner, c.repo, string(q.Workflow),
 		&github.ListWorkflowRunsOptions{
@@ -93,8 +81,6 @@ func (c *Client) ActiveRuns(ctx context.Context, wf ports.Workflow) ([]ports.Wor
 	return out, nil
 }
 
-// RunJobs lists the latest attempt's jobs, so a rerun of failed jobs shows
-// its fresh attempts rather than the failures it replaced.
 func (c *Client) RunJobs(ctx context.Context, runID int64) ([]ports.Job, error) {
 	opts := &github.ListWorkflowJobsOptions{Filter: "latest", ListOptions: github.ListOptions{PerPage: 100}}
 	jobs, err := collect(&opts.ListOptions, func() ([]*github.WorkflowJob, *github.Response, error) {
@@ -104,9 +90,7 @@ func (c *Client) RunJobs(ctx context.Context, runID int64) ([]ports.Job, error) 
 	return mapAll(jobs, toJob), err
 }
 
-// JobLogTail follows GitHub's 302 to a short-lived pre-signed storage URL.
-// That URL carries its own credential, so it is fetched with the bare
-// client: sending the installation token to a storage host would leak it.
+// Use the bare client: the installation token must not reach the log storage host.
 func (c *Client) JobLogTail(ctx context.Context, jobID int64, n int) ([]string, error) {
 	u, resp, err := c.gh.Actions.GetWorkflowJobLogs(ctx, c.owner, c.repo, jobID, 1)
 	if err != nil {
@@ -127,8 +111,6 @@ func (c *Client) JobLogTail(ctx context.Context, jobID int64, n int) ([]string, 
 	return tailLines(res.Body, n)
 }
 
-// tailLines keeps the last n lines in a ring, so a multi-MB build log never
-// sits in memory whole.
 func tailLines(r io.Reader, n int) ([]string, error) {
 	if n <= 0 {
 		return nil, nil
@@ -154,16 +136,6 @@ func (c *Client) RerunFailedJobs(ctx context.Context, runID int64) error {
 	return apiErr(resp, err)
 }
 
-// AttestationExists filters by predicate server side. The list response
-// carries bundle_url and no inline bundle (REST docs schema read 2026-09-23:
-// repository_id, bundle_url, initiator), so the predicate cannot be read off
-// the listing without a second fetch per attestation; predicate_type=provenance
-// is GitHub's alias for the SLSA provenance that actions/attest-build-provenance
-// writes. go-github's ListAttestations has no predicate_type option, hence the
-// raw request. The Sigstore signature is verified by GitHub when the
-// attestation is written (it is bound to the workflow's OIDC identity);
-// verifying it again here would pull sigstore-go into the deployer for no
-// stronger claim than "GitHub's own API says this repo attested this digest".
 func (c *Client) AttestationExists(ctx context.Context, digest deploy.Digest) (bool, error) {
 	u := fmt.Sprintf("repos/%s/%s/attestations/%s?predicate_type=provenance&per_page=1", c.owner, c.repo, digest)
 	req, err := c.gh.NewRequest(ctx, http.MethodGet, u, nil)

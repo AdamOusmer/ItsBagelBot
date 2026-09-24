@@ -11,9 +11,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 )
 
-// The automod module is the config surface for the inline gate: a named
-// KindDefault module (dashboard toggle + config blob) whose chat registration is
-// what makes the pipeline fetch its ModuleView. Pin the contract.
 func TestAutomodModuleShape(t *testing.T) {
 	m := Automod(engine.Deps{})
 
@@ -31,7 +28,6 @@ func TestAutomodModuleShape(t *testing.T) {
 	if h == nil {
 		t.Fatal("automod must register a chat handler: it forces the ModuleView fetch")
 	}
-	// The handler is a pure no-op: the gate runs inline in the pipeline.
 	if err := h(context.Background(), &module.Context{}, func(*module.Output) {
 		t.Fatal("automod handler must never emit")
 	}); err != nil {
@@ -39,8 +35,6 @@ func TestAutomodModuleShape(t *testing.T) {
 	}
 }
 
-// All() wires the automod module in, so a real registry marks chat as needing
-// ModuleViews and the per-broadcaster row reaches the pipeline.
 func TestAllIncludesAutomod(t *testing.T) {
 	for _, m := range All(engine.Deps{}) {
 		if m.Name == "automod" {

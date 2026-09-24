@@ -18,31 +18,17 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// digests resolves every image the run will pin and refuses any that is not
-// provably the build of the target commit: both architectures in the index
-// (the cluster runs ARM and Intel nodes, a single-arch index schedules and
-// then fails to pull on the other half), the revision label equal to the
-// commit, and a build provenance attestation for the digest.
-
+// The cluster runs ARM and Intel nodes: a single-arch index fails to pull on half.
 var requiredPlatforms = []string{"linux/amd64", "linux/arm64"}
 
 func digestsDone(_ context.Context, rc *stage.RunCtx) (bool, error) {
 	return len(rc.View().Outputs.Digests) > 0, nil
 }
 
-// digestPlan is what runDigests resolves: tag per image and the commit every
-// image must have been built from.
 type digestPlan struct {
-	refs     []ports.ImageRef
-	revision deploy.SHA
-	// current are the pins on main, so a bump can drop images whose digest
-	// did not change.
-	current map[deploy.ImageName]deploy.ImagePin
-	// keepMissing leaves an image without the tag at its current pin instead
-	// of refusing it. Only a rollback sets it: an image added after the
-	// target release (the deployer itself, a new service) has no build of
-	// that version, and refusing it would make every older release
-	// unreachable.
+	refs        []ports.ImageRef
+	revision    deploy.SHA
+	current     map[deploy.ImageName]deploy.ImagePin
 	keepMissing bool
 }
 
@@ -78,8 +64,6 @@ func planDigests(ctx context.Context, rc *stage.RunCtx, run deploy.Run) (digestP
 	return digestPlan{refs: refs, revision: run.TargetSHA, current: current}, err
 }
 
-// versionRefs is every image main pins at the version tag, the tag a tag push
-// gives every image (publish-images builds them all for a v* ref).
 func versionRefs(current map[deploy.ImageName]deploy.ImagePin, v deploy.Version) []ports.ImageRef {
 	refs := make([]ports.ImageRef, 0, len(current))
 	for _, img := range sortedImages(current) {
@@ -88,10 +72,6 @@ func versionRefs(current map[deploy.ImageName]deploy.ImagePin, v deploy.Version)
 	return refs
 }
 
-// bumpRefs: the images the main push run built (and the operator did not
-// narrow away), each at the newest main-<ts>-<sha12> tag of the target commit.
-// The timestamp is the run's, unknown until the tags exist, hence the lookup;
-// a rerun of the same commit adds a newer one.
 func bumpRefs(ctx context.Context, rc *stage.RunCtx, run deploy.Run, lines []PinLine) ([]ports.ImageRef, error) {
 	jobs, err := rc.Deps.GitHub.RunJobs(ctx, run.Outputs.BuildRunID)
 	if err != nil {
@@ -108,8 +88,6 @@ func bumpRefs(ctx context.Context, rc *stage.RunCtx, run deploy.Run, lines []Pin
 	return refs, nil
 }
 
-// bumpImages keeps the built images that main pins and, when the operator
-// narrowed the bump, that a named service runs.
 func bumpImages(built []deploy.ImageName, lines []PinLine, services []string) []deploy.ImageName {
 	var out []deploy.ImageName
 	for _, img := range built {
@@ -156,9 +134,6 @@ func mainTag(ctx context.Context, reg ports.Registry, img deploy.ImageName, sha 
 	return best, nil
 }
 
-// resolveAll checks every image and refuses the lot if any fails: a
-// partial pin set would roll some services to the new build and leave the
-// rest behind with no record of which.
 func resolveAll(ctx context.Context, rc *stage.RunCtx, plan digestPlan) (map[deploy.ImageName]deploy.ImagePin, error) {
 	items := make([]deploy.Item, len(plan.refs))
 	for i, ref := range plan.refs {
@@ -178,8 +153,6 @@ func resolveAll(ctx context.Context, rc *stage.RunCtx, plan digestPlan) (map[dep
 	return res.pins, nil
 }
 
-// resolution collects the pins and every problem found, so one refusal lists
-// all the bad images instead of the first.
 type resolution struct {
 	rc      *stage.RunCtx
 	plan    digestPlan
@@ -187,10 +160,6 @@ type resolution struct {
 	refused []string
 }
 
-// check sorts the three ways an image can answer: a tag that does not exist,
-// an index the registry adapter refused itself (single-platform, missing an
-// arch; a *Fail recorded as a problem so the page still lists the rest), and
-// the registry or GitHub failing to answer at all, which stops the stage.
 func (r *resolution) check(ctx context.Context, ref ports.ImageRef) error {
 	pin, problems, err := checkImage(ctx, r.rc, ref, r.plan.revision)
 	if errors.Is(err, ports.ErrNotFound) {
@@ -258,8 +227,6 @@ func imageItem(ref ports.ImageRef, pin deploy.ImagePin, problems []string) deplo
 	return item
 }
 
-// checkImage returns the pin and what is wrong with it; err is the registry's
-// own answer (not found, refused) or a failure to answer.
 func checkImage(ctx context.Context, rc *stage.RunCtx, ref ports.ImageRef, revision deploy.SHA) (deploy.ImagePin, []string, error) {
 	info, err := rc.Deps.Registry.Resolve(ctx, ref)
 	if err != nil {
@@ -284,17 +251,13 @@ func indexProblems(info ports.ImageInfo, revision deploy.SHA) []string {
 			problems = append(problems, "missing "+p)
 		}
 	}
-	// An empty want never matches: an unset TagSHA must not pass an image
-	// that carries no label either.
+	// An unset revision must not pass an unlabelled image.
 	if revision == "" || info.Revision != revision {
 		problems = append(problems, fmt.Sprintf("revision %q, want %q", info.Revision, revision))
 	}
 	return problems
 }
 
-// changedOnly drops the images whose digest main already pins. A bump that
-// only changed the tag string would still change the pod template and
-// restart the service for nothing.
 func changedOnly(ctx context.Context, rc *stage.RunCtx, pins, current map[deploy.ImageName]deploy.ImagePin) map[deploy.ImageName]deploy.ImagePin {
 	out := map[deploy.ImageName]deploy.ImagePin{}
 	for img, pin := range pins {
@@ -307,7 +270,6 @@ func changedOnly(ctx context.Context, rc *stage.RunCtx, pins, current map[deploy
 	return out
 }
 
-// mainPinLines reads the pins on main.
 func mainPinLines(ctx context.Context, rc *stage.RunCtx) ([]PinLine, error) {
 	_, files, err := mainManifests(ctx, rc)
 	if err != nil {
@@ -316,8 +278,6 @@ func mainPinLines(ctx context.Context, rc *stage.RunCtx) ([]PinLine, error) {
 	return ParsePins(files, rc.Deps.Config.ImageRepo), nil
 }
 
-// mainManifests reads deploy/k8s/*.yaml at main's head. Only the top level:
-// the bench and network-tune subdirectories are not applied by the train.
 func mainManifests(ctx context.Context, rc *stage.RunCtx) (deploy.SHA, ports.Files, error) {
 	cfg := rc.Deps.Config
 	head, err := rc.Deps.GitHub.BranchHead(ctx, cfg.MainBranch)

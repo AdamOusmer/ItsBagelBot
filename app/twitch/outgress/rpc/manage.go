@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package rpc exposes the outgress management API over NATS request-reply,
-// mirroring the bagel.rpc.* conventions of the other services. It covers the
-// two things an operator manages here: channels (enable, disable, mod
-// status) and the system itself (kill switch, token health).
 package rpc
 
 import (
@@ -34,16 +30,6 @@ type Manage struct {
 	log      *zap.Logger
 }
 
-// SubscribeManage registers the management endpoints under prefix:
-//
-//	<prefix>.channel.get     {broadcaster_id}                  -> {channel, found}
-//	<prefix>.channel.set     {broadcaster_id, enabled?, is_mod?} -> {channel, found}
-//	<prefix>.channel.list    {}                                -> {channels}
-//	<prefix>.accountage.get  {target_id?, target_login?}       -> {created_at, user_found}
-//	<prefix>.system.status   {}                                -> {paused, token health}
-//	<prefix>.system.pause    {paused}                          -> {paused}
-//	<prefix>.streaminfo.get  {broadcaster_id?, target_login?}  -> {user_found, live, title, game_name, viewer_count, started_at}
-//	<prefix>.channelcounts.get {broadcaster_id}                -> {followers, followers_ok, subs, subs_ok}
 func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 
 	m := &Manage{registry: registry, twitch: tw, log: log}
@@ -82,10 +68,6 @@ func SubscribeManage(nc *nats.Conn, registry *channels.Registry, tw *twitch.Clie
 	)
 }
 
-// subscribeAll registers each verb in order and aborts on the first failure,
-// so a broken subscription never leaves half the management API silently
-// dark. The per-verb generics make a plain data table impossible; the closure
-// keeps every registration branch-free at the call site.
 func subscribeAll(register ...func() error) error {
 	for _, r := range register {
 		if err := r(); err != nil {
@@ -161,9 +143,6 @@ func (m *Manage) handleAccountAge(ctx context.Context, req outgressrpc.AccountAg
 	return outgressrpc.AccountAgeReply{TargetID: id, UserFound: true, CreatedAt: createdAt}
 }
 
-// handleUptime resolves one broadcaster's current stream session for !uptime.
-// The live flag and the session start come from the same Get Streams read, so
-// the reply can never pair "live" with a stale or zero start.
 func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest) outgressrpc.UptimeReply {
 	if req.BroadcasterID == "" {
 		return outgressrpc.UptimeReply{Error: "bad request"}
@@ -176,30 +155,6 @@ func (m *Manage) handleUptime(ctx context.Context, req outgressrpc.UptimeRequest
 	return outgressrpc.UptimeReply{Live: live, StartedAt: startedAt}
 }
 
-// handleStreamInfo is the Helix escape hatch app/discord/engine's go-live
-// embed falls back to when the Valkey projection has not caught the
-// title/category up yet (ported from outgress's own former discord_live.go
-// liveInfo, which called m.twitch directly from the same process; the
-// Discord services have no Twitch client of their own, only this (Twitch)
-// outgress does, so the call became this RPC -- see
-// app/discord/engine/modules/live.go's liveInfo for the caller side and why
-// it is gated to broadcasters with a category allow-list set).
-//
-// Unlike the lane workers' background Helix calls (buckets.go's
-// takeSystemHelix), this handler does not draw from that budget: the
-// per-broadcaster allow-list gate on the caller already bounds how often it
-// fires (only broadcasters who opted into category filtering, only once per
-// stream since a found live-message short-circuits engine before this RPC
-// is ever sent), the same way followage.get/accountage.get/uptime.get next
-// to it call m.twitch directly with no added token. Wiring the lane budget
-// in here would mean exporting or duplicating a worker-package-private spec
-// across a package boundary for a call that is already this narrow.
-// It is also what sesame's {uptime} / {title} / {game} / {channel.viewers}
-// response tokens read, which is why the request grew a login and the reply a
-// session start: one endpoint answers the whole family for a template, so a
-// response naming three of them costs one round trip instead of three. The
-// composition (resolve login, read stream, fall back to the channel object
-// when offline) lives in streaminfo.go.
 func (m *Manage) handleStreamInfo(ctx context.Context, req outgressrpc.StreamInfoRequest) outgressrpc.StreamInfoReply {
 	return readStreamInfo(ctx, m.twitch, m.log, req)
 }
@@ -247,8 +202,6 @@ func (m *Manage) handleChannelSet(ctx context.Context, req manage.ChannelRequest
 	}
 	if req.IsMod != nil {
 		ch.IsMod = *req.IsMod
-		// An operator override counts as a verification, so the workers
-		// trust it for the full TTL instead of re-checking immediately.
 		ch.ModCheckedAt = time.Now()
 	}
 

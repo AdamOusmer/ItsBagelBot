@@ -14,15 +14,6 @@ import (
 	"ItsBagelBot/pkg/cache"
 )
 
-// Pure duel mechanics: settings clamping, the weighted pot pick and the
-// receipt digest. No I/O — everything takes and returns plain values so tests
-// pin them directly.
-
-// Defaults and hard ceilings for the two duel clocks. The store clamps
-// whatever the module config asks for, so a hand-crafted config blob cannot
-// arm a sub-ten-second scam window nor a half-hour freeze on the channel's
-// single duel slot. The stake ceiling is the sanity bound behind the module's
-// own max-stake setting: an escrow larger than this is refused outright.
 const (
 	DuelDefaultPotSeconds       = int64(60)
 	DuelDefaultChallengeSeconds = int64(120)
@@ -31,7 +22,6 @@ const (
 	DuelMaxStake                = int64(1_000_000)
 )
 
-// ClampDuelSeconds bounds one duel clock to the store's floor and ceiling.
 func ClampDuelSeconds(secs, def int64) int64 {
 	if secs <= 0 {
 		secs = def
@@ -39,25 +29,17 @@ func ClampDuelSeconds(secs, def int64) int64 {
 	return min(max(secs, minDuelSeconds), maxDuelSeconds)
 }
 
-// DuelStake is one escrowed entry: the login keys it, the stake weights the
-// pot pick and names the refund if the duel dies without a draw.
 type DuelStake struct {
 	Login string
 	Stake int64
 }
 
-// SortDuelStakes orders entries canonically (login ascending). Both the
-// weighted pick and the digest run over this form, so the same pool always
-// produces the same digest regardless of hash iteration order.
 func SortDuelStakes(entries []DuelStake) []DuelStake {
 	out := append([]DuelStake(nil), entries...)
 	sort.Slice(out, func(i, j int) bool { return out[i].Login < out[j].Login })
 	return out
 }
 
-// PickDuelWinner draws one login from a canonical stake list, weighted by
-// stake: roll lands somewhere in [0, total) and the walk spends it entry by
-// entry. Pure — the caller draws roll from crypto/rand (RollDuel below).
 func PickDuelWinner(sorted []DuelStake, roll int64) string {
 	var cum int64
 	for _, e := range sorted {
@@ -69,11 +51,9 @@ func PickDuelWinner(sorted []DuelStake, roll int64) string {
 	if len(sorted) == 0 {
 		return ""
 	}
-	return sorted[len(sorted)-1].Login // unreachable for roll < total; keeps the pick total
+	return sorted[len(sorted)-1].Login
 }
 
-// RollDuel draws a uniform int64 in [0, total) from crypto/rand. A CSPRNG
-// failure is not survivable for a fair pot split, matching the raffle stance.
 func RollDuel(total int64) int64 {
 	n, err := rand.Int(rand.Reader, big.NewInt(total))
 	if err != nil {
@@ -82,9 +62,6 @@ func RollDuel(total int64) int64 {
 	return n.Int64()
 }
 
-// FlipDuelCoin picks between the two challenge parties: true sends it to the
-// opener. One crypto bit decides a fair fight. Var for the same test-seam
-// reason as RollGamble.
 var FlipDuelCoin = func() bool {
 	n, err := rand.Int(rand.Reader, big.NewInt(2))
 	if err != nil {
@@ -93,10 +70,6 @@ var FlipDuelCoin = func() bool {
 	return n.Int64() == 0
 }
 
-// DigestDuelPool is the receipt's tamper-evidence, the raffle idiom adapted to
-// stakes: SHA-256 over the version tag and the canonical "login stake" lines.
-// Anyone holding the announced winner, the pot and the snapshot can recompute
-// it and detect a pool that changed after the fact.
 func DigestDuelPool(sorted []DuelStake) string {
 	h := sha256.New()
 	h.Write([]byte("duel-v1\n"))
@@ -109,11 +82,8 @@ func DigestDuelPool(sorted []DuelStake) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// duelKey builds one broadcaster-scoped key from a prefix.
 func duelKey(prefix string, id uint64) string { return cache.UserKey(prefix, id) }
 
-// parseDuelLedger converts a raw hash read into canonical stakes, dropping
-// unreadable or non-positive entries rather than poisoning the pool.
 func parseDuelLedger(m map[string]string) []DuelStake {
 	entries := make([]DuelStake, 0, len(m))
 	for login, v := range m {
@@ -125,13 +95,10 @@ func parseDuelLedger(m map[string]string) []DuelStake {
 	return SortDuelStakes(entries)
 }
 
-// validStake accepts exactly the ledger entries worth counting.
 func validStake(n int64, err error) bool {
 	return err == nil && n > 0
 }
 
-// sumStakes totals the readable stakes; an unreadable entry is skipped
-// rather than poisoning the pot.
 func sumStakes(vals []string) int64 {
 	var total int64
 	for _, v := range vals {
@@ -142,7 +109,6 @@ func sumStakes(vals []string) int64 {
 	return total
 }
 
-// ledgerMap renders canonical entries back to the receipt's stakes form.
 func ledgerMap(sorted []DuelStake) map[string]int64 {
 	m := make(map[string]int64, len(sorted))
 	for _, e := range sorted {

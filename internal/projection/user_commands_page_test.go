@@ -11,10 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SetUser/GetUser round trip for the commands-page-hidden flag, and the
-// absent-field case D2 depends on: an older hash that predates this field
-// must read back false (visible), not an error.
-
 func TestSetUserGetUserRoundTripsCommandsPageHidden(t *testing.T) {
 	store, f := newTestStore(t)
 	ctx := context.Background()
@@ -41,8 +37,6 @@ func TestGetUserAbsentCommandsPageFieldReadsFalse(t *testing.T) {
 	ctx := context.Background()
 	key := "settings:72"
 
-	// A hash from before this field shipped: status/active present,
-	// commands_page_hidden never written.
 	f.seed(key, fakeField{field: "status", value: "paid"})
 	f.seed(key, fakeField{field: "active", value: "1"})
 

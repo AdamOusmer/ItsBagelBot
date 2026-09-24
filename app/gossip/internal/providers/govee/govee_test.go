@@ -22,12 +22,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// The SSRF gate refuses plain-http loopback fakes; these tests predate it and
-// dial httptest servers, so the process-wide test switch turns the gate off.
-// The gate's own semantics are pinned by core's table tests.
 func init() { core.SetSSRFCheckForTests(false) }
 
-// memStore is an in-memory core.Store for tests.
 type memStore struct {
 	mu sync.Mutex
 	m  map[string][]byte
@@ -64,7 +60,6 @@ func (s *memStore) SetNX(_ context.Context, key string, _ time.Duration) (bool, 
 	return true, nil
 }
 
-// fakeKeys is a canned key resolver: key by broadcaster id, err short-circuits.
 type fakeKeys struct {
 	key string
 	err error
@@ -180,7 +175,6 @@ func TestControlPowersOnThenSetsColor(t *testing.T) {
 
 func TestControlAPILevelFailure(t *testing.T) {
 	p := newTestProvider(t, fakeKeys{key: "k"}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// HTTP 200 but an API-level failure code in the body.
 		_, _ = io.WriteString(w, `{"code":400,"message":"invalid device"}`)
 	}))
 	reply := asReply[gossiprpc.GoveeControlReply](t, endpoint(t, p, "control")(context.Background(),
@@ -198,7 +192,6 @@ func TestControlMissingDevice(t *testing.T) {
 	assert.Contains(t, reply.Error, "missing device")
 }
 
-// capabilityOf digs the capability object out of a control request body.
 func capabilityOf(t *testing.T, body map[string]any) map[string]any {
 	t.Helper()
 	payload, ok := body["payload"].(map[string]any)

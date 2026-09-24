@@ -18,26 +18,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// voiceClient is the full set of RPCs join-to-create needs: create/delete a
-// clone, and move its owner into it. MoveMember has no Command type at all
-// (see internal/domain/discord's Command doc, which lists none for voice
-// state) because it is the one Discord REST call with no analogue on the
-// Twitch outgress side to model the vocabulary after -- ModType() has no
-// opinion on it either way, so it was never a candidate for the mod lane.
 type voiceClient interface {
 	channelClient
 	ModifyChannel(ctx context.Context, req discordoutgress.ChannelModifyRequest) (discordoutgress.ChannelModifyReply, error)
 	MoveMember(ctx context.Context, req discordoutgress.MemberMoveRequest) (discordoutgress.MemberMoveReply, error)
 }
 
-// Voice ports app/dingress/internal/community/voice.go: join-to-create voice
-// clones and their owner-only /voice name|limit|lock|unlock controls.
-//
-// The in-memory occupancy tracker community used to decide when a clone
-// empties is gone; discordstore.Store.UpdateVoiceOccupancy (Valkey-backed)
-// replaces it, because engine -- unlike the old single-replica gateway
-// process -- may run more than one replica, and "who is still in this
-// channel" has to be visible across all of them.
 func Voice(store discordstore.Store, channels voiceClient, log *zap.Logger) module.Module {
 	h := voiceModule{store: store, channels: channels, log: log}
 	b := module.NewModule("voice")
@@ -60,13 +46,6 @@ func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit m
 		return err
 	}
 	if ev.Member.User.Bot {
-		// See voiceClient's doc: this replaces community's exact
-		// "== the bot's own gateway identity" check, which engine cannot
-		// perform (it has no gateway session and never learns its own user
-		// id). Filtering every bot's voice presence is equivalent here in
-		// practice -- this bot never joins voice itself, so the two checks
-		// only differ for a hypothetical second bot in the same channel,
-		// which was never a join-to-create trigger either way.
 		return nil
 	}
 	left, leftEmpty := h.store.UpdateVoiceOccupancy(ctx, discordstore.VoiceSeat{
@@ -82,10 +61,6 @@ func (h voiceModule) onVoiceState(ctx context.Context, c *module.Context, emit m
 	return nil
 }
 
-// joinedVoiceHub reports whether channelID is a join-to-create trigger:
-// voice is on, the member landed in a channel at all (an empty channel id
-// means they left one instead of joining), and it is specifically the
-// configured hub, not some other voice channel in the guild.
 func joinedVoiceHub(cfg ddiscord.Config, channelID string) bool {
 	return cfg.VoiceOn() && channelID != "" && channelID == cfg.VoiceHubID
 }
@@ -139,16 +114,6 @@ func (h voiceModule) deleteEmptyClone(ctx context.Context, channelID string) {
 	}
 }
 
-// voiceInvocation is the trio every /voice control handler threads through
-// unchanged: the module context (for Config), the decoded interaction (for
-// Token/ChannelID/Member) and the emit callback. Bundled into one struct --
-// alongside ctx, which Go convention keeps as its own leading parameter --
-// because command alone was flagged for CodeScene's Excess Number of
-// Function Arguments (five parameters, over its 4-parameter limit), and
-// apply/rename/limit/lock repeat the exact same trio, so leaving them
-// positional would only have moved the finding to the next sibling down
-// the call chain (see the codescene-gate skill's "fix the shared shape"
-// guidance).
 type voiceInvocation struct {
 	Module *module.Context
 	In     decode.InteractionEvent

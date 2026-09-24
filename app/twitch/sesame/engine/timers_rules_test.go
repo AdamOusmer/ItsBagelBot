@@ -8,14 +8,6 @@ import (
 	"time"
 )
 
-// TestClampRanges covers both clamp functions in one table: they were
-// separate, identically-shaped tests (CodeScene flagged the duplication
-// between TestClampFireCap and TestClampGateLines), and the two functions
-// already share one shape by construction (clampGateLines and clampFireCap's
-// own doc comments: same 0-to-ceiling clamp, kept as two functions only so a
-// future change to one field's range cannot silently reach the other). The
-// five cases below are derived from each function's own ceiling so the same
-// table exercises both without hand-tuning per-function numbers.
 func TestClampRanges(t *testing.T) {
 	fns := []struct {
 		name string

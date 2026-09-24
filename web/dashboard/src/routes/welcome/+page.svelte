@@ -1,25 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // A first-visit journey: welcome, agreement, mod guidance and a choice of
-  // starting setup. New streamers receive a longer introduction; the other
-  // paths apply their setup and continue to the dashboard or import wizard.
-  //
-  // The motion is one lateral primitive used everywhere, on the site's one
-  // curve. The blob and the copy swap sides on every step, so a step change
-  // is two halves of the screen crossing each other: the blob dashes across
-  // while the old copy leaves toward the direction of travel and the new copy
-  // arrives from the far side, line by line, each line from the side opposite
-  // the one before it. The sky (Sky.svelte) leans the other way underneath.
-  // Nothing bounces, nothing pops in; everything slides and settles.
-  //
-  // The page owns its own translator (`tr`, below) instead of the app's i18n
-  // context, because the language step must not reload: the app's LangSwitch
-  // posts a real form to /lang and comes back through a full load, which
-  // restarted the whole tour (blob entrance, settle, back to step one) to
-  // change two words. Here the catalog swaps live and the server is told in
-  // the background. The accepted consent sits in sessionStorage so a reload
-  // does not ask twice within one tab.
   import { onMount, tick } from 'svelte';
   import { fly } from 'svelte/transition';
   import { page } from '$app/state';
@@ -37,9 +18,6 @@
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { LOCALES, ensureCatalog, translate, type Locale } from '@bagel/kit/i18n';
-  // Side-effect import: the language control below writes the
-  // `.bb-lang-switch` contract's classes itself (it is a row of buttons, not
-  // the app's form), so nothing else pulls the stylesheet in on its behalf.
   import '@bagel/ui/styles/elements/nav.css';
   import CursorSwitch from '$lib/components/CursorSwitch.svelte';
   import Sky from '$lib/components/welcome/Sky.svelte';
@@ -50,9 +28,6 @@
 
   let { data } = $props();
 
-  // The language this page is speaking. Starts as the app's, then follows the
-  // language step live; every string below reads it through `tr`, so a switch
-  // re-renders the copy in place.
   let locale = $state<Locale>(getI18n().locale);
   const tr = (key: string, params?: Record<string, string | number>) => translate(locale, key, params);
 
@@ -60,7 +35,6 @@
   type Setup = 'start-new' | 'integrate' | 'quiet' | 'import';
   type Beat = {
     kind: Kind;
-    /** The blob's resting face while this step is up. Positive only. */
     face: string;
     title: string;
     body: string;
@@ -68,8 +42,6 @@
 
   const MOD_COMMAND = '/mod ItsBagelBot';
 
-  // The steps of the tour proper, by message key. Translated below, in
-  // whatever language the page is speaking at the time.
   const INTRO: Beat[] = [
     { kind: 'consent', face: 'attentive', title: 'consentTitle', body: 'consentBody' },
     { kind: 'mod', face: 'attentive', title: 'step1Title', body: 'step1Body' },
@@ -85,10 +57,6 @@
   let setup = $state<Setup>(page.url.searchParams.get('import') === '1' ? 'import' : 'start-new');
   let hoveredChoice = $state<Setup | null>(null);
 
-  // One row per starting setup: its message-key stem, its glyph, and the face
-  // Bolota pulls while the pointer weighs it, so the blob previews the mood
-  // of each path (eager to teach, plugged in alongside, winding down, ready
-  // to carry things across) before anything is picked.
   const CHOICES = [
     { id: 'start-new', key: 'New', icon: 'start', face: 'excited' },
     { id: 'integrate', key: 'Integrate', icon: 'integrate', face: 'attentive' },
@@ -136,14 +104,10 @@
   ]);
 
   const importRequested = page.url.searchParams.get('import') === '1';
-  // pushState leaves page.url on the old URL, so the wizard opened from the
-  // tour is read from page.state; the ?import=1 link covers an OAuth return.
   let importLink = $state(importRequested);
   const importActive = $derived(page.state.importing ?? importLink);
   let step = $state(importRequested ? choiceStep : 0);
   let furthest = $state(importRequested ? choiceStep : 0);
-  // Direction of travel: +1 forward, -1 back. Decides which side the new copy
-  // arrives from and which side the old copy leaves toward.
   let dir = $state(1);
   let consentAccepted = $state(false);
   let leaving = $state(false);
@@ -154,12 +118,9 @@
   const current = $derived(steps[step]);
   const last = $derived(step === steps.length - 1);
   const consentBlocked = $derived(!consentAccepted);
-  /** Furthest step reachable right now. */
   const maxStep = $derived(consentBlocked ? consentStep : Math.min(furthest + 1, steps.length - 1));
   const nextDisabled = $derived(step + 1 > maxStep);
-  /** Whether the arrow key may move forward: not gated, and not on the last step. */
   const canAdvance = $derived(!nextDisabled && !last);
-  /** The blob's side of the stage; the copy takes the other one. */
   const blobRight = $derived(step % 2 === 1);
   const progress = $derived(
     setup === 'import'
@@ -167,15 +128,8 @@
       : step / Math.max(steps.length - 1, 1)
   );
 
-  // ── Motion ───────────────────────────────────────────────────────────
-  // The site's one curve (--bb-ease-out-expo), solved in JS for the Svelte
-  // transitions below so they land on exactly the same deceleration the CSS
-  // transitions on the blob, the sky and the rail use.
   const expo = bezier(0.16, 1, 0.3, 1);
   const TRAVEL = 72;
-  // Line `i` arrives from the direction of travel when even and from the
-  // opposite side when odd, so a step's four lines close on the column from
-  // both sides instead of marching in from one.
   const sideOf = (i: number) => (i % 2 === 0 ? 1 : -1);
   const arrive = (node: Element, { i = 0 }: { i?: number } = {}) =>
     prefersReducedMotion()
@@ -186,19 +140,11 @@
       ? { duration: 0 }
       : fly(node, { x: -dir * 56 * sideOf(i), duration: 380, delay: i * 35, easing: expo, opacity: 0 });
 
-  // The choice step lays the stage out differently (blob above a full-width
-  // row of cards), and a grid change cannot transition. Swapping it under a
-  // departing step snapped that step's copy into the new layout mid-exit, so
-  // it dropped and slid under the arriving cards. Moves that change layout
-  // clear the stage first, relayout while it is empty, then arrive.
   const CLEAR_MS = 300;
   let clearing = $state(false);
   let departed = false;
   const isChoice = (i: number) => steps[i]?.kind === 'choice';
 
-  // The blob's one-shot for each kind of move. A bare state swap snaps; a
-  // sequence carries the blob across the change. `entrance` plays once on
-  // mount (Bolota fires the initial sequence when its engine is ready).
   type Sequence = 'entrance' | 'burst' | 'orbit' | 'comet';
   let sequence = $state<Sequence>('entrance');
   let sequenceKey = $state(0);
@@ -207,8 +153,6 @@
     sequenceKey += 1;
   }
 
-  // Held faces outrank the step's resting face: a timed reaction (consent
-  // ticked, command copied) first, then whatever the pointer is over.
   let reaction = $state<string | null>(null);
   let hover = $state<string | null>(null);
   let reactionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -218,17 +162,12 @@
     if (reactionTimer) clearTimeout(reactionTimer);
     reactionTimer = setTimeout(() => (reaction = null), ms);
   }
-  // Pleased on the control that moves the tour forward, merely interested in
-  // anything else it can click. Same rule the coach-mark version had.
   function reactionFor(target: EventTarget | null): string | null {
     const el = target instanceof Element ? target.closest('button, a') : null;
     if (!el || el.hasAttribute('disabled')) return null;
     return el.matches('.bb-btn--primary, .bb-btn--solid') ? 'excited' : 'curious';
   }
 
-  // Pointer parallax for the sky, -1..1 from the viewport centre. Coalesced
-  // to one write per frame; a 120Hz pointer stream would otherwise set the
-  // style attribute twice per painted frame for nothing.
   let px = $state(0);
   let py = $state(0);
   let pointerFrame = 0;
@@ -241,11 +180,7 @@
     });
   }
 
-  // ── Navigation ───────────────────────────────────────────────────────
   function go(i: number) {
-    // Clamped rather than trusted: the controls are disabled past `maxStep`
-    // and this is the second lock, so a keyboard activation or a stale render
-    // cannot land on a step the gate has not opened yet.
     const target = Math.max(0, Math.min(i, maxStep));
     if (target === step || leaving || clearing) return;
     dir = target > step ? 1 : -1;
@@ -263,13 +198,10 @@
     step = target;
     tick().then(() => (departed = false));
     furthest = Math.max(furthest, target);
-    // Swirl keeps Bolota's base face active, so pointer gaze remains live.
     play('entrance');
   }
   const goNext = () => go(step + 1);
   const goBack = () => go(step - 1);
-  // From the index: a forward jump is the same dash as Next, a backward one
-  // the same turn as Back. The rail counts the tour only, so +1 for the hello.
   const goTo = (i: number) => go(i + 1);
 
   const CONSENT_KEY = 'bb-welcome-consent';
@@ -282,7 +214,6 @@
         step = consentStep;
       }
     } catch {
-      /* storage blocked: the box simply starts unticked */
     }
   });
 
@@ -302,11 +233,6 @@
     play('entrance');
   }
 
-  // In place, no navigation (see the header comment). The account and the
-  // cookie still get the choice, so every page after this one loads in the
-  // new language; the page itself is already speaking it by the time the
-  // request leaves. Fire and forget: a failed save shows up as the next page
-  // loading in the old language, which the settings page fixes in one click.
   async function setLang(l: Locale) {
     if (l === locale) return;
     await ensureCatalog(l);
@@ -324,7 +250,6 @@
       if (on) sessionStorage.setItem(CONSENT_KEY, '1');
       else sessionStorage.removeItem(CONSENT_KEY);
     } catch {
-      /* storage blocked: a reload asks again, which is the safe direction */
     }
     if (on) react('excited', 1600);
   }
@@ -338,8 +263,6 @@
     setTimeout(() => (copied = false), 2000);
   }
 
-  // ── Exit ─────────────────────────────────────────────────────────────
-  // Apply the chosen setup before playing the completion beat.
   let form = $state<HTMLFormElement | null>(null);
   let destination = $state('/');
   const EXIT_MS = 640;
@@ -352,10 +275,6 @@
     play('burst');
     setTimeout(() => form?.requestSubmit(), prefersReducedMotion() ? 0 : EXIT_MS);
   }
-  // The shell's translator is fixed at boot, so a tour that switched language
-  // must leave with a full load; the veil fades to the shell's ground first so
-  // the load lands on the colour it paints. Otherwise the router takes over and
-  // the view transition below melts the sky into the dashboard.
   const bootLocale = getI18n().locale;
   const VEIL_MS = 420;
   let veiled = $state(false);
@@ -399,9 +318,6 @@
     }
   }
 
-  // Screen readers land on the new step's heading rather than wherever focus
-  // was. Not on the first render: stealing focus on page load is the thing
-  // browsers deliberately do not do.
   let headingEl = $state<HTMLHeadingElement | null>(null);
   let settled = false;
   $effect(() => {
@@ -413,7 +329,6 @@
 
 <svelte:head>
   <title>{tr('onboarding.title')} · ItsBagelBot</title>
-  <!-- Signed-in surface: never indexed. -->
   <meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
@@ -480,9 +395,6 @@
             {#if current.kind === 'consent'}
               <div class="control consent" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
                 <Toggle bind:on={consentAccepted} onchange={onConsent} />
-                <!-- `.bb-prose`: a TRANSLATED string with two links inside it,
-                     so this file cannot put a class on either anchor; the
-                     typography contract styles them. -->
                 <span class="bb-prose">{@html tr('onboarding.consentLabel')}</span>
               </div>
             {:else if current.kind === 'choice'}
@@ -539,9 +451,6 @@
                 </div>
               </div>
             {:else if current.kind === 'mod'}
-              <!-- The command decodes into place (the brand's decrypt reveal)
-                   and the whole well is the copy button, so there is nothing
-                   smaller to aim for. -->
               <button
                 type="button"
                 class="control well"
@@ -630,11 +539,6 @@
 {#if veiled}<div class="veil" aria-hidden="true"></div>{/if}
 
 <style>
-  /* The shell paints its ambient orb pair on every route (RootShell ->
-     BackgroundOrbs); this page paints its own sky and the pair would muddy
-     it. Gated on this page's presence so the rule unscopes itself the moment
-     the page unmounts, and it holds during SSR too, so the shell orbs never
-     flash in before hydration. Same shape as /login. */
   :global(body:has([data-welcome]) .bb-bg-orb) { display: none; }
 
   .welcome {
@@ -642,8 +546,6 @@
     --gap: clamp(24px, 5vw, 72px);
     position: relative;
     z-index: 1;
-    /* svh, not dvh: the small viewport height does not change as a phone's
-       address bar collapses, so the footer never rides up and down. */
     min-height: 100svh;
     display: grid;
     grid-template-rows: auto 1fr auto;
@@ -657,8 +559,6 @@
     gap: 12px 24px;
     flex-wrap: wrap;
     padding: 22px var(--gutter) 0;
-    /* `backwards`, not `both`: a held final keyframe pins opacity at 1, and
-       the exit fade (.leaving .top) could never apply. */
     animation: settle 900ms var(--bb-ease-out-expo) backwards;
   }
 
@@ -668,12 +568,6 @@
     padding: 24px var(--gutter);
   }
 
-  /* A fixed-height row, with the copy anchored to its top and the blob
-     centred in it. Centring the copy instead (the obvious layout) re-centred
-     it on every step, because each step's control is a different height, so
-     the title rode up and down as the tour went on. Now it stays put and the
-     content grows downward, and the row is tall enough that no step's copy
-     makes it grow. */
   .pair {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -686,9 +580,6 @@
       opacity 520ms var(--bb-ease-out-expo);
   }
 
-  /* The swap. Both columns are the same width, so translating each by its
-     own width plus the gap trades their places exactly, and because it is a
-     transform it can be a 1s glide instead of a reflow. */
   .blob-col,
   .copy-col {
     transition:
@@ -710,7 +601,6 @@
     transform: translateX(calc(var(--dir) * -56px));
   }
 
-  /* ── Blob ─────────────────────────────────────────────────────────── */
   .blob-col {
     --blob-scale: 0.86;
     display: flex;
@@ -719,9 +609,6 @@
   }
   .blob-col.hero { --blob-scale: 1.1; }
 
-  /* Three nested transforms because they must not share a property: the
-     scale transitions between steps, the float is a keyframe loop, and the
-     engine draws inside. One element could not do the first two at once. */
   .scale {
     transform: scale(var(--blob-scale));
     transition: transform 1000ms var(--bb-ease-out-expo);
@@ -733,8 +620,6 @@
     animation: float 9s ease-in-out infinite;
   }
 
-  /* The plate behind the blob: a breathing glow in the two brand colours,
-     under the shadow so the blob reads as lit rather than as pasted on. */
   .plate {
     position: absolute;
     inset: -22%;
@@ -750,9 +635,6 @@
     z-index: -1;
   }
 
-  /* ── Copy ─────────────────────────────────────────────────────────── */
-  /* Grid-stacked so the leaving step and the arriving one overlap during
-     the handover instead of stacking vertically for a frame. */
   .copy-col {
     display: grid;
     max-width: 560px;
@@ -761,8 +643,6 @@
   }
   .copy-col > .step { grid-area: 1 / 1; }
 
-  /* The four setups share one line. Bolota moves above the card being
-     considered and keeps its pointer gaze while the selected face changes. */
   .pair.choice-stage { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .choice-stage .blob-col,
   .choice-stage .blob-col.right {
@@ -803,9 +683,6 @@
     color: var(--bb-tan);
   }
 
-  /* Display type with a specular sweep: the gradient is mostly the text
-     colour with a pale band in the middle, and the band travels across once
-     on arrival. Re-keyed per step, so every title gets its own pass. */
   .title {
     margin: 0 0 18px;
     font-family: var(--bb-font-display);
@@ -857,9 +734,6 @@
       background 240ms ease,
       box-shadow 420ms var(--bb-ease-out-expo);
   }
-  /* The selection light sweeps in from the card's own side (left column
-     from the left, right column from the right), the same crossing motion
-     the stage uses. A transform on a pseudo-element, so no reflow. */
   .role-choice::before {
     content: '';
     position: absolute;
@@ -895,8 +769,6 @@
     border-color: rgba(var(--bb-green-glow-rgb), 0.5);
   }
   .role-title { grid-column: 1 / -1; min-width: 0; font: 700 13px/1.2 var(--bb-font-display); }
-  /* The tick is always there and only scales, so picking a card never
-     shifts its title. */
   .role-indicator {
     display: inline-grid;
     place-items: center;
@@ -957,9 +829,6 @@
     color: var(--bb-muted);
   }
 
-  /* Premium surface, not an accent-bordered box: gradient fill, hairline,
-     top-edge inset highlight, deep shadow. Hover slides it, it does not
-     grow. */
   .well {
     display: flex;
     align-items: center;
@@ -1035,7 +904,6 @@
     color: var(--bb-status-error, #e5484d);
   }
 
-  /* ── Foot ─────────────────────────────────────────────────────────── */
   .foot {
     display: grid;
     gap: 10px;
@@ -1046,8 +914,6 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    /* The row's height is this, not its contents': the counter is empty on
-       the hello and the skip fades out on the last step. */
     min-height: 36px;
   }
   .line {
@@ -1063,9 +929,6 @@
     background: linear-gradient(90deg, var(--bb-tan), var(--bb-green-glow));
     transition: transform 900ms var(--bb-ease-out-expo);
   }
-  /* The head of the progress line: a lit bead riding the fill's leading
-     edge. Its track is the line's own width, so translating it by --p of
-     100% lands it exactly where scaleX(--p) ends. */
   .bead-track {
     position: absolute;
     inset: 0;
@@ -1091,7 +954,6 @@
     color: var(--bb-muted);
   }
 
-  /* ── Exit ─────────────────────────────────────────────────────────── */
   .leaving .pair {
     transform: translateX(-6vw);
     opacity: 0;
@@ -1119,8 +981,6 @@
     from { opacity: 0; transform: translateX(-16px); }
     to { opacity: 1; transform: none; }
   }
-  /* Lateral by design: the idle drift travels sideways more than it rises,
-     so the resting blob reads as hovering, not as bobbing on a string. */
   @keyframes float {
     0%, 100% { transform: translate(0, 0); }
     32% { transform: translate(14px, -6px); }
@@ -1134,8 +994,6 @@
     from { background-position: 120% 0; }
     to { background-position: -40% 0; }
   }
-  /* Light: heavy black elevation reads as a smudge on paper; ink alphas keep
-     the lift. */
   :global(:root[data-theme="light"]) .float { filter: drop-shadow(0 14px 28px rgba(20, 17, 12, 0.16)); }
   :global(:root[data-theme="light"]) .well {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(20, 17, 12, 0.05));
@@ -1144,8 +1002,6 @@
       0 14px 30px rgba(20, 17, 12, 0.12);
   }
 
-  /* Phones cannot fit a 240px blob beside a column of copy: stack them,
-     centre everything, and drop the side swap, since there are no sides. */
   @media (max-width: 760px) {
     .pair {
       grid-template-columns: 1fr;
@@ -1155,9 +1011,6 @@
     }
     .blob-col.right,
     .copy-col.left { transform: none; }
-    /* Anchored to the top rather than centred, and the blob slot is one
-       height for every step: the same rule as the desktop row, nothing on
-       the page moves when the copy under it changes length. */
     .stage { align-items: start; }
     .pair {
       min-height: 0;

@@ -12,7 +12,6 @@ import (
 
 type xpRPC struct{ repo XPStore }
 
-// subscribeXP registers the four member-XP verbs.
 func subscribeXP(w Wiring) error {
 	h := xpRPC{repo: w.Repo}
 	return errors.Join(

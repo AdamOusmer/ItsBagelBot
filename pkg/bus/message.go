@@ -10,66 +10,30 @@ import (
 )
 
 const (
-	// MessageIDHeader carries the fleet's logical message identity without
-	// enabling JetStream's broker-side deduplication index.
 	MessageIDHeader = messageIDHeader
 )
 
-// Metadata is transport metadata copied from the NATS headers. Values are
-// intentionally single-valued: every fleet publisher uses Header.Set and a
-// multi-valued wire header is rejected by the subscriber as malformed.
 type Metadata map[string]string
 
-// Get returns the metadata value or an empty string when absent.
 func (m Metadata) Get(key string) string { return m[key] }
 
-// Set stores one metadata value.
 func (m Metadata) Set(key, value string) { m[key] = value }
 
-// Message is the fleet-owned delivery unit shared by every bus consumer. Ack
-// and Nack are idempotent: the first call decides the result and every later one
-// is a no-op that reports the decision.
-//
-// How the result reaches the broker differs by subscriber, and so does what the
-// call costs. The explicit-ACK subscriber selects on Acked/Nacked from its own
-// goroutine, so both calls return immediately there. The receipt-level lane
-// adapters install a resolve handler instead (setResolveHandler) and run it on
-// the resolving goroutine: an ACK still costs nothing, because the flow-control
-// response or the batch floor already owns the ack floor, while a NACK publishes
-// the retry schedule inline.
 type Message struct {
 	UUID     string
 	Metadata Metadata
 	Payload  []byte
 
-	// ack and nack are created on first use rather than per delivery. The hot
-	// lane adapters resolve through onResolve and never read either signal, so
-	// eager allocation was two channels of garbage per message at lane rate.
-	ack  chan struct{}
-	nack chan struct{}
-	// onResolve is the lane adapters' reconciliation hook. It is invoked exactly
-	// once, by whichever Ack/Nack wins, and never under mu.
-	onResolve func(acked bool)
-	mu        sync.Mutex
-	state     messageState
-	ctx       context.Context
-	// receivedAt is set at the native subscriber boundary. It lets the consumer
-	// transaction distinguish delivery/admission wait from handler execution.
+	ack        chan struct{}
+	nack       chan struct{}
+	onResolve  func(acked bool)
+	mu         sync.Mutex
+	state      messageState
+	ctx        context.Context
 	receivedAt time.Time
-	// storedAt is the broker's store time for a JetStream delivery, parsed
-	// from the $JS.ACK reply subject; zero for anything else. See StoredAt.
-	storedAt time.Time
+	storedAt   time.Time
 }
 
-// StoredAt is when the broker stored this message, taken from the JetStream
-// ack reply subject, or the zero time for a delivery that carries none. It
-// splits end-to-end latency at the stream: publisher side (produced ->
-// stored) against consumer side (stored -> received). That split is what
-// located the latency wall on the production hub on 2026-09-03: at 120k
-// msg/s offered the e2e p50 was 370 ms and climbing, of which stored ->
-// received was 10 ms; every remaining millisecond was the publisher queueing
-// behind the stream leader's serialized ingest+apply path, not the pull
-// consumer. From the client the two sides are otherwise indistinguishable.
 func (m *Message) StoredAt() time.Time { return m.storedAt }
 
 type messageState uint8
@@ -87,14 +51,10 @@ const (
 	messageNacked
 )
 
-// NewMessage constructs a delivery with independent acknowledgement state.
 func NewMessage(id string, payload []byte) *Message {
 	return newMessage(messageData{id: id, payload: payload, metadata: make(Metadata)})
 }
 
-// newMessage deliberately leaves both acknowledgement signals nil. Nothing on
-// the hot path reads them, and ensureChannelsLocked mints whichever one a caller
-// asks for in the state the message is already in.
 func newMessage(data messageData) *Message {
 	return &Message{
 		UUID: data.id, Metadata: data.metadata, Payload: data.payload,
@@ -103,49 +63,21 @@ func newMessage(data messageData) *Message {
 	}
 }
 
-// setResolveHandler installs the callback that reconciles this delivery with its
-// lane. It must be set before the message is handed to handlers: the handler is
-// read at resolution time, so one installed after the winning Ack/Nack is never
-// called at all.
-//
-// The callback runs exactly once, after the winning transition and OUTSIDE mu —
-// the lane adapters publish a retry schedule from it, and holding the message
-// lock across that network round trip would block every later Ack/Nack on it.
-// Losing Ack/Nack calls never re-enter it.
+// Must run before the message reaches handlers; one installed after the winning Ack/Nack never runs.
 func (m *Message) setResolveHandler(onResolve func(acked bool)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.onResolve = onResolve
 }
 
-// Ack marks the message successfully handled. It returns false only when Nack
-// won the acknowledgement race first.
-//
-// On the explicit-ACK subscriber this releases one JetStream delivery. On the
-// hot ingress lanes' flow-controlled subscriber it is receipt-level: the ack
-// floor for a whole delivery window is advanced by the flow-control responses
-// the subscriber sends, not by this call, so Ack there records the handler's
-// verdict rather than acknowledging one message.
 func (m *Message) Ack() bool {
 	return m.resolve(messageAcked)
 }
 
-// Nack marks the message for paced redelivery. It returns false only when Ack
-// won the acknowledgement race first.
-//
-// The flow-controlled subscriber has no per-message pending state to NAK
-// against, so it schedules the event onto the lane's retry subject exactly once
-// instead (see RetryCountHeader); ordering is lost and a second failure drops
-// the event. That schedule is published from this call, on the caller's own
-// goroutine, so a Nack there blocks for as long as flowRetryTimeout allows —
-// which is affordable only because failure is rare by contract on those lanes.
 func (m *Message) Nack() bool {
 	return m.resolve(messageNacked)
 }
 
-// resolve commits the first result and then, with the lock released, hands it to
-// the lane adapter. The split is the whole point: the transition has to be
-// atomic, the callback must not be.
 func (m *Message) resolve(target messageState) bool {
 	won, onResolve := m.transition(target)
 	if onResolve != nil {
@@ -154,9 +86,6 @@ func (m *Message) resolve(target messageState) bool {
 	return won
 }
 
-// transition is the locked half. It reports whether this call was the winning
-// one and returns the resolve handler only to that winner, so a losing Ack or
-// Nack can never invoke it a second time.
 func (m *Message) transition(target messageState) (bool, func(bool)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -168,9 +97,6 @@ func (m *Message) transition(target messageState) (bool, func(bool)) {
 	return true, m.onResolve
 }
 
-// closeSignalLocked closes the winning signal only when someone has already
-// asked for it. A nil one is not an omission: messageSignal mints it closed for
-// the resolved state whenever Acked or Nacked is finally called.
 func (m *Message) closeSignalLocked(target messageState) {
 	signal := m.ack
 	if target == messageNacked {
@@ -181,12 +107,10 @@ func (m *Message) closeSignalLocked(target messageState) {
 	}
 }
 
-// Acked is closed after the message is acknowledged.
 func (m *Message) Acked() <-chan struct{} {
 	return m.signal(messageAcked)
 }
 
-// Nacked is closed after the message is negatively acknowledged.
 func (m *Message) Nacked() <-chan struct{} {
 	return m.signal(messageNacked)
 }
@@ -217,8 +141,6 @@ func messageSignal(signal chan struct{}, resolved bool) chan struct{} {
 	return signal
 }
 
-// Context returns the delivery context, defaulting to Background for messages
-// constructed directly in tests or by non-subscriber code.
 func (m *Message) Context() context.Context {
 	if m.ctx != nil {
 		return m.ctx
@@ -226,7 +148,6 @@ func (m *Message) Context() context.Context {
 	return context.Background()
 }
 
-// SetContext attaches tracing, cancellation, and request-scoped values.
 func (m *Message) SetContext(ctx context.Context) { m.ctx = ctx }
 
 func (m *Message) deliveryWait(now time.Time) time.Duration {
@@ -240,8 +161,6 @@ func (m *Message) deliveryWait(now time.Time) time.Duration {
 	return wait
 }
 
-// Subscriber is the fleet-owned consuming contract. Implementations close the
-// returned channel when ctx is cancelled or Close releases the subscription.
 type Subscriber interface {
 	Subscribe(ctx context.Context, subject string) (<-chan *Message, error)
 	Close() error

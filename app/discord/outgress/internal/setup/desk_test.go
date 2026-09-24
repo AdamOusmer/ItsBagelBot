@@ -41,12 +41,10 @@ func TestRepostDeskDeletesThePreviousPanelAndRemembersTheNewOne(t *testing.T) {
 	}
 
 	wantDeletedPanel(t, rec, "old")
-	// The channel came from the remembered panel, not from the request.
 	wantSinglePanel(t, rec, panelWant{ChannelID: "support", Title: "Need a hand?", Button: "Contact staff"})
 	wantRememberedDesk(t, store, "support", id)
 }
 
-// rememberDesk seeds the panel a repost is expected to replace.
 func rememberDesk(t *testing.T, store *discordstore.Mem, channelID, messageID string) {
 	t.Helper()
 	panel := discordstore.DeskPanel{GuildID: "guild-1", ChannelID: channelID, MessageID: messageID}
@@ -55,8 +53,6 @@ func rememberDesk(t *testing.T, store *discordstore.Mem, channelID, messageID st
 	}
 }
 
-// wantDeletedPanel asserts the repost removed exactly the previous panel:
-// leaving it up gives a guild two live ticket buttons, one of them stale.
 func wantDeletedPanel(t *testing.T, rec *guildRecorder, messageID string) {
 	t.Helper()
 	if len(rec.deleted) != 1 {
@@ -67,18 +63,12 @@ func wantDeletedPanel(t *testing.T, rec *guildRecorder, messageID string) {
 	}
 }
 
-// panelWant is the whole expectation for one posted panel: where it landed and
-// the copy it carries. Grouped into a struct rather than passed as three loose
-// strings, which read positionally at the call site and made a channel id and a
-// button label interchangeable to the compiler.
 type panelWant struct {
 	ChannelID string
 	Title     string
 	Button    string
 }
 
-// wantSinglePanel asserts one panel was posted, in want.ChannelID, with the copy
-// the request asked for.
 func wantSinglePanel(t *testing.T, rec *guildRecorder, want panelWant) {
 	t.Helper()
 	if len(rec.panelPosts) != 1 {
@@ -98,8 +88,6 @@ func wantSinglePanel(t *testing.T, rec *guildRecorder, want panelWant) {
 	}
 }
 
-// wantRememberedDesk asserts the store now points at the new panel: the next
-// repost deletes whatever this remembers, so a stale entry orphans a button.
 func wantRememberedDesk(t *testing.T, store *discordstore.Mem, channelID, messageID string) {
 	t.Helper()
 	got, ok := store.Desk(context.Background(), discordstore.Guild{ID: "guild-1"})
@@ -152,11 +140,6 @@ func TestRepostDeskRefusesSomeoneElsesGuild(t *testing.T) {
 		GuildID: "guild-1", BroadcasterID: "someone-else", ChannelID: "support",
 	})
 
-	// ErrNotBound, not ErrGuildBoundElsewhere: every dashboard-facing verb
-	// now takes the strict check, which collapses "no binding" and "somebody
-	// else's binding" into one refusal so a caller cannot map guild ids by
-	// probing. Only the setup verb, where the distinction is a real screen,
-	// still reports "bound elsewhere".
 	if !errors.Is(err, ErrNotBound) {
 		t.Fatalf("err = %v, want ErrNotBound", err)
 	}
@@ -172,8 +155,6 @@ func TestRepostDeskWithoutADiscordClient(t *testing.T) {
 	}
 }
 
-// A panel the previous delete could not remove (somebody deleted it by hand)
-// must not stop the repost: the new panel is the point.
 func TestRepostDeskSurvivesAFailedDelete(t *testing.T) {
 	rec := newGuildRecorder()
 	rec.deleteErr = errors.New("unknown message")

@@ -24,10 +24,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// batchWindow is WIDER than the production 2ms default on purpose: a test
-// wave of goroutines takes scheduler jitter to spawn, and the point is to
-// exercise the real window/sleep/flush machinery deterministically, not the
-// window's exact size.
 const batchWindow = 15 * time.Millisecond
 
 func newBatchProvider(t *testing.T, handler http.Handler) provider.Provider {
@@ -38,11 +34,9 @@ func newBatchProvider(t *testing.T, handler http.Handler) provider.Provider {
 		provider.Deps{Cache: core.NewCache(newMemStore()), Log: zap.NewNop()})
 }
 
-// batchRecorder captures POST /v3/players bodies and answers them from a map,
-// so several tests share one upstream stub.
 type batchRecorder struct {
 	mu      sync.Mutex
-	batches [][]string // canonical uuids per POST, arrival order
+	batches [][]string
 	players map[string][]batchTag
 }
 
@@ -64,8 +58,6 @@ func (r *batchRecorder) handle(w http.ResponseWriter, req *http.Request) bool {
 	return true
 }
 
-// readAllBody drains a request body through the codec-only JSON discipline the
-// repo's guard test enforces.
 func readAllBody(req *http.Request) []byte {
 	b, _ := io.ReadAll(req.Body)
 	_ = req.Body.Close()
@@ -80,7 +72,6 @@ func (r *batchRecorder) all() [][]string {
 
 func (r *batchRecorder) count() int { return len(r.all()) }
 
-// flattenBodies merges every recorded batch into one uuid set.
 func flattenBatches(batches [][]string) []string {
 	var out []string
 	for _, b := range batches {
@@ -101,11 +92,11 @@ func TestCanonicalUUID(t *testing.T) {
 		ok   bool
 	}{
 		{uuidA, uuidA, true},
-		{"069A79F4-44E9-4726-A5BE-FCA90E38AAF5", uuidA, true}, // dashed uppercase
-		{"069a79f4-44e9-4726-a5be-fca90e38aaf5", uuidA, true}, // dashed lowercase
+		{"069A79F4-44E9-4726-A5BE-FCA90E38AAF5", uuidA, true},
+		{"069a79f4-44e9-4726-a5be-fca90e38aaf5", uuidA, true},
 		{"Techno", "", false},
-		{"069a79f444e94726a5befca90e38aaf", "", false},  // 31 chars
-		{"zzza79f444e94726a5befca90e38aaf5", "", false}, // not hex
+		{"069a79f444e94726a5befca90e38aaf", "", false},
+		{"zzza79f444e94726a5befca90e38aaf5", "", false},
 	} {
 		got, ok := canonicalUUID(account(tc.in))
 		assert.Equal(t, tc.ok, ok, tc.in)
@@ -113,9 +104,6 @@ func TestCanonicalUUID(t *testing.T) {
 	}
 }
 
-// Two players queried by different channels inside one window must ride ONE
-// POST /v3/players carrying both canonical uuids, whatever spelling each
-// channel used.
 func TestBatchAggregatesDistinctPlayers(t *testing.T) {
 	rec := &batchRecorder{players: map[string][]batchTag{
 		uuidA: {{TagType: "blatant_cheater", Reason: "Fly / Killaura", AddedOn: 1700000000000}},
@@ -146,17 +134,12 @@ func TestBatchAggregatesDistinctPlayers(t *testing.T) {
 	require.Empty(t, replies[0].Error)
 	require.Len(t, replies[0].Tags, 1)
 	assert.Equal(t, gossiprpc.UrchinTag{Type: "blatant_cheater", Reason: "Fly / Killaura", AddedOn: 1700000000}, replies[0].Tags[0])
-	// The batch endpoint reports no display names, so the reply echoes the
-	// typed identifier instead of a resolved name.
 	assert.Equal(t, "069A79F4-44E9-4726-A5BE-FCA90E38AAF5", replies[0].Player)
 
-	// Present-but-tagless is a SUCCESS (empty tag list), not an absence.
 	require.Empty(t, replies[1].Error)
 	assert.Empty(t, replies[1].Tags)
 }
 
-// Identical players spelled differently collapse onto one batch line and one
-// shared outcome.
 func TestBatchDedupsIdenticalPlayer(t *testing.T) {
 	rec := &batchRecorder{players: map[string][]batchTag{
 		uuidA: {{TagType: "sniper"}},
@@ -185,9 +168,6 @@ func TestBatchDedupsIdenticalPlayer(t *testing.T) {
 	}
 }
 
-// The batch hydrates individual playertags cache entries: a follow-up query
-// through a DIFFERENT endpoint byte-cache (sniper resolves its uuid via
-// playerTags) must find the batch answer warm rather than re-batching.
 func TestBatchHydratesSharedPlayertagsCache(t *testing.T) {
 	rec := &batchRecorder{players: map[string][]batchTag{
 		uuidA: {{TagType: "cheater", Reason: "bhop"}},
@@ -219,9 +199,6 @@ func TestBatchHydratesSharedPlayertagsCache(t *testing.T) {
 	assert.Equal(t, 1, rec.count(), "the sniper leg must not re-batch a hydrated player")
 }
 
-// Players missing from a successful batch response are shaped as 404s AND
-// negatively cached, so neither the tags command nor the sniper uuid hop asks
-// again while the negative lives.
 func TestBatchNegativeCachesMissingPlayers(t *testing.T) {
 	rec := &batchRecorder{players: map[string][]batchTag{
 		uuidA: {},
@@ -245,8 +222,6 @@ func TestBatchNegativeCachesMissingPlayers(t *testing.T) {
 	assert.Equal(t, 1, rec.count(), "absent players must be answered from the negative cache")
 }
 
-// A wave larger than Coral's 100-uuid ceiling drains in capped sequential
-// POSTs, and every caller still gets its own answer.
 func TestBatchCapsAt100PerRequest(t *testing.T) {
 	const total = 150
 	rec := &batchRecorder{}
@@ -295,9 +270,6 @@ func TestBatchCapsAt100PerRequest(t *testing.T) {
 	}
 }
 
-// An infrastructure failure fails the whole wave WITHOUT caching anything:
-// callers get the friendly fallback, and a retry after recovery performs a
-// fresh POST rather than serving a pinned failure.
 func TestBatchInfraFailureIsNotCached(t *testing.T) {
 	rec := &batchRecorder{players: map[string][]batchTag{uuidA: {}}}
 	var mu sync.Mutex
@@ -329,8 +301,6 @@ func TestBatchInfraFailureIsNotCached(t *testing.T) {
 	assert.Equal(t, 1, rec.count(), "the failed wave must POST again once the upstream recovers")
 }
 
-// Username lookups never touch the batcher: they still resolve through the
-// individual GET, which is the only Coral surface that maps a username.
 func TestUsernameLookupsSkipBatcher(t *testing.T) {
 	rec := &batchRecorder{}
 	tagsHits := 0
@@ -352,8 +322,6 @@ func TestUsernameLookupsSkipBatcher(t *testing.T) {
 	assert.Zero(t, rec.count())
 }
 
-// stubs builds the plain upstream handler for a recorder-backed provider:
-// batch POSTs answered from its player map, anything else a test failure.
 func (r *batchRecorder) stubs(t *testing.T) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -364,9 +332,6 @@ func (r *batchRecorder) stubs(t *testing.T) http.Handler {
 	})
 }
 
-// canonicalTestUUID derives a stable valid uuid from an index.
 func canonicalTestUUID(i int) string { return fmt.Sprintf("%032x", i) }
 
-// These tests stage plain-http loopback upstreams the gate rightly refuses;
-// production binaries never set this (see core.SetSSRFCheckForTests).
 func init() { core.SetSSRFCheckForTests(false) }

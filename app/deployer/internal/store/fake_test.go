@@ -11,9 +11,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// fakeKV mirrors the JetStream KV rules the store relies on: one revision
-// sequence shared by every key (it is the stream sequence), create refuses a
-// live key, update and a revisioned remove refuse a stale revision.
 type fakeKV struct {
 	seq  ports.Revision
 	data map[kvKey]record
@@ -56,8 +53,6 @@ func (f *fakeKV) write(key kvKey, value []byte) ports.Revision {
 	return f.seq
 }
 
-// seed writes v as JSON, bypassing the store, to stage states a crashed Put
-// would leave behind.
 func (f *fakeKV) seed(key kvKey, v any) {
 	b, err := codec.Marshal(v)
 	if err != nil {

@@ -1,32 +1,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Synthesized urlfetch definitions for the $(…)-syntax sources: how a
-// $(urlfetch …) / $(customapi …) call in an imported response becomes a
-// reviewed definition the runtime can resolve, and the slug rule that keeps a
-// re-import landing on the same names.
-//
-// It lives under nightbot/ because Nightbot is where it was written, and it is
-// parameterized by source rather than copied because Fossabot writes the same
-// $(customapi …) call (../fossabot/variables is the second caller): two slot
-// allocators would be two places for the slot rule to drift.
-
 import { fetchDefSlug, warnDiag } from '../validate';
 import type { FetchSlugSource } from '../validate';
 import type { ImportDiagnostic, ImportSource, ManifestFetch } from '../types';
 import { IMPORT_ITEM_CAPS } from '../types';
 
-// FETCH_DEF_CAP rides IMPORT_ITEM_CAPS.commands for the reason the other
-// parsers do: every synthesized definition serves a command in this same
-// manifest, so the commands ceiling bounds it by construction and no second
-// public number can drift from the mirrored server-side table.
 export const FETCH_DEF_CAP = IMPORT_ITEM_CAPS.commands;
 
-// MAX_FETCH_URL_BYTES mirrors the URL validator commit's ingestion enforces per
-// definition. A longer or scheme-less URL is refused HERE (left literal with
-// the standard unmapped warn) rather than synthesized into a definition that
-// can only fail wholesale at save time, taking its URL out of the response text
-// where it stayed visible.
 const MAX_FETCH_URL_BYTES = 512;
 
 const encoder = new TextEncoder();
@@ -40,12 +21,6 @@ export interface FetchArgs {
   json: boolean;
 }
 
-// parseFetchArgs reads a $(urlfetch …) / $(customapi …) body. Nightbot's `json`
-// modifier only changes how the RESPONSE is handed to a following $(eval …)
-// (it carries no path of its own), so it is consumed here and reported by the
-// caller instead of inventing a json_path the export never stated. A URL that
-// still holds a token after translation is refused: baking literal "$(…)" or
-// "{…}" text into a stored definition would make it fetch a URL nobody wrote.
 export function parseFetchArgs(body: string): FetchArgs | null {
   const words = body.trim().split(/\s+/).filter(Boolean);
   const json = words[0]?.toLowerCase() === 'json';
@@ -62,10 +37,6 @@ function usableUrl(url: string): boolean {
   return encoder.encode(url).length <= MAX_FETCH_URL_BYTES;
 }
 
-// MANIFEST_SOURCE maps a slug prefix onto the ImportSource a ManifestFetch is
-// tagged with. The two spellings differ on purpose: the slug prefix is budgeted
-// against a 32-byte name ('se'), the manifest field names the source on the
-// wire ('streamelements').
 const MANIFEST_SOURCE: Record<FetchSlugSource, ImportSource> = {
   se: 'streamelements',
   moobot: 'moobot',
@@ -75,12 +46,6 @@ const MANIFEST_SOURCE: Record<FetchSlugSource, ImportSource> = {
   slcb: 'streamlabs_desktop'
 };
 
-// makeFetchSlotSink allocates definition slugs for ONE command over the
-// import-level def map. Slot rule: the first distinct URL takes the bare
-// fetchDefSlug(source, command), the Nth (N≥2) appends _N, a legal
-// ^[a-z0-9_]{1,32}$ name the fetches editor's slugifier reproduces
-// byte-for-byte, so a re-import lands on identical names. The same URL twice in
-// one command shares its definition (equality is byte-exact here).
 export function makeFetchSlotSink(
   source: FetchSlugSource,
   commandName: string,
@@ -103,27 +68,12 @@ export function makeFetchSlotSink(
   };
 }
 
-// createdFetchDefMessage is the one wording every source's successful
-// urlfetch synthesis warns with (review, phase 6: creation used to be
-// completely silent here), so a broadcaster reviewing an import sees the
-// same sentence regardless of which product it came from. Exported for the
-// sources that mint a ManifestFetch through their OWN registration path
-// instead of this file's (streamelements.ts, moobot/tags.ts), so the wording
-// cannot drift between the three.
 export function createdFetchDefMessage(def: ManifestFetch): string {
   return def.url
     ? `created fetch definition ${JSON.stringify(def.name)} for ${def.url}; review it under Commands → Fetch definitions`
     : `created fetch definition ${JSON.stringify(def.name)}; add its URL under Commands → Fetch definitions`;
 }
 
-// registerDef admits one definition into the import-level map: false at the
-// cap, and false with a warn when the slug is already taken: two exported
-// commands normalized onto one name, where first wins (deterministic by export
-// order) because the loser's tokens would silently re-point at another
-// command's data source. A successful admission warns too (createdFetchDefMessage)
-// rather than silently adding a definition the broadcaster never asked to
-// review — see this function's own history: it used to `defs.set` with
-// nothing pushed to diags at all.
 function registerDef(
   defs: Map<string, ManifestFetch>,
   def: ManifestFetch,

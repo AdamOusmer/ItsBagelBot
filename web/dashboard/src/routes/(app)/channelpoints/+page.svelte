@@ -30,8 +30,6 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  // Local source of truth, reseeded when a fresh SSR load lands (the /events
-  // invalidation stream re-runs the loader after every confirmed write).
   // svelte-ignore state_referenced_locally
   let rewards = $state<ChannelPointReward[]>(data.rewards ?? []);
   // svelte-ignore state_referenced_locally
@@ -48,18 +46,13 @@
 
   const rows = $derived(rewards.toSorted((a, b) => a.title.localeCompare(b.title)));
 
-  // Set once a write comes back missing the redemption scope: the grant
-  // predates channel:manage:redemptions, so the broadcaster must re-consent.
   let missingScope = $state(false);
 
-  // --- Inspector -------------------------------------------------------------
   const NEW = '__new__';
   let expanded = $state<string | null>(null);
   let editorDraft = $state<ChannelPointReward | null>(null);
   let busy = $state(false);
 
-  // Dirty guard: close / row-switch / new confirm before dropping an in-progress
-  // reward edit.
   const committed = $derived.by<ChannelPointReward | null>(() => {
     if (!editorDraft) return null;
     if (expanded === NEW) return blankReward();
@@ -70,7 +63,6 @@
   );
 
   const discard = createDiscardGuard(() => isDirty);
-  // Unguarded close (after a save / delete, or a scope error).
   function doClose() {
     expanded = null;
     editorDraft = null;
@@ -104,7 +96,6 @@
       doClose();
       return;
     }
-    // Keeps the inspector open so the broadcaster can rename and save again.
     if (payload?.duplicateTitle) {
       toast('err', t('channelpoints.toastDuplicateTitle'));
       return;
@@ -112,7 +103,6 @@
     toast('err', payload?.error ?? t(fallbackKey));
   }
 
-  // --- Save (create or update from the inspector) -----------------------------
   const saveSubmit: SubmitFunction = () => {
     const d = editorDraft;
     if (!d) return;
@@ -123,8 +113,6 @@
       const payload = actionPayload<RewardActionOk>(result);
       if (result.type === 'success' && payload?.ok) {
         toast('ok', t(creating ? 'channelpoints.toastCreated' : 'channelpoints.toastSaved', { name: d.title }));
-        // A create closes (no client id to keep editing); an update keeps the
-        // inspector open. invalidateAll reseeds rewards so the draft reads clean.
         if (creating) doClose();
         await invalidateAll();
         return;
@@ -133,7 +121,6 @@
     };
   };
 
-  // --- Row quick toggle (show/hide on Twitch, optimistic) ---------------------
   const toggleSubmit =
     (r: ChannelPointReward): SubmitFunction =>
     () => {
@@ -147,7 +134,6 @@
       };
     };
 
-  // --- Delete (confirm dialog; Twitch deletion is not undoable) ---------------
   let deleteTarget = $state<ChannelPointReward | null>(null);
   let deleting = $state(false);
   let deleteForm = $state<HTMLFormElement | null>(null);
@@ -211,8 +197,6 @@
     {/snippet}
   </PageToolbar>
 
-  <!-- The deck: ledger list left, docked inspector right, same layout as the
-       commands page, so the two management screens read as one system. -->
   <div class="deck {editorDraft ? 'inspecting' : ''}">
     <DeckList>
       {#if rows.length}
@@ -280,7 +264,6 @@
 </form>
 
 <style>
-  /* the deck: full-width list until a selection opens the docked inspector. */
   .deck {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -291,7 +274,5 @@
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
 
-  /* Keyed on this page's own class: the last row in THIS list drops its
-     separator because the deck's edge is right under it. */
   .reward-list :global(li:last-child .row-shell) { border-bottom: none; }
 </style>

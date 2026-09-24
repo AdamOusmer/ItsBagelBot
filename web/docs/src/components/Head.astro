@@ -12,10 +12,6 @@ import SidebarState from './SidebarState.astro';
 import MermaidStyles from './MermaidStyles.astro';
 import MermaidInteractive from './MermaidInteractive.astro';
 
-// Social meta. With `site` configured, Starlight already emits:
-//   canonical, og:title/type/url/locale/description/site_name, twitter:card.
-// We fill the gaps — share-card image and the twitter:title/desc/image
-// trio that Slack and a few legacy clients don't infer from og:*.
 const ogImage = new URL('/og-image.png', Astro.site).href;
 const { entry } = Astro.locals.starlightRoute ?? {};
 const { t, locale, path } = docsI18n(Astro.locals.starlightRoute?.locale);
@@ -23,9 +19,6 @@ const pageTitle = entry?.data.title ?? t('title');
 const pageDescription = entry?.data.description
   ?? t('description');
 
-// Structured data. @id values point at the marketing origin so search engines
-// merge this Organization with the one on itsbagelbot.com (one entity across
-// subdomains); the WebSite entity is the docs site itself.
 const MAIN = SITE.web;
 const structuredData = {
   '@context': 'https://schema.org',
@@ -57,7 +50,6 @@ const structuredData = {
 
 <Default><slot /></Default>
 
-{/* Share-card image + twitter:* fallbacks. */}
 <meta property="og:image" content={ogImage} />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
@@ -66,33 +58,18 @@ const structuredData = {
 <meta name="twitter:description" content={pageDescription} />
 <meta name="twitter:image" content={ogImage} />
 
-{/* Favicon set — files live in /public and are served from the site root. */}
 <link rel="icon" type="image/x-icon" href="/favicon.ico" />
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 <link rel="manifest" href="/site.webmanifest" />
 
-{/* Browser-chrome tint. Matches the docs page bg per theme so the
-    mobile address bar blends rather than clashes with the layout. */}
 <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#0a0a0a" />
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf5e9" />
 
-{/* Robots: index + follow by default. Override per page via frontmatter. */}
 <meta name="robots" content="index, follow, max-image-preview:large" />
 
-{/* Structured data — Organization (merged with the marketing site) + this docs site. */}
 <script type="application/ld+json" set:html={JSON.stringify(structuredData)} is:inline />
-
-{/* No font preconnects. Two used to sit here, warming DNS + TLS to
-    fonts.googleapis.com and fonts.gstatic.com for the @import in theme.css.
-    That @import is gone — the faces are self-hosted in @bagel/ui and served
-    from this origin — so a preconnect to either host would open a connection
-    nothing ever uses, which is strictly a cost. No self-origin preconnect
-    replaces them either: the document itself already opened that connection.
-    Marketing preloads its two above-the-fold woff2 URLs; docs does not,
-    because Starlight's first paint is body copy, and a preload competes with
-    the CSS it is waiting on. */}
 
 <ClientRouter />
 <SmoothScroll />

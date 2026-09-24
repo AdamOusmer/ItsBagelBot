@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// edgeCacheControl's status gate (docs/specs/commands-page-toggle.md §5.3,
-// §9): a 404 is cacheable only when locals.edgeCache404 was set by the public
-// commands-page load; every other gate (method, content-type, session,
-// locale, ?lang, cursor opt-out) is unchanged.
 import { describe, expect, mock, test } from 'bun:test';
 
 mock.module('newrelic', () => ({

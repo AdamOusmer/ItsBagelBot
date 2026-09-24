@@ -15,14 +15,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeRaffle is an in-memory RaffleStore for the module tests: a slice for the
-// entrant pool, bools for the open flag and last receipt, a scripted draw
-// result the Draw path hands back verbatim, and a scripted claim outcome.
 type fakeRaffle struct {
 	open        bool
 	pool        []string
-	lastSpec    engine.RaffleOpenSpec // last Open's request
-	drawResult  *engine.RaffleResult  // nil: Draw reports "nothing running"
+	lastSpec    engine.RaffleOpenSpec
+	drawResult  *engine.RaffleResult
 	lastResult  *engine.RaffleResult
 	lastFound   bool
 	claimScript func(login string) engine.RaffleClaim
@@ -95,8 +92,6 @@ func raffleDeps(r engine.RaffleStore) engine.Deps {
 	return engine.Deps{Raffle: r, Log: zap.NewNop()}
 }
 
-// --- join ---
-
 func TestRaffleJoinOpen(t *testing.T) {
 	r := &fakeRaffle{open: true}
 	m := Raffle(raffleDeps(r))
@@ -130,8 +125,6 @@ func TestRaffleJoinTwiceKeepsOneEntry(t *testing.T) {
 	assert.Equal(t, []string{"bob", "alice"}, r.pool)
 }
 
-// --- open ---
-
 func TestRaffleOpenRequiresMod(t *testing.T) {
 	r := &fakeRaffle{}
 	m := Raffle(raffleDeps(r))
@@ -149,7 +142,6 @@ func TestRaffleOpenDefaults(t *testing.T) {
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "!join")
 	assert.True(t, r.open)
-	// No explicit winner count: 0 means "the store's default" downstream.
 	assert.Zero(t, r.lastSpec.Winners)
 }
 
@@ -162,9 +154,6 @@ func TestRaffleOpenAlreadyRunning(t *testing.T) {
 	assert.Contains(t, out[0].Text, "already")
 }
 
-// Reminder cadence parsing: absent arg leaves the store default (zero), a
-// positive minute count passes through, and an explicit zero/negative
-// disables — the store sees a negative duration for that.
 func TestRaffleOpenReminderArgs(t *testing.T) {
 	cases := []struct {
 		args string
@@ -184,8 +173,6 @@ func TestRaffleOpenReminderArgs(t *testing.T) {
 		assert.True(t, r.open)
 	}
 }
-
-// --- draw/close/cancel/status/winner ---
 
 func TestRaffleDrawAnnouncesWinners(t *testing.T) {
 	r := &fakeRaffle{
@@ -265,8 +252,6 @@ func TestWinnerRecallShowsConfirmedClaims(t *testing.T) {
 	assert.Contains(t, out[0].Text, "1/2 confirmed")
 }
 
-// --- claim ---
-
 func TestClaimConfirmedOnce(t *testing.T) {
 	claimed := false
 	r := &fakeRaffle{claimScript: func(string) engine.RaffleClaim {
@@ -315,8 +300,6 @@ func TestWinnerNoneYet(t *testing.T) {
 	assert.Contains(t, out[0].Text, "No raffle has been drawn")
 }
 
-// --- customizable reply templates ---
-
 func TestRaffleJoinCustomTemplate(t *testing.T) {
 	r := &fakeRaffle{open: true}
 	m := Raffle(raffleDeps(r))
@@ -339,8 +322,6 @@ func TestRaffleWonCustomTemplate(t *testing.T) {
 	assert.Equal(t, "@alice takes it! 1 of 7", out[0].Text)
 }
 
-// A blank custom template falls back to the localized default; the status
-// readout is never customizable, so a stray config key cannot alter it.
 func TestRaffleStatusIgnoresConfig(t *testing.T) {
 	r := &fakeRaffle{open: true, pool: []string{"a"}}
 	m := Raffle(raffleDeps(r))
@@ -351,8 +332,6 @@ func TestRaffleStatusIgnoresConfig(t *testing.T) {
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "1 entered")
 }
-
-// --- inert + usage ---
 
 func TestRaffleNilStoreInert(t *testing.T) {
 	m := Raffle(raffleDeps(nil))
@@ -369,9 +348,6 @@ func TestRaffleUnknownSubGetsUsage(t *testing.T) {
 	assert.Contains(t, out[0].Text, "!raffle")
 }
 
-// The registry must give this module's !join priority over the queue module's:
-// registration order in All() decides, so the ordering assertion lives here
-// where a future reorder fails loudly instead of silently rerouting joins.
 func TestRaffleOwnsStandaloneJoinOverQueue(t *testing.T) {
 	deps := func() engine.Deps { return engine.Deps{Log: zap.NewNop()} }
 	mods := All(deps())

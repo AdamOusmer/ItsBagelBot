@@ -1,28 +1,6 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-#
-# Off-OCI backup of the managed MySQL instance.
-#
-# Why this exists: every byte of irreplaceable state lives in one OCI MySQL
-# instance (10.0.2.206) and the k3s control plane (cp1) is ALSO an OCI host, so
-# a single OCI account loss takes both at once. Measured 2026-08-20: the whole
-# prod dataset is ~1.1 MB across 9 schemas (~700 rows), so a full logical dump
-# every 6h costs nothing -- there is no case for incremental or binlog shipping
-# at this size, and mysqldump restores onto a *different* MySQL vendor/version,
-# which a physical/snapshot backup does not.
-#
-# Destination is Cloudflare R2, not a node PVC: node1/2/3 are Servarica and cp1
-# is OCI, so any in-fleet destination still shares a failure domain with the
-# thing it is backing up. worker1 pulls the same objects down to its NVMe on a
-# systemd timer (worker1 CANNOT dump directly -- verified 2026-08-20, the
-# tailnet does not share the OCI subnet route to it, `nc 10.0.2.206 3306`
-# blocked).
-#
-# Dumps are encrypted IN THE POD with openssl smime (RSA-4096 + AES-256-CBC
-# hybrid) against a public cert. The private key is never in the cluster or in
-# git, so a cluster compromise cannot read historical backups. openssl smime was
-# chosen over age/gpg purely because it is already in the stock mysql image --
-# adding age would mean either a custom image build or an `apk add` at runtime.
+
 ---
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
@@ -172,7 +150,7 @@ metadata:
   annotations:
     secrets.doppler.com/reload: "true"
 spec:
-  schedule: "23 */6 * * *" # every 6h, off the top of the hour
+  schedule: "23 */6 * * *"
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 600
   successfulJobsHistoryLimit: 3
@@ -196,10 +174,7 @@ spec:
             fsGroup: 65534
             seccompProfile: {type: RuntimeDefault}
           volumes:
-            # medium: Memory -- the plaintext dump exists only between the two
-            # containers and must never land on a node disk, where it would
-            # outlive the pod as an unencrypted file full of OAuth refresh
-            # tokens.
+            # Memory-backed: the plaintext dump must never land on a node disk.
             - name: work
               emptyDir: {medium: Memory, sizeLimit: 512Mi}
             - name: scripts
@@ -208,23 +183,6 @@ spec:
                 defaultMode: 0555
           initContainers:
             - name: dump
-              # 26.7 is the innovation train, three eras ahead of the 8.4 LTS
-              # server this dumps. That gap was the reason the first bump was
-              # rejected, so it was measured rather than assumed: a 26.7 client
-              # dumping an 8.4.11 server with the exact flags below produces a
-              # dump that restores byte-faithful into a fresh 8.4 -- rows,
-              # hex-blobs, routines, triggers, events and views all intact. The
-              # only difference from an 8.4-client dump is three comment blocks
-              # reading "can't read the INFORMATION_SCHEMA.libraries table",
-              # which is the newer client probing for JS libraries the old
-              # server has no concept of. They are comments; the restore skips
-              # them and the "-- Dump completed" trailer the sanity gate below
-              # greps for is still written.
-              #
-              # Innovation means this tag is superseded quarterly. If that churn
-              # ever costs more than it is worth, lts-oracle (9.7.x) is the
-              # conservative lane -- do not silently fall back to 8.4, which is
-              # the era being left behind here.
               image: mysql:26.7-oracle@sha256:45abdd9b4144660b5c93a5b7d0ebb21e024f0ba9851ecb4ab43bf83c6bf83592
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/dump.sh"]

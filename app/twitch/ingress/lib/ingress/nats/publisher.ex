@@ -2,38 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Nats.Publisher do
-  @moduledoc """
-  One scheduler-local, bounded JetStream cohort publisher.
-
-  Calls arriving within `publish_batch_wait_ms` are staged as a local cohort —
-  one per subject, because a cohort is a per-stream object and the lanes span
-  two streams (see `flush_subject/2`) — then handed to the wire selected by
-  `Ingress.Config.Publish.wire/0`:
-
-    * `:atomic` (default) — the cohort is written as one ADR-050 atomic batch
-      (NATS 2.14) and resolved by a single commit PubAck, so a replicated
-      stream pays RAFT quorum latency once per cohort instead of once per
-      event.
-    * `:single` — one ordinary JetStream PubAck per event; the compatibility
-      fallback, and where a definitely rejected batch is re-driven.
-
-  Neither wire attaches `Nats-Msg-Id`: EventSub websockets do not replay and
-  the broker dedup index materially reduces ingest throughput. Every ambiguous
-  outcome therefore drops instead of retrying; only definite negative PubAcks
-  retry. See `Ingress.Nats.Publisher.Wire` for the full contract and for the
-  deferred Fast-Ingest seam.
-
-  This module owns the process: lifecycle, admission, cohort assembly and flush
-  scheduling, the ack subscription, sweeping and metrics. Wires are plain
-  functions it calls; `Ingress.Nats.Publisher.Pending` owns the in-flight row
-  and counter shapes, and `Ingress.Nats.Publisher.AckPath` owns the reply-inbox
-  naming.
-
-  `Ingress.Nats.PublisherPool` runs one publisher and BUS connection per online
-  BEAM scheduler. Admission and cohort assembly are serialized only inside that local
-  shard, with bounded fallback probing when a shard is full or disconnected.
-  """
-
   use GenServer
 
   require Logger
@@ -46,8 +14,6 @@ defmodule Ingress.Nats.Publisher do
 
   @sweep_interval_ms 500
   @gauge_interval_ms 5_000
-
-  ## Scheduler-local admission
 
   @spec enqueue(String.t(), iodata(), Gnat.headers()) :: :ok | {:error, term()}
   def enqueue(subject, json, trace_headers \\ []) do
@@ -105,14 +71,10 @@ defmodule Ingress.Nats.Publisher do
     end
   end
 
-  # Preserve the allocation profile of the unsampled firehose. Only the sparse
-  # traced messages carry the wider tuple and header list through the cohort.
   defp enqueue_cast(pid, subject, json, []), do: GenServer.cast(pid, {:enqueue, subject, json})
 
   defp enqueue_cast(pid, subject, json, trace_headers),
     do: GenServer.cast(pid, {:enqueue, subject, json, trace_headers})
-
-  ## Collector lifecycle
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -168,8 +130,6 @@ defmodule Ingress.Nats.Publisher do
     }
   end
 
-  # The admission context is read from any scheduler without touching this
-  # process, so it carries only immutable handles.
   defp publish_context(state) do
     :persistent_term.put(
       {__MODULE__, :ctx, state.index},
@@ -193,10 +153,6 @@ defmodule Ingress.Nats.Publisher do
     enqueue_entry({subject, json, trace_headers, nil}, state)
   end
 
-  # Staged per subject, not per shard, because a cohort is a per-STREAM object;
-  # see `flush_subject/2`. The batch-size trip is therefore per subject too: it
-  # bounds the size of one atomic batch, and the broker applies that ceiling to
-  # a batch, never to a shard's total backlog.
   defp enqueue_entry(entry, state) do
     subject = elem(entry, 0)
     {count, entries} = Map.get(state.queues, subject, {0, []})
@@ -260,8 +216,6 @@ defmodule Ingress.Nats.Publisher do
     {:noreply, state}
   end
 
-  ## Cohort assembly and wire selection
-
   defp ensure_flush_scheduled(%{flush_token: token} = state) when not is_nil(token), do: state
 
   defp ensure_flush_scheduled(state) do
@@ -277,29 +231,7 @@ defmodule Ingress.Nats.Publisher do
     %{state | flush_token: nil}
   end
 
-  # One cohort per subject, never one per shard.
-  #
-  # A cohort travels as a single ADR-050 atomic batch, and a batch belongs to
-  # ONE stream: the broker resolves each message's stream from its subject and
-  # keeps the batch state on that stream's mset. A batch whose messages span two
-  # streams therefore arrives at each of them as a sequence that does not start
-  # at 1, and the server answers that with JSAtomicPublishIncompleteBatch — on
-  # messages that carry no reply inbox, so the rejection is silent and the events
-  # are simply gone. Since the standard lane was partitioned onto
-  # TWITCH_INGRESS_STANDARD (see pkg/bus/streams.go) that is the ordinary case,
-  # not an edge one: every mixed premium/standard cohort would be lost.
-  #
-  # Grouped by subject rather than by stream on purpose. A subject belongs to
-  # exactly one stream by construction, so subject groups can never be coarser
-  # than stream groups, and ingress stays correct across any future partition
-  # without carrying a copy of the broker's stream catalog that would drift from
-  # it. What it costs is that premium and the stream lane no longer amortize
-  # together even though they share a stream — the stream lane carries only
-  # stream.online/offline, which flushes as singles either way.
-  #
-  # The shard's in-flight batch budget (`Ingress.Config.Publish.batch_inflight`)
-  # is counted across all subjects, so splitting cohorts this way can only move
-  # the fleet further under the broker's per-stream cap, never over it.
+  # Per subject, never per shard: a batch spanning two streams is silently rejected and lost.
   defp flush_subject(state, subject) do
     case Map.pop(state.queues, subject) do
       {nil, _queues} -> state
@@ -315,18 +247,10 @@ defmodule Ingress.Nats.Publisher do
     state
   end
 
-  # A cohort rides the atomic wire only when the mode is on, it actually
-  # amortizes something (two or more events), and this shard is under its
-  # in-flight batch budget. That budget is a latency × flush-rate window, not a
-  # mirror of the broker's per-stream cap (see `Ingress.Config.Publish`): it
-  # bounds how much of this shard's traffic is riding on unresolved commits,
-  # and it counts the slots the broker is still holding for swept batches.
   defp cohort_wire(%{wire_mode: :atomic} = state, [_, _ | _]) do
     if Pending.batches_inflight(state.wire.counter) < state.batch_inflight_cap do
       Atomic
     else
-      # Nats/PublishBatchBypassed is a commit-latency signal: the local window
-      # filled, so this cohort intentionally goes out as singles.
       Pending.batch_bypassed(state.wire.counter)
       Single
     end
@@ -334,23 +258,6 @@ defmodule Ingress.Nats.Publisher do
 
   defp cohort_wire(_state, _entries), do: Single
 
-  ## PubAck reconciliation
-  #
-  # A reply is routed by the tag its inbox suffix carries, never by the
-  # configured wire: a shard that has just switched modes, or one whose atomic
-  # cohort fell back to singles, still has both row shapes outstanding.
-
-  # Every wire write is a blocking GenServer.call, so PubAcks pile up in this
-  # mailbox while the collector is inside one. The sweep must apply them before
-  # it reads the clock: the monotonic clock advanced through the block too, so
-  # a deadline computed first expires rows whose acknowledgements are sitting a
-  # few messages further down THIS mailbox — counting stored events as publish
-  # failures and deleting rows the queued replies then no-op against. One
-  # stalled socket write would otherwise cost a shard its whole window
-  # (publish_max_pending = 16384 events) as phantom loss.
-  # Bounded by the mailbox depth measured at the tick, not by "until empty": at
-  # firehose rates replies arrive while the drain runs, and an unbounded loop
-  # would starve the sweep and the gauge it is standing in front of.
   defp drain_replies(state) do
     {:message_queue_len, queued} = Process.info(self(), :message_queue_len)
     drain_replies(state, queued)
@@ -387,8 +294,6 @@ defmodule Ingress.Nats.Publisher do
   defp row_wire({_id, :batch, _entries, _stamp}), do: Atomic
   defp row_wire({_id, :batch_hold, _stamp}), do: Atomic
 
-  ## Connection and metrics
-
   defp ensure_subscribed(state) do
     case Process.whereis(state.wire.conn) do
       nil ->
@@ -404,12 +309,6 @@ defmodule Ingress.Nats.Publisher do
       state
   end
 
-  # The monitor is taken only on the path that stores it. Taking it before
-  # Gnat.sub/3 leaked one ref per attempt down the `catch :exit` above — the
-  # branch that exists precisely because the connection died mid-call — so a
-  # broker roll accumulated a stale monitor and a spurious :DOWN per retry.
-  # Monitoring after the fact is not a race: Process.monitor on an
-  # already-dead pid delivers :DOWN immediately, which is the reconnect path.
   defp subscribe(state, pid) do
     case Gnat.sub(state.wire.conn, self(), state.sub_topic) do
       {:ok, sid} ->

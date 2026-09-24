@@ -19,9 +19,6 @@ import (
 	valkeygo "github.com/valkey-io/valkey-go"
 )
 
-// Load has to read the attempt times off the scores. Before WITHSCORES was
-// asked for, Valkey answered members only and the parse read "<ms>-<pod>" as
-// a float: every Load failed and the budget counted this process only.
 func TestConnectLogLoadReadsTheScoresBack(t *testing.T) {
 	log := NewConnectLog(newZsetFake(t), "pod-1")
 	ctx := context.Background()
@@ -47,12 +44,8 @@ func TestConnectLogLoadReadsTheScoresBack(t *testing.T) {
 	}
 }
 
-// respArgs is one RESP command or reply, as a list of bulk strings.
 type respArgs []string
 
-// zsetFake is the smallest RESP2 sorted set Load and Add exercise. It answers
-// ZRANGEBYSCORE the way Valkey does -- members only unless WITHSCORES was
-// asked for -- because that distinction is the one Load's parse depends on.
 type zsetFake struct {
 	mu      sync.Mutex
 	members map[string]float64
@@ -68,7 +61,7 @@ func newZsetFake(t *testing.T) valkeygo.Client {
 	go f.serve(ln)
 	client, err := valkeygo.NewClient(valkeygo.ClientOption{
 		InitAddress:  []string{ln.Addr().String()},
-		DisableCache: true, // no CLIENT TRACKING init; the fake speaks plain RESP2
+		DisableCache: true,
 	})
 	if err != nil {
 		t.Fatalf("fake valkey client: %v", err)
@@ -122,12 +115,9 @@ func (f *zsetFake) exec(args respArgs) []byte {
 	case "AUTH", "CLIENT", "SELECT", "COMMAND", "PING":
 		return respSimple("OK")
 	}
-	// An error, not OK: valkey-go probes CLUSTER SLOTS first and an OK there
-	// makes it a cluster client with no node behind any slot.
 	return respErr(fmt.Sprintf("unknown command '%s'", args[0]))
 }
 
-// zadd handles the one shape ConnectLog sends: ZADD key score member.
 func (f *zsetFake) zadd(args respArgs) []byte {
 	if len(args) != 3 {
 		return respErr("zadd: want key score member")
@@ -140,8 +130,6 @@ func (f *zsetFake) zadd(args respArgs) []byte {
 	return respInt(1)
 }
 
-// zrangebyscore handles ZRANGEBYSCORE key min max [WITHSCORES], min and max
-// as plain numbers or +inf/-inf.
 func (f *zsetFake) zrangebyscore(args respArgs) []byte {
 	if len(args) < 3 {
 		return respErr("zrangebyscore: want key min max")
@@ -153,7 +141,6 @@ func (f *zsetFake) zrangebyscore(args respArgs) []byte {
 	return respArray(members)
 }
 
-// inRange lists the members scoring within [lo, hi], lowest score first.
 func (f *zsetFake) inRange(lo, hi float64) respArgs {
 	members := respArgs{}
 	for m, s := range f.members {
@@ -165,7 +152,6 @@ func (f *zsetFake) inRange(lo, hi float64) respArgs {
 	return members
 }
 
-// withScores interleaves each member with its score: the WITHSCORES reply.
 func (f *zsetFake) withScores(members respArgs) respArgs {
 	out := make(respArgs, 0, 2*len(members))
 	for _, m := range members {

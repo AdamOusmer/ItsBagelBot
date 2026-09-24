@@ -1,11 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Custom-cursor preference toggle. Binds to the shared `customCursor` store so
-  // flipping it changes the cursor live (no reload), then POSTs to /cursor to
-  // persist the choice to the account + preference cookie. A persistence failure
-  // is surfaced as a toast; a network failure (nothing stored) reverts the store
-  // so the control keeps matching reality.
   import { Switch, customCursor, getI18n, toast } from '@bagel/kit';
 
   let { describedby }: { describedby?: string } = $props();

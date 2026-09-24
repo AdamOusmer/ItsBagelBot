@@ -3,12 +3,6 @@
   import { SearchInput } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The whole catalog is on the page. A Chat/Community/Games menu hid Song
-  // Requests behind a folder nobody can guess; streamers had to know the
-  // taxonomy before they could see the list. Search is the only filter.
-  // Category jumps are shared SectionNav hash links (not a desktop-only
-  // scrollspy). Enabled rows sort to the top of their group so "what is on"
-  // does not need a second place to click.
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
@@ -106,8 +100,6 @@
   $effect(() => {
     if (!urlReady) return;
     const url = new URL(page.url);
-    // Drop cat/status left over from the folder-menu layout so a shared
-    // ?cat=community link cannot hide the rest of the catalog again.
     writeModuleIndexQuery(url, { q: searchQuery, category: '', status: 'all' });
     const next = url.pathname + url.search;
     if (next !== page.url.pathname + page.url.search) replaceState(url, {});
@@ -251,9 +243,6 @@
     gap: 18px 32px;
     --bb-tabs-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
   }
-  /* One column on a phone (chips above the list). Two columns when there is
-     room for a ~10rem rail: reflow, not display:none. The old sidebar hid
-     itself below 980px so only a wide desktop could jump. */
   @media (min-width: 761px) {
     .index {
       grid-template-columns: 10rem minmax(0, 1fr);
@@ -261,14 +250,9 @@
   }
   .families { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
   .family {
-    /* Hash + programmatic focus land below the sticky topbar and search. */
     scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 72px);
   }
   .family:focus { outline: none; }
-  /* The type is `Heading` and `Text`. Local: a category heading is a RAIL
-     DESTINATION, so the jumped-to one lights up, and it is sized to sit
-     between the module rows rather than above a page (1.15rem, between the
-     l4 and l5 steps). 52ch is the measure the hint stays readable at. */
   .family:target :global(.family-title) { color: var(--bb-tan-pale, var(--bb-tan-light)); }
   .family-head { margin-bottom: 10px; }
   :global(.family-title) { font-size: 1.15rem; letter-spacing: -0.02em; }

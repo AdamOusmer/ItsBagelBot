@@ -15,14 +15,9 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
-// ErrNoContactEmail marks a user row that exists but has no captured contact
-// email yet (the user has not logged in since email capture shipped).
 var ErrNoContactEmail = errors.New("no contact email on record")
 
-// SetContactEmail seals the real Twitch account email with the service AEAD
-// keyset and stores it on the user row. The plaintext never touches the
-// database or logs; the AAD binds the ciphertext to this user id so an
-// envelope copied onto another row fails to open.
+// Plaintext must never reach the database or logs.
 func (r *Users) SetContactEmail(ctx context.Context, id uint64, email string) error {
 
 	if err := validate.UserID(id); err != nil {
@@ -44,8 +39,6 @@ func (r *Users) SetContactEmail(ctx context.Context, id uint64, email string) er
 	})
 }
 
-// ContactEmail opens and returns the stored contact email for the user.
-// Returns ErrNoContactEmail when the user never logged in post-capture.
 func (r *Users) ContactEmail(ctx context.Context, id uint64) (string, error) {
 
 	if err := validate.UserID(id); err != nil {

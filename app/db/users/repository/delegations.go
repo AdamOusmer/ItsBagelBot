@@ -13,8 +13,6 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
-// DelegationView is the read model for a single-use access grant. It carries no
-// secret beyond the token itself, which the owner already holds.
 type DelegationView struct {
 	Token         string   `json:"token"`
 	OwnerID       uint64   `json:"owner_id"`
@@ -37,7 +35,6 @@ func toDelegationView(d *ent.Delegation) DelegationView {
 	}
 }
 
-// CreateDelegation persists a fresh, unconsumed single-use grant.
 func (r *Users) CreateDelegation(ctx context.Context, token string, ownerID uint64, ownerLogin string, sections []string, expires *time.Time) error {
 	return db.WithExec(ctx, func(ctx context.Context) error {
 		c := r.client.Delegation.Create().
@@ -53,7 +50,6 @@ func (r *Users) CreateDelegation(ctx context.Context, token string, ownerID uint
 	})
 }
 
-// GetDelegation returns the grant by token (consumed or not).
 func (r *Users) GetDelegation(ctx context.Context, token string) (DelegationView, error) {
 	d, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
 		return r.client.Delegation.Query().
@@ -66,15 +62,6 @@ func (r *Users) GetDelegation(ctx context.Context, token string) (DelegationView
 	return toDelegationView(d), nil
 }
 
-// ConsumeDelegation binds the grant to its invitee exactly once. The update is
-// gated on consumed_at IS NULL so two concurrent racers cannot both win: at most
-// one UPDATE flips the row, the loser sees zero affected rows and errors out.
-// Expiry is checked first (an expired link is dead even if never consumed).
-//
-// Reclaim: if the invitee already manages this owner's board, a second link is
-// redundant. Rather than mint a duplicate grant, the redundant link is
-// discarded and the grant they already hold is returned, so re-opening a fresh
-// share link for the same dashboard just lands them back on it.
 func (r *Users) ConsumeDelegation(ctx context.Context, token string, delegateID uint64, delegateLogin string) (DelegationView, error) {
 	now := time.Now()
 
@@ -103,11 +90,6 @@ func (r *Users) ConsumeDelegation(ctx context.Context, token string, delegateID 
 	return r.bindDelegation(ctx, d, delegateID, delegateLogin, now)
 }
 
-// reclaimExisting returns the invitee's current consumed grant for ownerID when
-// they already hold one, after discarding the now-redundant link `token`. It
-// returns nil when the invitee has no access yet (a first, real claim the
-// caller must bind). The discard is best-effort: a failed delete only leaves a
-// dead row to sweep later, never a duplicate live grant.
 func (r *Users) reclaimExisting(ctx context.Context, ownerID, delegateID uint64, token string) *ent.Delegation {
 	grant, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
 		return r.client.Delegation.Query().
@@ -128,9 +110,7 @@ func (r *Users) reclaimExisting(ctx context.Context, ownerID, delegateID uint64,
 	return grant
 }
 
-// bindDelegation performs the atomic single-use bind on the unconsumed row d,
-// succeeding only while consumed_at is still NULL so concurrent racers cannot
-// both win. The caller has already ruled out expiry and prior consumption.
+// Must stay gated on consumed_at IS NULL so concurrent racers cannot both win.
 func (r *Users) bindDelegation(ctx context.Context, d *ent.Delegation, delegateID uint64, delegateLogin string, now time.Time) (DelegationView, error) {
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Delegation.Update().
@@ -156,7 +136,6 @@ func (r *Users) bindDelegation(ctx context.Context, d *ent.Delegation, delegateI
 	return toDelegationView(d), nil
 }
 
-// ListDelegationsByOwner returns every grant the owner created.
 func (r *Users) ListDelegationsByOwner(ctx context.Context, ownerID uint64) ([]DelegationView, error) {
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Delegation, error) {
 		return r.client.Delegation.Query().
@@ -174,7 +153,6 @@ func (r *Users) ListDelegationsByOwner(ctx context.Context, ownerID uint64) ([]D
 	return out, nil
 }
 
-// ListAccessByDelegate returns the consumed grants a delegate currently holds.
 func (r *Users) ListAccessByDelegate(ctx context.Context, delegateID uint64) ([]DelegationView, error) {
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Delegation, error) {
 		return r.client.Delegation.Query().
@@ -195,9 +173,6 @@ func (r *Users) ListAccessByDelegate(ctx context.Context, delegateID uint64) ([]
 	return out, nil
 }
 
-// DeleteDelegationsByOwner removes every grant an owner created. Used when the
-// owner deletes their account so no dangling links survive the user row. Returns
-// all consumed delegateIDs so callers can invalidate their access caches.
 func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) ([]uint64, error) {
 	rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Delegation, error) {
 		return r.client.Delegation.Query().
@@ -228,10 +203,6 @@ func (r *Users) DeleteDelegationsByOwner(ctx context.Context, ownerID uint64) ([
 	return delegateIDs, nil
 }
 
-// UpdateDelegationSections replaces the granted sections of a grant, scoped to
-// its owner so a token alone (held by an invitee) can never re-scope someone
-// else's grant. Applies to pending and consumed grants alike. Returns the
-// consumed delegateID (if any) so callers can invalidate the delegate's cache.
 func (r *Users) UpdateDelegationSections(ctx context.Context, token string, ownerID uint64, sections []string) (uint64, error) {
 	d, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
 		return r.client.Delegation.Query().
@@ -260,9 +231,6 @@ func (r *Users) UpdateDelegationSections(ctx context.Context, token string, owne
 	return delegateID, nil
 }
 
-// RevokeDelegation deletes a grant, scoped to its owner so a token alone (held
-// by an invitee) can never revoke someone else's grant. Returns the consumed
-// delegateID (if any) so callers can invalidate the delegate's access cache.
 func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint64) (uint64, error) {
 	d, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.Delegation, error) {
 		return r.client.Delegation.Query().
@@ -291,9 +259,6 @@ func (r *Users) RevokeDelegation(ctx context.Context, token string, ownerID uint
 	return delegateID, nil
 }
 
-// OptOutDelegation removes a consumed grant from the delegate side. It is
-// scoped to both the owner and delegate, so a delegate can only drop dashboard
-// access they currently hold.
 func (r *Users) OptOutDelegation(ctx context.Context, ownerID uint64, delegateID uint64) error {
 	n, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Delegation.Delete().

@@ -14,15 +14,11 @@ import (
 	jsapi "github.com/nats-io/nats.go/jetstream"
 )
 
-// fleetStreamSpecs returns the whole catalog: the reconciled data streams plus
-// the outgress-owned streams their owners reconcile separately.
 func fleetStreamSpecs() []StreamSpec {
 	specs := append([]StreamSpec{}, DataStreams...)
 	return append(specs, OutgressStream, OutgressSystemStream, YouTubeOutgressStream, YouTubeIngressStream)
 }
 
-// ingressStreamSpec returns the TWITCH_INGRESS spec from DataStreams, failing the
-// test if it is missing. Shared by the tests that assert on the firehose spec.
 func ingressStreamSpec(t *testing.T) StreamSpec {
 	t.Helper()
 	for i := range DataStreams {
@@ -65,8 +61,6 @@ func TestOutgressSystemStreamIsDurableWorkQueue(t *testing.T) {
 	if cfg.Retention != jsapi.WorkQueuePolicy {
 		t.Fatalf("retention = %v, want work queue (ack removes, not replay)", cfg.Retention)
 	}
-	// Control jobs (EventSub enroll, stream_status) must outlive the chat lane's
-	// 5s so a rollout gap or transient nack does not silently drop an enrollment.
 	if cfg.MaxAge <= 5*time.Second {
 		t.Fatalf("max age = %v, want longer than the chat lane's 5s", cfg.MaxAge)
 	}
@@ -75,17 +69,6 @@ func TestOutgressSystemStreamIsDurableWorkQueue(t *testing.T) {
 	}
 }
 
-// TestCatalogStreamsClaimDisjointSubjects is the create-time gate for the whole
-// catalog, not just the outgress pair. A subject may belong to exactly one
-// stream: the broker refuses an overlapping create outright
-// (JSStreamSubjectOverlap), and the failure lands at service startup where a
-// failed initial provision is fatal. It also underwrites streamForTopic's
-// first-match resolution — with disjoint filters the first match is the only
-// one, so catalog ORDER cannot silently decide which stream a lane binds.
-//
-// Wildcard-aware in both directions, which is the case the ingress partition
-// actually hits: twitch.ingress.event.standard is invisible to a literal
-// comparison against twitch.ingress.event.>.
 func TestCatalogStreamsClaimDisjointSubjects(t *testing.T) {
 	specs := fleetStreamSpecs()
 	for i := range specs {
@@ -107,11 +90,6 @@ func requireDisjointSubjects(t *testing.T, first, second StreamSpec) {
 	}
 }
 
-// TestIngressLanesResolveToTheirPartitions pins the subject→stream map the
-// partition creates. Consumers bind the stream streamForTopic hands back (see
-// targetForTopic), so this map IS the consumer binding: a standard-lane
-// subscriber that still resolved to TWITCH_INGRESS would provision a consumer
-// on a stream that no longer captures its subject and receive nothing, silently.
 func TestIngressLanesResolveToTheirPartitions(t *testing.T) {
 	t.Setenv("NATS_INGRESS_PARTITION", "on")
 	for subject, want := range map[string]string{
@@ -124,9 +102,6 @@ func TestIngressLanesResolveToTheirPartitions(t *testing.T) {
 		requireStreamForTopic(t, subject, want)
 	}
 
-	// The wildcard that used to catch every lane is gone, and nothing may quietly
-	// re-introduce it: a stream still claiming twitch.ingress.event.> would
-	// overlap the standard partition and fail to create.
 	if got, err := streamForTopic("twitch.ingress.event.unknown"); err == nil {
 		t.Fatalf("streamForTopic(unknown lane) = %q, want a refusal; a wildcard is back in the catalog", got)
 	}
@@ -143,10 +118,6 @@ func requireStreamForTopic(t *testing.T, subject, want string) {
 	}
 }
 
-// TestPartitionFlagOffKeepsThePrePartitionShape is the deploy-safety half of
-// the partition gate: merging the partition code must change nothing until the
-// operator flips NATS_INGRESS_PARTITION in its own window, after the fleet's
-// ingress images all carry per-subject cohort staging.
 func TestPartitionFlagOffKeepsThePrePartitionShape(t *testing.T) {
 	t.Setenv("NATS_INGRESS_PARTITION", "off")
 	lanes := IngressLaneSpecs()
@@ -162,7 +133,6 @@ func TestPartitionFlagOffKeepsThePrePartitionShape(t *testing.T) {
 		contractClause{legacy.MaxBytes == 1<<30,
 			fmt.Sprintf("legacy MaxBytes = %d, want the whole gigabyte", legacy.MaxBytes)},
 	)
-	// Both lanes resolve to the one legacy stream while the partition is off.
 	requireStreamForTopic(t, "twitch.ingress.event.standard", TwitchIngressStream.Name)
 	requireStreamForTopic(t, "twitch.ingress.event.premium", TwitchIngressStream.Name)
 }
@@ -210,27 +180,18 @@ func TestYouTubeStreamsResolveToTheirSpecs(t *testing.T) {
 
 func TestIngressStreamIsolatesLanesPerSubject(t *testing.T) {
 	cfg := streamConfig(ingressStreamSpec(t))
-	// The premium/standard/stream lanes are distinct literal subjects on one
-	// stream; MaxBytes eviction alone is oldest-first stream-wide, letting a
-	// standard flood evict premium. The per-subject cap makes a flooded lane
-	// wrap itself instead.
 	if cfg.MaxMsgsPerSubject <= 0 {
 		t.Fatal("ingress lanes need a per-subject cap so one lane cannot evict the others")
 	}
 	if cfg.MaxBytes <= 0 {
 		t.Fatal("ingress stream still needs its global byte backstop")
 	}
-	// Fleet publishers deliberately omit Nats-Msg-Id. Keep a short bounded
-	// stream window for rolling-upgrade or externally published messages that
-	// may still carry the header; it is inert for the normal hot path.
 	if cfg.Duplicates <= 0 || cfg.Duplicates > time.Minute {
 		t.Fatalf("duplicate window = %v, want a short non-zero dedup window", cfg.Duplicates)
 	}
 }
 
 func TestEveryFleetStreamEnablesBatchPublishing(t *testing.T) {
-	// Also the thing that keeps R3 affordable: the atomic and fast-ingest wires
-	// pay one quorum round-trip per batch instead of one per message.
 	for _, spec := range fleetStreamSpecs() {
 		if !spec.BatchPublish {
 			t.Fatalf("stream %s does not enable shared batch publishing", spec.Name)
@@ -239,23 +200,17 @@ func TestEveryFleetStreamEnablesBatchPublishing(t *testing.T) {
 }
 
 func TestEveryFleetStreamIsReplicated(t *testing.T) {
-	// The hub is a three-peer quorum, so R3 is the only factor that survives
-	// losing a peer. An R1 stream here means its sole copy — and every consumer
-	// bound to it — disappears with whichever peer happened to hold it.
 	for _, spec := range fleetStreamSpecs() {
 		if got := streamConfig(spec).Replicas; got != 3 {
 			t.Fatalf("stream %s replicas = %d, want 3", spec.Name, got)
 		}
 	}
 
-	// A zero-value Replicas defaults to a single copy, never 0 (which NATS rejects).
 	if got := streamConfig(StreamSpec{Name: "X", Subjects: []string{"x.>"}}).Replicas; got != 1 {
 		t.Fatalf("default replicas = %d, want 1", got)
 	}
 
-	// streamMatches must be replica-sensitive, or a live stream still at R1 stays
-	// R1 while the spec declares R3 — invisible drift, since nothing else differs.
-	want := streamConfig(ingressStreamSpec(t)) // R3
+	want := streamConfig(ingressStreamSpec(t))
 	drifted := want
 	drifted.Replicas = 1
 	if streamMatches(drifted, want) {
@@ -264,9 +219,6 @@ func TestEveryFleetStreamIsReplicated(t *testing.T) {
 }
 
 func TestFleetStreamsCarryNoPlacement(t *testing.T) {
-	// Hub server tags are per-pod ordinals, each present on exactly one server.
-	// An R3 stream pinned to one of them is unsatisfiable: the meta leader cannot
-	// find three peers carrying a one-peer tag.
 	for _, spec := range fleetStreamSpecs() {
 		if cfg := streamConfig(spec); cfg.Placement != nil {
 			t.Fatalf("R3 stream %s carries placement %v; an ordinal tag cannot satisfy three peers",
@@ -274,9 +226,6 @@ func TestFleetStreamsCarryNoPlacement(t *testing.T) {
 		}
 	}
 
-	// Drift must be detected in both directions. Live-set vs spec-nil is the case
-	// this catalog change actually hits: streams provisioned under the old spec
-	// still carry an ordinal tag, and missing it leaves them constrained forever.
 	want := streamConfig(ingressStreamSpec(t))
 	stale := want
 	stale.Placement = &jsapi.Placement{Tags: []string{"nats-0"}}
@@ -288,12 +237,8 @@ func TestFleetStreamsCarryNoPlacement(t *testing.T) {
 	}
 }
 
-// TestStreamConfigEmitsServerSentinels pins the direction of the fix: the
-// desired config carries the server's spelling of "unlimited" so the comparison
-// can converge. streamMatches deliberately does not paper over the difference —
-// if it did, a real drift between 0 and -1 in a future field would be invisible.
 func TestStreamConfigEmitsServerSentinels(t *testing.T) {
-	cfg := streamConfig(BagelDataStream) // no per-subject cap declared
+	cfg := streamConfig(BagelDataStream)
 	if cfg.MaxMsgsPerSubject != -1 {
 		t.Fatalf("max msgs per subject = %d, want the server's -1 sentinel", cfg.MaxMsgsPerSubject)
 	}
@@ -314,12 +259,6 @@ func TestStreamConfigEmitsServerSentinels(t *testing.T) {
 	}
 }
 
-// TestRetryStreamCarriesTheSchedulePrerequisites keeps the delayed-redelivery
-// lane usable. A scheduled retry sets Nats-Schedule-TTL on the emitted message,
-// which the broker rejects outright unless the stream allows message TTLs, and
-// the server forces rollups on any scheduling stream (schedule rows are replaced
-// via Nats-Rollup: sub) — state both here so the stored config equals the
-// requested one instead of drifting on the first reconcile.
 func TestRetryStreamCarriesTheSchedulePrerequisites(t *testing.T) {
 	cfg := streamConfig(TwitchIngressRetryStream)
 
@@ -333,8 +272,6 @@ func TestRetryStreamCarriesTheSchedulePrerequisites(t *testing.T) {
 		contractClause{cfg.Discard == jsapi.DiscardOld,
 			"message scheduling cannot use discard new"},
 	)
-	// The schedule row lives in this stream: if MaxAge evicts it before it
-	// fires, the retry is silently cancelled.
 	if cfg.MaxAge < time.Minute {
 		t.Fatalf("max age = %v, too tight to hold a delayed retry", cfg.MaxAge)
 	}
@@ -343,10 +280,6 @@ func TestRetryStreamCarriesTheSchedulePrerequisites(t *testing.T) {
 	}
 }
 
-// TestLegacySpecEnumsMatchModernEnums pins the conversion StreamSpec relies on:
-// callers keep spelling nats.WorkQueuePolicy / nats.MemoryStorage while the
-// reconcile speaks the modern API. Both encode the same protocol integers, and a
-// silent divergence would turn a work-queue spec into a limits stream.
 func TestLegacySpecEnumsMatchModernEnums(t *testing.T) {
 	for _, retention := range []struct {
 		legacy nats.RetentionPolicy
@@ -369,9 +302,6 @@ func TestLegacySpecEnumsMatchModernEnums(t *testing.T) {
 }
 
 func TestFleetStreamStorageTiersAreExplicit(t *testing.T) {
-	// Memory is the firehose tier (no per-event disk write); file is the
-	// retention tier (survives a full-quorum restart). Both are stated in the
-	// catalog, so a tier change is a visible edit rather than a dropped field.
 	memory := map[string]bool{
 		TwitchIngressStream.Name:         true,
 		TwitchIngressStandardStream.Name: true,
@@ -391,12 +321,6 @@ func TestFleetStreamStorageTiersAreExplicit(t *testing.T) {
 	}
 }
 
-// The Discord stream specs carry their subjects as literals, like every other
-// spec in the catalog, so pkg/bus stays free of domain imports. The engine and
-// its services address those same subjects through the constants in
-// internal/domain/discord. Nothing but this test stops the two from drifting,
-// and a drift is silent: a renamed constant publishes onto a subject no stream
-// captures, so the message lands nowhere and no error is raised anywhere.
 func TestDiscordSubjectConstantsMatchTheCatalog(t *testing.T) {
 	wantIngress := []string{
 		ddiscord.SubjectEventMessage,

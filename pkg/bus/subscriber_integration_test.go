@@ -33,9 +33,6 @@ type nativeSubscriberIntegration struct {
 	fixture nativeSubscriberFixture
 }
 
-// TestNativeSubscriberIntegration exercises the owned nats.go adapter against
-// the repository's opt-in NATS 2.14 broker. The ordinary suite skips it so CI
-// does not need an external server.
 func TestNativeSubscriberIntegration(t *testing.T) {
 	integration := openNativeSubscriberIntegration(t)
 	t.Run("broadcast deliver-new fans out", func(t *testing.T) {
@@ -219,8 +216,6 @@ func openNativeLaneSubscription(
 }
 
 func (s durableIntegrationScenario) verifyDelayedRedelivery() {
-	// No fleet identity header: the stream sequence fallback must stay stable
-	// across a delayed redelivery.
 	if _, err := s.js.Publish(s.subject, []byte("retry-then-ack")); err != nil {
 		s.t.Fatal(err)
 	}
@@ -247,8 +242,6 @@ func (s durableIntegrationScenario) verifyDelayedRedelivery() {
 }
 
 func (s durableIntegrationScenario) verifyMalformedDeliveryTerminates() {
-	// Malformed transport metadata is not actionable by an application handler.
-	// The adapter must TERM it once rather than poison-looping until retention.
 	malformed := nats.NewMsg(s.subject)
 	malformed.Header["Traceparent"] = []string{"one", "two"}
 	malformedAck, err := s.js.PublishMsg(malformed)
@@ -260,8 +253,6 @@ func (s durableIntegrationScenario) verifyMalformedDeliveryTerminates() {
 }
 
 func (s durableIntegrationScenario) verifyRedeliveryBudgetTerminates() {
-	// The second failed attempt exhausts MaxRedeliveries and emits TERM. It must
-	// not loop back for a third delivery.
 	wire := nats.NewMsg(s.subject)
 	wire.Data = []byte("term-after-budget")
 	wire.Header.Set(MessageIDHeader, "term-id")
@@ -330,9 +321,6 @@ func testNativeContextCancellation(t *testing.T, integration nativeSubscriberInt
 	})
 	publishIntegrationBurst(t, integration.js, fixture.cancel, 512)
 
-	// No reader exists while the burst arrives, leaving the serial NATS callback
-	// blocked on output. Cancellation must stop that callback, reject any callback
-	// nats.go starts after Unsubscribe, and close output without an Add/Wait race.
 	lane.cancel()
 	closed := drainIntegrationMessages(lane.messages)
 	waitForIntegrationSignal(t, closed, "subscriber output did not close after context cancellation")

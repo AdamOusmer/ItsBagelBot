@@ -10,14 +10,8 @@ import { demoConfigured } from '@bagel/kit/server/demo-guard';
 
 type Env = Record<string, string | undefined>;
 
-// Admin has a small operator-only working set, mostly snapshots and short-lived
-// user/page reads, so it needs substantially fewer resident entries than the
-// public dashboard.
 export const DEFAULT_ADMIN_L1_CACHE_CAPACITY = 250;
 
-// DEMO is a local-development feature. Reject a production runtime that tries
-// to enable it even though the production build also compiles the privileged
-// demo identity path out entirely.
 export function assertDemoConfigSafe(env: Env): void {
   if (demoConfigured(env) && env.NODE_ENV === 'production') {
     throw new Error('DEMO must not be enabled in production');
@@ -32,8 +26,6 @@ export function adminL1CacheCapacity(env: Env): number {
   );
 }
 
-// Validate at boot (from the init hook), reading the injected env rather than
-// process.env so all runtime config flows through $env/dynamic/private.
 export function assertConfigSane(env: Env): void {
   assertDemoConfigSafe(env);
   const origin = assertOrigin('ORIGIN', env.ORIGIN);

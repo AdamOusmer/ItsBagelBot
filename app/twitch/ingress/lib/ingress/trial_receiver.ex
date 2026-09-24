@@ -2,10 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.TrialReceiver do
-  @moduledoc """
-  One leased EventSub WebSocket for the fleet's trial channels. It never holds
-  a Twitch token: outgress alone creates and deletes its subscriptions.
-  """
   use GenServer
   require Logger
 
@@ -330,8 +326,6 @@ defmodule Ingress.TrialReceiver do
         rows = Enum.reject(rows, &(&1.state in ["removed", "promoted"]))
         rows = maybe_promote(rows)
 
-        # Deletions can proceed without a welcomed session. Renew between
-        # external RPCs so slow rows cannot outlast the 60s owner lease.
         case Enum.reduce_while(rows, :owned, fn row, _ ->
                case Trials.renew(state.owner, state.epoch) do
                  {:ok, 1} ->
@@ -347,8 +341,6 @@ defmodule Ingress.TrialReceiver do
         end
 
       {:error, _} ->
-        # Valkey is authoritative. Close rather than forwarding from a stale
-        # in-memory list when it cannot be read.
         fresh_connect(%{state | rows: %{}})
     end
   end

@@ -13,8 +13,6 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 )
 
-// GiveawayMessage contains only the facts approved for this delivery. Pending
-// messages omit dates even if an unconfirmed plan has already been prepared.
 type GiveawayMessage struct {
 	To             string
 	Months         int

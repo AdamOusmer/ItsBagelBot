@@ -5,28 +5,6 @@
 import { SITE } from '@bagel/kit/site-links';
 import { docsI18n } from '../i18n/ui';
 
-/**
- * Starlight `Header` override: the docs wear the same nav bar as the rest of
- * the site.
- *
- * It is a WRAPPER around `@bagel/ui/astro/Nav.astro`, not the library
- * component pointed at directly, because Starlight renders this file inside
- * its own fixed header with its own props and its own slots. Two of its
- * pieces have to survive: the search box (Pagefind's modal trigger, which the
- * whole docs keyboard flow hangs off) and the theme toggle.
- *
- * Two props do the fitting:
- *  - `variant="bar"` drops the marketing bar's fixed position, max width,
- *    pill shell and blur, because Starlight's header already provides all
- *    four. Everything about the LINKS stays shared, which is the point.
- *  - `menu={false}` leaves the hamburger and the top-down panel out.
- *    Starlight ships its own mobile menu in the same bar; rendering ours as
- *    well would put two hamburgers side by side opening two different
- *    navigations.
- *
- * Starlight owns the locale switch. The custom links below follow the current
- * locale; all shared navigation copy lives in the documentation catalogs.
- */
 import Nav from '@bagel/ui/astro/Nav.astro';
 import Search from '@astrojs/starlight/components/Search.astro';
 import LanguageSelect from '@astrojs/starlight/components/LanguageSelect.astro';

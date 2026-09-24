@@ -1,11 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Inspector body: create/edit the one reward bound to a light. Named form
-  // inputs post straight to ?/saveReward (the page owns the enhance handler);
-  // local state drives the live ChatPreview rehearsal. The page keys this on the
-  // device id so switching lights re-seeds it. Save/Cancel live in the sticky
-  // EditorFooter (this form's submit button); Delete is a separate control.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, Switch, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
@@ -34,13 +29,8 @@
   const { t } = getI18n();
 
   const DEFAULT_REPLY = '@{user} set the lights to {color}!';
-  // Covers every token the catalog's govee.reply offers (user, input,
-  // color): a chip with no matching sample would preview as the literal,
-  // unresolved token.
   const replySamples: Record<string, string> = { user: 'sesame_sam', input: 'blue', color: 'Blue' };
 
-  // Seeded once per light (the page keys this component on the device id), so
-  // capturing the initial binding is intentional.
   // svelte-ignore state_referenced_locally
   const reward = binding?.reward ?? null;
   // svelte-ignore state_referenced_locally
@@ -60,13 +50,9 @@
   let replyMessage = $state(binding?.replyMessage ?? '');
   // svelte-ignore state_referenced_locally
   let allowOff = $state(binding?.allowOff ?? false);
-  // liveOnly is the inverse of the stored allowOffline flag; on by default.
   // svelte-ignore state_referenced_locally
   let liveOnly = $state(!binding?.allowOffline);
 
-  // --- Client-side gate: a blank title is the one thing the server can't
-  // recover, so validate it before submit and land the caret on it, with the
-  // error associated to the input via aria-describedby. ------------------------
   const TITLE_ERR_ID = 'govee-title-err';
   let titleError = $state<string | undefined>(undefined);
   let formEl = $state<HTMLFormElement | null>(null);
@@ -109,8 +95,6 @@
     <Field label={t('govee.fieldCost')}>
       <input class="input" type="number" name="cost" min="1" max="10000000" bind:value={cost} required />
     </Field>
-    <!-- Colour: a labelled native picker PLUS a text hex readout, so the chosen
-         value is legible without relying on the swatch colour alone. -->
     <label class="color-field">
       <span class="color-label">{t('govee.fieldColor')}</span>
       <span class="color-row">
@@ -127,13 +111,6 @@
   <Field label={t('govee.fieldReply')} tag={t('common.optional')}>
     <ResponseEditor bind:value={replyMessage} name="replyMessage" surface="reward:govee" placeholder={DEFAULT_REPLY} />
   </Field>
-  <!-- kind="reply": renderGoveeReply substitutes {user}/{color} plus the
-       dynamic set ({random}/{choice:…}), like every other reward reply.
-       It used to carry dynamic={false} because this one surface fell through
-       to a bare string replacer while the channel-points reply expanded the
-       dice; a broadcaster editing two rewards on two pages had no way to know
-       which was which. The engine now resolves dynamics on EVERY reward
-       surface, so the preview does too. -->
   <ChatPreview kind="reply" response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('govee.previewTag')} samples={replySamples} />
 
   <Field label={t('govee.afterTitle')}>
@@ -182,7 +159,6 @@
   .editor { padding: 4px 2px 2px; display: grid; gap: 14px; }
   .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
 
-  /* Field owns label + wiring; strip its default bottom margin inside the grid. */
   .editor :global(.field) { margin-bottom: 0; }
   .input {
     padding: 8px 12px;

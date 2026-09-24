@@ -3,12 +3,6 @@
 
 package projection
 
-// Command projection: the command:<name> rows, the cmdalias:<alias> pointers
-// that resolve an alias in one extra HGET, their commands:projected marker and
-// the readers the chat hot path goes through. Split from valkey.go so the
-// command section reads as one file beside the module, stream and fetch
-// sections (the valkey_fetch.go precedent).
-
 import (
 	"context"
 	"strconv"
@@ -23,22 +17,13 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// Command rows are addressable individually so a single lookup is one HGET, not
-// a whole-hash HGETALL. commandFieldPrefix holds the command JSON keyed by its
-// lower-cased primary name; aliasFieldPrefix holds alias -> primary-name
-// pointers so an alias resolves in one extra HGET without scanning every row.
 const (
 	commandFieldPrefix = "command:"
 	aliasFieldPrefix   = "cmdalias:"
 )
 
-// commandsMarkerField is the command section's completeness marker. Plural, so
-// it shares neither commandFieldPrefix nor aliasFieldPrefix and is therefore
-// never cleared or overwritten by a row write (see fetchesMarkerField for the
-// bug that convention exists to prevent).
 const commandsMarkerField = "commands:projected"
 
-// commandsSection is the pair of field names the command list reader needs.
 var commandsSection = sectionRead{prefix: commandFieldPrefix, marker: commandsMarkerField}
 
 type CommandView = contract.CommandView
@@ -62,11 +47,6 @@ func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
 	}
 }
 
-// SetCommand projects one command row of one user. The command JSON lands under
-// command:<name> and one alias:<alias> pointer is written per alias. The event
-// carries only the new aliases, so the previous row is read first to retire any
-// alias pointers that no longer apply (rename, reword, delete). That extra HGET
-// is on the rare write path; the hot read path stays a single HGET.
 func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) error {
 	defer segment(ctx, "HSET")()
 
@@ -74,11 +54,6 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 	name := strings.ToLower(dto.Name)
 	field := commandFieldPrefix + name
 
-	// The event carries only the new aliases, so retire the previous row's
-	// alias pointers (rename, reword, delete) first. That extra HGET is on the
-	// rare write path; the hot read path stays a single HGET. Its failure
-	// aborts the whole write: see retireStaleAliases for why a half-retired
-	// alias set can never be repaired.
 	cmds, err := v.retireStaleAliases(ctx, key, field)
 	if err != nil {
 		return err
@@ -99,24 +74,6 @@ func (v *Store) SetCommand(ctx context.Context, dto data.CommandChangedDTO) erro
 	return v.pipeline(ctx, cmds...)
 }
 
-// retireStaleAliases reads the command's previous row and returns the HDEL (if
-// any) that removes the alias pointers it no longer carries.
-//
-// This read is pinned to the primary: it is the read half of a
-// read-modify-write over the row SetCommand is about to overwrite. A node-local
-// replica that has not yet received the previous SetCommand returns an empty or
-// older row, so the HDEL is either skipped or computed from the wrong alias
-// list, and the retired aliases stay resolvable forever. Unlike a stale cache
-// read this never converges, because nothing revisits the row. Only the reading
-// side is pinned; the rest of the Store keeps node-local reads.
-//
-// For the same reason the read error is returned rather than discarded. A
-// discarded error yields old == "", which is indistinguishable from "no
-// previous row": no HDEL is emitted, SetCommand commits the new body anyway,
-// and the removed aliases keep resolving through resolveAlias forever. The
-// error aborts the write instead, so the bus redelivers the event and the
-// retirement is recomputed. A Valkey nil stays non-fatal: an absent field is a
-// genuine first write, not a failure.
 func (v *Store) retireStaleAliases(ctx context.Context, key, field string) ([]valkey.Completed, error) {
 	cmds := make([]valkey.Completed, 0, 4)
 	old, err := v.primary.Do(ctx, v.primary.B().Hget().Key(key).Field(field).Build()).ToString()
@@ -129,11 +86,6 @@ func (v *Store) retireStaleAliases(ctx context.Context, key, field string) ([]va
 	if old == "" {
 		return cmds, nil
 	}
-	// An unparseable prior row is returned, not skipped: its aliases cannot be
-	// computed, so committing the new body would strand them exactly as the
-	// discarded read error did, and the never-converges note above applies
-	// just as much. SetCommand never writes invalid JSON, so reaching this
-	// means the row was corrupted by something else and is worth surfacing.
 	var prev CommandView
 	if err := codec.Unmarshal([]byte(old), &prev); err != nil {
 		return nil, err
@@ -148,10 +100,6 @@ func (v *Store) retireStaleAliases(ctx context.Context, key, field string) ([]va
 	return append(cmds, v.client.B().Hdel().Key(key).Field(stale...).Build()), nil
 }
 
-// commandSetCommand builds the HSET writing the command body plus its alias
-// pointers. Like SetModule, it never sets commands:projected: a single event
-// row on a cold hash must not make the command section read as complete —
-// only SetCommands / SetCommandsWithTTL (full-list writes) set the marker.
 func (v *Store) commandSetCommand(key, field, name string, dto data.CommandChangedDTO) (valkey.Completed, error) {
 	view := commandViewFromEvent(dto)
 	body, err := codec.Marshal(view)
@@ -166,11 +114,6 @@ func (v *Store) commandSetCommand(key, field, name string, dto data.CommandChang
 	return set.Build(), nil
 }
 
-// GetCommand reads one command by the name (or alias) a viewer typed, in a
-// single round trip. found reports whether the command exists; projected
-// reports whether the command section has been populated at all, so a caller
-// can tell a real "no such command" from a cold Valkey miss that should fall
-// through to the projector RPC.
 func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (view CommandView, found bool, projected bool, err error) {
 	defer segment(ctx, "HGET")()
 
@@ -188,7 +131,6 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 		return CommandView{}, false, false, err
 	}
 
-	// Direct hit: the typed name is a command's own field.
 	view, found, err = decodeJSONField[CommandView](res[0])
 	if err != nil {
 		return CommandView{}, false, projected, err
@@ -197,13 +139,9 @@ func (v *Store) GetCommand(ctx context.Context, userID uint64, name string) (vie
 		return view, true, true, nil
 	}
 
-	// Alias hit: the typed name points at another command's field, read next.
 	return v.resolveAlias(ctx, key, res[1], projected)
 }
 
-// resolveAlias follows an alias pointer to the command it names and reads that
-// command's body in one more round trip. A missing or dangling alias is a clean
-// miss.
 func (v *Store) resolveAlias(ctx context.Context, key string, aliasRes valkey.ValkeyResult, projected bool) (CommandView, bool, bool, error) {
 	primary, err := aliasRes.ToString()
 	if err != nil {
@@ -223,14 +161,10 @@ func (v *Store) resolveAlias(ctx context.Context, key string, aliasRes valkey.Va
 	return view, true, true, nil
 }
 
-// SetCommands projects a complete command list and records that an empty list is
-// known data, not a cold Valkey miss.
 func (v *Store) SetCommands(ctx context.Context, userID uint64, commands []CommandView) error {
 	return v.SetCommandsWithTTL(ctx, userID, commands, DefaultTTL)
 }
 
-// SetCommandsWithTTL replaces the complete command section and keeps the hash
-// for at least ttl. An empty list is still marked as projected.
 func (v *Store) SetCommandsWithTTL(ctx context.Context, userID uint64, commands []CommandView, ttl time.Duration) error {
 	defer segment(ctx, "HSET")()
 
@@ -246,9 +180,6 @@ func (v *Store) SetCommandsWithTTL(ctx context.Context, userID uint64, commands 
 	})
 }
 
-// commandRows flattens the list into the hash rows one full-section write
-// stores: a command:<name> body per command plus a cmdalias:<alias> pointer
-// per alias, both keyed lower-case so a viewer's casing never matters.
 func commandRows(commands []CommandView) ([][2]string, error) {
 	rows := make([][2]string, 0, len(commands))
 	for _, cmd := range commands {

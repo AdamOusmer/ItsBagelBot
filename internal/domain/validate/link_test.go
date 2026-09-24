@@ -5,13 +5,8 @@ package validate
 
 import "testing"
 
-// links must all be caught. This is the anti-bypass corpus: plain URLs,
-// scheme tricks, spelled-out and defanged separators, invisible splitters,
-// unicode glyph folding, IPs, and structural URL tails. Invisible and
-// full-width characters are written as \u escapes so the source stays clean.
 func TestContainsLinkCatches(t *testing.T) {
 	links := []string{
-		// plain
 		"http://example.com",
 		"https://example.com/path?q=1",
 		"visit https://itsbagelbot.com now",
@@ -22,7 +17,6 @@ func TestContainsLinkCatches(t *testing.T) {
 		"WWW.EXAMPLE.COM",
 		"grab it at brand.shop today",
 		"check brand.xyz",
-		// scheme variety
 		"ftp://files.example.org",
 		"mailto:someone@example.com",
 		"someone@example.com",
@@ -32,7 +26,6 @@ func TestContainsLinkCatches(t *testing.T) {
 		"data:text/html,<b>hi</b>",
 		"//evil.example.com/x",
 		"HtTpS://Example.Com",
-		// defanged / spelled out
 		"example[.]com",
 		"example(dot)com",
 		"example {dot} com",
@@ -43,17 +36,14 @@ func TestContainsLinkCatches(t *testing.T) {
 		"reach me user (at) gmail dot com",
 		"user @ host . com",
 		"e x a m p l e . c o m",
-		// glyph / invisible (ASCII \u escapes, no raw invisibles in source)
-		"ｅｘａｍｐｌｅ.ｃｏｍ",       // full-width example.com
-		"exa​mple.com",      // zero-width space
-		"exam‌ple.com",      // zero-width non-joiner
-		"example\ufeff.com", // BOM mid-string (backslash escape: Go rejects a raw BOM)
-		"exa­mple.com",      // soft hyphen
-		// ip
+		"ｅｘａｍｐｌｅ.ｃｏｍ",
+		"exa​mple.com",
+		"exam‌ple.com",
+		"example\ufeff.com",
+		"exa­mple.com",
 		"192.168.0.1",
 		"http://127.0.0.1:8080/x",
 		"[2001:db8::1]",
-		// structural tail rescues an uncommon TLD
 		"grab.zip/now",
 		"host.example:8443/login",
 	}
@@ -64,9 +54,6 @@ func TestContainsLinkCatches(t *testing.T) {
 	}
 }
 
-// clean gift notes must pass. Bias is toward catching links, so these are the
-// realistic notes we still want to deliver: normal punctuation, abbreviations,
-// versions, prices, @mentions without a domain, and emoji.
 func TestContainsLinkAllows(t *testing.T) {
 	clean := []string{
 		"",

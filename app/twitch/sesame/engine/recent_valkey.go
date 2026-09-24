@@ -21,34 +21,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// ValkeyRecent is the centralized sweep memory behind !nuke. Sesame's replica
-// pool shares one durable JetStream consumer (pkg/bus), so no pod sees more
-// than an arbitrary fraction of a channel's chat — an in-process window would
-// make every sweep silently incomplete, exactly during the raids it exists
-// for. The ZSET at am:recent:<chan> gives every pod the same complete view;
-// it joins the automod state family (am:*) whose members are all TTL-bound,
-// tenant-scoped and never leave the cache tier.
-//
-// The hot path pays no I/O: Record appends into a per-process buffer that a
-// ticker flushes as one pipelined DoMulti per touched channel (ZADD the new
-// members, ZREMRANGEBYSCORE the expired ones, ZREMRANGEBYRANK enforce the
-// cardinality cap, EXPIRE slide the window). Batching keeps the firehose at
-// one round trip per ~50ms instead of per line — the campaign juror's six
-// commands per line is documented in docs/automod as a cost to dig out of,
-// not one to add back. A flush loses at most one interval of lines on a hard
-// crash; for raid-cleanup memory that trade is free.
-//
-// Scores are unix MILLIS: exact in float64 (nanos are not), so expiry cutoffs
-// never jitter. Members encode "uid:role:text" — both prefixes are numeric,
-// so parsing cuts twice and the text may contain anything Twitch delivers.
 const (
 	recentKeyPrefix      = "am:recent:"
 	recentFlushInterval  = 50 * time.Millisecond
-	recentFlushMaxBuffer = 512 // pending entries before an early flush fires
-	recentFetchLimit     = 256 // sweep read cap; server-side cardinality ≤ recentRingCap
+	recentFlushMaxBuffer = 512
+	recentFetchLimit     = 256
 )
 
-// ValkeyRecent implements recentStore over valkey.
 type ValkeyRecent struct {
 	client valkey.Client
 	log    *zap.Logger
@@ -57,16 +36,10 @@ type ValkeyRecent struct {
 	pending  map[uint64][]recentEntry
 	buffered int
 
-	// Write/read-error visibility, the campaign juror's lesson: a dead backend
-	// must show up once per interval carrying how many operations were
-	// swallowed, not vanish into per-line debug spam or silence.
 	errPending     atomic.Int64
 	lastWriteLogNs atomic.Int64
 }
 
-// NewValkeyRecent builds the store over the shared client. A nil client is
-// the kill switch: records are dropped and sweeps come back empty, matching
-// every other store's nil-degrades behavior.
 func NewValkeyRecent(client valkey.Client, log *zap.Logger) *ValkeyRecent {
 	if log == nil {
 		log = zap.NewNop()
@@ -82,8 +55,6 @@ func recentChannelKey(chanID channelID) string {
 	return cache.UserKey(recentKeyPrefix, uint64(chanID))
 }
 
-// Start runs the flush loop until ctx is canceled, then best-effort flushes
-// what remains. Wiring starts it on the process lifecycle context.
 func (v *ValkeyRecent) Start(ctx context.Context) {
 	ticker := time.NewTicker(recentFlushInterval)
 	defer ticker.Stop()
@@ -98,9 +69,6 @@ func (v *ValkeyRecent) Start(ctx context.Context) {
 	}
 }
 
-// Record buffers one chat envelope for the next flush. It parses and bounds
-// here (the envelope is pooled by the caller) but copies nothing: retained
-// strings alias the payload buffer, which the transport never reuses.
 func (v *ValkeyRecent) Record(chanID channelID, env *lane.Envelope, now time.Time) {
 	if v.client == nil {
 		return
@@ -122,11 +90,6 @@ func (v *ValkeyRecent) Record(chanID channelID, env *lane.Envelope, now time.Tim
 	}
 }
 
-// flush drains the pending buffer as one pipelined DoMulti per touched
-// channel. The eviction cutoff derives from the batch's newest entry rather
-// than wall-clock time, so tests stay deterministic and a quiet channel's
-// stale members still die on its next activity (the sliding EXPIRE covers
-// the idle case).
 func (v *ValkeyRecent) flush(ctx context.Context) {
 	v.mu.Lock()
 	if len(v.pending) == 0 {
@@ -148,18 +111,11 @@ func (v *ValkeyRecent) flush(ctx context.Context) {
 	}
 }
 
-// flushPlan carries the batch-wide eviction bounds every per-channel pipeline
-// shares: the TTL cutoff in millis (derived from the freshest buffered line,
-// keeping tests deterministic) and the sliding key expiry.
 type flushPlan struct {
 	cutoff string
 	ttlSec int64
 }
 
-// newestBufferedAt finds the freshest entry in the batch; the eviction cutoff
-// derives from it rather than wall-clock time, so tests stay deterministic and
-// a quiet channel's stale members still die on its next activity (the sliding
-// EXPIRE covers the idle case).
 func newestBufferedAt(batch map[uint64][]recentEntry) stamp {
 	newest := stamp(0)
 	for _, entries := range batch {
@@ -172,9 +128,6 @@ func newestBufferedAt(batch map[uint64][]recentEntry) stamp {
 	return newest
 }
 
-// flushChannel writes one channel's buffered lines as a single pipelined
-// DoMulti: add the new members, evict expired ones, enforce the cardinality
-// cap, and slide the key's TTL.
 func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID channelID, entries []recentEntry, plan flushPlan) {
 	key := recentChannelKey(chanID)
 	zadd := v.client.B().Zadd().Key(key).ScoreMember()
@@ -190,9 +143,6 @@ func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID channelID, entri
 	v.noteErrors(resps)
 }
 
-// Sweep reads the channel's fresh members in one round trip and matches them
-// in-process with the same normalization and word-boundary rules as the
-// in-memory store. Fail-open: any read error yields no hits, never a block.
 func (v *ValkeyRecent) Sweep(ctx context.Context, chanID channelID, phrase string, now time.Time) []RecentHit {
 	q := moderation.Normalize(GetBuf(), phrase)
 	defer PutBuf(q)
@@ -219,7 +169,7 @@ func (v *ValkeyRecent) Sweep(ctx context.Context, chanID channelID, phrase strin
 	for _, m := range members {
 		e, ok := parseRecentMember(m)
 		if !ok {
-			continue // the score carried the age; the member carries only identity
+			continue
 		}
 		t = moderation.Normalize(t, e.text)
 		if !containsPhrase(t, q) || !seen.add(channelID(e.uid)) {
@@ -234,8 +184,6 @@ func encodeRecentMember(e recentEntry) string {
 	return strconv.FormatUint(e.uid, 10) + ":" + strconv.Itoa(int(e.role)) + ":" + e.text
 }
 
-// parseRecentMember decodes "uid:role:text". Both prefixes are numeric, so
-// the two cuts are unambiguous no matter what the text carries.
 func parseRecentMember(m string) (recentEntry, bool) {
 	uidStr, rest, ok := strings.Cut(m, ":")
 	if !ok {
@@ -256,8 +204,6 @@ func parseRecentMember(m string) (recentEntry, bool) {
 	return recentEntry{uid: uid, role: module.Role(role), text: text}, true
 }
 
-// noteErrors sweeps write replies so a failing backend surfaces once per
-// interval with the swallowed count (see ValkeyCampaign for the origin).
 func (v *ValkeyRecent) noteErrors(resps []valkey.ValkeyResult) {
 	var failed int64
 	var first error

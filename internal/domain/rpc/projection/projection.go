@@ -1,23 +1,16 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package projection holds the shared wire types for the projection RPC surface.
-// Consumers use these types when publishing or unmarshaling NATS request-reply
-// messages on the users, commands, and modules projection subjects.
 package projection
 
 import "ItsBagelBot/internal/domain/rpc"
 
 import "ItsBagelBot/pkg/codec"
 
-// Request is the common input shape for all projection lookups.
 type Request struct {
 	UserID string `json:"user_id"`
 }
 
-// CommandView is the canonical wire shape for one custom command as stored in
-// the Valkey projection. Field set and json tags match internal/projection.CommandView
-// exactly so consumers can decode without conversion.
 type CommandView struct {
 	Name             string   `json:"name"`
 	Aliases          []string `json:"aliases,omitempty"`
@@ -27,35 +20,25 @@ type CommandView struct {
 	Perm             string   `json:"perm"`
 	Cooldown         uint     `json:"cooldown"`
 	AllowedUserID    string   `json:"allowed_user_id,omitempty"`
-	// Uses is the lifetime execution counter, maintained by the commands
-	// service from the worker's data.commands.used events.
-	Uses uint64 `json:"uses,omitempty"`
-	// BumpCounter names the loyalty counter this command bumps by one on
-	// every successful run; "" means none.
-	BumpCounter string `json:"bump_counter,omitempty"`
+	Uses             uint64   `json:"uses,omitempty"`
+	BumpCounter      string   `json:"bump_counter,omitempty"`
 }
 
-// ModuleView is the canonical wire shape for one module row as stored in the
-// Valkey projection. Field set and json tags match internal/projection.ModuleView exactly.
 type ModuleView struct {
 	Name      string           `json:"name"`
 	IsEnabled bool             `json:"is_enabled"`
 	Configs   codec.RawMessage `json:"configs,omitempty"`
-	// Revision is the optimistic-concurrency token a client echoes back on a
-	// patch; a stale value is rejected. Omitted (0) for legacy rows.
-	Revision int `json:"revision,omitempty"`
+	Revision  int              `json:"revision,omitempty"`
 }
 
+// internal/projection.Client decodes this into projection.User; keep the tags in sync.
 type UserReply struct {
-	UserID   string `json:"user_id"`
-	Status   string `json:"status"`
-	IsActive bool   `json:"is_active"`
-	Banned   bool   `json:"banned"`
-	Locale   string `json:"locale,omitempty"`
-	// CommandsPageHidden mirrors internal/projection.User's field of the same
-	// name; field set and json tag match exactly so the worker's cold-key RPC
-	// reply decodes without conversion (see CommandView's comment above).
-	CommandsPageHidden bool `json:"commands_page_hidden,omitempty"`
+	UserID             string `json:"user_id"`
+	Status             string `json:"status"`
+	IsActive           bool   `json:"is_active"`
+	Banned             bool   `json:"banned"`
+	Locale             string `json:"locale,omitempty"`
+	CommandsPageHidden bool   `json:"commands_page_hidden,omitempty"`
 	rpc.Refusal
 }
 

@@ -1,18 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Server-side plumbing for the data-source builder that lives inside the
-// command editor: form parsing, the quota/collision pre-check, the test-run
-// bucket and the rehearsal dial.
-//
-// Its own module because these actions are HOSTED by the commands page but are
-// not about commands. Left inline they made that route file own two subjects,
-// which is what its whole-file complexity was reporting.
-//
-// Nothing here calls fail(): SvelteKit infers ActionData from the fail() calls
-// written inside an action, so these return a message (or null) and the route
-// turns it into the refusal.
-
 import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
 import {
   DEFS_PER_BROADCASTER,
@@ -30,12 +18,8 @@ import { logger } from '@bagel/kit/server/logger';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
-// tryRpc mirrors the route helper: a failed read degrades rather than throws,
-// because a stale pre-check is better than refusing a legitimate save.
 async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> {
   try {
     return { ok: true, value: await call() };
@@ -45,10 +29,6 @@ async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: 
   }
 }
 
-// Each test run dials a third-party host for real, so it gets its own bucket
-// rather than sharing a command-save allowance: 6 back-to-back attempts, then a
-// refill of one per ten seconds. Same numbers the standalone fetches page used;
-// moving the UI into the command editor does not make the upstream cheaper.
 const fetchTestLimiter = new ValkeyRateLimiter({ name: 'fetchtest', capacity: 6, refillPerSec: 0.1 });
 
 export interface DefForm {
@@ -59,19 +39,10 @@ export interface DefForm {
   keyLabel: string;
   isEdit: boolean;
   originalName: string;
-  /** Edit + a distinct non-empty original slug: rename detection rides on the
-   * parsed draft so validator, store call and reply all read one field. */
   renamed: boolean;
 }
 
-// parseDefForm reads the builder's submission; normalization mirrors the client
-// (slugifyName) so the optimistic UI key agrees with what lands.
-//
-// No is_active is parsed: the pause toggle is gone from the UI, so every
-// definition the builder writes is active. The field still exists in the store
-// and the projection, which is why the write below hard-codes true instead of
-// dropping it: a def saved without it would read back as paused and silently
-// stop resolving.
+// Always true: a def saved without is_active reads back paused and silently stops resolving.
 export function parseDefForm(f: FormData): DefForm {
   const kindRaw = String(f.get('kind') ?? 'plain');
   const pathRaw = String(f.get('path') ?? '');
@@ -89,9 +60,6 @@ export function parseDefForm(f: FormData): DefForm {
   };
 }
 
-// Courtesy pre-read ahead of the service's own synchronous enforcement (COUNT
-// before insert, unique (user_id,name)): our list can be a beat stale, Go owns
-// truth. Assigns onto errors.name so a collision message outranks a field error.
 export async function precheckFetchConflicts(uid: string, def: DefForm, errors: FetchDefErrors): Promise<void> {
   if (DEMO) return;
   const fresh = await tryRpc('fetch-pre-check', () => listFetches(uid));
@@ -104,8 +72,6 @@ export async function precheckFetchConflicts(uid: string, def: DefForm, errors: 
   }
 }
 
-// testRunThrottle returns the refusal message, or null to proceed. Demo never
-// spends the bucket: it dials nothing.
 export async function testRunThrottle(uid: string): Promise<string | null> {
   if (DEMO) return null;
   const decision = await fetchTestLimiter.check(`fetchtest:${uid}`);
@@ -113,9 +79,6 @@ export async function testRunThrottle(uid: string): Promise<string | null> {
   return 'Too many test runs. Each one calls the real API. Wait about 10 seconds and try again.';
 }
 
-// Fields that must be sound before we dial a third-party host for real. The
-// slug is not among them: the builder fetches a sample before the author has
-// named anything, so an unnamed draft is expected here and only here.
 const TEST_BLOCKING_FIELDS = ['url', 'path', 'kind', 'key_label'] as const;
 
 export function testDraftError(def: DefForm): string | null {
@@ -130,8 +93,6 @@ export function testDraftError(def: DefForm): string | null {
   return firstError(errors) ?? 'Fix the highlighted fields first.';
 }
 
-// The token identity falls back to the key label, then to a placeholder, so an
-// unnamed draft still rehearses.
 function rehearsalName(def: DefForm): string {
   if (def.name) return def.name;
   const fromKey = normName(def.keyLabel);
@@ -145,9 +106,6 @@ export async function demoTestReply() {
   return { ok: true, action: 'fetchtested', status: 'ok', values: demo.values, ms: demo.ms, sample: demo.sample };
 }
 
-// runRehearsal owns the dial and its error mapping. Returns null when gossip
-// did not answer; the caller turns that into the 502 so ActionData still sees
-// the fail() inside the action.
 export async function runRehearsal(uid: string, def: DefForm) {
   try {
     const reply = await rehearseFetch(uid, {
@@ -170,11 +128,6 @@ export async function runRehearsal(uid: string, def: DefForm) {
   }
 }
 
-/**
- * What a data-source action answers with. The route turns a refusal into
- * fail(status, body) and returns data as-is; keeping fail() out of here is what
- * lets SvelteKit still infer ActionData from the route file.
- */
 export type FetchActionResult =
   | { ok: true; data: Record<string, unknown> }
   | { ok: false; status: number; body: Record<string, unknown> };
@@ -182,8 +135,6 @@ export type FetchActionResult =
 export async function saveFetchDef(uid: string, session: Session | null, form: FormData): Promise<FetchActionResult> {
   const def = parseDefForm(form);
 
-  // Shared validator: the client builder runs these exact checks, so this is
-  // the authoritative re-check rather than a duplicate of a different shape.
   const errors: FetchDefErrors = validateFetchDef({
     name: def.name,
     url: def.url,
@@ -222,10 +173,6 @@ async function demoSaveReply(def: DefForm): Promise<Record<string, unknown>> {
   return { ok: true, action: 'fetchsaved', name: def.name, defs, keys: current.keys };
 }
 
-/**
- * The service refuses while any command response still references
- * `{urlfetch:<name>}`; the client only pre-warns.
- */
 export async function removeFetchDef(uid: string, session: Session | null, form: FormData): Promise<FetchActionResult> {
   const name = slugifyName(String(form.get('name') ?? ''));
 
@@ -255,13 +202,6 @@ export async function removeFetchDef(uid: string, session: Session | null, form:
   };
 }
 
-/**
- * Rehearsal dry-run: executes the REAL chat path (same gossip subject, SSRF
- * gate, buckets) with DryRun+Fresh and the posted draft inline as Def. Returns
- * the raw body as `sample` so the builder can render a clickable tree. That is
- * the whole point of the call for a non-technical author, who otherwise has to
- * paste a response by hand. Nothing is persisted.
- */
 export async function rehearseFetchDef(uid: string, form: FormData): Promise<FetchActionResult> {
   const throttled = await testRunThrottle(uid);
   if (throttled) return { ok: false, status: 429, body: { ok: false, error: throttled } };

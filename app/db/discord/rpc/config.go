@@ -14,7 +14,6 @@ import (
 
 type configRPC struct{ repo ConfigStore }
 
-// subscribeConfigs registers the per-guild settings verbs.
 func subscribeConfigs(w Wiring) error {
 	h := configRPC{repo: w.Repo}
 	return errors.Join(
@@ -53,40 +52,21 @@ func (h configRPC) set(ctx context.Context, req discorddata.ConfigSetRequest) di
 	return discorddata.ConfigSetReply{Version: version}
 }
 
-// snowflakeMinDigits / snowflakeMaxDigits bound a Discord id. Snowflakes are
-// 64-bit, so 20 digits is the ceiling; the floor is 17 because Discord's epoch
-// starts in 2015 and every id minted since is at least that long. Rejecting
-// shorter ids catches the one mistake the dashboard can actually make -- a
-// channel NAME pasted into an id field -- without this service having to ask
-// Discord whether the id exists.
 const (
 	snowflakeMinDigits = 17
 	snowflakeMaxDigits = 20
 )
 
-// field is one settings value paired with the json name the dashboard knows it
-// by, so a refusal names the control the streamer has to fix.
 type field struct {
 	name  string
 	value string
 }
 
-// validateConfig reports the settings that are malformed, by json name.
-//
-// This is a local check, not the domain's: ddiscord.ValidateConfig lands with
-// the roles work (it validates the pinned-role slots and the ticket panel
-// spec, neither of which exists on this branch's Config). When it arrives this
-// function becomes a call to it -- the shape here is deliberately the same
-// []string of json names.
 func validateConfig(c ddiscord.Config) []string {
 	bad := invalidNames(snowflakeFields(c), validSnowflake)
 	return append(bad, invalidNames(toggleFields(c), validToggle)...)
 }
 
-// invalidNames returns the json names of the fields ok rejects. The two kinds
-// of setting differ only in the predicate, so the walk is written once; the
-// caller keeps the order (ids, then toggles) the dashboard renders the
-// refusal in.
 func invalidNames(fields []field, ok func(string) bool) []string {
 	var bad []string
 	for _, f := range fields {
@@ -97,8 +77,6 @@ func invalidNames(fields []field, ok func(string) bool) []string {
 	return bad
 }
 
-// validSnowflake accepts an empty value (the control is simply unset) or a
-// plausible Discord id.
 func validSnowflake(v string) bool {
 	if v == "" {
 		return true
@@ -114,11 +92,8 @@ func validSnowflake(v string) bool {
 	return true
 }
 
-// validToggle accepts the dashboard's three states: unset (the documented
-// default applies), "on", "off".
 func validToggle(v string) bool { return v == "" || v == "on" || v == "off" }
 
-// snowflakeFields lists every id-shaped setting with its json name.
 func snowflakeFields(c ddiscord.Config) []field {
 	return []field{
 		{"guildId", c.GuildID},
@@ -139,7 +114,6 @@ func snowflakeFields(c ddiscord.Config) []field {
 	}
 }
 
-// toggleFields lists every on/off setting with its json name.
 func toggleFields(c ddiscord.Config) []field {
 	return []field{
 		{"liveEnabled", c.LiveEnabled},

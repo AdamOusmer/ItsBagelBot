@@ -2,18 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.JSON do
-  @moduledoc """
-  Native OTP JSON on the ingress firehose.
-
-  OTP 27's `:json` encoder and decoder return/accept the exact map/list/binary
-  shapes the Twitch and NATS paths use, while avoiding the protocol dispatch
-  and intermediate allocation of the general-purpose Jason path.
-
-  `Ingress.LaneMessage` rides the same encoder: it closes an object around
-  members encoded once and shared by both copies of a dual-published live
-  event.
-  """
-
   alias Ingress.LaneMessage
 
   @spec encode(term()) :: iodata()
@@ -29,13 +17,6 @@ defmodule Ingress.JSON do
     kind, reason -> {:error, {kind, reason}}
   end
 
-  @doc """
-  Encodes a map's members *without* the enclosing braces.
-
-  The caller supplies the braces, which is what lets two publishes share one
-  encode when they differ only in a field the caller prepends (see
-  `Ingress.LaneMessage`).
-  """
   @spec members(map()) :: iodata()
   def members(map) do
     map
@@ -43,18 +24,11 @@ defmodule Ingress.JSON do
     |> Enum.intersperse(?,)
   end
 
-  # Elixir uses nil where Erlang's native JSON mapping uses the atom `null`.
-  # Preserve Jason-compatible wire semantics for optional Twitch fields.
   defp encode_value(nil, _encode), do: "null"
 
   defp encode_value(%LaneMessage{lane: lane, body: body}, encode),
     do: [~s({"lane":), encode_value(Atom.to_string(lane), encode), ?,, body, ?}]
 
-  # Native :json has no protocol dispatch, so Elixir date/time structs would be
-  # treated as plain maps and crash on their tuple `:microsecond` field
-  # (:unsupported_type). Encode them as ISO 8601 strings, matching the
-  # Jason.Encoder semantics the payloads relied on before the native-json
-  # migration — e.g. status events carry `since: DateTime.utc_now()`.
   defp encode_value(%DateTime{} = value, encode),
     do: encode_value(DateTime.to_iso8601(value), encode)
 

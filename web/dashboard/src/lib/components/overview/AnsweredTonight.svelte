@@ -1,13 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Per-command answer counts for the CURRENT stream, deliberately not the
-  // lifetime "top commands" strip, which lives lower on the page and answers a
-  // different question ("what do people use") than this one ("what happened
-  // tonight"). Same data source, different scope; keeping both is the point.
-  //
-  // Bars are proportional to the busiest command rather than to a fixed ceiling,
-  // so a quiet stream still reads as a shape instead of five slivers.
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AnsweredTonight } from '$lib/overview-live';
 
@@ -25,8 +18,6 @@
       name: r.name,
       count: r.count,
       pct: Math.max(4, Math.round((r.count / top) * 100)),
-      // Three steps of green, brightest at the top, so rank reads without
-      // relying on bar length alone.
       tone: i === 0 ? 'a' : i < 3 ? 'b' : 'c'
     }));
   });

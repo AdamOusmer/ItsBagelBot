@@ -1,18 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Shared overlay stack + focus management for every modal surface (Modal,
-// ConfirmDialog, and the coming mobile Inspector). Fixes the decentralised
-// behaviour the audit flagged: each overlay owned its own `document.body.overflow`
-// write (nested overlays fought over it), every open overlay listened for Escape
-// on window (one keypress closed two surfaces), dialog semantics sat on the
-// backdrop, and focus was never trapped or restored.
-//
-// Model: while open, a surface calls pushOverlay() and portals its root to
-// <body>. The stack ref-counts the scroll lock and marks the rest of the page
-// `inert`, computes z-order, and answers isTopmost() so only the frontmost
-// surface reacts to Escape. Framework-free; components wire their lifecycle to it.
-
 let seq = 0;
 const stack: number[] = [];
 
@@ -29,42 +17,26 @@ export function removeOverlay(id: number): void {
   applyLock();
 }
 
-// Only the frontmost overlay should act on Escape / backdrop dismissal.
 export function isTopmost(id: number): boolean {
   return stack.length > 0 && stack[stack.length - 1] === id;
 }
 
-// Stacking position at open time; callers turn it into a z-index so a
-// confirmation always renders above the surface that spawned it.
 export function overlayIndex(id: number): number {
   const i = stack.indexOf(id);
   return i < 0 ? 0 : i;
 }
 
-// True while any modal overlay is open. A non-modal docked surface uses this to
-// yield Escape to a confirmation stacked on top of it.
 export function hasOpenOverlay(): boolean {
   return stack.length > 0;
 }
 
-// --- Scroll lock + background inert, reference-counted across the whole stack ---
 let locked = false;
 let prevOverflow = '';
 const inerted: Element[] = [];
 
-// acquireLock freezes body scroll and makes everything that is not an overlay
-// portal inert, so assistive tech and Tab cannot reach the page behind the stack.
 function acquireLock(): void {
   prevOverflow = document.body.style.overflow;
   document.body.style.overflow = 'hidden';
-  // Reached through the `window.__lenis` global rather than through
-  // `getSmoothScroll()` from @bagel/ui/lib/lenis, which would be the tidier
-  // read. That module statically imports `lenis` (~20 KB), and this file is
-  // pulled in by every modal surface, so the import would land the library in
-  // the console's main chunk — exactly what `initLenis`'s dynamic import in
-  // lib/actions.ts exists to avoid. `overflow: hidden` alone does not freeze
-  // the page: lenis keeps its own scroll position and keeps animating toward
-  // it behind the overlay.
   (window as unknown as { __lenis?: { stop(): void } }).__lenis?.stop();
   for (const child of Array.from(document.body.children)) {
     if (child.hasAttribute('data-overlay')) continue;
@@ -74,7 +46,6 @@ function acquireLock(): void {
   locked = true;
 }
 
-// releaseLock reverses acquireLock once the last overlay closes.
 function releaseLock(): void {
   document.body.style.overflow = prevOverflow;
   (window as unknown as { __lenis?: { start(): void } }).__lenis?.start();
@@ -90,9 +61,6 @@ function applyLock(): void {
   else if (!shouldLock && locked) releaseLock();
 }
 
-// portal moves a node to <body> so fixed-position overlays escape any clipping /
-// transformed ancestor and the inert sweep above can exclude them. All design
-// tokens live on :root, so a body child still inherits the full theme.
 export function portal(node: HTMLElement, target: HTMLElement = document.body) {
   target.appendChild(node);
   return {
@@ -105,18 +73,12 @@ export function portal(node: HTMLElement, target: HTMLElement = document.body) {
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-// trapFocus: initial focus into the surface, Tab/Shift+Tab kept inside it, and
-// focus restored to the opener on close. Mounted only while the surface is open
-// (inside its {#if open}), so destroy == close.
 export function trapFocus(node: HTMLElement) {
   const opener = document.activeElement as HTMLElement | null;
 
   const visible = (el: HTMLElement) => el.offsetParent !== null || el === document.activeElement;
   const items = () => Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(visible);
 
-  // Focus after mount settles. Two frames, because the surface may portal to
-  // <body> and (for the responsive inspector) swap from a docked render to a
-  // sheet render first; focusing too early gets blurred by the DOM move.
   let raf2 = 0;
   const raf = requestAnimationFrame(() => {
     raf2 = requestAnimationFrame(() => {

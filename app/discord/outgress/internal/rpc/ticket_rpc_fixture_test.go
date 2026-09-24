@@ -18,13 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// The desk handlers are exercised through a REAL discordapi.Client with a
-// scripted transport rather than a hand-written stub of ticketREST. The point
-// of these tests is the wire shape -- how many GETs the transcript makes, that
-// the upload is multipart, that the archive PATCH carries parent_id -- and a
-// stub of the interface would assert only that the handler called the method
-// it obviously calls.
-
 type recordedCall struct {
 	method      string
 	path        string
@@ -36,7 +29,6 @@ type recordedCall struct {
 type scriptedTransport struct {
 	mu    sync.Mutex
 	calls []recordedCall
-	// reply answers one request; the key is "METHOD /path".
 	reply func(call recordedCall) (int, string)
 }
 
@@ -83,13 +75,10 @@ func newTicketRPC(t *testing.T, reply func(recordedCall) (int, string)) (*ticket
 	return &ticketRPC{rest: client, botID: "bot9", log: zap.NewNop()}, tr
 }
 
-// onceMemo is the summary memo: it claims a ticket id exactly once.
 type onceMemo struct{ claimed map[int]bool }
 
 func newOnceMemo() *onceMemo { return &onceMemo{claimed: map[int]bool{}} }
 
-// ClaimSummary mirrors discordstore's contract, including the part that
-// matters here: a ticket with no row id always claims.
 func (m *onceMemo) ClaimSummary(_ context.Context, ticketID int) bool {
 	if ticketID <= 0 {
 		return true
@@ -101,8 +90,6 @@ func (m *onceMemo) ClaimSummary(_ context.Context, ticketID int) bool {
 	return true
 }
 
-// indexOf is the position of the first call matching method+path, or -1. The
-// close path'"'"'s ORDER is behaviour, not incidental, so the tests assert on it.
 func (s *scriptedTransport) indexOf(method, path string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -114,8 +101,6 @@ func (s *scriptedTransport) indexOf(method, path string) int {
 	return -1
 }
 
-// messagePage renders n messages, newest first, with ids counting down from
-// high so the before-cursor a page hands back is its own last id.
 func messagePage(high, n int) string {
 	items := make([]string, 0, n)
 	for i := 0; i < n; i++ {

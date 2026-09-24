@@ -4,13 +4,6 @@
 
 import Tag from '@bagel/ui/astro/Tag.astro';
 
-/**
- * ChatMock: a static Twitch-chat vignette for the guides. Server-rendered
- * from props (no client JS): a titled chat window with viewer / mod / bot /
- * system lines, so a guide can show exactly what a feature looks like in chat
- * without a screenshot. Colors follow the site palette; the bot always speaks
- * in the brand green.
- */
 export interface ChatLine {
     who: 'viewer' | 'mod' | 'bot' | 'system';
     name?: string;
@@ -19,7 +12,6 @@ export interface ChatLine {
 }
 
 interface Props {
-    /** Window title, e.g. "#your_channel". */
     title?: string;
     lines: ChatLine[];
     caption?: string;
@@ -83,9 +75,6 @@ const { title = '#your_channel', lines, caption } = Astro.props;
         box-shadow: 0 0 8px rgba(224, 98, 98, 0.6);
     }
 
-    /* Named, not `.cmock__bar span`: this is the mock window's OWN title
-       part, which is composition inside this widget, and a bare element rule
-       here would be a second answer to what small text looks like. */
     .cmock__title {
         font-family: var(--font-mono, "DM Mono", monospace);
         font-size: 0.75rem;
@@ -118,7 +107,6 @@ const { title = '#your_channel', lines, caption } = Astro.props;
         margin: 0;
     }
 
-    /* No timestamp: name starts the row. */
     .cmock__msg:not(:has(time)) { grid-template-columns: auto 1fr; }
 
     .cmock__msg time {
@@ -139,8 +127,6 @@ const { title = '#your_channel', lines, caption } = Astro.props;
     .cmock__name--mod { color: #7fb8e8; }
     .cmock__name--bot { color: var(--green-glow, #52b788); }
 
-    /* .bb-tag--bare handles the box; only the mod tint stays local. The
-       50% avatar above is an avatar, not a status dot, and keeps its circle. */
     .cmock__badge {
         margin-right: 4px;
         color: #7fb8e8;

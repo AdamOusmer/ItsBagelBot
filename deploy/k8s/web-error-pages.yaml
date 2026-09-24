@@ -1,28 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Unrouted hostnames at the traefik edge (anything the tunnel wildcard admits
-# that no router claims) get a 302 to the canonical branded 404:
-# https://itsbagelbot.com/404
-#
-# History, so nobody re-litigates it blindly:
-#   v1 proxied every unmatched host straight to the apex, path intact — great
-#   branded pages, but ANY forgotten subdomain silently served production
-#   content publicly (wildcard DNS + tunnel admit Host(*)), and the route
-#   doubled as an origin-fetch primitive for whatever Host a client invented.
-#   v2 deleted the fallback entirely — failed closed, but lost the branded
-#   page. Owner call: the 404 must live at itsbagelbot.com/404.
-#   v3 (this): redirect-only. A redirect hands back a Location header and
-#   serves nothing from our origin on unclaimed names, and the attacker-
-#   supplied path is discarded rather than forwarded. Temporary (not
-#   permanent) so browsers never cache a mapping for a name we may later
-#   route deliberately.
-#
-# The web-origin ExternalName + ServersTransport are kept as the route's
-# backend formality: the redirect middleware answers before any dial happens,
-# so nothing is ever fetched through them here. Requires
-# providers.kubernetesCRD.allowExternalNameServices=true in the traefik
-# HelmChartConfig (deploy/infra/cluster/traefik-config.yaml).
+# Redirect-only: proxying unmatched hosts would serve production content on any forgotten subdomain.
 apiVersion: v1
 kind: Service
 metadata:
@@ -41,9 +20,6 @@ metadata:
   name: web-origin-transport
   namespace: app
 spec:
-  # Public Cloudflare certificate, verified against the system trust pool (no
-  # rootCAsSecrets). SNI pinned to the site: the ExternalName dial would
-  # otherwise present the cluster-internal name.
   serverName: itsbagelbot.com
 ---
 apiVersion: traefik.io/v1alpha1
@@ -53,8 +29,6 @@ metadata:
   namespace: app
 spec:
   redirectRegex:
-    # Anything about the request beyond its presence is discarded: scheme,
-    # host and path all collapse to the one canonical URL.
     regex: .*
     replacement: https://itsbagelbot.com/404
     permanent: false
@@ -67,8 +41,6 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
-    # Explicit rock-bottom priority so every real router (all of which carry
-    # longer, auto-prioritized rules) wins first.
     - match: HostRegexp(`^.+$`)
       kind: Rule
       priority: 1

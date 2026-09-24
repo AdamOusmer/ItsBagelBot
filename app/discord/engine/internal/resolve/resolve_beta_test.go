@@ -14,8 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// betaModules always returns a connected, enabled Discord row, so these tests
-// isolate the tier gate from every other reason resolution can fail.
 type betaModules struct{}
 
 func (betaModules) GetModule(context.Context, uint64, string) (projection.ModuleView, bool, error) {
@@ -25,8 +23,6 @@ func (betaModules) GetModule(context.Context, uint64, string) (projection.Module
 	}, true, nil
 }
 
-// resolverWithTier wires a store holding one bound, configured guild, so a
-// gated result is the gate's doing rather than a missing binding.
 func resolverWithTier(tier Status) Resolver {
 	return Resolver{Modules: betaModules{}, Tier: tier, Store: seededStore(), Log: zap.NewNop()}
 }
@@ -56,17 +52,12 @@ func TestFreeChannelIsGated(t *testing.T) {
 	}
 }
 
-// An unreadable tier must close the feature, never open it. This is the
-// opposite direction from the identity module, and deliberately so: there a
-// wrong guess strips a paying streamer's badge, here it hands out the beta.
 func TestUnknownTierIsGated(t *testing.T) {
 	if got := resolverWithTier(tierOf("", false)).ByBroadcaster(context.Background(), 1); len(got) != 0 {
 		t.Fatal("an unreadable tier resolved; a blip must only ever close the gate")
 	}
 }
 
-// A service that forgets to wire the tier reader must serve nobody rather
-// than everybody.
 func TestMissingTierReaderFailsClosed(t *testing.T) {
 	r := Resolver{Modules: betaModules{}, Store: seededStore(), Log: zap.NewNop()}
 	if got := r.ByBroadcaster(context.Background(), 1); len(got) != 0 {
@@ -74,9 +65,6 @@ func TestMissingTierReaderFailsClosed(t *testing.T) {
 	}
 }
 
-// Both directions run the same broadcaster gate, which is why it lives in one
-// place: one check covers both input families, and a new module cannot bypass
-// it.
 func TestGuildDirectionIsGatedToo(t *testing.T) {
 	r := resolverWithTier(tierOf("free", true))
 	if _, _, ok := r.ByGuild(context.Background(), "g1"); ok {
@@ -84,8 +72,6 @@ func TestGuildDirectionIsGatedToo(t *testing.T) {
 	}
 }
 
-// A premium broadcaster with two servers resolves both: the fan-out is the
-// whole point of the slice.
 func TestByBroadcasterListsEveryGuild(t *testing.T) {
 	r := resolverWithTier(tierOf("paid", true))
 	mem := discordstore.NewMem()
@@ -100,15 +86,11 @@ func TestByBroadcasterListsEveryGuild(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("want both guilds, got %d", len(got))
 	}
-	// configOf stamps the guild id, so a settings row that never carried one
-	// still reads as connected.
 	if !got[0].Config.Connected() || got[0].Config.GuildID != got[0].Guild.ID {
 		t.Fatalf("guild id was not stamped into the config: %+v", got[0])
 	}
 }
 
-// A bound guild whose settings were never saved resolves to nothing rather
-// than to an empty config that every module would then act on.
 func TestGuildWithNoSettingsDoesNotResolve(t *testing.T) {
 	r := resolverWithTier(tierOf("paid", true))
 	mem := discordstore.NewMem()

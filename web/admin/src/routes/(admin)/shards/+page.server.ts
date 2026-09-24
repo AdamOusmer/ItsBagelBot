@@ -15,8 +15,6 @@ import type { ShardSnapshot } from '@bagel/kit';
 export type ShardsBundle = { snapshot: ShardSnapshot; degraded: boolean; trials: TrialSnapshot | null };
 const DEMO = dev && process.env.DEMO === '1';
 
-// Streamed: the shell renders immediately; the snapshot hydrates when the
-// ingress RPC lands. A failure returns a neutral empty snapshot and says so.
 export const load: PageServerLoad = async ({ parent }) => {
   const { role } = await parent();
   const withTrials = allows(role, 'trials.manage');
@@ -35,8 +33,7 @@ export const load: PageServerLoad = async ({ parent }) => {
 
 export const actions: Actions = {
   scale: async ({ request, locals }) => {
-    // The ingress takes any caller the broker admits, so this table is the
-    // only thing standing between a moderator and the shard count.
+    // The only gate on the shard count: the ingress takes any caller the broker admits.
     const admin = await requireRole({ locals }, 'shards.scale');
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
     const f = await request.formData();

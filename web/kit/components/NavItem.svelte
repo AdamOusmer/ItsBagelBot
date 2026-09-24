@@ -1,23 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-
-  // The console rail's ledger entry. Presentation is @bagel/ui's `.bb-nav-link`
-  // -- the same element the marketing bar, the mobile menu and the footer
-  // columns render -- and what stays here is the bot-specific half this
-  // component has always owned: the nav registry's shape (icon name, index,
-  // count, broadcaster lock) and the one i18n string the lock needs.
-  //
-  // That string is why this wrapper exists at all rather than the rail
-  // rendering NavLink directly. `t('nav.lockedBroadcaster')` used to be called
-  // INSIDE the component that drew the link; resolving it here and handing the
-  // result down as `hint` is what lets the element live in a library that must
-  // never know the word "broadcaster".
-  //
-  // The ledger's own active mark is gone with the CSS: the green square pinned
-  // to the right edge of the active row is now the contract's tan diamond on
-  // the left, next to the index, which is where every other surface marks the
-  // current page. One active state, one place to look for it.
   import NavLink from '@bagel/ui/svelte/NavLink.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import type { IconName } from '@bagel/ui/lib/icons';
@@ -25,9 +8,6 @@
 
   const { t } = getI18n();
 
-  // `icon` is destructured under another name because the markup below passes a
-  // SNIPPET called `icon` to NavLink, and a snippet shadows a prop of the same
-  // name inside its own body.
   let {
     href,
     icon: iconName,

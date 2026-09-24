@@ -26,56 +26,21 @@ import (
 	"go.uber.org/zap"
 )
 
-// Config carries the per-service knobs the pipeline needs beyond its Deps: the
-// bot's own id (to skip its own chat), the two outgress lane subjects, and
-// whether to run the command-use counter.
 type Config struct {
 	BotID            string
 	OutgressPremium  string
 	OutgressStandard string
-	// CountUses starts the command-use reporter (a background flusher). Off in
-	// tests so they leak no goroutine and publish no counter events.
-	CountUses bool
+	CountUses        bool
 
-	// AutomodEnforce arms the automod gate: false shadow-logs verdicts, true
-	// emits the ban/timeout action and skips dispatch for an actioned line.
 	AutomodEnforce bool
 
-	// ShieldEnabled lets a confirmed mass-raid escalate to channel-level Shield
-	// Mode (one PUT) instead of per-account bans. It is a separate, stricter gate
-	// than AutomodEnforce because Shield Mode is broadcaster-visible and aggressive;
-	// it only takes effect when AutomodEnforce is also on. Off by default.
 	ShieldEnabled bool
 
-	// AdaptiveEnabled arms the learned false-positive layers (style baselines,
-	// community vocabulary, ingress emote spans). Off keeps gate verdicts
-	// byte-identical to the pre-learned gate; see internal/config.
 	AdaptiveEnabled bool
 
-	// AutoRefundChannel names the one channel (Twitch user id or login, from
-	// the TWITCH_AUTOREFUND_CHANNEL Doppler secret) where special-user
-	// channel-points redemptions are auto-cancelled — refunded — ahead of every
-	// module. Empty (the default) disables the gate everywhere else.
 	AutoRefundChannel string
 }
 
-// Pipeline is the per-message stage the consumer hands each decoded message to.
-// It is the single point every message flows through once the consumer has
-// handed it off: decode, dispatch a command if the line is one, run the event
-// handlers registered for the type, and publish what they emit. Command dispatch
-// is folded in here (it reads the registry's command index directly), so there
-// is no separate router module and no Bind step.
-//
-// Ack discipline mirrors the worker: Process returns nil (ack) once the emitted
-// requests are published; an infrastructure failure before publishing (a
-// ModuleView read) returns an error (nack) for redelivery; a single handler's
-// logic error, or a command gate's store error, is logged and skipped, never
-// nacked, so one misbehaving path cannot re-fire its siblings; a publish/marshal
-// failure on the emit path does nack.
-//
-// The hot path is allocation-free above the JSON decoder floor for a plain chat
-// line that emits nothing: the envelope and the module Context are pooled, and
-// the emit sink only builds an outgress message when a handler actually emits.
 type Pipeline struct {
 	trialStore valkey.Client
 	log        *zap.Logger
@@ -83,50 +48,22 @@ type Pipeline struct {
 	proj       projection.Reader
 	registry   *Registry
 
-	live     IsLiveChecker
-	cooldown CooldownStore
-	uses     *useReporter
-	loyalty  LoyaltyStore
-	dedup    *EventDedup
-	// followage and accountAge are the cached viewer readers behind
-	// !followage / !accountage; the {followage} and {accountage} response
-	// tokens resolve through the very same instances, so a token and the
-	// command share one cache instead of racing two. nil leaves those tokens
-	// literal.
-	followage  FollowageLookup
-	accountAge AccountAgeLookup
-	// streamInfo is the cached channel reader behind the {uptime}, {title},
-	// {game} and {channel.viewers} response tokens: one outgress read carries
-	// all four, so a response naming three of them costs one round trip. It
-	// shares !uptime's cache policy but not its instance -- the reply is a
-	// superset, so the tokens read it and !uptime keeps its own narrower
-	// lookup. nil leaves all four tokens literal.
-	streamInfo StreamInfoLookup
-	// channelCounts is the cached reader behind {followers}/{subs}. nil
-	// leaves both literal.
+	live          IsLiveChecker
+	cooldown      CooldownStore
+	uses          *useReporter
+	loyalty       LoyaltyStore
+	dedup         *EventDedup
+	followage     FollowageLookup
+	accountAge    AccountAgeLookup
+	streamInfo    StreamInfoLookup
 	channelCounts ChannelCountsLookup
-	// viewers is the shared chat-list source behind {random.viewer}. nil
-	// leaves it literal.
-	viewers ViewerLookup
-	stats   *botStats
-	// customFetch resolves {urlfetch:...} response tokens through gossip's
-	// custom.fetch endpoint. nil leaves them visible (unknown-token convention).
-	customFetch UrlFetchCaller
-	// quotes and gossip answer the module-fact response tokens: {quote} reads
-	// the same quote book !quote does, and {song} the same live player !song
-	// does. Both are the very instances the modules use, so a token and its
-	// command can never read two different sources. nil leaves those tokens
-	// literal.
-	quotes QuotesStore
-	gossip GossipCaller
-	// emotes is the loaded third-party emote catalog behind the {7tvemotes}
-	// family and {random.emote}: the automod refresher's snapshot, read here
-	// rather than fetched. nil leaves all four tokens literal.
-	emotes scope.EmoteSource
-	// roster remembers who this replica has seen speak, so a target-addressed
-	// counter token ({counter:target:...}) can key its bump on the mentioned
-	// viewer. Pure in-process memory; see chatterRoster.
-	roster *chatterRoster
+	viewers       ViewerLookup
+	stats         *botStats
+	customFetch   UrlFetchCaller
+	quotes        QuotesStore
+	gossip        GossipCaller
+	emotes        scope.EmoteSource
+	roster        *chatterRoster
 
 	botID            string
 	outgressPremium  string
@@ -134,48 +71,24 @@ type Pipeline struct {
 
 	automod        *automod.Gate
 	automodEnforce bool
-	// automodBeta mirrors the registered automod module's Beta flag, resolved
-	// once here because the inline gate reads its row without going through
-	// enabled() and must honor the same lane lock (see automodLocked).
-	automodBeta bool
-	reputation  Reputation
-	campaign    Campaign
+	automodBeta    bool
+	reputation     Reputation
+	campaign       Campaign
 
-	// shieldEnabled gates the mass-raid Shield Mode escalation; raidGate dedups it
-	// per channel so one raid activates Shield Mode once, not on every folded burst.
-	shieldEnabled bool
-	// adaptiveEnabled arms the learned FP layers; off drops span-derived emote
-	// codes at the door so gate options match the pre-learned call shape.
+	shieldEnabled   bool
 	adaptiveEnabled bool
 	raidGate        *raidCooldown
 
-	// nuke, when set, receives every chat line into its recent log (the sweep
-	// memory behind !nuke) and answers its overflow escalations through this
-	// pipeline's Shield Mode policy. nil records nothing.
 	nuke *Nuke
 
-	// special + autoRefundChannel feed the special-redemption auto-refund gate
-	// (autorefund.go): on that one channel, a special user's redemption is
-	// cancelled before any module runs.
 	special           *SpecialSet
 	autoRefundChannel string
 
-	// observers is the activity-feed / per-stream-counters registration point
-	// (see observe.go). nil (the default) means no observer is wired and
-	// notifyObservers returns before touching the event.
 	observers []*observerLane
 
-	// chatLineCounter feeds a timer's chat-activity gate (timer-conditions.md
-	// D3). Not named chatLines: that name is already the dispatch.go method
-	// that fans one output into per-line actions, an unrelated concept. nil
-	// (no timers store wired, or a deployment that never turns the feature on)
-	// skips the call in Process.
 	chatLineCounter ChatLineCounter
 }
 
-// NewPipeline wires a Pipeline from the shared Deps, a pre-built registry, and
-// the per-service Config. It pulls its projection reader, live checker, cooldown
-// store, publisher and logger from d, so main constructs those once.
 func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 	p := &Pipeline{
 		trialStore:        d.TrialStore,
@@ -214,32 +127,20 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		chatLineCounter:   d.ChatLines,
 	}
 	if d.Automod == nil && d.Log != nil {
-		// gateChat/gateCohort fail OPEN on a nil gate - every message passes
-		// unmoderated. Legitimate in unit tests, a silent misconfiguration in
-		// prod, so say it once at wiring time instead of never.
 		d.Log.Warn("automod gate not wired; chat moderation disabled")
 	}
 	if cfg.CountUses && d.Pub != nil {
 		p.uses = newUseReporter(d.Pub, d.Log)
 	}
-	// The nuke service is built before the pipeline (the modules capture it),
-	// so its Shield Mode policy binds back here once this pipeline's raid gate
-	// exists.
 	if d.Nuke != nil {
 		d.Nuke.setShield(p.shieldDecision)
 	}
 	if d.Stats != nil {
-		// d.Log rides along so the automod detection-flag windows actually
-		// reach the fleet log ("automod detection flags", every 2s) - without
-		// it the sink logs to zap.NewNop() and the precision audit has no
-		// evidence to query.
 		p.stats = newBotStats(d.Stats, d.Log)
 	}
 	return p
 }
 
-// Close flushes and stops the command-use reporter and the bot-wide stats
-// flusher. Safe when either was never started.
 func (p *Pipeline) Close() {
 	p.closeObservers()
 	if p.uses != nil {
@@ -250,26 +151,17 @@ func (p *Pipeline) Close() {
 	}
 }
 
-// chatType is the one EventSub type that carries command dispatch.
 const chatType = "channel.chat.message"
 
-// Process decodes one message, dispatches a command when the line is one, runs
-// the event handlers registered for the type, and publishes what they emit. It
-// reads as a short sequence of guards and stages; the loops and the failure
-// bookkeeping live in the helpers below.
 func (p *Pipeline) Process(msg *bus.Message) error {
 	ctx := msg.Context()
 
-	// Decode into a pooled envelope so the plain-chat path allocates nothing here.
 	env := GetEnvelope()
 	defer PutEnvelope(env)
 	if err := decodeEnvelope(ctx, msg.Payload, env); err != nil {
 		traceResult(ctx, "invalid")
 		return p.dropPoison(ctx, msg.UUID, err)
 	}
-	// Bot-wide lifetime totals count everything that decoded, filtered or not,
-	// and the same line splits them per channel for the public board. An
-	// envelope whose broadcaster id will not parse still counts fleet-wide.
 	broadcasterID, ok := env.BroadcasterID()
 	p.countDecoded(ctx, env, broadcasterID)
 	if !p.eligible(env) {
@@ -303,9 +195,6 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 
 	p.roster.ObserveEnvelope(broadcasterID, env)
 
-	// Feed the nuke sweep memory before any stage can action the line: a
-	// message the automod times out is exactly the one a following !nuke must
-	// still be able to target (its siblings who landed a second earlier).
 	if p.nuke != nil {
 		p.nuke.recordChat(broadcasterID, env)
 	}
@@ -313,7 +202,7 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 	views, err := p.tracedModuleViews(ctx, env.Type, broadcasterID)
 	if err != nil {
 		traceResult(ctx, "error")
-		return err // infrastructure failure: nack
+		return err
 	}
 
 	mctx := p.leaseContext(env, broadcasterID)
@@ -329,16 +218,10 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 	p.runTracedStages(ctx, mctx, views, emit, &emission)
 	p.flushLegacyOutput(ctx, &emission)
 
-	// A command that dispatched and ran. Counted on this synchronous path, not
-	// off the observer hook below, because that hook drops under backpressure
-	// and a counter fed from it would silently undercount.
 	if mctx.Command != "" {
 		p.stats.countAnswered(broadcasterID)
 	}
 
-	// Single funnel hook, placed AFTER the stages: the activity feed reports
-	// which command answered and in how long, and neither is known before
-	// dispatch runs. See observe.go for why this is a bounded hand-off.
 	p.notifyObservers(ObservedEvent{
 		BroadcasterID: broadcasterID,
 		Type:          env.Type,
@@ -350,30 +233,16 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 		DurationMS:    int(time.Since(started).Milliseconds()),
 	})
 
-	// nil = ack; a publish/marshal failure on the emit path = nack.
 	tracePipelineResult(ctx, emission.err)
 	return emission.err
 }
 
-// feedChatGate feeds a timer's chat-activity gate (D3): chat only, and only
-// after Process's eligible/ok checks, so the bot's own line (eligible drops
-// it) and an envelope whose broadcaster id would not parse (ok) never reach
-// it. Pulled out of Process as its own step: the nil check and the chatType
-// check were two of the branches pushing Process's cyclomatic complexity to
-// 9 against this repo's gate of 8. chatLineCounter decides for itself whether
-// this broadcaster has anything to gate.
 func (p *Pipeline) feedChatGate(ctx context.Context, env *lane.Envelope, broadcasterID uint64) {
 	if p.chatLineCounter != nil && env.Type == chatType {
 		p.chatLineCounter.CountChatLine(ctx, broadcasterID)
 	}
 }
 
-// decodeEnvelope runs once per inbound event, the busiest decode in the fleet,
-// so it uses the zero-copy codec: the envelope's strings stay views into the
-// lane payload rather than copies. The payload is owned for the whole
-// synchronous handler, which outlives every stage that reads the envelope.
-// processTrial evaluates eligible read-only handlers and emits durable trial
-// provenance for outgress to refuse. It never touches channel-owned gates.
 func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadcasterID uint64) error {
 	started := time.Now()
 	defer func() {
@@ -428,16 +297,6 @@ func (p *Pipeline) tracedModuleViews(ctx context.Context, eventType string, broa
 	return views, err
 }
 
-// The per-message ModuleView map used to be pooled here (GetModuleViews /
-// PutModuleViews): every chat line rebuilt the map from the projection's slice,
-// and pooling it measured 14 -> 12 allocs/op, 1585 -> 705 B/op and
-// 1054 -> 833 ns/op on BenchmarkProcessNoOutputWithViews (M1 Pro, 2026-08-22).
-// The rebuild is gone — projection.Reader now hands back the by-name map it
-// already had — so the pool went with it: there is no per-message map left to
-// recycle, and recycling the one we now get back would be a bug, since it is
-// the projection cache's own entry shared by every concurrent message for that
-// broadcaster. clear()ing it into a pool would blank a live cache row.
-
 func (p *Pipeline) runTracedStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit, emission *emitState) {
 	segment := startStage(ctx, "sesame.engine")
 	p.runStages(ctx, mctx, views, emit)
@@ -448,8 +307,6 @@ func (p *Pipeline) flushLegacyOutput(ctx context.Context, emission *emitState) {
 	if emission.err != nil || !emission.needsFlush {
 		return
 	}
-	// Legacy envelopes without EventID cannot use a stable confirmed publish;
-	// flush their asynchronous admission before confirming the input ack.
 	segment := startStage(ctx, "sesame.output.flush")
 	emission.err = p.pub.Flush(ctx)
 	endStageForError(segment, emission.err, "error")
@@ -471,9 +328,6 @@ func tracePipelineResult(ctx context.Context, err error) {
 	traceResult(ctx, "ok")
 }
 
-// eligible reports whether this envelope needs any work: the bot's own chat is
-// never reacted to, and chat always runs (command dispatch is engine-internal,
-// not a registered handler), so only a non-chat type with no handler bails out.
 func (p *Pipeline) eligible(env *lane.Envelope) bool {
 	isChat := env.Type == chatType
 	if p.isOwnChat(env, isChat) {
@@ -482,8 +336,6 @@ func (p *Pipeline) eligible(env *lane.Envelope) bool {
 	return isChat || len(p.registry.For(env.Type)) > 0
 }
 
-// leaseContext populates a pooled module Context for one envelope; the caller
-// returns it with PutContext.
 func (p *Pipeline) leaseContext(env *lane.Envelope, broadcasterID uint64) *module.Context {
 	mctx := GetContext()
 	mctx.Env = *env
@@ -497,17 +349,6 @@ type emitState struct {
 	subject    string
 	replayBase string
 	locale     string
-	// env and baseDone back the lazy replay base: the sha256+hex namespace is
-	// computed on the first emitted output, not eagerly per message. Only
-	// emitting messages read it, so every silent chat line — the raid-burst
-	// shape — skips the hash, hex encode and concat entirely. Measured on
-	// BenchmarkProcessNoOutput (M1 Pro, 2026-08-22) the swap is alloc-neutral
-	// at 12 allocs/op before and after: the compiler currently keeps the eager
-	// computation off the heap, but it cost 1 alloc/op the moment the base
-	// escapes (isolated AllocsPerRun), so laziness also pins that floor. Ids
-	// are byte-identical: the lazily computed base hashes the same env fields,
-	// so PublishConfirmed identity and broker-side replay folding are
-	// unchanged.
 	env        *lane.Envelope
 	baseDone   bool
 	ordinal    int
@@ -515,10 +356,6 @@ type emitState struct {
 	err        error
 }
 
-// replayID returns the stable id for this message's next output, computing the
-// replay base from the envelope on first use and caching it for the rest of the
-// message. An envelope without an EventID yields "" (ordinary publish + flush),
-// exactly as the eager version did.
 func (s *emitState) replayID() string {
 	if !s.baseDone {
 		s.replayBase = outputReplayBase(s.env)
@@ -527,10 +364,6 @@ func (s *emitState) replayID() string {
 	return replayOutputID(s.replayBase, s.ordinal)
 }
 
-// newEmit builds the sink command Run and event handlers hand their Outputs
-// to. The first publish or marshal failure is captured in state (which
-// nacks) and short-circuits the rest. The sink only builds an outgress message
-// when a handler actually emits, so the no-output hot path stays free.
 func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitState) module.Emit {
 	ctx = bus.WithPublishPartition(ctx, partition)
 	return func(o *module.Output) {
@@ -543,13 +376,6 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 		if o.Type == "" {
 			return
 		}
-		// Slash-verbs route on EVERY path, not just custom commands: a module
-		// reply (alert, trigger word, reward, gossip) leading with /announce,
-		// /shoutout or /pin becomes that native action here. Translate is a
-		// no-op on non-chat outputs, so the command path's per-line translation
-		// is never re-parsed. A translated action with no usable payload (an
-		// /announce with no message, a /shoutout with no target, an empty chat
-		// line) is dropped instead of sending a call Twitch would reject.
 		Translate(o)
 		applyOutputLocale(o, state.locale)
 		if isEmptyAction(o) {
@@ -578,18 +404,10 @@ func applyOutputLocale(o *module.Output, locale string) {
 	}
 }
 
-// runStages executes the moderation gate, command dispatch and the event
-// handlers under the shared skip rules: an actioned line (the chatter is being
-// moderated) skips dispatch and handlers, a refunded special redemption skips
-// the handlers (the event is consumed by the auto-refund gate), and a folded
-// duplicate cohort (Senders present) never dispatches a command.
 func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) {
 	env := &mctx.Env
 	soloChat := env.Type == chatType && len(env.Senders) == 0
 
-	// The two gates are event-type-disjoint (moderateChat acts on chat lines,
-	// the refund gate on redemptions), so one consumed flag covers both without
-	// changing either type's behavior.
 	consumed := false
 	if env.Origin != "trial" {
 		consumed = p.moderateChat(ctx, mctx, views, emit)
@@ -599,16 +417,11 @@ func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views ma
 		p.dispatch(ctx, mctx, views, emit)
 	}
 	if len(p.registry.For(env.Type)) > 0 && !consumed {
-		// Event handlers can emit localized system text too (for example the
-		// stream-online bagel announcement). Command dispatch resolves locale for
-		// baked commands, but non-command events never pass through that path.
 		p.ensureLocale(ctx, mctx)
 		p.runHandlers(ctx, views, mctx, emit)
 	}
 }
 
-// laneSubject picks the outgress lane a message's emissions ride: premium vs
-// standard is a routing lane, not a feature switch.
 func (p *Pipeline) laneSubject(regress module.Regress) string {
 	if regress.IsPremium() {
 		return p.outgressPremium
@@ -616,11 +429,6 @@ func (p *Pipeline) laneSubject(regress module.Regress) string {
 	return p.outgressStandard
 }
 
-// floorSuppressed applies the send-time floor guard: the bot must never SAY
-// floor content, no matter what a runtime variable ({args}, {touser}, an API
-// result) injected into a saved-clean template. Save-time validation covers
-// the template; this covers the expansion. Only outbound text carriers pay the
-// check.
 func (p *Pipeline) floorSuppressed(o *module.Output) bool {
 	if o.Text == "" {
 		return false
@@ -639,8 +447,6 @@ func (p *Pipeline) floorSuppressed(o *module.Output) bool {
 	return hit
 }
 
-// publishOutput translates one Output to the outgress wire contract and
-// publishes it on the lane subject.
 func (p *Pipeline) publishOutput(ctx context.Context, state *emitState, replayID string, o *module.Output) error {
 	encodeSegment := startStage(ctx, "sesame.output.encode")
 	output, err := buildOutgressMessage(o)
@@ -681,9 +487,6 @@ func markTrialOutput(output *outgress.Message, generation uint64) {
 	}
 }
 
-// outputReplayBase turns the EventSub identity into a stable fleet message
-// namespace. It remains useful for tracing an input to its ordered outputs,
-// but it is not sent as Nats-Msg-Id and does not enable broker deduplication.
 func outputReplayBase(env *lane.Envelope) string {
 	if env == nil || env.EventID == "" {
 		return ""
@@ -699,8 +502,6 @@ func replayOutputID(base string, ordinal int) string {
 	return base + ":" + strconv.Itoa(ordinal)
 }
 
-// ensureLocale loads the broadcaster's locale for handler-emitted system text,
-// reusing the value when command dispatch already populated it.
 func (p *Pipeline) ensureLocale(ctx context.Context, mctx *module.Context) {
 	if mctx.Locale != "" {
 		return
@@ -710,46 +511,26 @@ func (p *Pipeline) ensureLocale(ctx context.Context, mctx *module.Context) {
 	}
 }
 
-// dropPoison logs a malformed envelope and acks it: redelivering poison forever
-// helps no one.
 func (p *Pipeline) dropPoison(ctx context.Context, msgID string, err error) error {
 	p.log.Warn("dropping malformed envelope", zap.String("message_id", msgID), zap.Error(err))
 	notice(ctx, err)
 	return nil
 }
 
-// isOwnChat reports whether this is the bot's own chat message (seen via
-// EventSub), which must never be reacted to.
 func (p *Pipeline) isOwnChat(env *lane.Envelope, isChat bool) bool {
 	return p.botID != "" && isChat && env.ChatterUserID == p.botID
 }
 
-// moduleViews fetches the broadcaster's ModuleView set, but only when a
-// name-gated handler or command owner needs it; an event nobody name-gated skips
-// the read entirely and returns nil. The automod module registers a chat handler,
-// so chat needs the read whenever it is wired (its row carries the enable toggle
-// and per-channel config the gate runs under).
 func (p *Pipeline) moduleViews(ctx context.Context, eventType string, broadcasterID uint64) (map[string]projection.ModuleView, error) {
 	if !p.registry.NeedsModuleViews(eventType) {
 		return nil, nil
 	}
-	// Returned straight through: this is the projection cache's own by-name map,
-	// shared across every concurrent message for this broadcaster and read-only
-	// for the stages. No stage writes it (enabled() copies the Configs slice it
-	// keeps into the Context, and the automod config is parsed out by value), so
-	// aliasing it is safe and skips the per-line map rebuild this used to do.
+	// The projection cache's shared map: stages must never write or recycle it.
 	return p.proj.Modules(ctx, broadcasterID)
 }
 
-// automodModuleName is the module that carries a broadcaster's automod settings
-// (profile, block/allow terms) and enable toggle. It is a real registered module
-// (app/twitch/sesame/modules/automod.go, MODULE_CATALOG id "automod" on the dashboard);
-// its handler is a no-op because the gate runs inline before dispatch, so the
-// pipeline reads the row directly here instead of through enabled().
 const automodModuleName = "automod"
 
-// automodBeta reports whether the registered automod module is in beta. It is
-// found through the chat index since that is the one event it registers.
 func automodBeta(reg *Registry) bool {
 	for _, m := range reg.For(chatType) {
 		if m.Name == automodModuleName {
@@ -759,15 +540,6 @@ func automodBeta(reg *Registry) bool {
 	return false
 }
 
-// automodConfigFrom extracts the broadcaster's automod Config from the fetched
-// ModuleViews. nil views (no name-gated module needs chat) or an absent row
-// yields nil (the global default: KindDefault ships enabled). A row present but
-// disabled maps to a Config that opts the gate out for that channel, the same
-// enable toggle every module has. locked is the beta lane gate (the module is
-// in beta and this event rides the standard lane): it forces the same
-// Disabled config whatever the row says, because this path bypasses
-// enabled(). Disabled is floor-only, not off, so the safety floor still holds
-// on a locked channel exactly as it does with the module switched off.
 func automodConfigFrom(views map[string]projection.ModuleView, locked bool) *automod.Config {
 	mv, ok := views[automodModuleName]
 	if !ok && !locked {
@@ -783,29 +555,11 @@ func automodConfigFrom(views map[string]projection.ModuleView, locked bool) *aut
 	return cfg
 }
 
-// automodConfigs memoizes ParseConfig per config blob. Before it, every chat
-// line on a channel that had configured automod re-ran the unmarshal plus the
-// term splitting and skeleton normalization: measured on an M1 Pro
-// (2026-09-03) that was 3100 -> 835 ns/op, 2170 -> 705 B/op and 39 -> 12
-// allocs/op on BenchmarkProcessNoOutputWithAutomodConfig: the parse WAS most
-// of the hot path for a configured channel, and a configured channel now costs
-// the same per line as one that never opened the form. Package-level rather than a Pipeline
-// field because the key is the blob's content, not the channel: memoizing a
-// pure function has no tenancy to scope, and two channels with identical
-// configs correctly share the entry.
 var automodConfigs = confcache.New[*automod.Config]()
 
-// parseAutomodConfig adapts ParseConfig to the cache's parse signature
-// (codec.RawMessage is a defined type, so the func values are not assignable).
 func parseAutomodConfig(raw []byte) *automod.Config { return automod.ParseConfig(raw) }
 
-// disabledConfig returns cfg forced into the floor-only Disabled state WITHOUT
-// writing to cfg. This used to be an in-place "cfg.Disabled = true", which was
-// safe only while every caller owned a freshly parsed config; cfg now comes
-// from a cache shared by every channel using the same blob, so the in-place
-// write would have flipped an unrelated broadcaster's automod into floor-only
-// the moment one locked or disabled row touched it. The copy is shallow on
-// purpose: the term slices it shares are only ever read (bytes.Contains).
+// Copy: cfg is shared through confcache by every channel with the same blob.
 func disabledConfig(cfg *automod.Config) *automod.Config {
 	if cfg == nil {
 		return &automod.Config{Disabled: true}
@@ -815,8 +569,6 @@ func disabledConfig(cfg *automod.Config) *automod.Config {
 	return &c
 }
 
-// dispatch runs the command stage; a gate store error is logged and skipped like
-// a handler error, never nacked.
 func (p *Pipeline) dispatch(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) {
 	if err := p.dispatchCommand(ctx, mctx, views, emit); err != nil {
 		p.log.Error("command dispatch failed", module.BIDField(mctx.BroadcasterID), zap.Error(err))
@@ -824,9 +576,6 @@ func (p *Pipeline) dispatch(ctx context.Context, mctx *module.Context, views map
 	}
 }
 
-// runHandlers runs each enabled module's handler for the message's event type in
-// registration order. A handler's logic error is logged and skipped, never
-// nacked (that would re-fire the siblings that already succeeded on redelivery).
 func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.ModuleView, mctx *module.Context, emit module.Emit) {
 	eventType := mctx.Env.Type
 	for _, m := range p.registry.For(eventType) {
@@ -843,8 +592,6 @@ func (p *Pipeline) runHandlers(ctx context.Context, views map[string]projection.
 	}
 }
 
-// handlerFailed records a handler's logic error to the log and NR. The event type
-// and broadcaster id come from the Context.
 func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m module.Module, err error) {
 	p.log.Error("module handler failed",
 		zap.String("module", moduleLabel(m)),
@@ -857,7 +604,6 @@ func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m mo
 	}
 }
 
-// traceEvent tags the current New Relic transaction with the event identity.
 func traceEvent(ctx context.Context, eventType, eventLane string, broadcasterID uint64) {
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("event.type", eventType)
@@ -866,22 +612,12 @@ func traceEvent(ctx context.Context, eventType, eventLane string, broadcasterID 
 	}
 }
 
-// notice records err on the current New Relic transaction, if any.
 func notice(ctx context.Context, err error) {
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.NoticeError(err)
 	}
 }
 
-// enabled applies the per-module enable gate and wires the module's config into
-// the context: a core module is always on; a KindDefault module runs unless its
-// ModuleView disables it; a KindOptIn module runs only when its ModuleView
-// enables it. There is no permanent premium gate: premium vs standard is a
-// routing lane (see emit), not a feature switch, so every module is available
-// on both once out of beta. A Beta module is the temporary exception: off on
-// the standard lane regardless of its row (see module.Module.Beta). The lane
-// is read from the Context's Regress, which ingress derived from the same tier
-// projection the console reads, so no extra lookup happens here.
 func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleView, mctx *module.Context) bool {
 	if m.Beta && !mctx.Regress.IsPremium() {
 		return false
@@ -901,8 +637,6 @@ func (p *Pipeline) enabled(m module.Module, views map[string]projection.ModuleVi
 	}
 }
 
-// enabledByDefault gates a KindDefault module: it ships enabled (no row means
-// on, no config), and only an explicit row can disable it.
 func enabledByDefault(mv projection.ModuleView, ok bool, mctx *module.Context) bool {
 	if !ok {
 		mctx.Config = nil
@@ -915,7 +649,6 @@ func enabledByDefault(mv projection.ModuleView, ok bool, mctx *module.Context) b
 	return true
 }
 
-// enabledOptIn gates a KindOptIn module: it runs only when its row enables it.
 func enabledOptIn(mv projection.ModuleView, ok bool, mctx *module.Context) bool {
 	if mctx.Env.Origin == "trial" {
 		return false

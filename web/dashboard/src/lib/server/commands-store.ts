@@ -1,23 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Commands + modules store: the read path and the optimistic write pipeline.
-//
-// Reads are the fabric's hybrid path (L1 -> Valkey projection -> projector RPC).
-// Writes go to the owning service (source of truth, write-behind batcher that
-// flushes within ~2s), then the store makes the change visible immediately:
-//
-//   1. merge the new row into the cached list (optimistic, this replica);
-//   2. push the merged list to the projector (`projector.*.replace`) so the
-//      Valkey projection (read by other replicas AND the chat worker) is
-//      correct now instead of after the event pipeline catches up;
-//   3. write-through the merged list into L1.
-//
-// If the projector push fails, the optimistic entry is kept only for 5s
-// (instead of the projected policy's long window): the UI stays snappy but
-// re-reads Valkey/RPC almost immediately, so a diverged optimistic list can't
-// survive for minutes. The event pipeline (data.*.changed -> projector ->
-// cache-invalidation bus) reconciles everything shortly after either way.
 import newrelic from 'newrelic';
 import { rpc } from '@bagel/kit/server/nats';
 import { POLICY } from '@bagel/kit/server/cache-keys';
@@ -27,22 +10,14 @@ import { SUB, fabric, invalidate } from './services';
 
 const READ_TIMEOUT_MS = 2000;
 
-// Optimistic entries that failed the projector push decay fast (see above).
 const UNSYNCED_TTL_MS = 5_000;
 
-// section names the projected collection (commands or modules) a store
-// operation targets; it drives the cache key and the projector subject verbs so
-// the read/replace paths stay identical for both.
 type section = 'commands' | 'modules';
 
 function cacheKey(kind: section, userId: string): string {
   return `${kind}:${userId}`;
 }
 
-// readProjected is the shared list read path (L1 -> Valkey projection ->
-// projector RPC) for either collection. valkeyRead answers whether the Valkey
-// projection is populated and, if so, its rows; a cold projection falls back to
-// the projector's get RPC. pick names the field on the RPC reply.
 async function readProjected<T>(
   kind: section,
   userId: string,
@@ -76,11 +51,6 @@ export async function listModules(userId: string): Promise<ModuleView[]> {
   });
 }
 
-// replaceProjected is the best-effort projection push for either collection.
-// Returns whether the projector confirmed it, so callers can decide how long to
-// trust their optimistic cache entry. Failures are logged (they silently
-// degraded freshness for minutes before) but never thrown: the change-event
-// pipeline reconciles the projection regardless.
 async function replaceProjected(kind: section, userId: string, rows: unknown[]): Promise<boolean> {
   try {
     await rpc(`${SUB.projector}.${kind}.replace`, { user_id: userId, [kind]: rows }, 2000);
@@ -99,22 +69,10 @@ export function replaceProjectedModules(userId: string, modules: ModuleView[]): 
   return replaceProjected('modules', userId, modules);
 }
 
-// Commit an optimistically merged list: trusted for the full projected window
-// when the projection push confirmed, only briefly when it did not.
 function commitOptimistic<T>(key: string, value: T, synced: boolean): void {
   fabric.cache.set(key, value, synced ? POLICY.projected : UNSYNCED_TTL_MS);
 }
 
-// upsertModule writes one module's enabled flag + config to the modules service
-// (source of truth, write-behind), then optimistically refreshes the projection
-// and the local cache, mirroring upsertCommand.
-//
-// The write RPC throws (RpcError / timeout / no-responders) when the write
-// itself fails: callers convert that into a `fail()` so the real reason reaches
-// the toast. The projection/cache refresh AFTER a confirmed write is best-effort:
-// a hiccup reading it back must never turn a landed write into a reported
-// failure (that was the old bug, a slow projector made a successful toggle look
-// broken and gave no feedback).
 export async function upsertModule(
   userId: string,
   name: string,
@@ -125,7 +83,6 @@ export async function upsertModule(
     user_id: userId,
     name,
     is_enabled: isEnabled,
-    // Omit empty configs so the service stores nothing rather than "{}".
     configs: configs && Object.keys(configs as object).length ? configs : undefined
   });
   try {
@@ -145,18 +102,11 @@ export async function upsertModule(
     commitOptimistic(cacheKey('modules', userId), modules, synced);
     return { modules };
   } catch {
-    // Write landed but the read-back failed: drop the stale cache and let the
-    // next load re-read. The operation still succeeded.
     invalidate(cacheKey('modules', userId));
     return { modules: [] };
   }
 }
 
-// patchModule merges a subset of config keys into one module under optimistic
-// concurrency. `partial` carries only the keys to change (an explicit "" clears a
-// key); `expectedRev` is the revision the client last read. The service reports a
-// conflict when the stored revision has moved on, so the caller reloads and
-// retries rather than clobbering a concurrent edit. Returns the new revision.
 export interface ModulePatch {
   userId: string;
   name: string;
@@ -174,7 +124,6 @@ export async function patchModule(p: ModulePatch): Promise<{ rev: number; confli
     expected_rev: p.expectedRev
   });
   if (reply.conflict) return { rev: reply.rev ?? p.expectedRev, conflict: true };
-  // Landed: drop the cached projection so the next read reflects the merged blob.
   invalidate(cacheKey('modules', p.userId));
   return { rev: reply.rev ?? p.expectedRev + 1, conflict: false };
 }
@@ -191,16 +140,11 @@ export interface CommandInput {
   bumpCounter: string;
 }
 
-// originalName, when set and different from cmd.name, renames the command: the
-// commands service updates the existing row's name field in place instead of
-// deleting the old command and recreating it under the new name.
 export async function upsertCommand(
   userId: string,
   cmd: CommandInput,
   originalName?: string
 ): Promise<{ commands: CommandView[] }> {
-  // Write to the source of truth. A thrown RpcError/timeout means the write
-  // failed; let it propagate so the action reports the real reason as a fail().
   await rpc(`${SUB.commands}.upsert`, {
     user_id: userId,
     name: cmd.name,
@@ -230,8 +174,6 @@ export async function upsertCommand(
       cooldown: cmd.cooldown,
       allowed_user_id: cmd.allowedUserId,
       bump_counter: cmd.bumpCounter,
-      // Preserve the lifetime counter through the optimistic merge: edits
-      // never change it and losing it here would flash 0 in the UI.
       uses: current.find((c) => c.name === (originalName ?? cmd.name))?.uses
     };
     let merged = false;
@@ -248,7 +190,6 @@ export async function upsertCommand(
     commitOptimistic(cacheKey('commands', userId), commands, synced);
     return { commands };
   } catch {
-    // Write landed but the read-back failed: the operation still succeeded.
     invalidate(cacheKey('commands', userId));
     return { commands: [] };
   }

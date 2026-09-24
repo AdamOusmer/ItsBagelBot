@@ -72,9 +72,6 @@ func TestFastCohortFailsOnAsyncErrorReportedAtCommit(t *testing.T) {
 	}
 }
 
-// The fast terminal count is the highest batch sequence the broker accepted, so
-// a short one proves only that the session did not cover every sequence sent.
-// What landed comes from the flow acknowledgements, and the report must say both.
 func TestFastCohortShortCommitAckReportsCoverageAndStoredPrefix(t *testing.T) {
 	publisher := &stubFastPublisher{
 		ack:    &jetstreamext.BatchAck{BatchSize: 2, Sequence: 404},
@@ -103,8 +100,6 @@ func TestFastCohortFailsOnMissingCommitAck(t *testing.T) {
 	}
 }
 
-// Fast-Ingest persists on arrival, so a dead session leaves a stored prefix.
-// The prefix the broker acknowledged must survive the failure verdict.
 func TestFastCohortKeepsTheAcknowledgedPrefix(t *testing.T) {
 	publisher := &stubFastPublisher{
 		commitErr: errors.New("ack timeout"),
@@ -124,9 +119,6 @@ func TestFastCohortKeepsTheAcknowledgedPrefix(t *testing.T) {
 	}
 }
 
-// Orbit never writes the initialErrCh it reads, so a rejection of the session's
-// first message reaches only the error handler while AddMsg times out. The typed
-// rejection is what has to be reported and what makes the replay safe.
 func TestFastCohortPrefersTheTypedRejectionOverTheAckTimeout(t *testing.T) {
 	rejected := &jsapi.APIError{Code: 400, ErrorCode: 10205, Description: "batch publish is disabled"}
 	asyncErr := &firstAsyncPublishError{}
@@ -143,8 +135,6 @@ func TestFastCohortPrefersTheTypedRejectionOverTheAckTimeout(t *testing.T) {
 	}
 }
 
-// Past the first message a typed error no longer proves nothing was stored:
-// everything the broker already took is in the stream and visible to consumers.
 func TestFastCohortDoesNotReplayPastTheFirstMessage(t *testing.T) {
 	rejected := &jsapi.APIError{Code: 400, ErrorCode: 10208, Description: "batch publish ID unknown"}
 	asyncErr := &firstAsyncPublishError{}
@@ -165,9 +155,6 @@ func TestFastCohortDoesNotReplayPastTheFirstMessage(t *testing.T) {
 	}
 }
 
-// Orbit's FastPublisher has no Discard: without a Close the ack-inbox
-// subscription and the broker's per-stream inflight slot survive every abandoned
-// cohort, so each path that leaves the session unfinished has to close it once.
 func TestFastCohortClosesTheSessionOnEveryAbortPath(t *testing.T) {
 	asyncErr := &firstAsyncPublishError{}
 	reported := &stubFastPublisher{ack: &jetstreamext.BatchAck{BatchSize: 3}}
@@ -185,8 +172,6 @@ func TestFastCohortClosesTheSessionOnEveryAbortPath(t *testing.T) {
 	}
 }
 
-// requireSessionClosedOnce runs one abort path and states the leak contract: the
-// cohort fails and its session is ended exactly once.
 func requireSessionClosedOnce(t *testing.T, name string, publisher *stubFastPublisher, asyncErr *firstAsyncPublishError) {
 	t.Helper()
 	if asyncErr == nil {
@@ -201,10 +186,6 @@ func requireSessionClosedOnce(t *testing.T, name string, publisher *stubFastPubl
 	}
 }
 
-// A session that reached its commit is already finished on Orbit's side: the
-// commit unsubscribes the ack inbox whatever the broker answered, so a short
-// terminal ack is a reporting problem, not a leak, and must not send a second
-// end-of-batch.
 func TestFastCohortDoesNotCloseACommittedSession(t *testing.T) {
 	publisher := &stubFastPublisher{ack: &jetstreamext.BatchAck{BatchSize: 2}}
 
@@ -233,8 +214,6 @@ func TestFastCohortStoredPrefixNeverClaimsAFailedCohort(t *testing.T) {
 	}
 }
 
-// A failed Fast-Ingest cohort has two verdicts, not one: the acknowledged prefix
-// is durable and a confirmed caller must not retry it.
 func TestFinishFastSplitsTheAcknowledgedPrefixFromTheFailedSuffix(t *testing.T) {
 	worker := &publishBatchWorker{owner: newTestBatchPublisher()}
 	batch := confirmedBatch(5)
@@ -272,8 +251,6 @@ func TestFastFallbackReplaysOnlyADefiniteFirstMessageRejection(t *testing.T) {
 	}
 }
 
-// stubFastPublisher stands in for Orbit's FastPublisher so session failure
-// handling is exercised without a broker.
 type stubFastPublisher struct {
 	addErr      error
 	commitErr   error
@@ -305,16 +282,11 @@ func (p *stubFastPublisher) CommitMsg(context.Context, *nats.Msg, ...jetstreamex
 	return p.ack, p.commitErr
 }
 
-// Close answers the way Orbit does once a session is over: nothing left to
-// commit. What the seam needs is that it was called at all.
 func (p *stubFastPublisher) Close(context.Context) (*jetstreamext.BatchAck, error) {
 	p.closeCalls++
 	return nil, jetstreamext.ErrBatchClosed
 }
 
-// fixedAckSequences replays the flow-ack sequence Orbit reports per Add. The
-// server acknowledges the first message with sequence 0 and then only every
-// flow-th message, so the series is flat and lags the messages sent.
 func fixedAckSequences(sequences ...uint64) func(call int) *jetstreamext.FastPubAck {
 	return func(call int) *jetstreamext.FastPubAck {
 		if call > len(sequences) {

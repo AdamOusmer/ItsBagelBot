@@ -23,7 +23,6 @@ import (
 	"ItsBagelBot/pkg/monitor"
 )
 
-// dashboardTimeout bounds each dashboard RPC handler's repo work.
 const dashboardTimeout = 3 * time.Second
 
 type dashboardRPC struct {
@@ -66,8 +65,6 @@ func SubscribeDashboard(w Wiring, prefix, invalidationPrefix string) error {
 	return nil
 }
 
-// tracedHandler wraps a raw NATS handler in a New Relic transaction named after
-// its subject, so every dashboard RPC shows up as its own transaction.
 func tracedHandler(app *newrelic.Application, subject string, fn func(context.Context, *nats.Msg)) nats.MsgHandler {
 	return func(msg *nats.Msg) {
 		txn := app.StartTransaction("rpc " + subject)
@@ -79,8 +76,6 @@ func tracedHandler(app *newrelic.Application, subject string, fn func(context.Co
 func respondErr(msg *nats.Msg, text string) { bus.Respond(msg, map[string]any{"error": text}) }
 func respondOK(msg *nats.Msg)               { bus.Respond(msg, map[string]any{"ok": true}) }
 
-// decodeRequest unmarshals the message body into T, responding "bad request"
-// and returning ok=false on a malformed payload.
 func decodeRequest[T any](msg *nats.Msg) (req T, ok bool) {
 	if err := codec.Unmarshal(msg.Data, &req); err != nil {
 		respondErr(msg, "bad request")
@@ -89,9 +84,6 @@ func decodeRequest[T any](msg *nats.Msg) (req T, ok bool) {
 	return req, true
 }
 
-// parseWireID parses a decimal id, responding "<field> must be numeric" and
-// returning ok=false when it is not. field is the wire field name for the
-// error text.
 func parseWireID(msg *nats.Msg, raw, field string) (uint64, bool) {
 	id, err := strconv.ParseUint(raw, 10, 64)
 	if err != nil {
@@ -101,23 +93,16 @@ func parseWireID(msg *nats.Msg, raw, field string) (uint64, bool) {
 	return id, true
 }
 
-// timeout derives the per-handler repo deadline.
 func timeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, dashboardTimeout)
 }
 
-// publishInvalidate pushes a cache invalidation and logs (never fails the RPC)
-// on error. op labels the log line.
 func (d *dashboardRPC) publishInvalidate(scope, id, op string) {
 	if err := invalidate.Publish(d.nc, d.invalidationPrefix, scope, id); err != nil {
 		d.log.Warn(op+" invalidation publish failed", zap.Error(err))
 	}
 }
 
-// writeThenInvalidate is the shared write path for the "set" verbs: run the
-// repo write under the handler deadline, drop the broadcaster's cached view on
-// success, and respond ok. op labels both the error log and the invalidation
-// warning; scope is the invalidation scope; broadcasterID is the raw wire id.
 func (d *dashboardRPC) writeThenInvalidate(ctx context.Context, msg *nats.Msg, scope, broadcasterID, op string, write func(context.Context) error) {
 	ctx, cancel := timeout(ctx)
 	defer cancel()
@@ -131,12 +116,6 @@ func (d *dashboardRPC) writeThenInvalidate(ctx context.Context, msg *nats.Msg, s
 	respondOK(msg)
 }
 
-// setBoolPref is the shared body for the single-boolean setter verbs
-// (active_set, onboarded_set, cursor_set): decode the typed request, parse its
-// broadcaster id, then run the standard write-through + invalidation. broadcaster
-// pulls the wire id out of the concrete request type and write applies the flag;
-// keeping the boilerplate here stops the three setters drifting. (A free
-// function, not a method, since Go methods cannot take type parameters.)
 func setBoolPref[T any](d *dashboardRPC, ctx context.Context, msg *nats.Msg, scope, op string,
 	broadcaster func(T) string, write func(context.Context, uint64, T) error) {
 	req, ok := decodeRequest[T](msg)
@@ -165,7 +144,6 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 	ctx, cancel := timeout(ctx)
 	defer cancel()
 
-	// Ensure email is generated uniquely since we don't fetch it from Twitch by default
 	email := fmt.Sprintf("%d@twitch.tv", id)
 
 	if err := d.repo.Register(ctx, id, req.Username, req.DisplayName, email); err != nil {
@@ -174,9 +152,7 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	// Capture the real contact email when the callback forwarded one.
-	// Best-effort: a storage failure must never bounce a login, and the
-	// address itself never reaches the log line.
+	// Best effort: must never bounce a login or log the address.
 	if req.Email != "" {
 		if err := d.repo.SetContactEmail(ctx, id, req.Email); err != nil {
 			log.Warn("upsert_user contact email store failed",
@@ -184,9 +160,6 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 		}
 	}
 
-	// Push-drop cached account state on every console replica: a recreated
-	// account must not keep serving another pod's deleted-era view for the
-	// rest of that pod's SWR window.
 	d.publishInvalidate("status", req.UserID, "upsert_user")
 	respondOK(msg)
 }
@@ -203,11 +176,6 @@ func (d *dashboardRPC) handleGrantSave(ctx context.Context, msg *nats.Msg) {
 
 	d.writeThenInvalidate(ctx, msg, "grant", req.BroadcasterUserID, "grant_save",
 		func(ctx context.Context) error {
-			// Expiry unknown here: the dashboard's OAuth callback doesn't
-			// forward Twitch's expires_in through GrantSaveRequest today, so
-			// nil (see UpsertToken's doc) is correct -- outgress's
-			// stored-token refresh path fills it in on the token's first
-			// rotation through that path.
 			return d.repo.UpsertToken(ctx, id, tokens.TypeUserToken, tokens.PlatformTwitch, []byte(req.AccessToken), []byte(req.RefreshToken), nil)
 		})
 }
@@ -230,9 +198,6 @@ func (d *dashboardRPC) handleGrantHas(ctx context.Context, msg *nats.Msg) {
 	bus.Respond(msg, map[string]any{"has_grant": hasGrant})
 }
 
-// handleActiveSet flips the receive toggle. The repository publishes the
-// change event, so the projector and ingress converge without extra work;
-// the explicit invalidation below covers the dashboard's own grant cache.
 func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
 	setBoolPref(d, ctx, msg, "status", "active_set",
 		func(r usersrpc.ActiveSetRequest) string { return r.BroadcasterUserID },
@@ -247,26 +212,16 @@ func (d *dashboardRPC) handleActiveGet(ctx context.Context, msg *nats.Msg) {
 	})
 }
 
-// handleStatusGet returns the broadcaster's billing tier (free/paid/vip) so the
-// dashboard can show the account status to the user themselves.
 func (d *dashboardRPC) handleStatusGet(ctx context.Context, msg *nats.Msg) {
 	d.readView(ctx, msg, func(view repository.UserView) map[string]any {
 		return map[string]any{"status": view.Status, "onboarded": view.Onboarded}
 	})
 }
 
-// handleStateGet returns both the receive toggle and billing tier in one reply.
-// active_get and status_get each load the same user view, so the dashboard's
-// page render coalesces them here to spend one round trip and one repo.Get
-// instead of two.
 func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 	d.readView(ctx, msg, func(view repository.UserView) map[string]any {
 		return map[string]any{
-			"active": view.IsActive,
-			// Twitch login, echoed so the public command page can label a
-			// channel from the broadcaster id alone. The page used to take the
-			// name from a query string, which let anyone rewrite the link to
-			// attribute one channel's commands to another handle.
+			"active":                      view.IsActive,
 			"username":                    view.Username,
 			"display_name":                view.DisplayName,
 			"status":                      view.Status,
@@ -283,13 +238,6 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 	})
 }
 
-// handleLoginResolve maps a Twitch login to its broadcaster id for the public
-// command page, whose URL is keyed by login so the shared link names the
-// channel it serves. Everything the page renders is then read from the id, so
-// the login in the URL is a lookup key and never a label the caller controls.
-//
-// The reply echoes the stored username rather than the requested one: it is the
-// canonical casing, and the page redirects to it so one channel has one URL.
 func (d *dashboardRPC) handleLoginResolve(ctx context.Context, msg *nats.Msg) {
 	req, ok := decodeRequest[usersrpc.LoginResolveRequest](msg)
 	if !ok {
@@ -316,9 +264,6 @@ func (d *dashboardRPC) handleLoginResolve(ctx context.Context, msg *nats.Msg) {
 	})
 }
 
-// readView is the shared read path for active_get / status_get / state_get:
-// decode the broadcaster id, load the user view once, then project the reply
-// with render.
 func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(repository.UserView) map[string]any) {
 	req, ok := decodeRequest[usersrpc.GrantHasRequest](msg)
 	if !ok {
@@ -340,7 +285,6 @@ func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(
 	bus.Respond(msg, render(view))
 }
 
-// handleOnboardedSet saves the user's completion of the onboarding flow.
 func (d *dashboardRPC) handleOnboardedSet(ctx context.Context, msg *nats.Msg) {
 	setBoolPref(d, ctx, msg, "status", "onboarded_set",
 		func(r usersrpc.OnboardedSetRequest) string { return r.BroadcasterUserID },
@@ -349,9 +293,6 @@ func (d *dashboardRPC) handleOnboardedSet(ctx context.Context, msg *nats.Msg) {
 		})
 }
 
-// handleLocaleSet persists the user's console language preference. The value is
-// validated against the i18n manifest so a stray write can't poison the column;
-// the console mirrors the same choice into a cookie for fast SSR.
 func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
 	req, ok := decodeRequest[usersrpc.LocaleSetRequest](msg)
 	if !ok {
@@ -366,17 +307,10 @@ func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	// Invalidate the "locale" scope so the console's cached locale view drops on
-	// every replica: a change is then visible on the next login/render instead
-	// of riding out the SWR window.
 	d.writeThenInvalidate(ctx, msg, "locale", req.BroadcasterUserID, "locale_set",
 		func(ctx context.Context) error { return d.repo.SetLocale(ctx, id, req.Locale) })
 }
 
-// handleCursorSet persists whether the console shows the animated custom cursor.
-// The "cursor" invalidation scope drops the console's cached cursor view on
-// every replica so a change is visible on the next render instead of riding out
-// the SWR window.
 func (d *dashboardRPC) handleCursorSet(ctx context.Context, msg *nats.Msg) {
 	setBoolPref(d, ctx, msg, "cursor", "cursor_set",
 		func(r usersrpc.CursorSetRequest) string { return r.BroadcasterUserID },
@@ -385,10 +319,6 @@ func (d *dashboardRPC) handleCursorSet(ctx context.Context, msg *nats.Msg) {
 		})
 }
 
-// handleCommandsPageSet persists whether the broadcaster's public commands
-// page is hidden. The "commands_page" invalidation scope drops the console's
-// cached read on every replica; the repo write itself is write-through (D8),
-// so the scope broadcast below always trails the commit.
 func (d *dashboardRPC) handleCommandsPageSet(ctx context.Context, msg *nats.Msg) {
 	setBoolPref(d, ctx, msg, "commands_page", "commands_page_set",
 		func(r usersrpc.CommandsPageSetRequest) string { return r.BroadcasterUserID },
@@ -397,8 +327,6 @@ func (d *dashboardRPC) handleCommandsPageSet(ctx context.Context, msg *nats.Msg)
 		})
 }
 
-// handleDeleteSelf removes the user and every delegation they own. Delegations
-// are cleared first so no dangling links survive the deleted user row.
 func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 	req, ok := decodeRequest[usersrpc.DeleteSelfRequest](msg)
 	if !ok {
@@ -428,11 +356,6 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
-	// "user" is not a routed scope on the console side, so it falls through to
-	// the '*' entry: a coarse per-user flush of every cached prefix. That is
-	// exactly right for deletion — no replica may keep any view of this user,
-	// and without this ping other pods would serve stale state for the rest of
-	// their SWR windows (the deleting pod only drops its own L1).
 	d.publishInvalidate("user", req.UserID, "delete_self")
 	respondOK(msg)
 }

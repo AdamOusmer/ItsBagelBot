@@ -22,8 +22,6 @@ const doc = `{
 	"stats":{"br_kills_solo":41,"br_wins_solo":3,"br_kills_duo":58,"other":9}
 }`
 
-// extracted runs one typed getter and returns its result as a string, so the
-// scalar cases can be compared uniformly in one table.
 type extracted func(data []byte, path Path) (string, error)
 
 func asString(data []byte, path Path) (string, error) {
@@ -56,9 +54,7 @@ func TestExtractScalars(t *testing.T) {
 		{"int", asInt, Path{"level"}, "74"},
 		{"float", asFloat, Path{"ratio"}, "1.75"},
 		{"bool", asBool, Path{"active"}, "true"},
-		// Escapes are resolved rather than returned raw.
 		{"escaped string", asString, Path{"name"}, `say "hi"`},
-		// A path descends through nested objects, outermost key first.
 		{"nested string", asString, Path{"profile", "region"}, "eu"},
 		{"nested int", asInt, Path{"profile", "wins"}, "12"},
 	} {
@@ -79,13 +75,11 @@ func TestExtractMissingPathIsErrNotFound(t *testing.T) {
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("want ErrNotFound, got %v", err)
 	}
-	// The path is named in the message so a failure is diagnosable.
 	if !strings.Contains(err.Error(), "nope") {
 		t.Fatalf("error omits the path: %v", err)
 	}
 }
 
-// A present-but-null field is not a missing field.
 func TestExtractNullIsNotMissing(t *testing.T) {
 	_, kind, err := ExtractValue([]byte(doc), Path{"missing_child"})
 	if err != nil {
@@ -116,7 +110,6 @@ func TestExtractValueKinds(t *testing.T) {
 			t.Fatalf("ExtractValue(%v) kind = %v, want %v", tc.path, kind, tc.want)
 		}
 	}
-	// An object value comes back as valid JSON and round-trips through Unmarshal.
 	raw, _, err := ExtractValue([]byte(doc), Path{"profile"})
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +126,6 @@ func TestExtractValueKinds(t *testing.T) {
 	}
 }
 
-// The wide-object case: aggregate the keys matching a prefix, ignore the rest.
 func TestExtractEachAggregates(t *testing.T) {
 	var total int64
 	var seen int
@@ -155,13 +147,11 @@ func TestExtractEachAggregates(t *testing.T) {
 	if seen != 4 {
 		t.Fatalf("visited %d members, want 4", seen)
 	}
-	if total != 99 { // 41 + 58
+	if total != 99 {
 		t.Fatalf("total = %d, want 99", total)
 	}
 }
 
-// An error raised by the callback is returned unchanged, so a caller's own
-// sentinel survives and can be used to stop the walk early.
 func TestExtractEachPropagatesCallbackError(t *testing.T) {
 	stop := errors.New("stop")
 	var visited int
@@ -211,10 +201,6 @@ func TestExtractMalformedDocument(t *testing.T) {
 	}
 }
 
-// The reason this API exists is that its cost does not grow with the document,
-// so that is what is asserted: a wide object must cost no more allocations than
-// a narrow one. The constant is the adapter callback ExtractEach hands to the
-// parser; nothing is allocated per member.
 func TestExtractEachAllocationIsFlat(t *testing.T) {
 	scan := func(data []byte) float64 {
 		return testing.AllocsPerRun(50, func() {
@@ -240,8 +226,6 @@ func TestExtractEachAllocationIsFlat(t *testing.T) {
 	}
 }
 
-// statsDoc builds a flat stats object with n counters, the shape of an upstream
-// stats payload.
 func statsDoc(n int) []byte {
 	var b strings.Builder
 	b.WriteString(`{"stats":{`)

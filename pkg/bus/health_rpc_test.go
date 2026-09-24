@@ -29,16 +29,11 @@ func TestSubscribeRPCHealthRejectsBadArgumentsBeforeDial(t *testing.T) {
 	if _, err := SubscribeRPCHealth(nil, "users", "", set); err == nil {
 		t.Fatal("SubscribeRPCHealth accepted an empty queue group")
 	}
-	// A nil Set would leave the responder with nothing to report, which reads
-	// as a healthy service rather than as the wiring mistake it is.
 	if _, err := SubscribeRPCHealth(nil, "users", "users-rpc", nil); err == nil {
 		t.Fatal("SubscribeRPCHealth accepted a nil health set")
 	}
 }
 
-// The verdict mapping is what decides whether a sibling's impairment reaches
-// the vertical's public endpoint, so each arm is pinned: degraded must degrade
-// (not fail) and must name the downstream's own failing checks.
 func TestReplyVerdict(t *testing.T) {
 	mysqlDown := []health.CheckResult{
 		{Name: "nats", OK: true},
@@ -71,9 +66,6 @@ func TestReplyVerdict(t *testing.T) {
 		}
 	})
 
-	// A responder that has not been redeployed yet answers with the old shape:
-	// OK and nothing else. It must read as the bool it is, not as an unknown
-	// state that silently passes.
 	t.Run("pre-widening reply falls back to the bool", func(t *testing.T) {
 		if err := replyVerdict(RPCHealthReply{Service: "users", OK: true}); err != nil {
 			t.Fatalf("replyVerdict(legacy ok) = %v", err)
@@ -102,8 +94,6 @@ func TestHealthReplyCarriesTheServiceReport(t *testing.T) {
 	if reply.Status != health.StatusDegraded {
 		t.Fatalf("status = %q, want %q", reply.Status, health.StatusDegraded)
 	}
-	// Degraded is still answering, so OK stays true — the admin console's
-	// latency panel reads this field and only asks whether the service replied.
 	if !reply.OK {
 		t.Fatal("degraded service reported OK=false")
 	}

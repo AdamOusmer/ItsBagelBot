@@ -1,38 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The dirty guard four inspector pages (timers, channel points, commands,
-// modules/[id]) had each rewritten: close / row-switch / new all route through
-// one confirmation instead of silently dropping an in-progress edit.
-//
-// Template Method. The skeleton is fixed -- park the intent, raise the dialog,
-// replay the intent on confirm, drop it on cancel -- and the two varying steps
-// are hooks: `dirty()` says whether there is anything to lose, `onDiscard()`
-// does whatever else the page throws away with the draft (reset the inspector,
-// clear a sessionStorage mirror).
-//
-// The parked action is cleared BEFORE it runs, not after: the replayed action
-// is usually an open, which can itself re-enter the guard, and a stale
-// `afterDiscard` at that moment replays the previous intent a second time.
-//
-// Lives in shared/lib beside the pure inspector-machine. It holds `$state`,
-// which is why it carries the .svelte.ts suffix: that keeps the plain .ts
-// files around it framework-free (what lets the machine be unit-tested without
-// a component harness) while the guard still compiles as a runes module. It
-// moved out of the dashboard's $lib when the admin console picked up the same
-// draft pages -- a second copy of this skeleton is exactly what drifts. The
-// machine once carried the same idea as a closed set of intents
-// (close/select/navigate); nothing used it, because these pages park an
-// arbitrary callback, so that half is gone and this is the only parker.
-
 export type DiscardGuard = {
-  /** Whether the confirmation dialog is showing. */
   readonly open: boolean;
-  /** Run `action` now, or park it behind a confirmation while the draft is dirty. */
   guard: (action: () => void) => void;
-  /** User chose to discard: drop the draft and replay the parked action. */
   confirm: () => void;
-  /** User chose to keep editing. */
   cancel: () => void;
 };
 

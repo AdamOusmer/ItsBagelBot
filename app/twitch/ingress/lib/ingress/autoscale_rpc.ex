@@ -2,28 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.AutoscaleRpc do
-  @moduledoc """
-  NATS request-reply handler for toggling the load-based autoscaler.
-
-  Subject: `NATS_AUTOSCALE_SUBJECT` (default
-  `twitch.ingress.admin.shards.autoscale`).
-
-  Request body (JSON):
-
-      {"enabled": true}
-      {"enabled": false}
-
-  Reply: full cluster snapshot from `Ingress.AdminRpc.snapshot/0` (same shape
-  as the read-only admin endpoint), so the console can refresh state in a
-  single round-trip.
-
-  On bad input the reply is:
-
-      {"error": "reason string"}
-
-  The handler never crashes on malformed requests.
-  """
-
   use Ingress.RpcServer, log: "autoscale rpc"
 
   import Ingress.RpcServer, only: [decode_field: 3, scaler_reply: 1]

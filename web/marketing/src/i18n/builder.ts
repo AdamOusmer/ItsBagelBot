@@ -1,21 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Command-builder catalog + UI copy, both locales. This file is the marketing
-// site's single source of truth for what the bot actually expands, verified
-// against the worker: custom-command tokens in app/twitch/sesame/engine/scope/
-// (one file per scope; the old engine/vars.go switch this used to name was
-// deleted when the scope chain replaced it), dynamic tokens in
-// app/twitch/sesame/module/vars.go, module reply tokens in each
-// app/twitch/sesame/modules/*.go, and limits in internal/domain/validate/validate.go
-// (mirrored by web/kit/lib/engine/commands-validate.ts). If a token isn't
-// expanded there, it doesn't belong here, the bot leaves unknown braces
-// as literal text.
-
-// Lang/defaultLang come from lang.ts, not ui.ts: ui.ts's module body runs
-// import.meta.glob, which only Vite/Astro implement. bun test (the golden
-// test in lib/variables/reference.golden.test.ts) evaluates this file
-// directly, so the glob-bearing module must stay off this import path.
 import { defaultLang, type Lang } from './lang';
 import { SITE } from '@bagel/kit/site-links';
 import { COMMAND_NAME_MAX, RESPONSE_MAX, RESPONSE_MAX_LINES, COOLDOWN_MAX } from '@bagel/kit/engine/commands-validate';
@@ -27,39 +12,19 @@ import type { ReplyToken } from '@bagel/kit/catalog/module-def';
 
 type L10n = Record<Lang, string>;
 
-/** One localized string, falling back to the default locale for a new language. */
 const pick = (m: L10n, lang: Lang): string => m[lang] ?? m[defaultLang];
 
-// Kit now owns the variable and reply-token manifest and its copy
-// (docs/specs/variables-catalog.md D2/D3): this builder derives every var's
-// name/desc from kit's locale catalogs instead of carrying its own. Astro
-// renders this module at build time, and SURFACES below is a module-level
-// constant holding BOTH locales at once (like the old per-family arrays it
-// replaces). staticText (kit/lib/i18n/static.ts) reads its en/fr catalogs
-// via a plain static import, so it is ready the moment this module runs,
-// no top-level await or catalog-loading step needed: that used to sit here
-// waiting on @bagel/kit/i18n's ensureCatalog(), a Vite-glob-backed lazy
-// loader that also runs under bun's `astro build` fine but cannot run under
-// plain `bun test` at all (`import.meta.glob is not a function`), which is
-// what the marketing golden test (lib/variables/reference.golden.test.ts)
-// needs.
 const KIT_LOCALES = new Set(['en', 'fr']);
 
-/** Resolve a kit locale key for a marketing Lang (an open string, unlike
- * kit's closed 'en' | 'fr' static-catalog set); falls back to English for
- * any other lang. */
 export function kitText(lang: Lang, key: string): string {
   const locale = KIT_LOCALES.has(lang) ? (lang as 'en' | 'fr') : 'en';
   return staticText(locale, key);
 }
 
-/** Both locales of one kit key, for a builder record that (like the old
- * per-family arrays) holds every language at once. */
 function l10n(key: string): L10n {
   return { en: kitText('en', key), fr: kitText('fr', key) };
 }
 
-/** One scope choice for a counter var's picker (see COUNTER_SCOPES below). */
 interface ScopeDef {
   id: string;
   label: L10n;
@@ -71,24 +36,8 @@ export interface VarDef {
   sample: string;
   name: L10n;
   desc: L10n;
-  /** Counter vars only: the four scope choices shown in the builder's picker. */
   scopes?: ScopeDef[];
-  /** Set from the owning kit VariableDef.pinned (kitVarDef): the custom
-   * surface's chip strip shows only the pinned six, same set and same reason
-   * as the dashboard's ResponseEditor (docs/specs/variables-catalog.md
-   * phase 4). Unset (falsy) for every hand-written module-reply VarDef,
-   * since only the custom surface is capped. */
   pinned?: boolean;
-  /** Set only for a VarDef built from a kit VariableForm (kitVarDef): the
-   * owning VariableDef's id, straight from the source, so the marketing
-   * catalog (lib/variables/index.ts buildCatalog) can fold every form of one
-   * variable onto its one record without re-deriving ownership from the
-   * form's own lexer head. That re-derivation is exactly what broke on
-   * positional's {:m} form: its head is "" (an empty name, not "positional"),
-   * so a head-keyed lookup minted it a bogus record of its own instead of
-   * folding it into {positional}'s. A hand-written module-reply VarDef (v(),
-   * no kit variable behind it) leaves this unset, and the marketing catalog
-   * falls back to head-matching for those, unchanged. */
   kitId?: string;
 }
 
@@ -96,12 +45,9 @@ export interface SurfaceDef {
   id: string;
   group: L10n;
   label: L10n;
-  /** Where this template is edited in the dashboard. */
   dashPath: string;
   hint: L10n;
-  /** Starter template shown when the surface is selected. */
   example: L10n;
-  /** The viewer/system line shown in the rehearsal. */
   prompt: L10n;
   vars: VarDef[];
 }
@@ -113,11 +59,6 @@ const v = (token: string, sample: string, name: L10n, desc: L10n): VarDef => ({
   desc,
 });
 
-// The four broadcaster-facing counter scopes (data.CounterScope*, minus the
-// admin-only "bot" scope, which never appears outside the console). Chosen
-// once, when the counter is created (dashboard Counters page, or !counter
-// create <name> [scope]). The token itself never carries the scope, so this
-// only powers the builder's counter picker (name + scope) and its hint text.
 const COUNTER_SCOPES: ScopeDef[] = [
   {
     id: 'channel',
@@ -141,31 +82,10 @@ const COUNTER_SCOPES: ScopeDef[] = [
   },
 ];
 
-// Every var the custom-command surface offers now comes straight from kit's
-// manifest (docs/specs/variables-catalog.md D2/D3, phase 3 section A): one
-// VarDef per kit VariableForm, copy resolved through kitText from
-// vars.<id>.{name,desc} rather than carried here. Which forms beyond the
-// canonical one get their own VarDef used to be a hand-kept MULTI_FORM_IDS
-// set of ids (whole-variable granularity: every form of 'positional' and
-// 'random', nothing else); it is now VariableForm.chipHint (phase 4), the
-// same per-FORM flag the dashboard's ResponseEditor chip strip reads
-// (surfaces.ts's chipsOfVariable), so the builder and the console show
-// exactly the same extra forms as chips instead of trusting two lists to
-// agree.
-// Counter vars are the only ones carrying a scope picker (see COUNTER_SCOPES).
-// 'count' used to be its own manifest id (the {count:<name>} read-only
-// alias); it merged away when {counter:x} itself stopped writing and picked
-// up the alias's forms, so 'counter' is the one id left to carry the picker
-// — the scope a broadcaster reads FROM, not one they write to any more (the
-// write moved to the command-run "bump a counter" option).
 const SCOPED_IDS = new Set(['counter']);
 
 function kitVarDef(def: VariableDef, form: VariableForm): VarDef {
   const built = v(form.example, form.output, l10n(`vars.${def.id}.name`), l10n(`vars.${def.id}.desc`));
-  // pinned only ever true on the canonical form (forms[0]): the pinned six
-  // are all single-form ids today, but this stays form-scoped rather than
-  // id-scoped so a future pinned multi-form id cannot pin its extra chips by
-  // accident.
   const withId = { ...built, kitId: def.id, pinned: def.pinned && form === def.forms[0] };
   return SCOPED_IDS.has(def.id) ? { ...withId, scopes: COUNTER_SCOPES } : withId;
 }
@@ -177,12 +97,6 @@ function customSurfaceVars(): VarDef[] {
   });
 }
 
-// A module reply's token copy (name/desc) now lives in kit locales under
-// replyVars.<hintKey-without-".hint">.{name,desc}, set alongside each
-// ReplyToken's hintKey in catalog/*.ts (docs/specs/variables-catalog.md
-// phase 3 section A.3). Falling back to the bare token name/no description
-// only guards a future catalog entry that forgets to wire hintKey; every
-// token this builder reaches for today has one.
 function replyTokenVarDef(token: ReplyToken): VarDef {
   const base = token.hintKey?.replace(/\.hint$/, '');
   const name = base ? l10n(`${base}.name`) : { en: token.name, fr: token.name };
@@ -190,16 +104,12 @@ function replyTokenVarDef(token: ReplyToken): VarDef {
   return v(`{${token.name}}`, token.sample, name, desc);
 }
 
-// {random}, {random:1-6} and {choice:…} work in custom commands and in
-// every module reply template (module.ParseDynamic is each module's
-// fallback), so every module surface below appends this same trio.
 function dynamicFormVars(): VarDef[] {
   const random = variableById('random')!;
   const choice = variableById('choice')!;
   return [...random.forms.map((form) => kitVarDef(random, form)), ...choice.forms.map((form) => kitVarDef(choice, form))];
 }
 
-/** A module reply named the way its kit hintKey namespace is: `<moduleId>.<replyKey>`. */
 type ReplyRef = `${string}.${string}`;
 
 function moduleReplyTokens(ref: ReplyRef): readonly ReplyToken[] {
@@ -209,27 +119,16 @@ function moduleReplyTokens(ref: ReplyRef): readonly ReplyToken[] {
   return tokens;
 }
 
-/** A module reply surface's vars: the reply's own tokens plus the shared
- * dynamic trio every module reply accepts. */
 function moduleSurfaceVars(ref: ReplyRef): VarDef[] {
   return [...moduleReplyTokens(ref).map(replyTokenVarDef), ...dynamicFormVars()];
 }
 
-/** A built-in command's reply surface (!clip): unlike a module reply, a
- * built-in's ParseDynamic pass has never carried the dynamic trio, so this
- * does not append dynamicFormVars() (matches the deleted 'clip' VarDef list,
- * which never appended the shared dynamic trio either). */
 function builtinSurfaceVars(id: string): VarDef[] {
   const tokens = BUILTIN_COMMANDS.find((cmd) => cmd.id === id)?.tokens;
   if (!tokens) throw new Error(`builder.ts: no builtin command "${id}" tokens in the kit catalog`);
   return tokens.map(replyTokenVarDef);
 }
 
-/** A surface with no kit reply behind it at all (Trigger Words' rule
- * response, a Channel Points reward line): the token list stays
- * hand-written here, but its copy still moves to kit locales under
- * replyVars.<surfaceId>.<token>.{name,desc} (section A.2's "MUST NOT carry
- * inline copy"), same as every mapped surface above. */
 function explicitVars(surfaceId: string, tokens: readonly ReplyToken[]): VarDef[] {
   return tokens.map((token) => replyTokenVarDef({ ...token, hintKey: `replyVars.${surfaceId}.${token.name}.hint` }));
 }
@@ -303,10 +202,6 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Trigger Words module → the response side of a rule.', fr: 'Module Mots déclencheurs → la partie réponse d’une règle.' },
     example: { en: 'Hey {user}! {choice:Welcome in,Good to see you}!', fr: 'Salut {user}! {choice:Bienvenue,Contente de te voir}!' },
     prompt: { en: 'hello everyone', fr: 'bonjour tout le monde' },
-    // Trigger Words rules have no fixed kit reply (the rule text is
-    // broadcaster-written, docs/specs/variables-catalog.md phase 3 section
-    // A.2), so {user} stays a hand-written token here; its copy still moved
-    // to kit locales (replyVars.triggers.user).
     vars: [...explicitVars('triggers', [{ name: 'user', sample: 'maya_live' }]), ...dynamicFormVars()],
   },
   {
@@ -337,16 +232,6 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Channel Points page → the chat line a redemption posts.', fr: 'Page Points de chaîne → la ligne publiée lors d’un échange.' },
     example: { en: '{user} redeemed {reward} ({cost} pts): {input}', fr: '{user} a échangé {reward} ({cost} pts): {input}' },
     prompt: { en: 'maya_live redeemed Hydrate!', fr: 'maya_live a échangé Hydrate!' },
-    // Channel Points DOES have a reply on the kit module catalog now
-    // (CHANNELPOINTS_MODULE.replies[0], key 'reply' -- added for the
-    // reply-token parity handshake with app/twitch/sesame/modules/
-    // reply_tokens.go's "channelpoints.reply"), so this reads its tokens the
-    // same way every other module surface below does instead of keeping a
-    // second, hand-typed copy that can drift from it. The hand-written list
-    // this replaced composed `replyVars.channelpoints.<token>.hint`, one
-    // path segment short of where replyTokens() actually wrote the kit
-    // locale strings (`replyVars.channelpoints.reply.<token>.hint`), which
-    // is why {input}/{cost}/{reward} showed the raw key instead of copy.
     vars: moduleSurfaceVars('channelpoints.reply'),
   },
   {
@@ -377,8 +262,6 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Bedwars Stats module → session-stats reply.', fr: 'Module Stats Bedwars → réponse des stats de période.' },
     example: { en: '{player}: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR', fr: '{player}: {wins}V {losses}D · {finals} finals · {beds} lits · {fkdr} FKDR' },
     prompt: { en: '!daily Technoblade', fr: '!daily Technoblade' },
-    // Represents !daily/!weekly/!monthly, which share this exact token set
-    // (BW_SESSION_TOKENS in kit's catalog/urchin.ts).
     vars: moduleSurfaceVars('urchin.daily'),
   },
   {
@@ -523,8 +406,6 @@ export const SURFACES: SurfaceDef[] = [
   },
 ];
 
-// First-line chat actions (app/twitch/sesame/engine/slash.go). Values are prefixes
-// prepended to the first response line.
 export const STYLES: { value: string; label: L10n }[] = [
   { value: '', label: { en: 'Normal message', fr: 'Message normal' } },
   { value: '/me ', label: { en: 'Action (/me)', fr: 'Action (/me)' } },
@@ -537,7 +418,6 @@ export const STYLES: { value: string; label: L10n }[] = [
   { value: '/pin ', label: { en: 'Pin the message', fr: 'Épingler le message' } },
 ];
 
-// Access levels, low → high (app/twitch/sesame/module/permission.go, dashboard PERMS).
 export const PERMS: { value: string; label: L10n }[] = [
   { value: 'everyone', label: { en: 'Everyone', fr: 'Tout le monde' } },
   { value: 'sub', label: { en: 'Subscribers & up', fr: 'Abonnés et plus' } },
@@ -547,7 +427,6 @@ export const PERMS: { value: string; label: L10n }[] = [
   { value: 'broadcaster', label: { en: 'Broadcaster only', fr: 'Diffuseur seulement' } },
 ];
 
-// The builder uses the same validation limits as the dashboard.
 export const LIMITS = {
   nameMax: COMMAND_NAME_MAX,
   aliasMax: 25,
@@ -558,7 +437,6 @@ export const LIMITS = {
 
 export const DASHBOARD_ORIGIN = SITE.dashboard;
 
-// Quick-start recipes offered under the response field, both locales.
 const RECIPES: { label: L10n; text: L10n }[] = [
   { label: { en: 'Welcome someone', fr: 'Accueillir quelqu’un' }, text: { en: 'Welcome in, {user}! Grab a seat 🥯', fr: 'Bienvenue, {user}! Installe-toi 🥯' } },
   { label: { en: 'Roll a number', fr: 'Lancer un dé' }, text: { en: '{user} rolled {random:1-100} out of 100.', fr: '{user} lance {random:1-100} sur 100.' } },
@@ -566,12 +444,10 @@ const RECIPES: { label: L10n; text: L10n }[] = [
   { label: { en: 'Count the falls', fr: 'Compter les chutes' }, text: { en: '{channel} has fallen {counter:falls} times.', fr: '{channel} est tombé {counter:chutes} fois.' } },
 ];
 
-/** The quick-start recipes for one locale, default-locale fallback per string. */
 export function builderRecipes(lang: Lang): { label: string; text: string }[] {
   return RECIPES.map((r) => ({ label: pick(r.label, lang), text: pick(r.text, lang) }));
 }
 
-// UI copy for the builder page chrome, both locales.
 const UI = {
   metaTitle: {
     en: 'Command Builder - ItsBagelBot',
@@ -606,10 +482,6 @@ const UI = {
   sendHelp: { en: 'Review the summary that opens, press Create, done.', fr: "Relisez le récapitulatif qui s'ouvre, appuyez sur Créer, c'est fait." },
   step3Title: { en: 'Make it dynamic', fr: 'Rendez-la dynamique' },
   step3Sub: { en: 'Click a variable to insert it at your cursor. Only variables that work here are shown.', fr: 'Cliquez une variable pour l’insérer au curseur. Seules les variables qui fonctionnent ici sont montrées.' },
-  // The builder shows SIX variables and nothing else -- no toggle, no hidden
-  // rest-of-catalog -- so there is no "More variables" string to translate.
-  // Which six, and why the toggle is not coming back, is written out beside
-  // VariableDef.pinned in @bagel/kit/variables/types.ts.
   counterNameAria: { en: 'Counter name', fr: 'Nom du compteur' },
   counterScopeAria: { en: 'Counter scope', fr: 'Portée du compteur' },
   bracesSummary: { en: 'What do the braces mean?', fr: 'Que signifient les accolades?' },
@@ -618,9 +490,6 @@ const UI = {
     fr: 'Une variable est un espace réservé. Écrivez «Bonjour {user}» et si Maya l’utilise, le bot dit «Bonjour Maya». Gardez les deux accolades telles quelles; une variable inconnue reste du texte littéral. Ajoutez un «|» et du texte dans n’importe quelle variable pour une valeur par défaut quand elle revient vide: {touser|tout le monde} affiche «tout le monde» si personne n’est nommé.',
   },
   previewTitle: { en: 'Live rehearsal', fr: 'Répétition en direct' },
-  // Rehearsal chrome: word-for-word the dashboard's chatPreview catalog
-  // (web/kit/lib/i18n/{en,fr}.ts), so the builder reads as the same
-  // surface reaching out onto the marketing site.
   rehearsal: { en: 'Chat rehearsal', fr: 'Répétition du chat' },
   ariaTyping: { en: 'Bot is typing', fr: "Le bot est en train d'écrire" },
   announcement: { en: 'Announcement', fr: 'Annonce' },
@@ -662,7 +531,6 @@ export function builderUI(lang: Lang): Record<UIKeys, string> {
   return out;
 }
 
-/** Everything the builder page needs, resolved for one locale. */
 export function builderData(lang: Lang) {
   return {
     lang,

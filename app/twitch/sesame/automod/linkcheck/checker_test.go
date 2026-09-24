@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-// waitFor polls cond until it holds or the deadline lapses, because the
-// checker resolves asynchronously by design.
 func waitFor(t *testing.T, cond func() bool) bool {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -26,9 +24,6 @@ func waitFor(t *testing.T, cond func() bool) bool {
 	return false
 }
 
-// harness wires a checker against httptest-backed oracles: a one-line feed and
-// a security resolver that blocks everything. Tests needing different answers
-// build their own oracle inline.
 type harness struct {
 	checker *Checker
 	hits    chan Hit
@@ -190,7 +185,7 @@ func TestOracleOutageNeverCachesAndCoolsDown(t *testing.T) {
 	waitFor(t, func() bool {
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		return c.cooldown[key] > nowNanos()
+		return c.retryAfterNanos[key] > nowNanos()
 	})
 	if _, ok := c.cache.get(key); ok {
 		t.Fatal("oracle outage cached an answer")

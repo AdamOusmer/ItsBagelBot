@@ -4,15 +4,8 @@
 
 import { dashboardHref } from '@bagel/kit/site-links';
 
-/**
- * Tiers, pricing with the convention flipped: Free is the hero card because
- * Free is the product. Premium is framed as the tip jar it actually is, and
- * Enterprise sits quietly beside it. Count-up price, stroke-drawn checks.
- */
 import Card from '@bagel/ui/astro/Card.astro';
 import { Image } from 'astro:assets';
-// Rendered at 80px tall; the source is a 1024px 834 kB PNG. Serving it
-// through astro:assets ships a ~160px webp of a few kB instead.
 import premiumLogo from '../../assets/premium-logo.png';
 import { getLangFromUrl, useTranslations, defaultLang, dashLoginHref } from '../../i18n/ui';
 
@@ -34,7 +27,6 @@ const enterpriseFeatures = [
 ---
 
 <section class="tiers">
-    <!-- Free: the whole product -->
     <div class="tier-glow" data-reveal>
     <Card atmo hover class="tier tier--free">
         <div class="tier-free__layout">
@@ -67,7 +59,6 @@ const enterpriseFeatures = [
     </div>
 
     <div class="tiers__pair">
-        <!-- Premium: the tip jar -->
         <Card atmo hover class="tier tier--premium" data-reveal style="--reveal-i: 1">
             <div class="tier__demo" slot="band" aria-hidden="true">
                 <span class="tier__premium-float bb-stack">
@@ -91,8 +82,6 @@ const enterpriseFeatures = [
                     </li>
                 ))}
             </ul>
-            <!-- Deep link: signs the visitor in (Twitch OAuth, path preserved)
-                 and lands on billing with checkout auto-opened. -->
             <a
                 class="bb-btn bb-btn--quiet tier__btn tier__btn--outline"
                 href={dashboardHref('/billing?subscribe=1', lang === defaultLang ? '' : `?lang=${lang}`)}
@@ -102,7 +91,6 @@ const enterpriseFeatures = [
             <p class="tier__tebex-note">{t('tier.tebexNote')}</p>
         </Card>
 
-        <!-- Enterprise -->
         <Card atmo hover class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
             <div class="tier__demo" slot="band" aria-hidden="true">
                 <div class="tier__demo-ent">
@@ -154,8 +142,6 @@ const enterpriseFeatures = [
         display: grid;
         grid-template-columns: 1fr;
         gap: 24px;
-        /* The premium logo is the tallest thing either housing holds (80px);
-           both tiers take that height so the two seams meet across the pair. */
         --card-band-h: 116px;
     }
 
@@ -163,21 +149,8 @@ const enterpriseFeatures = [
         .tiers__pair { grid-template-columns: repeat(2, 1fr); }
     }
 
-    /* Keyed on the class this page puts ON its cards, not on `.bb-card`. */
     :global(.tier) { flex: 1; }
 
-    /* ── Card internals ── */
-
-    /* Banded tiers (premium, enterprise) get their column from the card's body
-       box. The free tier is FLAT, and a flat card renders its children
-       directly now (@bagel/ui C6: a card whose root carries the layout cannot
-       have a mandatory wrapper), so it takes the same column on the card
-       itself. */
-    /* The card contract's own body knobs
-       (@bagel/ui/styles/elements/card.css): a banded card whose body is a
-       full-height column, so each tier's CTA sits at its bottom edge whatever
-       the feature list above it does. Was a `.tier :global(.bb-card__body)`
-       reach-in here. */
     .tiers {
         --card-body-display: flex;
         --card-body-dir: column;
@@ -191,9 +164,6 @@ const enterpriseFeatures = [
         box-shadow: 0 0 32px rgba(201, 168, 124, 0.08);
     }
 
-    /* The breathing glow is a static peak shadow on its own layer, faded on
-       opacity (@bagel/ui/styles/motion.css). It sits on a wrapper because the
-       card clips its own overflow. */
     .tier-glow {
         position: relative;
         display: flex;
@@ -263,15 +233,6 @@ const enterpriseFeatures = [
         z-index: 1;
     }
 
-    /* The badge hangs on the seam between the housing and the plate: the body
-       is its positioned ancestor, so `top: 0` centres it on that line. The
-       body's own 24px of padding already clears it, which is why the extra
-       padding-top this card used to carry is gone, it was inert anyway,
-       outranked by Card's own band-body rule. */
-
-    /* ── Demo stage (mirrors QuietWork and Games) ──
-       Lives in the Card's housing band (slot="band"); the band owns the
-       chrome, outer padding and the 104px minimum height. */
     .tier__demo {
         display: flex;
         flex-direction: column;
@@ -329,12 +290,6 @@ const enterpriseFeatures = [
         overflow: hidden;
     }
 
-    /* Was .ent-light, a 4px circle blinking a box-shadow glow (entBlink). The
-       row is the bordered container, so the light is a bare .bb-mark and the
-       row itself carries the .bb-sweep, keeping the per-row stagger. */
-    /* Keyed on the mark's own class in this file's markup rather than on the
-       shared `.bb-mark`: the diamond is green HERE because it stands for a
-       server that is up. */
     .ent-server__light {
         color: var(--green-glow, #52b788);
     }
@@ -443,10 +398,6 @@ const enterpriseFeatures = [
 
     .tier--free .tier__feature { color: rgba(240, 236, 228, 0.75); }
 
-    /* ── Buttons ── */
-
-    /* Layout hooks only: the look comes from .bb-btn in style.css. The
-       card is a column, so margin-top:auto pins the button to the foot. */
     .tier__btn {
         margin-top: auto;
         justify-content: center;
@@ -456,8 +407,6 @@ const enterpriseFeatures = [
     .tier__btn--main {
         align-self: flex-start;
     }
-
-    /* ── Oath strip ── */
 
     .tiers__oath {
         font-family: var(--font-mono, "DM Mono", monospace);
@@ -477,7 +426,6 @@ const enterpriseFeatures = [
     import { bindOnce } from '../../script/bind';
     import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 
-    /* Price count-up when the amount scrolls into view */
     function runCountUp(el: HTMLElement) {
         const target = parseInt(el.dataset.target ?? '0', 10);
         const suffix = el.dataset.suffix ?? '';

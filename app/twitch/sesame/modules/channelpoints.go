@@ -16,25 +16,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// channelPointsModuleName is the ModuleView key. The dashboard's Channel Points
-// tab (not the modules page) writes this row: its enable toggle gates the module
-// and its Configs blob carries the reward->action bindings this handler reads.
 const channelPointsModuleName = "channelpoints"
 
-// redemptionAddType is the EventSub type a channel-points redemption arrives on.
-// Registering a handler for it makes the registry mark the type as needing the
-// broadcaster's ModuleView fetched, so the bindings blob reaches this handler.
 const redemptionAddType = "channel.channel_points_custom_reward_redemption.add"
 
-// Reward action kinds. "chat" posts the binding's message; "none" (or anything
-// unknown) runs nothing, leaving only the onRedeem policy to act.
 const (
 	rewardActionChat = "chat"
 	rewardActionNone = "none"
 )
 
-// Redemption resolution policies (what to do with the redemption in Twitch's
-// request queue after the action runs). "leave" leaves it UNFULFILLED for a mod.
 const (
 	onRedeemFulfill = "fulfill"
 	onRedeemCancel  = "cancel"
@@ -43,43 +33,20 @@ const (
 
 const defaultRewardChatTemplate = "{user} redeemed {reward}!"
 
-// channelPointsConfig is the module's dashboard configuration: one binding per
-// reward the broadcaster wants the bot to react to. The dashboard owns the
-// Twitch-side reward (via the outgress channelpoints RPC) and mirrors the
-// reward->action mapping here so sesame can act on a redemption without any RPC
-// of its own.
 type channelPointsConfig struct {
 	Rewards []rewardBinding `json:"rewards"`
 }
 
-// rewardBinding maps one Twitch custom reward id to the action the bot runs when
-// it is redeemed, plus how to resolve the redemption afterward.
 type rewardBinding struct {
-	// ID is the Twitch custom reward id (event.reward.id).
-	ID string `json:"id"`
-	// Action is rewardActionChat or rewardActionNone; empty/unknown = none.
-	Action string `json:"action"`
-	// Message is the chat template; tokens {user} {input} {reward} {cost}
-	// {channel} {counter} plus the dynamic {random}/{choice:...} set.
-	Message string `json:"message"`
-	// OnRedeem is the resolution policy (fulfill/cancel/leave); empty = leave.
+	ID       string `json:"id"`
+	Action   string `json:"action"`
+	Message  string `json:"message"`
 	OnRedeem string `json:"onRedeem"`
-	// Counter, when set, bumps that loyalty counter by one per redemption (a
-	// viewer-scoped counter bumps the redeemer's own value). The new value is
-	// exposed to Message as {counter}.
-	Counter string `json:"counter"`
-	// Points, when positive, awards that many loyalty points to the redeemer
-	// per redemption — channel points buying channel currency. Exposed to
-	// Message as {points}.
-	Points int64 `json:"points"`
-	// LiveOnly gates the loyalty writes (counter bump + points award) to when
-	// the broadcaster is live, so channel points redeemed offline cannot farm
-	// currency or inflate a counter. The chat reply and queue resolution still
-	// run either way.
-	LiveOnly bool `json:"liveOnly"`
+	Counter  string `json:"counter"`
+	Points   int64  `json:"points"`
+	LiveOnly bool   `json:"liveOnly"`
 }
 
-// redemptionEvent is the subset of the redemption.add EventSub payload we use.
 type redemptionEvent struct {
 	ID                   string `json:"id"`
 	BroadcasterUserID    string `json:"broadcaster_user_id"`
@@ -95,15 +62,6 @@ type redemptionEvent struct {
 	} `json:"reward"`
 }
 
-// ChannelPoints reacts to Twitch channel-points redemptions. It is a named,
-// opt-in module (KindOptIn): off by default, enabled from the dashboard's
-// Channel Points tab once the broadcaster has created a reward there. On a
-// redemption it looks up the reward's binding and, if configured, posts a chat
-// line, then optionally resolves the redemption in Twitch's queue (fulfill /
-// cancel-refund) via an outgress redemption_update.
-//
-// It owns no commands: a redemption is not a chat command, so there is nothing
-// to gate on the command path — the module is purely event-driven.
 func ChannelPoints(d engine.Deps) module.Module {
 	m := module.NewModule(channelPointsModuleName, module.KindOptIn)
 
@@ -127,10 +85,6 @@ func ChannelPoints(d engine.Deps) module.Module {
 			return nil
 		}
 
-		// Loyalty writes are the only live-gated part; the chat reply and queue
-		// resolution always run. Skipping the counter bump also skips its
-		// {counter} value, so the template renders without the token — the same
-		// as an unbound counter.
 		var counterValue string
 		if loyaltyLive(ctx, d, c.BroadcasterID, binding.LiveOnly) {
 			awardRewardPoints(d, c, binding, ev)
@@ -149,11 +103,6 @@ func ChannelPoints(d engine.Deps) module.Module {
 	return m.Build()
 }
 
-// loyaltyLive reports whether the binding's loyalty writes may run: always
-// when the binding is not live-gated, otherwise only while the broadcaster is
-// live. A live-check error fails closed (skip the writes) so an offline redeem
-// is never credited on a transient read failure. A nil live store passes (the
-// gate has nothing to consult).
 func loyaltyLive(ctx context.Context, d engine.Deps, broadcasterID uint64, liveOnly bool) bool {
 	if !liveOnly || d.Live == nil {
 		return true
@@ -162,8 +111,6 @@ func loyaltyLive(ctx context.Context, d engine.Deps, broadcasterID uint64, liveO
 	return err == nil && live
 }
 
-// awardRewardPoints hands the binding's loyalty-point award (if any) to the
-// redeemer — fire-and-forget through the loyalty reporter, like every accrual.
 func awardRewardPoints(d engine.Deps, c *module.Context, b rewardBinding, ev redemptionEvent) {
 	if b.Points <= 0 || d.Loyalty == nil {
 		return
@@ -175,13 +122,6 @@ func awardRewardPoints(d engine.Deps, c *module.Context, b rewardBinding, ev red
 	d.Loyalty.Earn(c.BroadcasterID, viewerID, ev.UserLogin, ev.UserName, b.Points, 0)
 }
 
-// bumpRewardCounter bumps the binding's loyalty counter (if any) once for this
-// redemption and returns the new value for the {counter} template token. The
-// reward title keys a viewer+command counter's bucket the same way a command's
-// canonical name does — Twitch enforces unique custom-reward titles per
-// channel, so the title is the reward's name in exactly the sense a trigger is
-// a command's. A failure (or no loyalty store) returns "" so the chat action
-// still runs.
 func bumpRewardCounter(ctx context.Context, d engine.Deps, c *module.Context, b rewardBinding, ev redemptionEvent) string {
 	if b.Counter == "" || d.Loyalty == nil {
 		return ""
@@ -208,14 +148,6 @@ func bumpRewardCounter(ctx context.Context, d engine.Deps, c *module.Context, b 
 	return strconv.FormatInt(value, 10)
 }
 
-// findBinding returns the binding for a redeemed reward id, if the broadcaster
-// configured one.
-//
-// Kept a linear scan on purpose. cfg.Rewards comes from c.Decode on every
-// redemption event and is thrown away with it, so a map[string]rewardBinding
-// would have to be rebuilt per event: one extra allocation and len(rewards)
-// hash inserts to replace a scan of the same slice that answers on the first
-// hit. A map only pays once the decoded config outlives the event.
 func findBinding(rewards []rewardBinding, rewardID string) (rewardBinding, bool) {
 	for _, r := range rewards {
 		if r.ID == rewardID {
@@ -225,11 +157,6 @@ func findBinding(rewards []rewardBinding, rewardID string) (rewardBinding, bool)
 	return rewardBinding{}, false
 }
 
-// rewardChatParams bundles a redemption's chat-action inputs. It exists so
-// emitRewardAction/expandReward take one param each instead of the
-// locale/binding/event/counter grab-bag they used to pass around
-// individually — the four always travel together (one redemption, one
-// binding, one resolved counter value) and never vary independently.
 type rewardChatParams struct {
 	locale       string
 	binding      rewardBinding
@@ -237,8 +164,6 @@ type rewardChatParams struct {
 	counterValue string
 }
 
-// emitRewardAction runs the binding's chat action. A "none" (or unknown) action
-// does nothing, leaving only the resolution policy to act.
 func emitRewardAction(p rewardChatParams, emit module.Emit) {
 	if p.binding.Action != rewardActionChat {
 		return
@@ -248,8 +173,6 @@ func emitRewardAction(p rewardChatParams, emit module.Emit) {
 	}
 }
 
-// emitRedemptionResolution resolves the redemption in Twitch's queue per the
-// binding's policy. "leave" (or empty) emits nothing, leaving it for a human mod.
 func emitRedemptionResolution(b rewardBinding, ev redemptionEvent, emit module.Emit) {
 	var status string
 	switch b.OnRedeem {
@@ -269,28 +192,10 @@ func emitRedemptionResolution(b rewardBinding, ev redemptionEvent, emit module.E
 	})
 }
 
-// sanitizeRewardInput strips a leading slash/space run from viewer-typed
-// reward text, mirroring the engine's sanitizeVar for command {args}. With
-// slash-verbs now routed on every emit path, a template leading with
-// {input} must not let a redeemer mint /announce (or any verb) as the bot —
-// a redeemer's text can become the start of a chat line. Non-leading
-// slashes (URLs) are untouched.
-//
-// Shared by every reward surface that exposes {input} (channelpoints,
-// songqueue_redeem) so the same template behaves identically wherever a
-// broadcaster pastes it: songqueue_redeem used to skip this and channelpoints
-// did not, which meant a "{input}" template was safe on one reward and not
-// the other.
 func sanitizeRewardInput(raw string) string {
 	return strings.TrimLeft(raw, " /")
 }
 
-// expandReward substitutes the reward template tokens: {user} the redeemer's
-// display name, {input} the text they typed (sanitized, see
-// sanitizeRewardInput), {reward} the reward title, {cost} the point cost,
-// {channel} the broadcaster login, {counter} the bound counter's new value
-// (when the binding has one), {points} the loyalty points the binding awards
-// (when positive), plus the pure family ({random}, {choice:…}, {math:…}, …).
 func expandReward(p rewardChatParams) string {
 	ev := p.event
 	kv := []string{
@@ -300,10 +205,6 @@ func expandReward(p rewardChatParams) string {
 		"cost", strconv.Itoa(ev.Reward.Cost),
 		"channel", ev.BroadcasterUserLogin,
 	}
-	// counter and points are omitted rather than bound empty when the
-	// binding has neither: an omitted name falls through Resolve to the pure
-	// family (literal for an unknown name), the same "not filled in" signal
-	// the old switch's ok=false gave.
 	if p.counterValue != "" {
 		kv = append(kv, "counter", p.counterValue)
 	}

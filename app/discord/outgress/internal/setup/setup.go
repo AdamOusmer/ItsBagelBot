@@ -24,44 +24,25 @@ const (
 	permViewChannel  int64 = 1024
 	permSendMessages int64 = 2048
 
-	// maxCreateRetries bounds how many Retry-After waits one create pays
-	// before the fill gives up; the guild create buckets are tight and a
-	// 21-call fill can trip them twice.
 	maxCreateRetries = 3
 )
 
-// ErrGuildBoundElsewhere refuses a guild already linked to a different
-// Twitch channel. It fires before any write, so a caller who can reach the
-// RPC cannot re-point someone else's server at their own broadcaster id.
 var ErrGuildBoundElsewhere = errors.New("this Discord server is already linked to another Twitch channel")
 
-// ErrGuildNotBound is "no binding at all", as opposed to
-// ErrGuildBoundElsewhere's "bound to someone else". It wraps that error, and
-// carries the identical message, on purpose: the console branched on the
-// message substring before reply codes existed, so the two cases have to
-// stay indistinguishable on the wire while being distinguishable in Go (the
-// RPC layer maps them to different codes -- see rpc.codeFor).
+// Must keep ErrGuildBoundElsewhere's exact message: older consoles match the text.
 var ErrGuildNotBound = fmt.Errorf("%w", ErrGuildBoundElsewhere)
 
-// ErrDiscordUnavailable is returned when no Discord client is attached (no
-// bot token) -- exported so the RPC layer can map it to a reply code instead
-// of matching its message.
 var ErrDiscordUnavailable = errors.New("discord client unavailable")
 
-// GuildSetupResult is the snowflakes the dashboard writes into the Discord
-// module blob after a fill. Outgress does not write modules.
 type GuildSetupResult struct {
-	GuildID          string
-	LiveChannelID    string
-	ClipsChannelID   string
-	WelcomeChannelID string
-	VoiceHubID       string
-	LogChannelID     string
-	TicketChannelID  string
-	TicketCategoryID string
-	// TicketArchiveCategoryID is the Archive category closed tickets move
-	// into. Empty when the fill ran before the category existed, which the
-	// ticket close path reads as "delete the channel instead".
+	GuildID                 string
+	LiveChannelID           string
+	ClipsChannelID          string
+	WelcomeChannelID        string
+	VoiceHubID              string
+	LogChannelID            string
+	TicketChannelID         string
+	TicketCategoryID        string
 	TicketArchiveCategoryID string
 	SubsChannelID           string
 	SubsCategoryID          string
@@ -74,63 +55,30 @@ type GuildSetupResult struct {
 	SubscriberRoleID        string
 	RegularsRoleID          string
 	MemberRoleID            string
-	Refused                 string // non-empty when the guild looked lived-in
-	// DroppedPins is every pinned SLOT whose role id no longer exists in
-	// the guild. The fill fell back to name-match/create for those, and the
-	// dashboard has to say so: a pin that silently stopped applying looks
-	// identical to one that never saved.
-	DroppedPins []string
+	Refused                 string
+	DroppedPins             []string
 }
 
-// GuildEntry is one channel or role the dashboard can pick from.
 type GuildEntry struct {
 	ID   string
 	Name string
 	Type int
 }
 
-// GuildLayout is a guild's channels and roles.
 type GuildLayout struct {
 	Channels []GuildEntry
 	Roles    []GuildEntry
 }
 
-// GuildSetupRequest names the guild to fill and the broadcaster it binds to.
-// EveryoneRoleID may be empty: Discord's @everyone role id equals the guild id.
 type GuildSetupRequest struct {
 	GuildID        string
 	EveryoneRoleID string
 	BroadcasterID  string
-	// InstalledBy is the account that ran the install, as sent by the
-	// dashboard (its acting console user's Twitch id -- see the wire type's
-	// note for why it is not a Discord snowflake). Recorded on the binding so
-	// support can answer "who added this bot"; empty when the caller did not
-	// say.
-	InstalledBy string
-	// Subscribers mirrors the streamer's subscriber toggle. The fill skips
-	// the Subscriber role and its locked category when it is off, so a server
-	// that does not use the tier never grows a category nobody can open.
-	Subscribers bool
-	// PinnedRoles is slot -> EXISTING guild role id (see
-	// ddiscord.RoleSlots). A pinned slot is ADOPTED: the fill neither
-	// creates nor name-matches that role, it takes the id the streamer
-	// chose. This is the only way to attach the template to a server whose
-	// staff role is called something else and whose members already hold
-	// it -- creating a second "Mods" role next to the real one is the
-	// failure this exists to prevent.
-	PinnedRoles map[string]string
+	InstalledBy    string
+	Subscribers    bool
+	PinnedRoles    map[string]string
 }
 
-// SetupGuild fills the Bagel community template into an existing guild.
-// Proving the caller installed the bot in guildID is the dashboard's job
-// (OAuth code exchange); outgress enforces the one thing it can see, that
-// the guild is not already bound to another broadcaster, and binds BEFORE
-// any write so a refused caller never touches the server.
-//
-// A lived-in community (enough channels that are not ours) is not rebuilt;
-// its channels and roles are adopted by name instead. Template-named
-// channels never count as lived-in, so a fill cut short by a timeout is
-// completed on the next attempt rather than refused forever.
 func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSetupResult, error) {
 	req.GuildID = strings.TrimSpace(req.GuildID)
 	out := GuildSetupResult{GuildID: req.GuildID}
@@ -139,10 +87,6 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 		return GuildSetupResult{}, err
 	}
 	out.DroppedPins = fill.droppedPins
-	// Every successful path below ends with the engine holding cached settings
-	// for a guild whose channel and role ids just changed. Dropping the entry
-	// here rather than waiting out its TTL is what makes a fresh setup live
-	// immediately.
 	defer w.invalidateConfig(ctx, req.GuildID)
 	if fill.livedIn() {
 		out.Refused = "this server already has a layout; Bagel adopted the channels it recognised, pick the rest below"
@@ -160,7 +104,6 @@ func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSe
 	return out, nil
 }
 
-// invalidateConfig drops the engine's cached settings for one guild.
 func (w *Worker) invalidateConfig(ctx context.Context, guildID string) {
 	if w.store == nil || guildID == "" {
 		return
@@ -168,8 +111,6 @@ func (w *Worker) invalidateConfig(ctx context.Context, guildID string) {
 	w.store.Invalidate(ctx, discordstore.Guild{ID: guildID})
 }
 
-// GuildLayout lists a bound guild's channels and roles for the dashboard
-// pickers. Only the bound broadcaster may read it.
 func (w *Worker) GuildLayout(ctx context.Context, req GuildSetupRequest) (GuildLayout, error) {
 	if w.discord == nil {
 		return GuildLayout{}, ErrDiscordUnavailable
@@ -188,9 +129,6 @@ func (w *Worker) GuildLayout(ctx context.Context, req GuildSetupRequest) (GuildL
 	return GuildLayout{Channels: entries(channels), Roles: entries(roles)}, nil
 }
 
-// GuildInfo is the bound guild's name, icon and member count for the
-// dashboard's server card. Bound-only, like GuildLayout: an unbound guild is
-// somebody else's server and its name is not ours to hand out.
 func (w *Worker) GuildInfo(ctx context.Context, req GuildSetupRequest) (discapi.GuildInfo, error) {
 	if w.discord == nil {
 		return discapi.GuildInfo{}, ErrDiscordUnavailable
@@ -209,8 +147,6 @@ type ownerCheck struct {
 	MissingOK bool
 }
 
-// UnbindGuild drops the guild->broadcaster reverse index on disconnect. A
-// guild bound to someone else is left alone.
 func (w *Worker) UnbindGuild(ctx context.Context, req GuildSetupRequest) error {
 	if err := w.requireOwnerStrict(ctx, req, ownerCheck{MissingOK: true}); err != nil {
 		return err
@@ -232,8 +168,6 @@ func entries(in []discapi.Snowflake) []GuildEntry {
 	return out
 }
 
-// bindGuild writes the reverse index unless the guild already belongs to a
-// different broadcaster.
 func (w *Worker) bindGuild(ctx context.Context, req GuildSetupRequest) error {
 	if w.store == nil {
 		return nil
@@ -272,8 +206,6 @@ func missingBinding(check ownerCheck) error {
 	return ErrGuildNotBound
 }
 
-// guildFill carries one setup's state: the client, the guild, and name
-// indexes of what already exists so every create is idempotent by name.
 type guildFill struct {
 	w           *Worker
 	api         discordGuildAPI
@@ -320,16 +252,6 @@ func (w *Worker) newGuildFill(ctx context.Context, req GuildSetupRequest) (*guil
 	}, nil
 }
 
-// adoptablePins keeps only the pins whose role id still EXISTS among the
-// guild's roles, and reports the slots it dropped.
-//
-// A pin is a snowflake stored by the dashboard at some earlier point, and
-// the role it names can be deleted in Discord afterwards with nothing
-// telling Bagel. Adopting a dead id makes the fill "succeed" while every
-// gate it writes references a role no member can hold -- a locked category
-// nobody, the streamer included, can open. Dropping the pin instead falls
-// back to name lookup or create, which is what a server that never pinned
-// gets, and is recoverable by re-pinning.
 func adoptablePins(pins map[string]string, roles []discapi.Snowflake) (map[string]string, []string) {
 	if len(pins) == 0 {
 		return nil, nil
@@ -347,13 +269,10 @@ func adoptablePins(pins map[string]string, roles []discapi.Snowflake) (map[strin
 		}
 		dropped = append(dropped, slot)
 	}
-	// Map iteration is randomized and this list reaches the dashboard.
 	sort.Strings(dropped)
 	return out, dropped
 }
 
-// pinnedRole is the id the streamer pinned to the slot this template role
-// name belongs to, or "" when nothing is pinned there.
 func (f *guildFill) pinnedRole(templateName string) string {
 	slot := ddiscord.SlotForRoleName(templateName)
 	if slot == "" {
@@ -362,7 +281,6 @@ func (f *guildFill) pinnedRole(templateName string) string {
 	return f.pinned[string(slot)]
 }
 
-// roleID resolves a template role name to a guild role id, pinned id first.
 func (f *guildFill) roleID(templateName string) string {
 	if id := f.pinnedRole(templateName); id != "" {
 		return id
@@ -378,9 +296,6 @@ func idsByName(list []discapi.Snowflake) map[string]string {
 	return out
 }
 
-// livedIn counts channels that are not part of the template. Template-named
-// ones are ours (or a name collision we adopt anyway), so a half-finished
-// fill is never mistaken for a living community.
 func (f *guildFill) livedIn() bool {
 	template := map[string]bool{}
 	for _, spec := range ddiscord.CommunityChannels() {
@@ -395,8 +310,6 @@ func (f *guildFill) livedIn() bool {
 	return foreign >= ddiscord.LivingCommunityMinChannels
 }
 
-// adopt fills the result from existing channels and roles that match the
-// template by name, without creating anything.
 func (f *guildFill) adopt(out *GuildSetupResult) {
 	for _, spec := range ddiscord.CommunityRoles() {
 		out.setRole(namedRef{Name: spec.Name, ID: f.roleID(spec.Name)})
@@ -406,7 +319,6 @@ func (f *guildFill) adopt(out *GuildSetupResult) {
 	}
 }
 
-// namedRef is one template name and the snowflake it resolved to.
 type namedRef struct {
 	Name string
 	ID   string
@@ -419,9 +331,6 @@ type channelWant struct {
 	Parent string
 }
 
-// ensureNamed returns the id of the entry called name in index, creating it
-// when absent. Creation is idempotent by name, which is what lets a fill cut
-// short by a timeout finish on the next attempt.
 func (f *guildFill) ensureNamed(ctx context.Context, index map[string]string, want namedRef, create namedCreate) (string, error) {
 	key := strings.ToLower(want.Name)
 	if id := index[key]; id != "" {
@@ -441,9 +350,6 @@ func (f *guildFill) ensureRoles(ctx context.Context, out *GuildSetupResult) erro
 			continue
 		}
 		if id := f.pinnedRole(spec.Name); id != "" {
-			// Index the pinned id under the template name so the channel
-			// gates below (gatedOverwrites looks roles up by name) allow the
-			// role the streamer actually pinned, not a same-named stranger.
 			f.roleByName[strings.ToLower(spec.Name)] = id
 			out.setRole(namedRef{Name: spec.Name, ID: id})
 			continue
@@ -469,8 +375,6 @@ func (f *guildFill) roleCreator(ctx context.Context, spec ddiscord.RoleSpec) nam
 	}
 }
 
-// ensureChannels walks the template categories-first (a child needs its
-// parent's id) and records every bound channel on the result.
 func (f *guildFill) ensureChannels(ctx context.Context, out *GuildSetupResult) error {
 	parentID := map[string]string{}
 	for _, spec := range ddiscord.CommunityChannels() {
@@ -487,11 +391,6 @@ func (f *guildFill) ensureChannels(ctx context.Context, out *GuildSetupResult) e
 	return f.ensureChildChannels(ctx, parentID, out)
 }
 
-// postTicketDesk posts the first desk panel. The spec is a zero Config's --
-// the template defaults -- because setup runs BEFORE the streamer has ever
-// opened the ticket section of the dashboard, so there is no saved copy to
-// render yet; editing it there and pressing Repost is what replaces this
-// message with their own (see the desk.repost RPC).
 func (f *guildFill) postTicketDesk(ctx context.Context, out GuildSetupResult) {
 	if out.TicketChannelID == "" {
 		return
@@ -541,8 +440,6 @@ func (f *guildFill) channelCreator(ctx context.Context, want channelWant) namedC
 	}
 }
 
-// create runs one Discord create, sleeping the server-dictated Retry-After
-// on a 429 instead of surfacing it as a hard mid-fill error.
 func (f *guildFill) create(ctx context.Context, do func() (discapi.Snowflake, error)) (discapi.Snowflake, error) {
 	for attempt := 0; ; attempt++ {
 		got, err := do()
@@ -575,8 +472,6 @@ func (out *GuildSetupResult) setRole(role namedRef) {
 	*field = role.ID
 }
 
-// roleSlot mirrors channelSlot below: a map from template role name to the
-// GuildSetupResult field it fills, so adding a role never grows a switch.
 func (out *GuildSetupResult) roleSlot(name string) *string {
 	slots := map[string]*string{
 		"Owner":      &out.OwnerRoleID,
@@ -631,14 +526,6 @@ func (f *guildFill) overwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOv
 	return nil
 }
 
-// gatedOverwrites denies @everyone the channel and allows it back to each
-// named role. A role the fill did not create (or could not find by name) is
-// skipped rather than sent as an empty id, which Discord rejects and which
-// would fail the whole channel create over one missing role.
-//
-// Deny-then-allow is the only ordering Discord honours here: an overwrite
-// allowing a role does not implicitly deny anyone else, so without the
-// @everyone deny the "private" channel is world-readable.
 func (f *guildFill) gatedOverwrites(spec ddiscord.ChannelSpec) []discapi.PermissionOverwrite {
 	out := []discapi.PermissionOverwrite{{
 		ID: f.everyone, Type: overwriteRole, Allow: "0", Deny: fmt.Sprintf("%d", permViewChannel),
@@ -646,11 +533,6 @@ func (f *guildFill) gatedOverwrites(spec ddiscord.ChannelSpec) []discapi.Permiss
 	allow := permViewChannel | permSendMessages
 	deny := int64(0)
 	if spec.ReadOnly {
-		// A read-only gated channel (the ticket Archive) allows the gate
-		// through to LOOK, not to write. Denying SEND explicitly rather than
-		// merely not allowing it matters because a staff role may already
-		// carry SEND_MESSAGES server-wide, which an absent allow would not
-		// take away.
 		allow = permViewChannel
 		deny = permSendMessages
 	}
@@ -667,9 +549,6 @@ func (f *guildFill) gatedOverwrites(spec ddiscord.ChannelSpec) []discapi.Permiss
 	return out
 }
 
-// rolePermissions renders a role's permission bitfield the way Discord wants
-// it: a decimal string, or empty for a role that grants nothing. See
-// discapi.RoleCreate.Permissions for why it is a string and not a number.
 func rolePermissions(spec ddiscord.RoleSpec) string {
 	if spec.Permissions == 0 {
 		return ""

@@ -13,10 +13,10 @@ func TestMatcherFindsPatterns(t *testing.T) {
 	m := newMatcher([][]byte{[]byte("he"), []byte("she"), []byte("hers"), []byte("his")})
 
 	cases := map[string]int{
-		"ushers":  1,  // "she" inside, found via failure links
-		"hers":    0,  // "he" hits first (prefix of hers)
-		"this":    3,  // "his" via suffix
-		"nothing": -1, // "nothing" contains... n-o-t-h-i-n-g: no pattern
+		"ushers":  1,
+		"hers":    0,
+		"this":    3,
+		"nothing": -1,
 		"":        -1,
 	}
 	for text, want := range cases {
@@ -27,7 +27,6 @@ func TestMatcherFindsPatterns(t *testing.T) {
 }
 
 func TestMatcherWordBoundedTerms(t *testing.T) {
-	// Lexicon-style space padding: " ass " never matches inside "class".
 	m := newMatcher([][]byte{[]byte(" ass ")})
 	if m.find([]byte(" class assignment ")) != -1 {
 		t.Fatal("padded term must not match inside a word")
@@ -46,12 +45,6 @@ func TestMatcherZeroAllocFind(t *testing.T) {
 	}
 }
 
-// TestMatcherDifferentialNaive pins the automaton's two entry points against
-// naive scans over a deterministic pseudo-random corpus: find must agree with
-// bytes.Contains on "any pattern present", and findFolded (the clean-path
-// pre-scan engine) must agree with a fold-then-Contains reference. Pattern
-// sets deliberately include prefix/suffix overlaps ("he" in "she"/"hers"),
-// which exercise the failure links.
 func TestMatcherDifferentialNaive(t *testing.T) {
 	patternSets := [][][]byte{
 		{[]byte("he"), []byte("she"), []byte("hers"), []byte("his")},
@@ -72,9 +65,6 @@ func TestMatcherDifferentialNaive(t *testing.T) {
 	}
 }
 
-// randomCorpusLine draws one pseudo-random line from the reduced alphabet and
-// pairs it with the cycle's pattern set. The RNG draw order (length, then one
-// draw per byte) is part of the corpus definition - keep it stable.
 func randomCorpusLine(rng *rand.Rand, alphabet []byte, patternSets [][][]byte, i int) (string, [][]byte) {
 	b := make([]byte, rng.Intn(24))
 	for j := range b {
@@ -83,8 +73,6 @@ func randomCorpusLine(rng *rand.Rand, alphabet []byte, patternSets [][][]byte, i
 	return string(b), patternSets[i%len(patternSets)]
 }
 
-// assertFindAgreesNaiveContains pins find's presence verdict against
-// bytes.Contains on "any pattern present".
 func assertFindAgreesNaiveContains(t *testing.T, text string, m *matcher, pats [][]byte) {
 	t.Helper()
 	want := containsAnyPattern([]byte(text), pats)
@@ -93,8 +81,6 @@ func assertFindAgreesNaiveContains(t *testing.T, text string, m *matcher, pats [
 	}
 }
 
-// assertFindFoldedAgreesFoldedContains pins findFolded (the clean-path pre-scan
-// engine) against a fold-then-Contains reference.
 func assertFindFoldedAgreesFoldedContains(t *testing.T, text string, m *matcher, pats [][]byte) {
 	t.Helper()
 	if got, wantF := m.findFolded(text), foldedContains(text, pats); got != wantF {
@@ -102,9 +88,6 @@ func assertFindFoldedAgreesFoldedContains(t *testing.T, text string, m *matcher,
 	}
 }
 
-// foldedContains applies foldTable to the whole text, pads virtual spaces on
-// both ends exactly as findFolded does, then naive Contains per pattern.
-// Patterns are already written in skeleton space.
 func foldedContains(text string, pats [][]byte) bool {
 	buf := make([]byte, 0, len(text)+2)
 	buf = append(buf, ' ')

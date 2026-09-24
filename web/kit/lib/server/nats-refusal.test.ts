@@ -26,8 +26,6 @@ describe('rpcRefusal', () => {
   });
 
   test('a code outside the shared vocabulary is unclassified, never a success', () => {
-    // outgress's own vocabulary. A caller that needs the real code reads the
-    // reply through rpcReply instead of letting rpc throw this at it.
     const r = rpcRefusal({ error: 'this Discord server is not connected to your Twitch channel', code: 'not_bound' });
     expect(r).toBeInstanceOf(RpcError);
     expect(r?.code).toBe('');

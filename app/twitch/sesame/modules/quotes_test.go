@@ -20,8 +20,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeQuotes is an in-memory QuotesStore keyed by number. Adds number max+1;
-// random returns the lowest number for determinism.
 type fakeQuotes struct {
 	quotes map[uint64]modulesrpc.Quote
 	err    error
@@ -112,7 +110,6 @@ func (f *fakeQuotes) QuoteRemove(_ context.Context, _ uint64, number uint64) (bo
 	return ok, nil
 }
 
-// countingCooldown records claims and answers a fixed verdict.
 type countingCooldown struct {
 	allow  bool
 	claims int
@@ -146,8 +143,6 @@ func runQuotes(t *testing.T, d engine.Deps, c *module.Context, args string) []mo
 	return col.out
 }
 
-// withAddPerm sets the module's addPerm config on a context, as the engine
-// would from the broadcaster's ModuleView.
 func withAddPerm(c *module.Context, perm string) *module.Context {
 	c.Config = []byte(`{"addPerm":"` + perm + `"}`)
 	return c
@@ -252,7 +247,6 @@ func TestQuoteAddPermEveryoneAllowsViewer(t *testing.T) {
 	assert.Equal(t, "anyone can save", f.quotes[1].Text)
 }
 
-// Remove stays moderator-only even when saving is opened to everyone.
 func TestQuoteRemoveIgnoresAddPerm(t *testing.T) {
 	f := newFakeQuotes("one")
 	ctx := withAddPerm(quotesCtx("alice", ""), "everyone")
@@ -418,8 +412,6 @@ func TestQuoteEditByViewerIsSilent(t *testing.T) {
 	assert.Equal(t, "one", f.quotes[1].Text)
 }
 
-// withEditPerm sets the module's editPerm config on a context, as the engine
-// would from the broadcaster's ModuleView.
 func withEditPerm(c *module.Context, perm string) *module.Context {
 	c.Config = []byte(`{"editPerm":"` + perm + `"}`)
 	return c
@@ -443,7 +435,6 @@ func TestQuoteEditPermVipBlocksViewer(t *testing.T) {
 	assert.Equal(t, "old", f.quotes[1].Text)
 }
 
-// Edit stays gated on editPerm even when saving is opened to everyone.
 func TestQuoteEditIgnoresAddPerm(t *testing.T) {
 	f := newFakeQuotes("old")
 	ctx := withAddPerm(quotesCtx("alice", ""), "everyone")

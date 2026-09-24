@@ -4,7 +4,6 @@
 import { describe, expect, test } from 'bun:test';
 import { expandSegments, rehearseCommand, rehearseReply, rehearseTimer, timerOwns, type Seg, type Token } from './rehearsal';
 
-/** The rehearsed chat text of a line: what the bot would actually send. */
 function textOf(segments: Seg[]): string {
   return segments.map((s) => s.text).join('');
 }
@@ -21,7 +20,6 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
   });
 
   test('token names are case-insensitive, payloads keep their case', () => {
-    // module.Expand lowercases the name before the resolver sees it.
     expect(expandSegments('{User}', resolve)).toEqual([{ text: 'sam', kind: 'sample' }]);
     const choice = expandSegments('{CHOICE:Hi,Yo}', (t) => (t.key === 'choice:Hi,Yo' ? 'Hi' : null));
     expect(choice).toEqual([{ text: 'Hi', kind: 'sample' }]);
@@ -40,7 +38,6 @@ describe('token expansion (module/vars.go Expand mirror)', () => {
   });
 
   test('an empty-string resolution drops the token from the output', () => {
-    // Mirrors e.g. a reward's {input} with no input: ok=true, value "".
     expect(textOf(expandSegments('[{gone}]', () => ''))).toBe('[]');
   });
 });
@@ -107,10 +104,6 @@ describe('rehearseCommand', () => {
   });
 
   test('counters resolve with engine normalization; only an empty name stays literal', () => {
-    // "bot:feeds" used to be a reserved, admin-only prefix; store.go dropped
-    // that reservation along with the write (nothing routes a chat template
-    // into the bot's own counter namespace regardless of the counter's
-    // NAME), so it is now an ordinary counter name like any other.
     const [line] = rehearseCommand('{counter:Deaths} {counter:bot:feeds} {counter:}');
     expect(line.segments.map((s) => s.kind)).toEqual(['sample', 'plain', 'sample', 'plain', 'unknown']);
     expect(textOf(line.segments)).toBe('42 42 {counter:}');
@@ -158,8 +151,6 @@ describe('rehearseCommand', () => {
   });
 
   test('a line a false conditional empties is dropped, its siblings are not', () => {
-    // engine/dispatch.go blankLine: the drop happens before the 5-message cap,
-    // so a multi-line reply never collapses and never loses its last line.
     const lines = rehearseCommand('hi {user}\n{if:9: and word nine}\nlast line');
     expect(lines).toHaveLength(2);
     expect(textOf(lines[0].segments)).toBe('hi sesame_sam');
@@ -199,8 +190,6 @@ describe('rehearseCommand', () => {
   });
 
   test('verbs route AFTER expansion, matching the engine order', () => {
-    // emitCommand expands first, then translates: a verb minted by a token
-    // still becomes the native action.
     const [line] = rehearseCommand('{choice:/pin read the rules,/announce hi}');
     expect(line.mode).toBe('pin');
     expect(textOf(line.segments)).toBe('read the rules');
@@ -220,8 +209,6 @@ describe('scope chain (engine/scope mirror)', () => {
   });
 
   test('a fallback never rescues a name no scope owns', () => {
-    // Treating the fallback as proof the token exists would hide the typo
-    // forever, which is the whole reason unknown spans stay literal.
     const [line] = rehearseCommand('{typo|rescued}');
     expect(line.segments).toEqual([{ text: '{typo|rescued}', kind: 'unknown' }]);
   });
@@ -237,8 +224,6 @@ describe('scope chain (engine/scope mirror)', () => {
   });
 
   test('the utility scope computes {math:…} for real', () => {
-    // A stand-in would teach the broadcaster the wrong answer; the preview
-    // runs the same grammar the bot does (pinned by pure.test.ts).
     const [line] = rehearseCommand('that is {math:(1+2)*3} bagels');
     expect(textOf(line.segments)).toBe('that is 9 bagels');
   });
@@ -270,21 +255,16 @@ describe('scope chain (engine/scope mirror)', () => {
   });
 
   test('a utility with no payload stays literal', () => {
-    // {math} names no expression, so it is not the token.
     const [line] = rehearseCommand('{math} {repeat}');
     expect(line.segments.filter((s) => s.kind === 'unknown').length).toBe(2);
   });
 
   test('a module reply mounts no utility scope either', () => {
-    // The Go side expands a module reply through module.ParseDynamic, which
-    // has never carried the utilities, so they stay literal there.
     const [line] = rehearseReply('{math:1+1}', {});
     expect(line.segments).toEqual([{ text: '{math:1+1}', kind: 'unknown' }]);
   });
 
   test('a module reply mounts no message or counter scope', () => {
-    // Only a custom command has {args} and {counter:…}; a reply that names
-    // them is naming tokens its module does not have.
     const [line] = rehearseReply('{args} {counter:deaths}', {});
     expect(line.segments.every((s) => s.kind === 'unknown' || s.text === ' ')).toBe(true);
   });
@@ -298,8 +278,6 @@ describe('viewer scope (engine/scope/viewer.go mirror)', () => {
   });
 
   test('a named viewer previews the same stand-in as the bare form', () => {
-    // The preview cannot know whose balance chat will see, so both spellings
-    // show one plausible answer rather than inventing a second number.
     const [line] = rehearseCommand('{points:alex} vs {points}');
     expect(textOf(line.segments)).toBe('1280 vs 1280');
   });
@@ -325,8 +303,6 @@ describe('chatter scope (engine/scope/chatters.go mirror)', () => {
   });
 
   test('two draws preview as the same name', () => {
-    // Chat draws independently per span; the preview holds one name still for
-    // the reason it does not re-roll {random} on every keystroke.
     const [line] = rehearseCommand('{random.chatter} and {random.chatter}');
     expect(textOf(line.segments)).toBe('maya_live and maya_live');
   });
@@ -352,8 +328,6 @@ describe('uses scope (engine/scope/uses.go mirror)', () => {
   });
 
   test('a module reply has no use count, so it stays literal there', () => {
-    // In chat only runCustom mounts scope.Uses; a module's own reply is
-    // expanded through module.ParseDynamic and never reaches it.
     const [line] = rehearseReply('{uses}', {});
     expect(line.segments).toEqual([{ text: '{uses}', kind: 'unknown' }]);
   });
@@ -396,8 +370,6 @@ describe('emote scope (engine/scope/emotes.go mirror)', () => {
   });
 
   test('two draws preview as the same code', () => {
-    // Chat draws independently per span; the preview holds one code still for
-    // the reason it does not re-roll {random} on every keystroke.
     const [line] = rehearseCommand('{random.emote} {random.emote}');
     expect(textOf(line.segments)).toBe('KEKW KEKW');
   });
@@ -425,8 +397,6 @@ describe('module scope (engine/scope/modules.go mirror)', () => {
   });
 
   test('a numbered quote previews the same stand-in as the random draw', () => {
-    // The preview cannot know what quote #7 says, and inventing a second fake
-    // quote for it would suggest that it could.
     const [line] = rehearseCommand('{quote:7}');
     expect(textOf(line.segments)).toBe('Quote #12: bagels are just savoury donuts (2026-01-31)');
   });
@@ -438,11 +408,6 @@ describe('module scope (engine/scope/modules.go mirror)', () => {
     }
   });
 
-  // Unlike every other payload on this scope, {time:<place>} is NOT an
-  // authoring mistake: it is the ungated place-lookup form (scope.Places'
-  // decision record), so it previews a value rather than staying literal —
-  // and, unlike {quote:n}, a different stand-in from the bare form, so a
-  // template naming both reads as two different clocks.
   test('{time:<place>} previews a value, not the literal span', () => {
     const [line] = rehearseCommand('{time} in {touser}, {time:Paris} in Paris');
     expect(textOf(line.segments)).toBe('3:04 PM in ferret_king, 11:04 PM in Paris');
@@ -511,8 +476,6 @@ describe('rehearseReply', () => {
   });
 
   test('/me renders as an italic action on reply surfaces too', () => {
-    // The bot sends "/me …" as plain chat (Twitch renders the action itself);
-    // the rehearsal shows the rendered form: me mode, verb stripped.
     const [line] = rehearseReply('/me thanks {user} warmly', { user: 'sam' });
     expect(line.mode).toBe('me');
     expect(textOf(line.segments)).toBe('thanks sam warmly');

@@ -14,10 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// The lane durable is fleet-wide and the server is allowed to delete it, so the
-// binding that names it has to be able to put it back. Before this existed, a
-// deleted durable meant every pod asking a name that no longer resolved, five
-// times a second, until someone restarted the deployment by hand.
 func TestFetchErrorRebuildsALostDurable(t *testing.T) {
 	replacement := &pullConsumerHandle{info: &jsapi.ConsumerInfo{}}
 	s, rebuilds := subscriberWithRebind(replacement, nil)
@@ -33,9 +29,6 @@ func TestFetchErrorRebuildsALostDurable(t *testing.T) {
 	}
 }
 
-// Only a lost durable justifies re-provisioning. Everything else is the lane
-// working through something the next fetch may well survive, and rebuilding on
-// it would delete and recreate a healthy fleet-wide consumer under load.
 func TestOnlyALostDurableTriggersARebuild(t *testing.T) {
 	transient := []error{
 		jsapi.ErrConsumerLeadershipChanged,
@@ -54,8 +47,6 @@ func TestOnlyALostDurableTriggersARebuild(t *testing.T) {
 	}
 }
 
-// A rebuild that fails is left to the next fetch error — the pump loop already
-// is the retry — but it must not leave the binding pointing at nothing.
 func TestAFailedRebuildKeepsTheLoopRunning(t *testing.T) {
 	original := &pullConsumerHandle{info: &jsapi.ConsumerInfo{}}
 	s, rebuilds := subscriberWithRebind(nil, errors.New("nats: no responders"))
@@ -72,10 +63,6 @@ func TestAFailedRebuildKeepsTheLoopRunning(t *testing.T) {
 	}
 }
 
-// A fetch snapshots its handle under handleMu and then snapshots the primary
-// consumer under consumerMu. Rebuild must release consumerMu after swapping the
-// primary binding before it rebinds extra handles, or the two paths invert those
-// locks and deadlock while the durable is being recovered.
 func TestRebuildDoesNotDeadlockWithPrimaryHandleLookup(t *testing.T) {
 	s := &pullSubscriber{log: zap.NewNop()}
 	rebindEntered := make(chan struct{})
@@ -91,7 +78,7 @@ func TestRebuildDoesNotDeadlockWithPrimaryHandleLookup(t *testing.T) {
 		s.rebuildConsumer()
 		close(rebuilt)
 	}()
-	<-rebindEntered // rebuild holds consumerMu while provisioning.
+	<-rebindEntered
 
 	fetched := make(chan struct{})
 	go func() {
@@ -99,8 +86,6 @@ func TestRebuildDoesNotDeadlockWithPrimaryHandleLookup(t *testing.T) {
 		close(fetched)
 	}()
 
-	// handleFor has handleMu and is waiting for consumerMu. Releasing the
-	// rebind used to make rebuild wait for handleMu while retaining consumerMu.
 	deadline := time.Now().Add(time.Second)
 	for s.handleMu.TryLock() {
 		s.handleMu.Unlock()
@@ -123,9 +108,6 @@ func TestRebuildDoesNotDeadlockWithPrimaryHandleLookup(t *testing.T) {
 	}
 }
 
-// Readiness has to separate an idle lane from a wedged one. A NATS connection
-// check cannot: a pod that has lost its durable stays connected and consumes
-// nothing, which is how sesame reported green through seven hours of silence.
 func TestLaneHealthSeparatesSilenceFromFailure(t *testing.T) {
 	s, _ := subscriberWithRebind(nil, errors.New("nats: no responders"))
 
@@ -133,7 +115,6 @@ func TestLaneHealthSeparatesSilenceFromFailure(t *testing.T) {
 		t.Fatal("a lane that has never failed is healthy, however long it has been idle")
 	}
 
-	// Inside the grace window an election or a reconnect must not flap readiness.
 	s.errSince.Store(time.Now().Add(-laneUnhealthyAfter / 2).UnixNano())
 	if !s.Healthy() {
 		t.Fatal("a lane erroring for less than the grace window must still report ready")
@@ -144,15 +125,12 @@ func TestLaneHealthSeparatesSilenceFromFailure(t *testing.T) {
 		t.Fatal("a lane stuck in its error path past the grace window must report unready")
 	}
 
-	// One good read clears it: the loop is consuming again.
 	s.noteFetchProgress()
 	if !s.Healthy() {
 		t.Fatal("a lane that read a message again must report ready")
 	}
 }
 
-// The fleet subscriber is what a service's /readyz actually holds, so the lane
-// verdict has to survive the trip through it.
 func TestSubscriberHealthyAggregatesTheLanes(t *testing.T) {
 	sick, _ := subscriberWithRebind(nil, nil)
 	sick.errSince.Store(time.Now().Add(-2 * laneUnhealthyAfter).UnixNano())
@@ -170,15 +148,11 @@ func TestSubscriberHealthyAggregatesTheLanes(t *testing.T) {
 		t.Fatal("one wedged lane must take the whole pod out of readiness")
 	}
 
-	// A subscriber with no lane to report on must never look sick: services that
-	// do not consume lanes share this probe.
 	if !SubscriberHealthy(&fleetSubscriber{}) {
 		t.Fatal("a subscriber with no lanes must report ready")
 	}
 }
 
-// subscriberWithRebind builds a pullSubscriber whose provisioning is a counter
-// rather than a broker, and returns the attempt count alongside it.
 func subscriberWithRebind(replacement jsapi.Consumer, failure error) (*pullSubscriber, *int) {
 	attempts := 0
 	s := &pullSubscriber{subject: "twitch.ingress.event.premium", log: zap.NewNop()}
@@ -192,21 +166,11 @@ func subscriberWithRebind(replacement jsapi.Consumer, failure error) (*pullSubsc
 	return s, &attempts
 }
 
-// The tests above drive noteFetchError and consumerGone directly, which proves
-// the decision logic in isolation but not that the pump goroutine itself keeps
-// running and keeps delivering. The two below drive the real pump()/
-// pumpIterator() loop end to end — the only way to catch a regression where the
-// loop's control flow, not just its helpers, stops making progress.
-
-// TestPumpSurvivesATransientFetchErrorAndResumesFetching is 2026-08-16's first
-// link, proven through the actual goroutine: a fetch failure that is not a
-// missing durable must not end the pump, and the very next attempt must
-// deliver.
 func TestPumpSurvivesATransientFetchErrorAndResumesFetching(t *testing.T) {
 	resumed := newPumpMessagesContext(pumpResult{msg: fakePullDelivery(1)})
 	consumer := &pumpConsumer{opens: []pumpOpen{
-		{err: errors.New("nats: no responders")}, // election in progress, retryable
-		{iter: resumed},                          // the very next attempt succeeds
+		{err: errors.New("nats: no responders")},
+		{iter: resumed},
 	}}
 
 	sub := testPullSubscriber()
@@ -238,18 +202,12 @@ func TestPumpSurvivesATransientFetchErrorAndResumesFetching(t *testing.T) {
 	}
 }
 
-// TestPumpRecreatesAConsumerDeletedUnderneathItAndDeliveryResumes is the exact
-// 2026-08-16 failure, driven through the real loop instead of asserted against
-// noteFetchError's return value: the durable is gone, the pump must rebind to a
-// replacement on its own, and the very next fetch must deliver through it —
-// proving the recovery a manual kubectl rollout restart used to be the only way
-// to get.
 func TestPumpRecreatesAConsumerDeletedUnderneathItAndDeliveryResumes(t *testing.T) {
 	replacementIter := newPumpMessagesContext(pumpResult{msg: fakePullDelivery(7)})
 	replacement := &pumpConsumer{opens: []pumpOpen{{iter: replacementIter}}}
 
 	reaped := &pumpConsumer{opens: []pumpOpen{
-		{err: jsapi.ErrConsumerNotFound}, // NATS reaped it under InactiveThreshold
+		{err: jsapi.ErrConsumerNotFound},
 	}}
 
 	sub := testPullSubscriber()
@@ -279,24 +237,16 @@ func TestPumpRecreatesAConsumerDeletedUnderneathItAndDeliveryResumes(t *testing.
 	if got := atomic.LoadInt32(&rebinds); got != 1 {
 		t.Fatalf("rebind attempts = %d, want exactly 1", got)
 	}
-	// Safe to read without synchronization beyond the channel receive above: the
-	// swap and the delivery it unblocked both happen on the pump goroutine before
-	// the send, so the receive already establishes the happens-before edge.
 	if sub.consumer != jsapi.Consumer(replacement) {
 		t.Fatal("the pump loop is still bound to the consumer the server deleted")
 	}
 }
 
-// pumpResult is one scripted outcome of a MessagesContext.Next call.
 type pumpResult struct {
 	msg jsapi.Msg
 	err error
 }
 
-// pumpMessagesContext is a scripted jetstream.MessagesContext. Each entry is
-// handed to exactly one Next call, in order; once drained, Next blocks until
-// Stop, matching the real iterator's contract while a pull is outstanding and
-// letting stopIteratorOnClose unpark it the same way it would in production.
 type pumpMessagesContext struct {
 	results chan pumpResult
 	stopped chan struct{}
@@ -323,19 +273,11 @@ func (m *pumpMessagesContext) Next(...jsapi.NextOpt) (jsapi.Msg, error) {
 func (m *pumpMessagesContext) Stop()  { m.once.Do(func() { close(m.stopped) }) }
 func (m *pumpMessagesContext) Drain() { m.Stop() }
 
-// pumpOpen is one scripted outcome of a Consumer.Messages call: either an
-// iterator to drain or the error opening one returns in isolation (the shape a
-// missing durable actually fails in — Messages itself refuses before any
-// iterator exists).
 type pumpOpen struct {
 	iter jsapi.MessagesContext
 	err  error
 }
 
-// pumpConsumer hands back the next scripted open in order, repeating the last
-// one once the script runs out. Embedding jsapi.Consumer(nil) means any method
-// besides Messages panics if the pump loop ever starts calling it, the same
-// contract pullConsumerHandle uses above.
 type pumpConsumer struct {
 	jsapi.Consumer
 	mu    sync.Mutex

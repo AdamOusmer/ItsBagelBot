@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Command deployer runs the release train the admin console's Deploys page
-// starts: GitHub merges, tag, release and build, digest checks, the pin PR,
-// the NATS ACL apply and the one-service-at-a-time rollout.
 package main
 
 import (
@@ -37,14 +34,9 @@ const (
 )
 
 const (
-	// httpTimeout bounds one NATS monitoring read or URL probe.
-	httpTimeout = 10 * time.Second
-	// storeSetupTimeout matches the outgress coordination buckets on the
-	// same hub: creating an R3 bucket waits on a RAFT group election.
+	httpTimeout       = 10 * time.Second
 	storeSetupTimeout = 30 * time.Second
-	// engineDrainTimeout follows Await's 15s RPC drain. Together with the
-	// 10s preStop hold they fit the 45s terminationGracePeriodSeconds the
-	// fleet's Deployments use.
+	// Must fit the 45s terminationGracePeriodSeconds with Await's 15s drain and the 10s preStop.
 	engineDrainTimeout = 15 * time.Second
 )
 
@@ -86,10 +78,6 @@ func main() {
 	awaitEngine(stopped, log)
 }
 
-// openStore dials the hub directly on the BUS account (the deployer_bus user).
-// The RPC connection cannot carry it: leaves run no JetStream and have no link
-// to the hub (deploy/messaging/nats-leaf-server.conf), so a domain-qualified
-// JetStream context on the leaf-side RPC connection never reaches DEPLOY_RUNS.
 func openStore(core svcboot.Core, cfg *config.Config) (*store.Store, func()) {
 	js, closeJS, err := bus.OpenCoordination(core.NATSURL)
 	svcboot.FatalIf(core.Log, err, "failed to connect run store")
@@ -100,9 +88,6 @@ func openStore(core svcboot.Core, cfg *config.Config) (*store.Store, func()) {
 	return runs, closeJS
 }
 
-// runEngine runs the train loop until shutdown. Returning any earlier is
-// fatal on purpose: the restarted pod resumes the active run from
-// DEPLOY_RUNS, which is the engine's only recovery path.
 func runEngine(ctx context.Context, eng *engine.Engine, log *zap.Logger) <-chan struct{} {
 	stopped := make(chan struct{})
 	go func() {
@@ -115,10 +100,6 @@ func runEngine(ctx context.Context, eng *engine.Engine, log *zap.Logger) <-chan 
 	return stopped
 }
 
-// awaitEngine gives the engine time to persist the in-flight stage after
-// SIGTERM, before the deferred closes take its NATS connections away. A stage
-// cut off here resumes on the next pod, so the bound only keeps the process
-// inside its grace period.
 func awaitEngine(stopped <-chan struct{}, log *zap.Logger) {
 	select {
 	case <-stopped:

@@ -23,16 +23,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeSetupREST is the setup worker's REST slice. Only the read half is
-// scripted: nothing here fills a guild.
 type fakeSetupREST struct {
 	channels  []discapi.Snowflake
 	guild     discapi.GuildInfo
 	guildErr  error
 	guildHits int
-	// panelID is the id SendPanel hands back, which the desk-repost reply
-	// carries straight through to the dashboard.
-	panelID string
+	panelID   string
 }
 
 func (f *fakeSetupREST) SendChat(context.Context, discapi.ChatPost) error { return nil }
@@ -71,8 +67,6 @@ type fakeBotStatus struct {
 
 func (f fakeBotStatus) BotStatus(context.Context) (ddiscord.BotStatus, bool) { return f.st, f.ok }
 
-// newDiscordRPC wires a handler over a bound guild (g1 -> b1) unless bind is
-// false.
 func newDiscordRPC(t *testing.T, rest *fakeSetupREST, status botStatusReader, bind bool) *discordRPC {
 	t.Helper()
 	store := discordstore.NewMem()
@@ -95,29 +89,18 @@ func TestHandleStatusReportsSessionAndGuildSeparately(t *testing.T) {
 
 	got := d.handleStatus(context.Background(), outgressrpc.DiscordStatusRequest{UserID: "b1", GuildID: "g1"})
 
-	// The session half comes from the status key, the guild half from a REST
-	// lookup, and the reply carries both: asserted field by field so a
-	// failure names which of the two sources moved.
 	wantReplyField(t, "online", got.Online, true)
 	wantReplyField(t, "since", got.SinceUnixMS, int64(1700))
 	wantReplyField(t, "session resumes", got.SessionResumes, 3)
 	wantReplyField(t, "guild present", got.GuildPresent, true)
 	wantReplyField(t, "guild name", got.GuildName, "Bagel HQ")
 	wantReplyField(t, "member count", got.MemberCount, 42)
-	// A CDN url the console never has to assemble.
 	wantReplyField(t, "icon url", got.IconURL, "https://cdn.discordapp.com/icons/g1/abc.png")
-	// 4009 is history on a connected bot, not a fault, but it still ships:
-	// it is what explains the resume count.
 	wantReplyField(t, "last close code", got.LastCloseCode, 4009)
 	wantReplyField(t, "code", got.Code, outgressrpc.CodeOK)
 	wantReplyField(t, "error", got.Error, "")
 }
 
-// wantReplyField compares one field of a dashboard reply. One claim per call
-// rather than one "something about this reply is wrong" condition: these
-// replies are assembled from two independent sources (the bot status key and a
-// REST lookup), so a failure has to say which field moved and therefore which
-// source moved.
 func wantReplyField(t *testing.T, name string, got, want any) {
 	t.Helper()
 	if got != want {
@@ -133,9 +116,6 @@ func TestHandleStatusUnboundGuildCarriesNotBoundCode(t *testing.T) {
 	if got.Code != outgressrpc.CodeNotBound {
 		t.Fatalf("code = %q, want %q", got.Code, outgressrpc.CodeNotBound)
 	}
-	// The message moved with the handler: status now takes the strict
-	// ownership check, which reports ErrNotBound for both "no binding" and
-	// "somebody else's". The console reads the code, not the text.
 	if got.Error != setup.ErrNotBound.Error() {
 		t.Fatalf("error = %q, want the not-bound message", got.Error)
 	}
@@ -153,8 +133,6 @@ func TestHandleStatusRejectsMissingFields(t *testing.T) {
 }
 
 func TestHandleStatusWithoutAStatusKeyReportsOffline(t *testing.T) {
-	// Nil reader: outgress genuinely does not know, and saying "offline with
-	// no close code" is the honest answer, not an error.
 	d := newDiscordRPC(t, &fakeSetupREST{guild: discapi.GuildInfo{ID: "g1", Name: "HQ"}}, nil, true)
 	got := d.handleStatus(context.Background(), outgressrpc.DiscordStatusRequest{UserID: "b1", GuildID: "g1"})
 	wantReplyField(t, "online", got.Online, false)
@@ -181,7 +159,6 @@ func TestHandleLayoutSplitsCategoriesAndCarriesBotFields(t *testing.T) {
 
 	wantReplyField(t, "categories", len(got.Categories), 1)
 	wantReplyField(t, "category id", got.Categories[0].ID, "cat-1")
-	// Text and voice both stay in Channels; only categories move out.
 	wantReplyField(t, "channels", len(got.Channels), 2)
 	wantReplyField(t, "bot online", got.BotOnline, true)
 	wantReplyField(t, "bot since", got.BotSinceUnixMS, int64(99))
@@ -202,8 +179,6 @@ func TestHandleLayoutSurvivesAFailedGuildLookup(t *testing.T) {
 
 	got := d.handleLayout(context.Background(), outgressrpc.DiscordLayoutRequest{UserID: "b1", GuildID: "g1"})
 
-	// The pickers are the point of this call; one failing lookup must not
-	// take the channel list with it.
 	if got.Guild != nil {
 		t.Fatalf("guild = %+v, want nil", got.Guild)
 	}
@@ -229,9 +204,6 @@ func TestCodeForMapsEveryDashboardFailure(t *testing.T) {
 		{context.DeadlineExceeded, outgressrpc.CodeTimeout},
 		{context.Canceled, outgressrpc.CodeTimeout},
 		{fmt.Errorf("wrapped: %w", discapi.ErrChannelNotFound), outgressrpc.CodeNotFound},
-		// The catch-all. An unclassified failure must never answer CodeOK:
-		// the console reads "" as success and would render an error reply as
-		// a completed action.
 		{errors.New("discord: something nobody has classified"), outgressrpc.CodeUnknown},
 	}
 	for _, tc := range cases {
@@ -239,19 +211,11 @@ func TestCodeForMapsEveryDashboardFailure(t *testing.T) {
 			t.Fatalf("codeFor(%v) = %q, want %q", tc.err, got, tc.want)
 		}
 	}
-	// ErrGuildNotBound wraps ErrGuildBoundElsewhere, so the order of the
-	// switch is load-bearing: the wrapped case must be checked first.
 	if codeFor(setup.ErrGuildNotBound) == codeFor(setup.ErrGuildBoundElsewhere) {
 		t.Fatal("not_bound and bound_elsewhere collapsed into one code")
 	}
 }
 
-// TestBotOnlineNeedsAFreshHeartbeat is the shared-definition test: the
-// layout reply and the status reply must agree on what "online" means, and
-// connected:true alone is not it. The status key has no TTL, so an ingress
-// that was killed mid-session leaves connected:true behind forever; without
-// the staleness check the dashboard pill stayed green for a bot that no
-// longer existed.
 func TestBotOnlineNeedsAFreshHeartbeat(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	cases := []struct {
@@ -268,8 +232,6 @@ func TestBotOnlineNeedsAFreshHeartbeat(t *testing.T) {
 		{"not connected", ddiscord.BotStatus{
 			Connected: false, HeartbeatUnixMS: now.UnixMilli(),
 		}, false},
-		// No heartbeat at all is a status written before the first beat, not
-		// a stale one: HeartbeatStale reads 0 as "no evidence".
 		{"connected, no beat yet", ddiscord.BotStatus{Connected: true}, true},
 	}
 	for _, tc := range cases {
@@ -279,10 +241,6 @@ func TestBotOnlineNeedsAFreshHeartbeat(t *testing.T) {
 	}
 }
 
-// The dashboard has to be able to tell "the bot is offline" from "the bot is
-// offline and its ingress has stopped dialling until tomorrow morning". The
-// budget rides the status key; handleStatus must carry all four fields
-// through, including the deadline that says when to look again.
 func TestHandleStatusCarriesTheConnectBudget(t *testing.T) {
 	rest := &fakeSetupREST{guild: discapi.GuildInfo{ID: "g1", Name: "Bagel HQ"}}
 	status := fakeBotStatus{ok: true, st: ddiscord.BotStatus{
@@ -304,9 +262,6 @@ func TestHandleStatusCarriesTheConnectBudget(t *testing.T) {
 	}
 }
 
-// A bot with a healthy session publishes no budget pressure, and the reply
-// must not invent any -- an at_ceiling that is merely a stale default puts a
-// permanent warning on a dashboard for a bot that is fine.
 func TestHandleStatusOmitsAnUnpressuredBudget(t *testing.T) {
 	rest := &fakeSetupREST{guild: discapi.GuildInfo{ID: "g1", Name: "Bagel HQ"}}
 	status := fakeBotStatus{ok: true, st: ddiscord.BotStatus{Connected: true, ConnectsInWindow: 4}}
@@ -322,17 +277,11 @@ func TestHandleStatusOmitsAnUnpressuredBudget(t *testing.T) {
 	}
 }
 
-// setupRPC builds the handler with no Discord client attached. Validation
-// runs BEFORE the fill, so a refused request never reaches the client at
-// all and an accepted one is recognisable by the "unavailable" it then
-// fails with.
 func setupRPC() *discordRPC {
 	w := setup.New(setup.Config{Store: discordstore.NewMem(), Log: zap.NewNop()})
 	return &discordRPC{w: w, log: zap.NewNop()}
 }
 
-// A real guild id: ValidateConfig refuses anything that cannot be a
-// snowflake, this file included.
 const rpcGuildID = "100000000000000001"
 
 func TestSetupRefusesAPinnedRoleThatIsNotASnowflake(t *testing.T) {
@@ -352,10 +301,6 @@ func TestSetupRefusesAPinnedRoleThatIsNotASnowflake(t *testing.T) {
 	}
 }
 
-// A slot that is not part of the template is refused rather than silently
-// dropped: the dashboard sent something this build does not understand, and
-// filling the guild anyway hides that from the streamer until they notice
-// the role never got applied.
 func TestSetupRefusesAnUnknownPinnedSlot(t *testing.T) {
 	got := setupRPC().handleSetup(context.Background(), outgressrpc.DiscordSetupRequest{
 		UserID: "42", GuildID: rpcGuildID,
@@ -393,8 +338,6 @@ func TestHandleDeskRepostRejectsAMissingGuild(t *testing.T) {
 	}
 }
 
-// A guild id that cannot be a snowflake is refused before the bind, so a
-// paste error never writes a binding nobody can unbind.
 func TestSetupRefusesAGuildIDThatIsNotASnowflake(t *testing.T) {
 	got := setupRPC().handleSetup(context.Background(), outgressrpc.DiscordSetupRequest{
 		UserID: "42", GuildID: "my-server",
@@ -408,9 +351,6 @@ func TestSetupRefusesAGuildIDThatIsNotASnowflake(t *testing.T) {
 	}
 }
 
-// Valid pins pass validation and reach the fill, which is what fails here
-// (no client). The point is the absence of CodeInvalid: a well-formed
-// request must not be refused by the validator.
 func TestSetupAcceptsWellFormedPins(t *testing.T) {
 	got := setupRPC().handleSetup(context.Background(), outgressrpc.DiscordSetupRequest{
 		UserID: "42", GuildID: rpcGuildID,
@@ -425,9 +365,6 @@ func TestSetupAcceptsWellFormedPins(t *testing.T) {
 	}
 }
 
-// configRPCFor wires the handlers over a memory store holding guildIDs bound
-// to broadcaster 42. The REST client is nil on purpose: these tests are about
-// the reply codes the console switches on, and nothing here calls Discord.
 func configRPCFor(t *testing.T, guildIDs ...string) *discordRPC {
 	t.Helper()
 	store := discordstore.NewMem()
@@ -465,7 +402,6 @@ func TestHandleConfigSetReportsConflict(t *testing.T) {
 	if reply := d.handleConfigSet(ctx, req); reply.Code != outgressrpc.CodeOK {
 		t.Fatalf("first save: %+v", reply)
 	}
-	// The same expected_version again: the page is out of date.
 	if reply := d.handleConfigSet(ctx, req); reply.Code != outgressrpc.CodeConflict {
 		t.Fatalf("want conflict, got %+v", reply)
 	}
@@ -504,15 +440,11 @@ func TestHandleGuildsListReturnsEveryBinding(t *testing.T) {
 	if got.Code != outgressrpc.CodeOK || len(got.Guilds) != 2 {
 		t.Fatalf("want two servers, got %+v", got)
 	}
-	// No REST client is wired, so nothing could confirm the bot is there.
 	if got.Guilds[0].BotPresent {
 		t.Fatalf("want bot_present false with no Discord client, got %+v", got.Guilds[0])
 	}
 }
 
-// TestHandleGuildsListSaysTimeoutAndKeepsThePartial: a deadline reached
-// part-way leaves a list the dashboard can still render. The code says it is
-// short; an empty reply would have said the streamer connected nothing.
 func TestHandleGuildsListSaysTimeoutAndKeepsThePartial(t *testing.T) {
 	d := configRPCFor(t, "guild-1", "guild-2")
 	ctx, cancel := context.WithCancel(context.Background())
@@ -527,16 +459,10 @@ func TestHandleGuildsListSaysTimeoutAndKeepsThePartial(t *testing.T) {
 	}
 }
 
-// flaggedReauth is the stale-grant bookkeeping, scripted per guild.
 type flaggedReauth map[string]bool
 
 func (f flaggedReauth) NeedsReauth(_ context.Context, g kv.GuildID) bool { return f[string(g)] }
 
-// TestGuildEntriesNeverGuessAReauthFlag is the fix for a listing that lies
-// reassuringly. The flag is one Valkey read, the listing hands it a context
-// that is already dead whenever the partial path was taken, and a failed read
-// is a plain false -- so the guild whose grant had died was drawn as healthy
-// on exactly the slow load where it matters. Unknown is a third state.
 func TestGuildEntriesNeverGuessAReauthFlag(t *testing.T) {
 	d := configRPCFor(t, "guild-1", "guild-2")
 	d.reauth = flaggedReauth{"guild-1": true}
@@ -559,9 +485,6 @@ func TestGuildEntriesNeverGuessAReauthFlag(t *testing.T) {
 	}
 }
 
-// TestHandleGuildsListFlagsATruncatedListing: the cap is silent on the wire
-// without this, so a streamer past it sees a page that quietly forgot a
-// server.
 func TestHandleGuildsListFlagsATruncatedListing(t *testing.T) {
 	ids := make([]string, 0, setup.MaxListedGuilds+1)
 	for i := range setup.MaxListedGuilds + 1 {
@@ -574,7 +497,6 @@ func TestHandleGuildsListFlagsATruncatedListing(t *testing.T) {
 	if len(got.Guilds) != setup.MaxListedGuilds || !got.Truncated {
 		t.Fatalf("listing = %d entries, truncated=%v", len(got.Guilds), got.Truncated)
 	}
-	// And a listing that fits says nothing.
 	if short := configRPCFor(t, "guild-1").handleGuildsList(
 		context.Background(), outgressrpc.DiscordGuildsListRequest{UserID: "42"},
 	); short.Truncated {
@@ -605,9 +527,6 @@ func TestPanelSpecCarriesEveryField(t *testing.T) {
 	wantReplyField(t, "button", got.Button, "go")
 }
 
-// TestPanelSpecKeepsBlackAndUnsetApart is the wire half of the pointer colour:
-// a request that omits "color" must reach the renderer as unset (brand
-// default), and one that sends 0 must reach it as black.
 func TestPanelSpecKeepsBlackAndUnsetApart(t *testing.T) {
 	if got := panelSpec(outgressrpc.DiscordPanelSpec{Title: "t"}); got.Color != nil {
 		t.Fatalf("color = %v, want nil for an omitted key", got.Color)
@@ -621,8 +540,6 @@ func TestPanelSpecKeepsBlackAndUnsetApart(t *testing.T) {
 	}
 }
 
-// The card's icon is the same live lookup as its name and member count: the
-// entry carries the CDN url outgress derived on this read, never a stored hash.
 func TestHandleGuildsListCarriesTheIconURL(t *testing.T) {
 	rest := &fakeSetupREST{guild: discapi.GuildInfo{ID: "g1", Name: "Bagel HQ", Icon: "abc", ApproximateMemberCount: 9}}
 	d := newDiscordRPC(t, rest, fakeBotStatus{}, true)

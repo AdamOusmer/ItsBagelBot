@@ -1,25 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * DomMotion: cursor-driven motion system.
- *
- * Composes two subsystems that share a single Pointer and a single
- * requestAnimationFrame loop:
- *
- *   Parallax: header/footer + ornaments drift against the cursor (header
- *              retains a soft 3D tilt, footer only drifts).
- *
- * Top-level <section> and <main> are deliberately excluded from the
- * transform: applying `transform` or `translate` to them creates a new
- * containing block, which breaks `position: sticky` for their descendants
- * (the encryption scene relies on this).
- *
- * The system only runs on (hover: hover) + (pointer: fine) and respects
- * prefers-reduced-motion. The RAF loop self-suspends when motion settles
- * and resumes on the next pointer event.
- */
-
 import {finePointer, reduceMotion} from "@bagel/ui/lib/motion-query";
 import {subscribe, wake} from "@bagel/ui/lib/raf-loop";
 
@@ -32,16 +13,6 @@ const ACTIVE_CLASS = "is-dom-motion-active";
 
 const POINTER_EASE = 0.07;
 
-/**
- * How long after the pointer stops moving the parallax keeps easing before the
- * shared scheduler is allowed to drop it. The pointer eases at 0.07 per frame,
- * which is slow on purpose (the drift is meant to read as the page having
- * weight), and at that rate the last visible tenth of a pixel of travel lands
- * roughly 40 frames after the final pointermove. Settling on distance alone cut
- * the tail off visibly; 700ms outlasts it with room, and the cost of being
- * wrong in this direction is a handful of no-op frames rather than a visible
- * stop.
- */
 const SETTLE_DELAY_MS = 700;
 
 const MOTION_CSS = `
@@ -95,12 +66,6 @@ function createDomMotion() {
         return finePointer.matches && !reduceMotion.matches && !document.hidden;
     }
 
-    // Ticked by @bagel/ui's shared scheduler. The settle protocol is the same
-    // one this file invented and the reason it exists: return false and the
-    // scheduler drops this subscriber, and once every subscriber has settled
-    // the page schedules no frames at all. The difference is that the parallax
-    // now settles into the SAME loop the mote field and the smooth scroller
-    // run in, rather than being one of four.
     function tick(now) {
         if (!active || !canAnimate()) return false;
 

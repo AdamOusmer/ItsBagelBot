@@ -12,10 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// This file holds the PaceMan-backed command tests: !pace, !nethers and
-// !lastfort. Shared fixtures (mcsrModule, mcsrCtx, runMcsrCmd) live in
-// mcsr_test.go.
-
 func TestMcsrPaceDefaultTemplate(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"paceman.session": gossiprpc.PacemanSessionReply{
@@ -98,8 +94,6 @@ func TestMcsrLastFortToggleOff(t *testing.T) {
 	assert.Empty(t, gw.calls)
 }
 
-// !pace accepts a typed player argument, unlike !session which never does
-// (its baseline is per-channel, not per-player).
 func TestMcsrPaceAcceptsArgument(t *testing.T) {
 	gw := &fakeGossip{replies: map[string]any{
 		"paceman.session": gossiprpc.PacemanSessionReply{Player: "SomeoneElse", Empty: true},

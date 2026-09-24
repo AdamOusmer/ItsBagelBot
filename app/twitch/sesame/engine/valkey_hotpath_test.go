@@ -15,8 +15,6 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// These tests are opt-in because atomic script semantics need a real Valkey
-// interpreter. They use the same VALKEY_TEST_ADDR convention as pkg/ratelimit.
 func TestValkeyHotPathScriptsIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)

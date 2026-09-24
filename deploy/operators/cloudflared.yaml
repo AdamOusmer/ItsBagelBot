@@ -1,24 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Cloudflare Tunnel connectors. Public ingress enters here: Cloudflare's edge
-# dials these outbound connectors, which forward to the node-local traefik over
-# HTTPS.
-#
-# kind DaemonSet, not Deployment: "one connector per node" is a property of the
-# node set, not a replica count. A Deployment had to hard-code replicas: 3 plus
-# one-per-node anti-affinity, which meant every node add/remove was a manual
-# edit and a surge pod could never schedule. A DaemonSet resizes itself as the
-# fleet changes. A single tunnel ID backs many connectors: that is Cloudflare's
-# native HA model, and the edge load-balances across whichever connectors are
-# registered.
-#
-# The hop to traefik is TLS against the Cloudflare Origin CA cert (held in
-# Doppler, synced by the operator; see deploy/networking/traefik.yaml),
-# verified against the public Cloudflare Origin RSA root pinned below
-# (noTLSVerify stays false). Both outbound paths are encrypted: 443 to
-# traefik, 7844 to Cloudflare. Nothing here holds a private key: the only
-# secret this workload mounts is the tunnel credential.
+# noTLSVerify stays false: the hop to traefik is verified against the Origin root pinned below.
 ---
 apiVersion: secrets.doppler.com/v1alpha1
 kind: DopplerSecret
@@ -37,12 +20,7 @@ spec:
     - TUNNEL_CREDENTIALS_JSON
   resyncSeconds: 60
 ---
-# CloudFlare Origin SSL Certificate Authority (RSA) — the root that signed
-# the CLOUDFLARE_ORIGIN_CERT held in Doppler (openssl-verified against it).
-# NOT the ECC root: the two roots sign different Origin certs, and pinning
-# the wrong one fails the handshake (openssl verify -CAfile to check).
-# Source: https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem
-# Expires 2029-08-15; replace from the same URL when Cloudflare rotates it.
+# The Origin CA RSA root, not the ECC one: pinning the wrong root fails the handshake.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -174,9 +152,7 @@ spec:
       annotations:
         secrets.doppler.com/reload: "true"
     spec:
-      # Public ingress belongs to the app tier, and this node set must stay a
-      # subset of traefik's: traefik's Service runs internalTrafficPolicy Local,
-      # so a cloudflared on a node with no traefik would fail closed.
+      # Must stay a subset of traefik's nodes: traefik's Service is internalTrafficPolicy Local.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -185,8 +161,6 @@ spec:
                   - key: role
                     operator: NotIn
                     values: [cp]
-      # No tolerations. The control plane is a dedicated k3s server; its taint
-      # plus the affinity above keep connectors off it.
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532
@@ -232,10 +206,6 @@ spec:
             secretName: cloudflared-tunnel
             items:
               - {key: TUNNEL_CREDENTIALS_JSON, path: credentials.json}
-        # Public Cloudflare Origin ECC root, no private key. Checked in below
-        # rather than trust-manager-distributed: it is Cloudflare's anchor,
-        # not the fleet's, and it only changes when Cloudflare rotates it
-        # (current root expires 2029-08-15).
         - name: trust
           configMap:
             name: cloudflare-origin-ca

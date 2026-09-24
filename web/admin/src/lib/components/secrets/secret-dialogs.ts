@@ -5,29 +5,14 @@ import type { DbCredentialStatus } from '$lib/server/secrets';
 
 export type SecretVerb = 'rotate' | 'set' | 'revoke';
 
-/**
- * The three secret mutations, as data.
- *
- * `action` is the server form-action name and is NOT free to rename: the audit
- * trail keys off the matching SecretSpec in +page.server.ts, and a rename here
- * would silently 404 the POST rather than fail the build.
- *
- * `phrase` mirrors the server's own type-to-confirm check exactly. It is
- * duplicated on purpose and the duplication is the point: the client shows the
- * operator the phrase, and the server -- which is the one that matters -- checks
- * it. If they ever disagree the form is refused, which is the safe direction.
- */
+/** `action` is the server form-action name: a rename silently 404s the POST. */
 export type SecretDialog = {
   verb: SecretVerb;
   action: string;
-  /** Catalog key for the dialog title. */
   title: string;
-  /** Catalog key for the explanation above the fields. */
   body: string;
-  /** Catalog key for the confirm button. */
   cta: string;
   danger: boolean;
-  /** Which extra fields the dialog collects. */
   needsUser: boolean;
   needsPassword: boolean;
   phrase: (service: DbCredentialStatus, dbUser: string) => string;

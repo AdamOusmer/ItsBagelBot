@@ -7,10 +7,6 @@ import { generateState } from '@bagel/kit/server/oauth';
 import { randomBytes } from 'node:crypto';
 import { twitch, scopes } from '$lib/server/oauth';
 
-// Start of the Twitch authorization-code flow. State + nonce are stored in
-// short-lived HttpOnly cookies and verified in the callback (CSRF + id_token
-// substitution guards). The browser drives the whole flow, so the tailnet-only
-// callback host resolves fine: the operator is already on the tailnet.
 export const GET: RequestHandler = ({ cookies, url }) => {
   const state = generateState();
   const nonce = randomBytes(16).toString('base64url');

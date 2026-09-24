@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package config loads the deployer's settings from env (Doppler in the cluster).
 package config
 
 import (
@@ -16,34 +15,23 @@ import (
 	"ItsBagelBot/pkg/svcboot"
 )
 
-// Config is everything main wires.
 type Config struct {
 	svcboot.Infra
 
 	Deploy ports.Config
 
-	// RPCPrefix is where the verbs are served (deploy.Prefix).
-	RPCPrefix string
-	// UsersAuthSubject is the users service staff check the Authorizer asks.
+	RPCPrefix        string
 	UsersAuthSubject string
-	// RPCTimeout bounds one verb handler. plan fans out to GitHub and the
-	// cluster, so it is longer than the bus default.
-	RPCTimeout time.Duration
+	RPCTimeout       time.Duration
 
-	// GitHub App credentials.
 	GitHubAppID          int64
 	GitHubInstallationID int64
 	GitHubPrivateKey     []byte
 
-	// GHCRUsername and GHCRToken are the existing ghcr-pull read credential.
 	GHCRUsername string
 	GHCRToken    string
 }
 
-// Load reads env and refuses to boot without the GitHub App or ghcr
-// credentials: every stage past preflight needs them, so a pod missing its
-// DopplerSecret should crash-loop at rollout, not accept a start and fail it
-// at the first merge.
 func Load() (*Config, error) {
 	cfg := &Config{
 		Infra:                svcboot.LoadInfra(),
@@ -108,9 +96,6 @@ func loadDeploy() ports.Config {
 	}
 }
 
-// int32Env reads a count the Kubernetes API types as int32 (a container's
-// restartCount). A value outside int32 would wrap on conversion, so it falls
-// back to def instead.
 func int32Env(key string, def int32) int32 {
 	n := env.GetInt(key, int(def))
 	if n < 0 || n > math.MaxInt32 {

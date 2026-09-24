@@ -1,9 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Alternate-name (alias) chip input. Commits on Enter/comma/blur, pops the
-  // last chip on Backspace in an empty input, de-duplicates case-insensitively
-  // against the command's own name and existing chips.
   import { Chip, Icon, getI18n } from '@bagel/kit';
 
   const { t } = getI18n();
@@ -62,9 +59,6 @@
 
 <style>
   .aliases { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  /* Frame/typography come from the Chip contract. What stays scoped is the
-     removal affordance: the x is width:0 until hover so the chip does not
-     jump, and hover turns red because the click deletes. */
   .aliases :global(.alias) { padding: 5px 10px; }
   .aliases :global(.alias svg) {
     width: 0;

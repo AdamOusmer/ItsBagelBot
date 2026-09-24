@@ -9,9 +9,6 @@ import { adminCheck } from '$lib/server/services';
 import { COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
 import { env } from '$env/dynamic/private';
 
-// Twitch redirects the operator's browser here (on the tailnet). The token
-// exchange below is a server-side outbound call to id.twitch.tv, so the private
-// host never needs to be publicly reachable.
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
@@ -21,9 +18,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   cookies.delete('oauth_nonce', { path: '/' });
 
   if (!code || !state || !stored || state !== stored) throw redirect(302, '/login?e=state');
-  // The shared client enforces the id_token nonce claim, so the cookie is
-  // mandatory: a flow that lost it fails closed instead of logging in without
-  // replay protection.
+  // The nonce cookie is mandatory: a flow that lost it must fail, not log in without replay protection.
   if (!storedNonce) throw redirect(302, '/login?e=state');
 
   try {
@@ -36,7 +31,6 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
       nonce?: string;
     };
 
-    // aud == our client id, iss == Twitch, nonce matches (id_token swap guards).
     const clientId = env.TWITCH_CLIENT_ID ?? '';
     const audOk = Array.isArray(claims.aud)
       ? claims.aud.includes(clientId)
@@ -49,8 +43,6 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     const login = claims.preferred_username.toLowerCase();
     const displayName = claims.preferred_username;
 
-    // Authorization gate: only sign in operators on the staff allowlist. A
-    // non-staff Twitch login is rejected here and never receives a session.
     const check = await adminCheck(userId, login, displayName);
     if (!check.admin) throw redirect(302, '/login?e=denied');
 

@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The moderation module registers !nuke at moderator tier with a shared
-// cooldown window, so a stray viewer invocation never reaches the sweep.
 func TestModerationRegistersNukeAtModTier(t *testing.T) {
 	m := Moderation(engine.Deps{})
 	assert.Equal(t, "moderation", m.Name)
@@ -27,8 +25,6 @@ func TestModerationRegistersNukeAtModTier(t *testing.T) {
 	assert.Positive(t, cmd.Cooldown)
 }
 
-// A nil Deps.Nuke leaves the command inert: it runs, emits nothing, errors
-// nothing — the graceful degradation every store-backed module follows.
 func TestModerationInertWithoutService(t *testing.T) {
 	m := Moderation(engine.Deps{})
 	run := m.Commands[0].Run

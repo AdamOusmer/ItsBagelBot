@@ -26,7 +26,7 @@ func New(env string) *zap.Logger {
 		config.EncoderConfig.LevelKey = "level"
 		config.EncoderConfig.MessageKey = "message"
 
-		config.Sampling = &zap.SamplingConfig{ // enable log sampling to reduce log volume
+		config.Sampling = &zap.SamplingConfig{
 			Initial:    100,
 			Thereafter: 100,
 		}

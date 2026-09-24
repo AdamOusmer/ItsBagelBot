@@ -12,7 +12,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// AwardEmail is the durable local ledger for giveaway notification delivery.
 type AwardEmail struct{ ent.Schema }
 
 func (AwardEmail) Fields() []ent.Field {

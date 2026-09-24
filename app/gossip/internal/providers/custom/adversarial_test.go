@@ -3,12 +3,6 @@
 
 package custom
 
-// The adversarial battery: every case here is an answer a HOSTILE upstream
-// (or a hostile author aiming us somewhere) can plausibly give, run through
-// the real handler over the real SOCKS forwarder. Each test pins one of three
-// outcomes — blocked, flagged-and-capped, or fail-closed — and none may panic,
-// leak key material into logs/cache, or move the breaker on policy refusals.
-
 import (
 	"ItsBagelBot/pkg/codec"
 	"context"
@@ -39,10 +33,6 @@ func (r *recordingKeys) FetchKey(_ context.Context, channelID, _ string) (string
 	return secretFixture, nil
 }
 
-// TestAdvTruncatedAndGarbageJSONIsStableBadDef pins that a malformed or
-// lying-content-type body can never wedge the handler: stable bad_def, brief
-// negative cache so the author's retry storm dies, second call served without
-// re-dialing.
 func TestAdvTruncatedAndGarbageJSONIsStableBadDef(t *testing.T) {
 	for name, body := range map[string]string{
 		"truncated":    `{"data":{"items":[{"na`,
@@ -63,16 +53,11 @@ func TestAdvTruncatedAndGarbageJSONIsStableBadDef(t *testing.T) {
 			cached := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "w"})
 			assert.Equal(t, gossiprpc.FetchBadDef, cached.Status)
 			assert.Equal(t, int32(1), h.hits.Load(), "negative cache must absorb the retry")
-			// storeEntry writes 2*ttl: the fresh window plus the SWR stale
-			// tail it stays servable through while a refresh would run.
 			assert.Equal(t, 2*negativeTTL, h.store.retention(resultKey(strings.ToLower("w"))), "bad authoring caches briefly, not forever")
 		})
 	}
 }
 
-// TestAdvHalfMegabyteOfNestingDiesGracefully: 400KB of "[" is a parser bomb.
-// The decoder must refuse it and the handler must return a typed status —
-// never panic, never hang past the endpoint budget.
 func TestAdvHalfMegabyteOfNestingDiesGracefully(t *testing.T) {
 	h := newHarness(t)
 	h.route(t, "/nest", staged{status: http.StatusOK, ct: "application/json", body: strings.Repeat("[", 400_000)})
@@ -82,9 +67,6 @@ func TestAdvHalfMegabyteOfNestingDiesGracefully(t *testing.T) {
 	assert.Contains(t, []gossiprpc.FetchStatus{gossiprpc.FetchBadDef, gossiprpc.FetchUpstreamError}, reply.Status)
 }
 
-// TestAdvThreeMegabyteFloodIsCappedNotBreakerArming: a flood is an ANSWERED
-// request — it proves the host alive — so it must cap out via ErrBodyTooLarge
-// and RESET the failure counter, never arm the circuit.
 func TestAdvThreeMegabyteFloodIsCappedNotBreakerArming(t *testing.T) {
 	h := newHarness(t)
 	h.route(t, "/flood", staged{status: http.StatusOK, ct: "text/plain", body: strings.Repeat("a", 3<<20)})
@@ -98,9 +80,6 @@ func TestAdvThreeMegabyteFloodIsCappedNotBreakerArming(t *testing.T) {
 	assert.False(t, armed, "a policy-refused payload proves reachability and must not arm the breaker")
 }
 
-// TestAdvEncodingLieStaysBounded: upstream claims application/json but ships
-// gzip bytes without the transport having asked for them. Whatever comes out
-// the other side is bounded and cannot crash extraction.
 func TestAdvEncodingLieStaysBounded(t *testing.T) {
 	h := newHarness(t)
 	h.route(t, "/lie", staged{status: http.StatusOK, ct: "application/json", body: "\x1f\x8b" + strings.Repeat("\x00", 2<<20)})
@@ -113,14 +92,9 @@ func TestAdvEncodingLieStaysBounded(t *testing.T) {
 	}
 }
 
-// TestAdvHostileValueIsRuneSafeCapped: CRLF, NULs, ANSI escapes, leading
-// slashes and multibyte runes ride back capped at a rune boundary. Gossip's
-// job is the CAP; control-char stripping and slash-trim stay ExternalVar's at
-// sesame's variable boundary (defense in depth, tested there) — this pins the
-// cap half so nothing oversized ever crosses the wire either way.
 func TestAdvHostileValueIsRuneSafeCapped(t *testing.T) {
 	h := newHarness(t)
-	hostile := "/ban everyone\r\n\x1b[31mJOIN\x00 #evil\n" + strings.Repeat("héllo-", 100) // multibyte tail straddles 256 runes
+	hostile := "/ban everyone\r\n\x1b[31mJOIN\x00 #evil\n" + strings.Repeat("héllo-", 100)
 	body, merr := codec.Marshal(map[string]string{"v": hostile})
 	require.NoError(t, merr)
 	h.route(t, "/hostile", staged{status: http.StatusOK, ct: "application/json", body: string(body)})
@@ -132,11 +106,6 @@ func TestAdvHostileValueIsRuneSafeCapped(t *testing.T) {
 	assert.LessOrEqual(t, len([]rune(reply.Values[0])), maxValueRunes, "cap must be rune-safe, not byte-safe")
 }
 
-// TestAdvHostileTargetsDieBeforeAnyTunnel: literal targets (any family,
-// any IANA special-purpose range, any translation wrapper) are refused at
-// the handler gate; "localhost" — whose NAME passes every shape rule — dies
-// one step later, at resolution, because 127.0.0.1 fails classifyAddr. Both
-// routes end policy-denied with ZERO tunnel opens.
 func TestAdvHostileTargetsDieBeforeAnyTunnel(t *testing.T) {
 	core.SetSSRFCheckForTests(true)
 	t.Cleanup(func() { core.SetSSRFCheckForTests(false) })
@@ -161,9 +130,6 @@ func TestAdvHostileTargetsDieBeforeAnyTunnel(t *testing.T) {
 		assert.Equal(t, gossiprpc.FetchDenied, reply.Status, "host %s must be denied", host)
 	}
 
-	// The name-shape escape hatch: "localhost" is an ordinary DNS name to
-	// every string rule, yet its resolution lands in loopback space and
-	// classifyAddr refuses it at dial time.
 	h.defs["byname"] = gossiprpc.FetchDef{Name: "byname", URL: "https://localhost/x", IsActive: true}
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "byname"})
 	assert.Equal(t, gossiprpc.FetchDenied, reply.Status)
@@ -171,9 +137,6 @@ func TestAdvHostileTargetsDieBeforeAnyTunnel(t *testing.T) {
 	assert.Zero(t, h.socks.conns.Load(), "denied definitions must never open a tunnel")
 }
 
-// TestAdvDryRunCannotBypassTheGate: rehearsal executes the real path, so a
-// hostile draft is denied identically with dry_run set — the flag weakens
-// billing, never policy.
 func TestAdvDryRunCannotBypassTheGate(t *testing.T) {
 	core.SetSSRFCheckForTests(true)
 	t.Cleanup(func() { core.SetSSRFCheckForTests(false) })
@@ -188,10 +151,6 @@ func TestAdvDryRunCannotBypassTheGate(t *testing.T) {
 	assert.Zero(t, h.socks.conns.Load())
 }
 
-// TestAdvKeyMaterialNeverLoggedOrCached: the stored key rides exactly one
-// upstream request (by design — the author aimed the definition at their own
-// API), but it must appear NOWHERE else: not in any log entry, not in the
-// cache, not in a reply for a value the author did not target.
 func TestAdvKeyMaterialNeverLoggedOrCached(t *testing.T) {
 	observed, logs := observer.New(zapcore.DebugLevel)
 	h := newHarness(t)

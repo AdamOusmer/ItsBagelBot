@@ -2,18 +2,6 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Runtime database credentials, one Card per service.
-  //
-  // No deck and no inspector here, unlike the other management pages: there are
-  // four services and each verb needs its own typed confirmation, so a
-  // master-detail split would put a click in front of a card that already fits
-  // on screen whole. What DID change is that the three dialogs became one table
-  // (SECRET_DIALOGS) instead of three parallel `pending.kind ===` branches
-  // spread across the title, the CTA, the danger flag, the fields and the form
-  // action -- five places that had to be edited in step to add a fourth verb.
-  //
-  // The action names (`rotate`, `set`, `revoke`) are the server's and are not
-  // renamed -- the audit trail keys off them.
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -41,8 +29,6 @@
   const failed = adminToastFailure(toast);
   const canManage = $derived(allows(data.role, 'secrets.manage'));
 
-  // Streamed bundle -> local state; refreshed via invalidateAll after writes,
-  // because only Doppler knows what the credential became.
   let bundle = $state<SecretsBundle | null>(null);
   $effect(() => {
     let alive = true;
@@ -56,7 +42,6 @@
 
   const services = $derived(bundle?.services ?? []);
 
-  // ── Dialog state ───────────────────────────────────────────────────────────
   let pendingVerb = $state<SecretVerb | null>(null);
   let pendingService = $state<DbCredentialStatus | null>(null);
   let confirmText = $state('');
@@ -67,8 +52,6 @@
 
   const dialog = $derived(pendingVerb ? SECRET_DIALOGS[pendingVerb] : null);
   const phrase = $derived(dialog && pendingService ? dialog.phrase(pendingService, dbUser) : '');
-  // The server checks this too, and its answer is the one that counts; matching
-  // here only stops the operator submitting a form that would be refused.
   const phraseMatches = $derived(confirmText.trim() === phrase && phrase !== '');
 
   function open(verb: SecretVerb, service: DbCredentialStatus) {
@@ -92,8 +75,6 @@
       if (result.type === 'success' && p?.action?.ok) {
         toast('ok', p.action.notice);
         close();
-        // Reconcile with Doppler's view rather than guessing locally: a rotate
-        // mints a user name only the server saw.
         bundle = null;
         await invalidateAll();
         return;
@@ -102,7 +83,6 @@
     };
   };
 
-  // ── Local secret generator (never leaves the browser) ─────────────────────
   const GEN_KINDS = ['base64', 'hex', 'password'] as const;
   type GenKind = (typeof GEN_KINDS)[number];
 
@@ -112,9 +92,7 @@
     password: 'admin.secrets.genPassword'
   } as const satisfies Record<GenKind, string>;
 
-  // No characters that need escaping in a MySQL connection string or a shell
-  // one-liner: a generated password is going to be pasted into both.
-  const PASSWORD_ALPHABET =
+  const ESCAPE_FREE_PASSWORD_ALPHABET =
     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!*';
   const BYTES = 32;
   const PASSWORD_LENGTH = 40;
@@ -130,7 +108,7 @@
   function generateValue(kind: GenKind): string {
     if (kind === 'password') {
       return [...randomBytes(PASSWORD_LENGTH)]
-        .map((b) => PASSWORD_ALPHABET[b % PASSWORD_ALPHABET.length])
+        .map((b) => ESCAPE_FREE_PASSWORD_ALPHABET[b % ESCAPE_FREE_PASSWORD_ALPHABET.length])
         .join('');
     }
     const bytes = randomBytes(BYTES);
@@ -165,7 +143,6 @@
         />
       {/each}
 
-      <!-- Local generator: strong random material without any server round trip. -->
       <Card class="gen-card">
         <CardHead title={t('admin.secrets.genTitle')}>
           {#snippet action()}
@@ -194,7 +171,6 @@
   {/if}
 </section>
 
-<!-- One dialog for every secret mutation; the phrase check mirrors the server's. -->
 <ConfirmDialog
   open={dialog !== null}
   title={dialog ? t(dialog.title) : ''}
@@ -229,9 +205,6 @@
       {/if}
 
       {#if dialog.needsPassword}
-        <!-- A password field, not a text one: this dialog is opened on a shared
-             operator screen often enough that the value should not be shoulder-
-             readable, and the generator above is where it comes from anyway. -->
         <Field label={t('admin.secrets.fieldDbPass')}>
           <Input fill mono type="password" autocomplete="new-password" bind:value={dbPass} />
         </Field>

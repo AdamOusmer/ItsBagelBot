@@ -77,10 +77,6 @@ func TestBuild(t *testing.T) {
 	}
 }
 
-// TestRepoManifests builds the live trees from this checkout, the same three
-// roots the rollout and acl stages build at the pin merge commit, and runs the
-// lint over them: a manifest edit that reintroduces a surging one-pod-per-node
-// workload fails here, before it can fail a train.
 func TestRepoManifests(t *testing.T) {
 	repo := os.DirFS("../../../../..")
 	for _, root := range []ports.FilePath{"deploy/k8s", "deploy/messaging", "deploy/db"} {

@@ -18,38 +18,21 @@ import (
 	"go.uber.org/zap"
 )
 
-// channelClient is the create/delete half of rpcclient.Client that
-// voice.go needs. See internal/domain/rpc/discordoutgress's doc for why these
-// are RPCs rather than Commands: a voice clone's channel id does not exist
-// until outgress's create call returns it, and both TrackClone and the
-// immediate reply need that id.
 type channelClient interface {
 	CreateChannel(ctx context.Context, req discordoutgress.ChannelCreateRequest) (discordoutgress.ChannelCreateReply, error)
 	DeleteChannel(ctx context.Context, req discordoutgress.ChannelDeleteRequest) (discordoutgress.ChannelDeleteReply, error)
 }
 
-// ticketClient is the desk's half of rpcclient.Client: the three orchestrations
-// outgress performs on the engine's behalf, plus the channel delete the open
-// path rolls back with.
 type ticketClient interface {
 	TicketOpen(ctx context.Context, req discordoutgress.TicketOpenRequest) (discordoutgress.TicketOpenReply, error)
 	TicketClaim(ctx context.Context, req discordoutgress.TicketClaimRequest) (discordoutgress.TicketClaimReply, error)
 	TicketClose(ctx context.Context, req discordoutgress.TicketCloseRequest) (discordoutgress.TicketCloseReply, error)
 	TicketAddMember(ctx context.Context, req discordoutgress.TicketMemberAddRequest) (discordoutgress.TicketMemberAddReply, error)
 	TicketPanel(ctx context.Context, req discordoutgress.TicketPanelRequest) (discordoutgress.TicketPanelReply, error)
-	// ModifyChannel renames the channel once the ticket row exists; see
-	// nameTicket for why the name cannot be final at create time.
 	ModifyChannel(ctx context.Context, req discordoutgress.ChannelModifyRequest) (discordoutgress.ChannelModifyReply, error)
 	DeleteChannel(ctx context.Context, req discordoutgress.ChannelDeleteRequest) (discordoutgress.ChannelDeleteReply, error)
 }
 
-// Ticket is the support desk: the persistent panel, opening a private channel,
-// claiming it, adding people to it, and closing it with a transcript.
-//
-// Every command this module emits rides the DEFAULT lane (ddiscord.Lane sends
-// anything that is not a ModType there). That is deliberate: a ticket is a
-// support conversation, and putting desk traffic on the moderation lane would
-// let one guild's transcript upload sit in front of another guild's ban.
 func Ticket(store discordstore.Store, tickets ticketClient, log *zap.Logger) module.Module {
 	h := ticketModule{store: store, tickets: tickets, log: log}
 	b := module.NewModule("ticket")
@@ -66,17 +49,10 @@ type ticketModule struct {
 	log     *zap.Logger
 }
 
-// deskUnavailable reports whether EnsureDesk has nothing to claim: tickets
-// are off, no channel is configured to host the desk, or there is no store
-// to claim it in (a nil store is possible in tests that exercise other
-// modules without wiring one).
 func deskUnavailable(store discordstore.Store, cfg ddiscord.Config) bool {
 	return !cfg.TicketsOn() || cfg.TicketChannelID == "" || store == nil
 }
 
-// EnsureDesk claims (once per guild, via the store's Nx claim) and posts the
-// persistent ticket desk panel. The dispatcher calls this on every resolved
-// guild event; the Nx claim makes every call after the first a no-op.
 func EnsureDesk(ctx context.Context, store discordstore.Store, cfg ddiscord.Config, emit module.Emit) {
 	if deskUnavailable(store, cfg) {
 		return
@@ -97,7 +73,6 @@ func ticketDeskButtons(spec ddiscord.TicketPanelSpec) []ddiscord.ButtonSpec {
 	return []ddiscord.ButtonSpec{{Style: discordapi.ButtonPrimary, Label: spec.Button, CustomID: discordapi.CustomTicketOpen}}
 }
 
-// ticketOpenButtons are the two controls inside a ticket channel.
 func ticketOpenButtons() []ddiscord.ButtonSpec {
 	return []ddiscord.ButtonSpec{
 		{Style: discordapi.ButtonSecondary, Label: "Claim", CustomID: discordapi.CustomTicketClaim},
@@ -105,23 +80,12 @@ func ticketOpenButtons() []ddiscord.ButtonSpec {
 	}
 }
 
-// deskCall is one interaction a ticket verb is answering: the module context
-// it arrived on, the decoded interaction, and the emitter that carries the
-// answer back. The three are never useful apart -- every verb needs the guild
-// config from the context, the interaction's token to reply on, and the
-// emitter to reply with -- so they travel as one value rather than as three
-// parameters threaded through every path. Passing them separately is what put
-// five arguments on postPanel, recordTicket, recordClaim, finishClose and add
-// at once; grouping them fixes the shape rather than one signature.
 type deskCall struct {
 	mod  *module.Context
 	in   decode.InteractionEvent
 	emit module.Emit
 }
 
-// deskCallFrom decodes the interaction a slash command or button arrived on.
-// The decode failing is the one case a ticket verb reports as an error rather
-// than as a reply: there is no token to reply on.
 func deskCallFrom(c *module.Context, emit module.Emit) (deskCall, error) {
 	in, err := decode.Decode[decode.InteractionEvent](c.Event.Raw)
 	if err != nil {
@@ -130,9 +94,6 @@ func deskCallFrom(c *module.Context, emit module.Emit) (deskCall, error) {
 	return deskCall{mod: c, in: in, emit: emit}, nil
 }
 
-// reply is the one shape every desk outcome takes: an ephemeral followup on
-// the interaction that triggered it. Every path answers, including the
-// refusals -- a button that appears to do nothing is the worst outcome here.
 func (d deskCall) reply(text string) {
 	d.emit(cmd.Followup(cmd.GuildTarget(d.mod.Config.GuildID), cmd.Token(d.in.Token), text, true))
 }
@@ -164,10 +125,6 @@ func (h ticketModule) panel(ctx context.Context, call deskCall) error {
 		call.reply("Tickets are off.")
 		return nil
 	}
-	// Posting the desk panel is a staff action, not a member one. It was
-	// ungated, which meant any member could paste a second "Open a ticket"
-	// panel into any channel they could run a slash command in -- and because
-	// the panel's button is the real one, the tickets it opened were real too.
 	if !isTicketStaffOrMod(call.mod.Config, call.in) {
 		call.reply("Only ticket staff can post the panel.")
 		return nil
@@ -179,14 +136,6 @@ func (h ticketModule) panel(ctx context.Context, call deskCall) error {
 	return h.postPanel(ctx, call, cfg)
 }
 
-// postPanel posts the panel through the RPC that returns its message id, and
-// remembers the pointer only once there IS one.
-//
-// The old shape emitted a fire-and-forget PostPanel Command and then wrote a
-// desk pointer with an empty message id. That pointer is worse than none: the
-// repost path reads it, finds nothing to delete, and stacks a second live
-// panel under the first -- and the write had already erased the id of the
-// panel that was actually posted.
 func (h ticketModule) postPanel(ctx context.Context, call deskCall, cfg ddiscord.Config) error {
 	spec := cfg.TicketPanel()
 	reply, err := h.tickets.TicketPanel(ctx, discordoutgress.TicketPanelRequest{
@@ -202,8 +151,6 @@ func (h ticketModule) postPanel(ctx context.Context, call deskCall, cfg ddiscord
 		GuildID: cfg.GuildID, ChannelID: cfg.TicketChannelID, MessageID: reply.MessageID,
 	}
 	if err := h.store.RememberDesk(ctx, remembered); err != nil {
-		// The panel IS posted; only the pointer is missing. Say the panel is
-		// up rather than implying it is not.
 		h.log.Error("ticket desk pointer not stored",
 			zap.String("guild_id", cfg.GuildID), zap.String("message_id", reply.MessageID), zap.Error(err))
 	}
@@ -221,11 +168,6 @@ func (h ticketModule) open(ctx context.Context, c *module.Context, emit module.E
 		return nil
 	}
 	if !h.store.TicketsDurable(ctx) {
-		// Refusing beats opening. Without discord-data there is no row id to
-		// name the channel after, no open limit, and no transcript -- so an
-		// "open" here hands a member a private channel the desk can never
-		// number, cap or close cleanly. ERROR per attempt, not once at boot:
-		// the operator needs the volume to see it is not a one-off.
 		h.log.Error("ticket open refused: no durable ticket store",
 			zap.String("guild_id", call.in.GuildID), zap.String("user_id", call.in.Member.User.ID))
 		call.reply("The ticket desk is unavailable right now. Try again shortly.")
@@ -240,9 +182,6 @@ func (h ticketModule) open(ctx context.Context, c *module.Context, emit module.E
 	return h.createTicket(ctx, call)
 }
 
-// atLimitText names the number back to the opener rather than saying "too
-// many": a streamer who set the cap to 3 gets a message that matches what they
-// configured.
 func atLimitText(held int) string {
 	if held == 1 {
 		return "You already have 1 open ticket."
@@ -275,8 +214,6 @@ func (h ticketModule) recordTicket(ctx context.Context, call deskCall, reply dis
 		PanelMessageID: reply.MessageID, OpenLimit: call.mod.Config.TicketOpenLimitN(),
 	})
 	if err != nil {
-		// The channel exists but no row points at it: delete it rather than
-		// leave a ticket the desk can never close, claim or transcribe.
 		h.log.Error("ticket row not recorded; rolling the channel back",
 			zap.String("channel_id", reply.ChannelID), zap.Error(err))
 		h.deleteOrphanChannel(ctx, reply.ChannelID)
@@ -284,8 +221,6 @@ func (h ticketModule) recordTicket(ctx context.Context, call deskCall, reply dis
 		return nil
 	}
 	if got.AtLimit {
-		// The pre-check passed and the insert still refused: two presses
-		// raced. Same rollback, and the opener is told the real number.
 		h.deleteOrphanChannel(ctx, reply.ChannelID)
 		call.reply(atLimitText(got.OpenCount))
 		return nil
@@ -295,15 +230,6 @@ func (h ticketModule) recordTicket(ctx context.Context, call deskCall, reply dis
 	return nil
 }
 
-// nameTicket renames the fresh channel to carry the ticket ROW's id.
-//
-// It is a second call because the id does not exist until the row does, and
-// the row cannot exist until the channel does (channel_id is the row's unique
-// key). The number used to be the opener's nth LIVE ticket, which collides the
-// moment a member closes one and opens another: two "ticket-ada-1" channels,
-// and after archiving two "closed-ticket-ada-1" ones. Best effort -- a channel
-// that keeps the unnumbered name is cosmetic, and every other path keys on the
-// channel id.
 func (h ticketModule) nameTicket(ctx context.Context, in decode.InteractionEvent, channelID string, ticketID int) {
 	if channelID == "" || ticketID <= 0 {
 		return
@@ -326,9 +252,6 @@ func (h ticketModule) deleteOrphanChannel(ctx context.Context, channelID string)
 	}
 }
 
-// ticketNameBase is what the channel name is built from: the opener's
-// username, or their id when the username has nothing Discord's channel-name
-// charset keeps (see ddiscord.SanitizeChannelName).
 func ticketNameBase(in decode.InteractionEvent) string {
 	if name := ddiscord.SanitizeChannelName(in.Member.User.Username); name != "" {
 		return name
@@ -336,8 +259,6 @@ func ticketNameBase(in decode.InteractionEvent) string {
 	return in.Member.User.ID
 }
 
-// ticketOverwrites is the private channel's permission set: nobody but the
-// opener and the desk staff.
 func ticketOverwrites(cfg ddiscord.Config, in decode.InteractionEvent) []discordapi.PermissionOverwrite {
 	overwrites := []discordapi.PermissionOverwrite{
 		decode.OverwriteDeny(decode.OverwriteSpec{TargetID: in.GuildID, Kind: 0, Bits: decode.PermView}),
@@ -346,8 +267,6 @@ func ticketOverwrites(cfg ddiscord.Config, in decode.InteractionEvent) []discord
 			Bits: decode.PermView | decode.PermSend | decode.PermReadHistory,
 		}),
 	}
-	// Every staff tier, not just Mods: a ticket only Mods can read is
-	// invisible to the Lead Mods and the Owner who are meant to escalate to.
 	for _, roleID := range cfg.TicketStaffRoleIDs() {
 		overwrites = append(overwrites, decode.OverwriteAllow(decode.OverwriteSpec{
 			TargetID: roleID, Kind: 0,
@@ -357,22 +276,7 @@ func ticketOverwrites(cfg ddiscord.Config, in decode.InteractionEvent) []discord
 	return overwrites
 }
 
-// ticketFor loads the ticket this interaction is sitting in, and is the ONLY
-// way the claim/close/add paths get one.
-//
-// The lookup is scoped to the interaction's guild. That scope is not
-// theoretical bookkeeping: the ticket keyspace is keyed on the channel id
-// alone, so an unscoped row written for one guild answers a lookup made from
-// any other, and the desk would then let a member of guild B claim, close or
-// add people to guild A's private support channel. Merge note (2026-09-05):
-// this used to read the ticket unscoped and compare t.GuildID here; the guild
-// moved into the Store call so discord-data applies the same filter in SQL,
-// which is where a caller that forgets the check cannot get past it.
-//
-// It also finishes any close that Discord performed but the row never
-// recorded (see markPending): retrying here, on the next interaction that
-// touches the channel, is the whole recovery mechanism -- no sweeper, no
-// timer, and nothing to leak when the marker's day expires unused.
+// Keep the read scoped to the interaction's guild, or one guild can act on another's ticket.
 func (h ticketModule) ticketFor(ctx context.Context, call deskCall) (discordstore.Ticket, bool) {
 	ch := discordstore.Channel{ID: call.in.ChannelID}
 	h.retryPendingClose(ctx, ch)
@@ -384,7 +288,6 @@ func (h ticketModule) ticketFor(ctx context.Context, call deskCall) (discordstor
 	return t, true
 }
 
-// retryPendingClose finishes a close whose store write failed the first time.
 func (h ticketModule) retryPendingClose(ctx context.Context, ch discordstore.Channel) {
 	pending, ok := h.store.PendingClose(ctx, ch)
 	if !ok {
@@ -437,8 +340,6 @@ func (h ticketModule) recordClaim(ctx context.Context, call deskCall, t discords
 		Note: staff + " claimed this ticket.",
 	})
 	if rpcFailed(err, reply.Error) {
-		// The claim is recorded; only the card is stale. Say so rather than
-		// implying the claim failed.
 		h.log.Warn("ticket claim card not updated", zap.Error(err), zap.String("outgress_error", reply.Error))
 	}
 	call.reply("Claimed.")
@@ -455,10 +356,6 @@ func (h ticketModule) close(ctx context.Context, c *module.Context, emit module.
 		return nil
 	}
 	if discordstore.TicketOver(t.Status) {
-		// The row survives a close (discord-data keeps it, and an archived
-		// channel keeps its buttons), so the close button is still pressable
-		// on a ticket that is already done. Running the sequence again would
-		// re-page a channel that may no longer exist and post a second summary.
 		call.reply("This ticket is already closed.")
 		return nil
 	}
@@ -494,10 +391,6 @@ func (h ticketModule) closeRequest(cfg ddiscord.Config, in decode.InteractionEve
 	}
 }
 
-// storeClose records the terminal state and the transcript. Both writes are
-// best effort at this point: Discord has already archived or deleted the
-// channel, and failing the interaction now would tell the user the close did
-// not happen when it did.
 func (h ticketModule) storeClose(ctx context.Context, in decode.InteractionEvent, t discordstore.Ticket, reply discordoutgress.TicketCloseReply) {
 	done := discordstore.TicketClose{
 		GuildID: t.GuildID, ChannelID: t.ChannelID, ClosedBy: in.Member.User.ID,
@@ -518,12 +411,6 @@ func (h ticketModule) storeClose(ctx context.Context, in decode.InteractionEvent
 	}
 }
 
-// markPending records a close Discord already performed that the row never
-// took, so the next interaction on the channel can finish the write. Without
-// it the row says "open" forever: the channel is gone or archived, so nothing
-// can press the button that would try again, and the opener's open-ticket
-// count never comes back down -- they hit the limit and can never open
-// another.
 func (h ticketModule) markPending(ctx context.Context, done discordstore.TicketClose) {
 	if err := h.store.MarkPendingClose(ctx, done); err != nil {
 		h.log.Error("pending close marker not written",
@@ -538,7 +425,6 @@ func canCloseTicket(t discordstore.Ticket, in decode.InteractionEvent, cfg ddisc
 	return isTicketStaffOrMod(cfg, in)
 }
 
-// add grants one member access to this ticket (/ticket add user:<@user>).
 func (h ticketModule) add(ctx context.Context, call deskCall, sub decode.InteractionOption) error {
 	t, ok := h.ticketFor(ctx, call)
 	if !ok {

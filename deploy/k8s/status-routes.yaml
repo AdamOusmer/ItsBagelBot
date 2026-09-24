@@ -1,32 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# External status surface for the Better Stack status page: one hostname, one
-# path per vertical — https://health.itsbagelbot.com/<vertical> rewrites to the
-# terminating service's /status endpoint (pkg/health) and nothing else. The
-# exact-path match plus the replacePath middleware means only /status is ever
-# reachable from outside; /healthz, /readyz and /drain stay cluster-internal (a
-# public /drain would let anyone hold handler goroutines for 10s a request).
-#
-# DNS needs no record work: the cloudflared tunnel wildcard admits any
-# *.itsbagelbot.com hostname, and this router claiming Host(health...) is what
-# lifts it out of the unrouted-host fallback (web-error-pages.yaml, priority 1).
-#
-# Every backend hop is TLS: pkg/health terminates it with the per-service
-# cert-manager <svc>-tls cert (SAN <svc>-status), and the per-service
-# ServersTransports below verify it against the fleet CA. The services that
-# terminate an app-namespace vertical (sesame, gossip, discord-engine) expose
-# port 8080 with no Service object of their own — their health was probe-only
-# until now — so each gets a minimal ClusterIP here. console-dashboard and
-# transactions instead reuse the Service and ServersTransport their own
-# manifests already ship (console-dashboard.yaml, transactions.yaml).
-#
-# No trafficDistribution on these Services (deliberate, mirrors the db half):
-# PreferSameNode pinned every external probe to the entry node's own replica,
-# so one dead pod read as service-down while the other replicas were healthy
-# (2026-08-30 node3 uplink blip: Better Stack reported projector down with 2/3
-# replicas serving). Status traffic is one probe per ~30s behind the rate
-# limiter, so the cross-node hop this reintroduces costs nothing.
+# Exact path only: a public /drain would let anyone hold handler goroutines.
 apiVersion: v1
 kind: Service
 metadata:
@@ -66,16 +41,6 @@ spec:
       port: 443
       targetPort: 8080
 ---
-# Caps Better Stack's probe fleet, the only intended client, well below any
-# real load. sourceCriterion reads CF-Connecting-IP, not the source IP,
-# because every public request enters through cloudflared and traefik's
-# entryPoints have no forwardedHeaders.trustedIPs set: an ipStrategy over
-# X-Forwarded-For would never see the real client, and every request would
-# collapse into the cloudflared pod's single bucket. The header is only
-# spoofable by a caller that reaches traefik without transiting the tunnel,
-# which the firewall posture already rules out. The limiter is in-memory
-# per traefik instance (one per node), so the effective fleet-wide cap is
-# nodes x (average/burst), still far above Better Stack's ~30s poll cadence.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -88,12 +53,6 @@ spec:
     sourceCriterion:
       requestHeaderName: CF-Connecting-IP
 ---
-# Re-pick a backend when the first pick fails at the connection level. With
-# PreferSameNode gone (header comment) the pool is every ready replica, so a
-# pod that died faster than its EndpointSlice updated (the NotReady grace is
-# 40s+) no longer turns one bad pick into a public "down": 2026-08-30 node3
-# blip, Better Stack reported projector down with 2/3 replicas serving.
-# Sits after the rate limiter so retries don't re-count against the caller.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -104,9 +63,6 @@ spec:
     attempts: 3
     initialInterval: 100ms
 ---
-# Rewrites every routed path to the one endpoint the backends actually serve.
-# Shared by all routes below: the per-vertical path only exists to pick the
-# backend, never to reach a different endpoint.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -116,20 +72,6 @@ spec:
   replacePath:
     path: /status
 ---
-# Six paths across this file and deploy/db/status-routes.yaml, not the fourteen
-# per-service routes this surface started with. Each path is a vertical, and the
-# service it terminates on folds its siblings' reports into its own over the
-# bagel.rpc.health.* RPC (pkg/bus.HealthProbe) before it answers, so the fan-out
-# happens in-process instead of at the edge: /twitch is sesame plus
-# twitch-ingress and outgress, /discord is discord-engine plus its own ingress
-# and outgress, /db is projector plus the rest of the data tier.
-#
-# An edge route per service reported the same outage under several names — one
-# dead lane or one shared dependency takes every service in a vertical with it,
-# and the status page showed four red rows for one fault — while probing the
-# same pods several times over. The siblings keep no public route by design:
-# their reports now reach the outside only through the RPC, which is why a check
-# left out of a sibling's Set reads as a green vertical (app/outgress/main.go).
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -173,12 +115,6 @@ spec:
           serversTransport: gossip-status-transport
   tls: {}
 ---
-# transactions lives in the db namespace, and traefik does not allow
-# cross-namespace service or middleware references by default, so its slice
-# of the status surface is a sibling IngressRoute there with db-namespace
-# copies of the three middlewares. Same contract as the routes above:
-# /billing rewrites to /status against the existing transactions Service and
-# ServersTransport (transactions.yaml).
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -191,8 +127,6 @@ spec:
     sourceCriterion:
       requestHeaderName: CF-Connecting-IP
 ---
-# db copy of status-retry above, same reasoning; deploy/db/status-routes.yaml
-# ships an identical one so either file applies standalone.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -212,24 +146,7 @@ spec:
   replacePath:
     path: /status
 ---
-# The two db-namespace verticals. Both are ALSO defined in
-# deploy/db/status-routes.yaml, and the duplication is the point: that directory
-# is referenced by no kustomization in the repo, so `kubectl apply -k deploy/k8s`
-# never reaches it and applying it is a separate step someone has to remember.
-#
-# On 2026-09-04 nobody did. /billing served because it was duplicated here;
-# /db 404'd in production because it was not, and the live db IngressRoute went
-# on serving the previous seven per-service paths, 17 days stale. A route that
-# exists only in deploy/db is a route that ships broken, so every
-# health.itsbagelbot.com path is carried here too and deploy/db stays the
-# standalone copy for a db-only apply.
-#
-# Billing is its own vertical with nothing folded into it, unlike the four
-# app-namespace ones: the recorded decision (app/db/transactions/main.go) is
-# that projector's /db does not probe transactions and transactions runs no
-# HealthProbe fan-out of its own, so its route has one backend and its Set is
-# the whole answer. /db is the opposite -- projector's Set folds in the five
-# data services over bagel.rpc.health.*, so one backend answers for all of them.
+# Duplicated in deploy/db/status-routes.yaml on purpose: no kustomization reaches deploy/db.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -257,16 +174,7 @@ spec:
           serversTransport: projector-status-transport
   tls: {}
 ---
-# projector-status and its transport, mirrored from deploy/db/status-routes.yaml
-# for the same reason as the route above. projector's Deployment declares no
-# Service of its own, so without this the /db route resolves to nothing.
-#
-# The port is named `http` where the app-namespace status Services above name
-# theirs `https`. That is not a typo: it matches deploy/db/status-routes.yaml and
-# the live object, and these two copies have to agree exactly or whichever file
-# was applied last flips the name. The name is cosmetic to routing; renaming
-# both to match the app namespace is a separate change, not one to smuggle in
-# through a duplicated block.
+# Port name `http` must match deploy/db/status-routes.yaml, or whichever file applies last flips it.
 apiVersion: v1
 kind: Service
 metadata:
@@ -296,9 +204,6 @@ metadata:
   name: gossip-status-transport
   namespace: app
 spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
   serverName: gossip-status
   rootCAsSecrets:
     - gossip-tls
@@ -319,9 +224,6 @@ metadata:
   name: sesame-status-transport
   namespace: app
 spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
   serverName: sesame-status
   rootCAsSecrets:
     - sesame-tls

@@ -2,20 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for `.bb-dock`: navigation in a floating bar at the bottom,
-  // the same pattern at every breakpoint. Its Astro twin is
-  // ../astro/Dock.astro and ../test/parity.test.ts diffs the two CLOSED
-  // renders -- an open popover is state, and the Astro twin is static.
-  //
-  // It scales without bloating: with more than one nav group each multi-item
-  // group collapses into ONE button that opens a small popover of its pages,
-  // so the dock stays at a handful of buttons no matter how many routes a
-  // board grows. The arithmetic for that is ../lib/dock-groups.ts, pure and
-  // unit-tested, because it is the one decision in this shell rather than a
-  // layout.
-  //
-  // Log out is deliberately NOT here: it lives in the account menu, which
-  // keeps the dock to pure navigation and phones uncrowded.
   import '../styles/elements/shell.css';
   import Icon from './Icon.svelte';
   import {
@@ -38,14 +24,10 @@
     class: className = '',
     ...rest
   }: {
-    /** The flat dock's items. Ignored in grouped mode. */
     items?: UiNavLink[];
     groups?: UiNavGroup[];
     ariaLabel?: string;
-    /** The item hoisted out of its group as the way back. */
     homeHref?: string;
-    /** Glyph for a folded group whose first item has none. No default: the
-        library must not name an icon out of a consumer's set. */
     fallbackIcon?: IconName;
     class?: string;
     [key: string]: unknown;
@@ -70,7 +52,6 @@
 />
 
 {#if openGroup}
-  <!-- Click-away scrim; Escape is the keyboard path, above. -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="bb-dock__scrim"

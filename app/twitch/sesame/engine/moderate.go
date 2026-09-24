@@ -16,38 +16,18 @@ import (
 	"go.uber.org/zap"
 )
 
-// Reputation ladder thresholds: a first-strike warn becomes a timeout for a
-// chatter with any recent strike, and a timeout becomes a ban for a repeat
-// offender. campaignThreshold is the distinct-sender count at which the
-// campaign juror's vote counts (see campaignVote).
 const (
 	repEscalateThreshold  = 3
 	repWarnToTimeoutScore = 1
 	campaignThreshold     = 8
 )
 
-// massRaid parameters. A folded cohort of this many distinct hostile senders is a
-// mass raid: it escalates to one channel-level Shield Mode call rather than a ban
-// per account, which at Twitch's 800-action/min Helix budget a large raid would
-// blow. massRaidBanCap bounds how many per-account bans one fold may still emit
-// (cleanup within budget); Shield Mode, when armed, gates the rest at the channel.
 const (
 	massRaidThreshold = 15
 	massRaidBanCap    = 40
 	raidCooldownTTL   = 60 * time.Second
 )
 
-// moderateChat runs the automod gate on a chat line before dispatch: the
-// single-chatter gate (with the campaign and reputation jurors) or, for a
-// folded duplicate cohort, the cohort gate with its mass-raid escalation.
-// Non-chat events pass through untouched. Returns whether an enforcement
-// action was emitted, which skips command dispatch and handlers for this line
-// (the chatter is being actioned).
-//
-// The broadcaster's automod config comes from the "automod" ModuleView (nil =
-// global default). The automod module (app/twitch/sesame/modules/automod.go)
-// registers a chat handler, so the registry marks chat as needing ModuleViews
-// and the row arrives here through the standard module path.
 func (p *Pipeline) moderateChat(ctx context.Context, mctx *module.Context, views map[string]projection.ModuleView, emit module.Emit) bool {
 	if mctx.Env.Type != chatType {
 		return false
@@ -59,19 +39,10 @@ func (p *Pipeline) moderateChat(ctx context.Context, mctx *module.Context, views
 	return p.gateChat(ctx, mctx, amCfg, emit)
 }
 
-// automodLocked is the beta lane gate for the inline automod path, which reads
-// its row directly rather than through enabled(): true when the automod module
-// is registered as Beta and this event rides the standard lane.
 func (p *Pipeline) automodLocked(mctx *module.Context) bool {
 	return p.automodBeta && !mctx.Regress.IsPremium()
 }
 
-// adaptiveEmoteCodes resolves the span-derived emote codes the learned layers
-// key on, built lazily off the envelope (nil fast path when it carried none).
-// Both gates resolve through here, so the single-chatter and cohort paths see
-// identical per-message knowledge. Adaptive off drops them at the door:
-// WithMessageEmotes(nil) is verdict-equivalent to the pre-span gate, keeping
-// the dark launch honest.
 func (p *Pipeline) adaptiveEmoteCodes(mctx *module.Context) map[string]struct{} {
 	if !p.adaptiveEnabled {
 		return nil
@@ -79,10 +50,6 @@ func (p *Pipeline) adaptiveEmoteCodes(mctx *module.Context) map[string]struct{} 
 	return mctx.EmoteCodes()
 }
 
-// gateChat inspects one chatter's line. With enforcement on, a ban/timeout
-// verdict is emitted and command dispatch + handlers are skipped for this line;
-// a verdict we cannot yet enforce is logged. With enforcement off it is
-// shadow-logged only.
 func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *automod.Config, emit module.Emit) bool {
 	if p.automod == nil {
 		return false
@@ -106,13 +73,6 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 
 	actioned := false
 	if p.automodEnforce {
-		// Reputation juror: repeat offenders climb the ladder (warn -> timeout
-		// -> ban). Both the ladder lookup and the strike write ride behind the
-		// enforcement switch: strikes used to be recorded before this check,
-		// so shadow-mode verdicts accrued them, and arming enforcement later
-		// inherited escalated punishments from history that was never
-		// actioned. A council-minted verdict skips scoring entirely — see
-		// campaignVote for the attribution rule.
 		if p.reputation != nil && !councilMint {
 			v = escalateByReputation(v, p.reputation.Score(ctx, env.ChatterUserID))
 			p.reputation.Bump(ctx, env.ChatterUserID)
@@ -130,9 +90,6 @@ func (p *Pipeline) gateChat(ctx context.Context, mctx *module.Context, amCfg *au
 	return actioned
 }
 
-// shadowText carries the flagged line's content on a shadow (unenforced)
-// verdict so rule quality can be judged from the log; an enforced verdict
-// skips it to keep actioned moderation logs content-free.
 func shadowText(actioned bool, text string) zap.Field {
 	if actioned {
 		return zap.Skip()
@@ -140,12 +97,6 @@ func shadowText(actioned bool, text string) zap.Field {
 	return zap.String("text", text)
 }
 
-// voteInput carries one campaign-juror consultation: the verdict so far this
-// pass, the line's template fingerprint and link shape from the assess pass,
-// and the tenant/sender pair that scopes and deduplicates the quorum count.
-// One struct instead of five positional arguments keeps the call site
-// self-describing — broadcaster and sender are easy to swap when read apart
-// from their names.
 type voteInput struct {
 	verdict     automod.Verdict
 	simhash     uint64
@@ -154,18 +105,6 @@ type voteInput struct {
 	sender      string
 }
 
-// campaignVote consults the campaign juror (the council's cross-sender vote):
-// the valkey distinct-sender count for this line's template, when the line is
-// either already content-flagged at delete level or an unflagged link carrier.
-// The broadcaster scopes the count to this one channel — a quorum is senders
-// within a tenant, never across the fleet. It returns the verdict plus whether
-// the juror AUTHORED the action alone (the ActionNone mint): a band quorum can
-// be manufactured by colluding accounts, so a council-only verdict enforces
-// its immediate delete but records NO reputation strike — letting it score
-// would let eight accounts pump an innocent user up the ladder while the
-// reason launders it as automod. Content-backed escalations keep their
-// strike. Every quorum activation lands one Warn audit line naming the
-// channel and the consulted chatter. Observe is HLL-idempotent per sender.
 func (p *Pipeline) campaignVote(ctx context.Context, in voteInput) (automod.Verdict, bool) {
 	if p.campaign == nil || in.simhash == 0 {
 		return in.verdict, false
@@ -194,15 +133,6 @@ func (p *Pipeline) campaignVote(ctx context.Context, in voteInput) (automod.Verd
 	return in.verdict, false
 }
 
-// gateCohort handles a folded duplicate cohort: plain chat the ingress squash
-// collapsed identical lines from many chatters into env.Senders. A hostile
-// cohort (a slur/scam/IP-logger line posted in unison) is a raid: strikes fan
-// out over every sender, a large raid escalates to one channel-level Shield
-// Mode call rather than banning account by account, and a small one is banned
-// directly. Strikes only land when the fold is hostile AND enforcement is on —
-// bumping before the verdict scored every participant of even benign copypasta
-// folds (and of shadow-mode hits), arming punishments nobody had served. A
-// clean cohort trips nothing at all.
 func (p *Pipeline) gateCohort(ctx context.Context, mctx *module.Context, amCfg *automod.Config, emit module.Emit) bool {
 	if p.automod == nil {
 		return false
@@ -210,16 +140,6 @@ func (p *Pipeline) gateCohort(ctx context.Context, mctx *module.Context, amCfg *
 	env := &mctx.Env
 	msgEmotes := p.adaptiveEmoteCodes(mctx)
 
-	// Cohort senders are untrusted viewers: the squash folds only plain
-	// duplicate chat, so a trusted VIP/mod is judged on content here too.
-	// The squashed base event carries the identical emotes array as any chat
-	// line (lane.EmoteSpan), so the cohort is judged with the same span
-	// knowledge - a folded "LUL LUL LUL LUL" raid of duplicates is emote spam,
-	// not caps abuse, exactly like its unfolded twin. The fold is scoped to its
-	// channel for the learned layers and attributed to its first sender: each
-	// fold counts once toward tau, and over hours distinct folds bring distinct
-	// first senders, so genuine communal usage still accrues sender diversity
-	// without N-folding one line's counters.
 	broadcasterID, _ := env.BroadcasterID()
 	sender := ""
 	if len(env.Senders) > 0 {
@@ -253,9 +173,6 @@ func (p *Pipeline) gateCohort(ctx context.Context, mctx *module.Context, amCfg *
 	return actioned
 }
 
-// escalateByReputation climbs the ladder against a repeat offender: warn ->
-// timeout (any recent strike) -> ban (repeat threshold). Delete and stronger
-// verdicts than the rule allows are unchanged.
 func escalateByReputation(v automod.Verdict, score int) automod.Verdict {
 	if score >= repWarnToTimeoutScore && v.Action == automod.ActionWarn {
 		v.Action = automod.ActionTimeout
@@ -270,18 +187,12 @@ func escalateByReputation(v automod.Verdict, score int) automod.Verdict {
 	return v
 }
 
-// modTarget identifies who a moderation verdict lands on: the channel, the
-// chatter, and (for deletes) the offending message.
 type modTarget struct {
 	broadcasterID string
 	userID        string
 	msgID         string
 }
 
-// emitAutomod translates an enforced single-chatter verdict into outgress
-// moderation actions and emits them, returning whether anything was emitted.
-// A warn verdict also deletes the offending message (the warn is the formal
-// strike; the message should not stay up while the chatter acknowledges it).
 func (p *Pipeline) emitAutomod(v automod.Verdict, env *lane.Envelope, emit module.Emit) bool {
 	target := modTarget{broadcasterID: env.BroadcasterUserID, userID: env.ChatterUserID, msgID: env.MsgID}
 	acted := p.emitModeration(v, target, emit)
@@ -294,11 +205,6 @@ func (p *Pipeline) emitAutomod(v automod.Verdict, env *lane.Envelope, emit modul
 	return acted
 }
 
-// emitModeration maps a verdict to one outgress moderation Output against one
-// target and emits it, returning whether an action was actually emitted. Ban,
-// timeout, warn and delete are wired to Helix; a delete without a message id
-// cannot be executed and is skipped (the caller's log line still records the
-// verdict). Restrict has no public Helix write API and is never emitted.
 func (p *Pipeline) emitModeration(v automod.Verdict, target modTarget, emit module.Emit) bool {
 	o := GetOutput()
 	switch v.Action {
@@ -328,18 +234,11 @@ func (p *Pipeline) emitModeration(v automod.Verdict, target modTarget, emit modu
 	return true
 }
 
-// isMassRaid reports whether a folded cohort with a punishing content verdict is
-// large enough to warrant channel-level Shield Mode. A delete/warn verdict (e.g. a
-// caps heuristic on hype copypasta) is never a raid, so only timeout and ban
-// qualify.
 func isMassRaid(v automod.Verdict, distinctSenders int) bool {
 	return distinctSenders >= massRaidThreshold &&
 		(v.Action == automod.ActionTimeout || v.Action == automod.ActionBan)
 }
 
-// shieldEscalates reports whether a cohort verdict triggers the channel-level
-// Shield Mode escalation: the feature is armed, the cohort qualifies as a mass
-// raid, and this channel's raid gate has not already tripped for a recent fold.
 func (p *Pipeline) shieldEscalates(v automod.Verdict, broadcasterID uint64, env *lane.Envelope) bool {
 	if !p.shieldEnabled || !isMassRaid(v, len(env.Senders)) {
 		return false
@@ -347,17 +246,10 @@ func (p *Pipeline) shieldEscalates(v automod.Verdict, broadcasterID uint64, env 
 	return p.raidGate.trip(broadcasterID, time.Now())
 }
 
-// emitCohort enforces a hostile folded cohort. A mass raid (large + punishing)
-// escalates to one Shield Mode activation (deduped per channel) when Shield Mode
-// is armed, then a bounded prefix of the cohort is banned as cleanup; a smaller
-// cohort is banned outright. Returns whether any action was emitted.
 func (p *Pipeline) emitCohort(v automod.Verdict, broadcasterID uint64, env *lane.Envelope, emit module.Emit) bool {
 	acted := false
 	if p.shieldEscalates(v, broadcasterID, env) {
 		p.emitShield(env.BroadcasterUserID, emit)
-		// The channel-level activation is counted as its own detection event
-		// (always enforced: this branch only runs under automodEnforce), so
-		// per-rule audit shows raids separately from the per-line verdicts.
 		p.stats.flag(broadcasterID, ruleShieldMode, true)
 		p.log.Warn("automod shield mode",
 			module.BIDField(broadcasterID),
@@ -380,9 +272,6 @@ func (p *Pipeline) emitCohort(v automod.Verdict, broadcasterID uint64, env *lane
 	return acted
 }
 
-// emitShield activates a channel's Shield Mode, the mass-raid channel-level
-// defense. broadcasterID is the raw string channel id; outgress adds the
-// moderator id and the {"is_active":true} body.
 func (p *Pipeline) emitShield(broadcasterID string, emit module.Emit) {
 	o := GetOutput()
 	o.Type = outgress.TypeShieldMode

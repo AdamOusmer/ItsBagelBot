@@ -2,38 +2,12 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Drain do
-  @moduledoc """
-  Make-before-break shard handoff for planned shutdown.
-
-  `Ingress.Application.prep_stop/1` calls `run/0` on SIGTERM, before the
-  supervision tree stops. For every shard session running on this node:
-
-    1. Release its cluster registration (`:release_name`) — the socket keeps
-       serving, but the name is free for a successor.
-    2. Start a successor session on a surviving node. The `{:draining, node}`
-       marker registered here keeps `Ingress.ShardDistribution` from placing
-       it back on this node.
-    3. Wait for the successor to bind. The Conduit routes each event to
-       whichever session bound last, so the slot switches to the successor
-       the moment its PATCH lands — no gap, no drop.
-    4. Stop the local session; its socket is now an idle superseded one.
-
-  Handoffs run concurrently and are deadline-bounded so the whole drain fits
-  inside the pod's termination grace period. Every failure path degrades to
-  "keep serving until the tree stops", and the ConduitManager health pass is
-  the floor for anything a drain could not hand off — including rescue
-  sessions (unnamed, never handed off) and unplanned deaths (crash, OOM,
-  node loss), which never run this path at all.
-  """
-
   require Logger
 
   alias Ingress.Config.Twitch, as: TwitchConfig
   alias Ingress.{Metrics, ShardSession}
 
-  # Budget per shard for the successor to connect, welcome and bind. The
-  # whole drain must fit inside terminationGracePeriodSeconds minus the
-  # preStop sleep; handoffs run concurrently so this is also ~the total.
+  # Must fit the pod's terminationGracePeriodSeconds minus the preStop sleep.
   @handoff_deadline_ms 12_000
   @poll_interval_ms 300
   @call_timeout_ms 2_000
@@ -57,9 +31,6 @@ defmodule Ingress.Drain do
       :ok
   end
 
-  # The marker must outlive each registering call, so it lives in a helper
-  # process that survives until the drain finishes; its registration (and the
-  # draining flag with it) dies with the pod at the latest.
   defp mark_draining do
     caller = self()
 
@@ -100,9 +71,6 @@ defmodule Ingress.Drain do
         stop_session(pid)
 
       :error ->
-        # No successor possible (no peers, start failed): keep serving until
-        # the tree stops — every second counts — and let the health pass
-        # re-establish the slot after this pod is gone.
         Logger.warning("shard #{shard_id}: no successor; serving until shutdown")
         Metrics.count("Drain/HandoffFailures")
     end
@@ -114,12 +82,6 @@ defmodule Ingress.Drain do
     :exit, _ -> :ok
   end
 
-  # Placement is Horde's (drain-aware via the marker), but the start call
-  # must run on a surviving node: a start_child issued here could not place
-  # the child anywhere once this node's supervisor begins stopping. If the
-  # marker has not replicated yet and placement lands back on this dying
-  # node, tear that copy down and try again — one round of the registry's
-  # sync interval is enough for the marker to arrive.
   defp start_successor(shard_id), do: start_successor(shard_id, 2)
 
   defp start_successor(shard_id, 0) do
@@ -170,8 +132,6 @@ defmodule Ingress.Drain do
         :ok
 
       System.monotonic_time(:millisecond) >= deadline ->
-        # Close anyway: the successor keeps trying on its own, and the
-        # health pass repairs the slot if it never manages to bind.
         :timeout
 
       true ->

@@ -11,9 +11,6 @@ import (
 	jsapi "github.com/nats-io/nats.go/jetstream"
 )
 
-// The pull lane delivers without an ack floor by default (the durable stays
-// R3; see pullAckPolicy); AckAll remains selectable and carries the pending
-// ceiling the server requires for it.
 func TestPullAckPolicyKnob(t *testing.T) {
 	cases := []struct {
 		knob    string
@@ -36,8 +33,6 @@ func TestPullAckPolicyKnob(t *testing.T) {
 	}
 }
 
-// Under AckNone nothing is recorded for the floor, so the periodic ack has
-// nothing to publish and cannot touch the wire.
 func TestPullAckNoneRecordsNoReceipt(t *testing.T) {
 	t.Setenv("NATS_PULL_ACK_POLICY", "none")
 	s := &pullSubscriber{desired: pullConsumerConfig("twitch.ingress.event.premium", "x")}
@@ -47,9 +42,6 @@ func TestPullAckNoneRecordsNoReceipt(t *testing.T) {
 	}
 }
 
-// A live durable that already carries every field this binding writes is bound
-// by lookup, so the pods already fetching from it never see the leader
-// transition an assignment write can cause; a drifted one is written once.
 func TestPullBindWritesOnlyADriftedDurable(t *testing.T) {
 	t.Setenv("NATS_PULL_CREATE_STAGGER", "0")
 	desired := pullConsumerConfig("twitch.ingress.event.premium", "sesame_twitch_ingress_event_premium")
@@ -76,8 +68,6 @@ func TestPullBindWritesOnlyADriftedDurable(t *testing.T) {
 	}
 }
 
-// The stagger only guards a fresh create; a knob of zero must not sleep at all
-// and the default must stay bounded by the provisioning budget.
 func TestPullCreateStaggerIsBounded(t *testing.T) {
 	t.Setenv("NATS_PULL_CREATE_STAGGER", "0")
 	started := time.Now()
@@ -93,8 +83,6 @@ func TestPullCreateStaggerIsBounded(t *testing.T) {
 	}
 }
 
-// awaitPullLeader settles as soon as two reads agree on a leader, and returns
-// at once for a durable that reports no cluster at all (single-node broker).
 func TestAwaitPullLeaderSettlesOnAStableLeader(t *testing.T) {
 	cfg := pullConsumerConfig("twitch.ingress.event.premium", "x")
 	clustered := &pullConsumerHandle{info: &jsapi.ConsumerInfo{Config: cfg, Cluster: &jsapi.ClusterInfo{Leader: "nats-1"}}}
@@ -111,8 +99,6 @@ func TestAwaitPullLeaderSettlesOnAStableLeader(t *testing.T) {
 	}
 }
 
-// Extra connections are opt-in; with the default of one every loop shares the
-// lane's consumer, and the knob is clamped to a sane ceiling.
 func TestPullConnectionsDefaultsToOne(t *testing.T) {
 	t.Setenv("NATS_PULL_CONNECTIONS", "")
 	if got := pullConnections(); got != 1 {

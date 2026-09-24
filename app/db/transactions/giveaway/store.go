@@ -54,14 +54,10 @@ func (s *Store) Create(ctx context.Context, req giveaways.CreateRequest, rulesVe
 	if err == nil || !ent.IsConstraintError(err) {
 		return created, err
 	}
-	// A concurrent request may have won the unique idempotency race. Read it
-	// back and apply the same payload check instead of exposing a raw SQL error.
 	return s.idempotentResult(ctx, req, actor, err)
 }
 
-// RetryAward requeues only work that is not actively owned by another
-// worker. The conditional update is the cross-replica fence; callers never
-// clear a live lease by first reading it in application memory.
+// The conditional update is the cross-replica fence; never clear a live lease from a prior read.
 func (s *Store) RetryAward(ctx context.Context, awardID string, now time.Time) error {
 	if awardID == "" {
 		return errors.New("award id required")
@@ -126,10 +122,7 @@ func sameCreatePayload(existing *ent.Giveaway, req giveaways.CreateRequest, acto
 	return existing.Title == req.Title && existing.Reason == req.Reason && existing.WinnerCount == req.WinnerCount && existing.PrizeMonths == req.PrizeMonths && existing.CreatedBy == actor
 }
 
-// FreezeCandidates is called after Transactions has fetched the authoritative
-// eligibility facts from Users. Candidate membership never comes from a
-// browser payload; the wire request only carries the digest approved in the
-// preview step.
+// Membership comes from Users, never the browser; the request carries only the approved digest.
 func (s *Store) FreezeCandidates(ctx context.Context, req giveaways.FreezeRequest, candidates []Candidate, now time.Time) (*ent.Giveaway, error) {
 	if err := validateFreezeRequest(req); err != nil {
 		return nil, err
@@ -149,9 +142,6 @@ func (s *Store) FreezeCandidates(ctx context.Context, req giveaways.FreezeReques
 	return updated, nil
 }
 
-// FreezeReplay returns a previously frozen campaign before any fresh Users
-// lookup. A lost response can therefore be retried during a Users outage
-// without changing the authoritative frozen candidate set.
 func (s *Store) FreezeReplay(ctx context.Context, req giveaways.FreezeRequest) (*ent.Giveaway, bool, error) {
 	campaign, err := s.DB.Giveaway.Get(ctx, req.CampaignID)
 	if err != nil {
@@ -439,8 +429,6 @@ func lockedCampaign(ctx context.Context, tx *ent.Tx, id string) (*ent.Giveaway, 
 	if err == nil || !strings.Contains(err.Error(), "FOR UPDATE/SHARE not supported") {
 		return campaign, err
 	}
-	// SQLite (used by unit tests) has no row-lock syntax. The unique draw key
-	// remains the final race guard there; MySQL production uses the lock above.
 	return tx.Giveaway.Query().Where(giveaway.IDEQ(id)).Only(ctx)
 }
 func readerOrDefault(r ioReader) ioReader {

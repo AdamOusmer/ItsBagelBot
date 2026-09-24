@@ -39,9 +39,6 @@ func TestEncodeDecodeMember(t *testing.T) {
 	if got, ok := decodeMember(encodeMember(m)); !ok || got != m {
 		t.Fatalf("round trip = %v, %v; want %v", got, ok, m)
 	}
-	// A separator can never appear inside a pod name or node name, so anything
-	// that does not split cleanly into two non-empty halves is discarded rather
-	// than admitted as a phantom member.
 	for _, bad := range []string{"", "nopipe", "|only-region", "only-pod|", "|"} {
 		if _, ok := decodeMember(bad); ok {
 			t.Fatalf("decodeMember(%q) accepted a malformed entry", bad)
@@ -49,8 +46,6 @@ func TestEncodeDecodeMember(t *testing.T) {
 	}
 }
 
-// This test is opt-in because presence expiry and pruning need a real Valkey
-// sorted set, not a command mock. Run with VALKEY_TEST_ADDR.
 func TestMembershipRegistryIntegration(t *testing.T) {
 	registry := newMembershipRegistryTest(t)
 
@@ -58,14 +53,12 @@ func TestMembershipRegistryIntegration(t *testing.T) {
 	alive := []Member{{PodID: "pod-a", Region: "node4"}, {PodID: "pod-b", Region: "node5"}}
 	registry.heartbeat(now, time.Minute, alive...)
 
-	// A pod that stopped refreshing: its presence already lies in the past.
 	stale := Member{PodID: "pod-dead", Region: "node4"}
 	registry.heartbeat(now.Add(-time.Hour), time.Minute, stale)
 
 	registry.assertMembers(now, alive, "stale pod must be excluded")
 	registry.assertCardinality(2)
 
-	// Graceful shutdown deregisters immediately instead of waiting out the ttl.
 	registry.remove(alive[0])
 	registry.assertMembers(now, alive[1:], "after remove")
 }

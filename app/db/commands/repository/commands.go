@@ -31,19 +31,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// normalizeName is the canonical command key: the bare trigger, lower-cased,
-// with any leading "!" dropped. Applied at every write/lookup so the DB, the
-// change events, the projection and the worker's lookup all agree (chat carries
-// the "!" to invoke; the stored key never does).
 func normalizeName(name string) string {
 	return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "!")))
 }
 
-// normalizeResponse canonicalizes a newline-delimited response before
-// validation: CRLF/CR fold to LF, trailing whitespace per line is dropped
-// (invisible in chat, burns budget), and blank lines vanish — the bot sends
-// one message per line and an empty message is unsendable. Validation then
-// only has to reject, never repair.
 func normalizeResponse(response string) string {
 	response = strings.ReplaceAll(response, "\r\n", "\n")
 	response = strings.ReplaceAll(response, "\r", "\n")
@@ -84,24 +75,15 @@ const (
 
 	commandsCacheTTL = 5 * time.Minute
 
-	// commandsCacheCapacity ceilings the view cache. It is keyed one entry per
-	// user (the whole command list), so a few thousand covers the users read
-	// within the 5m TTL without holding the generic cache.DefaultCapacity ten
-	// thousand resident at rest.
 	commandsCacheCapacity int64 = 4096
 
 	flushInterval = 2 * time.Second
 	flushMaxSize  = 256
 
-	// Use-counter flush cadence. Counters are loss-tolerant, so the window can
-	// be generous: one UPDATE ... uses = uses + n per hot command per window,
-	// and one change event per affected command so the projection + consoles
-	// pick the new count up through the normal pipeline.
 	usesFlushInterval = 30 * time.Second
 	usesFlushMaxKeys  = 512
 )
 
-// CommandView is the read model for one custom command of one user.
 type CommandView = projection.CommandView
 
 type commandKey struct {
@@ -109,10 +91,6 @@ type commandKey struct {
 	name   string
 }
 
-// Commands persists the custom chat commands. Edits are write-behind through
-// the coalescing batcher (a streamer iterating on a command's wording costs
-// one row write per flush window); deletions are immediate so a removed
-// command stops firing right away.
 type Commands struct {
 	client  *ent.Client
 	views   *cache.Cache[[]CommandView]
@@ -121,16 +99,11 @@ type Commands struct {
 	app     *newrelic.Application
 	log     *zap.Logger
 
-	// use-counter accumulator: RecordUse sums here; flushUses drains on a
-	// ticker (or when the key set grows large) into uses = uses + n updates.
 	usesMu     sync.Mutex
 	usesPend   map[commandKey]uint64
 	usesTicker *time.Ticker
 	usesDone   chan struct{}
 
-	// Single-flight guard for the overflow-triggered flush: a viral chat can
-	// trip the key cap on every RecordUse, and each trip must not spawn
-	// another concurrent flush goroutine.
 	usesFlushing atomic.Bool
 }
 
@@ -163,7 +136,6 @@ func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Applicatio
 	return r
 }
 
-// List returns every command of the user from the in-process cache.
 func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, error) {
 
 	return r.views.GetOrLoad(ctx, cache.UserKey(commandsKeyPrefix, userID), func(ctx context.Context) ([]CommandView, error) {
@@ -197,9 +169,6 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 	})
 }
 
-// CommandSpec is the caller-editable state of one command, as accepted by
-// Upsert and Rename. Name and Aliases arrive raw from the console and are
-// normalized before validation.
 type CommandSpec struct {
 	Name             string
 	Aliases          []string
@@ -216,9 +185,6 @@ func (s *CommandSpec) normalize() {
 	s.Name = normalizeName(s.Name)
 	s.Aliases = normalizeAliases(s.Aliases)
 	s.Response = normalizeResponse(s.Response)
-	// Same fold the store scope applies to a {counter:...} payload
-	// (pkg/tmpl.NormalizeName), so the option and the read token can never
-	// disagree about which counter a name means.
 	s.BumpCounter = tmpl.NormalizeName(s.BumpCounter)
 }
 
@@ -241,7 +207,6 @@ func (s *CommandSpec) validate() error {
 	return validate.BumpCounter(validate.CounterName(s.BumpCounter))
 }
 
-// dto renders the spec as a full-state change event for userID.
 func (s *CommandSpec) dto(userID uint64) data.CommandChangedDTO {
 	return data.CommandChangedDTO{
 		UserID:           userID,
@@ -257,8 +222,6 @@ func (s *CommandSpec) dto(userID uint64) data.CommandChangedDTO {
 	}
 }
 
-// Upsert validates and queues a command create or edit. Consecutive edits of
-// the same command coalesce into the latest state before the next flush.
 func (r *Commands) Upsert(userID uint64, spec CommandSpec) error {
 
 	spec.normalize()
@@ -275,12 +238,6 @@ func (r *Commands) Upsert(userID uint64, spec CommandSpec) error {
 	return nil
 }
 
-// Rename changes a command's key (name) in place, preserving the row, and
-// updates its other fields in the same write. Done immediately (not
-// write-behind) because the batcher coalesces by (user, name); a name change
-// can't be represented as a queued edit of the old key. Emits a delete for the
-// old name and a change for the new so name-keyed consumers (projector, bot)
-// drop the stale entry and pick up the renamed command.
 func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, spec CommandSpec) error {
 
 	oldName = normalizeName(oldName)
@@ -301,8 +258,6 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 		return err
 	}
 
-	// Old row absent (already renamed/deleted elsewhere): fall back to a plain
-	// write of the new command so the edit is not lost.
 	if updated == 0 {
 		return r.Upsert(userID, spec)
 	}
@@ -317,8 +272,6 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 		return err
 	}
 
-	// The rename preserved the row, so its uses counter survives; carry it on
-	// the event so the projection doesn't regress it to zero.
 	changed := spec.dto(userID)
 	key := commandKey{userID: userID, name: spec.Name}
 	if states, serr := r.rowStates(ctx, []commandKey{key}); serr == nil {
@@ -329,8 +282,6 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, changed)
 }
 
-// renameRow rewrites the old row's key and payload in one UPDATE, returning
-// the number of rows hit (0 = old name no longer exists).
 func (r *Commands) renameRow(ctx context.Context, userID uint64, oldName string, spec CommandSpec) (int, error) {
 	return db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		return r.client.Commands.Update().
@@ -351,7 +302,6 @@ func (r *Commands) renameRow(ctx context.Context, userID uint64, oldName string,
 	})
 }
 
-// Delete removes a command immediately and announces it.
 func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error {
 
 	name = normalizeName(name)
@@ -384,9 +334,6 @@ func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error
 	})
 }
 
-// DeleteAllForUser removes every command belonging to the user and drops the
-// cached view. Called when the user-deleted event arrives; idempotent — deleting
-// absent rows succeeds silently.
 func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64) error {
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
@@ -402,23 +349,17 @@ func (r *Commands) DeleteAllForUser(ctx context.Context, userID uint64) error {
 	return nil
 }
 
-// Invalidate drops the cached view of one user; called when a change event
-// arrives from another instance of this service.
 func (r *Commands) Invalidate(userID uint64) {
 	r.views.Invalidate(cache.UserKey(commandsKeyPrefix, userID))
 }
 
-// RecordUse counts successful executions of a command in chat (the worker
-// pre-aggregates, so count covers one flush window). Purely an in-memory sum;
-// flushUses persists on a ticker. Over-threshold key sets flush immediately so
-// a viral chat can't grow the map without bound.
 func (r *Commands) RecordUse(userID uint64, name string, count uint64) {
 	name = normalizeName(name)
 	if userID == 0 || name == "" {
 		return
 	}
 	if count == 0 {
-		count = 1 // absent on the wire means a single execution
+		count = 1
 	}
 	r.usesMu.Lock()
 	r.usesPend[commandKey{userID: userID, name: name}] += count
@@ -432,10 +373,6 @@ func (r *Commands) RecordUse(userID uint64, name string, count uint64) {
 	}
 }
 
-// flushUses drains the accumulator into uses = uses + n updates, then reloads
-// the affected rows and publishes ordinary change events built from DB truth —
-// the projector and the consoles pick the new counts up through the exact same
-// pipeline as an edit, so nothing downstream needs a special counter path.
 func (r *Commands) flushUses(ctx context.Context) {
 
 	pend := r.drainPendingUses()
@@ -456,7 +393,6 @@ func (r *Commands) flushUses(ctx context.Context) {
 	r.publishUseEvents(ctx, txn, keys)
 }
 
-// drainPendingUses swaps out the accumulator under the lock.
 func (r *Commands) drainPendingUses() map[commandKey]uint64 {
 	r.usesMu.Lock()
 	defer r.usesMu.Unlock()
@@ -468,16 +404,6 @@ func (r *Commands) drainPendingUses() map[commandKey]uint64 {
 	return pend
 }
 
-// persistUses applies uses = uses + n per key and returns the keys that
-// landed. Keys are grouped by their increment so one UPDATE with OR-ed key
-// predicates lands every key sharing a count: a 30s window is mostly n=1, so
-// this turns up to usesFlushMaxKeys per-row statements — each a ~1ms NLB
-// round trip since the 2026-08-27 cutover — into one or two statements
-// total. Groups stay bounded by usesFlushMaxKeys (512), well under MySQL's
-// placeholder limit. A failed group is logged and skipped rather than
-// failing the window (loss-tolerant counters, the same rule as the loyalty
-// flush); a missing/deleted row simply matches nothing and is later dropped
-// by rowStates' reload.
 func (r *Commands) persistUses(ctx context.Context, txn *newrelic.Transaction, pend map[commandKey]uint64) ([]commandKey, error) {
 	byCount := map[uint64][]commandKey{}
 	for key, n := range pend {
@@ -513,8 +439,6 @@ func (r *Commands) persistUses(ctx context.Context, txn *newrelic.Transaction, p
 	return keys, err
 }
 
-// publishUseEvents reloads the flushed rows and publishes ordinary change
-// events built from DB truth, invalidating each affected user's cache once.
 func (r *Commands) publishUseEvents(ctx context.Context, txn *newrelic.Transaction, keys []commandKey) {
 	states, err := r.rowStates(ctx, keys)
 	if err != nil {
@@ -531,7 +455,7 @@ func (r *Commands) publishUseEvents(ctx context.Context, txn *newrelic.Transacti
 		}
 		dto, ok := states[key]
 		if !ok {
-			continue // row deleted between update and reload
+			continue
 		}
 		if err := bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, dto); err != nil {
 			r.log.Error("failed to publish command uses change",
@@ -543,8 +467,6 @@ func (r *Commands) publishUseEvents(ctx context.Context, txn *newrelic.Transacti
 	}
 }
 
-// rowStates loads the given command rows and renders each as a full-state
-// change DTO (event-carried state transfer, including the uses counter).
 func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[commandKey]data.CommandChangedDTO, error) {
 	if len(keys) == 0 {
 		return map[commandKey]data.CommandChangedDTO{}, nil
@@ -581,7 +503,6 @@ func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[comman
 	return out, nil
 }
 
-// Close flushes pending writes and stops the background machinery.
 func (r *Commands) Close(ctx context.Context) {
 	r.usesTicker.Stop()
 	close(r.usesDone)
@@ -590,8 +511,6 @@ func (r *Commands) Close(ctx context.Context) {
 	r.views.Close()
 }
 
-// flush runs detached from any request, so it reports as its own background
-// transaction.
 func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) error {
 
 	txn := r.app.StartTransaction("flush commands")
@@ -600,10 +519,6 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	ctx = newrelic.NewContext(ctx, txn)
 	log := monitor.TxnLogger(ctx, r.log)
 
-	// Fast path: the whole window lands as one INSERT ... ON DUPLICATE KEY
-	// UPDATE. If that statement fails, fall back to per-item writes so one
-	// unpersistable row cannot wedge the entire batch in the retry loop
-	// forever (the old whole-batch rollback + requeue did exactly that).
 	landed := items
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
 		return bulkUpsertCommands(ctx, r.client, items)
@@ -616,9 +531,6 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 		return nil
 	}
 
-	// Publish DB truth rather than the queued edit: the row keeps counters the
-	// edit never carried (uses), and event-carried state transfer must not
-	// regress them in the projection.
 	keys := make([]commandKey, 0, len(landed))
 	for _, item := range landed {
 		keys = append(keys, commandKey{userID: item.UserID, name: item.Name})
@@ -648,11 +560,6 @@ func (r *Commands) flush(ctx context.Context, items []data.CommandChangedDTO) er
 	return nil
 }
 
-// bulkUpsertCommands lands one flush window as a single
-// INSERT ... ON DUPLICATE KEY UPDATE keyed on the (user_id, name) unique
-// index. Only the edit-owned columns are updated on conflict: `uses` belongs
-// to the counter flush and created_at to the original insert, and neither
-// must be regressed by an edit.
 func bulkUpsertCommands(ctx context.Context, client *ent.Client, items []data.CommandChangedDTO) error {
 
 	builders := make([]*ent.CommandsCreate, 0, len(items))
@@ -670,8 +577,7 @@ func bulkUpsertCommands(ctx context.Context, client *ent.Client, items []data.Co
 			SetBumpCounter(item.BumpCounter))
 	}
 
-	// MySQL ignores the conflict target (ON DUPLICATE KEY UPDATE is index-less);
-	// SQLite (tests) requires it.
+	// On conflict, update only edit-owned columns: uses and created_at must not regress.
 	return client.Commands.CreateBulk(builders...).
 		OnConflict(entsql.ConflictColumns(commands.FieldUserID, commands.FieldName)).
 		Update(func(u *ent.CommandsUpsert) {
@@ -688,11 +594,6 @@ func bulkUpsertCommands(ctx context.Context, client *ent.Client, items []data.Co
 		Exec(ctx)
 }
 
-// upsertEach persists a failed window one item at a time and returns the
-// items that landed. Rows the database will never accept (validation or
-// constraint errors) are dropped with an error log; transiently failing rows
-// are requeued into the batcher so the next window retries them without
-// holding the rest of the batch hostage.
 func (r *Commands) upsertEach(ctx context.Context, txn *newrelic.Transaction, items []data.CommandChangedDTO) []data.CommandChangedDTO {
 
 	landed := make([]data.CommandChangedDTO, 0, len(items))
@@ -780,8 +681,6 @@ func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.Command
 	return nil
 }
 
-// formatAllowed renders the allowed user id for the read model: empty for 0
-// (no restriction) so the dashboard can treat absence uniformly.
 func formatAllowed(id uint64) string {
 	if id == 0 {
 		return ""

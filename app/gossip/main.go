@@ -1,15 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// gossip is the fleet's external-API gateway: sesame (and any future caller)
-// requests third-party data over NATS RPC and gossip fetches, normalizes
-// and caches it in Valkey.
-//
-// Its architecture mirrors sesame's: provider is the authoring surface,
-// app/gossip/internal/providers holds one package per external system plus
-// the one-line-per-provider All registration, and engine is the runtime that
-// indexes and serves them. main only wires infrastructure — adding an external
-// system never touches this file.
 package main
 
 import (
@@ -35,7 +26,6 @@ import (
 
 const serviceName = "gossip"
 
-// queueGroup load-balances each endpoint across gossip replicas.
 const queueGroup = "gossip-rpc"
 
 func main() {
@@ -60,8 +50,6 @@ func main() {
 	svcboot.FatalIf(log, engine.Serve(nc, cfg.SubjectPrefix, queueGroup, active, core.NR, log),
 		"failed to subscribe provider endpoints")
 
-	// gossip runs no JetStream lanes, so there is no bus.LaneCheck here: its
-	// "lane" is the RPC surface svcboot's own rpc check already covers.
 	svcboot.ServeHealth(svcboot.Health{
 		Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: cfg.ListenAddr,
 	}, warpCheck())
@@ -72,10 +60,6 @@ func main() {
 }
 
 func buildDeps(cfg *config.Config, nc *nats.Conn, valkeyClient valkey_go.Client, log *zap.Logger) provider.Deps {
-	// Deps is the bundle every provider captures; main builds it once.
-	// providers.All returns the configured providers, which the engine
-	// subscribes. Adding an external system is a new package under
-	// internal/providers plus one line in all.go — no wiring here.
 	deps := provider.Deps{
 		Cache:   core.NewCache(core.NewValkeyStore(valkeyClient)),
 		Limiter: ratelimit.New(valkeyClient),
@@ -96,31 +80,11 @@ func logReady(active []provider.Provider, cfg *config.Config, log *zap.Logger) {
 	)
 }
 
-// warpCheck watches the WARP sidecar's loopback SOCKS listener via
-// core.WARPReachable.
-//
-// Degrades rather than downs, because the failure is partial by construction:
-// the WARP lane fails closed with core.ErrWARPDown when the sidecar is gone,
-// but every non-WARP provider lane in the same pod keeps answering. Failing
-// readiness instead would evict a pod still serving most of its RPC surface,
-// turning one impaired lane into an outage; 207 on /status is the honest
-// report.
-//
-// It exists to catch WARP dying AFTER the pod went Ready: the sidecar's own
-// readiness probe (`ss -ltn | grep -q '127.0.0.1:40000'`, deploy/k8s/gossip.yaml)
-// gates the pod at startup and then never looks again. Its limit is the dial's
-// limit — listener bound, not tunnel healthy; see core.WARPReachable for why
-// nothing stronger belongs on a monitor-polled endpoint.
+// Degrade, never fail readiness: evicting the pod takes every other provider down with WARP.
 func warpCheck() health.Check {
 	return health.Degrades(health.Check{Name: "warp", Probe: core.WARPReachable})
 }
 
-// wireKeyResolvers attaches the just-in-time credential resolvers to deps —
-// the provider dependencies that need the RPC connection. Govee
-// authenticates with each broadcaster's own API key and spotify with their
-// connected account's OAuth refresh token, both fetched from the modules
-// service at call time. An empty subject prefix leaves a resolver nil, which
-// disables its provider (providers.All skips it).
 func wireKeyResolvers(cfg *config.Config, nc *nats.Conn, valkeyClient valkey_go.Client, deps *provider.Deps) {
 	if cfg.GoveeKeySubjectPrefix != "" {
 		deps.GoveeKeys = core.NewGoveeKeyClient(nc, cfg.GoveeKeySubjectPrefix)
@@ -136,10 +100,6 @@ func wireKeyResolvers(cfg *config.Config, nc *nats.Conn, valkeyClient valkey_go.
 	}
 }
 
-// newFetchProjection builds the read-side client for the commands service's
-// fetch-definition projection: in-process cache fronting the shared Valkey
-// hash, with the projector's tier-3 verb as the cold-read fallback. Read-only
-// — gossip never writes definitions; ownership stays with commands.
 func newFetchProjection(nc *nats.Conn, vc valkey_go.Client, subject string) *projection.Client {
 	return projection.NewClient(projection.Config{
 		Store: projection.NewStore(vc),
@@ -151,16 +111,8 @@ func newFetchProjection(nc *nats.Conn, vc valkey_go.Client, subject string) *pro
 	})
 }
 
-// projectionCacheTTL bounds the in-process definition cache. Definitions are
-// authoring data that changes rarely and heals on rename/delete via the
-// invalidation events commands publishes; two minutes keeps an edit visible
-// quickly without making every chat burst a Valkey round trip.
 const projectionCacheTTL = 2 * time.Minute
 
-// fetchDefSource adapts the projection client's uint64-keyed view onto
-// provider.DefSource's string-keyed seam. A non-numeric broadcaster id is a
-// caller bug upstream of us: no definitions can exist for it, so it reads as
-// a clean not-found rather than an error.
 type fetchDefSource struct {
 	client *projection.Client
 }

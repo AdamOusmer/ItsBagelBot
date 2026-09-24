@@ -1,17 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package module is sesame's module authoring surface. A feature is declared as
-// one Module built by a fluent Builder: it names itself, declares its Kind
-// (core, default, or opt-in), lists the commands it owns, and registers any
-// non-command event handlers. The Builder produces an immutable Module value
-// that the sesame engine (a later layer) indexes and runs.
-//
-// This package is intentionally standalone: it holds only the authoring value
-// types and the Builder. It carries no runtime wiring (no pipeline, consumer,
-// projection, or Valkey), so a module fn captures whatever services it needs by
-// closure and this package never has to know about them. That keeps the
-// authoring surface small, cheap to import, and unit-testable on its own.
 package module
 
 import (
@@ -19,27 +8,14 @@ import (
 	"time"
 )
 
-// Kind classifies a module's enable semantics, replacing the worker's magic
-// empty-name convention and its Defaulted optional interface with one explicit
-// field.
 type Kind int
 
 const (
-	// KindCore is always on, never listed to broadcasters, and immutable: it is
-	// never toggled or configured, and the engine skips the ModuleView check for
-	// it entirely (no projection fetch on its account). Its Name is optional —
-	// empty for the classic unnamed built-ins, or set to give a named built-in an
-	// identity (it still has no ModuleView key and no config).
 	KindCore Kind = iota
-	// KindDefault is a named module that ships enabled: it runs unless the
-	// broadcaster's ModuleView disables it.
 	KindDefault
-	// KindOptIn is a named module that ships disabled: it runs only when the
-	// broadcaster's ModuleView enables it.
 	KindOptIn
 )
 
-// String renders the kind for logs and errors.
 func (k Kind) String() string {
 	switch k {
 	case KindCore:
@@ -53,27 +29,7 @@ func (k Kind) String() string {
 	}
 }
 
-// Output is one outgress action a module wants to take, in the module layer's
-// own minimal shape. The engine translates it onto an outgress.Message. It is
-// pooled by the caller: a module fills it, hands it to Emit, and must not retain
-// it afterwards.
-//
-//   - Type is the outgress message type (outgress.TypeChat, TypeAnnounce, ...).
-//   - BroadcasterID is the target channel (the raw string id).
-//   - Text is the message body.
-//   - Color is the announce color (primary/blue/green/orange/purple); empty
-//     unless Type is an announce.
-//   - To is the shoutout target (login or id); empty unless Type is a shoutout.
-//   - Duration is the requested clip length in seconds (Twitch allows 5–60);
-//     zero means unset, so Twitch applies its default (30). Type clip and
-//     Type commercial also read it (clip length vs commercial length).
-//   - Template is a custom reply template a command can carry for downstream
-//     expansion (e.g. the clip reply's {clip} token, expanded by outgress once
-//     the clip URL exists). Empty means use the default reply. Clip uses it
-//     as the reply template; stream-editor actions use it as the locale
-//     so outgress can localise the confirmation.
-//   - BatchID/Items carry a multi-message response as one outgress queue job.
-//     Items are already translated actions and execute in slice order.
+// Pooled by the engine: a module must not retain it after Emit.
 type Output struct {
 	Type          string
 	BroadcasterID string
@@ -83,93 +39,37 @@ type Output struct {
 	To            string
 	BatchID       string
 	Items         []Output
-	// Duration is shared: the clip length (fractional seconds) for a clip
-	// Output, the timeout length in whole seconds for a timeout (0 = permanent
-	// ban), and the commercial length in whole seconds for a commercial.
-	// Template is the clip reply template, or the locale for stream-editor
-	// actions (channel_update / commercial / stream_marker) so outgress can
-	// localise the chat confirmation. Reason is the stream-editor field
-	// (title/game/tags) for a channel_update Output.
-	Duration float64
-	Template string
-	// Moderation-action fields, set only for a ban/timeout/delete Output.
-	// TargetUserID is the chatter to action; Reason is the optional audit
-	// reason; MsgID is the chat message to delete.
-	TargetUserID string
-	Reason       string
-	MsgID        string
-	// Channel-points redemption-resolution fields, set only for a
-	// redemption_update Output (outgress.TypeRedemptionUpdate): RewardID is the
-	// custom reward, RedemptionID the specific redemption to resolve, and Status
-	// the new state ("FULFILLED" / "CANCELED").
-	RewardID     string
-	RedemptionID string
-	Status       string
+	Duration      float64
+	Template      string
+	TargetUserID  string
+	Reason        string
+	MsgID         string
+	RewardID      string
+	RedemptionID  string
+	Status        string
 }
 
-// Emit publishes one Output. The callee must not retain o past the call: the
-// engine may recycle it as soon as Emit returns.
 type Emit func(o *Output)
 
-// RunFunc executes a command after its gates pass, emitting any outputs. args is
-// the trimmed argument string after the command name.
 type RunFunc func(ctx context.Context, c *Context, args string, emit Emit) error
 
-// EventHandler runs a module's non-command path for one event of a registered
-// type and emits any outputs. Command dispatch never flows through here.
 type EventHandler func(ctx context.Context, c *Context, emit Emit) error
 
-// Command is one baked command a module owns. The engine gates and runs it
-// centrally, so the same permission/live/cooldown semantics apply to baked and
-// custom commands alike. Build normalizes Name and Aliases to lowercase so they
-// match the engine's case-insensitive lookup.
 type Command struct {
-	// Name is the lowercase trigger without the leading '!'.
-	Name string
-	// Aliases are extra lowercase triggers that resolve to this same command.
-	Aliases []string
-	// Perm is the minimum role required, unless AllowedUserID is set.
-	Perm Role
-	// Cooldown is the shared per-command window; zero means no cooldown.
-	Cooldown time.Duration
-	// LiveOnly gates the command to when the broadcaster is live.
-	LiveOnly bool
-	// AllowedUserID, when non-empty, restricts the command to exactly that
-	// chatter id and overrides Perm entirely.
+	Name          string
+	Aliases       []string
+	Perm          Role
+	Cooldown      time.Duration
+	LiveOnly      bool
 	AllowedUserID string
-	// NumericSuffix lets the trigger absorb a trailing run of digits typed
-	// inline (e.g. "!clip30" resolves to "clip"). The digits are not passed to
-	// the command; they only widen what matches this trigger. Used by built-ins
-	// like !clip that accept an inline number.
 	NumericSuffix bool
-	// Run executes the command after the gates pass.
-	Run RunFunc
+	Run           RunFunc
 }
 
-// Module is the immutable artifact Build returns. The sesame engine indexes it:
-// each command goes into the flat command index, and each Events entry registers
-// the module under that EventSub type for its non-command path.
-//
-// There is deliberately no permanent premium/feature gate here: premium vs
-// standard is a routing lane (it decides which outgress subject a reply rides),
-// not a feature switch. Every feature is available on both lanes once it is
-// out of beta. Beta is the one exception: a module flagged Beta runs only on
-// the premium lane until the flag is removed, which is how a feature is
-// soft-launched to paying broadcasters before it goes fleet-wide.
 type Module struct {
 	Name     string
 	Kind     Kind
 	Events   map[string]EventHandler
 	Commands []Command
-	// Beta marks a module as premium-only while it is in beta. The engine skips
-	// it on the standard lane exactly as if its ModuleView were disabled, so a
-	// broadcaster who enabled it while paid keeps the row and silently resumes
-	// on re-upgrade or when the beta ends. The console mirrors this flag on the
-	// catalog ModuleDef (web/kit/lib/catalog/module-def.ts, `beta`);
-	// both must flip in the same PR, there is no shared source between Go and
-	// TS. Ending a beta is deleting the flag in both places, no data migration.
-	Beta bool
-	// Triggers is reserved: trigger-word matchers will land here so ingress can
-	// stop filtering to "!"-prefixed messages. Not populated yet.
-	// Triggers []Trigger
+	Beta     bool
 }

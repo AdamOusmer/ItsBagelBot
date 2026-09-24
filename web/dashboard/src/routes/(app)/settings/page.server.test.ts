@@ -1,11 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The setCommandsPage action (docs/specs/commands-page-toggle.md §5.2, §9):
-// owner-only (delegate and admin "view as" both refused), writes the opposite
-// of `enabled` as commands_page_hidden, then best-effort purges the edge for
-// the account's canonical login. A failed purge surfaces as edgeDelayed
-// rather than failing the request the write already committed.
 import { describe, expect, mock, test } from 'bun:test';
 import { staticText } from '../../../../../kit/lib/i18n/static';
 

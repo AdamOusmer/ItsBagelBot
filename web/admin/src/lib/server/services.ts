@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Admin-facing RPC wrappers over the shared NATS client. Subjects come from env
-// with the same defaults as the retired Go admin tier. Page callers degrade to
-// neutral zero/empty shapes so SSR can render without inventing live state.
 import { rpc, publish, subscribeDurable, RpcError } from '@bagel/kit/server/nats';
 import { codeReader } from '@bagel/kit/server/rpc-code';
 import { defineRead, defineWrite } from '@bagel/kit/server/service';
@@ -28,16 +25,8 @@ import {
   type StartRequest
 } from '$lib/deploys/types';
 
-// Subjects come from process.env, NOT $env/dynamic/private. This module is
-// imported at boot (hooks.server.ts -> startInvalidationListener), and reading
-// SvelteKit's dynamic-env proxy at module-eval time during server.init()
-// deadlocks the handler import (unsettled top-level await -> exit 13). In
-// adapter-node process.env carries the same values.
-//
-// Env fallbacks use `||`, not `??` (same rule as dashboard/services.ts SUB): a
-// set-but-blank Doppler var through `??` collapses every subject here to a
-// leading-dot fragment and turns RPCs into silent timeouts. All defaults are
-// non-empty strings, so `||` discards nothing legitimate.
+// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
+// `||`, not `??`: a set-but-blank env var would build subjects no responder answers.
 const SUB = {
   shards: process.env.NATS_ADMIN_SUBJECT || 'twitch.ingress.admin.shards.get',
   scale: process.env.NATS_SHARD_SCALE_SUBJECT || 'twitch.ingress.admin.shards.scale',
@@ -58,11 +47,6 @@ const SUB = {
 
 export const STATUS_PREFIX = SUB.status;
 
-// Scope -> cache key routing for the invalidation bus, declared as data.
-// user:<id> also covers user-login: only via the coarse 'users:'-adjacent
-// prefixes below; login-keyed lookups decay by policy (5s fresh).
-// commands/modules/delegation fire on every dashboard save and admin caches
-// none of that data: explicit no-ops so they don't churn user keys.
 const SCOPES: ScopeMap = {
   status: (id) => ['users:', `user:${id}`, `token:${id}`],
   grant: (id) => ['users:', `user:${id}`, `token:${id}`],
@@ -74,9 +58,6 @@ const SCOPES: ScopeMap = {
   '*': (id) => ['users:', `user:${id}`, `token:${id}`]
 };
 
-// Hybrid read path facade: L1 SwrCache with push invalidation + SWR. Admin data
-// has no Valkey projection, so reads are L1 -> RPC. Policies from the shared
-// table keep the operator view ≤5s/≤3s stale while SWR makes repeat loads instant.
 const fabric = createCacheFabric({
   app: 'admin',
   scopes: SCOPES,
@@ -99,43 +80,27 @@ function invalidateUser(userId: string) {
   invalidate('users:', `user:${userId}`, `token:${userId}`);
 }
 
-// The cache upkeep every write that echoes a refreshed row performs: drop the
-// user's derived entries, then write the fresh row straight back so the
-// inspector panel that triggered the write does not re-fetch it.
 function refreshUser(user: AdminUserWire, ref: UserRef) {
   invalidateUser(ref.userId);
   setCached(`user:${user.id}`, user, POLICY.adminRead);
 }
 
-// Fire-and-forget cross-replica cache-invalidation publish. Local invalidation
-// already ran synchronously; this just tells OTHER replicas to evict their
-// own in-process caches for the same scope.
 function broadcastInvalidate(scope: string, broadcasterId: string) {
   void publish(`${getServerConfig().cacheInvalidationPrefix}.${scope}`, {
     broadcaster_id: broadcasterId
   }).catch(() => {});
 }
 
-// UserRef names the pair every per-user admin verb needs: who is asking, and
-// whom they are asking about.
-//
-// Bundled rather than passed as two adjacent strings because both are Twitch
-// numeric ids, so `f(userId, actorId)` type-checks exactly as well as the
-// correct order does. A transposition here does not fail: it authorizes the
-// target and mutates the operator, and the audit row records the swap as
-// fact. The named fields make that class of bug a compile error.
 export interface UserRef {
   actorId: string;
   userId: string;
 }
 
-// AdminUserWire mirrors the users service's admin wire format (broadcaster-data):
-// numeric id, raw status enum, activity flag, last-update timestamp.
 export interface AdminUserWire {
   id: number;
   username: string;
   is_active: boolean;
-  status: string; // "free" | "paid" | "vip"
+  status: string;
   banned: boolean;
   creator_code?: string | null;
   subscription_expires_at?: string;
@@ -159,8 +124,6 @@ export interface UserPage {
   max_pages: number;
   has_more: boolean;
 }
-
-// ── Shards ──────────────────────────────────────────────────────────────────
 
 export const shardSnapshot = defineRead({
   subject: SUB.shards,
@@ -190,8 +153,6 @@ export const shardAutoscale = defineWrite({
   after: (snapshot) => setCached('shards:snapshot', snapshot, POLICY.live)
 });
 
-// Trial observation is controlled by ingress. Reads are intentionally uncached:
-// the page polls observed WebSocket state while a subscription is settling.
 export interface TrialChannel {
   broadcaster_id: string;
   display_name?: string;
@@ -231,45 +192,17 @@ export function trialSetEnabled(broadcasterId: string, enabled: boolean): Promis
   return rpc<TrialMutationReply>(`${SUB.trials}.set_enabled`, { broadcaster_id: broadcasterId, enabled });
 }
 
-// ── Refusal codes ───────────────────────────────────────────────────────────
-
-// A role-ladder refusal from a Go service arrives as `code: "forbidden"`
-// (internal/domain/rpc/code.go) and reaches a route action as a thrown
-// RpcError. It is the one refusal a page must turn into an HTTP status rather
-// than a notice: 403 says "you may not do this", where a notice reads as "it
-// did not work this time" and invites the operator to retry forever.
-//
-// The reader is built on this module's OWN known set, not the whole
-// vocabulary, per rpc-code's contract: a code nothing here branches on must be
-// read as no code at all.
 const readRefusal = codeReader(['forbidden'] as const);
 
-/** True when the error is a service refusing the caller's role. */
 export function isForbidden(e: unknown): boolean {
   if (!(e instanceof RpcError)) return false;
   return readRefusal({ code: e.code, error: e.message }) === 'forbidden';
 }
 
-// ── Users ───────────────────────────────────────────────────────────────────
-//
-// Every bagel.rpc.admin.user.* call carries `actor_id`: the users service reads
-// the caller's role from its own staff table and refuses the verb when the
-// ladder says no (app/db/users/rpc/admin.go). The console's ROLE_FOR table is
-// the same policy applied a request earlier; this field is what makes the
-// service, not the console, the source of truth.
-//
-// Read caches below are keyed WITHOUT the actor on purpose. The rows are
-// identical whoever asks -- the ladder decides whether you may ask at all, not
-// what you see -- and keying per actor would multiply every entry by the size
-// of the staff roster for no difference in content.
-
 function isDigits(s: string): boolean {
   return /^[0-9]+$/.test(s);
 }
 
-// Dual-key lookup (numeric id vs. login) plus a write-through side-set of the
-// canonical user:<id> key on a login hit: the factory's single cache-key shape
-// doesn't fit this cleanly, so it stays hand-written.
 export async function userLookup(actorId: string, q: string): Promise<AdminUserWire> {
   const req = isDigits(q) ? { actor_id: actorId, user_id: q } : { actor_id: actorId, username: q };
   const key = isDigits(q) ? `user:${q}` : `user-login:${q.toLowerCase()}`;
@@ -302,10 +235,8 @@ export const userStats = defineRead({
   }
 });
 
-// EnrollmentWire mirrors the users service's admin enrollment reply: one
-// zero-filled bucket per UTC day plus the current user totals.
 export interface EnrollmentDayWire {
-  date: string; // YYYY-MM-DD
+  date: string;
   count: number;
 }
 
@@ -330,8 +261,6 @@ export const userEnrollment = defineRead({
 export const USER_PAGE_SIZE = 15;
 export const USER_MAX_PAGES = 25;
 
-// Paged replies share one meta shape whose fields fall back to the request
-// args when the responder omits them (older service during a rolling deploy).
 interface PageMetaWire {
   page?: number;
   page_size?: number;
@@ -346,17 +275,17 @@ interface PageMeta {
   has_more: boolean;
 }
 
-function pageMetaOf(reply: PageMetaWire, page: number, pageSize: number, maxPages: number): PageMeta {
+type PageWindow = { page: number; pageSize: number; maxPages: number };
+
+function pageMetaOf(reply: PageMetaWire, fallback: PageWindow): PageMeta {
   return {
-    page: reply.page ?? page,
-    page_size: reply.page_size ?? pageSize,
-    max_pages: reply.max_pages ?? maxPages,
+    page: reply.page ?? fallback.page,
+    page_size: reply.page_size ?? fallback.pageSize,
+    max_pages: reply.max_pages ?? fallback.maxPages,
     has_more: Boolean(reply.has_more)
   };
 }
 
-// Hand-written, not defineRead: the fallback needs the request args, and
-// defineRead's `map` only sees the reply.
 export async function userOverview(
   actorId: string,
   page = 1,
@@ -371,15 +300,13 @@ export async function userOverview(
     return {
       users: r.users ?? [],
       stats: r.stats,
-      ...pageMetaOf(r, page, USER_PAGE_SIZE, USER_MAX_PAGES)
+      ...pageMetaOf(r, { page, pageSize: USER_PAGE_SIZE, maxPages: USER_MAX_PAGES })
     };
   });
 }
 
 export const userSetStatus = defineWrite({
   subject: `${SUB.user}.set_status`,
-  // expiresAt (ISO timestamp) is required by the users service when status is
-  // "paid": every operator grant carries the day it ends.
   request: (ref: UserRef, status: string, expiresAt?: string) => ({
     actor_id: ref.actorId,
     user_id: ref.userId,
@@ -481,9 +408,6 @@ export async function restartUserEventSub(userId: string): Promise<void> {
   invalidateUser(userId);
 }
 
-// Enqueue the EventSub on/off job that keeps a channel's Twitch enrollment in
-// step with its active flag: enabled=true (re)creates the subscriptions,
-// false deletes them. Same lane the dashboard's connect/disconnect uses.
 export async function publishUserEventSub(userId: string, enabled: boolean): Promise<void> {
   await publish(SUB.outgress, { type: 'eventsub', broadcaster_id: userId, payload: { enabled } });
 }
@@ -494,10 +418,6 @@ export type ChannelSubState = {
   checkedAt: string | null;
 };
 
-// Read the persisted EventSub enroll state for a channel. Fails safe: returns
-// 'unknown' on RPC error so a transient outage never blocks page render. The
-// try/catch fail-open semantics don't fit defineRead's throw-on-error contract,
-// so this stays hand-written.
 export async function channelSubState(broadcasterId: string): Promise<ChannelSubState> {
   try {
     const r = await rpc<{
@@ -514,23 +434,6 @@ export async function channelSubState(broadcasterId: string): Promise<ChannelSub
     return { state: 'unknown', error: '', checkedAt: null };
   }
 }
-
-// ── Service health ───────────────────────────────────────────────────────────
-// Latency probes over every service RPC account the admin may reach.
-//
-// The responder is no longer a no-op: it answers with the service's real health
-// report, so a sibling service can fold it into a public /status. It is still
-// side-effect-free (every check is a read), but the number here is no longer a
-// pure transport measurement, and a service whose own checks are slow will show
-// that latency rather than only the round trip. The responder caches its report
-// for a second (rpcHealthTTL in pkg/bus), which is what keeps this panel's
-// eleven-way fan-out from costing eleven database pings per page load and keeps
-// a healthy sample well inside HEALTH_TIMEOUT_MS.
-//
-// This panel reads only whether the service answered. The reply also carries
-// `status` ("ok" | "degraded" | "down") and the per-check detail behind it,
-// which nothing here surfaces yet: a service answering `status: "down"` still
-// renders green as long as it replied.
 
 export interface ServiceHealth {
   id: string;
@@ -582,8 +485,6 @@ export async function serviceHealth(): Promise<ServiceHealth[]> {
   return Promise.all(HEALTH_PROBES.map(probeOnce));
 }
 
-// ── Notifications ────────────────────────────────────────────────────────────
-
 export interface NotificationWire {
   id: number;
   scope: 'broadcast' | 'direct';
@@ -613,7 +514,7 @@ export const notificationsList = defineRead({
   request: (page = 1) => ({ page, limit: NOTIFICATIONS_PAGE_SIZE }),
   map: (reply: PageMetaWire & { notifications?: NotificationWire[] }): NotificationPage => ({
     notifications: reply.notifications ?? [],
-    ...pageMetaOf(reply, 1, NOTIFICATIONS_PAGE_SIZE, NOTIFICATIONS_MAX_PAGES)
+    ...pageMetaOf(reply, { page: 1, pageSize: NOTIFICATIONS_PAGE_SIZE, maxPages: NOTIFICATIONS_MAX_PAGES })
   }),
   cache: {
     fabric,
@@ -644,8 +545,7 @@ export const notificationSend = defineWrite({
     expires_at: params.expiresAt || undefined,
     actor_id: params.actorId,
     actor_login: params.actorLogin,
-    // One value per logical send. If NATS transports the request over more
-    // than one route, every delivery carries the same database idempotency key.
+    // One id per logical send: it is the database idempotency key across redeliveries.
     request_id: crypto.randomUUID()
   }),
   map: (reply: { notification: NotificationWire }) => reply.notification,
@@ -658,21 +558,9 @@ export async function notificationDelete(id: number): Promise<void> {
   invalidate('notifications:');
 }
 
-// ── Cache invalidation listener ───────────────────────────────────────────────
-
-/**
- * Subscribe to the cache-invalidation bus so writes in other services push-drop
- * affected keys without waiting on TTL expiry. Call once at server boot
- * (hooks.server.ts init). Scope -> key routing is the SCOPES map above; the
- * shared router owns transport, parsing, retry, and gap flushes.
- */
 export function startInvalidationListener(): void {
   fabric.start();
 }
-
-// ── Admin auth + audit ────────────────────────────────────────────────────────
-// DB-backed (users service) replacement for the old static ADMIN_USER_IDS env
-// allowlist. auth.check decides who may operate; audit.* records what they did.
 
 export type AdminRole = 'moderator' | 'admin' | 'owner';
 
@@ -716,8 +604,6 @@ export interface AuditPage {
 export const AUDIT_PAGE_SIZE = 15;
 export const AUDIT_MAX_PAGES = 25;
 
-// adminCheck resolves whether a Twitch subject is an active admin. Login/display
-// are passed through so the allowlist self-heals after a Twitch rename.
 export const adminCheck = defineRead({
   subject: `${SUB.auth}.check`,
   request: (userId: string, login?: string, displayName?: string) => ({
@@ -728,7 +614,6 @@ export const adminCheck = defineRead({
   map: (reply: AdminCheck) => reply,
   cache: {
     fabric,
-    // Cached by subject id only; login/display are pass-through self-heal hints.
     key: (userId: string, _login?: string, _displayName?: string) => `auth:${userId}`,
     policy: POLICY.adminRead
   }
@@ -745,9 +630,6 @@ export const adminListAccts = defineRead({
   }
 });
 
-// staffUpsert creates or modifies a staff member. Only the actor id crosses the
-// wire; the users service resolves the active persisted role and enforces the
-// role ladder independently of client/session metadata.
 export async function staffUpsert(
   actor: { id: string },
   target: { userId: string; login: string; displayName: string; role: AdminRole }
@@ -779,8 +661,6 @@ export async function staffRemove(
   return r.admins ?? [];
 }
 
-// auditAppend is best-effort: a logging failure must never block the operator
-// action it records, so callers fire-and-forget and swallow errors.
 export async function auditAppend(entry: {
   actor_id: string;
   actor_login: string;
@@ -802,8 +682,6 @@ export async function auditAppend(entry: {
   invalidate('audit:');
 }
 
-// auditList returns the newest entries, optionally scoped to one actor's id so
-// a member's history can be lazy-loaded without shipping the whole log.
 export const auditList = defineRead({
   subject: `${SUB.audit}.list`,
   request: (limit = 50, actorId?: string) => ({
@@ -818,8 +696,6 @@ export const auditList = defineRead({
   }
 });
 
-// Hand-written, not defineRead: same reply-falls-back-to-args shape as
-// userOverview above.
 export async function auditPage(page = 1, search = '', actorFilter = ''): Promise<AuditPage> {
   return cached(`audit:page:${page}:${search}:${actorFilter}`, POLICY.adminPage, async () => {
     const r = await rpc<PageMetaWire & { entries?: AuditEntry[] }>(`${SUB.audit}.list`, {
@@ -830,15 +706,10 @@ export async function auditPage(page = 1, search = '', actorFilter = ''): Promis
     });
     return {
       entries: r.entries ?? [],
-      ...pageMetaOf(r, page, AUDIT_PAGE_SIZE, AUDIT_MAX_PAGES)
+      ...pageMetaOf(r, { page, pageSize: AUDIT_PAGE_SIZE, maxPages: AUDIT_MAX_PAGES })
     };
   });
 }
-
-// ---------------------------------------------------------------------------
-// Bot-global counters: the reserved loyalty namespace user_id "0". Created
-// and bumped by admins and system modules only; broadcasters can neither see
-// nor reference them, so no cache layer: the page reads straight through.
 
 export interface BotCounter {
   name: string;
@@ -883,27 +754,13 @@ export async function botCounterDelete(name: string): Promise<void> {
   if (r.error) throw new Error(r.error);
 }
 
-// ── Deploys ─────────────────────────────────────────────────────────────────
-//
-// Every bagel.rpc.admin.deploy.* call carries `actor_id`, and the deployer
-// re-reads that actor's role from the users service before doing anything
-// (app/deployer/internal/rpc). Nothing here is cached: a run's state changes
-// by the second, and a stale plan would offer PRs that already merged.
-
-// plan fans out to GitHub (open PRs, their checks, the compare against the
-// live tag, releases) and to the cluster for drift, and the deployer bounds
-// that handler at DEPLOY_RPC_TIMEOUT (20s default). The shared 2s read budget
-// would time the console out on every cold plan while the deployer was still
-// working, so this waits as long as the handler is allowed to.
+// Must match the deployer's DEPLOY_RPC_TIMEOUT.
 const DEPLOY_PLAN_TIMEOUT_MS = 20_000;
 
 export type DeployRunId = DeployRun['id'];
 
 export type DeployRuns = { runs: DeployRunSummary[]; activeRunId: DeployRunId | null };
 
-// The deployer answers every run verb with the run, or with a refusal that
-// rpc() has already thrown. A success without one is a broken responder, and
-// is surfaced as an error rather than as a redirect to /deploys/undefined.
 function runOf(reply: RunReply): DeployRun {
   if (!reply.run) throw new Error('deployer replied without a run');
   return reply.run;
@@ -916,8 +773,7 @@ export const deployPlan = defineRead({
   timeoutMs: DEPLOY_PLAN_TIMEOUT_MS
 });
 
-// runs is `[]` by contract (no omitempty on the Go side), but a nil slice
-// still marshals as null, so the fallback stays.
+// A Go nil slice marshals as null: keep the `?? []`.
 export const deployList = defineRead({
   subject: `${SUB.deploy}.list`,
   request: (req: ListRequest) => req,
@@ -933,16 +789,12 @@ export const deployGet = defineRead({
   map: runOf
 });
 
-// start answers as soon as the run is recorded; the stages run in the
-// background and reach the page over bagel.deploy.events.<id>.
 export const deployStart = defineWrite({
   subject: `${SUB.deploy}.start`,
   request: (req: StartRequest) => req,
   map: runOf
 });
 
-// resume, cancel and approve share one request and one reply; the verb is the
-// only difference, so they are one factory rather than three literals.
 type DeployRunVerb = 'resume' | 'cancel' | 'approve';
 
 function deployRunWrite(verb: DeployRunVerb) {
@@ -958,19 +810,11 @@ export const deployCancel = deployRunWrite('cancel');
 export const deployApprove = deployRunWrite('approve');
 
 export type DeployListener = {
-  /** One full Run snapshot, as published; ordering by seq is the caller's. */
   run: (run: DeployRun) => void;
-  /** Frames may have been missed (reconnect, resubscribe): re-read the run. */
   gap: () => void;
 };
 
-// One process-wide subscription to bagel.deploy.events.>, fanned out to the
-// open SSE streams by run id, rather than one NATS subscription per stream.
-// The shared client exposes no unsubscribe, and subscribeDurable rather than
-// subscribe because a deploy page stays open for the length of a rollout:
-// plain subscribe gives up for the life of the process after one dial
-// failure, and its gap signal is what lets a stream re-read a run whose
-// terminal frame it may have missed.
+// subscribeDurable: plain subscribe gives up for the process lifetime after one dial failure.
 const deployWatchers = new Map<DeployRunId, Set<DeployListener>>();
 let deployEventsStarted = false;
 
@@ -985,7 +829,6 @@ function deployEventsGap(): void {
   for (const set of deployWatchers.values()) set.forEach((listener) => listener.gap());
 }
 
-/** Watch one run's snapshots. Returns the unwatch function. */
 export function watchDeployRun(runId: DeployRunId, listener: DeployListener): () => void {
   if (!deployEventsStarted) {
     deployEventsStarted = true;
@@ -996,8 +839,6 @@ export function watchDeployRun(runId: DeployRunId, listener: DeployListener): ()
   deployWatchers.set(runId, set);
   return () => {
     set.delete(listener);
-    // Identity check: a second call must not drop a newer set that a later
-    // watcher of the same run created after this one emptied.
     if (set.size === 0 && deployWatchers.get(runId) === set) deployWatchers.delete(runId);
   };
 }

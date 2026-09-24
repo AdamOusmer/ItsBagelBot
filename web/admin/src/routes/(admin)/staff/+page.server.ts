@@ -23,11 +23,8 @@ export const load: PageServerLoad = async ({ parent }) => {
     display_name: layout.displayName,
     role: layout.role
   };
-  // Staff roster is managers-only; moderators get bounced to the overview.
   if (!allows(admin.role, 'staff.manage')) throw redirect(302, '/');
 
-  // Streamed: the shell renders immediately; the roster hydrates when the RPC
-  // lands. A member's action history stays lazy-loaded from /staff/history.
   const roster: Promise<RosterBundle> = DEMO
     ? import('$lib/server/demo-data').then(({ demoStaff }) => ({
         staff: demoStaff(),
@@ -41,7 +38,6 @@ export const load: PageServerLoad = async ({ parent }) => {
 };
 
 export const actions: Actions = {
-  // Create or modify a staff member (add by id, or change role).
   upsert: async ({ request, locals }) => {
     const admin = await requireRole({ locals }, 'staff.manage');
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });
@@ -55,15 +51,12 @@ export const actions: Actions = {
     if (!/^[0-9]+$/.test(userId)) return fail(400, { error: actionError(locals.locale, 'numeric user id required') });
     if (!login) return fail(400, { error: actionError(locals.locale, 'login required') });
     if (!ROLES.has(role)) return fail(400, { error: actionError(locals.locale, 'invalid role') });
-    // Client-side mirror of the server ladder: block before the round-trip.
     if (!canManage(admin.role, role)) return fail(403, { error: adminText(locals.locale, 'admin.action.cannotGrantRole', { role }) });
 
     if (DEMO) return { action: { ok: true, notice: adminText(locals.locale, 'admin.staff.grantedDemo', { login, role }) } };
     try {
       const staff = await staffUpsert({ id: admin.id }, { userId, login, displayName, role });
       audit(admin, { action: 'staff_upsert', target: userId, detail: `${login}:${role}`, ok: true });
-      // Return the authoritative roster so the client reconciles in place
-      // without a follow-up invalidateAll refetch.
       return { action: { ok: true, notice: adminText(locals.locale, 'admin.staff.granted', { login, role }) }, staff };
     } catch (e) {
       audit(admin, {
@@ -77,7 +70,6 @@ export const actions: Actions = {
     }
   },
 
-  // Soft-remove (deactivate) a staff member.
   remove: async ({ request, locals }) => {
     const admin = await requireRole({ locals }, 'staff.manage');
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });

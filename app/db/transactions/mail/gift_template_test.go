@@ -32,7 +32,6 @@ func TestGiftHTMLEscapesNote(t *testing.T) {
 	if !strings.Contains(html, "&lt;script&gt;") {
 		t.Error("expected escaped note markup")
 	}
-	// Anonymous gift with a note falls back to the generic label.
 	if !strings.Contains(html, "A note for you") {
 		t.Error("anonymous note label missing")
 	}

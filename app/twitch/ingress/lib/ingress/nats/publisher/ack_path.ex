@@ -2,30 +2,10 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Nats.Publisher.AckPath do
-  @moduledoc """
-  The reply-inbox naming scheme every publisher wire acknowledges over.
-
-  One shard owns one random inbox prefix and subscribes to its whole subtree;
-  the suffix says which pending row a reply belongs to and which wire owns it:
-
-      <prefix>s.<id>   — one single-wire publish, one JetStream PubAck
-      <prefix>bs.<id>  — an atomic batch's opening message (rejections only)
-      <prefix>bc.<id>  — an atomic batch's commit message (the cohort PubAck)
-
-  Building and parsing sit together so a new wire cannot invent a tag the
-  collector does not route. `parse/2` also accepts a bare `<prefix><id>`, the
-  pre-tag single form, so replies already in flight across a rolling upgrade
-  still land on their row.
-  """
-
   @inbox_prefix "_INBOX.ingresspub."
 
   @type ref :: {:single | :batch_start | :batch_commit, pos_integer()}
 
-  @doc """
-  Mints this shard's inbox: an unguessable token and the prefix built from it.
-  The token doubles as the atomic wire's batch-id namespace.
-  """
   @spec new_inbox() :: {binary(), String.t()}
   def new_inbox do
     token = :crypto.strong_rand_bytes(9) |> Base.url_encode64(padding: false)
@@ -59,8 +39,6 @@ defmodule Ingress.Nats.Publisher.AckPath do
         tagged(:single, id)
 
       <<^prefix::binary-size(^plen), id::binary>> ->
-        # Backwards-compatible parser for in-flight replies across a rolling
-        # upgrade and for the public id_from_topic/2 contract.
         tagged(:single, id)
 
       _ ->

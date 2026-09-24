@@ -10,8 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/app/db/transactions/ent"
-	// Wire the ent schema runtime (field defaults/hooks); without this blank
-	// import every write fails: "forgotten import ent/runtime?".
+	// Without the ent runtime import every write fails.
 	_ "ItsBagelBot/app/db/transactions/ent/runtime"
 	giveawayengine "ItsBagelBot/app/db/transactions/giveaway"
 	"ItsBagelBot/app/db/transactions/mail"
@@ -50,8 +49,6 @@ func main() {
 
 	repo := repository.NewTransactions(client)
 
-	// RPC-plane connection (TRANSACTIONS_RPC account): answers the checkout
-	// basket verb and issues the recipient-lookup / gift-notification requests.
 	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 	defer nc.Close()
 
@@ -66,9 +63,6 @@ func main() {
 	billingSubject := env.Get("NATS_INTERNAL_BILLING_SUBJECT", "bagel.rpc.internal.billing.apply")
 	billing := rpc.NewBillingApplier(nc, billingSubject)
 
-	// Giveaways are a durable Transactions workflow. Users remains the source
-	// of eligibility and premium grants; this service owns campaign state and
-	// the retryable outbox dispatcher.
 	giveawayConfig := giveawayengine.ConfigFromEnv()
 	usersGiveaways := rpc.NewUsersGiveawayClient(nc)
 	giveawayStore := giveawayengine.NewStore(client)
@@ -87,17 +81,6 @@ func main() {
 		}
 	}()
 
-	// The Set is built here rather than served by svcboot.ServeHealth because
-	// this service owns its own HTTP server: the same handler that answers the
-	// Tebex webhook serves /status, so the Set has to be embedded in it.
-	//
-	// This Set is the whole billing vertical's answer. Billing is checked
-	// independently of the projector by design: the projector's /db does not
-	// probe transactions, and transactions answers for billing alone, so there
-	// is no bus.HealthProbe fan-out here — the two verticals fail separately
-	// and report separately. Tebex is deliberately not a check either; see
-	// web.Server.tebexReachable for why an inbound validation endpoint is not
-	// an outbound dependency.
 	healthSet := svcboot.NewHealthSet(svcboot.Health{
 		Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
 	}, health.Degrades(db.HealthCheck("mysql", driver.DB())))
@@ -117,24 +100,15 @@ func main() {
 		Addr:        core.ListenAddr,
 		Handler:     handler,
 		ReadTimeout: 5 * time.Second,
-		// net/http arms the write deadline when the request is read, not when
-		// the handler returns, so this must outlast /drain's 10s sleep.
+		// Must outlast /drain's 10s sleep: the deadline arms at request read.
 		WriteTimeout: 15 * time.Second,
 	}
 
-	// TLS is opt-in via the cert-manager-issued fleet CA cert (see
-	// deploy/infra/pki/certificates.yaml, transactions-tls), mirroring
-	// console-dashboard. Both or neither: unset stays plaintext exactly as
-	// before, so this can land before the cert and the traefik ServersTransport
-	// exist. A mismatched pair is a config error, not a runtime fallback.
 	tlsPair, err := tlsenv.PairFromEnv("TLS_CERT_FILE", "TLS_KEY_FILE")
 	if err != nil {
 		log.Fatal("transactions tls misconfigured", zap.Error(err))
 	}
 
-	// ServerConfig loads the pair here (an unreadable cert kills the boot)
-	// and re-reads it on every handshake, so a cert-manager renewal is served
-	// without a restart. Nil when the pair is unset: plaintext, as before.
 	httpServer.TLSConfig, err = tlsPair.ServerConfig()
 	if err != nil {
 		log.Fatal("transactions tls cert unusable", zap.Error(err))
@@ -155,10 +129,6 @@ func main() {
 	serveHTTP(core.Ctx, listener{srv: httpServer}, log)
 }
 
-// setupCheckout registers the dashboard basket_create RPC. Optional: without
-// the Tebex Headless credentials the service stays webhook-only, exactly as
-// before. Returns whether checkout is live and whether an API private key is
-// configured, both reported in the ready log line.
 type checkoutRuntime struct {
 	nc              *nats.Conn
 	db              *ent.Client
@@ -170,7 +140,6 @@ type checkoutRuntime struct {
 func setupCheckout(runtime checkoutRuntime) (configured, auth bool) {
 	nc, db, nrApp, dashboardOrigin, log := runtime.nc, runtime.db, runtime.nrApp, runtime.dashboardOrigin, runtime.log
 
-	// TEBEX_HEADLESS_TOKEN is the legacy name for the same webstore public token.
 	webstoreToken := env.Get("TEBEX_WEBSTORE_TOKEN", env.Get("TEBEX_HEADLESS_TOKEN", ""))
 	privateKey := env.Get("TEBEX_PRIVATE_KEY", env.Get("TEBEX_SECRET_KEY", env.Get("TEBEX_API_PRIVATE_KEY", "")))
 	packageID := env.GetInt("TEBEX_PACKAGE_ID", 0)
@@ -207,12 +176,8 @@ func setupCheckout(runtime checkoutRuntime) (configured, auth bool) {
 	return true, privateKey != ""
 }
 
-// newMailer builds the Resend gift-email channel. Optional: without the API
-// key the notifier keeps sending the in-app notification only, exactly as
-// before.
 func newMailer(dashboardOrigin string, log *zap.Logger) *mail.Mailer {
 
-	// RESEND_API is the Doppler name; RESEND_API_KEY accepted as an alias.
 	resendKey := env.Get("RESEND_API", env.Get("RESEND_API_KEY", ""))
 	if resendKey == "" {
 		log.Warn("gift email disabled: RESEND_API not configured")
@@ -224,21 +189,11 @@ func newMailer(dashboardOrigin string, log *zap.Logger) *mail.Mailer {
 		dashboardOrigin)
 }
 
-// serveHTTP runs the server until ctx is cancelled or the listener fails,
-// then drains in-flight requests before returning. A configured TLSConfig
-// serves TLS; a nil one (the default) keeps plaintext HTTP.
-//
-// listener carries the server the run loop below blocks on.
 type listener struct {
 	srv *http.Server
 }
 
-// serve blocks on the underlying server, choosing TLS when a cert was configured.
-//
-// The empty file names are deliberate: ListenAndServeTLS falls back to reading
-// them only when TLSConfig carries neither Certificates nor GetCertificate, and
-// naming them here would snapshot the cert at boot and keep presenting it
-// through a cert-manager renewal (see tlsenv.Pair.ServerConfig).
+// Empty file names keep per-handshake cert reloads; naming them snapshots the cert at boot.
 func (l listener) serve() error {
 	if l.srv.TLSConfig != nil {
 		return l.srv.ListenAndServeTLS("", "")

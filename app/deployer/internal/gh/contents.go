@@ -30,9 +30,6 @@ func (c *Client) File(ctx context.Context, p ports.FilePath, ref ports.Ref) ([]b
 	return []byte(text), err
 }
 
-// Tree lists dir's subtree in one recursive call and reads each blob. The
-// tree sha comes from the parent directory's listing so the recursive call
-// walks dir alone rather than the whole 3000-file repository.
 func (c *Client) Tree(ctx context.Context, dir ports.FilePath, ref ports.Ref) (ports.Files, error) {
 	sha, err := c.dirSHA(ctx, dir, ref)
 	if err != nil {
@@ -64,8 +61,6 @@ func (c *Client) dirSHA(ctx context.Context, dir ports.FilePath, ref ports.Ref) 
 	return listing[i].GetSHA(), nil
 }
 
-// readBlobs reads the blob entries of a recursive tree listing into files
-// keyed by repo-relative path; submodule and tree entries carry no bytes.
 func (c *Client) readBlobs(ctx context.Context, dir ports.FilePath, entries []*github.TreeEntry) (ports.Files, error) {
 	files := ports.Files{}
 	var mu sync.Mutex

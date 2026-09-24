@@ -2,31 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Nats.Publisher.Pending do
-  @moduledoc """
-  In-flight bookkeeping for one publisher shard: the pending-publish ETS table
-  and the `:atomics` counter shared with the scheduler-local admission path.
-
-  Every row shape and every counter slot is spelled out here once, so a wire
-  implementation never carries an index and admission never reaches into the
-  table. A row is one publish awaiting its own PubAck, a whole atomic cohort
-  awaiting one commit ack, or the empty slot a swept cohort leaves behind:
-
-      {id, :single,     subject, payload, attempts, monotonic_ms}
-      {id, :batch,      entries, monotonic_ms}
-      {id, :batch_hold, monotonic_ms}
-
-  `payload` is the bare `iodata()` body, or `{body, trace_headers}` for the
-  sparse traced events — the unsampled firehose never allocates the wider
-  tuple. No shape has a dedup-id slot: ingress publishes without
-  `Nats-Msg-Id` by design, and the row shape keeps it that way.
-
-  `:batch_hold` carries no events. Its only job is to keep one atomic-batch
-  in-flight slot charged after the cohort itself has been resolved, because
-  nothing on the wire cancels an open batch and the broker keeps holding it;
-  it carries the ORIGINAL open stamp so it retires on the broker's clock, not
-  on a fresh one. See `Ingress.Nats.Publisher.Wire.Atomic`.
-  """
-
   @idx_pending 1
   @idx_next_id 2
   @idx_acked 3
@@ -43,8 +18,6 @@ defmodule Ingress.Nats.Publisher.Pending do
   @type counter :: :atomics.atomics_ref()
   @type id :: pos_integer()
   @type row :: tuple()
-
-  ## Shard-local stores
 
   @spec new_table(non_neg_integer()) :: table()
   def new_table(index) do
@@ -63,10 +36,6 @@ defmodule Ingress.Nats.Publisher.Pending do
   @spec now_ms() :: integer()
   def now_ms, do: System.monotonic_time(:millisecond)
 
-  ## Admission window
-
-  # Claims one slot of the in-flight window and reports the resulting depth;
-  # the caller releases it again when the claim turns out to be inadmissible.
   @spec reserve(counter()) :: non_neg_integer()
   def reserve(counter), do: :atomics.add_get(counter, @idx_pending, 1)
 
@@ -82,8 +51,6 @@ defmodule Ingress.Nats.Publisher.Pending do
   @spec next_id(counter()) :: id()
   def next_id(counter), do: :atomics.add_get(counter, @idx_next_id, 1)
 
-  ## Rows
-
   @spec insert_single(table(), id(), String.t(), term(), pos_integer()) :: true
   def insert_single(table, id, subject, payload, attempts),
     do: :ets.insert(table, {id, :single, subject, payload, attempts, now_ms()})
@@ -92,8 +59,6 @@ defmodule Ingress.Nats.Publisher.Pending do
   def insert_batch(table, id, entries),
     do: :ets.insert(table, {id, :batch, entries, now_ms()})
 
-  # Replaces a resolved cohort with the slot it still owes the broker. The
-  # stamp is the batch's original open stamp, never a fresh one.
   @spec insert_batch_hold(table(), id(), integer()) :: true
   def insert_batch_hold(table, id, stamp), do: :ets.insert(table, {id, :batch_hold, stamp})
 
@@ -103,10 +68,6 @@ defmodule Ingress.Nats.Publisher.Pending do
   @spec delete(table(), id()) :: true
   def delete(table, id), do: :ets.delete(table, id)
 
-  # Sweep scan: every row past the deadline that applies to its shape. Rows
-  # carrying live events use the publisher's ack deadline; a `:batch_hold`
-  # carries no events and retires on the broker's later batch deadline. The
-  # caller routes each one to the wire that owns it.
   @spec expired(table(), integer(), integer()) :: [row()]
   def expired(table, ack_deadline, batch_deadline) do
     table
@@ -121,20 +82,7 @@ defmodule Ingress.Nats.Publisher.Pending do
   defp expired?({_id, :batch_hold, stamp}, _ack, batch_deadline), do: stamp <= batch_deadline
   defp expired?(_row, _ack_deadline, _batch_deadline), do: false
 
-  ## Settlement
-  #
-  # Both wires end a row the same way: drop it, give the admission window its
-  # slots back, and charge the outcome. Spelled out as three calls at each of
-  # the four sites, a row that is deleted without settling the window leaks an
-  # admission slot for the life of the shard, and the mistake is invisible in
-  # review. The sequence lives here, whole, so there is nothing to get wrong.
-  #
-  # The ack-latency sample stays at the call site: only the wire holds the
-  # row's stamp, and the two wires measure it either side of the delete.
-
-  @doc """
-  Retires `count` acknowledged events held under `id`.
-  """
+  # Settle via resolve/fail only: deleting a row without releasing its slot leaks the slot.
   @spec resolve(table(), counter(), id(), pos_integer()) :: :ok
   def resolve(table, counter, id, count) do
     delete(table, id)
@@ -142,19 +90,12 @@ defmodule Ingress.Nats.Publisher.Pending do
     acked(counter, count)
   end
 
-  @doc """
-  Retires `count` events held under `id` as publish failures.
-  """
   @spec fail(table(), counter(), id(), pos_integer()) :: :ok
   def fail(table, counter, id, count) do
     delete(table, id)
     settle(counter, count)
     failed(counter, count)
   end
-
-  ## Outcome counters
-  #
-  # Wires bump these; the collector's gauge tick drains them into metrics.
 
   @spec acked(counter(), pos_integer()) :: :ok
   def acked(counter, count), do: :atomics.add(counter, @idx_acked, count)
@@ -167,8 +108,6 @@ defmodule Ingress.Nats.Publisher.Pending do
 
   @spec cohort(counter()) :: :ok
   def cohort(counter), do: :atomics.add(counter, @idx_cohorts, 1)
-
-  ## Atomic-batch budget
 
   @spec batch_opened(counter()) :: :ok
   def batch_opened(counter), do: :atomics.add(counter, @idx_batch_inflight, 1)
@@ -185,13 +124,8 @@ defmodule Ingress.Nats.Publisher.Pending do
   @spec batch_bypassed(counter()) :: :ok
   def batch_bypassed(counter), do: :atomics.add(counter, @idx_batch_bypass, 1)
 
-  # Cohorts the broker stored as ordinary publishes because it never
-  # interpreted the Nats-Batch-* headers. Kept apart from every failure
-  # counter: the events ARE on the stream.
   @spec batch_headers_ignored(counter()) :: :ok
   def batch_headers_ignored(counter), do: :atomics.add(counter, @idx_batch_headers_ignored, 1)
-
-  ## Gauge drains
 
   @spec take_acked(counter()) :: non_neg_integer()
   def take_acked(counter), do: take(counter, @idx_acked)

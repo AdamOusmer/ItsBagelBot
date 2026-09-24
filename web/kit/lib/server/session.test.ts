@@ -17,8 +17,6 @@ function make(overrides: Partial<TestSession> = {}): TestSession {
   return { user_id: '42', iat: now(), expires_at: now() + 3600, ...overrides };
 }
 
-// Seal an arbitrary JSON payload with the codec's exact wire format, so tests
-// can produce cryptographically valid cookies with invalid claims.
 function sealRaw(payload: unknown): string {
   const iv = randomBytes(12);
   const c = createCipheriv('aes-256-gcm', key, iv);
@@ -66,9 +64,9 @@ describe('session codec', () => {
   test('enforces maxAgeSec from iat regardless of expires_at', () => {
     const s = make({ iat: now() - 7200, expires_at: now() + 3600 });
     const sealed = codec.seal(s);
-    expect(codec.open(sealed)).toEqual(s); // no cap: still valid
-    expect(codec.open(sealed, 3600)).toBeNull(); // capped at 1h: too old
-    expect(codec.open(sealed, 8000)).toEqual(s); // cap not yet reached
+    expect(codec.open(sealed)).toEqual(s);
+    expect(codec.open(sealed, 3600)).toBeNull();
+    expect(codec.open(sealed, 8000)).toEqual(s);
   });
 
   test('decodeKey validates presence and length', () => {

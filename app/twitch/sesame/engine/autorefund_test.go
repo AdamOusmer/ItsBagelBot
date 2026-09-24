@@ -22,9 +22,6 @@ const (
 	refundTestSpecialID = "777"
 )
 
-// redemptionTestModule stands in for the channelpoints module: any handler
-// output proves the gate did NOT consume the event. KindCore so it runs
-// without ModuleView plumbing.
 func redemptionTestModule() module.Module {
 	m := module.NewModule("", module.KindCore)
 	m.On(redemptionAddType, func(_ context.Context, c *module.Context, emit module.Emit) error {

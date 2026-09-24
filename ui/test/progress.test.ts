@@ -1,11 +1,5 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-//
-// The three Svelte-only blocks the deploy page is built from. Markup is pinned
-// whole, one string per case, because what these elements promise is
-// structural: which ARIA attributes appear for which value, that every slot of
-// a step row renders even when empty (the fixed-height guarantee), and that
-// the running row alone carries aria-current and the sweep.
 import { expect, test } from 'bun:test';
 import { render } from 'svelte/server';
 import { createRawSnippet } from 'svelte';
@@ -28,7 +22,6 @@ const BAR_CASES: {
     html: bar('bb-progress--success', 'aria-valuenow="47" style="--progress: 0.4666;"'),
   },
   {
-    // No aria-valuenow at all: that is how ARIA spells "no value yet".
     name: 'indeterminate: busy, no value, no --progress',
     props: { value: null, size: 'sm' },
     html: bar('bb-progress--neutral bb-progress--sm bb-progress--indeterminate', 'aria-busy="true"'),
@@ -39,8 +32,6 @@ const BAR_CASES: {
     html: bar('bb-progress--error', 'aria-valuenow="100" style="--progress: 1;"'),
   },
   {
-    // done/total with a total of 0, the normal state of a build that has not
-    // listed its jobs yet.
     name: 'NaN renders empty rather than aria-valuenow="NaN"',
     props: { value: Number.NaN, tone: 'warning' },
     html: bar('bb-progress--warning', 'aria-valuenow="0" style="--progress: 0;"'),
@@ -53,8 +44,6 @@ for (const c of BAR_CASES) {
   });
 }
 
-// Mirrors StepItem from StepList.svelte's module script: tsc sees a .svelte
-// file only as types/components.d.ts's opaque default export.
 type StepItem = { id: string; label: string; state: string; value?: number | null; meta?: string; href?: string };
 
 const STEPS: StepItem[] = [
@@ -87,8 +76,6 @@ test('StepList: ordered rows, every slot rendered, running row alone is current'
 });
 
 test('StepList: state words are props merged over the English defaults', () => {
-  // The package holds no copy. A caller localising one word must not lose
-  // the rest to an empty string.
   const html = normalise(
     render(StepList, { props: { steps: STEPS, stateLabels: { running: 'En cours' } } }).body,
   );
@@ -108,8 +95,6 @@ const LOG_CASES: { name: string; props: { lines: string[]; max?: number }; tail:
 
 for (const c of LOG_CASES) {
   test(`LogTail: ${c.name}`, () => {
-    // Read from the raw body: normalise() collapses whitespace, and the
-    // newlines are the thing under test.
     const body = render(LogTail, { props: { ...c.props, label: 'build / linux-arm64' } }).body;
     const match = /<pre class="bb-log" role="region" aria-label="build \/ linux-arm64" tabindex="0">([\s\S]*)<\/pre>/.exec(body);
     expect(match?.[1]).toBe(c.tail);

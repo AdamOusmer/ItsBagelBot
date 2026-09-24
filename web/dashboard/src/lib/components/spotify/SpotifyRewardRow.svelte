@@ -1,9 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The one channel-points reward in the songqueue deck, on the shared
-  // ManagementRow: the static twin of GoveeLightRow. Selecting it loads the
-  // reward into the page's inspector. One reward for the whole module.
   import { Icon, ManagementRow, MiniButton, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
 
   const { t } = getI18n();
@@ -103,8 +100,6 @@
     white-space: nowrap;
   }
   .reward-cost { font-family: var(--bb-font-mono, monospace); font-size: 11.5px; color: var(--bb-tan-light); }
-  /* Was an italic muted body run. "Not set up" is the off half of a real
-     state, so it takes the global quiet label + hollow mark instead. */
   .unset-tag { align-self: flex-start; }
 
   .chev {
@@ -112,7 +107,6 @@
     color: var(--bb-muted);
     transition: color var(--bb-dur-fast, 140ms) ease, transform var(--bb-dur-fast, 140ms) ease;
   }
-  /* Now a chevron rather than a gear: point it up once the row is open. */
   .chev.open { color: var(--bb-tan); transform: rotate(180deg); }
 
   :global(.mini.row-del) { width: 44px; height: 44px; border-radius: var(--bb-radius-sm); }

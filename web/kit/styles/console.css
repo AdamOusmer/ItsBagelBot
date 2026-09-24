@@ -1,21 +1,6 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* ItsBagelBot Console : "Signal Ledger"
- *
- * The console's own layout globals. Layered on top of styles/tokens.css (the
- * design-system tokens) and on the element contracts imported below, which
- * are @bagel/ui's and are shared with the marketing site and the docs. This
- * file was app.css and carried copies of all four of them; it is console.css
- * now because what is left really is console-only.
- *
- * Design language: a broadcast master-control surface. No floating glass
- * cards: the page is one continuous dark canvas structured by hairline
- * rules, indexed mono labels, oversized numerals sitting directly on
- * baselines, and a corner-bracket motif on everything interactive. Sharp
- * rectangles, editorial density, and the brand's evergreen + tan warmth.
- */
-
 @import '@bagel/ui/styles/elements/button.css';
 @import '@bagel/ui/styles/elements/card.css';
 @import '@bagel/ui/styles/tags.css';
@@ -34,9 +19,6 @@
 @import '@bagel/ui/styles/elements/toggle.css';
 
 :root {
-  /* Legacy "glass" variables, remapped to the ledger language so every
-     component-scoped style that referenced them de-glasses automatically:
-     flat ink surfaces, hairline rules, zero blur. */
   --glass-fill: rgba(240, 236, 228, 0.022);
   --glass-fill-2: rgba(240, 236, 228, 0.04);
   --glass-border: rgba(240, 236, 228, 0.11);
@@ -47,22 +29,18 @@
   --glass-shadow: 0 0 0 0 transparent;
   --glass-diffraction: none;
 
-  /* glow accents echoing the marketing hero orbs (web --glow-tan/--glow-green) */
   --glow-tan: rgba(201, 168, 124, 0.18);
   --glow-green: rgba(82, 183, 136, 0.16);
 
-  /* hairlines: warm tan-tinted like the marketing site's --border */
   --rule: rgba(201, 168, 124, 0.14);
   --rule-strong: rgba(201, 168, 124, 0.32);
   --rule-tan: rgba(201, 168, 124, 0.45);
 
-  /* which accent "leads" the UI (active nav, primary CTA) */
   --ui-accent: var(--bb-green);
   --ui-accent-light: var(--bb-green-light);
   --ui-accent-glow: var(--bb-green-glow);
   --ui-accent-soft: rgba(82, 183, 136, 0.12);
 
-  /* density scale */
   --d: 1;
   --gutter: calc(28px * var(--d));
   --card-pad: calc(24px * var(--d));
@@ -72,22 +50,8 @@
 }
 
 html, body { margin: 0; padding: 0; height: 100%; }
-/* Clip horizontal overflow on the root, NOT body: `overflow-x: hidden` on body
- * computes to `overflow: hidden auto`, which turns body into its own scroll
- * container and steals scrolling from the window that lenis drives. The root
- * has no such trap: the viewport takes the root's overflow and the root's own
- * used value stays `visible` (CSS Overflow 3, viewport propagation), so
- * `overflow-x: clip` here, tried 2026-09-18 for the blank band under the
- * docked rehearsal, measured identical to `hidden` on 2026-09-20 (scrolling
- * element, scrollWidth, sticky offsets, scroll position after a wheel, with
- * and without scroll anchoring). The band was the dock term in surface.css. */
 html { overflow-x: hidden; }
 
-/* In bb.base, BELOW the element contracts: this is an element selector, so
-   it loses to .bb-chip and .bb-btn on specificity the way it always did, but
-   only while both are unlayered. Outside the layers it would outrank every
-   contract regardless of specificity and strip the border off any chip that
-   happens to be a <button>. */
 @layer bb.base {
   button { appearance: none; -webkit-appearance: none; background: none; border: none; font: inherit; color: inherit; }
 }
@@ -100,11 +64,6 @@ body {
   min-height: 100vh;
 }
 
-/* The ambient orb pair (`.bg-orb`) moved into components/BackgroundOrbs.svelte
-   with its markup; RootShell renders it. Only the login page still names the
-   class here, to hide the shell pair behind its own. */
-/* ── the corner-bracket motif: the console's signature focus mark.
-   Apply `.bracket` to any interactive rectangle; brackets draw in on hover. ── */
 .bracket { position: relative; }
 .bracket::before, .bracket::after {
   content: ""; position: absolute; width: 7px; height: 7px; pointer-events: none;
@@ -126,16 +85,6 @@ body {
   opacity: 1; transform: translate(0, 0);
 }
 
-/* Legacy label shim. Markup in the overview shell still writes
-   .status-hero .live; it was a tinted pill carrying a glowing sine-pulsing
-   dot and now renders the Tier-1 hairline label shape. New markup uses
-   .bb-tag directly: see "Labels, tags & controls" below.
-
-   Its two siblings are gone. `.status-pill` and `.badge` were the same shape
-   under two more names; grepped across web/dashboard, web/admin and web/kit
-   at the element move, both had zero markup call sites, and the perm ladder
-   that hung off `.badge` is @bagel/ui/styles/elements/badge.css plus
-   ../components/PermBadge.svelte now. */
 .status-hero .live {
   position: relative; display: inline-flex; align-items: center; gap: 8px;
   padding: 0 2px 7px; border: 0; border-bottom: 1px solid var(--bb-border); background: none;
@@ -143,11 +92,8 @@ body {
   letter-spacing: var(--bb-tracking-eyebrow); text-transform: uppercase; line-height: 1;
   color: var(--bb-fg-2); white-space: nowrap; overflow: hidden;
 }
-/* the "dot" is the 5px rotated square (.bb-mark): no radius, no glow */
 .status-hero .live .dot { width: 5px; height: 5px; flex-shrink: 0; border-radius: 0; transform: rotate(45deg); background: currentColor; box-shadow: none; }
 
-/* ── page header: matches the marketing site's SectionHeading, plain mono
-   green eyebrow, Syne 800 title with the site's gentle -0.01em tracking ── */
 .page-head { margin-bottom: calc(30px * var(--d)); }
 .page-head .eyebrow { font-family: var(--bb-font-mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bb-green-glow); display: block; margin-bottom: 14px; }
 .page-head h1,
@@ -156,24 +102,13 @@ body {
 .page-head h1 em { font-style: normal; font-weight: 800; color: var(--bb-tan-light); }
 .page-head p { font-family: var(--bb-font-body); font-size: 14.5px; line-height: 1.55; color: var(--bb-muted); margin: 12px 0 0; max-width: 560px; }
 
-/* The surface card and its head used to be copied here as `.card` / `.card-head`
-   globals next to the components that drew the same thing. Both are gone: the
-   contract is @bagel/ui/styles/elements/card.css, imported above, and the
-   console renders it through @bagel/ui/svelte/Card.svelte. Nothing in the
-   console wrote `class="card"` by hand -- the copy existed only because the
-   component's scoped styles could not be reached from a page. */
-
-/* screen switching */
 .screen { display: none; animation: screen-in var(--bb-dur-slow) var(--bb-ease-out-expo); }
 .screen.active { display: block; }
 @keyframes screen-in { from { opacity: 0; } to { opacity: 1; } }
 
-/* Console entrances slide sideways instead of rising (bb-slide-in in
-   reveal.css says why). Same stagger, same curve. */
 .reveal,
 .bb-stat-grid .bb-stat { animation-name: bb-slide-in; }
 
-/* save confirmation: a green signal sweep across the affected ledger line */
 .flash-save { position: relative; overflow: hidden; }
 .flash-save::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -183,28 +118,13 @@ body {
 }
 @keyframes save-sweep { to { transform: translateX(100%); } }
 
-/* Overview live panels. ov-feed-in runs once on an arriving activity row.
-   Global rather than component-scoped because several components share it and
-   Svelte would otherwise emit identical scoped copies. (ov-pulse, the sine
-   heartbeat on the stream + feed dots, went with the pulsing-dot pattern.) */
 @keyframes ov-feed-in { from { opacity: 0; } to { opacity: 1; } }
 
 
-/* channel strips + ledger lines check in one after another (CSS-only; also
-   re-runs when a streamed section resolves and swaps its skeleton out) */
 .node-list .node-row,
 .feed .feed-row {
-  /* bb-slide-in is @bagel/ui/styles/reveal.css's keyframe, the same one
-     .reveal plays here; these rows run it faster because a section's worth
-     of them arrives at once and the 760ms cascade would still be finishing
-     after the eye has already reached the bottom of the list. */
   animation: bb-slide-in 420ms var(--bb-ease-out-expo) both;
 }
-/* The .bb-stat-grid half of this ladder is
-   @bagel/ui/styles/elements/stat-tile.css. Splitting a shared nth-child
-   ladder is how the delays get lost on one branch, so the two rows that stay
-   keep their own copy of the delays until the list PR collapses all three
-   into one .bb-stagger utility. */
 .node-list .node-row:nth-child(1), .feed .feed-row:nth-child(1) { animation-delay: 30ms; }
 .node-list .node-row:nth-child(2), .feed .feed-row:nth-child(2) { animation-delay: 90ms; }
 .node-list .node-row:nth-child(3), .feed .feed-row:nth-child(3) { animation-delay: 150ms; }
@@ -217,7 +137,6 @@ body {
   .node-list .node-row, .feed .feed-row { animation: none; }
 }
 
-/* ── overview: status hero ── */
 .status-hero { display: grid; grid-template-columns: auto 1fr auto; gap: 26px; align-items: center; margin-bottom: var(--row-gap); }
 .status-hero .botmark { width: 62px; height: 62px; border-radius: 50%; background: rgba(82,183,136,0.07); border: 1px solid rgba(82,183,136,0.3);
   display: flex; align-items: center; justify-content: center; flex: none; }
@@ -230,27 +149,18 @@ body {
 .status-hero .meta .mid { color: var(--rule-strong); }
 .status-hero .actions { display: flex; gap: 10px; }
 
-/* The button block that stood here is @bagel/ui/styles/elements/button.css,
-   imported above. The 12 pages that wrote `class="btn ghost"` by hand now
-   write `class="bb-btn bb-btn--ghost"`; `.btn.green`, which had no component
-   path at all, is `variant="green"`. ── */
-
 .grid-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: calc(16px * var(--d)); margin-top: var(--row-gap); }
 @media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
 
-/* node list (bot connection detail): soft rows */
 .node-list { display: flex; flex-direction: column; }
 .node-row { display: flex; align-items: center; gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--bb-border); background: none; border-radius: var(--bb-radius-sm); }
 .node-row:last-child { border-bottom: none; }
-/* was an 8px glowing circle (and a tan one for warn); now the .bb-mark square,
-   warn as the hollow variant so the state reads without a colour glow */
 .node-row .nd { width: 5px; height: 5px; flex-shrink: 0; transform: rotate(45deg); background: var(--bb-green-glow); }
 .node-row .nd.warn { background: transparent; border: 1px solid var(--bb-tan); }
 .node-row .nm { font-family: var(--bb-font-body); font-weight: 600; font-size: 13.5px; color: var(--bb-white); }
 .node-row .sv { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
 .node-row .pg { margin-left: auto; font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-tan-light); }
 
-/* feed (activity): a tone marker carries the accent, in the .node-row idiom */
 .feed { display: flex; flex-direction: column; }
 .feed-row { display: flex; gap: 13px; padding: 13px 2px; border-bottom: 1px solid var(--bb-border); align-items: flex-start; }
 .feed-row:last-child { border-bottom: 0; }
@@ -262,31 +172,7 @@ body {
 .feed-row .ft span { display: block; font-size: 12.5px; color: var(--bb-muted); margin-top: 2px; }
 .feed-row .fw { margin-left: auto; font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); white-space: nowrap; }
 
-/* ── filter pills ── */
-/* The raw `.toolbar` that used to head this block is gone. It was the same
-   five declarations as `.bb-toolbar` in @bagel/ui/styles/elements/shell.css
-   (12px gap, 18px bottom margin, flex-wrap under 600px), and keeping both is
-   how the two drifted by 6px of bottom margin in the first place -- the note
-   on ui/svelte/PageToolbar.svelte records that.
-
-   It was also already dead, which is worth writing down because the count
-   looked alarming: three pages wrote `class="toolbar"`, and all three ALSO
-   declared a scoped `.toolbar` of their own, which outranks a global by the
-   scoping attribute. Nothing on the site was rendering these declarations.
-   Govee and songqueue render <PageToolbar> now and their scoped copies are
-   deleted with it; the public channel page keeps its own, because that one is
-   a sticky gradient header rather than this row (its file says why).
-
-   `.toolbar .grow` went with it: nothing used it, and the contract spells
-   that spacer `.bb-toolbar__grow` and emits it itself. */
 .chip-row { display: flex; gap: 8px; }
-/* The raw `.chip` that used to live here was a near-duplicate of
-   .bb-chip--muted (same hairline, same 6px corners, same 11.5px / 7px-12px
-   metrics). Its three filter-rail call sites render <Chip tone="muted">
-   instead; the frame is @bagel/ui/styles/tags.css and the state is
-   @bagel/ui/styles/elements/chip.css. */
-
-/* ── data tables: soft rows inside cards ── */
 .table { width: 100%; }
 .thead, .trow { display: grid; grid-template-columns: 1.4fr 2fr 0.9fr 0.7fr 0.7fr 64px; gap: 16px; align-items: center; }
 .thead { padding: 0 14px 10px; border-bottom: 1px solid var(--bb-border); }
@@ -302,12 +188,10 @@ body {
 
 .row-act { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 
-/* ── moderation ── */
 .mod-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: calc(16px * var(--d)); }
 @media (max-width: 1100px) { .mod-grid { grid-template-columns: 1fr; } }
 
 @media (max-width: 760px) {
-  /* Tighten the page gutter so cards get the width back on phones. */
   :root { --gutter: 16px; }
   .grid-2, .mod-grid { gap: 14px; }
   .thead { display: none; }
@@ -320,20 +204,3 @@ body {
   .status-hero .actions .btn { width: 100%; justify-content: center; }
 
 }
-
-/* ══════════════════════════ accessibility ══════════════════════════
-   Cross-cutting a11y primitives shared by both apps. Add-only. */
-
-/* Labels, tags & controls (.bb-tag, .bb-mark, .bb-sweep, .bb-drawline,
-   .bb-chip, .bb-tabs) are @bagel/ui/styles/tags.css, imported at the top of
-   this file. This block was a second copy of that one, differing only in
-   token spelling, and --bb-border-chip was declared in both. */
-
-/* ── Tier 2 · Data table ──────────────────────────────────────
-   Moved to @bagel/ui/styles/elements/table.css, imported globally from
-   styles/tokens.css and by the Table adapter. Same selectors
-   (`.bb-tbl-wrap`, `.bb-tbl th[scope='col']`, `.r`, `.mut`) and the same
-   values, so the raw-markup call sites on the counters and loyalty pages did
-   not change; what the move adds is the Table/TableScroll adapter pair, the
-   `role="region"` + `tabindex="0"` the scroll wrapper needs to be reachable
-   by keyboard, and a zebra modifier. */

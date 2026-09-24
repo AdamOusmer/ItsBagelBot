@@ -24,8 +24,6 @@ func TestParseFeedLines(t *testing.T) {
 		{"", FormatLines, ""},
 		{"/etc/passwd junk", FormatLines, ""},
 		{"0.0.0.1 Evil.Hosts.Example", FormatHosts, "evil.hosts.example"},
-		// Single-label entries fail validHost on purpose: they are junk or
-		// search-engine-bait, never routable hosts worth a cache slot.
 		{"127.0.0.1 onlyhost", FormatHosts, ""},
 		{"# urlhaus comment", FormatHosts, ""},
 	}
@@ -56,16 +54,11 @@ func TestFeedsRefreshAndHas(t *testing.T) {
 	}
 	requireListed(t, f, "feedhit.example", "listed host missing after refresh")
 	requireListed(t, f, "sub.two.example", "listed host missing after refresh")
-	// Parent walk: a QUERY's ancestors match listed entries, so subdomain
-	// rotation of a LISTED host cannot dodge the snapshot. The inverse is
-	// deliberately not true: a bare registrable query does not inherit a
-	// listed subdomain's conviction - the walk goes up, never down.
 	requireListed(t, f, "rotating.feedhit.example", "parent walk missed ancestor of listed host")
 	requireNotListed(t, f, "notfeedhit.example", "suffix collision convicted an unrelated host")
 	requireNotListed(t, f, "example", "tld-only probe convicted")
 }
 
-// requireListed asserts host resolves against the feed snapshot.
 func requireListed(t *testing.T, f *Feeds, host, msg string) {
 	t.Helper()
 	if !f.Has(host) {
@@ -73,7 +66,6 @@ func requireListed(t *testing.T, f *Feeds, host, msg string) {
 	}
 }
 
-// requireNotListed asserts host does not resolve against the feed snapshot.
 func requireNotListed(t *testing.T, f *Feeds, host, msg string) {
 	t.Helper()
 	if f.Has(host) {
@@ -91,8 +83,6 @@ func TestFeedsParentWalkDepthIsBounded(t *testing.T) {
 	if _, err := f.Refresh(context.Background()); err != nil {
 		t.Fatalf("refresh: %v", err)
 	}
-	// Four labels above the listed host exceeds the three-level walk: the
-	// boundary is deliberate (deeper chains are CDN-shaped, not scam-shaped).
 	if f.Has("a.b.c.d.listed.example") {
 		t.Error("walk exceeded its documented depth bound")
 	}
@@ -112,11 +102,10 @@ func TestFeedsTotalFailureKeepsPreviousSet(t *testing.T) {
 		t.Fatalf("first refresh: %v", err)
 	}
 
-	srv.Close() // every subsequent pull fails
+	srv.Close()
 	if _, err := f.Refresh(context.Background()); err == nil {
 		t.Fatal("expected total-failure error")
 	}
-	// The previous snapshot must keep serving through the outage.
 	if !f.Has("keepme.example") {
 		t.Error("failed refresh blanked the last good feed set")
 	}

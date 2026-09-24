@@ -46,9 +46,6 @@ defmodule Ingress.PipelineTest do
     @meta %{shard_id: 0, msg_id: "m1", ts: "2026-06-10T00:00:00Z"}
 
     setup do
-      # The live event is now dual-published, so routing reads the broadcaster
-      # status for the event-lane copy. Stand up a cache that always returns
-      # premium for these tests.
       start_supervised!({Task.Supervisor, name: Ingress.BroadcasterCache.TaskSupervisor})
       start_supervised!({Ingress.BroadcasterCache, [loader: fn _id -> {:ok, :premium} end]})
       :ok
@@ -73,7 +70,6 @@ defmodule Ingress.PipelineTest do
       assert {:ok, %{"lane" => "premium", "type" => "stream.online", "event" => ^event}} =
                wire(own)
 
-      # Both copies of a live event share one encode of the non-lane members.
       assert live.body === own.body
     end
 
@@ -168,16 +164,12 @@ defmodule Ingress.PipelineTest do
 
       refute Map.has_key?(ordinary, :origin)
 
-      assert {:publish, "twitch.ingress.event.premium", routed} =
+      assert {:publish, "twitch.ingress.event.premium",
+              %{origin: "trial", trial_generation: 8, chat_message_id: "chat-1", event_id: "m1"}} =
                Pipeline.route(
                  notification("channel.chat.message", event),
                  Map.merge(@meta, %{origin: :trial, trial_generation: 8})
                )
-
-      assert routed.origin == "trial"
-      assert routed.trial_generation == 8
-      assert routed.chat_message_id == "chat-1"
-      assert routed.event_id == "m1"
     end
 
     test "a non-chat event encodes the decoded event map onto the lane" do
@@ -237,10 +229,6 @@ defmodule Ingress.PipelineTest do
     end
 
     test "offsets count codepoints: unicode before an emote pins the span past bytes and graphemes" do
-      # Built from codepoints so editor normalization cannot silently change
-      # the arithmetic: ñ (1 cp, 2 bytes), 🇺🇸 (2 cps, 8 bytes, 1 grapheme) and
-      # a space give 4 codepoints — byte arithmetic says 12 and grapheme
-      # arithmetic says 3, so only codepoint counting lands the span at 4.
       prefix = <<0x00F1::utf8>> <> <<0x1F1FA::utf8, 0x1F1F8::utf8>> <> " "
 
       assert String.length(prefix) == 3 and byte_size(prefix) == 11
@@ -258,9 +246,6 @@ defmodule Ingress.PipelineTest do
     end
 
     test "a ZWJ emoji counts every of its codepoints against later spans" do
-      # 👨 + ZWJ + 👩 + ZWJ + 👧 is one grapheme built from five codepoints;
-      # with the separating space the emote after it begins at 6, not at the
-      # grapheme offset 2.
       zwj = "\u200D"
       prefix = "👨" <> zwj <> "👩" <> zwj <> "👧" <> " "
 
@@ -397,19 +382,12 @@ defmodule Ingress.BroadcasterCacheTest do
     cache = start_cache(loader)
 
     assert BroadcasterCache.lane("b6", cache) == :standard
-    # negative-cached: immediate retry does not hit the loader again
     assert BroadcasterCache.lane("b6", cache) == :standard
     assert Agent.get(counter, & &1) == 1
   end
 end
 
 defmodule Ingress.CacheInvalidatorTest do
-  @moduledoc """
-  Drives the NATS consumer callback directly against the cache instance the
-  application runs (default name and table), proving an invalidation message
-  on the bus actually evicts in-process entries.
-  """
-
   use ExUnit.Case, async: false
 
   alias Ingress.{BroadcasterCache, CacheInvalidator}
@@ -573,7 +551,6 @@ defmodule Ingress.SquashTest do
     assert cohort.count == 2
     assert cohort.distinct_users == 2
     assert Enum.map(cohort.senders, & &1.chatter_user_id) == ["2", "3"]
-    # The earliest buffered duplicate anchors the cohort's broker-side dedup id.
     assert cohort.msg_id == "m2"
   end
 
@@ -594,9 +571,6 @@ defmodule Ingress.SquashTest do
     assert Squash.observe(base("race"), sender("2")) == :buffered
     Process.sleep(10)
 
-    # A caller can reach the expired row before the periodic sweep. Rotation is
-    # serialized through the cohort owner so the old senders are emitted before
-    # the new generation opens.
     assert Squash.observe(base("race"), sender("3")) == :first
 
     assert_receive {:published, _subject, cohort}, 500
@@ -605,7 +579,6 @@ defmodule Ingress.SquashTest do
   end
 
   test "observe fails open to :first when the table is absent" do
-    # No Squash started: the pipeline must never lose a message.
     assert Squash.observe(base("x"), sender("1")) == :first
   end
 

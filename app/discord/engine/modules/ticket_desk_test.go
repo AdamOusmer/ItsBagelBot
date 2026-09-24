@@ -64,9 +64,6 @@ func TestEnsureDeskDoesNothingWhenUnconfigured(t *testing.T) {
 	}
 }
 
-// Posting the desk panel is a staff action. Ungated, any member could paste a
-// second real "Open a ticket" button into any channel they can run a slash
-// command in.
 func TestTicketPanelRefusesNonStaff(t *testing.T) {
 	f := newDesk(t, baseConfig())
 
@@ -97,8 +94,6 @@ func TestTicketPanelRemembersTheRealMessageID(t *testing.T) {
 	}
 }
 
-// A panel that never posted must not leave a pointer behind, and must answer
-// the interaction rather than leaving it spinning on "thinking".
 func TestTicketPanelAnswersWhenThePostFails(t *testing.T) {
 	f := newDesk(t, baseConfig())
 	f.tickets.panelReply = discordoutgress.TicketPanelReply{Error: "forbidden", Code: "forbidden"}
@@ -113,8 +108,6 @@ func TestTicketPanelAnswersWhenThePostFails(t *testing.T) {
 	}
 }
 
-// A prior panel's id survives a claim-shaped remember: the repost path needs
-// something to delete, or it stacks a second live panel under the first.
 func TestTicketPanelDoesNotEraseAPriorPointer(t *testing.T) {
 	f := newDesk(t, baseConfig())
 	ctx := context.Background()

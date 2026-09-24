@@ -11,7 +11,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// Giveaway is the immutable campaign configuration after its draw commits.
 type Giveaway struct{ ent.Schema }
 
 func (Giveaway) Fields() []ent.Field {

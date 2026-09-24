@@ -1,21 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The guild shell: one load and one action table, shared by /discord/[guildId]
-// and every page under it.
-//
-// It lives in $lib/server rather than in the route because the section is now
-// seven routes, not one. The load runs in +layout.server.ts so switching from
-// Channels to Tickets does not re-fetch the guild's layout and status (a
-// +page.server.ts load would re-run on every sub-navigation), and the action
-// table is re-exported by each child +page.server.ts so a form posted from any
-// sub-page reaches the same save/setup/repost/disconnect implementations. Both
-// halves being here is what stops the seven routes drifting into seven
-// slightly different ownership checks.
-//
-// Everything is scoped to the id in the URL, and that id is never trusted: it
-// has to appear in this broadcaster's own guilds.list or the route 404s, on
-// the load AND on every action.
 import type { Actions, RequestEvent, ServerLoadEvent } from '@sveltejs/kit';
 import {
   blankDiscordConfig,
@@ -60,8 +45,7 @@ import { effectiveId } from '$lib/server/board';
 import { dev } from '$app/environment';
 import { error, fail, isRedirect, redirect, type Cookies } from '@sveltejs/kit';
 
-// process.env, not $env/dynamic/private: this route sits behind guard.ts on
-// the boot import graph (see module-gate.ts).
+// process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 const DEMO = dev && process.env.DEMO === '1';
 
 function gate(session: Session | null | undefined): void {
@@ -104,32 +88,13 @@ function blankPage(guildId: string, locked: boolean): DiscordGuildPage {
   };
 }
 
-/**
- * The ownership check, and the only one.
- *
- * guildId is a path segment, so it is caller-supplied: without this any
- * signed-in broadcaster could read (and save) another one's server just by
- * typing its id. `guilds.list` is derived from the bindings outgress owns, so
- * membership in it IS the proof. 404 rather than 403 on purpose: a 403 would
- * confirm the guild exists and is somebody's.
- */
+/** 404, not 403: a 403 would confirm the guild exists and belongs to someone. */
 function ownedGuild(guilds: DiscordGuildSummary[], guildId: string): DiscordGuildSummary {
   const found = guilds.find((g) => g.guildId === guildId);
   if (!found) throw error(404, 'No such server.');
   return found;
 }
 
-/**
- * The dropped-pin notice, carried from the POST that found it to the load that
- * renders it.
- *
- * Setup finishes, the page calls invalidateAll(), and the action's payload is
- * gone before the banner has a frame to appear in -- so the notice has to
- * survive one round trip. A cookie rather than a query string because
- * `?dropped=mods,vip` rides along in every link the streamer copies and would
- * warn them again about a pin they fixed weeks ago; this one is scoped to the
- * guild's own page and deleted by the first load that reads it.
- */
 const DROPPED_COOKIE = 'bb_discord_dropped';
 
 function droppedPath(guildId: string): string {
@@ -142,8 +107,6 @@ function rememberDroppedPins(cookies: Cookies, guildId: string, slots: PinnedSlo
     path: droppedPath(guildId),
     httpOnly: true,
     sameSite: 'lax',
-    // Long enough for the reload setup triggers, short enough that a tab left
-    // open overnight does not greet the streamer with it tomorrow.
     maxAge: 300
   });
 }
@@ -163,8 +126,6 @@ export const loadGuildShell = async ({
 }: ServerLoadEvent): Promise<DiscordGuildPage> => {
   gate(locals.session);
   const uid = effectiveId(locals.session);
-  // The route shape guarantees the segment; the fallback is only here because
-  // a generic ServerLoadEvent types params as partial.
   const guildId = params.guildId ?? '';
   const locked = await moduleLocked(locals, DISCORD_DEF);
   const droppedPins = takeDroppedPins(cookies, guildId);
@@ -192,21 +153,6 @@ export const loadGuildShell = async ({
   };
 };
 
-/**
- * Copies a pre-split board's config off the per-user modules blob.
- *
- * Before the multi-guild split (§H) the whole config lived in `MOD.discord`.
- * The blob is narrowed to `{twitchLogin}` on the first write after the split,
- * so a board that has not been touched since still holds every channel and
- * role id the streamer picked -- and the guild row holds none of them. First
- * load of the guild page is the moment to move them, because it is the first
- * moment we know WHICH guild the blob describes.
- *
- * Order is the whole point: the guild row is written first and the blob is
- * narrowed only after that write is acknowledged. A failure anywhere leaves
- * the blob intact and the page rendering defaults, so the next load tries
- * again rather than having quietly destroyed the only copy.
- */
 async function migrateLegacy(
   target: DiscordGuildTarget,
   twitchLogin: string,
@@ -239,9 +185,6 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
   const view = demoDiscordView();
   const g = ownedGuild(view.guilds, guildId);
   const row = demoDiscordConfig();
-  // The layout and status fixtures describe one server; re-stamping them with
-  // the picked guild is what makes switching servers in demo show a different
-  // server rather than the same card twice under two names.
   const guild = { id: guildId, name: g.name, iconUrl: g.iconUrl, memberCount: g.memberCount };
   return {
     ...blankPage(guildId, false),
@@ -250,10 +193,6 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
     config: { ...row.config, guildId },
     version: row.version,
     found: row.found,
-    // needsReauth is re-stamped from the picked guild for the same reason the
-    // guild info is: the fixture describes one server, and without this the
-    // demo guild whose grant is dead renders a healthy shell, which is the one
-    // state the reauth banner exists for.
     layout: { ...demoDiscordLayout(), guild, botOnline: g.botPresent, needsReauth: g.needsReauth },
     status: {
       ...demoDiscordStatus(),
@@ -268,15 +207,6 @@ async function demoPage(guildId: string, url: URL): Promise<DiscordGuildPage> {
   };
 }
 
-/**
- * What an action answers with no outgress behind it.
- *
- * `save` runs the REAL merge, so the demo refuses exactly what production
- * refuses, plus one field standing in for a rule only the server can enforce:
- * editing the ticket panel title comes back `invalid`, which is the one way to
- * walk the fields[] path on a laptop. `setup` leaves the same one-shot cookie a
- * real fill would, so the dropped-pin banner is reachable the same way.
- */
 async function demoOutcome(label: string, ctx: ActionCtx) {
   if (label === 'save') return demoSave(ctx);
   if (label === 'setup') {
@@ -303,10 +233,6 @@ async function demoSave(ctx: ActionCtx) {
   });
 }
 
-// The config row is load-bearing (it is the draft the page edits), so a
-// failure there degrades the page. Layout and status are decorative: the
-// pickers fall back to a disabled control and the status card to an offline
-// pill, so a blip in either must not take the page with it.
 type GuildReads = {
   config: DiscordConfig;
   version: number;
@@ -329,9 +255,6 @@ async function guildReads(target: DiscordGuildTarget): Promise<GuildReads> {
     return {
       config: { ...blankDiscordConfig(), guildId: target.guildId },
       version: 0,
-      // `found` false plus `degraded` true is "we do not know", which must
-      // never be read as "this guild has no config" -- that is the state the
-      // legacy migration refuses to act on.
       found: false,
       layout,
       status,
@@ -399,10 +322,6 @@ async function attempt<T>(work: ActionWork, run: () => Promise<T>): Promise<Outc
   }
 }
 
-// A soft refusal: the call reached outgress and it said no. `code` is what the
-// page switches on; `error` is the sentence an older outgress sent, kept only
-// as a last resort. `fields` names the controls a validation refusal was
-// about, so the page can say which pick did not take.
 type Refusal = { error: string; code?: string; fields?: string[] };
 
 function refusalOf(data: Record<string, unknown>): Refusal | null {
@@ -413,9 +332,7 @@ function refusalOf(data: Record<string, unknown>): Refusal | null {
   return { error, code, ...(fields ? { fields } : {}) };
 }
 
-// Ownership again, per action. A page that rendered before a guild was
-// disconnected still posts to this URL, and the load's check does not run for
-// a form POST.
+// Checked per action too: the load's ownership check does not run for a form POST.
 async function assertOwned(ctx: ActionCtx): Promise<void> {
   if (DEMO) return;
   ownedGuild(await listGuilds({ userId: ctx.uid }), ctx.guildId);
@@ -428,9 +345,6 @@ function discordAction<T extends Record<string, unknown>>(
   return async (event: RequestEvent) => {
     const ctx = await actionContext(event);
     if (!ctx) return fail(401, { ok: false, error: 'Not signed in.' });
-    // The page is reachable while locked so it can explain itself; its writes
-    // are not. Without this, a stale form on a downgraded board would still
-    // save.
     if (!(await assertModuleUnlocked(event.locals, DISCORD_DEF))) {
       return fail(403, { ok: false, code: 'locked', error: 'Discord is in beta and open to Premium channels only.' });
     }
@@ -446,15 +360,6 @@ function discordAction<T extends Record<string, unknown>>(
   };
 }
 
-/**
- * The whole draft arrives as one hidden JSON field.
- *
- * The old form posted a `name` per input plus a hidden mirror per switch,
- * which meant the tri-state flags had three sources of truth and a control the
- * page chose not to render silently cleared its field. One field means the
- * page's own state object IS the payload, and every rule lives in the shared
- * merge.
- */
 function parseDraft(raw: FormDataEntryValue | null): Record<string, unknown> {
   if (typeof raw !== 'string') return {};
   try {
@@ -468,9 +373,7 @@ function parseDraft(raw: FormDataEntryValue | null): Record<string, unknown> {
   }
 }
 
-/** The version the form was rendered against. A missing or unparseable one
- *  becomes 0, which outgress treats as "never read" and refuses on an existing
- *  row rather than clobbering it. */
+/** 0 for missing or unparseable: outgress refuses 0 on an existing row instead of clobbering it. */
 function parseVersion(raw: FormDataEntryValue | null): number {
   if (typeof raw !== 'string') return 0;
   const n = Number.parseInt(raw.trim(), 10);
@@ -485,12 +388,6 @@ export const guildActions: Actions = {
   save: discordAction({ label: 'save', failMsg: 'Could not save Discord settings.' }, async (ctx) => {
     const row = await readGuildConfig(ctx.target);
     const { config, errors } = mergeDiscordConfig(row.config, parseDraft(ctx.form.get('config')));
-    // Persist FIRST, refuse second. `mergeDiscordConfig`'s contract is that a
-    // rejected field keeps its stored value and every accepted one is applied,
-    // so the merged config is always safe to write -- and returning the
-    // refusal before writing threw away the twenty good changes in the same
-    // draft to punish the one bad one, which is what a streamer reads as "the
-    // save button does nothing".
     const result = await saveGuildConfig({
       ...ctx.target,
       config,
@@ -512,25 +409,13 @@ export const guildActions: Actions = {
     const result = await setupGuild(
       {
         ...ctx.target,
-        // Who pressed the button, which is ctx.uid's own id unless a staff
-        // member is impersonating; the binding records the actor, not the
-        // account being acted on.
         installedBy: ctx.session?.user_id ?? ctx.uid,
-        // The saved toggle decides whether the fill creates the subscriber
-        // tier, so setup reflects what the streamer chose rather than always
-        // building a locked category they may never use.
         subscribers: alertOff(row.config.subscribersEnabled),
-        // Pins win over name lookup, so a streamer who already has a Mods role
-        // keeps it instead of getting a second one.
         pinnedRoles: pinnedRolesOf(row.config)
       },
       { ...row.config, twitchLogin: login }
     );
     if (result.error) return { error: result.error, code: result.code };
-    // A pin whose role is gone is cleared here rather than left for the
-    // streamer to notice: the fill already created a replacement, so keeping
-    // the dead id would point the NEXT setup at it again and keep the picker
-    // showing "Pinned" over a role Discord has forgotten.
     const config = clearPinnedSlots({ ...result.config, twitchLogin: login }, result.droppedPins);
     const saved = await persistSetup(ctx.target, config);
     if (saved.error || saved.code) return { error: saved.error, code: saved.code };
@@ -550,8 +435,6 @@ export const guildActions: Actions = {
     return { messageId: result.messageId };
   }),
 
-  // Scoped to this guild: the other servers this broadcaster owns keep their
-  // bindings and their rows, and the master switch is not touched.
   disconnect: async (event: RequestEvent) => {
     const run = discordAction({ label: 'disconnect', failMsg: 'Could not disconnect Discord.' }, async (ctx) => {
       await unbindGuild(ctx.target);

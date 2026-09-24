@@ -26,23 +26,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// The provider's client rides the WARP lane — the whole point of the inverted
-// default — so e2e tests stage a minimal SOCKS5 forwarder on loopback and aim
-// warpProxyAddr at it. CONNECT targets arrive as hostnames (remote-DNS form)
-// and are dialed directly here, which is what Cloudflare's edge does in
-// production. The SSRF gate stays off for these plain-http fakes EXCEPT in
-// TestFetchDeniedBySSRFGate, which flips it back on to pin the denial
-// end-to-end; the gate's full semantics live in core's table tests.
-
 func init() { core.SetSSRFCheckForTests(false) }
 
-// fakeSOCKS is a single-listener SOCKS5 CONNECT forwarder.
 type fakeSOCKS struct {
 	ln net.Listener
 	wg sync.WaitGroup
 
 	mu       sync.Mutex
-	refusing bool // fail every CONNECT (staged tunnel-down / dead origin)
+	refusing bool
 
 	conns atomic.Int32
 }
@@ -97,7 +88,6 @@ func (f *fakeSOCKS) handle(conn net.Conn) {
 	f.pipe(conn, target)
 }
 
-// socksGreet answers the VER NMETHODS METHODS greeting with "no auth".
 func socksGreet(conn net.Conn) bool {
 	head := make([]byte, 2)
 	if _, err := io.ReadFull(conn, head); err != nil || head[0] != 5 {
@@ -111,8 +101,6 @@ func socksGreet(conn net.Conn) bool {
 	return err == nil
 }
 
-// readSOCKSTarget decodes the VER CMD RSV ATYP ADDR PORT request (CONNECT
-// only) into a dialable host:port.
 func readSOCKSTarget(conn net.Conn) (string, bool) {
 	req := make([]byte, 4)
 	if _, err := io.ReadFull(conn, req); err != nil || req[1] != 1 {
@@ -151,8 +139,6 @@ func readSOCKSHost(conn net.Conn, atyp byte) (string, bool) {
 	return "", false
 }
 
-// pipe answers the CONNECT: refused when the fake is refusing or the dial
-// fails, otherwise splices both directions until either side closes.
 func (f *fakeSOCKS) pipe(conn net.Conn, target string) {
 	f.mu.Lock()
 	refuse := f.refusing
@@ -160,7 +146,7 @@ func (f *fakeSOCKS) pipe(conn net.Conn, target string) {
 	upstream, err := net.Dial("tcp", target)
 	if refuse && err == nil {
 		_ = upstream.Close()
-		_, _ = conn.Write([]byte{5, 5, 0, 1, 0, 0, 0, 0, 0, 0}) // reply: refused
+		_, _ = conn.Write([]byte{5, 5, 0, 1, 0, 0, 0, 0, 0, 0})
 		return
 	}
 	if err != nil {
@@ -173,8 +159,6 @@ func (f *fakeSOCKS) pipe(conn net.Conn, target string) {
 	_, _ = io.Copy(conn, upstream)
 	_ = upstream.Close()
 }
-
-// --- harness ------------------------------------------------------------------
 
 type memStore struct {
 	mu   sync.Mutex
@@ -251,8 +235,8 @@ type harness struct {
 	socks *fakeSOCKS
 
 	srv   *httptest.Server
-	hits  atomic.Int32 // upstream requests served
-	admit atomic.Int32 // budget spends admitted
+	hits  atomic.Int32
+	admit atomic.Int32
 
 	routesMu sync.Mutex
 	routes   map[string]staged
@@ -294,7 +278,7 @@ func newHarness(t *testing.T) *harness {
 		Log:       zap.NewNop(),
 		FetchDefs: fakeDefs{defs: h.defs},
 	}
-	b := provider.NewProvider(providerName, deps) // no .Trusted(): WARP lane by default
+	b := provider.NewProvider(providerName, deps)
 	cfg := Config{ChannelRateLimit: 6, DefRateLimit: 30, HostRateLimit: 120, PositiveTTL: time.Minute}
 	h.p = newAPI(cfg, deps, b)
 	h.p.admit = func(context.Context, *flight, bool) error {
@@ -304,8 +288,6 @@ func newHarness(t *testing.T) *harness {
 	return h
 }
 
-// route stages (or restages) one upstream response for an exact path. Tests
-// may call it again mid-flight to change what the upstream says.
 func (h *harness) route(t *testing.T, path string, r staged) {
 	t.Helper()
 	h.routesMu.Lock()
@@ -313,7 +295,6 @@ func (h *harness) route(t *testing.T, path string, r staged) {
 	h.routesMu.Unlock()
 }
 
-// addDef registers a stored definition pointing at the harness upstream.
 func (h *harness) addDef(name, path string, def gossiprpc.FetchDef) gossiprpc.FetchDef {
 	def.Name = name
 	def.URL = h.srv.URL + path
@@ -328,8 +309,6 @@ func call(t *testing.T, h *harness, req gossiprpc.Request) gossiprpc.CustomFetch
 	require.True(t, ok, "handler returned %T", res)
 	return reply
 }
-
-// --- extraction ----------------------------------------------------------------
 
 func TestFetchExtractsNestedJSONPath(t *testing.T) {
 	h := newHarness(t)
@@ -380,14 +359,10 @@ func TestFetchUnresolvablePathIsBadDefAndNegativeCached(t *testing.T) {
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
 	assert.Equal(t, gossiprpc.FetchBadDef, reply.Status)
 	assert.Equal(t, int32(1), h.hits.Load())
-	// Stable authoring state: negative-cached for negativeTTL (the byte entry
-	// physically retains 2x its fresh window, the standard stale tail).
 	assert.Equal(t, 2*negativeTTL, h.store.retention(resultKey("wx")))
 	call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
 	assert.Equal(t, int32(1), h.hits.Load(), "second ask must come from the negative cache")
 }
-
-// --- caching -------------------------------------------------------------------
 
 func TestFetchPositiveCachesThenFreshBypassesReadButWrites(t *testing.T) {
 	h := newHarness(t)
@@ -398,7 +373,6 @@ func TestFetchPositiveCachesThenFreshBypassesReadButWrites(t *testing.T) {
 	require.Equal(t, gossiprpc.FetchOK, first.Status)
 	assert.Equal(t, int32(1), h.hits.Load())
 
-	// Change what the upstream says, then ask FRESH.
 	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":2}`})
 
 	cached := call(t, h, gossiprpc.Request{ChannelID: "ch2", DefID: "wx"})
@@ -443,8 +417,6 @@ func TestFetchInfraFailureStaysUncached(t *testing.T) {
 	call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "boom"})
 	assert.Equal(t, int32(2), h.hits.Load(), "uncached means every ask re-dials")
 }
-
-// --- budgets and rehearsal ------------------------------------------------------
 
 func TestFetchDryRunSpendsNoBucketWritesNoCache(t *testing.T) {
 	h := newHarness(t)
@@ -501,13 +473,8 @@ func TestFetchPremiumRidesAdmitLane(t *testing.T) {
 	assert.NotEmpty(t, gotHost, "the per-host layer needs the target host")
 }
 
-// --- breaker --------------------------------------------------------------------
-
 func TestBreakerArmsAfterFiveConsecutiveTransportFailures(t *testing.T) {
 	h := newHarness(t)
-	// A def whose host the tunnel cannot reach: every attempt is a transport
-	// failure (DNS/connect dies inside the tunnel), none of them answerable.
-	// Set directly — addDef would rewrite the URL onto the fake upstream.
 	h.defs["dead"] = gossiprpc.FetchDef{
 		Name:     "dead",
 		URL:      "https://blackhole.invalid/never",
@@ -526,11 +493,8 @@ func TestBreakerArmsAfterFiveConsecutiveTransportFailures(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, armed, "five consecutive transport failures must arm the fleet-wide circuit")
 
-	// Armed hosts answer limited WITHOUT dialing — even a healthy one.
 	h.route(t, "/healthy", staged{status: http.StatusOK, ct: "application/json", body: `{"v":1}`})
 	h.addDef("healthy", "/healthy", gossiprpc.FetchDef{URL: "placeholder", IsActive: true, KeyLabel: ""})
-	// Same host? No — the armed key is host-scoped, so stage the healthy def on
-	// the SAME host by pointing its URL through a def-level rewrite.
 	h.defs["samehost"] = gossiprpc.FetchDef{
 		Name:     "samehost",
 		URL:      "https://blackhole.invalid/unreachable-but-armed",
@@ -539,12 +503,9 @@ func TestBreakerArmsAfterFiveConsecutiveTransportFailures(t *testing.T) {
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "samehost"})
 	assert.Equal(t, gossiprpc.FetchLimited, reply.Status, "armed host answers limited without dialing")
 
-	// An ANSWERED request (even a 500) proves reachability and resets the
-	// consecutive counter, so the failures before it stop counting.
 	h2 := newHarness(t)
 	host := hostOf(h2.srv.URL)
 	h2.defs["flap"] = gossiprpc.FetchDef{Name: "flap", URL: "https://" + host + "/unreachable-host-route", IsActive: true}
-	// Stage transport failures on that host by refusing them at the tunnel.
 	h2.socks.setRefusing(true)
 	for i := 0; i < breakerThreshold-1; i++ {
 		call(t, h2, gossiprpc.Request{ChannelID: "ch1", DefID: "flap"})
@@ -552,7 +513,6 @@ func TestBreakerArmsAfterFiveConsecutiveTransportFailures(t *testing.T) {
 	_, armedPre, err := h2.store.Get(context.Background(), breakerKey(host))
 	require.NoError(t, err)
 	assert.False(t, armedPre, "%d failures alone must not arm", breakerThreshold-1)
-	// Now an answered request on the same host: tunnel lets it through again.
 	h2.socks.setRefusing(false)
 	h2.route(t, "/alive", staged{status: http.StatusInternalServerError, ct: "text/plain", body: "answering, badly"})
 	h2.defs["flap"] = gossiprpc.FetchDef{Name: "flap", URL: h2.srv.URL + "/alive", IsActive: true}
@@ -568,8 +528,6 @@ func TestBreakerArmsAfterFiveConsecutiveTransportFailures(t *testing.T) {
 func hostOf(raw string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(raw, "http://"), "https://")
 }
-
-// --- definition resolution -------------------------------------------------------
 
 func TestFetchBadDefs(t *testing.T) {
 	t.Run("missing def", func(t *testing.T) {
@@ -614,10 +572,8 @@ func TestFetchInlineDefRehearsal(t *testing.T) {
 	assert.False(t, found, "inline drafts never touch the shared cache")
 }
 
-// --- gate and payload policy -----------------------------------------------------
-
 func TestFetchDeniedBySSRFGate(t *testing.T) {
-	core.SetSSRFCheckForTests(true) // this one test wants the real gate
+	core.SetSSRFCheckForTests(true)
 	t.Cleanup(func() { core.SetSSRFCheckForTests(false) })
 
 	h := newHarness(t)
@@ -651,7 +607,6 @@ func TestFetchCapsValues(t *testing.T) {
 	assert.LessOrEqual(t, len([]rune(reply.Values[0])), maxValueRunes)
 }
 
-// --- timeout classification ------------------------------------------------------
 func TestFetchSlowUpstreamMapsToTimeout(t *testing.T) {
 	h := newHarness(t)
 	h.routesMu.Lock()

@@ -1,30 +1,9 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
-/* The mote field contract: one host the engine (@bagel/ui/lib/light-field)
-   fills with animated motes. Both adapters emit
-
-     <div class="bb-light-field" data-field data-warmth="0.7" aria-hidden="true">
-
-   These rules were the identical scoped <style> block in three places —
-   web/kit/components/LightField.svelte, marketing's HomeLightField.astro and
-   PageHero.astro's `.phero__field`. Identical except for the one thing the
-   full-bleed modifier below now carries, which is the only reason there were
-   three. */
-
 @layer bb.elements {
-    /* Fills its positioned ancestor and paints behind it. `z-index: -1` rather
-       than `0` puts the field under sibling decoration layers (glows, rings,
-       orbs) without reordering anyone's markup — every host that draws one has
-       other absolutely-positioned children and they all predate this. */
     .bb-light-field {
         position: absolute;
         inset: 0;
@@ -37,19 +16,10 @@
         pointer-events: none;
     }
 
-    /* The host's parent must be a stacking context. Otherwise the composited
-       motes at z-index -1 land in the root's negative z-list and WebKit splits
-       a second full-document foreground layer out of the page to paint over
-       them: +75 MB at 390x844@3 on a PageHero page. */
     :where(:has(> .bb-light-field)) {
         isolation: isolate;
     }
 
-    /* `plus-lighter` keeps the additive pile-up the canvas got from
-       globalCompositeOperation 'lighter': overlapping motes brighten into a
-       glow instead of the top one winning. The host's z-index makes it a
-       stacking context, so the blend stays among the motes and never reaches
-       the page behind. */
     .bb-light-field > span {
         position: absolute;
         top: 0;
@@ -58,11 +28,6 @@
         mix-blend-mode: plus-lighter;
     }
 
-    /* Full-bleed variant: the field escapes a max-width container and spans the
-       viewport. Was HomeLightField.astro's whole reason to exist as a separate
-       component — the home sections are width-constrained but their motes are
-       not, because a starfield that stops at the content gutter reads as a
-       rectangle of stars rather than as depth. */
     .bb-light-field--bleed {
         top: 0;
         bottom: 0;
@@ -72,10 +37,6 @@
         transform: translateX(-50%);
     }
 
-    /* The engine already declines to start under reduced motion (field()
-       returns null), which leaves an empty host occupying layout. Hiding it
-       keeps the full-bleed transform from costing a compositing layer that
-       paints nothing. */
     @media (prefers-reduced-motion: reduce) {
         .bb-light-field {
             display: none;

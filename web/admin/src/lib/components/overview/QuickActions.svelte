@@ -1,10 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The two jumps an operator makes from this page: find a specific broadcaster,
-  // or tell everyone something. The lookup is a real GET form so it works
-  // without JS and lands on /users with the query already applied -- the users
-  // page owns the search, this only aims it.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -23,9 +19,6 @@
   <CardHead title={t('admin.overview.quickTitle')} />
 
   <form class="lookup" method="GET" action="/users">
-    <!-- SearchInput is itself a <label> wrapping an unnamed input, so the value
-         is carried by a hidden field rather than by naming that input: nesting
-         a second label around it would be invalid. -->
     <SearchInput fill bind:value={q} placeholder={t('admin.overview.quickLookupPlaceholder')} />
     <input type="hidden" name="q" value={q} />
     <Button variant="ghost" type="submit">{t('admin.overview.quickLookupCta')}</Button>

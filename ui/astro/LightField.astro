@@ -2,18 +2,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro adapter for the drifting mote field. Emits the same host as
-// ui/svelte/LightField.svelte; the physics are in @bagel/ui/lib/light-field.
-//
-// One hoisted script serves every instance on the page (Astro dedupes it), so
-// the hosts are found by scanning for the contract attribute rather than by
-// each instance carrying its own inline setup.
 import '../styles/elements/light-field.css';
 
 interface Props {
-    /** Extra classes, e.g. the `bb-light-field--bleed` full-bleed modifier. */
     class?: string;
-    /** Share of gold (vs green) motes, 0..1. */
     warmth?: number;
 }
 
@@ -24,9 +16,6 @@ const classes = ['bb-light-field', className].filter(Boolean).join(' ');
 <div class={classes} data-field data-warmth={warmth} aria-hidden="true"></div>
 
 <script>
-    // Not bindOnce: a field owns running animations and two observers,
-    // so it needs a real teardown before the ClientRouter throws the old
-    // document away, and bindOnce deliberately has no unbind.
     import { field } from '../lib/light-field';
 
     const running = new Set<() => void>();

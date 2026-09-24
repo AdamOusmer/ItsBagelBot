@@ -1,22 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Fossabot: the channel name the user types is posted on the form and read
-// server-side against Fossabot's public cached API, then translated by the
-// shared parser. There is no credential and no connect step: the feed this
-// reaches is the same commands directory any viewer can open at
-// fossabot.com/<login>/commands, which is also why nothing about it is
-// cached or stored here beyond the preview the user is about to review.
 import { fetchFossabot, parseFossabot } from '@bagel/kit/importer/fossabot';
 import { FOSSABOT_HANDLE_SHAPE, MAX_HANDLE_LEN } from '@bagel/kit/importer/strategy';
 import { CODE } from '@bagel/kit/importer/validate';
 import { refused, type ImportPreviewRequest, type ParseOutcome } from '../engine';
 import type { InputRefusal, ServerSourceStrategy, SourceInput } from '../strategy';
 
-// fossabotLeg resolves the channel, reads its directory and parses the stapled
-// envelope. The fetch and the parse are kept apart so the refusal names which
-// half failed: "no Fossabot channel named …" is a typo the user fixes, a parse
-// failure is a shape change on their side.
 async function fossabotLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
   let envelope: Uint8Array;
   try {
@@ -33,9 +23,6 @@ async function fossabotLeg(req: ImportPreviewRequest): Promise<ParseOutcome> {
   }
 }
 
-// acceptInput refuses an empty or malformed handle before any transport, with
-// the same gate the page runs client-side (@bagel/kit/importer/strategy owns
-// the regex). A handle is not a secret, so it is safe to say what was wrong.
 function acceptInput(input: SourceInput): InputRefusal {
   const handle = input.credential.trim();
   if (handle === '') return { status: 400, error: 'Enter your Fossabot channel name first.' };

@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The two module_gate.go polarities (module-flags.ts's own header comment),
-// pinned so a future edit cannot quietly swap them: an opt-in module reading
-// as ON with no row, or a built-in reading as OFF with no row, is exactly the
-// bug this file exists to keep out of the dashboard.
 import { describe, expect, test } from 'bun:test';
 import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, flagsFromRows } from './module-flags';
 

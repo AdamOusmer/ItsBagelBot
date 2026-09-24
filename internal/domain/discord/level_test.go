@@ -14,7 +14,6 @@ func TestLevelOf(t *testing.T) {
 		{0, 0},
 		{1, 0},
 		{99, 0},
-		// Exact level boundaries: level N begins at 100*N^2.
 		{100, 1},
 		{399, 1},
 		{400, 2},
@@ -30,8 +29,6 @@ func TestLevelOf(t *testing.T) {
 	}
 }
 
-// TestLevelOfIsMonotonic guards the property the level-up edge depends on: XP
-// only ever moves the level up, never down.
 func TestLevelOfIsMonotonic(t *testing.T) {
 	previous := 0
 	for xp := int64(0); xp <= 5000; xp++ {

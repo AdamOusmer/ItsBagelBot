@@ -4,9 +4,6 @@
 defmodule Ingress.Trace do
   @moduledoc false
 
-  # Runs exactly one notification in a short-lived transaction on the worker
-  # process. The dispatcher timestamp uses the same monotonic clock, so queue
-  # wait remains meaningful across scheduler migration without wall-clock skew.
   alias Ingress.Config
 
   @active_key {__MODULE__, :active}

@@ -23,22 +23,14 @@ import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 import { actionError } from '$lib/server/action-errors';
 
-// Gated on the build-time `dev` constant first, so Rollup erases every demo
-// branch (and the dynamic demo-data import inside it) from production builds.
 const DEMO = dev && env.DEMO === '1';
 
-// The longest quote the modules service will store (repository.QuoteTextMaxLen).
 const QUOTE_MAX = 450;
 
-// Who may be granted the save/edit permissions; mirrors the sesame module's
-// ParsePerm keys and the module catalog's perm options.
 const PERMS = ['mod', 'vip', 'sub', 'everyone'] as const;
 
-// Which module blob key a perm form writes: the save gate or the edit gate.
 const PERM_KINDS: Record<string, keyof QuotePerms> = { add: 'addPerm', edit: 'editPerm' };
 
-// parseQuoteText normalizes a submitted quote body (control chars collapse to
-// spaces) and reports why it is unusable; add and edit share the boundary.
 function parseQuoteText(value: FormDataEntryValue | null, locale: App.Locals['locale']): { text?: string; error?: string } {
   const text = String(value ?? '')
     .replace(/[\u0000-\u001f]+/g, ' ')
@@ -55,13 +47,10 @@ function quoteDate(value: FormDataEntryValue | null): Date | null {
   return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== raw ? null : parsed;
 }
 
-// Delegate scope comes from the quotes catalog def (see module-gate.ts).
 function gate(session: Session | null | undefined): void {
   gateModulePage(session, 'quotes');
 }
 
-// actingLogin is the login stamped as a quote's added_by (audit only): the
-// delegate acting, or the signed-in broadcaster.
 function actingLogin(session: Session | null | undefined): string {
   return session?.delegate_login ?? session?.login ?? 'dashboard';
 }
@@ -81,8 +70,6 @@ export const load: PageServerLoad = ({ locals }) =>
     })
   });
 
-// actionContext runs the shared prologue: scope gate, effective id, auth check,
-// and form parse. DEMO runs without a session (branches short-circuit before RPC).
 async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
   gate(locals.session);
   if (!DEMO && !locals.session) return null;
@@ -93,9 +80,6 @@ const notSignedIn = (locale: App.Locals['locale']) => fail(401, { ok: false, err
 
 type QuoteCtx = NonNullable<Awaited<ReturnType<typeof actionContext>>>;
 
-// runQuote wraps the write half all five actions share: the store call, the
-// audit line naming the acting login, and one failure mapping. Validation and
-// the success payload stay with the caller, since those are what differ.
 async function runQuote<T extends object>(
   ctx: QuoteCtx,
   op: { verb: string; error?: string; run: () => Promise<{ audit: string; payload: T }> }
@@ -139,7 +123,6 @@ export const actions: Actions = {
     });
   },
 
-  // Rewrite one quote's text and day in place; the number survives.
   edit: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn(event.locals.locale);
@@ -186,7 +169,6 @@ export const actions: Actions = {
     });
   },
 
-  // Master on/off for the whole module (whether !quote does anything in chat).
   toggle: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn(event.locals.locale);
@@ -203,8 +185,6 @@ export const actions: Actions = {
     });
   },
 
-  // Change who may save or edit a quote from chat (moderator by default).
-  // The form names which gate it writes via kind=add|edit.
   perm: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn(event.locals.locale);

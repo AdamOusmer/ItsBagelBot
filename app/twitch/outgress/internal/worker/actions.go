@@ -8,35 +8,6 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 )
 
-// buildActions declares every message type this worker executes, in the same
-// fluent builder style sesame's modules use. The Registry it produces owns the
-// Helix route per type, so producers send intent ("chat", "ban", "ad", "clip")
-// plus the body instead of hardcoding paths; Build panics at boot on a
-// misdeclared action. Handlers capture the worker by method value, so the set
-// is built once per lane worker in New.
-//
-//   - chat/announce/shoutout/pin: cloud-bot chat actions on the app token.
-//     Twitch only awards the Chat Bot badge to Send Chat Message calls made
-//     with an app access token, backed by the bot's user:bot/action grants and
-//     the broadcaster's channel:bot grant.
-//   - ban/timeout/unban/shield_mode/delete/warn: the bot acts as moderator
-//     (/helix/moderation/* → bot user token). Timeout shares ban's endpoint;
-//     the body's duration makes it a timeout.
-//   - ad/commercial/clip: the broadcaster's own grant starts the ad
-//     (channel:edit:commercial) or creates the clip (clips:edit).
-//   - channel_update: Internal because one intent is GET (app token, works
-//     offline) or PATCH (broadcaster, channel:manage:broadcast), plus a
-//     category search for !game. The handler owns every Helix call.
-//   - stream_marker: Create Stream Marker under the broadcaster token.
-//   - api: generic passthrough; the message must carry its own endpoint.
-//   - eventsub/stream_status/redemption_update: internal jobs whose handlers
-//     own their Twitch calls (typed client methods, no route resolution
-//     here).
-//
-// The broadcaster-token pre-warm is NOT here: it rides the core-NATS
-// token-warm fan-out (see tokenwarm.go's SubscribeTokenWarm), not a lane
-// message, because every replica's independent token cache needs its own
-// warm and a lane job only ever reaches one replica.
 func (w *Worker) buildActions() action.Registry {
 	b := action.NewSet()
 	b.Action(outgress.TypeChat).Post("/helix/chat/messages").As(outgress.AsApp).Run(w.processChat)

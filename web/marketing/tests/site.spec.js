@@ -5,11 +5,6 @@ import { test, expect } from '@playwright/test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-// The changelog page renders one entry per file in src/content/changelog,
-// newest version first. Deriving the expectation from those files (rather than
-// hard-coding the release list) keeps the ordering assertion honest without
-// making every release a test edit: the property under test is the ORDER, and
-// the comparator here is written independently of the page's own.
 const CHANGELOG_DIR = fileURLToPath(new URL('../src/content/changelog', import.meta.url));
 const PRERELEASE_RANK = { alpha: 0, beta: 1, prerelease: 2 };
 
@@ -32,9 +27,6 @@ function releasesNewestFirst() {
         });
 }
 
-// Page-side predicates for the encryption scene, handed to waitForFunction.
-// The first holds once the new scene's renderer has taken the canvas (parked
-// at 1x1 or sized); the second once its buffers cover the display.
 function encryptionTookCanvas(previousId) {
     const canvas = document.querySelector('#enc-canvas');
     const active = window.__itsbagelbotPreload?.activeEncryption;
@@ -82,11 +74,6 @@ test.describe('ItsBagelBot site', () => {
     }
 
     async function expectEncryptionInitialized(page, previousId = 0) {
-        // At the page top the scene is parked at 1x1 (its canvas is still
-        // transparent there) and sizes its buffers once the page scrolls. Wait
-        // for the renderer to take the canvas before scrolling: a jump made
-        // earlier is undone by the router's scroll restoration on a back
-        // navigation, which parks the scene again.
         await page.waitForFunction(encryptionTookCanvas, previousId);
         await jumpDown(page);
         await page.waitForFunction(encryptionSized, previousId);
@@ -97,59 +84,44 @@ test.describe('ItsBagelBot site', () => {
 
         await expect(page.locator('h1').first()).toContainText('Your Stream');
 
-        // Encryption act is untouched
         await expect(page.locator('#enc-section')).toHaveCount(1);
 
-        // Sparse pockets reuse the inner-page mote field without covering home.
-        // Three fields: the hero starfield plus the two section pockets.
-        //
-        // `.bb-light-field--bleed`, not the old `.home-light-field`: the field
-        // moved to @bagel/ui/astro/LightField.astro and the full-bleed variant
-        // that HomeLightField.astro existed to provide is now a modifier class.
         await expect(page.locator('.bb-light-field--bleed[data-field]')).toHaveCount(3);
         await expect(page.locator('.starfield .bb-light-field')).toHaveCount(1);
         await expect(page.locator('#safety-layers .bb-light-field')).toHaveCount(1);
         await expect(page.locator('#how .bb-light-field')).toHaveCount(1);
 
-        // Playground: chat window, command chips, spam button, live feed seed
         const play = page.locator('#playground');
         await expect(play.locator('h2')).toContainText('Try it here.');
         await expect(play.locator('[data-play-cmd]')).toHaveCount(4);
         await expect(play.locator('[data-play-spam]')).toHaveCount(1);
         await expect(play.locator('[data-play-feed] .pmsg')).not.toHaveCount(0);
 
-        // Playground responds to a command
         await play.locator('[data-play-input]').fill('!bagel');
         await play.locator('.play__send').click();
         await expect(play.locator('.pmsg--you').last()).toContainText('!bagel');
         await expect(play.locator('.pmsg--bot').last()).toContainText('fresh from the oven', { timeout: 5000 });
 
-        // Quiet work bento
         const quiet = page.locator('#quiet-work');
         await expect(quiet.locator('[data-card]')).toHaveCount(6);
         await expect(quiet).toContainText('The things it handles while you stream.');
-        // Song requests lead the bento: the full-width card is the first one.
         await expect(quiet.locator('[data-card]').first()).toContainText('Spotify song requests, run by chat.');
 
-        // Four-layer safety pipeline
         const safety = page.locator('#safety-layers');
         await expect(safety.locator('[data-card]')).toHaveCount(3);
         await expect(safety).toContainText('Several classifiers have to agree.');
         await expect(safety).toContainText('One raid warns every protected channel.');
 
-        // Steps
         const how = page.locator('#how');
         await expect(how.locator('.step')).toHaveCount(3);
         for (const step of ['Connect your channel.', 'Make it yours.', 'Go live, and breathe.']) {
             await expect(how).toContainText(step);
         }
 
-        // Letter + finale
         await expect(page.locator('#letter')).toContainText('Nothing here is sold to advertisers');
         await expect(page.locator('[data-letter-stamp]')).toHaveCount(1);
         await expect(page.locator('.finale')).toContainText('tomorrow');
 
-        // Ownership colophon names the account Hypixel verification looks for
         const about = page.locator('#about');
         await expect(about).toContainText('ItsMavey');
         const ignLinks = about.locator('a[href="https://namemc.com/profile/ItsMavey"]');
@@ -185,22 +157,17 @@ test.describe('ItsBagelBot site', () => {
         await expect(tiers.nth(1)).toContainText('Premium');
         await expect(tiers.nth(2)).toContainText('Enterprise');
 
-        // Premium framed as the tip jar, not the "recommended" upsell
         await expect(tiers.nth(1)).toContainText('The tip jar, with perks');
 
         await expect(page.locator('.tiers__oath')).toContainText('no card needed');
 
         await expect(page.locator('details')).toHaveCount(5);
 
-        // Source available, never positioned as "open source"
-        // (FAQ answer lives in a collapsed <details>, so assert presence, not visibility)
         await expect(page.getByText('not the same as open source')).toHaveCount(1);
     });
 
     test('static gates open in sync with the message', async ({ page }) => {
         await page.goto('/');
-        // The section's loops only exist while it is near the viewport
-        // (@bagel/ui/lib/motion-gate).
         await page.locator('.gates__lane').scrollIntoViewIfNeeded();
         await expect(page.locator('#safety-layers')).toHaveAttribute('data-motion', 'on');
 
@@ -215,11 +182,6 @@ test.describe('ItsBagelBot site', () => {
             const animations = animated.map((element) => element.getAnimations()[0]);
             animations.forEach((animation) => animation.pause());
 
-            // The 7.2s gatePacket cycle holds the packet in front of each gate
-            // while that gate opens: gate one 23-26% of the cycle, gate two
-            // 45-48%, gate three 65-68% (SafetyLayers.astro keyframes). Sample
-            // the midpoint of each hold/open overlap window, where the packet
-            // is parked rather than mid-flight.
             return [1764, 3348, 4788].map((time) => {
                 animations.forEach((animation) => { animation.currentTime = time; });
                 const laneRect = lane.getBoundingClientRect();
@@ -233,9 +195,6 @@ test.describe('ItsBagelBot site', () => {
 
         expect(samples).toHaveLength(3);
         for (const [index, sample] of samples.entries()) {
-            // Gates sit at 29%/50%/71% of the lane; the packet parks 46px short
-            // of each, so the expected ratio is gate% minus 46px over the lane
-            // width. Bounds allow the lane width to vary with the viewport.
             expect(sample.packet).toBeGreaterThan([0.14, 0.35, 0.56][index]);
             expect(sample.packet).toBeLessThan([0.26, 0.47, 0.68][index]);
             expect(sample.gates[index]).toBeLessThan(25);
@@ -250,7 +209,6 @@ test.describe('ItsBagelBot site', () => {
         await expect(page.locator('.line').filter({ hasText: 'Discord' })).toHaveCount(1);
         await expect(page.locator('.line').filter({ hasText: 'Support' })).toHaveCount(1);
 
-        // Email lines expose a click-to-copy control
         await expect(page.locator('[data-copy]')).toHaveCount(2);
         await expect(page.locator('a button')).toHaveCount(0);
         await page.locator('[data-copy]').first().click();
@@ -265,7 +223,6 @@ test.describe('ItsBagelBot site', () => {
         const items = page.locator('.clog__item');
         await expect(items).toHaveCount(releases.length);
 
-        // Same publish day must not scramble order: newest version tag first.
         for (const [i, release] of releases.entries()) {
             await expect(items.nth(i).locator('.clog__ver')).toHaveText(release.version);
         }
@@ -279,8 +236,6 @@ test.describe('ItsBagelBot site', () => {
         await expect(items.first()).toContainText(highlights[0]);
         await expect(items.first().locator(`a[href="${newest.github}"]`)).toHaveCount(1);
 
-        // The import wizard names every source it reads, so the release that
-        // shipped it stays findable by the bot a streamer is leaving behind.
         const importer = items.filter({ hasText: 'Import wizard v1' });
         await expect(importer.locator('.clog__ver')).toHaveText('v0.1.2-beta');
         await expect(importer).toContainText('StreamElements, Moobot and Streamlabs Chatbot');
@@ -288,15 +243,12 @@ test.describe('ItsBagelBot site', () => {
 
         await expect(items.last().locator('.rtag--alpha')).toHaveCount(1);
 
-        // The footer's columns are @bagel/ui's `.bb-nav-link` now: the label is
-        // the link's text, not an aria-label the old hand-written footer set.
         await expect(page.locator('footer a.bb-nav-link[href="/changelog/"]')).toHaveCount(1);
 
         await page.goto('/fr/changelog');
         await expect(page.locator('.bb-page-hero__title')).toContainText('Quoi de neuf.');
         await expect(page.locator('.clog__item').first()).toContainText(newest.title.fr ?? title);
         await expect(page.locator('.rtag--beta').first()).toContainText('Bêta');
-        // The French entry names the same import sources as the English one.
         await expect(page.locator('.clog__item').filter({ hasText: "Assistant d'import v1" })).toContainText(
             'StreamElements, Moobot et Streamlabs Chatbot'
         );
@@ -357,12 +309,6 @@ test.describe('ItsBagelBot site', () => {
         await page.locator('.bb-nav__links a.bb-nav-link[href="/pricing/"]').click();
         await expect(page).toHaveURL(/\/pricing\/?$/);
 
-        // Mid-scramble: the element is showing something other than its final
-        // text. `data-decode-ready` is gone -- the old script used it as an
-        // idempotence flag, and @bagel/ui's observeDecode guards with
-        // `observer.unobserve` and its own running set instead, so the
-        // attribute was a marker with no reader. The condition below is the
-        // same observable signal without it.
         await page.waitForFunction(() => {
             const title = document.querySelector('.bb-page-hero__title');
             return Boolean(
@@ -415,38 +361,23 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('.gcard').nth(2)).toHaveAttribute('href', '/guides/data-sources/');
         await expect(page.locator('.ghub__tool')).toHaveAttribute('href', '/command-builder');
 
-        // The Guides nav entry is live and marked active.
         await expect(page.locator('.bb-nav__links a.bb-nav-link[href="/guides/"]')).toHaveAttribute('aria-current', 'page');
     });
 
     test('guide pages render toc, visuals, and pager', async ({ page }) => {
         await page.goto('/guides/commands');
 
-        // anatomy, create, variables, multiline, rules, builder (phase 7
-        // folded fallbacks/dynamic/utilities/viewer/modulefacts/chatroom/
-        // emotes/stream into the standalone variables reference).
         await expect(page.locator('[data-guide-link]')).toHaveCount(6);
         await expect(page.locator('[data-guide-section]')).toHaveCount(6);
 
-        // Visual furniture: chat mock, dashboard frame, variable table.
         await expect(page.locator('.cmock__win').first()).toBeVisible();
         await expect(page.locator('.dframe__win')).toHaveCount(1);
-        // The 'variables' section is now a short pointer to the standalone
-        // reference (phase 7) rather than a hand-written table.
         await expect(page.locator('#variables code').first()).toContainText('{user}');
         await expect(page.locator('#variables a[href="/guides/variables"]')).toHaveCount(2);
 
-        // Pager walks the handbook in both directions; data sources sits after commands.
         await expect(page.locator('.gshell__pager-card')).toHaveCount(2);
         await expect(page.locator('.gshell__pager-card--next')).toHaveAttribute('href', '/guides/data-sources/');
     });
-
-    // The [data-rehearsal] widget this test drove lived in the commands
-    // guide's 'dynamic' section, which phase 7 folded into the standalone
-    // variables reference along with fallbacks/utilities/viewer/
-    // modulefacts/chatroom/emotes/stream -- no page renders that widget any
-    // more. Live token expansion itself is still covered end to end by the
-    // command-builder tests below, through that page's own preview markup.
 
     test('data sources guide teaches the path with a live picker', async ({ page }) => {
         await page.goto('/guides/data-sources');
@@ -454,12 +385,10 @@ test.describe('guides & command builder', () => {
         await expect(page.locator('[data-guide-section]')).toHaveCount(7);
         await expect(page.locator('.dframe__win')).toHaveCount(2);
 
-        // Click a scalar leaf: the saved path and the token follow.
         const picker = page.locator('[data-pathpicker]');
         await picker.locator('[data-pp-tree] button:not([disabled])').first().click();
         await expect(picker.locator('[data-pp-token]')).toContainText('{urlfetch:');
 
-        // The outcomes widget swaps the bot line to the exact fallback text.
         const outcomes = page.locator('[data-fetchoutcomes]');
         await outcomes.locator('[data-go-tab]').nth(2).click();
         await expect(outcomes.locator('[data-go-line]')).toContainText('[source timed out]');
@@ -493,24 +422,15 @@ test.describe('guides & command builder', () => {
     test('variables reference lists custom-command variables in one table per group', async ({ page }) => {
         await page.goto('/guides/variables');
 
-        // Five <section class="vref-group">, one per kit VariableGroup that
-        // has an entry on the custom-command surface -- module-reply-only
-        // fields (channel points, game stats...) are filtered out of this
-        // page (docs/specs/variables-catalog.md phase 7 review: they belong
-        // on the dashboard's per-module editor, not here).
         const groups = page.locator('section.vref-group');
         await expect(groups).toHaveCount(5);
 
-        // Every variable is a plain <tr>, always in the DOM: no <details> to
-        // expand and no search box to narrow it (phase 7 replaced the
-        // filtered, collapsible layout with a flat, Ctrl-F-able page).
         const rows = page.locator('tr[data-vref-entry]');
         const totalRows = await rows.count();
         expect(totalRows).toBeGreaterThan(30);
         await expect(page.locator('details')).toHaveCount(0);
         await expect(page.locator('[data-vref-search]')).toHaveCount(0);
 
-        // A module reply's own field never leaked back onto this page.
         await expect(page.locator('tr#reward')).toHaveCount(0);
         await expect(page.locator('tr#input')).toHaveCount(0);
         await expect(page.locator('tr#tier')).toHaveCount(0);
@@ -523,8 +443,6 @@ test.describe('guides & command builder', () => {
         await expect(entry).toBeInViewport();
         expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 
-        // {2:}, {:2}, {2:4} are extra rows right under the canonical {1} row,
-        // each independently anchored (Entry.astro suffixes the owning id).
         await expect(page.locator('tr#positional-2')).toHaveCount(1);
         await expect(page.locator('tr#positional-3')).toHaveCount(1);
         await expect(page.locator('tr#positional-4')).toHaveCount(1);
@@ -542,29 +460,22 @@ test.describe('guides & command builder', () => {
         await page.goto('/command-builder');
         await page.waitForSelector('[data-builder][data-ready="1"]');
 
-        // Palette is scoped to what the bot actually expands for custom commands.
         const tokens = page.locator('[data-vars] .var code');
         await expect(tokens).toHaveCount(8);
         await expect(tokens.first()).toHaveText('{user}');
 
         await page.fill('[data-name]', 'greet');
         await page.fill('[data-template]', 'Hello ');
-        // Clicking a variable inserts at the cursor and refreshes the rehearsal.
         await page.click('[data-vars] .var:first-child');
         await expect(page.locator('[data-output]')).toHaveText('!cmd add greet Hello {user}');
-        // The rehearsal (ported dashboard ChatPreview) types for a beat, then
-        // replies with the sample highlighted in a <mark>.
         await expect(page.locator('[data-chat] .line.bot .msg.reply')).toHaveText('Hello maya_live');
         await expect(page.locator('[data-chat] .line.bot .msg.reply mark')).toHaveText('maya_live');
 
-        // The dashboard hand-off carries the whole draft.
         const href = await page.getAttribute('[data-send]', 'href');
         expect(href).toContain('dashboard.itsbagelbot.com/commands?compose=1');
         expect(href).toContain('name=greet');
         expect(href).toContain('perm=everyone');
 
-        // Multi-line responses outgrow a single chat message: the !cmd copy
-        // path steps aside, the dashboard path remains.
         await page.fill('[data-template]', 'line one\nline two');
         await expect(page.locator('[data-copy-wrap]')).toBeHidden();
         await expect(page.locator('[data-send-wrap]')).toBeVisible();
@@ -574,7 +485,6 @@ test.describe('guides & command builder', () => {
         await page.goto('/command-builder');
         await page.waitForSelector('[data-builder][data-ready="1"]');
 
-        // 7 lines typed -> clamped to the service's 5; 600 chars -> 500.
         await page.fill('[data-template]', 'a\nb\nc\nd\ne\nf\ng');
         await expect(page.locator('[data-template]')).toHaveValue('a\nb\nc\nd\ne');
         await page.fill('[data-template]', 'x'.repeat(600));

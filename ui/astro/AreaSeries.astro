@@ -2,20 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro twin of ../svelte/AreaSeries.svelte, for the `.bb-area` contract.
-//
-// The geometry is NOT reimplemented here: both adapters call
-// ../lib/area-series.ts, which is the whole reason this twin could be written
-// at all. The Svelte file used to say a second implementation in another
-// language was the drift this package exists to delete, and it was right —
-// so there is still only one.
-//
-// `uid` is REQUIRED here where the Svelte twin defaults it to $props.id().
-// Astro has no per-instance id generator that is stable across a render, and
-// a random one would make this element's markup non-deterministic, which
-// would put a moving value in a golden file. Making the caller name it also
-// makes the collision it prevents (two charts, one <defs> entry) visible at
-// the call site.
 import '../styles/elements/area-series.css';
 import {
     areaGeometry,
@@ -27,14 +13,10 @@ import {
 } from '../lib/area-series';
 
 interface Props {
-    /** One point per bucket, oldest first. Fewer than two draws nothing. */
     values: readonly number[];
-    /** Indices into `values` to mark in the gutter below the plot. */
     ticks?: readonly number[];
     ariaLabel: string;
-    /** Rendered height in CSS pixels; the viewBox is fixed, so this scales it. */
     height?: number;
-    /** Suffix for the gradient id. Required: see the note above. */
     uid: string;
     class?: string;
     [key: string]: unknown;

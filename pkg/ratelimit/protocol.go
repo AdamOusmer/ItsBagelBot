@@ -12,10 +12,6 @@ import (
 	"sort"
 )
 
-// Version 3 collapses the rollout modes: the quota-lease protocol is the sole
-// implementation, so the plan no longer carries a mode and members no longer
-// advertise a requested mode. Every member owns an equal share; no message is
-// routed by channel.
 const planVersion uint16 = 3
 
 type Member struct {

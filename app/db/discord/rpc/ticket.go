@@ -14,7 +14,6 @@ import (
 
 type ticketRPC struct{ repo TicketStore }
 
-// subscribeTickets registers the ticket-desk and transcript verbs.
 func subscribeTickets(w Wiring) error {
 	h := ticketRPC{repo: w.Repo}
 	return errors.Join(
@@ -28,7 +27,6 @@ func subscribeTickets(w Wiring) error {
 	)
 }
 
-// subscribeTranscripts registers the two transcript verbs.
 func subscribeTranscripts(w Wiring, h ticketRPC) error {
 	return errors.Join(
 		serve(w, discorddata.VerbTranscriptPut, h.transcriptPut),
@@ -45,9 +43,6 @@ func (h ticketRPC) open(ctx context.Context, req discorddata.TicketOpenRequest) 
 
 		PanelMessageID: req.PanelMessageID,
 	})
-	// The count travels even on a refusal: at CodeLimit it is how many
-	// tickets the opener already holds, which is what the ephemeral reply
-	// names back to them. So this one verb does not go through reply().
 	if err != nil {
 		return discorddata.TicketOpenReply{OpenCount: count, Refusal: refusal(err)}
 	}

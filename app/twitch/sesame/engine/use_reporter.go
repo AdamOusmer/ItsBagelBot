@@ -16,13 +16,8 @@ import (
 )
 
 const (
-	// useFlushInterval bounds the bus rate: a spammed zero-cooldown command
-	// costs one summed event per window instead of one per execution.
 	useFlushInterval = 5 * time.Second
 
-	// useMaxKeys caps the pending map. At the cap the reporter flushes early;
-	// if a flush is already running, further ticks for NEW keys are dropped
-	// (counters are loss-tolerant; protecting the worker's memory wins).
 	useMaxKeys = 1024
 )
 
@@ -31,9 +26,6 @@ type useKey struct {
 	name   string
 }
 
-// useReporter aggregates command-use ticks per (broadcaster, command) and
-// publishes summed data.commands.used events on a flush window. It is the
-// worker-side rate limiter for the counter pipeline.
 type useReporter struct {
 	pub  bus.Publisher
 	log  *zap.Logger
@@ -65,9 +57,6 @@ func newUseReporter(pub bus.Publisher, log *zap.Logger) *useReporter {
 	return r
 }
 
-// Record counts one execution. Never blocks the chat hot path: it takes a
-// short mutex, and at the map cap it either triggers an early flush or drops
-// the tick for a not-yet-tracked key.
 func (r *useReporter) Record(userID uint64, name string) {
 	if userID == 0 || name == "" {
 		return
@@ -84,7 +73,6 @@ func (r *useReporter) Record(userID uint64, name string) {
 	r.mu.Unlock()
 }
 
-// flush drains the pending sums and publishes one event per command.
 func (r *useReporter) flush(ctx context.Context) {
 	r.mu.Lock()
 	if len(r.pend) == 0 {
@@ -111,7 +99,6 @@ func (r *useReporter) flush(ctx context.Context) {
 	}
 }
 
-// Close stops the ticker and flushes what is pending.
 func (r *useReporter) Close() {
 	close(r.done)
 	r.flush(context.Background())

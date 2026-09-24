@@ -13,10 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The send-time floor guard: the bot must never SAY floor content, no matter
-// what a runtime variable injected into a saved-clean template. A module that
-// tries to emit a chat line carrying a floor term publishes nothing; a clean
-// line still goes out.
 func TestEmitGuardSuppressesFloorContent(t *testing.T) {
 	slur := moderation.EmbeddedLexicon().Terms(moderation.CatHate)[0]
 

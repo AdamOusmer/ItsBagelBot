@@ -3,8 +3,6 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
-  // Direct imports, not the barrel: this is the authed landing page's boot path
-  // (see routes/+layout.svelte).
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
@@ -35,7 +33,6 @@
     connectionPollSettled,
     type ConnectionPollGoal
   } from '$lib/connection-poll';
-  // AnsweredTonight aliased: the component import above owns the bare name.
   import type {
     StreamMeta,
     StreamCounters,
@@ -47,19 +44,11 @@
 
   const { t } = getI18n();
 
-  // Decorative bot avatar; premium swaps the mark. The status text beside it
-  // already names the state, so its alt stays empty (set in BotStatusPanel).
   const logo = $derived(data.isPremium ? '/premium-logo.png' : '/logo.png');
-  // A delegate browsing the owner's board sees the connection read-only: every
-  // enable/restart/disconnect action 403s for a delegate session server-side.
   const isDelegate = $derived(!!data.delegateOf);
 
-  // The awaited home connection: honest per-read signals + derived UI state.
   type Conn = { signals: ConnSignals; ui: ConnUi };
 
-  // Fold the live /substate poll (`sub`, when set) over the SSR signals and
-  // re-derive the same honest UI state the server computed. One mapping, one
-  // source of truth: the poll can't invent a state the server can't.
   function liveUi(c: Conn): ConnUi {
     return sub ? connectionUiState({ ...c.signals, sub: sub.state as ConnSignals['sub'] }) : c.ui;
   }
@@ -81,25 +70,12 @@
     greeting = greetingForHour(new Date().getHours());
   });
 
-  // The single clock for the whole page. StreamSection derives "3h 42m" from
-  // this rather than reading the time itself, which keeps every component in
-  // components/overview pure display (the convention the whole directory
-  // follows) and means one interval ticks instead of one per panel.
   let now = $state(Date.now());
   onMount(() => {
     const id = setInterval(() => (now = Date.now()), 1000);
     return () => clearInterval(id);
   });
 
-  // Live panels after the first paint. The SSR snapshot in `data` covers the
-  // initial render; /overview/stream then pushes a whole-lane snapshot every
-  // few seconds and the markup below prefers it over the awaited SSR value.
-  // These lanes are exactly the reads the invalidation bus does not cover
-  // (viewer counts, chat volume, the activity feed), so the layout's /events
-  // stream never re-fetches them: without this the panels freeze at their
-  // load-time values until a manual reload. Delegates never see the Overview
-  // and the endpoint rejects them; skip the connection rather than burn a
-  // retrying EventSource on a guaranteed 401.
   let live = $state<{
     stream: StreamMeta;
     counters: StreamCounters;
@@ -113,14 +89,11 @@
     es.addEventListener('live', (e) => {
       try {
         live = JSON.parse((e as MessageEvent).data);
-      } catch {
-        /* malformed frame: keep the last good snapshot */
-      }
+      } catch {}
     });
     return () => es.close();
   });
 
-  // Confirm modal state
   type PendingAction = 'restart' | 'disconnect' | null;
   let pending = $state<PendingAction>(null);
 
@@ -132,8 +105,6 @@
   );
   const modalAction = $derived(pending === 'restart' ? '?/restart' : '?/disconnect');
 
-  // Inline error surfaced inside the confirm modal when an action fails, so the
-  // modal stays open instead of closing on a rejected request.
   let actionError = $state('');
 
   function openModal(action: PendingAction) {
@@ -148,15 +119,8 @@
     pending = null;
   }
 
-  // Live enroll state. The SSR `conn` carries a one-shot snapshot; a reconnect
-  // resolves asynchronously in outgress, so we poll /substate to flip the pill
-  // from "reconnecting" to ok/failing without a manual refresh. `sub` (when set)
-  // overrides the server snapshot.
   let sub = $state<{ state: string; error: string } | null>(null);
   let actionBusy = $state(false);
-  // The running poll's stop handle, or null when nothing is polling. The loop
-  // itself (backoff, deadline, cancellation) is livePoll's; what stays here is
-  // the only interesting part, the settled predicate below.
   let stopPoll: (() => void) | null = null;
 
   function stopPolling(clearBusy = true) {
@@ -173,24 +137,16 @@
         sub = await r.json();
         return sub?.state ?? 'unknown';
       }
-    } catch {
-      /* transient; the next tick retries */
-    }
+    } catch {}
     return 'unknown';
   }
 
-  // Poll quickly while the ordinary 1-2s operation finishes, then back off.
-  // Disconnect has its own terminal state: the action response only proves the
-  // job was queued, so Enable stays locked until Outgress reports unenrolled.
   function startPolling(goal: ConnectionPollGoal) {
     stopPolling(false);
     actionBusy = true;
     const started = Date.now();
     let sawUnsettled = false;
 
-    // Elapsed is read AFTER the read lands, not before it: a slow /substate is
-    // itself part of the wait, and settling on the pre-fetch clock let a poll
-    // run one tick past its deadline.
     stopPoll = livePoll(
       async () => {
         const state = await refreshSub();
@@ -209,7 +165,6 @@
     );
   }
 
-  // Mark reconnecting immediately on user action, then poll to the outcome.
   function trackReconnect() {
     sub = { state: 'pending', error: '' };
     startPolling('connected');
@@ -218,17 +173,11 @@
   onMount(() => {
     refreshSub().then(async (state) => {
       if (state === 'pending') return startPolling('connected');
-      // The load-time self-heal reports 'pending' before outgress has written
-      // anything, so a fresh poll can still read 'unenrolled'. Poll through
-      // that gap only when the server said an enroll is actually in flight.
       if (state === 'unenrolled' && (await data.conn).signals.sub === 'pending') startPolling('connected');
     });
     return stopPolling;
   });
 
-  // A failed action must never look successful. Inspect the ActionResult:
-  // only `success` closes the modal and starts reconnect tracking; a failure
-  // keeps the modal open with an inline error (the RPC did not land).
   type Enhanced = {
     result: ActionResult;
     update: (opts?: { reset?: boolean; invalidateAll?: boolean }) => Promise<void>;
@@ -267,17 +216,12 @@
 </script>
 
 <section class="screen active">
-  <!-- 1. Compact head: the one <h1> (focus target) with greeting + channel.
-       `compact` is the contract's modifier; the local OverviewHead.svelte that
-       used to redraw this head at its own four sizes is gone. -->
   <PageHead
     compact
     eyebrow={t('overview.eyebrow')}
     description={t('overview.description')}
   >{greeting}, <em>{data.displayName ?? data.login}</em></PageHead>
 
-  <!-- 2. Bot status: the page anchor. Textual state (main's honest ConnUi) plus
-       the one recovery action that state needs. -->
   {#await data.conn}
     <BotStatusPanel loading logoSrc={logo} checkingText={t('overview.checking')} />
   {:then c}
@@ -296,8 +240,6 @@
     />
   {/await}
 
-  <!-- 3. This stream: the headline panel. Three independent reads, each of
-       which can be down on its own without blanking the others. -->
   {#await Promise.all([data.stream, data.counters, data.volume])}
     <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
       <span class="bb-sr-only">{t('overview.checking')}</span>
@@ -312,8 +254,6 @@
     />
   {/await}
 
-  <!-- 4. The working row: what the bot just did, beside the smaller reads that
-       answer "and is anything wrong". -->
   <OverviewGrid>
     {#snippet main()}
       {#await data.feed}
@@ -330,8 +270,6 @@
         <AnsweredTonight answered={live?.answered ?? answered} />
       {/await}
 
-      <!-- Only real, non-connection issues (guarded on the read having landed);
-           the connection story stays in the status panel. -->
       {#await Promise.all([data.commands, data.shares]) then [cd, sh]}
         <NeedsAttention
           active={cd.active}
@@ -342,7 +280,6 @@
         />
       {/await}
 
-      <!-- Each item a real link naming its count + destination. -->
       {#await Promise.all([data.commands, data.modules, data.conn, data.shares])}
         <SkeletonStack rows={4} height="56px" columns={2} />
       {:then [cd, md, c, sh]}
@@ -359,15 +296,12 @@
     {/snippet}
   </OverviewGrid>
 
-  <!-- 5. Quick actions: New command is the page's single primary CTA. -->
   {#await data.conn}
     <QuickActions />
   {:then c}
     <QuickActions needsAttention={liveUi(c).kind !== 'online'} />
   {/await}
 
-  <!-- 6. Established -> top commands; unreachable -> honest notice; incomplete ->
-       setup guidance. -->
   {#await Promise.all([data.commands, data.conn, data.modules])}
     <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
       <span class="bb-sr-only">{t('overview.checking')}</span>
@@ -375,8 +309,6 @@
     </section>
   {:then [cd, c, md]}
     {#if !cd.ok}
-      <!-- A failed read is not an empty account: surface the outage with a retry
-           rather than a misleading "create your first command". -->
       <section class="ov-top" aria-labelledby="ov-cmd-h">
         <h2 id="ov-cmd-h" class="ov-section-h">{t('overview.topCommands')}</h2>
         <Card>
@@ -397,7 +329,6 @@
   {/await}
 </section>
 
-<!-- Confirm modal -->
 <Modal open={pending !== null} title={modalTitle} closeModal={closeModal}>
   {#if pending !== null}
     <p class="modal-body">{modalBody}</p>
@@ -416,15 +347,10 @@
 </Modal>
 
 <style>
-  /* The working row (grid, rail spacing, collapse point) is OverviewGrid's, and
-     the loading runs are SkeletonStack's; what is left here is the margin that
-     keeps a streamed section on the page's own vertical rhythm while it waits. */
   .ov-loading {
     margin-bottom: var(--row-gap);
   }
 
-  /* Commands-unavailable notice shares the section heading rhythm with the
-     TopCommands / SetupProgress components it stands in for. */
   .ov-top {
     margin-bottom: var(--row-gap);
   }

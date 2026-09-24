@@ -15,8 +15,6 @@ import (
 
 type kindSet map[string]bool
 
-// readTree loads every file under dir the way the stages receive them from
-// the GitHub API: keyed by path relative to the fs root.
 func readTree(t *testing.T, fsys fs.FS, dir ports.FilePath) ports.Files {
 	t.Helper()
 	files := ports.Files{}
@@ -48,7 +46,6 @@ func testdataObjects(t *testing.T) ports.Objects {
 	return buildDir(t, os.DirFS("."), "testdata/k8s")
 }
 
-// refs renders objs as "Kind ns/name", keeping only kinds (all when empty).
 func refs(objs ports.Objects, kinds kindSet) []string {
 	out := []string{}
 	for _, o := range objs {
@@ -78,7 +75,6 @@ func find(t *testing.T, objs ports.Objects, ref ports.ObjectRef) *unstructured.U
 	return nil
 }
 
-// manifest is a minimal object for allowlist and apply tests.
 type manifest struct {
 	apiVersion string
 	kind       string

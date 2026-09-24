@@ -14,7 +14,7 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -59,7 +59,6 @@ func TestQuoteAddNumbersSequentially(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint64(2), second.Number)
 
-	// Another channel starts its own numbering.
 	other, err := repo.Add(ctx, 2002, repository.QuoteDraft{Text: "hello from elsewhere", AddedBy: "mod_bob"})
 	require.NoError(t, err)
 	assert.Equal(t, uint64(1), other.Number)
@@ -95,7 +94,6 @@ func TestQuoteGet(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found)
 
-	// Numbers are channel-scoped: another channel does not see #1.
 	_, found, err = repo.Get(ctx, 2002, saved.Number)
 	require.NoError(t, err)
 	assert.False(t, found)
@@ -119,7 +117,6 @@ func TestQuoteList(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, removed)
 
-	// Lowest number first, with the removed #2 absent (its hole preserved).
 	list, err = repo.List(ctx, 1001)
 	require.NoError(t, err)
 	require.Len(t, list, 2)
@@ -127,7 +124,6 @@ func TestQuoteList(t *testing.T) {
 	assert.Equal(t, "one", list[0].Text)
 	assert.Equal(t, uint64(3), list[1].Number)
 
-	// Scoped per channel.
 	other, err := repo.List(ctx, 2002)
 	require.NoError(t, err)
 	assert.Empty(t, other)
@@ -159,19 +155,16 @@ func TestQuoteSearch(t *testing.T) {
 	_, err = repo.Add(ctx, 1001, repository.QuoteDraft{Text: "the bagels are sentient", AddedBy: "mod_amy"})
 	require.NoError(t, err)
 
-	// Case-insensitive substring match.
 	got, found, err := repo.Search(ctx, 1001, "ferret")
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, uint64(1), got.Number)
 
-	// Multi-word terms match across word boundaries.
 	got, found, err = repo.Search(ctx, 1001, "are sentient")
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, uint64(2), got.Number)
 
-	// No match, blank term, and other channels all come back empty.
 	_, found, err = repo.Search(ctx, 1001, "walrus")
 	require.NoError(t, err)
 	assert.False(t, found)
@@ -197,17 +190,14 @@ func TestQuoteUpdate(t *testing.T) {
 	require.True(t, found)
 	assert.Equal(t, "the bagels", got.Text)
 	assert.Equal(t, saved.Number, got.Number)
-	// A zero CreatedAt keeps the saved date.
 	assert.Equal(t, saved.CreatedAt, got.CreatedAt)
 
-	// A chosen CreatedAt rewrites the day.
 	chosen := time.Date(2025, time.December, 24, 12, 0, 0, 0, time.UTC)
 	got, found, err = repo.Update(ctx, 1001, saved.Number, repository.QuoteUpdate{Text: "the bagels", CreatedAt: chosen})
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, "2025-12-24T12:00:00Z", got.CreatedAt)
 
-	// Missing number and other channels report found=false without writing.
 	_, found, err = repo.Update(ctx, 1001, 99, repository.QuoteUpdate{Text: "nope"})
 	require.NoError(t, err)
 	assert.False(t, found)
@@ -216,7 +206,6 @@ func TestQuoteUpdate(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found)
 
-	// Same validation boundary as Add.
 	_, _, err = repo.Update(ctx, 1001, saved.Number, repository.QuoteUpdate{Text: "   "})
 	assert.ErrorIs(t, err, repository.ErrQuoteEmpty)
 	_, _, err = repo.Update(ctx, 1001, saved.Number, repository.QuoteUpdate{Text: strings.Repeat("x", repository.QuoteTextMaxLen+1)})
@@ -238,7 +227,6 @@ func TestQuoteRemoveLeavesHole(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, found)
 
-	// #2 stays a hole; the next add continues past the highest number.
 	_, found, err = repo.Get(ctx, 1001, 2)
 	require.NoError(t, err)
 	assert.False(t, found)
@@ -247,7 +235,6 @@ func TestQuoteRemoveLeavesHole(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint64(4), next.Number)
 
-	// Removing an already-gone number reports not found.
 	found, err = repo.Remove(ctx, 1001, 2)
 	require.NoError(t, err)
 	assert.False(t, found)

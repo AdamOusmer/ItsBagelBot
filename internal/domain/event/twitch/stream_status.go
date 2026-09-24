@@ -8,15 +8,11 @@ import (
 	"strconv"
 )
 
-// StreamStatus holds the decoded stream state from a Twitch EventSub message.
 type StreamStatus struct {
 	BroadcasterID uint64
 	Live          bool
 }
 
-// eventSubEnvelope is a private struct that mirrors the Twitch EventSub wire
-// shape. It is used only inside DecodeStreamStatus so that Twitch JSON field
-// names stay within this package.
 type eventSubEnvelope struct {
 	Type         string `json:"type"`
 	Subscription struct {
@@ -34,10 +30,6 @@ func (e eventSubEnvelope) effectiveType() string {
 	return e.Subscription.Type
 }
 
-// DecodeStreamStatus parses a raw Twitch EventSub JSON payload and returns the
-// stream status. Only "stream.online" and "stream.offline" event types are
-// accepted; anything else returns (zero, false). Malformed JSON or an
-// unparseable broadcaster ID also returns (zero, false).
 func DecodeStreamStatus(raw []byte) (StreamStatus, bool) {
 	var env eventSubEnvelope
 	if err := codec.Unmarshal(raw, &env); err != nil {

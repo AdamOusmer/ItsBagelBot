@@ -16,20 +16,11 @@ import (
 	"ItsBagelBot/app/db/users/ent/tokens"
 )
 
-// tokensRPC serves the internal token verbs other services use to operate as
-// the bot account: outgress loads the bot's refresh token at renewal time and
-// writes the rotated one back, so a restart never resurrects a stale token.
-// Plaintext only ever transits these subjects; NATS authorization restricts
-// who may subscribe to them.
 type tokensRPC struct {
 	repo *repository.Users
 	log  *zap.Logger
 }
 
-// SubscribeTokens binds the token verbs as an ordered table. The map-and-loop
-// this replaced bound them in Go's randomised map order, so which subject came
-// up first differed run to run and a partial bind failure reported a different
-// verb each time.
 func SubscribeTokens(w Wiring, prefix string) error {
 	t := &tokensRPC{repo: w.Repo, log: w.Log}
 

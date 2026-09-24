@@ -59,21 +59,15 @@ func TestResolveTLSModeRejectsUnknownValue(t *testing.T) {
 	require.ErrorContains(t, err, "DB_TLS_MODE")
 }
 
-// --- VERIFY_CA: the mode the fleet runs today against the OCI service-defined,
-// SAN-less MySQL_Endpoint_CA. ---
-
 func TestRegisterTLSUsesPinnedCAWithoutHostnameVerification(t *testing.T) {
 	ca, caKey, cfg := registerTestCA(t, tlsModeVerifyCA, testDBAddr)
 	require.True(t, cfg.InsecureSkipVerify)
 	require.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
 	require.Empty(t, cfg.ServerName)
-	// The trusted pool lives inside the VerifyConnection closure, not on the
-	// config: VERIFY_CA never sets RootCAs directly.
 	require.Nil(t, cfg.RootCAs)
 	require.Nil(t, cfg.VerifyPeerCertificate)
 	require.NotNil(t, cfg.VerifyConnection)
 
-	// Steady state: a chain actually signed by the pinned CA verifies.
 	require.NoError(t, cfg.VerifyConnection(tls.ConnectionState{
 		PeerCertificates: testLeafChain(t, ca, caKey),
 	}))
@@ -82,11 +76,6 @@ func TestRegisterTLSUsesPinnedCAWithoutHostnameVerification(t *testing.T) {
 func TestVerifyCARejectsForgedCAWithCopiedSubjectDifferentKey(t *testing.T) {
 	_, _, cfg := registerTestCA(t, tlsModeVerifyCA, testDBAddr)
 
-	// The bypass the old rotatingTrust/adopt machinery made possible: an
-	// attacker cannot know the pinned CA's private key, but the subject DN is
-	// public, so they mint their own CA carrying the identical subject and
-	// self-sign it for free. There is no adoption path left to fall into; the
-	// chain simply fails to verify against the one pinned root.
 	forgedCA, forgedKey := testNamedCA(t, "MySQL_Endpoint_CA")
 	err := cfg.VerifyConnection(tls.ConnectionState{
 		PeerCertificates: testLeafChainWithCA(t, forgedCA, forgedKey),
@@ -99,11 +88,6 @@ func TestVerifyCARejectsForgedCAWithCopiedSubjectDifferentKey(t *testing.T) {
 func TestVerifyCARejectsCAReusingPinnedKeyButNotSigningLeaf(t *testing.T) {
 	_, caKey, cfg := registerTestCA(t, tlsModeVerifyCA, testDBAddr)
 
-	// The presented chain carries a CA reusing the pinned key as its trailing
-	// entry, but the leaf was actually signed by an unrelated CA. With no
-	// promotion logic left, this is rejected the same way any other
-	// unrecognised chain is: there is nothing special-cased about the pinned
-	// key showing up somewhere in the chain.
 	leafCA, leafKey, _ := testCA(t)
 	bystanderCA := selfSignWithKey(t, "MySQL_Endpoint_CA", caKey, 3)
 	chain := append(testLeafChain(t, leafCA, leafKey), bystanderCA)
@@ -126,9 +110,6 @@ func TestVerifyCARejectsEmptyPeerChain(t *testing.T) {
 	require.ErrorContains(t, cfg.VerifyConnection(tls.ConnectionState{}), "server presented no certificate")
 }
 
-// --- VERIFY_IDENTITY: the target mode once the DB System is switched to a
-// BYOC certificate carrying a SAN for its endpoint. ---
-
 func TestRegisterTLSVerifyIdentityBuildsStandardConfig(t *testing.T) {
 	addr := "db.internal.example:3306"
 	_, _, cfg := registerTestCA(t, tlsModeVerifyIdentity, addr)
@@ -137,7 +118,6 @@ func TestRegisterTLSVerifyIdentityBuildsStandardConfig(t *testing.T) {
 	require.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
 	require.Equal(t, "db.internal.example", cfg.ServerName)
 	require.NotNil(t, cfg.RootCAs)
-	// No custom hook: verification is Go's standard RootCAs + ServerName check.
 	require.Nil(t, cfg.VerifyPeerCertificate)
 	require.Nil(t, cfg.VerifyConnection)
 }
@@ -152,10 +132,6 @@ func TestVerifyIdentityAcceptsChainAndHostnameTogether(t *testing.T) {
 	addr := "db.internal.example:3306"
 	ca, caKey, cfg := registerTestCA(t, tlsModeVerifyIdentity, addr)
 
-	// registerTLS does not install a custom verifier for this mode; it relies
-	// on crypto/tls running the standard checks against RootCAs/ServerName at
-	// handshake time. Exercise those same primitives directly here to prove
-	// the config actually enables both the chain and the hostname check.
 	leaf := testLeafWithSAN(t, ca, caKey, "db.internal.example")
 	_, err := leaf.Verify(x509.VerifyOptions{Roots: cfg.RootCAs, DNSName: cfg.ServerName})
 	require.NoError(t, err)
@@ -180,8 +156,6 @@ func TestVerifyIdentityRejectsUnrelatedCA(t *testing.T) {
 	require.Error(t, err)
 }
 
-// --- Pinned CA expiry warning. ---
-
 func TestWarnIfPinnedCANearExpiryFiresInsideWindow(t *testing.T) {
 	logs := captureGlobalLogs(t)
 
@@ -203,10 +177,6 @@ func TestWarnIfPinnedCANearExpiryStaysQuietOutsideWindow(t *testing.T) {
 	require.Equal(t, 0, logs.Len())
 }
 
-// TestRegisterTLSEnablesSessionResumption covers both modes in one table
-// because the cache has to be attached on both paths: a nil
-// ClientSessionCache silently disables session tickets, which costs one round
-// trip (~34ms on the public NLB path) on every connect.
 func TestRegisterTLSEnablesSessionResumption(t *testing.T) {
 	modes := []tlsMode{tlsModeVerifyCA, tlsModeVerifyIdentity}
 
@@ -219,9 +189,6 @@ func TestRegisterTLSEnablesSessionResumption(t *testing.T) {
 	}
 }
 
-// TestNewMySQLConfigSetsNetworkTimeouts pins the three deadlines. Without
-// them, a connection blackholed by the NLB's idle drop hangs the next query
-// forever instead of failing.
 func TestNewMySQLConfigSetsNetworkTimeouts(t *testing.T) {
 	mc := newMySQLConfig(Config{Address: testDBAddr, Schema: "bagel_test"})
 
@@ -230,10 +197,6 @@ func TestNewMySQLConfigSetsNetworkTimeouts(t *testing.T) {
 	require.Equal(t, writeTimeout, mc.WriteTimeout)
 }
 
-// captureGlobalLogs swaps zap's global logger (what zap.L() resolves to, the
-// same global pkg/logger.New wires up via zap.ReplaceGlobals in every real
-// service) for an observed logger, and restores the previous global on
-// cleanup.
 func captureGlobalLogs(t *testing.T) *observer.ObservedLogs {
 	t.Helper()
 
@@ -244,9 +207,6 @@ func captureGlobalLogs(t *testing.T) *observer.ObservedLogs {
 	return logs
 }
 
-// registerTestCA pins a fresh test CA in the driver's TLS registry (with
-// cleanup) and returns the CA pair plus the registered config, so each test
-// starts from the same known trust state.
 func registerTestCA(t *testing.T, mode tlsMode, addr string) (*x509.Certificate, *ecdsa.PrivateKey, *tls.Config) {
 	t.Helper()
 	t.Cleanup(func() { mysql.DeregisterTLSConfig(tlsConfigName) })
@@ -285,8 +245,6 @@ func testNamedCA(t *testing.T, commonName string) (*x509.Certificate, *ecdsa.Pri
 	return testNamedCAWithValidity(t, commonName, time.Now().Add(time.Hour))
 }
 
-// testNamedCAWithValidity builds a self-signed CA with a caller-chosen
-// notAfter, used to drive the expiry warning across its threshold.
 func testNamedCAWithValidity(t *testing.T, commonName string, notAfter time.Time) (*x509.Certificate, *ecdsa.PrivateKey) {
 	t.Helper()
 
@@ -303,9 +261,6 @@ func testNamedCAWithValidity(t *testing.T, commonName string, notAfter time.Time
 	return issueTestCertificate(t, template, nil, nil)
 }
 
-// selfSignWithKey mints a self-signed CA certificate over an EXISTING key
-// pair rather than a fresh one, standing in for a chain entry that reuses the
-// pinned CA's key without being the actual issuer of the presented leaf.
 func selfSignWithKey(t *testing.T, commonName string, key *ecdsa.PrivateKey, serial int64) *x509.Certificate {
 	t.Helper()
 
@@ -326,8 +281,6 @@ func selfSignWithKey(t *testing.T, commonName string, key *ecdsa.PrivateKey, ser
 	return cert
 }
 
-// testLeafChainWithCA mirrors what the managed endpoint actually presents:
-// the server certificate followed by the CA that signed it.
 func testLeafChainWithCA(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey) []*x509.Certificate {
 	t.Helper()
 
@@ -350,9 +303,6 @@ func testLeafChain(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey) 
 	return []*x509.Certificate{cert}
 }
 
-// testLeafWithSAN mints a leaf certificate carrying a DNS SAN, standing in
-// for a BYOC certificate issued through the OCI Certificates Service: unlike
-// the service-defined certificate, it has a name VERIFY_IDENTITY can check.
 func testLeafWithSAN(t *testing.T, ca *x509.Certificate, caKey *ecdsa.PrivateKey, dnsName string) *x509.Certificate {
 	t.Helper()
 

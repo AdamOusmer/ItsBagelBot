@@ -2,17 +2,10 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Twitch.AppToken do
-  @moduledoc """
-  Holds the Twitch app access token (client-credentials grant) and refreshes it
-  before expiry. Conduit and shard management on Helix only needs the app
-  token; no per-user token is involved in keeping shards bound.
-  """
-
   use GenServer
   require Logger
 
   @token_url "https://id.twitch.tv/oauth2/token"
-  # Refresh this long before the reported expiry.
   @expiry_slack_ms 60_000
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -20,7 +13,6 @@ defmodule Ingress.Twitch.AppToken do
   @spec get() :: {:ok, String.t()} | {:error, term()}
   def get, do: GenServer.call(__MODULE__, :get, 15_000)
 
-  @doc "Drop the cached token (e.g. after Helix returned 401)."
   def invalidate, do: GenServer.cast(__MODULE__, :invalidate)
 
   @impl true

@@ -21,16 +21,12 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// bumpCall is one recorded CounterBumper call. broadcasterID is 0 for the
-// bot-scope (BumpBot) calls, matching the reserved namespace they land in.
 type bumpCall struct {
 	broadcasterID uint64
 	name          string
 	delta         int64
 }
 
-// fakeBumper records the flusher's bumps. The ticker goroutine and Close can
-// both drive it, so the slice takes a mutex.
 type fakeBumper struct {
 	mu  sync.Mutex
 	got []bumpCall
@@ -48,7 +44,6 @@ func (b *fakeBumper) BumpChannel(broadcasterID uint64, name string, delta int64)
 	b.got = append(b.got, bumpCall{broadcasterID: broadcasterID, name: name, delta: delta})
 }
 
-// channelCalls returns the per-channel bumps keyed by broadcaster and name.
 func (b *fakeBumper) channelCalls() map[uint64]map[string]int64 {
 	out := map[uint64]map[string]int64{}
 	for _, c := range b.calls() {
@@ -69,8 +64,6 @@ func (b *fakeBumper) calls() []bumpCall {
 	return append([]bumpCall(nil), b.got...)
 }
 
-// statsPipeline builds a pipeline with the stats flusher armed, registered for
-// cleanup so the goroutine never outlives the test.
 func statsPipeline(t *testing.T, bumper CounterBumper) *Pipeline {
 	t.Helper()
 	d := Deps{
@@ -105,8 +98,6 @@ func TestProcessCountsChatAsMessageAndEvent(t *testing.T) {
 	assert.Equal(t, int64(1), p.stats.messages.Load())
 }
 
-// The same envelope also lands on its own channel's tally: the public board
-// ranks channels, so every counted line has to carry its broadcaster.
 func TestProcessCountsPerChannel(t *testing.T) {
 	p := statsPipeline(t, &fakeBumper{})
 
@@ -121,8 +112,6 @@ func TestProcessCountsPerChannel(t *testing.T) {
 	assert.Equal(t, int64(1), tally.messages)
 }
 
-// A non-chat envelope with no registered handler is filtered by eligible(), and
-// still counts as an event: the total is "everything sesame decoded".
 func TestProcessCountsFilteredEventOnly(t *testing.T) {
 	p := statsPipeline(t, &fakeBumper{})
 
@@ -139,8 +128,6 @@ func TestProcessCountsNothingForMalformedEnvelope(t *testing.T) {
 	assert.Zero(t, p.stats.messages.Load())
 }
 
-// A pipeline without a stats sink starts no flusher, and the hot path stays a
-// no-op call rather than a nil dereference.
 func TestProcessWithoutStatsSink(t *testing.T) {
 	p := newPipelineWith(&fakePublisher{}, fakeReader{}, emitModule("", module.KindCore, "pong"))
 	require.Nil(t, p.stats)
@@ -153,7 +140,7 @@ func TestBotStatsFlushBumpsAndResets(t *testing.T) {
 	s.count(0, true)
 	s.count(0, true)
 	s.count(0, false)
-	s.Close() // flushes the remainder
+	s.Close()
 
 	calls := bumper.calls()
 	require.Len(t, calls, 2)
@@ -161,23 +148,15 @@ func TestBotStatsFlushBumpsAndResets(t *testing.T) {
 	for _, c := range calls {
 		byName[c.name] = c
 	}
-	// The reserved-namespace shape (broadcaster 0, bot scope) is BumpBot's job,
-	// proven against the real reporter in TestBotStatsBumpsPassReporterGuard.
 	assert.Equal(t, int64(3), byName[counterEventsProcessed].delta)
 	assert.Equal(t, int64(2), byName[counterMessagesProcessed].delta)
 
-	// The swap reset both totals: an idle window bumps nothing.
 	assert.Zero(t, s.events.Load())
 	assert.Zero(t, s.messages.Load())
 	s.flush()
 	assert.Len(t, bumper.calls(), 2)
 }
 
-// The counting the hot path pays for must stay free of allocation: two atomics
-// plus one map lookup under a mutex, and no allocation once the channel's tally
-// exists (the first line of a channel allocates that one row, which AllocsPerRun
-// absorbs in its warm-up call). Guards the same structural regression the
-// pipeline's alloc ceiling does, one level down.
 func TestBotStatsCountAllocFree(t *testing.T) {
 	s := newBotStats(&fakeBumper{})
 	t.Cleanup(s.Close)
@@ -187,8 +166,6 @@ func TestBotStatsCountAllocFree(t *testing.T) {
 	}
 }
 
-// The per-channel tally is a flush window, not a lifetime total: it is handed
-// to the reporter and reset, so an idle channel bumps nothing on the next pass.
 func TestBotStatsFlushBumpsChannelsAndResets(t *testing.T) {
 	bumper := &fakeBumper{}
 	s := newBotStats(bumper)
@@ -208,8 +185,6 @@ func TestBotStatsFlushBumpsChannelsAndResets(t *testing.T) {
 	assert.Len(t, bumper.calls(), before)
 }
 
-// The map cap is a memory backstop: a channel it turns away is dropped for the
-// window rather than growing the map without bound.
 func TestBotStatsChannelCapDropsNewChannels(t *testing.T) {
 	s := newBotStats(&fakeBumper{})
 	t.Cleanup(s.Close)
@@ -225,8 +200,6 @@ func TestBotStatsChannelCapDropsNewChannels(t *testing.T) {
 	assert.NotContains(t, s.channels, uint64(channelStatsMaxKeys+1))
 }
 
-// The reporter's own guard must accept what the flusher sends: broadcaster 0
-// paired with bot scope is the only shape it lets through.
 func TestBotStatsBumpsPassReporterGuard(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
@@ -243,9 +216,6 @@ func TestBotStatsBumpsPassReporterGuard(t *testing.T) {
 	assert.Len(t, dto.Bumps, 2)
 }
 
-// The channel half of the same guard: a per-channel bump must reach the wire as
-// a channel-scope counter under the broadcaster's own id, which is the only
-// shape the reporter lets through for a non-zero broadcaster.
 func TestBotStatsChannelBumpsPassReporterGuard(t *testing.T) {
 	pub := &rawPublisher{}
 	r := NewLoyaltyReporter(pub, zap.NewNop())
@@ -255,7 +225,7 @@ func TestBotStatsChannelBumpsPassReporterGuard(t *testing.T) {
 	r.Close()
 
 	published := pub.payloads[data.SubjectLoyaltyCounters]
-	require.Len(t, published, 2) // one per broadcaster: the fleet namespace and 123
+	require.Len(t, published, 2)
 	scopes := map[uint64][]string{}
 	for _, payload := range published {
 		var dto data.CounterBumpedDTO
@@ -268,8 +238,6 @@ func TestBotStatsChannelBumpsPassReporterGuard(t *testing.T) {
 	assert.Equal(t, []string{data.CounterScopeChannel, data.CounterScopeChannel}, scopes[123])
 }
 
-// The pipeline never counts a projection failure away: the nacked envelope
-// still decoded, so it belongs to the lifetime total.
 func TestProcessCountsEnvelopeBeforeModuleViews(t *testing.T) {
 	d := Deps{
 		Proj:     fakeReader{modErr: errors.New("projection down")},
@@ -279,8 +247,6 @@ func TestProcessCountsEnvelopeBeforeModuleViews(t *testing.T) {
 		Log:      zap.NewNop(),
 		Stats:    &fakeBumper{},
 	}
-	// A name-gated module is what makes the pipeline read the module views at
-	// all, so the read failure can reach the ack decision.
 	reg := NewRegistry(zap.NewNop(), emitModule("greeter", module.KindDefault, "pong"))
 	p := NewPipeline(d, reg, Config{OutgressStandard: standardSubj})
 	t.Cleanup(p.Close)
@@ -290,10 +256,6 @@ func TestProcessCountsEnvelopeBeforeModuleViews(t *testing.T) {
 	assert.Equal(t, int64(1), p.stats.messages.Load())
 }
 
-// ---- automod detection flags -----------------------------------------------
-
-// Every verdict rule the automod emits must land on its named bucket, with
-// escalation suffixes folded onto the base rule.
 func TestFlagBucketClassification(t *testing.T) {
 	tests := []struct {
 		rule string
@@ -310,13 +272,11 @@ func TestFlagBucketClassification(t *testing.T) {
 		{"lex:harassment:kys", "lex_harassment"},
 		{"lex:sexual:x", "lex_sexual"},
 		{"lex:profanity:x", "lex_profanity"},
-		// Suffix folding: campaign/reputation escalation appends to base rules.
 		{"scam+repeat", "scam"},
 		{"heuristic+campaign", "heuristic"},
 		{"lex:harassment:x+repeat", "lex_harassment"},
 		{"scam+campaign+repeat", "scam"},
 		{"council:campaign+repeat", "council_campaign"},
-		// Anything unrecognized folds into other rather than growing the set.
 		{"mystery:rule:x", "other"},
 	}
 	for _, tc := range tests {
@@ -336,7 +296,7 @@ func TestFlagVerdictCountersAccuracy(t *testing.T) {
 		ops          []flagOp
 		wantTotal    int64
 		wantEnforced int64
-		wantRules    map[string]int64 // bucket name -> delta
+		wantRules    map[string]int64
 		wantChan     map[uint64][2]int64
 	}{
 		{
@@ -344,7 +304,7 @@ func TestFlagVerdictCountersAccuracy(t *testing.T) {
 			ops: []flagOp{
 				{123, "scam", true},
 				{123, "heuristic", false},
-				{0, "council:campaign", true}, // unreadable channel: fleet only
+				{0, "council:campaign", true},
 				{456, "lex:harassment:kys+repeat", true},
 			},
 			wantTotal:    4,
@@ -392,8 +352,6 @@ func TestFlagVerdictCountersAccuracy(t *testing.T) {
 	}
 }
 
-// The bucket set is closed over the known rules plus other, and stays inside
-// the documented slot bound; a flood of unknown rule strings cannot grow it.
 func TestFlagBucketsRespectSlotCap(t *testing.T) {
 	assert.LessOrEqual(t, int(bktCount), flagRuleSlotCap)
 
@@ -413,8 +371,6 @@ func TestFlagBucketsRespectSlotCap(t *testing.T) {
 	}
 }
 
-// A channel turned away by the full map is dropped from the per-channel flag
-// split too, not smuggled in through the verdict path.
 func TestFlagChannelCapDropsNewChannels(t *testing.T) {
 	s := newBotStats(&fakeBumper{})
 	t.Cleanup(s.Close)
@@ -430,11 +386,6 @@ func TestFlagChannelCapDropsNewChannels(t *testing.T) {
 	assert.NotContains(t, s.channels, uint64(channelStatsMaxKeys+1))
 }
 
-// The fleet flush surfaces the flag window as log fields only. The per-rule
-// split must never become a counter (rule names churn, so each new one would
-// mint an unprotected counter name); the enforced TOTAL is exempt because
-// mod_actions is a registered SystemCounter and the Overview reads it per
-// channel.
 func TestFlagFlushLogsFleetFieldsNotCounters(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	bumper := &fakeBumper{}
@@ -471,7 +422,6 @@ func TestFlagFlushLogsFleetFieldsNotCounters(t *testing.T) {
 	}
 }
 
-// An empty window logs nothing at all.
 func TestFlagFlushSkipsIdleWindow(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	s := newBotStats(&fakeBumper{}, zap.New(core))
@@ -479,13 +429,11 @@ func TestFlagFlushSkipsIdleWindow(t *testing.T) {
 	assert.Empty(t, logs.All())
 }
 
-// The per-channel flush lists every channel that saw verdicts, with its own
-// total/enforced split; unflagged channels stay off the line.
 func TestFlagFlushLogsChannelFields(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	s := newBotStats(&fakeBumper{}, zap.New(core))
 
-	s.count(999, true) // traffic without verdicts: never listed
+	s.count(999, true)
 	s.flag(123, "scam", true)
 	s.flag(123, "heuristic", false)
 	s.flag(456, "lex:sexual:x", false)

@@ -20,13 +20,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// builtinName is one of the two built-ins this file exercises.
-//
-// It is a defined type, and the two spellings are constants, because the same
-// name has to key three different things — the command in the module, the
-// projection row the toggle test writes, and the case in each table — and a
-// typo in any one of them fails as "command not found" rather than as the
-// mismatch it is.
 type builtinName string
 
 const (
@@ -34,8 +27,6 @@ const (
 	accountAgeBuiltin builtinName = "accountage"
 )
 
-// builtinCommand pulls one command by name out of the followage built-in
-// module, shared by the !followage and !accountage tests.
 func builtinCommand(t *testing.T, d engine.Deps, name builtinName) module.Command {
 	t.Helper()
 	for _, cmd := range Followage(d).Commands {
@@ -64,9 +55,6 @@ func (f *fakeFollowage) Lookup(_ context.Context, broadcasterID, targetID, targe
 	return f.result, f.err
 }
 
-// TestBuiltinDefaultsToChatter runs both commands with no argument and asserts
-// each looks up the chatter (id "9"), replies with its formatted line, and
-// carries the 15s cooldown.
 func TestBuiltinDefaultsToChatter(t *testing.T) {
 	cases := []struct {
 		name     builtinName
@@ -114,9 +102,6 @@ func TestFollowageAcceptsTargetLogin(t *testing.T) {
 	assert.Equal(t, "@Other is not following this channel.", col.out[0].Text)
 }
 
-// TestBuiltinLookupFailureRepliesUnavailable and TestBuiltinToggleSuppresses
-// cover both !followage and !accountage in one table each: the two commands
-// share the same failure and toggle behavior, only the wiring differs.
 func TestBuiltinLookupFailureRepliesUnavailable(t *testing.T) {
 	cases := []struct {
 		name builtinName

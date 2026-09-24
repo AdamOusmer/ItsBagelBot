@@ -13,7 +13,7 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,11 +26,6 @@ func setupPersonality(t *testing.T) (*ent.Client, *repository.Personality) {
 	return client, repository.NewPersonality(client)
 }
 
-// The very first feeding must create both the single fleet-wide row and the
-// feeding channel's row; every one after that increments them. (True
-// concurrency on the first feed is covered by the retry loop and MySQL's
-// atomic UPDATE; sqlite serializes writers, so this test keeps to the
-// deterministic paths.)
 func TestFeedBumpCreatesThenCounts(t *testing.T) {
 	_, repo := setupPersonality(t)
 	ctx := context.Background()
@@ -57,8 +52,6 @@ func TestFeedBumpIncrementsExistingRow(t *testing.T) {
 	assert.Zero(t, totals.Rank)
 }
 
-// The fleet-wide total counts every channel's feedings; each channel row
-// counts only its own, and the rank follows the counts.
 func TestFeedBumpSplitsFleetTotalFromChannelCounts(t *testing.T) {
 	_, repo := setupPersonality(t)
 	ctx := context.Background()
@@ -75,8 +68,6 @@ func TestFeedBumpSplitsFleetTotalFromChannelCounts(t *testing.T) {
 	assert.Equal(t, uint64(2), totals.Rank, "one channel has fed more")
 }
 
-// A rename follows the channel; a feeding that carries no name leaves the
-// stored one alone rather than blanking the leaderboard entry.
 func TestFeedBumpTracksNameWithoutErasingIt(t *testing.T) {
 	_, repo := setupPersonality(t)
 	ctx := context.Background()
@@ -123,8 +114,6 @@ func TestFeedBoardRanksHighestFirstAndHonoursLimit(t *testing.T) {
 	assert.Equal(t, uint64(3), ranked)
 }
 
-// The leaderboard read never feeds the bagel, and an unknown channel reads as
-// unranked rather than erroring.
 func TestFeedChannelReadsStandingWithoutBumping(t *testing.T) {
 	_, repo := setupPersonality(t)
 	ctx := context.Background()

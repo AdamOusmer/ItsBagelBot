@@ -16,11 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The gate is the one check standing between a broadcaster-authored URL and a
-// dial. Its string half pins transport shape (scheme, port, host presence)
-// and literal-IP classification; NAMES are deliberately not judged here —
-// every name, however spelled, ends at resolveAllowed/classifyAddr where the
-// single address invariant lives.
 func TestSSRFCheck(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -46,8 +41,6 @@ func TestSSRFCheck(t *testing.T) {
 		{"ipv6 linklocal bracketed", "https://[fe80::1]/x", false},
 		{"ipv6 any", "https://[::]/x", false},
 		{"ipv6 zone host is not a dns name", "https://[fe80::1%25eth0]/x", false},
-		// Names pass the string gate by design — their ADDRESSES are judged at
-		// resolution/dial time, so no naming convention can outrun the rule:
 		{"internal-suffix name defers to dial-time truth", "https://vault.internal/x", true},
 		{"svc name defers to dial-time truth", "https://valkey.cache.svc.cluster.local/x", true},
 		{"bare single-label name defers to dial-time truth", "https://valkey/x", true},
@@ -68,8 +61,6 @@ func TestSSRFCheck(t *testing.T) {
 	}
 }
 
-// mustURL parses a fixture or fails the test; every row above is static and
-// well-formed.
 func mustURL(t *testing.T, raw string) *url.URL {
 	t.Helper()
 	u, err := url.Parse(raw)
@@ -84,29 +75,14 @@ func mustRequest(t *testing.T, u *url.URL) *http.Request {
 	return req
 }
 
-// The denylist matches whole labels only in spirit but is implemented as
-// suffix match after lowering; this pins the one dangerous overlap — a legit
-// host that merely CONTAINS a denied word ("notlocalhost.example") stays
-// dialable while every real denial shape still trips.
-// The suffix-list era is over: names are no longer string-matched anywhere,
-// so the old "denylist is whole-label" property moved to classification —
-// pinned here in its new home. A name that merely CONTAINS a local word but
-// resolves public stays dialable; the address decides.
 func TestNameRulesAreGoneClassificationDecides(t *testing.T) {
 	require.NoError(t, SSRFCheck(mustURL(t, "https://notlocalhost.example/x")))
 }
 
-// classifyAddr is the entire gate reduced to one predicate: allow GLOBAL
-// UNICAST, refuse everything else. The table pins the blocked space (loopback,
-// unspecified, RFC1918, ULA, v4/v6 link-local incl. cloud metadata, multicast
-// flavors, CGNAT, benchmarking, TEST-NETs, reserved/limited-broadcast,
-// discard-only, Teredo, documentation) AND the translation wrappers a hostile
-// author hides behind — NAT64, 6to4, IPv4-mapped — whose embedded IPv4 must
-// be re-judged, not taken at face value.
 func TestClassifyAddrAllowsOnlyGlobalUnicast(t *testing.T) {
 	for _, tc := range []struct {
 		ip   string
-		want bool // true = dialable
+		want bool
 	}{
 		{"127.0.0.1", false},
 		{"::1", false},
@@ -115,34 +91,31 @@ func TestClassifyAddrAllowsOnlyGlobalUnicast(t *testing.T) {
 		{"10.0.0.5", false},
 		{"172.16.31.9", false},
 		{"192.168.1.1", false},
-		{"169.254.169.254", false}, // cloud metadata
+		{"169.254.169.254", false},
 		{"fe80::1", false},
-		{"fc00::5", false}, // ULA
+		{"fc00::5", false},
 		{"fd12:3456::1", false},
-		{"224.0.0.1", false},        // v4 multicast
-		{"ff02::1", false},          // link-local multicast
-		{"ff01::2", false},          // interface-local multicast
-		{"100.64.7.9", false},       // CGNAT
-		{"198.18.5.5", false},       // benchmarking
-		{"192.0.2.77", false},       // TEST-NET-1
-		{"198.51.100.10", false},    // TEST-NET-2
-		{"203.0.113.99", false},     // TEST-NET-3
-		{"240.1.2.3", false},        // reserved
-		{"255.255.255.255", false},  // limited broadcast
-		{"100::1", false},           // discard-only
-		{"2001:db8::20", false},     // documentation
-		{"2001::4240", false},       // Teredo
-		{"::ffff:127.0.0.1", false}, // mapped loopback
-		{"::ffff:10.0.0.9", false},  // mapped RFC1918
-		{"64:ff9b::7f00:1", false},  // NAT64 wrapping 127.0.0.1
-		{"2002:a00:1::", false},     // 6to4 wrapping 10.0.0.1
-		// 6to4 embeds its IPv4 in bits 16-48 (RFC 3056), NOT the low 32: the
-		// decoy low bytes here read 8.8.8.8 while the wrapped address is
-		// 10.0.0.1 — the shape the wrong-byte extraction bug allowed through.
+		{"224.0.0.1", false},
+		{"ff02::1", false},
+		{"ff01::2", false},
+		{"100.64.7.9", false},
+		{"198.18.5.5", false},
+		{"192.0.2.77", false},
+		{"198.51.100.10", false},
+		{"203.0.113.99", false},
+		{"240.1.2.3", false},
+		{"255.255.255.255", false},
+		{"100::1", false},
+		{"2001:db8::20", false},
+		{"2001::4240", false},
+		{"::ffff:127.0.0.1", false},
+		{"::ffff:10.0.0.9", false},
+		{"64:ff9b::7f00:1", false},
+		{"2002:a00:1::", false},
 		{"2002:a00:1::808:808", false},
-		{"2002:5db8:d822::", true}, // 6to4 wrapping public 93.184.216.34 dials
-		{"64:ff9b::a2b:1", false},  // NAT64 wrapping 10.43.0.1 (k3s svc CIDR)
-		{"93.184.216.34", true},    // public unicast dials
+		{"2002:5db8:d822::", true},
+		{"64:ff9b::a2b:1", false},
+		{"93.184.216.34", true},
 		{"2606:2800:220:1:248:1893:25c8:1946", true},
 	} {
 		err := classifyAddr(netip.MustParseAddr(tc.ip))
@@ -154,17 +127,10 @@ func TestClassifyAddrAllowsOnlyGlobalUnicast(t *testing.T) {
 	}
 }
 
-// The guard holds under the one attack shape no name rule can see: rebinding.
-// "localhost" resolves to loopback on every platform, so its NAME passes any
-// string heuristic while guardedDialContext must still refuse it — and pin
-// the refusal as policy (ErrBlockedAddress), not transport noise.
 func TestGuardedDialRefusesLoopbackResolution(t *testing.T) {
 	if allowPlainHTTPUpstreamsForTests.Load() {
 		t.Skip("gate disabled by another test's escape hatch")
 	}
-	// "localhost" always resolves to loopback on every platform; the name
-	// rules would have caught it too, so use a form they cannot: an IP is
-	// checked directly, proving the literal path also validates.
 	_, err := guardedDialContext(context.Background(), "tcp", net.JoinHostPort("127.0.0.1", "443"))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "blocked")
@@ -201,9 +167,6 @@ func TestRedirectPolicy(t *testing.T) {
 	})
 }
 
-// Lane wiring: direct rides the shared transport, warp rides its own SOCKS
-// transport, and ProviderClient is the single exported constructor both go
-// through.
 func TestLaneTransportSelection(t *testing.T) {
 	direct := newHTTPClient(LaneDirect, "https://a.invalid", nil, 0)
 	warp := newHTTPClient(LaneWARP, "https://a.invalid", nil, 0)
@@ -215,11 +178,6 @@ func TestLaneTransportSelection(t *testing.T) {
 		"the warp lane must own its dialing or it would not proxy at all")
 }
 
-// The WARP transport carries over everything the shared transport was tuned
-// for: the h2 health-check pair (a dead tunnel is indistinguishable from a
-// dead direct connection), the idle window sized for chat-burst gaps, the h1
-// fallback pool sizing, and ForceAttemptHTTP2 (TLS terminates at the origin
-// through the tunnel, so ALPN still negotiates h2 despite the custom dialer).
 func TestWARPTransportCarriesSharedTuning(t *testing.T) {
 	tr := newWARPTransport()
 
@@ -233,14 +191,9 @@ func TestWARPTransportCarriesSharedTuning(t *testing.T) {
 	assert.Equal(t, sharedTransport.MaxIdleConnsPerHost, tr.MaxIdleConnsPerHost)
 }
 
-// Fail-closed: with nothing listening on the sidecar's loopback port, a WARP
-// request surfaces typed ErrWARPDown and NEVER falls back to a direct dial.
-// The target is a PUBLIC IP literal, so classification passes and the dial
-// reaches the dead listener — proving the failure is the TUNNEL, not the
-// gate, and that nothing falls back to direct egress either way.
 func TestWARPLaneFailsClosedWhenSidecarDown(t *testing.T) {
 	prev := warpProxyAddr
-	warpProxyAddr = "127.0.0.1:1" // reserved port: connection refused, instantly
+	warpProxyAddr = "127.0.0.1:1"
 	t.Cleanup(func() { warpProxyAddr = prev })
 
 	c := newHTTPClient(LaneWARP, "https://93.184.216.34", nil, time.Second)
@@ -253,10 +206,6 @@ func TestWARPLaneFailsClosedWhenSidecarDown(t *testing.T) {
 		"a refused listener must fail fast, not burn the budget")
 }
 
-// The health check reads the same listener the WARP lane dials, and reports
-// the same typed error, so /status and a failing fetch name one cause. A bound
-// listener passing is the whole positive claim — the check deliberately proves
-// nothing about the tunnel behind it.
 func TestWARPReachable(t *testing.T) {
 	prev := warpProxyAddr
 	t.Cleanup(func() { warpProxyAddr = prev })
@@ -270,7 +219,7 @@ func TestWARPReachable(t *testing.T) {
 	defer cancel()
 	require.NoError(t, WARPReachable(ctx), "a bound listener is reachable")
 
-	warpProxyAddr = "127.0.0.1:1" // reserved port: connection refused, instantly
+	warpProxyAddr = "127.0.0.1:1"
 	err = WARPReachable(ctx)
 	require.ErrorIs(t, err, ErrWARPDown)
 	assert.NotErrorIs(t, err, context.DeadlineExceeded,

@@ -12,11 +12,6 @@ export const QUEUE_MODULE: ModuleDef =
     'Viewers type !join to get in line and !list to see who is next (the first 10). You (and your mods) run the line from chat: !queue open and !queue close accept or stop new joins, !queue next pulls up the next player, !queue remove <user> takes someone out, and !queue clear empties it. Viewers can step out any time with !leave. Turn the module on to enable the commands; the line survives closing so you can play through everyone already waiting.',
   category: 'Play',
   defaultEnabled: false,
-  // The conversational replies are customizable per broadcaster; the roster
-  // (!list), the status readout and the system/error lines stay fixed (see
-  // app/twitch/sesame/modules/queue.go). The command list below is read-only. Each
-  // reply rehearses as its command (a viewer types the trigger, the bot
-  // answers) with this reply's own sample values.
   replies: [
     {
       key: 'join',
@@ -26,10 +21,6 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'join',
       messageKey: 'joinMessage',
       defaultMessage: '@{user} you joined the queue at position #{pos}.',
-      // {channel}: every queue reply goes through chatReplier.reply
-      // (app/twitch/sesame/modules/reply.go), which composes module.Common
-      // ahead of its own kv pairs, so {channel} (the broadcaster's login)
-      // resolves here too even though this template's own kv only names pos.
       tokens: replyTokens(
         ['user', 'pos', 'channel'],
         { user: 'sesame_sam', pos: '3', channel: 'streamer' },
@@ -64,8 +55,6 @@ export const QUEUE_MODULE: ModuleDef =
       command: 'queue next',
       messageKey: 'nextMessage',
       defaultMessage: '@{target} you are up next! ({count} still waiting)',
-      // {user}/{channel}: Common's pair, resolved through chatReplier.reply
-      // the same way queue.join's {channel} is (see that entry's comment).
       tokens: replyTokens(
         ['target', 'count', 'user', 'channel'],
         { target: 'ferret_king', count: '2', user: 'sesame_sam', channel: 'streamer' },

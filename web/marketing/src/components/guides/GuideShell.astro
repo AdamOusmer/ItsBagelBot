@@ -4,17 +4,6 @@
 
 import Tag from '@bagel/ui/astro/Tag.astro';
 
-/**
- * GuideShell: long-form visual guides that respect the reader. Same reading
- * contract as LegalShell (sticky scrollspy TOC) with a
- * guide-specific vocabulary: numbered sections, an optional "at a glance"
- * note per section, a breadcrumb back to the hub, and a prev/next pager so a
- * reader can walk the whole handbook without returning to the hub.
- * Sections arrive whole (id, heading, note, blocks) from a content file and
- * GuideBody renders each body. They used to come in as named slots; a dynamic
- * `slot={section.id}` inside a .map is not resolvable by the compiler and
- * threw "section is not defined" at build time, so the body is a prop now.
- */
 import TextLink from '@bagel/ui/astro/TextLink.astro';
 import GuideBody from './GuideBody.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
@@ -23,9 +12,7 @@ import type { Block } from '../../lib/guides/types';
 interface Section {
     id: string;
     heading: string;
-    /** One-line takeaway shown in the tinted callout under the heading. */
     note?: string;
-    /** The section body, from the guide's content file. */
     blocks: Block[];
 }
 
@@ -36,7 +23,6 @@ interface Pager {
 
 interface Props {
     sections: Section[];
-    /** Approximate reading time, already localized ("8 min read"). */
     minutes?: string;
     prev?: Pager;
     next?: Pager;
@@ -118,8 +104,6 @@ const hubHref = localizePath('/guides', lang);
         padding: 0 24px 96px;
     }
 
-    /* ── Layout ── */
-
     .gshell__grid {
         display: grid;
         grid-template-columns: 1fr;
@@ -132,8 +116,6 @@ const hubHref = localizePath('/guides', lang);
             gap: 72px;
         }
     }
-
-    /* ── TOC ── */
 
     .gshell__toc { display: none; }
 
@@ -207,8 +189,6 @@ const hubHref = localizePath('/guides', lang);
 
     .gshell__toc ul a.is-current::before { transform: scaleY(1); }
 
-    /* ── Content ── */
-
     .gshell__content { max-width: 780px; min-width: 0; }
 
     .gshell__meta {
@@ -269,16 +249,11 @@ const hubHref = localizePath('/guides', lang);
         margin: 0 0 18px;
     }
 
-    /* .bb-tag--bare carries the mono/uppercase treatment now. */
     .gshell__glance-tag {
         color: var(--green-glow, #52b788);
         margin-right: 8px;
     }
 
-    /* Body typography for slotted content. */
-
-    /* :not([class]) keeps this off embedded components (ChatMock lines,
-       DashFrame legends, callouts) whose scoped sizes it would out-rank. */
     .gshell__block :global(p:not([class])),
     .gshell__block :global(ul:not([class])),
     .gshell__block :global(ol:not([class])) {
@@ -305,9 +280,6 @@ const hubHref = localizePath('/guides', lang);
         margin: 30px 0 10px;
     }
 
-    /* Prose links wrap mid-paragraph, so they can't glyph-roll like TextLink;
-       they share its ember rail instead, the same tan-to-green sweep, drawn
-       with a background gradient so it follows line breaks. */
     .gshell__block :global(a) {
         color: var(--tan, #c9a87c);
         background-image: linear-gradient(
@@ -337,8 +309,6 @@ const hubHref = localizePath('/guides', lang);
         padding: 2px 6px;
         white-space: nowrap;
     }
-
-    /* Reference tables (variables, commands, limits). */
 
     .gshell__block :global(.gtable-wrap) {
         overflow-x: auto;
@@ -379,8 +349,6 @@ const hubHref = localizePath('/guides', lang);
     .gshell__block :global(tr:last-child td) { border-bottom: 0; }
     .gshell__block :global(td:first-child) { white-space: nowrap; }
 
-    /* Tip / warning callouts. */
-
     .gshell__block :global(.gtip),
     .gshell__block :global(.gwarn) {
         display: block;
@@ -397,8 +365,6 @@ const hubHref = localizePath('/guides', lang);
         border: 1px solid rgba(201, 168, 124, 0.18);
     }
 
-    /* Same muted red as .bb-chip--danger in style.css: the one danger tone
-       the site already has, reused instead of inventing a second red. */
     .gshell__block :global(.gwarn) {
         color: rgba(240, 236, 228, 0.78);
         background: rgba(217, 138, 138, 0.06);
@@ -418,8 +384,6 @@ const hubHref = localizePath('/guides', lang);
 
     .gshell__block :global(.gtip b) { color: var(--tan, #c9a87c); }
     .gshell__block :global(.gwarn b) { color: #d98a8a; }
-
-    /* ── Pager ── */
 
     .gshell__pager {
         display: grid;
@@ -478,6 +442,5 @@ const hubHref = localizePath('/guides', lang);
 <script>
     import { scrollspy } from '../../script/scrollspy';
 
-    /* TOC scrollspy: shared with the other long-form shell. */
     scrollspy('guide');
 </script>

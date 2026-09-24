@@ -2,17 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Config do
-  @moduledoc """
-  Thin accessors over application env. Everything here is set once at boot by
-  `config/runtime.exs`.
-
-  This module keeps only the cross-cutting settings: the hot-path snapshot,
-  lane routing, broadcaster-status lookups, tracing and the NATS connection
-  settings. Subsystem tuning lives in the per-concern modules
-  (`Ingress.Config.Publish`, `.Dispatcher`, `.Squash`, `.Twitch`, `.Admin`) so
-  a tunable added for one subsystem no longer touches this shared file.
-  """
-
   @hot_path_key {__MODULE__, :hot_path}
 
   @doc false
@@ -75,19 +64,12 @@ defmodule Ingress.Config do
   def broadcaster_cache_ttl_ms,
     do: Application.get_env(:ingress, :broadcaster_cache_ttl_ms, 300_000)
 
-  # Size guard: chat text past this many bytes is malformed/abuse and dropped.
-  # A well-formed Twitch line is <= 500 chars; the ceiling is generous.
   def max_chat_text_bytes,
     do: Application.get_env(:ingress, :max_chat_text_bytes, 4_096)
 
-  # One in N notifications receives a transaction and trace headers. Zero
-  # disables per-event tracing; one is reserved for controlled diagnostics.
   def trace_sample_rate,
     do: Application.get_env(:ingress, :trace_sample_rate, 1_024)
 
-  # Gnat connection_settings (a leaf-first list of server maps) for the two
-  # planes: :nats is the twitch_ingress RPC account, :nats_bus the shared BUS
-  # account that carries the twitch.ingress.* firehose.
   def nats, do: Application.fetch_env!(:ingress, :nats)
   def nats_bus, do: Application.fetch_env!(:ingress, :nats_bus)
 end

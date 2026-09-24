@@ -33,8 +33,6 @@
   const { t } = getI18n();
   const failed = toastFailure(toast, t);
 
-  // Local mirrors, reseeded on each SSR load (the /events stream re-runs the
-  // loader after every confirmed write).
   // svelte-ignore state_referenced_locally
   let enabled = $state<boolean>(data.enabled ?? false);
   // svelte-ignore state_referenced_locally
@@ -58,8 +56,6 @@
 
   type GoveeActionOk = ActionOk & { missingScope?: boolean };
 
-  // formResult is the shared enhance handler for the API-key forms: on success it
-  // optionally flips an optimistic mirror, toasts, and reloads.
   function formResult(okMsg: string, failMsg: string, onOk?: () => void): SubmitFunction {
     return () =>
       async ({ result }) => {
@@ -78,7 +74,6 @@
       };
   }
 
-  // --- Inspector -------------------------------------------------------------
   let selected = $state<GoveeDevice | null>(null);
   let busy = $state(false);
 
@@ -96,21 +91,17 @@
       const payload = actionPayload<GoveeActionOk>(result);
       if (result.type === 'success' && payload?.ok !== false) {
         toast('ok', t('govee.toastSaved'));
-        // Save keeps the inspector open on the bound light; invalidateAll
-        // reseeds the binding so it reads current.
         await invalidateAll();
         return;
       }
       if (payload?.missingScope) {
         missingScope = true;
-        // Keep the inspector open so the draft survives the reconnect prompt.
         return;
       }
       failed(payload, 'govee.toastSaveFailed');
     };
   };
 
-  // --- Delete (confirm; Twitch reward deletion is not undoable) ---------------
   let deleteTarget = $state<GoveeDevice | null>(null);
   let deleting = $state(false);
   let deleteForm = $state<HTMLFormElement | null>(null);
@@ -150,7 +141,6 @@
   {/if}
 
   {#if missingScope}
-    <!-- Unavailable state explained in TEXT with the required Twitch action. -->
     <AlertBanner variant="warn">
       {t('govee.reconnect')}
       {#snippet action()}
@@ -159,7 +149,6 @@
     </AlertBanner>
   {/if}
 
-  <!-- Master switch -->
   <PageToolbar>
     {#snippet lead()}
       <MasterToggle
@@ -173,8 +162,6 @@
     {/snippet}
   </PageToolbar>
 
-  <!-- Step 1 (prerequisite): the API key. The device + reward UI below is gated
-       on a key being on file, so setup always comes before management. -->
   <Card>
     <div class="step">
       <span class="step-index" aria-hidden="true">1</span>
@@ -191,8 +178,6 @@
             </form>
           </div>
         {:else}
-          <!-- The key never renders back: type="password", autocomplete off, and
-               the server stores it encrypted (it is never echoed to the client). -->
           <form method="POST" action="?/saveKey" use:enhance={formResult(t('govee.keySaved'), t('govee.keySaveFailed'), () => (keyPresent = true))} class="row">
             <input class="input" type="password" name="key" placeholder={t('govee.keyPlaceholder')} aria-label={t('govee.keyFieldLabel')} autocomplete="off" required />
             <Button variant="primary" type="submit">{t('govee.keySave')}</Button>
@@ -203,10 +188,6 @@
   </Card>
 
   {#if keyPresent}
-    <!-- Step 2: bind a reward to each light. The deck mirrors the commands +
-         channel-points decks so the management screens read as one system. Its
-         off-state is communicated by the master-switch text above, not by
-         dimming the deck. -->
     <div class="deck" class:inspecting={!!selected}>
       <div class="deck-lead">
         <span class="step-index sm" aria-hidden="true">2</span>
@@ -219,8 +200,7 @@
         {:then dr}
           {@const lights = colorDevices(dr.devices ?? [])}
           {#if dr.error}
-            <!-- Never surface the raw provider error (it may carry the key);
-                 show a safe, actionable localized message instead. -->
+            <!-- Never surface the raw provider error: it may carry the key. -->
             <p class="err-text" role="alert">{t('govee.devicesError')}</p>
           {:else if lights.length === 0}
             <EmptyState title={t('govee.noLights')} />
@@ -313,8 +293,6 @@
   }
   .step-index.sm { width: 26px; height: 26px; font-size: 12px; border-radius: var(--bb-radius-xs); }
   .step-body { flex: 1; min-width: 0; }
-  /* `level={6} as="h2"`: the h2 is the step's rank in the page outline; the
-     l6 (15px) step is what a numbered step head is sized at here. */
   :global(.step-title) { margin-bottom: 6px; }
   .muted-text { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; margin: 0 0 14px; }
   .muted-text strong { color: var(--bb-tan-light); font-weight: 600; }
@@ -333,8 +311,6 @@
   .input:focus { outline: none; border-color: var(--bb-tan, #c9a87c); }
   .input::placeholder { color: var(--bb-muted); opacity: 0.7; }
 
-  /* Deck (list + docked inspector), mirroring the channel-points page. The
-     step-2 heading spans both columns as a lead row. */
   .deck {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

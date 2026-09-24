@@ -1,15 +1,6 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-#
-# VENDORED, DO NOT EDIT BY HAND: the upstream release manifest for KEDA 2.20.2,
-# https://github.com/kedacore/keda/releases/download/v2.20.2/keda-2.20.2.yaml,
-# with the three images pinned to the digests that tag resolved to on
-# 2026-09-03 (all three are multi-arch: amd64, arm64, s390x).
-#
-# Local changes live in kustomization.yaml next to this file, never in here, so
-# the next upgrade is a re-download plus a digest refresh. KEDA used to arrive
-# as a Flux HelmRelease (deploy/infra/keda, deleted with Flux in #588); with
-# Flux gone this is the plain-manifest equivalent of that chart's defaults.
+# VENDORED upstream KEDA 2.20.2 manifest with digest-pinned images; local changes go in kustomization.yaml.
 apiVersion: v1
 kind: Namespace
 metadata:

@@ -1,9 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package giveaway contains the Transactions-owned giveaway domain logic.
-// Persistence and provider adapters depend on the small interfaces here,
-// which keeps random selection and workflow recovery straightforward to test.
 package giveaway
 
 import (
@@ -38,8 +35,6 @@ var (
 	ErrAmbiguousInterval = errors.New("promotional interval crosses an ambiguous calendar boundary")
 )
 
-// Candidate is the minimum immutable identity required for a draw. Eligibility
-// facts are resolved by Users before they reach this package.
 type Candidate struct {
 	UserID          uint64 `json:"user_id"`
 	Username        string `json:"username,omitempty"`
@@ -48,8 +43,6 @@ type Candidate struct {
 	Eligibility     any    `json:"eligibility,omitempty"`
 }
 
-// CanonicalCandidates sorts by stable account identity and rejects malformed
-// pools. Database row order is never used as a source of randomness.
 func CanonicalCandidates(in []Candidate) ([]Candidate, error) {
 	if len(in) == 0 {
 		return nil, ErrMissingPool
@@ -67,9 +60,7 @@ func CanonicalCandidates(in []Candidate) ([]Candidate, error) {
 	return out, nil
 }
 
-// Draw selects k distinct candidates uniformly without replacement. Int is
-// deliberately injected so tests can force source failure; production always
-// uses crypto/rand.Reader and never falls back to a PRNG or modulo arithmetic.
+// Must use crypto/rand; never a PRNG or modulo arithmetic.
 func Draw(candidates []Candidate, k int) ([]Candidate, error) {
 	return DrawWithReader(rand.Reader, candidates, k)
 }
@@ -113,9 +104,6 @@ func PoolDigest(candidates []Candidate) (string, error) {
 		}
 		pool = canonical
 	}
-	// The digest is a commitment to the candidate membership and canonical
-	// order. User eligibility evidence is stored separately on each snapshot;
-	// changing cosmetic usernames must not invalidate an already-approved pool.
 	ids := make([]uint64, len(pool))
 	for i, c := range pool {
 		ids[i] = c.UserID
@@ -128,9 +116,6 @@ func PoolDigest(candidates []Candidate) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// PrizeInterval adds calendar months one at a time. It refuses overflow and
-// never clamps or silently shortens an interval. rule is persisted beside the
-// award so a later policy change cannot alter an existing prize.
 func PrizeInterval(start time.Time, months int, rule string) (time.Time, error) {
 	if !validIntervalRequest(start, months, rule) {
 		return time.Time{}, ErrInvalidMonths
@@ -194,8 +179,6 @@ func ValidateMonths(months int) error {
 	return nil
 }
 
-// PrizeTotal is overflow-safe and useful for admin summaries. The decimal
-// string avoids wrapping a machine integer when an uncapped request is large.
 func PrizeTotal(winners, months int) (string, error) {
 	if winners <= 0 || ValidateMonths(months) != nil {
 		return "", ErrInvalidMonths

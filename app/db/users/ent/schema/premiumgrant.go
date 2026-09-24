@@ -13,9 +13,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// PremiumGrant is a durable, Users-owned promotional entitlement. Transactions
-// owns the giveaway and award identity; Users owns the access interval so a
-// billing webhook or ordinary expiry sweep cannot erase it accidentally.
 type PremiumGrant struct {
 	ent.Schema
 }
@@ -43,9 +40,7 @@ func (PremiumGrant) Edges() []ent.Edge {
 
 func (PremiumGrant) Indexes() []ent.Index {
 	return []ent.Index{
-		// An award identity can be committed for exactly one user. Including
-		// user_id in this key would let a retry accidentally deliver the same
-		// award to a second account.
+		// Must not include user_id, or a retry could deliver one award to two accounts.
 		index.Fields("giveaway_id", "award_id").Unique(),
 		index.Fields("user_id", "state", "start_at", "end_at"),
 	}

@@ -9,14 +9,12 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/db/loyalty/ent"
-	// The generated defaults (created_at etc.) are wired by this package's
-	// init; without it every create panics on a nil default func.
 	_ "ItsBagelBot/app/db/loyalty/ent/runtime"
 	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
 
 	"ItsBagelBot/internal/testdb"
 
-	_ "github.com/mattn/go-sqlite3" // Required for the in-memory DB
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -24,10 +22,6 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 )
 
-// newLoyaltyRepo opens an in-memory sqlite-backed repository and hands back
-// the client too, so tests can seed and assert through it directly. The DB is
-// opened by hand (not enttest) because NewLoyalty needs the *entsql.Driver
-// its bulk flush statements run through.
 func newLoyaltyRepo(t *testing.T) (*loyaltyrepo.Loyalty, *ent.Client) {
 	t.Helper()
 	db, err := sql.Open(testdb.Driver, testdb.MemDSN("loyaltytransfer"))
@@ -41,9 +35,6 @@ func newLoyaltyRepo(t *testing.T) (*loyaltyrepo.Loyalty, *ent.Client) {
 	return repo, client
 }
 
-// seedRow is one balance row to plant. Bundled rather than passed positionally
-// because (userID, viewerID, login, points) reads as four interchangeable
-// scalars at the call site, and two of them are bare uint64s.
 type seedRow struct {
 	UserID, ViewerID uint64
 	Login            string
@@ -107,7 +98,6 @@ func TestBalanceTransferUnknownTarget(t *testing.T) {
 	assert.False(t, found)
 	assert.Nil(t, out)
 
-	// The sender's balance is untouched by a failed lookup.
 	bal, err := client.Balance.Query().Only(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, int64(100), bal.Points)
@@ -135,7 +125,6 @@ func TestBalanceTransferRefusesSelfAndBadInput(t *testing.T) {
 		assert.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput, "login=%q amount=%d", tc.login, tc.amount)
 	}
 
-	// A sender with no row is "never seen here".
 	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 99, TargetLogin: "sender", Amount: 10})
 	assert.False(t, found)
 	assert.Nil(t, out)

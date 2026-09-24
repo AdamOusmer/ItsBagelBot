@@ -1,9 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The bot's home: everything true of the ACCOUNT (the master switch, the
-  // servers, the invite path). Everything true of one server lives under
-  // /discord/[guildId].
   import {
     AlertBanner,
     Button,
@@ -40,14 +37,6 @@
 
   const guilds = $derived<DiscordGuildSummary[]>(data.guilds ?? []);
 
-  // Never colour alone: every state tag carries its own mark and its own word, and
-  // `unknown` gets a neutral one because the listing never read that guild's
-  // reauth flag.
-
-  // "Online" here means the gateway is present AND the grant is still good: a
-  // guild needing re-authorization is counted as not online, because that is
-  // what the streamer has to act on. Counting it as online is how a dead grant
-  // hides behind a healthy-looking number.
   const online = $derived(guilds.filter((g) => g.botPresent && !g.needsReauth).length);
   const reach = $derived(guilds.reduce((n, g) => n + Math.max(0, g.memberCount), 0));
 
@@ -62,8 +51,6 @@
     days: 'discord.sinceDays'
   } as const;
 
-  // now stays 0 until the browser sets it: a "linked 3 d ago" rendered during
-  // SSR is stale by the time it lands and hydration reports the mismatch.
   let now = $state(0);
   $effect(() => {
     now = Date.now();
@@ -80,11 +67,6 @@
     {t('discord.hub.titlePre')} <em>{t('discord.hub.titleEm')}</em>
   </PageHead>
 
-  <!-- Discord is premium-only while in beta. The route guard lets this page
-       load rather than bouncing to /modules, because Discord has no tile
-       there any more and a silent redirect explains nothing. The panel is its
-       own top-level block instead of wrapping the page in an else-branch, and
-       every action refuses server-side regardless of what renders here. -->
   {#if data.locked}
     <section class="block reveal" style="--i:0" aria-labelledby="dc-locked-h">
       <h2 id="dc-locked-h" class="block-title">{t('modules.betaLocked')}</h2>
@@ -134,9 +116,6 @@
       {/snippet}
     </PageToolbar>
 
-    <!-- The strip answers "is my bot working" before the list answers "where".
-         It is hidden with no servers, where three zeros say nothing the empty
-         state does not say better. -->
     {#if guilds.length > 0}
       <section class="block reveal" style="--i:0" aria-labelledby="dc-stats-h">
         <h2 id="dc-stats-h" class="bb-sr-only">{t('discord.hub.statsTitle')}</h2>
@@ -180,18 +159,12 @@
         </Card>
       {:else}
         <p class="hint">{t('discord.serversHelp')}</p>
-        <!-- outgress caps how many bindings it describes. Without saying so, a
-             streamer over the cap sees a short list and no sign of it, which
-             reads as Bagel having lost a server. -->
         {#if data.truncated}
           <AlertBanner variant="warn">
             {t('discord.serversTruncated', { n: guilds.length.toLocaleString() })}
           </AlertBanner>
         {/if}
 
-        <!-- The whole card is the link, not an Open button in its corner: the
-             card has one destination, and a 44px button inside a 260px target
-             makes the other 90% of it dead space under a thumb. -->
         <ul class="servers">
           {#each guilds as g (g.guildId)}
             {@const state = guildBotState(g)}
@@ -233,11 +206,6 @@
   }
   .lead { margin: 0 0 12px; }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-
-  /* Three tiles, not the shared grid's four: `.bb-stat-grid--auto`, which is
-     the contract's own modifier (@bagel/ui/styles/elements/stat-tile.css).
-     This was a `.bb-stat-grid.three` rule here, i.e. a page buying specificity
-     over a contract it does not own. */
 
   .servers {
     list-style: none;

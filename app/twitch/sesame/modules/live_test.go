@@ -19,20 +19,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// The #561 regression tests: a rapid stream.online / stream.offline pair must
-// leave the broadcaster offline, timers disarmed and greets untouched by any
-// superseded online — whichever order the events arrive in.
-
-// versionedLive is a recording LiveStore applying the same
-// newer-version-wins rule as the Valkey scripts, so tests can drive both
-// arrival orders through realistic store semantics. Applied transitions are
-// appended to a shared lifecycle log for order assertions.
 type versionedLive struct {
 	mu      sync.Mutex
-	applied int64 // highest version applied so far; survives deletion like ver:
+	applied int64
 	isLive  bool
 
-	setCalls   []int64 // every call, applied or not
+	setCalls   []int64
 	clearCalls []int64
 
 	log *lifecycleLog
@@ -40,10 +32,6 @@ type versionedLive struct {
 
 func (f *versionedLive) IsLive(context.Context, uint64) (bool, error) { return f.isLive, nil }
 
-// claim applies one transition under the same newer-version-wins rule the
-// Valkey scripts use; both wrappers differ only in which call log they record.
-// Everything touches f's fields under f.mu, including the recording: the pump
-// goroutine runs these while the test goroutine reads them.
 func (f *versionedLive) claim(calls *[]int64, version int64, name string, liveAfter bool) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -65,7 +53,6 @@ func (f *versionedLive) ClearLive(_ context.Context, _ uint64, version int64) (b
 	return f.claim(&f.clearCalls, version, "clear", false)
 }
 
-// orderedTimers and orderedGreets funnel their calls into the shared log.
 type orderedTimers struct{ log *lifecycleLog }
 
 func (t orderedTimers) ArmAll(context.Context, uint64)    { t.log.add("arm") }
@@ -79,7 +66,6 @@ func (g orderedGreets) ResetGreets(context.Context, uint64) error {
 	return nil
 }
 
-// lifecycleLog is the one ordered record every fake appends to.
 type lifecycleLog struct {
 	mu    sync.Mutex
 	items []string
@@ -110,8 +96,6 @@ func waitForLog(t *testing.T, l *lifecycleLog, n int) []string {
 	return l.snapshot()
 }
 
-// millis renders an RFC3339 instant the way EventVersion does, so expected
-// versions stay readable without hardcoding epoch math.
 func millis(ts string) string {
 	t, err := time.Parse(time.RFC3339, ts)
 	if err != nil {
@@ -149,7 +133,6 @@ func liveTestDeps(live engine.LiveStore, log *lifecycleLog) engine.Deps {
 	}
 }
 
-// greetsAndArms filters the log to the session-start side effects.
 func greetsAndArms(items []string) []string {
 	var out []string
 	for _, it := range items {
@@ -160,7 +143,6 @@ func greetsAndArms(items []string) []string {
 	return out
 }
 
-// liveFixture bundles the module under test with the fakes its assertions read.
 type liveFixture struct {
 	m    module.Module
 	live *versionedLive
@@ -174,9 +156,6 @@ func newLiveFixture() liveFixture {
 	return fx
 }
 
-// TestRapidOnlineThenOfflineLeavesChannelOffline drives the exact reported
-// symptom: offline right on the heels of online. Effects must land in event
-// order and end offline with timers down.
 func TestRapidOnlineThenOfflineLeavesChannelOffline(t *testing.T) {
 	const on = "2026-08-23T12:00:00Z"
 	const off = "2026-08-23T12:00:01Z"
@@ -197,26 +176,18 @@ func TestRapidOnlineThenOfflineLeavesChannelOffline(t *testing.T) {
 	assert.False(t, fx.live.isLive, "channel must end offline")
 }
 
-// TestStaleOnlineLosingToNewerOfflineIsIgnored covers redelivery skew: an
-// older stream.online arriving after a newer offline already won. The store
-// rejects the SET, and the module must skip the session-start effects too —
-// resetting greets or arming timers would resurrect state the offline just
-// cleared.
 func TestStaleOnlineLosingToNewerOfflineIsIgnored(t *testing.T) {
 	fx := newLiveFixture()
 
-	// The genuine offline wins first.
 	runLifecycle(t, fx.m, "stream.offline", "1970-01-01T00:00:02Z")
-	waitForLog(t, fx.log, 2) // clear + disarm
+	waitForLog(t, fx.log, 2)
 	fx.log.reset()
 	fx.live.mu.Lock()
 	fx.live.setCalls, fx.live.clearCalls = nil, nil
 	fx.live.mu.Unlock()
 
-	// An older online redelivered afterwards must change nothing at all.
 	runLifecycle(t, fx.m, "stream.online", "1970-01-01T00:00:01Z")
 
-	// The store call itself proves the sequenced task ran to completion.
 	assert.Eventually(t, func() bool {
 		fx.live.mu.Lock()
 		defer fx.live.mu.Unlock()
@@ -229,9 +200,6 @@ func TestStaleOnlineLosingToNewerOfflineIsIgnored(t *testing.T) {
 	assert.Equal(t, []int64{1000}, fx.live.setCalls, "the stale SET must have reached the store and lost")
 }
 
-// TestNewerOnlineAfterOfflineStartsCleanSession is the mirror image: a genuine
-// online arriving after an offline must fully start the session (greets,
-// timers armed, live).
 func TestNewerOnlineAfterOfflineStartsCleanSession(t *testing.T) {
 	fx := newLiveFixture()
 

@@ -14,9 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// countingParse returns a parse function that echoes the blob as a string and
-// counts how many times it actually ran, which is how every test below asserts
-// a hit versus a miss.
 func countingParse(calls *atomic.Int64) func([]byte) string {
 	return func(raw []byte) string {
 		calls.Add(1)
@@ -36,11 +33,6 @@ func TestGetParsesOncePerBlob(t *testing.T) {
 	assert.Equal(t, int64(1), calls.Load(), "repeat reads of the same blob must not re-parse")
 }
 
-// TestDistinctBlobsDoNotCollide is the correctness test this cache exists to
-// pass. Both inputs are what a legacy ModuleView row looks like: Revision 0.
-// Keyed on (broadcaster, module, revision) they would be the SAME key and one
-// channel would be served the other's parsed config; keyed on content they are
-// two entries, because the key is the input to the parse.
 func TestDistinctBlobsDoNotCollide(t *testing.T) {
 	var calls atomic.Int64
 	c := New[string]()
@@ -52,7 +44,6 @@ func TestDistinctBlobsDoNotCollide(t *testing.T) {
 	)
 	assert.Equal(t, chanA, c.Get([]byte(chanA), parse))
 	assert.Equal(t, chanB, c.Get([]byte(chanB), parse))
-	// Re-read in the other order: each must still answer with its OWN parse.
 	assert.Equal(t, chanB, c.Get([]byte(chanB), parse))
 	assert.Equal(t, chanA, c.Get([]byte(chanA), parse))
 
@@ -60,9 +51,6 @@ func TestDistinctBlobsDoNotCollide(t *testing.T) {
 	assert.Equal(t, 2, c.len())
 }
 
-// TestGetSeesEditedBlob covers the other half of the revision hazard: an edit
-// that leaves the revision at 0 (or does not bump it at all) still changes the
-// bytes, so the content key misses and the new config is served.
 func TestGetSeesEditedBlob(t *testing.T) {
 	var calls atomic.Int64
 	c := New[string]()
@@ -73,8 +61,6 @@ func TestGetSeesEditedBlob(t *testing.T) {
 	assert.Equal(t, int64(2), calls.Load())
 }
 
-// TestEmptyBlobIsNotCached: an absent config is answered straight from parse,
-// so a module no channel configured never takes the lock or grows the map.
 func TestEmptyBlobIsNotCached(t *testing.T) {
 	var calls atomic.Int64
 	c := New[string]()
@@ -100,9 +86,6 @@ func TestEvictionHoldsTheCap(t *testing.T) {
 	assert.Equal(t, int64(maxEntries*2), calls.Load())
 }
 
-// TestEvictionIsLeastRecentlyUsed pins the eviction order: the blob every line
-// keeps reading survives a flood of one-shot blobs, which is the whole point of
-// promoting on read rather than on insert.
 func TestEvictionIsLeastRecentlyUsed(t *testing.T) {
 	var calls atomic.Int64
 	c := New[string]()
@@ -112,12 +95,10 @@ func TestEvictionIsLeastRecentlyUsed(t *testing.T) {
 	c.Get([]byte(hot), parse)
 	for i := 0; i < maxEntries-1; i++ {
 		c.Get([]byte(strconv.Itoa(i)), parse)
-		c.Get([]byte(hot), parse) // keep the hot blob at the recent end
+		c.Get([]byte(hot), parse)
 	}
 	before := calls.Load()
 
-	// One more distinct blob evicts the least recently used, which is entry 0,
-	// not the hot blob.
 	c.Get([]byte("overflow"), parse)
 	c.Get([]byte(hot), parse)
 	assert.Equal(t, before+1, calls.Load(), "hot blob must have survived eviction")
@@ -126,9 +107,6 @@ func TestEvictionIsLeastRecentlyUsed(t *testing.T) {
 	assert.Equal(t, before+2, calls.Load(), "coldest blob must have been evicted")
 }
 
-// TestConcurrentGetIsSafe drives the cache the way the pipeline does: many
-// goroutines, overlapping blobs, hits and misses interleaved. Meaningful under
-// -race, which is how the suite runs it.
 func TestConcurrentGetIsSafe(t *testing.T) {
 	var calls atomic.Int64
 	c := New[string]()

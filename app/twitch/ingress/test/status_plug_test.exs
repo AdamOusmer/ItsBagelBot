@@ -19,9 +19,6 @@ defmodule Ingress.StatusPlugTest do
     assert call("/nope").status == 404
   end
 
-  # No NATS connection runs under the test supervisor, so both planes report
-  # down — which is exactly the contract worth pinning: readyz refuses traffic
-  # and /status says down with both checks named.
   test "readyz is 503 while the NATS planes are down" do
     assert call("/readyz").status == 503
   end

@@ -2,16 +2,6 @@
   import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The body of the user inspector: what this account IS, followed by what an
-  // operator may do to it. Presentational -- every mutation is a hidden form on
-  // the page, so this component never owns a POST and the confirmation, the
-  // optimistic apply and the rollback all stay in one place.
-  //
-  // Facts first, actions last, and each action block sits under the facts it
-  // acts on: the ban button is beside the serving state, the token wipe beside
-  // the token badge. The previous layout put every verb in one "Danger" row at
-  // the bottom, which is how an operator ended up clearing a token to fix an
-  // EventSub problem the row above had already explained.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
@@ -47,7 +37,6 @@
     creatorSubmit
   }: {
     user: AdminUserWire;
-    /** null while the probe is in flight. Never rendered as a guess. */
     tokenPresent: boolean | null;
     subState: ChannelSubState | null;
     viewAsUrl: string;
@@ -70,8 +59,6 @@
   const state = $derived(stateOf(user));
   const locked = $derived(busy !== null);
 
-  // Serving state, in the same vocabulary the dashboard's connection panel uses,
-  // so "banned" and "deactivated" cannot render as two shades of the same word.
   const servingTone = $derived<StatusTone>(
     user.banned ? statusTone('reauth_required') : statusTone(user.is_active ? 'online' : 'disabled')
   );
@@ -83,16 +70,11 @@
         : t('admin.users.connectionInactive')
   );
 
-  // 'unknown' is warning, not error: the read failed, which is not the same as
-  // the subscription failing.
   const SUB_TONE = {
     ok: 'online',
     pending: 'connecting',
     failing: 'degraded',
     revoked: 'reauth_required',
-    // Twitch chat banned the bot account: the grant is intact, so this is NOT
-    // reauth_required. It maps to the shared 'bot_banned' kind, which tones as
-    // an error because the bot is not serving chat until it is unbanned.
     chat_banned: 'bot_banned',
     unknown: 'sub_unknown'
   } as const;
@@ -397,8 +379,6 @@
     gap: 6px;
     flex-wrap: wrap;
   }
-  /* The selected tier wears its own colour (VIP silver, never purple); Chip's
-     own `is-on` tan is the fallback for anything without a tier token. */
   .tiers :global(.tier-free.is-on) {
     color: var(--bb-tier-free);
     background: var(--bb-tier-free-bg);

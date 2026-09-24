@@ -29,8 +29,6 @@ func TestIsGoLiveEdge(t *testing.T) {
 	}
 }
 
-// fakeLoyaltyReader lets snapshotCounterBaseline tests control the (value,
-// ok) pair get() returns per counter name without a NATS connection.
 type fakeLoyaltyReader struct {
 	values map[string]int64
 	ok     bool
@@ -40,12 +38,6 @@ func (f *fakeLoyaltyReader) get(ctx context.Context, userID, name string) (int64
 	return f.values[name], f.ok
 }
 
-// A failed loyalty read must never fall through to writing a baseline: a
-// zeroed baseline written after a failure would later read back as this
-// channel's entire lifetime total in the per-stream slot (see
-// snapshotCounterBaseline's doc). p.store stays nil here on purpose — if the
-// method reached the write path with a nil store it would panic, which is
-// exactly the assertion that it did not.
 func TestSnapshotCounterBaselineSkipsOnLoyaltyFailure(t *testing.T) {
 	p := &Projector{loyalty: &fakeLoyaltyReader{ok: false}, log: zap.NewNop()}
 	assert.NotPanics(t, func() {
@@ -53,8 +45,6 @@ func TestSnapshotCounterBaselineSkipsOnLoyaltyFailure(t *testing.T) {
 	})
 }
 
-// A nil loyalty reader (Deps.Loyalty left unset) must be a no-op, not a
-// panic — see the Projector.loyalty field doc.
 func TestSnapshotCounterBaselineNilLoyalty(t *testing.T) {
 	p := &Projector{log: zap.NewNop()}
 	assert.NotPanics(t, func() {

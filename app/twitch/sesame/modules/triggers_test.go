@@ -30,8 +30,6 @@ func triggersHandler(t *testing.T) module.EventHandler {
 	return h
 }
 
-// triggersCtx builds a chat Context whose Config blob carries the given rules
-// textarea (empty rules leaves the blob unset).
 func triggersCtx(text, rules string) *module.Context {
 	c := &module.Context{
 		Env: lane.Envelope{
@@ -49,8 +47,6 @@ func triggersCtx(text, rules string) *module.Context {
 	return c
 }
 
-// rulesBlob marshals a rules string into the {"rules":"…"} Configs blob, matching
-// what the dashboard persists. Marshaling a single string field never errors.
 func rulesBlob(rules string) []byte {
 	b, _ := codec.Marshal(triggersConfig{Rules: rules})
 	return b
@@ -68,7 +64,6 @@ func TestTriggersWordMatch(t *testing.T) {
 
 func TestTriggersWordMatchIsWholeWord(t *testing.T) {
 	var col collector
-	// "hello" must not fire on "hellovision" under the default word mode.
 	require.NoError(t, triggersHandler(t)(context.Background(), triggersCtx("watch hellovision", "hello => hi"), col.emit))
 	assert.Empty(t, col.out)
 }
@@ -134,8 +129,6 @@ func TestTriggersNoConfigNoOp(t *testing.T) {
 	assert.Empty(t, col.out)
 }
 
-// TestParseRules exercises the textarea parser directly: comments, blanks, mode
-// prefixes, and malformed lines are all handled.
 func TestParseRules(t *testing.T) {
 	raw := "# a comment\n\nhello => hi {user}!\n  contains: lol =>  lmao \nnoseparator here\nempty => \n => noPhrase"
 	rules := triggersConfig{Rules: raw}.rules()
@@ -150,8 +143,6 @@ func TestParseRules(t *testing.T) {
 	assert.Equal(t, "contains", rules[1].Match)
 }
 
-// TestParseRulesUnknownMode keeps a colon that is not a real mode as part of the
-// phrase rather than dropping it.
 func TestParseRulesUnknownMode(t *testing.T) {
 	rules := triggersConfig{Rules: "time:30 => later"}.rules()
 	require.Len(t, rules, 1)
@@ -159,7 +150,6 @@ func TestParseRulesUnknownMode(t *testing.T) {
 	assert.Equal(t, "word", rules[0].Match)
 }
 
-// TestParseRulesCap stops at maxTriggers.
 func TestParseRulesCap(t *testing.T) {
 	var b strings.Builder
 	for i := 0; i < maxTriggers+10; i++ {
@@ -168,10 +158,6 @@ func TestParseRulesCap(t *testing.T) {
 	assert.Len(t, triggersConfig{Rules: b.String()}.rules(), maxTriggers)
 }
 
-// TestRulesJSONStructured covers the structured JSON format the dashboard now
-// writes: it parses like the legacy lines, but a phrase containing the legacy
-// delimiters ("=>", a leading "#", a "mode:" prefix) survives the round trip
-// instead of being corrupted.
 func TestRulesJSONStructured(t *testing.T) {
 	raw := `[
 		{"phrase":"hello","response":"hi {user}!","match":"word","enabled":true},
@@ -187,11 +173,10 @@ func TestRulesJSONStructured(t *testing.T) {
 }
 
 func TestRulesJSONPreservesReservedCharacters(t *testing.T) {
-	// Each of these phrases is unrepresentable in the legacy line format.
 	cases := []struct{ phrase, match string }{
-		{"a => b", "word"},          // contains the "=>" delimiter
-		{"#hashtag", "contains"},    // leading "#" (a legacy disabled marker)
-		{"word: literal", "prefix"}, // a legacy "mode:" prefix
+		{"a => b", "word"},
+		{"#hashtag", "contains"},
+		{"word: literal", "prefix"},
 	}
 	for _, tc := range cases {
 		raw := `[{"phrase":` + quote(tc.phrase) + `,"response":"ok","match":"` + tc.match + `"}]`
@@ -204,31 +189,22 @@ func TestRulesJSONPreservesReservedCharacters(t *testing.T) {
 }
 
 func TestRulesJSONDefaults(t *testing.T) {
-	// enabled omitted -> enabled; unknown match -> "word".
 	rules := triggersConfig{Rules: `[{"phrase":"hi","response":"yo","match":"bogus"}]`}.rules()
 	require.Len(t, rules, 1)
 	assert.Equal(t, "word", rules[0].Match)
 
-	// malformed JSON fails closed (no rules), like an empty config.
 	assert.Nil(t, triggersConfig{Rules: `[{"phrase":`}.rules())
 
-	// a legacy line config still parses (backward compatibility).
 	legacy := triggersConfig{Rules: "hello => hi {user}!\ncontains: lol => lmao"}.rules()
 	require.Len(t, legacy, 2)
 	assert.Equal(t, "contains", legacy[1].Match)
 }
 
-// quote JSON-encodes a string (with surrounding quotes) for embedding in a rule
-// array literal.
 func quote(s string) string {
 	b, _ := codec.Marshal(s)
 	return string(b)
 }
 
-// TestTriggersDistinctConfigsDoNotCollide is the rules-cache correctness guard.
-// Both channels' rows are legacy rows (ModuleView.Revision 0), so a
-// revision-keyed cache would answer channel B's chat with channel A's trigger
-// response. The cache keys on the blob's content, so each channel gets its own.
 func TestTriggersDistinctConfigsDoNotCollide(t *testing.T) {
 	h := triggersHandler(t)
 
@@ -236,7 +212,6 @@ func TestTriggersDistinctConfigsDoNotCollide(t *testing.T) {
 	require.NoError(t, h(context.Background(), triggersCtx("hello", "hello => from A"), a.emit))
 	var b collector
 	require.NoError(t, h(context.Background(), triggersCtx("hello", "hello => from B"), b.emit))
-	// Re-read in the opposite order: a hit must still be a hit on its own bytes.
 	var a2 collector
 	require.NoError(t, h(context.Background(), triggersCtx("hello", "hello => from A"), a2.emit))
 
@@ -248,24 +223,17 @@ func TestTriggersDistinctConfigsDoNotCollide(t *testing.T) {
 	assert.Equal(t, "from A", a2.out[0].Text)
 }
 
-// TestTriggersMalformedConfigStillErrors: the cached parse carries the decode
-// error, so a broken blob reaches the engine as a handler error exactly as it
-// did when triggersOnChat called Context.Decode per message.
 func TestTriggersMalformedConfigStillErrors(t *testing.T) {
 	c := triggersCtx("hello", "x => y")
-	c.Config = []byte(`{"rules":`) // truncated JSON
+	c.Config = []byte(`{"rules":`)
 
 	var col collector
 	err := triggersHandler(t)(context.Background(), c, col.emit)
 	require.Error(t, err)
 	assert.Empty(t, col.out)
-	// The error is cached with the blob; a second read must report it too.
 	assert.Error(t, triggersHandler(t)(context.Background(), c, col.emit))
 }
 
-// benchTriggerRules is a full-size rule set (maxTriggers entries): the config a
-// broadcaster who leans on the module actually saves, and the worst case the
-// per-message parse used to pay for.
 func benchTriggerRules() string {
 	var b strings.Builder
 	for i := 0; i < maxTriggers; i++ {
@@ -274,9 +242,6 @@ func benchTriggerRules() string {
 	return b.String()
 }
 
-// BenchmarkTriggersOnChatMiss measures the handler on a line that matches
-// nothing, which is what nearly every chat line does: before the rules cache
-// this decoded the blob and rebuilt all 50 rules per message.
 func BenchmarkTriggersOnChatMiss(b *testing.B) {
 	c := triggersCtx("just chatting about the stream", benchTriggerRules())
 	emit := func(*module.Output) {}

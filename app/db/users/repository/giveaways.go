@@ -21,9 +21,6 @@ import (
 
 const giveawayRuleVersion = "eligibility-v1"
 
-// GiveawayPoolCounts are mutually exclusive exclusion counts. The order is
-// deliberate: moderation and account classification take precedence over
-// tier, so the preview can explain every registered row exactly once.
 type GiveawayPoolCounts struct {
 	Total        int `json:"total"`
 	Eligible     int `json:"eligible"`
@@ -35,9 +32,6 @@ type GiveawayPoolCounts struct {
 	CurrentStaff int `json:"current_staff"`
 }
 
-// GiveawayPool is the complete snapshot consumed by Transactions. It is
-// intentionally unpaged; a caller cannot accidentally draw from a loaded
-// admin-directory page.
 type GiveawayPool struct {
 	Candidates  []usersrpc.GiveawayCandidate `json:"candidates"`
 	SnapshotAt  time.Time                    `json:"snapshot_at"`
@@ -69,8 +63,6 @@ func (r *Users) preferenceSnapshot() map[uint64]pendingGiveawayPrefs {
 	return result
 }
 
-// EligibleGiveawayPool returns only the candidates for callers that do not
-// need preview counts. The full snapshot API is GiveawayPoolSnapshot.
 func (r *Users) EligibleGiveawayPool(ctx context.Context, createdBefore *time.Time) ([]usersrpc.GiveawayCandidate, error) {
 	p, err := r.GiveawayPoolSnapshot(ctx, createdBefore)
 	if err != nil {
@@ -79,10 +71,6 @@ func (r *Users) EligibleGiveawayPool(ctx context.Context, createdBefore *time.Ti
 	return p.Candidates, nil
 }
 
-// GiveawayPoolSnapshot resolves eligibility from the authoritative Users
-// tables. Active staff is checked by roster membership, so disabled former
-// staff rows remain eligible. Pending write-behind active/onboarding values
-// are overlaid by the repository in preferenceSnapshot.
 func (r *Users) GiveawayPoolSnapshot(ctx context.Context, createdBefore *time.Time) (GiveawayPool, error) {
 	rows, err := r.giveawayUsers(ctx, createdBefore)
 	if err != nil {
@@ -172,8 +160,6 @@ func hasActiveStaff(staff map[uint64]struct{}, id uint64) bool {
 	return ok
 }
 
-// SetTestAccount is an authorized, audited mutation. Moderators cannot alter
-// the marker because doing so would change the authoritative draw population.
 func (r *Users) SetTestAccount(ctx context.Context, targetID uint64, enabled bool, actorID uint64) error {
 	if err := validate.UserID(targetID); err != nil {
 		return err
@@ -257,8 +243,6 @@ func (r *Users) findGrant(ctx context.Context, giveawayID, awardID string, userI
 	})
 }
 
-// PreparePremiumGrant durably reserves one award interval. The unique award
-// identity makes retries and concurrent delivery attempts converge to one row.
 func (r *Users) PreparePremiumGrant(ctx context.Context, req usersrpc.PreparePremiumGrantRequest) (usersrpc.PremiumGrant, error) {
 	req = normalizeGrantRequest(req)
 	if err := validateGrantRequest(req); err != nil {
@@ -284,10 +268,6 @@ func (r *Users) PreparePremiumGrant(ctx context.Context, req usersrpc.PreparePre
 	return grantView(row), nil
 }
 
-// prepareGrantTx serializes reservations for one account and rejects a
-// different award whose interval overlaps existing committed or prepared
-// coverage. The stable identity replay is checked first so retries remain
-// idempotent while two campaigns cannot consume the same entitlement window.
 func (r *Users) prepareGrantTx(ctx context.Context, req usersrpc.PreparePremiumGrantRequest) (*ent.PremiumGrant, error) {
 	tx, err := r.client.Tx(ctx)
 	if err != nil {
@@ -354,10 +334,6 @@ func grantIntervalMatches(row *ent.PremiumGrant, req usersrpc.PreparePremiumGran
 		row.IntervalRuleVersion == strings.TrimSpace(req.IntervalRuleVersion)
 }
 
-// CommitPremiumGrant transitions prepared to committed and is idempotent for
-// an already committed award. It never changes the interval or billing
-// identity. Access status is projected into users.status so admin stats and
-// listing read the same paid column dashboard Get does.
 func (r *Users) CommitPremiumGrant(ctx context.Context, req usersrpc.CommitPremiumGrantRequest) (usersrpc.PremiumGrant, error) {
 	if err := validate.UserID(req.UserID); err != nil {
 		return usersrpc.PremiumGrant{}, err
@@ -406,8 +382,6 @@ func (r *Users) committedAfterRace(ctx context.Context, req usersrpc.CommitPremi
 }
 
 func (r *Users) reannounceCommitted(ctx context.Context, row *ent.PremiumGrant) (usersrpc.PremiumGrant, error) {
-	// A prior commit may have succeeded while invalidation failed. Replaying
-	// the idempotent commit re-projects access and re-announces it.
 	if err := r.projectAccess(ctx, row.UserID, time.Now().UTC()); err != nil {
 		return usersrpc.PremiumGrant{}, err
 	}
@@ -417,9 +391,7 @@ func (r *Users) reannounceCommitted(ctx context.Context, row *ent.PremiumGrant) 
 	return grantView(row), nil
 }
 
-// CancelPremiumGrant may cancel only an uncommitted reservation. A committed
-// award is an owed prize and cannot be silently revoked by a retry or account
-// deactivation.
+// Only an uncommitted reservation may be cancelled: a committed award is an owed prize.
 func (r *Users) CancelPremiumGrant(ctx context.Context, req usersrpc.CommitPremiumGrantRequest) error {
 	if err := validate.UserID(req.UserID); err != nil {
 		return err
@@ -438,8 +410,6 @@ func (r *Users) CancelPremiumGrant(ctx context.Context, req usersrpc.CommitPremi
 	return err
 }
 
-// PremiumCoverage is the read contract used by Transactions to append prize
-// months after paid and previously committed giveaway coverage.
 func (r *Users) PremiumCoverage(ctx context.Context, userID uint64, now time.Time) (usersrpc.PremiumCoverage, error) {
 	if err := validate.UserID(userID); err != nil {
 		return usersrpc.PremiumCoverage{}, err
@@ -488,9 +458,6 @@ func uncertainBilling(u *ent.User) bool {
 	return u.SubscriptionSource == "tebex" && (u.SubscriptionRef == nil || strings.TrimSpace(*u.SubscriptionRef) == "")
 }
 
-// ExpirePremiumGrants advances terminal state and projects users.status from
-// grant coverage. Tebex/admin billing identity is left alone; a grant-only
-// promotion records source "giveaway" so it is not an unknown Tebex agreement.
 func (r *Users) ExpirePremiumGrants(ctx context.Context, now time.Time) (int, error) {
 	active, err := r.pendingActiveGrants(ctx, now)
 	if err != nil {

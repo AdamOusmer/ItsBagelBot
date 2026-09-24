@@ -2,35 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.ShardSession do
-  @moduledoc """
-  Owns one EventSub WebSocket shard of the Conduit. One GenServer per shard,
-  registered cluster-wide in `Ingress.Registry` under `{:shard, shard_id}`,
-  supervised by `Ingress.ShardSupervisor` (Horde) so ownership moves to a
-  surviving node when this one dies.
-
-  The EventSub protocol obligations this process encodes:
-
-    * **Fresh connect**: open the socket, wait for `session_welcome`, then bind
-      the new `session_id` to our shard on the Conduit via Helix. Twitch sends
-      no events to a shard until the bind succeeds.
-
-    * **No zombie connections**: `session_welcome` carries
-      `keepalive_timeout_seconds`. Every inbound frame re-arms a watchdog
-      timer; if neither an event nor a `session_keepalive` arrives within the
-      window (plus grace) the socket is presumed dead, torn down, and the
-      shard reconnects with backoff. We never sit on a silent socket.
-
-    * **Never skip `session_reconnect`**: when Twitch asks us to move, we open
-      a *second* socket to the provided `reconnect_url` while keeping the old
-      one delivering events, and only after the new socket's
-      `session_welcome` do we close the old one. The session id is preserved,
-      so no re-bind is needed. If the handshake does not complete within a
-      deadline we fall back to a full fresh reconnect (which does re-bind).
-
-  Restart strategy is `:transient`: a crash restarts the shard (fresh connect
-  path heals it), a deliberate shutdown does not.
-  """
-
   use GenServer, restart: :transient
   require Logger
 
@@ -38,36 +9,18 @@ defmodule Ingress.ShardSession do
   alias Ingress.{Metrics, Nats, WS}
   alias Ingress.Twitch.Api
 
-  # How long a fresh socket may take to deliver session_welcome.
   @welcome_deadline_ms 15_000
-  # Slack on top of Twitch's keepalive_timeout_seconds before we call zombie.
   @keepalive_grace_ms 5_000
-  # How long the reconnect handshake may take before we give up on the new
-  # socket and do a full fresh reconnect.
   @handshake_deadline_ms 30_000
-  # How long a duplicate-shard takeover may wait for the registry's pick to
-  # exit before we yield to it anyway.
   @takeover_deadline_ms 5_000
+  @default_keepalive_ms 10_000
   @base_backoff_ms 1_000
   @max_backoff_ms 60_000
-  # How often a session verifies it still holds its cluster-wide name. A
-  # registry CRDT merge after a netsplit heal drops registrations for processes
-  # that are still alive: on 2026-08-20 shards 0 and 4 kept serving bound
-  # sockets with no registry entry, which made them invisible to every converge
-  # pass (all of which discover shards through the registry) and left shard 4
-  # bound to a conduit slot a scale-down had already removed. Nothing else
-  # re-registers -- the only two paths back into the registry are duplicate
-  # takeover and rebalance rollback, and neither fires when the name is simply
-  # free -- so unregistered-but-serving is otherwise a stable state. 30s is two
-  # ticks inside the reconciler's 15s interval, so a lost name costs at most one
-  # health pass of invisibility.
   @registry_check_interval_ms 30_000
 
   defstruct shard_id: nil,
             conduit_id: nil,
-            # active socket (may still be pre-welcome on fresh connect)
             primary: nil,
-            # replacement socket during the session_reconnect handshake
             pending: nil,
             session_id: nil,
             keepalive_ms: nil,
@@ -79,27 +32,11 @@ defmodule Ingress.ShardSession do
             bound_at: nil,
             last_frame_mono_ms: nil,
             last_frame_system_ms: nil,
-            # duplicate-shard takeover in flight: %{winner:, monitor:, timer:}
             takeover: nil,
-            # Whether this session believes it owns `{:shard, id}` in the
-            # registry: `:named` (it should), `:released` (handed the name to a
-            # successor for a drain or rebalance) or `:rescue` (never had one).
-            # Only a `:named` session may repair a missing registration --
-            # re-registering a released copy would steal the name back
-            # mid-handoff, and a rescue is unnamed by design.
             name_state: :named,
-            # Optional Mint connection options used by the isolated WebSocket
-            # benchmark for its temporary CA. Production leaves this empty.
             ws_connect_opts: [],
-            # Aggregate counter for notification load.
             load_counter: Ingress.LoadCounter.new()
 
-  # A rescue session (started by the reconciler when the named shard cannot
-  # be replaced — its registration or supervision is wedged on a dead pid)
-  # runs unnamed: it skips cluster-wide registration entirely, so no wedge
-  # can block it, and duplicate-shard resolution never signals it. It serves
-  # by binding the shard on Twitch, exactly like a named session, and the
-  # reconciler stops it once a named session is serving again.
   def start_link(opts) do
     if Keyword.get(opts, :rescue?, false) do
       GenServer.start_link(__MODULE__, opts)
@@ -110,10 +47,6 @@ defmodule Ingress.ShardSession do
 
   def via(shard_id), do: {:via, Horde.Registry, {Ingress.Registry, {:shard, shard_id}}}
 
-  @doc """
-  Snapshot of the shard's live state, served from wherever in the cluster the
-  shard currently runs. Used by `Ingress.AdminRpc`.
-  """
   def status(pid, timeout \\ 2_000), do: GenServer.call(pid, :status, timeout)
 
   def child_spec(opts) do
@@ -154,31 +87,19 @@ defmodule Ingress.ShardSession do
     {:reply, status_map(state, load), state}
   end
 
-  # Planned-shutdown handoff (`Ingress.Drain`): give up the cluster-wide
-  # registration but keep the socket serving. The successor the drain starts
-  # takes the name without a conflict, binds, and only then is this copy
-  # stopped — the slot never goes dark. Unregistering also means no
-  # name-conflict signal can reach us afterwards, so nothing can order this
-  # copy to stand down while it is the one still serving.
   @impl true
   def handle_call(:release_name, _from, state) do
     Horde.Registry.unregister(Ingress.Registry, {:shard, state.shard_id})
     {:reply, :ok, %{state | name_state: :released}}
   end
 
-  # A steady-state rebalance uses the same make-before-break handoff as a
-  # planned drain, but unlike a drain it can roll back when the successor does
-  # not bind. Registration must happen inside this process because Horde
-  # associates the name with the caller.
+  # Must run in this process: Horde binds the name to the caller.
   @impl true
   def handle_call(:reclaim_name, _from, state) do
     result = Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil)
     {:reply, result, %{state | name_state: reclaimed_name_state(result, state.name_state)}}
   end
 
-  # Holding the name again -- freshly registered, or already ours because the
-  # release never propagated -- puts the session back under the self-check that
-  # repairs a lost registration. Any other answer leaves the handoff alone.
   defp reclaimed_name_state({:ok, _pid}, _previous), do: :named
 
   defp reclaimed_name_state({:error, {:already_registered, pid}}, _prev) when pid == self(),
@@ -186,25 +107,12 @@ defmodule Ingress.ShardSession do
 
   defp reclaimed_name_state(_result, previous), do: previous
 
-  # The other copy of this shard is bound but lost the registry merge; it is
-  # taking the registration over and asks us to stand down. If we bound
-  # concurrently (race between the merge and this message), keep serving:
-  # the requester's takeover deadline makes it yield instead. Re-assert the
-  # binding, since the requester may have bound after us.
   @impl true
   def handle_cast(:stand_down_duplicate, %{bound?: true} = state), do: reassert_binding(state)
   def handle_cast(:stand_down_duplicate, state), do: {:stop, :normal, stand_down(state)}
 
-  # A duplicate-shard resolution just closed the other copy's socket. Twitch
-  # routes a shard's events to whichever session bound it last — possibly the
-  # copy that stood down — so the survivor re-binds its own session to pull
-  # the routing back. The PATCH is idempotent when we already own the binding.
   def handle_cast(:reassert_binding, state), do: reassert_binding(state)
 
-  # Reconciler-ordered repair: Twitch reports this shard's transport dead even
-  # though we believe we are bound. Our socket may still be receiving
-  # keepalives (Twitch keeps superseded sockets alive), so the watchdog cannot
-  # notice; only a full fresh reconnect — new session, new Helix bind — heals.
   def handle_cast(:force_rebind, state) do
     Logger.warning("re-bind forced by reconciler; reconnecting with a fresh session")
     Metrics.count("Shard/ForcedRebinds")
@@ -222,13 +130,8 @@ defmodule Ingress.ShardSession do
     %{
       shard_id: state.shard_id,
       state: derive_state(state),
-      # Callers that reap or re-register sessions need to tell a session that
-      # lost its name from one that gave it up; `state` alone cannot.
       name_state: state.name_state,
       node: node(),
-      # Worker node (machine) name from the downward-API env, so the admin
-      # console can show the host instead of the pod IP carried in `node`.
-      # Resolved locally here, where the shard actually runs.
       host: System.get_env("NODE_NAME"),
       session_id: state.session_id,
       bound: state.bound?,
@@ -237,10 +140,6 @@ defmodule Ingress.ShardSession do
       attempts: state.attempts,
       bound_at: state.bound_at,
       last_frame_at: last_frame_at,
-      # Notifications received in the last @load_window_ms milliseconds.
-      # This is a raw count, not a rate; callers divide by the window if they
-      # want events/second. Using the current wall of pruned timestamps avoids
-      # a separate timer and stays consistent with the window definition.
       load: load
     }
   end
@@ -270,7 +169,7 @@ defmodule Ingress.ShardSession do
     case state.watchdog do
       {_timer, ^token} ->
         now_mono = System.monotonic_time(:millisecond)
-        window = (state.keepalive_ms || 10_000) + @keepalive_grace_ms
+        window = (state.keepalive_ms || @default_keepalive_ms) + @keepalive_grace_ms
 
         elapsed =
           if state.last_frame_mono_ms, do: now_mono - state.last_frame_mono_ms, else: window
@@ -297,16 +196,6 @@ defmodule Ingress.ShardSession do
 
   def handle_info(:handshake_deadline, state), do: {:noreply, state}
 
-  # --- duplicate-shard resolution (netsplit heal) ----------------------------
-  #
-  # When a netsplit heals, both halves may be running this shard. The Horde
-  # registry keeps exactly one registration and sends the other process this
-  # exit signal (we trap exits, so it arrives as a message). The registry's
-  # pick is arbitrary; ours is not: the copy that is actually serving (bound
-  # to the Conduit) survives, the other stands down. Twitch routes a shard's
-  # events to whichever socket bound the shard last, so the bound copy is the
-  # one receiving traffic.
-
   def handle_info(
         {:EXIT, _from, {:name_conflict, {{:shard, _id}, _value}, _registry, winner}},
         state
@@ -328,9 +217,6 @@ defmodule Ingress.ShardSession do
           "duplicate shard resolved: copy on #{winner_status.node} is bound; standing down"
         )
 
-        # If we bound after the winner (rolling deploys race exactly this
-        # way), Twitch is routing to the socket we are about to close. The
-        # winner re-asserts its binding so the routing follows the survivor.
         GenServer.cast(winner, :reassert_binding)
         {:stop, :normal, stand_down(state)}
 
@@ -353,8 +239,6 @@ defmodule Ingress.ShardSession do
   end
 
   def handle_info(:takeover_deadline, %{takeover: takeover} = state) when takeover != nil do
-    # The registry's pick did not exit in time (it may have bound in the
-    # meantime). Yield to it rather than fight.
     Logger.warning("duplicate shard: takeover timed out; standing down")
     {:stop, :normal, stand_down(state)}
   end
@@ -364,7 +248,6 @@ defmodule Ingress.ShardSession do
   def handle_info(message, state) do
     case route(message, state) do
       :unknown ->
-        # A message from a socket we already discarded.
         {:noreply, state}
 
       {:noreply, _} = reply ->
@@ -375,7 +258,6 @@ defmodule Ingress.ShardSession do
     end
   end
 
-  # Try the pending socket first (reconnect handshake in flight), then primary.
   defp route(message, state) do
     case WS.stream(state.pending, message) do
       :unknown ->
@@ -423,8 +305,6 @@ defmodule Ingress.ShardSession do
         handle_twitch(which, message, state)
 
       {:error, reason} ->
-        # Crash on a malformed payload: the supervisor restarts us and Twitch
-        # redelivers through the Conduit. No retry storm on bad payloads.
         {:stop, {:bad_payload, reason}, state}
     end
   end
@@ -452,8 +332,6 @@ defmodule Ingress.ShardSession do
   defp socket(state, :primary), do: state.primary
   defp socket(state, :pending), do: state.pending
 
-  # --- EventSub protocol messages -------------------------------------------
-
   defp handle_twitch(which, %{"metadata" => %{"message_type" => type}} = message, state) do
     handle_twitch(which, type, message["payload"] || %{}, message["metadata"], state)
   end
@@ -463,9 +341,6 @@ defmodule Ingress.ShardSession do
     {:noreply, pet_watchdog(state)}
   end
 
-  # Welcome on the pending socket: the reconnect handshake completes. Promote
-  # it, close the old socket, keep the session (same session_id, binding and
-  # subscriptions carry over).
   defp handle_twitch(:pending, "session_welcome", payload, _meta, state) do
     session = payload["session"] || %{}
     cancel(state.handshake_timer)
@@ -491,8 +366,6 @@ defmodule Ingress.ShardSession do
     {:noreply, pet_watchdog(state)}
   end
 
-  # Welcome on a fresh primary socket: bind the new session to our shard on
-  # the Conduit. Twitch routes nothing to the shard until this succeeds.
   defp handle_twitch(:primary, "session_welcome", payload, _meta, state) do
     session = payload["session"] || %{}
     session_id = session["id"]
@@ -543,15 +416,12 @@ defmodule Ingress.ShardSession do
     {:noreply, pet_watchdog(state)}
   end
 
-  # Twitch is moving the session. Open the replacement socket but keep the old
-  # one until the new welcome arrives; events keep flowing on the old socket
-  # during the handshake. This must never be skipped or shortcut.
+  # Never skip: the old socket must keep serving until the new welcome arrives.
   defp handle_twitch(which, "session_reconnect", payload, _meta, state) do
     url = get_in(payload, ["session", "reconnect_url"])
     Logger.info("session_reconnect requested (on #{which} socket)")
     Metrics.count("Shard/SessionReconnects")
 
-    # A reconnect for an already-superseded handshake: drop the stale pending.
     if state.pending, do: WS.close(state.pending)
     cancel(state.handshake_timer)
 
@@ -566,11 +436,6 @@ defmodule Ingress.ShardSession do
     end
   end
 
-  # user.authorization.grant / user.authorization.revoke are client-scoped
-  # subscriptions (condition keys on our client id, not a broadcaster), so they
-  # bypass the lane pipeline: no broadcaster admission applies and their only
-  # consumer is outgress, which reconciles the channel's enrollment state. The
-  # binary-prefix match keeps the hot chat path untouched.
   defp handle_twitch(
          _which,
          "notification",
@@ -595,12 +460,6 @@ defmodule Ingress.ShardSession do
     {:noreply, state |> count_notification() |> pet_watchdog()}
   end
 
-  # Twitch revoked one subscription (authorization_revoked, user_removed,
-  # version_removed, ...). Publish it on the authz status subject so outgress
-  # can flip the channel's enrollment state; the surviving subscriptions are
-  # deliberately left alone (stream.online keeps working without any user
-  # grant, and it is the beacon that lets the bot tell the streamer to
-  # reconnect on their next go-live).
   defp handle_twitch(_which, "revocation", payload, _meta, state) do
     sub = payload["subscription"] || %{}
     Logger.warning("subscription revoked: #{inspect(sub)}")
@@ -621,8 +480,6 @@ defmodule Ingress.ShardSession do
     {:noreply, pet_watchdog(state)}
   end
 
-  # A registered Conduit shard may see a trial chat during registration overlap.
-  # Shared Valkey admission makes the first copy win on either transport.
   defp dispatch_notification(payload, admission) do
     case {Ingress.TrialMembership.lookup(admission.broadcaster_id),
           get_in(payload, ["subscription", "type"])} do
@@ -652,12 +509,6 @@ defmodule Ingress.ShardSession do
     end
   end
 
-  # A bind rejected with `invalid_parameter` cannot succeed by retrying: the
-  # shard id lies outside the conduit's current shard_count, i.e. this shard is
-  # excess after a scale-down. Other shard errors (websocket_disconnected,
-  # failed ping-pong) are transient session problems a fresh reconnect fixes.
-  # Stopping :normal removes the registry entry and, with :transient restart,
-  # keeps the supervisor from bringing the shard back on its own.
   @doc false
   def permanent_bind_error?({:shard_errors, errors}) when is_list(errors) do
     Enum.any?(errors, &(&1["code"] == "invalid_parameter"))
@@ -665,11 +516,6 @@ defmodule Ingress.ShardSession do
 
   def permanent_bind_error?(_reason), do: false
 
-  # Announce an authorization change for our client id. "grant" fires when a
-  # user (re)consents through the dashboard OAuth flow; "revoke" when Twitch
-  # invalidates the authorization (the user disconnected the app or changed
-  # their password). Outgress owns the reaction: revoke marks the channel's
-  # enrollment revoked, grant re-enrolls the missing subscriptions.
   defp publish_authz(action, event) when action in ["grant", "revoke"] do
     Metrics.count("Shard/Authz/#{action}")
     outcome = if action == "grant", do: "granted", else: "revoked"
@@ -685,9 +531,6 @@ defmodule Ingress.ShardSession do
     Logger.debug("unhandled user.authorization action #{action}")
   end
 
-  # The condition names the owning channel differently per subscription type:
-  # broadcaster_user_id for channel.* types, to_broadcaster_user_id for raid,
-  # user_id for the client-scoped user.* types.
   defp revoked_broadcaster(sub) do
     condition = sub["condition"] || %{}
 
@@ -695,9 +538,6 @@ defmodule Ingress.ShardSession do
       condition["user_id"]
   end
 
-  # Announce that this shard (re)established its binding: "fresh" after a
-  # full connect + Helix bind, "moved" after a session_reconnect handshake
-  # carried the session to a new socket. The admin live feed shows these.
   defp publish_bound(state, kind) do
     Nats.publish("twitch.ingress.status.shard.bound", %{
       shard_id: state.shard_id,
@@ -711,14 +551,10 @@ defmodule Ingress.ShardSession do
   defp keepalive_ms(session, state) do
     case session["keepalive_timeout_seconds"] do
       s when is_integer(s) and s > 0 -> s * 1000
-      _ -> state.keepalive_ms || 10_000
+      _ -> state.keepalive_ms || @default_keepalive_ms
     end
   end
 
-  # --- socket loss -----------------------------------------------------------
-
-  # The old socket dying while a handshake is in flight is expected (Twitch
-  # closes it after the grace period); keep waiting on the pending socket.
   defp socket_down(:primary, reason, %{pending: pending} = state) when pending != nil do
     Logger.info("old socket closed during reconnect handshake: #{inspect(reason)}")
     WS.close(state.primary)
@@ -736,8 +572,6 @@ defmodule Ingress.ShardSession do
     {:noreply, reconnect(%{state | pending: nil, handshake_timer: nil})}
   end
 
-  # --- connect / reconnect ---------------------------------------------------
-
   defp connect(state) do
     case WS.connect(TwitchConfig.eventsub_url(), state.ws_connect_opts) do
       {:ok, ws} ->
@@ -750,7 +584,6 @@ defmodule Ingress.ShardSession do
     end
   end
 
-  # Full fresh reconnect: tear everything down, new session, re-bind via Helix.
   defp reconnect(state) do
     if state.bound? do
       Metrics.event("ShardDown", %{shard_id: state.shard_id, reason: "reconnecting"})
@@ -765,16 +598,9 @@ defmodule Ingress.ShardSession do
     state |> teardown() |> schedule_retry()
   end
 
-  # --- registration self-check -----------------------------------------------
-
   defp schedule_registry_check,
     do: Process.send_after(self(), :registry_check, @registry_check_interval_ms)
 
-  # A session that should own its name but does not is repaired here, because
-  # nothing else will: `Ingress.ConduitManager` discovers shards through the
-  # registry, so a session missing from it is missing from the reconciler too.
-  # Skipped while a takeover is in flight -- that path is deliberately
-  # unregistered until its own deadline resolves the duplicate.
   defp verify_registration(%{name_state: :named, takeover: nil} = state) do
     case Horde.Registry.lookup(Ingress.Registry, {:shard, state.shard_id}) do
       [{pid, _}] when pid == self() -> state
@@ -785,11 +611,7 @@ defmodule Ingress.ShardSession do
 
   defp verify_registration(state), do: state
 
-  # The name is held by another pid: this copy is a duplicate, not an orphan.
-  # Deliberately not resolved here -- an unregistered copy receives no
-  # name-conflict signal, and killing whichever copy noticed first would as
-  # often close the socket Twitch is actually routing to. The reconciler's
-  # health pass settles it from Twitch's own view of the slot.
+  # Leave duplicates to the reconciler: killing the copy that noticed can close the routed socket.
   defp reregister(state) do
     case Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil) do
       {:ok, _pid} ->
@@ -802,10 +624,6 @@ defmodule Ingress.ShardSession do
     end
   end
 
-  # --- duplicate-shard takeover helpers --------------------------------------
-
-  # We are keeping the shard: watch the registry's pick until it exits, then
-  # reclaim the registration. The deadline bounds the unregistered window.
   defp begin_takeover(state, winner) do
     monitor = Process.monitor(winner)
     timer = Process.send_after(self(), :takeover_deadline, @takeover_deadline_ms)
@@ -820,20 +638,14 @@ defmodule Ingress.ShardSession do
     case Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil) do
       {:ok, _} ->
         Logger.info("duplicate shard resolved: registration reclaimed, we keep serving")
-        # The loser may have bound after us before it exited; make Twitch's
-        # routing follow the copy that actually survived.
         reassert_binding(state)
 
       {:error, {:already_registered, _pid}} ->
-        # A third copy raced us to the name (fresh start by the reconciler).
         Logger.warning("duplicate shard: registration reclaimed by another copy; standing down")
         {:stop, :normal, stand_down(state)}
     end
   end
 
-  # Re-bind our current session to the shard. Twitch's conduit routes to the
-  # last session bound, so this is how a surviving copy pulls the routing back
-  # after a duplicate resolution. No-op unless we hold a bound session.
   defp reassert_binding(%{bound?: true, session_id: session_id} = state)
        when session_id != nil do
     case Api.assign_shard(state.conduit_id, state.shard_id, session_id) do
@@ -858,8 +670,6 @@ defmodule Ingress.ShardSession do
     end
   end
 
-  # Graceful exit of a redundant duplicate: announce if we were serving, then
-  # tear everything down so terminate/1 stays quiet.
   defp stand_down(state) do
     if state.bound? do
       Metrics.event("ShardDown", %{shard_id: state.shard_id, reason: "duplicate_resolved"})
@@ -908,13 +718,11 @@ defmodule Ingress.ShardSession do
     %{state | attempts: attempts}
   end
 
-  # Increment the aggregate load counter.
   defp count_notification(state) do
     now = System.monotonic_time(:millisecond)
     %{state | load_counter: Ingress.LoadCounter.increment(state.load_counter, now)}
   end
 
-  # Every inbound message proves the socket is alive.
   defp pet_watchdog(state) do
     now_mono = System.monotonic_time(:millisecond)
     now_sys = System.os_time(:millisecond)
@@ -922,7 +730,7 @@ defmodule Ingress.ShardSession do
     state = %{state | last_frame_mono_ms: now_mono, last_frame_system_ms: now_sys}
 
     if state.watchdog == nil do
-      window = (state.keepalive_ms || 10_000) + @keepalive_grace_ms
+      window = (state.keepalive_ms || @default_keepalive_ms) + @keepalive_grace_ms
       token = make_ref()
       timer = Process.send_after(self(), {:keepalive_timeout, token}, window)
       %{state | watchdog: {timer, token}}

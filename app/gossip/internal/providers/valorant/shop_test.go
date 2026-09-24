@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Shop tests are their own file for the same reason fortnite's shop_test.go
-// is: the featured bundle is a three-upstream join (store payload, skin
-// catalogue, rarity tiers) and its failure modes — unknown items, currency
-// filtering, catalogue lag — share nothing with the per-player lookups the
-// other tests cover.
-
 package valorant
 
 import (
@@ -146,8 +140,6 @@ func TestShopJoinsTheFeaturedBundleAgainstTheCatalogue(t *testing.T) {
 }
 
 func TestShopUnknownSkinsAreSkippedButCountedHonestly(t *testing.T) {
-	// A catalogue miss mid-patch shrinks Count rather than padding rows with
-	// blank names.
 	p, _ := newShopProvider(t)
 	reply := decodeReply[shopReply](t, endpoint(t, p, "shop")(context.Background(), gossiprpc.Request{}))
 	assert.Equal(t, 2, reply.Count)

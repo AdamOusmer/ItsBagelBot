@@ -10,41 +10,23 @@ import (
 
 const testLink = "https://discord.gg/spamcode"
 
-// sightingArgs is sighting's and sightingOwner's (guild, channel, user,
-// owner) tuple collapsed into one struct, matching the messageEventInput/
-// linkGuardRun convention used for the same shape elsewhere in this repo's
-// Discord tests. sighting and sightingOwner individually took 3 and 4 bare
-// string parameters -- guild id, channel id, user id, owner id are all the
-// same Go type and easy to transpose at a call site -- which is what
-// CodeScene's String Heavy Function Arguments flagged on this file
-// (file-level).
 type sightingArgs struct {
 	Guild   string
 	Channel string
 	User    string
-	Owner   string // sighting ignores this; only sightingOwner reads it.
+	Owner   string
 }
 
-// sighting builds a Sighting with no owner binding, matching a guild that
-// never completed setup. That is a deliberate default for most of these
-// tests: local channel/author counting and enforcement must not depend on
-// OwnerID at all, only fleet corroboration does (see corroborate).
 func sighting(a sightingArgs) Sighting {
 	return Sighting{GuildID: a.Guild, ChannelID: a.Channel, UserID: a.User, MessageID: "m", Link: testLink}
 }
 
-// sightingOwner is sighting plus the Twitch broadcaster id the guild is
-// bound to, for the fleet-corroboration tests.
 func sightingOwner(a sightingArgs) Sighting {
 	s := sighting(a)
 	s.OwnerID = a.Owner
 	return s
 }
 
-// newTestGuarder builds a Guarder backed by a fresh fake Valkey plus the
-// background context: nearly every test below opened with this identical
-// pair of lines, repeated so many times it was the duplication CodeScene
-// flagged on this file.
 func newTestGuarder(t *testing.T) (*Guarder, context.Context) {
 	t.Helper()
 	return New(newFakeValkey(t).client), context.Background()
@@ -53,7 +35,7 @@ func newTestGuarder(t *testing.T) (*Guarder, context.Context) {
 func TestObserveBelowChannelThresholdAllows(t *testing.T) {
 	g, ctx := newTestGuarder(t)
 
-	for i, ch := range []string{"c1", "c2"} { // one under ChannelThreshold (3)
+	for i, ch := range []string{"c1", "c2"} {
 		v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: ch, User: "u1"}))
 		if !v.Allow {
 			t.Fatalf("post %d: Allow = false, want true (verdict %+v)", i, v)
@@ -69,7 +51,7 @@ func TestObserveAtChannelThresholdTrips(t *testing.T) {
 
 	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
 	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c2", User: "u1"}))
-	v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c3", User: "u1"})) // 3rd distinct channel == ChannelThreshold
+	v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c3", User: "u1"}))
 
 	if v.Allow {
 		t.Fatalf("3rd distinct channel: Allow = true, want false (verdict %+v)", v)
@@ -86,9 +68,6 @@ func TestObserveAtChannelThresholdTrips(t *testing.T) {
 }
 
 func TestObserveRepeatedChannelDoesNotDoubleCount(t *testing.T) {
-	// The same account reposting in the SAME channel is flooding, not the
-	// cross-channel signal this package targets -- see the package doc's
-	// "why distinct channels, not message count".
 	g, ctx := newTestGuarder(t)
 
 	for i := 0; i < 5; i++ {
@@ -103,9 +82,6 @@ func TestObserveRepeatedChannelDoesNotDoubleCount(t *testing.T) {
 }
 
 func TestObserveMultiAuthorLowerThresholdTrips(t *testing.T) {
-	// Two distinct accounts posting the identical link, in the SAME
-	// channel, is the hacked-account-wave signature and must trip
-	// AuthorThreshold well before ChannelThreshold (3) would ever fire.
 	g, ctx := newTestGuarder(t)
 
 	v1 := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
@@ -113,7 +89,7 @@ func TestObserveMultiAuthorLowerThresholdTrips(t *testing.T) {
 		t.Fatalf("first author: Allow = false, want true (verdict %+v)", v1)
 	}
 
-	v2 := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u2"})) // 2nd distinct author == AuthorThreshold
+	v2 := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u2"}))
 	if v2.Allow {
 		t.Fatalf("2nd distinct author: Allow = true, want false (verdict %+v)", v2)
 	}
@@ -133,10 +109,8 @@ func TestObserveWindowExpiryResetsCount(t *testing.T) {
 	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c1", User: "u1"}))
 	g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c2", User: "u1"}))
 
-	fv.advance(Window + 1) // cross the fixed window boundary
+	fv.advance(Window + 1)
 
-	// A fresh post after the window rolled over must start counting from
-	// scratch, not add a 3rd channel to the expired set.
 	v := g.Observe(ctx, sighting(sightingArgs{Guild: "g1", Channel: "c3", User: "u1"}))
 	if !v.Allow {
 		t.Fatalf("post after window expiry tripped early (verdict %+v)", v)
@@ -146,12 +120,6 @@ func TestObserveWindowExpiryResetsCount(t *testing.T) {
 	}
 }
 
-// exemptionCases table-drives the three false-positive exemptions
-// exemptVerdict applies. They used to be three separately-written test
-// functions that repeated the identical "post well past ChannelThreshold,
-// assert every post stays allowed with the matching reason" loop, differing
-// only in which Sighting field they flipped and which reason they expected
-// -- that repetition is what CodeScene flagged as duplication on this file.
 func exemptionCases() []struct {
 	name   string
 	user   string
@@ -175,7 +143,7 @@ func TestObserveExemptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g, ctx := newTestGuarder(t)
 
-			for i, ch := range []string{"c1", "c2", "c3", "c4"} { // well past ChannelThreshold
+			for i, ch := range []string{"c1", "c2", "c3", "c4"} {
 				s := sighting(sightingArgs{Guild: "g1", Channel: ch, User: tc.user})
 				tc.setup(&s)
 				v := g.Observe(ctx, s)
@@ -190,8 +158,6 @@ func TestObserveExemptions(t *testing.T) {
 	}
 }
 
-// tripGuild drives ChannelThreshold distinct channels for one guild, bound
-// to owner, and returns the verdict from the trip itself.
 func tripGuild(ctx context.Context, g *Guarder, guild, owner string) Verdict {
 	var last Verdict
 	for i := 0; i < ChannelThreshold; i++ {
@@ -211,11 +177,6 @@ func TestObserveSingleGuildTripDoesNotPromoteFleetWide(t *testing.T) {
 		t.Fatalf("a single owner's trip promoted the link fleet-wide: %+v", trip)
 	}
 
-	// A second, unrelated guild (and owner) seeing this link for the FIRST
-	// time must be judged on its own -- not pre-blocked by g1's local
-	// trip. This is the abuse case FleetOwnerThreshold exists to close:
-	// one owner alone, however many guilds they control, can never get a
-	// link actioned everywhere.
 	v := g.Observe(ctx, sightingOwner(sightingArgs{Guild: "g2", Channel: "c1", User: "u1", Owner: "owner2"}))
 	if !v.Allow {
 		t.Fatalf("g2's first-ever sighting was blocked by g1's local trip: %+v", v)
@@ -226,11 +187,6 @@ func TestObserveSingleGuildTripDoesNotPromoteFleetWide(t *testing.T) {
 }
 
 func TestObserveSameOwnerTwoGuildsDoesNotPromote(t *testing.T) {
-	// The regression this whole gate exists for: one attacker standing up
-	// TWO guilds (free, self-service) and tripping the local threshold in
-	// both must NOT clear fleet corroboration, because both guilds are
-	// bound to the SAME Twitch owner -- only one distinct owner ever
-	// existed no matter how many guilds that owner puppets.
 	g, ctx := newTestGuarder(t)
 
 	tripGuild(ctx, g, "g1", "sharedOwner")
@@ -243,8 +199,6 @@ func TestObserveSameOwnerTwoGuildsDoesNotPromote(t *testing.T) {
 		t.Fatalf("CorroboratingOwners = %d, want 1 (one owner, regardless of guild count)", trip2.CorroboratingOwners)
 	}
 
-	// A third guild, bound to a genuinely different owner, must still be
-	// judged fresh -- the two same-owner guilds must not have promoted it.
 	v := g.Observe(ctx, sightingOwner(sightingArgs{Guild: "g3", Channel: "c1", User: "u1", Owner: "unrelatedOwner"}))
 	if !v.Allow || v.FleetHit {
 		t.Fatalf("link was promoted despite only one distinct owner ever corroborating: %+v", v)
@@ -280,10 +234,6 @@ func TestObservePromotedLinkActionedInUnseenThirdGuild(t *testing.T) {
 		t.Fatalf("setup: link never promoted: %+v", promo)
 	}
 
-	// g3 has never seen this link before -- a single sighting, in a
-	// channel it has never posted in, by a user it has never seen, from a
-	// guild with no owner binding at all. It must still be actioned purely
-	// off the fleet-wide promotion.
 	v := g.Observe(ctx, sighting(sightingArgs{Guild: "g3", Channel: "brand-new-channel", User: "brand-new-user"}))
 	if v.Allow {
 		t.Fatalf("promoted link allowed through an unrelated guild that never saw it: %+v", v)
@@ -300,14 +250,9 @@ func TestObservePromotedLinkActionedInUnseenThirdGuild(t *testing.T) {
 }
 
 func TestObserveEmptyOwnerNeverCorroborates(t *testing.T) {
-	// A guild that never completed setup has no verified owner. It must
-	// still get full local detection and enforcement (GuildTripped,
-	// Allow=false) -- only its contribution to FLEET promotion is
-	// withheld, or an attacker could just skip setup to reopen the same
-	// free-multiplication hole FleetOwnerThreshold exists to close.
 	g, ctx := newTestGuarder(t)
 
-	trip := tripGuild(ctx, g, "g1", "") // no owner binding
+	trip := tripGuild(ctx, g, "g1", "")
 	if trip.Allow {
 		t.Fatalf("unbound guild's local trip was allowed through: %+v", trip)
 	}
@@ -318,8 +263,6 @@ func TestObserveEmptyOwnerNeverCorroborates(t *testing.T) {
 		t.Fatalf("empty-owner trip contributed to fleet corroboration: %+v", trip)
 	}
 
-	// Prove it directly against Valkey, not just via the returned Verdict:
-	// the trips set for this link must still be empty.
 	link, _ := NormalizeLink(testLink)
 	n, err := g.card(ctx, tripsKey(normalizedLink(link)))
 	if err != nil {

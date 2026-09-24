@@ -12,7 +12,6 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// GiveawayAward is the durable obligation owed to one selected account.
 type GiveawayAward struct{ ent.Schema }
 
 func (GiveawayAward) Fields() []ent.Field {

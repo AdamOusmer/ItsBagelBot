@@ -15,8 +15,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// waitFor polls until cond holds; the checker resolves asynchronously by
-// design, so first contact is allowed to come up empty.
 func waitFor(t *testing.T, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -29,7 +27,6 @@ func waitFor(t *testing.T, cond func() bool) {
 	t.Fatal("condition did not hold within 2s")
 }
 
-// blockingDoH serves a security resolver that sinks every name to 0.0.0.0.
 func blockingDoH(t *testing.T) *linkcheck.DoH {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -39,8 +36,6 @@ func blockingDoH(t *testing.T) *linkcheck.DoH {
 	return linkcheck.NewDoH(srv.URL, nil)
 }
 
-// feedChecker arms the dynamic layer with a feed snapshot listing one host,
-// giving the tests a SYNCHRONOUS conviction path (no network wait).
 func feedChecker(t *testing.T) (*linkcheck.Checker, context.CancelFunc) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -103,8 +98,6 @@ func TestGateFloorStillWinsOverLinkCheck(t *testing.T) {
 	g := New()
 	g.SetLinkChecker(c)
 
-	// grabify.link is immovable-floor infrastructure; the phish layer must not
-	// re-badge it even though the checker's oracle would also convict.
 	if v := g.InspectWith(module.RoleEveryone, "visit grabify.link now", nil); v.Rule != "ip_logger" {
 		t.Fatalf("rule = %q, want ip_logger (floor precedence)", v.Rule)
 	}
@@ -124,7 +117,7 @@ func TestGateLinksOffProfileSkipsLinkCheck(t *testing.T) {
 }
 
 func TestGateUnarmedStaysInert(t *testing.T) {
-	g := New() // no SetLinkChecker: byte-identical to the pre-linkcheck gate
+	g := New()
 	if v := g.InspectWith(module.RoleEveryone, "see convicted.example ok", nil); v.Action != ActionNone {
 		t.Fatalf("unarmed gate acted: %+v", v)
 	}

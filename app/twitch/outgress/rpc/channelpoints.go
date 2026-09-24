@@ -18,12 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Channel-points reward management runs under the broadcaster's own token and
-// hits Helix synchronously in the RPC handler, mirroring the manage verbs: these
-// are low-frequency dashboard operations (a streamer edits a handful of rewards),
-// so they do not ride a lane or pay a rate bucket. Per-redemption status updates,
-// which CAN be high volume, go the other way — sesame emits them on the outgress
-// lane as TypeRedemptionUpdate, rate-limited by the worker.
 const rewardHandleTimeout = 6 * time.Second
 
 type channelPoints struct {
@@ -31,12 +25,6 @@ type channelPoints struct {
 	log    *zap.Logger
 }
 
-// SubscribeChannelPoints registers the channel-points reward verbs under prefix:
-//
-//	<prefix>.channelpoints.list    {broadcaster_id}                 -> {rewards}
-//	<prefix>.channelpoints.create  {broadcaster_id, reward}         -> {reward}
-//	<prefix>.channelpoints.update  {broadcaster_id, reward_id, reward} -> {reward}
-//	<prefix>.channelpoints.delete  {broadcaster_id, reward_id}      -> {}
 func SubscribeChannelPoints(nc *nats.Conn, tw *twitch.Client, prefix, queueGroup string, app *newrelic.Application, log *zap.Logger) error {
 	cp := &channelPoints{twitch: tw, log: log}
 
@@ -107,11 +95,6 @@ func (cp *channelPoints) handleDelete(ctx context.Context, req manage.RewardRequ
 	return manage.RewardReply{}
 }
 
-// fail maps a Helix error to the reply. A missing-scope rejection (the grant
-// predates channel:manage:redemptions) and a no-token case both mean the
-// broadcaster must re-consent, so both set MissingScope for the reconnect CTA.
-// A duplicate title answers CodeConflict so the dashboard can name the cause
-// instead of a generic failure the broadcaster retries unchanged.
 func (cp *channelPoints) fail(op, broadcasterID string, err error) manage.RewardReply {
 	if errors.Is(err, twitch.ErrMissingScope) || errors.Is(err, twitch.ErrNoUserToken) {
 		return manage.RewardReply{MissingScope: true, Refusal: domainrpc.Refused(domainrpc.CodeForbidden, "reconnect required")}

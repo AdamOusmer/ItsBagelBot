@@ -10,58 +10,30 @@ import (
 	"ItsBagelBot/pkg/ratelimit"
 )
 
-// Buckets is one upstream API budget under the fleet's premium/standard lane
-// discipline: standard traffic keeps 75% of the capacity so premium always has
-// a reserve — the same split sesame's consumer pool applies to its routines.
-// Every provider owns one Buckets per upstream key it spends.
 type Buckets struct {
 	key      string
 	general  ratelimit.Spec
 	standard ratelimit.Spec
 }
 
-// pacedBucket derives a token bucket that can never exceed limit requests in
-// ANY window of windowSeconds AND never bursts past maxBurst at once. A bucket
-// with burst B and refill r admits up to B + r*window requests per window in
-// the worst case (full burst, then a full window of refill), so keeping
-// burst + refill*window = limit holds every rolling window at the allowance —
-// a bucket naively sized capacity=limit, refill=limit/window would admit up to
-// 2x. Burst is floored because ratelimit.NewSpec requires an integer capacity
-// and panicking at boot over an odd configured limit would crashloop the pod.
+// burst + refill*window must equal limit; capacity=limit with refill=limit/window admits 2x the quota.
 func pacedBucket(limit, windowSeconds, maxBurst float64) (burst, refillPerSecond float64) {
 	burst = math.Max(1, math.Min(maxBurst, math.Floor(limit/2)))
 	refillPerSecond = (limit - burst) / windowSeconds
 	if refillPerSecond <= 0 {
-		// Degenerate budget (limit ~1): NewSpec requires a positive refill;
-		// strictness yields to a valid spec on a config that tiny.
 		refillPerSecond = burst / windowSeconds
 	}
 	return burst, refillPerSecond
 }
 
-// strictBucket is pacedBucket with the widest burst that still bounds the
-// rolling window: half up front, half refilled across the window.
 func strictBucket(limit, windowSeconds float64) (burst, refillPerSecond float64) {
 	return pacedBucket(limit, windowSeconds, math.Floor(limit/2))
 }
 
-// NewBuckets derives the (general, standard) token-bucket pair for one
-// upstream allowing capacity requests per windowSeconds — strictly: the
-// general bucket bounds TOTAL spend to the allowance in every rolling window,
-// and the standard bucket bounds standard-lane spend to 75% of it, so premium
-// always keeps a 25% reserve.
 func NewBuckets(key string, capacity, windowSeconds float64) Buckets {
 	return NewPacedBuckets(key, capacity, windowSeconds, math.Floor(capacity/2))
 }
 
-// NewPacedBuckets is NewBuckets with an explicit burst ceiling, for an
-// upstream that enforces a short-window pace UNDER its documented quota.
-// Coral is the motivating case: 600 per rolling 5 minutes on paper, but a
-// measured edge limiter of ~40 rapid requests refilling ~4/s answers 429 long
-// before the quota (2026-07-28 probe: 37 rapid 200s, then 429, next request
-// 200 again). A wide-burst bucket sails through that wall; capping burst while
-// keeping burst + refill*window = capacity spends the full quota without ever
-// exceeding the pace. The standard lane keeps its 75% share of both.
 func NewPacedBuckets(key string, capacity, windowSeconds, maxBurst float64) Buckets {
 	gen := math.Max(1, math.Floor(capacity))
 	std := math.Max(1, math.Floor(gen*0.75))
@@ -74,20 +46,11 @@ func NewPacedBuckets(key string, capacity, windowSeconds, maxBurst float64) Buck
 	}
 }
 
-// WithKey returns a copy of b spending the same derived specs under a
-// different limiter key, for per-caller budgets (govee: one bucket per
-// broadcaster) without re-deriving the specs on every request.
 func (b Buckets) WithKey(key string) Buckets {
 	b.key = key
 	return b
 }
 
-// Enforce consumes one request from the budget. Standard requests must pass
-// both their restricted bucket AND the general bucket in one atomic script (a
-// denial consumes neither); premium requests consume only the general bucket,
-// enjoying the 25% reserve. A denial is a typed 429 UpstreamError so the
-// provider's friendly mapping chats it back, and it is deliberately NOT
-// negative-cacheable — the next request must retry the bucket.
 func (b Buckets) Enforce(ctx context.Context, limiter *ratelimit.Limiter, isPremium bool) error {
 	if limiter == nil {
 		return nil

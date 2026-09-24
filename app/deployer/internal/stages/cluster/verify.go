@@ -17,19 +17,12 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// verify confirms every rolled pod runs its pinned digest and every public
-// host answers. It never rolls back: a failure leaves the release deployed
-// with verify failed and offers a rollback run.
 type verify struct{}
 
 func (verify) ID() deploy.StageID { return deploy.StageVerify }
 
-// Done is always false: verify is a reading of the cluster now, and one
-// taken before a restart proves nothing about now.
 func (verify) Done(context.Context, *stage.RunCtx) (bool, error) { return false, nil }
 
-// Run checks everything before failing, so one run of the stage shows every
-// pod off its pin and every host down, not just the first.
 func (verify) Run(ctx context.Context, rc *stage.RunCtx) error {
 	t, err := loadTarget(ctx, rc)
 	if err != nil {
@@ -67,8 +60,6 @@ func (v *verifyRun) seed(ctx context.Context, units []*unit, urls []ports.URL) {
 
 func imageKey(u *unit) string { return "image:" + u.name }
 
-// images reads each service's pods through the watcher: a read error is not
-// a verdict on the pods, so it ends the stage without one.
 func (v *verifyRun) images(ctx context.Context, units []*unit) error {
 	repo := v.rc.Deps.Config.ImageRepo
 	for _, u := range units {
@@ -81,7 +72,6 @@ func (v *verifyRun) images(ctx context.Context, units []*unit) error {
 	return nil
 }
 
-// check is one verify row and the log lines its failure adds.
 type check struct {
 	row      deploy.Item
 	problems []string
@@ -118,8 +108,6 @@ func probeResult(url ports.URL, code int, err error) check {
 	return check{row: row, problems: []string{string(url) + ": " + problem}}
 }
 
-// probeProblem accepts 3xx: the probe does not follow redirects, and a
-// login redirect is a healthy answer from a console.
 func probeProblem(code int, err error) string {
 	switch {
 	case err != nil:
@@ -155,12 +143,6 @@ var (
 	pathRule = regexp.MustCompile("(?:Path|PathPrefix)\\(`([^`]+)`\\)")
 )
 
-// probeURLs is one URL per host the IngressRoutes name, at the first path
-// of the first route naming it. Host roots are not probed:
-// health.itsbagelbot.com and webhooks.itsbagelbot.com route only paths, so
-// their roots answer the unrouted-host 404 whatever state the services are
-// in. A HostRegexp route (the unrouted-host fallback) names no host and is
-// left out.
 func probeURLs(objs ports.Objects) []ports.URL {
 	seen := map[string]bool{}
 	var urls []ports.URL

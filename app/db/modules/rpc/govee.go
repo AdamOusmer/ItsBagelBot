@@ -15,15 +15,7 @@ import (
 	"ItsBagelBot/pkg/env"
 )
 
-// wireGovee subscribes the Govee API-key custody RPCs. The dashboard verbs
-// (set/clear/status) never echo the key; the internal decrypt verb is
-// account-scoped to gossip, the one service that dials Govee — the same
-// split the users service uses for tokens and contact email. It is a no-op when
-// key custody is disabled (nil store).
-//
-// The four verbs carry different request and reply types, so they cannot share
-// one ServeVerbs table; each is bound on its own through the same wiring, and
-// ServeForUser puts the fleet-wide user-id guard in front of every one.
+// Dashboard verbs must never echo the key; only the gossip-scoped decrypt verb returns it.
 func wireGovee(w bus.RPCWiring, creds *repository.GoveeCreds) error {
 	if creds == nil {
 		return nil
@@ -50,8 +42,6 @@ type goveeRPC struct {
 	log   *zap.Logger
 }
 
-// A surfaced error never carries the key: these writes take their plaintext as
-// an argument and fail on validation or sealing.
 func (g *goveeRPC) handleSet(ctx context.Context, req goveerpc.KeySetRequest, id uint64) (goveerpc.KeyMutateReply, error) {
 	return goveerpc.KeyMutateReply{}, g.creds.SetKey(ctx, id, req.Key)
 }
@@ -71,7 +61,6 @@ func (g *goveeRPC) handleStatus(ctx context.Context, _ goveerpc.KeyStatusRequest
 func (g *goveeRPC) handleGet(ctx context.Context, _ goveerpc.KeyGetRequest, id uint64) (goveerpc.KeyGetReply, error) {
 	key, err := g.creds.Key(ctx, id)
 	if errors.Is(err, repository.ErrNoGoveeKey) {
-		// "None on file" is an empty reply, not a failure.
 		return goveerpc.KeyGetReply{}, nil
 	}
 	return goveerpc.KeyGetReply{Key: key}, err

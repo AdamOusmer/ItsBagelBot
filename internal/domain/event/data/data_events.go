@@ -5,8 +5,6 @@ package data
 
 import "ItsBagelBot/pkg/codec"
 
-// Subjects form the public contract between the data services, their caches
-// and the projector (see ADR 0003). Renaming one is a breaking change.
 const (
 	SubjectUserChanged    = "data.users.changed"
 	SubjectUserDeleted    = "data.users.deleted"
@@ -14,38 +12,19 @@ const (
 	SubjectCommandChanged = "data.commands.changed"
 	SubjectCommandUsed    = "data.commands.used"
 
-	// SubjectFetchChanged carries $(urlfetch) definition changes (the
-	// FetchDefinition rows; sealed FetchKeys are never projected). Consumers
-	// retire or rewrite the fetch:<name> field of the user's settings hash
-	// exactly like command:<name>.
 	SubjectFetchChanged = "data.commands.fetch_changed"
 
-	// SubjectReprojectRequest asks every data service to republish its
-	// current state as ordinary change events. The projector sends it on a
-	// cold start so it can rebuild the Valkey projection without ever
-	// reading another service's schema.
 	SubjectReprojectRequest = "data.reproject.request"
 )
 
-// The DTOs carry the full new state (event-carried state transfer): consumers
-// such as the Valkey projector and the in-process caches update themselves
-// from the event alone and never read another service's schema.
-
 type UserChangedDTO struct {
-	UserID   uint64 `json:"user_id"`
-	Username string `json:"username"`
-	IsActive bool   `json:"is_active"`
-	Status   string `json:"status"`
-	Banned   bool   `json:"banned"`
-	// Locale is the user's console UI language, projected so the worker can
-	// answer system commands in their language. Omitted by older publishers;
-	// the projector treats an empty value as "unchanged" and never clobbers a
-	// previously projected locale.
-	Locale string `json:"locale,omitempty"`
-	// CommandsPageHidden mirrors the inverted flag (D2): a publisher that lacks
-	// this field zero-values to false, so a projector still on the old shape
-	// folds "visible", the pre-feature behaviour.
-	CommandsPageHidden bool `json:"commands_page_hidden"`
+	UserID             uint64 `json:"user_id"`
+	Username           string `json:"username"`
+	IsActive           bool   `json:"is_active"`
+	Status             string `json:"status"`
+	Banned             bool   `json:"banned"`
+	Locale             string `json:"locale,omitempty"`
+	CommandsPageHidden bool   `json:"commands_page_hidden"`
 }
 
 type UserDeletedDTO struct {
@@ -69,21 +48,11 @@ type CommandChangedDTO struct {
 	Perm             string   `json:"perm,omitempty"`
 	Cooldown         uint     `json:"cooldown,omitempty"`
 	AllowedUserID    uint64   `json:"allowed_user_id,omitempty"`
-	// Uses is the lifetime execution counter (see SubjectCommandUsed). Carried
-	// on every change event so the projection never regresses it.
-	Uses uint64 `json:"uses,omitempty"`
-	// BumpCounter names the loyalty counter this command bumps by one on every
-	// successful run; "" means none. See ent/schema/commands.go's field
-	// comment for why this replaced the {counter:x} template token.
-	BumpCounter string `json:"bump_counter,omitempty"`
-	Deleted     bool   `json:"deleted"`
+	Uses             uint64   `json:"uses,omitempty"`
+	BumpCounter      string   `json:"bump_counter,omitempty"`
+	Deleted          bool     `json:"deleted"`
 }
 
-// FetchChangedDTO is the full state of one $(urlfetch) definition after the
-// change (event-carried state transfer, like CommandChangedDTO). Deleted
-// rides on rename and delete so consumers HDEL the old fetch:<name> field;
-// rows hard-delete, there is no tombstone. KeyLabel carries only the label —
-// sealed key material never enters events, Valkey or any cache.
 type FetchChangedDTO struct {
 	UserID   uint64   `json:"user_id"`
 	Name     string   `json:"name"`
@@ -94,15 +63,8 @@ type FetchChangedDTO struct {
 	Deleted  bool     `json:"deleted"`
 }
 
-// CommandUsedDTO reports successful executions of a custom command in chat.
-// The worker aggregates ticks locally and publishes summed events on a flush
-// window (rate-limiting the bus: a spammed command costs one event per window,
-// not one per run). The commands service sums them into the row's lifetime
-// counter on its own batch flush. Counters are loss-tolerant: a dropped event
-// costs at most one window of ticks.
 type CommandUsedDTO struct {
 	UserID uint64 `json:"user_id"`
 	Name   string `json:"name"`
-	// Count of executions in the window; 0 or absent means 1.
-	Count uint64 `json:"count,omitempty"`
+	Count  uint64 `json:"count,omitempty"`
 }

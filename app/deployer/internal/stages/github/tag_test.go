@@ -18,8 +18,6 @@ type tagResult struct {
 	TagAt deploy.SHA
 }
 
-// Main is base, c1 (changelog merge), c2 in every case; pr-head is a
-// commit main does not contain.
 func TestTagStage(t *testing.T) {
 	cases := []struct {
 		name      string

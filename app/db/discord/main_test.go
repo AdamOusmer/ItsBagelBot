@@ -5,9 +5,6 @@ package main
 
 import "testing"
 
-// TestRPCEndpointPrefersTheRPCPlane pins the RPC-only boot: discord-data holds
-// no BUS identity, so the single connection it opens must follow NATS_RPC_URL
-// when the manifest sets one and fall back to NATS_URL otherwise.
 func TestRPCEndpointPrefersTheRPCPlane(t *testing.T) {
 	cases := []struct {
 		name   string

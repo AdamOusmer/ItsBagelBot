@@ -20,7 +20,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// A redemption of the govee-bound reward "rw-1"; user typed a valid colour.
 const goveeRedeemJSON = `{"id":"redeem-1","broadcaster_user_id":"2","broadcaster_user_login":"streamer","user_id":"9","user_name":"CoolViewer","user_login":"coolviewer","user_input":"blue","reward":{"id":"rw-1","title":"Colour my lights","cost":500}}`
 
 const goveeCfg = `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159"}`
@@ -57,7 +56,6 @@ func okGossip() *fakeGossip {
 func TestGoveeUnconfiguredNoop(t *testing.T) {
 	var col collector
 	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: okGossip()}
-	// No device in the config -> not set up -> nothing happens.
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, `{"rewardId":"rw-1"}`), col.emit))
 	assert.Empty(t, col.out)
 }
@@ -126,7 +124,6 @@ func TestGoveeSuccessDrivesLightsAndFulfills(t *testing.T) {
 func TestGoveeAllowOfflineDrivesLightsWhileOffline(t *testing.T) {
 	var col collector
 	gw := okGossip()
-	// Stream offline, but the broadcaster opted out of live-only.
 	d := engine.Deps{Live: &fakeLive{live: false}, Gossip: gw}
 	cfg := `{"rewardId":"rw-1","device":"AB:CD:EF","sku":"H6159","allowOffline":true}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(goveeRedeemJSON, cfg), col.emit))
@@ -178,8 +175,6 @@ func TestGoveeOffInputRefundsWhenNotAllowed(t *testing.T) {
 	var col collector
 	gw := okGossip()
 	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
-	// Default config: the off action is not enabled, so "off" is just an
-	// unrecognized colour and refunds before gossip.
 	payload := `{"id":"redeem-3","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"off","reward":{"id":"rw-1","title":"x","cost":1}}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, goveeCfg), col.emit))
 	assert.Empty(t, gw.calls, "off must not reach gossip when the action is disabled")
@@ -201,7 +196,6 @@ func TestGoveeMultiBindingDrivesMatchingLight(t *testing.T) {
 	gw := okGossip()
 	d := engine.Deps{Live: &fakeLive{live: true}, Gossip: gw}
 	cfg := `{"bindings":[{"rewardId":"rw-1","device":"AA:AA:AA","sku":"H1"},{"rewardId":"rw-2","device":"BB:BB:BB","sku":"H2"}]}`
-	// Redeeming the second reward must drive the second light, not the first.
 	payload := `{"id":"redeem-9","broadcaster_user_id":"2","user_name":"CoolViewer","user_login":"coolviewer","user_input":"red","reward":{"id":"rw-2","title":"x","cost":1}}`
 	require.NoError(t, goveeHandler(t, d)(context.Background(), goveeCtx(payload, cfg), col.emit))
 
@@ -223,8 +217,6 @@ func TestGoveeMultiBindingUnmatchedRewardNoop(t *testing.T) {
 	assert.Empty(t, col.out)
 }
 
-// assertRefund asserts the two-output refund shape: a chat reason then a
-// CANCELED redemption update.
 func assertRefund(t *testing.T, out []module.Output) {
 	t.Helper()
 	require.Len(t, out, 2)

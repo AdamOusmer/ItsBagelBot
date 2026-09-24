@@ -2,15 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // Svelte adapter for `.bb-mobile-menu`. Its Astro twin is
-  // ../astro/MobileMenu.astro; ../test/parity.test.ts diffs the two.
-  //
-  // Renders CLOSED: aria-hidden, inert, and a `d=""` curve. Everything that
-  // moves is ../lib/nav-menu.ts, which finds the panel by `data-mobile-menu`,
-  // the curve by `data-menu-curve-path`, and the things it staggers by
-  // `data-menu-item` / `data-menu-footer`. Those five attributes are the
-  // contract between the markup and the engine; the classes are the contract
-  // between the markup and the CSS.
   import '../styles/elements/nav.css';
   import NavLink from './NavLink.svelte';
   import type { Snippet } from 'svelte';
@@ -27,15 +18,10 @@
     ...rest
   }: {
     links: UiNavLink[];
-    /** The one filled entry at the bottom of the panel. */
     cta?: UiNavLink;
-    /** Also the hamburger's aria-controls; see the clip note below. */
     id?: string;
-    /** Accessible name of the dialog. */
     panelLabel: string;
-    /** Fine print under the footer rows. */
     meta?: string;
-    /** Extra footer rows: a store link, a locale switch. */
     footer?: Snippet;
     class?: string;
     [key: string]: unknown;
@@ -43,11 +29,6 @@
 
   const classes = $derived(['bb-mobile-menu', className || null].filter(Boolean).join(' '));
 
-  // The clipPath id is derived from the instance id rather than fixed. Two
-  // panels on one page (a docs header plus an embedded preview) sharing one
-  // <clipPath> would animate as one, and the browser picks whichever is first
-  // in the document -- a bug that only appears on the page that adds the
-  // second one. The CSS reads it as a custom property; see nav.css.
   const clipId = $derived(`${id}-clip`);
 </script>
 

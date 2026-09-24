@@ -6,10 +6,6 @@ package linkguard
 import "testing"
 
 func TestNormalizeLinkInviteEquivalence(t *testing.T) {
-	// Every one of these must fold to the same key, or channel/author
-	// counting silently resets whenever an attacker rotates host alias or
-	// case -- see the package doc's "why normalization happens before any
-	// counting".
 	inputs := []string{
 		"discord.gg/abc123",
 		"https://discord.gg/abc123",
@@ -20,11 +16,11 @@ func TestNormalizeLinkInviteEquivalence(t *testing.T) {
 		"https://discord.com/invite/abc123",
 		"discordapp.com/invite/abc123",
 		"https://discordapp.com/invite/abc123",
-		"<https://discord.gg/abc123>",         // Discord's own embed-suppression brackets
-		"https://discord.gg/abc123?event=999", // tracking / event query param
-		"https://discord.gg/abc123.",          // sentence period stuck on
-		"https://discord.gg/abc123)",          // sentence-closing paren stuck on
-		"https://discord.gg/abc123!",          // sentence-ending punctuation stuck on
+		"<https://discord.gg/abc123>",
+		"https://discord.gg/abc123?event=999",
+		"https://discord.gg/abc123.",
+		"https://discord.gg/abc123)",
+		"https://discord.gg/abc123!",
 	}
 	want, isInvite := NormalizeLink("discord.gg/abc123")
 	if !isInvite {
@@ -57,7 +53,7 @@ func TestNormalizeLinkNonInviteURL(t *testing.T) {
 	if got == "" {
 		t.Fatalf("non-invite URL produced empty normalized key")
 	}
-	got2, _ := NormalizeLink("EXAMPLE.com/scam") // different case, no query, no scheme
+	got2, _ := NormalizeLink("EXAMPLE.com/scam")
 	if got != got2 {
 		t.Errorf("non-invite URL host/path folding not case/scheme insensitive: %q != %q", got, got2)
 	}
@@ -82,19 +78,12 @@ func TestNormalizeLinkEmpty(t *testing.T) {
 }
 
 func TestNormalizeLinkNonInviteHostPathNotTreatedAsInvite(t *testing.T) {
-	// discord.com paths that are not "/invite/..." are not invites at all
-	// (e.g. a link to the Discord homepage or app store page) and must not
-	// be folded as one.
 	_, invite := NormalizeLink("https://discord.com/download")
 	if invite {
 		t.Fatalf("non-invite discord.com path misclassified as an invite")
 	}
 }
 
-// TestInviteCodePreservesCase is InviteCode's entire reason to exist
-// (rather than just reusing NormalizeLink's own, folded return value): a
-// code sent to Discord's GET /invites/{code} must match byte for byte, and
-// NormalizeLink deliberately lowercases for counting.
 func TestInviteCodePreservesCase(t *testing.T) {
 	code, ok := InviteCode("https://discord.gg/AbC123XyZ")
 	if !ok {

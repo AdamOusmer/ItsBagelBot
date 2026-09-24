@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fixed is a one-name scope backed by a canned map, enough to pin the chain's
-// own rules (precedence, grouping, degradation) without a real dependency.
 type fixed struct {
 	name   string
 	values map[string]string
@@ -72,9 +70,6 @@ func TestChainSkipsScopesWithNothingToPlan(t *testing.T) {
 	assert.Empty(t, unused.seen, "a template naming none of a scope's tokens costs it no Plan")
 }
 
-// A scope whose Plan fails degrades to empty values — its tokens render as
-// nothing (or their fallback) — rather than failing the whole reply. A chat
-// bot with one broken dependency should still answer, thinner.
 func TestChainDegradesAFailedScopeToEmpty(t *testing.T) {
 	var got error
 	chain := Chain{&fixed{name: "who", err: errors.New("upstream down")}}
@@ -112,8 +107,6 @@ func TestMessageRejectsPayloads(t *testing.T) {
 	assert.Equal(t, "everyone", render(t, "{args|everyone}", chain, nil), "empty args fall back")
 }
 
-// argsChain is the message scope with three argument words in hand, the shape
-// engine.messageVars builds after sanitizing each word.
 func argsChain() Chain {
 	return Chain{Message{
 		User: "sam", Sender: "sam",
@@ -140,10 +133,6 @@ func TestMessagePositionalWords(t *testing.T) {
 	}
 }
 
-// A span that only looks like a word number is left alone: the cap, a signed
-// or padded number, and an {n:m} slice with a nonsense or backwards bound all
-// stay literal so a typo (or a plain number in prose) is visible rather than
-// silently empty.
 func TestMessageLeavesNonWordNumbersLiteral(t *testing.T) {
 	chain := argsChain()
 	for _, in := range []string{"{0}", "{31}", "{+1}", "{01}", "{999}", "{2:1}", "{1:x}", "{:x}", "{:}", "{}"} {
@@ -151,9 +140,6 @@ func TestMessageLeavesNonWordNumbersLiteral(t *testing.T) {
 	}
 }
 
-// TestMessageBoundedSlice pins the {n:m} grammar #883 left absent and the
-// simplification pass added: {n:m} is words n..m inclusive, {:m} is the same
-// slice anchored at word 1, both clamp m past the end rather than erroring.
 func TestMessageBoundedSlice(t *testing.T) {
 	chain := argsChain()
 	tests := []struct{ tmpl, want string }{
@@ -174,18 +160,11 @@ func TestMessageIdentityTokens(t *testing.T) {
 		render(t, "{user.id} {user.login} {command}", argsChain(), nil))
 }
 
-// TestMessageUserIDLegacyAlias pins messageAliases: {userid} is the
-// pre-simplification spelling of {user.id} and must resolve identically, not
-// merely to the same VALUE by coincidence of the fixture.
 func TestMessageUserIDLegacyAlias(t *testing.T) {
 	chain := argsChain()
 	assert.Equal(t, render(t, "{user.id}", chain, nil), render(t, "{userid}", chain, nil))
 }
 
-// countingCounters answers every read with the name it was given, recording
-// the order and addressing so the grammar's edges are visible. It is a Peeks,
-// not a Counters: the store scope is read-only end to end, so there is
-// nothing left in this package that bumps.
 type countingCounters struct {
 	asked []string
 	addr  []bool
@@ -221,7 +200,6 @@ func TestStoreStripsTheAddressingPrefixBeforeTheStore(t *testing.T) {
 	assert.Equal(t, []bool{false, true}, c.addr)
 }
 
-// listFetcher answers each name with its own text and records the batch.
 type listFetcher struct{ batches [][]string }
 
 func (f *listFetcher) Fetch(_ context.Context, names []string) map[string]string {

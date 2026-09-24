@@ -1,47 +1,7 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* `.bb-error-scene` — the full-screen error page: an oversized outlined status
-   code, two elliptical orbits drifting behind it, and the two actions a person
-   in this position actually has.
-
-   IT CARRIES NO COPY AND NO STATUS LOGIC. Everything visible arrives as a
-   prop, because "404 means the page wandered off" is a sentence about
-   ItsBagelBot and this is a design library. The mapping from `page.status` to
-   eyebrow/title/description/action lives in the console wrapper
-   (web/kit/components/ErrorView.svelte); this element is the scene.
-
-   THE ORBITS ARE ELLIPSES MADE OF CIRCLES. `border-radius: 50%` plus
-   `scaleY(0.46)` (and 0.58 for the inner one) rather than an ellipse:
-   scaling a circle keeps the 1px border 1px on the long axis, where an
-   ellipse's border thins at the poles and reads as a broken line at this
-   opacity. The `::after` dot rides the same transform, which is why it needs
-   no orbit path of its own — the rotation animation carries it.
-
-   The two periods are 18s and 23s, counter-rotating. Not a common multiple, so
-   the pair never returns to the same relative position; a page someone is
-   staring at while annoyed should not visibly loop.
-
-   `-webkit-text-stroke` on the code with `color: transparent` is the outline
-   treatment. It is the one property here with no standard equivalent; the
-   fallback if a browser ignores it is invisible text, which is why the code is
-   `aria-hidden` and the status is also announced in the eyebrow.
-
-   THE STAGGER (20ms code, 100ms eyebrow, 260ms title, 390ms description,
-   500ms actions, 610ms footnote) runs largest-to-smallest, same argument as
-   the page hero: the biggest element is already there and the rest catches up.
-
-   Reduced motion turns every one of them off AND forces `opacity: 1`. They are
-   `forwards` fills from zero, so collapsing the durations alone leaves an
-   empty page — the failure mode is not "less motion", it is "no content". */
 
 @layer bb.elements {
   .bb-error-scene {
@@ -162,9 +122,6 @@
     animation: bb-code-in 1s 20ms var(--bb-ease-out-expo) forwards;
   }
 
-  /* The breath is a soft tan cloud fading on opacity, not an animated
-     text-shadow (see motion.css); at 60-80px of blur the shadow already read
-     as a cloud rather than as the glyph outlines. */
   .bb-error-scene__code::after {
     content: "";
     position: absolute;

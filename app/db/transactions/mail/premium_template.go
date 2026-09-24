@@ -10,15 +10,10 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 )
 
-// Premium emails share the marketing site's design system: a flat near-black canvas, warm tan
-// accents, green reserved for "active" states, pill buttons, 16px card
-// radius, Syne for display type. Email-client rules apply: table layout,
-// inline styles, webfont via @import with system fallbacks (clients that
-// block remote fonts use the system fallbacks).
 const (
 	colorBlack  = "#0a0a0a"
 	colorCard   = "#111110"
-	colorBorder = "#2b241b" // solid stand-in for rgba(201,168,124,0.15) on #111110
+	colorBorder = "#2b241b"
 	colorTan    = "#c9a87c"
 	colorTanLt  = "#e0c49a"
 	colorWhite  = "#f0ece4"
@@ -29,8 +24,6 @@ const (
 	fontBody    = "'DM Sans','Helvetica Neue',Arial,sans-serif"
 	fontMono    = "'DM Mono',Menlo,Consolas,monospace"
 
-	// The v1 CID remains stable for prepared envelopes. The old external URL is
-	// kept only so legacy prepared HTML can be recognized and sent unchanged.
 	legacyLogoURL = "https://itsbagelbot.com/logo.png"
 	logoCID       = "itsbagelbot-logo-v1"
 	logoSrc       = "cid:" + logoCID
@@ -194,9 +187,6 @@ var premiumTmpl = template.Must(template.New("premium").Parse(strings.TrimSpace(
 </html>
 `)))
 
-// premiumData is the shared branded envelope. Gift and giveaway copy remain
-// typed separately; the existing tables, typography, perks and signature have
-// one template so the two emails cannot drift apart.
 type premiumData struct {
 	Title, Preheader, Category, Heading               string
 	StatusLine, StatusDetail, StatusColor, PerkPeriod string

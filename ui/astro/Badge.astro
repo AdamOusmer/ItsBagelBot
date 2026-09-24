@@ -1,12 +1,6 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-//
-// Astro twin of ../svelte/Badge.svelte. Marketing's IncomingBadge.astro was
-// this element with one tone hard-coded; it folds in here.
-// `class` is merged rather than substituted: a caller adding a row-fit class
-// must not be able to drop the contract's own by passing one, and Astro hands
-// a scoped parent's cid class in through exactly this prop.
 import '../styles/tags.css';
 import '../styles/elements/badge.css';
 const { tone, shape = 'tag', mark, sweep = false, dashed = false, status = false, class: className = '', ...rest } = Astro.props;

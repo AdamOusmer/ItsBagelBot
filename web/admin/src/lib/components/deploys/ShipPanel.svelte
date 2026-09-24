@@ -1,23 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // Start a run: pick the kind, check what it will do, confirm, submit ?/start.
-  //
-  // Every field is on screen for every kind and the ones a kind does not use
-  // are disabled, not removed. Switching kind is the most common click here,
-  // and a panel that grows and shrinks under it moves the Ship button away
-  // from the pointer. Disabled inputs are also left out of the form data, so
-  // the same markup sends only what the picked kind reads.
-  //
-  // The load's plan answers for a release. Any other kind asks ?/plan again,
-  // because the services a bump rolls are the ones whose pin would change,
-  // which only the deployer knows.
-  //
-  // The service chips follow the same rule. Each kind's plan lists a
-  // different set (a release every image, a bump only the changed ones), so
-  // the row renders every service any plan has named and dims the ones the
-  // picked kind will not roll: the chip count never drops, and the Ship
-  // button below it stays where it was on a single column layout.
   import { untrack } from 'svelte';
   import { applyAction, enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -56,8 +39,6 @@
 
   const { t } = getI18n();
 
-  // SegmentedControl renders its option strings as the button text, so the
-  // options are the translated labels and the kind is read back by index.
   const kindOptions = RUN_KINDS.map((k) => t(KIND_KEY[k]));
   let kindLabel = $state(kindOptions[0]);
   const kind = $derived<RunKind>(RUN_KINDS[kindOptions.indexOf(kindLabel)] ?? 'release');
@@ -82,8 +63,6 @@
   let seen = $state<string[]>(untrack(() => plan?.services ?? []));
   let form = $state<HTMLFormElement | null>(null);
 
-  // A late answer for a kind the operator already switched away from must
-  // not overwrite the plan for the one now picked.
   let planGen = 0;
   let planned: RunKind = 'release';
   let plannedTarget = '';
@@ -109,8 +88,6 @@
     void replan(k, k === 'rollback' ? plannedTarget : '');
   });
 
-  // A rollback pins only the images its target release built, so picking a
-  // target re-asks the plan for the services that will actually change.
   $effect(() => {
     const target = rollbackTo;
     if (untrack(() => kind) !== 'rollback' || target === plannedTarget) return;
@@ -118,9 +95,6 @@
     void replan('rollback', target);
   });
 
-  // A refused start (409 run active, 400 invalid) answers the fields as
-  // they were. Once the kind, version or rollback target changes, that
-  // answer no longer describes the form and would sit over the live reason.
   $effect(() => {
     void [kind, version, rollbackTo];
     startError = '';
@@ -144,8 +118,6 @@
   });
   const blockKey = $derived(blocker(ship));
 
-  // The live blocker outranks a start error: it is why the button is
-  // disabled right now, and the error answered an earlier submit.
   function slotMessage(): string {
     return blockKey ? t(blockKey) : startError;
   }
@@ -170,8 +142,7 @@
     form?.requestSubmit();
   }
 
-  // Only the dialog's confirm submits. Enter in a text field would otherwise
-  // start a production deploy with no confirmation at all.
+  // Only the dialog's confirm submits: Enter in a field would start a production deploy unconfirmed.
   const submitStart: SubmitFunction = ({ cancel }) => {
     if (!confirmed) return cancel();
     confirmed = false;

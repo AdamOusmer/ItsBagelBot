@@ -19,10 +19,6 @@ import (
 	"ItsBagelBot/pkg/bus"
 )
 
-// GiftNotifier tells the recipient their gifted premium landed, on two
-// independent channels: the in-app direct notification (notifications service
-// admin send RPC) and, when a mailer is configured and the users service has
-// a contact email on record, an email through Resend.
 type GiftNotifier struct {
 	nc           *nats.Conn
 	sendSubject  string
@@ -37,8 +33,6 @@ type GiftNotifierConfig struct {
 	Mailer       *mail.Mailer
 }
 
-// NewGiftNotifier wires both channels. A nil Mailer keeps the existing
-// in-app-only behavior when Resend is not configured.
 func NewGiftNotifier(w bus.RPCWiring, cfg GiftNotifierConfig) *GiftNotifier {
 	return &GiftNotifier{
 		nc:           w.NC,
@@ -49,10 +43,6 @@ func NewGiftNotifier(w bus.RPCWiring, cfg GiftNotifierConfig) *GiftNotifier {
 	}
 }
 
-// Notify satisfies web.Config.NotifyGift. The webhook id doubles as the
-// notification request id and the Resend idempotency key, so Tebex webhook
-// retries collapse into one row and one email. The email leg is best-effort
-// and self-logged: only the in-app failure propagates to the caller.
 func (g *GiftNotifier) Notify(ctx context.Context, notice web.GiftNotice) error {
 
 	g.sendEmail(ctx, notice)
@@ -83,10 +73,6 @@ func (g *GiftNotifier) Notify(ctx context.Context, notice web.GiftNotice) error 
 	return nil
 }
 
-// sendEmail resolves the recipient's contact email through the users service
-// and sends the gift email. Every outcome is logged without the address; a
-// recipient with no email on record (never logged in since capture shipped)
-// is a silent skip.
 func (g *GiftNotifier) sendEmail(ctx context.Context, notice web.GiftNotice) {
 
 	if g.mailer == nil {

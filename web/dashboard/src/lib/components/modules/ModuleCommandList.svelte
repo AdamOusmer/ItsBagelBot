@@ -1,11 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // The chat-commands reference every module page shares: a tan caption plus
-  // the read-only ModuleCommandRow ledger. Bespoke pages (quotes, songqueue,
-  // loyalty) and the generic /modules/[id] inspector both render this inside a
-  // DeckList so the list is 1:1 across surfaces: a page-local copy drifted
-  // quotes onto a 16px white heading while [id] kept the 12px tan caption.
   import { getI18n, type ModuleCommandInfo } from '@bagel/kit';
   import ModuleCommandRow from './ModuleCommandRow.svelte';
 
@@ -53,8 +48,5 @@
   .cmd-head { flex-direction: column; align-items: flex-start; gap: 2px; }
   .cmd-head-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 
-  /* Keyed on this list's own class, not on `.bb-list`: the last row in THIS
-     list drops its separator because the card's own edge is right under it,
-     which is a fact about this card and not about the list contract. */
   .cmd-list > li:last-child :global(.row-shell) { border-bottom: none; }
 </style>

@@ -1,13 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // One row of a stage breakdown: a PR being merged, an image being built or
-  // checked, a service rolling. Fixed height whatever the state, so a row
-  // gaining a detail or a failure never pushes the rows under it; the detail
-  // is cut to one line and the full text rides on the title.
-  //
-  // `extra` is the stage's own column: the manifest mark for a build, the
-  // per-node pod dots for a rollout.
   import type { Snippet } from 'svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';

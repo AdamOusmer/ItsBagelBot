@@ -2,8 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.ClusterResolverTest do
-  # async: false — the module keeps its last-known-good set in global
-  # persistent_term, so tests must not run concurrently and each clears the slot.
   use ExUnit.Case, async: false
 
   alias Ingress.ClusterResolver
@@ -23,7 +21,6 @@ defmodule Ingress.ClusterResolverTest do
     good = hostent([{10, 0, 0, 1}, {10, 0, 0, 2}])
     assert ^good = ClusterResolver.resolve(@service, fn _ -> good end)
 
-    # Remembered: a later error replays the same addresses as a synthetic success.
     assert {:ok, {:hostent, _fqdn, [], :inet, _len, [{10, 0, 0, 1}, {10, 0, 0, 2}]}} =
              ClusterResolver.resolve(@service, fn _ -> {:error, :timeout} end)
   end
@@ -32,7 +29,6 @@ defmodule Ingress.ClusterResolverTest do
     empty = hostent([])
     assert ^empty = ClusterResolver.resolve(@service, fn _ -> empty end)
 
-    # Nothing cached, so a following error stays an error (nothing to resurrect).
     assert {:error, :nxdomain} =
              ClusterResolver.resolve(@service, fn _ -> {:error, :nxdomain} end)
   end
@@ -42,8 +38,6 @@ defmodule Ingress.ClusterResolverTest do
 
     result = ClusterResolver.resolve(@service, fn _ -> {:error, :timeout} end)
 
-    # The substituted tuple satisfies the dep's own success match, and carries
-    # exactly the remembered addresses (the load-bearing shape claim).
     assert {:ok, {:hostent, _fqdn, [], :inet, _len, addresses}} = result
     assert addresses == [{10, 0, 0, 5}]
   end
@@ -61,8 +55,6 @@ defmodule Ingress.ClusterResolverTest do
 
     _ = ClusterResolver.resolve(@service, fn _ -> hostent([{10, 0, 0, 1}, {10, 0, 0, 2}]) end)
 
-    # After the shrink was observed, an error replays only the surviving two:
-    # the departed node is never resurrected.
     assert {:ok, {:hostent, _fqdn, [], :inet, _len, [{10, 0, 0, 1}, {10, 0, 0, 2}]}} =
              ClusterResolver.resolve(@service, fn _ -> {:error, :timeout} end)
   end

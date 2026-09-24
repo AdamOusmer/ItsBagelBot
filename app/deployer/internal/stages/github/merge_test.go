@@ -13,8 +13,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// outcome names a stage error for table comparison: the Fail code, or a
-// pseudo-code for the contract sentinels.
 func outcome(t *testing.T, err error) deploy.FailureCode {
 	t.Helper()
 	if f, ok := ports.AsFail(err); ok {
@@ -114,8 +112,6 @@ func TestMergePRs(t *testing.T) {
 	}
 }
 
-// TestMergePRsDone: a PR merged before the run is done without a call, and
-// only moves the target forward.
 func TestMergePRsDone(t *testing.T) {
 	cases := []struct {
 		name     string

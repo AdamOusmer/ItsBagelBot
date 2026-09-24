@@ -2,18 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro adapter for the `.bb-reading-progress` contract
-// (../styles/elements/reading-progress.css). Svelte twin:
-// ../svelte/ReadingProgress.svelte.
-//
-// The 2px gradient bar at the top of the viewport showing how far down the page
-// the reader is. Mounted once in a site's layout, so every page gets it.
-//
-// One hoisted script serves the page (Astro dedupes it) and finds the fill by
-// its contract attribute rather than each instance carrying inline setup —
-// same shape as ../astro/LightField.astro, and for the same reason: the engine
-// owns a scroll listener and a frame subscription, so it needs a real teardown
-// before the ClientRouter throws the old document away.
 import '../styles/elements/reading-progress.css';
 
 interface Props {

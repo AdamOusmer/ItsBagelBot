@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// The overview grid is the first thing a streamer sees for a server, so a tile
-// that lies about a module is worse than no tile. Two failure modes are
-// specifically pinned here: reading a default-ON flag as off (half of them are
-// ON unless explicitly turned off), and calling a module healthy when the
-// channel it posts to was never picked.
-
 import { describe, expect, test } from 'bun:test';
 import { blankDiscordConfig, type DiscordConfig } from './discord-config';
 import { guildModuleTiles, tilesNeedingSetup, type ModuleTileId } from './discord-overview';
@@ -44,8 +38,6 @@ describe('guildModuleTiles', () => {
     const on = guildModuleTiles(blankDiscordConfig())
       .filter((t) => t.on)
       .map((t) => t.id);
-    // Default ON: go-live, clips, welcome, voice hub, logs, levels, autorole,
-    // tickets. Default OFF: goodbye, link guard, subscriber tier.
     expect(on).toEqual([
       'announcementsLive',
       'announcementsClips',
@@ -76,7 +68,6 @@ describe('guildModuleTiles', () => {
     const picked = tile(configWith({ liveChannelId: '123456789012345678' }), 'announcementsLive');
     expect(picked.ready).toBe(true);
 
-    // Off but configured: ready must not be conflated with on.
     const offButPicked = tile(
       configWith({ liveEnabled: 'off', liveChannelId: '123456789012345678' }),
       'announcementsLive'
@@ -117,8 +108,6 @@ describe('tilesNeedingSetup', () => {
   test('only counts modules that are on and missing a pick', () => {
     const tiles = guildModuleTiles(blankDiscordConfig());
     const ids = tilesNeedingSetup(tiles).map((t) => t.id);
-    // Goodbye, link guard and the subscriber tier are off by default, so they
-    // are not nagged about; levels needs nothing at all.
     expect(ids).toEqual([
       'announcementsLive',
       'announcementsClips',

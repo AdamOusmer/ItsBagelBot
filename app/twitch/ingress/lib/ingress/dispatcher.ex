@@ -2,22 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Dispatcher do
-  @moduledoc """
-  Scheduler-local, bounded notification dispatch.
-
-  The websocket process performs admission directly in a public ETS table and
-  sends accepted work straight to one of a fixed set of supervised workers.
-  There is deliberately no central queue process on the event path: worker
-  mailboxes are the queues, and a caller-local round-robin cursor
-  spreads calls across them without forcing every shard through one mailbox.
-
-  The GenServer that owns the table only performs cold-path housekeeping:
-  monitoring workers so admission slots can be reclaimed after a crash and
-  deleting zeroed counters. Pod-wide admission uses atomics, and workers fold
-  completion bookkeeping into small bounded batches. Per-broadcaster limits
-  and worker-crash reclamation remain exact.
-  """
-
   use GenServer
 
   alias Ingress.Config.Dispatcher, as: DispatcherConfig
@@ -122,9 +106,6 @@ defmodule Ingress.Dispatcher do
     ticket = Process.get(cursor_key, scheduler - 1)
     Process.put(cursor_key, ticket + 1)
 
-    # Each websocket producer owns its cursor, so choosing a worker requires no
-    # shared counter at all and remains balanced if the process migrates between
-    # schedulers. The scheduler id only offsets each producer's starting point.
     index = rem(ticket, ctx.worker_count)
     worker_name = elem(ctx.workers, index)
 
@@ -141,9 +122,6 @@ defmodule Ingress.Dispatcher do
           {{:worker, worker, broadcaster_id}, 0}
         )
 
-        # Close the only meaningful death race: if the worker went down after
-        # whereis/1 but before attribution was recorded, its DOWN cleanup may
-        # already have run. In that case reclaim this event here.
         if Process.alive?(worker) do
           send(worker, {:process, System.monotonic_time(), payload, meta})
         else

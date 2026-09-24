@@ -21,7 +21,6 @@ const (
 	pages     = "Cloudflare Pages: itsbagelbot"
 )
 
-// codesceneRule is main's ruleset as the API answered it on 2026-09-23.
 var codesceneRule = reply(http.StatusOK, `[{"type":"required_status_checks","parameters":{
 	"strict_required_status_checks_policy":true,
 	"required_status_checks":[{"context":"`+codescene+`"}]}}]`)
@@ -51,10 +50,9 @@ var (
 	publishSkipped = ghRun{Name: publish, Status: "completed", Conclusion: "skipped"}
 )
 
-// checksFixture is what GitHub holds for sha "abc".
 type checksFixture struct {
 	PRHead   bool
-	Rules    http.HandlerFunc // nil: the rules endpoint must not be called
+	Rules    http.HandlerFunc
 	Runs     []ghRun
 	Statuses []ghStatus
 }
@@ -152,8 +150,6 @@ func TestChecks(t *testing.T) {
 	}
 }
 
-// TestChecksSummary pins that only a red run's summary is carried: a green
-// CodeScene report must never reach a failure's log tail.
 func TestChecksSummary(t *testing.T) {
 	red := codesceneRed
 	red.Output = &ghOutput{Summary: "Bumpy Road: merge.go run"}
@@ -169,8 +165,6 @@ func TestChecksSummary(t *testing.T) {
 	assert.Equal(t, map[string]string{codescene: "Bumpy Road: merge.go run", unitTests: ""}, got)
 }
 
-// TestChecksCached pins the 10 s window: a repeat inside it costs no call,
-// and one at the window's end reads GitHub again.
 func TestChecksCached(t *testing.T) {
 	c, fake, clk := newClient(t, checksFixture{Runs: []ghRun{unitGreen}}.routes())
 	var calls []int

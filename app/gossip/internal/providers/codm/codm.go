@@ -1,8 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package codm provides read-only Call of Duty: Mobile profile lookups
-// through CODashop's public account validation endpoint.
 package codm
 
 import (
@@ -26,10 +24,9 @@ import (
 )
 
 const (
-	providerName   = "codm"
-	defaultBase    = "https://order-sg.codashop.com"
-	defaultCountry = "IN"
-	// Operating cap, not a published Coda quota. Pace bursts and honor 429s.
+	providerName      = "codm"
+	defaultBase       = "https://order-sg.codashop.com"
+	defaultCountry    = "IN"
 	defaultRateLimit  = 60.0
 	rateWindowSeconds = 60.0
 	cooldownKey       = "gossip:codm:cooldown"
@@ -44,7 +41,6 @@ const (
 	maxRedirects    = 3
 )
 
-// Config carries the public CODM validation endpoint settings.
 type Config struct {
 	BaseURL   string
 	Country   string
@@ -62,9 +58,6 @@ type api struct {
 	deviceID string
 }
 
-// New builds the read-only CODM profile provider. The builder's default lane
-// is WARP; this provider deliberately does not call Trusted because the
-// upstream is not a config-owned trusted host.
 func New(cfg Config, d provider.Deps) provider.Provider {
 	b := provider.NewProvider(providerName, d)
 	p := newAPI(cfg, d, b)
@@ -95,13 +88,10 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 		cfg.RateLimit = defaultRateLimit
 	}
 	return &api{
-		http:    b.Client(base, nil, httpTimeout),
-		cache:   d.Cache,
-		log:     d.Logger(),
-		limiter: d.Limiter,
-		// Caller admission protects the standard/premium reserve before flights
-		// join. Actual HTTP spend is separately charged once per validation,
-		// including redirects, with a small fleet-wide burst.
+		http:     b.Client(base, nil, httpTimeout),
+		cache:    d.Cache,
+		log:      d.Logger(),
+		limiter:  d.Limiter,
 		buckets:  core.NewPacedBuckets("ratelimit:gossip:codm:lookups", cfg.RateLimit, rateWindowSeconds, maxRedirects+1),
 		requests: core.NewPacedBuckets("ratelimit:gossip:codm:http", cfg.RateLimit, rateWindowSeconds, maxRedirects+1),
 		country:  country,
@@ -142,8 +132,6 @@ func profileID(req gossiprpc.Request) (provider.ID, string) {
 	if err := validateText(account, maxAccountRunes); err != nil {
 		return provider.ID{Display: account}, "invalid account"
 	}
-	// CODM nicknames and UIDs are case-sensitive. In particular, do not use
-	// provider.Account here: its lower-cased key would merge distinct names.
 	return provider.ID{Display: account, Key: account}, ""
 }
 
@@ -173,7 +161,6 @@ func normalizeCountry(country string) (string, error) {
 	return country, nil
 }
 
-// admit checks each caller's lane independently; it does not reserve redirects.
 func (p *api) admit(ctx context.Context, req gossiprpc.Request) error {
 	if err := p.checkCooldown(ctx); err != nil {
 		return err
@@ -199,8 +186,6 @@ func (p *api) spendValidation(ctx context.Context) error {
 	if err := p.checkCooldown(ctx); err != nil {
 		return err
 	}
-	// Lane admission already ran per caller. Shared HTTP spend uses only the
-	// general bucket so a standard flight winner cannot deny premium joiners.
 	err := p.requests.Enforce(ctx, p.limiter, true)
 	var denial *core.UpstreamError
 	if errors.As(err, &denial) {
@@ -294,8 +279,7 @@ func (p *api) profileReply(response validateResponse, country, player string) (g
 		return gossiprpc.CODMProfileReply{}, err
 	}
 	return gossiprpc.CODMProfileReply{
-		// The upstream nickname is streamer-mode data and must never cross the
-		// gossip boundary. The caller's account is the public label instead.
+		// The upstream nickname is streamer-mode data and must never cross the gossip boundary.
 		Player:    player,
 		Level:     result.Level,
 		Rank:      result.CustomReadableMPRank,

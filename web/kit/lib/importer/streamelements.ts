@@ -1,24 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// StreamElements config-import source, ported one-for-one from
-// app/importer/source/streamelements (streamelements.go + variables.go) when
-// the standalone importer service was folded into the dashboard. Fetches a
-// channel's custom commands and timers from the StreamElements kappa v2 API
-// and translates them into the canonical ImportManifest.
-//
-// Wire shapes were verified against the public OpenAPI mirrors
-// (github.com/api-evangelist/streamelements) and the variable surface against
-// https://docs.streamelements.com/chatbot/variables/cheat-sheet. Credential is
-// the user's StreamElements JWT from streamelements.com/dashboard/account/
-// channels ("Show secrets"), sent as a Bearer token.
-//
-// Parity contract: pinned against the Go parser's committed golden fixture by
-// streamelements.test.ts (testdata/se-golden.json, decoded from the Go suite's
-// golden.txt during the port). Diagnostic MESSAGE prose embeds Go %q/%v
-// formatting; %q is reproduced via JSON.stringify, which coincides for every
-// printable-ASCII input the fixtures carry.
-
 import {
   CODE,
   canonicalizeResponse,
@@ -32,20 +14,8 @@ import { createdFetchDefMessage } from './nightbot/fetchdefs';
 import type { ImportDiagnostic, ImportManifest, ManifestCommand, ManifestFetch } from './types';
 import { IMPORT_ITEM_CAPS } from './types';
 
-// IF_TOKEN recognizes $(if …)/${if …}: SE's own two-branch conditional,
-// evaluated as a JavaScript expression over the other variables. It has no
-// mapping (see translateVariables' decision record for why re-parsing JS
-// into {if:cond:then:else} is not attempted), but unlike a token with no
-// counterpart at all, the broadcaster has a real path forward — rewriting
-// the response by hand using {if:cond:then:else} — so the warn names it
-// instead of the generic "no equivalent" phrasing every other unmapped token
-// gets.
 const IF_TOKEN = /^\$[({]if\b/i;
 
-// unmappedClause is the tail of the "response/keyword/timer message uses
-// <tok>, …" warn sentence every one of translateVariables' three callers
-// builds; a single function so the $(if …) special case cannot drift between
-// the command/trigger/timer paths.
 function unmappedClause(tok: string): string {
   if (IF_TOKEN.test(tok)) {
     return 'whose branch cannot be translated automatically; rewrite it using {if:cond:then:else} (see the variables guide)';
@@ -66,32 +36,14 @@ const errAt = (item_index: number, code: string, message: string): ImportDiagnos
   message
 });
 
-// --- fetch -------------------------------------------------------------------
-
-// defaultAPIBase is StreamElements' production root; every kappa v2 path is
-// appended below it. Injectable so tests point fetchStreamElements at a local
-// server.
 export const DEFAULT_API_BASE = 'https://api.streamelements.com';
 
-// FETCH_TIMEOUT_MS bounds each upstream call via AbortController. Three
-// sequential calls happen per fetch, so worst case is ~30s.
 export const FETCH_TIMEOUT_MS = 10_000;
 
-// MAX_RESPONSE_BODY caps how much of one upstream reply is read into memory.
-// 16 MiB is orders of magnitude past the largest observed command lists while
-// still bounding a hostile or broken server response.
-const MAX_RESPONSE_BODY = 16 << 20;
+const MAX_RESPONSE_BODY_BYTES = 16 << 20;
 
-// MAX_CREDENTIAL_LEN: StreamElements channel JWTs run ~700-900 chars today;
-// 4096 leaves room for future claims without letting a pasted novel reach the
-// transport. Same gate the form action runs client-side; kept here so every
-// caller sits behind one gate.
 export const MAX_CREDENTIAL_LEN = 4096;
 
-// JWT_SHAPE is three dot-separated base64url segments
-// (header.payload.signature). Anything carrying interior whitespace, CR/LF or
-// quotes is a paste accident or header-injection bait; failing here returns a
-// readable error instead of a transport one.
 const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
 export class StreamElementsError extends Error {
@@ -111,9 +63,6 @@ export interface SeEnvelope {
   timers: unknown[];
 }
 
-// fetchStreamElements resolves the channel's config over the kappa v2 API:
-// resolve channelId via /kappa/v2/channels/me, then read the bot collections,
-// the flow their API docs describe for every bot endpoint.
 export async function fetchStreamElements(
   credential: string,
   opts: FetchOptions = {}
@@ -141,16 +90,12 @@ export async function fetchStreamElements(
   return { commands: cmds, timers };
 }
 
-// KappaClient binds the channel JWT to the API root for the three sequenced
-// reads fetchStreamElements performs.
 interface KappaClient {
   base: string;
   token: string;
   opts: FetchOptions;
 }
 
-// KappaRequest names one resolved kappa v2 GET: endpoint URL, channel JWT and
-// the path (kept alongside for error prose).
 interface KappaRequest {
   url: string;
   token: string;
@@ -159,7 +104,6 @@ interface KappaRequest {
 
 async function kappaGet<T>(client: KappaClient, path: string): Promise<T> {
   const timeoutMs = client.opts.timeoutMs ?? FETCH_TIMEOUT_MS;
-  // AbortController bounds the call the way Go's http.Client.Timeout did.
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
@@ -181,8 +125,7 @@ async function requestJSON<T>(req: KappaRequest, signal: AbortSignal): Promise<T
     headers: { Authorization: `Bearer ${req.token}`, Accept: 'application/json' },
     signal
   });
-  // Cap how much of a hostile reply is buffered before decoding.
-  const text = await readCapped(res, MAX_RESPONSE_BODY, req.path);
+  const text = await readCapped(res, MAX_RESPONSE_BODY_BYTES, req.path);
   if (res.status !== 200)
     throw new StreamElementsError(`${req.path} returned ${res.status}: ${snippet(text)}${authHint(res.status)}`);
   try {
@@ -192,9 +135,6 @@ async function requestJSON<T>(req: KappaRequest, signal: AbortSignal): Promise<T
   }
 }
 
-// readCapped reads the body but refuses to buffer more than cap bytes: the
-// port of Go's io.LimitReader + oversize rejection. A hostile server streaming
-// forever must not balloon the dashboard pod's memory.
 async function readCapped(res: Response, cap: number, path: string): Promise<string> {
   try {
     const reader = res.body?.getReader();
@@ -236,18 +176,12 @@ function joinChunks(chunks: Uint8Array[], total: number): string {
   return new TextDecoder().decode(merged);
 }
 
-// authHint appends remediation only where the cause is almost certainly the
-// credential: StreamElements JWTs expire, and a stale paste reads identical to
-// a revoked one without this nudge.
 function authHint(status: number): string {
   return status === 401 || status === 403
     ? ' (re-copy the JWT from streamelements.com/dashboard/account/channels, "Show secrets"; tokens expire)'
     : '';
 }
 
-// snippet collapses an upstream error body into one short single-line fragment.
-// maxBodySnippet is enough to carry their {"statusCode",...,"message"} JSON,
-// short enough that a huge HTML error page cannot flood the preview screen.
 const MAX_BODY_SNIPPET = 256;
 function snippet(body: string): string {
   let s = body;
@@ -255,14 +189,6 @@ function snippet(body: string): string {
   return s.replaceAll('\n', ' ').split(/\s+/).filter(Boolean).join(' ');
 }
 
-// --- detect ------------------------------------------------------------------
-
-// detectStreamElements reports whether raw is a StreamElements fetch envelope:
-// the {commands,timers} shape with at least one recognizably SE-shaped entry,
-// so unrelated bots that also happen to expose a "commands" array (Fossabot's
-// export JSON, for one) do not steal detection. SE BotCommand entries always
-// pair string command+reply with a numeric accessLevel; SE timers uniquely
-// carry the chatLines/online window fields.
 export function detectStreamElements(raw: Uint8Array | string): boolean {
   const text = decodeText(raw);
   if (text.trim().length === 0) return false;
@@ -278,8 +204,6 @@ export function detectStreamElements(raw: Uint8Array | string): boolean {
   return env.timers.some(looksLikeTimer);
 }
 
-// envelopeCollections accepts the {commands,timers} envelope: missing keys
-// read as empty lists, present-yet-non-array values refuse detection.
 function envelopeCollections(doc: unknown): { commands: unknown[]; timers: unknown[] } | null {
   if (doc === null || typeof doc !== 'object') return null;
   const source = doc as Record<string, unknown>;
@@ -294,23 +218,17 @@ function arrayField(value: unknown): unknown[] | null {
   return Array.isArray(value) ? value : null;
 }
 
-// looksLikeCommand checks one envelope entry against the BotCommand schema's
-// distinctive triple: command and reply are strings, accessLevel a number.
 function looksLikeCommand(entry: unknown): boolean {
   if (entry === null || typeof entry !== 'object') return false;
   const c = entry as Record<string, unknown>;
   return typeof c.command === 'string' && typeof c.reply === 'string' && typeof c.accessLevel === 'number';
 }
 
-// looksLikeTimer checks one envelope entry for the timer schema's unique
-// fields: the chatLines gate or the online/offline window objects.
 function looksLikeTimer(entry: unknown): boolean {
   if (entry === null || typeof entry !== 'object') return false;
   const t = entry as Record<string, unknown>;
   return t.chatLines !== undefined || t.online !== undefined || t.offline !== undefined;
 }
-
-// --- parse -------------------------------------------------------------------
 
 interface BotCommand {
   command: string;
@@ -323,15 +241,11 @@ interface BotCommand {
   type: string;
   accessLevel: number;
   cost: number;
-  enabled: boolean | undefined; // schema default true: undefined means enabled
+  enabled: boolean | undefined;
   enabledOnline: boolean | undefined;
   enabledOffline: boolean | undefined;
 }
 
-// decodeBotCommand mirrors encoding/json's struct decode. Field-shape errors
-// throw; the caller reports the entry as skipped. (Go's json error strings for
-// mismatched types are runtime-specific and NOT reproduced: documented
-// divergence, exercised by no committed fixture.)
 function decodeBotCommand(entry: unknown): BotCommand {
   if (entry === null || typeof entry !== 'object')
     throw new TypeError('command entry must be an object');
@@ -362,17 +276,10 @@ function finiteNumber(v: unknown): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
-// optionalFlag reads an optional boolean without defaulting: undefined means
-// the schema decides (enabled-by-default).
 function optionalFlag(v: unknown): boolean | undefined {
   return typeof v === 'boolean' ? v : undefined;
 }
 
-// flexText accepts every message shape observed in timer payloads: a plain
-// string or an array of strings / {text} objects (the dashboard writes the
-// rotating-message variant). Joined with newlines so CanonicalizeResponse sees
-// the same line structure upstream did. Error strings mirror Go's verbatim:
-// they surface in the *_skipped diagnostic prose.
 function flexText(v: unknown): string {
   if (v === undefined || v === null) return '';
   if (typeof v === 'string') return v;
@@ -420,8 +327,6 @@ function readBotTimer(e: Record<string, unknown>): BotTimer {
   };
 }
 
-// timerWindowOf reads one online/offline window object; a non-object window
-// means the schema default (enabled-undefined, interval 0).
 function timerWindowOf(v: unknown): { enabled: boolean | undefined; interval: number } {
   if (v === null || typeof v !== 'object') return { enabled: undefined, interval: 0 };
   const w = v as Record<string, unknown>;
@@ -431,17 +336,12 @@ function timerWindowOf(v: unknown): { enabled: boolean | undefined; interval: nu
   };
 }
 
-// timerText prefers the messages[] shape when present, falling back to message.
 function timerText(e: Record<string, unknown>): string {
   if (e.messages === undefined) return flexText(e.message);
   if (!Array.isArray(e.messages)) throw new TypeError('timer message must be a string or an array of strings/{text} objects');
   return e.messages.map((m) => flexText(m)).join('\n');
 }
 
-// Diagnostic codes this parser emits beyond the shared consts. Free-form
-// snake_case, prefixed with the item kind; the *_skipped family marks source
-// items intentionally left out of the manifest, attributed to index -1 (the
-// item owns no manifest slot) and always naming the offending item instead.
 export const SE_CODE = {
   commandRegexSkipped: 'command_regex_skipped',
   commandDisabledSkipped: 'command_disabled_skipped',
@@ -465,27 +365,6 @@ export const SE_CODE = {
   timerVariableUnmapped: 'timer_variable_unmapped'
 } as const;
 
-// accessLevel levels per StreamElements' own documentation, which states these
-// seven values are the only ones the bot accepts.
-//
-// Decision record: accessLevel → perm tier:
-//
-//	100 Everyone         → everyone    (direct)
-//	250 Subscriber       → sub         (direct)
-//	300 Regular          → everyone + permission_unmapped warn
-//	400 VIP              → vip         (direct)
-//	500 Moderator        → mod         (direct)
-//	1000 Super Moderator → lead_mod
-//	1500 Broadcaster     → broadcaster (direct)
-//	anything else        → everyone + permission_unmapped warn
-//
-// Regular widens to everyone because this bot has no regular tier and the
-// mapping layer's documented fallback is widening with a warning. Super
-// Moderator lands on lead_mod rather than mod: SE super mods are a
-// manually-assigned trust tier strictly between mod and broadcaster, which is
-// exactly the niche lead_mod occupies here. Unknown numerics cannot be trusted
-// as "more than everyone": inventing trust from an undocumented value is the
-// one unrecoverable mistake a permission mapper can make.
 const ACCESS_LEVELS: readonly {
   level: number;
   perm: 'everyone' | 'sub' | 'vip' | 'mod' | 'lead_mod' | 'broadcaster';
@@ -506,19 +385,12 @@ export function mapAccessLevel(level: number): { perm: 'everyone' | 'sub' | 'vip
   return row ? { perm: row.perm, recognized: row.recognized } : { perm: 'everyone', recognized: false };
 }
 
-// levelLabel renders SE's own names inside warning messages so the broadcaster
-// sees their dashboard vocabulary, not ours.
 function levelLabel(level: number): string {
   return ACCESS_LEVELS.find((r) => r.level === level)?.label ?? `unknown level ${level}`;
 }
 
 const q = (s: string): string => JSON.stringify(s);
 
-// Parse translates a fetched envelope into the canonical manifest. It never
-// pre-filters on collisions (the service layer owns those) and reports every
-// lossy translation as a warn diagnostic; items that cannot land at all are
-// either excluded outright (regex commands, disabled items, with a *_skipped
-// warn naming them) or carried with an error diagnostic commit drops.
 export function parseStreamElements(raw: Uint8Array | string): {
   manifest: ImportManifest;
   diagnostics: ImportDiagnostic[];
@@ -527,8 +399,6 @@ export function parseStreamElements(raw: Uint8Array | string): {
 
   const state: SeParseState = { manifest: {}, diags: [], fetchDefs: new Map() };
 
-  // Empty collections are deleted so the serialized shape mirrors the Go
-  // struct's omitempty tags exactly.
   state.manifest.commands = [];
   parseCommands((env.commands as unknown[] | undefined) ?? [], state);
   omitIfEmpty(state.manifest, 'commands');
@@ -545,8 +415,6 @@ function omitIfEmpty(m: ImportManifest, key: 'commands' | 'timers'): void {
   if ((m[key]?.length ?? 0) === 0) delete m[key];
 }
 
-// decodeSeEnvelope validates the fetched JSON's outer shape against the
-// kappa v2 envelope, mirroring the Go decoder's error prose.
 function decodeSeEnvelope(raw: Uint8Array | string): Record<string, unknown> {
   const doc = parseEnvelopeJson(decodeText(raw));
   if (!isPlainObject(doc)) throw notEnvelope('JSON must be an object');
@@ -561,8 +429,6 @@ function isPlainObject(doc: unknown): boolean {
   return !Array.isArray(doc);
 }
 
-// arrayFieldOrThrow accepts a missing key (treated as empty) and refuses
-// present-yet-non-array values exactly like the Go decoder.
 function arrayFieldOrThrow(env: Record<string, unknown>, field: string): unknown[] {
   const value = env[field];
   if (value === undefined) return [];
@@ -586,17 +452,10 @@ function notEnvelope(reason: string): Error {
   return new Error(`streamelements: payload is not a commands/timers envelope: ${reason}`);
 }
 
-// NoteSink accumulates the per-item warn diagnostics that also surface on the
-// command as warnings: every lossy note is both a diagnostic at idx and a
-// message in cmd.warnings.
 interface NoteSink {
   idx: number;
   diags: ImportDiagnostic[];
   notes: string[];
-  // fetch, when present, lets this command's reply map $(urlfetch ...) tokens
-  // onto synthesized definitions. Only command replies carry one: timers and
-  // keyword triggers reference no command name to build a deterministic slug
-  // from, so their urlfetch tokens keep the literal+unmapped-warn behavior.
   fetch?: FetchSlotSink;
 }
 
@@ -605,13 +464,9 @@ function addNote(sink: NoteSink, code: string, message: string): void {
   sink.notes.push(message);
 }
 
-// SeParseState threads one envelope's manifest and diagnostic stream through
-// the per-entry parsers.
 interface SeParseState {
   manifest: ImportManifest;
   diags: ImportDiagnostic[];
-  // fetchDefs accumulates synthesized urlfetch definitions, deduped by slug
-  // across the whole envelope; emitted as manifest.fetches after the walk.
   fetchDefs: Map<string, ManifestFetch>;
 }
 
@@ -638,13 +493,6 @@ function decodeCommandOrSkip(entry: unknown, diags: ImportDiagnostic[]): BotComm
   }
 }
 
-// commandExclusion reports why an entry cannot land at all (attributed to
-// index -1: it owns no manifest slot), or null when it should be imported.
-//
-// Regex commands are a different feature (pattern-triggered), not a
-// command with an unlucky name; importing one would ship a command whose
-// trigger is a regex literal. Excluded, not errored-in-place, so the
-// preview never offers a broken item for confirmation.
 function commandExclusion(c: BotCommand): ImportDiagnostic | null {
   if (c.regex.trim() !== '') {
     return warnDiag(-1, SE_CODE.commandRegexSkipped,
@@ -681,10 +529,6 @@ function appendCommand(c: BotCommand, commands: ManifestCommand[], state: SePars
   keywordsToTriggers(draft, state);
 }
 
-// lossyNotes emits, in pinned order (the golden fixtures pin diagnostic
-// order), every widening/dropping translation note for one command and sinks
-// the variable-translation warnings. Returns the translated response text and
-// the resolved permission tier.
 type AccessTier = ReturnType<typeof mapAccessLevel>['perm'];
 
 function lossyNotes(c: BotCommand, name: string, online: boolean, sink: NoteSink): { text: string; perm: AccessTier } {
@@ -714,9 +558,6 @@ function lossyNotes(c: BotCommand, name: string, online: boolean, sink: NoteSink
   return { text, perm };
 }
 
-// responseTypeNote covers the response-style column: say/default posts
-// unchanged, reply/whisper lose their delivery style, unknown types post as
-// plain chat messages.
 function responseTypeNote(c: BotCommand, name: string, sink: NoteSink): void {
   switch (c.type.trim().toLowerCase()) {
     case '':
@@ -736,7 +577,6 @@ function responseTypeNote(c: BotCommand, name: string, sink: NoteSink): void {
   }
 }
 
-// accessLevelNote warns when the source tier has no equivalent here.
 function accessLevelNote(c: BotCommand, name: string, sink: NoteSink): ReturnType<typeof mapAccessLevel> {
   const mapped = mapAccessLevel(c.accessLevel);
   if (!mapped.recognized) {
@@ -746,9 +586,6 @@ function accessLevelNote(c: BotCommand, name: string, sink: NoteSink): ReturnTyp
   return mapped;
 }
 
-// CommandDraft carries one decoded command through assembly and the empty-
-// response check: the source entry, its normalized name, window flags,
-// resolved tier and canonicalized response lines.
 interface CommandDraft {
   c: BotCommand;
   name: string;
@@ -757,15 +594,9 @@ interface CommandDraft {
   lines: string[];
 }
 
-// assembleCommand builds the manifest entry with omitempty parity: absent or
-// empty values are omitted so a serialized manifest stays identical to what
-// the importer service emitted.
 function assembleCommand(draft: CommandDraft, sink: NoteSink): ManifestCommand {
   const { c, name, online, perm, lines } = draft;
   const cmd: ManifestCommand = { name, responses: lines };
-  // The untranslated reply exactly as SE has it, same split rule as
-  // responses so the two line up index for index; its own diagnostics are
-  // discarded, already reported once against the translated text.
   const sourceLines = canonicalizeResponse(c.reply, sink.idx).lines;
   if (sourceLines.length > 0) cmd.source_responses = sourceLines;
   const aliases = collectAliases(c, name, sink);
@@ -777,8 +608,6 @@ function assembleCommand(draft: CommandDraft, sink: NoteSink): ManifestCommand {
   return cmd;
 }
 
-// collectAliases normalizes the alias list, recording a drop note for every
-// alias that cannot land. Returns the kept, de-duplicated aliases.
 function collectAliases(c: BotCommand, name: string, sink: NoteSink): string[] {
   const aliases: string[] = [];
   for (const a of c.aliases) {
@@ -796,22 +625,15 @@ function collectAliases(c: BotCommand, name: string, sink: NoteSink): string[] {
   return aliases;
 }
 
-// emptyResponseErrors marks commands whose canonicalization left nothing, so
-// commit skips rather than writes an empty command. sink.idx is the slot the
-// command was just pushed into.
 function emptyResponseErrors(draft: CommandDraft, sink: NoteSink): void {
   if (draft.lines.length > 0) return;
   if (draft.c.reply.trim() !== '') {
-    // Canonicalization dropped everything (blank lines only after variable
-    // removal).
     sink.diags.push(errAt(sink.idx, CODE.responseInvalid, `command ${q(draft.name)} has no usable response after translation`));
   } else {
     sink.diags.push(errAt(sink.idx, CODE.responseInvalid, `command ${q(draft.name)} has no response`));
   }
 }
 
-// KeywordExpansion bundles one command's trigger-expansion inputs: the raw
-// response to re-translate per keyword and the name diagnostics should name.
 interface KeywordExpansion {
   reply: string;
   commandName: string;
@@ -825,10 +647,7 @@ function keywordsToTriggers(draft: CommandDraft, state: SeParseState): void {
   if (state.manifest.triggers?.length === 0) delete state.manifest.triggers;
 }
 
-// appendKeywordTrigger expands one keyword into a phrase trigger carrying the
-// same translated response, flattened to a single line: commit stores triggers
-// as "phrase => response" textarea rows, so embedded newlines would corrupt
-// the rules blob.
+// One line: commit stores triggers as "phrase => response" rows, so a newline would corrupt them.
 function appendKeywordTrigger(kw: string, expansion: KeywordExpansion, state: SeParseState): void {
   const phrase = kw.trim();
   if (phrase === '') return;
@@ -842,9 +661,6 @@ function appendKeywordTrigger(kw: string, expansion: KeywordExpansion, state: Se
   }
 
   const { lines, diags: respDiags } = canonicalizeResponse(text, idx);
-  // CanonicalizeResponse attributes its findings with command_-prefixed
-  // codes; these items are triggers, so the codes are re-prefixed to keep
-  // FailedItems dropping the right collection.
   retitleResponseCodes(respDiags, TRIGGER_RETITLE);
   state.diags.push(...respDiags);
 
@@ -857,8 +673,6 @@ function appendKeywordTrigger(kw: string, expansion: KeywordExpansion, state: Se
   triggers.push({ phrase, response });
 }
 
-// RetitleMap pairs the canonicalization codes with their retitled counterparts
-// for one item kind.
 interface RetitleMap {
   truncated: string;
   lineDropped: string;
@@ -874,8 +688,6 @@ const TIMER_RETITLE: RetitleMap = {
   lineDropped: SE_CODE.timerLineDropped
 };
 
-// retitleResponseCodes re-prefixes canonicalization findings from their
-// command_ codes onto the caller's item kind.
 function retitleResponseCodes(diags: ImportDiagnostic[], map: RetitleMap): void {
   for (const d of diags) {
     if (d.code === CODE.responseTruncated) d.code = map.truncated;
@@ -911,7 +723,6 @@ function timerLabel(t: BotTimer): string {
   return t.name !== '' ? t.name : firstLine(t.text) || '(unnamed)';
 }
 
-// timerExclusion reports why the timer cannot land at all, or null.
 function timerExclusion(t: BotTimer, label: string): ImportDiagnostic | null {
   if (!flag(t.enabled)) {
     return warnDiag(-1, SE_CODE.timerDisabledSkipped,
@@ -926,13 +737,6 @@ function timerExclusion(t: BotTimer, label: string): ImportDiagnostic | null {
 
 function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManifest['timers']>, diags: ImportDiagnostic[]): void {
   const idx = timers.length;
-  // Decision record: interval units: StreamElements timer intervals are
-  // MINUTES. Their dashboard labels the field "Interval (minutes)" and the
-  // API's own examples (online 5, offline 30) only make sense on a minute
-  // scale: a 5-second repeating announcement would sit below any sane rate
-  // limit and below this engine's 30s floor. Multiply by 60 here, once, so
-  // the manifest carries seconds like every consumer expects; commit clamps
-  // sub-floor values itself.
   const window = timerWindow(t);
   if (window.widened) {
     diags.push(warnDiag(idx, SE_CODE.timerOfflineOnlyWidened,
@@ -949,7 +753,6 @@ function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManif
   retitleResponseCodes(respDiags, TIMER_RETITLE);
   diags.push(...respDiags);
 
-  // omitempty parity: online_only false is omitted.
   const timer: { message: string; interval_seconds: number; online_only?: boolean } = {
     message: lines.join('\n'),
     interval_seconds: window.seconds
@@ -962,9 +765,6 @@ function appendTimer(t: BotTimer, label: string, timers: NonNullable<ImportManif
   }
 }
 
-// timerWindow resolves which firing window survives the import. Exactly one
-// of the two is enabled here (the neither case was excluded); an offline-only
-// timer widens with a note because timers here fire only while live.
 function timerWindow(t: BotTimer): { seconds: number; onlineOnly: boolean; widened: boolean } {
   const clampNegative = (s: number): number => (s < 0 ? 0 : s);
   if (flag(t.onlineEnabled)) {
@@ -973,12 +773,10 @@ function timerWindow(t: BotTimer): { seconds: number; onlineOnly: boolean; widen
   return { seconds: clampNegative(t.offlineInterval * 60), onlineOnly: false, widened: true };
 }
 
-// flag dereferences an optional boolean with the schema's enabled-by-default.
 function flag(p: boolean | undefined): boolean {
   return p === undefined || p;
 }
 
-// firstLine returns the first non-blank line of s, for labeling unnamed timers.
 function firstLine(s: string): string {
   for (const line of s.split('\n')) {
     const t = line.trim();
@@ -987,44 +785,13 @@ function firstLine(s: string): string {
   return '';
 }
 
-// --- variable translation (variables.go) --------------------------------------
-
-// maxPasses bounds the translation loop. One pass rewrites every token it can
-// see left-to-right; outer composites that swallowed an inner token come out
-// of pass 1 as literal text containing a now-visible token, which pass 2
-// translates (e.g. "$(weather ${1:})" becomes "$(weather {args})" plus one
-// warn about the composite). Three passes settle any realistically nested
-// response while guaranteeing termination.
 const MAX_PASSES = 3;
 
-// legacyHeads are the bare-{...} names worth treating as variables. Anything
-// else inside plain braces is left completely alone: braces are punctuation.
 const LEGACY_HEADS = new Set([
   'user', 'sender', 'source', 'touser', 'target', 'channel',
   'getcount', 'count', 'choose', 'random', 'args'
 ]);
 
-// translateVariables rewrites StreamElements variable references into this
-// bot's single-pass {key} substitution syntax. Both documented delimiter
-// styles ($(name) and ${name}, interchangeable upstream) plus the older
-// bare-{name} community shorthand are recognized; unknown $()/${} tokens stay
-// literal and are reported (the broadcaster clearly attempted a variable),
-// while unknown bare braces stay literal silently (braces are ordinary chat
-// punctuation, and warning on every stray pair would bury real findings).
-//
-// Decision record: StreamElements variable table:
-//
-//	$(user) / ${user} / $(user.name)   → {user}
-//	$(sender) / $(source) / .name      → {user}  (phase 6 bug fix, was {sender})
-//	$(touser) / $(target|.user|.name)  → {touser}
-//	$(1:)                              → {args}      words 1..end
-//	$(N)/$(N:M)/$(:M)/fallbacks        → literal+warn
-//	$(channel|alias|display_name)      → {channel}
-//	$(getcount NAME)                   → {counter:name}  (normalized)
-//	$(count ...)                       → literal+warn  mutates upstream
-//	$(random[.X-Y]|random.number X-Y)  → {random:X-Y}
-//	$(random.pick …)/{choose …}        → {choice:a,b}  quote-aware
-//	game/title/uptime/if/math/api/…    → literal + warn (no equivalent)
 export function translateVariables(inText: string, fetchSink?: FetchSlotSink): { text: string; warns: string[] } {
   const seen = new Set<string>();
   const order: string[] = [];
@@ -1057,33 +824,17 @@ export function translateVariables(inText: string, fetchSink?: FetchSlotSink): {
   return { text: s, warns: order };
 }
 
-// findNext locates the next translatable token starting at or after from:
-// always a $(…)/${…} pair, and a bare {…} pair only when its head is in
-// LEGACY_HEADS. Returns null when none remains.
-//
-// A delimited token whose body nests another explicit token is skipped in
-// favour of its interior: the composite has no mapping of its own (it is
-// warned as-is next pass, once its interior reads translated), while the inner
-// leaf can land cleanly right now. This is what turns SE's documented nesting
-// "$(weather ${1:})" into "$(weather {args})" instead of stranding the
-// argument untranslated inside a dead wrapper.
 function findNext(s: string, from: number): { start: number; end: number } | null {
   let i = from;
   while (i < s.length) {
     const end = delimitedEnd(s, i);
     if (end !== undefined) {
-      // A delimited token whose body nests another explicit token is skipped
-      // in favour of its interior: the composite has no mapping of its own
-      // (it is warned as-is next pass, once its interior reads translated),
-      // while the inner leaf can land cleanly right now. This is what turns
-      // SE's documented nesting "$(weather ${1:})" into "$(weather {args})"
-      // instead of stranding the argument untranslated inside a dead wrapper.
       if (!hasNestedExplicit({ s, from: i + 2, until: end - 1 })) return { start: i, end };
-      i += 2; // descend past the wrapper's opener; its closer stays literal
+      i += 2;
       continue;
     }
     if (malformedDelimited(s, i)) {
-      i += 2; // malformed explicit token: step past '$' and keep scanning
+      i += 2;
       continue;
     }
     const braceEnd = legacyBraceEnd(s, i);
@@ -1094,31 +845,24 @@ function findNext(s: string, from: number): { start: number; end: number } | nul
 }
 
 function isDollar(charCode: number): boolean {
-  return charCode === 0x24; /* $ */
+  return charCode === 0x24;
 }
 
-// opensDelimited reports whether i opens a $( or ${ token.
 function opensDelimited(s: string, i: number): boolean {
   // brace-literal-ok: inbound scan of the SOURCE product's own $(/${/{ delimiter syntax, never a mint of ours
   return isDollar(s.charCodeAt(i)) && i + 1 < s.length && (s[i + 1] === '(' || s[i + 1] === '{');
 }
 
-// delimitedEnd returns the exclusive end of the balanced $(/${ token opening
-// at i, or undefined when i does not open one or it never closes.
 function delimitedEnd(s: string, i: number): number | undefined {
   if (!opensDelimited(s, i)) return undefined;
   const end = matchDelimited(s, i);
   return end === -1 ? undefined : end;
 }
 
-// malformedDelimited reports whether i opens an unbalanced $(/${ wrapper,
-// which the scan must step past instead of matching.
 function malformedDelimited(s: string, i: number): boolean {
   return opensDelimited(s, i) && delimitedEnd(s, i) === undefined;
 }
 
-// legacyBraceEnd returns the end of a bare-brace token starting at i whose
-// head names a recognized legacy family, else -1.
 function legacyBraceEnd(s: string, i: number): number {
   // brace-literal-ok: inbound scan of the SOURCE product's own $(/${/{ delimiter syntax, never a mint of ours
   if (s[i] !== '{') return -1;
@@ -1127,17 +871,12 @@ function legacyBraceEnd(s: string, i: number): number {
   return -1;
 }
 
-// TokenWindow scopes a scan to a character range of the surrounding string.
 interface TokenWindow {
   s: string;
   from: number;
   until: number;
 }
 
-// hasNestedExplicit reports whether the window opens another $( or ${
-// token, i.e. whether the enclosing token is a composite. The lookahead never
-// crosses until: an end index inside s implies j + 1 stays inside s too, so
-// opensFamily's own length guard is equivalent to the original bound here.
 function hasNestedExplicit(w: TokenWindow): boolean {
   for (let j = w.from; j < w.until - 1; j++) {
     if (opensFamily(w.s, j) !== '') return true;
@@ -1145,9 +884,6 @@ function hasNestedExplicit(w: TokenWindow): boolean {
   return false;
 }
 
-// matchDelimited finds the closing half of the $( or ${ opened at start,
-// tracking both families' depth so one nested opposite-family token does not
-// end the outer scan early. Returns -1 when unbalanced (token left literal).
 function matchDelimited(s: string, start: number): number {
   const openParen = s[start + 1] === '(';
   const depth = { paren: 0, brace: 0 };
@@ -1163,8 +899,6 @@ function matchDelimited(s: string, start: number): number {
   return -1;
 }
 
-// opensFamily reports the delimiter family a "$(" / "${" pair at i opens,
-// or '' when neither.
 function opensFamily(s: string, i: number): 'paren' | 'brace' | '' {
   if (!isDollar(s.charCodeAt(i)) || i + 1 >= s.length) return '';
   if (s[i + 1] === '(') return 'paren';
@@ -1173,8 +907,6 @@ function opensFamily(s: string, i: number): 'paren' | 'brace' | '' {
   return '';
 }
 
-// closesDelimited folds one depth-bearing character and reports whether it
-// just closed the wrapper.
 function closesDelimited(ch: string, openParen: boolean, depth: ScanDepth): boolean {
   applyDepthStep(ch, depth);
   return reachedOwnClose(ch, openParen, depth);
@@ -1202,15 +934,11 @@ function applyDepthStep(ch: string, depth: ScanDepth): void {
   if (ch === '}') depth.brace--;
 }
 
-// reachedOwnClose reports whether the character just closed the same family
-// the wrapper opened, with no opposite-family nesting left outstanding.
 function reachedOwnClose(ch: string, openParen: boolean, depth: ScanDepth): boolean {
   if (openParen) return ch === ')' && depth.paren === 0 && depth.brace <= 0;
   return ch === '}' && depth.brace === 0 && depth.paren <= 0;
 }
 
-// matchBrace finds the } closing the { at start (nested braces counted);
-// -1 when unbalanced.
 function matchBrace(s: string, start: number): number {
   let depth = 0;
   for (let j = start; j < s.length; j++) {
@@ -1226,16 +954,11 @@ function braceStep(ch: string): number {
   return ch === '}' ? -1 : 0;
 }
 
-// legacyCandidate reports whether a bare-brace body names a variable family we
-// recognize. Comparison is ASCII-case-insensitive on the leading name run.
 function legacyCandidate(inner: string): boolean {
   const [head] = splitHead(inner.trim());
   return LEGACY_HEADS.has(head);
 }
 
-// isIdentChar is true for the [0-9A-Za-z_] alphabet a token body's leading
-// name run reads — ASCII digits and letters only, not any locale's idea of
-// "letter" the way JS's own \w would read it.
 function isIdentChar(c: string): boolean {
   if (c >= 'A' && c <= 'Z') return true;
   if (c >= 'a' && c <= 'z') return true;
@@ -1243,8 +966,6 @@ function isIdentChar(c: string): boolean {
   return c === '_';
 }
 
-// splitHead splits a token body into its lower-cased name run ([0-9a-z_]+)
-// and the remainder (dot-subfields, arguments, ranges, pipes).
 function splitHead(body: string): [head: string, rest: string] {
   let i = 0;
   while (i < body.length && isIdentChar(body[i])) {
@@ -1253,8 +974,6 @@ function splitHead(body: string): [head: string, rest: string] {
   return [asciiLower(body.slice(0, i)), body.slice(i)];
 }
 
-// ASCII-only lowering: String.toLowerCase() folds Unicode too, and a
-// non-ASCII byte must terminate the name run exactly like Go's byte scan.
 function asciiLower(s: string): string {
   let hasUpper = false;
   for (let i = 0; i < s.length; i++) {
@@ -1273,12 +992,6 @@ function asciiLower(s: string): string {
   return out;
 }
 
-// TokenView carries one scanned token through the rule table below. head is
-// the lower-cased name run; restRaw/rest are the remainder in original and
-// lower-cased bytes (sub-field suffixes compare case-insensitively so
-// $(USER.NAME) resolves like $(user.name), while argument payloads keep their
-// original bytes so counter names and choice items survive verbatim);
-// delimited says whether an explicit $(…)/${…} wrapper was present.
 interface TokenView {
   tok: string;
   head: string;
@@ -1289,45 +1002,16 @@ interface TokenView {
 
 type TokenOutcome = { repl: string; warned: boolean };
 
-// --- $(urlfetch) extraction (docs/urlfetch/IMPLEMENTATION.md, Phase 4) -------
-
-// MAX_FETCH_URL_BYTES mirrors the FetchURL validator (≤512 chars, https-only)
-// that ingestion will enforce per definition. A longer or scheme-less URL is
-// refused HERE (left literal with the standard unmapped warn) rather than
-// synthesized into a def that can only fail wholesale at save time, taking its
-// URL out of the reply text where it stayed visible.
 const MAX_FETCH_URL_BYTES = 512;
 
 const urlEncoder = new TextEncoder();
 
-// FetchSlotSink is what a caller of translateVariables provides to have
-// $(urlfetch ...) tokens mapped into `{urlfetch:<slug>}` references backed by
-// synthesized definitions. acquire returns null when no more definitions can
-// be synthesized (cap or slug collision), which degrades the token to the
-// literal+warn path.
 export interface FetchSlotSink {
   acquire(url: string, jsonPath: string[] | undefined): string | null;
 }
 
-// FETCH_DEF_CAP reuses IMPORT_ITEM_CAPS.commands as the ceiling on synthesized
-// definitions per import instead of minting a second public number: each def
-// exists only to serve a command in this same manifest, so the commands cap
-// bounds it by construction and one fewer magic number cannot drift from the
-// mirrored server-side table. Past the cap a token stays literal (fail
-// visible), never a dangling {urlfetch:} reference.
 export const FETCH_DEF_CAP = IMPORT_ITEM_CAPS.commands;
 
-// makeFetchSlotSink builds the per-command slot allocator over one shared
-// import-level def map. Slot rule: the first distinct argument set in a reply
-// takes the bare fetchDefSlug('se', command), the Nth distinct one (N≥2)
-// appends _N (underscore, not hyphen): the commands service's def-name
-// grammar is ^[a-z0-9_]{1,32}$ and refused every hyphenated name this
-// importer used to synthesize.
-// Identical argument sets within ONE command share their def (equality is
-// byte-exact here, so merging is safe) but distinct slots never merge even
-// when their URLs look equal, matching the Moobot-side rule where equality is
-// unknowable until the URL is re-entered; cross-source consistency beats a
-// half-def deduplication that behaves differently per importer.
 function makeFetchSlotSink(
   baseSlug: string,
   defs: Map<string, ManifestFetch>,
@@ -1350,20 +1034,12 @@ function makeFetchSlotSink(
   };
 }
 
-// fetchDefFor builds one synthesized definition. Key order matches
-// ManifestFetch's declaration (name, url, json_path, source) so serialized
-// manifests are byte-stable across parsers.
 function fetchDefFor(key: string, url: string, jsonPath: string[] | undefined): ManifestFetch {
   return jsonPath?.length
     ? { name: key, url, json_path: jsonPath, source: 'streamelements' }
     : { name: key, url, source: 'streamelements' };
 }
 
-// registerFetchDef admits one definition into the import-level map: false at
-// the cap, and false with a warn when the slug is already taken: two
-// exported commands normalized onto one name; first wins (deterministic by
-// export order), because the loser's tokens would silently re-point at
-// another command's data source.
 function registerFetchDef(
   defs: Map<string, ManifestFetch>,
   def: ManifestFetch,
@@ -1376,21 +1052,10 @@ function registerFetchDef(
   }
   if (defs.size >= FETCH_DEF_CAP) return false;
   defs.set(def.name, def);
-  // createdFetchDefMessage is shared with nightbot/fetchdefs.ts (the sink
-  // every OTHER $(…)-syntax source uses) so this file's own parallel sink
-  // still warns with the exact same wording (review, phase 6: creation used
-  // to be silent everywhere).
   diags.push(warnDiag(-1, 'fetch_def_created', createdFetchDefMessage(def)));
   return true;
 }
 
-// parseUrlfetchArgs splits a $urlfetch body into (url, json_path). The first
-// word is the URL (https/http required: our engine rejects everything else at
-// save AND fetch, so importing a def we know is dead helps nobody); any
-// remainder is SE's dot-path into a JSON response, split on '.' with empties
-// dropped. Segments are stored as-written: segment grammar/depth validation
-// stays authoritative downstream at ingestion, mirroring how counter names
-// ride normalizeName here but validate again at write time.
 function parseUrlfetchArgs(body: string): { url: string; jsonPath: string[] | undefined } | null {
   const words = body.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return null;
@@ -1402,14 +1067,6 @@ function parseUrlfetchArgs(body: string): { url: string; jsonPath: string[] | un
   return { url, jsonPath: segments.length > 0 ? segments : undefined };
 }
 
-// urlfetchRule maps one $(urlfetch URL [json.path]) token onto its synthesized
-// definition reference. Extraction-at-import is safe by construction: the URL
-// is copied byte-exact out of the reply text into the definition (no fetch,
-// no resolution, no key handling happens here) and the reply keeps working at
-// runtime through the reviewed, sandboxed definition instead of an unreviewed
-// URL pasted into chat text. Without a sink (timers, keyword triggers) or with
-// unusable arguments there is nothing to extract into, so the token stays
-// literal and warned like any other unmapped variable.
 function urlfetchRule(v: TokenView, fetchSink?: FetchSlotSink): TokenOutcome {
   if (!fetchSink || !v.delimited) return unmapped(v);
   const args = parseUrlfetchArgs(v.restRaw);
@@ -1420,10 +1077,6 @@ function urlfetchRule(v: TokenView, fetchSink?: FetchSlotSink): TokenOutcome {
   return span === null ? unmapped(v) : ok(span);
 }
 
-// classifyToken resolves one scanned token to its replacement text by looking
-// its head up in TOKEN_RULES (unknown heads fall through to unmapped).
-// Returns warned=true when the token was an attempted-but-unmappable variable;
-// false covers both clean translations and silent literals.
 function classifyToken(tok: string, fetchSink?: FetchSlotSink): TokenOutcome {
   const v = readToken(tok);
   if (!v) return { repl: tok, warned: false };
@@ -1436,8 +1089,6 @@ function readToken(tok: string): TokenView | null {
   return null;
 }
 
-// RawToken is a scanner hit before head/rest resolution: the full token text,
-// its unwrapped body and which delimiter family wrapped it.
 interface RawToken {
   tok: string;
   inner: string;
@@ -1451,16 +1102,6 @@ function isDelimitedToken(tok: string): boolean {
   );
 }
 
-// isBareBraceToken recognizes StreamElements' INBOUND bare-{name} shorthand,
-// not one of our spans, which is why it stays a hand scan while every other
-// {…} reader in the console moved to ../tmpl's lex(). The two grammars
-// genuinely differ: SE's shorthand nests ({choose {a} b} is one token, matched
-// by the brace counter in matchBrace), while our lexer closes a span at the
-// FIRST '}' and would read that as "{choose {a}" — reading inbound text with
-// the outbound grammar would silently re-cut somebody else's tokens. What our
-// lexer does own here is the OUTPUT: every span this file mints goes through
-// targets.ts's emit (intactSpan underneath), and the guard test replays the
-// fixtures to prove the translated text lexes back to the tokens it meant.
 function isBareBraceToken(tok: string): boolean {
   // brace-literal-ok: inbound scan of the SOURCE product's own $(/${/{ delimiter syntax, never a mint of ours
   return tok.startsWith('{') && tok.endsWith('}') && tok.length > 2;
@@ -1475,53 +1116,22 @@ const ok = (repl: string): TokenOutcome => ({ repl, warned: false });
 const silentLiteral = (v: TokenView): TokenOutcome => ({ repl: v.tok, warned: false });
 const flaggedLiteral = (v: TokenView): TokenOutcome => ({ repl: v.tok, warned: true });
 
-// unmapped keeps an attempted-but-unmappable variable literal, and now warns
-// either way (phase 6): a bare-brace body only ever reaches this function
-// after legacyCandidate has already decided its head names one of
-// LEGACY_HEADS' recognized variable families — ordinary chat punctuation like
-// "{lol}" never becomes a token at all, so a bare brace arriving here is
-// exactly as much an attempted variable as an explicit $(…)/${…} one is, and
-// deserves the same warning. (Previously only count/getcount warned in the
-// bare-brace case; every other recognized-but-unmapped head — a target
-// suffix nothing matches, a malformed $(random…) shape spelled bare — stayed
-// silent, which is the "bare {brace} bodies" silent drop the phase 6 spec
-// named.)
 function unmapped(v: TokenView): TokenOutcome {
   return { repl: v.tok, warned: true };
 }
 
-// BakedIdentitySpec names the identity mapping one table row carries: the
-// canonical replacement and the dot-subfield suffixes that resolve to it.
 interface BakedIdentitySpec {
   repl: string;
   suffixes: string[];
 }
 
-// bakedIdentity maps one identity family: bare or dot-subfield suffixes land
-// on a single canonical key, anything else falls back to unmapped.
 function bakedIdentity(spec: BakedIdentitySpec): (v: TokenView) => TokenOutcome {
   return (v) => (v.rest === '' || spec.suffixes.includes(v.rest) ? ok(spec.repl) : unmapped(v));
 }
 
-// headless separates explicit headless tokens ($(:3)-style ranges and other
-// nameless attempts, which warn) from bare nameless braces (punctuation).
-// $(:M) (phase 6) is the leading-slice form of the positional family below —
-// words 1..M — and is the one member of that family with no head at all
-// (splitHead stops at the leading ':'), so it is handled here rather than in
-// positionalRule.
 function headless(v: TokenView): TokenOutcome {
   const range = /^:(\d+)$/.exec(v.restRaw);
   if (range) {
-    // SE's $(:M) counts word 0 — the TRIGGER itself (the command name) — as
-    // part of its range; this bot's {:M} starts counting at the first REAL
-    // argument, with no trigger word in the count at all. The same M
-    // upstream words therefore come out of {:(M-1)}, not {:M}: shifting by
-    // one is what makes "the leading words including the trigger" translate
-    // into "the leading words of the args" without silently including one
-    // extra word or dropping the last one. $(:1) — M=1, the trigger ALONE
-    // with zero real argument words — has nothing to shift onto: {:0} is not
-    // a legal slice (this bot has no token meaning "print nothing"), so it
-    // takes the ordinary unmapped path instead of minting one.
     const m = Number(range[1]);
     return m < 2 ? unmapped(v) : okOrUnmapped(slice(undefined, m - 1), v);
   }
@@ -1532,22 +1142,10 @@ function touserParam(v: TokenView): TokenOutcome {
   return v.restRaw === '' ? ok(emit('touser')!) : unmapped(v);
 }
 
-// okOrUnmapped folds a targets.ts mint (null on an out-of-range/unsafe
-// payload) back into the outcome shape every rule here returns.
 function okOrUnmapped(span: string | null, v: TokenView): TokenOutcome {
   return span === null ? unmapped(v) : ok(span);
 }
 
-// positionalRule resolves $(N) and its family for one numeric head N
-// (registered below for every N in 1..POSITIONAL_MAX): bare {N}, {N:}
-// (word N to the end), {N:M} (a bounded slice) and {N|fallback}.
-//
-// N=1 with the bare ":" rest is the one case documented BEFORE this family
-// existed ($(1:) → {args}, see the decision record above) and it keeps that
-// exact spelling rather than switching to {1:}: the two mean the same thing
-// (both are "every word from the first one on"), so changing it would be
-// spelling churn on a pinned, unchanged behaviour with no reader-visible
-// difference. Every other N takes the new {N:} slice directly.
 function positionalRule(v: TokenView): TokenOutcome {
   const n = Number(v.head);
   if (v.restRaw === '') return okOrUnmapped(positional(n), v);
@@ -1568,38 +1166,21 @@ function getCounterParam(v: TokenView): TokenOutcome {
 
 function chooseParam(v: TokenView): TokenOutcome {
   if (v.delimited) return unmapped(v);
-  // The legacy bare {choose a,b,c} form warns on failure like an explicit
-  // attempt: someone clearly wrote a choice list. The payload is round-tripped
-  // through emit() rather than concatenated: an option carrying '|' or '}'
-  // would otherwise silently become the span's fallback or close it early
-  // (see moobot/tags.ts's choiceKey, which strips those bytes instead —
-  // here the whole list is refused, matching the review's call to reject
-  // '|' in items rather than mangling one of them).
   const items = pickItems(v.restRaw);
   const span = items ? emit('choice', items.join(',')) : null;
   return span === null ? flaggedLiteral(v) : ok(span);
 }
 
-// TOKEN_RULES resolves a token body by its head name. Adding a variable later
-// is a row here, not a branch in the scanner.
-// userParam extends the old bakedIdentity(user) with .points (phase 6): a
-// per-suffix function rather than a table row, since .points answers a
-// different concept ({points}) than the bare/.name forms ({user}).
 function userParam(v: TokenView): TokenOutcome {
   if (v.rest === '' || v.rest === '.name') return ok(emit('user')!);
   if (v.rest === '.points') return ok(emit('points')!);
   return unmapped(v);
 }
 
-// isChannelIdentityRest is true for every suffix that still means "the
-// channel itself" (bare, .alias, .display_name) rather than one of its
-// counted facts.
 function isChannelIdentityRest(rest: string): boolean {
   return rest === '' || rest === '.alias' || rest === '.display_name';
 }
 
-// channelParam extends the old bakedIdentity(channel) with .followers/.subs
-// (phase 6), same reason as userParam above.
 function channelParam(v: TokenView): TokenOutcome {
   if (isChannelIdentityRest(v.rest)) return ok(emit('channel')!);
   if (v.rest === '.followers') return ok(emit('followers')!);
@@ -1607,26 +1188,16 @@ function channelParam(v: TokenView): TokenOutcome {
   return unmapped(v);
 }
 
-// timeParam maps $(time)/$(time <place>) onto {time}/{time:<place>}: unlike
-// Nightbot's/SLCB's $(time <tz>), which take a per-call timezone this bot's
-// {time} cannot honour (see nightbot/variables.ts's decision record), SE's
-// own table pairs the bare and payload forms the same way {time}/{time:place}
-// already does, so both sides read the same argument the same way.
 function timeParam(v: TokenView): TokenOutcome {
   const place = v.restRaw.trim();
   return okOrUnmapped(place === '' ? emit('time') : emit('time', place), v);
 }
 
-// mathParam maps $(math <expr>) onto {math:<expr>} verbatim: both sides
-// evaluate the same small arithmetic grammar (engine/pure.ts mirrors
-// scope.Pure's), so an expression this bot cannot evaluate resolves to ''
-// exactly as it already would upstream — no separate validation is owed here.
 function mathParam(v: TokenView): TokenOutcome {
   const expr = v.restRaw.trim();
   return expr === '' ? unmapped(v) : okOrUnmapped(emit('math', expr), v);
 }
 
-// REPEAT_ARGS reads $(repeat <n> <text>)'s count and phrase.
 const REPEAT_ARGS = /^\s+(\d+)\s+(.+)$/s;
 
 function repeatParam(v: TokenView): TokenOutcome {
@@ -1638,55 +1209,24 @@ const TOKEN_RULES: Record<string, (v: TokenView, fetchSink?: FetchSlotSink) => T
   urlfetch: urlfetchRule,
   '': headless,
   user: userParam,
-  // sender/source both name the invoking chatter — SE's own older spelling —
-  // so both are the {user} concept. Phase 6 bug fix: this table used to bake
-  // sender/source onto the literal string "{sender}", which is not one of
-  // this bot's heads and would have stayed literal in chat forever; nothing
-  // caught it because the round-trip guard checks spans that come OUT of a
-  // committed golden fixture, and this table's OWN fixtures never happened to
-  // exercise $(sender)/$(source).
   sender: bakedIdentity({ repl: emit('user')!, suffixes: ['.name'] }),
   source: bakedIdentity({ repl: emit('user')!, suffixes: ['.name'] }),
   touser: touserParam,
   target: bakedIdentity({ repl: emit('touser')!, suffixes: ['.user', '.name'] }),
   channel: channelParam,
-  // LEGACY_HEADS names "args" as a recognized bare-{…} shorthand (SE's
-  // community convention, distinct from the $(1:) form the positional family
-  // below maps), but nothing here ever matched the head "args" itself: it
-  // fell through to unmapped(), and unmapped()'s warn only special-cased
-  // count/getcount, so a bare {args} silently rendered its own literal text
-  // forever — recognized by LEGACY_HEADS as a variable, translated by
-  // nothing, warned by nothing. Phase 6 bug fix: the BARE shorthand spells
-  // the same word this bot's own token does, so it maps onto {args} directly.
-  // $(args)/${args} are left alone on purpose — SE's documented table has no
-  // such call (only $(1:) means "the rest of the args"), so an explicit
-  // $()/${} spelling stays on the ordinary unmapped+warn path rather than
-  // inventing a second inbound spelling nothing upstream ever emits.
   args: (v) => (v.delimited ? unmapped(v) : v.rest === '' ? ok(emit('args')!) : unmapped(v)),
   getcount: getCounterParam,
-  // Mutating upstream (increments and returns); our {counter:*} substitution
-  // only reads, so the token always stays literal with a warning.
   count: flaggedLiteral,
   random: classifyRandom,
   choose: chooseParam,
-  // pointsname/user.points (phase 6): SE's loyalty balance and currency name.
   pointsname: (v) => (v.restRaw === '' ? ok(emit('points.name')!) : unmapped(v)),
   time: timeParam,
   math: mathParam,
   repeat: repeatParam
 };
 
-// The positional family (phase 6): $(N), $(N:), $(N:M) and $(N|fallback) for
-// every N in 1..POSITIONAL_MAX. See positionalRule's own comment for what
-// each shape maps onto — one function, registered under every numeric head,
-// rather than 30 near-identical table rows.
 for (let n = 1; n <= POSITIONAL_MAX; n++) TOKEN_RULES[String(n)] = positionalRule;
 
-// Each RANDOM_ROWS entry renders one documented $(random …)/{random …}
-// spelling, or null when its arguments do not parse; classifyRandom walks the
-// rows in order and the first hit wins. Rows are mutually exclusive by prefix,
-// mirroring the upstream grammar: bare range, dot-forms ($(random.X)),
-// space-pick, plain bare-brace range.
 type RandomRow = (v: TokenView) => string | null;
 
 const RANDOM_ROWS: RandomRow[] = [
@@ -1698,9 +1238,6 @@ const RANDOM_ROWS: RandomRow[] = [
   plainRandomRange
 ];
 
-// classifyRandom resolves $(random …) forms. Bare-brace random uses a space
-// before the range ({random 5-10}); delimited uses a dot ($(random.5-10)).
-// An unusable shape stays literal, warning only on the explicit attempt.
 function classifyRandom(v: TokenView): TokenOutcome {
   const repl = RANDOM_ROWS.map((row) => row(v)).find((r) => r !== null);
   if (repl !== undefined) return ok(repl);
@@ -1732,26 +1269,15 @@ function spaceRandomPick(v: TokenView): string | null {
 }
 
 function plainRandomRange(v: TokenView): string | null {
-  // Dot-prefixed rests can never satisfy goAtoi's integer halves (a leading
-  // '.', letter or space cannot open an int), so this row only has to exclude
-  // the delimited form to match the upstream ladder's reach exactly.
   if (v.delimited || v.rest.startsWith('.')) return null;
   const r = parseRange(v.restRaw);
   return r ? rangeKey(r[0], r[1]) : null;
 }
 
-// pickKey round-trips the same way chooseParam's payload does: an option
-// carrying '|' or '}' refuses the whole list rather than minting a span the
-// lexer would re-cut.
 function pickKey(items: string[] | null): string | null {
   return items ? emit('choice', items.join(',')) : null;
 }
 
-// pickItems splits a random.pick argument list honoring quotes: items may be
-// wrapped in '…', "…" or `…` to carry spaces, and both space- and comma-
-// separated lists are accepted (SE's two documented forms). Returns null when
-// the list cannot survive our {choice:…} comma-splitting grammar: leaving
-// the token literal beats corrupting it.
 function pickItems(spec: string): string[] | null {
   const raw = splitPickList(spec);
   if (raw === null) return null;
@@ -1764,8 +1290,6 @@ interface PickScan {
   quote: string;
 }
 
-// splitPickList tokenizes on spaces, tabs and commas outside quotes; an
-// unterminated quote fails the whole list.
 function splitPickList(spec: string): string[] | null {
   const scan: PickScan = { raw: [], cur: '', quote: '\0' };
   for (const c of spec.trim()) scanPickChar(scan, c);
@@ -1774,7 +1298,6 @@ function splitPickList(spec: string): string[] | null {
   return scan.raw;
 }
 
-// scanPickChar consumes one character of a random.pick argument list.
 function scanPickChar(scan: PickScan, c: string): void {
   if (scan.quote !== '\0') {
     absorbQuotedChar(scan, c);
@@ -1791,8 +1314,6 @@ function scanPickChar(scan: PickScan, c: string): void {
   scan.cur += c;
 }
 
-// absorbQuotedChar folds one character inside a quoted item: the closing
-// quote ends the quotation, everything else is content.
 function absorbQuotedChar(scan: PickScan, c: string): void {
   if (c === scan.quote) {
     scan.quote = '\0';
@@ -1801,8 +1322,6 @@ function absorbQuotedChar(scan: PickScan, c: string): void {
   scan.cur += c;
 }
 
-// isPickSeparator matches the documented item separators: SE accepts space-
-// and comma-separated lists, and tabs ride along with spaces.
 function isPickSeparator(c: string): boolean {
   return c === ' ' || c === '\t' || c === ',';
 }
@@ -1817,8 +1336,6 @@ function flushPick(scan: PickScan): void {
   scan.cur = '';
 }
 
-// sanitizePickItems strips wrapping quotes and rejects empty entries and any
-// item that itself contains a comma after quote-stripping.
 function sanitizePickItems(raw: string[]): string[] | null {
   const items: string[] = [];
   for (const r of raw) {
@@ -1835,18 +1352,10 @@ function unwrapQuotes(t: string): string {
   return quoted ? t.slice(1, -1).trim() : t;
 }
 
-// rangeKey formats a parsed random range canonically. x/y are always
-// integers here (parseRange's own contract), which can never carry '|' or
-// '}', but it still mints through emit() rather than a template literal so
-// every span this file produces has exactly one way to come into being.
 function rangeKey(x: number, y: number): string | null {
   return emit('random', `${x}-${y}`);
 }
 
-// parseRange reads "X-Y" (optionally spaced, signs allowed). The split dash is
-// searched right-to-left and the first split where both sides parse as
-// integers wins, so negative bounds resolve ("-5--1" → -5, -1) while a plain
-// "5-10" still takes its only dash.
 function parseRange(s: string): [number, number] | null {
   s = s.trim();
   for (let i = s.length - 2; i > 0; i--) {
@@ -1859,15 +1368,12 @@ function parseRange(s: string): [number, number] | null {
   return null;
 }
 
-// goAtoi mirrors strconv.Atoi: optional sign then digits, nothing else.
 function goAtoi(s: string): number | null {
   if (!/^[+-]?\d+$/.test(s)) return null;
   const n = Number(s);
-  // Go ints are 64-bit; JSON-scale ranges never overflow Number here.
   return Number.isSafeInteger(n) ? n : null;
 }
 
-// firstWord returns the first whitespace-delimited word of s, if any.
 function firstWord(s: string): string {
   const f = s.split(/\s+/).filter(Boolean);
   return f.length > 0 ? f[0] : '';

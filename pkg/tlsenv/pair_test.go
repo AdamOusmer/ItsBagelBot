@@ -28,9 +28,6 @@ const (
 	keyVar  = Var("TEST_TLS_KEY_FILE")
 )
 
-// writePair writes a self-signed cert/key pair carrying serial into dir, at the
-// same two paths every time, so a second call is the shape of a cert-manager
-// renewal: same paths, new content.
 func writePair(t *testing.T, dir string, serial int64) Pair {
 	t.Helper()
 
@@ -62,9 +59,6 @@ func serialOf(t *testing.T, cert *tls.Certificate) int64 {
 
 func TestPairFromEnvBothSet(t *testing.T) {
 
-	// The padded case is not hypothetical: these values arrive from Doppler
-	// and from Secret volumes, both of which carry a trailing newline, and an
-	// untrimmed path fails as an ENOENT on a file that is plainly there.
 	for name, asMounted := range map[string]func(string) string{
 		"exact":            func(path string) string { return path },
 		"padded by mounts": func(path string) string { return "  " + path + "\n" },
@@ -86,8 +80,6 @@ func TestPairFromEnvBothSet(t *testing.T) {
 	}
 }
 
-// Neither set is the pre-rollout state of every service that has not been given
-// its cert volume yet: no error, no TLS, not a half-configured listener.
 func TestPairFromEnvNeitherSet(t *testing.T) {
 	t.Setenv(string(certVar), "")
 	t.Setenv(string(keyVar), "")
@@ -116,8 +108,6 @@ func TestPairFromEnvHalfSetIsAnError(t *testing.T) {
 	}
 }
 
-// An unreadable pair must surface as an error from every entry point, never as
-// a nil certificate a handshake would present as "no cert".
 func TestUnreadableFileErrorsEverywhere(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(string(certVar), filepath.Join(dir, "missing.crt"))
@@ -139,8 +129,6 @@ func TestUnreadableFileErrorsEverywhere(t *testing.T) {
 	}
 }
 
-// The point of the closures: cert-manager rotates the files in place at day 75
-// and the very next handshake, with no restart, must present the new cert.
 func TestClosuresRereadRotatedPair(t *testing.T) {
 	dir := t.TempDir()
 	written := writePair(t, dir, 1)
@@ -165,9 +153,6 @@ func TestClosuresRereadRotatedPair(t *testing.T) {
 	assert.Equal(t, int64(2), serialOf(t, cert), "client handshake must re-read from disk")
 }
 
-// serveOn starts an HTTPS listener on a loopback port with cfg and returns its
-// address. The whole point of ServerConfig is what a real handshake presents,
-// which only a real listener can show.
 func serveOn(t *testing.T, cfg *tls.Config) string {
 	t.Helper()
 
@@ -179,14 +164,10 @@ func serveOn(t *testing.T, cfg *tls.Config) string {
 	return ln.Addr().String()
 }
 
-// presentedSerial dials addr and reports the serial of the leaf the server
-// presented. Verification is off because the pair is self-signed and the
-// identity is not what is under test; the serial is read straight off the
-// handshake, which is the assertion.
 func presentedSerial(t *testing.T, addr string) int64 {
 	t.Helper()
 
-	// codeql[go/disabled-certificate-check] -- test client, see above.
+	// codeql[go/disabled-certificate-check] -- test client dialing a self-signed pair.
 	conn, err := tls.Dial("tcp", addr, &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12})
 	require.NoError(t, err)
 	defer func() { _ = conn.Close() }()
@@ -195,10 +176,6 @@ func presentedSerial(t *testing.T, addr string) int64 {
 	return leaf.SerialNumber.Int64()
 }
 
-// The listener contract: cert-manager rewrites the mounted files in place and
-// the next handshake must present the new cert, with no restart. This is what
-// ListenAndServeTLS(certFile, keyFile) cannot do, and why every listener here
-// serves ServerConfig with empty file names instead.
 func TestServerConfigPresentsRotatedCert(t *testing.T) {
 	dir := t.TempDir()
 	pair := writePair(t, dir, 1)
@@ -216,16 +193,12 @@ func TestServerConfigPresentsRotatedCert(t *testing.T) {
 		"the same running listener must present the rotated cert")
 }
 
-// An unconfigured pair is the pre-rollout state: no config, so the caller
-// serves plaintext rather than a listener with no certificate.
 func TestServerConfigUnconfiguredIsNil(t *testing.T) {
 	cfg, err := Pair{}.ServerConfig()
 	require.NoError(t, err)
 	assert.Nil(t, cfg)
 }
 
-// An unreadable pair must kill the boot rather than build a listener that only
-// fails once something handshakes with it.
 func TestServerConfigUnreadablePairErrors(t *testing.T) {
 	dir := t.TempDir()
 	pair := Pair{certFile: filepath.Join(dir, "missing.crt"), keyFile: filepath.Join(dir, "missing.key")}

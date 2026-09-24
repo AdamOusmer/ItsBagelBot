@@ -2,37 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Squash do
-  @moduledoc """
-  Coalesces identical non-command chat so the worker keeps the full reputation
-  and campaign signal at a fraction of the event count.
-
-  The `!` filter is gone, so every chat line now flows to the worker for the
-  automod. A raid or copypasta means the same text lands on a channel from many
-  chatters (or one chatter repeating). Dropping those duplicates would blind the
-  worker's per-user reputation and cross-user campaign detection, and forwarding
-  each is wasteful. So instead:
-
-    * the FIRST occurrence of a `{broadcaster, trimmed-text}` is published
-      immediately as a normal `channel.chat.message` (zero added latency for the
-      common unique message, and an instant content look for the automod);
-    * every later identical line within the window is buffered as just its
-      SENDER, and the window is flushed into ONE folded `channel.chat.message`
-      carrying every duplicate sender. `M` distinct users on identical text is
-      exactly the campaign primitive, delivered pre-assembled, and it rides the
-      normal premium/standard lane like any other chat event.
-
-  Commands (`!followage`, custom commands with integrations) and special users
-  never reach here: a repeated command is a legitimate second invocation the
-  worker gates with its own cooldown, so those are published individually.
-
-  Per-pod state is sufficient: a channel's chat is owned by one shard on one
-  node. The first-check is an atomic `:ets.insert_new` from the calling process;
-  only actual duplicates message a cohort owner. Production runs one owner per
-  online scheduler, partitioned by `{broadcaster, text}`, so unrelated floods
-  never converge on one GenServer. The production chat API delays allocating
-  cohort and sender maps until the ETS insert proves the line is a duplicate.
-  """
-
   use GenServer
 
   alias Ingress.Config.Squash, as: SquashConfig
@@ -59,40 +28,30 @@ defmodule Ingress.Squash do
     GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
   end
 
-  @doc """
-  Records one plain-chat line. Returns `:first` when this is the opening
-  occurrence in the window (the caller publishes it normally), or `:buffered`
-  when it is a duplicate (the caller drops it; it will re-surface inside the
-  cohort event).
-  """
   @spec observe(base(), sender(), GenServer.server()) :: :first | :buffered
   def observe(base, sender, server \\ __MODULE__) do
-    key =
-      {base.broadcaster_user_id, base[:origin], base[:trial_generation], String.trim(base.text)}
-
-    with %{table: table, server: owner, window_ms: window_ms} <- context(server, key) do
-      do_observe(table, owner, key, {:prepared, base, sender}, window_ms)
-    else
-      nil -> :first
-    end
-  rescue
-    # Table missing (Squash not started, e.g. in a unit test that exercises the
-    # pipeline alone): fail open and publish rather than lose the message.
-    ArgumentError -> :first
+    observe_keyed(server, &prepared_key/1, base, {:prepared, base, sender})
   end
 
-  @doc """
-  Hot-path chat observation that defers cohort-map allocation until a duplicate
-  actually exists. Unique chat stores only its compact ETS generation row.
-  """
   @spec observe_chat(:premium | :standard, map(), String.t(), map()) :: :first | :buffered
   def observe_chat(lane, event, text, meta) do
-    key =
-      {event["broadcaster_user_id"], Map.get(meta, :origin), Map.get(meta, :trial_generation),
-       String.trim(text)}
+    observe_keyed(__MODULE__, &chat_key/1, {event, text, meta}, {:chat, lane, event, text, meta})
+  end
 
-    with %{table: table, server: owner, window_ms: window_ms} <- context(__MODULE__, key) do
-      do_observe(table, owner, key, {:chat, lane, event, text, meta}, window_ms)
+  defp prepared_key(base) do
+    {base.broadcaster_user_id, base[:origin], base[:trial_generation], String.trim(base.text)}
+  end
+
+  defp chat_key({event, text, meta}) do
+    {event["broadcaster_user_id"], Map.get(meta, :origin), Map.get(meta, :trial_generation),
+     String.trim(text)}
+  end
+
+  defp observe_keyed(server, key_of, source, entry) do
+    key = key_of.(source)
+
+    with %{table: table, server: owner, window_ms: window_ms} <- context(server, key) do
+      do_observe(table, owner, key, entry, window_ms)
     else
       nil -> :first
     end
@@ -138,9 +97,6 @@ defmodule Ingress.Squash do
   def handle_cast({:dup, key, generation, base, sender}, state) do
     cohort_key = {key, generation}
 
-    # The sweep may have closed this generation after observe/3 read the ETS
-    # row but before this cast arrived. Emit that sender as a one-item cohort
-    # instead of creating an orphan that can never be swept.
     if current?(state.table, key, :any, generation) do
       collect_duplicate(cohort_key, key, generation, base, sender, state)
     else
@@ -182,8 +138,6 @@ defmodule Ingress.Squash do
 
     cohort = Map.fetch!(cohorts, cohort_key)
 
-    # A cohort that hits the cap flushes early: bounds the event size and hands
-    # the worker a raid cohort without waiting for the window to close.
     if cohort.count >= state.max_senders do
       emit(cohort, state)
       delete_generation(state.table, key, generation)
@@ -196,9 +150,7 @@ defmodule Ingress.Squash do
   @impl true
   def handle_info(:sweep, state) do
     now = now_ms()
-    # Every key whose window has closed. Keys with no cohort are unique messages
-    # (first published, no duplicates) and are just cleaned up; keys with a
-    # cohort are flushed into one event.
+
     expired =
       :ets.select(state.table, [
         {{:"$1", :"$2", :"$3"}, [{:"=<", :"$2", now}], [{{:"$1", :"$2", :"$3"}}]}
@@ -206,8 +158,6 @@ defmodule Ingress.Squash do
 
     cohorts =
       Enum.reduce(expired, state.cohorts, fn {key, expires_at, generation}, acc ->
-        # The exact generation check prevents an old sweep result from erasing
-        # a newer window installed while the select was running.
         if current?(state.table, key, expires_at, generation) do
           :ets.delete(state.table, key)
 
@@ -228,12 +178,6 @@ defmodule Ingress.Squash do
     {:noreply, %{state | cohorts: cohorts}}
   end
 
-  # Build and publish the cohort event onto the broadcaster's lane. It carries
-  # only the DUPLICATE senders; the first occurrence already rode a normal
-  # channel.chat.message, so the worker aggregates the two by text (and dedups
-  # by msg_id) with no double count. The cohort's own msg_id is the earliest
-  # buffered duplicate's — never published individually, so it is free to
-  # identify the cohort to downstream consumers.
   defp emit(%{base: base, senders: senders, count: count}, state) do
     distinct = senders |> Enum.map(& &1.chatter_user_id) |> Enum.uniq() |> length()
     ordered = Enum.reverse(senders)
@@ -252,8 +196,6 @@ defmodule Ingress.Squash do
       distinct_users: distinct
     }
 
-    # Folded senders share identical text, hence identical emote spans; the
-    # cohort carries the first occurrence's spans, which describe base.text.
     message =
       case base[:emotes] do
         [_ | _] = emotes -> Map.put(message, :emotes, emotes)
@@ -267,10 +209,6 @@ defmodule Ingress.Squash do
   end
 
   @doc false
-  # Default cohort publisher: admission returns after Gnat accepts the writes
-  # and reconciles each PubAck separately, so spawning one Task per cohort
-  # would only add process churn. A cohort carries many senders and is never
-  # fire-and-forget.
   def publish_cohort(subject, message) do
     Nats.publish_acked(subject, message)
   end
@@ -298,9 +236,6 @@ defmodule Ingress.Squash do
 
   defp do_observe(table, server, key, duplicate, window_ms) do
     now = now_ms()
-    # References are scheduler-local and only need to distinguish successive
-    # generations of this key; a globally monotonic integer adds needless
-    # contention to the unique-chat hot path.
     generation = make_ref()
     entry = {key, now + window_ms, generation}
 
@@ -314,9 +249,6 @@ defmodule Ingress.Squash do
           :buffered
 
         [{^key, expires_at, current_generation}] ->
-          # Rotation is serialized with duplicate casts and sweeps only when a
-          # caller reaches an already-expired row. The unique-message hot path
-          # remains entirely caller-side.
           GenServer.call(server, {:expire, key, expires_at, current_generation})
           do_observe(table, server, key, duplicate, window_ms)
 
@@ -350,11 +282,6 @@ defmodule Ingress.Squash do
     {base, sender}
   end
 
-  # Is the row under `key` still the one the caller staged? `:any` accepts the
-  # live generation whatever its expiry (the cast path, which never saw one);
-  # a concrete stamp pins the exact window (the sweep path, so a stale select
-  # result cannot erase a newer window installed while it ran). One lookup with
-  # an optional pin, rather than two that differ by one pattern variable.
   defp current?(table, key, expires_at, generation) do
     case :ets.lookup(table, key) do
       [{^key, stored, ^generation}] -> expires_at == :any or stored == expires_at

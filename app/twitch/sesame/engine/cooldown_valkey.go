@@ -10,9 +10,6 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// ValkeyCooldown claims a cooldown with SET key 1 NX PX ttl: the first caller in
-// the window wins the key, everyone else sees it already set. It is one round trip
-// and correct across replicas, the same idiom outgress uses for its enroll lock.
 type ValkeyCooldown struct {
 	client valkey.Client
 }
@@ -26,7 +23,7 @@ func (c *ValkeyCooldown) Allow(ctx context.Context, key string, ttl time.Duratio
 	str, err := res.ToString()
 	if err != nil {
 		if valkey.IsValkeyNil(err) {
-			return false, nil // key already present: still cooling down
+			return false, nil
 		}
 		return false, err
 	}

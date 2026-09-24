@@ -10,29 +10,13 @@ import { randomBytes } from 'node:crypto';
 import { twitch, scopes, safeNextPath } from '$lib/server/oauth';
 import { skipAuthorizeIfSignedIn } from '$lib/server/oauth-start';
 
-// Gated on the build-time `dev` constant first, so Rollup erases the demo
-// branch from production builds.
 const DEMO = dev && env.DEMO === '1';
 
-// Start of the Twitch authorization-code flow. This is a *page* load (not a
-// +server.ts endpoint) so a failed start renders src/routes/+error.svelte.
-// Endpoints never go through that boundary and SvelteKit paints its grey
-// fallback instead ("500 | Internal Error").
-//
-// State is stored in a short-lived HttpOnly cookie and verified in the
-// callback (CSRF protection for OAuth). Nonce is also generated and stored:
-// the shared Twitch client does not accept a nonce arg, so we append it
-// directly to the URL and verify claims.nonce in the callback.
 export const load: PageServerLoad = ({ cookies, url, locals }) => {
-  // DEMO has no Twitch app credentials and already synthesizes a session in
-  // (app)/+layout.server.ts. Sending the visitor to Twitch would 500; send
-  // them into the demo console instead, honouring ?next= when it is safe.
   if (DEMO) {
     throw redirect(302, safeNextPath(url.searchParams.get('next')) ?? '/');
   }
 
-  // Signed-in marketing CTA: land in the console. Reconnect and delegate-accept
-  // opt out of this skip (see skipAuthorizeIfSignedIn).
   if (
     skipAuthorizeIfSignedIn({
       hasSession: !!locals.session,
@@ -59,8 +43,6 @@ export const load: PageServerLoad = ({ cookies, url, locals }) => {
   cookies.set('oauth_state', state, cookieOpts);
   cookies.set('oauth_nonce', nonce, cookieOpts);
 
-  // Where to land after the callback (e.g. /billing?subscribe=1 from the
-  // pricing page). Rides its own short-lived cookie, same as state/nonce.
   const next = safeNextPath(url.searchParams.get('next'));
   if (next) cookies.set('login_next', next, cookieOpts);
   else cookies.delete('login_next', { path: '/' });

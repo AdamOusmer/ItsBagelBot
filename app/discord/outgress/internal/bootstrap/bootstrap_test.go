@@ -64,10 +64,6 @@ func TestRegisterStillReturnsTheIDOnACatalogFailure(t *testing.T) {
 	}
 }
 
-// The catalog is a bulk OVERWRITE: a subcommand missing from this list is
-// deregistered at the next outgress boot and the engine handler behind it
-// becomes unreachable with no error anywhere. Pinning the ticket group is what
-// makes that a failing test rather than a silent regression.
 func TestCatalogPinsTheTicketSubcommands(t *testing.T) {
 	ticket := catalogCommand(t, "ticket")
 
@@ -75,8 +71,6 @@ func TestCatalogPinsTheTicketSubcommands(t *testing.T) {
 	wantRequiredUserOption(t, subcommand(t, ticket, "add"))
 }
 
-// catalogCommand is the top-level command named name, or a failed test: every
-// assertion below is about a command the bulk overwrite still ships.
 func catalogCommand(t *testing.T, name string) discordapi.AppCommand {
 	t.Helper()
 	for _, cmd := range Catalog() {
@@ -88,9 +82,6 @@ func catalogCommand(t *testing.T, name string) discordapi.AppCommand {
 	return discordapi.AppCommand{}
 }
 
-// wantSubcommands asserts cmd carries exactly names as its options, each a
-// SUB_COMMAND. Both directions matter: a missing one is deregistered at the
-// next boot, an extra one is a handler nobody wrote.
 func wantSubcommands(t *testing.T, cmd discordapi.AppCommand, names ...string) {
 	t.Helper()
 	want := make(map[string]bool, len(names))
@@ -107,8 +98,6 @@ func wantSubcommands(t *testing.T, cmd discordapi.AppCommand, names ...string) {
 	}
 }
 
-// markSubcommand ticks sub off the wanted set, refusing anything unexpected or
-// registered as something other than a SUB_COMMAND (type 1).
 func markSubcommand(t *testing.T, group string, sub discordapi.AppCommandOption, want map[string]bool) {
 	t.Helper()
 	if _, ok := want[sub.Name]; !ok {
@@ -120,8 +109,6 @@ func markSubcommand(t *testing.T, group string, sub discordapi.AppCommandOption,
 	}
 }
 
-// wantRequiredUserOption pins /ticket add's one argument: a required USER
-// (type 6). Without it Discord accepts the command with nobody to add.
 func wantRequiredUserOption(t *testing.T, sub discordapi.AppCommandOption) {
 	t.Helper()
 	if len(sub.Options) != 1 {

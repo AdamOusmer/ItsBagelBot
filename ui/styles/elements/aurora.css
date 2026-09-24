@@ -1,30 +1,7 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* `.bb-aurora` — the ambient backdrop behind the console's onboarding, login
-   and logout screens: three blurred brand orbs drifting on independent loops.
-
-   Pure CSS, and that is the requirement rather than an aesthetic: those three
-   screens are the ones a visitor hits while a redirect or an OAuth round trip
-   is in flight, so the backdrop must not compete for the main thread. No JS,
-   no conic mesh, modest blur.
-
-   Shape, blur, the wash gradients and the drift loops are ui/styles/orbs.css
-   (`.bb-orb`, `--drift-1..3`). What lives here is the composition: which three
-   orbs, where, and how bright — this backdrop is arranged for one screen and
-   nothing else renders the three together. The per-orb blur is 56px rather
-   than the shell backdrop's 110px because these are half the size; the same
-   blur on a 480px orb erases it.
-
-   Freezing under reduced motion is orbs.css's business, not this file's. */
 
 @layer bb.elements {
   .bb-aurora {

@@ -12,20 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestReplyPureFamilyWorksAcrossSurfaces is the Phase 3 headline claim: the
-// pure family ({math:…}, {countdown:…}, and by extension {countup:…},
-// {repeat:…}, {queryescape:…}, {pathescape:…}, {random}, {choice:…}) now
-// resolves in every module reply, not just custom commands — because every
-// module reply now expands through module.Palette (or module.KV, its
-// closure-free adapter), and Palette.Resolve's miss path is
-// engine/scope/pure.go's Pure, the exact scope a custom command's own
-// template resolves against.
-//
-// Two surfaces stand in for the whole tree: alerts (a onAlert/module.KV
-// reply, migrated off a hand-rolled tmpl.Dynamic-only switch) and queue (a
-// chatReplier.reply kv caller, the 146-caller shape reply.go's rewrite had to
-// keep working). Both used to answer {math:…} and {countdown:…} with the
-// literal braces; both must not now.
 func TestReplyPureFamilyWorksAcrossSurfaces(t *testing.T) {
 	digits := regexp.MustCompile(`\d`)
 
@@ -55,16 +41,6 @@ func TestReplyPureFamilyWorksAcrossSurfaces(t *testing.T) {
 	})
 }
 
-// TestReplyLocaleReachesPureFamily pins that the channel's console locale —
-// not just the pure family itself — reaches every Palette-based reply.
-// alerts.go's onAlert used to build its Palette from module.KV alone, which
-// starts locale-less; without WithLocale(c.Locale) a FR channel's
-// {countdown} would render in the catalog's English fallback regardless of
-// the broadcaster's own language, same as every other non-Common KV
-// callsite this migration threads c.Locale through (shoutout, govee,
-// songqueue_redeem, channelpoints, emoteplay, fortnite, triggers,
-// module_vars.quoteLine, raffle_mechanics.expandTokens, timeofday's
-// Spec.Bind).
 func TestReplyLocaleReachesPureFamily(t *testing.T) {
 	cfg := `{"followMessage":"in {countdown:9999-01-01}"}`
 
@@ -83,13 +59,6 @@ func TestReplyLocaleReachesPureFamily(t *testing.T) {
 		"a FR channel's {countdown} must not render the same words as an EN one")
 }
 
-// TestReplyPalettePayloadOnDeclaredNameStaysLiteral pins Palette.Resolve's
-// half-a-token rule (module/vars.go): a payload on a name the palette itself
-// declares is not "the token with extra data", it is a different, unknown
-// span — {user:x} is not {user}, the same way {random:x} is not {random}
-// unless x is a well-formed range. The queue module declares {user} through
-// module.Common, so {user:x} in a customized template must render literally
-// rather than silently dropping the payload and printing the chatter's name.
 func TestReplyPalettePayloadOnDeclaredNameStaysLiteral(t *testing.T) {
 	q := &fakeQueue{open: true}
 	m := Queue(queueDeps(q))
@@ -100,12 +69,6 @@ func TestReplyPalettePayloadOnDeclaredNameStaysLiteral(t *testing.T) {
 	assert.Equal(t, "hi {user:x}, spot 1", out[0].Text)
 }
 
-// TestRewardTrioSanitizesInput pins the shared {input} entry
-// (sanitizeRewardInput, channelpoints.go): channelpoints, songqueue_redeem
-// and govee are the three reward-redemption surfaces that expose {input},
-// and all three must now strip the same leading slash/space run so a
-// redeemer cannot mint a slash-verb as the bot regardless of which reward
-// the template is pasted into.
 func TestRewardTrioSanitizesInput(t *testing.T) {
 	ev := redemptionEvent{
 		UserName:             "Viewer",

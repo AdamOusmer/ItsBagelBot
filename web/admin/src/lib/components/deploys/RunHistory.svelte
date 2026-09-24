@@ -1,8 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // The last runs the deployer keeps (DEPLOY_KEEP_RUNS), newest first. Each
-  // row opens the run page, where the stages, logs and verbs are.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Table from '@bagel/ui/svelte/Table.svelte';

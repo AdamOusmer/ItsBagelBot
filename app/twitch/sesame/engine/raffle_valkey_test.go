@@ -11,15 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// The raffle store's Valkey paths need a live backend; these tests pin the
-// logic around them: the receipt digest, the winner pick, and the expiry
-// watcher's key filtering (which must reject foreign keys before any client
-// call — asserted here with a nil client).
-
 func TestDigestPoolGolden(t *testing.T) {
-	// Golden value: the digest is a receipt — it must never drift. If this
-	// changes deliberately, bump the version tag inside DigestPool so old
-	// receipts verify under the scheme they were written with.
 	assert.Equal(t,
 		"5e80aac76d88081d8d97f4ff129a72f9bc3191088d05d6d1070b81fbe434f957",
 		DigestPool([]string{"alice", "bob", "zoe"}))
@@ -29,11 +21,8 @@ func TestDigestPoolBindsToTheExactPool(t *testing.T) {
 	base := []string{"alice", "bob", "zoe"}
 	d := DigestPool(base)
 
-	// Same pool, same digest.
 	assert.Equal(t, d, DigestPool([]string{"alice", "bob", "zoe"}))
 
-	// Any change to the pool — order (the canonical form is join-time sorted),
-	// membership, or size — must be visible.
 	assert.NotEqual(t, d, DigestPool([]string{"bob", "alice", "zoe"}))
 	assert.NotEqual(t, d, DigestPool([]string{"alice", "bob", "eve"}))
 	assert.NotEqual(t, d, DigestPool([]string{"alice", "bob"}))
@@ -63,17 +52,11 @@ func TestPickWinnersSingleCoversWholePool(t *testing.T) {
 
 func TestPickWinnersOversizedAskClampsToCeiling(t *testing.T) {
 	pool := []string{"a", "b", "c", "d", "e"}
-	// An absurd ask from chat args or corrupt state must not panic or narrow
-	// through int: it is clamped to the ceiling, and a pool under the ceiling
-	// means everyone wins.
 	pick := pickWinners(pool, 1<<40)
 	assert.ElementsMatch(t, pool, pick)
 	assert.Empty(t, pickWinners(pool, -5))
 }
 
-// onExpired rides the shared expired-keys firehose; everything that is not a
-// well-formed raffle deadline must be dropped before any Valkey call. A nil
-// client makes any leak panic, which is the assertion.
 func TestOnExpiredIgnoresForeignKeys(t *testing.T) {
 	s := &ValkeyRaffleStore{log: zap.NewNop()}
 	for _, key := range []string{
@@ -106,19 +89,9 @@ func TestMentionListAndTokens(t *testing.T) {
 	assert.Equal(t, "{unknown} stays", expandTokens("", tokenExpansion{text: "{unknown} stays"}))
 }
 
-// TestExpandTokensReadsTheSpanGrammar pins the two behaviours the raffle
-// announcer gained when its strings.NewReplacer was replaced by tmpl.Expand.
-// Both are intentional; neither can change a shipped line, because every
-// raffle string in the i18n catalog is lower-case and pipe-free and the rows
-// above still pin the old outputs byte for byte.
 func TestExpandTokensReadsTheSpanGrammar(t *testing.T) {
-	// Token names fold. The replacer matched "{targets}" byte for byte, so a
-	// broadcaster who capitalised a token got braces printed in chat.
 	assert.Equal(t, "@x won", expandTokens("", tokenExpansion{text: "{TARGETS} won", kv: []string{"targets", "@x"}}))
 	assert.Equal(t, "@x won", expandTokens("", tokenExpansion{text: "{Targets} won", kv: []string{"targets", "@x"}}))
-	// The '|' fallback shipped with the args PR; the replacer was the last
-	// surface that did not honour it.
 	assert.Equal(t, "nobody won", expandTokens("", tokenExpansion{text: "{targets|nobody} won", kv: []string{"targets", ""}}))
-	// A fallback still does not rescue an unknown name.
 	assert.Equal(t, "{missing|x}", expandTokens("", tokenExpansion{text: "{missing|x}"}))
 }

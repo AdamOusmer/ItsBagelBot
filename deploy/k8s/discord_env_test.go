@@ -14,8 +14,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// envManifest is one manifest seen as "which environment variables does each
-// container get", which is the only thing these tests ask of it.
 type envManifest struct {
 	Kind     string `yaml:"kind"`
 	Metadata struct {
@@ -41,7 +39,6 @@ type envManifest struct {
 	} `yaml:"spec"`
 }
 
-// deploymentEnvNames lists the env var names one Deployment's containers set.
 func deploymentEnvNames(t *testing.T, filename, name string) []string {
 	t.Helper()
 	manifest, found := findDeployment(t, filename, name)
@@ -51,9 +48,6 @@ func deploymentEnvNames(t *testing.T, filename, name string) []string {
 	return envNames(manifest)
 }
 
-// findDeployment walks one multi-document manifest file for the Deployment
-// named name. A file that never names it is (zero, false) rather than a
-// t.Fatal here, so the caller owns the message and this stays a plain search.
 func findDeployment(t *testing.T, filename, name string) (envManifest, bool) {
 	t.Helper()
 	f, err := os.Open(filename)
@@ -78,7 +72,6 @@ func findDeployment(t *testing.T, filename, name string) (envManifest, bool) {
 	}
 }
 
-// envNames flattens every container's env var names, in manifest order.
 func envNames(manifest envManifest) []string {
 	out := []string{}
 	for _, c := range manifest.Spec.Template.Spec.Containers {
@@ -89,15 +82,6 @@ func envNames(manifest envManifest) []string {
 	return out
 }
 
-// TestDiscordManifestsCarryNoDeadDataSwitch: DISCORD_DATA_ENABLED used to pick
-// between discord-data and a pure-Valkey mode. Both mains now call NewRPC
-// unconditionally (internal/discordstore/select.go says why the fallback could
-// not survive per-guild configuration), so the variable is read by nothing.
-//
-// A manifest env var that no process reads is worse than clutter: the next
-// person to debug a Discord outage sets it to "false" expecting a degraded
-// mode, gets no change at all, and spends the outage looking at the wrong
-// layer.
 func TestDiscordManifestsCarryNoDeadDataSwitch(t *testing.T) {
 	for _, name := range []string{"discord-engine", "discord-outgress", "discord-ingress"} {
 		names := deploymentEnvNames(t, "discord.yaml", name)
@@ -107,9 +91,6 @@ func TestDiscordManifestsCarryNoDeadDataSwitch(t *testing.T) {
 	}
 }
 
-// TestDiscordDataPrefixSurvives is the other half: the prefix IS read (both
-// mains pass it to discordstore), so removing the switch must not have taken
-// it with it.
 func TestDiscordDataPrefixSurvives(t *testing.T) {
 	for _, name := range []string{"discord-engine", "discord-outgress"} {
 		names := deploymentEnvNames(t, "discord.yaml", name)
@@ -119,8 +100,6 @@ func TestDiscordDataPrefixSurvives(t *testing.T) {
 	}
 }
 
-// secretEnv maps each env var a Deployment reads from a Secret to its
-// "secret/key" source, plus how many blanket envFrom sources it mounts.
 type secretEnv struct {
 	Refs    map[string]string
 	EnvFrom int
@@ -139,12 +118,6 @@ func secretEnvOf(manifest envManifest) secretEnv {
 	return out
 }
 
-// TestDeployerSecretsAreWiredOneByOne: the deployer's secret holds a GitHub
-// App key that merges to main, so the manifest is the full list of what the
-// pod can read, as in discord-data.yaml. No envFrom, so a key added to the
-// Doppler project later never appears in the pod by itself, and the set is
-// exact. NEW_RELIC_LICENSE_KEY is deliberately absent: the egress policy does
-// not open the collector, and pkg/monitor stays off without the key.
 func TestDeployerSecretsAreWiredOneByOne(t *testing.T) {
 	manifest, found := findDeployment(t, deployerManifest, "deployer")
 	if !found {

@@ -1,12 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // The three facts an operator checks before shipping: what is live, whether
-  // the cluster matches the pins on main, and how the last run ended.
-  //
-  // "Rolling" wins over "drifted" on purpose: mid-rollout every service being
-  // rolled reads as drifted (the pin moved, the pods have not yet), so drift
-  // during a run is the run, not a problem.
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { ago } from '@bagel/kit';
@@ -85,8 +79,6 @@
     gap: 12px;
     margin-bottom: 16px;
   }
-  /* The link slot keeps its line whether or not a link is in it, so a run
-     starting or ending never shifts the tile's head row. */
   .trail {
     display: inline-block;
     min-height: 1.4em;

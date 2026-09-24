@@ -5,21 +5,6 @@
 import VisuallyHidden from '@bagel/ui/astro/VisuallyHidden.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
 
-/**
- * ModuleCatalog: the whole module list, filterable. Every module is a cell
- * with its dashboard name, its dashboard one-liner, its category, whether it
- * is free or premium beta, whether it starts on or off, what it needs, and
- * its chat commands behind a <details> toggle.
- *
- * The data is content (props.modules from the guide's content file), never
- * hardcoded here, so the French page ships the same 24 cells with French
- * category names. With JavaScript off the filter bar stays hidden and the
- * full list renders, which is the honest fallback for a catalogue.
- *
- * The cell surface is flat on purpose: two dozen dense cells are a table
- * wrap, not two dozen marketing cards, so they carry the tokens and the
- * border and none of the atmosphere (same call as Checklist's .gcheck).
- */
 interface Module {
     name: string;
     tagline: string;
@@ -149,8 +134,6 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
 
     .mcat__needs { color: var(--muted); font-size: 0.78rem; }
 
-    /* Named: the "needs" LABEL that prefixes the sentence, this widget's
-       own part rather than "a span looks like this here". */
     .mcat__needs-label { color: var(--tan); }
 
     .mcat__cmds summary {
@@ -160,7 +143,6 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
 
     .mcat__cmds summary:hover { color: var(--tan); }
 
-    /* Named: the revealed command LIST, this widget's own part. */
     .mcat__cmds-list {
         margin: 7px 0 0; font-family: var(--font-mono); font-size: 0.72rem;
         line-height: 1.8; color: var(--tan-light); word-break: break-word;
@@ -183,7 +165,6 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
 <script>
     import { bindOnce } from '../../../script/bind';
 
-    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     function setupCatalog(root: HTMLElement) {
         const bar = root.querySelector<HTMLElement>('[data-mcat-bar]');
         const input = root.querySelector<HTMLInputElement>('[data-mcat-input]');
@@ -194,11 +175,6 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
         const total = cells.length;
         let cat = '';
 
-        // Deliberately NOT the shared token lexer: this is the i18n catalog's
-        // {name} interpolation, a different grammar over the same braces (no
-        // payloads, no fallbacks, no scopes — just a UI string's own
-        // placeholders), so reading it with the chat lexer would be a category
-        // error rather than a deduplication.
         function fill(tpl: string, values: Record<string, string>): string {
             return tpl.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '');
         }

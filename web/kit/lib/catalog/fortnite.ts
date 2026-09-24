@@ -4,10 +4,6 @@
 import { replyTokens, type ModuleDef } from './module-def';
 import { LINKED_ONLY_FIELD } from './shared-fields';
 
-// Shared token palette + preview samples for the Fortnite stats commands
-// (!fnstats / !season), same template surface, one source of truth. Was
-// catalog/rehearsal-tokens.ts; inlined here since fortnite.ts is its only
-// consumer (urchin.ts keeps its own BW_* pair above its module def).
 const FN_STATS_TOKENS = [
   'player',
   'window',
@@ -45,9 +41,6 @@ const FN_STATS_SAMPLES: Record<string, string> = {
   squadkd: '4.1'
 };
 
-// Token palette + preview samples for !fn session: deltas since the
-// stream-start snapshot (no per-mode breakdown, no window, always this
-// stream, always the linked account).
 const FN_SESSION_TOKENS = ['player', 'wins', 'matches', 'kills', 'kd', 'winrate'];
 const FN_SESSION_SAMPLES: Record<string, string> = {
   player: 'Ninja',
@@ -60,9 +53,6 @@ const FN_SESSION_SAMPLES: Record<string, string> = {
 
 export const FORTNITE_MODULE: ModuleDef =
 {
-  // !fnstats and !season share one template surface (same tokens, same
-  // sample shape): FN_STATS_TOKENS/FN_STATS_SAMPLES above are the one
-  // source of truth, mirroring the Bedwars session commands.
   id: 'fortnite',
   label: 'Fortnite Stats',
   tagline: 'Fortnite BR stats and the daily item shop in chat.',

@@ -41,7 +41,6 @@ func TestXPAddReportsTheLevelBoundaryOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, result.LeveledUp)
 
-	// 99 -> 100 crosses into level 1 (the curve is level = floor(sqrt(xp/100))).
 	result, err = repo.XPAdd(ctx, "g1", "u1", 1)
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Level)
@@ -118,8 +117,6 @@ func TestXPDailyGrantsAgainOnceTheWindowPasses(t *testing.T) {
 	_, err := repo.XPDaily(ctx, "g1", "u1", 50)
 	require.NoError(t, err)
 
-	// Reach past the repository to age the stored claim: the alternative is a
-	// test that sleeps for 24 hours.
 	row, _, err := repo.XPGet(ctx, "g1", "u1")
 	require.NoError(t, err)
 	require.NoError(t, repo.AgeLastDaily(ctx, row.ID, repository.DailyWindow+time.Minute))
@@ -130,9 +127,6 @@ func TestXPDailyGrantsAgainOnceTheWindowPasses(t *testing.T) {
 	assert.Equal(t, int64(100), again.XP)
 }
 
-// TestXPDailyIsAtomicUnderConcurrentClaims is the property the 24h window
-// exists for: several simultaneous /daily calls for one member must award the
-// bonus exactly once, whichever of them wins.
 func TestXPDailyIsAtomicUnderConcurrentClaims(t *testing.T) {
 	repo, ctx := newConcurrentStore(t, "xpdailyrace")
 
@@ -163,8 +157,6 @@ func TestXPDailyIsAtomicUnderConcurrentClaims(t *testing.T) {
 	assert.Equal(t, int64(50), row.Xp)
 }
 
-// TestXPAddIsAtomicUnderConcurrentWrites guards the read-modify-write: every
-// concurrent delta must land, none may be lost to a stale read.
 func TestXPAddIsAtomicUnderConcurrentWrites(t *testing.T) {
 	repo, ctx := newConcurrentStore(t, "xpaddrace")
 

@@ -1,37 +1,19 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Nightbot OAuth for the config importer: plain authorization_code, no OIDC.
-// Nightbot issues opaque access tokens and no id_token, so the oauth4webapi
-// machinery the Twitch login uses would be dead weight here. The token is used
-// once (fetch commands/timers/spam protection during preview), rides a
-// short-lived HttpOnly cookie between callback and preview, and is dropped on
-// commit; the refresh token is never requested off the response.
-//
-// App registration lives at nightbot.tv/account/applications; the redirect
-// URI registered there must byte-match NIGHTBOT_REDIRECT_URI (Doppler).
 import { env } from '$env/dynamic/private';
 
 const AUTHORIZE_URL = 'https://api.nightbot.tv/oauth2/authorize';
 const TOKEN_URL = 'https://api.nightbot.tv/oauth2/token';
 
-// commands + timers are what the importer reads; spam_protection adds the
-// blacklist terms the parser folds into automod. All three are read-only in
-// practice (the importer only GETs), but Nightbot scopes are not split by verb.
 export const NIGHTBOT_SCOPES = 'commands timers spam_protection';
 
-// Cookie names shared by the connect/callback routes and the import actions.
-// Both are HttpOnly. The state is scoped to the OAuth routes; the token also
-// needs to reach the onboarding import route after the callback.
 export const NB_STATE_COOKIE = 'nb_oauth_state';
 export const NB_TOKEN_COOKIE = 'nb_import_token';
 export const NB_RETURN_COOKIE = 'nb_import_return';
 export const NB_STATE_COOKIE_PATH = '/settings/import';
 export const NB_COOKIE_PATH = '/';
 
-// Token cookie lifetime: the wizard round trip is minutes, so 15 minutes
-// bounds how long a captured cookie stays useful without making a slow
-// review step re-run the consent.
 export const NB_TOKEN_TTL_SECONDS = 900;
 
 const EXCHANGE_TIMEOUT_MS = 10_000;
@@ -42,8 +24,6 @@ interface NightbotApp {
   redirectUri: string;
 }
 
-// readApp is the single reader of the three env keys: null when any is
-// missing, so configured-ness and the throwing accessor cannot drift apart.
 function readApp(): NightbotApp | null {
   const app: NightbotApp = {
     clientId: env.NIGHTBOT_CLIENT_ID ?? '',
@@ -59,15 +39,10 @@ function app(): NightbotApp {
   return a;
 }
 
-// nightbotConfigured lets the routes degrade to a readable error instead of a
-// 500 when the app registration has not landed in this environment yet.
 export function nightbotConfigured(): boolean {
   return readApp() !== null;
 }
 
-// importOwner is the shared route gate: the connect/callback pair carries the
-// same owner-only policy as the import actions themselves (an import rewrites
-// the board wholesale; delegates are read-mostly by design).
 export function importOwner(locals: App.Locals): boolean {
   const s = locals.session;
   return !!s && !s.delegate_of && !s.impersonator_id;
@@ -84,10 +59,6 @@ export function nightbotAuthURL(state: string): URL {
   return url;
 }
 
-// exchangeNightbotCode swaps the callback code for an access token.
-// client_secret_post (credentials in the form body) matches Nightbot's
-// documented token request. Any failure throws with the upstream status so the
-// callback can log it; the user-facing path is one generic retry message.
 export async function exchangeNightbotCode(code: string): Promise<string> {
   const a = app();
   const body = new URLSearchParams({

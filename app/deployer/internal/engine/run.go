@@ -21,13 +21,9 @@ import (
 
 var (
 	versionPattern = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)-beta$`)
-	// shaPattern takes full shas only: the build and digest stages match
-	// publish-images tags on the first 12 characters, which a short sha
-	// cannot promise.
-	shaPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	shaPattern     = regexp.MustCompile(`^[0-9a-f]{40}$`)
 )
 
-// need is how a run kind treats one optional request field.
 type need int
 
 const (
@@ -36,7 +32,6 @@ const (
 	must
 )
 
-// field names a request field in a refusal.
 type field string
 
 func (n need) check(name field, have bool) error {
@@ -49,12 +44,8 @@ func (n need) check(name field, have bool) error {
 	return nil
 }
 
-// fields is what one run kind takes from a start request.
 type fields struct{ version, rollbackTo, prs, changelog, services need }
 
-// accepts refuses a field that has no stage to act on it rather than
-// ignoring it: a bump started with a changelog would otherwise look to the
-// operator as if the entry shipped.
 var accepts = map[deploy.RunKind]fields{
 	deploy.KindRelease:  {version: must, prs: may, changelog: may},
 	deploy.KindHotfix:   {version: must, prs: may, changelog: may},
@@ -73,14 +64,10 @@ func (f fields) check(req deploy.StartRequest) error {
 	)
 }
 
-// newRun validates req and builds the run it starts, every stage pending.
 func (e *Engine) newRun(ctx context.Context, actor deploy.Actor, req deploy.StartRequest) (deploy.Run, error) {
 	if err := e.validate(ctx, req); err != nil {
 		return deploy.Run{}, err
 	}
-	// v7 leads with the millisecond timestamp, and the GitHub stages key
-	// their branches on the id's first 12 characters, so two runs never
-	// share a branch.
 	id, err := uuid.NewV7()
 	if err != nil {
 		return deploy.Run{}, err
@@ -94,9 +81,6 @@ func (e *Engine) newRun(ctx context.Context, actor deploy.Actor, req deploy.Star
 	}, nil
 }
 
-// validate refuses a request before it claims the cluster. The shape checks
-// are joined so the operator sees every problem at once; the tag checks
-// read GitHub and run only on a well-formed request.
 func (e *Engine) validate(ctx context.Context, req deploy.StartRequest) error {
 	f, ok := accepts[req.Kind]
 	if !ok {
@@ -120,9 +104,6 @@ func (e *Engine) validate(ctx context.Context, req deploy.StartRequest) error {
 	return e.versionState(ctx, req)
 }
 
-// targetOnMain refuses a target commit main does not contain (see
-// github.OnMain for what tagging one would ship). tag checks again before
-// it writes, for a run resumed after main moved.
 func (e *Engine) targetOnMain(ctx context.Context, sha deploy.SHA) error {
 	if sha == "" {
 		return nil
@@ -181,10 +162,6 @@ func changelogShape(entry *deploy.ChangelogEntry) error {
 	return github.ValidateChangelog(entry)
 }
 
-// versionState checks the tag a run leans on before it claims the cluster.
-// A release whose tag exists is a hotfix (or a failed release to resume),
-// and a hotfix or rollback of a tag that does not exist would only fail
-// stages later, after preflight took the lock.
 func (e *Engine) versionState(ctx context.Context, req deploy.StartRequest) error {
 	switch req.Kind {
 	case deploy.KindRelease:
@@ -227,11 +204,7 @@ func pendingStages(kind deploy.RunKind) []deploy.Stage {
 	return out
 }
 
-// cloneRun copies what an edit writes in place, so a View marshalled on an
-// rpc goroutine never reads memory the stage goroutine is writing: the
-// stage structs (the engine and RunCtx assign their fields) and the digest
-// map. The other slices are replaced or appended to, never written through,
-// and RunCtx replaces item rows copy-on-write.
+// Other slices must stay replace-or-append only, or a View races the stage goroutine.
 func cloneRun(r *deploy.Run) deploy.Run {
 	c := *r
 	c.Stages = slices.Clone(r.Stages)
@@ -239,10 +212,6 @@ func cloneRun(r *deploy.Run) deploy.Run {
 	return c
 }
 
-// stateOf is the run minus what a progress report changes (bars, rows,
-// links) and the write stamps. Two equal fingerprints mean an edit was
-// cosmetic and may be coalesced; anything else is a state transition and is
-// written at once. Marshalling cannot fail for these plain types.
 func stateOf(r *deploy.Run) []byte {
 	c := *r
 	c.Seq, c.UpdatedAt = 0, time.Time{}
@@ -255,9 +224,6 @@ func stateOf(r *deploy.Run) []byte {
 	return b
 }
 
-// defaultActions are what the page offers on a failed stage that named
-// none itself. Rollback is offered once the cluster may have changed; it is
-// always the operator's call, never automatic.
 func defaultActions(id deploy.StageID) []deploy.Action {
 	actions := []deploy.Action{deploy.ActionResume}
 	switch id {

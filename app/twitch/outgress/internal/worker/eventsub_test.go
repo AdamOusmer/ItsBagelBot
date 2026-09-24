@@ -12,8 +12,6 @@ import (
 	"ItsBagelBot/internal/domain/rpc/manage"
 )
 
-// The cooldown skip must only ever fire for a channel whose enrollment is
-// verified healthy; every other state is a repair the enroll must run for.
 func TestRedundantEnrollRequiresHealthyState(t *testing.T) {
 	cases := []struct {
 		name  string

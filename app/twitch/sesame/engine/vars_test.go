@@ -13,11 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// renderScopes runs the two phases a custom command run does — lex, plan the
-// chain, render — and returns the chat text. It is the test-side stand-in for
-// runCustom + emitCommand, so a table can pin expansion without building a
-// pipeline. dst is the caller's buffer, mirroring the pooled one emitCommand
-// passes in.
 func renderScopes(dst []byte, template string, scopes ...scope.Scope) string {
 	toks := tmpl.Lex(template)
 	chain := scope.Chain(scopes)
@@ -25,9 +20,6 @@ func renderScopes(dst []byte, template string, scopes ...scope.Scope) string {
 	return string(chain.Render(dst, toks, values))
 }
 
-// commandScopes is the always-mounted half of a custom command's chain: the
-// dice and the triggering line. Counters and urlfetch mount only when their
-// dependency is wired, so a table testing the token grammar leaves them out.
 func commandScopes() []scope.Scope {
 	return []scope.Scope{scope.Pure{}, scope.Message{
 		User:    "alice",
@@ -60,10 +52,7 @@ func TestRenderCommandTokens(t *testing.T) {
 		{"first brace closes span", "{user} and {more", "alice and {more"},
 		{"adjacent tokens", "{user}{touser}", "alicebob"},
 		{"empty braces preserved", "a {} b", "a {} b"},
-		// A payload is not silently ignored: {user:bob} is not a token this
-		// palette has, so it stays literal like any other unknown spelling.
 		{"identity token with a payload stays literal", "{user:bob}", "{user:bob}"},
-		// Positional words (#883).
 		{"first word", "hug {1}", "hug the"},
 		{"second word", "{2}", "rest"},
 		{"rest of the args from word 2", "{2:}", "rest here"},
@@ -80,13 +69,10 @@ func TestRenderCommandTokens(t *testing.T) {
 		{"a leading slice", "{:2}", "the rest"},
 		{"m before n is a typo, stays literal", "{2:1}", "{2:1}"},
 		{"a non-numeric bound is not this grammar", "{1:x}", "{1:x}"},
-		// Identity (#885).
 		{"user id", "id {user.id}", "id 999"},
 		{"user id legacy alias", "id {userid}", "id 999"},
 		{"login is not the display name", "{user} is {user.login}", "alice is alice_login"},
 		{"canonical command name", "!{command}", "!hug"},
-		// Conditionals (#909). The cond names a token this chain owns; then
-		// and else are literal text.
 		{"a named viewer picks then", "{if:touser:hi there:hi nobody}", "hi there"},
 		{"a missing word picks else", "{if:4:word four:no fourth word}", "no fourth word"},
 		{"a missing word with no else says nothing", "[{if:4:word four}]", "[]"},
@@ -102,16 +88,11 @@ func TestRenderCommandTokens(t *testing.T) {
 	}
 }
 
-// TestRenderAppendsIntoDst covers the pooled path emitCommand uses: Render
-// writes into the caller's buffer rather than returning a fresh one.
 func TestRenderAppendsIntoDst(t *testing.T) {
 	got := renderScopes([]byte("prefix: "), "hi {user}", commandScopes()...)
 	assert.Equal(t, "prefix: hi alice", got)
 }
 
-// emptyFetcher stands in for a data source that answered with nothing: the
-// definition exists (so the span is NOT unknown) but the value came back
-// empty, which is the case a fallback is written for.
 type emptyFetcher struct{}
 
 func (emptyFetcher) Fetch(_ context.Context, names []string) map[string]string {
@@ -122,9 +103,6 @@ func (emptyFetcher) Fetch(_ context.Context, names []string) map[string]string {
 	return out
 }
 
-// TestRenderFallbackPipe pins the {token|fallback} grammar at the chain level:
-// an empty value falls back, a present value does not, and a fallback never
-// rescues a name no mounted scope owns (issue #884).
 func TestRenderFallbackPipe(t *testing.T) {
 	scopes := []scope.Scope{scope.Pure{}, scope.Message{
 		User: "alice", Sender: "alice", Touser: "", Channel: "chan",
@@ -147,10 +125,6 @@ func TestRenderFallbackPipe(t *testing.T) {
 	}
 }
 
-// TestRenderDynamicTokens pins that the pure scope still answers the generic
-// dynamic palette, and that repeated {random} spans draw independently — two
-// dice in one line have always rolled separately and a per-key plan cache
-// would have quietly collapsed them into one number.
 func TestRenderDynamicTokens(t *testing.T) {
 	assert.Equal(t, "a", renderScopes(nil, "{choice:a}", commandScopes()...))
 	assert.Equal(t, "{choice}", renderScopes(nil, "{choice}", commandScopes()...),
@@ -164,10 +138,6 @@ func TestRenderDynamicTokens(t *testing.T) {
 	assert.Greater(t, len(rolls), 1, "two {random} spans must roll independently")
 }
 
-// TestMessageVarsSanitizesViewerInput pins the injection guard at the boundary
-// that mints the viewer-controlled tokens: a crafted argument cannot carry a
-// leading slash-verb into the expansion (through {1}, which moves a word to
-// the front of a line), and an over-mentioned "@@bob" still reads as "bob".
 func TestMessageVarsSanitizesViewerInput(t *testing.T) {
 	c := chatCtx("!so", "")
 	got := messageVars(commandRun{c: c, command: "so", args: "/ban @everyone"})
@@ -178,11 +148,6 @@ func TestMessageVarsSanitizesViewerInput(t *testing.T) {
 	assert.Equal(t, "alice", messageVars(commandRun{c: c, command: "so"}).Touser, "no argument: the sender is the target")
 }
 
-// TestMessageVarsSanitizesEveryWord pins the reason Words exists: a positional
-// token (and {args}/{querystring}, both now derived from Words — see
-// scope.Message.rest) MOVES a word to the front of a line, so a slash-verb the
-// chatter typed mid-sentence has to be defanged the same way the line's own
-// first word would be.
 func TestMessageVarsSanitizesEveryWord(t *testing.T) {
 	got := messageVars(commandRun{c: chatCtx("!so", ""), command: "so", args: "hey /me is a cat"})
 	assert.Equal(t, []string{"hey", "me", "is", "a", "cat"}, got.Words)
@@ -192,8 +157,6 @@ func TestMessageVarsSanitizesEveryWord(t *testing.T) {
 		"a word that sanitizes away keeps its slot, so later words do not shift")
 }
 
-// TestMessageVarsCarriesIdentity pins the cheap identity tokens: they ride the
-// envelope and the canonical command name, so none of them costs a lookup.
 func TestMessageVarsCarriesIdentity(t *testing.T) {
 	got := messageVars(commandRun{c: chatCtx("!cuddle", ""), command: "hug"})
 	assert.Equal(t, "999", got.UserID)

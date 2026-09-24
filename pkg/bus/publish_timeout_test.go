@@ -18,12 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// TestAsyncPublishTimeoutExpiresOnlyTheLostFuture exercises the production
-// connection constructor against a small NATS protocol peer. The first PubAck
-// is lost, the second remains in flight, and a third publish follows without a
-// reconnect. This catches the regression where a cohort's local wait timed out
-// but nats.go retained its first future forever and eventually refused every
-// later publish as stalled.
 func TestAsyncPublishTimeoutExpiresOnlyTheLostFuture(t *testing.T) {
 	t.Setenv("NATS_PUBLISH_ACK_WAIT", "1s")
 	t.Setenv("NATS_HUB_URL", "")
@@ -43,8 +37,6 @@ func TestAsyncPublishTimeoutExpiresOnlyTheLostFuture(t *testing.T) {
 	second := receiveAsyncResult(t, secondResult)
 	peer.waitForSecondPublish(t)
 
-	// The client has expired only the lost future. The second future is still
-	// registered, so releasing its acknowledgement must settle it normally.
 	waitForPendingFuture(t, publisher.js, 1)
 	releaseSecond.Do(func() { close(peer.releaseSecond) })
 	awaitSecondAck(t, second.futures[0])
@@ -81,8 +73,6 @@ func startTimeoutPublish(t *testing.T, worker *publishBatchWorker, subject strin
 func startSecondTimeoutPublish(worker *publishBatchWorker) <-chan asyncResult {
 	result := make(chan asyncResult, 1)
 	go func() {
-		// Keep the second future comfortably inside its own client timeout when
-		// the first one expires, proving expiry is per future.
 		time.Sleep(200 * time.Millisecond)
 		futures, err := worker.startAsync([]publishRequest{{msg: nats.NewMsg("review.timeout.second")}})
 		result <- asyncResult{futures: futures, err: err}
@@ -247,7 +237,6 @@ func (p *publishTimeoutPeer) handlePublish(t *testing.T, line string, fields []s
 func (p *publishTimeoutPeer) respondToPublish(reply string) bool {
 	switch p.publishes {
 	case 1:
-		// Deliberately lose this acknowledgement.
 	case 2:
 		close(p.secondSeen)
 		<-p.releaseSecond
@@ -258,9 +247,6 @@ func (p *publishTimeoutPeer) respondToPublish(reply string) bool {
 	return true
 }
 
-// PublishMsgAsync uses PUB for messages without headers and HPUB when callers
-// supply JetStream headers such as a message ID. Both have a reply inbox in the
-// third token; HPUB's total payload size follows its header size.
 func publishTimeoutEnvelope(fields []string) (reply, size string, ok bool) {
 	switch fields[0] {
 	case "PUB":

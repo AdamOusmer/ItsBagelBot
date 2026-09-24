@@ -18,8 +18,6 @@ import (
 	jsapi "github.com/nats-io/nats.go/jetstream"
 )
 
-// Dialing and stream provisioning for the bench rig's management connection.
-
 func loadCA() (*x509.CertPool, error) {
 	caPEM := os.Getenv("NATS_CA_PEM")
 	if caPEM == "" {
@@ -47,15 +45,6 @@ func baseConnectOptions() []nats.Option {
 	}
 }
 
-// clientTLSConfig wraps a CA pool with the client key pair the hub's
-// verify:true listeners ask for. pkg/bus presents this pair on its own
-// connections (connect.go), and the management connection must answer the same
-// certificate request or the dial is refused.
-//
-// The pair comes from tlsenv, which is where the fleet's both-or-neither rule
-// and the per-handshake re-read live. Half-set is now an error rather than a
-// silently certificate-less dial: on a verify:true listener that dial fails
-// anyway, several seconds later and as an opaque server-side refusal.
 func clientTLSConfig(pool *x509.CertPool) (*tls.Config, error) {
 	cfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 	pair, err := tlsenv.PairFromEnv("NATS_CLIENT_CERT_FILE", "NATS_CLIENT_KEY_FILE")
@@ -69,13 +58,6 @@ func clientTLSConfig(pool *x509.CertPool) (*tls.Config, error) {
 	return cfg, nil
 }
 
-// jetStreamFor opens the management JetStream view on nc. jsapi.NewWithDomain
-// refuses an empty domain; the fleet's JetStream plane lives in the "hub"
-// domain (pkg/bus JSDomain default), which a direct-to-hub dial must name.
-
-// jetStreamFor opens the management JetStream view on nc. jsapi.NewWithDomain
-// refuses an empty domain; the fleet's JetStream plane lives in the "hub"
-// domain (pkg/bus JSDomain default), which a direct-to-hub dial must name.
 func jetStreamFor(nc *nats.Conn) (jsapi.JetStream, error) {
 	domain := os.Getenv("NATS_JS_DOMAIN")
 	if domain == "" {
@@ -112,23 +94,14 @@ func mgmtConnect(url string) (*nats.Conn, jsapi.JetStream, error) {
 func benchStreamConfig(name string, maxBytes int64) jsapi.StreamConfig {
 	spec := bus.TwitchIngressRetryStream
 	return jsapi.StreamConfig{
-		Name:       name,
-		Subjects:   append([]string(nil), spec.Subjects...),
-		Retention:  jsapi.LimitsPolicy,
-		Storage:    jsapi.MemoryStorage,
-		Replicas:   spec.Replicas,
-		MaxAge:     spec.MaxAge,
-		MaxBytes:   maxBytes,
-		Duplicates: 10 * time.Second,
-		// Deliberately NOT spec.MsgSchedules. The high-volume ingress lane
-		// (TwitchIngressStream) carries neither schedules nor TTLs; only the
-		// retry stream needs them for its own retry mechanics. On the stream
-		// leader both flags cost the serialized ingest+apply path ~0.6 s per
-		// 10 s at 127k msg/s (getMessageSchedule runs unconditionally before
-		// the allow check in jetstream_batching.go, memstore checks the TTL
-		// wheel on every store), so a bench stream that copies them
-		// under-reports the ingress lane by ~7%. Numbers taken on the retry
-		// stream itself (the canary subject) stay conservative for that reason.
+		Name:               name,
+		Subjects:           append([]string(nil), spec.Subjects...),
+		Retention:          jsapi.LimitsPolicy,
+		Storage:            jsapi.MemoryStorage,
+		Replicas:           spec.Replicas,
+		MaxAge:             spec.MaxAge,
+		MaxBytes:           maxBytes,
+		Duplicates:         10 * time.Second,
 		AllowMsgSchedules:  false,
 		AllowMsgTTL:        false,
 		AllowAtomicPublish: spec.BatchPublish,

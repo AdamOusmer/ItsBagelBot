@@ -18,69 +18,31 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-// The settings projection store: the settings:<user_id> hash, the user-level
-// fields on it, and the plumbing every section shares (full-section
-// replacement, the projected-marker and JSON field decoders, TTL and
-// round-trip folding). The per-section accessors live beside it in
-// valkey_commands.go, valkey_modules.go, valkey_stream.go and
-// valkey_fetch.go: each section owns a disjoint set of hash fields, so they
-// were split off rather than left clustered in one file.
-
 const settingsKeyPrefix = "settings:"
 
-// DefaultTTL is used by event-driven projection writes. Query-triggered
-// hydration may request a shorter TTL, but projection expiry is monotonic: a
-// shorter write never reduces a longer TTL already attached to the hash.
 const DefaultTTL = 24 * time.Hour
 
-// Store is the unified data access object for the settings projection. One hash per user:
-//
-//	settings:<user_id>
-//	  status                  free | paid | vip
-//	  active                  0 | 1
-//	  live                    0 | 1
-//	  module:<name>:enabled   0 | 1
-//	  module:<name>:config    raw JSON
-//
-// Readers get everything they need for a chat message in a single HGETALL,
-// without parsing anything but the module config they actually use. Every
-// write is an overwrite, so replays and redeliveries are harmless.
 type Store struct {
-	client valkey.Client
-	// primary serves the reads that must observe this Store's own writes.
-	// Ordinary reads stay on client and its node-local route.
+	client  valkey.Client
 	primary valkey.Client
 }
 
-// NewStore creates a new Store instance using the provided Valkey client.
 func NewStore(client valkey.Client) *Store {
 	return &Store{client: client, primary: pkg_valkey.Primary(client)}
 }
 
-// UserProjection is the projected account state of one user: tier status, the
-// receive/ban flags, the UI locale, and the public-commands-page flag.
 type UserProjection struct {
-	Status   string
-	IsActive bool
-	Banned   bool
-	Locale   string
-	// CommandsPageHidden mirrors the inverted flag (D2): written unconditionally
-	// (unlike Locale below), so an absent hash field decodes as false, meaning
-	// visible -- the pre-feature behaviour needs no "skip when empty" rule.
+	Status             string
+	IsActive           bool
+	Banned             bool
+	Locale             string
 	CommandsPageHidden bool
 }
 
-// SetUser projects the tier status, active flag, ban flag, UI locale and
-// commands-page flag of one user. An empty locale leaves the projected locale
-// untouched (see SetUserWithTTL).
 func (v *Store) SetUser(ctx context.Context, userID uint64, u UserProjection) error {
 	return v.SetUserWithTTL(ctx, userID, u, DefaultTTL)
 }
 
-// SetUserWithTTL projects the user fields and keeps the hash for at least ttl.
-// locale is written only when non-empty: cold-read write-backs (the status RPC)
-// and older events that carry no locale must not overwrite a locale the full
-// user projection already set.
 func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProjection, ttl time.Duration) error {
 
 	defer segment(ctx, "HSET")()
@@ -101,10 +63,6 @@ func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProject
 	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
 }
 
-// GetUser retrieves the tier status, active flag, ban flag, UI locale and
-// commands-page-hidden flag of one user. locale is empty when the hash
-// predates locale projection; commandsPageHidden reads false the same way
-// when the hash predates this field (D2's absent-means-visible rule).
 func (v *Store) GetUser(ctx context.Context, userID uint64) (status string, active, banned bool, locale string, commandsPageHidden bool, err error) {
 	defer segment(ctx, "HGETALL")()
 
@@ -122,18 +80,6 @@ func (v *Store) GetUser(ctx context.Context, userID uint64) (status string, acti
 	return res[0], res[1] == "1", res[2] == "1", res[3], res[4] == "1", nil
 }
 
-// sectionWrite is one full-section replacement: clear everything under every
-// prefix the section owns, then write the projected marker plus rows in one
-// HSET, refreshing the TTL. The marker rides the SAME write as the rows on
-// purpose — the projection-marker trust rule (markers may only ever come from
-// full-section writes) is enforced by this being the only path that writes one.
-//
-// prefixes is a list rather than a single string because the command section
-// owns two disjoint field families (command:<name> bodies and cmdalias:<alias>
-// pointers). Before it was widened, SetCommandsWithTTL re-implemented this
-// whole clear-then-marker-then-rows sequence inline just to clear both, which
-// put a second writer of a :projected marker in the tree — exactly what the
-// trust rule above forbids.
 type sectionWrite struct {
 	prefixes []string
 	marker   string
@@ -156,7 +102,6 @@ func (v *Store) replaceSection(ctx context.Context, userID uint64, sec sectionWr
 	return v.pipelineWithTTL(ctx, key, sec.ttl, fields.Build())
 }
 
-// markerProjected reads a section's :projected marker (nil = not projected).
 func markerProjected(res valkey.ValkeyResult) (bool, error) {
 	pj, err := res.ToString()
 	if err != nil {
@@ -168,11 +113,6 @@ func markerProjected(res valkey.ValkeyResult) (bool, error) {
 	return pj == "1", nil
 }
 
-// decodeJSONField decodes one JSON body straight off an HGET result. A nil
-// field or an unparseable body is a clean miss (found=false, err=nil); only a
-// real Valkey error propagates. Shared by the command and fetch row readers —
-// the decode contract is identical by design (both views mirror their wire
-// DTOs field-for-field).
 func decodeJSONField[T any](res valkey.ValkeyResult) (T, bool, error) {
 	var zero T
 	body, err := res.ToString()
@@ -189,22 +129,11 @@ func decodeJSONField[T any](res valkey.ValkeyResult) (T, bool, error) {
 	return view, true, nil
 }
 
-// sectionRead names the two hash fields a section's whole-list read needs: the
-// prefix its rows are keyed under and the completeness marker.
 type sectionRead struct {
 	prefix string
 	marker string
 }
 
-// getSection reads one section's complete row list off a single HGETALL. Both
-// list readers (GetCommands, GetFetches) were the same nine lines apart from
-// the row type, so the shape lives here once: the marker alone decides
-// projected (per-row event writes never set it, so a partial hash falls
-// through to full hydration), and an unparseable row is skipped rather than
-// failing the read — a corrupt or legacy field must not hide the rest of a
-// user's section. GetModules is deliberately NOT folded in: its one logical
-// row spans two hash fields (:enabled and :config) and it returns a by-name
-// map, so it decodes field-by-field instead of body-by-body.
 func getSection[T any](ctx context.Context, v *Store, userID uint64, sec sectionRead) ([]T, bool, error) {
 	defer segment(ctx, "HGETALL")()
 
@@ -230,9 +159,6 @@ func getSection[T any](ctx context.Context, v *Store, userID uint64, sec section
 	return out, projected, nil
 }
 
-// HydrationState describes which complete sections exist in a user's settings
-// hash. The projected markers distinguish an intentionally empty collection
-// from a cold cache miss.
 type HydrationState struct {
 	User     bool
 	Modules  bool
@@ -243,9 +169,6 @@ func (s HydrationState) Complete() bool {
 	return s.User && s.Modules && s.Commands
 }
 
-// GetHydrationState checks every section with one HMGET. The live field is not
-// part of configuration hydration; it is maintained independently by stream
-// events.
 func (v *Store) GetHydrationState(ctx context.Context, userID uint64) (HydrationState, error) {
 	defer segment(ctx, "HMGET")()
 
@@ -287,11 +210,9 @@ func (v *Store) clearProjectionFields(ctx context.Context, key string, prefixes 
 		return nil
 	}
 
-	// One HDEL with every stale field instead of a round trip per field.
 	return v.client.Do(ctx, v.client.B().Hdel().Key(key).Field(stale...).Build()).Error()
 }
 
-// DeleteUser drops the whole projection of one user.
 func (v *Store) DeleteUser(ctx context.Context, userID uint64) error {
 
 	defer segment(ctx, "DEL")()
@@ -301,14 +222,10 @@ func (v *Store) DeleteUser(ctx context.Context, userID uint64) error {
 	return v.client.Do(ctx, v.client.B().Del().Key(key).Build()).Error()
 }
 
-// Close releases the connection pool.
 func (v *Store) Close() {
 	v.client.Close()
 }
 
-// pipeline sends every command in a single round trip and returns the first
-// command error. Folds an HSET and its EXPIRE (and, on a command delete, the
-// HDEL) into one network round trip instead of two or three sequential Do calls.
 func (v *Store) pipeline(ctx context.Context, cmds ...valkey.Completed) error {
 	for _, res := range v.client.DoMulti(ctx, cmds...) {
 		if err := res.Error(); err != nil {
@@ -323,10 +240,6 @@ func (v *Store) pipelineWithTTL(ctx context.Context, key string, ttl time.Durati
 	return v.pipeline(ctx, cmds...)
 }
 
-// expiryCommands sets ttl on a persistent/new hash (NX), then extends an
-// existing shorter expiry (GT). Together these commands implement max(current,
-// requested) without a read/modify/write race, so a 2h query hydration can
-// never shorten a 24h live-event projection.
 func (v *Store) expiryCommands(key string, ttl time.Duration) []valkey.Completed {
 	seconds := int64(ttl / time.Second)
 	if seconds < 1 {
@@ -338,9 +251,6 @@ func (v *Store) expiryCommands(key string, ttl time.Duration) []valkey.Completed
 	}
 }
 
-// segment reports the operation as a datastore segment of the transaction in
-// ctx. New Relic has no Valkey product constant, so it reports under Redis,
-// which is wire-compatible anyway. Without a transaction this is a no-op.
 func segment(ctx context.Context, operation string) func() {
 
 	txn := newrelic.FromContext(ctx)

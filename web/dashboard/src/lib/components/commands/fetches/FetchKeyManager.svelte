@@ -1,11 +1,5 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-  // Key custody card for urlfetch definitions: the Govee/Spotify custody
-  // model: values are write-only (sent once, never rendered back or
-  // prefilled), lists show label + last4 only, and rotation is re-entering a
-  // value against an existing label. Deleting a key is confirmed inline with
-  // the referencing commands pre-computed client-side; the commands service
-  // owns the authoritative truth (dangling labels fail closed, never leak).
   import {
     AlertBanner,
     Button,
@@ -23,7 +17,6 @@
 
   let {
     keys,
-    /** label -> command names whose responses embed a def bound to that key. */
     references,
     busy = false,
     onSetKey,
@@ -40,8 +33,6 @@
   let newValue = $state('');
   let err = $state('');
 
-  // Rotation targets an existing label; the value input stays blank until the
-  // author types a fresh secret (never prefilled, never echoed).
   let rotating = $state('');
   let rotateValue = $state('');
 
@@ -100,9 +91,6 @@
         <span class="label">{k.label}</span>
         <span class="last4" title={t('fetches.keyLast4Title')}>••••{k.last4}</span>
         <span class="acts">
-          <!-- The same 28px icon buttons every management row uses (timers,
-               rewards, commands), so key rows read as part of the family.
-               Rotation is re-entering the value, which is the edit affordance. -->
           <Button
             type="button"
             variant="icon" size="sm"
@@ -170,8 +158,6 @@
 </form>
 <small class="note">{t('fetches.keyNote')}</small>
 
-<!-- No undo toast here: unlike command deletes there is no snapshot to
-     restore from: a deleted key is destroyed server-side. -->
 <ConfirmDialog
   open={deleteTarget !== null}
   title={t('fetches.keyDeleteTitle', { label: deleteTarget?.label ?? '' })}
@@ -210,16 +196,10 @@
   .acts { margin-left: auto; display: inline-flex; gap: 8px; }
 
   .rotate { display: flex; gap: 8px; width: 100%; }
-  /* The frame is `.bb-input` (@bagel/ui/styles/elements/field.css) with the
-     fill modifier; this file used to redraw it at a slightly different
-     padding and a green focus ring the rest of the console does not use. */
 
   .empty { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); font-style: italic; }
 
   .add-key { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  /* 140px is a wrap floor, not a width: below it the label field and the value
-     field stop being two columns and the row is better off wrapping. The fill
-     behaviour itself is `.bb-input--fill` on the controls. */
   .add-key-field { min-width: 140px; }
 
   .note { display: block; margin-top: 8px; font-family: var(--bb-font-body); font-size: 11px; line-height: 1.5; color: var(--bb-muted); opacity: 0.7; }

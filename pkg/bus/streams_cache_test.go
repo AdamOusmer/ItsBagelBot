@@ -5,14 +5,6 @@ package bus
 
 import "testing"
 
-// These tests pin the contract that makes streamForTopic's process-lifetime
-// memo safe: resolution stays a pure function of (partition mode, catalog),
-// answers are byte-stable across hit and miss paths, unknown subjects are
-// negative-cached with exactly the resolver's error, and an in-process flip of
-// NATS_INGRESS_PARTITION invalidates instead of serving a stale generation —
-// which is what keeps TestPartitionFlagOffKeepsThePrePartitionShape honest no
-// matter which partition-on test ran before it.
-
 func TestStreamForTopicResolvesEveryCatalogSpec(t *testing.T) {
 	t.Setenv("NATS_INGRESS_PARTITION", "off")
 	for subject, want := range map[string]string{
@@ -43,8 +35,6 @@ func TestStreamForTopicCacheFollowsThePartitionFlip(t *testing.T) {
 	requireStreamForTopic(t, "twitch.ingress.event.standard", TwitchIngressStream.Name)
 }
 
-// requireExactRefusal asserts streamForTopic answers an unknown subject with
-// the resolver's own refusal, byte for byte.
 func requireExactRefusal(t *testing.T, subject, wantName string, wantErr error) {
 	t.Helper()
 	gotName, gotErr := streamForTopic(subject)

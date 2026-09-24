@@ -59,8 +59,6 @@ func TestFindWorkflowRun(t *testing.T) {
 	}
 }
 
-// TestActiveRuns pins oldest first, so "queued behind run N" names the run
-// actually ahead in the concurrency group.
 func TestActiveRuns(t *testing.T) {
 	c, _, _ := newClient(t, routes{runsPath: reply(http.StatusOK, `{"workflow_runs":[
 		{"id":3,"status":"queued","created_at":"2026-09-23T10:03:00Z"},
@@ -83,13 +81,10 @@ func TestRunJobs(t *testing.T) {
 			{ID: 1, Name: "Build gossip arm64", Status: "completed", Conclusion: "success", URL: "j1"},
 			{ID: 2, Name: "Build gossip amd64", Status: "in_progress", URL: "j2"},
 		},
-		// filter=latest: a rerun's fresh attempts, not the failures they replaced.
 		[]string{"GET /repos/o/r/actions/runs/9/jobs?filter=latest&page=1&per_page=100"},
 	}, []any{jobs, fake.calls})
 }
 
-// TestJobLogTail follows the redirect to storage and never sends the
-// installation token there.
 func TestJobLogTail(t *testing.T) {
 	var storageAuth string
 	var base string
@@ -144,8 +139,6 @@ func TestTailLines(t *testing.T) {
 	}
 }
 
-// TestTailLinesLongLine pins that one line past bufio's 64 KB default does
-// not cost the whole tail.
 func TestTailLinesLongLine(t *testing.T) {
 	long := strings.Repeat("x", 200<<10)
 	got, err := tailLines(strings.NewReader(long+"\nlast\n"), 1)

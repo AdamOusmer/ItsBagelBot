@@ -9,7 +9,6 @@ import { parsePage, normalizeSearch } from '$lib/server/paging';
 
 export const load: PageServerLoad = async ({ parent, url }) => {
   const admin = await parent();
-  // The audit trail is sensitive (who did what); managers only.
   if (!allows(admin.role, 'audit.read')) throw redirect(302, '/');
 
   const page = parsePage(url.searchParams.get('page'), AUDIT_MAX_PAGES);

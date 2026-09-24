@@ -9,8 +9,6 @@
 
   const { t, locale } = getI18n();
 
-  // Display identity per row: stored display name wins, then login, then a
-  // neutral placeholder for rows whose accrual never carried identity.
   const rowName = (v: { viewerName: string; viewerLogin: string; viewerId: string }) =>
     v.viewerName || v.viewerLogin || t('leaderboard.anonymousViewer');
 
@@ -22,30 +20,21 @@
       : totalFmt.format(Math.round(hours));
   };
 
-  // The podium is presentation over data: the same rows, first three by rank.
   const podium = $derived(data.top.slice(0, 3));
   const rest = $derived(data.top.slice(3));
 
-  // Module and built-in command triggers, flattened to bare chips: the
-  // custom commands above them carry the detail.
   const commandTriggers = $derived(
     (data.modules ?? [])
       .flatMap((m) => m.commands.map((c) => c.label))
       .sort((a, b) => a.localeCompare(b))
   );
 
-  // The hero's channel name links to its public command page. Absolute, to the
-  // host that page belongs to: this used to be `/user/${login}`, and because the
-  // app answers that route on every hostname, clicking it kept the visitor here
-  // and served them the commands page at leaderboard.itsbagelbot.com/user/<login>.
   const channelHref = $derived(commandsHref(data.login));
 </script>
 
 <svelte:head>
   <title>{t('leaderboard.title', { channel: data.channelName })}</title>
   <meta name="description" content={t('leaderboard.metaDescription', { channel: data.channelName })} />
-  <!-- The page answers only on the leaderboard subdomain; that origin is the
-       one shares and search engines should converge on. -->
   <link rel="canonical" href="https://leaderboard.itsbagelbot.com/{data.login}" />
   <meta property="og:url" content="https://leaderboard.itsbagelbot.com/{data.login}" />
   <meta property="og:title" content={t('leaderboard.title', { channel: data.channelName })} />
@@ -80,8 +69,6 @@
       </Card>
     </div>
   {:else}
-    <!-- The podium: ranks two and three flank the leader via CSS order, like a
-         real podium; narrow screens collapse back to rank order. -->
     <section class="podium" aria-label={t('leaderboard.podiumLabel')}>
       {#each podium as viewer, i (viewer.viewerId)}
         <div class="spot-wrap reveal place-{i + 1}" style="--i:{3 + i * 0.5}">
@@ -152,9 +139,6 @@
       <Card atmo class="cmds-card" label={t('leaderboard.commandsCh')}>
         {#snippet band()}
           <header class="cmds-head">
-            <!-- `level={2} … l6 size`: see InstallAppPrompt for the same pair.
-                 The rank is h2 (it labels the card); the SIZE is the l6 step
-                 because the housing band is a fixed height. -->
             <Heading level={6} as="h2">{t('leaderboard.commandsTitle')}</Heading>
           </header>
         {/snippet}
@@ -204,8 +188,6 @@
 </main>
 
 <style>
-  /* Mote field sits above the aurora (z-index 0) but below content (z-index 1),
-     the same stacking the stats page uses. */
   .starfield {
     position: fixed;
     inset: 0;
@@ -253,8 +235,6 @@
     max-width: 24ch;
     overflow-wrap: anywhere;
   }
-  /* The lead-in word ("top of" / "hall of" shape) reads as a quiet prefix; the
-     channel name that follows is the tan subject of the page. */
   .word { display: inline-block; }
   .word.pre {
     font-size: 0.5em;
@@ -288,8 +268,6 @@
 
   .notice { max-width: 640px; width: 100%; margin: 0 auto; }
 
-  /* --- Podium ------------------------------------------------------------ */
-
   .podium {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -301,8 +279,6 @@
   }
 
   .spot-wrap { min-width: 0; }
-  /* First place stands taller in the middle; CSS order puts rank 1 between
-     ranks 2 and 3, like a real podium. */
   .place-1 { order: 2; }
   .place-2 { order: 1; }
   .place-3 { order: 3; }
@@ -310,9 +286,6 @@
     .place-1, .place-2, .place-3 { order: 0; }
   }
 
-  /* `--card-pad` is the card contract's own knob, handed down from the grid.
-     Everything else keys on `.spot`, the class this page puts ON the Card,
-     rather than on `.bb-card`, which this page does not own. */
   .podium { --card-pad: clamp(20px, 2.4vw, 30px); }
   :global(.spot) {
     height: 100%;
@@ -327,7 +300,6 @@
   .place-1 :global(.spot) {
     padding-top: calc(clamp(20px, 2.4vw, 30px) + var(--bb-space-4));
   }
-  /* Hairline of light along the top edge, as the stats tiles wear. */
   :global(.spot)::before {
     content: '';
     position: absolute;
@@ -358,7 +330,6 @@
     background: rgba(255, 255, 255, 0.06);
     color: var(--bb-muted);
   }
-  /* Gold wears the brand tan; silver stays pale; bronze dims the tan. */
   .medal-1 {
     background: rgba(201, 168, 124, 0.16);
     border-color: var(--bb-tan);
@@ -435,8 +406,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* --- Board ------------------------------------------------------------- */
-
   .board-wrap {
     min-width: 0;
     max-width: 980px;
@@ -444,9 +413,6 @@
     margin: 0 auto;
   }
 
-  /* Banded Card, driven by the card's own custom properties. The band height
-     is sized for the note wrapped to three lines on a 375px screen (the same
-     head shape as the stats boards). */
   .board-wrap {
     --card-pad: clamp(20px, 2.4vw, 30px);
     --card-band-h: calc(112px * var(--d, 1));
@@ -457,9 +423,6 @@
   .board-head { display: flex; align-items: flex-start; gap: var(--bb-space-3); min-width: 0; }
   .board-titles { min-width: 0; }
 
-  /* The type is `Heading` and `Text`. What stays local is the SIZE: the
-     housing band is a fixed height and this title has to fit it in both
-     languages, which lands between the l4 and l5 steps. */
   :global(.board-title) { font-size: clamp(18px, 2vw, 22px); letter-spacing: var(--bb-tracking-tight); }
   :global(.board-note) { margin-top: 4px; }
 
@@ -475,7 +438,6 @@
     padding-block: var(--bb-space-7);
   }
   :global(.empty-title) { font-size: clamp(20px, 2.4vw, 26px); letter-spacing: var(--bb-tracking-tight); }
-  /* 44ch: the measure a centred paragraph stays readable at. */
   :global(.empty-body) { color: var(--bb-muted); max-width: 44ch; }
 
   .solo-note {
@@ -560,8 +522,6 @@
     margin: 0;
   }
 
-  /* Commands section: the same table grammar as the standings, plus a chip
-     row for the module/built-in triggers that need no per-row detail. */
   .cmds-head {
     display: flex;
     align-items: center;
@@ -587,18 +547,11 @@
     vertical-align: top;
   }
   .cmd-table td.n { text-align: right; white-space: nowrap; }
-  /* The chip is the `Code` block. What is local is that a command trigger in
-     a table cell must not wrap mid-name, and that it is GREEN here: it is the
-     thing a viewer types in chat, not a neutral identifier in prose. */
   :global(.cmd-code) { color: var(--bb-green); white-space: nowrap; }
   .aliases { display: block; margin-top: 4px; font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
   .response { overflow-wrap: anywhere; }
   .perm-cell { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--bb-muted); }
   .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--bb-space-3); }
-  /* This page draws its own chip and always has; the only thing it took
-     from the deleted global .chip was the box, so the box is declared here
-     now. Without it a padded inline <span>/<code> leaves its vertical
-     padding out of the line box and the row height changes. */
   .chip {
     display: inline-flex;
     align-items: center;
@@ -622,9 +575,6 @@
     text-transform: uppercase;
     color: var(--bb-muted);
   }
-  /* Was a blinking round .pip; the live label carries the state now. The note
-     is a sentence, not a short label, so this one tag is allowed to wrap --
-     `.bb-tag--wrap` is the contract's own modifier for that. */
 
   @media (max-width: 900px) {
     .podium { grid-template-columns: minmax(0, 1fr); max-width: 480px; }

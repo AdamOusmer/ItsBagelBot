@@ -2,15 +2,6 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
 
-  // A labelled stack of nav links: the console's numbered register. The rows
-  // are `.bb-nav-link` -- the same element the marketing bar and the footer
-  // columns render -- and what this adds is the LEDGER: an index column and a
-  // trailing count, which is what makes the list read as a register rather
-  // than a menu.
-  //
-  // The hairline between rows belongs to this group and not to a row: a row
-  // drawing its own would double it against the group's top border. That is
-  // why `.bb-nav-link`'s own rule is transparent by default.
   import '../styles/elements/nav.css';
   import NavLink from './NavLink.svelte';
   import Icon from './Icon.svelte';
@@ -25,7 +16,6 @@
   }: {
     label?: string;
     items: UiNavLink[];
-    /** First row's number. A second group continues rather than restarts. */
     startIndex?: number;
     class?: string;
     [key: string]: unknown;

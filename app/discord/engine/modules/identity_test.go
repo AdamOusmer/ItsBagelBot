@@ -17,8 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeApplied is an in-memory AppliedStore. recordErr lets a test prove the
-// module still emits when only the memory of the apply fails.
 type fakeApplied struct {
 	seen      map[string]string
 	records   int
@@ -87,9 +85,6 @@ func runOnGuild(t *testing.T, i *Identity) []ddiscord.Command {
 	return emitted
 }
 
-// busMessage wraps a raw payload the way a lane delivery would. Context()
-// defaults to Background for a Message built directly, which is what these
-// tests want.
 func busMessage(payload []byte) *bus.Message {
 	return &bus.Message{Payload: payload}
 }
@@ -117,8 +112,6 @@ func TestIdentityPaidGuildGetsPremium(t *testing.T) {
 	}
 }
 
-// VIP and paid are one tier by product decision. If this ever diverges it
-// must be a deliberate edit here, not a silent behavior change.
 func TestIdentityVIPIsTreatedAsPremium(t *testing.T) {
 	i, _ := identityFor(t, newFakeApplied(), "vip")
 	cmds := runOnGuild(t, i)
@@ -138,8 +131,6 @@ func TestIdentityFreeGuildClearsTheOverride(t *testing.T) {
 	}
 }
 
-// The reconnect guard. GUILD_CREATE fires for every guild on every connect,
-// so without this a restart re-uploads the premium avatar fleet-wide.
 func TestIdentitySecondConnectEmitsNothing(t *testing.T) {
 	applied := newFakeApplied()
 	i, _ := identityFor(t, applied, "paid")
@@ -162,9 +153,6 @@ func TestIdentityUpgradeAfterApplyEmitsAgain(t *testing.T) {
 	}
 }
 
-// An unprojected account must leave the appearance alone. Treating it as
-// free would strip a paying streamer's badge every time the projection is
-// briefly cold.
 func TestIdentityUnknownStatusLeavesGuildAlone(t *testing.T) {
 	applied := newFakeApplied()
 	i, _ := identityFor(t, applied, "")
@@ -191,8 +179,6 @@ func TestIdentityUserChangedAppliesImmediately(t *testing.T) {
 	}
 }
 
-// A malformed account event is dropped, not redelivered: other consumers
-// have already handled it, and nothing about retrying it here would help.
 func TestIdentityUserChangedMalformedIsAcked(t *testing.T) {
 	i, emitted := identityFor(t, newFakeApplied(), "paid")
 	if err := i.HandleUserChanged(busMessage([]byte("{not json"))); err != nil {
@@ -203,8 +189,6 @@ func TestIdentityUserChangedMalformedIsAcked(t *testing.T) {
 	}
 }
 
-// A failed Record must not swallow the apply: the command is already sent,
-// so the only cost is a redundant re-apply on the next connect.
 func TestIdentityRecordFailureStillEmits(t *testing.T) {
 	applied := newFakeApplied()
 	applied.recordErr = errors.New("valkey down")
@@ -214,8 +198,6 @@ func TestIdentityRecordFailureStillEmits(t *testing.T) {
 	}
 }
 
-// Cosmetic work must never preempt a moderation action on the shared
-// per-token budget.
 func TestIdentityRidesTheDefaultLane(t *testing.T) {
 	if ddiscord.ModType(ddiscord.TypeSetGuildIdentity) {
 		t.Fatal("set_guild_identity is classified as a moderation command")

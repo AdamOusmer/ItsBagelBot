@@ -22,14 +22,7 @@ const (
 	scopeCluster
 )
 
-// allowed is the applier's kind allowlist, keyed by API group as well as kind
-// so a CRD that happens to be called "Deployment" in another group does not
-// ride along. It mirrors the deployer Roles in app, db and messaging (and the
-// priorityclasses ClusterRole): anything outside it, Secrets and every RBAC
-// kind included, is refused before a single request is sent, rather than left
-// to a 403 halfway through a set. It deliberately has no DopplerSecret,
-// Namespace or ServiceAccount: those decide which credentials land where and
-// stay with the operator's hand-run kubectl.
+// Must not grow DopplerSecret, Namespace, ServiceAccount, Secret or RBAC kinds.
 var allowed = map[schema.GroupKind]scope{
 	{Group: "apps", Kind: "Deployment"}:                 scopeNamespaced,
 	{Group: "apps", Kind: "DaemonSet"}:                  scopeNamespaced,
@@ -44,12 +37,8 @@ var allowed = map[schema.GroupKind]scope{
 	{Group: "scheduling.k8s.io", Kind: "PriorityClass"}: scopeCluster,
 }
 
-// namespaces are the only namespaces the deployer ServiceAccount holds Roles in.
 var namespaces = map[ports.Namespace]bool{"app": true, "db": true, "messaging": true}
 
-// Split partitions objs into the objects Apply accepts and the refs it would
-// refuse, so a stage can apply the accepted part of a directory that also
-// carries operator-owned kinds and report the rest.
 func Split(objs ports.Objects) (ports.Objects, []ports.ObjectRef) {
 	var ok ports.Objects
 	var out []ports.ObjectRef
@@ -63,8 +52,6 @@ func Split(objs ports.Objects) (ports.Objects, []ports.ObjectRef) {
 	return ok, out
 }
 
-// refuse returns a *ports.Fail (deploy.FailApplyRefused) wrapping
-// ports.ErrRefused that names every refused object, or nil.
 func refuse(objs ports.Objects) error {
 	var lines []string
 	for _, o := range objs {
@@ -80,7 +67,6 @@ func refuse(objs ports.Objects) error {
 	return fmt.Errorf("%w: %w", f, ports.ErrRefused)
 }
 
-// refusal explains why o is outside the allowlist, "" when it is inside.
 func refusal(o *unstructured.Unstructured) string {
 	gk := groupKind(o)
 	switch allowed[gk] {

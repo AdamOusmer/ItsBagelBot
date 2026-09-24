@@ -59,7 +59,6 @@ func TestSequence(t *testing.T) {
 	}
 }
 
-// trainBuild is a deploy/k8s build: one object of every placement kind.
 func trainBuild() ports.Objects {
 	return ports.Objects{
 		object(ports.ObjectRef{Kind: kindPriorityClass, Name: "bagel-high"}),
@@ -151,9 +150,6 @@ func TestRolloutRun(t *testing.T) {
 	}
 }
 
-// TestRolloutResumedCancel is the rollout a restarted deployer runs when the
-// cancel landed mid-stage: it waits on the service whose pinned images are
-// applied but not settled, applies nothing, and stops.
 func TestRolloutResumedCancel(t *testing.T) {
 	nothingApplied := liveTrain()
 	for i := range nothingApplied {

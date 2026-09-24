@@ -11,14 +11,6 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 )
 
-// This file holds the small value-rendering helpers every !mcsr/!pace
-// command's palette builds on: the two token fragments !elo and !session
-// share, how an elo/rank/split/age value is rendered for chat, and how a
-// trailing "season:<n>" argument token is parsed. Splitting these out of
-// mcsr.go keeps that file to the module's wiring.
-
-// mcsrPlayerElo is the {player}/{elo} token pair !elo and !session both
-// answer from a player name and a live elo value.
 func mcsrPlayerElo(c *module.Context, player string, elo int) module.StringPalette {
 	return module.StringPalette{
 		"player": player,
@@ -26,20 +18,6 @@ func mcsrPlayerElo(c *module.Context, player string, elo int) module.StringPalet
 	}
 }
 
-// mcsrWinLoss is the {wins}/{losses}/{draws}/{matches} token quad !elo and
-// !session both answer from a season (or session) win/loss/played count.
-//
-// {draws} is derived, not reported: MCSR's playedMatches counts matches that
-// ended with no winner (result.uuid null, forfeited both sides) while its wins
-// and loses counters do not, so wins+losses is short of matches and the reply
-// read as a bug ("3W 4L in 8 matches"). Measured on LawnMobius 2026-09-04:
-// season playedMatches.ranked 45, wins 23, loses 17, and exactly 5 of his last
-// 45 ranked matches carry result.uuid null. Do not "fix" this by making
-// {matches} mean wins+losses - that hides voided matches the player did play.
-//
-// The floor at zero covers the one case the subtraction can go negative: a
-// !session delta taken across a season rollover, where the live counters reset
-// below the stream-start snapshot.
 func mcsrWinLoss(wins, losses, matches int) module.StringPalette {
 	draws := matches - wins - losses
 	if draws < 0 {
@@ -53,17 +31,10 @@ func mcsrWinLoss(wins, losses, matches int) module.StringPalette {
 	}
 }
 
-// mcsrEmptyText answers a lookup that found no data to report (no fortress
-// pace this window, no matches played, no personal best set yet): a normal
-// PaceMan/MCSR answer, not an error, so it renders one plain translated line
-// instead of a template with nothing (or a fake zero) to fill it.
 func mcsrEmptyText(c *module.Context, player, key string) string {
 	return player + ": " + i18n.T(c.Locale, key)
 }
 
-// mcsrElo renders an elo value, naming the unrated sentinel. It takes the
-// command's *module.Context rather than a bare locale string — one less
-// primitive threaded alongside the many others in this file.
 func mcsrElo(c *module.Context, elo int) string {
 	if elo < 0 {
 		return i18n.T(c.Locale, "mcsr.unrated")
@@ -71,7 +42,6 @@ func mcsrElo(c *module.Context, elo int) string {
 	return strconv.Itoa(elo)
 }
 
-// mcsrRank renders a leaderboard rank, dashing the unranked sentinel.
 func mcsrRank(rank int) string {
 	if rank < 0 {
 		return "—"
@@ -79,8 +49,6 @@ func mcsrRank(rank int) string {
 	return strconv.Itoa(rank)
 }
 
-// mcsrSplit renders a lastfort/lastmatch split, dashing a run that never
-// reached it (the provider answers "" for that case).
 func mcsrSplit(s string) string {
 	if s == "" {
 		return "—"
@@ -88,8 +56,6 @@ func mcsrSplit(s string) string {
 	return s
 }
 
-// mcsrAge renders a run's age as a short human duration: enough resolution
-// to answer "how stale is this pace/match" without a full clock string.
 func mcsrAge(seconds int64) string {
 	switch {
 	case seconds < 60:
@@ -103,14 +69,6 @@ func mcsrAge(seconds int64) string {
 	}
 }
 
-// parseMcsrSeason splits a trailing "season:<n>" token off a command's typed
-// argument string. It is shared by !elo, !lastmatch, !record and !lb: all
-// four forward Season on their gossip request, so the parsing lives once
-// here instead of once per command. Returns the args with that token
-// removed (so the remaining text still resolves cleanly as a player name)
-// and the parsed season, or 0 when no valid token was present — gossip then
-// omits Season and the provider defaults to "current season", identical to
-// today's behavior when nobody types the token at all.
 func parseMcsrSeason(args string) (rest string, season int) {
 	fields := strings.Fields(args)
 	kept := make([]string, 0, len(fields))
@@ -126,7 +84,6 @@ func parseMcsrSeason(args string) (rest string, season int) {
 	return strings.Join(kept, " "), season
 }
 
-// mcsrSeasonPrefix is the token prefix parseMcsrSeason looks for.
 const mcsrSeasonPrefix = "season:"
 
 func mcsrSeasonValue(field string) (int, bool) {

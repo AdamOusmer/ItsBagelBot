@@ -2,12 +2,6 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
-  // A reply's own token reference: token + one-line hint, read-only. Sits
-  // under a reply's editor on the module page (a broadcaster reading the
-  // builder wants to see what this ONE reply answers without opening the
-  // "All variables" sheet), and renders the exact chip + hint markup
-  // VariablePalette's "This reply" section uses, so the two never drift into
-  // two different readings of the same ReplyToken list.
   import { getI18n } from '@bagel/kit';
   import type { VariableChip } from '@bagel/kit/variables';
 

@@ -1,22 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * The marketing site's scroll layer: the shared smooth scroller, plus the hero
- * progress variables that only this site has.
- *
- * The Lenis construction, the `window.__lenis` publication and the rAF tick all
- * left this file for `@bagel/ui/lib/lenis` and `@bagel/ui/lib/raf-loop`. Three
- * sites were initialising Lenis with the same three options and running three
- * private rAF loops; on this page there were four such loops (this one, the
- * cursor, dom-motion and the mote field) firing every frame.
- *
- * What stays here is genuinely site-specific: `--hero-p` and the two paint
- * hints derived from it, which the hero scene, the scroll cue and the orbs read
- * from CSS. Those are written from the shared tick, so the variable and the
- * scroll position can never be a frame apart.
- */
-
 import { createSmoothScroll } from '@bagel/ui/lib/lenis';
 import { subscribe, wake } from '@bagel/ui/lib/raf-loop';
 
@@ -29,24 +13,6 @@ function applyVirtualScrollAssist(data) {
 
 const smooth = createSmoothScroll({virtualScroll: applyVirtualScrollAssist});
 
-/**
- * Native-scroll stand-in for the encryption scene.
- *
- * `createSmoothScroll` returns null under reduced motion — correctly: there is
- * no smooth scroller to hand out, and that guard is new here (this file used to
- * construct Lenis unconditionally). But the encryption scene is not a motion
- * effect that can simply be skipped. It is a whole section that reads scroll
- * position, velocity and snap state to drive its geometry, and it already has
- * its own reduced-motion handling: it collapses its snap durations rather than
- * disappearing. Handing it `null` would blank the section for exactly the
- * visitors who asked for less movement, which is a far worse outcome than a
- * less clever snap.
- *
- * So it gets a controller of the same shape backed by the browser's own
- * scrolling. `on`/`off` are no-ops on purpose: the only events the scene
- * subscribes to are Lenis's virtual-scroll events, which do not exist without
- * Lenis, and its snap code already handles never receiving one.
- */
 const nativeScroll = {
     get scroll() {
         return window.scrollY;
@@ -92,7 +58,6 @@ function updateViewportHeight() {
     viewportHeight = Math.max(1, window.innerHeight);
 }
 
-// [custom property, value once the hero is fully scrolled past, value before].
 const HERO_COMPLETE_HINTS = [
     ['--hero-animation-state', 'paused', 'running'],
     ['--hero-content-will-change', 'auto', 'opacity, transform, filter'],
@@ -127,11 +92,6 @@ function updateHeroProgress() {
     }
 }
 
-// Returns nothing, which the shared scheduler reads as "tick me again": the
-// hero variables track a scroll position that can change at any moment and
-// there is no settle condition short of the page going away. The scheduler's
-// own document.hidden gate replaces the visibilitychange start/stop pair this
-// file used to run by hand.
 function heroTick() {
     updateHeroProgress();
 }
@@ -141,11 +101,6 @@ function startHero() {
     unsubscribeHero = subscribe(heroTick);
 }
 
-// The boot loader owns the viewport until it fades, and the scroller must not
-// interpret wheel events behind it. This used to fall out of the old design for
-// free — one loop drove both Lenis and the hero variables, and the loader gate
-// simply did not start it. Now that the scroller is ticked by the shared
-// scheduler, holding it back is an explicit stop()/start() pair.
 if (loaderOwnsViewport()) smooth?.lenis.stop();
 
 function stampCurrentHistoryPosition(left = 0, top = 0) {

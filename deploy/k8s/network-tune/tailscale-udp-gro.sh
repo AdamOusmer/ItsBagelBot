@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
-# Preserve Tailscale's documented Linux forwarding offload on the physical
-# underlay. The k3s pod path is VXLAN -> tailscale0 -> this device, so disabling
-# UDP GRO forwarding forces avoidable packet-per-packet work after every boot.
 set -euo pipefail
 
 IP=/usr/sbin/ip

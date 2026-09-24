@@ -34,10 +34,6 @@ type billingAlertInput struct {
 	alertID string
 }
 
-// recordGiveawayBillingIncident turns a verified provider event into a small,
-// idempotent alert for every affected award. Billing has already been applied
-// through Users before this callback, so an alert failure causes a safe webhook
-// retry without losing entitlement or creating a second award.
 func recordGiveawayBillingIncident(ctx context.Context, db *ent.Client, incident transactionsweb.BillingIncident) error {
 	if incident.UserID == 0 {
 		return nil
@@ -89,9 +85,6 @@ func billingIncidentAffectsAward(award *ent.GiveawayAward, occurredAt time.Time)
 	return !occurredAt.IsZero() && !occurredAt.Before(award.ConfirmedStart) && occurredAt.Before(award.ConfirmedEnd)
 }
 
-// newGiveawayEngine wires the durable Transactions-owned dispatcher. Its
-// UsersPort is a NATS adapter, so Transactions never opens the Users DB or
-// reimplements eligibility and grant identity rules.
 func newGiveawayEngine(cfg giveawayRuntimeConfig) *giveawayengine.Engine {
 	engineConfig := giveawayengine.EngineConfig{Store: cfg.Store, Users: cfg.Users, Provider: cfg.Provider, Config: cfg.Config}
 	if cfg.Mailer != nil {

@@ -1,19 +1,6 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# db-namespace half of the health.itsbagelbot.com surface (see
-# deploy/k8s/status-routes.yaml for the model and the app-namespace half).
-# Traefik CRD references are namespace-local, so the data tier's status
-# Services, transports, middleware and routes live here beside the pods after
-# the app/db split. The webhook route rides along: it terminates on the same
-# transactions Service.
-#
-# No trafficDistribution on these Services (deliberate, mirrors the app half):
-# PreferSameNode pinned every external probe to the entry node's own replica,
-# so one dead pod read as service-down while the other replicas were healthy
-# (2026-08-30 node3 uplink blip: Better Stack reported projector down with 2/3
-# replicas serving). Status traffic is one probe per ~30s behind the rate
-# limiter, so the cross-node hop this reintroduces costs nothing.
 apiVersion: v1
 kind: Service
 metadata:
@@ -27,8 +14,6 @@ spec:
       port: 443
       targetPort: 8080
 ---
-# Same rewrite middleware as the app namespace: the per-vertical path only
-# picks the backend, every backend serves exactly /status.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -44,22 +29,12 @@ metadata:
   name: status-ratelimit
   namespace: db
 spec:
-  # Mirrors deploy/k8s/status-routes.yaml (red-team finding F3b). The limiter
-  # shipped here without being attached to the routes below, leaving seven
-  # backends hammerable at line rate for 11 days; attached 2026-08-30 — keep
-  # every route's middleware list starting with this limiter.
   rateLimit:
     average: 1
     burst: 10
     sourceCriterion:
       requestHeaderName: CF-Connecting-IP
 ---
-# Re-pick a backend when the first pick fails at the connection level. With
-# PreferSameNode gone (header comment) the pool is every ready replica, so a
-# pod that died faster than its EndpointSlice updated (the NotReady grace is
-# 40s+) no longer turns one bad pick into a public "down": 2026-08-30 node3
-# blip, Better Stack reported projector down with 2/3 replicas serving.
-# Sits after the rate limiter so retries don't re-count against the caller.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -70,24 +45,6 @@ spec:
     attempts: 3
     initialInterval: 100ms
 ---
-# Two paths here, five fewer than this file used to carry, and six across the
-# whole surface instead of fourteen. Each path is a vertical, and the service it
-# terminates on folds its siblings' reports into its own over the
-# bagel.rpc.health.* RPC (pkg/bus.HealthProbe) before it answers, so the fan-out
-# happens in-process instead of at the edge: /db is projector plus commands,
-# discord-data, loyalty, modules, notifications and users (the list projector
-# actually probes is dataTierServices in app/projector/main.go; keep the two in
-# step).
-#
-# An edge route per service reported the same outage under several names — a
-# MySQL blip or a dead NATS lane takes the whole data tier with it, and the
-# status page showed six red rows for one fault — while probing the same pods
-# several times over.
-#
-# /billing is the exception and stays its own vertical with nothing folded into
-# it: the recorded decision (app/transactions/main.go) is that projector's /db
-# does not probe transactions and transactions runs no fan-out of its own, so
-# billing can be down without the data tier reading down, and the reverse.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -121,9 +78,6 @@ metadata:
   name: projector-status-transport
   namespace: db
 spec:
-  # Verify the pod's TLS cert against the fleet CA, same shape as
-  # transactions-transport: serverName matches the cert SAN and rootCAsSecrets
-  # reads ca.crt from the cert-manager secret. No InsecureSkipVerify.
   serverName: projector-status
   rootCAsSecrets:
     - projector-tls
@@ -134,9 +88,6 @@ metadata:
   name: transactions-transport
   namespace: db
 spec:
-  # Verify the transactions pod's TLS cert against the fleet CA. serverName
-  # matches the cert SAN (the Service name); ca.crt from the cert-manager
-  # secret. No InsecureSkipVerify.
   serverName: transactions
   rootCAsSecrets:
     - transactions-tls

@@ -1,37 +1,8 @@
  # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# warp - Cloudflare WARP client image for the gossip untrusted-egress sidecar
-# (deploy/k8s/gossip.yaml). Built here because Cloudflare publishes NO official
-# WARP container image (docker.io/cloudflare/* only carries cloudflared, and
-# every cloudflare-warp repo on Docker Hub 404s as of 2026-08-24 - verified
-# against the Hub API); the deb from pkg.cloudflareclient.com is the only
-# first-party artifact, so we wrap it ourselves rather than trust a community
-# image with an egress credential.
-#
-# Build from the REPO ROOT:
-#   podman build -t itsbagelbot/warp -f app/warp/Containerfile .
-#
-# The image is deliberately inert: no ENTRYPOINT/CMD. The manifest owns the
-# bootstrap (warp-svc, mode proxy, consumer registration, connect) so the
-# proxy port stays a deployment concern. Runtime needs NO NET_ADMIN and NO tun
-# device: proxy mode is a userspace L4 (MASQUE) SOCKS proxy — see the sidecar
-# securityContext note in deploy/k8s/gossip.yaml for why withholding them is
-# the pod-to-pod safety guarantee.
-
 FROM docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 
-# No hand-written version: install whatever Cloudflare currently ships as
-# stable in the bookworm channel. Transcribing a version here would be a
-# number nobody re-checks — it goes stale silently, and pinning one we cannot
-# verify is worse than tracking the vendor's own stable line, since WARP
-# client releases carry the protocol fixes (proxy mode is MASQUE-only since
-# 2025.8) that keep egress working at all.
-#
-# What actually freezes a rollout is the IMAGE digest, not this apt version:
-# deploy/k8s/gossip.yaml pins warp by tag@sha256, so the cluster runs exactly
-# the bytes that were built and tested. A rebuild picks up the newer client;
-# the fleet only moves when someone re-pins that digest deliberately.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl gnupg ca-certificates \
     && curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
@@ -40,12 +11,5 @@ RUN apt-get update \
         > /etc/apt/sources.list.d/cloudflare-client.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends cloudflare-warp \
-    # NO purge/autoremove of curl+gnupg here, deliberately. cloudflare-warp
-    # DEPENDS on gnupg, so `apt-get autoremove` uninstalls the WARP client
-    # itself and leaves an image whose only job is running warp-svc with no
-    # warp-svc in it — a silent empty sidecar, not a build error. Verified by
-    # `podman run <img> warp-cli --version` returning "not found" after the
-    # purge and succeeding without it, which is why that check is the last
-    # line of this layer and must stay.
     && rm -rf /var/lib/apt/lists/* \
     && warp-cli --version

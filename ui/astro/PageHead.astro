@@ -2,20 +2,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro adapter for `.bb-page-head`. Its Svelte twin is
-// ../svelte/PageHead.svelte and ../test/parity.test.ts diffs the two.
-//
-// Exists for the static surfaces: the guide screens draw a console page head
-// in HTML, and until now they drew it with their own `.df-title` rules, which
-// is how the guide screenshots came to describe a page that had moved on.
 import '../styles/elements/shell.css';
 
 interface Props {
   eyebrow?: string;
-  /** The heading. The default slot wins when both are given. */
   title?: string;
   description?: string;
-  /** One step down in type and spacing, for a page anchored below its head. */
   compact?: boolean;
   class?: string;
   [key: string]: unknown;
@@ -23,9 +15,6 @@ interface Props {
 
 const { eyebrow, title, description, compact = false, class: className = '', ...rest } = Astro.props;
 
-// Astro cannot ask whether a named slot was filled without rendering it, so
-// the trailed modifier is driven by the slot's presence check, which is the
-// one API difference between the two adapters and is invisible in the output.
 const trailed = Astro.slots.has('trail');
 
 const classes = [

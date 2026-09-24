@@ -1,18 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // What sits under a stage row: its links, its per-item breakdown, and the
-  // log tail when it failed.
-  //
-  // The breakdown scrolls inside a bounded list rather than growing the page.
-  // A release lists every image three times (build, digests, pin) and every
-  // service once more for the rollout; unbounded, the stage being watched
-  // ends up a screen below the one that just finished.
-  //
-  // The build row shows one bar for all of an image's jobs (both
-  // architectures and the manifest) plus a manifest mark: the build stage
-  // reports one item per image with the job count as its progress, so a
-  // per-architecture split is not in the data this page receives.
   import LogTail from '@bagel/ui/svelte/LogTail.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
@@ -47,12 +35,6 @@
 
 {#if items.length > 0}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <!-- The same exception LogTail and Table document: a bounded box that
-       SCROLLS has to take keyboard focus (WCAG 2.1.1). Rollout rows hold no
-       link to tab through, and Safari never makes a scroller focusable, so
-       without this the services past the tenth row are pointer-only. The
-       region wraps the list rather than replacing its role, so the rows
-       still read as a list. -->
   <div class="items" role="region" aria-label={t(STAGE_KEY[stage.id])} tabindex="0">
   <ul>
     {#each items as item (item.key)}

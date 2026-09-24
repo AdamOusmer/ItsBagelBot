@@ -1,11 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Commands-page-toggle gate (docs/specs/commands-page-toggle.md §5.3): a
-// hidden channel 404s with the unknown-channel message and sets
-// locals.edgeCache404 so hooks.server.ts can cache it; an unknown login also
-// 404s but WITHOUT the flag (no-store, since it might enroll any minute); a
-// read that rejects fails open and renders.
 import { describe, expect, mock, test } from 'bun:test';
 
 let resolveLoginReply: (login: string) => Promise<{ userId: string; username?: string } | null> = async () => null;
@@ -68,8 +63,6 @@ describe('(public)/user/[channel] load: commands-page toggle', () => {
     resolveLoginReply = async () => null;
     commandsPageReply = async () => true;
 
-    // Non-numeric: fails both the login lookup (null) and the id reading, so
-    // it 404s before userCommandsPage is ever consulted.
     const out = await runLoad('nosuchchannel');
     expect([out.status, out.message, 'edgeCache404' in out.locals]).toEqual([404, 'Channel not found', false]);
   });

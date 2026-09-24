@@ -1,12 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package store keeps runs and the cluster-wide deploy lock in the
-// DEPLOY_RUNS JetStream KV bucket on the hub.
-//
-// Keys: run.<id> holds one run; index is the newest-first id list List reads;
-// active names the non-terminal run; lock is the deploy lock. Every write is
-// a revision compare-and-set, so two writers can never both win.
 package store
 
 import (
@@ -31,7 +25,6 @@ const (
 
 func runKey(id deploy.RunID) kvKey { return kvKey("run." + string(id)) }
 
-// Store implements ports.Store.
 type Store struct {
 	kv    bucket
 	ttl   time.Duration
@@ -40,10 +33,6 @@ type Store struct {
 
 var _ ports.Store = (*Store)(nil)
 
-// New opens (creating if needed) the bucket. It is a CoordinationBucket (R3,
-// file storage, history 1) like the outgress buckets on the same hub, with no
-// TTL: runs leave by the KeepRuns prune, not by age, so a run left failed over
-// a long weekend is still there to resume.
 func New(ctx context.Context, js jetstream.JetStream, cfg ports.Config) (*Store, error) {
 	kv, err := bus.CoordinationBucket(ctx, js, deploy.KVBucket, 0)
 	if err != nil {
@@ -64,10 +53,7 @@ func (s *Store) Get(ctx context.Context, id deploy.RunID) (deploy.Run, ports.Rev
 	return run, rev, err
 }
 
-// Put claims the active pointer, indexes a new run, then writes the run. In
-// that order a failure between any two steps leaves a pointer or index entry
-// naming a run that was never written, which every read treats as absent,
-// instead of a written run that List or Active cannot see.
+// Write order (active pointer, index, run) must hold: a partial failure then names only an unwritten run.
 func (s *Store) Put(ctx context.Context, run *deploy.Run, rev ports.Revision) (ports.Revision, error) {
 	if err := s.claimActive(ctx, run); err != nil {
 		return 0, err
@@ -95,9 +81,6 @@ func (s *Store) Active(ctx context.Context) (deploy.Run, ports.Revision, bool, e
 	return run, rev, true, nil
 }
 
-// List reads the runs one Get at a time. Keeping summaries in the index would
-// make it one read, but then every state change would rewrite the index as
-// well as the run, and the rollout stage writes one per pod transition.
 func (s *Store) List(ctx context.Context, limit int) ([]deploy.RunSummary, error) {
 	ids, _, _, err := load[[]deploy.RunID](ctx, s.kv, keyIndex)
 	if err != nil {
@@ -117,8 +100,6 @@ func (s *Store) List(ctx context.Context, limit int) ([]deploy.RunSummary, error
 	return out, nil
 }
 
-// clampLimit maps 0 (the wire default) and anything past the retained history
-// to KeepRuns.
 func clampLimit(limit int) int {
 	if limit <= 0 || limit > deploy.KeepRuns {
 		return deploy.KeepRuns
@@ -126,11 +107,6 @@ func clampLimit(limit int) int {
 	return limit
 }
 
-// claimActive points the active key at a non-terminal run. It refuses with
-// ErrConflict while another non-terminal run holds the pointer: the engine
-// checks Active before Start, and this CAS is what makes two concurrent
-// starts unable to both pass that check. A pointer left at a terminal or
-// never-written run is taken over.
 func (s *Store) claimActive(ctx context.Context, run *deploy.Run) error {
 	if run.State.Terminal() {
 		return nil
@@ -160,10 +136,6 @@ func (s *Store) refuseLiveHolder(ctx context.Context, holder deploy.RunID, found
 	return nil
 }
 
-// releaseActive clears the pointer once its run is terminal. Best effort:
-// Active and claimActive both read a pointer at a terminal run as empty, so a
-// failed clear costs one extra Get on the next read, while failing the Put for
-// it would report a run write that landed as lost.
 func (s *Store) releaseActive(ctx context.Context, run *deploy.Run) {
 	if !run.State.Terminal() {
 		return
@@ -174,9 +146,6 @@ func (s *Store) releaseActive(ctx context.Context, run *deploy.Run) {
 	}
 }
 
-// index puts a new run (rev 0) at the head of the index and deletes the runs
-// pushed past KeepRuns. It is idempotent so a create retried after a failed
-// run write does not list the run twice.
 func (s *Store) index(ctx context.Context, id deploy.RunID, rev ports.Revision) error {
 	if rev != 0 {
 		return nil

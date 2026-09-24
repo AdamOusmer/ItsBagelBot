@@ -1,31 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Local config-import engine: since the standalone importer service was folded
-// into the dashboard (2026-08-23), preview and commit run IN THIS PROCESS,
-// driving the same owning services' subjects the dashboard already talks to.
-// There is no bagel.rpc.importer.* anymore and no importer pod.
-//
-//   preview: one source's fetch/parse leg (./sources/*, reached through
-//            SERVER_STRATEGIES) turns that source's input into a manifest, or
-//            the browser posts one it parsed itself (Moobot) and the leg is
-//            skipped …then validateManifest + collision lookup against live
-//            commands.
-//
-//   commit : re-validates the posted manifest, skips items carrying an
-//          error-severity diagnostic or a collision (unless overwrite), then
-//          drives writes through the existing stores/RPCs: commands-store
-//          upsert (chunks of 25, sequential within a chunk, checkpointing,
-//          mirroring the old service's fan-out), one merge-patch per touched
-//          module blob (timers/triggers/automod), and quote.add rows.
-//
-// Identity rule (C3, carried over unchanged): user_id ALWAYS comes from the
-// authenticated Session here and never from caller-supplied data.
-//
-// Source dispatch lives in ./strategy, which imports ./sources/*, which import
-// the refusal helpers back out of this module. That cycle is deliberate and
-// safe: every cross-edge is read inside a function body, never while a module
-// initializes, so import order cannot leave a binding undefined.
+// user_id always comes from the authenticated Session, never from caller-supplied data.
+// Import cycle via ./strategy and ./sources/*: read cross-module bindings only inside functions.
 import { randomUUID } from 'node:crypto';
 import { SERVER_STRATEGIES } from './strategy';
 import {
@@ -58,26 +35,13 @@ import type {
   TimerDef
 } from '@bagel/kit';
 
-// How many command upserts commit sends before moving to the next chunk.
-// Within a chunk requests stay sequential: the commands upsert path is
-// write-behind already, so parallelizing buys queue contention, not latency;
-// the chunking exists so a huge import checkpoints instead of monopolizing
-// this request for its whole budget.
 const COMMIT_COMMAND_BATCH = 25;
 
-// maxQuoteAddedByLen mirrors the quote schema's added_by column cap.
 const MAX_QUOTE_ADDED_BY_LEN = 64;
 
-// Timer interval clamps restate sesame's engine floor (minTimerInterval = 30s):
-// below it a timer arms an expire/fire/re-arm loop the engine refuses. There is
-// no engine ceiling, but an interval past a week is a source typo, so clamp
-// there too rather than write a timer that never fires in a human's lifetime.
 const MAX_TIMER_INTERVAL_SECONDS = 7 * 86400;
 
 export type ImportPreviewRequest = {
-  // API-backed sources take a credential, file sources take file_b64 (base64
-  // of the export), and the browser-parsed Moobot flow takes manifest: the
-  // engine then skips fetch/parse and only re-validates + resolves collisions.
   source: ImportSource | '';
   credential?: string;
   file_b64?: string;
@@ -98,14 +62,10 @@ export function errorDiag(item_index: number, code: string, message: string): Im
   return { severity: 'error', item_index, code, message };
 }
 
-// ParseOutcome is one source's fetch/parse leg: either the translated
-// manifest with its diagnostics, or a full refusal response explaining why
-// nothing could be previewed.
 export type ParseOutcome =
   | { manifest: ImportManifest; diags: ImportDiagnostic[] }
   | { refusal: PreviewResponse };
 
-// RefusalDiag names the code+prose pair a preview refusal is built from.
 export interface RefusalDiag {
   code: string;
   message: string;
@@ -121,18 +81,11 @@ export function refused(diag: RefusalDiag): ParseOutcome {
   };
 }
 
-// previewImport translates a source config into a reviewable manifest. A
-// failed preview (bad token, undecodable upload) comes back as
-// PreviewResponse.error (NOT as a thrown error), so the review step can render
-// the reason next to any fatal diagnostics. Only a truly wedged environment
-// (NATS down) propagates as a throw, which the action reports as a 502.
 export async function previewImport(s: Session, req: ImportPreviewRequest): Promise<PreviewResponse> {
   let outcome: ParseOutcome;
   if (req.manifest) {
     outcome = preParsedManifest(req.manifest);
   } else {
-    // A source with no leg is either unknown (a hand-made post) or
-    // browser-parsed and missing its manifest: both are the same refusal.
     const leg = SERVER_STRATEGIES[req.source as ImportSource]?.leg;
     outcome = leg ? await leg(req) : unsupportedSource(String(req.source));
   }
@@ -142,10 +95,6 @@ export async function previewImport(s: Session, req: ImportPreviewRequest): Prom
 }
 
 function preParsedManifest(manifest: ImportManifest): ParseOutcome {
-  // Pre-parsed manifests (browser-side Moobot parse keeps raw uploads off
-  // the wire) skip fetch/parse entirely. The caller is untrusted exactly
-  // like any other input: validateManifest below still runs, including the
-  // per-collection caps.
   return { manifest, diags: [] };
 }
 
@@ -156,9 +105,6 @@ function unsupportedSource(source: string): ParseOutcome {
   });
 }
 
-// finishPreview is the shared tail of every preview flow: canonicalization +
-// validation, stats and the collision lookup against the channel's live
-// command names.
 async function finishPreview(
   s: Session,
   manifest: ImportManifest,
@@ -174,8 +120,6 @@ async function finishPreview(
   try {
     resp.collisions = findCollisions(await commandNames(s.user_id), manifest);
   } catch (err) {
-    // Fail open on collisions (empty list) but say why: a projector blip must
-    // not block a preview, while commit re-checks against live state anyway.
     resp.diagnostics = [
       ...(resp.diagnostics ?? []),
       { severity: 'warn', item_index: -1, code: CODE.collisionLookupFailed, message: String(err) }
@@ -194,10 +138,6 @@ async function commandNames(userId: string): Promise<string[]> {
   return names;
 }
 
-// CommitContext groups what every commit leg reads and mutates, replacing the
-// six-argument signatures the legs used to carry: identity (uid), the request
-// shape (manifest/overwrite), the skip sets from collision lookup, the shared
-// diagnostic stream and the applied tally.
 interface CommitContext {
   uid: string;
   source: string;
@@ -208,23 +148,9 @@ interface CommitContext {
   collisions: CommitResponse['skipped'];
   diags: ImportDiagnostic[];
   applied: ImportStats;
-  // modules is null when the read failed; timers/triggers/automod then stay
-  // unimported while quotes proceed.
   modules: Awaited<ReturnType<typeof listModules>> | null;
 }
 
-// commitImport applies a (client-filtered) manifest through the owning
-// services' existing write paths. The legs run in a fixed order: command
-// upserts, module-blob timers/triggers, quote rows, automod terms,
-// mirroring the old service's fan-out sequence.
-//
-// Decision record (audit trail, 2026-08-23): the standalone service wrote an
-// import_audits row and returned its id; commit now emits ONE structured pino
-// line (user_id, source, applied counts, skipped names, diagnostic count)
-// instead. A DB table just for import history was never read by anything but
-// humans; logs ship to New Relic with the same retention the rest of the
-// dashboard's audit-ish trail gets. Consequence: CommitResponse.audit_id is no
-// longer set, so the done screen drops the "recorded as #N" line.
 export async function commitImport(s: Session, req: ImportCommitRequest): Promise<CommitResponse> {
   const manifest = req.manifest ?? {};
   const diags = validateManifest(manifest);
@@ -254,17 +180,11 @@ export async function commitImport(s: Session, req: ImportCommitRequest): Promis
   await commitQuotes(ctx);
   await commitAutomodTerms(ctx);
 
-  // Cache drop so the dashboard reflects the import without waiting out a TTL
-  // (commands upserts and modules blob patches both project into cached lists).
   invalidate(`commands:${ctx.uid}`, `modules:${ctx.uid}`);
   logCommit(ctx);
   return { applied: ctx.applied, skipped: ctx.collisions, diagnostics: ctx.diags };
 }
 
-// commandNamesOrWarn looks up the channel's live command names for the skip
-// sets. A lookup failure degrades to a warn (fail open) and returns null:
-// commit re-checks at write time anyway, so a projector blip must not block
-// an import.
 async function commandNamesOrWarn(ctx: CommitContext): Promise<string[] | null> {
   try {
     return await commandNames(ctx.uid);
@@ -280,9 +200,6 @@ function collisionNames(collisions: CommitResponse['skipped'], kind: CollisionKi
   return new Set((collisions ?? []).filter((c) => c.kind === kind).map((c) => c.name));
 }
 
-// loadModules reads the channel's module blobs; a read failure blocks exactly
-// timers/triggers/automod: those collections still count as attempted
-// (partial/failed audit semantics) while quotes stay alive.
 async function loadModules(ctx: CommitContext): Promise<Awaited<ReturnType<typeof listModules>> | null> {
   try {
     return await listModules(ctx.uid);
@@ -294,28 +211,19 @@ async function loadModules(ctx: CommitContext): Promise<Awaited<ReturnType<typeo
   }
 }
 
-// moduleBlob exposes one module's stored configs for client-side merging.
 function moduleBlob(ctx: CommitContext, name: string): Record<string, unknown> {
   return (ctx.modules?.find((m) => m.name === name)?.configs as Record<string, unknown> | undefined) ?? {};
 }
 
-// ModulePatch names one modules-service blob patch request.
 interface ModulePatch {
   name: 'timers' | 'triggers' | 'automod';
   configs: Record<string, unknown>;
 }
 
-// patchModule patches one of the channel's module blobs through the modules
-// service; every blob leg funnels through this single request builder.
 async function patchModule(ctx: CommitContext, patch: ModulePatch): Promise<void> {
   await rpc(`${SUB.modules}.patch`, { user_id: ctx.uid, name: patch.name, is_enabled: true, configs: patch.configs });
 }
 
-// commitCommands upserts the eligible commands in sequential chunks of
-// COMMIT_COMMAND_BATCH: within a chunk requests stay sequential (the commands
-// upsert path is write-behind already, so parallelizing buys queue contention,
-// not latency), while chunking lets a huge import checkpoint instead of
-// monopolizing this request.
 async function commitCommands(ctx: CommitContext): Promise<void> {
   const targets = (ctx.manifest.commands ?? [])
     .map((cmd, idx) => ({ cmd, idx }))
@@ -327,8 +235,6 @@ async function commitCommands(ctx: CommitContext): Promise<void> {
   }
 }
 
-// CommandTarget pairs one eligible manifest command with its slot, so the
-// writer can attribute a write-failure diagnostic to the right row.
 interface CommandTarget {
   idx: number;
   cmd: ManifestCommand;
@@ -346,8 +252,6 @@ async function upsertOneCommand(ctx: CommitContext, target: CommandTarget): Prom
       perm: cmd.permission ?? 'everyone',
       cooldown: clampCooldown(cmd.cooldown_seconds ?? 0),
       allowedUserId: '',
-      // No import source carries this as a per-command concept; imported
-      // commands never bump a counter on their own.
       bumpCounter: ''
     });
     ctx.applied.commands++;
@@ -356,16 +260,12 @@ async function upsertOneCommand(ctx: CommitContext, target: CommandTarget): Prom
   }
 }
 
-// commitTimersAndTriggers merges both collections into their module blobs;
-// each applies only when it has eligible targets and the module read survived.
 async function commitTimersAndTriggers(ctx: CommitContext): Promise<void> {
   if (!ctx.modules) return;
   await applyTimers(ctx, moduleBlob(ctx, 'timers'));
   await applyTriggers(ctx, moduleBlob(ctx, 'triggers'));
 }
 
-// commitQuotes writes quote rows one by one; a failed row is reported and the
-// rest proceed.
 async function commitQuotes(ctx: CommitContext): Promise<void> {
   for (const idx of eligibleIndexes(ctx, 'quotes')) {
     const q = ctx.manifest.quotes![idx];
@@ -382,14 +282,11 @@ async function commitQuotes(ctx: CommitContext): Promise<void> {
   }
 }
 
-// commitAutomodTerms patches the automod term lists when the manifest carries
-// any and the module read survived.
 async function commitAutomodTerms(ctx: CommitContext): Promise<void> {
   if (!ctx.manifest.automod || !ctx.modules) return;
   await applyAutomodTerms(ctx, moduleBlob(ctx, 'automod'));
 }
 
-// logCommit is the audit row's replacement: one structured line per commit.
 function logCommit(ctx: CommitContext): void {
   logger.info(
     {
@@ -405,12 +302,8 @@ function logCommit(ctx: CommitContext): void {
   );
 }
 
-// ManifestCollection names one manifest array the commit legs walk.
 type ManifestCollection = 'commands' | 'timers' | 'triggers' | 'quotes';
 
-// eligibleIndexes returns the valid indexes of one collection that carry no
-// error-severity diagnostic: the shared filter every collection's loop walks
-// so validation-doomed items never reach a write path.
 function eligibleIndexes(ctx: CommitContext, collection: ManifestCollection): number[] {
   const items = ctx.manifest[collection] ?? [];
   const out: number[] = [];
@@ -420,11 +313,6 @@ function eligibleIndexes(ctx: CommitContext, collection: ManifestCollection): nu
   return out;
 }
 
-// applyTimers merges the imported timers into the channel's existing "timers"
-// blob client-side, then patches the whole "timers" key: modules patch merges
-// top-level keys wholesale, so appending server-side is impossible and the
-// pre-read is what makes this non-destructive. One patch lands all timers, so
-// they count together.
 async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
   const targets = eligibleIndexes(ctx, 'timers');
   if (targets.length === 0) return;
@@ -448,11 +336,7 @@ async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): P
       id: randomUUID(),
       message: t.message.trim(),
       intervalSeconds: interval,
-      // Field names mirror sesame's engine-side timer shape (the worker reads
-      // this blob directly), not the dashboard's TimerDef casing choices.
       enabled: true,
-      // No source platform has an equivalent gate/stop; imported timers land
-      // with them off, same as any hand-created timer (D11).
       minChatLines: 0,
       maxFiresPerStream: 0,
       endsAt: ''
@@ -466,11 +350,6 @@ async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): P
   }
 }
 
-// applyTriggers appends "phrase => response" lines to the existing rules
-// textarea (sesame parses "[mode:] phrase => response" one rule per line;
-// plain lines take the default word-match mode). Items that cannot be
-// expressed single-line are dropped here with error diagnostics rather than
-// written corrupt.
 async function applyTriggers(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
   const targets = eligibleIndexes(ctx, 'triggers');
   if (targets.length === 0) return;
@@ -500,9 +379,6 @@ async function applyTriggers(ctx: CommitContext, blob: Record<string, unknown>):
   }
 }
 
-// triggerLineProblem names why a trigger cannot ride the rules textarea's
-// line grammar, or null when it can. The three refusals mirror sesame's own
-// parser: newlines split rules, '#' opens a comment, '=>' is the separator.
 function triggerLineProblem(tr: ManifestTrigger): string | null {
   const phrase = tr.phrase.trim();
   const response = tr.response.trim();
@@ -512,11 +388,6 @@ function triggerLineProblem(tr: ManifestTrigger): string | null {
   return null;
 }
 
-// applyAutomodTerms merges the imported term lists into the automod module's
-// comma-joined textarea values (app/twitch/sesame/automod wireConfig). Only the two
-// term keys are patched, so the module's level/per-reply toggles survive. The
-// automod module has no bucket in ImportStats: its outcome shows through
-// diagnostics alone: silence means merged.
 async function applyAutomodTerms(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
   const terms = ctx.manifest.automod!;
   const partial: Record<string, string> = {};
@@ -535,8 +406,6 @@ async function applyAutomodTerms(ctx: CommitContext, blob: Record<string, unknow
   }
 }
 
-// TermBook accumulates the merged term list while deduplicating
-// case-insensitively, counting how many imports actually landed.
 interface TermBook {
   seen: Map<string, true>;
   terms: string[];
@@ -548,10 +417,6 @@ function recordTerm(book: TermBook, t: string): void {
   book.terms.push(t);
 }
 
-// mergeTermList unions an existing comma-joined list with imported terms,
-// capping at MAX_AUTOMOD_TERMS entries (2 x 200 x ~100 bytes stays far under
-// the modules service's 16KiB blob cap, so hitting the cap mid-commit is
-// impossible rather than handled).
 function mergeTermList(existingTerms: string[], imported: string[]): { value: string; diags: ImportDiagnostic[] } {
   const book: TermBook = { seen: new Map(), terms: [], added: 0 };
   for (const t of existingTerms) {
@@ -566,8 +431,6 @@ function mergeTermList(existingTerms: string[], imported: string[]): { value: st
   };
 }
 
-// importTerms folds the imported list in; returns whether absorption stopped
-// early at the term cap.
 function importTerms(book: TermBook, imported: string[]): boolean {
   for (const raw of imported) {
     if (absorbTerm(raw, book)) return true;
@@ -575,8 +438,6 @@ function importTerms(book: TermBook, imported: string[]): boolean {
   return false;
 }
 
-// absorbTerm adds one imported term unless it is blank or a duplicate;
-// returns whether the cap stopped absorption (everything past it is dropped).
 function absorbTerm(raw: string, book: TermBook): boolean {
   const t = raw.trim();
   if (t === '') return false;

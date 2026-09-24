@@ -10,8 +10,6 @@ export function rpcSubjectsForNode(subject: string, node: string | undefined): s
   return [`${subject}.${RPC_NODE_TOKEN}.${node}`, subject];
 }
 
-// v3 clients drop the ErrorCode enum: requests reject with a RequestError whose
-// cause is a NoRespondersError exactly when no local responder exists.
 function isNoResponders(error: unknown): boolean {
   return error instanceof RequestError && error.isNoResponders();
 }

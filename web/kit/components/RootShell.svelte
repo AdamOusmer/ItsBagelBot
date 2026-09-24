@@ -22,22 +22,12 @@
     children: Snippet;
     locale?: Locale;
     cursorEnabled?: boolean;
-    /** The ambient backdrop. On by default; a page that paints its own says so. */
     orbs?: boolean;
   } = $props();
 
-  // Publish the i18n translator to the whole render tree. Apps that don't pass a
-  // locale (admin) get the default-locale translator, so nothing breaks. Reading
-  // the initial value is intentional: switching locale sets a cookie and does a
-  // full reload, so this render tree never needs to react to it in place.
   // svelte-ignore state_referenced_locally
   setI18n(locale);
 
-  // Seed the custom-cursor preference before Cursor's effect first runs, so a
-  // user who disabled it never sees a flash of the animated cursor. Client-only:
-  // the store is a module singleton, so mutating it during SSR would leak one
-  // request's preference into another's render. Apps that pass no value (admin)
-  // keep the default (on).
   // svelte-ignore state_referenced_locally
   if (browser) customCursor.set(cursorEnabled);
 
@@ -52,11 +42,7 @@
     let teardown: (() => void) | undefined;
     initLenis().then((fn) => (teardown = fn));
 
-    // bfcache guard: Safari (and iOS) restore the frozen DOM of the last page
-    // even with Cache-Control: no-store, so reopening/returning to the app shows
-    // the previous route's body while the fresh nav highlights the new URL (e.g.
-    // stale /settings under an "Overview" nav). Force a real load so SSR is
-    // authoritative and the visible page always matches the URL.
+    // bfcache guard: Safari restores the previous page's DOM even with no-store, so force a real load.
     const onPageShow = (e: PageTransitionEvent) => {
       if (e.persisted) location.reload();
     };

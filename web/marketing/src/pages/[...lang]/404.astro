@@ -2,9 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Built once per locale so Cloudflare Pages can serve /fr/404.html to a
-// visitor who mistyped a French URL; the un-prefixed build is still the
-// site-wide 404.html.
 import Layout from '../../layouts/Layout.astro';
 import ErrorScene from '@bagel/ui/astro/ErrorScene.astro';
 import { getLangFromUrl, useTranslations, localeStaticPaths, localizePath } from '../../i18n/ui';
@@ -13,8 +10,6 @@ export const getStaticPaths = localeStaticPaths;
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
-// The home link is localised: a French visitor who mistyped a URL should land
-// on /fr, not on the English root.
 const home = localizePath('/', lang);
 ---
 

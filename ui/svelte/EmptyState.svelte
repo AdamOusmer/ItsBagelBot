@@ -1,9 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  //
-  // "Nothing here yet" panel: a title, optional body copy, and an optional CTA
-  // row the caller fills with buttons.
   import type { Snippet } from 'svelte';
 
   let {

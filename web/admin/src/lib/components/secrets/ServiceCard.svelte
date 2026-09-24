@@ -1,16 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One service's runtime database credential: where it lives, who it connects
-  // as, and the three verbs that change it.
-  //
-  // The buttons are siblings of the facts, not inside a clickable card: there is
-  // no "open this service" -- every verb needs its own typed confirmation, so
-  // there is nothing an inspector would add but a second click.
-  //
-  // `legacy` is gone from the token-source vocabulary: TokenSource is
-  // 'scoped' | 'missing' since the broad token was pruned, and the card used to
-  // carry a third branch that could never render.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
@@ -36,9 +26,6 @@
 
   const scoped = $derived(service.tokenSource === 'scoped');
 
-  // Three states, not two: an unreadable value is not the same as an absent
-  // one, and rendering "not set" for a token this console cannot read would
-  // invite an operator to provision a user that already exists.
   const dbUserLabel = $derived(
     !service.canReadDoppler
       ? t('admin.secrets.userUnreadable')
@@ -70,8 +57,6 @@
     </div>
     <div>
       <dt>{t('admin.secrets.factAutoMigrate')}</dt>
-      <!-- Doppler's value only. deploy/k8s/*.yaml pins DB_AUTO_MIGRATE as a pod
-           env var, which outranks this, so production may differ. -->
       <dd title={t('admin.secrets.autoMigrateNote')}>{service.autoMigrate || '-'}</dd>
     </div>
   </dl>

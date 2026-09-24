@@ -15,23 +15,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// linkCheckFeedInterval is how often the community blocklists re-pull. The
-// feeds update on the order of minutes and phishing infra churns in hours;
-// thirty minutes bounds staleness at a rounding error of outbound traffic
-// (two small GETs per tick).
 const linkCheckFeedInterval = 30 * time.Minute
 
-// runLinkCheck arms the gate's dynamic link-safety layer and keeps its
-// blocklist snapshot current. It follows the refresher contract: install once
-// at startup, re-pull on a slow ticker, never let a failed fetch blank live
-// coverage (the previous snapshot serves until one succeeds). The checker's
-// workers ride ctx, so cancelling the service context drains them; nothing to
-// Close.
-//
-// Convictions land in OnBad as a WARN audit line rather than an action of
-// their own - enforcement flows through the normal verdict path (the phish
-// rule fires on the next line carrying that host), so this hook stays the
-// shadow-mode paper trail: who posted what where, per source.
 func runLinkCheck(ctx context.Context, guard *automod.Gate, cfg *config.Config, log *zap.Logger) {
 	checker := linkcheck.NewChecker(linkcheck.Options{
 		ExpandShorteners: cfg.LinkCheckShorteners,

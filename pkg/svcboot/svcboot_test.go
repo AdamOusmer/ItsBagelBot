@@ -5,10 +5,6 @@ package svcboot
 
 import "testing"
 
-// A production boot that forgot APP_ENV used to get development logging
-// (verbose, unsampled) with nothing saying so. The fallback must be
-// production, and it must be visible: defaulted=true is what NewCore turns
-// into the one-time boot warning.
 func TestResolveAppEnvDefaultsToProductionWhenUnset(t *testing.T) {
 	scenarios := []struct {
 		name       string

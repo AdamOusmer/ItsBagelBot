@@ -6,9 +6,7 @@ import { logger } from '@bagel/kit/server/logger';
 import { Kvm, type KV } from '@nats-io/kv';
 import { dev } from '$app/environment';
 
-// Keep this boot-safe. Importing access.ts here pulls in services.ts, creating
-// a cycle through hooks.server.ts while adapter-node awaits initialization.
-// Branching on `dev` in this module also lets Rollup erase the fixture import.
+// Do not import access.ts: it pulls in services.ts, an import cycle through hooks.server.ts at boot.
 const DEMO = dev && process.env.DEMO === '1';
 
 export interface LaneView {
@@ -69,8 +67,6 @@ async function getKV(): Promise<KV> {
   return kvStore;
 }
 
-// Best-effort boot reconciliation; request-time callers retry through getKV if
-// the hub did not yet have quorum while this process was starting.
 export async function ensureLaneStoreHA(): Promise<void> {
   await getKV();
 }
@@ -119,8 +115,6 @@ function laneGroup(name: string, filter: string, ephemeral: boolean) {
 
 function laneCategory(stream: string, ephemeral: boolean) {
   if (ephemeral) return 'ephemeral';
-  // Both outgress streams are the egress/control lanes: TWITCH_OUTGRESS (chat)
-  // and TWITCH_OUTGRESS_SYSTEM (EventSub enroll + stream_status).
   if (stream.startsWith('TWITCH_OUTGRESS')) return 'system';
   return 'projection';
 }
@@ -162,9 +156,6 @@ async function loadAliases(): Promise<Map<string, string>> {
   const kv = await getKV();
   const aliases = new Map<string, string>();
   try {
-    // Collect keys first, then fetch values in parallel (chunked so a large
-    // alias set can't fan out unbounded). The old per-key serial `await kv.get`
-    // paid one KV round-trip per alias, 100 aliases = 100 sequential hops.
     const keys: string[] = [];
     const keysIter = await kv.keys();
     for await (const k of keysIter) keys.push(k);
@@ -209,10 +200,6 @@ interface LaneRow {
   hasRate: boolean;
 }
 
-// One consumer-list round trip per stream, all in flight at once. The old
-// serial walk paid streams x consumers sequential JS API hops, which is what
-// made the lanes page feel stuck. allSettled keeps partial data when a single
-// stream's listing fails; the failure is surfaced, not hidden.
 async function listStreamConsumers(manager: Awaited<ReturnType<typeof jsm>>) {
   const streams = await manager.streams.list().next();
   const listed = await Promise.allSettled(
@@ -230,8 +217,6 @@ async function listStreamConsumers(manager: Awaited<ReturnType<typeof jsm>>) {
   };
 }
 
-// sampleRate derives msg/s from the delivered-sequence delta since the last
-// pass and stores the new baseline.
 function sampleRate(key: string, deliveredSeq: number, now: number): { rate: number; hasRate: boolean } {
   const prev = prevSamples.get(key);
   prevSamples.set(key, { delivered: deliveredSeq, at: now });
@@ -287,8 +272,6 @@ function laneViewOf(r: LaneRow, aliases: Map<string, string>): LaneView {
   };
 }
 
-// Only prune rate baselines on a complete listing: after a partial one, a
-// missing key means "stream unreadable this pass", not "consumer gone".
 function pruneStaleBaselines(seen: Set<string>) {
   for (const key of prevSamples.keys()) {
     if (!seen.has(key)) prevSamples.delete(key);
@@ -341,9 +324,6 @@ export async function loadLanes(): Promise<LanesResult> {
     return { lanes: sampleLanes, degraded: false, notice: '' };
   }
   ensureSampler();
-  // Cold cache: wait for the in-flight collection instead of returning an
-  // empty list that pretends to be the fleet. Warm cache serves instantly and
-  // refreshes in the background.
   const pending = collectLanes();
   if (currentLanes.length === 0) await pending;
   if (lastError) {
@@ -363,12 +343,12 @@ export async function laneAlias(stream: string, consumer: string, alias: string)
     if (!alias) {
       await kv.delete(key);
       markAliasesDirty();
-      collectLanes(); // sample immediately
+      collectLanes();
       return { ok: true, notice: 'alias cleared' };
     }
     await kv.put(key, new TextEncoder().encode(alias.slice(0, 48)));
     markAliasesDirty();
-    collectLanes(); // sample immediately
+    collectLanes();
     return { ok: true, notice: 'renamed to ' + alias };
   } catch (err: any) {
     return { ok: false, error: 'rename failed: ' + err.message };

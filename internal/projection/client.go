@@ -1,25 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Package projection is the worker's read side of the settings projection.
-//
-// The pipeline needs three things about the broadcaster an event belongs to:
-// the user's tier (the regress status), the enabled modules, and the user's
-// custom commands. This package is the single contract for all of them. Each
-// lookup follows the same tiers, read-only the whole way down:
-//
-//  1. in-process cache (theine, short TTL) - the hot path, no I/O;
-//  2. Valkey settings:<user_id> hash - the shared projection (read only);
-//  3. NATS RPC on a cold key. Modules and commands ask the projector's
-//     dashboard get verbs - the projector owns Valkey, so its miss path
-//     hydrates the projection and the next read is a Valkey hit. Users ask
-//     the users service's projection verb. The worker never writes Valkey;
-//     the projector populates it.
-//
-// Commands are cached per command (key command:<id>:<name>), loaded with a
-// single HGET against the projection, so editing one command never forces a
-// whole-dictionary reload and the push invalidation can drop exactly the
-// entries that changed.
 package projection
 
 import (
@@ -37,45 +18,20 @@ import (
 	"go.uber.org/zap"
 )
 
-// Cache capacities are ceilings on resident entries, sized to each cache's
-// working set rather than the generic cache.DefaultCapacity so an always-on
-// worker pod does not hold ten thousand entries per cache at rest.
-//
-//   - users/modules are keyed one entry per broadcaster, so a few thousand
-//     covers the distinct broadcasters a pod serves within the short TTL.
-//   - commands is keyed per command name AND caches negative "no such command"
-//     entries, so unknown "!word" spam grows it fastest; it gets the larger
-//     ceiling to keep legitimate commands from being evicted by that churn.
 const (
 	usersCacheCapacity    int64 = 4096
 	modulesCacheCapacity  int64 = 4096
 	commandsCacheCapacity int64 = 8192
-	// fetchesCacheCapacity matches commands: entries are keyed per definition
-	// name AND cache negative "no such definition" results, so unknown-name
-	// churn (a typo in one command response firing every message) gets the
-	// same headroom against eviction as the command cache.
-	fetchesCacheCapacity int64 = 8192
+	fetchesCacheCapacity  int64 = 8192
 )
 
-// User is the projected tier state of one broadcaster. Live state is NOT here:
-// the worker reads it from the dedicated live:<id> store (module.IsLiveChecker),
-// never from this projection.
 type User struct {
-	Status   string `json:"status"`
-	IsActive bool   `json:"is_active"`
-	// Locale is the broadcaster's console UI language ("en", "fr", …), used to
-	// answer system commands in their language. Empty means the projection has
-	// no locale yet; callers treat that as the default language.
-	Locale string `json:"locale,omitempty"`
-	// CommandsPageHidden gates the public commands page and !commands' link
-	// (spec D6). Fails open: a projection miss (see User below) leaves this
-	// false, so a read failure prints the link rather than silently hiding it.
-	CommandsPageHidden bool `json:"commands_page_hidden,omitempty"`
+	Status             string `json:"status"`
+	IsActive           bool   `json:"is_active"`
+	Locale             string `json:"locale,omitempty"`
+	CommandsPageHidden bool   `json:"commands_page_hidden,omitempty"`
 }
 
-// Premium reports whether the user should be served on the premium lane. It
-// mirrors the projector's tier rule so the worker's regress status agrees with
-// what ingress laned the event on.
 func (u User) Premium() bool {
 	if !u.IsActive {
 		return false
@@ -88,22 +44,16 @@ func (u User) Premium() bool {
 	}
 }
 
-// commandEntry is one cached per-command lookup. found distinguishes a real
-// "no such command" (cached so repeated unknown "!word" spam costs nothing)
-// from a present command.
 type commandEntry struct {
 	cmd   Command
 	found bool
 }
 
-// fetchEntry is the definition twin of commandEntry: negative lookups are
-// cached so an unresolved {urlfetch:typo} in a hot command costs nothing.
 type fetchEntry struct {
 	fetch FetchView
 	found bool
 }
 
-// Command is one custom chat command of a user.
 type Command struct {
 	Name             string   `json:"name"`
 	Aliases          []string `json:"aliases,omitempty"`
@@ -113,20 +63,10 @@ type Command struct {
 	Perm             string   `json:"perm,omitempty"`
 	Cooldown         uint     `json:"cooldown,omitempty"`
 	AllowedUserID    string   `json:"allowed_user_id,omitempty"`
-	// Uses is the lifetime execution counter the commands service maintains
-	// from the worker's own data.commands.used events. It is projected onto
-	// the row (CommandView carries it, and the service republishes the row
-	// after every uses flush), so the worker reads it for free on the lookup
-	// it already does — the {uses} token costs no extra call.
-	Uses uint64 `json:"uses,omitempty"`
-	// BumpCounter names the loyalty counter this command bumps by one on
-	// every successful run; "" means none (see engine/dispatch.go's
-	// runCustom/recordUse pairing for where the bump itself fires).
-	BumpCounter string `json:"bump_counter,omitempty"`
+	Uses             uint64   `json:"uses,omitempty"`
+	BumpCounter      string   `json:"bump_counter,omitempty"`
 }
 
-// Reader is the contract the pipeline depends on. Keeping it an interface lets
-// the pipeline be tested against a fake without Valkey or NATS.
 type Reader interface {
 	User(ctx context.Context, userID uint64) (User, error)
 	Modules(ctx context.Context, userID uint64) (map[string]ModuleView, error)
@@ -134,9 +74,6 @@ type Reader interface {
 	Command(ctx context.Context, userID uint64, name string) (Command, bool, error)
 }
 
-// Subjects names the RPC each read falls through to on a Valkey miss:
-// Modules and Commands are the projector's dashboard get verbs, Users is the
-// users service's projection verb.
 type Subjects struct {
 	Users    string
 	Modules  string
@@ -144,8 +81,6 @@ type Subjects struct {
 	Fetches  string
 }
 
-// Client is the default Reader: in-process cache fronting a read-only Valkey
-// view, with a projector RPC fallback on a cold key.
 type Client struct {
 	store    *Store
 	nc       *nats.Conn
@@ -157,9 +92,6 @@ type Client struct {
 	commands *cache.Cache[commandEntry]
 	fetches  *cache.Cache[fetchEntry]
 
-	// The two per-name lookups are built once in NewClient rather than per
-	// call: their hooks are the only allocation the shared skeleton adds, and
-	// this is the chat hot path.
 	commandLookup perName[CommandView, commandEntry]
 	fetchLookup   perName[FetchView, fetchEntry]
 
@@ -167,9 +99,6 @@ type Client struct {
 	invalidationSub *nats.Subscription
 }
 
-// Config wires a Client. TTL is the in-process cache lifetime; keep it short
-// (tens of seconds) so module/command edits propagate quickly while still
-// absorbing per-message bursts.
 type Config struct {
 	Store    *Store
 	NC       *nats.Conn
@@ -207,7 +136,6 @@ func NewClient(cfg Config) *Client {
 	return c
 }
 
-// Close releases the in-process caches and any active invalidation subscription.
 func (c *Client) Close() {
 	if c.invalidationSub != nil {
 		_ = c.invalidationSub.Unsubscribe()
@@ -218,9 +146,6 @@ func (c *Client) Close() {
 	c.fetches.Close()
 }
 
-// StartOccupancyLogger logs how full the three projection caches run every
-// interval until ctx is cancelled, so their capacities can be tuned to the
-// observed working set. A non-positive interval disables it.
 func (c *Client) StartOccupancyLogger(ctx context.Context, interval time.Duration) {
 	cache.StartOccupancyLogger(ctx, c.log, interval, map[string]cache.OccupancySource{
 		"projection_users":    c.users,
@@ -230,23 +155,6 @@ func (c *Client) StartOccupancyLogger(ctx context.Context, interval time.Duratio
 	})
 }
 
-// StartInvalidationListener subscribes to push invalidation messages on
-// prefix+".>" (e.g. "bagel.cache.invalidate.>"). When a message arrives the
-// scope (last subject token) determines which cache entry to drop immediately,
-// backing the short in-process TTL with near-real-time eviction on writes.
-//
-// The shared invalidate.DTO carries the broadcaster id and, for command-scoped
-// events, the granular keys (the command name and its aliases). Commands are
-// cached per command, so only those exact entries are evicted; the worker never
-// reloads a whole command dictionary on an edit. There is no proactive prewarm:
-// the next message for that command reloads it lazily, singleflight-collapsed,
-// so editing one command on a 50-pod fleet no longer triggers 50 HGETALLs.
-//
-// Scope -> cache mapping:
-//   - "commands"                    -> per-command entries named in Keys
-//   - "modules"                     -> modules cache (whole)
-//   - "status" / "grant" / "locale" -> users cache
-//   - "delegation"                  -> ignored (worker does not cache delegations)
 func (c *Client) StartInvalidationListener(prefix string) {
 	subject := prefix + ".>"
 	sub, err := c.nc.Subscribe(subject, c.onInvalidation)
@@ -258,8 +166,6 @@ func (c *Client) StartInvalidationListener(prefix string) {
 	c.log.Info("projection: cache invalidation listener started", zap.String("subject", subject))
 }
 
-// onInvalidation decodes one push-invalidation message and evicts the caches
-// its scope (the subject's last token) names.
 func (c *Client) onInvalidation(msg *nats.Msg) {
 	var payload invalidate.DTO
 	if err := codec.Unmarshal(msg.Data, &payload); err != nil {
@@ -276,29 +182,21 @@ func (c *Client) onInvalidation(msg *nats.Msg) {
 	c.evictScope(parts[len(parts)-1], id, payload.Keys)
 }
 
-// evictScope drops the cache entries a scope names for one broadcaster.
 func (c *Client) evictScope(scope string, id uint64, keys []string) {
 	switch scope {
 	case "commands":
-		// Drop the custom command entry for every key carried by the event.
 		for _, name := range keys {
 			c.commands.Invalidate(cmdKey(id, strings.ToLower(name)))
 		}
 	case "fetches":
-		// Drop the definition entry for every name carried by the event.
 		for _, name := range keys {
 			c.fetches.Invalidate(fetchKey(id, strings.ToLower(name)))
 		}
 	case "modules":
 		c.modules.Invalidate(key("modules", id))
 	case "status", "grant", "live", "locale", "commands_page":
-		// Tier/ban (status/grant), the legacy live field, the UI locale and the
-		// commands-page flag all live on the projected User, so drop it. The
-		// dedicated live store keeps its own listener for the live key; this
-		// only keeps User coherent.
 		c.users.Invalidate(key("user", id))
 	case "delegation":
-		// Worker does not cache delegations; nothing to evict.
 	default:
 		c.log.Debug("projection: cache invalidation: unknown scope", zap.String("scope", scope))
 	}
@@ -313,30 +211,13 @@ func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 
 		reply, err := bus.RequestJSONTimeout[User](ctx, c.nc, c.subjects.Users, projectionRequest(userID), c.rpcTimeout)
 		if err != nil {
-			// Unknown users fall back to standard, never premium, so a
-			// projector outage cannot promote traffic.
 			return User{Status: "standard"}, nil
 		}
 		return reply, nil
 	})
 }
 
-// Modules returns the broadcaster's enabled ModuleView set from the in-process
-// cache, filling a cold entry from the Valkey projection (tier 2) or the
-// projector RPC (tier 3). A genuine empty answer (projected, no modules) is
-// cached like any other; a LOAD FAILURE is not. GetOrLoad only stores the value
-// when the loader returns nil, so surfacing the RPC error here keeps a transient
-// projector blip from caching an empty set for the whole TTL, which would mask
-// automod and every per-channel module toggle until it expired. The error is
-// cheap to return: every caller already fails open or nacks on it (the pipeline
-// nacks for redelivery, clip/timers fall open per-call), and none of them cache
-// it, so each keeps its own policy instead of inheriting a poisoned entry.
-//
-// The cached value is a by-name map, keyed the way GetModules already builds it,
-// and it is shared: callers get the cache's own map and must treat it as
-// read-only. Every consumer does — the pipeline only indexes it, and enabled()
-// copies what it keeps into the module Context — so handing it out costs nothing
-// and saves the per-message map rebuild each caller used to do.
+// The returned map is the cached one; callers must not mutate it.
 func (c *Client) Modules(ctx context.Context, userID uint64) (map[string]ModuleView, error) {
 	return c.modules.GetOrLoad(ctx, key("modules", userID), func(ctx context.Context) (map[string]ModuleView, error) {
 		if mods, projected, err := c.store.GetModules(ctx, userID); err == nil && projected {
@@ -347,23 +228,13 @@ func (c *Client) Modules(ctx context.Context, userID uint64) (map[string]ModuleV
 			Modules []ModuleView `json:"modules"`
 		}](ctx, c.nc, c.subjects.Modules, projectionRequest(userID), c.rpcTimeout)
 		if err != nil {
+			// An empty map here would be cached for the TTL and silently disable automod.
 			return nil, err
 		}
 		return ModuleMap(reply.Modules), nil
 	})
 }
 
-// Module resolves one module row by name. It indexes the cached by-name set
-// rather than issuing a per-module Valkey read (HMGET module:<name>:enabled /
-// :config), which the hash layout would allow: the whole set already sits in
-// one in-process cache entry, so the map index is free while an HMGET would add
-// a network round trip to every call. A per-module cache entry to hide that
-// round trip was rejected too — the "modules" invalidation scope carries no key
-// list (see evictScope), so it can only drop the whole-set key, and a second
-// per-name cache would survive a dashboard save and serve a stale toggle.
-//
-// Missing is not an error: callers decide what an absent row means (clip and
-// followage default a built-in to on, loyalty and timers treat it as off).
 func (c *Client) Module(ctx context.Context, userID uint64, name string) (ModuleView, bool, error) {
 	views, err := c.Modules(ctx, userID)
 	if err != nil {
@@ -373,33 +244,12 @@ func (c *Client) Module(ctx context.Context, userID uint64, name string) (Module
 	return view, ok, nil
 }
 
-// perName is the complete per-name projection lookup both Command and
-// FetchDefs are, and the one place the rules it encodes are written down:
-//
-//   - an empty name is a clean miss and never touches the cache;
-//   - the typed name is lower-cased once, so a viewer's casing never matters;
-//   - PROJECTED decides, not found. A Valkey answer is authoritative only when
-//     the section marker says the section is complete; a read error or an
-//     unprojected section falls through to the whole-list RPC (rare, per user
-//     once, since the projector's miss path hydrates the section);
-//   - a projected miss is a real answer, cached like any other, so repeated
-//     unknown "!word" spam never reaches Valkey twice;
-//   - an RPC failure yields a NEGATIVE ENTRY, not an error: remote returns E
-//     alone, because a projector blip must not propagate into the pipeline.
-//
-// Template Method: the tiering above is fixed; entries/key/local/entry/remote
-// are the hooks. Before this, Command, FetchDefs, loadCommand and loadFetch
-// were four functions carrying two copies of all five rules.
 type perName[V, E any] struct {
 	entries *cache.Cache[E]
 	key     func(uint64, string) string
-	// local is tier 2: the Valkey per-name read (view, found, projected, err).
-	local func(context.Context, uint64, string) (V, bool, bool, error)
-	// entry turns a tier-2 answer into the cached entry, misses included.
-	entry func(V, bool) E
-	// remote is tier 3: the whole-list RPC, already reduced to the entry for
-	// the name being resolved.
-	remote func(context.Context, uint64, string) E
+	local   func(context.Context, uint64, string) (V, bool, bool, error)
+	entry   func(V, bool) E
+	remote  func(context.Context, uint64, string) E
 }
 
 func (l perName[V, E]) get(ctx context.Context, userID uint64, name string) (E, error) {
@@ -416,9 +266,6 @@ func (l perName[V, E]) get(ctx context.Context, userID uint64, name string) (E, 
 	})
 }
 
-// Command resolves one custom command by the name (or alias) a viewer typed.
-// The hot path is a single per-command cache entry backed by one Valkey HGET;
-// see perName for the tiering and the negative-caching rules.
 func (c *Client) Command(ctx context.Context, userID uint64, name string) (Command, bool, error) {
 	entry, err := c.commandLookup.get(ctx, userID, name)
 	if err != nil {
@@ -427,8 +274,6 @@ func (c *Client) Command(ctx context.Context, userID uint64, name string) (Comma
 	return entry.cmd, entry.found, nil
 }
 
-// commandEntryOf caches the projected view as the pipeline's Command shape. A
-// projected miss keeps the zero command so the negative entry stays cheap.
 func commandEntryOf(view CommandView, found bool) commandEntry {
 	if !found {
 		return commandEntry{found: false}
@@ -436,8 +281,6 @@ func commandEntryOf(view CommandView, found bool) commandEntry {
 	return commandEntry{cmd: commandFromView(view), found: true}
 }
 
-// commandsRPC is tier 3 for commands: the projector's dashboard get verb,
-// which returns the whole list and hydrates the projection as a side effect.
 func (c *Client) commandsRPC(ctx context.Context, userID uint64, lname string) commandEntry {
 	reply, err := bus.RequestJSONTimeout[struct {
 		Commands []Command `json:"commands"`
@@ -448,8 +291,6 @@ func (c *Client) commandsRPC(ctx context.Context, userID uint64, lname string) c
 	return findCommand(reply.Commands, lname)
 }
 
-// findCommand picks the command whose name or an alias matches lname (already
-// lower-cased), or a negative entry when none match.
 func findCommand(commands []Command, lname string) commandEntry {
 	for _, cmd := range commands {
 		if commandMatches(cmd, lname) {
@@ -459,8 +300,6 @@ func findCommand(commands []Command, lname string) commandEntry {
 	return commandEntry{found: false}
 }
 
-// commandMatches reports whether cmd is triggered by lname (its name or any
-// alias, case-insensitively).
 func commandMatches(cmd Command, lname string) bool {
 	if strings.ToLower(cmd.Name) == lname {
 		return true
@@ -492,9 +331,6 @@ func projectionRequest(userID uint64) map[string]string {
 	return map[string]string{"user_id": strconv.FormatUint(userID, 10)}
 }
 
-// FetchDefs resolves one $(urlfetch) definition by name, the exact tiering of
-// Command (see perName). Keys never appear here — the view carries key_label
-// only; plaintext stays on the one-call key RPC.
 func (c *Client) FetchDefs(ctx context.Context, userID uint64, name string) (FetchView, bool, error) {
 	entry, err := c.fetchLookup.get(ctx, userID, name)
 	if err != nil {
@@ -503,13 +339,10 @@ func (c *Client) FetchDefs(ctx context.Context, userID uint64, name string) (Fet
 	return entry.fetch, entry.found, nil
 }
 
-// fetchEntryOf caches the projected view as-is: a definition's projected shape
-// is already the shape callers consume, so a miss is simply the zero view.
 func fetchEntryOf(view FetchView, found bool) fetchEntry {
 	return fetchEntry{fetch: view, found: found}
 }
 
-// fetchesRPC is tier 3 for definitions: the commands service's fetch list.
 func (c *Client) fetchesRPC(ctx context.Context, userID uint64, lname string) fetchEntry {
 	reply, err := bus.RequestJSONTimeout[struct {
 		Fetches []FetchView `json:"fetches"`
@@ -520,8 +353,6 @@ func (c *Client) fetchesRPC(ctx context.Context, userID uint64, lname string) fe
 	return findFetch(reply.Fetches, lname)
 }
 
-// findFetch picks the definition whose name matches lname (already
-// lower-cased), or a negative entry when none does.
 func findFetch(fetches []FetchView, lname string) fetchEntry {
 	for _, f := range fetches {
 		if strings.ToLower(f.Name) == lname {

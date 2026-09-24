@@ -2,28 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Nats.PublisherPool do
-  @moduledoc """
-  Supervises the scheduler-local cohort lane publisher: `publish_connections`
-  independent BUS connections, each paired with one
-  `Ingress.Nats.Publisher` cohort collector.
-
-  Every Gnat connection still owns and serializes its socket. Each publisher
-  feeds that connection through a bounded `CohortSender` lane pool, allowing
-  Gnat to coalesce concurrent public `pub/4` calls into fewer socket writes;
-  the outer pool spreads those writes and ordinary per-message PubAck
-  collection across online schedulers.
-
-  The pool records the shard count in `:persistent_term` before any collector
-  starts, so `Ingress.Nats.Publisher.enqueue/3` — invoked from dispatcher and
-  squash workers the moment they come up — can route to a shard even
-  during a partial pool restart (a shard whose context is not yet present just
-  reports `:not_connected`, and the caller drops that one event).
-
-  Each shard's BUS connection uses the same shared-BUS credentials as the
-  status-plane `:gnat_bus` connection; they are separate TCP connections so the
-  firehose never contends with status/telemetry publishes.
-  """
-
   use Supervisor
 
   alias Ingress.Config
@@ -54,10 +32,6 @@ defmodule Ingress.Nats.PublisherPool do
         ]
       end)
 
-    # one_for_one: shards are independent, and a collector re-subscribes its
-    # reply inbox on its own when its BUS connection flaps (it monitors the
-    # connection and retries), so a connection restart never needs to cascade
-    # into sibling shards.
     Supervisor.init(children, strategy: :one_for_one)
   end
 

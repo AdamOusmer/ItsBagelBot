@@ -8,12 +8,6 @@ import (
 	"time"
 )
 
-// NATS_PUBLISH_WIRE is set in no manifest under deploy/, so this default is the
-// whole fleet's behaviour: every Go publisher takes it the moment its image
-// rolls. It must therefore be the wire that is already running. A batching
-// default would flip sesame, outgress, users, projector and the data services in
-// one deploy, and would spend the same per-stream budget of 50 open batches that
-// the Elixir ingress fleet sizes itself against.
 func TestPublishWireModeDefaultsToSingle(t *testing.T) {
 	t.Setenv("NATS_PUBLISH_WIRE", "")
 	if publishWireMode() != wireSingle {
@@ -21,10 +15,6 @@ func TestPublishWireModeDefaultsToSingle(t *testing.T) {
 	}
 }
 
-// A typo must degrade, not escalate. Both batching wires have a wider blast
-// radius than the default — an ambiguous atomic outcome costs a whole cohort
-// where the single wire costs one message — so an unparseable value resolves to
-// the smallest one rather than to the configured default.
 func TestPublishWireModeFallsBackToTheSmallestBlastRadius(t *testing.T) {
 	for _, value := range []string{"nonsense", "Atomic", "ATOMIC", "atomic ", "1"} {
 		t.Setenv("NATS_PUBLISH_WIRE", value)
@@ -93,8 +83,6 @@ func TestFastPublishDefaultsToLongSession(t *testing.T) {
 	}
 }
 
-// The broker enforces no maximum fast-batch size, so the clamp is a chosen
-// blast-radius bound rather than a protocol ceiling; it still has to bind.
 func TestFastPublishSessionSizeIsClampedToTheChosenBound(t *testing.T) {
 	t.Setenv("NATS_FAST_PUBLISH_BATCH_SIZE", "200000")
 	if got := publishBatchSize(wireFast); got != fastSessionMax {
@@ -112,8 +100,6 @@ func TestFastPublishBatchWaitIsBounded(t *testing.T) {
 	}
 }
 
-// The cohort size is the only lever on the server's per-cohort RAFT proposal, so
-// it is tunable; the clamp is the ADR-050 protocol range, not a preference.
 func TestAtomicPublishCohortSizeIsBounded(t *testing.T) {
 	t.Setenv("NATS_ATOMIC_PUBLISH_BATCH_SIZE", "")
 	if got := publishBatchSize(wireAtomic); got != defaultAtomicPublishBatchSize {

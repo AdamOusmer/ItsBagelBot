@@ -56,8 +56,6 @@ function matchesSearch(user: AdminUserWire, search: string): boolean {
   return user.username.toLowerCase().includes(q) || String(user.id).includes(q);
 }
 
-// Effective-state filter values the users service understands. Precedence
-// there mirrors the row color: banned beats inactive beats tier.
 const STATES = new Set(['vip', 'paid', 'free', 'banned', 'inactive']);
 
 function parseState(raw: string | null): string {
@@ -72,9 +70,6 @@ function matchesState(user: AdminUserWire, state: string): boolean {
   return user.status === state;
 }
 
-// The directory's query string, parsed once. The three travel together through
-// every layer below (demo fixtures, RPC, the returned page props), so they move
-// as one value rather than as three positional strings a caller can reorder.
 export type DirectoryQuery = {
   page: number;
   search: string;
@@ -140,8 +135,6 @@ async function loadDirectory(actorId: string, q: DirectoryQuery): Promise<UserDi
   }
 }
 
-// Streamed: the shell (toolbar, headers) renders immediately; the directory
-// hydrates when the users RPC lands instead of blocking SSR on NATS.
 export const load: PageServerLoad = async ({ url, parent }) => {
   const { id } = await parent();
   const q: DirectoryQuery = {
@@ -157,7 +150,6 @@ export const load: PageServerLoad = async ({ url, parent }) => {
   return { directory, ...q };
 };
 
-// Status values the users service accepts (raw DB enum).
 const STATUSES = new Set(['free', 'paid', 'vip']);
 
 function dashboardOrigin(url: URL): string {
@@ -181,15 +173,11 @@ function demoLookup(q: string, sampleUsers: AdminUserWire[], locale: App.Locals[
   };
 }
 
-// Who is searching and what they typed. Same reason as services.ts's UserRef:
-// both are strings, so the two orders are indistinguishable to the compiler.
 type LookupRef = {
   actorId: string;
   q: string;
 };
 
-// probeUser fetches the row plus its token/enroll state; allSettled keeps a
-// slow or down responder from failing the whole lookup.
 async function probeUser(ref: LookupRef) {
   const user = await userLookup(ref.actorId, ref.q);
   const uid = String(user.id);
@@ -204,23 +192,8 @@ async function probeUser(ref: LookupRef) {
   };
 }
 
-// ── The shared per-user action shape ────────────────────────────────────────
-//
-// Every per-user action runs the same six steps: gate on the role, read the
-// target id, parse the verb's own form fields, short-circuit under DEMO, run
-// the mutation, audit the outcome. Only the parse and the mutation differ, so
-// a spec supplies those and userAction owns the rest.
-//
-// setStatus and setCreatorCode used to be written out by hand, because the
-// wrapper had no way to express "this verb has extra fields to validate" or
-// "this verb phrases its own success notice". `parse` and `notice` are that
-// way. Keeping them hand-written meant the gate, the audit line and the
-// refusal mapping existed in three copies that had already drifted apart.
-
-// Verbs whose only input is the target id parse to no payload at all.
 const noFields = () => ({ value: null });
 
-// Everything a gated, parsed action has to work with.
 type ActionCtx<P> = {
   admin: AdminIdentity;
   ref: UserRef;
@@ -229,14 +202,12 @@ type ActionCtx<P> = {
 };
 
 type UserActionSpec<P> = {
-  name: string; // audit action id
-  key: AccessKey; // least role that may run it (ROLE_FOR)
+  name: string;
+  key: AccessKey;
   parse: (f: FormData) => ParseResult<P>;
   demo: (ctx: ActionCtx<P>) => unknown;
   notice: (user: AdminUserWire | null, payload: P, locale: App.Locals['locale']) => string;
   detail?: (payload: P) => string;
-  // Returns the refreshed user row when the service echoes one (so the
-  // inspector panel updates), or null for row-less mutations.
   run: (ref: UserRef, payload: P) => Promise<AdminUserWire | null>;
 };
 
@@ -249,8 +220,6 @@ function runUserAction<P>(ctx: ActionCtx<P>, spec: UserActionSpec<P>) {
       detail: spec.detail?.(ctx.payload)
     },
     () => spec.run(ctx.ref, ctx.payload),
-    // A row-less mutation (clear token, delete) has nothing to refresh the
-    // inspector with, so the lookup half is omitted rather than sent as null.
     (user) => {
       const reply = okReply(spec.notice(user, ctx.payload, ctx.locale));
       return user ? { ...reply, lookup: { user } } : reply;
@@ -275,13 +244,8 @@ function userAction<P>(spec: UserActionSpec<P>) {
   };
 }
 
-// ── Per-verb parse and notice steps ─────────────────────────────────────────
-
-// parsePaidGrant validates the status modal's end date: a paid grant always
-// carries one (the users service enforces it too) and runs from today until
-// end-of-day on the chosen date.
 function parsePaidGrant(f: FormData): { expiresAt: string; detail: string } | ParseRefusal {
-  const raw = String(f.get('expires_at') ?? '').trim(); // YYYY-MM-DD from the modal
+  const raw = String(f.get('expires_at') ?? '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
     return softNotice('paid grant needs an end date');
   }
@@ -336,8 +300,6 @@ function creatorCodeDemoNotice(ctx: ActionCtx<CreatorCode>) {
   return okReply(code ? adminText(ctx.locale, 'admin.users.creatorCodeSetDemo', { code }) : adminText(ctx.locale, 'admin.users.creatorCodeClearedDemo'));
 }
 
-// The demo directory is a static fixture list, so the refreshed row the
-// inspector expects has to be assembled here; no service echoes one back.
 async function demoCreatorCode(ctx: ActionCtx<CreatorCode>) {
   const { sampleUsers } = await import('$lib/server/demo-data');
   const user = sampleUsers.find((u) => String(u.id) === ctx.ref.userId);
@@ -352,12 +314,6 @@ function parseActive(f: FormData): ParseResult<{ active: boolean }> {
   return { value: { active: String(f.get('active') ?? '').trim() === 'true' } };
 }
 
-// Serving state and Twitch EventSub enrollment move together, mirroring the
-// dashboard's connect/disconnect. Every verb that stops serving a user
-// (deactivate, ban, delete) unenrolls before its mutation, so no failure mode
-// leaves a non-served user with live subscriptions; verbs that may resume
-// serving enroll afterwards, and only when the refreshed row is actually
-// served again (active and not banned).
 type EnrollmentSyncedMutation<T> = {
   userId: string;
   sync: 'unenroll-first' | 'enroll-after';
@@ -458,12 +414,6 @@ export const actions: Actions = {
     name: 'set_creator_code',
     key: 'users.grant',
     parse: parseCreatorCode,
-    // The fixture import must be named behind the build-time DEMO constant,
-    // not merely called behind it: a plain `demo: demoCreatorCode` leaves the
-    // spec object referencing the function in a production build, nothing can
-    // shake it out, and the demo-data chunk ships. `if (DEMO)` inside the
-    // function is too late for the same reason. scripts/assert-production-clean.ts
-    // is the gate that catches this, and it caught exactly this.
     demo: DEMO ? demoCreatorCode : creatorCodeDemoNotice,
     detail: (p) => p.detail,
     notice: creatorCodeNotice,
@@ -520,9 +470,6 @@ export const actions: Actions = {
     }
   },
 
-  // Mint a one-shot "view as" link the admin can open to load the target's
-  // dashboard. The signed token (5 min TTL) carries the actor so every write
-  // during the impersonated session is attributed back to this admin.
   impersonate: async ({ request, locals, url }) => {
     const admin = await requireRole({ locals }, 'users.impersonate');
     if (!admin) return fail(403, { error: actionError(locals.locale, 'forbidden') });

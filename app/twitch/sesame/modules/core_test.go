@@ -17,8 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// --- test doubles ---
-
 type fakeLive struct {
 	live bool
 	err  error
@@ -73,8 +71,6 @@ func coreCtx(chatterID, text string) *module.Context {
 	}
 }
 
-// --- commands ---
-
 func TestCorePing(t *testing.T) {
 	m := Core(coreDeps(engine.NewSpecialSet(""), &fakeLive{}, &fakeGreet{}))
 	cmd := findCmd(t, m, "ping")
@@ -103,8 +99,6 @@ func TestCoreInfoCommands(t *testing.T) {
 		assert.Contains(t, col.out[0].Text, want, name)
 	}
 }
-
-// --- bagel greeting (non-command chat path) ---
 
 func bagelHandler(t *testing.T, m module.Module) module.EventHandler {
 	t.Helper()
@@ -138,7 +132,7 @@ func TestBagelIgnoresWhenOffline(t *testing.T) {
 	var col collector
 	require.NoError(t, bagelHandler(t, m)(context.Background(), coreCtx("1", "hi"), col.emit))
 	assert.Empty(t, col.out)
-	assert.Empty(t, greet.greeted) // must not consume the first-greet slot
+	assert.Empty(t, greet.greeted)
 }
 
 func TestBagelOncePerStream(t *testing.T) {

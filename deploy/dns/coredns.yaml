@@ -1,34 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Cluster DNS. This is a TAKEOVER of the k3s packaged coredns addon, not an
-# addition next to it. k3s ships coredns as a Deployment; this fleet runs it as
-# a DaemonSet so every node has a local resolver and pods never cross a node
-# boundary (or the tailnet) for DNS. The takeover is anchored by
-#   /var/lib/rancher/k3s/server/manifests/coredns.yaml.skip
-# on the server node (cp1), which stops k3s applying its own copy. Without that
-# file k3s reinstates the Deployment and reverts the Corefile. The ConfigMap
-# still carries stale objectset.rio.cattle.io annotations from the last apply
-# before the skip; they are inert.
-#
-# Until 2026-08-20 this DaemonSet existed ONLY as live cluster state with no
-# manifest anywhere, so a cp1 rebuild would have silently restored the k3s
-# Deployment. That is why it is checked in here.
-#
-# The Corefile lives beside this file rather than in the ConfigMap below,
-# deliberately. The coredns ConfigMap has a second key, NodeHosts, that a k3s
-# node controller rewrites as nodes join and leave -- and that controller is
-# NOT covered by the addon skip. `kubectl apply` replaces a ConfigMap's whole
-# data map, so applying the ConfigMap from git would delete NodeHosts and break
-# node-name resolution until k3s rewrote it. Push Corefile changes with a merge
-# patch, which leaves other keys alone:
-#
-#   kubectl -n kube-system patch cm coredns --type=merge \
-#     -p "$(python3 -c 'import json;print(json.dumps({"data":{"Corefile":open("deploy/dns/Corefile").read()}}))')"
-#
-# The `reload` plugin picks it up within ~30s and REFUSES an invalid Corefile,
-# so a syntax error leaves running pods on the last good config. A pod that
-# restarts while the config is bad will crash-loop, so verify after patching.
+# Push the Corefile by merge patch, never kubectl apply: apply deletes the k3s-managed NodeHosts key.
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -152,13 +125,6 @@ spec:
       maxUnavailable: 1
     type: RollingUpdate
 
-# kube-dns Service. trafficDistribution PreferSameNode keeps each pod on its
-# own node's resolver while still falling back to a peer if the local pod is
-# unready -- unlike internalTrafficPolicy: Local, which has no fallback.
-# Set 2026-08-20 after cross-node DNS to the cp1 resolver, reached over
-# tailscale0, was traced to intermittent Cilium "FIB lookup failed" drops:
-# one lost UDP packet cost a 5s resolver timeout, which stalled Valkey
-# Sentinel past its 2s tilt threshold ~10x/hour on node3.
 ---
 apiVersion: v1
 kind: Service

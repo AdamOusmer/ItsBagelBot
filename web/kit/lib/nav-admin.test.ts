@@ -36,8 +36,6 @@ describe('admin nav registry', () => {
   });
 
   test('/analytics is gone and falls back to the overview', () => {
-    // The route survives only as a 301 to '/'; it must not claim a nav entry,
-    // or the rail would highlight a section the operator can never land on.
     expect(ADMIN_SECTIONS.some((def) => def.href === '/analytics')).toBe(false);
     expect(adminSectionForPath('/analytics')).toBe('overview');
   });
@@ -46,12 +44,9 @@ describe('admin nav registry', () => {
     const hrefs = (role: StaffRole) =>
       adminNavItems({ role, section: 'overview' }).map((item) => item.href);
 
-    // A moderator is bounced by /staff, /audit, /secrets and /counters, so the
-    // rail must not offer them: that mismatch is the bug this registry closes.
     expect(hrefs('moderator')).not.toContain('/staff');
     expect(hrefs('moderator')).not.toContain('/counters');
     expect(hrefs('moderator')).not.toContain('/trials');
-    // /counters demands owner (ROLE_FOR['counters.manage']), not merely admin.
     expect(hrefs('admin')).toContain('/staff');
     expect(hrefs('admin')).toContain('/trials');
     expect(hrefs('admin')).not.toContain('/counters');
@@ -60,8 +55,6 @@ describe('admin nav registry', () => {
   });
 
   test('/deploys is offered to owners only', () => {
-    // ROLE_FOR['deploys.manage'] is owner; an admin shown the link would be
-    // bounced to '/' by the route's load.
     const offered = ROLES.filter((role) =>
       adminNavItems({ role, section: 'overview' }).some((item) => item.href === '/deploys')
     );
@@ -69,8 +62,6 @@ describe('admin nav registry', () => {
   });
 
   test('groups follow ADMIN_GROUP_ORDER and drop empty ones', () => {
-    // A moderator has no visible Access row at all, so that group must not
-    // render as an empty rail heading (or an empty dock popover).
     expect(adminNavGroups({ role: 'moderator', section: 'overview' })).toHaveLength(2);
     expect(adminNavGroups({ role: 'owner', section: 'overview' })).toHaveLength(
       ADMIN_GROUP_ORDER.length
@@ -84,13 +75,9 @@ describe('admin nav registry', () => {
   });
 
   test('every label key is a real English leaf', () => {
-    // check-i18n proves en/fr parity, not that a key someone typed here exists;
-    // a missing one renders as the raw dot-path in the rail.
     for (const def of ADMIN_SECTIONS) {
       expect(typeof leaf(def.labelKey)).toBe('string');
     }
-    // With no `t` injected, navGroups/navItems label with identity, so the
-    // label IS the key: look it up the same way.
     for (const role of ROLES) {
       for (const group of adminNavGroups({ role, section: 'overview' })) {
         expect(typeof leaf(group.label ?? '')).toBe('string');

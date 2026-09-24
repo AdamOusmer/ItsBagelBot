@@ -14,7 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// fakeGrants records writes so a test can assert on transitions without Valkey.
 type fakeGrants struct {
 	channel manage.Channel
 	found   bool
@@ -36,7 +35,6 @@ func testWorker(g grantRegistry) *Worker {
 	return &Worker{log: zap.NewNop(), grants: g}
 }
 
-// deadGrantErr is the incident's error, wrapped the way client.do wraps it.
 func deadGrantErr() error {
 	return &twitch.TokenError{Status: 400, Body: `{"status":400,"message":"Invalid refresh token"}`}
 }
@@ -53,24 +51,16 @@ func TestNoteGrantHealth(t *testing.T) {
 		err      error
 		want     []manage.GrantState
 	}{
-		// The fleet-safety cases. execute.go carries app chat sends and bot
-		// moderation under real broadcaster ids, and the app, bot and broadcaster
-		// grants all fail through the same postToken. Without the identity gate,
-		// one client-credentials outage would mark every broadcaster whose
-		// traffic happened to pass during it, and chat being the highest-volume
-		// type, that is the entire enrolled fleet within seconds.
 		{"app identity never marks", twitch.IdentityApp, registered, true, deadGrantErr(), nil},
 		{"bot identity never marks", twitch.IdentityBot, registered, true, deadGrantErr(), nil},
 		{"auto identity never marks", twitch.IdentityAuto, registered, true, deadGrantErr(), nil},
 
-		// A dead grant, seen under the broadcaster's own identity.
 		{
 			"broadcaster identity marks dead",
 			twitch.IdentityBroadcaster, registered, true, deadGrantErr(),
 			[]manage.GrantState{manage.GrantDead},
 		},
 
-		// Transient failures must never tell a streamer their connection expired.
 		{
 			"500 does not mark",
 			twitch.IdentityBroadcaster, registered, true,
@@ -87,7 +77,6 @@ func TestNoteGrantHealth(t *testing.T) {
 			errors.New("dial tcp: i/o timeout"), nil,
 		},
 
-		// Success is the inverse write, and the self-heal for a false positive.
 		{
 			"success clears a dead marker",
 			twitch.IdentityBroadcaster, alreadyDead, true, nil,
@@ -95,11 +84,8 @@ func TestNoteGrantHealth(t *testing.T) {
 		},
 		{"success on a healthy channel is a no-op", twitch.IdentityBroadcaster, registered, true, nil, nil},
 
-		// Transition-only, so a channel failing every few seconds does not
-		// hammer Valkey or re-log forever.
 		{"already dead does not rewrite", twitch.IdentityBroadcaster, alreadyDead, true, deadGrantErr(), nil},
 
-		// Never conjure a registry entry for a channel the bot does not serve.
 		{"unregistered channel is skipped", twitch.IdentityBroadcaster, manage.Channel{}, false, deadGrantErr(), nil},
 	}
 
@@ -115,8 +101,6 @@ func TestNoteGrantHealth(t *testing.T) {
 	}
 }
 
-// TestNoteGrantHealthUnreadableRegistry keeps a Valkey blip from being read as
-// a healthy channel and clearing a real marker.
 func TestNoteGrantHealthUnreadableRegistry(t *testing.T) {
 	g := &fakeGrants{getErr: errors.New("valkey down")}
 	w := testWorker(g)
@@ -128,7 +112,6 @@ func TestNoteGrantHealthUnreadableRegistry(t *testing.T) {
 
 func TestNoteGrantHealthNoRegistryIsNoop(t *testing.T) {
 	w := testWorker(nil)
-	// Must not panic.
 	w.noteGrantHealth(context.Background(), twitch.IdentityBroadcaster, "1", deadGrantErr())
 }
 
@@ -138,9 +121,6 @@ func TestClearGrantDead(t *testing.T) {
 		channel manage.Channel
 		want    []manage.GrantState
 	}{
-		// sub_state "ok" is exactly the state a grant-dead channel sits in, and
-		// exactly the state the re-enroll gate rejects. This is why the clear is
-		// placed above that gate.
 		{
 			"dead grant on an ok channel clears",
 			manage.Channel{BroadcasterID: "1", SubState: "ok", GrantState: manage.GrantDead},
@@ -161,7 +141,6 @@ func TestClearGrantDead(t *testing.T) {
 	}
 }
 
-// TestLiveNotice pins which notice a go-live picks, including the tie-break.
 func TestLiveNotice(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -194,10 +173,6 @@ func TestLiveNotice(t *testing.T) {
 	}
 }
 
-// TestNoticeRequestPrefixesDiffer guards the dedupe. The notifications unique
-// index on request_id has no time component and the send verb skips cache
-// invalidation on the dedupe path, so a shared prefix would make the second
-// notice of the day silently vanish.
 func TestNoticeRequestPrefixesDiffer(t *testing.T) {
 	if noticeRevoked.request == noticeGrantDead.request {
 		t.Fatalf("both notices share request prefix %q, so one would be deduped away",

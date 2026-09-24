@@ -17,13 +17,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// The manifest files this package asserts on: the app namespace's own, the db
-// namespace's copy one directory over, and the deployer's.
 const (
-	appPolicies = "network-policies.yaml"
-	dbPolicies  = "../db/network-policies.yaml"
-	// deployerManifest carries the deployer's own policies, its RBAC and the
-	// messaging-side grant, so every deployer test reads the one file.
+	appPolicies      = "network-policies.yaml"
+	dbPolicies       = "../db/network-policies.yaml"
 	deployerManifest = "deployer.yaml"
 )
 
@@ -49,8 +45,6 @@ type labelSelector struct {
 	} `yaml:"matchExpressions"`
 }
 
-// policyRule is one ingress or egress rule. Both directions decode into it,
-// To on egress and From on ingress, so one summary reads either.
 type policyRule struct {
 	To    []policyPeer `yaml:"to"`
 	From  []policyPeer `yaml:"from"`
@@ -70,9 +64,6 @@ type policyPort struct {
 	Protocol string `yaml:"protocol"`
 }
 
-// loadNetworkPolicies decodes one manifest file. It takes the path because the
-// db namespace ships its own copy next door (deploy/db/network-policies.yaml)
-// and a second loader would be a second thing to keep in step.
 func loadNetworkPolicies(t *testing.T, path string) map[string]networkPolicyManifest {
 	t.Helper()
 	policies := make(map[string]networkPolicyManifest)
@@ -84,8 +75,6 @@ func loadNetworkPolicies(t *testing.T, path string) map[string]networkPolicyMani
 	return policies
 }
 
-// decodeFile reads every YAML document in path through T. Fields T does not
-// name are skipped, so a caller filters on its own Kind and ignores the rest.
 func decodeFile[T any](t *testing.T, path string) []T {
 	t.Helper()
 	f, err := os.Open(path)
@@ -177,10 +166,6 @@ func TestHeatWaveEgressAllowlist(t *testing.T) {
 	if len(heatwave.Spec.Egress) != 1 {
 		t.Fatal("HeatWave policy must have exactly one egress rule")
 	}
-	// Two pinned destinations since 2026-08-27: the routed OCI private subnet
-	// (direct-VCN fallback) and the nlb-mysql public IP the services actually
-	// dial. Anything beyond these two turns 3306 into an exfiltration path,
-	// so the set is exact, not a minimum.
 	var got []string
 	for _, to := range heatwave.Spec.Egress[0].To {
 		if to.IPBlock == nil {
@@ -194,14 +179,8 @@ func TestHeatWaveEgressAllowlist(t *testing.T) {
 	}
 }
 
-// TestDBNamespaceCoversEveryDataService is the check that catches a service
-// onboarded into the db namespace and left out of its policies. A pod missing
-// from default-deny-db is not firewalled at all -- the failure is silent and
-// permissive, which is the direction that never shows up in testing. The three
-// lists are asserted exactly, not as a minimum, for the same reason.
 func TestDBNamespaceCoversEveryDataService(t *testing.T) {
 	policies := loadNetworkPolicies(t, dbPolicies)
-	// backup-k3s takes no probe port: it is a CronJob with no health listener.
 	want := map[string][]string{
 		"default-deny-db": sorted("backup-k3s", "backup-mysql", "commands", "discord-data", "loyalty",
 			"modules", "notifications", "notifications-cleanup", "projector", "transactions", "users"),
@@ -219,10 +198,6 @@ func TestDBNamespaceCoversEveryDataService(t *testing.T) {
 	}
 }
 
-// TestDBDefaultDenyGrantsTheSharedPlanes: every data service needs DNS, the
-// NATS planes and Valkey, and they are granted once on default-deny-db rather
-// than per service. discord-data joining that selector is what gives it all
-// four, so the grants are pinned here.
 func TestDBDefaultDenyGrantsTheSharedPlanes(t *testing.T) {
 	base := requirePolicy(t, loadNetworkPolicies(t, dbPolicies), "default-deny-db")
 	var namespaces []string
@@ -243,9 +218,6 @@ func TestDBDefaultDenyGrantsTheSharedPlanes(t *testing.T) {
 	}
 }
 
-// render prints a selector as sorted "key=value" and "key in a,b" terms. A
-// nil selector is "any": an absent namespaceSelector or podSelector matches
-// every peer, which is exactly what a reviewer needs to see in a diff.
 func (s *labelSelector) render() string {
 	if s == nil {
 		return "any"
@@ -261,9 +233,6 @@ func (s *labelSelector) render() string {
 	return strings.Join(terms, ";")
 }
 
-// ruleSummary renders every peer of every rule as "namespaces | pods | ports",
-// so a whole policy compares as one slice. A rule with no peer admits any
-// peer, and renders as such rather than disappearing.
 func ruleSummary(rules []policyRule) []string {
 	var out []string
 	for _, rule := range rules {
@@ -279,7 +248,6 @@ func ruleSummary(rules []policyRule) []string {
 	return out
 }
 
-// renderPorts defaults an omitted protocol to TCP, as the API server does.
 func renderPorts(ports []policyPort) string {
 	out := make([]string, len(ports))
 	for i, port := range ports {
@@ -288,13 +256,6 @@ func renderPorts(ports []policyPort) string {
 	return strings.Join(out, ",")
 }
 
-// TestDeployerPoliciesAreExact pins both halves of the deployer's NATS path.
-// Its own policy admits the kubelet probe port and reaches only the NATS pods;
-// the messaging-side grant opens the hub to it. The grant must select the hub
-// alone: nothing selects nats-leaf today, so a policy that did would flip
-// every leaf to default deny and cut off every client in app and db. Exact
-// rather than minimum, because each extra line is a new path out of or into
-// the pod that holds the merge key.
 func TestDeployerPoliciesAreExact(t *testing.T) {
 	policies := loadNetworkPolicies(t, deployerManifest)
 	got := map[string][]string{}
@@ -321,9 +282,6 @@ func TestDeployerPoliciesAreExact(t *testing.T) {
 	}
 }
 
-// ciliumNetworkPolicy is the part of a CiliumNetworkPolicy the deployer test
-// reads: every egress peer kind that could open a path out, so a peer added
-// in any of them shows up in the summary.
 type ciliumNetworkPolicy struct {
 	Kind     string `yaml:"kind"`
 	Metadata struct {
@@ -356,8 +314,6 @@ type ciliumEgressRule struct {
 	} `yaml:"toPorts"`
 }
 
-// peers renders each destination of the rule. A rule naming none allows every
-// destination, so it renders as "any" instead of vanishing from the summary.
 func (r ciliumEgressRule) peers() []string {
 	var out []string
 	for _, endpoints := range r.ToEndpoints {
@@ -402,10 +358,6 @@ func deployerCiliumPolicy(t *testing.T) ciliumNetworkPolicy {
 	return ciliumNetworkPolicy{}
 }
 
-// TestDeployerInternetEgressIsHostScoped: the deployer is the one workload
-// whose 443 is scoped by host instead of by port (see deployer.yaml for why).
-// The set is exact. A new host is a new place the merge key and the workload
-// token can be sent, so adding one has to be a reviewed edit here too.
 func TestDeployerInternetEgressIsHostScoped(t *testing.T) {
 	policy := deployerCiliumPolicy(t)
 	var got []string
@@ -425,8 +377,6 @@ func TestDeployerInternetEgressIsHostScoped(t *testing.T) {
 		"fqdn ghcr.io | 443/TCP",
 		"fqdn pkg-containers.githubusercontent.com | 443/TCP",
 	}
-	// Exact results hosts only: a productionresultssa* pattern admits any
-	// Azure storage account anyone registers with that prefix.
 	for i := range 20 {
 		hosts = append(hosts, fmt.Sprintf("fqdn productionresultssa%d.blob.core.windows.net | 443/TCP", i))
 	}

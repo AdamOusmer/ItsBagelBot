@@ -18,10 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// stubTickets is the outgress side of the desk, scripted. Every orchestration
-// records its request so a test can assert what the engine DECIDED, which is
-// the whole of the engine's job here -- the REST shapes are pinned on the
-// outgress side (app/discord/outgress/internal/rpc/ticket_rpc_test.go).
 type stubTickets struct {
 	openReply  discordoutgress.TicketOpenReply
 	openErr    error
@@ -81,7 +77,6 @@ func (s *stubTickets) DeleteChannel(_ context.Context, req discordoutgress.Chann
 	return discordoutgress.ChannelDeleteReply{}, nil
 }
 
-// deskFixture is one module under test with its store and stub.
 type deskFixture struct {
 	mod     ticketModule
 	store   *discordstore.Mem
@@ -99,7 +94,6 @@ func newDesk(t *testing.T, cfg ddiscord.Config) *deskFixture {
 	}
 }
 
-// press replays one button press (or slash sub-command) through the module.
 func (f *deskFixture) press(t *testing.T, handler func(context.Context, *module.Context, module.Emit) error, in decode.InteractionEvent) []ddiscord.Command {
 	t.Helper()
 	raw, err := codec.Marshal(in)
@@ -114,10 +108,6 @@ func (f *deskFixture) press(t *testing.T, handler func(context.Context, *module.
 	return emitted
 }
 
-// deskPress drives one inner desk verb -- the ones that take an interaction
-// the slash router already decoded -- past the router that would normally
-// build the call for them. Every such test needs the same three-field call
-// built from the press's own context and emitter, so it is built once here.
 func (f *deskFixture) deskPress(t *testing.T, in decode.InteractionEvent, run func(context.Context, deskCall) error) []ddiscord.Command {
 	t.Helper()
 	return f.press(t, func(ctx context.Context, c *module.Context, emit module.Emit) error {
@@ -142,8 +132,6 @@ func inTicket(userID string, roles []string) decode.InteractionEvent {
 	return in
 }
 
-// followupText is the ephemeral answer the desk gave, which every path owes
-// the presser.
 func followupText(t *testing.T, cmds []ddiscord.Command) string {
 	t.Helper()
 	for _, c := range cmds {
@@ -169,7 +157,6 @@ func baseConfig() ddiscord.Config {
 	}
 }
 
-// openOneTicket puts a live ticket in the store and returns it.
 func (f *deskFixture) openOneTicket(t *testing.T) discordstore.Ticket {
 	t.Helper()
 	f.press(t, f.mod.open, opener("u1", "Ada"))
@@ -180,8 +167,6 @@ func (f *deskFixture) openOneTicket(t *testing.T) discordstore.Ticket {
 	return got
 }
 
-// createTicketPress drives the create half directly, past the pre-checks open
-// performs, so a test can reach the record-and-roll-back path.
 func (f *deskFixture) createTicketPress(t *testing.T, in decode.InteractionEvent) []ddiscord.Command {
 	t.Helper()
 	return f.deskPress(t, in, f.mod.createTicket)
@@ -195,17 +180,11 @@ func (f *deskFixture) closeReplyFor(transcript bool, archived string) {
 	}
 }
 
-// panelPress drives /ticket panel, which takes the decoded interaction the
-// slash router already parsed rather than re-reading it from the event.
 func (f *deskFixture) panelPress(t *testing.T, in decode.InteractionEvent) []ddiscord.Command {
 	t.Helper()
 	return f.deskPress(t, in, f.mod.panel)
 }
 
-// wantOpenRequest pins what the engine decided the new ticket channel is: it
-// goes out unnumbered (the row id it will be named after cannot exist until
-// this channel does), under the configured category, carrying the two
-// in-ticket controls in that order.
 func wantOpenRequest(t *testing.T, req discordoutgress.TicketOpenRequest) {
 	t.Helper()
 	if req.Name != "ticket-ada" {
@@ -225,9 +204,6 @@ func wantOpenRequest(t *testing.T, req discordoutgress.TicketOpenRequest) {
 	}
 }
 
-// wantRenamedTo asserts the single rename that follows the row insert. The
-// number comes from the ROW, so two of one opener's tickets cannot share a
-// name the way the old count-based name let them.
 func wantRenamedTo(t *testing.T, renames []discordoutgress.ChannelModifyRequest, name string) {
 	t.Helper()
 	if len(renames) != 1 {
@@ -238,9 +214,6 @@ func wantRenamedTo(t *testing.T, renames []discordoutgress.ChannelModifyRequest,
 	}
 }
 
-// wantStoredTicket asserts the row the desk keeps for the channel it just
-// created: without it the ticket is a channel nobody can claim, close or
-// transcribe.
 func (f *deskFixture) wantStoredTicket(t *testing.T, openerID, panelMessageID string) {
 	t.Helper()
 	stored, ok := f.store.Ticket(context.Background(), discordstore.Guild{ID: "g1"}, discordstore.Channel{ID: "c-new"})
@@ -255,8 +228,6 @@ func (f *deskFixture) wantStoredTicket(t *testing.T, openerID, panelMessageID st
 	}
 }
 
-// fallbackStore is the memory double answering TicketsDurable the way the
-// pure-Valkey store does.
 type fallbackStore struct{ discordstore.Store }
 
 func (fallbackStore) TicketsDurable(context.Context) bool { return false }

@@ -2,23 +2,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Astro adapter for `.bb-mobile-menu`. Its Svelte twin is
-// ../svelte/MobileMenu.svelte and ../test/parity.test.ts diffs the two, so the
-// element order, the five engine data-attributes and the derived clip id here
-// match that file.
 import '../styles/elements/nav.css';
 import NavLink from './NavLink.astro';
 import type { UiNavLink } from '../lib/nav-types';
 
 interface Props {
   links: UiNavLink[];
-  /** The one filled entry at the bottom of the panel. */
   cta?: UiNavLink;
-  /** Also the hamburger's aria-controls; see the clip note in the twin. */
   id?: string;
-  /** Accessible name of the dialog. */
   panelLabel: string;
-  /** Fine print under the footer rows. */
   meta?: string;
   class?: string;
   [key: string]: unknown;

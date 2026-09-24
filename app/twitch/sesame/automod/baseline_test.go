@@ -10,15 +10,12 @@ import (
 
 func newTestBaseline() *Baseline {
 	b := NewBaseline(DefaultCeiling())
-	b.now = func() int64 { return 1_800_000_000 }
+	b.nowUnix = func() int64 { return 1_800_000_000 }
 	return b
 }
 
 func TestBaselineColdChannelReturnsCallerStatic(t *testing.T) {
 	b := newTestBaseline()
-	// Cold channels see the caller's static threshold VERBATIM - including a
-	// static tighter than the fleet ceiling (LevelStrict caps 0.6): the
-	// ceiling clamps only the learned contribution, never a config choice.
 	for kind, want := range map[StyleKind]float64{
 		KindCaps:   0.7,
 		KindSymbol: 0.6,
@@ -34,9 +31,6 @@ func TestBaselineColdChannelReturnsCallerStatic(t *testing.T) {
 
 func TestBaselineWarmChannelRaisesForHypeCulture(t *testing.T) {
 	b := newTestBaseline()
-	// A channel whose judged lines alternate 0.50/0.70 caps: mean 0.60,
-	// stddev 0.10, so mean+2sigma = 0.80 tops the fleet ceiling and shouting
-	// at 0.72 stops striking.
 	for i := 0; i < 200; i++ {
 		v := 0.55
 		if i%2 == 0 {
@@ -51,10 +45,6 @@ func TestBaselineWarmChannelRaisesForHypeCulture(t *testing.T) {
 
 func TestBaselineNeverDropsBelowCallerStatic(t *testing.T) {
 	b := newTestBaseline()
-	// A quiet channel: the learned value sits under the fleet ceiling, so it
-	// is discarded and every kind pins to the caller's static exactly - the
-	// frog-boiling clamp: attacker-fed quiet lines can never tighten (or
-	// loosen) the gate below what the config says.
 	for i := 0; i < 500; i++ {
 		b.Observe(9, 0.2, 0.1, 8)
 	}
@@ -64,8 +54,6 @@ func TestBaselineNeverDropsBelowCallerStatic(t *testing.T) {
 			t.Fatalf("kind=%d quiet warm channel must pin to static exactly, got %v want %v", kind, got, static)
 		}
 	}
-	// A learned value between a strict static (0.6) and the fleet ceiling
-	// (0.7) is likewise discarded: raises act only from the ceiling up.
 	for i := 0; i < 500; i++ {
 		b.Observe(11, 0.62, 0.1, 8)
 	}
@@ -86,15 +74,13 @@ func TestBaselineRespectsCallerStaticThreshold(t *testing.T) {
 
 func TestBaselineEvictsStalestHalfAtCap(t *testing.T) {
 	b := newTestBaseline()
-	const shardBase = uint64(1 << 10) // low bits zero => same shard
+	const shardBase = uint64(1 << 10)
 	for i := uint64(0); i < baselineChanCap+512; i++ {
 		ch := shardBase + i*64
-		b.now = func() int64 { return int64(1_800_000_000 + i) }
+		b.nowUnix = func() int64 { return int64(1_800_000_000 + i) }
 		b.Observe(ch, 0.3, 0.1, 5)
 	}
 	s := &b.shards[shardBase&baselineShardMask]
-	// The documented global backstop divides across shards: one shard holds
-	// at most its share, so 64 shards aggregate to baselineChanCap, not 64x it.
 	if len(s.m) > baselineChanCap/baselineShards {
 		t.Fatalf("shard map exceeded its per-shard cap: %d > %d", len(s.m), baselineChanCap/baselineShards)
 	}
@@ -115,12 +101,12 @@ func TestBaselineShardsIsolateAndRace(t *testing.T) {
 		wg.Add(1)
 		go func(g int) {
 			defer wg.Done()
-			ch := uint64(g)*64 + 7 // distinct shards per goroutine...
+			ch := uint64(g)*64 + 7
 			for i := 0; i < 500; i++ {
 				b.Observe(ch, 0.4, 0.2, float64(i))
 				b.Adjust(ch, KindCaps, 0.7)
 			}
-			for i := 0; i < 200; i++ { // ...plus one shared hot channel
+			for i := 0; i < 200; i++ {
 				b.Observe(uint64(4096), 0.4, 0.2, 12)
 				b.Adjust(uint64(4096), KindSymbol, 0.6)
 			}

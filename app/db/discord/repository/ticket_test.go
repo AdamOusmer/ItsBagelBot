@@ -17,33 +17,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ticketFixture is one test's store together with the context its calls run
-// under. The three travel as one value because every helper below needs all
-// of them, and passed separately they are three of the five arguments on a
-// one-call helper -- the argument list stops saying what the call does.
 type ticketFixture struct {
 	t    *testing.T
 	repo *repository.Store
 	ctx  context.Context
 }
 
-// newTicketFixture opens the store one test works against.
 func newTicketFixture(t *testing.T, name string) ticketFixture {
 	t.Helper()
 	repo, ctx := newStore(t, name)
 	return ticketFixture{t: t, repo: repo, ctx: ctx}
 }
 
-// newConcurrentTicketFixture is the same over the store the race tests need
-// (see newConcurrentStore for why those two differ).
 func newConcurrentTicketFixture(t *testing.T, name string) ticketFixture {
 	t.Helper()
 	repo, ctx := newConcurrentStore(t, name)
 	return ticketFixture{t: t, repo: repo, ctx: ctx}
 }
 
-// tk and mk spell the two repository keys short, so a call under test still
-// reads as one line of intent rather than a struct literal wrapped over three.
 func tk(guildID, channelID string) repository.TicketKey {
 	return repository.TicketKey{GuildID: guildID, ChannelID: channelID}
 }
@@ -52,7 +43,6 @@ func mk(guildID, memberID string) repository.MemberKey {
 	return repository.MemberKey{GuildID: guildID, MemberID: memberID}
 }
 
-// openOne is the common "member opens a ticket in a fresh channel" call.
 func (f ticketFixture) openOne(channelID string, limit int) (int, int, error) {
 	f.t.Helper()
 	return f.repo.TicketOpen(f.ctx, repository.OpenParams{
@@ -115,8 +105,6 @@ func TestTicketOpenIsIdempotentPerChannel(t *testing.T) {
 	first, _, err := f.openOne("c1", 1)
 	require.NoError(t, err)
 
-	// A replay of the same channel returns the same row rather than tripping
-	// the limit it is already counted against.
 	second, _, err := f.openOne("c1", 1)
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
@@ -152,8 +140,6 @@ func TestTicketClaimTransition(t *testing.T) {
 	require.NotNil(t, row.ClaimedAt)
 	firstClaim := *row.ClaimedAt
 
-	// A hand-off keeps the original claimed_at so the desk's elapsed time
-	// still measures from the first response.
 	_, err = f.repo.TicketClaim(f.ctx, repository.ClaimParams{Key: tk("g1", "c1"), StaffID: "staff2"})
 	require.NoError(t, err)
 	row, _, err = f.repo.TicketGet(f.ctx, tk("g1", "c1"))
@@ -295,7 +281,6 @@ func TestTranscriptPutAndGet(t *testing.T) {
 	assert.Equal(t, "[12:00] member1: hello", row.Body)
 	assert.Equal(t, 1, row.MessageCount)
 
-	// A retried render replaces rather than appends.
 	require.NoError(t, f.repo.TranscriptPut(f.ctx, id, "[12:00] member1: hello\n[12:01] staff1: hi", 2))
 	row, _, err = f.repo.TranscriptGet(f.ctx, id)
 	require.NoError(t, err)
@@ -314,15 +299,9 @@ func TestTranscriptPutRejectsUnknownTicketAndOversizeBody(t *testing.T) {
 	assert.ErrorIs(t, f.repo.TranscriptPut(f.ctx, id, string(oversize), 1), repository.ErrInvalidInput)
 }
 
-// TestTicketOpenLimitHoldsUnderConcurrentOpens is why the open count is taken
-// under a row lock rather than as a plain COUNT: a member who already holds
-// live tickets must not be able to race several opens past the guild's cap by
-// pressing the button twice.
 func TestTicketOpenLimitHoldsUnderConcurrentOpens(t *testing.T) {
 	f := newConcurrentTicketFixture(t, "ticketopenrace")
 
-	// One live ticket already exists, so the lock has rows to hold. With a
-	// limit of two, exactly one of the concurrent opens may be accepted.
 	_, _, err := f.openOne("c0", 2)
 	require.NoError(t, err)
 
@@ -353,9 +332,6 @@ func TestTicketOpenLimitHoldsUnderConcurrentOpens(t *testing.T) {
 	assert.Len(t, rows, 2)
 }
 
-// TestTicketVerbsRequireTheGuild pins the mandatory guild filter. Addressing a
-// ticket by channel alone used to be allowed, which let a caller holding a
-// channel id from someone else's guild claim or close that guild's ticket.
 func TestTicketVerbsRequireTheGuild(t *testing.T) {
 	f := newTicketFixture(t, "ticketguildrequired")
 	_, _, err := f.openOne("c1", 0)
@@ -369,8 +345,6 @@ func TestTicketVerbsRequireTheGuild(t *testing.T) {
 	assert.ErrorIs(t, err, repository.ErrInvalidInput)
 }
 
-// TestTicketVerbsRefuseAnotherGuildsChannel is the same filter from the other
-// side: a well-formed request naming the wrong guild must miss, not act.
 func TestTicketVerbsRefuseAnotherGuildsChannel(t *testing.T) {
 	f := newTicketFixture(t, "ticketwrongguild")
 	_, _, err := f.openOne("c1", 0)
@@ -419,7 +393,6 @@ func TestTicketOpenCountCountsLiveTicketsOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, n)
 
-	// A claimed ticket is still one the opener holds; a closed one is not.
 	_, err = f.repo.TicketClaim(f.ctx, repository.ClaimParams{Key: tk("g1", "c1"), StaffID: "mod1"})
 	require.NoError(t, err)
 	_, _, err = f.repo.TicketClose(f.ctx, repository.CloseParams{Key: tk("g1", "c2"), ClosedBy: "mod1"})
@@ -429,7 +402,6 @@ func TestTicketOpenCountCountsLiveTicketsOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 
-	// Another member's tickets never count against this one.
 	n, err = f.repo.TicketOpenCount(f.ctx, mk("g1", "member2"))
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)

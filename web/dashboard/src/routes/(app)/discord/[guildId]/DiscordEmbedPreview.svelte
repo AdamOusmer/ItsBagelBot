@@ -2,17 +2,6 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
-  // What the ticket panel will look like in Discord, drawn from the same
-  // draft the editor is writing. Page-local on purpose: it imitates another
-  // product's chrome (Discord's embed card), which is the opposite of what a
-  // shared console primitive is for, and nothing else in the console should
-  // grow a Discord-shaped surface by accident.
-  //
-  // The one colour that is not a token is the streamer's own embed colour. It
-  // arrives as a validated #rrggbb from the shared config module and is
-  // applied through a style ATTRIBUTE, which the console CSP allows
-  // (style-src-attr 'unsafe-inline'); an inline stylesheet block would be
-  // blocked, and a class per colour is impossible for a free-form value.
   let {
     title,
     body,
@@ -44,8 +33,6 @@
     margin: 0 0 8px;
   }
 
-  /* Discord's embed card: a 4px accent rail on the left, a slightly lifted
-     surface, tight title/description spacing, an action row underneath. */
   .embed {
     border-left: 4px solid var(--bb-tan);
     border-radius: 6px;

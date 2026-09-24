@@ -2,17 +2,6 @@
   import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One ledger line in the counters deck, built on the shared ManagementRow so
-  // the clickable primary is a real button and the delete quick-action is a
-  // SIBLING of it, never nested inside: the same structure every other
-  // management deck (commands, timers, rewards) uses, which is what keeps the
-  // columns aligned across decks instead of drifting in a bespoke grid.
-  //
-  // Counters have no enable/disable in the loyalty service, so there is no
-  // toggle switch; the row's "state" is its scope + value, both spelled as
-  // text. A channel/bot counter shows its single tally on the right; the entry
-  // scopes keep per-bucket values in the inspector, so the row states which
-  // kind it is there instead.
   import { Icon, ManagementRow, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
 
   const { t } = getI18n();
@@ -43,9 +32,6 @@
   };
   const scopeLabel = $derived(t(SCOPE_KEY[c.scope]));
 
-  // The entry scopes keep no single value; the row states which kind it is
-  // where a channel counter shows its tally, so the right column never reads
-  // as an empty or zero value.
   const perScopeNote = $derived(c.scope === 'command' ? t('counters.perCommandNote') : t('counters.perUserNote'));
 </script>
 
@@ -74,8 +60,6 @@
 </ManagementRow>
 
 <style>
-  /* idx | name (+ scope tag) | value/note: the TimerRow track shape, so the
-     value column lands at the same right edge on every row regardless of scope. */
   .prow {
     display: grid;
     grid-template-columns: 28px minmax(0, 1fr) auto;
@@ -95,12 +79,8 @@
     white-space: nowrap;
     min-width: 0;
   }
-  /* Was a 999px outlined pill; the scope label is now the global
-     .bb-tag--bare, frameless because ManagementRow already draws the row. */
   .c-tag { flex: none; }
 
-  /* Value / note: right-aligned, the value mono + tabular so digits column
-     across rows, the note muted where a value would be. */
   .meta { display: inline-flex; align-items: center; justify-content: flex-end; }
   .m-val {
     font-family: var(--bb-font-mono);

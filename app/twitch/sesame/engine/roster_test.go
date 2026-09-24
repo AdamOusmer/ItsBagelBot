@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// rosterChatEnvelope is a minimal chat envelope for the feed-level tests.
 var rosterChatEnvelope = lane.Envelope{
 	Type:              chatType,
 	BroadcasterUserID: "123",
@@ -34,16 +33,13 @@ func TestChatterRosterObserveResolve(t *testing.T) {
 	assert.Equal(t, "bob", v.Login, "lookup keys on the lower-cased login")
 	assert.Equal(t, "Bob", v.Name)
 
-	// Channels are isolated.
 	_, ok = r.Resolve(2, "bob")
 	assert.False(t, ok)
 
-	// A later line refreshes identity fields.
 	r.Observe(1, chatterIdentity{login: "bob", id: "7", name: "Robert"})
 	v, _ = r.Resolve(1, "bob")
 	assert.Equal(t, "Robert", v.Name)
 
-	// An unnamed observation must not clobber the learned display name.
 	r.Observe(1, chatterIdentity{login: "bob", id: "7"})
 	v, _ = r.Resolve(1, "bob")
 	assert.Equal(t, "Robert", v.Name)
@@ -51,10 +47,10 @@ func TestChatterRosterObserveResolve(t *testing.T) {
 
 func TestChatterRosterDropsUnusableIdentities(t *testing.T) {
 	r := newChatterRoster()
-	r.Observe(1, chatterIdentity{login: "", id: "9", name: "X"})     // no login
-	r.Observe(1, chatterIdentity{id: "", login: "x", name: "X"})     // no id
-	r.Observe(1, chatterIdentity{id: "zero", login: "x", name: "X"}) // unparseable id
-	r.Observe(0, chatterIdentity{id: "9", login: "x", name: "X"})    // no broadcaster
+	r.Observe(1, chatterIdentity{login: "", id: "9", name: "X"})
+	r.Observe(1, chatterIdentity{id: "", login: "x", name: "X"})
+	r.Observe(1, chatterIdentity{id: "zero", login: "x", name: "X"})
+	r.Observe(0, chatterIdentity{id: "9", login: "x", name: "X"})
 	for _, login := range []string{"", "x"} {
 		_, ok := r.Resolve(1, login)
 		assert.False(t, ok)
@@ -72,7 +68,6 @@ func TestChatterRosterBoundedPerChannel(t *testing.T) {
 	assert.LessOrEqual(t, size, rosterCapacityPerChannel,
 		"the per-channel set stays bounded even if a channel outruns the cap")
 
-	// The bound is per channel, not global.
 	r.Observe(2, chatterIdentity{login: "viewer0", id: "1"})
 	r.mu.RLock()
 	size2 := len(r.chans[2])

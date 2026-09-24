@@ -1,78 +1,16 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* ─────────────────────────────────────────────────────────────────
- * Labels, tags & controls
- *
- * Retires the translucent pill + glowing sine-pulsing dot. That pair is
- * the default look of every AI landing page and every AI dashboard, and
- * it says nothing about this brand. Two tiers replace it:
- *
- *   Tier 1 · LABELS you read: bare hairline, no frame (.bb-tag)
- *   Tier 2 · CONTROLS you click: 1px tan frame, 6px corners (.bb-chip)
- *
- * The line style carries the meaning, so one 11px mono uppercase label
- * reads as live / alpha / pre-release / release / incoming without a fill
- * and without a colour-coded pill. Pills (--bb-radius-pill) survive ONLY
- * on the nav, the nav CTA, primary/ghost buttons, Toggle/Switch and the
- * pricing/billing plan badge: places where a pill is the control shape,
- * not a status decoration.
- *
- * Motion: a light travels along the hairline (.bb-sweep). Never a
- * sine-wave opacity pulse, never three bouncing dots. Both shipped, on
- * the marketing site and in the console, and both read as generic
- * chat-app chrome.
- *
- * This file was two files. The marketing copy (web/marketing style.css)
- * and the console copy (web/kit app.css) were the same block written
- * twice, differing only in which token spelling they used: the marketing
- * copy said var(--tan), var(--muted), var(--dur-base) through a local
- * alias table, the console copy said var(--bb-tan), var(--bb-fg-2),
- * var(--bb-dur-base). Everything below is the --bb-* spelling, which is
- * the only one that exists in every surface: --bb-fg-1/--bb-fg-2 are
- * console-only semantic aliases and resolve here to the --bb-white and
- * --bb-muted they alias, so the rules mean the same thing on marketing,
- * docs and console without any surface having to declare a table first.
- * ───────────────────────────────────────────────────────────────── */
 
 @layer bb.tokens {
     :root {
-        /* One danger red for the whole system. Three existed:
-             #d98a8a  .bb-chip--danger colour, marketing style.css
-             #d98a8a  .bb-chip--danger colour, console app.css (same block)
-             #e07a7a  docs --bb-danger, used by .starlight-aside--danger
-           plus a fourth value hiding in docs' --bb-danger-rgb (220, 90, 90
-           = #dc5a5a), which matched neither of the hexes it sat beside;
-           brand.css already flags that pair as the drift a triplet re-typed
-           from a hex always eventually becomes.
-
-           Resolved to #d98a8a, the chip value, because it is the one two of
-           the three surfaces already ship and the one that appears in live
-           product chrome rather than in prose asides. The docs asides move
-           from #e07a7a to #d98a8a: a 7-point drop in red and a 14-point rise
-           in green/blue, i.e. slightly softer and less saturated, which is
-           the direction the rest of this palette already sits in. The
-           triplet below is that same colour, so the alpha form and the solid
-           form can no longer disagree.
-
-           Lives here rather than in brand.css only because brand.css is
-           closed for this stack; it belongs in the semantic tier next to
-           --bb-focus the moment that tier is opened again. */
         --bb-danger: #d98a8a;
         --bb-danger-rgb: 217, 138, 138;
     }
 }
 
 @layer bb.elements {
-    /* ── Tier 1 · Labels ─────────────────────────────────────────── */
     .bb-tag {
         position: relative;
         display: inline-flex;
@@ -97,33 +35,14 @@
                         background: linear-gradient(90deg, var(--bb-tan), var(--bb-green-glow)) bottom / 100% 1px no-repeat; }
     .bb-tag--quiet    { color: var(--bb-muted);      border-bottom-color: rgba(var(--bb-tan-rgb), 0.20); }
     .bb-tag--incoming { color: var(--bb-green-glow); border-bottom-style: dotted; border-bottom-color: rgba(var(--bb-green-glow-rgb), 0.50); }
-    /* Tag.svelte already exposes tone="error"; the rule used to live only in
-       elements/save-status.css, which Tag does not import. Without this, a
-       Tag used for a fault (Discord offline, a failed audit peek) was an
-       unstyled class. Same #cf8a78 / rgba(176,90,70,0.45) pair save-status
-       already ships: --bb-status-error is console-only. */
     .bb-tag--error    { color: #cf8a78;             border-bottom-color: rgba(176, 90, 70, 0.45); }
 
-    /* Wrap: the tag's text is a SENTENCE, not a short label. Tags are
-       `white-space: nowrap` above because a two-word status label breaking in
-       half reads as two tags; a note long enough to be prose has the opposite
-       problem and gets clipped instead. Was a `.foot :global(.bb-tag)`
-       reach-in on the public leaderboard. */
     .bb-tag--wrap { white-space: normal; text-align: left; }
 
-    /* Literal: the tag's text is USER DATA, not a label this system chose --
-       a command alias typed in chat, a channel name. The uppercase transform
-       above would rewrite it, and a viewer typing what the tag shows would
-       type the wrong thing. Was a `.aliases :global(.bb-tag)` reach-in in the
-       command deck's row. */
     .bb-tag--literal { text-transform: none; letter-spacing: 0.04em; }
 
-    /* Bare: no rule at all. For tags sitting inside an already-bordered row. */
     .bb-tag--bare { border-bottom: 0; padding-bottom: 0; overflow: visible; letter-spacing: 0.14em; }
 
-    /* Marks: a 5px square rotated 45deg is the whole "dot" vocabulary.
-       Never a circle, never a glow: a circle plus a box-shadow is exactly
-       the pattern this system replaces. */
     .bb-mark { width: 5px; height: 5px; flex-shrink: 0; transform: rotate(45deg); background: currentColor; }
     .bb-mark--hollow { background: transparent; border: 1px solid currentColor; }
     .bb-mark--dash   { width: 6px; height: 1px; transform: none; }
@@ -133,8 +52,6 @@
     .bb-mark--plus   { width: auto; height: auto; transform: none; background: none; }
     .bb-mark--plus::before { content: "+"; font-size: 12px; line-height: 0; opacity: 0.6; }
 
-    /* Sweep: the light that replaces the pulse. Needs a position:relative,
-       overflow:hidden parent; it rides that parent's bottom edge. */
     .bb-sweep {
         position: absolute;
         bottom: -1px;
@@ -142,19 +59,12 @@
         width: 30%;
         height: 1px;
         pointer-events: none;
-        /* #b8f0d4 is a lighter mint than --bb-green-glow and is the sweep's
-           own colour, not a palette role: it exists so the travelling light
-           reads brighter than the hairline it rides. Kept as a literal in
-           both original copies and kept as one here. */
         background: linear-gradient(90deg, transparent, #b8f0d4, transparent);
         animation: bb-sweep 3.4s var(--bb-ease-out-expo) infinite;
     }
 
     .bb-sweep--tan { background: linear-gradient(90deg, transparent, var(--bb-tan-pale), transparent); }
 
-    /* Travels on transform, not `left` (see motion.css). The light is 30% of
-       its rail, so -100% of itself is the old left: -30% and 333.33% is the
-       old left: 100%. */
     @keyframes bb-sweep {
         0%        { transform: translateX(-100%); opacity: 0; }
         10%       { opacity: 1; }
@@ -162,8 +72,6 @@
         65%, 100% { transform: translateX(333.333%); opacity: 0; }
     }
 
-    /* Working / typing: a 36px hairline that draws in. Replaces the three
-       bouncing dots, which every messaging app already owns. */
     .bb-drawline {
         position: relative;
         display: inline-block;
@@ -187,9 +95,6 @@
 
     @keyframes bb-draw { 0% { width: 0; } 60%, 100% { width: 100%; } }
 
-    /* ── Tier 2 · Controls ───────────────────────────────────────── */
-    /* The frame exists because non-technical visitors need a rectangle to
-       know a thing is clickable. It is still a rectangle, not a pill. */
     .bb-chip {
         display: inline-flex;
         align-items: center;
@@ -218,64 +123,19 @@
     .bb-chip.is-done { color: var(--bb-green-glow); border-color: rgba(var(--bb-green-glow-rgb), 0.40); background: rgba(var(--bb-green-glow-rgb), 0.07); }
     .bb-chip svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-    /* Eyebrow link: a label, its text and an arrow sharing one chip frame
-       (hero: "beta · A Twitch bot for ItsMavey →"). */
     .bb-chip--eyebrow { gap: 14px; padding: 9px 14px; color: var(--bb-green-glow); }
     .bb-chip--eyebrow .bb-tag { padding-bottom: 5px; }
     .bb-chip--eyebrow .bb-chip__text { font-size: 12.5px; letter-spacing: var(--bb-tracking-eyebrow); text-transform: uppercase; color: var(--bb-tan-light); }
     .bb-chip--eyebrow .bb-chip__arrow { font-size: 13px; color: var(--bb-tan); }
 
-    /* ── Tier 3 · The rail ───────────────────────────────────────
-     * THE ONE RAIL. Every row of mutually exclusive choices in the
-     * product wears this: page filters, in-page section jumps, and
-     * radio form fields. Tabs on a hairline, a
-     * green line that draws in under the active one, a diamond
-     * beside its label. The locale switch is not a rail wearer:
-     * two-letter codes in the nav pill live in elements/nav.css
-     * (`.bb-lang-switch`), a compact cluster matching the bar links.
-     *
-     * It was three idioms for one question. A page filter was a row
-     * of boxed pills (`.bb-seg`, elements/segmented.css, and
-     * before that `.bb-chip` rows on the commands page); a section
-     * jump was this rail; a radio field was a third pill with a
-     * round dot (`.bb-radio`, elements/radio-group.css). So
-     * "which one of these am I looking at" had three answers inside
-     * one console, two of them pills -- and a pill reads as a TAG,
-     * a thing you HAVE, not as a CHOICE you make. That is the same
-     * argument the .bb-tag/.bb-chip split above makes; it lands the
-     * same way here, and the two pill blocks are deleted with it.
-     *
-     * Three item shapes wear the rail and the contract makes all
-     * three the same box:
-     *   <button>          an in-page filter (SegmentedControl)
-     *   <a>               a section jump (SectionNav)
-     *   <label> + <input> a filter that is also a FORM CONTROL and
-     *                     has to survive a no-JS submit
-     *                     (RadioGroup, SegmentedControl+`name`).
-     *                     The input is positioned and zero-sized
-     *                     rather than `display: none`, so it stays
-     *                     focusable and still posts; `:has()` hops
-     *                     the focus ring onto the label, because a
-     *                     ring on a zero-sized box shows nothing. */
     .bb-tabs {
         display: inline-flex;
         gap: 22px;
         border-bottom: 1px solid var(--bb-border);
     }
 
-    /* A rail that wraps instead of overflowing, for a toolbar that shares its
-       row with something elastic (the public commands page puts a search box
-       beside it). `inline-flex` is the default because the rail is normally
-       sized by its tabs; a wrapping rail has to be a block to have a width to
-       wrap inside. This was a `.bb-tabs { display: flex; flex-wrap: wrap }`
-       redeclare in that page's scoped styles. */
     .bb-tabs--wrap { display: flex; flex-wrap: wrap; }
 
-    /* Under 760px a wrapping rail scrolls instead of wrapping, because a
-       wrapped filter set pushes the list it filters below the fold. The
-       scrollbar is hidden in both engines because the rail already shows its
-       own overflow by clipping a tab mid-word. Was `.bb-seg` in
-       elements/segmented.css, which existed only to carry these six lines. */
     @media (max-width: 760px) {
         .bb-tabs--wrap {
             overflow-x: auto;
@@ -309,11 +169,6 @@
                     border-color var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
-    /* The mark. Reserved on EVERY tab and painted only on the active one, so
-       moving the selection never moves the labels -- a rail whose text shifts
-       6px sideways on click reads as a reflow, not as a choice landing. Same
-       5px rotated square as `.bb-mark` above: the dot vocabulary is one
-       shape, and a tab is not allowed a second one. */
     .bb-tab::before {
         content: "";
         flex: 0 0 auto;
@@ -326,11 +181,6 @@
 
     .bb-tab.is-active::before { background: var(--bb-green-glow); }
 
-    /* The underline DRAWS IN from the leading edge rather than switching
-       colour. It is the `.bb-drawline` gesture above -- this system's "the
-       thing you did landed here" motion -- and it is an element rather than
-       the tab's own border-bottom so it can animate: a border-colour swap
-       cannot be scaled, and across five filters it read as a flicker. */
     .bb-tab::after {
         content: "";
         position: absolute;
@@ -349,8 +199,6 @@
     .bb-tab:hover { color: var(--bb-tan-light); border-bottom-color: rgba(var(--bb-tan-rgb), 0.40); }
     .bb-tab.is-active { color: var(--bb-white); }
 
-    /* The count slot: a section rail says how many things are in the section
-       it jumps to. Quiet until its tab is the active one, then it inherits. */
     .bb-tab__count {
         font-size: 10px;
         letter-spacing: 0.04em;
@@ -359,8 +207,6 @@
 
     .bb-tab.is-active .bb-tab__count { color: inherit; }
 
-    /* The form-control shape. See the block comment above for why the input
-       is zero-sized rather than hidden. */
     .bb-tab__input {
         position: absolute;
         opacity: 0;
@@ -373,11 +219,6 @@
         outline-offset: 2px;
     }
 
-    /* ── Orientation ─────────────────────────────────────────────
-     * `vertical` turns the rail 90 degrees: the hairline moves from the
-     * bottom edge to the left one and the line that drew in sideways draws
-     * DOWN instead. Nothing else changes, which is the point -- the same
-     * contract, the same mark, the same motion. */
     .bb-tabs--vertical {
         display: flex;
         flex-direction: column;
@@ -406,14 +247,6 @@
 
     .bb-tabs--vertical .bb-tab.is-active::after { transform: scaleY(1); }
 
-    /* `auto`: horizontal while the column is wide enough for a row of tabs,
-       vertical once it is not.
-
-       A CONTAINER query, not a viewport one. The version this replaces set
-       `display: none` below 980px and drove the current state with a rAF
-       scrollspy: a phone could not jump at all, and the highlight lied after a
-       search dropped sections. Same markup everywhere -- a row when the host
-       is wide, a hairline rail when the column is ~10rem. */
     .bb-tabs-host {
         container-type: inline-size;
         min-width: 0;
@@ -425,7 +258,6 @@
         margin-bottom: 22px;
     }
 
-    /* 44px tap target: this rail is the primary in-page jump on a phone. */
     .bb-tabs--auto .bb-tab { min-height: 44px; }
 
     @container (max-width: 220px) {
@@ -461,12 +293,6 @@
         .bb-tabs--auto .bb-tab.is-active::after { transform: scaleY(1); }
     }
 
-    /* Reduced motion parks the two indicators at a readable resting frame
-       instead of letting a11y.css's global kill switch land them on their
-       last keyframe, where the sweep is off-screen at opacity 0 and reads as
-       a missing element rather than a still one. Neither animation is
-       filled, so once the shortened run ends the element falls back to the
-       declarations here. */
     @media (prefers-reduced-motion: reduce) {
         .bb-sweep { animation: none; transform: translateX(116.667%); opacity: 1; }
         .bb-drawline::after { animation: none; width: 100%; }

@@ -5,32 +5,9 @@
 import { SITE } from '@bagel/kit/site-links';
 
 import '../styles/style.css';
-// Side-effect import: the build-time guards on src/content and the locale
-// catalogs. Here because every page renders through this layout, so there is
-// no page that can skip them.
 import '../lib/contentGuards';
 
-// Fonts are self-hosted: no third-party origin, and no render-blocking
-// stylesheet on one. The original <link href="fonts.googleapis.com/css2?...">
-// made a cold visit pay DNS+TLS to two hosts before first paint, on CSS that
-// browsers cannot reuse across sites because the HTTP cache is partitioned per
-// top-level site. Serving the woff2 files from /_astro (immutable-cached in
-// public/_headers) removes both round-trips.
-//
-// The three Fontsource packages that used to be imported here
-// (@fontsource-variable/syne, @fontsource-variable/dm-sans,
-// @fontsource/dm-mono) are gone: their @font-face rules now live once in
-// @bagel/ui/styles/fonts.css, which style.css imports, so the console and docs
-// get the identical faces instead of two more hand-maintained copies. That
-// also drops the latin-ext and greek subsets Fontsource shipped and this site
-// never requested — 15 woff2 files in dist/_astro became 9.
-// Caveat stays on Fontsource: it is a decorative accent only this site
-// renders, so it does not belong in the shared library.
 import '@fontsource-variable/caveat';
-// Preload only the two faces that render above the fold (display + body, latin
-// upright). Italic, mono and Caveat load on demand — nothing above the fold
-// asks for them, and preloading a font the first screen does not use costs the
-// bandwidth the preload was meant to save.
 import syneLatinWoff2 from '@bagel/ui/fonts/syne-latin.woff2?url';
 import dmSansLatinWoff2 from '@bagel/ui/fonts/dm-sans-latin.woff2?url';
 
@@ -38,14 +15,6 @@ import { ClientRouter } from 'astro:transitions';
 import { getImage } from 'astro:assets';
 import logoImage from '../assets/LogoBOT.png';
 import Cursor from '@bagel/ui/astro/Cursor.astro'
-// The chrome is the design library's, rendered here rather than through a pair
-// of site-local wrappers. Nav.astro and Footer.astro used to sit in
-// components/layout/ and did nothing but resolve this site's links before
-// handing them to these same two components; the console had its own matching
-// pair. Four files, two implementations, one bar. What the library refuses to
-// know -- the copy and the destinations -- is resolved below, and the
-// destinations are @bagel/kit/site-links, the SAME list the console's
-// signed-out layout resolves in web/dashboard/src/routes/(public)/+layout.svelte.
 import Nav from '@bagel/ui/astro/Nav.astro'
 import Footer from '@bagel/ui/astro/Footer.astro'
 import LanguageSwitcher from '@bagel/ui/astro/LanguageSwitcher.astro'
@@ -68,13 +37,9 @@ import { getLangFromUrl, LOCALIZED_PATHS, locales, defaultLang, splitLocale, loc
 interface Props {
     title?: string;
     description?: string;
-    /** Share-card image: absolute URL or site-root path. Defaults to /og-image.png. */
     image?: string;
-    /** Open Graph object type. 'website' for landing pages, 'article' for legal/docs. */
     ogType?: string;
-    /** Keep the page out of search indexes (still crawlable for link discovery). */
     noindex?: boolean;
-    /** Page-specific JSON-LD nodes appended to the site @graph (TechArticle, BreadcrumbList, …). */
     extraSchema?: Record<string, unknown>[];
 }
 
@@ -90,26 +55,16 @@ const {
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
-// Absolute URLs for canonical + social cards. Astro.site is the production
-// origin (astro.config); resolving against it turns page-relative paths into
-// the fully-qualified URLs crawlers and share-card scrapers require.
 const canonicalURL = new URL(Astro.url.pathname, Astro.site).href;
 const ogImageURL = new URL(image, Astro.site).href;
 const siteName = 'ItsBagelBot';
 const ogLocale = t('lang.ogLocale');
-// One og:locale:alternate per other locale, each in its own tongue's code.
 const altOgLocales = locales.filter((l) => l !== lang).map((l) => useTranslations(l)('lang.ogLocale'));
 
-// Let AI answer-engines and search bots pull the biggest preview + full
-// snippet; noindex pages still allow link-following for discovery.
 const robotsContent = noindex
     ? 'noindex, follow'
     : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 
-// Structured data (@graph): who publishes the site, the site itself, and the
-// product. Search engines and LLMs read this to describe ItsBagelBot precisely
-// (name, free pricing, feature list, official links). type="application/ld+json"
-// is a non-executable data island, so the strict script-src CSP doesn't gate it.
 const ORIGIN = new URL(Astro.site!).origin;
 const structuredData = {
     '@context': 'https://schema.org',
@@ -163,10 +118,6 @@ const structuredData = {
                 'Polls',
                 'Game stat integrations (Valorant rank, Hypixel Bedwars, MCSR Ranked, Fortnite)',
             ],
-            // Song requests are the highest-intent entry point into the
-            // product ("twitch spotify song request bot"), so the terms people
-            // actually type sit in the graph as well as in the page copy:
-            // answer engines quote the graph verbatim when they name features.
             keywords: [
                 'Twitch Spotify song requests',
                 'Twitch song request bot',
@@ -181,10 +132,6 @@ const structuredData = {
     ],
 };
 
-// hreflang alternates for the routes that exist in every locale, so search
-// engines pair the translated versions instead of treating them as duplicates.
-// splitLocale strips any locale prefix to the shared base path; each locale then
-// re-localizes it. x-default points at the default locale.
 const { path: basePath } = splitLocale(Astro.url.pathname);
 const hasAlternates = LOCALIZED_PATHS.has(basePath);
 const alternates = hasAlternates
@@ -192,19 +139,12 @@ const alternates = hasAlternates
     : [];
 const xDefaultHref = new URL(localizePath(basePath, defaultLang), Astro.site).href;
 
-// ─────────────────────────── the chrome's data ───────────────────────────
-// Trailing slashes normalized both sides: localizePath always emits one and
-// Astro serves both shapes, so a raw compare lights nothing.
 const currentPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
 const isActive = (href: string) =>
     href.startsWith("/") && href.replace(/\/+$/, "") === currentPath;
 
-// The console has no localized routes, so a link into it carries ?lang=.
 const langQuery = lang === defaultLang ? '' : `?lang=${lang}`;
 
-// Marketing keeps RELATIVE localized paths so its own links stay on-site and
-// keep Astro's prefetching; the console resolves the same defs to absolute
-// itsbagelbot.com URLs, because from there every one of them leaves the app.
 const navContext = {
     path: (path: string) => localizePath(path, lang),
     label: (key: string) => t(`nav.${key}` as Parameters<typeof t>[0]),
@@ -223,20 +163,9 @@ const footerLegal = resolveSiteLinks(SITE_LEGAL, footerContext);
 const navLocales = localeOptions(Astro.url);
 const getAppHref = dashboardHref('/?install=1', langQuery);
 
-// The marks are resolved through getImage rather than passed as the raw
-// import: LogoBOT.png is a 1 MB source file, and `logoImage.src` would put THAT
-// in the bar on every page. 52px is the nav's 26px mark at 2x, 110px the
-// footer's 55px. Same reason and same shape as the builder's avatar
-// (CommandBuilder.astro).
 const navLogo = await getImage({ src: logoImage, width: 52, height: 52, format: 'webp' });
 const footerLogo = await getImage({ src: logoImage, width: 110, height: 110, format: 'webp' });
 
-// The ownership colophon is NOT a copy decision: it is bot-specific,
-// homepage-only, and load-bearing for an external ownership check, which is
-// why @bagel/ui's footer takes it as a slot instead of owning it. It names the
-// owner, so it keeps the {ign} placeholder split that lets each locale put the
-// linked handle where its own prose needs it. The game trademark notices live
-// in the Terms of Service (11-third-party).
 const [ownerBefore, ownerAfter = ''] = t('about.line1').split('{ign}');
 const [keyBefore, keyAfter = ''] = t('about.mcLine').split('{ign}');
 const isHome = (currentPath === "/" ? "/" : `${currentPath}/`) === localizePath('/', lang);
@@ -275,8 +204,6 @@ const contentSecurityPolicy = [
     <link rel="canonical" href={canonicalURL}/>
     <meta name="robots" content={robotsContent}/>
 
-    <!-- Browser-chrome tint: matches the dark page bg so the mobile address
-         bar blends instead of clashing. -->
     <meta name="theme-color" content="#0a0a0a"/>
     <meta name="color-scheme" content="dark"/>
 
@@ -295,7 +222,6 @@ const contentSecurityPolicy = [
     <meta name="application-name" content={siteName} />
     <meta name="apple-mobile-web-app-title" content={siteName} />
 
-    <!-- Open Graph: link previews on Discord, Facebook, LinkedIn, iMessage. -->
     <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content={siteName} />
     <meta property="og:title" content={title} />
@@ -310,7 +236,6 @@ const contentSecurityPolicy = [
         <meta property="og:locale:alternate" content={code} />
     ))}
 
-    <!-- Twitter/X large summary card. -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
@@ -328,14 +253,8 @@ const contentSecurityPolicy = [
 
     <title>{title}</title>
 
-    <!-- SPA-style navigation. The site's components re-init on
-         astro:page-load and clean up on astro:before-swap; this wires them up.
-         Uses Astro's default view transition (no custom ::view-transition
-         animation). The router script is bundled (assetsInlineLimit:0 keeps it
-         external) so it stays within the strict script-src 'self' CSP. -->
     <ClientRouter />
 
-    <!-- Structured data for search engines + LLM answer engines. -->
     <script type="application/ld+json" set:html={JSON.stringify(structuredData)} is:inline />
 </head>
 
@@ -359,8 +278,6 @@ const contentSecurityPolicy = [
             <div class="mobile-menu__lang"><LanguageSwitcher options={navLocales} ariaLabel="Language" /></div>
         </Fragment>
     </Nav>
-    <!-- The rail is @bagel/ui's; the five accounts it points at are the
-         bot's, so they come from @bagel/kit. -->
     <SocialRail items={SOCIAL_LINKS} ariaLabel={t('nav.social')}/>
     <ReadingProgress/>
     <Brackets/>
@@ -373,12 +290,6 @@ const contentSecurityPolicy = [
         note={t('footer.note')}
         style="--footer-signoff-sub-font: var(--font-hand, 'Caveat', cursive);"
     >
-        {/* Deliberately NOT gated behind data-reveal: every revealed block starts at
-            opacity 0 (reveal.css [data-reveal]) and only appears once the reveal
-            observer runs, and Hypixel verifies ownership by scanning served HTML for
-            the username as visible text. A reviewer with JS off has to find ItsMavey
-            here, so this stays statically visible. The id stays "about": it is the
-            ownership colophon; tests/site.spec.js scans #about for the NameMC links. */}
         {isHome && <section class="colophon" slot="colophon">
             <div class="colophon__owner" id="about">
                 <p class="colophon__line">{ownerBefore}<a
@@ -415,12 +326,6 @@ const contentSecurityPolicy = [
     .skip-link {
         position: absolute;
         left: 12px;
-        /* Parked off-screen with a transform, not with `top: -60px`, so the
-           reveal runs on the compositor. `top` animates layout: it was the one
-           layout-animating transition on every page of the site, since this
-           link is in the shared layout. -72px = the focused 12px offset plus
-           the 60px this used to sit at, so the resting and focused positions
-           are pixel-identical to before. */
         top: 12px;
         transform: translateY(-72px);
         z-index: 200;
@@ -439,15 +344,10 @@ const contentSecurityPolicy = [
         transform: translateY(0);
     }
 
-    /* No box: keeps the landmark for a11y without disturbing the hero/Encryption
-       sticky + scroll math (which assumes top-level sections are body children). */
     main {
         display: contents;
     }
 
-    /* The two rows this site adds to the panel's footer. They are slotted into
-       @bagel/ui's panel, and slotted markup carries the scope attribute of the
-       file it is WRITTEN in -- this one -- so these rules reach it. */
     .mobile-menu__app {
         display: block;
         text-align: center;
@@ -483,10 +383,6 @@ const contentSecurityPolicy = [
         margin: 0 auto;
     }
 
-    /* Named, not `.colophon__owner p`: the colophon's own line. 0.72rem is
-       below the type scale's smallest step on purpose -- this is the legal
-       footer under the footer, and it is sized to be findable rather than
-       read. */
     .colophon__line {
         margin: 0 0 8px;
         font-size: 0.72rem;

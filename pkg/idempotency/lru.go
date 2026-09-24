@@ -10,17 +10,6 @@ import (
 	"time"
 )
 
-// NewTiered fronts inner with a bounded per-pod LRU claim cache. A same-pod
-// redelivery burst (the common case: one pod holds the whole lane and the server
-// resends the same stored message) is absorbed locally with zero network — a
-// cache hit short-circuits Seen to "duplicate" without touching inner. A miss
-// falls through to inner and records the resulting claim locally. The two tiers
-// compose as a Store, so callers see one interface regardless of depth.
-//
-// capacity bounds the cache; entries also expire at their own ttl, so a claim
-// never lingers past the idempotency window. A local eviction is safe: it only
-// forces the next delivery of that key to consult inner, which is still
-// authoritative.
 func NewTiered(capacity int, inner Store) Store {
 	return &lruStore{inner: inner, cache: newTTLLRU(capacity, time.Now)}
 }
@@ -30,21 +19,15 @@ type lruStore struct {
 	cache *ttlLRU
 }
 
-// claimKey is a caller's idempotency key as the local tier holds it. The cache
-// is keyed on the UNPREFIXED key the caller passed, never on the prefix-composed
-// string ValkeyStore writes; the two are the same width and the same underlying
-// type, and mixing them would leave a local claim no lookup ever finds. Naming
-// the local one is what stops the conversion from being silent.
 type claimKey string
 
 func (l *lruStore) Seen(ctx context.Context, key string, ttl time.Duration) (bool, error) {
 	if l.cache.has(claimKey(key)) {
-		return true, nil // already claimed on this pod
+		return true, nil
 	}
+	// Never cache a fail-open miss: a retry must be free to claim once the backend recovers.
 	seen, err := l.inner.Seen(ctx, key, ttl)
 	if err != nil {
-		// inner failed open. Do NOT cache the miss: a retry must be free to claim
-		// once the backend recovers, and caching would mask the outage.
 		return seen, err
 	}
 	l.cache.add(claimKey(key), ttl)
@@ -52,15 +35,11 @@ func (l *lruStore) Seen(ctx context.Context, key string, ttl time.Duration) (boo
 }
 
 func (l *lruStore) Release(ctx context.Context, key string) error {
-	// Drop the local claim too, or a same-pod redelivery of the FAILED effect
-	// would short-circuit to "duplicate" and never re-run.
+	// Drop the local claim too, or a same-pod redelivery short-circuits and never re-runs.
 	l.cache.remove(claimKey(key))
 	return l.inner.Release(ctx, key)
 }
 
-// ttlLRU is a fixed-capacity, per-key TTL cache with LRU eviction. It is the
-// per-pod tier's local claim set; it holds only keys (presence is the claim), so
-// its footprint is bounded by capacity regardless of value size.
 type ttlLRU struct {
 	mu    sync.Mutex
 	cap   int
@@ -89,7 +68,6 @@ func newTTLLRU(capacity int, now func() time.Time) *ttlLRU {
 	}
 }
 
-// has reports whether key holds a live claim, dropping it if it has expired.
 func (c *ttlLRU) has(key claimKey) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -105,7 +83,6 @@ func (c *ttlLRU) has(key claimKey) bool {
 	return true
 }
 
-// add records a claim for ttl, refreshing an existing key in place.
 func (c *ttlLRU) add(key claimKey, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -15,34 +15,18 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// busError is one error shape a confirmed publish can hand back, copied
-// verbatim from the pkg/bus line that builds it.
 type busError struct {
-	name string
-	// from names the pkg/bus function this shape is copied from. When one of
-	// those changes, this table is what has to change with it.
-	from string
-	err  error
-	// retry is whether preAdmission may republish on it, and why.
+	name  string
+	from  string
+	err   error
 	retry bool
 	why   string
 }
 
-// startErr is the send failure joinAsyncCohort wraps. pkg/bus builds it in
-// startAsync: fmt.Errorf("bus: async publish %s: %w", req.msg.Subject, err).
 func startErr(cause error) error {
 	return fmt.Errorf("bus: async publish %s: %w", ddiscord.LaneDefault, cause)
 }
 
-// busPublishErrors is every error a caller can see out of
-// bus.PublishConfirmed -> publisherPool.PublishOwnedWithID ->
-// batchPublisher.publish (admit, then awaitPublishConfirmation).
-//
-// This is a fake rather than a real bus.Publisher on an in-process broker
-// because the repo has no test server helper to point one at: nothing under
-// pkg/bus imports nats-server/v2/test, and nats-server is not a module
-// dependency at all. So the contract is pinned against the exact strings and
-// sentinels pkg/bus constructs instead, each case naming its source.
 func busPublishErrors() []busError {
 	return []busError{{
 		name:  "missing message id",
@@ -97,9 +81,6 @@ func busPublishErrors() []busError {
 	}}
 }
 
-// TestConfirmedPublishErrorsAreClassifiedHonestly walks every shape the
-// confirmed path produces and asserts dispatch republishes on exactly the
-// one that proves nothing was stored.
 func TestConfirmedPublishErrorsAreClassifiedHonestly(t *testing.T) {
 	for _, tc := range busPublishErrors() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -111,10 +92,6 @@ func TestConfirmedPublishErrorsAreClassifiedHonestly(t *testing.T) {
 	}
 }
 
-// And the retry loop must act on that classification rather than merely
-// computing it: a shape that may have stored a prefix gets exactly one
-// attempt, and the ERROR line says retried=false so an operator knows to go
-// look on the stream instead of assuming the command is simply gone.
 func TestConfirmedPublishRetryLoopMatchesTheClassification(t *testing.T) {
 	for _, tc := range busPublishErrors() {
 		t.Run(tc.name, func(t *testing.T) {

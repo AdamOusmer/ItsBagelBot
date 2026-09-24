@@ -13,9 +13,6 @@ export const TIMERS_MODULE: ModuleDef =
   category: 'Chat',
   defaultEnabled: false,
   href: '/timers',
-  // Timers has no standalone grant: the 'commands' grant has always covered
-  // it too (see the settings page SECTIONS comment). 'timers' keeps legacy
-  // grants minted with a bare timers section working.
   delegateSections: ['modules', 'commands', 'timers'],
   replies: []
 };

@@ -25,17 +25,10 @@ func NewLeaseClient(client valkey.Client) *LeaseClient {
 }
 
 const (
-	// memberSetKey is the Valkey sorted set that is the fleet's membership
-	// authority: score is each pod's presence expiry (unix millis), member is its
-	// encoded identity. It lives in the same store as the quota plans so every pod
-	// derives an identical fleet view without depending on NATS discovery fan-out.
 	memberSetKey    = "outgress:members:v2"
 	memberSeparator = "|"
 )
 
-// encodeMember packs a pod's stable identity into one sorted-set member. Pod IDs
-// and regions are Kubernetes object names (a pod name and a node name), so the
-// separator can never occur inside either half.
 func encodeMember(m Member) string { return m.PodID + memberSeparator + m.Region }
 
 func decodeMember(entry string) (Member, bool) {
@@ -49,22 +42,13 @@ func decodeMember(entry string) (Member, bool) {
 	return Member{PodID: podID, Region: region}, true
 }
 
-// Heartbeat records self as a live member whose presence expires ttl in the
-// future. The coordinator refreshes it on an interval well under ttl; a crashed
-// pod stops refreshing and is pruned once its score falls into the past, which
-// is the self-healing property.
 func (c *LeaseClient) Heartbeat(ctx context.Context, self Member, now time.Time, ttl time.Duration) error {
 	score := float64(now.Add(ttl).UnixMilli())
 	return c.client.Do(ctx, c.client.B().Zadd().Key(memberSetKey).ScoreMember().ScoreMember(score, encodeMember(self)).Build()).Error()
 }
 
-// ListMembers returns the pods whose presence has not expired as of now and
-// prunes the rest. A live member's score sits a full ttl ahead, so a read served
-// by a lagging replica still sees it; only genuinely dead pods fall out.
 func (c *LeaseClient) ListMembers(ctx context.Context, now time.Time) ([]Member, error) {
 	nowMS := strconv.FormatInt(now.UnixMilli(), 10)
-	// Best-effort housekeeping: the score filter below already ignores expired
-	// rows, so a prune failure only leaves them to be pruned on a later pass.
 	_ = c.client.Do(ctx, c.client.B().Zremrangebyscore().Key(memberSetKey).Min("-inf").Max("("+nowMS).Build()).Error()
 	entries, err := c.client.Do(ctx, c.client.B().Zrangebyscore().Key(memberSetKey).Min(nowMS).Max("+inf").Build()).AsStrSlice()
 	if err != nil {
@@ -80,13 +64,10 @@ func (c *LeaseClient) ListMembers(ctx context.Context, now time.Time) ([]Member,
 	return members, nil
 }
 
-// RemoveMember drops self from the registry on graceful shutdown so the fleet
-// re-divides quota at the next epoch rather than waiting out the presence ttl.
 func (c *LeaseClient) RemoveMember(ctx context.Context, self Member) error {
 	return c.client.Do(ctx, c.client.B().Zrem().Key(memberSetKey).Member(encodeMember(self)).Build()).Error()
 }
 
-// ProposePlan attempts to publish a new plan for the epoch.
 func (c *LeaseClient) ProposePlan(ctx context.Context, plan *Plan, replicas int, timeout time.Duration) (bool, error) {
 	if err := plan.Validate(); err != nil {
 		return false, err
@@ -99,20 +80,16 @@ func (c *LeaseClient) ProposePlan(ctx context.Context, plan *Plan, replicas int,
 		return false, err
 	}
 
-	// We need a dedicated connection to run WATCH, MULTI, and WAIT in sequence.
+	// WATCH, MULTI and WAIT must run on one dedicated connection.
 	conn, cancel := c.client.Dedicate()
 	defer cancel()
 
-	// WATCH the plan key
 	if err := conn.Do(ctx, conn.B().Watch().Key(key).Build()).Error(); err != nil {
 		return false, err
 	}
 
-	// Ensure it's absent. Note: Get returns Nil error if missing, we just want to ensure it doesn't already have data.
 	existingData, err := conn.Do(ctx, conn.B().Get().Key(key).Build()).AsBytes()
 	if err == nil {
-		// Recover a winner that may have crashed between the plan replication
-		// barrier and publishing its commit marker.
 		_ = conn.Do(ctx, conn.B().Unwatch().Build()).Error()
 		var existing Plan
 		if err := codec.Unmarshal(existingData, &existing); err != nil {
@@ -136,22 +113,17 @@ func (c *LeaseClient) ProposePlan(ctx context.Context, plan *Plan, replicas int,
 		return false, err
 	}
 
-	// MULTI
 	if err := conn.Do(ctx, conn.B().Multi().Build()).Error(); err != nil {
 		return false, err
 	}
 
 	retention := planRetention(*plan)
-	// Queue the immutable plan with bounded retention. Command queueing errors
-	// are surfaced by EXEC, which is read below.
 	if err := conn.Do(ctx, conn.B().Set().Key(key).Value(string(data)).Px(retention).Build()).Error(); err != nil {
 		return false, err
 	}
 
-	// EXEC
 	execRes := conn.Do(ctx, conn.B().Exec().Build())
 	if err := execRes.Error(); err != nil {
-		// Transaction aborted or failed
 		if valkey.IsValkeyNil(err) {
 			return false, nil
 		}
@@ -171,7 +143,6 @@ func (c *LeaseClient) ProposePlan(ctx context.Context, plan *Plan, replicas int,
 	return true, nil
 }
 
-// LoadPlan reads the plan for an epoch.
 func (c *LeaseClient) LoadPlan(ctx context.Context, epoch uint64) (*Plan, error) {
 	key := fmt.Sprintf("outgress:plan:v2:%d", epoch)
 	results := c.client.DoMulti(ctx,

@@ -47,9 +47,7 @@ func NewGiveawayRPC(cfg GiveawayRPCConfig) *GiveawayRPC {
 	return &GiveawayRPC{store: cfg.Store, db: cfg.DB, users: cfg.Users, config: cfg.Config, rulesVersion: cfg.RulesVersion, log: cfg.Log}
 }
 
-// SubscribeGiveaways installs the complete admin and user-scoped surface.
-// Authorization is deliberately inside every admin handler, so adding a new
-// verb cannot accidentally inherit a caller-supplied role.
+// Every admin handler authorizes itself, so a new verb cannot inherit a caller-supplied role.
 func SubscribeGiveaways(w bus.RPCWiring, service *GiveawayRPC) error {
 	if service == nil {
 		return errors.New("giveaway rpc service is nil")

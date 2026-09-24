@@ -53,8 +53,6 @@ func TestPermitService(t *testing.T) {
 		SharedRateMicros: limitMicros(sharedRate), SharedBurst: sharedBurst,
 		DeadlineMS: time.Now().Add(time.Second).UnixMilli(),
 	}
-	// First request creates an empty share. Let it earn a token, then use a
-	// stable request ID to verify lender-side deduplication.
 	_ = manager.GrantPermit(time.Now(), request)
 	time.Sleep(100 * time.Millisecond)
 	data, err := codec.Marshal(&request)
@@ -85,7 +83,6 @@ func TestPermitService(t *testing.T) {
 		t.Fatalf("duplicate grant = %q, want %q", duplicate.GrantID, first.GrantID)
 	}
 
-	// Also cover the client wrapper and reply validation with a new request.
 	time.Sleep(100 * time.Millisecond)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

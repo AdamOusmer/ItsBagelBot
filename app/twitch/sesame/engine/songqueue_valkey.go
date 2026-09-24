@@ -18,19 +18,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// Sentinel failures the songqueue module maps onto friendly chat lines. The
-// contended error means the compare-and-set retry budget ran out against a
-// hot channel: rare by construction (chat-paced writes), and safe to surface
-// as a generic retry hint rather than a specific one.
 var (
 	ErrSongQuotaReached = errors.New("requester is at their song quota")
 	ErrSongQueueFull    = errors.New("song queue is at its depth cap")
 	errSongQueueStale   = errors.New("song queue changed under us")
 )
 
-// SongEntry is one requested track in a channel's song queue. RequesterID is
-// the Twitch user id captured at request time: retract authorization keys on
-// it, never on the display name (names collide and change).
 type SongEntry struct {
 	TrackID       string   `json:"tid"`
 	Title         string   `json:"title"`
@@ -40,69 +33,30 @@ type SongEntry struct {
 	URL           string   `json:"url,omitempty"`
 	RequesterID   string   `json:"req_id"`
 	RequesterName string   `json:"req_name"`
-	EnqueuedAt    int64    `json:"at"` // unix millis
-	// Position is filled by reads only (1-based spot in the up-next list);
-	// it is never persisted.
-	Position int `json:"-"`
+	EnqueuedAt    int64    `json:"at"`
+	Position      int      `json:"-"`
 }
 
-// SongQueueSnapshot is a point-in-time read of one channel's queue.
 type SongQueueSnapshot struct {
 	Current *SongEntry
 	UpNext  []SongEntry
 }
 
-// SongQueueLimits bundles the two caps Add enforces, both 0-means-unlimited:
-// the channel-wide line depth and the per-requester pending count. Splitting
-// these across two positional int arguments (their original shape) let a
-// caller transpose them without the compiler noticing, since both are plain
-// int; a named struct field makes the transposition a compile error instead.
 type SongQueueLimits struct {
 	MaxDepth     int
 	PerRequester int
 }
 
-// SongQueueStore holds the per-broadcaster song-request state: the track
-// being played now plus the ordered line behind it. The songqueue module
-// drives it from chat (!sr …); nothing else writes it.
 type SongQueueStore interface {
-	// Add appends the resolved track unless the requester already has
-	// limits.PerRequester entries pending (0 means unlimited; the quota is the
-	// caller's per-tier policy) or the line is at limits.MaxDepth. It returns
-	// the requester-facing 1-based position. Retraction stays unambiguous
-	// under a quota above one because RetractOwn takes the most recent entry.
 	Add(ctx context.Context, broadcasterID uint64, entry SongEntry, limits SongQueueLimits) (pos int, err error)
-	// RetractOwn removes the requester's most recent pending entry: the one
-	// thing a viewer may do to anyone's requests. The currently-playing track
-	// is intentionally out of reach: it is already playing.
 	RetractOwn(ctx context.Context, broadcasterID uint64, requesterID string) (SongEntry, bool, error)
-	// RemoveAt takes the 1-based up-next entry out of the line (a moderator
-	// action; viewers have no positional reach).
 	RemoveAt(ctx context.Context, broadcasterID uint64, position int) (SongEntry, bool, error)
-	// SyncPlaying reconciles the list with what the player is audibly on.
-	// Spotify plays through its own queue without telling anyone, so entries
-	// sesame pushed stay "up next" here long after they played; the next add
-	// then reports a position counting ghosts. When trackID matches a pending
-	// entry, everything before it is dropped as played and that entry becomes
-	// current. A track the list has never seen (the broadcaster's own music)
-	// changes nothing. Returns whether the doc changed.
 	SyncPlaying(ctx context.Context, broadcasterID uint64, trackID string) (bool, error)
-	// Advance marks the head as now-playing and promotes the next entry,
-	// returning what just finished and what started. On an empty line it
-	// clears a stale current instead of inventing one.
 	Advance(ctx context.Context, broadcasterID uint64) (finished, nowPlaying *SongEntry, err error)
-	// Clear empties everything including the now-playing pointer.
 	Clear(ctx context.Context, broadcasterID uint64) error
-	// Snapshot reads the current state; upNext caps how many waiting entries
-	// come back (negative asks for all).
 	Snapshot(ctx context.Context, broadcasterID uint64, upNext int) (SongQueueSnapshot, error)
 }
 
-// songQueueDoc is the whole per-channel state in one document. One key keeps
-// every mutation a single compare-and-set: the alternatives (zset + hash +
-// dedupe index) would need multi-key scripts to enforce the one-request-per-
-// viewer and depth-cap invariants atomically, which is strictly more moving
-// parts around the same chat-paced traffic.
 type songQueueDoc struct {
 	Current *SongEntry  `json:"current,omitempty"`
 	Up      []SongEntry `json:"up,omitempty"`
@@ -111,16 +65,9 @@ type songQueueDoc struct {
 const (
 	songQueueDocPrefix = "songqueue:doc:"
 
-	// casRetries bounds the optimistic-concurrency loop. Contention requires
-	// two replicas mutating one channel's queue within the sub-millisecond
-	// read-to-cas window; five rounds is far past anything chat cadence can
-	// sustain, and exhausting it fails loudly instead of writing blind.
 	casRetries = 5
 )
 
-// casScript writes newDoc only while the stored document still equals oldDoc
-// ("" denotes absent), re-arming the safety TTL on success. Returning 0 sends
-// the caller around the loop with fresh reads.
 const casScript = `
 local cur = redis.call('GET', KEYS[1])
 if (cur == false and ARGV[1] == '') or (cur ~= false and cur == ARGV[1]) then
@@ -129,18 +76,12 @@ if (cur == false and ARGV[1] == '') or (cur ~= false and cur == ARGV[1]) then
 end
 return 0`
 
-// ValkeySongQueueStore backs SongQueueStore with one JSON document per
-// broadcaster, mutated through a get → apply → CAS loop.
 type ValkeySongQueueStore struct {
 	client valkey.Client
 	ttl    time.Duration
 	log    *zap.Logger
 }
 
-// NewValkeySongQueueStore builds the store on a primary-consistent view, for
-// the same reason as NewValkeyQueueStore: every read follows a write chat
-// just made, and a node-local replica answering makes the bot contradict
-// itself ("you're #2!" then "!sr" shows four people ahead of them).
 func NewValkeySongQueueStore(client valkey.Client, ttl time.Duration, log *zap.Logger) *ValkeySongQueueStore {
 	if ttl <= 0 {
 		ttl = 24 * time.Hour
@@ -151,26 +92,15 @@ func NewValkeySongQueueStore(client valkey.Client, ttl time.Duration, log *zap.L
 	return &ValkeySongQueueStore{client: pkg_valkey.Primary(client), ttl: ttl, log: log}
 }
 
-// docKey and rawDoc are the two strings the CAS loop threads together: the
-// key a channel's document lives under and the serialized payload stored
-// there. They sit side by side as adjacent fields of docState and as adjacent
-// arguments to the Lua script, where swapping them is silent and ruinous (the
-// CAS would compare the stored document against its own key and overwrite a
-// live queue on every attempt). Distinct types make that swap a compile error.
 type (
 	docKey string
-	rawDoc string // "" denotes an absent document, which the CAS script matches on
+	rawDoc string
 )
 
 func songQueueDocKey(id uint64) docKey {
 	return docKey(cache.UserKey(songQueueDocPrefix, id))
 }
 
-// docState is one read of a channel's document: the raw payload the next
-// CAS must match ("" denotes absent) and its decoded form, under the key
-// they both belong to. Bundling them keeps the read, the mutation and the
-// commit referring to ONE snapshot instead of threading key/raw/decoded as
-// loose primitives through every hop of the retry loop.
 type docState struct {
 	key docKey
 	raw rawDoc
@@ -204,10 +134,6 @@ func (s *ValkeySongQueueStore) cas(ctx context.Context, st docState, newDoc rawD
 	return n == 1, nil
 }
 
-// mutate runs fn against the freshest document until its write lands
-// compare-and-set clean. fn reports domain failures (already queued, full)
-// as errors, which abort the loop untouched. An unchanged document skips the
-// write entirely.
 func (s *ValkeySongQueueStore) mutate(ctx context.Context, broadcasterID uint64, fn func(*songQueueDoc) error) error {
 	for range casRetries {
 		st, err := s.loadDoc(ctx, broadcasterID)
@@ -228,9 +154,6 @@ func (s *ValkeySongQueueStore) mutate(ctx context.Context, broadcasterID uint64,
 	return errSongQueueStale
 }
 
-// loadDoc reads the channel's document and decodes it. A corrupt or
-// foreign-format payload resets to an empty queue rather than bricking the
-// channel forever: the log line is the audit trail for that decision.
 func (s *ValkeySongQueueStore) loadDoc(ctx context.Context, broadcasterID uint64) (docState, error) {
 	st := docState{key: songQueueDocKey(broadcasterID)}
 	raw, err := s.readDoc(ctx, st.key)
@@ -249,11 +172,6 @@ func (s *ValkeySongQueueStore) loadDoc(ctx context.Context, broadcasterID uint64
 	return st, nil
 }
 
-// commit encodes the snapshot's mutated document and compare-and-sets it
-// over the raw payload the snapshot was read with. done reports a finished
-// mutation: either the document did not change (skip the write entirely) or
-// the CAS landed. false with no error sends the caller around for another
-// round with fresh reads.
 func (s *ValkeySongQueueStore) commit(ctx context.Context, st docState) (bool, error) {
 	newB, err := codec.Marshal(st.doc)
 	if err != nil {
@@ -283,22 +201,6 @@ func (s *ValkeySongQueueStore) Add(ctx context.Context, broadcasterID uint64, en
 	return pos, err
 }
 
-// requesterAtQuota reports whether requesterID already holds l.PerRequester
-// entries in up. It stops at the cap instead of tallying the whole queue: only
-// the "at or over" answer is observable, so a MaxDepth-deep queue costs the
-// walk up to the requester's cap-th entry rather than the full length. The
-// exact count was never used, only compared.
-//
-// Both caps hang off SongQueueLimits rather than passing the number as a bare
-// int, for the reason the type exists at all: MaxDepth and PerRequester are
-// both plain ints, and a helper taking one of them positionally puts them one
-// mistyped call site apart again. As methods the 0-means-unlimited rule also
-// lives with the fields that define it instead of being respelled in Add.
-//
-// The quota walk is deliberately still ahead of the O(1) queueFull check even
-// though hoisting depth would skip it entirely on a full queue: a requester
-// who is BOTH at quota and facing a full queue must keep hearing the quota
-// message, which is the copy songqueue.go and songqueue_redeem.go branch on.
 func (l SongQueueLimits) requesterAtQuota(up []SongEntry, requesterID string) bool {
 	if l.PerRequester <= 0 {
 		return false
@@ -316,49 +218,42 @@ func (l SongQueueLimits) requesterAtQuota(up []SongEntry, requesterID string) bo
 	return false
 }
 
-// queueFull reports whether the line has reached the channel-wide depth cap.
 func (l SongQueueLimits) queueFull(up []SongEntry) bool {
 	return l.MaxDepth > 0 && len(up) >= l.MaxDepth
 }
 
-// RetractOwn keeps its scan-then-shift shape on purpose. Fusing the backward
-// scan with the removal is not possible without speculatively moving entries
-// the walk has not yet justified moving (the match is the LAST occurrence, so
-// it is only known once the tail has been visited), and it would buy nothing:
-// mutate has already unmarshalled the whole document at O(N) and will
-// re-marshal it at O(N), so one extra memmove over the tail is noise against
-// that. The storage model, not the shift, is what sets the cost here.
 func (s *ValkeySongQueueStore) RetractOwn(ctx context.Context, broadcasterID uint64, requesterID string) (SongEntry, bool, error) {
-	var (
-		out SongEntry
-		ok  bool
-	)
-	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
-		// Latest-first: a viewer fixing a typo wants their newest ask gone.
-		for i := len(d.Up) - 1; i >= 0; i-- {
-			if d.Up[i].RequesterID == requesterID {
-				out = d.Up[i]
-				out.Position = i + 1
-				d.Up = append(d.Up[:i], d.Up[i+1:]...)
-				ok = true
-				return nil
+	return s.removeWhere(ctx, broadcasterID, func(up []SongEntry) int {
+		for i := len(up) - 1; i >= 0; i-- {
+			if up[i].RequesterID == requesterID {
+				return i
 			}
 		}
-		return nil
+		return noSongIndex
 	})
-	return out, ok, err
 }
 
 func (s *ValkeySongQueueStore) RemoveAt(ctx context.Context, broadcasterID uint64, position int) (SongEntry, bool, error) {
+	return s.removeWhere(ctx, broadcasterID, func(up []SongEntry) int {
+		if position < 1 || position > len(up) {
+			return noSongIndex
+		}
+		return position - 1
+	})
+}
+
+const noSongIndex = -1
+
+func (s *ValkeySongQueueStore) removeWhere(ctx context.Context, broadcasterID uint64, pick func(up []SongEntry) int) (SongEntry, bool, error) {
 	var (
 		out SongEntry
 		ok  bool
 	)
 	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
-		if position < 1 || position > len(d.Up) {
+		i := pick(d.Up)
+		if i == noSongIndex {
 			return nil
 		}
-		i := position - 1
 		out = d.Up[i]
 		out.Position = i + 1
 		d.Up = append(d.Up[:i], d.Up[i+1:]...)
@@ -371,9 +266,6 @@ func (s *ValkeySongQueueStore) RemoveAt(ctx context.Context, broadcasterID uint6
 func (s *ValkeySongQueueStore) SyncPlaying(ctx context.Context, broadcasterID uint64, trackID string) (bool, error) {
 	changed := false
 	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
-		// The closure re-runs on a CAS retry against a re-read doc, so the
-		// flag resets each attempt: only the attempt that actually commits
-		// may report a change.
 		changed = false
 		if trackID == "" {
 			return nil
@@ -403,8 +295,6 @@ func (s *ValkeySongQueueStore) Advance(ctx context.Context, broadcasterID uint64
 	)
 	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
 		if len(d.Up) == 0 {
-			// Nothing behind it: an advance on an exhausted queue retires the
-			// stale pointer instead of replaying the last track forever.
 			finished = d.Current
 			d.Current = nil
 			return nil

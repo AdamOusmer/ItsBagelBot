@@ -8,9 +8,6 @@ import (
 	"time"
 )
 
-// TestWithinCopiesTheWiring guards the property every caller relies on: the
-// override is a copy, so a service can hold one wiring value and hand a
-// different budget to a single verb without the next verb inheriting it.
 func TestWithinCopiesTheWiring(t *testing.T) {
 	base := RPCWiring{Queue: "svc-rpc"}
 	slow := base.Within(30 * time.Second)

@@ -19,9 +19,6 @@ func forbidden() error {
 	return &twitch.StatusError{Status: http.StatusForbidden, Op: "eventsub create", Body: forbiddenBody}
 }
 
-// TestIsChatBanned pins the position-based classification: the same 403
-// body is a chat ban on channel.chat.message and a lost consent anywhere
-// else. Incident 2026-09-09: a banned bot was filed as revoked.
 func TestIsChatBanned(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -76,8 +73,6 @@ func TestBlockedStates(t *testing.T) {
 	}
 }
 
-// TestAlreadyBlocked pins the once-per-outage dedupe and the precedence:
-// revoked never downgrades to banned, banned upgrades to revoked.
 func TestAlreadyBlocked(t *testing.T) {
 	tests := []struct {
 		name string
@@ -125,8 +120,6 @@ func TestLiveNoticeBanned(t *testing.T) {
 	}
 }
 
-// Every notice needs its own request prefix (see TestNoticeRequestPrefixesDiffer
-// for why); this extends the guard to the banned notice.
 func TestAllNoticePrefixesDistinct(t *testing.T) {
 	seen := map[string]string{}
 	for name, n := range map[string]notice{"revoked": noticeRevoked, "grantDead": noticeGrantDead, "banned": noticeBanned} {

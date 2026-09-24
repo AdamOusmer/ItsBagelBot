@@ -81,8 +81,6 @@ func TestTimeDefaultTemplatesUseBroadcasterLocale(t *testing.T) {
 	assert.Equal(t, "Il est actuellement 3:30 AM à Tokyo.", timeReply(zap.NewNop(), c, now, "Tokyo"))
 }
 
-// TestTimeReplyTokens pins the rendered tokens at a fixed instant: 18:30 UTC is
-// 14:30 in Toronto (EDT), on both clock faces, with {date} and {timezone}.
 func TestTimeReplyTokens(t *testing.T) {
 	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
 	cases := []struct {
@@ -100,17 +98,11 @@ func TestTimeReplyTokens(t *testing.T) {
 	}
 }
 
-// TestTimeBareUnchanged pins that adding the lookup path did not touch the
-// byte-for-byte home reply: same config, same instant, same output as before
-// the !time <place> feature existed.
 func TestTimeBareUnchanged(t *testing.T) {
 	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
 	assert.Equal(t, "2:30 PM", timeReply(zap.NewNop(), timeContext(`{"timezone":"America/Toronto","message":"{time}"}`), now, ""))
 }
 
-// TestTimeLookup covers !time <place>: a city, a curated abbreviation, and a
-// raw offset, all at one pinned instant (18:30 UTC, 2026-07-13) so the
-// conversion arithmetic is checked, not just token substitution.
 func TestTimeLookup(t *testing.T) {
 	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
 	cases := []struct{ name, config, args, want string }{
@@ -126,17 +118,12 @@ func TestTimeLookup(t *testing.T) {
 	}
 }
 
-// TestTimeLookupUnknownPlace echoes the normalized query back in time.unknown
-// when tzname can't resolve it.
 func TestTimeLookupUnknownPlace(t *testing.T) {
 	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
 	want := strings.ReplaceAll(i18n.T("en", "time.unknown"), "{place}", "narnia")
 	assert.Equal(t, want, timeReply(zap.NewNop(), timeContext(""), now, "narnia"))
 }
 
-// TestTimeLookupCustomTemplate exercises {timezone}, {place} and {user} on a
-// broadcaster-supplied lookupMessage, and confirms the 24-hour clock choice
-// (which only the home config carries) still applies to a lookup reply.
 func TestTimeLookupCustomTemplate(t *testing.T) {
 	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
 	cfg := `{"format":"24","lookupMessage":"@{user}: {place} ({timezone}) is at {time}"}`
@@ -144,8 +131,6 @@ func TestTimeLookupCustomTemplate(t *testing.T) {
 	assert.Equal(t, "@Viewer: Eastern Time (America/New_York) is at 14:30", got)
 }
 
-// TestTimeWhitespaceArgsIsBare confirms whitespace-only args normalizes to
-// empty and falls through to the home reply rather than an unknown-place miss.
 func TestTimeWhitespaceArgsIsBare(t *testing.T) {
 	assert.Equal(t, i18n.T("en", "time.unset"), runTimeArgs(t, "", "   ").Text)
 }

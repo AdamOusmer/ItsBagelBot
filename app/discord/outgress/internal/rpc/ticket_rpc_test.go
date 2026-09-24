@@ -16,10 +16,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// channelCreate names the one branch a ticket-open script has to answer
-// differently: the POST that creates the ticket channel, as opposed to the POST
-// that puts the card inside it. Both are POSTs, so neither the method nor the
-// path alone tells them apart.
 func channelCreate(call recordedCall) bool {
 	return call.method == http.MethodPost && call.path == "/guilds/g1/channels"
 }
@@ -83,8 +79,6 @@ func TestTicketClaimEditsTheCardAndPostsTheNote(t *testing.T) {
 	if len(edits) != 1 || !strings.Contains(edits[0].body, "Claimed by Mod") {
 		t.Fatalf("edit = %+v", edits)
 	}
-	// Decoded rather than substring-matched: the JSON encoder escapes "<" to
-	// \u003c, so a mention never appears literally in the wire body.
 	var patch struct {
 		Content string `json:"content"`
 	}
@@ -127,18 +121,11 @@ func TestTicketAddWritesOneOverwrite(t *testing.T) {
 	if !strings.Contains(puts[0].body, `"allow":"`+permTicketMemberBits+`"`) {
 		t.Fatalf("overwrite body = %q", puts[0].body)
 	}
-	// One PUT, never a channel PATCH: the PATCH would replace every other
-	// overwrite on the private channel.
 	if got := tr.find(http.MethodPatch, "/channels/c1"); len(got) != 0 {
 		t.Fatal("adding a member must not rewrite the whole overwrite array")
 	}
 }
 
-// The bot needs an explicit overwrite on the ticket channel it just created:
-// a staff-only ticket category that denies @everyone denies the bot too, and
-// the desk then 403s on every call into the channel it opened. Only outgress
-// knows the application id, so the overwrite is appended here rather than by
-// the engine that built the rest of the set.
 func TestTicketOpenGrantsTheBotItsOwnOverwrite(t *testing.T) {
 	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
 		if call.path == "/guilds/g1/channels" {
@@ -161,7 +148,6 @@ func TestTicketOpenGrantsTheBotItsOwnOverwrite(t *testing.T) {
 	if !strings.Contains(body, want) {
 		t.Fatalf("create body %q missing the bot overwrite %q", body, want)
 	}
-	// The engine'"'"'s own overwrites survive alongside it.
 	if !strings.Contains(body, `{"id":"g1","type":0,"allow":"0","deny":"1024"}`) {
 		t.Fatalf("create body %q dropped the engine overwrite", body)
 	}

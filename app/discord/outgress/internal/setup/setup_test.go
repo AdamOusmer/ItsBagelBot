@@ -17,32 +17,21 @@ import (
 	"go.uber.org/zap"
 )
 
-// guildRecorder is a map-backed discordGuildAPI, mirroring the pre-split
-// egress test's fake of the same name.
 type guildRecorder struct {
-	mu       sync.Mutex
-	channels []discapi.Snowflake
-	// roles are the guild's EXISTING roles, on top of @everyone. A pin is
-	// only adopted when its id is in here, so a test that pins a role must
-	// say the guild has it.
-	roles     []discapi.Snowflake
-	createdCh []string
-	createdRo []string
-	panels    []string
-	deleted   []string
-	deleteErr error
-	// panelPosts/panelButtons keep the whole post, not just the button ids, so
-	// the desk-repost tests can assert the copy that was rendered.
+	mu           sync.Mutex
+	channels     []discapi.Snowflake
+	roles        []discapi.Snowflake
+	createdCh    []string
+	createdRo    []string
+	panels       []string
+	deleted      []string
+	deleteErr    error
 	panelPosts   []discapi.EmbedPost
 	panelButtons []discapi.Button
 	nextID       int
-	// specs keeps each created channel's full spec (by lowercased name) so a
-	// test can assert the permission overwrites a gate actually sent.
-	specs map[string]discapi.ChannelCreate
+	specs        map[string]discapi.ChannelCreate
 
-	getGuildErr error
-	// getGuildCalls counts the REST lookups one listing costs: the picker's
-	// cap exists to bound this burst, not just the slice it returns.
+	getGuildErr   error
 	getGuildCalls int
 }
 
@@ -60,8 +49,6 @@ func (r *guildRecorder) DeleteMessage(_ context.Context, m discapi.Message) erro
 	return r.deleteErr
 }
 
-// newGuildRecorder is the zero recorder, named so a test reads as "a guild
-// with nothing in it yet" rather than as a struct literal.
 func newGuildRecorder() *guildRecorder { return &guildRecorder{} }
 
 func (r *guildRecorder) SendPanel(_ context.Context, post discapi.EmbedPost, buttons []discapi.Button) (discapi.Message, error) {
@@ -107,8 +94,6 @@ func (r *guildRecorder) ListGuildRoles(context.Context, discapi.Guild) ([]discap
 	return append([]discapi.Snowflake{{ID: "guild-1", Name: "@everyone"}}, r.roles...), nil
 }
 
-// getGuildErr, when set, is what the guild lookup answers: the picker's "the
-// bot was kicked" path is a 403 from this call and nothing else.
 func (r *guildRecorder) GetGuildWithCounts(_ context.Context, g discapi.Guild) (discapi.GuildInfo, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -134,8 +119,6 @@ func setupGuild1(t *testing.T, w *Worker, broadcasterID string) GuildSetupResult
 	return got
 }
 
-// foreignChannels fakes a lived-in server: enough channels the template
-// does not know about.
 func foreignChannels() []discapi.Snowflake {
 	out := make([]discapi.Snowflake, 0, ddiscord.LivingCommunityMinChannels)
 	for i := 0; i < ddiscord.LivingCommunityMinChannels; i++ {
@@ -246,7 +229,6 @@ func TestSetupGuildRefusesAGuildBoundToAnotherBroadcasterBeforeAnyWrite(t *testi
 
 func TestSetupGuildCompletesAPartialFill(t *testing.T) {
 	guild := &guildRecorder{}
-	// A fill cut short by a timeout left eight template channels behind.
 	for _, name := range []string{"Welcome", "welcome", "rules", "Announcements", "now-live", "clips", "announcements", "Community"} {
 		guild.channels = append(guild.channels, discapi.Snowflake{ID: "old-" + name, Name: name})
 	}
@@ -290,8 +272,6 @@ func TestUnbindGuildOnlyForTheBoundBroadcaster(t *testing.T) {
 	store.PutGuild(discordstore.Guild{ID: "guild-1"}, discordstore.Broadcaster{ID: "42"})
 	w := setupWorker(&guildRecorder{}, store)
 
-	// One refusal for both "not yours" and "not bound": see desk_test.go's
-	// note on the strict ownership check.
 	if err := w.UnbindGuild(context.Background(), GuildSetupRequest{GuildID: "guild-1", BroadcasterID: "7"}); err != ErrNotBound {
 		t.Fatalf("err = %v, want ErrNotBound", err)
 	}
@@ -343,15 +323,6 @@ func TestPostDiscordRequiresAClient(t *testing.T) {
 	}
 }
 
-// The permission bitfield must reach Discord as a decimal STRING, not a
-// number: role permissions exceed 53 bits, so a JSON number would lose
-// precision, and Discord rejects the field outright if it is not a string.
-// An unprivileged role sends nothing rather than "0".
-// roleSpecNamed returns the CommunityRoles() entry with the given name, or
-// the zero value if none matches. Pulled out of
-// TestRolePermissionsAreStringEncoded, which used to run this same
-// loop-and-match three times inline (a "Bumpy Road" of repeated
-// loop-containing-a-conditional blocks); now the test body is assertions.
 func roleSpecNamed(name string) ddiscord.RoleSpec {
 	for _, r := range ddiscord.CommunityRoles() {
 		if r.Name == name {
@@ -369,10 +340,6 @@ func TestRolePermissionsAreStringEncoded(t *testing.T) {
 	if got := rolePermissions(leadMod); got != "8" {
 		t.Fatalf("Lead Mod permissions = %q, want \"8\" (Administrator)", got)
 	}
-	// Mods now holds a real moderation set, so it must serialize too. The
-	// point of the test is the ENCODING, not the value: a number here would
-	// lose precision above 53 bits, which PermModerator exceeds via the
-	// timeout bit (1<<40).
 	if got := rolePermissions(mods); got == "" || got == "0" {
 		t.Fatalf("Mods permissions = %q, want the moderator set", got)
 	}

@@ -1,18 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Voice keyspace: the temporary clone channels the hub spawns and the seat
-// index that decides when one is empty enough to delete.
-//
-// Split out of store.go, which had grown to hold four keyspaces that share no
-// state with each other -- a reader after the ticket desk had to skip past
-// voice and XP to find the next ticket method, and both store implementations
-// interleaved their families in the same file. Each file now carries one
-// keyspace across BOTH implementations (valkeyStore and Mem), because that is
-// the pair that must stay in step: a change to how a seat is recorded has to
-// land in the memory double in the same edit or the tests stop describing the
-// real store.
-
 package discordstore
 
 import (
@@ -20,15 +8,12 @@ import (
 	"strings"
 )
 
-// Clone is one join-to-create voice channel.
 type Clone struct {
 	ChannelID string
 	GuildID   string
 	OwnerID   string
 }
 
-// VoiceSeat is one user's voice-channel membership at a point in time; the
-// zero ChannelID means "not in a voice channel".
 type VoiceSeat struct {
 	GuildID   string
 	UserID    string
@@ -39,11 +24,8 @@ func cloneKey(ch Channel) string { return "discord:voice:" + ch.ID }
 
 func cloneSet(g Guild) string { return "discord:voices:" + g.ID }
 
-// occupantsKey is the set of user ids currently seated in one channel.
 func occupantsKey(ch Channel) string { return "discord:voiceoccupants:" + ch.ID }
 
-// seatKey is the channel one user is currently seated in, keyed by
-// guild+user so a user in no guild's voice channel simply has no key.
 func seatKey(m Member) string { return "discord:voiceseat:" + m.key() }
 
 func (s valkeyStore) TrackClone(ctx context.Context, c Clone) error {
@@ -85,18 +67,6 @@ func (s valkeyStore) ForgetClone(ctx context.Context, c Clone) error {
 	return s.client.Do(ctx, s.client.B().Srem().Key(cloneSet(g)).Member(c.ChannelID).Build()).Error()
 }
 
-// UpdateVoiceOccupancy ports app/dingress/internal/community's in-memory
-// occupancy.update onto Valkey, key for key: two round trips (leave the old
-// seat, take the new one) rather than one atomic script. That is a
-// deliberate simplification, not an oversight -- the two operations it
-// races against itself are "the same user's own next VOICE_STATE_UPDATE"
-// (Discord delivers one user's voice events to one guild in order, so there
-// is nothing to race) and "another replica handling a DIFFERENT user's
-// event for the same channel" (which only contends on the occupants set's
-// membership count, and a stale read there costs at worst one clone deleted
-// a beat late or kept a beat past truly empty -- never a wrong owner, never
-// a double-delete). A Lua script would make that count linearizable for no
-// behavior the cleanup this feeds actually needs.
 func (s valkeyStore) UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) (string, bool) {
 	m := Member{GuildID: seat.GuildID, UserID: seat.UserID}
 	prev, _ := s.client.Do(ctx, s.client.B().Get().Key(seatKey(m)).Build()).ToString()
@@ -118,8 +88,6 @@ func (s valkeyStore) UpdateVoiceOccupancy(ctx context.Context, seat VoiceSeat) (
 	return left, leftEmpty && prev != seat.ChannelID
 }
 
-// leaveVoice removes userID from ch's occupant set and reports whether that
-// leaves it empty.
 func (s valkeyStore) leaveVoice(ctx context.Context, ch Channel, userID string) bool {
 	_ = s.client.Do(ctx, s.client.B().Srem().Key(occupantsKey(ch)).Member(userID).Build()).Error()
 	n, err := s.client.Do(ctx, s.client.B().Scard().Key(occupantsKey(ch)).Build()).AsInt64()
@@ -182,7 +150,6 @@ func (m *Mem) UpdateVoiceOccupancy(_ context.Context, seat VoiceSeat) (left stri
 	return left, leftEmpty && prev != seat.ChannelID
 }
 
-// leaveVoiceLocked assumes m.mu is already held.
 func (m *Mem) leaveVoiceLocked(channelID, userID string) bool {
 	delete(m.occupants[channelID], userID)
 	if len(m.occupants[channelID]) != 0 {

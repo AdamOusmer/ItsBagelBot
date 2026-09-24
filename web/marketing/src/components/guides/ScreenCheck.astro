@@ -4,11 +4,9 @@
 
 import Checkbox from '@bagel/ui/astro/Checkbox.astro';
 
-/** The console's shared checkbox, inert inside the guide's still frame. */
 interface Props {
     label: string;
     checked?: boolean;
-    /** Legend index of the note describing this control, if a guide has one. */
     note?: string;
 }
 const { label, checked = false, note } = Astro.props;

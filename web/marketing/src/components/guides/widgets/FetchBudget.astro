@@ -2,16 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * FetchBudget: how many real requests a busy command actually sends. Two
- * numbers drive it, both from the live limits: a good answer is cached for
- * 30 seconds, so one definition can send at most 2 requests a minute however
- * hard chat runs the command, and a channel is allowed 6 requests a minute
- * across every definition it owns.
- *
- * The static markup already carries the answer for the default slider value,
- * so the block still teaches the arithmetic with scripting off.
- */
 interface Props {
     labels?: Record<string, string>;
     props?: Record<string, unknown>;
@@ -97,9 +87,6 @@ const made = Math.min(wanted, 6);
 <script>
     import { bindOnce } from '../../../script/bind';
 
-    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
-    // A cached answer lives 30 s, so one definition sends at most 2 requests a
-    // minute; the channel is capped at 6 across all of its definitions.
     const CACHE_CEILING = 2;
     const CHANNEL_CAP = 6;
 

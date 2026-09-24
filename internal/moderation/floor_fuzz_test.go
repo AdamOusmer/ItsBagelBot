@@ -5,15 +5,6 @@ package moderation
 
 import "testing"
 
-// FuzzMatchFloor pins MatchFloor and its clean-path pre-scan on arbitrary
-// input: neither may panic, every returned term belongs to its own list, and
-// the audited benign shapes stay clean through both paths no matter what.
-// The pre-scan is deliberately NOT asserted to agree with the deep scan: it
-// routes and may over-route or release (see MatchFloorPrescan's contract -
-// FuzzMatchFloor found the over-route direction via "0\x00grA81fY.l1nk");
-// only MatchFloor decides.
-// fuzzFloorSeeds covers the audited boundary shapes: real URL forms, the
-// label-boundary traps, scam token separation, homoglyph and leet evasion.
 func fuzzFloorSeeds() []string {
 	return []string{
 		"",
@@ -27,14 +18,12 @@ func fuzzFloorSeeds() []string {
 		"free-nitro-drop",
 		"free nitrogen is a gas",
 		"claim your prize",
-		"free nitroge\u0430", // homoglyph breaks the token on purpose
-		"gr\u0430b1fy.link",  // leet + lookalike evasion
+		"free nitroge\u0430",
+		"gr\u0430b1fy.link",
 		"h4t3 grabify.l1nk x",
 	}
 }
 
-// benignFloorCorpus is the audited set that must stay clean through BOTH scan
-// paths no matter what else the fuzzer finds.
 var benignFloorCorpus = []string{
 	"free nitrogen is a gas lol everyone knows this",
 	"don't click grabify links folks they are dangerous",
@@ -61,7 +50,6 @@ func FuzzMatchFloor(f *testing.F) {
 	})
 }
 
-// assertOwnListTerm fails when a hit kind names a term from another list.
 func assertOwnListTerm(t *testing.T, skel []byte, kind FloorKind, term string) {
 	t.Helper()
 	switch kind {
@@ -77,8 +65,6 @@ func assertOwnListTerm(t *testing.T, skel []byte, kind FloorKind, term string) {
 	}
 }
 
-// assertPrescanTermOwned fails when the routing pre-scan returns a term that
-// belongs to neither floor list.
 func assertPrescanTermOwned(t *testing.T, text, pterm string) {
 	t.Helper()
 	if pterm == "" {
@@ -90,8 +76,6 @@ func assertPrescanTermOwned(t *testing.T, text, pterm string) {
 	t.Fatalf("MatchFloorPrescan(%q) returned foreign term %q", text, pterm)
 }
 
-// assertBenignCorpusClean re-runs the audited benign shapes through both paths
-// on every fuzz iteration.
 func assertBenignCorpusClean(t *testing.T) {
 	t.Helper()
 	for _, b := range benignFloorCorpus {

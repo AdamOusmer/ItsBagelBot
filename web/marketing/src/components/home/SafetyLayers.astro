@@ -2,11 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * SafetyLayers: animated snapshots of the moderation pipeline.
- * The visual language follows QuietWork: tactile cards, small mono system
- * readouts, and motion that demonstrates the feature instead of decorating it.
- */
 import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
@@ -31,9 +26,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 
 <section class="safe" id="safety-layers" data-motion>
     <LightField class="bb-light-field--bleed" />
-    {/* One chip for the section, not one per card. Three identical BETA tags
-        down a row of three cards read as three separate disclaimers; the state
-        belongs to the layer stack as a whole. */}
     <SectionHeading eyebrow={t('safe.eyebrow')} title={t('safe.title')}>
         <Badge slot="badge" tone="incoming" mark="plus">{t('badge.beta')}</Badge>
     </SectionHeading>
@@ -83,9 +75,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 
         <Card atmo hover class="safe__card safe__card--network" data-reveal style="--reveal-i: 2">
             <div class="safe__demo safe__demo--network" slot="band" aria-hidden="true">
-                {/* Every animated part is its own <svg> in one grid cell (bb-stack):
-                    WebKit never composites SVG children, so animating shapes
-                    inside a single <svg> repainted the whole map every frame. */}
                 <div class="network__map bb-stack">
                     {NETWORK_WAVES.map((wave) => (
                         <svg class="network__layer network__links" viewBox="0 0 360 112" style={`--wave-i: ${wave}`}>
@@ -139,7 +128,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         display: grid;
         grid-template-columns: 1fr;
         gap: 20px;
-        /* 132px of stage plus the housing's 16px padding, top and bottom. */
         --card-band-h: 164px;
     }
 
@@ -169,8 +157,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         color: var(--muted, #888077);
     }
 
-    /* Demos live in the Card's housing band (slot="band"); the band owns the
-       chrome and outer padding, the demo keeps only its stage height. */
     .safe__demo {
         position: relative;
         height: 100%;
@@ -179,7 +165,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         font-size: 0.66rem;
     }
 
-    /* Classifier jury */
     .safe__demo--jury {
         display: grid;
         place-items: center;
@@ -233,8 +218,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         background: #0b0b0a;
     }
 
-    /* The deliberating ring: a lit copy over the resting one, faded on
-       opacity instead of animating border-color and box-shadow. */
     .jury__seat::after {
         content: "";
         position: absolute;
@@ -329,9 +312,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         animation: juryTally 7.2s ease-in-out infinite;
     }
 
-    /* Named, not `.jury__tally small`: this is the verdict LABEL inside an
-       animated diagram, at 0.44rem -- illustration lettering below the type
-       scale's smallest step, not text the reader is meant to read as prose. */
     .jury__verdict {
         font-size: 0.44rem;
         letter-spacing: 0.06em;
@@ -353,10 +333,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         text-transform: uppercase;
     }
 
-    /*
-     * Jury timeline (7.2s): evidence lands → seats deliberate → ballots
-     * rise in a stagger → verdict stamps → everything settles out together.
-     */
     @keyframes juryEvidence {
         0%, 2% { opacity: 0; transform: translate(-50%, -50%) scale(0.72); animation-timing-function: var(--ease-out-back); }
         7% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
@@ -383,7 +359,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         95%, 100% { opacity: 0; transform: scale(0.96); }
     }
 
-    /* Static gates */
     .safe__demo--gates {
         display: flex;
         flex-direction: column;
@@ -428,8 +403,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         justify-self: center;
     }
 
-    /* Arrival turns the packet green: a green frame and label over the tan
-       ones, faded on opacity instead of animating border-color and color. */
     .gates__packet::after {
         content: "";
         grid-area: 1 / 1;
@@ -461,9 +434,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         color: var(--muted, #888077);
     }
 
-    /* One gate timeline, offset per gate by delay: the three gates run the
-       same scan 22% and 42% of the loop apart. The tan scan and the green
-       open are lit copies faded on opacity over the resting bar. */
     .gates__gate i {
         position: relative;
         width: 2px;
@@ -529,8 +499,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         color: var(--muted, #888077);
     }
 
-    /* Named: one printed line of the animated receipt. Same argument as
-       `.jury__verdict` -- 0.54rem is diagram lettering. */
     .gates__check {
         font-size: 0.54rem;
         text-transform: uppercase;
@@ -552,11 +520,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         animation: gateExit 7.2s ease infinite;
     }
 
-    /*
-     * Gates timeline (7.2s): the packet stops in front of each gate, the gate
-     * scans it (tan flicker), opens, the packet moves through and the matching
-     * receipt line ticks. Fade-out at the exit hides the loop reset.
-     */
     @keyframes gatePacket {
         0% { transform: none; opacity: 0; }
         2% { opacity: 1; animation-timing-function: var(--ease-out-expo); }
@@ -620,7 +583,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         98%, 100% { opacity: 0.26; transform: translateY(2px); }
     }
 
-    /* Network-wide raid propagation */
     .safe__demo--network { padding: 10px 16px; }
 
     .network__map {
@@ -670,8 +632,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         animation-delay: calc(var(--wave-i) * 200ms);
     }
 
-    /* Drawn at its widest (20 x 2.9) and scaled down from there, so the ring
-       is rasterized crisp at the size it is seen biggest. */
     .network__ping {
         fill: none;
         stroke: rgba(82, 183, 136, 0.55);
@@ -734,11 +694,6 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         animation: networkStatus 7.2s ease infinite;
     }
 
-    /*
-     * Network timeline (7.2s): core flashes red (raid hits one channel) →
-     * shield ping expands → links draw and nodes light in distance order →
-     * alert clears, "shielded" status holds → everything settles out.
-     */
     @keyframes networkDotAlert {
         0%, 2% { opacity: 0; }
         5%, 9%, 13% { opacity: 1; }

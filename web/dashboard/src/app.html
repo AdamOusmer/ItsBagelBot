@@ -6,11 +6,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
-  <!-- Browser-chrome tint matches the dark app background. -->
   <meta name="theme-color" content="#0a0a0a" />
   <meta name="color-scheme" content="dark" />
 
-  <!-- Favicons + installable-app icons (shared brand set). -->
   <link rel="icon" type="image/png" sizes="32x32" href="%sveltekit.assets%/favicon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="%sveltekit.assets%/favicon-16x16.png" />
   <link rel="icon" href="%sveltekit.assets%/favicon.ico" sizes="any" />
@@ -21,7 +19,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
 
-  <!-- Constant share-card bits; per-app title/description live in the root layout. -->
   <meta property="og:site_name" content="ItsBagelBot" />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://dashboard.itsbagelbot.com/og-image.png" />
@@ -34,10 +31,7 @@
   %sveltekit.head%
 </head>
 <body data-role="streamer" data-sveltekit-preload-data="hover">
-  <!-- display:contents wrapper isolates the hydration root from browser
-       extensions that inject nodes directly into <body>. Without it, an injected
-       sibling shifts SvelteKit's hydration index walk, the hydrate throws, and
-       the app unmounts to a blank page (only for users with such extensions). -->
+  <!-- display:contents wrapper isolates the hydration root from extensions that inject into <body> (a blank page otherwise). -->
   <div style="display: contents">
     %sveltekit.body%
   </div>

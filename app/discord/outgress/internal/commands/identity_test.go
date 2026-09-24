@@ -37,9 +37,6 @@ func premiumIdentityCommand(t *testing.T) ddiscord.Command {
 	}
 }
 
-// A premium apply must set BOTH halves in one call: the nickname needs
-// CHANGE_NICKNAME, the avatar needs no permission, and sending them
-// separately would leave a guild half-renamed whenever one of the two fails.
 func TestSetGuildIdentityPremiumSendsNickAndAvatar(t *testing.T) {
 	rest := &fakeRest{}
 	h := &Handlers{Rest: rest}
@@ -59,9 +56,6 @@ func TestSetGuildIdentityPremiumSendsNickAndAvatar(t *testing.T) {
 	}
 }
 
-// A downgrade must send explicit nulls. Omitting the fields means "leave
-// unchanged" to Discord, which would strand the premium nickname on a guild
-// whose streamer stopped paying.
 func TestSetGuildIdentityDefaultClearsBothOverrides(t *testing.T) {
 	rest := &fakeRest{}
 	h := &Handlers{Rest: rest}
@@ -75,9 +69,6 @@ func TestSetGuildIdentityDefaultClearsBothOverrides(t *testing.T) {
 	}
 }
 
-// A guild installed before CHANGE_NICKNAME refuses the whole call, avatar
-// included. Retrying without the nick still lands the premium avatar, and
-// the refusal is recorded so the dashboard can ask for a re-authorization.
 func TestSetGuildIdentityForbiddenFallsBackToAvatarOnly(t *testing.T) {
 	rest := &fakeRest{identityErrs: []error{discapi.ErrForbidden}}
 	reauth := &fakeReauth{}
@@ -97,8 +88,6 @@ func TestSetGuildIdentityForbiddenFallsBackToAvatarOnly(t *testing.T) {
 	requireOneCall(t, reauth.marked, func(g string) bool { return g == "g1" }, "marked")
 }
 
-// A permission error must not nack: it will refuse identically forever, and
-// redelivering it just burns the shared per-token budget.
 func TestSetGuildIdentityForbiddenDoesNotRetryForever(t *testing.T) {
 	rest := &fakeRest{identityErrs: []error{discapi.ErrForbidden}}
 	h := &Handlers{Rest: rest, Reauth: &fakeReauth{}}
@@ -107,7 +96,6 @@ func TestSetGuildIdentityForbiddenDoesNotRetryForever(t *testing.T) {
 	}
 }
 
-// A success is the only proof the permission arrived, so it clears the flag.
 func TestSetGuildIdentitySuccessClearsReauth(t *testing.T) {
 	reauth := &fakeReauth{}
 	h := &Handlers{Rest: &fakeRest{}, Reauth: reauth}
@@ -117,8 +105,6 @@ func TestSetGuildIdentitySuccessClearsReauth(t *testing.T) {
 	}
 }
 
-// A non-permission failure must still nack, or a transient Discord blip
-// would silently drop the identity change.
 func TestSetGuildIdentityOtherErrorStillFails(t *testing.T) {
 	rest := &fakeRest{identityErrs: []error{errors.New("boom")}}
 	h := &Handlers{Rest: rest, Reauth: &fakeReauth{}}

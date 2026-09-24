@@ -15,11 +15,6 @@ import (
 	"time"
 )
 
-// Publish mode: feeders drive every pooled publisher connection under their
-// own partition to the deadline, sampling confirmed-publish commit latency.
-
-// publishOpts bundles one publish-mode invocation. Every flag feeds the same
-// run, so they travel as a struct rather than as a nine-argument signature.
 type publishOpts struct {
 	lane         benchLane
 	duration     time.Duration
@@ -27,15 +22,10 @@ type publishOpts struct {
 	payloadSize  int
 	confirmEvery int
 	rate         int
-	// idPad lengthens the message id header by that many bytes. The broker
-	// scans the whole header block once per key it checks (~30 bytes.Index
-	// calls per message on the stream leader), so header length is a direct
-	// cost on the serialized ingest path: measured 2026-09-03, +300 bytes took
-	// one R3 stream from 127k to 117k msg/s with nothing else changed.
-	idPad     int
-	paceEvery int
-	podIndex  int
-	feeders   int
+	idPad        int
+	paceEvery    int
+	podIndex     int
+	feeders      int
 }
 
 func buildPayload(seq uint64, sent unixNano, size int) []byte {
@@ -86,23 +76,6 @@ func runPublish(o publishOpts) error {
 	return nil
 }
 
-// collectFeedSamples drives every feeder goroutine to its deadline and returns
-// their merged commit-latency samples.
-
-// collectFeedSamples drives every feeder goroutine to its deadline and returns
-// in aggregate; disabled when no rate was requested.
-
-// feedPacer spaces a feeder's publishes so the pool offers rate/feeders msg/s
-// in aggregate; disabled when no rate was requested.
-//
-// Paced per GROUP of every messages, not per message. At -rate 150000 -feeders 8
-// the per-message stride is 53µs, far under this host's time.Sleep granularity
-// (~1ms), so a sleep per message overshot every slot and the rig admitted only
-// 122-137k/s of a requested 150k. Sleeping once per group amortizes that
-// granularity over `every` messages. The slot accumulates instead of resetting
-// to now, so time lost to a slow publish is caught up by the following groups
-// rather than dropped — that part is load-bearing, do not "simplify" it to a
-// sleep of one stride.
 type feedPacer struct {
 	on     bool
 	slot   time.Time
@@ -126,8 +99,6 @@ func newFeedPacer(rate, feeders, every int) feedPacer {
 	}
 }
 
-// benchMessage is one message the rig sends: where, with what identity and
-// payload, and whether its commit latency is sampled.
 type benchMessage struct {
 	subject   string
 	id        string
@@ -135,7 +106,6 @@ type benchMessage struct {
 	confirmed bool
 }
 
-// sendOne puts one message on the wire and reports how long the call took.
 func (r *sampleRun) sendOne(ctx context.Context, m benchMessage) (time.Duration, error) {
 	t0 := time.Now()
 	var err error
@@ -147,13 +117,6 @@ func (r *sampleRun) sendOne(ctx context.Context, m benchMessage) (time.Duration,
 	return time.Since(t0), err
 }
 
-// confirmLane carries one feeder's confirmed publishes off that feeder's own
-// goroutine. bus.PublishConfirmed blocks for the cohort's whole commit round
-// trip (p99 46-160ms measured), so confirming inline stalled the feeder for
-// tens of milliseconds every confirmEvery messages and starved the pacer. The
-// bound is one outstanding confirm per feeder: when the slot is still held the
-// message is published raw and counted as confirm_skipped, so a slow commit
-// costs a sample and never an unbounded goroutine pile-up.
 type confirmLane struct {
 	slot    chan struct{}
 	wg      sync.WaitGroup
@@ -167,7 +130,6 @@ func newConfirmLane() *confirmLane {
 	return l
 }
 
-// take claims the lane's single confirm slot, reporting whether it was free.
 func (l *confirmLane) take() bool {
 	select {
 	case <-l.slot:
@@ -185,7 +147,6 @@ func (l *confirmLane) record(ns int64) {
 	l.mu.Unlock()
 }
 
-// drain waits for the outstanding confirm, if any, then returns the samples.
 func (l *confirmLane) drain() []int64 {
 	l.wg.Wait()
 	l.mu.Lock()
@@ -193,8 +154,6 @@ func (l *confirmLane) drain() []int64 {
 	return l.samples
 }
 
-// sampleRun is one publish-mode measurement: the publisher under test, its
-// options and deadline, and the admission tally the feeder fleet fills in.
 type sampleRun struct {
 	pad      string
 	pub      bus.Publisher
@@ -207,8 +166,6 @@ type sampleRun struct {
 	}
 }
 
-// drive launches one feeder per pooled connection — each under its own publish
-// partition — and returns their merged commit-latency samples.
 func (r *sampleRun) drive(ctx context.Context) []int64 {
 	feeders := max(r.opts.feeders, 1)
 	samplesCh := make(chan []int64, feeders)
@@ -229,8 +186,6 @@ func (r *sampleRun) drive(ctx context.Context) []int64 {
 	return samples
 }
 
-// message mints the next message for a feeder's sequence number, marking it for
-// confirmation on every confirmEvery-th sequence.
 func (r *sampleRun) message(seq uint64) benchMessage {
 	globalSeq := uint64(r.opts.podIndex)<<48 | seq
 	return benchMessage{
@@ -241,7 +196,6 @@ func (r *sampleRun) message(seq uint64) benchMessage {
 	}
 }
 
-// count folds one publish result into the run's admission counters.
 func (r *sampleRun) count(err error) {
 	if err != nil {
 		atomic.AddUint64(&r.tally.errors, 1)
@@ -250,9 +204,6 @@ func (r *sampleRun) count(err error) {
 	atomic.AddUint64(&r.tally.admitted, 1)
 }
 
-// confirmAsync publishes a sampled message on its own goroutine so the feeder
-// returns to the pacer immediately. The caller must already hold lane's confirm
-// slot; this releases it when the commit lands.
 func (r *sampleRun) confirmAsync(ctx context.Context, lane *confirmLane, m benchMessage) {
 	lane.wg.Add(1)
 	go func() {
@@ -266,12 +217,6 @@ func (r *sampleRun) confirmAsync(ctx context.Context, lane *confirmLane, m bench
 	}()
 }
 
-// feeder publishes under one partition until the deadline. hashStreamRouter
-// pins one routing key to ONE pooled connection, so an unpartitioned feeder
-// engages exactly one worker of the pool and the other members never build a
-// worker at all. One feeder per pooled connection is the minimum shape that
-// exercises the whole publisher; ordering is per-feeder, which is all the
-// latency samples need.
 func (r *sampleRun) feeder(ctx context.Context, f int) []int64 {
 	stride := max(r.opts.feeders, 1)
 	pacer := newFeedPacer(r.opts.rate, stride, r.opts.paceEvery)
@@ -295,7 +240,6 @@ func (r *sampleRun) feeder(ctx context.Context, f int) []int64 {
 	return lane.drain()
 }
 
-// avgCohort is the mean cohort size every publisher in this process sent.
 func avgCohort() float64 {
 	cohorts, messages := bus.CohortStats()
 	if cohorts == 0 {

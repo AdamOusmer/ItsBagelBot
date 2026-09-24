@@ -30,19 +30,14 @@ var testServices = []string{"users", "gossip", "console-admin", "deployer"}
 
 var errOffline = errors.New("offline")
 
-// memStore mirrors the ports.Store rules the engine leans on: create refuses
-// an existing run, every other put is a compare-and-set, the active pointer
-// follows the run's state, and the lock refuses a different owner.
 type memStore struct {
-	mu     sync.Mutex
-	rev    ports.Revision
-	runs   map[deploy.RunID]storedRun
-	active deploy.RunID
-	lock   ports.Lock
-	puts   int
-	beats  int
-	// Fault injection. lostAcks writes land but answer errOffline, the way
-	// a hub leader change loses an ack; downPuts writes fail without landing.
+	mu                               sync.Mutex
+	rev                              ports.Revision
+	runs                             map[deploy.RunID]storedRun
+	active                           deploy.RunID
+	lock                             ports.Lock
+	puts                             int
+	beats                            int
 	lostAcks, lostBeatAcks, downPuts int
 }
 
@@ -89,7 +84,6 @@ func (s *memStore) Put(_ context.Context, run *deploy.Run, rev ports.Revision) (
 	return s.rev, s.lostAck(&s.lostAcks)
 }
 
-// lostAck spends one injected lost ack from n.
 func (s *memStore) lostAck(n *int) error {
 	if *n == 0 {
 		return nil
@@ -195,7 +189,6 @@ func (s *memStore) putCount() int {
 	return s.puts
 }
 
-// memEvents records the seq of every published snapshot.
 type memEvents struct {
 	mu   sync.Mutex
 	seqs []uint64
@@ -214,10 +207,8 @@ func (m *memEvents) published() []uint64 {
 	return slices.Clone(m.seqs)
 }
 
-// body is a scripted stage's Run.
 type body func(ctx context.Context, rc *stage.RunCtx) error
 
-// script backs one fake stage per stage ID and records every Run call.
 type script struct {
 	mu     sync.Mutex
 	ran    []deploy.StageID
@@ -279,8 +270,6 @@ func (st scripted) Run(ctx context.Context, rc *stage.RunCtx) error {
 	return b(ctx, rc)
 }
 
-// fakeGitHub answers the reads the engine makes. BranchHead fails while
-// main is empty, which keeps the live-release lookup out of runner tests.
 type fakeGitHub struct {
 	ports.GitHub
 	main     deploy.SHA
@@ -289,11 +278,9 @@ type fakeGitHub struct {
 	commits  []deploy.Commit
 	prs      []deploy.PRInfo
 	reruns   []int64
-	// offMain is a commit main does not contain: main...offMain is ahead.
-	offMain deploy.SHA
+	offMain  deploy.SHA
 }
 
-// WorkflowRun reports every run on its first attempt.
 func (g *fakeGitHub) WorkflowRun(_ context.Context, id int64) (ports.WorkflowRun, error) {
 	return ports.WorkflowRun{ID: id, Attempt: 1}, nil
 }
@@ -381,8 +368,6 @@ func (r fakeRegistry) Tags(_ context.Context, img deploy.ImageName) ([]deploy.Ta
 
 var owner = deploy.Actor{ID: "1", Login: "owner"}
 
-// harness is an engine over the fakes, booted on demand so a test can seed
-// the store first.
 type harness struct {
 	t      *testing.T
 	eng    *Engine
@@ -433,7 +418,6 @@ func (h *harness) stored(id deploy.RunID) deploy.Run {
 	return run
 }
 
-// until polls the store until ok holds for the run.
 func (h *harness) until(id deploy.RunID, ok func(deploy.Run) bool) deploy.Run {
 	h.t.Helper()
 	var run deploy.Run
@@ -444,14 +428,11 @@ func (h *harness) until(id deploy.RunID, ok func(deploy.Run) bool) deploy.Run {
 	return run
 }
 
-// await waits for the run to reach state and for its execution to finish
-// (lock released, detached), so the next verb sees a quiet engine.
 func (h *harness) await(id deploy.RunID, state deploy.RunState) deploy.Run {
 	h.t.Helper()
 	return h.until(id, func(r deploy.Run) bool { return r.State == state && h.eng.executing(id) == nil })
 }
 
-// entered returns a body that signals when it starts, then runs next.
 func entered(ch chan<- struct{}, next body) body {
 	return func(ctx context.Context, rc *stage.RunCtx) error {
 		close(ch)

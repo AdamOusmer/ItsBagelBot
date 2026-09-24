@@ -17,10 +17,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// fakeConnectLog stands in for the Valkey sorted set: an ordered list of
-// attempt stamps, pruned on read exactly as botstatus.ConnectLog prunes with
-// ZREMRANGEBYSCORE. fail makes every call error, which is the Valkey-down
-// path.
 type fakeConnectLog struct {
 	mu   sync.Mutex
 	seen []time.Time
@@ -43,9 +39,6 @@ func (f *fakeConnectLog) Load(_ context.Context, since time.Time) ([]time.Time, 
 	return append([]time.Time(nil), kept...), nil
 }
 
-// forget empties the shared window without failing anything. It is the store
-// that answers an honest nothing while still answering: a ZADD that did not
-// land under a failover, or a key evicted between the write and the read.
 func (f *fakeConnectLog) forget() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -62,17 +55,12 @@ func (f *fakeConnectLog) Add(_ context.Context, at time.Time) error {
 	return nil
 }
 
-// storedBudget is testBudget wired to a store, with the same hand-cranked
-// clock so a 24h window can be asserted without waiting one.
 func storedBudget(store ConnectLog, log *zap.Logger, c *budgetClock) *connectBudget {
 	b := &connectBudget{sched: defaultBudgetSchedule(), now: c.now, store: store, log: log}
 	b.reload()
 	return b
 }
 
-// The window has to outlive the process. The 2026-09-05 loop was a
-// crash-loop: every restart handed the old budget a clean 800, which is 800
-// attempts per crash against a limit Discord counts per token per day.
 func TestBudgetWindowSurvivesARestart(t *testing.T) {
 	store := &fakeConnectLog{}
 	c := &budgetClock{t: time.Unix(1_700_000_000, 0)}
@@ -83,7 +71,6 @@ func TestBudgetWindowSurvivesARestart(t *testing.T) {
 		c.advance(minConnectInterval)
 	}
 
-	// A new process, the same shared window.
 	restarted := storedBudget(store, nil, c)
 	if st := restarted.snapshot(); st.Connects != 3 {
 		t.Fatalf("connects after a restart = %d, want the 3 the old process spent", st.Connects)
@@ -95,8 +82,6 @@ func TestBudgetWindowSurvivesARestart(t *testing.T) {
 	}
 }
 
-// Attempts that have aged out of the window are dropped on the way back in,
-// so a pod restarting after a quiet day does not inherit yesterday's spend.
 func TestRestartDropsAttemptsOlderThanTheWindow(t *testing.T) {
 	store := &fakeConnectLog{}
 	c := &budgetClock{t: time.Unix(1_700_000_000, 0)}
@@ -111,12 +96,6 @@ func TestRestartDropsAttemptsOlderThanTheWindow(t *testing.T) {
 	}
 }
 
-// A store that answers an honest nothing may only ever add history. reload
-// used to replace the local window with whatever came back, so a ZADD that
-// failed while Load still succeeded wiped this process's own attempts on
-// every record and the 800-in-24h ceiling had nothing to trip on -- which is
-// how 21,575 connects in 24 hours (2026-09-07, one process, zero restarts)
-// went past a budget built to bound exactly that.
 func TestReloadKeepsLocalAttemptsWhenTheStoreForgets(t *testing.T) {
 	store := &fakeConnectLog{}
 	c := &budgetClock{t: time.Unix(1_700_000_000, 0)}
@@ -131,9 +110,6 @@ func TestReloadKeepsLocalAttemptsWhenTheStoreForgets(t *testing.T) {
 	}
 }
 
-// And the union must not double-count: every attempt this process makes comes
-// straight back from the store on the next read, and counting it twice would
-// park the bot on a ceiling it never spent.
 func TestReloadDedupesAttemptsItAlreadyHas(t *testing.T) {
 	store := &fakeConnectLog{}
 	c := &budgetClock{t: time.Unix(1_700_000_000, 0)}
@@ -151,10 +127,6 @@ func TestReloadDedupesAttemptsItAlreadyHas(t *testing.T) {
 	}
 }
 
-// Valkey being unreachable must never block a connect: the budget degrades
-// to what shipped before it was persisted, counting this process only, and
-// says so at most once per degradedWarnEvery. A WARN per attempt would bury
-// the gateway's own log.
 func TestStoreFailureDegradesToMemoryWithOneWarning(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	store := &fakeConnectLog{fail: errors.New("valkey: connection refused")}
@@ -176,10 +148,6 @@ func TestStoreFailureDegradesToMemoryWithOneWarning(t *testing.T) {
 	}
 }
 
-// The notice has to come back while the budget is still degraded. Once per
-// process was not enough: a pod that logged it at boot and then ran for 16
-// hours left an operator reading a 24h window of connect counts with nothing
-// in that window saying the number was per process rather than per token.
 func TestDegradedWarningRepeatsOnItsSchedule(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	store := &fakeConnectLog{fail: errors.New("valkey: connection refused")}
@@ -199,9 +167,6 @@ func TestDegradedWarningRepeatsOnItsSchedule(t *testing.T) {
 	}
 }
 
-// record folds in whatever other pods spent before it publishes a verdict:
-// two ingress replicas by accident is the exact case this budget exists to
-// survive, and they share one token's allowance.
 func TestRecordReadsBackTheSharedWindow(t *testing.T) {
 	store := &fakeConnectLog{}
 	c := &budgetClock{t: time.Unix(1_700_000_000, 0)}
@@ -209,7 +174,6 @@ func TestRecordReadsBackTheSharedWindow(t *testing.T) {
 	b.sched.ceiling = 3
 
 	b.note()
-	// A second pod spends the rest of the allowance behind this one's back.
 	for range 2 {
 		if err := store.Add(context.Background(), c.t); err != nil {
 			t.Fatal(err)
@@ -225,9 +189,6 @@ func TestRecordReadsBackTheSharedWindow(t *testing.T) {
 	}
 }
 
-// runBudget is a schedule whose only live rule is the ceiling: the identify
-// floor is shrunk to nothing and no session counts as short, so a Run-level
-// assertion about dials stopping can only be the ceiling's doing.
 func runBudget(ceiling int) *connectBudget {
 	sched := defaultBudgetSchedule()
 	sched.ceiling = ceiling
@@ -236,9 +197,6 @@ func runBudget(ceiling int) *connectBudget {
 	return &connectBudget{sched: sched, now: time.Now}
 }
 
-// The ceiling has to stop the loop, not just describe it. Without it the
-// backoff schedule dials again within backoffMin, so this window holds
-// several attempts.
 func TestRunStopsDiallingAtTheCeiling(t *testing.T) {
 	dial, dials := dialCounter(4000)
 	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
@@ -262,10 +220,6 @@ func TestRunStopsDiallingAtTheCeiling(t *testing.T) {
 	}
 }
 
-// A resume is still a socket. Discord counts the connection, not the opcode
-// that follows it, so a session that RESUMEs spends the budget exactly like
-// one that identifies -- a loop of cheap resumes would otherwise be
-// invisible to the ceiling that exists to bound it.
 func TestResumedReconnectSpendsTheBudget(t *testing.T) {
 	dial, dials := readyThenResumedDial(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
@@ -277,9 +231,6 @@ func TestResumedReconnectSpendsTheBudget(t *testing.T) {
 		t.Fatalf("Run err = %v, want the context error", err)
 	}
 
-	// Not an exact dial count: once the two scripted sockets are spent the
-	// loop keeps dialling parked ones on a jittered backoff, and how many it
-	// fits before the deadline is a coin flip.
 	if got := dials(); got < 2 {
 		t.Fatalf("dials = %d, want at least 2 (a READY socket then a RESUMED one)", got)
 	}
@@ -299,9 +250,6 @@ func TestResumedReconnectSpendsTheBudget(t *testing.T) {
 	}
 }
 
-// readyThenResumedDial scripts a socket that reaches READY and dies, then
-// one that RESUMEs and dies, then sockets that simply park -- so the dial
-// count settles at 2 rather than racing the test's own deadline.
 func readyThenResumedDial(t *testing.T) (Dial, func() int) {
 	t.Helper()
 	hello, err := fastHello()
@@ -319,7 +267,6 @@ func readyThenResumedDial(t *testing.T) (Dial, func() int) {
 		defer mu.Unlock()
 		n++
 		if n > len(scripts) {
-			// No readErr and no closed channel: Read parks until ctx ends.
 			return &scriptedConn{}, nil
 		}
 		return &scriptedConn{reads: scripts[n-1], readErr: errors.New("websocket closed")}, nil

@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-// Get returns the value of key or fallback when unset or empty.
 func Get(key string, fallback string) string {
 
 	if value := os.Getenv(key); value != "" {
@@ -19,8 +18,6 @@ func Get(key string, fallback string) string {
 	return fallback
 }
 
-// GetInt returns the integer value of key, or fallback when unset, empty, or
-// not parseable as a base-10 integer.
 func GetInt(key string, fallback int) int {
 
 	if value := os.Getenv(key); value != "" {
@@ -32,8 +29,6 @@ func GetInt(key string, fallback int) int {
 	return fallback
 }
 
-// GetBool returns the boolean value of key, or fallback when unset, empty, or
-// not parseable by strconv.ParseBool.
 func GetBool(key string, fallback bool) bool {
 
 	if value := os.Getenv(key); value != "" {
@@ -45,8 +40,6 @@ func GetBool(key string, fallback bool) bool {
 	return fallback
 }
 
-// GetDuration returns the duration value of key, or fallback when unset,
-// empty, or not parseable as a Go duration string (e.g. "5s", "30s", "2m").
 func GetDuration(key string, fallback time.Duration) time.Duration {
 
 	if value := os.Getenv(key); value != "" {
@@ -58,8 +51,6 @@ func GetDuration(key string, fallback time.Duration) time.Duration {
 	return fallback
 }
 
-// MustGet returns the value of key and panics when unset or empty. Reserved
-// for values the service cannot run without, such as credentials.
 func MustGet(key string) string {
 
 	value := os.Getenv(key)
@@ -70,8 +61,6 @@ func MustGet(key string) string {
 	return value
 }
 
-// GetFloat returns the float64 value of key, or fallback when unset, empty, or
-// not parseable by strconv.ParseFloat.
 func GetFloat(key string, fallback float64) float64 {
 
 	if value := os.Getenv(key); value != "" {

@@ -21,29 +21,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// The per-broadcaster module rows that gate the module-fact tokens. They are
-// the same rows !quote and !song check, named here rather than in the modules
-// package because the engine now reads them too and one spelling that drifts
-// from the other gates the wrong thing. (The Local Time row is
-// TimeModuleName, beside the config the token decodes.)
 const (
 	QuotesModuleName    = "quotes"
 	SongQueueModuleName = "songqueue"
 )
 
-// spotifyNowPlaying is the gossip endpoint !song reads the live player through.
 var spotifyNowPlaying = GossipRoute{Provider: "spotify", Endpoint: "nowplaying"}
 
-// moduleScope builds the {quote}/{time}/{song} scope for one command run,
-// mounted per family: each family is gated by its own opt-in module, so a
-// channel with Quotes on and Song Requests off expands {quote} and leaves
-// {song} visible.
-//
-// It takes the lexed template for the same two reasons viewerScope does: the
-// module rows are read ONLY for the families the template actually names, so a
-// command mentioning none of these costs no projection read at all — and the
-// bare {quote} spans have to be COUNTED here, because the chain hands a scope
-// distinct spans and two bare {quote} spans are one distinct span.
 func (p *Pipeline) moduleScope(ctx context.Context, c *module.Context, toks []tmpl.Token) (scope.Modules, bool) {
 	wants := moduleWantsOf(toks)
 	if !wants.any() {
@@ -60,10 +44,6 @@ func (p *Pipeline) moduleScope(ctx context.Context, c *module.Context, toks []tm
 	return m, m.Quotes != nil || m.Clock != nil || m.Places != nil || m.Songs != nil
 }
 
-// moduleWants is which module-fact families one template names, plus how many
-// bare {quote} spans it carries. timeHome and timePlace split the two {time}
-// spellings because they gate independently: timeHome needs the Local Time
-// module ON, timePlace needs nothing (see scope.Places).
 type moduleWants struct {
 	quote, timeHome, timePlace, song bool
 	draws                            int
@@ -101,9 +81,6 @@ func (w *moduleWants) markTime(tok tmpl.Token) {
 	w.timeHome = true
 }
 
-// markQuote counts the bare spans separately: each is an independent draw and
-// therefore its own round trip, while {quote:12} is a keyed read however many
-// times it appears.
 func (w *moduleWants) markQuote(tok tmpl.Token) {
 	w.quote = true
 	if !tok.HasPayload {
@@ -111,9 +88,6 @@ func (w *moduleWants) markQuote(tok tmpl.Token) {
 	}
 }
 
-// quoteBook mounts {quote} when the store is wired and the channel's Quotes
-// module is on. It reuses the built-in command's own gate, so the token and
-// !quote can never disagree about whether the module is on.
 func (p *Pipeline) quoteBook(ctx context.Context, c *module.Context, wanted bool) scope.Quotes {
 	if !wanted || p.quotes == nil {
 		return nil
@@ -124,16 +98,6 @@ func (p *Pipeline) quoteBook(ctx context.Context, c *module.Context, wanted bool
 	return quoteReads{p: p, c: c}
 }
 
-// timeMount resolves the Local Time module's row ONCE for both {time}
-// spellings. The bare form (Clock) still needs the module ON — a module that
-// is on but has no timezone set still mounts, with no location, so the token
-// renders empty (its fallback speaks) rather than staying literal, because
-// the broadcaster DID enable the module and a visible {time} would send them
-// looking at the wrong switch. The payload form (Places) reads the row
-// regardless of on/off: {time:<place>} needs only whichever clock face the
-// broadcaster already picked (12-hour when never set), never enrollment,
-// which is the same answer !time <place> already gives a channel that never
-// touched Local Time.
 func (p *Pipeline) timeMount(ctx context.Context, c *module.Context, wants moduleWants) (scope.Clock, scope.Places) {
 	if !wants.timeHome && !wants.timePlace {
 		return nil, nil
@@ -155,8 +119,6 @@ func (p *Pipeline) timeMount(ctx context.Context, c *module.Context, wants modul
 	return clock, places
 }
 
-// nowPlaying mounts the {song} family when gossip is wired and the channel's
-// Song Requests module is on.
 func (p *Pipeline) nowPlaying(ctx context.Context, c *module.Context, wanted bool) scope.Songs {
 	if !wanted || p.gossip == nil {
 		return nil
@@ -167,9 +129,6 @@ func (p *Pipeline) nowPlaying(ctx context.Context, c *module.Context, wanted boo
 	return songReads{p: p, c: c}
 }
 
-// quoteReads answers {quote} and {quote:n} through the same RPC !quote calls.
-// Nothing here saves, edits or deletes: the token family is read-only by
-// construction.
 type quoteReads struct {
 	p *Pipeline
 	c *module.Context
@@ -185,9 +144,6 @@ func (q quoteReads) Numbered(ctx context.Context, number uint64) string {
 	return q.render(quote, found, err)
 }
 
-// render turns one read into the span's text. A failed read, an empty book and
-// a number nobody has used all collapse to the empty string, which renders the
-// span's fallback — a broadcaster-authored phrase rather than a bot excuse.
 func (q quoteReads) render(quote modulesrpc.Quote, found bool, err error) string {
 	if err != nil {
 		q.p.log.Warn("quote token: read failed", module.BIDField(q.c.BroadcasterID), zap.Error(err))
@@ -199,15 +155,6 @@ func (q quoteReads) render(quote modulesrpc.Quote, found bool, err error) string
 	return quoteLine(q.c.Locale, quote)
 }
 
-// quoteLine renders a quote through the very line !quote prints ("Quote #12:
-// … (2026-01-31)"), in the channel's own locale.
-//
-// It is the one place in this palette where a token renders a whole sentence
-// rather than a bare value, and that is deliberate: a quote IS the sentence,
-// its number and date are what make it citable in chat, and a broadcaster who
-// wants only the words has {quote} inside their own line either way. The shape
-// is read from the shared catalog rather than rebuilt here, so a channel that
-// reads !quote in French reads {quote} in French too.
 func quoteLine(locale string, q modulesrpc.Quote) string {
 	return module.KV(
 		"num", strconv.FormatUint(q.Number, 10),
@@ -216,8 +163,6 @@ func quoteLine(locale string, q modulesrpc.Quote) string {
 	).WithLocale(module.Locale(locale)).ExpandString(i18n.T(locale, "quote.show"))
 }
 
-// quoteDate renders a quote's save date the way !quote does; an unparseable
-// timestamp renders nothing rather than a placeholder.
 func quoteDate(createdAt string) string {
 	t, err := time.Parse(time.RFC3339, createdAt)
 	if err != nil {
@@ -226,11 +171,6 @@ func quoteDate(createdAt string) string {
 	return t.UTC().Format("2006-01-02")
 }
 
-// localClock renders {time} from the zone and clock face read at mount. loc is
-// nil when the module is on but no timezone is set yet, which renders empty.
-//
-// now is injected so a test can pin the instant instead of asserting against a
-// moving clock.
 type localClock struct {
 	loc    *time.Location
 	format string
@@ -244,16 +184,11 @@ func (c localClock) LocalTime() string {
 	return FormatClock(c.now().In(c.loc), c.format)
 }
 
-// placesLookup answers {time:<place>} the same way !time <place> does: the
-// same pure tzname lookup, the same FormatClock face. now is injected so a
-// test can pin the instant instead of asserting against a moving clock.
 type placesLookup struct {
 	format string
 	now    func() time.Time
 }
 
-// Resolve renders empty for a place tzname's table does not know, never the
-// broadcaster's own home time — the decision record on scope.Places.
 func (l placesLookup) Resolve(place string) string {
 	match, ok := tzname.Resolve(place)
 	if !ok {
@@ -262,18 +197,11 @@ func (l placesLookup) Resolve(place string) string {
 	return FormatClock(l.now().In(match.Loc), l.format)
 }
 
-// songReads answers the {song} family through the same gossip endpoint !song
-// reads the live player with.
 type songReads struct {
 	p *Pipeline
 	c *module.Context
 }
 
-// NowPlaying reads whatever is playing right now. Every "we cannot say"
-// outcome — a channel with no Spotify connection, an RPC failure, a paused or
-// private player — reports nothing playing, so the span renders its fallback
-// instead of the upstream's own sentence dropped into the middle of the
-// broadcaster's.
 func (s songReads) NowPlaying(ctx context.Context) scope.Track {
 	var reply gossiprpc.SpotifyNowPlayingReply
 	err := s.p.gossip.Call(ctx, spotifyNowPlaying,
@@ -291,16 +219,10 @@ func (s songReads) NowPlaying(ctx context.Context) scope.Track {
 	}
 }
 
-// nowPlaying names the one reply shape that renders a track: the call came
-// back without an error string, the player is running, and the track itself
-// arrived. Every other shape is a "we cannot say" the span renders its
-// fallback for.
 func nowPlaying(reply gossiprpc.SpotifyNowPlayingReply) bool {
 	return reply.Error == "" && reply.IsPlaying && reply.Track != nil
 }
 
-// moduleGate is this pipeline's gate for one module row, so the three token
-// families below name the module and nothing else.
 func (p *Pipeline) moduleGate(c *module.Context, name string) ModuleGate {
 	return ModuleGate{Proj: p.proj, Log: p.log, BroadcasterID: c.BroadcasterID, Name: name}
 }

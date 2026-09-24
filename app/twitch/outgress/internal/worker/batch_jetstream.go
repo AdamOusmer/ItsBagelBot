@@ -11,9 +11,6 @@ import (
 	"ItsBagelBot/pkg/kvstate"
 )
 
-// JetStreamBatchStore keeps lock and progress in one revision-fenced record.
-// It is the sole batch authority, not a fallback that could replay a checkpoint
-// from a different backend. Its bucket TTL must equal batchStateTTL.
 type JetStreamBatchStore struct{ store kvstate.Store }
 type batchRecord struct {
 	Owner string
@@ -63,8 +60,6 @@ func (s *JetStreamBatchStore) Acquire(ctx context.Context, lease BatchLease, _ t
 
 func (s *JetStreamBatchStore) Next(ctx context.Context, id string) (int, error) {
 	var next int
-	// Confirm with a CAS: a follower's stale direct read must never replay an
-	// already-checkpointed item after another replica hands over the lease.
 	err := s.change(ctx, id, func(record *batchRecord) error { next = record.Next; return nil })
 	return next, err
 }

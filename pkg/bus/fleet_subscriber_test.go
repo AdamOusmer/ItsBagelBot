@@ -42,8 +42,6 @@ func TestSharedFlowLaneOutlivesASingleUnit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A second consumer unit joins the pod's existing consumer instead of
-	// creating one of its own, so the pod keeps a single receipt cursor.
 	requireFlowLaneShared(t, owner, lane, binding)
 
 	if err := owner.releaseFlowLane(lane); err != nil {
@@ -51,12 +49,10 @@ func TestSharedFlowLaneOutlivesASingleUnit(t *testing.T) {
 	}
 	requireFlowLaneBinding(t, owner, lane.key, true)
 
-	_ = owner.releaseFlowLane(lane) // the last unit closes the binding
+	_ = owner.releaseFlowLane(lane)
 	requireFlowLaneBinding(t, owner, lane.key, false)
 }
 
-// requireFlowLaneShared states the join: the second unit takes the bound lane
-// itself and raises its reference count, never a lane of its own.
 func requireFlowLaneShared(t *testing.T, owner *fleetSubscriber, lane *sharedFlowLane, binding Subscriber) {
 	t.Helper()
 	shared, surplus, err := owner.storeFlowLane(lane.key, binding)
@@ -74,7 +70,6 @@ func requireFlowLaneShared(t *testing.T, owner *fleetSubscriber, lane *sharedFlo
 	}
 }
 
-// requireFlowLaneBinding states whether the pod still holds the lane binding.
 func requireFlowLaneBinding(t *testing.T, owner *fleetSubscriber, key string, want bool) {
 	t.Helper()
 	if _, bound := owner.flowLanes[key]; bound != want {

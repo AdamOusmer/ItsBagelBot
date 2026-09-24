@@ -1,20 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Isomorphic link detection, kept in lock-step with the Go source of truth at
-// internal/domain/validate/link.go. The dashboard uses it twice on the gift
-// path: live in the browser (instant feedback while typing) and again in the
-// server action (before the basket RPC). The transactions service runs the Go
-// version a third time, so a link never reaches the recipient's email even if a
-// client is bypassed. Keep the two implementations in sync when either changes.
-//
-// The strength is the pre-processing, not one mega-regex (trivially bypassed):
-// the input is folded to a canonical form three ways and every pattern runs
-// against each. See the Go file for the full rationale.
-
-// normalizeForLink folds to a lower-cased canonical form with invisibles gone.
-// JS String.normalize gives NFKC for free (fold full-width / compatibility
-// glyphs); \p{Cf} covers zero-width spaces, joiners, BOM and soft hyphen.
 function normalizeForLink(s: string): string {
 	return s
 		.normalize('NFKC')
@@ -23,10 +9,6 @@ function normalizeForLink(s: string): string {
 		.toLowerCase();
 }
 
-// deobfuscateLinks rewrites the spelled-out / defanged forms back to real URL
-// shape. Bare " at " / " point " are deliberately NOT rewritten (common English
-// words); a spelled-out "user at host dot com" is still caught because " dot "
-// alone leaves a real domain ("host.com") to detect.
 function deobfuscateLinks(s: string): string {
 	for (const [from, to] of WORD_REPLACERS) {
 		s = s.split(from).join(to);
@@ -36,7 +18,6 @@ function deobfuscateLinks(s: string): string {
 	return s;
 }
 
-// Longer keys first so they win (hxxps before hxxp).
 const WORD_REPLACERS: [string, string][] = [
 	['[.]', '.'], ['(.)', '.'], ['{.}', '.'], ['<.>', '.'],
 	['[dot]', '.'], ['(dot)', '.'], ['{dot}', '.'], [' dot ', '.'], [' d0t ', '.'],
@@ -47,9 +28,6 @@ const WORD_REPLACERS: [string, string][] = [
 	['httpx', 'http'], ['h**p', 'http']
 ];
 
-// Multi-letter TLDs worth spotting as a bare domain. Two-letter TLDs are matched
-// generically (reTLD2, every ccTLD); anything not here is still caught the moment
-// it looks like a real URL (scheme / // / path / www / @).
 const CURATED_TLDS = [
 	'com', 'net', 'org', 'edu', 'gov', 'mil', 'int', 'info', 'biz', 'name',
 	'pro', 'aero', 'coop', 'jobs', 'travel', 'asia', 'cat', 'tel',
@@ -81,26 +59,16 @@ const reTLDPath = /\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9-]{1,63})*\
 const reIPv4 = /\b(?:(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\b/;
 const reIPv6 = /\[[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}\]/i;
 
-// Full set: run against the normalized and deobfuscated forms.
 const LINK_PATTERNS = [
 	reScheme, reAuthy, reProtoRl, reDataURI, reScript,
 	reWWW, reEmail, reTLD2, reTLDCur, reTLDPath, reIPv4, reIPv6
 ];
 
-// High-signal set: run against the whitespace-stripped form. The generic
-// two-letter-TLD rule is excluded there - it would turn "No. Ok" into a hit
-// once spaces are gone.
 const STRONG_PATTERNS = [
 	reScheme, reAuthy, reProtoRl, reDataURI, reScript,
 	reWWW, reEmail, reTLDCur, reIPv4
 ];
 
-/**
- * containsLink reports whether s carries anything that could act as a link: a
- * URL scheme, a bare domain, an email/mailto target, an IP literal, or an
- * obfuscated form of any of those. Biased toward catching links (recall over
- * precision): a note that trips it is refused, not silently mangled.
- */
 export function containsLink(s: string): boolean {
 	if (!s) return false;
 	const normalized = normalizeForLink(s);
@@ -116,17 +84,6 @@ export function containsLink(s: string): boolean {
 	return false;
 }
 
-// normalizeCounterName folds a submitted counter/command key to the form the
-// loyalty service stores: bare key, lower-cased, no leading "!", 64 chars.
-// Both consoles had a byte-identical copy (the dashboard's counters page and
-// the admin bot-counters page), and they have to agree: the two write the SAME
-// keyspace, so a name normalized one way in one console and another way in the
-// other creates two counters the broadcaster sees as one.
-//
-// Deliberately NOT merged with the importer's normalizeName: that one folds an
-// imported command name under DIFFERENT rules (it keeps case-sensitivity
-// decisions the source platform made), and folding the two would silently
-// change what an import collides with.
 export function normalizeCounterName(raw: unknown): string {
 	return String(raw ?? '')
 		.trim()
@@ -135,12 +92,6 @@ export function normalizeCounterName(raw: unknown): string {
 		.slice(0, 64);
 }
 
-// clampInt coerces a submitted form value into a bounded integer. Both the
-// timers and channel-points actions had their own copy, and both exist for the
-// same reason: the server stores the clamped value, so the page must submit
-// what the server will keep or "Saved" is shown for a number that was silently
-// normalized away. Returns dflt for anything non-numeric (an empty field, a
-// crafted post) rather than throwing: a form action answers with a value.
 export function clampInt(raw: unknown, min: number, max: number, dflt: number): number {
 	const n = Math.trunc(Number(raw));
 	if (!Number.isFinite(n)) return dflt;

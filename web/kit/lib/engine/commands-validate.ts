@@ -1,44 +1,19 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Command validation shared by the dashboard server action and the client
-// editor, so the instant client-side feedback and the authoritative server
-// check can never disagree.
-//
-// Normalization mirrors the commands service: the stored key never carries the
-// leading "!" and is lower-case; chat keeps the "!" to invoke.
-
-// The $(urlfetch) definition validators moved to fetch-validate.ts when they
-// outgrew this file; the re-export keeps every existing import path working.
 export * from './fetch-validate';
 import { urlFetchNames, URLFETCH_TOKEN_CAP, type FetchDefErrors } from './fetch-validate';
 import { bumpCounterProblem } from './counter-validate';
 
 export const COMMAND_NAME_MAX = 64;
-/** Per line: each line is sent as its own chat message (Twitch limit). */
 export const RESPONSE_MAX = 500;
-/** A response is newline-delimited: the bot sends one message per line. */
 export const RESPONSE_MAX_LINES = 5;
 export const COOLDOWN_MAX = 86400;
 
-// --- urlfetch definition rules ---------------------------------------------
-//
-// The numbers below are the shared contract between this console (instant
-// client feedback AND the authoritative server re-check in the fetches page
-// actions) and the commands/gossip services' Go validators. They live here
-// (not inline in the UI), so client and server literally cannot drift.
-
-/** The bare command trigger: drop a leading "!" and lower-case. */
 export function normName(s: string): string {
   return s.trim().replace(/^!+/, '').trim().toLowerCase();
 }
 
-/**
- * The response's meaningful lines, mirroring the commands service's
- * normalization: CRLF folds to LF, trailing whitespace per line and blank
- * lines are dropped. Shared by the validator, the editor's counters and the
- * chat rehearsal so all three agree on what actually gets sent.
- */
 export function responseLines(response: string): string[] {
   return response
     .split(/\r\n|\r|\n/)
@@ -46,13 +21,10 @@ export function responseLines(response: string): string[] {
     .filter((l) => l !== '');
 }
 
-/** Canonical wire/storage form: one non-empty chat message per LF-delimited line. */
 export function normalizeCommandResponse(response: string): string {
   return responseLines(response).join('\n');
 }
 
-// Linear-time right-trim of spaces/tabs (mirrors Go's TrimRight(" \t")); a
-// trailing-whitespace regex backtracks polynomially on adversarial input.
 const LINE_TRAILERS = new Set([' ', '\t']);
 
 function trimLineEnd(line: string): string {
@@ -62,25 +34,18 @@ function trimLineEnd(line: string): string {
 }
 
 export interface CommandFields {
-  /** Normalized (normName) trigger. */
   name: string;
-  /** Normalized, de-duplicated alternate names. */
   aliases: string[];
   response: string;
   cooldown: number;
-  /** Digits-only Twitch user id, or '' for unrestricted. */
   allowedUserId: string;
-  /** Normalized counter name to bump on every successful run, or '' for none. */
   bumpCounter: string;
 }
 
-/** field -> human message; empty object = valid. Keys match form field names. */
 export type CommandErrors = Partial<
   Record<'name' | 'aliases' | 'response' | 'cooldown' | 'allowed_user_id' | 'bump_counter', string>
 >;
 
-// NameCheck is one trigger-shaped value under validation with the label its
-// error prose should carry ("Command name", "Alternate name …").
 interface NameCheck {
   value: string;
   what: string;
@@ -94,9 +59,6 @@ function nameProblem({ value, what }: NameCheck): string | undefined {
   return undefined;
 }
 
-// Per-field problem functions, the validateFetchDef shape: each owns one
-// field's rules and returns the first violation, so the assembler spends one
-// branch per field.
 function aliasesProblem(name: string, aliases: string[]): string | undefined {
   const seen = new Set<string>([name]);
   for (const a of aliases) {
@@ -118,21 +80,14 @@ function responseProblem(response: string): string | undefined {
   if (lines.some((l) => l.length > RESPONSE_MAX)) return `Each line must be at most ${RESPONSE_MAX} characters.`;
   if (lines.some((l) => CONTROL_CHAR_RE.test(l))) return 'Response cannot contain control characters.';
   if (urlFetchNames(response).length > URLFETCH_TOKEN_CAP) {
-    // Distinct NORMALIZED names, not occurrences: urlFetchNames folds each
-    // span's payload through the engine's own key (scope.NormalizeName, via
-    // the shared lexer) before deduping, so two spellings of one definition —
-    // {urlfetch:Weather} and {urlfetch:weather|n/a} — cost one slot here
-    // exactly as they cost one fetch there. The latency budget the engine must
-    // absorb scales with distinct defs, so that is what the cap counts.
     return `A response can reference at most ${URLFETCH_TOKEN_CAP} different fetched values ({urlfetch:…}).`;
   }
   return undefined;
 }
 
 function cooldownProblem(cooldown: number): string | undefined {
-  // The negated range check refuses NaN and both infinities in one shape:
-  // NaN fails every comparison, ±Infinity falls outside the bounds.
-  if (!(cooldown >= 0 && cooldown <= COOLDOWN_MAX)) return `Cooldown must be between 0 and ${COOLDOWN_MAX} seconds.`;
+  const inRangeAndNotNaN = cooldown >= 0 && cooldown <= COOLDOWN_MAX;
+  if (!inRangeAndNotNaN) return `Cooldown must be between 0 and ${COOLDOWN_MAX} seconds.`;
   if (!Number.isInteger(cooldown)) return 'Cooldown must be a whole number of seconds.';
   return undefined;
 }
@@ -155,11 +110,8 @@ export function validateCommand(f: CommandFields): CommandErrors {
   return errors;
 }
 
-// Plain character class: linear, no backtracking (the same rune set the
-// byte loop it replaced checked, C0 controls).
 const CONTROL_CHAR_RE = /[\u0000-\u001f]/;
 
-/** Convenience: the first message of an error map, for single-line surfaces. */
 export function firstError(errors: CommandErrors | FetchDefErrors): string | undefined {
   return Object.values(errors)[0];
 }

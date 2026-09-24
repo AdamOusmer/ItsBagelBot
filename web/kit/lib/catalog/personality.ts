@@ -3,11 +3,6 @@
 
 import type { ModuleDef } from './module-def';
 
-// The bot's own voice on the normal chat path. Every line it posts is baked
-// into sesame (app/twitch/sesame/modules), so the tile is a bare switch: no
-// settings, no editable replies. It was always-on core until the personality
-// module got its own ModuleView row, hence defaultEnabled: true, so a channel
-// that never touches this page keeps exactly the behaviour it had before.
 export const PERSONALITY_MODULE: ModuleDef = {
   id: 'personality',
   label: 'Bot Personality',

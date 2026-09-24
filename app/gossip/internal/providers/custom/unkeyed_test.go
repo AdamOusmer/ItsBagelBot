@@ -10,11 +10,6 @@ import (
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 )
 
-// An unkeyed definition (empty key_label) must never consult the key
-// resolver: the default harness wires no FetchKeys at all, so any lookup
-// would surface as errKeyMissing and a bad_def reply. The upstream echoes
-// the Authorization header it received so the test can prove nothing was
-// attached, rather than only that the fetch succeeded.
 func TestUnkeyedDefFetchesWithoutKeyResolver(t *testing.T) {
 	h := newHarness(t)
 	echo := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

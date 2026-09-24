@@ -4,33 +4,16 @@
 
 import Tag from '@bagel/ui/astro/Tag.astro';
 
-/**
- * The chat rehearsal strip the command and module editors carry under a
- * response: what the bot would say, with the sample values marked.
- *
- * Why this is drawn here rather than imported. The console's own
- * (web/dashboard/src/lib/components/commands/ChatPreview.svelte) is a Svelte
- * component with a live tokenizer, a typing animation and a generated avatar;
- * it is behaviour, not a surface, so it has no @bagel/ui element to reuse and
- * cannot render inside an Astro page. The three screens that show it need the
- * still frame only, so they share this one, and its rules are a deliberate
- * copy of that component's own -- kept to the box, the two speaker colours and
- * the <mark>, which are the parts a reader recognises.
- */
 export interface Line {
     who: 'viewer' | 'bot' | 'system';
-    /** Omitted for a system line ("sesame_sam followed the channel"). */
     name?: string;
-    /** Plain text. Use `html` for a line with marked sample values. */
     text?: string;
     html?: string;
 }
 
 interface Props {
-    /** The label notched into the box's top edge. */
     tag: string;
     lines: Line[];
-    /** Legend index of the note describing the rehearsal, if a guide has one. */
     note?: string;
 }
 
@@ -61,8 +44,6 @@ const { tag, lines, note } = Astro.props;
         gap: 8px;
     }
 
-    /* Bare .bb-tag: the box already draws the frame this label sits on, so the
-       label keeps only the notch (opaque background cutting the border). */
     .chat-tag {
         position: absolute;
         top: -8px;

@@ -12,20 +12,14 @@ import (
 	"ItsBagelBot/internal/domain/rpc/deploy"
 )
 
-// preflight gates the train on the cluster and the target commit. The
-// cluster-wide lock is the engine's: it is held before any stage runs.
 type preflight struct{}
 
 func (preflight) ID() deploy.StageID { return deploy.StagePreflight }
 
-// Done is always false: every check is about the world right now, and the
-// world an earlier attempt checked has moved on.
 func (preflight) Done(context.Context, *stage.RunCtx) (bool, error) { return false, nil }
 
 func (preflight) Run(ctx context.Context, rc *stage.RunCtx) error {
 	p := &checkRun{rc: rc}
-	// Settled runs last: the checks wait can take minutes, and settled must
-	// describe the cluster the train is about to touch, not the one before it.
 	return runSteps(ctx, rc, []step{
 		{key: "cluster", label: "Cluster reachable", run: p.reachable},
 		{key: "lint", label: "Manifest lint", run: p.lint},
@@ -34,7 +28,6 @@ func (preflight) Run(ctx context.Context, rc *stage.RunCtx) error {
 	})
 }
 
-// checkRun carries what one preflight's checks share.
 type checkRun struct {
 	rc      *stage.RunCtx
 	target  deploy.SHA
@@ -49,9 +42,6 @@ func (p *checkRun) reachable(ctx context.Context) error {
 	return nil
 }
 
-// lint builds the target commit's manifests and refuses a one-pod-per-node
-// workload that surges: on a cluster with a pod of it on every node the
-// surge pod has nowhere to schedule and the rollout deadlocks.
 func (p *checkRun) lint(ctx context.Context) error {
 	target, err := resolveTarget(ctx, p.rc)
 	if err != nil {
@@ -72,9 +62,6 @@ func (p *checkRun) lint(ctx context.Context) error {
 	return f
 }
 
-// resolveTarget returns the run's target commit. A run started without one
-// (reapply rolls main as it is) gets main's head, persisted so a resumed run
-// reads the same commit instead of whatever main has become.
 func resolveTarget(ctx context.Context, rc *stage.RunCtx) (deploy.SHA, error) {
 	if sha := rc.View().TargetSHA; sha != "" {
 		return sha, nil
@@ -86,9 +73,6 @@ func resolveTarget(ctx context.Context, rc *stage.RunCtx) (deploy.SHA, error) {
 	return sha, rc.Update(ctx, func(r *deploy.Run) { r.TargetSHA = sha })
 }
 
-// checks waits for the target's required checks. Pending waits rather than
-// fails: a train started right after a merge meets checks still running on
-// main.
 func (p *checkRun) checks(ctx context.Context) error {
 	err := poll(ctx, p.rc, p.checksGreen)
 	p.wait(ctx, "")
@@ -111,8 +95,6 @@ func (p *checkRun) checksGreen(ctx context.Context) (bool, error) {
 	}
 }
 
-// wait publishes msg once, not on every poll; "" returns the stage to
-// running.
 func (p *checkRun) wait(ctx context.Context, msg string) {
 	if msg != p.waiting {
 		p.waiting = msg
@@ -131,8 +113,6 @@ func (p *checkRun) checksFailed(ctx context.Context, sum ports.CheckSummary) err
 	return f
 }
 
-// blocking is a failed check the summary state counts: a required one or
-// CodeScene.
 func (p *checkRun) blocking(c ports.Check) bool {
 	if c.State != deploy.ChecksFailure {
 		return false
@@ -140,9 +120,6 @@ func (p *checkRun) blocking(c ports.Check) bool {
 	return c.Required || c.Name == p.rc.Deps.Config.CodeSceneCheck
 }
 
-// settled refuses to start while a managed workload is mid-rollout or
-// unhealthy: the train would wait on, and then be blamed for, a rollout it
-// did not start.
 func (p *checkRun) settled(ctx context.Context) error {
 	refs := refsOf(managedUnits(arrange(p.objs).units))
 	bad, err := p.rc.Deps.Watcher.Settled(ctx, refs)

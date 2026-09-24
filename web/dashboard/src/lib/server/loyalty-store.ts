@@ -1,14 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Loyalty store: the points economy's two homes.
-//
-//   - The rates (points per sub/cheer/watch tick, the currency's name) live in
-//     the "loyalty" module blob, the same modules service every other feature
-//     uses; sesame re-reads it on every accrual.
-//   - Standings and counters live in the loyalty service, reached over NATS
-//     RPC (bagel.rpc.loyalty.*). Sesame is the writer (batched deltas); the
-//     dashboard reads and runs the management verbs.
 import { rpc } from '@bagel/kit/server/nats';
 import type { CounterDef, CounterEntryView, CounterScope, LoyaltyConfig, LoyaltyStanding } from '@bagel/kit';
 import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
@@ -23,7 +15,6 @@ export interface LoyaltyView {
   config: LoyaltyConfig;
 }
 
-// Wire mirrors of the Go loyaltyrpc shapes (snake_case).
 interface BalanceWire {
   viewer_id: string;
   viewer_login?: string;
@@ -60,10 +51,6 @@ function callLoyalty(verb: string, req: Record<string, unknown>): Promise<Loyalt
   return rpc<LoyaltyReplyWire>(`${SUB.loyalty}.${verb}`, req, 4000);
 }
 
-// readLoyalty loads the module blob (enable flag + rates).
-// RATE_KEYS are the numeric loyalty config fields. Listed once because every
-// one of them is read the same way, and spelling out nine `Number(x ?? 0) || 0`
-// expressions inline made a plain projection read as branching logic.
 const RATE_KEYS = [
   'subPoints',
   'resubPoints',
@@ -75,8 +62,6 @@ const RATE_KEYS = [
   'viewerTransfers'
 ] as const satisfies readonly (keyof LoyaltyConfig)[];
 
-// A missing, null or unparseable value is 0: the config blob is broadcaster
-// data round-tripped through JSON, so any field can be absent or the wrong type.
 function rate(v: unknown): number {
   return Number(v ?? 0) || 0;
 }
@@ -96,7 +81,6 @@ function toScope(raw: string | undefined): CounterScope {
   return COUNTER_SCOPES.includes(raw as CounterScope) ? (raw as CounterScope) : 'channel';
 }
 
-// listCounters returns the channel's counter definitions.
 export async function listCounters(userId: string): Promise<CounterDef[]> {
   const reply = await callLoyalty('counter.list', { user_id: userId });
   return (reply.counters ?? []).map((c) => ({
@@ -113,19 +97,13 @@ export async function createCounter(userId: string, name: string, scope: Counter
   return { name: c.name, scope: toScope(c.scope), value: c.value };
 }
 
-// CounterTarget addresses one stored bucket of an entry-scoped counter: the
-// viewer for the viewer scopes, the command bucket for the command scopes.
-// viewerLogin optionally stamps the bucket's display identity (the manual
-// add knows the typed username; bumps refresh it later like any other).
 export interface CounterTarget {
   viewerId?: string;
   command?: string;
   viewerLogin?: string;
 }
 
-// setCounter writes an absolute value. Untargeted it sets a channel counter's
-// value, and on entry-scoped counters a zero resets every stored bucket (the
-// service's reset semantics). With a target it upserts that one bucket.
+// Untargeted on an entry-scoped counter, 0 resets every stored bucket.
 export async function setCounter(userId: string, name: string, value: number, target: CounterTarget = {}): Promise<boolean> {
   const reply = await callLoyalty('counter.set', {
     user_id: userId,
@@ -138,16 +116,12 @@ export async function setCounter(userId: string, name: string, value: number, ta
   return reply.found === true;
 }
 
-// getCounter reads one counter's definition (the scope gate for targeted
-// writes); null when it does not exist.
 export async function getCounter(userId: string, name: string): Promise<CounterDef | null> {
   const reply = await callLoyalty('counter.get', { user_id: userId, name });
   if (reply.found !== true || !reply.counter) return null;
   return { name: reply.counter.name, scope: toScope(reply.counter.scope), value: reply.counter.value };
 }
 
-// resolveViewerId resolves a Twitch username to its id through outgress (the
-// authenticated Get Users behind the accountage verb); '' when no such user.
 export async function resolveViewerId(login: string): Promise<string> {
   const reply = await rpc<{ target_id?: string; user_found?: boolean; error?: string }>(
     `${SUB.outgressRpc}.accountage.get`,
@@ -158,8 +132,6 @@ export async function resolveViewerId(login: string): Promise<string> {
   return reply.target_id ?? '';
 }
 
-// renameCounter moves a counter (and its stored buckets) to a new name;
-// false means no counter carries the old name.
 export async function renameCounter(userId: string, name: string, newName: string): Promise<boolean> {
   const reply = await callLoyalty('counter.rename', { user_id: userId, name, new_name: newName });
   return reply.found === true;
@@ -169,9 +141,6 @@ export async function deleteCounter(userId: string, name: string): Promise<void>
   await callLoyalty('counter.delete', { user_id: userId, name });
 }
 
-// deleteCounterEntry removes one stored bucket of an entry-scoped counter,
-// addressed by viewer and/or command; false means no such counter (or the
-// address was untargeted, which the service refuses).
 export async function deleteCounterEntry(userId: string, name: string, target: CounterTarget): Promise<boolean> {
   const reply = await callLoyalty('counter.entry.delete', {
     user_id: userId,
@@ -182,7 +151,6 @@ export async function deleteCounterEntry(userId: string, name: string, target: C
   return reply.found === true;
 }
 
-// counterEntries lists an entry-scoped counter's buckets, highest first.
 export async function counterEntries(userId: string, name: string, limit = 25): Promise<CounterEntryView[]> {
   const reply = await callLoyalty('counter.entries', { user_id: userId, name, limit });
   return (reply.entries ?? []).map((e) => ({
@@ -194,7 +162,6 @@ export async function counterEntries(userId: string, name: string, limit = 25): 
   }));
 }
 
-// topStandings returns the channel's points leaderboard.
 export async function topStandings(userId: string, limit = 10): Promise<LoyaltyStanding[]> {
   const reply = await callLoyalty('top.get', { user_id: userId, limit });
   return (reply.top ?? []).map((b) => ({

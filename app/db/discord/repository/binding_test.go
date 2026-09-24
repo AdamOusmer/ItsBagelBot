@@ -70,9 +70,6 @@ func TestBindingSetRefusesAGuildBoundElsewhere(t *testing.T) {
 	assert.Equal(t, uint64(42), broadcasterID, "the losing bind must not move the row")
 }
 
-// One broadcaster owns many guilds: binding a second server is ordinary, not a
-// refusal. This is the inverse of the assertion this test used to make, when
-// broadcaster_id carried a unique index.
 func TestBindingSetAllowsManyGuildsPerBroadcaster(t *testing.T) {
 	repo, ctx := newStore(t, "bindingmanyguilds")
 
@@ -105,7 +102,6 @@ func TestBindingDeleteIsGuardedAndIdempotent(t *testing.T) {
 
 	require.NoError(t, repo.BindingSet(ctx, repository.BindParams{GuildID: "g1", BroadcasterID: 42}))
 
-	// A stale unbind naming the wrong broadcaster must not drop the row.
 	assert.ErrorIs(t, repo.BindingDelete(ctx, "g1", 43), repository.ErrBoundElsewhere)
 	_, found, err := repo.BindingGet(ctx, "g1")
 	require.NoError(t, err)
@@ -116,7 +112,6 @@ func TestBindingDeleteIsGuardedAndIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found)
 
-	// Deleting an absent binding is success: the goal state already holds.
 	require.NoError(t, repo.BindingDelete(ctx, "g1", 42))
 }
 

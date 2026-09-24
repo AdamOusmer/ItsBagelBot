@@ -1,10 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-// Starts the Nightbot OAuth connect flow for the config importer: mints the
-// CSRF state cookie and bounces to nightbot.tv's consent screen. Owner-only,
-// same policy as the import actions themselves: an import rewrites the
-// board wholesale and delegates are read-mostly by design.
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { randomBytes } from 'node:crypto';

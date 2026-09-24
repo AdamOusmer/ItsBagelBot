@@ -20,9 +20,6 @@ func interactionBy(permissions string, roles []string) decode.InteractionEvent {
 	return in
 }
 
-// The gate is role OR permission. Before this, a Lead Mod whose role carried
-// no moderation bit was refused by every slash command in the bot, while the
-// same person could see every ticket channel.
 func TestIsStaffOrMod(t *testing.T) {
 	cfg := ddiscord.Config{OwnerRoleID: "o", LeadModRoleID: "l", ModsRoleID: "m"}
 	cases := []struct {
@@ -47,9 +44,6 @@ func TestIsStaffOrMod(t *testing.T) {
 	}
 }
 
-// The privilege split: a role on the ticket desk's staff list runs the desk
-// and nothing else. Before this, adding "Support" to the desk list handed
-// that role /ban, /kick, /timeout and /purge across the whole guild.
 func TestDeskStaffIsNotModStaff(t *testing.T) {
 	cfg := ddiscord.Config{OwnerRoleID: "o", ModsRoleID: "m", TicketStaffRoles: "helper"}
 	helper := interactionBy("0", []string{"helper"})
@@ -65,8 +59,6 @@ func TestDeskStaffIsNotModStaff(t *testing.T) {
 	}
 }
 
-// A ticket is closable by its opener, by a permission-bearing mod, and now
-// by a Bagel staff role holder who has neither.
 func TestCanCloseTicket(t *testing.T) {
 	cfg := ddiscord.Config{ModsRoleID: "m", TicketStaffRoles: "helper,m"}
 	ticket := discordstore.Ticket{ChannelID: "c1", OpenerID: "opener"}
@@ -94,8 +86,6 @@ func TestCanCloseTicket(t *testing.T) {
 	}
 }
 
-// The ticket desk staff list, when set, is what gates a ticket channel's
-// overwrites -- not the Owner/Lead Mod/Mods trio.
 func TestTicketOverwritesUseTheDeskStaffList(t *testing.T) {
 	cfg := ddiscord.Config{OwnerRoleID: "o", ModsRoleID: "m", TicketStaffRoles: "helper"}
 	got := ticketOverwrites(cfg, interactionBy("0", nil))
@@ -104,7 +94,6 @@ func TestTicketOverwritesUseTheDeskStaffList(t *testing.T) {
 	for _, o := range got {
 		ids = append(ids, o.ID)
 	}
-	// @everyone deny, opener allow, then exactly the desk list.
 	if len(ids) != 3 || ids[2] != "helper" {
 		t.Fatalf("overwrite targets = %v, want the desk staff list", ids)
 	}

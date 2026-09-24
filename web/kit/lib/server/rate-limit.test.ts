@@ -11,7 +11,6 @@ import {
 } from './rate-limit';
 import { registerServerConfig } from './config';
 
-/** Limiter on a manual clock so refill is deterministic. */
 function make(opts: { capacity: number; refillPerSec: number; maxKeys?: number }) {
   let t = 0;
   const limiter = new RateLimiter({ ...opts, now: () => t });
@@ -36,11 +35,11 @@ describe('RateLimiter', () => {
     limiter.check('k');
     expect(limiter.check('k').allowed).toBe(false);
 
-    advance(1000); // one token back
+    advance(1000);
     expect(limiter.check('k').allowed).toBe(true);
     expect(limiter.check('k').allowed).toBe(false);
 
-    advance(60_000); // caps at capacity, not 60 tokens
+    advance(60_000);
     expect(limiter.check('k').allowed).toBe(true);
     expect(limiter.check('k').allowed).toBe(true);
     expect(limiter.check('k').allowed).toBe(false);
@@ -56,7 +55,6 @@ describe('RateLimiter', () => {
   });
 
   test('retryAfterSec reflects the refill rate', () => {
-    // 1 token per 10s: an empty bucket says wait 10s.
     const { limiter } = make({ capacity: 1, refillPerSec: 0.1 });
     limiter.check('k');
     expect(limiter.check('k').retryAfterSec).toBe(10);
@@ -68,9 +66,8 @@ describe('RateLimiter', () => {
     limiter.check('a');
     limiter.check('b');
     limiter.check('c');
-    limiter.check('d'); // over ceiling: 'a' evicted
+    limiter.check('d');
     expect(limiter.size).toBe(3);
-    // 'a' was forgotten, so it gets a fresh burst; 'd' is still tracked/empty.
     expect(limiter.check('a').allowed).toBe(true);
     expect(limiter.check('d').allowed).toBe(false);
     limiter.dispose();
@@ -92,7 +89,6 @@ describe('ValkeyRateLimiter', () => {
   test('degrades to the per-pod bucket when Valkey is unreachable', async () => {
     resetRateLimiterBackendForTests();
     registerServerConfig({
-      // Nothing listens here; every op fails fast and the breaker trips.
       valkey: { addr: '127.0.0.1:1' },
       cacheInvalidationPrefix: 'test'
     });
@@ -103,22 +99,17 @@ describe('ValkeyRateLimiter', () => {
     resetRateLimiterBackendForTests();
   });
 
-  // Real-backend integration: opt-in via RATE_LIMIT_TEST_VALKEY (host:port of
-  // a disposable Valkey), so the default suite stays dependency-free.
   const integrationAddr = process.env.RATE_LIMIT_TEST_VALKEY;
   test.if(!!integrationAddr)('enforces one shared budget across limiter instances', async () => {
     resetRateLimiterBackendForTests();
     registerServerConfig({ valkey: { addr: integrationAddr! }, cacheInvalidationPrefix: 'test' });
 
-    // Wait for the write client to finish its dial (commands never queue, so
-    // pre-ready checks would exercise the fallback instead of the backend).
     const deadline = Date.now() + 2000;
     while (!(await rateLimiterReady())) {
       if (Date.now() > deadline) throw new Error('valkey backend never became ready');
       await new Promise((r) => setTimeout(r, 50));
     }
 
-    // Two instances of the same tier = two pods sharing one bucket.
     const key = `it-${Date.now()}`;
     const podA = new ValkeyRateLimiter({ name: 'itest', capacity: 3, refillPerSec: 1 });
     const podB = new ValkeyRateLimiter({ name: 'itest', capacity: 3, refillPerSec: 1 });
@@ -127,12 +118,10 @@ describe('ValkeyRateLimiter', () => {
     expect((await podB.check(key)).allowed).toBe(true);
     expect((await podA.check(key)).allowed).toBe(true);
 
-    // Burst of 3 spent globally: the fourth request is denied on EITHER pod.
     const denied = await podB.check(key);
     expect(denied.allowed).toBe(false);
     expect(denied.retryAfterSec).toBeGreaterThanOrEqual(1);
 
-    // Refill restores the shared bucket for both pods.
     await new Promise((r) => setTimeout(r, 1100));
     expect((await podB.check(key)).allowed).toBe(true);
     expect((await podA.check(key)).allowed).toBe(false);

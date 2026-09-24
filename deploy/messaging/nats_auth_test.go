@@ -18,46 +18,26 @@ var busUserPattern = regexp.MustCompile(`(?m)^[ \t]*user: "([a-z_]+_bus)"`)
 var jsSubjectPattern = regexp.MustCompile(`"(\$JS[^"]+)"`)
 var streamMutationPattern = regexp.MustCompile(`^\$JS\.API\.STREAM\.(CREATE|UPDATE|DELETE|LEADER\.STEPDOWN)\.`)
 
-// TestServiceBusJetStreamPermissionsAreExact is the regression gate for the
-// BUS-account blast radius. A broad $JS.> grant, an extra stream, or a newly
-// added management verb must be reviewed here instead of silently reaching
-// every stream in the account.
 func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	config := sourceFile{name: "nats-auth.conf"}.read(t)
 	blocks := (authConfig{body: config}).busUserBlocks(t)
 
 	consumers := map[string][]string{
-		"users_bus":     {"BAGEL_DATA"},
-		"commands_bus":  {"BAGEL_DATA"},
-		"modules_bus":   {"BAGEL_DATA"},
-		"loyalty_bus":   {"BAGEL_DATA"},
-		"projector_bus": {"BAGEL_DATA", "TWITCH_INGRESS"},
-		"worker_bus":    {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-		"outgress_bus":  {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
-		// discord-engine owns DISCORD_INGRESS, and holds two more
-		// independent, stream-scoped consumer grants with no ownership: a
-		// durable push consumer on BAGEL_DATA (data.twitch.clip.created) and
-		// a second, independent durable push consumer on TWITCH_INGRESS
-		// (twitch.ingress.event.stream), alongside outgress's own. Both go
-		// through the same non-hot-ingress consumer path as everything else
-		// here, so neither is pull-mode (see pullFetchStreams below).
-		"discord_engine_bus": {"DISCORD_INGRESS", "BAGEL_DATA", "TWITCH_INGRESS"},
-		// discord-outgress owns DISCORD_OUTGRESS, its sole consumer.
+		"users_bus":            {"BAGEL_DATA"},
+		"commands_bus":         {"BAGEL_DATA"},
+		"modules_bus":          {"BAGEL_DATA"},
+		"loyalty_bus":          {"BAGEL_DATA"},
+		"projector_bus":        {"BAGEL_DATA", "TWITCH_INGRESS"},
+		"worker_bus":           {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
+		"outgress_bus":         {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM", "TWITCH_INGRESS"},
+		"discord_engine_bus":   {"DISCORD_INGRESS", "BAGEL_DATA", "TWITCH_INGRESS"},
 		"discord_outgress_bus": {"DISCORD_OUTGRESS"},
-		// discord-ingress is publish-only (see internal/domain/discord/event.go):
-		// no consumer grants and no $JS.API grants at all, since a plain
-		// PublishMsgAsync needs neither.
-		"discord_ingress_bus": {},
-		// The deployer holds only its DEPLOY_RUNS bucket (coordinationBuckets):
-		// no event-plane stream, no consumer verbs.
-		"deployer_bus": {},
+		"discord_ingress_bus":  {},
+		"deployer_bus":         {},
 	}
 	owners := map[string][]string{
-		"users_bus":  {"BAGEL_DATA"},
-		"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-		// The projector self-provisions its inputs rather than depending on
-		// users/sesame boot order; identical catalog specs make the concurrent
-		// reconciles converge.
+		"users_bus":            {"BAGEL_DATA"},
+		"worker_bus":           {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
 		"projector_bus":        {"BAGEL_DATA", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":         {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 		"discord_engine_bus":   {"DISCORD_INGRESS"},
@@ -93,17 +73,6 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 	}
 }
 
-// TestAdminStreamMutationGrantsAreOnlyItsOwnKV holds admin_bus to the one
-// stream it actually owns, plus the leader-stepdown verb that implements the
-// manual leader-spread policy after hub rolls. It used to also carry
-// create/update/delete and $JS.FC on a fixed benchmark stream name so a load
-// rig could run without a config push. That is standing ack-floor and
-// stream-mutation authority for a workload that is not running, and it
-// outlived the rig by itself — which is exactly how a permission becomes
-// permanent. A future load test brings its own grant for the duration of its
-// run. Stepdown is the deliberate exception: it moves leaders and nothing
-// else, and the spread must be restorable during an incident without a config
-// push.
 func TestAdminStreamMutationGrantsAreOnlyItsOwnKV(t *testing.T) {
 	config := sourceFile{name: "nats-auth.conf"}.read(t)
 	block, ok := (authConfig{body: config}).busUserBlocks(t)["admin_bus"]
@@ -130,44 +99,24 @@ func TestAdminStreamMutationGrantsAreOnlyItsOwnKV(t *testing.T) {
 	}
 }
 
-// TestRuntimeStreamOwnershipMatchesACL keeps startup reconciliation aligned
-// with the identities that receive STREAM.CREATE/UPDATE above.
 func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	mainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "*", "main.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Discord and Twitch both group their services one level deeper
-	// (app/<group>/<service>/main.go, not app/<service>/main.go), so a
-	// single generic two-level glob covers every grouped service instead
-	// of a hardcoded glob per group.
 	groupedMainFiles, err := filepath.Glob(filepath.Join("..", "..", "app", "*", "*", "main.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	check := streamOwnershipCheck{
 		want: map[string][]string{
-			"users": {"[]bus.StreamSpec{bus.BagelDataStream}"},
-			// Both ingress lane streams, in this order. EnsureStreams reconciles
-			// the slice in order and the partition's narrowing update must run
-			// before the new stream claims the subject, so the order is part of
-			// the assertion, not incidental formatting.
-			"sesame": {"bus.IngressLaneSpecs()"},
-			// BAGEL_DATA plus the ingress lane pair, through IngressLaneSpecs so
-			// the partition ordering holds here exactly as it does in sesame.
+			"users":     {"[]bus.StreamSpec{bus.BagelDataStream}"},
+			"sesame":    {"bus.IngressLaneSpecs()"},
 			"projector": {"append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)"},
-			// outgress owns only its two Twitch work-queue streams now;
-			// DISCORD_OUTGRESS moved to discord-outgress with the rest of
-			// the Discord split.
 			"outgress": {
 				"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 			},
-			// discord-engine is DISCORD_INGRESS's sole consumer, so it
-			// reconciles that stream and never DISCORD_OUTGRESS, which it
-			// only ever publishes onto.
-			"discord-engine": {"[]bus.StreamSpec{bus.DiscordIngressStream}"},
-			// discord-outgress is DISCORD_OUTGRESS's sole consumer,
-			// symmetrically -- see app/discord/outgress/main.go.
+			"discord-engine":   {"[]bus.StreamSpec{bus.DiscordIngressStream}"},
 			"discord-outgress": {"[]bus.StreamSpec{bus.DiscordOutgressStream}"},
 		},
 		seen: make(map[string]bool, 6),
@@ -195,31 +144,12 @@ type sourceFile struct {
 	name string
 }
 
-// flowControlStreams names, per user, the streams whose consumers acknowledge
-// through the AckFlowControl reply subject rather than $JS.ACK. Publishing to
-// $JS.FC is how such a consumer acks at all, so the grant is mandatory — and it
-// is ack-equivalent authority on that consumer, which is why it is scoped to a
-// single stream and asserted here rather than folded into the per-stream set.
 var flowControlStreams = map[string][]string{
 	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
 }
 
-// pullFetchStreams names, per user, the streams whose lanes may bind a
-// shared-durable pull consumer. MSG.NEXT is that consumer's fetch verb and no
-// push consumer ever sends it, so it is listed separately rather than folded
-// into the per-stream consumer set: granting it to a service that only binds
-// push consumers is authority for a call that service never makes, and NOT
-// granting it to one that pulls is a silent zero-delivery lane rather than a
-// visible error. Only the hot ingress lanes qualify for receipt-level
-// consumption (pkg/bus isHotIngressLane), and sesame is their only consumer;
-// worker_bus additionally fetches from TWITCH_INGRESS_RETRY, whose dead-letter
-// replay lane is drained with the same shared-durable pull mechanism.
 var pullFetchStreams = map[string][]string{
 	"worker_bus": {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-	// No Discord service pull-fetches: discord-engine's BAGEL_DATA and
-	// TWITCH_INGRESS bindings, and discord-outgress's DISCORD_OUTGRESS
-	// bindings, all go through the same non-hot-ingress push/explicit-ack
-	// consumer path (pkg/bus isHotIngressLane declines every one of them).
 }
 
 type streamGrants struct {
@@ -245,13 +175,6 @@ func (c *streamOwnershipCheck) inspect(t *testing.T, file sourceFile) {
 	}
 	dir := filepath.Dir(file.name)
 	service := filepath.Base(dir)
-	// Both Discord and Twitch group their services two levels under app/
-	// (app/discord/<service>, app/twitch/<service>), and "outgress" in
-	// particular collides between app/discord/outgress and
-	// app/twitch/outgress -- qualify Discord's with the discord- prefix so
-	// each is checked against its own owned stream, never the other's.
-	// Twitch's service names ("sesame", "outgress") are already unique in
-	// the map, so they need no prefix.
 	if filepath.Base(filepath.Dir(dir)) == "discord" {
 		service = "discord-" + service
 	}

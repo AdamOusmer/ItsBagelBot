@@ -114,8 +114,6 @@ func (s podSpec) obj() *corev1.Pod {
 	return p
 }
 
-// eventSpec is a core/v1 event about one pod. micro records it the way the
-// scheduler does (eventTime only, no firstTimestamp).
 type eventSpec struct {
 	pod     string
 	reason  string

@@ -15,9 +15,6 @@ import (
 	pkg_valkey "ItsBagelBot/pkg/valkey"
 )
 
-// TestPauseSnapshotOrdering covers how two snapshots resolve against each
-// other: a lower version never wins, and an equal version does, which is what
-// repairs a legacy writer that does not bump the version at all.
 func TestPauseSnapshotOrdering(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -54,8 +51,6 @@ func TestPauseSnapshotOrdering(t *testing.T) {
 	}
 }
 
-// stamp gives a snapshot a fresh observedAt so Paused does not fail it closed
-// as stale.
 func stamp(s pauseSnapshot) pauseSnapshot {
 	s.observedAt = time.Now()
 	return s
@@ -81,27 +76,13 @@ func TestPauseReconcileDelayIsJitteredWithinBounds(t *testing.T) {
 	}
 }
 
-// The registry only ever reads state it just wrote: Get reloads the hash whose
-// cache applyChannelUpdate invalidated, List reads the index set the same
-// pipeline SADDed, and EnrollCooldownActive checks the key ArmEnrollCooldown
-// set. Served by a lagging node-local replica those reads re-cache the
-// pre-write value and bypass the cooldown, so the constructor must pin them.
 func TestNewPinsRegistryReadsToThePrimary(t *testing.T) {
 	if !pkg_valkey.IsPrimary(New(nil).client) {
 		t.Fatal("registry reads are served by the node-local replica; they read back its own writes")
 	}
 }
 
-// TestSaveCoversEveryChannelField is the guard against the silent-revert bug
-// class: Save is a full overwrite, so any persisted field of manage.Channel it
-// forgets is quietly reset to empty on the next Save. That is how a grant-death
-// marker would disappear when an operator toggles "enabled" in the admin
-// console, with nothing logged and no test failing.
-//
-// broadcaster_id is excluded because it is the Valkey key, not a hash field.
 func TestSaveCoversEveryChannelField(t *testing.T) {
-	// broadcaster_id is the Valkey key rather than a hash field; the other two
-	// are the absent and explicitly-ignored json tags.
 	notPersisted := map[string]bool{"": true, "-": true, "broadcaster_id": true}
 
 	written := savedFields(manage.Channel{})
@@ -120,7 +101,6 @@ func TestSaveCoversEveryChannelField(t *testing.T) {
 	}
 }
 
-// TestSaveRoundTripsGrantState pins the field the go-live beacon reads.
 func TestSaveRoundTripsGrantState(t *testing.T) {
 	tests := []struct {
 		name    string

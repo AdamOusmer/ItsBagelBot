@@ -2,47 +2,6 @@
 # Proprietary. No license granted. See LICENSE.md.
 
 defmodule Ingress.Pipeline do
-  @moduledoc """
-  Decides what happens to each EventSub notification.
-
-  There are exactly three lane subjects:
-
-    * `twitch.ingress.event.premium` / `twitch.ingress.event.standard`: all
-      events, laned by broadcaster status.
-    * `twitch.ingress.event.stream`: the live lane, carrying `stream.online`
-      and `stream.offline` regardless of broadcaster status.
-
-  Live events are **dual-published**: every `stream.online`/`stream.offline`
-  goes to the live lane *and* to the broadcaster's own event lane
-  (premium/standard), so a consumer draining chat/follows/subs/cheers also sees
-  the channel go live without subscribing to the live lane.
-
-  Every published event carries its `type` in the payload so consumers filter
-  there, not on the subject.
-
-  For `channel.chat.message` there are three outcomes:
-
-    1. The chatter is one of the special user IDs (from secrets): publish to
-       the **premium** lane, always, even when the broadcaster is on the free
-       tier.
-    2. The message text starts with `!` (a command): publish to the lane
-       matching the **broadcaster's** status, looked up through
-       `Ingress.BroadcasterCache`. Commands are never squashed - a repeated
-       command is a legitimate second invocation the worker gates by cooldown.
-    3. Anything else (plain chat): published to the broadcaster's lane so the
-       worker's automod sees every message. Identical lines are coalesced by
-       `Ingress.Squash` into one folded `channel.chat.message` carrying every
-       sender, so per-user reputation and cross-user campaign detection keep the
-       full signal at a fraction of the event count.
-
-  A size guard drops oversized/malformed chat text (`max_chat_text_bytes`)
-  before any routing.
-
-  Every other EventSub type rides the premium/standard lanes, routed by the
-  event's broadcaster status. Events without an extractable broadcaster
-  default to the standard lane.
-  """
-
   require Logger
 
   alias Ingress.{BroadcasterCache, Config, JSON, LaneMessage, Metrics, Nats, Squash, Trace}
@@ -99,25 +58,14 @@ defmodule Ingress.Pipeline do
     Nats.publish_acked(subject, message)
   end
 
-  @doc """
-  Pure-ish routing (the only side effect is the broadcaster cache read).
-  Returns the subject and payload to publish, a list of them, or `:drop`.
-  """
   @spec route(map(), map()) ::
           {:publish, String.t(), map()} | {:publish_many, [{String.t(), map()}]} | :drop
   def route(payload, meta), do: do_route(payload, meta, Config.hot_path())
 
   defp do_route(%{"subscription" => %{"type" => type}, "event" => event}, meta, hot)
        when type in @stream_types do
-    # A live event rides two lanes at once: the dedicated stream (live) lane,
-    # and the broadcaster's own event lane (premium/standard) so consumers
-    # watching chat/follows/subs/cheers also see the channel go live without
-    # subscribing to the live lane. The stream lane is unconditional; the event
-    # lane is whatever the broadcaster's status resolves to.
     event_lane = event_lane(event)
 
-    # Both copies of a live event are the same document but for `lane`, so the
-    # shared members are encoded once here and each copy prefixes its own lane.
     body =
       JSON.members(%{
         type: type,
@@ -127,9 +75,6 @@ defmodule Ingress.Pipeline do
         received_at: meta.ts
       })
 
-    # The stream lane is unconditional. The broadcaster's own event lane is
-    # added only when they are not dropped (banned): a banned broadcaster's
-    # live event still rides the stream lane but never their event lane.
     publishes =
       [{hot.lane_subjects.stream, %LaneMessage{lane: :stream, body: body}}] ++
         case event_lane do
@@ -148,8 +93,6 @@ defmodule Ingress.Pipeline do
     text = get_in(event, ["message", "text"]) || ""
 
     cond do
-      # Size guard: a well-formed Twitch chat line is <= 500 chars; anything far
-      # past that is malformed or abuse and is dropped before any further work.
       byte_size(text) > hot.max_chat_text_bytes ->
         :oversized
 
@@ -187,10 +130,6 @@ defmodule Ingress.Pipeline do
     :drop
   end
 
-  @doc """
-  Pure decision for a chat message. The special-user check wins over the
-  command check, because special users go premium unconditionally.
-  """
   @spec decide(String.t(), String.t() | nil, Enumerable.t()) :: decision()
   def decide(text, chatter_id, special_user_ids) do
     cond do
@@ -200,8 +139,6 @@ defmodule Ingress.Pipeline do
     end
   end
 
-  # The broadcaster's own lane. An event that names no broadcaster cannot be
-  # resolved to one, and rides the standard lane rather than being dropped.
   defp event_lane(event) do
     case broadcaster_id(event) do
       nil -> :standard
@@ -209,19 +146,11 @@ defmodule Ingress.Pipeline do
     end
   end
 
-  @doc """
-  The broadcaster whose channel an event belongs to. Most channel events carry
-  `broadcaster_user_id`; inbound raids identify the receiving channel as
-  `to_broadcaster_user_id`.
-  """
   @spec broadcaster_id(map()) :: String.t() | nil
   def broadcaster_id(event) do
     event["broadcaster_user_id"] || event["to_broadcaster_user_id"]
   end
 
-  # Commands (and their like): publish to the broadcaster's own lane, unless the
-  # broadcaster is dropped (banned). Never squashed or shed, so a legitimate
-  # repeated command still runs (the worker gates abuse by cooldown).
   defp broadcaster_lane_publish(event, text, meta, hot) do
     case BroadcasterCache.lane(event["broadcaster_user_id"]) do
       :drop -> :drop
@@ -229,9 +158,6 @@ defmodule Ingress.Pipeline do
     end
   end
 
-  # Plain (non-command) chat now flows to the worker for the automod. Identical
-  # lines are coalesced by Ingress.Squash: the first publishes immediately, the
-  # rest fold into one channel.chat.message carrying every sender.
   defp plain_chat(event, text, meta, hot) do
     case BroadcasterCache.lane(event["broadcaster_user_id"]) do
       :drop ->
@@ -284,18 +210,8 @@ defmodule Ingress.Pipeline do
     end
   end
 
-  # Twitch's native per-message emote signals, which the flat text projection
-  # above used to drop. Cheermotes are identified by their prefix; the worker
-  # reads the bits/tier from the covered text itself.
   @emote_fragment_types ["emote", "cheermote"]
 
-  @doc """
-  Extracts emote spans from a `channel.chat.message` event's
-  `message.fragments`: one `%{id: id | prefix, begin: offset, end: offset}`
-  per emote/cheermote fragment, in message order. Offsets are Unicode
-  codepoint positions into `message.text` — `begin` points at the fragment's
-  first codepoint and `end` is exclusive. Returns [] when there are none.
-  """
   @spec emote_spans(map()) :: [
           %{id: String.t() | nil, begin: non_neg_integer(), end: non_neg_integer()}
         ]
@@ -319,17 +235,6 @@ defmodule Ingress.Pipeline do
 
   def emote_spans(_event), do: []
 
-  # Twitch measures emote offsets in codepoints. String.length/1 counts
-  # graphemes instead, so every span after a flag or ZWJ emoji would drift
-  # below its true position, while byte_size over-counts all non-ASCII text;
-  # both were wrong against the IRC-style indices Twitch itself emits.
-  #
-  # The comprehension counts exactly the codepoints String.to_charlist/1 would
-  # have produced, without building the charlist: one cons cell per codepoint,
-  # per fragment, per chat message is pure garbage on the hottest path here.
-  # It differs from the charlist only on invalid UTF-8, where it stops counting
-  # instead of raising UnicodeConversionError; nothing upstream feeds this
-  # anything but Twitch's own JSON strings, and no caller wanted the raise.
   defp codepoint_width(text) when is_binary(text),
     do: for(<<_::utf8 <- text>>, reduce: 0, do: (n -> n + 1))
 

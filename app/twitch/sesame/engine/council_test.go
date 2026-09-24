@@ -30,8 +30,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// fakeCampaign returns a fixed distinct-sender count and records how often it
-// was consulted, with which tenant and sender.
 type fakeCampaign struct {
 	mu    sync.Mutex
 	count int
@@ -39,7 +37,6 @@ type fakeCampaign struct {
 	seen  []campaignCall
 }
 
-// campaignCall is one recorded Observe invocation.
 type campaignCall struct {
 	broadcasterID uint64
 	simhash       uint64
@@ -55,10 +52,6 @@ func (c *fakeCampaign) Observe(_ context.Context, broadcasterID uint64, simhash 
 }
 
 func councilPipeline(pub *fakePublisher, camp Campaign) *Pipeline {
-	// Loaded-empty emote set: keeps the caps heuristic enforcing. A never-loaded
-	// gate now suppresses caps-only lines by design (automod's
-	// TestCapsOnlyRescueByEmoteAvailability), which would silently turn this
-	// suite's all-caps fixture into a no-op instead of a delete to escalate.
 	gate := automod.New()
 	gate.SetEmotes(automod.NewEmoteSet(nil))
 	d := Deps{
@@ -70,8 +63,6 @@ func councilPipeline(pub *fakePublisher, camp Campaign) *Pipeline {
 	})
 }
 
-// linkChat is a clean, link-bearing chat line (no content verdict on its own)
-// with a message id so deletes can be exercised.
 func linkChat(t *testing.T, chatter string) *bus.Message {
 	t.Helper()
 	body, err := codec.Marshal(map[string]any{
@@ -123,8 +114,6 @@ func TestCampaignEscalatesFlaggedDeleteToTimeout(t *testing.T) {
 	pub := &fakePublisher{}
 	p := councilPipeline(pub, camp)
 
-	// A caps heuristic line (delete verdict) corroborated by the campaign juror
-	// becomes a timeout.
 	body, err := codec.Marshal(map[string]any{
 		"type":                chatType,
 		"lane":                "standard",
@@ -184,7 +173,6 @@ func TestBuildOutgressDeleteAndWarn(t *testing.T) {
 	require.NoError(t, codec.Unmarshal(body, &msg))
 	assert.Equal(t, outgress.TypeDelete, msg.Type)
 	assert.Equal(t, "abc-123", msg.MsgID)
-	// A nil RawMessage marshals as JSON null: no body either way.
 	assert.True(t, len(msg.Payload) == 0 || string(msg.Payload) == "null", "delete has no body")
 
 	body, err = buildOutgress(&module.Output{
@@ -202,9 +190,6 @@ func TestBuildOutgressDeleteAndWarn(t *testing.T) {
 	assert.Equal(t, "automod:lex:harassment:x", wire.Data.Reason)
 }
 
-// The campaign juror must never fire on ordinary chat volume: distinct chatters
-// posting DIFFERENT clean lines share no template, and the fake here proves the
-// pipeline only consults the juror for link-bearing or already-flagged lines.
 func TestOrdinaryChatterFlowNeverCounts(t *testing.T) {
 	camp := &fakeCampaign{count: 100}
 	pub := &fakePublisher{}
@@ -217,8 +202,6 @@ func TestOrdinaryChatterFlowNeverCounts(t *testing.T) {
 	assert.Empty(t, pub.got)
 }
 
-// The juror must be consulted with the broadcaster id of the moderation
-// context the line arrived in, so quorums can never fuse across tenants.
 func TestCampaignJurorReceivesTenantScope(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -258,15 +241,6 @@ func TestCampaignJurorReceivesTenantScope(t *testing.T) {
 	}
 }
 
-// ---- offline valkey test double -------------------------------------------
-//
-// ValkeyCampaign needs a real command Builder, which only a live valkey.Client
-// hands out (the builder constructors are internal to the library), and
-// NewClient dials eagerly. The listener below accepts the connection and
-// answers every init handshake command with the one error message the client's
-// RESP2 fallback tolerates ("unknown command 'HELLO'"), so a real Client — and
-// with it B() — exists without a server. The recording client then intercepts
-// DoMulti, capturing built commands and handing back scripted replies.
 type dumbValkeyServer struct{}
 
 func newFakeValkey(tb testing.TB) *recordingValkey {
@@ -277,8 +251,6 @@ func newFakeValkey(tb testing.TB) *recordingValkey {
 	return &recordingValkey{Client: real}
 }
 
-// listenLoopback opens a TCP listener on a random loopback port, closed with
-// the test.
 func listenLoopback(tb testing.TB) net.Listener {
 	tb.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -287,8 +259,6 @@ func listenLoopback(tb testing.TB) net.Listener {
 	return ln
 }
 
-// serveHandshakeRefusals accepts client connections until the listener closes,
-// refusing every incoming command.
 func serveHandshakeRefusals(ln net.Listener) {
 	for {
 		conn, err := ln.Accept()
@@ -299,8 +269,6 @@ func serveHandshakeRefusals(ln net.Listener) {
 	}
 }
 
-// refuseHandshake drains one connection's commands, answering each with the
-// canned error until the peer or the test goes away.
 func refuseHandshake(c net.Conn) {
 	defer c.Close()
 	r := bufio.NewReader(c)
@@ -314,9 +282,6 @@ func refuseHandshake(c net.Conn) {
 	}
 }
 
-// dialRecordingClient builds the real valkey client against addr — and with it
-// the B() command builder no library-internal constructor exposes — closing it
-// with the test.
 func dialRecordingClient(tb testing.TB, addr string) valkey.Client {
 	tb.Helper()
 	real, err := valkey.NewClient(valkey.ClientOption{
@@ -330,8 +295,6 @@ func dialRecordingClient(tb testing.TB, addr string) valkey.Client {
 	return real
 }
 
-// recordingValkey captures every DoMulti command and replays scripted replies
-// positionally (unscripted positions succeed with an empty message).
 type recordingValkey struct {
 	valkey.Client
 
@@ -368,15 +331,10 @@ func (f *recordingValkey) captured() [][]string {
 	return append([][]string(nil), f.cmds...)
 }
 
-// respCommand is one parsed client command: the words read off the wire. An
-// array-of-bulk-strings frame yields one word per bulk string, a bare inline
-// line folds into a single verbatim word (delimiter included), and a blank
-// separator line parses to an empty command with no error.
 type respCommand struct {
 	args []string
 }
 
-// parseRespCommand consumes one RESP client command off r.
 func parseRespCommand(r *bufio.Reader) (respCommand, error) {
 	line, err := r.ReadString('\n')
 	if err != nil {
@@ -392,7 +350,6 @@ func parseRespCommand(r *bufio.Reader) (respCommand, error) {
 	return respCommand{args: []string{line}}, nil
 }
 
-// parseRespArray reads the n bulk strings announced by an '*n' header line.
 func parseRespArray(r *bufio.Reader, header string) ([]string, error) {
 	n, err := strconv.Atoi(strings.TrimSpace(header[1:]))
 	if err != nil {
@@ -408,7 +365,7 @@ func parseRespArray(r *bufio.Reader, header string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		buf := make([]byte, ln+2) // payload + CRLF
+		buf := make([]byte, ln+2)
 		if _, err := io.ReadFull(r, buf); err != nil {
 			return nil, err
 		}
@@ -417,11 +374,8 @@ func parseRespArray(r *bufio.Reader, header string) ([]string, error) {
 	return args, nil
 }
 
-// The keys Observe writes must carry the broadcaster id between the prefix and
-// the band hex, in PFADD k1, PFADD k2, EXPIRE k1, EXPIRE k2, PFCOUNT k1,
-// PFCOUNT k2 order, with the sliding window TTL on both bands.
 func TestValkeyCampaignKeyScoping(t *testing.T) {
-	const simhash = 0x0123456789abcdef // bands: 1234567 / 89abcdef
+	const simhash = 0x0123456789abcdef
 	tests := []struct {
 		name          string
 		broadcasterID uint64
@@ -470,10 +424,6 @@ func TestValkeyCampaignKeyScoping(t *testing.T) {
 	}
 }
 
-// Two tenants observing the identical template must not share a single key:
-// the old fleet-wide am:tmpl:<band> scheme fused their quorums. (Keys repeat
-// within one Observe — pfadd/expire/pfcount on each band — so the invariant is
-// disjointness across tenants, not global uniqueness.)
 func TestValkeyCampaignTenantsShareNoKeys(t *testing.T) {
 	fk := newFakeValkey(t)
 	c := NewValkeyCampaign(fk, zaptest.NewLogger(t))
@@ -502,8 +452,6 @@ func TestValkeyCampaignTenantsShareNoKeys(t *testing.T) {
 	}
 }
 
-// Guard clauses must short-circuit before any client call: the nil client
-// would panic on the first built command if an observation slipped through.
 func TestValkeyCampaignGuardsShortCircuit(t *testing.T) {
 	c := NewValkeyCampaign(nil, zaptest.NewLogger(t))
 
@@ -512,8 +460,6 @@ func TestValkeyCampaignGuardsShortCircuit(t *testing.T) {
 	assert.Zero(t, c.Observe(context.Background(), 123, 0x1234, ""), "no sender")
 }
 
-// PFADD/EXPIRE failures must surface (once per interval, carrying how many
-// were swallowed) instead of vanishing — but never change the returned count.
 func TestCampaignWriteErrorsVisibleOncePerInterval(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	c := &ValkeyCampaign{log: zap.New(core)}
@@ -533,19 +479,15 @@ func TestCampaignWriteErrorsVisibleOncePerInterval(t *testing.T) {
 	assert.Equal(t, int64(2), fields["suppressed"])
 	assert.Contains(t, logs.All()[0].Message, "write failed")
 
-	// A second sweep inside the interval is counted but not logged.
 	c.noteWriteErrors(bad)
 	assert.Equal(t, int64(2), c.errPending.Load())
 	assert.Len(t, logs.All(), 1)
 
-	// Once the interval lapses, the next failure logs the total swallowed:
-	// the two errors from the suppressed sweep plus its own.
 	c.lastWriteLogNs.Add(-int64(2 * campaignErrLogInterval))
 	c.noteWriteErrors(bad)
 	require.Len(t, logs.All(), 2)
 	assert.Equal(t, int64(4), logs.All()[1].ContextMap()["suppressed"])
 
-	// Success replies never log and never count.
 	c.lastWriteLogNs.Store(time.Now().Add(-2 * campaignErrLogInterval).UnixNano())
 	good := []valkey.ValkeyResult{
 		valkey.NewResult(valkey.ValkeyMessage{}, nil),
@@ -557,7 +499,6 @@ func TestCampaignWriteErrorsVisibleOncePerInterval(t *testing.T) {
 	assert.Len(t, logs.All(), 2)
 	assert.Equal(t, int64(0), c.errPending.Load())
 
-	// And the counting read path stays fail-open over scripted write errors.
 	fk := newFakeValkey(t)
 	fk.script(bad...)
 	vc := NewValkeyCampaign(fk, zaptest.NewLogger(t))

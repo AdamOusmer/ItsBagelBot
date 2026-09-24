@@ -1,11 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // One "pick a channel, category or role" row.
-  //
-  // The empty option is "Not set" rather than a blank: a picker with nothing
-  // chosen is a real, supported state (that module simply does not post), and a
-  // blank first row reads as a list that failed to load.
   import { getI18n, type DiscordConfig, type RefusedFields } from '@bagel/kit';
   import type { DiscordEntry } from '$lib/server/discord-store';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
@@ -26,15 +21,11 @@
     label: string;
     help: string;
     options: DiscordEntry[];
-    /** '#' for text channels, '' for voice channels and categories. */
     prefix?: string;
   } = $props();
 
   const { t } = getI18n();
 
-  /** Announcement channels are offered by name plus a marker, so picking one is
-   *  a choice rather than a surprise: Discord rate-limits them hard and fans
-   *  every post out to following servers. */
   function optionLabel(opt: DiscordEntry): string {
     return opt.type === 5 ? `${opt.name} ${t('discord.announcementTag')}` : opt.name;
   }

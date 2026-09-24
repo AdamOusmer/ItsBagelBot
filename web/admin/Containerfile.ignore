@@ -1,10 +1,7 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Build context whitelist for the console-admin image. Mirror of
-# web/dashboard/Containerfile.ignore -- see that file for why the context is the
-# repository root, why this is a whitelist rather than a denylist, and why each
-# console image carries its own.
+# Whitelist for the console-admin build context (the repository root). The last matching pattern wins.
 *
 !ui
 !web/package.json
@@ -16,9 +13,7 @@
 !web/kit
 !web/admin
 
-# Manifest only, so `bun install --frozen-lockfile` can resolve the workspace
-# graph without pulling in the sources (or the toolchains) of members this image
-# never runs.
+# Other members contribute only their manifest: --frozen-lockfile fails if a bun.lock member has no package.json.
 !web/dashboard/package.json
 !web/marketing/package.json
 !web/docs/package.json

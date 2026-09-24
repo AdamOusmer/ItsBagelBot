@@ -62,8 +62,6 @@ func TestFixedSystemBucketWarmsBeforeFirstBurst(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// No system request has arrived yet. The plan activation must still have
-	// created the bucket so its leased share can refill while the lane is idle.
 	later := now.Add(time.Minute)
 	req := profileHelixSystemShare.ForKey("ratelimit:helix:system")
 	for i := 0; i < 20; i++ {

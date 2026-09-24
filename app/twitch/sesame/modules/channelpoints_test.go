@@ -75,7 +75,6 @@ func TestChannelPointsChatDefaultTemplate(t *testing.T) {
 }
 
 func TestChannelPointsUnknownActionRunsNothing(t *testing.T) {
-	// Legacy/unknown action kinds degrade to "none": no output, no crash.
 	for _, action := range []string{"announce", "shoutout", "bogus", ""} {
 		var col collector
 		cfg := `{"rewards":[{"id":"rw-1","action":"` + action + `","message":"hi"}]}`

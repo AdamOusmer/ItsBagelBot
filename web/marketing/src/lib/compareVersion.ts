@@ -1,13 +1,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * Compare git tags like `v0.1.3-beta` for newest-first changelog order.
- * Core numbers win first. A release without a prerelease suffix outranks
- * the same core with one (`v1.0.0` > `v1.0.0-beta`). Prerelease labels
- * then sort lexicographically (`alpha` < `beta`), which matches how we
- * ship. Same-day `date` values made date sort unstable across 0.1.1–0.1.3.
- */
 export function compareVersion(a: string, b: string): number {
   const pa = parseVersion(a);
   const pb = parseVersion(b);

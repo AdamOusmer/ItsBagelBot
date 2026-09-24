@@ -3,10 +3,6 @@
 
 package goveerpc
 
-// Requested and Failed let every verb on these subjects ride bus.ServeForUser,
-// which owns the user-id guard the whole fleet shares. Structural interfaces,
-// so this package still imports nothing.
-
 func (r KeySetRequest) Requested() string    { return r.UserID }
 func (r KeyClearRequest) Requested() string  { return r.UserID }
 func (r KeyStatusRequest) Requested() string { return r.UserID }

@@ -1,10 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Where Bagel posts. Pickers only: the switches that decide WHETHER each
-  // module posts live on Announcements and Community, because a streamer
-  // turning a module off should not have to hunt through nine channel dropdowns
-  // to find its toggle.
   import { AlertBanner, getI18n } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import ChannelPicker from '$lib/components/discord/ChannelPicker.svelte';
@@ -23,9 +19,6 @@
   const layoutDown = $derived(layoutDownOf(data.layout));
 </script>
 
-<!-- One banner for the whole page rather than a raw-id input per picker: the
-     ids are wire detail nobody should be asked to copy by hand, so a layout
-     outage disables the controls and says why, once. -->
 {#if layoutDown}
   <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}

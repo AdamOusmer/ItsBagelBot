@@ -30,9 +30,6 @@ func TestPinnedRoleMapParses(t *testing.T) {
 	}
 }
 
-// wantPins compares a parsed pin map against the expected one, pair by pair.
-// Size first: a map that gained a pin the case never listed is the failure
-// mode a per-key loop alone would walk straight past.
 func wantPins(t *testing.T, got, want map[string]string) {
 	t.Helper()
 	if len(got) != len(want) {
@@ -55,8 +52,6 @@ func TestPinnedRoleLooksUpOneSlot(t *testing.T) {
 	}
 }
 
-// Every template role must map to a slot, or setup silently stops adopting
-// pinned ids for it.
 func TestEveryTemplateRoleHasASlot(t *testing.T) {
 	for _, spec := range CommunityRoles() {
 		if SlotForRoleName(spec.Name) == "" {
@@ -82,11 +77,7 @@ func TestIsModStaff(t *testing.T) {
 		{"lead mod", cfg, []string{"x", "l"}, true},
 		{"mods", cfg, []string{"m"}, true},
 		{"stranger", cfg, []string{"x"}, false},
-		// A guild that configured no roles must not grant staff to everyone
-		// holding an empty-string role id.
 		{"unconfigured guild", Config{}, []string{""}, false},
-		// The privilege split this test exists for: a desk helper is NOT a
-		// moderator. Before the split they held ban/kick/timeout/purge.
 		{"desk helper is not mod staff", withDesk, []string{"helper2"}, false},
 		{"owner still mod staff with a desk list", withDesk, []string{"o"}, true},
 	}
@@ -110,13 +101,9 @@ func TestIsTicketStaff(t *testing.T) {
 	}{
 		{"no roles", cfg, nil, false},
 		{"stranger", cfg, []string{"x"}, false},
-		// No desk list configured: TicketStaffRoleIDs falls back to the
-		// Owner/Lead Mod/Mods trio, so mod staff run the desk by default.
 		{"mods without a desk list", cfg, []string{"m"}, true},
 		{"desk helper", withDesk, []string{"helper2"}, true},
 		{"owner still desk staff", withDesk, []string{"o"}, true},
-		// The desk list REPLACES the fallback: a Lead Mod the streamer left
-		// off the list does not run the desk, but stays mod staff.
 		{"lead mod not on desk list", withDesk, []string{"l"}, false},
 		{"unconfigured guild", Config{}, []string{""}, false},
 	}
@@ -127,14 +114,11 @@ func TestIsTicketStaff(t *testing.T) {
 			}
 		})
 	}
-	// The two are ordered, never independent: mod staff is always desk staff.
 	if !IsTicketStaff([]string{"o"}, withDesk) || !IsModStaff([]string{"o"}, withDesk) {
 		t.Fatal("mod staff must always be ticket staff")
 	}
 }
 
-// The map shape and the stored string shape must mean the same thing, or
-// the setup RPC validates something other than what gets saved.
 func TestFormatPinnedRolesRoundTrips(t *testing.T) {
 	pins := map[string]string{
 		SlotMods: "100000000000000001", SlotOwner: "100000000000000002",
@@ -154,8 +138,6 @@ func TestFormatPinnedRolesRoundTrips(t *testing.T) {
 	}
 }
 
-// An empty id is the dashboard clearing a pin without dropping the key. It
-// has to reach the validator as the malformed pair it is, not vanish.
 func TestFormatPinnedRolesKeepsAnEmptyIDVisibleToTheValidator(t *testing.T) {
 	raw := FormatPinnedRoles(map[string]string{SlotMods: ""})
 

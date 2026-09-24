@@ -15,8 +15,6 @@ describe('bestEffort', () => {
     });
   });
 
-  // A falsy value is a real answer, not a failure: the bell's zero unread count
-  // is the case this guards, since a `|| fallback` spelling would replace it.
   it('keeps a falsy resolved value rather than substituting the fallback', async () => {
     await expect(bestEffort(Promise.resolve(0), 7)).resolves.toBe(0);
     await expect(bestEffort(Promise.resolve(null), 'x')).resolves.toBeNull();

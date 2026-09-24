@@ -9,11 +9,9 @@ import (
 	"ItsBagelBot/app/twitch/sesame/module"
 )
 
-// Build obfuscation inputs from code points so no invisible/confusable rune ever
-// sits in the test source.
 var (
-	zwsp = string(rune(0x200b)) // zero width space
-	cyrA = string(rune(0x0430)) // Cyrillic 'а', a latin-'a' confusable
+	zwsp = string(rune(0x200b))
+	cyrA = string(rune(0x0430))
 )
 
 func TestInspectCleanShortIsNoneAndZeroAlloc(t *testing.T) {
@@ -34,7 +32,6 @@ func TestInspectCleanShortIsNoneAndZeroAlloc(t *testing.T) {
 
 func TestInspectTrustGateExemptsMods(t *testing.T) {
 	g := New()
-	// A moderator (>= VIP) posting a blocked term is exempt at Tier 0.
 	if v := g.Inspect(module.RoleModerator, "grabify.link total scam"); v.Action != ActionNone {
 		t.Fatalf("mod should be exempt, got action=%s rule=%s", v.Action, v.Rule)
 	}
@@ -58,7 +55,6 @@ func TestInspectScamTimeout(t *testing.T) {
 
 func TestInspectConfusableFoldedToBlocklist(t *testing.T) {
 	g := New()
-	// "grаbify.link" with a Cyrillic 'а' folds to the latin skeleton and matches.
 	v := g.Inspect(module.RoleEveryone, "please go visit gr"+cyrA+"bify.link for your reward now")
 	if v.Action != ActionTimeout || v.Rule != "ip_logger" {
 		t.Fatalf("confusable obfuscation not caught: action=%s rule=%s", v.Action, v.Rule)
@@ -67,8 +63,6 @@ func TestInspectConfusableFoldedToBlocklist(t *testing.T) {
 
 func TestInspectZeroWidthHeuristic(t *testing.T) {
 	g := New()
-	// Zero-width injection flags the line; no blocklist term, so it falls to the
-	// heuristic delete.
 	v := g.Inspect(module.RoleEveryone, "he"+zwsp+"llo th"+zwsp+"ere everyone having a good one")
 	if v.Action != ActionDelete || v.Rule != "heuristic" {
 		t.Fatalf("zero-width: got action=%s rule=%s", v.Action, v.Rule)

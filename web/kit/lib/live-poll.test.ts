@@ -4,11 +4,6 @@
 import { describe, expect, it } from 'bun:test';
 import { livePoll } from './live-poll';
 
-// A hand-driven clock and timer queue: bun's fake timers do not advance the
-// microtasks between two ticks, and every interesting property of this loop
-// (does a stop mid-fetch schedule another tick, does the deadline hold) only
-// shows up across an await. `flush` runs the queued timer AND lets its promise
-// chain settle before returning.
 function harness() {
   let now = 0;
   const queue: { at: number; fn: () => void }[] = [];
@@ -32,7 +27,6 @@ function harness() {
       now += advanceMs;
       const due = queue.shift();
       due?.fn();
-      // Two turns: one for the tick's own await, one for the loop's.
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
@@ -63,7 +57,7 @@ describe('livePoll', () => {
       { firstDelayMs: 500, delayMs: () => 1000, timeoutMs: 30_000, onDone: () => (done += 1), now: h.now }
     );
 
-    expect(calls).toBe(0); // nothing runs before the first delay
+    expect(calls).toBe(0);
     await h.flush(500);
     expect(calls).toBe(1);
     expect(h.pending()).toBe(1);
@@ -91,7 +85,7 @@ describe('livePoll', () => {
     await h.flush(0);
     await h.flush(1000);
     expect(calls).toBe(2);
-    await h.flush(1000); // elapsed hits the 2000 ms ceiling
+    await h.flush(1000);
     restore();
 
     expect(calls).toBe(3);
@@ -123,10 +117,9 @@ describe('livePoll', () => {
     await Promise.resolve();
     restore();
 
-    // The tick resolved after the stop: it must not have armed another timer.
     expect(h.pending()).toBe(0);
     expect(calls).toBe(1);
-    stop(); // idempotent
+    stop();
     expect(done).toBe(1);
   });
 });

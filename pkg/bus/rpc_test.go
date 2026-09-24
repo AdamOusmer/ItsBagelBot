@@ -10,10 +10,6 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-// The RPC paths encode replies with codec.FastMarshal while rpcErrorMessage
-// screens them with a raw byte scan for `"error"`. These tests pin that the
-// fast encoder emits struct tags and map keys in exactly the shape the probe
-// expects, so switching encoders can never silently blind the error check.
 func TestFastMarshalErrorEnvelopeHitsProbe(t *testing.T) {
 	type errorEnvelope struct {
 		Error string `json:"error"`
@@ -56,8 +52,6 @@ func errorMessageOf(t *testing.T, body any) string {
 	return msg
 }
 
-// A reply whose bytes contain `"error"` only as some other object's key must
-// stay a success: the scan is a cheap prefilter and the decode decides.
 func TestRPCErrorMessageValueFalsePositiveStaysSuccess(t *testing.T) {
 	data, err := codec.FastMarshal(map[string]map[string]string{"meta": {"error": "ignored"}})
 	if err != nil {
@@ -71,8 +65,6 @@ func TestRPCErrorMessageValueFalsePositiveStaysSuccess(t *testing.T) {
 	}
 }
 
-// Escaping differences between std and fast encoding are byte-level only:
-// both must decode to identical values on the RPC round trip.
 func TestFastCodecRoundTripDecodesIdenticallyToStd(t *testing.T) {
 	type payload struct {
 		Text string `json:"text"`

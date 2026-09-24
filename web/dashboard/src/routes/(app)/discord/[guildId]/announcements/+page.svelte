@@ -1,8 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Stream posts: the two switches plus the category allow/deny lists that
-  // decide which streams get announced at all.
   import { Button, Chip, getI18n, encodeNameList, parseNameList, CATEGORY_NAME_MAX, type DiscordConfig } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import FieldNote from '$lib/components/discord/FieldNote.svelte';
@@ -45,9 +43,6 @@
     if (addName('categoryDeny', denyDraft)) denyDraft = '';
   }
 
-  // Enter adds the chip instead of submitting the form: the input sits inside
-  // the save form, so the native default would post a half-typed category and
-  // lose it.
   function addOnEnter(e: KeyboardEvent, commit: () => void) {
     if (e.key !== 'Enter') return;
     e.preventDefault();

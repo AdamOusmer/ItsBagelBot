@@ -1,16 +1,6 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  // Operator notifications, on the shared deck + inspector.
-  //
-  // Compose used to be a permanently-open Card above the sent list, so the page
-  // opened on an empty form nobody had asked for and the history sat below the
-  // fold. Compose is now the inspector's `new` mode and the history is the deck;
-  // one surface is open at a time, which is the shape every other management
-  // page here already has.
-  //
-  // The action names (`send`, `delete`) are the server's and are not renamed --
-  // the audit trail keys off them.
   import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -50,8 +40,6 @@
   const { t } = getI18n();
   const failed = adminToastFailure(toast);
 
-  // Streamed history -> local state, so a retract can apply optimistically and
-  // roll back on failure.
   let notifications = $state<NotificationWire[]>([]);
   let loaded = $state(false);
   let degraded = $state(false);
@@ -79,15 +67,10 @@
     return pageNo > 1 ? `/notifications?page=${pageNo}` : '/notifications';
   }
 
-  // ── Inspector: `new` composes, a selection reads ───────────────────────────
   const inspector = createInspector<ComposeDraft>();
   let draft = $state<ComposeDraft | null>(null);
   let busy = $state(false);
 
-  // Push editor changes into the machine for dirty tracking. The spread reads
-  // each field so the effect re-runs on any field mutation; the edit itself is
-  // untracked because it both reads and writes the machine's state, which would
-  // otherwise make the effect depend on state it also mutates (an unsafe cycle).
   $effect(() => {
     const snap = draft ? { ...draft } : null;
     if (snap) untrack(() => inspector.edit(snap));
@@ -122,8 +105,6 @@
       close();
       return;
     }
-    // A sent notification is read-only, so the machine holds no draft for it;
-    // `draft` stays null and the surface renders NotificationDetail instead.
     discard.guard(() => {
       inspector.open(String(n.id), blankCompose());
       draft = null;
@@ -137,10 +118,6 @@
     });
   }
 
-  // ── Send ───────────────────────────────────────────────────────────────────
-  // No optimistic row: the server assigns the id and resolves a username to a
-  // user id, so the sent row is not locally derivable. The page reloads the
-  // history instead of guessing at one.
   const sendSubmit: SubmitFunction = () => {
     const requestId = inspector.beginSave()?.requestId;
     busy = true;
@@ -160,19 +137,13 @@
         inspector.reset();
         draft = null;
       }
-      // invalidateAll, not a local push: only the server knows the new row's id
-      // and its resolved target. The inspector is already closed by here, so the
-      // reload costs no editor state.
       await update({ reset: false });
     };
   };
 
-  // ── Retract (confirmed; recipients have already seen it) ───────────────────
   let retractTarget = $state<NotificationWire | null>(null);
   let retractForm = $state<HTMLFormElement | null>(null);
 
-  // Optimistic: the row disappears immediately; a refused delete puts it back
-  // with the real error, so the list never lies about what recipients still see.
   const retractSubmit: SubmitFunction = () => {
     const target = retractTarget;
     const before = notifications.map((n) => ({ ...n }));
@@ -302,9 +273,6 @@
         closeLabel={t('admin.close')}
         onClose={close}
       >
-        <!-- Keyed on the selection so switching rows mounts a FRESH surface: the
-             composer binds to the draft snapshot taken at open, so one reused
-             instance would carry the previous message's fields. -->
         {#key inspector.selectedId}
           {#if composing && draft}
             <ComposeEditor

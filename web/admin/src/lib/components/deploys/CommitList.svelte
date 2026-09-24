@@ -1,10 +1,6 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  // Commits on main since the last tag, closed by default: the count is what
-  // an operator reads before shipping, the list is for checking one commit.
-  // Opening it is the operator's own click, so the content below moving is
-  // expected; nothing opens it on their behalf.
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DeployCommit } from '$lib/deploys/types';
   import { shortSha } from './view';
@@ -25,9 +21,6 @@
   <summary>{summary}</summary>
   {#if commits.length > 0}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-    <!-- Focusable for the reason StageDetail's breakdown is: a scrolling box
-         must take keyboard focus (WCAG 2.1.1), and a commit without a URL
-         has no link inside to scroll it into view. -->
     <div class="scroll" role="region" aria-label={summary} tabindex="0">
     <ul>
       {#each commits as c (c.sha)}

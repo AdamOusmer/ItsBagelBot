@@ -14,7 +14,6 @@ export const getStaticPaths = localeStaticPaths;
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 
-// Newest version tag first. Same calendar day used to scramble 1.0.1–1.0.3.
 const entries = (await getCollection('changelog')).sort(
     (a, b) => compareVersion(b.data.version, a.data.version),
 );

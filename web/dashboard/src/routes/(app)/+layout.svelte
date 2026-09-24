@@ -5,8 +5,6 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { invalidateAll, afterNavigate } from '$app/navigation';
-  // Direct imports, not the barrel: this layout is on every authed page's boot
-  // path (see routes/+layout.svelte).
   import AppShell from '@bagel/kit/components/AppShell.svelte';
   import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
   import NotificationBell from '@bagel/ui/svelte/NotificationBell.svelte';
@@ -18,12 +16,6 @@
   const i18n = getI18n();
   const { t } = i18n;
 
-  // Live refresh: one EventSource to /events, fed by the same cache-invalidation
-  // bus every Go write publishes. On any event for this user's board, and on
-  // every (re)connect, to reconcile anything missed while briefly offline, we
-  // re-fetch, so an open page (e.g. billing flipping to premium after a payment
-  // webhook) updates on its own with no polling. Delegates get no /events (the
-  // stream is owner/board-scoped and delegate pages already SSR fresh).
   onMount(() => {
     if (typeof EventSource === 'undefined' || isDelegate) return;
     let debounce: ReturnType<typeof setTimeout> | undefined;
@@ -34,8 +26,6 @@
     };
     const es = new EventSource('/events');
     es.addEventListener('invalidate', refresh);
-    // The first 'ready' is the initial connect (the page already SSR'd fresh);
-    // only reconcile on later ones (reconnects after a drop).
     es.addEventListener('ready', () => {
       if (seenReady) refresh();
       else seenReady = true;
@@ -55,31 +45,19 @@
     queueMicrotask(() => markReadForm?.requestSubmit());
   }
 
-  // Opening the bell dropdown soft-acknowledges everything (server-side "peek");
-  // fired once per page by the bell so it only round-trips on the first open.
   let peekForm = $state<HTMLFormElement | null>(null);
   function peek() {
     queueMicrotask(() => peekForm?.requestSubmit());
   }
 
-  // A stable section key drives active-state + the breadcrumb label; the label
-  // itself is translated, so comparisons never break across languages. The
-  // path→section ladder lives in the shared nav registry (DASHBOARD_SECTIONS),
-  // alongside everything else that needs to know a page's section.
   const path = $derived(page.url.pathname);
   const section = $derived(sectionForPath(path));
   const crumb = $derived(t(`nav.${section}`));
 
-  // A client route change (unlike a full load) neither moves focus nor updates
-  // the title on its own. Keep the title in sync every time; move focus only on
-  // real navigations (skip the initial SSR hydration, type 'enter', which is
-  // already parked correctly). A hash targets a section heading; otherwise the
-  // page <h1> (tabindex=-1, so no persistent ring appears).
   afterNavigate(({ type }) => {
     document.title = `${crumb} · ItsBagelBot`;
     if (type === 'enter') return;
     const id = page.url.hash.slice(1);
-    // Wait a frame so the new page has rendered before reaching for its heading.
     requestAnimationFrame(() => {
       const target = id ? document.getElementById(id) : null;
       if (target) {
@@ -90,20 +68,12 @@
     });
   });
 
-  // app.html hard-codes lang="en"; mirror the live locale onto <html lang> so a
-  // language switch is reflected client-side (the SSR side is the integrator's).
   $effect(() => {
     document.documentElement.lang = i18n.locale;
   });
 
-  // Delegate view: nav and routes are limited to the granted sections, and the
-  // owner-only Overview/Settings entries are hidden (visibility rules live on
-  // the registry's ownerOnly/grant flags). Billing is owner-only except for a
-  // delegate explicitly granted it (view-only).
   const sections = $derived((data.sections ?? []) as string[]);
 
-  // Notifications deliberately have NO nav entry: the topbar bell (badge +
-  // dropdown, "View all" link) is the only way in.
   const items = $derived(dashboardNavItems({
     isDelegate, sections, section, t,
     moduleLinks: data.moduleNav.map((link) => ({ ...link, label: t(link.label) }))
@@ -112,8 +82,6 @@
   const showBanner = $derived(isDelegate || !!data.impersonatorLogin);
 </script>
 
-<!-- Authed app surface: never index a signed-in user's board (defense-in-depth
-     on top of robots.txt, which already disallows these paths). -->
 <svelte:head>
   <meta name="robots" content="noindex, nofollow" />
 </svelte:head>
@@ -150,8 +118,6 @@
   {#snippet topActions()}
     <a href="https://status.itsbagelbot.com" class="status-link" target="_blank" rel="noopener noreferrer">{t('nav.status')}</a>
     {#if !isDelegate}
-      <!-- The bell peek is streamed (layout.server.ts): render the topbar as
-           soon as the shell lands and fill the bell when its promise does. -->
       {#await data.bell then bell}
         <NotificationBell
           notifications={bell.notifications}
@@ -180,8 +146,6 @@
     transition: color 180ms ease;
     white-space: nowrap;
     flex: none;
-    /* Desktop-only, same breakpoint as the topbar clock/name: on phones the
-       strip has no room left after brand + crumb + avatar + bell. */
     display: none;
   }
   @media (min-width: 761px) {
@@ -192,14 +156,10 @@
   }
 </style>
 
-<!-- Hidden mark-read form the bell submits into; ?/markRead lives on the
-     /settings route but SvelteKit actions can target any page. -->
 <form method="POST" action="/settings?/markRead" use:enhance bind:this={markReadForm} hidden>
   <input type="hidden" name="id" value={markReadId ?? ''} />
 </form>
 
-<!-- Hidden peek form: submitted once when the bell dropdown first opens. -->
 <form method="POST" action="/settings?/markPeeked" use:enhance bind:this={peekForm} hidden></form>
 
-<!-- One toast host for the whole app; pages push via the shared toast() store. -->
 <ToastHost />

@@ -4,22 +4,6 @@
 
 import Tag from '@bagel/ui/astro/Tag.astro';
 
-/**
- * The Modules page as the dashboard draws it TODAY: the search box, the
- * category rail, and one card per category holding a row per module. It shows
- * the three row shapes a newcomer trips on: an ordinary row with a switch, a
- * beta row locked to Premium, and a row that is always on and so carries no
- * switch at all.
- *
- * The component name is the one reserved in lib/guides/types.ts and named by
- * two guides' content files; it kept its name when the page stopped being a
- * grid of tiles so no other file has to change.
- *
- * Module names and their one-line descriptions stay English in every locale
- * because that is what the dashboard itself shows. The six markers are
- * labels: pass an empty string for one and it disappears, so a guide that
- * annotates only two of them does not leave four numbers unexplained.
- */
 import Badge from '@bagel/ui/astro/Badge.astro';
 import DeckList from '@bagel/ui/astro/DeckList.astro';
 import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';

@@ -10,22 +10,14 @@ import (
 	"ItsBagelBot/app/deployer/internal/ports"
 )
 
-// self is the deployer's own unit.
 const self = "deployer"
 
-// slot is one known rollout unit.
 type slot struct {
 	name string
 	ns   ports.Namespace
 }
 
-// order is the fixed rollout order, one service at a time. The tiers follow
-// who calls whom: db services own the RPC verbs the backends call, the
-// backends consume what the ingresses publish, and the consoles call all of
-// them. A caller rolled before its callee sends requests the old callee
-// answers with an unknown-verb refusal for the whole gap. Namespaces are
-// contiguous here, which sequence relies on to append unknown services after
-// the last known one of their namespace.
+// Callees roll before callers; namespaces must stay contiguous for sequence.
 var order = []slot{
 	{"commands", nsDB}, {"loyalty", nsDB}, {"modules", nsDB}, {"notifications", nsDB},
 	{"discord-data", nsDB}, {"projector", nsDB}, {"transactions", nsDB}, {"users", nsDB},
@@ -35,10 +27,7 @@ var order = []slot{
 	{"console-dashboard", nsApp}, {"console-admin", nsApp},
 }
 
-// Order returns the rollout units in rollout order: db namespace services,
-// app backends, ingresses, consoles, deployer last. Rolling the deployer
-// replaces the pod running the train, so nothing may come after it but the
-// status routes a resumed run applies.
+// The deployer must stay last: rolling it replaces the pod running the train.
 func Order() []string {
 	names := make([]string, 0, len(order)+1)
 	for _, s := range order {
@@ -47,10 +36,6 @@ func Order() []string {
 	return append(names, self)
 }
 
-// sequence puts the units found in a build in rollout order. A service the
-// table does not know yet goes after the last known one of its namespace,
-// by name; one in a namespace the table does not know goes before the
-// deployer.
 func sequence(found map[string]*unit) []*unit {
 	unknown := unknownByNamespace(found)
 	out := make([]*unit, 0, len(found))

@@ -91,8 +91,6 @@ func TestPaymentCompletedActivatesAndStoresProcessedState(t *testing.T) {
 	require.Len(t, store.changes, 1)
 	assert.Equal(t, billingrpc.ActionActivate, store.changes[0].Action)
 	assert.Equal(t, uint64(1001), store.changes[0].UserID)
-	// No expiry on the payment subject (one-time purchase): the activation
-	// must still carry one, defaulted to a month after the event.
 	require.NotNil(t, store.changes[0].ExpiresAt)
 	assert.Equal(t, "2026-08-02", store.changes[0].ExpiresAt.UTC().Format("2006-01-02"))
 	require.Len(t, store.events, 1)
@@ -163,13 +161,6 @@ func TestPaymentCompletedWithoutUserIDStoresFailedState(t *testing.T) {
 	assert.Contains(t, store.events[0].Error, "user id")
 }
 
-// A resolved chargeback (payment.dispute.won) maps to ActionCancelAborted and,
-// like a one-time payment.completed, can arrive with no expiry on the payment
-// subject. Without the fallback this reinstates the user with an open-ended
-// grant: the preceding payment.dispute.opened already cleared the stored
-// expiry via ActionRevoke, and no further Tebex event ever arrives for a
-// settled one-time payment to correct it. This is the regression the fix
-// covers.
 func TestDisputeWonOnOneTimePurchaseCarriesBoundedExpiry(t *testing.T) {
 
 	store := &fakeStore{}
@@ -193,9 +184,6 @@ func TestDisputeWonOnOneTimePurchaseCarriesBoundedExpiry(t *testing.T) {
 	assert.Equal(t, "2026-08-05", store.changes[1].ExpiresAt.UTC().Format("2006-01-02"))
 }
 
-// A cancellation-requested event keeps the user paid until the term ends, so
-// it needs the same fallback as activation when the recurring subject carries
-// no next_payment_at.
 func TestCancelRequestedWithoutNextPaymentCarriesBoundedExpiry(t *testing.T) {
 
 	store := &fakeStore{}
@@ -224,7 +212,6 @@ func TestCancelRequestedWithoutNextPaymentCarriesBoundedExpiry(t *testing.T) {
 	assert.Equal(t, "2026-08-02", store.changes[0].ExpiresAt.UTC().Format("2006-01-02"))
 }
 
-// The fallback must never override an expiry Tebex actually sent.
 func TestPaymentCompletedWithExplicitExpiryIsNotOverridden(t *testing.T) {
 
 	store := &fakeStore{}
@@ -380,9 +367,6 @@ func TestTrialEndedIsAuditedWithoutEntitlementChange(t *testing.T) {
 	assert.Equal(t, repository.WebhookIgnored, store.events[0].Status)
 }
 
-// A trial subject can arrive without any payment (nothing has been charged
-// yet). Redelivery cannot fix attribution, so the webhook must be audited and
-// acknowledged instead of erroring into a Tebex retry loop.
 func TestTrialStartedWithoutPaymentIsAcknowledged(t *testing.T) {
 
 	store := &fakeStore{}
@@ -399,8 +383,6 @@ func TestTrialStartedWithoutPaymentIsAcknowledged(t *testing.T) {
 	assert.Contains(t, store.events[0].Error, "no recordable")
 }
 
-// Informational types the store is subscribed to but that change no
-// entitlement must be audited and acknowledged.
 func TestInformationalEventsAreAuditedAsIgnored(t *testing.T) {
 
 	for _, eventType := range []string{"payment.declined", "payment.dispute.closed", "recurring-payment.status.changed"} {
@@ -490,19 +472,16 @@ func TestGiftNotificationSkippedOnRenewalAndSelfPurchase(t *testing.T) {
 		},
 	}, nil)
 
-	// Renewal of a gifted subscription: entitlement recorded, no ping.
 	renewal := `{"id":"evt-renew","type":"recurring-payment.renewed","date":"2026-07-02T00:00:00Z","subject":{"reference":"sub-1","last_payment":{"transaction_id":"tbx-gift-2","custom":{"user_id":"111","gifted_by":"804932984","gifted_by_login":"mavey"}}}}`
 	resp := doWebhook(t, app, renewal, true)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
-	// Self-purchase (no gifted_by): no ping.
 	self := `{"id":"evt-self","type":"payment.completed","date":"2026-07-02T00:01:00Z","subject":{"transaction_id":"tbx-3","custom":{"user_id":"222"}}}`
 	resp = doWebhook(t, app, self, true)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
-	// Basket "gifted" to its own buyer collapses to a plain purchase: no ping.
 	selfGift := `{"id":"evt-selfgift","type":"payment.completed","date":"2026-07-02T00:02:00Z","subject":{"transaction_id":"tbx-4","custom":{"user_id":"333","gifted_by":"333","gifted_by_login":"me"}}}`
 	resp = doWebhook(t, app, selfGift, true)
 	resp.Body.Close()

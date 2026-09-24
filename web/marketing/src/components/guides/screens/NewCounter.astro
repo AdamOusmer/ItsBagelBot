@@ -2,16 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * The Counters page "new counter" panel: a name, the scope picker, and the
- * plain-language reminder of where a counter gets bumped from. Labels are the
- * console catalog's own strings (counters.* in web/kit/lib/i18n/locales).
- *
- * The scope picker is THE RAIL (`.bb-tabs`) with no <input> in it: on a still
- * frame a real radio is a control that changes nothing, and `.is-active`
- * carries the picked state without one. It was `.bb-radio-group`, a pill row,
- * until the rail became the console's only idiom for a row of choices.
- */
 import EditorFooter from '@bagel/ui/astro/EditorFooter.astro';
 import Field from '@bagel/ui/astro/Field.astro';
 import InspectorSurface from '@bagel/ui/astro/InspectorSurface.astro';

@@ -18,11 +18,6 @@ const (
 	uptimeCooldown   = 15 * time.Second
 )
 
-// Uptime owns !uptime: how long the broadcaster's current stream has been
-// running. The live flag and the session start come from one cached lookup
-// through outgress (Helix Get Streams), so the reply can never pair "live"
-// with a stale clock. Toggleable per broadcaster under its own module key,
-// checked lazily on use.
 func Uptime(d engine.Deps) module.Module {
 	log := moduleLog(d)
 

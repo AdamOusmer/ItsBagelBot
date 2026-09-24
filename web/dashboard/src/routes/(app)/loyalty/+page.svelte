@@ -31,13 +31,10 @@
   const { t } = getI18n();
   const loyaltyCommands = moduleDef('loyalty')?.commands ?? [];
 
-  // Local source of truth, reseeded when a fresh SSR load lands.
   // svelte-ignore state_referenced_locally
   let enabled = $state<boolean>(data.enabled ?? false);
   // svelte-ignore state_referenced_locally
   let config = $state<LoyaltyConfig>({ ...data.config });
-  // Nested wager games: compact on/off rows, not a second inspector. Seeded
-  // from the load so a refresh after toggling loyalty off shows them off too.
   function seedGames(src: typeof data) {
     return catalogChildren('loyalty').map((def) => ({
       def,
@@ -58,12 +55,6 @@
     }
   });
 
-  // Turning loyalty off also disables the children server-side. Mirror that
-  // here so the nested switches do not stay lit until the next full load.
-  // prevOn is seeded inside the effect, not at script top level: a top-level
-  // read of a $state only captures the initial value (svelte's
-  // state_referenced_locally), and undefined on the first run skips the
-  // cascade the same way the initial value did.
   let prevOn: boolean | undefined;
   $effect(() => {
     if (prevOn && !enabled) {
@@ -74,8 +65,6 @@
 
   const payload = $derived(JSON.stringify(config));
 
-  // Adjacent save indicator: a polite live region that mirrors the write so the
-  // outcome is announced next to the button (the toast is the assertive backup).
   let saveState = $state<SaveState>('idle');
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   function markSave(s: SaveState, resetAfter = 0) {
@@ -100,7 +89,6 @@
     };
   };
 
-  // Rate fields, declared as data so the form is one loop.
   const rateFields = $derived([
     { key: 'subPoints', label: t('loyalty.fieldSub'), dflt: LOYALTY_DEFAULTS.subPoints },
     { key: 'resubPoints', label: t('loyalty.fieldResub'), dflt: LOYALTY_DEFAULTS.resubPoints },
@@ -109,8 +97,6 @@
     { key: 'watchPointsPerTick', label: t('loyalty.fieldWatch'), dflt: LOYALTY_DEFAULTS.watchPointsPerTick }
   ] as const);
 
-  // The granular moderator capabilities, same loop shape. checked ⇔ value >= 0
-  // (0 = the default on, -1 = off), matching the rates' convention.
   const permToggles = $derived([
     { key: 'modSetPoints', label: t('loyalty.permSet'), hint: t('loyalty.permSetHint') },
     { key: 'modAdjustPoints', label: t('loyalty.permAdjust'), hint: t('loyalty.permAdjustHint') },
@@ -133,7 +119,6 @@
     <AlertBanner>{t('loyalty.degraded')}</AlertBanner>
   {/if}
 
-  <!-- 1) Module status: the master enable, in its own labelled section. -->
   <section class="block" aria-labelledby="loy-status-h">
     <h2 id="loy-status-h" class="block-title">{t('loyalty.statusTitle')}</h2>
     <Card class="status-row">
@@ -149,8 +134,6 @@
     </Card>
   </section>
 
-  <!-- Nested wager games: two rows, not a third settings form. Odds and chat
-       lines stay on each game's inspector so this page does not double in height. -->
   {#if games.length}
     <section class="block" aria-labelledby="loy-games-h">
       <h2 id="loy-games-h" class="block-title">{t('loyalty.gamesTitle')}</h2>
@@ -163,7 +146,6 @@
     </section>
   {/if}
 
-  <!-- 2) Configuration: earning rates, an explicit Save form with Field labels. -->
   <section class="block" aria-labelledby="loy-rates-h">
     <h2 id="loy-rates-h" class="block-title">{t('loyalty.ratesTitle')}</h2>
     <Card>
@@ -184,8 +166,6 @@
 
         <p class="hint">{t('loyalty.tierHint')}</p>
 
-        <!-- Granular moderator capabilities: each toggle maps 0=on / -1=off in
-             the same blob the chat side reads per invocation. -->
         <h3 class="perm-title">{t('loyalty.permissionsTitle')}</h3>
         <p class="hint">{t('loyalty.permissionsHint')}</p>
 
@@ -212,8 +192,6 @@
     </Card>
   </section>
 
-  <!-- 3) Leaderboard: a data table with a caption, column headers and a per-row
-       header. Rank is textual (never conveyed by position or colour alone). -->
   <section class="block" aria-labelledby="loy-top-h">
     <h2 id="loy-top-h" class="block-title">{t('loyalty.topTitle')}</h2>
     <Card>
@@ -267,8 +245,6 @@
     margin: 0 0 12px;
   }
 
-  /* Passed to <Card>, so it needs :global. The parent's scoping hash never
-     reaches a child component's root element. */
   :global(.status-row) {
     display: flex;
     align-items: center;
@@ -305,8 +281,6 @@
 
   .cmd-block { margin-top: 26px; }
 
-  /* Standings are read down the column, so the row header is the tabular
-     mono face the rest of the numeric UI uses. */
   .standings th[scope='row'] { font-family: var(--bb-font-mono); font-variant-numeric: tabular-nums; }
   .standings .rank { color: var(--bb-muted); }
 

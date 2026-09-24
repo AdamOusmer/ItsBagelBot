@@ -1,41 +1,7 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-/* Layer order first. Every adapter in ../svelte JS-imports its own element
-   CSS, so a bundler can emit this file ahead of layers.css -- and layer order
-   is fixed by the first declaration seen, which would rank bb.elements BELOW
-   bb.base and let the button reset there strip the typography off every
-   contract that renders a <button>. Restating it is idempotent; the layers
-   themselves are documented in layers.css. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
-
-/* `.bb-modal` — the centred dialog surface. Behaviour (the ref-counted scroll
-   lock, background `inert`, topmost-only Escape, z-order, focus trap) is
-   ui/lib/overlay-stack.ts; this file is what it looks like.
-
-   THE BACKDROP IS A REAL BUTTON, and that is a contract decision, not a
-   convenience. Dismissal is then native — no static-element click handler, no
-   role/keyboard warnings, and Enter/Space work without a keydown listener.
-   Dialog semantics live on the CARD, its sibling, so the dialog's accessible
-   name is not the word "Close".
-
-   `max-height: calc(100dvh - 32px)` with `overscroll-behavior: contain`:
-   `dvh` and not `vh` because on iOS Safari a `vh`-tall dialog is taller than
-   the visible viewport whenever the URL bar is showing, which puts the actions
-   under it. `contain` stops a flick at the end of the dialog's own scroll from
-   scrolling the page behind it (the overlay stack freezes the document, but
-   the freeze is released a frame before the dialog unmounts).
-
-   THE ACTION ROW REVERSES ON PHONES. Below 480px the buttons stack
-   `column-reverse`, which puts the primary action at the BOTTOM — nearest the
-   thumb — and the 44px minimum height is the touch target floor. On a desktop
-   row the primary is on the right, so the two orders agree on "primary is
-   last in the reading order" and disagree only on the axis.
-
-   `--modal-border` and `--modal-blur` default to the console's glass pair with
-   the literals that pair evaluates to as the fallback: the border is a cool
-   white at 11%, NOT `--bb-border`'s tan at 15%, and swapping it tints every
-   dialog warm. Kept as a component property so a surface can retone one. */
 
 @layer bb.elements {
   .bb-modal {
@@ -75,9 +41,6 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* The card takes focus on open (tabindex="-1") so the trap has somewhere to
-     land when the dialog has no focusable control. That focus is programmatic
-     and must not draw a ring. */
   .bb-modal__card:focus {
     outline: none;
   }
@@ -105,15 +68,6 @@
     justify-content: flex-end;
     flex-wrap: wrap;
   }
-
-  /* The `.confirm-danger` tone that used to sit here is GONE, as its own note
-     said it should be on the re-stack. It was a button rule in the modal's
-     file, kept only because the button contract had not moved into this
-     package yet. ConfirmDialog now renders <Button variant="destructive">, so
-     the destructive look is button.css's one dashed rose, not a second tinted
-     ember spelled once in this file. Do not reintroduce a button tone here:
-     a modal is a surface, and what its actions look like is the button
-     contract's business. */
 
   @media (max-width: 480px) {
     .bb-modal__actions {

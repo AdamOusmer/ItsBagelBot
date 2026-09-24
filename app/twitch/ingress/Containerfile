@@ -1,11 +1,6 @@
 # Copyright (c) 2026 Adam Ousmer. All rights reserved.
 # Proprietary. No license granted. See LICENSE.md.
 
-# Twitch Ingress (Elixir) - build with podman or docker:
-#   podman build -t itsbagelbot/twitch-ingress -f Containerfile .
-# OTP 27 introduced the native `:json` module used on the ingress firehose; 28
-# is the newest OTP an official Elixir image is published for, so it is what
-# local, CI and this build all pin to.
 FROM docker.io/library/elixir:1.20-otp-28@sha256:f44fd430afaceb9149fc0c1982b6a9f85eee12388d600ea9f589383286b9a48d AS build
 
 ENV MIX_ENV=prod
@@ -22,7 +17,6 @@ RUN mix deps.compile
 COPY lib lib
 RUN mix compile && mix release
 
-# ---------------------------------------------------------------------------
 # Must match the builder's base distro: the release links against its glibc.
 FROM docker.io/library/debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
 
@@ -36,9 +30,6 @@ COPY --from=build --chown=ingress:ingress /src/_build/prod/rel/ingress /app
 USER ingress
 WORKDIR /app
 
-# BEAM core capping happens at runtime: the deployment sets ERL_FLAGS
-# (e.g. "+S 2:2 +sbwt short") to match its k8s CPU limit, because the VM
-# sizes its schedulers from the host's logical CPUs, not the cgroup quota.
 ENV LANG=C.UTF-8
 ENTRYPOINT ["/app/bin/ingress"]
 CMD ["start"]

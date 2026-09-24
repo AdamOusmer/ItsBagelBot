@@ -11,9 +11,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Chat is already authorized upstream. A failed moderator-cache read can only
-// lower its rate allowance; it must not prevent the send. Control-plane callers
-// continue using Registry.Get directly and retain their fail-closed behavior.
 func (w *Worker) chatChannel(ctx context.Context, id string) (manage.Channel, bool) {
 	readCtx, cancel := context.WithTimeout(ctx, 150*time.Millisecond)
 	defer cancel()

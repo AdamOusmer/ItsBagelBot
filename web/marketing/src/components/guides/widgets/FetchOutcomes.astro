@@ -2,15 +2,6 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-/**
- * FetchOutcomes: the six ways a data source can disappoint, acted out in one
- * chat line. Every outcome ships in the markup and the first one is visible
- * server-side, so the block still says something with scripting off; the
- * buttons only swap which one is on screen.
- *
- * The bot lines are the literal strings the resolver emits and they stay
- * English in every locale, because the bot does not translate them.
- */
 interface Outcome {
     id: string;
     label: string;
@@ -87,8 +78,6 @@ const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcom
     .gout__msg b { font-weight: 600; }
     .gout__viewer { color: var(--tan-light, #e0c49a); }
     .gout__bot { color: var(--green-glow, #52b788); }
-    /* Named, not `.gout__msg span`: the chat LINE inside this mock, which
-       is this widget's own part. */
     .gout__line { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.8rem; }
     .gout__line.is-new { animation: gout-slide 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
     .gout__why { margin: 0; font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.88rem; line-height: 1.65; color: #a39c92; }
@@ -104,7 +93,6 @@ const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcom
 <script>
     import { bindOnce } from '../../../script/bind';
 
-    // Bundled by Astro, so it satisfies the site's script-src 'self' CSP.
     function setupFetchOutcomes(root: HTMLElement) {
         const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-go-tab]'));
         const line = root.querySelector<HTMLElement>('[data-go-line]')!;
@@ -116,7 +104,6 @@ const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcom
             const chosen = tabs.find((tab) => tab.dataset.goTab === id);
             line.textContent = chosen?.dataset.goBot ?? line.textContent;
             line.classList.remove('is-new');
-            // Reading offsetWidth restarts the animation on a repeat click.
             void line.offsetWidth;
             line.classList.add('is-new');
         }

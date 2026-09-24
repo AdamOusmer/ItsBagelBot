@@ -21,7 +21,6 @@ export const ALERTS_MODULE: ModuleDef =
       enableKey: 'followEnabled',
       messageKey: 'followMessage',
       defaultMessage: 'Thank you for following the channel, {user}!',
-      // Per-alert tokens/samples mirror the maps in app/twitch/sesame/modules/alerts.go.
       tokens: replyTokens(['user'], { user: 'sesame_sam' }, 'alerts.follow')
     },
     {
