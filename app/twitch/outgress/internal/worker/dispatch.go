@@ -71,8 +71,26 @@ func (w *Worker) rejectTrialOutput(ctx context.Context, payload *outgress.Messag
 	if payload.Origin != "trial" {
 		return false
 	}
+	w.logTrialBlocked(payload)
 	w.countTrialBlocked(ctx, payload.BroadcasterID)
 	return true
+}
+
+func (w *Worker) logTrialBlocked(payload *outgress.Message) {
+	var batch outgress.Batch
+	if payload.Type == outgress.TypeBatch && decodeBatch(payload.Payload, &batch) == nil {
+		for i := range batch.Items {
+			w.logTrialBlocked(&batch.Items[i])
+		}
+		return
+	}
+	w.log.Info("trial output blocked",
+		zap.String("broadcaster_id", payload.BroadcasterID),
+		zap.Uint64("trial_generation", payload.TrialGeneration),
+		zap.String("type", payload.Type),
+		zap.String("endpoint", payload.Endpoint),
+		zap.String("method", payload.Method),
+		zap.ByteString("payload", payload.Payload))
 }
 
 func (w *Worker) countTrialBlocked(ctx context.Context, id string) {
