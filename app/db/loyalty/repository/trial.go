@@ -66,18 +66,24 @@ func (r *Loyalty) promoteTrialTx(ctx context.Context, userID uint64) (bool, erro
 	if err != nil || promoted {
 		return false, err
 	}
-	now := time.Now()
-	if err := addTrialTotals(ctx, tx, userID, seen, now); err != nil {
+	p := trialPromotion{tx: tx, userID: userID, now: time.Now()}
+	if err := p.addTotals(ctx, seen); err != nil {
 		return false, err
 	}
-	if err := verifyTrialTotals(ctx, tx, userID, seen, now); err != nil {
+	if err := p.verifyTotals(ctx, seen); err != nil {
 		return false, err
 	}
-	claimed, err := claimTrial(ctx, tx, userID, now)
+	claimed, err := p.claim(ctx)
 	if err != nil || !claimed {
 		return false, err
 	}
 	return true, tx.Commit()
+}
+
+type trialPromotion struct {
+	tx     *sql.Tx
+	userID uint64
+	now    time.Time
 }
 
 func readTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64) (trialTotals, bool, error) {
@@ -106,12 +112,12 @@ func readTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64) (trialTotal
 	return totals, promoted, rows.Err()
 }
 
-func addTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64, totals trialTotals, now time.Time) error {
+func (p trialPromotion) addTotals(ctx context.Context, totals trialTotals) error {
 	for _, add := range totals.carried() {
 		if add.delta <= 0 {
 			continue
 		}
-		if _, err := tx.ExecContext(ctx, addChannelCounter, userID, add.name, add.delta, now, now); err != nil {
+		if _, err := p.tx.ExecContext(ctx, addChannelCounter, p.userID, add.name, add.delta, p.now, p.now); err != nil {
 			return err
 		}
 	}
@@ -119,15 +125,15 @@ func addTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64, totals trial
 }
 
 // READ COMMITTED locks nothing for an absent row, so the trial rows are created before they are locked.
-func verifyTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64, seen trialTotals, now time.Time) error {
-	if _, err := tx.ExecContext(ctx, ensureTrialRows, userID, data.CounterTrialAnswered, now, now, userID, data.CounterTrialDecoded, now, now); err != nil {
+func (p trialPromotion) verifyTotals(ctx context.Context, seen trialTotals) error {
+	if _, err := p.tx.ExecContext(ctx, ensureTrialRows, p.userID, data.CounterTrialAnswered, p.now, p.now, p.userID, data.CounterTrialDecoded, p.now, p.now); err != nil {
 		return err
 	}
-	answered, err := lockTrialCounter(ctx, tx, userID, data.CounterTrialAnswered)
+	answered, err := p.lockCounter(ctx, data.CounterTrialAnswered)
 	if err != nil {
 		return err
 	}
-	decoded, err := lockTrialCounter(ctx, tx, userID, data.CounterTrialDecoded)
+	decoded, err := p.lockCounter(ctx, data.CounterTrialDecoded)
 	if err != nil {
 		return err
 	}
@@ -137,17 +143,17 @@ func verifyTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64, seen tria
 	return nil
 }
 
-func lockTrialCounter(ctx context.Context, tx *sql.Tx, userID uint64, name string) (int64, error) {
+func (p trialPromotion) lockCounter(ctx context.Context, name string) (int64, error) {
 	var value int64
-	err := tx.QueryRowContext(ctx, lockTrialRow, userID, name).Scan(&value)
+	err := p.tx.QueryRowContext(ctx, lockTrialRow, p.userID, name).Scan(&value)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
 	}
 	return value, err
 }
 
-func claimTrial(ctx context.Context, tx *sql.Tx, userID uint64, now time.Time) (bool, error) {
-	claimed, err := tx.ExecContext(ctx, claimTrialPromotion, userID, data.CounterTrialPromoted, now, now)
+func (p trialPromotion) claim(ctx context.Context) (bool, error) {
+	claimed, err := p.tx.ExecContext(ctx, claimTrialPromotion, p.userID, data.CounterTrialPromoted, p.now, p.now)
 	if err != nil {
 		return false, err
 	}

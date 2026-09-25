@@ -42,12 +42,7 @@ func (c *batchConn) Begin() (driver.Tx, error) {
 }
 func (c *batchConn) ExecContext(_ context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
 	if strings.HasPrefix(query, "INSERT IGNORE INTO counter_batches") {
-		id := args[0].Value.(string)
-		if c.store.receipts[id] {
-			return driver.RowsAffected(0), nil
-		}
-		c.store.pendingID = id
-		return driver.RowsAffected(1), nil
+		return c.store.stageReceipt(args[0].Value.(string)), nil
 	}
 	if c.store.deadlocks > 0 {
 		c.store.deadlocks--
@@ -58,11 +53,21 @@ func (c *batchConn) ExecContext(_ context.Context, query string, args []driver.N
 	}
 	c.store.pendingWrites++
 	if strings.HasPrefix(query, "INSERT INTO counters ") {
-		for row := 0; row+5 < len(args); row += 6 {
-			c.store.pendingValues[args[row+1].Value.(string)] += args[row+3].Value.(int64)
-		}
+		c.store.stageCounterRows(args)
 	}
 	return driver.RowsAffected(1), nil
+}
+func (s *batchStore) stageReceipt(id string) driver.Result {
+	if s.receipts[id] {
+		return driver.RowsAffected(0)
+	}
+	s.pendingID = id
+	return driver.RowsAffected(1)
+}
+func (s *batchStore) stageCounterRows(args []driver.NamedValue) {
+	for row := 0; row+5 < len(args); row += 6 {
+		s.pendingValues[args[row+1].Value.(string)] += args[row+3].Value.(int64)
+	}
 }
 func (c *batchConn) QueryContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Rows, error) {
 	c.store.queries = append(c.store.queries, query)

@@ -213,16 +213,17 @@ func viewerScoped(scope string) bool {
 }
 
 func usableBump(userID uint64, name string, b data.CounterBumpEntry) bool {
-	if name == "" || b.Delta == 0 || !fitsColumn(name) {
-		return false
-	}
-	if strings.Contains(name, ":") {
+	if b.Delta == 0 || !usableCounterName(name) {
 		return false
 	}
 	if viewerScoped(b.Scope) && b.ViewerID == 0 {
 		return false
 	}
 	return (userID == 0) == (b.Scope == data.CounterScopeBot)
+}
+
+func usableCounterName(name string) bool {
+	return name != "" && fitsColumn(name) && !strings.Contains(name, ":")
 }
 
 func scopeKey(userID uint64, name string, b data.CounterBumpEntry) (bumpKey, string) {
