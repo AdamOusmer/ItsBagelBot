@@ -86,12 +86,17 @@ func workQueueRetention(stream string) bool {
 }
 
 type maxRetryDelay struct {
-	delay time.Duration
-	max   uint64
+	delay    time.Duration
+	max      uint64
+	schedule []time.Duration
 }
 
 func newMaxRetryDelay(delay time.Duration, max uint64) maxRetryDelay {
 	return maxRetryDelay{delay: delay, max: max}
+}
+
+func newBackoffRetryDelay(schedule []time.Duration) maxRetryDelay {
+	return maxRetryDelay{max: uint64(len(schedule)) + 1, schedule: schedule}
 }
 
 func (d maxRetryDelay) WaitTime(retry uint64) time.Duration {
@@ -101,7 +106,10 @@ func (d maxRetryDelay) WaitTime(retry uint64) time.Duration {
 	if retry >= d.max {
 		return terminateDelivery
 	}
-	return d.delay
+	if len(d.schedule) == 0 {
+		return d.delay
+	}
+	return d.schedule[max(retry, 1)-1]
 }
 
 func newConcurrentDurableSubscriber(cfg concurrentSubscriberConfig) *concurrentDurableSubscriber {

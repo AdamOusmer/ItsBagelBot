@@ -95,3 +95,20 @@ func TestDeadLetterSubjectsStayOutsideTheDataStream(t *testing.T) {
 	require.False(t, matchesAnySubject(deadLetterSubject("data.loyalty.counters"), BagelDataStream.Subjects))
 	require.True(t, matchesAnySubject(deadLetterSubject("data.loyalty.counters"), BagelDeadLetterStream.Subjects))
 }
+
+func TestDataLanesRetryThreeTimesWithBackoffBeforeDeadLettering(t *testing.T) {
+	delay := newBackoffRetryDelay(dataRetryBackoff)
+	require.Equal(t, 5*time.Second, delay.WaitTime(1))
+	require.Equal(t, 20*time.Second, delay.WaitTime(2))
+	require.Equal(t, time.Minute, delay.WaitTime(3))
+	require.Equal(t, terminateDelivery, delay.WaitTime(4))
+}
+
+func TestDataRetryScheduleFitsInsideTheDataStreamMaxAge(t *testing.T) {
+	delay := newBackoffRetryDelay(dataRetryBackoff)
+	worst := time.Duration(delay.max) * newConcurrentDurableSubscriber(concurrentSubscriberConfig{}).handlerDeadline
+	for _, wait := range dataRetryBackoff {
+		worst += wait
+	}
+	require.Less(t, worst, BagelDataStream.MaxAge)
+}
