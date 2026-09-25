@@ -5,6 +5,7 @@ package kvtest
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -56,7 +57,7 @@ func (s *Store) Update(ctx context.Context, key string, data []byte, revision ui
 		return 0, err
 	}
 	if s.entries[key].revision != revision {
-		return 0, jetstream.ErrKeyExists
+		return 0, conflict(revision)
 	}
 	s.revision++
 	s.entries[key] = entry{data: append([]byte(nil), data...), revision: s.revision, created: s.Now}
@@ -68,4 +69,12 @@ func (s *Store) failure(ctx context.Context) error {
 		return err
 	}
 	return s.Err
+}
+
+// Replicated streams report an Update conflict as 10164, which matches only ErrKeyRevisionMismatch.
+func conflict(revision uint64) error {
+	if revision == 0 {
+		return jetstream.ErrKeyExists
+	}
+	return fmt.Errorf("%w: %w", &jetstream.APIError{Code: 400, ErrorCode: jetstream.JSErrCodeStreamWrongLastSequenceConstant, Description: "wrong last sequence"}, jetstream.ErrKeyRevisionMismatch)
 }

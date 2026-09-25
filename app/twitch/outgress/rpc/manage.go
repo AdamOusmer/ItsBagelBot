@@ -119,7 +119,7 @@ func (m *Manage) readFollowage(ctx context.Context, broadcasterID, targetID stri
 func (m *Manage) fetchFollowage(ctx context.Context, broadcasterID, targetID string) outgressrpc.FollowageReply {
 	followedAt, following, err := m.twitch.FollowedAt(ctx, broadcasterID, targetID)
 	if err != nil {
-		m.log.Warn("followage lookup failed", zap.Error(err))
+		m.log.Warn("followage lookup failed", zap.String("broadcaster_id", broadcasterID), zap.Error(err))
 		return outgressrpc.FollowageReply{TargetID: targetID, UserFound: true, Error: "lookup failed"}
 	}
 	return outgressrpc.FollowageReply{

@@ -76,6 +76,7 @@ func (w *Worker) dropAuthFailure(ctx context.Context, payload *outgress.Message,
 		zap.Int("status", res.StatusCode),
 		zap.String("endpoint", payload.Endpoint),
 		zap.String("as", payload.As),
+		zap.String("broadcaster_id", payload.BroadcasterID),
 		zap.String("body", body))
 	noticeError(ctx, fmt.Errorf("twitch auth failure: %d %s", res.StatusCode, body))
 }

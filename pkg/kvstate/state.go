@@ -53,11 +53,15 @@ func Change(ctx context.Context, store Store, key string, edit func(Value) ([]by
 			return 0, err
 		}
 		rev, err := write(ctx, store, key, Value{Data: data, Revision: old.Revision})
-		if !errors.Is(err, jetstream.ErrKeyExists) {
+		if !lostRace(err) {
 			return rev, err
 		}
 	}
 	return 0, errors.New("coordination contention: retry delivery")
+}
+
+func lostRace(err error) bool {
+	return errors.Is(err, jetstream.ErrKeyExists) || errors.Is(err, jetstream.ErrKeyRevisionMismatch)
 }
 
 func write(ctx context.Context, store Store, key string, value Value) (uint64, error) {
