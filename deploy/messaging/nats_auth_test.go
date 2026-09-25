@@ -33,9 +33,9 @@ func TestServiceBusJetStreamPermissionsAreExact(t *testing.T) {
 		"deployer_bus":         {},
 	}
 	owners := map[string][]string{
-		"users_bus":            {"BAGEL_DATA"},
+		"users_bus":            {"BAGEL_DATA", "BAGEL_DLQ"},
 		"worker_bus":           {"TWITCH_INGRESS", "TWITCH_INGRESS_RETRY", "TWITCH_INGRESS_STANDARD"},
-		"projector_bus":        {"BAGEL_DATA", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
+		"projector_bus":        {"BAGEL_DATA", "BAGEL_DLQ", "TWITCH_INGRESS", "TWITCH_INGRESS_STANDARD"},
 		"outgress_bus":         {"TWITCH_OUTGRESS", "TWITCH_OUTGRESS_SYSTEM"},
 		"discord_engine_bus":   {"DISCORD_INGRESS"},
 		"discord_outgress_bus": {"DISCORD_OUTGRESS"},
@@ -106,9 +106,9 @@ func TestRuntimeStreamOwnershipMatchesACL(t *testing.T) {
 	}
 	check := streamOwnershipCheck{
 		want: map[string][]string{
-			"users":     {"[]bus.StreamSpec{bus.BagelDataStream}"},
+			"users":     {"[]bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}"},
 			"sesame":    {"bus.IngressLaneSpecs()"},
-			"projector": {"append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)"},
+			"projector": {"append([]bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}, bus.IngressLaneSpecs()...)"},
 			"outgress": {
 				"[]bus.StreamSpec{bus.OutgressStream, bus.OutgressSystemStream}",
 			},

@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	// Must exceed sesame's counterPublicationGiveUp plus the BAGEL_DATA MaxAge, or a late republish applies twice.
-	BatchReceiptRetention = 24 * time.Hour
+	// Must exceed sesame's counterPublicationGiveUp plus the BAGEL_DATA and BAGEL_DLQ MaxAge, or a late republish or replay applies twice.
+	BatchReceiptRetention = 8 * 24 * time.Hour
 
 	BatchReceiptPruneInterval = 10 * time.Minute
 

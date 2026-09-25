@@ -131,7 +131,7 @@ func tierChecks(nc *nats.Conn, sub bus.Subscriber) []health.Check {
 
 func connectBus(core svcboot.Core) (*nats.Conn, bus.Publisher, bus.Subscriber) {
 	log := core.Log
-	specs := append([]bus.StreamSpec{bus.BagelDataStream}, bus.IngressLaneSpecs()...)
+	specs := append([]bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}, bus.IngressLaneSpecs()...)
 	svcboot.FatalIf(log, bus.EnsureStreams(core.Ctx, core.NATSURL, specs, log), "failed to provision projector streams")
 
 	sub, err := bus.NewSubscriber(core.NATSURL, serviceName, log)

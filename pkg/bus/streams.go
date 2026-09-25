@@ -63,6 +63,17 @@ var BagelDataStream = StreamSpec{
 	Replicas:     3,
 }
 
+// Loyalty's counter batch receipts must outlive MaxAge, or a replayed letter double counts.
+var BagelDeadLetterStream = StreamSpec{
+	Name:       "BAGEL_DLQ",
+	Subjects:   []string{DeadLetterPrefix + ">"},
+	MaxAge:     7 * 24 * time.Hour,
+	MaxBytes:   256 << 20,
+	Duplicates: 2 * time.Minute,
+	Storage:    nats.FileStorage,
+	Replicas:   3,
+}
+
 var TwitchIngressStream = StreamSpec{
 	Name: "TWITCH_INGRESS",
 	Subjects: []string{

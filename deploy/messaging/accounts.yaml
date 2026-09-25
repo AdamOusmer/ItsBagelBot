@@ -132,6 +132,7 @@ accounts:
                         - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
                         - $JS.ACK.BAGEL_DATA.>
                         - $JS.ACK.*.*.BAGEL_DATA.>
+                        - dlq.data.commands.>
                 subscribe:
                     allow:
                         - data.commands.>
@@ -185,6 +186,8 @@ accounts:
                         - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
                         - $JS.ACK.BAGEL_DATA.>
                         - $JS.ACK.*.*.BAGEL_DATA.>
+                        - dlq.data.twitch.clip.created
+                        - dlq.data.users.changed
                 subscribe:
                     allow:
                         - discord.ingress.event.message
@@ -236,6 +239,8 @@ accounts:
                         - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
                         - $JS.ACK.BAGEL_DATA.>
                         - $JS.ACK.*.*.BAGEL_DATA.>
+                        - dlq.data.loyalty.>
+                        - dlq.data.users.deleted
                 subscribe:
                     allow:
                         - data.loyalty.>
@@ -252,6 +257,8 @@ accounts:
                         - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
                         - $JS.ACK.BAGEL_DATA.>
                         - $JS.ACK.*.*.BAGEL_DATA.>
+                        - dlq.data.modules.>
+                        - dlq.data.reproject.request
                 subscribe:
                     allow:
                         - data.modules.>
@@ -322,6 +329,9 @@ accounts:
                         - $JS.API.STREAM.INFO.BAGEL_DATA
                         - $JS.API.STREAM.CREATE.BAGEL_DATA
                         - $JS.API.STREAM.UPDATE.BAGEL_DATA
+                        - $JS.API.STREAM.INFO.BAGEL_DLQ
+                        - $JS.API.STREAM.CREATE.BAGEL_DLQ
+                        - $JS.API.STREAM.UPDATE.BAGEL_DLQ
                         - $JS.API.STREAM.CREATE.TWITCH_INGRESS
                         - $JS.API.STREAM.UPDATE.TWITCH_INGRESS
                         - $JS.API.STREAM.INFO.TWITCH_INGRESS_STANDARD
@@ -333,6 +343,10 @@ accounts:
                         - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
                         - $JS.ACK.BAGEL_DATA.>
                         - $JS.ACK.*.*.BAGEL_DATA.>
+                        - dlq.data.users.>
+                        - dlq.data.modules.>
+                        - dlq.data.commands.>
+                        - dlq.data.loyalty.counters
                         - $JS.API.STREAM.INFO.TWITCH_INGRESS
                         - $JS.API.CONSUMER.INFO.TWITCH_INGRESS.>
                         - $JS.API.CONSUMER.CREATE.TWITCH_INGRESS.>
@@ -364,12 +378,17 @@ accounts:
                         - $JS.API.STREAM.INFO.BAGEL_DATA
                         - $JS.API.STREAM.CREATE.BAGEL_DATA
                         - $JS.API.STREAM.UPDATE.BAGEL_DATA
+                        - $JS.API.STREAM.INFO.BAGEL_DLQ
+                        - $JS.API.STREAM.CREATE.BAGEL_DLQ
+                        - $JS.API.STREAM.UPDATE.BAGEL_DLQ
                         - $JS.API.CONSUMER.INFO.BAGEL_DATA.>
                         - $JS.API.CONSUMER.CREATE.BAGEL_DATA.>
                         - $JS.API.CONSUMER.DURABLE.CREATE.BAGEL_DATA.>
                         - $JS.API.CONSUMER.DELETE.BAGEL_DATA.>
                         - $JS.ACK.BAGEL_DATA.>
                         - $JS.ACK.*.*.BAGEL_DATA.>
+                        - dlq.data.users.>
+                        - dlq.data.reproject.request
                 subscribe:
                     allow:
                         - data.users.>

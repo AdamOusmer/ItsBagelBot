@@ -86,12 +86,17 @@ func workQueueRetention(stream string) bool {
 }
 
 type maxRetryDelay struct {
-	delay time.Duration
-	max   uint64
+	delay    time.Duration
+	max      uint64
+	schedule []time.Duration
 }
 
 func newMaxRetryDelay(delay time.Duration, max uint64) maxRetryDelay {
 	return maxRetryDelay{delay: delay, max: max}
+}
+
+func newBackoffRetryDelay(schedule []time.Duration) maxRetryDelay {
+	return maxRetryDelay{max: uint64(len(schedule)) + 1, schedule: schedule}
 }
 
 func (d maxRetryDelay) WaitTime(retry uint64) time.Duration {
@@ -101,7 +106,10 @@ func (d maxRetryDelay) WaitTime(retry uint64) time.Duration {
 	if retry >= d.max {
 		return terminateDelivery
 	}
-	return d.delay
+	if len(d.schedule) == 0 {
+		return d.delay
+	}
+	return d.schedule[max(retry, 1)-1]
 }
 
 func newConcurrentDurableSubscriber(cfg concurrentSubscriberConfig) *concurrentDurableSubscriber {
@@ -332,9 +340,7 @@ func stopSubscription(sub *nats.Subscription, callbacks *callbackGate, pump *sub
 
 func (s *concurrentDurableSubscriber) terminateMalformed(msg *nats.Msg, subject string, decodeErr error) {
 	s.log.Warn("terminating malformed NATS delivery", zap.String("subject", subject), zap.Error(decodeErr))
-	if err := msg.Term(); err != nil {
-		s.log.Warn("malformed NATS delivery TERM failed", zap.String("subject", subject), zap.Error(err))
-	}
+	s.terminate(msg, deadLetterMalformed)
 }
 
 func messageFromNATS(wire *nats.Msg) (*Message, error) {
@@ -554,10 +560,12 @@ func (s *concurrentDurableSubscriber) nack(msg *nats.Msg) {
 	if metadata, err := msg.Metadata(); err == nil {
 		delay = s.delay.WaitTime(metadata.NumDelivered)
 	}
+	if delay == terminateDelivery {
+		s.terminate(msg, deadLetterMaxDeliveries)
+		return
+	}
 	var err error
 	switch {
-	case delay == terminateDelivery:
-		err = msg.Term()
 	case delay > 0:
 		err = msg.NakWithDelay(delay)
 	default:
