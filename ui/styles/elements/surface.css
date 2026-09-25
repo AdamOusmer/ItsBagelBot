@@ -17,8 +17,8 @@
     --card-pad: 0;
 
     position: sticky;
-    top: 62px;
-    max-height: calc(100dvh - 62px - var(--bb-dock-clearance, 108px));
+    top: calc(74px + env(safe-area-inset-top, 0px));
+    max-height: calc(100dvh - 74px - env(safe-area-inset-top, 0px) - var(--bb-dock-clearance, 108px));
     overflow-anchor: none;
   }
 

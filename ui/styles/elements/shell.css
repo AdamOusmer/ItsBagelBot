@@ -86,7 +86,8 @@
   @media (min-width: 761px) {
     .bb-shell--railed {
       flex-direction: row;
-      --bb-dock-clearance: 0px;
+      /* Must match the canvas bottom padding, or the docked inspector rides under the topbar at page end. */
+      --bb-dock-clearance: calc(var(--gutter, 28px) + 24px);
     }
 
     .bb-shell--railed .bb-shell__dock-slot {
@@ -94,7 +95,7 @@
     }
 
     .bb-shell--railed .bb-shell__canvas {
-      padding-bottom: calc(var(--gutter, 28px) + 24px);
+      padding-bottom: var(--bb-dock-clearance);
     }
   }
 
