@@ -332,9 +332,7 @@ func stopSubscription(sub *nats.Subscription, callbacks *callbackGate, pump *sub
 
 func (s *concurrentDurableSubscriber) terminateMalformed(msg *nats.Msg, subject string, decodeErr error) {
 	s.log.Warn("terminating malformed NATS delivery", zap.String("subject", subject), zap.Error(decodeErr))
-	if err := msg.Term(); err != nil {
-		s.log.Warn("malformed NATS delivery TERM failed", zap.String("subject", subject), zap.Error(err))
-	}
+	s.terminate(msg, deadLetterMalformed)
 }
 
 func messageFromNATS(wire *nats.Msg) (*Message, error) {
@@ -554,10 +552,12 @@ func (s *concurrentDurableSubscriber) nack(msg *nats.Msg) {
 	if metadata, err := msg.Metadata(); err == nil {
 		delay = s.delay.WaitTime(metadata.NumDelivered)
 	}
+	if delay == terminateDelivery {
+		s.terminate(msg, deadLetterMaxDeliveries)
+		return
+	}
 	var err error
 	switch {
-	case delay == terminateDelivery:
-		err = msg.Term()
 	case delay > 0:
 		err = msg.NakWithDelay(delay)
 	default:

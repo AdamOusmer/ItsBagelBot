@@ -42,8 +42,8 @@ func main() {
 	client, dbPool, packer := openStore(ctx, core)
 	defer func() { _ = client.Close() }()
 
-	svcboot.FatalIf(log, bus.EnsureStreams(ctx, core.NATSURL, []bus.StreamSpec{bus.BagelDataStream}, log),
-		"failed to provision BAGEL_DATA stream")
+	svcboot.FatalIf(log, bus.EnsureStreams(ctx, core.NATSURL, []bus.StreamSpec{bus.BagelDataStream, bus.BagelDeadLetterStream}, log),
+		"failed to provision BAGEL_DATA streams")
 	n, closeIntake := svcboot.MustNATS(core)
 	defer func() { _ = n.Pub.Close() }()
 
