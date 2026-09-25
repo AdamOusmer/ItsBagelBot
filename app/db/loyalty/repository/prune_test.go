@@ -45,15 +45,22 @@ func (c *receiptConn) ExecContext(_ context.Context, query string, args []driver
 	cutoff, limit := args[0].Value.(time.Time), args[1].Value.(int64)
 	s.cutoffs = append(s.cutoffs, cutoff)
 	s.limits = append(s.limits, limit)
-	deleted := 0
-	for deleted < int(limit) && deleted < len(s.createdAt) && s.createdAt[deleted].Before(cutoff) {
-		deleted++
-	}
+	deleted := s.expiredPrefix(cutoff, int(limit))
 	s.createdAt = s.createdAt[deleted:]
 	if s.onDelete != nil {
 		s.onDelete()
 	}
 	return driver.RowsAffected(deleted), nil
+}
+
+func (s *receiptStore) expiredPrefix(cutoff time.Time, limit int) int {
+	window := s.createdAt[:min(limit, len(s.createdAt))]
+	for i, createdAt := range window {
+		if !createdAt.Before(cutoff) {
+			return i
+		}
+	}
+	return len(window)
 }
 
 func (s *receiptStore) remaining() int {
