@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"ItsBagelBot/pkg/bus"
@@ -15,9 +16,30 @@ import (
 // The payload is immutable: a failed acknowledgement may still mean the broker
 // stored it. Retrying the same batch ID lets the database consumer deduplicate it.
 type counterPublication struct {
-	id      string
-	subject string
-	payload any
+	id           string
+	subject      string
+	payload      any
+	entries      int
+	firstAttempt time.Time
+}
+
+// The loyalty service's receipt retention must exceed this plus the BAGEL_DATA MaxAge.
+const counterPublicationGiveUp = time.Hour
+
+func abandonStaleCounterPublications(log *zap.Logger, pending []counterPublication, now time.Time) []counterPublication {
+	return slices.DeleteFunc(pending, func(publication counterPublication) bool {
+		age := now.Sub(publication.firstAttempt)
+		if publication.firstAttempt.IsZero() || age < counterPublicationGiveUp {
+			return false
+		}
+		log.Error("counter batch abandoned after retry horizon",
+			zap.String("batch_id", publication.id),
+			zap.String("subject", publication.subject),
+			zap.Duration("age", age),
+			zap.Int("entries", publication.entries),
+		)
+		return true
+	})
 }
 
 func retryCounterPublications(ctx context.Context, pub bus.Publisher, log *zap.Logger, pending []counterPublication) []counterPublication {

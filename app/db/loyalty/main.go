@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
@@ -63,7 +64,11 @@ func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) 
 	}
 }
 
-func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
+type bumpApplier interface {
+	ApplyBumps(context.Context, data.CounterBumpedDTO) error
+}
+
+func recordBumps(repo bumpApplier, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.CounterBumpedDTO
@@ -74,7 +79,15 @@ func recordBumps(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) e
 		if dto.BatchID == "" {
 			dto.BatchID = msg.UUID
 		}
-		return repo.ApplyBumps(msg.Context(), dto)
+		err := repo.ApplyBumps(msg.Context(), dto)
+		if errors.Is(err, repository.ErrInvalidInput) {
+			log.Warn("loyalty: dropping invalid counter batch",
+				zap.String("batch_id", dto.BatchID),
+				zap.Uint64("user_id", dto.UserID),
+				zap.Error(err))
+			return nil
+		}
+		return err
 	}
 }
 
@@ -95,6 +108,9 @@ func main() {
 
 	repo := repository.NewLoyalty(client, driver, core.NR, log)
 	defer repo.Close(context.Background())
+
+	stopPruner := repo.StartBatchReceiptPruner(core.Ctx, repository.BatchReceiptPruneInterval, repository.BatchReceiptRetention)
+	defer stopPruner()
 
 	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 	defer nc.Close()

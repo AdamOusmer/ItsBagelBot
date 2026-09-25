@@ -77,6 +77,13 @@ var (
 		Name:       "counter_batches",
 		Columns:    CounterBatchesColumns,
 		PrimaryKey: []*schema.Column{CounterBatchesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "counterbatch_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{CounterBatchesColumns[1]},
+			},
+		},
 	}
 	// CounterEntriesColumns holds the columns for the "counter_entries" table.
 	CounterEntriesColumns = []*schema.Column{

@@ -9,10 +9,12 @@ import (
 	"errors"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 type uncertainCounterPublisher struct {
@@ -52,6 +54,39 @@ func TestCounterPublicationRetryPreservesBatch(t *testing.T) {
 	require.Equal(t, int64(3), first.Bumps[0].Delta)
 	require.Equal(t, int64(2), next.Bumps[0].Delta)
 	require.Empty(t, r.pending)
+}
+
+func TestCounterPublicationAbandonedAfterGiveUp(t *testing.T) {
+	pub := &uncertainCounterPublisher{fail: true}
+	core, logs := observer.New(zap.ErrorLevel)
+	now := time.Unix(1_700_000_000, 0)
+	r := &LoyaltyReporter{pub: pub, log: zap.New(core), now: func() time.Time { return now }, earn: map[earnKey]*earnAgg{}, bumps: map[counterAgg]*bumpAgg{}}
+	r.BumpBot(data.CounterMessagesProcessed, 3)
+	r.flush(context.Background())
+	require.Len(t, r.pending, 1)
+	batchID := r.pending[0].id
+
+	now = now.Add(counterPublicationGiveUp - time.Second)
+	r.flush(context.Background())
+	require.Len(t, r.pending, 1)
+	require.Equal(t, batchID, r.pending[0].id)
+	bodies := pub.payloads[data.SubjectLoyaltyCounters]
+	for _, body := range bodies[1:] {
+		require.JSONEq(t, string(bodies[0]), string(body))
+	}
+
+	now = now.Add(time.Second)
+	pub.fail = false
+	r.flush(context.Background())
+	require.Empty(t, r.pending)
+	require.Len(t, pub.payloads[data.SubjectLoyaltyCounters], len(bodies))
+	abandoned := logs.FilterMessage("counter batch abandoned after retry horizon").All()
+	require.Len(t, abandoned, 1)
+	fields := abandoned[0].ContextMap()
+	require.Equal(t, batchID, fields["batch_id"])
+	require.Equal(t, data.SubjectLoyaltyCounters, fields["subject"])
+	require.Equal(t, counterPublicationGiveUp, fields["age"])
+	require.Equal(t, int64(1), fields["entries"])
 }
 
 func TestCommandPublicationRetainsOverflowKeyAndRetry(t *testing.T) {

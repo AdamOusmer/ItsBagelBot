@@ -8,6 +8,7 @@ import (
 	"entgo.io/ent/dialect/entsql"
 	entschema "entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
+	"entgo.io/ent/schema/index"
 	"time"
 )
 
@@ -19,6 +20,12 @@ func (CounterBatch) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("id").MaxLen(255).Immutable(),
 		field.Time("created_at").Default(time.Now).Immutable(),
+	}
+}
+
+func (CounterBatch) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("created_at"),
 	}
 }
 

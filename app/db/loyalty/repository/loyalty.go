@@ -4,12 +4,16 @@
 package repository
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/internal/domain/event/data"
@@ -38,11 +42,30 @@ func normalizeName(name string) string {
 }
 
 func normalizeCommand(command string) string {
-	c := normalizeName(command)
-	if len(c) > maxCounterName {
-		c = c[:maxCounterName]
+	return truncateChars(normalizeName(command), maxCounterName)
+}
+
+func truncateChars(s string, limit int) string {
+	chars := 0
+	for i := range s {
+		if chars == limit {
+			return s[:i]
+		}
+		chars++
 	}
-	return c
+	return s
+}
+
+// Strict mode fails the whole INSERT on invalid UTF-8 or an over-long VARCHAR, which counts characters, not bytes.
+func fitsColumn(s string) bool {
+	return utf8.ValidString(s) && utf8.RuneCountInString(s) <= maxCounterName
+}
+
+func displayUpdate(current, next string) string {
+	if next == "" || !fitsColumn(next) {
+		return current
+	}
+	return next
 }
 
 type balKey struct {
@@ -126,24 +149,24 @@ func (r *Loyalty) RecordEarned(dto data.LoyaltyEarnedDTO) {
 		if e.ViewerID == 0 || (e.Points == 0 && e.WatchSeconds == 0) {
 			continue
 		}
-		key := balKey{userID: dto.UserID, viewerID: e.ViewerID}
-		sum := r.earnPend[key]
-		if sum == nil {
-			sum = &earnSum{}
-			r.earnPend[key] = sum
-		}
-		sum.points += e.Points
-		sum.watchSeconds += e.WatchSeconds
-		if e.ViewerLogin != "" {
-			sum.login = e.ViewerLogin
-		}
-		if e.ViewerName != "" {
-			sum.name = e.ViewerName
-		}
+		r.foldEarn(balKey{userID: dto.UserID, viewerID: e.ViewerID}, e)
 	}
 	overflow := len(r.earnPend) >= flushMaxKeys
 	r.mu.Unlock()
 	r.maybeFlush(overflow)
+}
+
+// Caller must hold r.mu.
+func (r *Loyalty) foldEarn(key balKey, e data.LoyaltyEarnEntry) {
+	sum := r.earnPend[key]
+	if sum == nil {
+		sum = &earnSum{}
+		r.earnPend[key] = sum
+	}
+	sum.points += e.Points
+	sum.watchSeconds += e.WatchSeconds
+	sum.login = displayUpdate(sum.login, e.ViewerLogin)
+	sum.name = displayUpdate(sum.name, e.ViewerName)
 }
 
 func (r *Loyalty) RecordBumps(dto data.CounterBumpedDTO) {
@@ -172,12 +195,8 @@ func (r *Loyalty) foldBump(key bumpKey, scope string, b data.CounterBumpEntry) {
 	if key.viewerID == 0 {
 		return
 	}
-	if b.ViewerLogin != "" {
-		sum.login = b.ViewerLogin
-	}
-	if b.ViewerName != "" {
-		sum.name = b.ViewerName
-	}
+	sum.login = displayUpdate(sum.login, b.ViewerLogin)
+	sum.name = displayUpdate(sum.name, b.ViewerName)
 }
 
 func bumpTarget(userID uint64, b data.CounterBumpEntry) (bumpKey, string, bool) {
@@ -194,16 +213,17 @@ func viewerScoped(scope string) bool {
 }
 
 func usableBump(userID uint64, name string, b data.CounterBumpEntry) bool {
-	if name == "" || b.Delta == 0 {
-		return false
-	}
-	if strings.Contains(name, ":") {
+	if b.Delta == 0 || !usableCounterName(name) {
 		return false
 	}
 	if viewerScoped(b.Scope) && b.ViewerID == 0 {
 		return false
 	}
 	return (userID == 0) == (b.Scope == data.CounterScopeBot)
+}
+
+func usableCounterName(name string) bool {
+	return name != "" && fitsColumn(name) && !strings.Contains(name, ":")
 }
 
 func scopeKey(userID uint64, name string, b data.CounterBumpEntry) (bumpKey, string) {
@@ -332,13 +352,28 @@ func (r *Loyalty) execChunk(ctx context.Context, txn *newrelic.Transaction, stmt
 	r.log.Warn("loyalty: failed to flush "+stmt.label, zap.Int("rows", stmt.rows), zap.Error(err))
 }
 
+func compareBalKeys(a, b balKey) int {
+	return cmp.Or(cmp.Compare(a.userID, b.userID), cmp.Compare(a.viewerID, b.viewerID))
+}
+
+func compareBumpKeys(a, b bumpKey) int {
+	return cmp.Or(
+		cmp.Compare(a.userID, b.userID),
+		strings.Compare(a.name, b.name),
+		strings.Compare(a.command, b.command),
+		cmp.Compare(a.viewerID, b.viewerID),
+	)
+}
+
 func (r *Loyalty) flushEarned(ctx context.Context, txn *newrelic.Transaction, earn map[balKey]*earnSum) {
 	if len(earn) == 0 {
 		return
 	}
 	now := time.Now()
-	rows := make([][]any, 0, len(earn))
-	for k, s := range earn {
+	keys := slices.SortedFunc(maps.Keys(earn), compareBalKeys)
+	rows := make([][]any, 0, len(keys))
+	for _, k := range keys {
+		s := earn[k]
 		rows = append(rows, []any{k.userID, k.viewerID, s.login, s.name, s.points, s.watchSeconds, now, now})
 	}
 	r.upsertRows(ctx, txn, upsertSpec{
@@ -356,16 +391,16 @@ func (r *Loyalty) flushEarned(ctx context.Context, txn *newrelic.Transaction, ea
 
 func (r *Loyalty) flushBumps(ctx context.Context, txn *newrelic.Transaction, bumps map[bumpKey]*bumpSum) {
 	channel, entries := splitBumps(bumps)
-	r.flushChannelBumps(ctx, txn, channel, bumps)
+	now := time.Now()
+	r.flushCounters(ctx, txn, orderedCounterRows(channel, entries, bumps, now))
 	if len(entries) > 0 {
-		r.ensureEntryDefs(ctx, txn, entries, bumps)
-		r.flushEntryBumps(ctx, txn, entries, bumps)
+		r.flushEntryBumps(ctx, txn, entries, bumps, now)
 	}
 }
 
 func splitBumps(bumps map[bumpKey]*bumpSum) (channel, entries []bumpKey) {
-	for k, s := range bumps {
-		if entryScoped(s.scope) {
+	for _, k := range slices.SortedFunc(maps.Keys(bumps), compareBumpKeys) {
+		if entryScoped(bumps[k].scope) {
 			entries = append(entries, k)
 		} else {
 			channel = append(channel, k)
@@ -374,48 +409,76 @@ func splitBumps(bumps map[bumpKey]*bumpSum) (channel, entries []bumpKey) {
 	return channel, entries
 }
 
-func (r *Loyalty) flushChannelBumps(ctx context.Context, txn *newrelic.Transaction, keys []bumpKey, bumps map[bumpKey]*bumpSum) {
-	if len(keys) == 0 {
-		return
+type counterRow struct {
+	userID uint64
+	name   string
+	def    bool
+	args   []any
+}
+
+func compareCounterRows(a, b counterRow) int {
+	return cmp.Or(cmp.Compare(a.userID, b.userID), strings.Compare(a.name, b.name))
+}
+
+func sameCounter(a, b counterRow) bool {
+	return compareCounterRows(a, b) == 0
+}
+
+// Channel upserts and entry defs must share one ascending pass or two transactions can lock counters rows in opposite order.
+func orderedCounterRows(channel, entries []bumpKey, bumps map[bumpKey]*bumpSum, now time.Time) []counterRow {
+	rows := make([]counterRow, 0, len(channel)+len(entries))
+	for _, k := range channel {
+		rows = append(rows, counterRow{userID: k.userID, name: k.name, args: []any{k.userID, k.name, bumps[k].scope, bumps[k].delta, now, now}})
 	}
-	now := time.Now()
-	rows := make([][]any, 0, len(keys))
-	for _, k := range keys {
-		rows = append(rows, []any{k.userID, k.name, bumps[k].scope, bumps[k].delta, now, now})
+	for _, k := range entries {
+		rows = append(rows, counterRow{userID: k.userID, name: k.name, def: true, args: []any{k.userID, k.name, bumps[k].scope, now, now}})
 	}
-	r.upsertRows(ctx, txn, upsertSpec{
+	slices.SortStableFunc(rows, compareCounterRows)
+	return slices.CompactFunc(rows, sameCounter)
+}
+
+func (r *Loyalty) flushCounters(ctx context.Context, txn *newrelic.Transaction, rows []counterRow) {
+	for len(rows) > 0 {
+		run := counterRun(rows)
+		r.upsertRows(ctx, txn, counterSpec(run[0].def), counterArgs(run))
+		rows = rows[len(run):]
+	}
+}
+
+func counterRun(rows []counterRow) []counterRow {
+	for i, row := range rows {
+		if row.def != rows[0].def {
+			return rows[:i]
+		}
+	}
+	return rows
+}
+
+func counterArgs(run []counterRow) [][]any {
+	args := make([][]any, len(run))
+	for i, row := range run {
+		args[i] = row.args
+	}
+	return args
+}
+
+func counterSpec(def bool) upsertSpec {
+	if def {
+		return upsertSpec{
+			label:       "counter defs",
+			insert:      "INSERT IGNORE INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ",
+			placeholder: "(?, ?, ?, 0, ?, ?)",
+		}
+	}
+	return upsertSpec{
 		label:       "counters",
 		insert:      "INSERT INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ",
 		placeholder: "(?, ?, ?, ?, ?, ?)",
 		suffix:      " ON DUPLICATE KEY UPDATE value = value + VALUES(value), updated_at = VALUES(updated_at)",
-	}, rows)
+	}
 }
 
-func (r *Loyalty) ensureEntryDefs(ctx context.Context, txn *newrelic.Transaction, keys []bumpKey, bumps map[bumpKey]*bumpSum) {
-	type defKey struct {
-		userID uint64
-		name   string
-	}
-	now := time.Now()
-	defs := map[defKey]string{}
-	for _, k := range keys {
-		if _, seen := defs[defKey{k.userID, k.name}]; !seen {
-			defs[defKey{k.userID, k.name}] = bumps[k].scope
-		}
-	}
-	rows := make([][]any, 0, len(defs))
-	for d, scope := range defs {
-		rows = append(rows, []any{d.userID, d.name, scope, now, now})
-	}
-	r.upsertRows(ctx, txn, upsertSpec{
-		label:       "counter defs",
-		insert:      "INSERT IGNORE INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES ",
-		placeholder: "(?, ?, ?, 0, ?, ?)",
-	}, rows)
-}
-
-func (r *Loyalty) flushEntryBumps(ctx context.Context, txn *newrelic.Transaction, keys []bumpKey, bumps map[bumpKey]*bumpSum) {
-	now := time.Now()
+func (r *Loyalty) flushEntryBumps(ctx context.Context, txn *newrelic.Transaction, keys []bumpKey, bumps map[bumpKey]*bumpSum, now time.Time) {
 	rows := make([][]any, 0, len(keys))
 	for _, k := range keys {
 		rows = append(rows, []any{k.userID, k.name, k.command, k.viewerID, bumps[k].login, bumps[k].name, bumps[k].delta, now})
