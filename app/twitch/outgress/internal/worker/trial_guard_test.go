@@ -2,6 +2,7 @@ package worker
 
 import (
 	"ItsBagelBot/internal/domain/outgress"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 	"context"
 	"maps"
@@ -34,6 +35,22 @@ func TestTrialOriginStopsDirectAndBatchChild(t *testing.T) {
 	blocked := logs.FilterMessage("trial output blocked").All()
 	if len(blocked) != 1 || blocked[0].ContextMap()["count"] != int64(2) {
 		t.Fatalf("want one summary counting 2, got %+v", blocked)
+	}
+}
+
+func TestProcessRefusesTrialOriginFromTheWire(t *testing.T) {
+	w, logs := observedWorker()
+	body, err := codec.Marshal(outgress.Message{Type: outgress.TypeChat, BroadcasterID: "42", Origin: "trial", TrialGeneration: 5, Payload: codec.RawMessage(`{"message":"hi"}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Process(bus.NewMessage("trial-wire", body)); err != nil {
+		t.Fatal(err)
+	}
+	w.blocked.Flush()
+	blocked := logs.FilterMessage("trial output blocked").All()
+	if len(blocked) != 1 || blocked[0].ContextMap()["trial_generation"] != uint64(5) {
+		t.Fatalf("want the wire trial output blocked with its generation, got %+v", blocked)
 	}
 }
 
