@@ -14,15 +14,17 @@ import (
 
 	"ItsBagelBot/internal/domain/event/data"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
 type counterStore struct {
-	mu     sync.Mutex
-	values map[string]int64
-	locks  []string
-	onLock func(name string)
+	mu        sync.Mutex
+	values    map[string]int64
+	locks     []string
+	onLock    func(name string)
+	deadlocks int
 }
 
 func (s *counterStore) takeLocks() []string {
@@ -36,6 +38,7 @@ func (s *counterStore) takeLocks() []string {
 type counterConn struct {
 	s       *counterStore
 	pending map[string]int64
+	held    map[string]bool
 }
 
 type counterTx struct{ c *counterConn }
@@ -52,6 +55,7 @@ func (c *counterConn) Begin() (driver.Tx, error) {
 }
 func (c *counterConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) {
 	c.pending = map[string]int64{}
+	c.held = map[string]bool{}
 	return counterTx{c}, nil
 }
 
@@ -75,15 +79,25 @@ func (c *counterConn) ExecContext(_ context.Context, query string, args []driver
 	defer c.s.mu.Unlock()
 	name := args[1].Value.(string)
 	switch query {
+	case ensureTrialRows:
+		for i := 1; i < len(args); i += 4 {
+			c.lock(args[i].Value.(string))
+			c.pending[args[i].Value.(string)] += 0
+		}
+		return driver.RowsAffected(0), nil
 	case claimTrialPromotion:
-		c.s.locks = append(c.s.locks, name)
+		if c.s.deadlocks > 0 {
+			c.s.deadlocks--
+			return nil, &mysql.MySQLError{Number: mysqlDeadlock}
+		}
+		c.lock(name)
 		if _, ok := c.s.values[name]; ok {
 			return driver.RowsAffected(0), nil
 		}
 		c.pending[name] = 1
 		return driver.RowsAffected(1), nil
 	case addChannelCounter:
-		c.s.locks = append(c.s.locks, name)
+		c.lock(name)
 		c.pending[name] += args[2].Value.(int64)
 		return driver.RowsAffected(1), nil
 	}
@@ -108,11 +122,19 @@ func (c *counterConn) QueryContext(_ context.Context, query string, args []drive
 	return nil, fmt.Errorf("unexpected query %q", query)
 }
 
-func (c *counterConn) lockRow(name string) *counterRows {
+func (c *counterConn) lock(name string) {
+	if c.held[name] {
+		return
+	}
+	c.held[name] = true
 	c.s.locks = append(c.s.locks, name)
 	if c.s.onLock != nil {
 		c.s.onLock(name)
 	}
+}
+
+func (c *counterConn) lockRow(name string) *counterRows {
+	c.lock(name)
 	rows := &counterRows{cols: []string{"value"}}
 	if value, ok := c.s.values[name]; ok {
 		rows.rows = append(rows.rows, []driver.Value{value})
@@ -228,6 +250,28 @@ func TestPromoteTrialGivesUpWhileTotalsKeepMoving(t *testing.T) {
 	require.False(t, promoted)
 	require.NotContains(t, store.values, data.CounterEventsProcessed, "an abandoned promotion must roll back its carry")
 	require.NotContains(t, store.values, data.CounterTrialPromoted)
+}
+
+func TestPromoteTrialCreatesMissingTrialRowsSoTheyLock(t *testing.T) {
+	r, store := promoteRepo(t, map[string]int64{data.CounterTrialDecoded: 4})
+
+	promoted, err := r.PromoteTrial(context.Background(), 42)
+	require.NoError(t, err)
+	require.True(t, promoted)
+	require.Contains(t, store.values, data.CounterTrialAnswered, "an absent trial row takes no lock under READ COMMITTED")
+	require.Zero(t, store.values[data.CounterTrialAnswered])
+	require.Equal(t, int64(4), store.values[data.CounterTrialDecoded])
+}
+
+func TestPromoteTrialRetriesAfterADeadlock(t *testing.T) {
+	r, store := promoteRepo(t, map[string]int64{data.CounterTrialDecoded: 9})
+	store.deadlocks = 1
+
+	promoted, err := r.PromoteTrial(context.Background(), 42)
+	require.NoError(t, err)
+	require.True(t, promoted)
+	require.Equal(t, int64(9), store.values[data.CounterEventsProcessed], "the rolled-back attempt must not carry twice")
+	require.Equal(t, int64(1), store.values[data.CounterTrialPromoted])
 }
 
 func TestTrialCountersAreReservedSystemCounters(t *testing.T) {

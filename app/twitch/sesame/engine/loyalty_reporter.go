@@ -58,6 +58,7 @@ type LoyaltyReporter struct {
 	finished chan struct{}
 	wake     chan struct{}
 
+	now     func() time.Time
 	flushMu sync.Mutex
 	pending []counterPublication
 	mu      sync.Mutex
@@ -69,6 +70,7 @@ func NewLoyaltyReporter(pub bus.Publisher, log *zap.Logger) *LoyaltyReporter {
 	r := &LoyaltyReporter{
 		pub:      pub,
 		log:      log,
+		now:      time.Now,
 		done:     make(chan struct{}),
 		finished: make(chan struct{}),
 		wake:     make(chan struct{}, 1),
@@ -217,6 +219,7 @@ func (r *LoyaltyReporter) nudge() {
 func (r *LoyaltyReporter) flush(ctx context.Context) {
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
+	r.pending = abandonStaleCounterPublications(r.log, r.pending, r.clock())
 	r.pending = retryCounterPublications(ctx, r.pub, r.log, r.pending)
 	r.mu.Lock()
 	earn := r.earn
@@ -235,6 +238,13 @@ func (r *LoyaltyReporter) flush(ctx context.Context) {
 	r.publishEarned(ctx, earn)
 	r.publishBumps(ctx, bumps)
 	r.pending = retryCounterPublications(ctx, r.pub, r.log, r.pending)
+}
+
+func (r *LoyaltyReporter) clock() time.Time {
+	if r.now == nil {
+		return time.Now()
+	}
+	return r.now()
 }
 
 func (r *LoyaltyReporter) publishEarned(ctx context.Context, earn map[earnKey]*earnAgg) {
@@ -277,7 +287,10 @@ func publishPerUser[E any](ctx context.Context, r *LoyaltyReporter, perUser map[
 			chunk := entries[start:min(start+loyaltyChunk, len(entries))]
 			payload := wrap(userID, chunk)
 			if subject == data.SubjectLoyaltyCounters {
-				r.pending = append(r.pending, counterPublication{id: payload.(data.CounterBumpedDTO).BatchID, subject: subject, payload: payload})
+				r.pending = append(r.pending, counterPublication{
+					id: payload.(data.CounterBumpedDTO).BatchID, subject: subject, payload: payload,
+					entries: len(chunk), firstAttempt: r.clock(),
+				})
 				continue
 			}
 			if err := bus.PublishJSON(ctx, r.pub, subject, payload); err != nil {

@@ -15,12 +15,11 @@ import (
 
 const (
 	readTrialSnapshot   = "SELECT name, value FROM counters WHERE user_id = ? AND name IN (?, ?, ?)"
+	ensureTrialRows     = "INSERT INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES (?, ?, 'channel', 0, ?, ?), (?, ?, 'channel', 0, ?, ?) ON DUPLICATE KEY UPDATE value = value"
 	lockTrialRow        = "SELECT value FROM counters WHERE user_id = ? AND name = ? FOR UPDATE"
 	claimTrialPromotion = "INSERT IGNORE INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES (?, ?, 'channel', 1, ?, ?)"
 	addChannelCounter   = "INSERT INTO counters (user_id, name, scope, value, created_at, updated_at) VALUES (?, ?, 'channel', ?, ?, ?) ON DUPLICATE KEY UPDATE value = value + VALUES(value), updated_at = VALUES(updated_at)"
 )
-
-const promoteTrialAttempts = 3
 
 var errTrialTotalsMoved = errors.New("trial totals changed during promotion")
 
@@ -29,28 +28,31 @@ type trialTotals struct {
 	answered int64
 }
 
+type trialCarry struct {
+	name  string
+	delta int64
+}
+
+func (t trialTotals) carried() []trialCarry {
+	return []trialCarry{
+		{data.CounterCommandsAnswered, t.answered},
+		{data.CounterEventsProcessed, t.decoded},
+		{data.CounterMessagesProcessed, t.decoded},
+	}
+}
+
 // PromoteTrial carries a trial's decoded envelopes and answered commands into the
 // channel counters once; the trial_promoted row makes every later call a no-op.
 func (r *Loyalty) PromoteTrial(ctx context.Context, userID uint64) (bool, error) {
 	promoted := false
 	err := db.WithExec(ctx, func(ctx context.Context) error {
-		done, err := r.promoteTrialRetrying(ctx, userID)
-		promoted = done
-		return err
+		return retryTx(ctx, func(ctx context.Context) error {
+			done, err := r.promoteTrialTx(ctx, userID)
+			promoted = done
+			return err
+		}, errTrialTotalsMoved)
 	})
 	return promoted, err
-}
-
-func (r *Loyalty) promoteTrialRetrying(ctx context.Context, userID uint64) (bool, error) {
-	err := errTrialTotalsMoved
-	for range promoteTrialAttempts {
-		var done bool
-		done, err = r.promoteTrialTx(ctx, userID)
-		if !errors.Is(err, errTrialTotalsMoved) {
-			return done, err
-		}
-	}
-	return false, err
 }
 
 // Counter rows lock in ascending name order like flushBumps; reordering these steps can deadlock.
@@ -68,7 +70,7 @@ func (r *Loyalty) promoteTrialTx(ctx context.Context, userID uint64) (bool, erro
 	if err := addTrialTotals(ctx, tx, userID, seen, now); err != nil {
 		return false, err
 	}
-	if err := verifyTrialTotals(ctx, tx, userID, seen); err != nil {
+	if err := verifyTrialTotals(ctx, tx, userID, seen, now); err != nil {
 		return false, err
 	}
 	claimed, err := claimTrial(ctx, tx, userID, now)
@@ -105,14 +107,7 @@ func readTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64) (trialTotal
 }
 
 func addTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64, totals trialTotals, now time.Time) error {
-	for _, add := range []struct {
-		name  string
-		delta int64
-	}{
-		{data.CounterCommandsAnswered, totals.answered},
-		{data.CounterEventsProcessed, totals.decoded},
-		{data.CounterMessagesProcessed, totals.decoded},
-	} {
+	for _, add := range totals.carried() {
 		if add.delta <= 0 {
 			continue
 		}
@@ -123,7 +118,11 @@ func addTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64, totals trial
 	return nil
 }
 
-func verifyTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64, seen trialTotals) error {
+// READ COMMITTED locks nothing for an absent row, so the trial rows are created before they are locked.
+func verifyTrialTotals(ctx context.Context, tx *sql.Tx, userID uint64, seen trialTotals, now time.Time) error {
+	if _, err := tx.ExecContext(ctx, ensureTrialRows, userID, data.CounterTrialAnswered, now, now, userID, data.CounterTrialDecoded, now, now); err != nil {
+		return err
+	}
 	answered, err := lockTrialCounter(ctx, tx, userID, data.CounterTrialAnswered)
 	if err != nil {
 		return err
