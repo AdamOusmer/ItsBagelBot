@@ -5,6 +5,7 @@ import { jsm, js } from '@bagel/kit/server/nats';
 import { logger } from '@bagel/kit/server/logger';
 import { Kvm, type KV } from '@nats-io/kv';
 import { dev } from '$app/environment';
+import { allPages, consumerActivity, deliveryRate, formatDeliveryRate, type DeliverySample } from './lane-telemetry';
 
 // Do not import access.ts: it pulls in services.ts, an import cycle through hooks.server.ts at boot.
 const DEMO = dev && process.env.DEMO === '1';
@@ -21,6 +22,14 @@ export interface LaneView {
   inFlight: string;
   rate: string;
   redelivered: number;
+  delivered?: number;
+  ratePerSecond?: number | null;
+  ackPending?: number;
+  maxAckPending?: number;
+  waiting?: number;
+  mode?: 'push' | 'pull';
+  ackPolicy?: string;
+  connection?: 'bound' | 'waiting' | 'unbound' | 'unknown';
 }
 
 export interface LanesResult {
@@ -79,17 +88,13 @@ function laneAliasKey(stream: string, consumer: string) {
   return `${stream}.${consumer}`;
 }
 
-interface LaneSample {
-  delivered: number;
-  at: number;
-}
-
-const prevSamples = new Map<string, LaneSample>();
+const prevSamples = new Map<string, DeliverySample>();
 let currentLanes: LaneView[] = [];
 let lastError = '';
 let samplerTimer: ReturnType<typeof setInterval> | null = null;
 let sampling: Promise<void> | null = null;
 let lastLoadAt = 0;
+let lastCollectionAt = 0;
 
 const SAMPLE_INTERVAL_MS = 5_000;
 const SAMPLE_IDLE_MS = 60_000;
@@ -140,10 +145,7 @@ function inFlightText(ackPending: number, maxAckPend: number) {
 }
 
 function rateText(rate: number, hasRate: boolean) {
-  if (!hasRate) return '-';
-  if (rate === 0) return '0 msg/s';
-  if (rate < 10) return `${rate.toFixed(1)} msg/s`;
-  return `${Math.round(rate)} msg/s`;
+  return formatDeliveryRate(hasRate ? rate : null);
 }
 
 function markAliasesDirty() {
@@ -168,7 +170,10 @@ async function loadAliases(): Promise<Map<string, string>> {
       });
     }
   } catch (err: any) {
-    if (err.code !== '404') logger.warn({ err }, 'lane alias fetch error');
+    if (err.code !== '404') {
+      logger.warn({ err }, 'lane alias fetch error');
+      throw err;
+    }
   }
 
   aliasCache = aliases;
@@ -176,8 +181,12 @@ async function loadAliases(): Promise<Map<string, string>> {
   return aliasCache;
 }
 
-async function collectLanes() {
+async function collectLanes(force = false) {
   if (sampling) return sampling;
+  // Polling clients and the timer share one cadence. Sampling every warm read
+  // creates tiny rate windows and makes a steady consumer look bursty.
+  if (!force && currentLanes.length > 0 && Date.now() - lastCollectionAt < SAMPLE_INTERVAL_MS) return;
+  lastCollectionAt = Date.now();
   sampling = collectLanesOnce().finally(() => {
     sampling = null;
   });
@@ -189,7 +198,6 @@ interface LaneRow {
   consumer: string;
   filter: string;
   ephemeral: boolean;
-  orphan: boolean;
   category: string;
   group: string;
   pending: number;
@@ -198,14 +206,16 @@ interface LaneRow {
   redelivered: number;
   rate: number;
   hasRate: boolean;
+  activity: ReturnType<typeof consumerActivity>;
 }
 
+// Fetch every page concurrently across streams and report partial failures.
 async function listStreamConsumers(manager: Awaited<ReturnType<typeof jsm>>) {
-  const streams = await manager.streams.list().next();
+  const streams = await allPages(manager.streams.list());
   const listed = await Promise.allSettled(
     streams.map(async (stream) => ({
       streamName: stream.config.name,
-      consumers: await manager.consumers.list(stream.config.name).next()
+      consumers: await allPages(manager.consumers.list(stream.config.name))
     }))
   );
   return {
@@ -217,25 +227,24 @@ async function listStreamConsumers(manager: Awaited<ReturnType<typeof jsm>>) {
   };
 }
 
-function sampleRate(key: string, deliveredSeq: number, now: number): { rate: number; hasRate: boolean } {
+function sampleRate(key: string, deliveredSeq: number, created: string, now: number): { rate: number; hasRate: boolean } {
   const prev = prevSamples.get(key);
-  prevSamples.set(key, { delivered: deliveredSeq, at: now });
-  if (!prev) return { rate: 0, hasRate: false };
-  const secs = (now - prev.at) / 1000;
-  if (secs <= 0) return { rate: 0, hasRate: false };
-  return { rate: Math.max(deliveredSeq - prev.delivered, 0) / secs, hasRate: true };
+  const current = { delivered: deliveredSeq, created, at: now };
+  prevSamples.set(key, current);
+  const rate = deliveryRate(prev, current);
+  return { rate: rate ?? 0, hasRate: rate !== null };
 }
 
 function laneRowOf(streamName: string, ci: any, now: number): LaneRow {
-  const filter = ci.config.filter_subject || '';
+  const filter = ci.config.filter_subject || ci.config.filter_subjects?.join(', ') || '';
   const ephemeral = !ci.config.durable_name;
-  const { rate, hasRate } = sampleRate(laneKey(streamName, ci.name), ci.delivered.consumer_seq, now);
+  const activity = consumerActivity(ci);
+  const { rate, hasRate } = sampleRate(laneKey(streamName, ci.name), ci.delivered.consumer_seq, ci.created, now);
   return {
     stream: streamName,
     consumer: ci.name,
     filter,
     ephemeral,
-    orphan: !ci.push_bound,
     category: laneCategory(streamName, ephemeral),
     group: laneGroup(ci.name, filter, ephemeral),
     pending: ci.num_pending,
@@ -243,7 +252,8 @@ function laneRowOf(streamName: string, ci: any, now: number): LaneRow {
     maxAckPend: ci.config.max_ack_pending || 0,
     redelivered: ci.num_redelivered,
     rate,
-    hasRate
+    hasRate,
+    activity
   };
 }
 
@@ -264,11 +274,12 @@ function laneViewOf(r: LaneRow, aliases: Map<string, string>): LaneView {
     subject: r.filter,
     category: r.category,
     ephemeral: r.ephemeral,
-    orphan: r.orphan,
     pending: r.pending,
     inFlight: inFlightText(r.ackPending, r.maxAckPend),
     rate: rateText(r.rate, r.hasRate),
-    redelivered: r.redelivered
+    redelivered: r.redelivered,
+    ...r.activity,
+    ratePerSecond: r.hasRate ? r.rate : null
   };
 }
 
@@ -281,8 +292,15 @@ function pruneStaleBaselines(seen: Set<string>) {
 async function collectLanesOnce() {
   try {
     const manager = await jsm();
-    const aliases = await loadAliases();
-    const { streamsSeen, failures, fulfilled } = await listStreamConsumers(manager);
+    let aliasError = '';
+    const [aliases, listing] = await Promise.all([
+      loadAliases().catch((err: any) => {
+        aliasError = 'display aliases unavailable: ' + (err.message || String(err));
+        return aliasCache;
+      }),
+      listStreamConsumers(manager)
+    ]);
+    const { streamsSeen, failures, fulfilled } = listing;
 
     if (streamsSeen === 0) {
       lastError = "JetStream API unreachable: no streams returned (broker unreachable or account lacks $JS.API access)";
@@ -299,7 +317,7 @@ async function collectLanesOnce() {
 
     rows.sort(compareLanes);
     currentLanes = rows.map((r) => laneViewOf(r, aliases));
-    lastError = failures > 0 ? `partial listing: ${failures} of ${streamsSeen} streams unreadable` : '';
+    lastError = [failures > 0 ? `partial listing: ${failures} of ${streamsSeen} streams unreadable` : '', aliasError].filter(Boolean).join('; ');
   } catch (err: any) {
     lastError = err.message || String(err);
   }
@@ -343,12 +361,12 @@ export async function laneAlias(stream: string, consumer: string, alias: string)
     if (!alias) {
       await kv.delete(key);
       markAliasesDirty();
-      collectLanes();
+      collectLanes(true);
       return { ok: true, notice: 'alias cleared' };
     }
     await kv.put(key, new TextEncoder().encode(alias.slice(0, 48)));
     markAliasesDirty();
-    collectLanes();
+    collectLanes(true);
     return { ok: true, notice: 'renamed to ' + alias };
   } catch (err: any) {
     return { ok: false, error: 'rename failed: ' + err.message };
@@ -368,7 +386,7 @@ export async function laneDurable(stream: string, consumer: string): Promise<Lan
       durable_name: name,
       description: "operator-pinned permanent lane (admin)"
     });
-    collectLanes();
+    collectLanes(true);
     return { ok: true, notice: `created permanent lane ${name}` };
   } catch (err: any) {
     return { ok: false, error: 'make-permanent failed: ' + err.message };
@@ -379,6 +397,9 @@ export async function laneDelete(stream: string, consumer: string): Promise<Lane
   try {
     const manager = await jsm();
     const info = await manager.consumers.info(stream, consumer);
+    if (!info.config.deliver_subject) {
+      return { ok: false, error: 'refused: pull consumer activity cannot be proven absent from JetStream telemetry' };
+    }
     if (info.push_bound) {
       return { ok: false, error: 'refused: lane is bound to a running consumer, not an orphan' };
     }
@@ -386,7 +407,7 @@ export async function laneDelete(stream: string, consumer: string): Promise<Lane
     const kv = await getKV();
     await kv.delete(laneAliasKey(stream, consumer)).catch(() => {});
     markAliasesDirty();
-    collectLanes();
+    collectLanes(true);
     return { ok: true, notice: `deleted orphan lane ${consumer}` };
   } catch (err: any) {
     return { ok: false, error: 'delete failed: ' + err.message };

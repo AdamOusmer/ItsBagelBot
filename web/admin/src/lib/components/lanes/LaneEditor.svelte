@@ -67,23 +67,49 @@
           <dt>{t('admin.lanes.factCategory')}</dt>
           <dd>{lane.category}</dd>
         </div>
+        {#if lane.mode}
+          <div>
+            <dt>{t('admin.lanes.modeLabel')}</dt>
+            <dd>{lane.mode === 'pull' ? t('admin.lanes.modePull') : t('admin.lanes.modePush')}</dd>
+          </div>
+        {/if}
+        {#if lane.connection}
+          <div>
+            <dt>{t('admin.lanes.connectionLabel')}</dt>
+            <dd>{lane.connection === 'bound' ? t('admin.lanes.connectionBound')
+              : lane.connection === 'waiting' ? t('admin.lanes.connectionWaiting')
+              : lane.connection === 'unbound' ? t('admin.lanes.connectionUnbound')
+              : t('admin.lanes.connectionUnknown')}</dd>
+          </div>
+        {/if}
+        {#if lane.mode === 'pull'}
+          <div>
+            <dt>{t('admin.lanes.waitingPulls')}</dt>
+            <dd>{lane.waiting?.toLocaleString() ?? '—'}</dd>
+          </div>
+        {/if}
         <div>
           <dt>{t('admin.lanes.factPending')}</dt>
           <dd>{lane.pending.toLocaleString()}</dd>
         </div>
         <div>
-          <dt>{t('admin.lanes.factInFlight')}</dt>
+          <dt>{t('admin.lanes.factDelivered')}</dt>
+          <dd>{lane.delivered?.toLocaleString() ?? '—'}</dd>
+        </div>
+        <div>
+          <dt>{t('admin.lanes.awaitingAck')}</dt>
           <dd>{lane.inFlight}</dd>
         </div>
         <div>
           <dt>{t('admin.lanes.factRate')}</dt>
-          <dd>{lane.rate}</dd>
+          <dd>{lane.rate === '-' ? t('admin.lanes.sampling') : lane.rate}</dd>
         </div>
         <div>
           <dt>{t('admin.lanes.factRedelivered')}</dt>
           <dd class:err={lane.redelivered > 0}>{lane.redelivered}</dd>
         </div>
       </dl>
+      <p class="note">{t('admin.lanes.capacityHint')}</p>
 
       <Field label={t('admin.lanes.fieldAlias')}>
         <Input
@@ -180,8 +206,7 @@
     color: var(--bb-tan-light);
     text-align: right;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
   .facts dd.err {
     color: var(--bb-status-error);
