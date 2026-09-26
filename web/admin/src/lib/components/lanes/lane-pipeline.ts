@@ -8,18 +8,23 @@ export type PipelineTraffic = 'stream' | 'standard' | 'premium' | 'system';
 export type PipelineStageFilter = 'all' | 'twitch' | PipelineStage;
 export type PipelineTrafficFilter = 'all' | Exclude<PipelineTraffic, 'system'>;
 
+function compatibleTokens(left: string, right: string): boolean {
+  if (left === '*') return true;
+  if (right === '*') return true;
+  return left === right;
+}
+
 /** Whether two NATS subject filters share a possible subject. A terminal >
  * matches one or more tokens; * matches exactly one token. */
 function overlaps(a: string, b: string): boolean {
   const left = a.split('.');
   const right = b.split('.');
-  let i = 0;
-  while (i < left.length && i < right.length) {
-    if (left[i] === '>' || right[i] === '>') return true;
-    if (left[i] !== '*' && right[i] !== '*' && left[i] !== right[i]) return false;
-    i++;
+  const sharedLength = Math.min(left.length, right.length);
+  for (let i = 0; i < sharedLength; i++) {
+    if ([left[i], right[i]].includes('>')) return true;
+    if (!compatibleTokens(left[i], right[i])) return false;
   }
-  return i === left.length && i === right.length;
+  return left.length === right.length;
 }
 
 interface TrafficRule {

@@ -50,10 +50,15 @@ export interface DeliverySample {
   created: string;
 }
 
+function comparableDeliverySamples(previous: DeliverySample, current: DeliverySample): boolean {
+  if (previous.created !== current.created) return false;
+  if (current.at <= previous.at) return false;
+  return current.delivered >= previous.delivered;
+}
+
 export function deliveryRate(previous: DeliverySample | undefined, current: DeliverySample): number | null {
-  if (!previous || previous.created !== current.created || current.at <= previous.at || current.delivered < previous.delivered) {
-    return null;
-  }
+  if (!previous) return null;
+  if (!comparableDeliverySamples(previous, current)) return null;
   return (current.delivered - previous.delivered) * 1000 / (current.at - previous.at);
 }
 
