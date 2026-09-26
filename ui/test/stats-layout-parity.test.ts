@@ -54,7 +54,7 @@ for (const arrangement of ['playful', 'onboarding', 'gathering'] as const) {
       const astro = normaliseSkyId(await container.renderToString(AstroLayout, { props: { arrangement, class: 'preview' }, slots: chosen }));
       expect(svelte).toBe(astro);
       expect(svelte).toContain(`class="bb-stats-page bb-stats-page--${arrangement} preview"`);
-      expect(svelte).toContain('class="bb-ambient-sky bb-ambient-sky--contained"');
+      expect(svelte).toContain('class="bb-ambient-sky bb-ambient-sky--fixed"');
       expect(svelte).toContain('<div class="bb-stats-page__counters"><article>Messages</article><article>Events</article></div>');
       expect(svelte.includes('bb-stats-page__notice')).toBe(optional);
       expect(svelte.includes('bb-stats-page__crowd')).toBe(optional);

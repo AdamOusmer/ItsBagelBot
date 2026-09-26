@@ -367,7 +367,7 @@
           tone={tile.tone}
           tilt={tile.tilt}
           appearance="solid"
-          style={tile.value.length > 7 ? '--counter-card-value-size: clamp(26px, 9cqi, 64px)' : undefined}
+          style={tile.value.length > 7 ? '--counter-card-value-size: clamp(32px, 12cqi, 84px)' : undefined}
           aria-description={tile.rateLabel}
         >
           {#snippet artwork()}
@@ -380,7 +380,7 @@
     {#snippet ranking()}
       <RankingCard
         title={t('stats.trafficBoardTitle')}
-        description={t(rankKey === 'events' ? 'stats.trafficEventsNote' : 'stats.trafficBoardNote')}
+        description={t('stats.trafficBoardNote')}
         items={rankingItems}
         emptyLabel={t('stats.boardEmpty')}
       >

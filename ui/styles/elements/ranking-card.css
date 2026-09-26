@@ -7,11 +7,12 @@
    decorative, as the textual labels carry the same information. */
 @layer bb.elements {
   .bb-ranking-card { min-width: 0; padding: var(--ranking-card-pad, 28px); border: 1px solid var(--bb-border); border-radius: var(--ranking-card-radius, 24px); background: linear-gradient(160deg, rgba(var(--bb-tan-rgb), .035), transparent 60%), var(--bb-card-bg); color: var(--bb-white); font-family: var(--bb-font-body); }
-  .bb-ranking-card__head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
-  .bb-ranking-card__intro { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-  .bb-ranking-card__title { overflow-wrap: anywhere; margin: 0; font: 600 23px/1.3 var(--bb-font-display); letter-spacing: var(--bb-tracking-display); color: var(--bb-white); }
+  .bb-ranking-card__head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; margin-bottom: 16px; }
+  .bb-ranking-card__intro { display: contents; }
+  .bb-ranking-card__title { grid-column: 1; grid-row: 1; min-width: 0; overflow-wrap: anywhere; margin: 0; font: 600 23px/1.3 var(--bb-font-display); letter-spacing: var(--bb-tracking-display); color: var(--bb-white); }
   .bb-ranking-card__description, .bb-ranking-card__empty { margin: 0; font: 400 12px/1.5 var(--bb-font-body); color: var(--bb-muted); }
-  .bb-ranking-card__actions { min-width: 0; }
+  .bb-ranking-card__description { grid-column: 1 / -1; grid-row: 2; }
+  .bb-ranking-card__actions { grid-column: 2; grid-row: 1; min-width: 0; }
   .bb-ranking-card__list { list-style: none; margin: 0; padding: 0; }
   .bb-ranking-card__row { display: flex; align-items: center; gap: 14px; padding: 18px 0; }
   .bb-ranking-card__row + .bb-ranking-card__row { border-top: 1px solid var(--bb-border); }
@@ -31,7 +32,9 @@
   .bb-ranking-card__secondary { margin: 0; font: 400 11px/1.5 var(--bb-font-body); color: var(--bb-muted); }
   @media (max-width: 650px) {
     .bb-ranking-card { --ranking-card-pad: 22px 18px; --ranking-card-artwork-size: 38px; }
-    .bb-ranking-card__head { align-items: flex-start; }
+    .bb-ranking-card__head { grid-template-columns: minmax(0, 1fr); }
+    .bb-ranking-card__actions { grid-column: 1; grid-row: 2; }
+    .bb-ranking-card__description { grid-row: 3; }
     .bb-ranking-card__row { gap: 8px; }
     .bb-ranking-card__label { font-size: 13px; }
     .bb-ranking-card__value { font-size: 15px; }

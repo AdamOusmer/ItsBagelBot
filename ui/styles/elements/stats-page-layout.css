@@ -153,4 +153,31 @@
     .bb-stats-page__crowd > *,
     .bb-stats-page--gathering .bb-stats-page__crowd > * { width: 62px; height: 62px; }
   }
+
+  /* Keep the night sky visible without motion when drifting motes are disabled. */
+  @media (prefers-reduced-motion: reduce) {
+    .bb-stats-page > .bb-ambient-sky::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle at 7% 13%, rgba(var(--bb-green-glow-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 18% 41%, rgba(var(--bb-tan-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 29% 8%, rgba(var(--bb-green-glow-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 43% 27%, rgba(var(--bb-tan-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 58% 15%, rgba(var(--bb-green-glow-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 72% 36%, rgba(var(--bb-tan-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 89% 9%, rgba(var(--bb-green-glow-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 95% 59%, rgba(var(--bb-tan-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 81% 78%, rgba(var(--bb-green-glow-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 67% 93%, rgba(var(--bb-tan-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 51% 66%, rgba(var(--bb-green-glow-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 38% 86%, rgba(var(--bb-tan-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 23% 71%, rgba(var(--bb-green-glow-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 11% 94%, rgba(var(--bb-tan-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 4% 57%, rgba(var(--bb-green-glow-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 94% 91%, rgba(var(--bb-tan-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 49% 49%, rgba(var(--bb-green-glow-rgb), .55) 0 1px, transparent 2px),
+      radial-gradient(circle at 34% 53%, rgba(var(--bb-tan-rgb), .55) 0 1px, transparent 2px);
+    }
+  }
 }
