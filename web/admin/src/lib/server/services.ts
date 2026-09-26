@@ -156,6 +156,7 @@ export const shardAutoscale = defineWrite({
 
 export interface TrialChannel {
   broadcaster_id: string;
+  generation?: string;
   display_name?: string;
   enabled: boolean;
   state: 'pending' | 'receiving' | 'disabled' | 'stopping' | 'promoted' | 'removed' | 'failed';
