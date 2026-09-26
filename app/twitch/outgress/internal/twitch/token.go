@@ -364,10 +364,16 @@ const maxRefreshGenRetries = 1
 
 func (s *Source) singleflightRefresh(ctx context.Context) (string, error) {
 	for attempt := 0; ; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		token, stale, err := s.singleflightRefreshOnce(ctx)
 		if !stale || attempt >= maxRefreshGenRetries {
 			return token, err
 		}
+		// stale: retry once under the new generation, which re-consumes the
+		// (now armed) skip flag and carries the correct forbid value -- see
+		// consumeSkipAdopt.
 	}
 }
 
@@ -377,29 +383,47 @@ func (s *Source) singleflightRefreshOnce(ctx context.Context) (token string, sta
 	s.mu.RUnlock()
 	key := "refresh-" + strconv.FormatUint(gen, 10)
 
-	value, err, _ := s.group.Do(key, func() (any, error) {
-		if token, ok := s.cached(refreshMargin); ok {
-			return refreshResult{token: token}, nil
-		}
+	result := s.group.DoChan(key, func() (any, error) { return s.refreshGeneration(ctx, gen) })
+	return awaitTokenRefresh(ctx, result)
+}
 
-		token, ttl, err := s.refresh(ctx)
-		if err != nil {
-			if cached, ok := s.cached(0); ok {
-				return refreshResult{token: cached}, nil
-			}
-			return nil, err
-		}
-
-		if !s.storeIfGen(gen, token, ttl) {
-			return refreshResult{stale: true}, nil
-		}
+func (s *Source) refreshGeneration(ctx context.Context, gen uint64) (any, error) {
+	// Another caller may have completed the refresh while this caller waited.
+	if token, ok := s.cached(refreshMargin); ok {
 		return refreshResult{token: token}, nil
-	})
-	if err != nil {
-		return "", false, err
 	}
-	r := value.(refreshResult)
-	return r.token, r.stale, nil
+
+	// refresh performs NATS RPC and HTTP I/O. It intentionally runs outside
+	// mu so status calls and invalidation never queue behind a slow network
+	// operation; singleflight still guarantees one refresh per Source.
+	token, ttl, err := s.refresh(ctx)
+	if err != nil {
+		if cached, ok := s.cached(0); ok {
+			return refreshResult{token: cached}, nil
+		}
+		return nil, err
+	}
+
+	if !s.storeIfGen(gen, token, ttl) {
+		return refreshResult{stale: true}, nil
+	}
+	return refreshResult{token: token}, nil
+}
+
+func awaitTokenRefresh(ctx context.Context, result <-chan singleflight.Result) (string, bool, error) {
+	select {
+	case <-ctx.Done():
+		return "", false, ctx.Err()
+	case value := <-result:
+		if err := ctx.Err(); err != nil {
+			return "", false, err
+		}
+		if value.Err != nil {
+			return "", false, value.Err
+		}
+		r := value.Val.(refreshResult)
+		return r.token, r.stale, nil
+	}
 }
 
 type refreshResult struct {

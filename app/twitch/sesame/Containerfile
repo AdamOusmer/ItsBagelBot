@@ -12,6 +12,7 @@ COPY internal/chatvolume internal/chatvolume
 COPY internal/domain internal/domain
 COPY internal/moderation internal/moderation
 COPY internal/projection internal/projection
+COPY internal/watchtime internal/watchtime
 COPY internal/utils internal/utils
 COPY pkg pkg
 COPY app/twitch/sesame app/twitch/sesame

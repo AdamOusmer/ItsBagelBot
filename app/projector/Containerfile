@@ -10,6 +10,7 @@ RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download fail
 COPY internal/domain internal/domain
 COPY internal/moderation internal/moderation
 COPY internal/projection internal/projection
+COPY internal/watchtime internal/watchtime
 COPY internal/utils internal/utils
 COPY pkg pkg
 COPY app/projector app/projector

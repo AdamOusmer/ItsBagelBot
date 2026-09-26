@@ -75,6 +75,11 @@ func EmailEnc(v []byte) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldEmailEnc, v))
 }
 
+// StateRevision applies equality check predicate on the "state_revision" field. It's identical to StateRevisionEQ.
+func StateRevision(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldStateRevision, v))
+}
+
 // IsActive applies equality check predicate on the "is_active" field. It's identical to IsActiveEQ.
 func IsActive(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldIsActive, v))
@@ -403,6 +408,46 @@ func EmailEncIsNil() predicate.User {
 // EmailEncNotNil applies the NotNil predicate on the "email_enc" field.
 func EmailEncNotNil() predicate.User {
 	return predicate.User(sql.FieldNotNull(FieldEmailEnc))
+}
+
+// StateRevisionEQ applies the EQ predicate on the "state_revision" field.
+func StateRevisionEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldStateRevision, v))
+}
+
+// StateRevisionNEQ applies the NEQ predicate on the "state_revision" field.
+func StateRevisionNEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldStateRevision, v))
+}
+
+// StateRevisionIn applies the In predicate on the "state_revision" field.
+func StateRevisionIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldStateRevision, vs...))
+}
+
+// StateRevisionNotIn applies the NotIn predicate on the "state_revision" field.
+func StateRevisionNotIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldStateRevision, vs...))
+}
+
+// StateRevisionGT applies the GT predicate on the "state_revision" field.
+func StateRevisionGT(v int64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldStateRevision, v))
+}
+
+// StateRevisionGTE applies the GTE predicate on the "state_revision" field.
+func StateRevisionGTE(v int64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldStateRevision, v))
+}
+
+// StateRevisionLT applies the LT predicate on the "state_revision" field.
+func StateRevisionLT(v int64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldStateRevision, v))
+}
+
+// StateRevisionLTE applies the LTE predicate on the "state_revision" field.
+func StateRevisionLTE(v int64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldStateRevision, v))
 }
 
 // IsActiveEQ applies the EQ predicate on the "is_active" field.

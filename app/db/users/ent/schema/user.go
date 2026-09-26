@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"context"
 	"time"
 
 	"entgo.io/ent"
@@ -30,6 +31,8 @@ func (User) Fields() []ent.Field {
 		field.String("email").NotEmpty().Unique().Sensitive(),
 
 		field.Bytes("email_enc").Optional().Sensitive(),
+
+		field.Int64("state_revision").Default(1).Positive(),
 
 		field.Bool("is_active").Default(true),
 
@@ -91,4 +94,27 @@ func (User) Indexes() []ent.Index {
 		// Must stay non-unique: a rename frees the old login while our row still carries it.
 		index.Fields("username"),
 	}
+}
+
+// Hooks assigns revision increments in the same SQL mutation as every update.
+// It covers bulk updates and transactional clients, not only publication paths.
+func (User) Hooks() []ent.Hook {
+	return []ent.Hook{func(next ent.Mutator) ent.Mutator {
+		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+			if m.Op().Is(ent.OpCreate) {
+				if err := m.SetField("state_revision", int64(1)); err != nil {
+					return nil, err
+				}
+			}
+			if m.Op().Is(ent.OpUpdate | ent.OpUpdateOne) {
+				if err := m.ResetField("state_revision"); err != nil {
+					return nil, err
+				}
+				if err := m.AddField("state_revision", int64(1)); err != nil {
+					return nil, err
+				}
+			}
+			return next.Mutate(ctx, m)
+		})
+	}}
 }

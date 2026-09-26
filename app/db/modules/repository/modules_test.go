@@ -159,3 +159,24 @@ func TestPatchMissingRowNonZeroExpectedConflicts(t *testing.T) {
 	assert.True(t, res.Conflict)
 	assert.Empty(t, client.Modules.Query().AllX(ctx))
 }
+
+func TestSetFlushIncrementsRevisionAndPublishesPersistedSnapshot(t *testing.T) {
+	client, pub, repo := setup(t)
+	ctx := context.Background()
+	repo.Set(1001, "welcome", true, codec.RawMessage(`{"message":"one"}`))
+	repo.Close(ctx)
+
+	repo = repository.NewModules(client, pub, nil, zap.NewNop())
+	repo.Set(1001, "welcome", false, codec.RawMessage(`{"message":"two"}`))
+	repo.Close(ctx)
+
+	row := client.Modules.Query().OnlyX(ctx)
+	assert.Equal(t, 2, row.Revision)
+	events := pub.On(data.SubjectModuleChanged)
+	require.Len(t, events, 2)
+	var dto data.ModuleChangedDTO
+	require.NoError(t, codec.Unmarshal(events[1].Payload, &dto))
+	assert.Equal(t, row.Revision, dto.Revision)
+	assert.Equal(t, row.IsEnabled, dto.IsEnabled)
+	assert.JSONEq(t, string(row.Configs), string(dto.Configs))
+}

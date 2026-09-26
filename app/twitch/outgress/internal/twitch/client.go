@@ -222,6 +222,8 @@ func (c *Client) ExecuteAs(ctx context.Context, id Identity, broadcasterID strin
 }
 
 type helixStream struct {
+	ID          string    `json:"id"`
+	UserID      string    `json:"user_id"`
 	Type        string    `json:"type"`
 	StartedAt   time.Time `json:"started_at"`
 	Title       string    `json:"title"`
@@ -242,16 +244,33 @@ func (c *Client) getStream(ctx context.Context, broadcasterID string) (helixStre
 	}
 
 	var payload struct {
-		Data []helixStream `json:"data"`
+		Data *[]helixStream `json:"data"`
 	}
-	if err := codec.NewDecoder(res.Body).Decode(&payload); err != nil {
+	if err := codec.NewDecoder(io.LimitReader(res.Body, 2<<20)).Decode(&payload); err != nil {
 		return helixStream{}, false, err
 	}
-	if len(payload.Data) == 0 {
+	if payload.Data == nil || len(*payload.Data) > 1 {
+		return helixStream{}, false, errors.New("invalid stream response envelope")
+	}
+	if len(*payload.Data) == 0 {
 		return helixStream{}, false, nil
 	}
-	stream := payload.Data[0]
+	stream := (*payload.Data)[0]
 	return stream, stream.Type == "live", nil
+}
+
+func (c *Client) StreamSession(ctx context.Context, broadcasterID string) (string, time.Time, bool, error) {
+	stream, live, err := c.getStream(ctx, broadcasterID)
+	if err != nil {
+		return "", time.Time{}, live, err
+	}
+	if !live {
+		return "", time.Time{}, live, err
+	}
+	if !stream.matchesBroadcaster(broadcasterID) {
+		return "", time.Time{}, false, errors.New("invalid live stream identity")
+	}
+	return stream.ID, stream.StartedAt, true, nil
 }
 
 func (c *Client) IsStreamLive(ctx context.Context, broadcasterID string) (bool, error) {
@@ -450,10 +469,22 @@ func (c *Client) do(ctx context.Context, src *Source, call HelixCall) (*http.Res
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	// Revalidate admission after credentials are ready for every HTTP attempt.
+	if err := admitAttempt(ctx, call.Endpoint); err != nil {
+		return nil, err
+	}
+
 	seg := newrelic.StartExternalSegment(newrelic.FromContext(ctx), req)
 	res, err := c.http.Do(req)
 	seg.Response = res
 	seg.End()
+	if err == nil {
+		if admissionErr := observeAttempt(ctx, res); admissionErr != nil {
+			observedErr := publishProviderReset(ctx, call.Endpoint, admissionErr)
+			drain(res)
+			return nil, observedErr
+		}
+	}
 	return res, err
 }
 
@@ -506,4 +537,17 @@ func scanModeratedPage(res *http.Response, broadcasterID string) (bool, string, 
 func drain(res *http.Response) {
 	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 64<<10))
 	_ = res.Body.Close()
+}
+
+func (s helixStream) matchesBroadcaster(id string) bool {
+	if s.ID == "" {
+		return false
+	}
+	if len(s.ID) > 128 {
+		return false
+	}
+	if s.UserID != id {
+		return false
+	}
+	return !s.StartedAt.IsZero()
 }

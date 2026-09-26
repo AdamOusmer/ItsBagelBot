@@ -56,6 +56,20 @@ func (_c *UserCreate) SetEmailEnc(v []byte) *UserCreate {
 	return _c
 }
 
+// SetStateRevision sets the "state_revision" field.
+func (_c *UserCreate) SetStateRevision(v int64) *UserCreate {
+	_c.mutation.SetStateRevision(v)
+	return _c
+}
+
+// SetNillableStateRevision sets the "state_revision" field if the given value is not nil.
+func (_c *UserCreate) SetNillableStateRevision(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetStateRevision(*v)
+	}
+	return _c
+}
+
 // SetIsActive sets the "is_active" field.
 func (_c *UserCreate) SetIsActive(v bool) *UserCreate {
 	_c.mutation.SetIsActive(v)
@@ -351,7 +365,9 @@ func (_c *UserCreate) Mutation() *UserMutation {
 
 // Save creates the User in the database.
 func (_c *UserCreate) Save(ctx context.Context) (*User, error) {
-	_c.defaults()
+	if err := _c.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
@@ -378,10 +394,14 @@ func (_c *UserCreate) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (_c *UserCreate) defaults() {
+func (_c *UserCreate) defaults() error {
 	if _, ok := _c.mutation.DisplayName(); !ok {
 		v := user.DefaultDisplayName
 		_c.mutation.SetDisplayName(v)
+	}
+	if _, ok := _c.mutation.StateRevision(); !ok {
+		v := user.DefaultStateRevision
+		_c.mutation.SetStateRevision(v)
 	}
 	if _, ok := _c.mutation.IsActive(); !ok {
 		v := user.DefaultIsActive
@@ -428,13 +448,20 @@ func (_c *UserCreate) defaults() {
 		_c.mutation.SetTestAccount(v)
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
+		if user.DefaultCreatedAt == nil {
+			return fmt.Errorf("ent: uninitialized user.DefaultCreatedAt (forgotten import ent/runtime?)")
+		}
 		v := user.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
 	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
+		if user.DefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized user.DefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := user.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -461,6 +488,14 @@ func (_c *UserCreate) check() error {
 	if v, ok := _c.mutation.Email(); ok {
 		if err := user.EmailValidator(v); err != nil {
 			return &ValidationError{Name: "email", err: fmt.Errorf(`ent: validator failed for field "User.email": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.StateRevision(); !ok {
+		return &ValidationError{Name: "state_revision", err: errors.New(`ent: missing required field "User.state_revision"`)}
+	}
+	if v, ok := _c.mutation.StateRevision(); ok {
+		if err := user.StateRevisionValidator(v); err != nil {
+			return &ValidationError{Name: "state_revision", err: fmt.Errorf(`ent: validator failed for field "User.state_revision": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.IsActive(); !ok {
@@ -565,6 +600,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.EmailEnc(); ok {
 		_spec.SetField(user.FieldEmailEnc, field.TypeBytes, value)
 		_node.EmailEnc = value
+	}
+	if value, ok := _c.mutation.StateRevision(); ok {
+		_spec.SetField(user.FieldStateRevision, field.TypeInt64, value)
+		_node.StateRevision = value
 	}
 	if value, ok := _c.mutation.IsActive(); ok {
 		_spec.SetField(user.FieldIsActive, field.TypeBool, value)
@@ -773,6 +812,24 @@ func (u *UserUpsert) UpdateEmailEnc() *UserUpsert {
 // ClearEmailEnc clears the value of the "email_enc" field.
 func (u *UserUpsert) ClearEmailEnc() *UserUpsert {
 	u.SetNull(user.FieldEmailEnc)
+	return u
+}
+
+// SetStateRevision sets the "state_revision" field.
+func (u *UserUpsert) SetStateRevision(v int64) *UserUpsert {
+	u.Set(user.FieldStateRevision, v)
+	return u
+}
+
+// UpdateStateRevision sets the "state_revision" field to the value that was provided on create.
+func (u *UserUpsert) UpdateStateRevision() *UserUpsert {
+	u.SetExcluded(user.FieldStateRevision)
+	return u
+}
+
+// AddStateRevision adds v to the "state_revision" field.
+func (u *UserUpsert) AddStateRevision(v int64) *UserUpsert {
+	u.Add(user.FieldStateRevision, v)
 	return u
 }
 
@@ -1136,6 +1193,27 @@ func (u *UserUpsertOne) UpdateEmailEnc() *UserUpsertOne {
 func (u *UserUpsertOne) ClearEmailEnc() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.ClearEmailEnc()
+	})
+}
+
+// SetStateRevision sets the "state_revision" field.
+func (u *UserUpsertOne) SetStateRevision(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetStateRevision(v)
+	})
+}
+
+// AddStateRevision adds v to the "state_revision" field.
+func (u *UserUpsertOne) AddStateRevision(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddStateRevision(v)
+	})
+}
+
+// UpdateStateRevision sets the "state_revision" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateStateRevision() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateStateRevision()
 	})
 }
 
@@ -1707,6 +1785,27 @@ func (u *UserUpsertBulk) UpdateEmailEnc() *UserUpsertBulk {
 func (u *UserUpsertBulk) ClearEmailEnc() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.ClearEmailEnc()
+	})
+}
+
+// SetStateRevision sets the "state_revision" field.
+func (u *UserUpsertBulk) SetStateRevision(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetStateRevision(v)
+	})
+}
+
+// AddStateRevision adds v to the "state_revision" field.
+func (u *UserUpsertBulk) AddStateRevision(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddStateRevision(v)
+	})
+}
+
+// UpdateStateRevision sets the "state_revision" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateStateRevision() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateStateRevision()
 	})
 }
 

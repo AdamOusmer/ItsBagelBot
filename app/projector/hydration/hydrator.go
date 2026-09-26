@@ -251,10 +251,12 @@ func (h *Hydrator) fillUser(ctx context.Context, j job) {
 		replyErr: func(r rpcprojection.UserReply) string { return r.Error },
 		write: func(ctx context.Context, r rpcprojection.UserReply) error {
 			return h.store.SetUserWithTTL(ctx, j.userID, projection.UserProjection{
-				Status:   r.Status,
-				IsActive: r.IsActive,
-				Banned:   r.Banned,
-				Locale:   r.Locale,
+				AccountCreatedAt: r.AccountCreatedAt,
+				StateRevision:    r.StateRevision,
+				Status:           r.Status,
+				IsActive:         r.IsActive,
+				Banned:           r.Banned,
+				Locale:           r.Locale,
 			}, j.ttl)
 		},
 	})

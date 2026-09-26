@@ -241,10 +241,12 @@ accounts:
                         - $JS.ACK.*.*.BAGEL_DATA.>
                         - dlq.data.loyalty.>
                         - dlq.data.users.deleted
+                        - dlq.data.users.changed
                 subscribe:
                     allow:
                         - data.loyalty.>
                         - data.users.deleted
+                        - data.users.changed
                         - _INBOX.>
             modules_bus:
                 publish:
@@ -635,6 +637,11 @@ accounts:
             - service: bagel.rpc.internal.projection.modules.get.node.*
             - service: bagel.rpc.internal.govee.key.>
             - service: bagel.rpc.internal.spotify.key.>
+        imports:
+            - service: bagel.rpc.internal.projection.users.get
+              from: USERS_RPC
+            - service: bagel.rpc.internal.projection.users.get.node.*
+              from: USERS_RPC
         roles:
             modules_rpc: {}
     NOTIFICATIONS_RPC:
