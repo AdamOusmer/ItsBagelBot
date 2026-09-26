@@ -1,0 +1,30 @@
+{
+  "tag": "beta",
+  "version": "v0.2.5-beta",
+  "date": "2026-09-26",
+  "title": {
+    "en": "More reliable loyalty tracking, refreshed stats, and improved stability",
+    "fr": "Un suivi de fidélité plus fiable, des statistiques repensées et une meilleure stabilité"
+  },
+  "highlights": {
+    "en": [
+      "Loyalty counters recover from database deadlocks, and trial activity carries over reliably when a channel activates the bot.",
+      "Watchtime progress is saved in Valkey and can resume after a service restart. Stronger lifecycle checks prevent outdated work from awarding points after channel or module changes.",
+      "Failed data messages retry with increasing delays, then move to recoverable storage when retries run out, reducing the risk of losing counter updates during database outages.",
+      "The public stats page has a refreshed layout with larger counters, clearer rankings, and Bolota beneath a starry sky.",
+      "Dashboard inspectors stay below the top bar when you reach the end of a page, keeping their controls accessible.",
+      "Trial output is blocked before it reaches Twitch, and shared coordination handles concurrent updates more reliably.",
+      "The admin console adds shard health graphs and clearer message lane activity. Memory handling also leaves more headroom during busy periods."
+    ],
+    "fr": [
+      "Les compteurs de fidélité récupèrent après les interblocages de la base de données, et l'activité d'essai est transférée de façon fiable lorsqu'une chaîne active le bot.",
+      "La progression du temps de visionnage est sauvegardée dans Valkey et peut reprendre après le redémarrage d'un service. Des contrôles renforcés empêchent les traitements périmés d'attribuer des points après une modification de la chaîne ou du module.",
+      "Les messages de données en échec sont réessayés avec des délais croissants, puis conservés dans un espace de récupération lorsque les tentatives sont épuisées, ce qui réduit le risque de perdre des mises à jour de compteurs pendant une panne de base de données.",
+      "La page publique des statistiques adopte une nouvelle présentation avec des compteurs plus grands, des classements plus lisibles et Bolota sous un ciel étoilé.",
+      "Les panneaux d'inspection du tableau de bord restent sous la barre supérieure en fin de page, pour garder leurs commandes accessibles.",
+      "Les sorties des chaînes d'essai sont bloquées avant d'atteindre Twitch, et la coordination partagée gère les mises à jour simultanées de façon plus fiable.",
+      "La console d'administration ajoute des graphiques sur l'état des connexions Twitch et clarifie l'activité des files de messages. La gestion de la mémoire conserve également davantage de marge pendant les périodes chargées."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.5-beta"
+}
