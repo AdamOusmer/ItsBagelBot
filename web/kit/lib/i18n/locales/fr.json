@@ -3767,7 +3767,7 @@
     "degraded": "Les compteurs en direct sont momentanément indisponibles : les chiffres ci-dessous ne sont donc pas à jour. Ils se remettront à niveau tout seuls.",
     "boardsEyebrow": "Par chaîne",
     "trafficBoardTitle": "Chaînes les plus actives",
-    "trafficBoardNote": "Classées selon les messages de chat traités depuis l'arrivée du bot.",
+    "trafficBoardNote": "Chaînes en tête pour les messages de chat, classées selon le compteur sélectionné depuis l'arrivée du bot.",
     "feedBoardTitle": "Nourrir le bagel",
     "feedBoardNote": "Un seul bagel, nourri par toutes les chaînes.",
     "feedTotalLabel": "Repas, depuis toujours",
