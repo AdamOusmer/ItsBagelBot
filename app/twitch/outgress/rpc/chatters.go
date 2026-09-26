@@ -38,7 +38,7 @@ type ChattersOptions struct {
 }
 
 type chatterAPI interface {
-	GetChattersPage(context.Context, string, string, string) (twitch.ChattersPage, error)
+	GetChattersPage(context.Context, twitch.ChattersPageRequest) (twitch.ChattersPage, error)
 	StreamSession(context.Context, string) (string, time.Time, bool, error)
 }
 type chatters struct {
@@ -262,7 +262,7 @@ func (c *chatters) confirmLive(ctx context.Context, req manage.ChattersRequest, 
 	return reply, nil
 }
 func (c *chatters) fetchChatterPage(ctx context.Context, broadcasterID, cursor string) (twitch.ChattersPage, error) {
-	page, err := c.twitch.GetChattersPage(ctx, broadcasterID, c.botID, cursor)
+	page, err := c.twitch.GetChattersPage(ctx, twitch.ChattersPageRequest{BroadcasterID: broadcasterID, ModeratorID: c.botID, Cursor: cursor})
 	if err != nil {
 		return page, c.providerError(ctx, "helix:bot:"+c.botID, err)
 	}

@@ -80,26 +80,26 @@ func (r *Loyalty) PruneWatchHistory(ctx context.Context, safeCutoffUnixMilli int
 	return r.pruneRetiredWatchHistory(ctx, finalized)
 }
 
-func (r *Loyalty) ensureWatchWindowStartColumn(ctx context.Context, table string) error {
+func (r *Loyalty) ensureWatchWindowStartColumn(ctx context.Context, table watchHistoryTable) error {
 	present, err := r.watchWindowStartColumnPresent(ctx, table)
 	if err != nil || present {
 		return err
 	}
-	_, err = r.sqldb.ExecContext(ctx, "ALTER TABLE "+table+" ADD COLUMN window_started_at_ms BIGINT NOT NULL DEFAULT 0")
+	_, err = r.sqldb.ExecContext(ctx, "ALTER TABLE "+table.name+" ADD COLUMN window_started_at_ms BIGINT NOT NULL DEFAULT 0")
 	return ignoreMySQLSchemaRace(err, 1060)
 }
 
-func (r *Loyalty) watchWindowStartColumnPresent(ctx context.Context, table string) (bool, error) {
+func (r *Loyalty) watchWindowStartColumnPresent(ctx context.Context, table watchHistoryTable) (bool, error) {
 	if r.dialect == "sqlite3" {
 		return r.sqliteWatchColumnPresent(ctx, table)
 	}
 	var count int
-	err := r.sqldb.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name='window_started_at_ms'`, table).Scan(&count)
+	err := r.sqldb.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name='window_started_at_ms'`, table.name).Scan(&count)
 	return count != 0, err
 }
 
-func (r *Loyalty) sqliteWatchColumnPresent(ctx context.Context, table string) (bool, error) {
-	rows, err := r.sqldb.QueryContext(ctx, "PRAGMA table_info("+table+")")
+func (r *Loyalty) sqliteWatchColumnPresent(ctx context.Context, table watchHistoryTable) (bool, error) {
+	rows, err := r.sqldb.QueryContext(ctx, "PRAGMA table_info("+table.name+")")
 	if err != nil {
 		return false, err
 	}
@@ -115,15 +115,21 @@ func (r *Loyalty) sqliteWatchColumnPresent(ctx context.Context, table string) (b
 	return present, rows.Err()
 }
 
-func (r *Loyalty) ensureWatchIndex(ctx context.Context, table, suffix, columns string) error {
-	name := "idx_" + table + "_" + suffix
-	stmt := "CREATE INDEX " + name + " ON " + table + " (" + columns + ")"
+// watchHistoryIndex describes a ledger access path used by migrations and pruning.
+type watchHistoryIndex struct {
+	suffix  string
+	columns string
+}
+
+func (r *Loyalty) ensureWatchIndex(ctx context.Context, table watchHistoryTable, index watchHistoryIndex) error {
+	name := "idx_" + table.name + "_" + index.suffix
+	stmt := "CREATE INDEX " + name + " ON " + table.name + " (" + index.columns + ")"
 	if r.dialect == "sqlite3" {
-		_, err := r.sqldb.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS "+name+" ON "+table+" ("+columns+")")
+		_, err := r.sqldb.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS "+name+" ON "+table.name+" ("+index.columns+")")
 		return err
 	}
 	var count int
-	if err := r.sqldb.QueryRowContext(ctx, "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND index_name=?", table, name).Scan(&count); err != nil {
+	if err := r.sqldb.QueryRowContext(ctx, "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND index_name=?", table.name, name).Scan(&count); err != nil {
 		return err
 	}
 	if count != 0 {
@@ -176,8 +182,8 @@ func (r *Loyalty) pruneRetiredWatchHistory(ctx context.Context, finalized int64)
 
 func (r *Loyalty) pruneWatchHistoryPass(ctx context.Context, finalized int64) (bool, error) {
 	more := false
-	for _, table := range []struct{ name, identity string }{{"loyalty_watch_operations", "operation_id"}, {"loyalty_watch_viewers", "award_id"}} {
-		filled, err := r.pruneWatchTable(ctx, finalized, table.name, table.identity)
+	for _, table := range watchHistoryTables {
+		filled, err := r.pruneWatchTable(ctx, finalized, table)
 		if err != nil {
 			return false, err
 		}
@@ -186,19 +192,19 @@ func (r *Loyalty) pruneWatchHistoryPass(ctx context.Context, finalized int64) (b
 	return more, nil
 }
 
-func (r *Loyalty) watchHistoryDeleteQuery(table, identity string) string {
+func (r *Loyalty) watchHistoryDeleteQuery(table watchHistoryTable) string {
 	condition := " WHERE created_at<=? AND window_started_at_ms<=? ORDER BY window_started_at_ms,created_at LIMIT ?"
 	if r.dialect == "sqlite3" {
-		return "DELETE FROM " + table + " WHERE " + identity + " IN (SELECT " + identity + " FROM " + table + condition + ")"
+		return "DELETE FROM " + table.name + " WHERE " + table.identity + " IN (SELECT " + table.identity + " FROM " + table.name + condition + ")"
 	}
-	return "DELETE FROM " + table + condition
+	return "DELETE FROM " + table.name + condition
 }
 
-func (r *Loyalty) ensureWatchHistoryAgeSchema(ctx context.Context, table string) error {
+func (r *Loyalty) ensureWatchHistoryAgeSchema(ctx context.Context, table watchHistoryTable) error {
 	if err := r.ensureWatchWindowStartColumn(ctx, table); err != nil {
 		return err
 	}
-	return r.ensureWatchIndex(ctx, table, "window", "window_started_at_ms,created_at")
+	return r.ensureWatchIndex(ctx, table, watchHistoryIndex{suffix: "window", columns: "window_started_at_ms,created_at"})
 }
 
 func scanWatchWindowColumn(rows *sql.Rows) (bool, error) {
@@ -209,8 +215,8 @@ func scanWatchWindowColumn(rows *sql.Rows) (bool, error) {
 	return name == "window_started_at_ms", err
 }
 
-func (r *Loyalty) pruneWatchTable(ctx context.Context, finalized int64, table, identity string) (bool, error) {
-	result, err := r.sqldb.ExecContext(ctx, r.watchHistoryDeleteQuery(table, identity), finalized/1000, finalized, watchHistoryPruneBatch)
+func (r *Loyalty) pruneWatchTable(ctx context.Context, finalized int64, table watchHistoryTable) (bool, error) {
+	result, err := r.sqldb.ExecContext(ctx, r.watchHistoryDeleteQuery(table), finalized/1000, finalized, watchHistoryPruneBatch)
 	if err != nil {
 		return false, err
 	}

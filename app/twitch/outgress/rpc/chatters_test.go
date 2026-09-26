@@ -31,11 +31,11 @@ type chatterFakeAPI struct {
 	bid, moderator, cursor string
 }
 
-func (a *chatterFakeAPI) GetChattersPage(ctx context.Context, bid, mod, cursor string) (twitch.ChattersPage, error) {
+func (a *chatterFakeAPI) GetChattersPage(ctx context.Context, request twitch.ChattersPageRequest) (twitch.ChattersPage, error) {
 	a.calls++
-	a.bid = bid
-	a.moderator = mod
-	a.cursor = cursor
+	a.bid = request.BroadcasterID
+	a.moderator = request.ModeratorID
+	a.cursor = request.Cursor
 	return a.page, a.err
 }
 func (a *chatterFakeAPI) StreamSession(context.Context, string) (string, time.Time, bool, error) {

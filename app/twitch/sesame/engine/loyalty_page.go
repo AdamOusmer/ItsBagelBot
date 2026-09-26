@@ -31,6 +31,13 @@ type loyaltyPage struct {
 	state loyaltySchedule
 }
 
+// loyaltyAwardSnapshot keeps the captured account incarnation and its decoded
+// earning rules together while a page is validated and saved.
+type loyaltyAwardSnapshot struct {
+	admission watchtime.Snapshot
+	config    LoyaltyModuleConfig
+}
+
 func (s *ValkeyLoyaltyClock) fire(parent context.Context, id uint64) {
 	ctx, cancel := context.WithTimeout(parent, loyaltyPageTimeout)
 	defer cancel()
@@ -92,7 +99,7 @@ func (p *loyaltyPage) run(ctx context.Context) {
 		p.retry(ctx, err, 0)
 		return
 	}
-	p.consumeReply(ctx, reply, checkLive, cfg, snap)
+	p.consumeReply(ctx, reply, checkLive, loyaltyAwardSnapshot{admission: snap, config: cfg})
 }
 
 func (p *loyaltyPage) capture(ctx context.Context) (watchtime.Snapshot, bool) {
@@ -143,7 +150,7 @@ func decodeWatchConfiguration(raw codec.RawMessage) (LoyaltyModuleConfig, error)
 	return cfg, nil
 }
 
-func (p *loyaltyPage) consumeReply(ctx context.Context, reply manage.ChattersReply, checkLive bool, cfg LoyaltyModuleConfig, snap watchtime.Snapshot) {
+func (p *loyaltyPage) consumeReply(ctx context.Context, reply manage.ChattersReply, checkLive bool, award loyaltyAwardSnapshot) {
 	if !p.applyConfirmation(ctx, reply) {
 		return
 	}
@@ -157,7 +164,7 @@ func (p *loyaltyPage) consumeReply(ctx context.Context, reply manage.ChattersRep
 		return
 	}
 	p.warmViewerSnapshot(ctx, reply)
-	p.saveReply(ctx, reply, cfg, snap)
+	p.saveReply(ctx, reply, award)
 }
 
 func (p *loyaltyPage) applyConfirmation(ctx context.Context, reply manage.ChattersReply) bool {
@@ -214,8 +221,8 @@ func (p *loyaltyPage) warmViewerSnapshot(ctx context.Context, reply manage.Chatt
 	}
 	p.clock.viewers.Store(ctx, p.id, viewerSnapshotEntries(reply.Chatters))
 }
-func (p *loyaltyPage) saveReply(ctx context.Context, reply manage.ChattersReply, cfg LoyaltyModuleConfig, snap watchtime.Snapshot) {
-	dto := p.buildAward(reply, cfg, snap)
+func (p *loyaltyPage) saveReply(ctx context.Context, reply manage.ChattersReply, award loyaltyAwardSnapshot) {
+	dto := p.buildAward(reply, award)
 	payload, err := codec.Marshal(dto)
 	if err != nil {
 		p.retry(ctx, err, 0)
@@ -229,8 +236,8 @@ func (p *loyaltyPage) saveReply(ctx context.Context, reply manage.ChattersReply,
 	p.state.complete = reply.Complete
 	p.submitPending(ctx)
 }
-func (p *loyaltyPage) buildAward(reply manage.ChattersReply, cfg LoyaltyModuleConfig, snap watchtime.Snapshot) data.WatchAwardDTO {
-	return data.WatchAwardDTO{UserID: p.id, Generation: p.state.generation, LiveSession: p.state.liveSession, WindowID: p.state.window, WindowStartedAtUnixMilli: p.state.startedAt, Chunk: p.state.chunk, AccountCreatedAt: snap.AccountCreatedAt, Entries: p.viewerAwards(reply, cfg)}
+func (p *loyaltyPage) buildAward(reply manage.ChattersReply, award loyaltyAwardSnapshot) data.WatchAwardDTO {
+	return data.WatchAwardDTO{UserID: p.id, Generation: p.state.generation, LiveSession: p.state.liveSession, WindowID: p.state.window, WindowStartedAtUnixMilli: p.state.startedAt, Chunk: p.state.chunk, AccountCreatedAt: award.admission.AccountCreatedAt, Entries: p.viewerAwards(reply, award.config)}
 }
 func (p *loyaltyPage) viewerAwards(reply manage.ChattersReply, cfg LoyaltyModuleConfig) []data.LoyaltyEarnEntry {
 	entries := make([]data.LoyaltyEarnEntry, 0, len(reply.Chatters))

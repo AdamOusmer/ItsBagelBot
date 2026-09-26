@@ -411,13 +411,24 @@ func (f *fakeValkey) moduleRevisionWriteAllowed(settings, admission string, argv
 	if f.hashes[admission]["deleted"] == "1" {
 		return false
 	}
-	if instance := f.hashes[admission]["instance"]; instance != "" && instance != argv[7] && argv[2] == "module:loyalty:enabled" {
+	if !f.moduleInstanceMatches(admission, argv[2], argv[7]) {
 		return false
 	}
 	incoming, _ := strconv.Atoi(argv[1])
 	current, _ := strconv.Atoi(f.hashes[settings][argv[0]])
 	_, settingsExist := f.hashes[settings]
 	return !settingsExist || incoming >= current
+}
+
+func (f *fakeValkey) moduleInstanceMatches(admission, field, incoming string) bool {
+	if field != "module:loyalty:enabled" {
+		return true
+	}
+	instance := f.hashes[admission]["instance"]
+	if instance == "" {
+		return true
+	}
+	return instance == incoming
 }
 
 func (f *fakeValkey) applyModuleRevisionWrite(settings string, argv cmdArgs) {

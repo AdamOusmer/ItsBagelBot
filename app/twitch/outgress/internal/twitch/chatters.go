@@ -34,11 +34,19 @@ type ChattersPage struct {
 var ErrChattersIncomplete = errors.New("chatter listing incomplete; continue pagination")
 var ErrRepeatedCursor = errors.New("chatter pagination cursor did not advance")
 
-func (c *Client) GetChattersPage(ctx context.Context, broadcasterID, moderatorID, cursor string) (ChattersPage, error) {
+// ChattersPageRequest keeps the authorized tenant and moderator together with
+// the provider cursor; pagination changes only Cursor between requests.
+type ChattersPageRequest struct {
+	BroadcasterID string
+	ModeratorID   string
+	Cursor        string
+}
+
+func (c *Client) GetChattersPage(ctx context.Context, request ChattersPageRequest) (ChattersPage, error) {
 	if c.user == nil {
 		return ChattersPage{}, ErrNoUserToken
 	}
-	endpoint := chatterPageEndpoint(broadcasterID, moderatorID, cursor)
+	endpoint := request.endpoint()
 	res, err := c.ExecuteAs(ctx, IdentityBot, "", getCall(endpoint))
 	if err != nil {
 		return ChattersPage{}, err
@@ -55,7 +63,7 @@ func (c *Client) GetChattersPage(ctx context.Context, broadcasterID, moderatorID
 	if err != nil {
 		return ChattersPage{}, err
 	}
-	if !cursorAdvanced(cursor, next) {
+	if !request.cursorAdvanced(next) {
 		return ChattersPage{}, ErrRepeatedCursor
 	}
 	return ChattersPage{Chatters: batch, NextCursor: next, Complete: next == ""}, nil
@@ -63,10 +71,10 @@ func (c *Client) GetChattersPage(ctx context.Context, broadcasterID, moderatorID
 
 func (c *Client) GetChatters(ctx context.Context, broadcasterID, moderatorID string) ([]Chatter, error) {
 	var out []Chatter
-	cursor := ""
+	request := ChattersPageRequest{BroadcasterID: broadcasterID, ModeratorID: moderatorID}
 	seen := make(map[string]struct{})
 	for page := 0; page < chattersMaxPages; page++ {
-		got, err := c.GetChattersPage(ctx, broadcasterID, moderatorID, cursor)
+		got, err := c.GetChattersPage(ctx, request)
 		if err != nil {
 			return out, err
 		}
@@ -78,7 +86,7 @@ func (c *Client) GetChatters(ctx context.Context, broadcasterID, moderatorID str
 			return out, ErrRepeatedCursor
 		}
 		seen[got.NextCursor] = struct{}{}
-		cursor = got.NextCursor
+		request.Cursor = got.NextCursor
 	}
 	return out, ErrChattersIncomplete
 }
@@ -99,19 +107,19 @@ func decodeChattersPage(res *http.Response) ([]Chatter, string, error) {
 	return payload.chatters(), payload.Pagination.Cursor, nil
 }
 
-func chatterPageEndpoint(broadcasterID, moderatorID, cursor string) string {
-	endpoint := chattersPath + "?broadcaster_id=" + url.QueryEscape(broadcasterID) +
-		"&moderator_id=" + url.QueryEscape(moderatorID) + "&first=" + strconv.Itoa(chattersPageSize)
-	if cursor != "" {
-		endpoint += "&after=" + url.QueryEscape(cursor)
+func (request ChattersPageRequest) endpoint() string {
+	endpoint := chattersPath + "?broadcaster_id=" + url.QueryEscape(request.BroadcasterID) +
+		"&moderator_id=" + url.QueryEscape(request.ModeratorID) + "&first=" + strconv.Itoa(chattersPageSize)
+	if request.Cursor != "" {
+		endpoint += "&after=" + url.QueryEscape(request.Cursor)
 	}
 	return endpoint
 }
-func cursorAdvanced(current, next string) bool {
+func (request ChattersPageRequest) cursorAdvanced(next string) bool {
 	if next == "" {
 		return true
 	}
-	return next != current
+	return next != request.Cursor
 }
 
 type chatterPayload struct {

@@ -106,7 +106,7 @@ func (r *Loyalty) RestoreUser(ctx context.Context, id uint64, instance int64) er
 		return err
 	}
 	if instance > current {
-		if err := replaceLoyaltyAccount(ctx, tx, id, current, instance); err != nil {
+		if err := replaceLoyaltyAccount(ctx, tx, loyaltyAccountReplacement{userID: id, prior: current, next: instance}); err != nil {
 			return err
 		}
 	}
@@ -137,7 +137,16 @@ func (r *Loyalty) DeleteAccount(ctx context.Context, id uint64, instance int64) 
 	return nil
 }
 
-var watchHistoryTables = []string{"loyalty_watch_operations", "loyalty_watch_viewers"}
+// watchHistoryTable identifies a replay ledger and its deduplication key.
+type watchHistoryTable struct {
+	name     string
+	identity string
+}
+
+var watchHistoryTables = []watchHistoryTable{
+	{name: "loyalty_watch_operations", identity: "operation_id"},
+	{name: "loyalty_watch_viewers", identity: "award_id"},
+}
 
 func (r *Loyalty) ensureWatchTables(ctx context.Context) error {
 	for _, stmt := range []string{
@@ -154,7 +163,7 @@ func (r *Loyalty) ensureWatchTables(ctx context.Context) error {
 
 func (r *Loyalty) ensureWatchCreatedIndexes(ctx context.Context) error {
 	for _, table := range watchHistoryTables {
-		if err := r.ensureWatchIndex(ctx, table, "created", "created_at"); err != nil {
+		if err := r.ensureWatchIndex(ctx, table, watchHistoryIndex{suffix: "created", columns: "created_at"}); err != nil {
 			return err
 		}
 	}
@@ -183,7 +192,7 @@ func (r *Loyalty) recordAdmittedWatchAward(ctx context.Context, tx *sql.Tx, a da
 	if err != nil || !added {
 		return false, err
 	}
-	return admitWatchAccount(ctx, tx, a, current, deleted)
+	return admitWatchAccount(ctx, tx, a, loyaltyAccountState{instance: current, deleted: deleted})
 }
 
 func (r *Loyalty) watchWindowOpen(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) (bool, error) {
@@ -214,25 +223,37 @@ func recordWatchOperation(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO,
 	return true, err
 }
 
-// Accepted awards may outrun the independent UserChanged subscription.
-func admitWatchAccount(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, current int64, deleted bool) (bool, error) {
-	if a.AccountCreatedAt > current {
-		err := replaceLoyaltyAccount(ctx, tx, a.UserID, current, a.AccountCreatedAt)
-		return err == nil, err
-	}
-	if deleted {
-		return false, nil
-	}
-	return current == a.AccountCreatedAt, nil
+// loyaltyAccountState is the lifecycle fence read under the account row lock.
+type loyaltyAccountState struct {
+	instance int64
+	deleted  bool
 }
 
-func replaceLoyaltyAccount(ctx context.Context, tx *sql.Tx, id uint64, prior, instance int64) error {
-	if prior > 0 {
-		if err := deleteLoyaltyRows(ctx, tx, id); err != nil {
+type loyaltyAccountReplacement struct {
+	userID uint64
+	prior  int64
+	next   int64
+}
+
+// Accepted awards may outrun the independent UserChanged subscription.
+func admitWatchAccount(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, account loyaltyAccountState) (bool, error) {
+	if a.AccountCreatedAt > account.instance {
+		err := replaceLoyaltyAccount(ctx, tx, loyaltyAccountReplacement{userID: a.UserID, prior: account.instance, next: a.AccountCreatedAt})
+		return err == nil, err
+	}
+	if account.deleted {
+		return false, nil
+	}
+	return account.instance == a.AccountCreatedAt, nil
+}
+
+func replaceLoyaltyAccount(ctx context.Context, tx *sql.Tx, replacement loyaltyAccountReplacement) error {
+	if replacement.prior > 0 {
+		if err := deleteLoyaltyRows(ctx, tx, replacement.userID); err != nil {
 			return err
 		}
 	}
-	_, err := tx.ExecContext(ctx, "UPDATE loyalty_account_fences SET account_created_at=?,deleted=0 WHERE user_id=?", instance, id)
+	_, err := tx.ExecContext(ctx, "UPDATE loyalty_account_fences SET account_created_at=?,deleted=0 WHERE user_id=?", replacement.next, replacement.userID)
 	return err
 }
 
@@ -245,17 +266,24 @@ func deleteLoyaltyRows(ctx context.Context, tx *sql.Tx, id uint64) error {
 	return nil
 }
 
+// watchPosting shares the accepted window and posting timestamp across viewers.
+type watchPosting struct {
+	award    data.WatchAwardDTO
+	postedAt time.Time
+}
+
 func (r *Loyalty) postWatchViewers(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) error {
-	now := time.Now()
+	posting := watchPosting{award: a, postedAt: time.Now()}
 	for _, e := range a.Entries {
-		if err := r.postWatchViewer(ctx, tx, a, e, now); err != nil {
+		if err := r.postWatchViewer(ctx, tx, posting, e); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *Loyalty) postWatchViewer(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, e data.LoyaltyEarnEntry, now time.Time) error {
+func (r *Loyalty) postWatchViewer(ctx context.Context, tx *sql.Tx, posting watchPosting, e data.LoyaltyEarnEntry) error {
+	a := posting.award
 	added, err := r.recordWatchViewer(ctx, tx, a, e.ViewerID)
 	if err != nil || !added {
 		return err
@@ -263,7 +291,7 @@ func (r *Loyalty) postWatchViewer(ctx context.Context, tx *sql.Tx, a data.WatchA
 	if err := checkWatchBalance(ctx, tx, a.UserID, e); err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, r.watchBalanceUpsert(), a.UserID, e.ViewerID, e.ViewerLogin, e.ViewerName, e.Points, e.WatchSeconds, now, now)
+	_, err = tx.ExecContext(ctx, r.watchBalanceUpsert(), a.UserID, e.ViewerID, e.ViewerLogin, e.ViewerName, e.Points, e.WatchSeconds, posting.postedAt, posting.postedAt)
 	return err
 }
 

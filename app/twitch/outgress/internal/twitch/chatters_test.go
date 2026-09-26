@@ -42,7 +42,7 @@ func TestChattersPageBindsTenantAndBotToken(t *testing.T) {
 	})
 	for _, id := range []string{"123", "789"} {
 		broadcaster = id
-		page, err := c.GetChattersPage(t.Context(), id, "456", "opaque &cursor")
+		page, err := c.GetChattersPage(t.Context(), ChattersPageRequest{BroadcasterID: id, ModeratorID: "456", Cursor: "opaque &cursor"})
 		require.NoError(t, err)
 		require.False(t, page.Complete)
 		require.Equal(t, "next", page.NextCursor)
@@ -72,7 +72,7 @@ func TestChattersContinuesBeyondThirtyPages(t *testing.T) {
 	c := chattersTestClient(func(req *http.Request) (*http.Response, error) { calls++; return numberedChatterPage(t, req, 35), nil })
 	cursor := ""
 	for i := 1; i <= 35; i++ {
-		page, err := c.GetChattersPage(t.Context(), "123", "456", cursor)
+		page, err := c.GetChattersPage(t.Context(), ChattersPageRequest{BroadcasterID: "123", ModeratorID: "456", Cursor: cursor})
 		require.NoError(t, err)
 		require.Equal(t, i == 35, page.Complete, "page %d", i)
 		cursor = page.NextCursor
@@ -96,7 +96,7 @@ func TestChattersRepeatedCursorRefused(t *testing.T) {
 	c := chattersTestClient(func(*http.Request) (*http.Response, error) {
 		return chatterResponse(200, `{"data":[],"pagination":{"cursor":"same"}}`), nil
 	})
-	_, err := c.GetChattersPage(t.Context(), "123", "456", "same")
+	_, err := c.GetChattersPage(t.Context(), ChattersPageRequest{BroadcasterID: "123", ModeratorID: "456", Cursor: "same"})
 	require.True(t, errors.Is(err, ErrRepeatedCursor))
 }
 
@@ -111,7 +111,7 @@ func TestChattersChargesEveryAttemptIncluding401Retry(t *testing.T) {
 	})
 	c.user.refresh = func(context.Context) (string, time.Duration, error) { return "renewed", time.Hour, nil }
 	ctx := WithAttemptAdmission(t.Context(), func(context.Context, string) error { admitted++; return nil })
-	_, err := c.GetChattersPage(ctx, "123", "456", "")
+	_, err := c.GetChattersPage(ctx, ChattersPageRequest{BroadcasterID: "123", ModeratorID: "456", Cursor: ""})
 	require.NoError(t, err)
 	require.Equal(t, 2, calls)
 	require.Equal(t, 2, admitted)
@@ -131,7 +131,7 @@ func TestChattersRetryAdmissionDenialPreventsSecondHTTP(t *testing.T) {
 		}
 		return nil
 	})
-	_, err := c.GetChattersPage(ctx, "123", "456", "")
+	_, err := c.GetChattersPage(ctx, ChattersPageRequest{BroadcasterID: "123", ModeratorID: "456", Cursor: ""})
 	var denied *AdmissionError
 	require.True(t, errors.As(err, &denied))
 	require.Equal(t, 1, calls)
@@ -146,7 +146,7 @@ func TestChatters429PreservesProviderReset(t *testing.T) {
 		return r, nil
 	})
 	ctx := WithAttemptAdmission(t.Context(), func(context.Context, string) error { return nil })
-	_, err := c.GetChattersPage(ctx, "123", "456", "")
+	_, err := c.GetChattersPage(ctx, ChattersPageRequest{BroadcasterID: "123", ModeratorID: "456", Cursor: ""})
 	var denied *AdmissionError
 	require.True(t, errors.As(err, &denied))
 	require.Equal(t, "rate_limited", denied.Code)
@@ -163,7 +163,7 @@ func TestChattersExpiredContextDoesNotSpendOrCallHTTP(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	ctx = WithAttemptAdmission(ctx, func(context.Context, string) error { admitted++; return nil })
-	_, err := c.GetChattersPage(ctx, "123", "456", "")
+	_, err := c.GetChattersPage(ctx, ChattersPageRequest{BroadcasterID: "123", ModeratorID: "456", Cursor: ""})
 	require.True(t, errors.Is(err, context.Canceled))
 	require.Equal(t, 0, calls)
 	require.Equal(t, 0, admitted)
@@ -195,7 +195,7 @@ func TestChattersRejectsMalformedSuccessEnvelope(t *testing.T) {
 		t.Run(body, func(t *testing.T) {
 			c := chattersTestClient(func(*http.Request) (*http.Response, error) { return chatterResponse(200, body), nil })
 			{
-				_, err := c.GetChattersPage(t.Context(), "123", "456", "")
+				_, err := c.GetChattersPage(t.Context(), ChattersPageRequest{BroadcasterID: "123", ModeratorID: "456", Cursor: ""})
 				require.Error(t, err)
 			}
 		})
@@ -228,7 +228,10 @@ func TestReadyCredentialsRevalidateAdmissionBeforeHTTP(t *testing.T) {
 				return nil
 			})
 			done := make(chan error)
-			go func() { _, err := c.GetChattersPage(ctx, "123", "456", ""); done <- err }()
+			go func() {
+				_, err := c.GetChattersPage(ctx, ChattersPageRequest{BroadcasterID: "123", ModeratorID: "456", Cursor: ""})
+				done <- err
+			}()
 			<-entered
 			revoked.Store(true)
 			close(release)
