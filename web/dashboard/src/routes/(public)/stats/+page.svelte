@@ -3,7 +3,16 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount, untrack } from 'svelte';
-  import { AuroraBg, Heading, LightField, AlertBanner, Card, Stack, Text, getI18n } from '@bagel/kit';
+  import { getI18n } from '@bagel/kit/i18n/context';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import CounterCard from '@bagel/ui/svelte/CounterCard.svelte';
+  import CommunityCard from '@bagel/ui/svelte/CommunityCard.svelte';
+  import RankingCard from '@bagel/ui/svelte/RankingCard.svelte';
+  import StatsPageLayout from '@bagel/ui/svelte/StatsPageLayout.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
   import { visibleEventSource } from '$lib/visible-stream';
@@ -213,36 +222,97 @@
     };
   });
 
-  const totalFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
   const rateFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
-
+  const compactFmt = new Intl.NumberFormat(locale, {
+    notation: 'compact',
+    maximumFractionDigits: 2
+  });
   const PENDING = '-';
 
-  const headline = $derived(t('stats.headline').split(' '));
+  // Keep the locale's compact suffix separate for the larger counter type.
+  // The exact odometer reading remains printed below it, so compact rounding
+  // never hides the live count (or substitutes a made-up scale).
+  function compactTotal(raw: string, animated: number): { value: string; unit: string } {
+    const exact = BigInt(raw);
+    const value = exact > BigInt(Number.MAX_SAFE_INTEGER) ? exact : Math.round(animated);
+    const parts = compactFmt.formatToParts(value);
+    return {
+      value: parts.filter((part) => part.type !== 'compact').map((part) => part.value).join('').trim(),
+      unit: parts.find((part) => part.type === 'compact')?.value ?? ''
+    };
+  }
 
   const tiles = $derived([
     {
-      label: t('stats.messagesLabel'),
-      value: formatStatTotal(live.messages_total, display.messages, locale),
-      rate: live.msg_rate === null ? null : rateFmt.format(display.msgRate),
+      id: 'messages',
+      label: t('stats.messagesShortLabel'),
+      ...compactTotal(live.messages_total, display.messages),
+      detail: t('stats.processedTotal', { count: formatStatTotal(live.messages_total, display.messages, locale) }),
+      rate: (live.msg_rate_now ?? live.msg_rate) === null ? PENDING : rateFmt.format(display.msgRate),
       average: live.msg_rate === null ? null : rateFmt.format(live.msg_rate),
-      rateLabel: t('stats.messageRateLabel')
+      rateLabel: t('stats.messageRateLabel'),
+      tone: 'green' as const,
+      tilt: 'left' as const
     },
     {
-      label: t('stats.eventsLabel'),
-      value: formatStatTotal(live.events_total, display.events, locale),
-      rate: live.event_rate === null ? null : rateFmt.format(display.eventRate),
+      id: 'events',
+      label: t('stats.eventsShortLabel'),
+      ...compactTotal(live.events_total, display.events),
+      detail: t('stats.processedTotal', { count: formatStatTotal(live.events_total, display.events, locale) }),
+      rate: (live.event_rate_now ?? live.event_rate) === null ? PENDING : rateFmt.format(display.eventRate),
       average: live.event_rate === null ? null : rateFmt.format(live.event_rate),
-      rateLabel: t('stats.eventRateLabel')
+      rateLabel: t('stats.eventRateLabel'),
+      tone: 'tan' as const,
+      tilt: 'right' as const
     }
   ]);
 
   const traffic = $derived(boards.channels);
   const feed = $derived(boards.feed);
+  let rankBy = $state(t('stats.colMessages'));
+  const rankKey = $derived(rankBy === t('stats.colEvents') ? 'events' : 'messages');
 
+  // Both boards label a channel with the name the fleet stored for it, which is
+  // a display name: localized names are not necessarily valid Twitch logins.
+  // Use the id for those names, and never turn an unknown name into a bad link.
   const LOGIN_SHAPE = /^[A-Za-z0-9_]{1,25}$/;
   const channelHref = (row: { id: string; name: string }) =>
     commandsHref(LOGIN_SHAPE.test(row.name) ? row.name : row.id);
+
+  // The server sends the message-ranked subset. The Events control only sorts
+  // that same set; its localized note does not claim a global event ranking.
+  const rankingItems = $derived(
+    [...traffic]
+      .sort((a, b) => {
+        const difference = BigInt(b[rankKey]) - BigInt(a[rankKey]) || BigInt(b.messages) - BigInt(a.messages);
+        return difference > 0n ? 1 : difference < 0n ? -1 : 0;
+      })
+      .map((row) => ({
+        id: row.id,
+        label: row.name || t('stats.unknownChannel'),
+        href: row.name ? channelHref(row) : undefined,
+        // Approximation is only for decorative bar width; sorting and labels stay exact.
+        value: Number(row[rankKey]),
+        valueLabel: formatCounterValue(row[rankKey], locale),
+        secondary: t(rankKey === 'messages' ? 'stats.eventsCount' : 'stats.messagesCount', {
+          count: formatCounterValue(row[rankKey === 'messages' ? 'events' : 'messages'], locale)
+        })
+      }))
+  );
+
+  // The crowd uses names from the current board when available. Seed-only
+  // fallbacks are decorative, never sample channels or invented statistics.
+  const crowdNames = $derived(
+    Array.from({ length: 6 }, (_, i) => traffic[i]?.name || traffic[i]?.id || `ItsBagelBot-${i}`)
+  );
+  const feedArtworkNames = $derived(
+    Array.from({ length: 3 }, (_, i) => feed.entries[i]?.name || feed.entries[i]?.id || `ItsBagelBot-feed-${i}`)
+  );
+  const friendPalettes = [
+    { head: '#52b788', eye: '#0a0a0a' },
+    { head: '#e0c49a', eye: '#0a0a0a' },
+    { head: '#f5e6cf', eye: '#0a0a0a' }
+  ];
 </script>
 
 <svelte:head>
@@ -256,418 +326,138 @@
   <meta name="twitter:description" content={t('stats.metaDescription')} />
 </svelte:head>
 
-<AuroraBg />
-<div class="starfield" aria-hidden="true"><LightField /></div>
-
 <main class="stats-page">
-  <header class="hero">
-    <div class="eyebrow reveal" style="--i:0">{t('stats.eyebrow')}</div>
-    <h1 class="headline">
-      {#each headline as word, i (i)}
-        <span
-          class="word reveal"
-          style="--i:{1 + i * 0.5}"
-          class:tan={i === 0}
-          class:green={i === headline.length - 1}>{word}&nbsp;</span
-        >
-      {/each}
-    </h1>
-    <p class="lede reveal" style="--i:4">{t('stats.tagline')}</p>
-  </header>
-
-  {#if degraded}
-    <div class="notice reveal" style="--i:4.5">
-      <AlertBanner variant="warn">{t('stats.degraded')}</AlertBanner>
-    </div>
-  {/if}
-
-  <section class="tiles" aria-label={t('stats.headline')}>
-    {#each tiles as tile, i (tile.label)}
-      <div class="tile-wrap reveal" style="--i:{5 + i * 0.5}">
-        <Card atmo hover class="tile">
-          {#snippet band()}
-            <div class="tile-head">
-              <span class="label">{tile.label}</span>
-            </div>
-          {/snippet}
-          <Stack gap={3} class="tile-body">
-          <div class="value">
-            <span class="num">{tile.value}</span>
-          </div>
-          <div class="rate">
-            {#if tile.rate === null}
-              <span class="rate-num">{PENDING}</span>
-            {:else}
-              <span class="rate-num">{tile.rate}</span><small class="unit">{t('stats.perSecond')}</small>
-            {/if}
-            <span class="rate-label">{tile.rateLabel} · {t('stats.rightNow')}</span>
-            {#if tile.average !== null}
-              <span class="rate-label">{t('stats.minuteAverage', { rate: tile.average })}</span>
-            {/if}
-          </div>
-          </Stack>
-        </Card>
+  <StatsPageLayout
+    arrangement="playful"
+    style={t('stats.pageHeadline').length > 9 ? '--bb-stats-heading-size: clamp(30px, 9vw, 64px)' : undefined}
+  >
+    {#snippet heading()}
+      <div class="stats-heading">
+        <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('stats.liveNote')}<i class="bb-sweep" aria-hidden="true"></i></span>
+        <Heading level={1}>{t('stats.pageHeadline')}<span class="ink-tan" aria-hidden="true">.</span></Heading>
+        <Text size="sm" tone="muted">{t('stats.pageTagline')}</Text>
       </div>
-    {/each}
-  </section>
+    {/snippet}
 
-  <section class="boards" aria-label={t('stats.boardsEyebrow')}>
-    <div class="board-wrap reveal" style="--i:6">
-      <Card atmo class="board" label={t('stats.trafficBoardCh')}>
-        {#snippet band()}
-          <header class="board-head">
-            <div class="board-titles">
-              <Heading level={2} class="board-title">{t('stats.trafficBoardTitle')}</Heading>
-              <Text size="sm" tone="muted" class="board-note">{t('stats.trafficBoardNote')}</Text>
-            </div>
-          </header>
+    {#snippet crowd()}
+      {#each crowdNames as name, i (`${i}:${name}`)}
+        <span aria-hidden="true"><Bolota {name} size={100} palette={friendPalettes[i % friendPalettes.length]} active gate /></span>
+      {/each}
+    {/snippet}
+
+    {#snippet notice()}
+      {#if degraded}
+        <AlertBanner variant="warn">{t('stats.degraded')}</AlertBanner>
+      {:else if boards.degraded}
+        <AlertBanner variant="warn">{t('stats.boardsUnavailable')}</AlertBanner>
+      {/if}
+    {/snippet}
+
+    {#snippet counters()}
+      {#each tiles as tile (tile.id)}
+        <CounterCard
+          label={tile.label}
+          value={tile.value}
+          unit={tile.unit}
+          detail={tile.detail}
+          rate={tile.rate}
+          rateUnit={tile.rate === PENDING ? '' : t('stats.perSecond')}
+          rateLabel={tile.average === null ? t('stats.rightNow') : `${t('stats.rightNow')} · ${t('stats.minuteAverage', { rate: tile.average })}`}
+          period={t('stats.allTime')}
+          tone={tile.tone}
+          tilt={tile.tilt}
+          appearance="solid"
+          style={tile.value.length > 7 ? '--counter-card-value-size: clamp(26px, 9cqi, 64px)' : undefined}
+          aria-description={tile.rateLabel}
+        >
+          {#snippet artwork()}
+            <span aria-hidden="true"><Bolota name={tile.id} size={90} palette={friendPalettes[tile.tone === 'green' ? 1 : 0]} active gate /></span>
+          {/snippet}
+        </CounterCard>
+      {/each}
+    {/snippet}
+
+    {#snippet ranking()}
+      <RankingCard
+        title={t('stats.trafficBoardTitle')}
+        description={t(rankKey === 'events' ? 'stats.trafficEventsNote' : 'stats.trafficBoardNote')}
+        items={rankingItems}
+        emptyLabel={t('stats.boardEmpty')}
+      >
+        {#snippet actions()}
+          <SegmentedControl
+            options={[t('stats.colMessages'), t('stats.colEvents')]}
+            bind:value={rankBy}
+            label={t('stats.rankBy')}
+          />
         {/snippet}
-        {#if traffic.length === 0}
-          <p class="empty">{t('stats.boardEmpty')}</p>
-        {:else}
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th class="rank" scope="col">{t('stats.colRank')}</th>
-                  <th scope="col">{t('stats.colChannel')}</th>
-                  <th class="n" scope="col">{t('stats.colMessages')}</th>
-                  <th class="n" scope="col">{t('stats.colEvents')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each traffic as row, i (row.id)}
-                  <tr>
-                    <td class="rank">{i + 1}</td>
-                    <td class="chan bb-prose">
-                      {#if row.name}
-                        <a href={channelHref(row)}>{row.name}</a>
-                      {:else}
-                        <span class="unnamed">{t('stats.unknownChannel')}</span>
-                      {/if}
-                    </td>
-                    <td class="n">{formatCounterValue(row.messages, locale)}</td>
-                    <td class="n">{formatCounterValue(row.events, locale)}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
+        {#snippet leading(item)}
+          <span aria-hidden="true"><Bolota name={item.href ? item.label : item.id} size={48} /></span>
+        {/snippet}
+      </RankingCard>
+    {/snippet}
+
+    {#snippet community()}
+      <CommunityCard
+        title={t('stats.feedingsTitle')}
+        subtitle={t('stats.feedBoardNote')}
+        total={formatCounterValue(feed.total, locale)}
+        period={t('stats.allTime')}
+      >
+        {#snippet artwork()}
+          <div class="feeding-friends" aria-hidden="true">
+            {#each feedArtworkNames as name, i (`${i}:${name}`)}
+              <Bolota {name} size={i === 1 ? 78 : 65} palette={friendPalettes[i]} active gate />
+            {/each}
           </div>
-        {/if}
-      </Card>
-    </div>
-
-    <div class="board-wrap reveal" style="--i:6.5">
-      <Card atmo class="board" label={t('stats.feedBoardCh')}>
-        {#snippet band()}
-          <header class="board-head">
-            <div class="board-titles">
-              <Heading level={2} class="board-title">{t('stats.feedBoardTitle')}</Heading>
-              <Text size="sm" tone="muted" class="board-note">{t('stats.feedBoardNote')}</Text>
-            </div>
-          </header>
         {/snippet}
-        <div class="feed-total">
-          <span class="num tan">{formatCounterValue(feed.total, locale)}</span>
-          <span class="label">{t('stats.feedTotalLabel')}</span>
-        </div>
+        <div class="feed-heading"><Text size="sm">{t('stats.topFeeders')}</Text><Text size="xs" tone="muted">{t('stats.feedings')}</Text></div>
         {#if feed.entries.length === 0}
           <p class="empty">{t('stats.feedBoardEmpty')}</p>
         {:else}
           <ol class="feed-list">
             {#each feed.entries as row, i (row.id)}
               <li>
-                <span class="rank">{i + 1}</span>
-                <span class="chan bb-prose">
+                <span class="feed-rank">{i + 1}</span>
+                <span aria-hidden="true"><Bolota name={row.name || row.id} size={38} /></span>
+                <span class="feed-channel">
                   {#if row.name}
-                    <a href={channelHref(row)}>{row.name}</a>
+                    <a class="feed-link" href={channelHref(row)}>{row.name}</a>
                   {:else}
                     <span class="unnamed">{t('stats.unknownChannel')}</span>
                   {/if}
                 </span>
-                <span class="n">{formatCounterValue(row.count, locale)}</span>
+                <span class="feed-count">{formatCounterValue(row.count, locale)}</span>
               </li>
             {/each}
           </ol>
-          <p class="ranked">{t('stats.feedRankedNote', { count: formatCounterValue(feed.ranked, locale) })}</p>
+          <p class="feed-note">{t('stats.feedRankedNote', { count: formatCounterValue(feed.ranked, locale) })}</p>
         {/if}
-      </Card>
-    </div>
-  </section>
-
-  <footer class="foot reveal" style="--i:7.5">
-    <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('stats.liveNote')}<i class="bb-sweep" aria-hidden="true"></i></span>
-  </footer>
+      </CommunityCard>
+    {/snippet}
+  </StatsPageLayout>
 </main>
 
 <style>
-  .starfield {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
+  .stats-page { min-width: 0; }
+  .stats-heading { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+  .ink-tan { color: var(--bb-tan); }
+  .feeding-friends { display: flex; align-items: end; justify-content: center; }
+  .feeding-friends :global(svg + svg) { margin-left: -5px; }
+  .feed-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .feed-list { list-style: none; margin: 0; padding: 0; }
+  .feed-list li { display: grid; grid-template-columns: 16px 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 11px 0; border-bottom: 1px solid var(--bb-border); }
+  .feed-rank { color: var(--bb-muted); font-family: var(--bb-font-mono); font-size: 11px; }
+  .feed-channel { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+  .feed-link { color: var(--bb-white); text-decoration: none; }
+  .feed-link:hover { color: var(--bb-tan-light); }
+  .feed-link:focus-visible { outline: 2px solid var(--bb-green-glow); outline-offset: 4px; }
+  .feed-count { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light); font-variant-numeric: tabular-nums; }
+  .feed-note, .empty { color: var(--bb-muted); margin: 14px 0 0; font-size: 12px; line-height: 1.5; }
+  .unnamed { color: var(--bb-muted); }
+  @media (max-width: 420px) {
+    .feed-list li { grid-template-columns: 12px 30px minmax(0, 1fr) auto; gap: 6px; }
+    .feed-list li :global(svg) { width: 30px; height: 30px; }
+    .feed-count { font-size: 11px; }
   }
-
-  .stats-page {
-    position: relative;
-    z-index: 1;
-    min-height: calc(100vh - 76px);
-    max-width: var(--bb-content-max);
-    margin: 0 auto;
-    padding: calc(76px + env(safe-area-inset-top, 0px) + clamp(40px, 8vh, 96px)) var(--bb-space-5)
-      var(--bb-space-8);
-    display: flex;
-    flex-direction: column;
-    gap: var(--bb-space-6);
-  }
-
-  .hero {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--bb-space-3);
-  }
-
-  .eyebrow {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-  }
-
-  .headline {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: clamp(34px, 6vw, 72px);
-    line-height: 1.02;
-    letter-spacing: var(--bb-tracking-tight);
-    color: var(--bb-white);
-    margin: 0;
-    max-width: 16ch;
-  }
-  .headline .word { display: inline-block; }
-  .headline .tan { color: var(--bb-tan); }
-  .headline .green { color: var(--bb-green); }
-
-  .lede {
-    font-family: var(--bb-font-body);
-    font-size: clamp(15px, 1.6vw, 18px);
-    line-height: 1.6;
-    color: var(--bb-muted);
-    margin: 0;
-    max-width: 58ch;
-  }
-
-  .notice { max-width: 640px; width: 100%; margin: 0 auto; }
-
-  .tiles {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--bb-space-4);
-  }
-
-  .tile-wrap { min-width: 0; }
-
-  .tiles {
-    --card-pad: clamp(24px, 3.4vw, 40px);
-    --card-band-h: calc(70px * var(--d, 1));
-    --card-band-pad: calc(14px * var(--d, 1)) var(--card-pad);
-  }
-  :global(.tile) { height: 100%; min-width: 0; }
-  :global(.tile-body) { min-width: 0; container-type: inline-size; }
-  :global(.tile)::before {
-    content: '';
-    position: absolute;
-    inset: 0 0 auto;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
-  }
-
-  .tile-head { display: flex; align-items: center; gap: var(--bb-space-3); min-width: 0; }
-
-  .label {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    line-height: 1.4;
-  }
-
-  .value { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-
-  .num {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: clamp(20px, 8cqi, 60px);
-    line-height: 1;
-    letter-spacing: var(--bb-tracking-tight);
-    color: var(--bb-white);
-    font-variant-numeric: tabular-nums;
-    overflow-wrap: anywhere;
-  }
-
-  .unit {
-    font-family: var(--bb-font-mono);
-    font-size: clamp(13px, 1.4vw, 17px);
-    color: var(--bb-muted);
-  }
-
-  .rate {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .rate-num {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: clamp(16px, 1.8vw, 22px);
-    line-height: 1;
-    color: var(--bb-green-glow);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .rate-label {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-
-  .boards {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: var(--bb-space-4);
-    align-items: start;
-  }
-
-  .board-wrap { min-width: 0; }
-
-  .boards {
-    --card-pad: clamp(20px, 2.4vw, 30px);
-    --card-band-h: calc(112px * var(--d, 1));
-    --card-band-pad: calc(16px * var(--d, 1)) var(--card-pad);
-  }
-  :global(.board) { height: 100%; min-width: 0; }
-
-  .board-head { display: flex; align-items: flex-start; gap: var(--bb-space-3); min-width: 0; }
-  .board-titles { min-width: 0; }
-
-  :global(.board-title) { font-size: clamp(18px, 2vw, 22px); letter-spacing: var(--bb-tracking-tight); }
-  :global(.board-note) { margin-top: 4px; }
-
-  .empty {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    line-height: 1.6;
-    color: var(--bb-muted);
-    margin: 0;
-  }
-
-  .table-scroll { overflow-x: auto; margin: 0 calc(-1 * var(--bb-space-2)); padding: 0 var(--bb-space-2); }
-
-  table { width: 100%; border-collapse: collapse; }
-
-  th {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    font-weight: 500;
-    text-align: left;
-    padding: 0 var(--bb-space-3) var(--bb-space-2) 0;
-    white-space: nowrap;
-  }
-
-  td {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    color: var(--bb-white);
-    padding: var(--bb-space-2) var(--bb-space-3) var(--bb-space-2) 0;
-    border-top: 1px solid var(--bb-border);
-    white-space: nowrap;
-  }
-
-  th:last-child, td:last-child { padding-right: 0; }
-
-  .rank {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-muted);
-    width: 2.5ch;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .n { text-align: right; font-variant-numeric: tabular-nums; }
-  th.n { text-align: right; padding-right: 0; }
-
-  .chan { min-width: 0; }
-  .unnamed { color: var(--bb-muted); font-style: italic; }
-
-  .feed-total { display: flex; flex-direction: column; gap: 4px; }
-  .feed-total .num {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: clamp(28px, 4vw, 44px);
-    line-height: 1;
-    letter-spacing: var(--bb-tracking-tight);
-    font-variant-numeric: tabular-nums;
-  }
-  .feed-total .num.tan { color: var(--bb-tan-light); }
-  .feed-total .label {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-
-  .feed-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-  .feed-list li {
-    display: flex;
-    align-items: baseline;
-    gap: var(--bb-space-3);
-    padding: var(--bb-space-2) 0;
-    border-top: 1px solid var(--bb-border);
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    color: var(--bb-white);
-  }
-  .feed-list .chan { flex: 1 1 auto; overflow-wrap: anywhere; }
-  .feed-list .n { flex: 0 0 auto; }
-
-  .ranked {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    color: var(--bb-muted);
-    margin: 0;
-  }
-
-  .foot {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--bb-space-2);
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-
-  @media (max-width: 900px) {
-    .boards { grid-template-columns: minmax(0, 1fr); }
-  }
-
-  @media (max-width: 720px) {
-    .tiles { grid-template-columns: minmax(0, 1fr); }
-  }
-
 </style>

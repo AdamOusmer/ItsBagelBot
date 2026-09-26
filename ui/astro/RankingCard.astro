@@ -1,0 +1,57 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import '../styles/elements/ranking-card.css';
+
+interface RankingItem {
+  id: string;
+  label: string;
+  href?: string;
+  value: number;
+  valueLabel: string;
+  secondary?: string;
+}
+interface Props {
+  title: string;
+  description?: string;
+  /** IDs are unique. Use named slots `leading-${item.id}` for item artwork. */
+  items: readonly RankingItem[];
+  emptyLabel?: string;
+  class?: string;
+  [key: string]: unknown;
+}
+const { title, description = '', items, emptyLabel = 'No entries yet', class: cls = '', ...rest } = Astro.props;
+const maximum = items.reduce((max, item) =>
+  Number.isFinite(item.value) ? Math.max(max, item.value) : max, 0) || 1;
+// Astro's compiler resolves literal <slot> names statically. Render the
+// caller's trusted slots here so per-item names also work through adapters.
+const leadingMarkup = await Promise.all(items.map((item) =>
+  Astro.slots.has(`leading-${item.id}`) ? Astro.slots.render(`leading-${item.id}`) : undefined));
+function proportion(value: number): string {
+  return `${Number.isFinite(value) ? Math.max(0, Math.min(100, value / maximum * 100)) : 0}%`;
+}
+---
+
+<section class={['bb-ranking-card', cls].filter(Boolean).join(' ')} aria-label={title} {...rest}>
+  <header class="bb-ranking-card__head"><div class="bb-ranking-card__intro"><h2 class="bb-ranking-card__title">{title}</h2>{description && <p class="bb-ranking-card__description">{description}</p>}</div>{Astro.slots.has('actions') && <div class="bb-ranking-card__actions"><slot name="actions" /></div>}</header>
+  {items.length ? (
+    <ol class="bb-ranking-card__list">
+      {items.map((item, index) => (
+        <li class="bb-ranking-card__row">
+          <div class="bb-ranking-card__leading">
+            <span class="bb-ranking-card__position">{String(index + 1).padStart(2, '0')}</span>
+            {leadingMarkup[index] !== undefined && <span class="bb-ranking-card__artwork" aria-hidden="true"><Fragment set:html={leadingMarkup[index]} /></span>}
+          </div>
+          <div class="bb-ranking-card__content">
+            <div class="bb-ranking-card__line">
+              {item.href ? <a class="bb-ranking-card__label" href={item.href}>{item.label}</a> : <span class="bb-ranking-card__label">{item.label}</span>}
+              <strong class="bb-ranking-card__value">{item.valueLabel}</strong>
+            </div>
+            <div class="bb-ranking-card__track" aria-hidden="true"><span style={`width:${proportion(item.value)}`}></span></div>
+            {item.secondary && <p class="bb-ranking-card__secondary">{item.secondary}</p>}
+          </div>
+        </li>
+      ))}
+    </ol>
+  ) : <p class="bb-ranking-card__empty">{emptyLabel}</p>}
+</section>

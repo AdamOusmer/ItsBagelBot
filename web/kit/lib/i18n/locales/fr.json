@@ -3782,7 +3782,21 @@
     "minuteAverage": "{rate}/s en moyenne sur la dernière minute",
     "rightNow": "en ce moment",
     "trafficBoardCh": "trafic",
-    "feedBoardCh": "flux"
+    "feedBoardCh": "flux",
+    "pageHeadline": "Statistiques",
+    "pageTagline": "Toutes les chaînes. Toute l'activité.",
+    "messagesShortLabel": "Messages de chat",
+    "eventsShortLabel": "Événements Twitch",
+    "processedTotal": "{count} traités",
+    "allTime": "Depuis toujours",
+    "rankBy": "Trier ces chaînes par",
+    "trafficEventsNote": "Chaînes en tête pour les messages de chat, triées par événements Twitch depuis l'arrivée du bot.",
+    "messagesCount": "{count} messages",
+    "eventsCount": "{count} événements",
+    "feedingsTitle": "Repas du bagel",
+    "topFeeders": "Les plus généreux",
+    "feedings": "Repas",
+    "boardsUnavailable": "Les classements des chaînes sont momentanément indisponibles. Ils s'actualiseront tout seuls."
   },
   "timers": {
     "errMessage": "Saisissez un message pour ce minuteur.",

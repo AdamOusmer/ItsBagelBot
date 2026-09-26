@@ -13,7 +13,7 @@ const FAMILY = {
   VisuallyHidden: 'Typography', SectionHeading: 'Typography',
   Container: 'Layout', Section: 'Layout', Stack: 'Layout', Cluster: 'Layout', Grid: 'Layout',
   Divider: 'Layout', Spacer: 'Layout', AppShell: 'Layout', Scroller: 'Layout',
-  InspectorSurface: 'Layout', PageHero: 'Layout', PickerPanel: 'Layout',
+  InspectorSurface: 'Layout', PageHero: 'Layout', PickerPanel: 'Layout', StatsPageLayout: 'Layout',
   Button: 'Controls', ButtonLink: 'Controls', IconButton: 'Controls', Switch: 'Controls',
   Toggle: 'Controls', Field: 'Controls', FieldError: 'Controls', Input: 'Controls',
   Select: 'Controls', Textarea: 'Controls', Checkbox: 'Controls', RadioGroup: 'Controls',
@@ -29,9 +29,9 @@ const FAMILY = {
   PageToolbar: 'Navigation', Hamburger: 'Navigation', EditorFooter: 'Navigation',
   Card: 'Data', CardHead: 'Data', DeckList: 'Data', ManagementRow: 'Data',
   OverviewGrid: 'Data', StatTile: 'Data', AreaSeries: 'Data', Table: 'Data', Icon: 'Data',
-  LogTail: 'Data',
+  LogTail: 'Data', CounterCard: 'Data', CommunityCard: 'Data', RankingCard: 'Data',
   LightField: 'Motion', BackgroundOrbs: 'Motion', AuroraBg: 'Motion', Cursor: 'Motion',
-  ReadingProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion',
+  ReadingProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion', AmbientSky: 'Motion',
 };
 
 const SINGLE_ADAPTER_REASON = {

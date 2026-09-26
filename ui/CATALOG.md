@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **88** blocks;
-**78** ship both adapters.
+Every block the library ships, by family. **93** blocks;
+**83** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 88 times
+omitted: nearly every block takes both, and listing them 93 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -46,6 +46,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Section** | `size`: 'default' \| 'sm' \| 'lg' \| 'flush'<br>`anchor`: boolean<br>`reveal`: boolean<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
 | **Spacer** | `size`: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`grow`: boolean | svelte + astro | `styles/elements/layout.css` |
 | **Stack** | `gap`: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`align`: 'start' \| 'center' \| 'end'<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
+| **StatsPageLayout** | `heading*`: Snippet<br>`crowd`: Snippet<br>`counters*`: Snippet<br>`ranking*`: Snippet<br>`community*`: Snippet<br>`notice`: Snippet<br>`footer`: Snippet<br>`arrangement`: 'playful' \| 'onboarding' \| 'gathering' | svelte + astro | `styles/elements/stats-page-layout.css` |
 
 ## Controls
 
@@ -117,11 +118,14 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **AreaSeries** | `values*`: readonly number[]<br>`ticks`: readonly number[]<br>`ariaLabel*`: string<br>`height`: number<br>`uid`: string | svelte + astro | `styles/elements/area-series.css` |
 | **Card** | `as`: string<br>`href`: string<br>`atmo`: boolean<br>`sheen`: boolean<br>`stat`: boolean<br>`hover`: boolean<br>`label`: string<br>`band`: Snippet | svelte + astro | `styles/elements/card.css` |
 | **CardHead** | — | svelte + astro | `styles/elements/card.css` |
+| **CommunityCard** | `title*`: string<br>`subtitle`: string<br>`total*`: string<br>`period`: string<br>`tone`: 'green' \| 'tan'<br>`appearance`: 'solid' \| 'soft'<br>`artwork`: Snippet | svelte + astro | `styles/elements/community-card.css` |
+| **CounterCard** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`detail`: string<br>`rate`: string \| null<br>`rateUnit`: string<br>`rateLabel`: string<br>`period`: string<br>`tone`: 'green' \| 'tan'<br>`appearance`: 'solid' \| 'soft'<br>`tilt`: 'left' \| 'right' \| 'none'<br>`artwork`: Snippet | svelte + astro | `styles/elements/counter-card.css` |
 | **DeckList** | `as`: string | svelte + astro | `styles/elements/card.css, styles/elements/deck-list.css` |
 | **Icon** | `name*`: IconName<br>`size`: number<br>`strokeWidth`: number<br>`fill`: string | svelte + astro | `styles/elements/icon.css` |
 | **LogTail** | `lines*`: string[]<br>`label*`: string<br>`max`: number | svelte<br>*Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.* | `styles/elements/log-tail.css` |
 | **ManagementRow** | `selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`accent`: boolean<br>`onselect`: () => void<br>`primary`: Snippet<br>`actions`: Snippet | svelte + astro | `styles/elements/management-row.css` |
 | **OverviewGrid** | `main`: Snippet<br>`side`: Snippet | svelte + astro | `styles/elements/overview-grid.css` |
+| **RankingCard** | `title*`: string<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`emptyLabel`: string | svelte + astro | `styles/elements/ranking-card.css` |
 | **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta*`: string<br>`flat`: boolean<br>`trail`: Snippet | svelte + astro | — |
 | **Table** | `label*`: string<br>`zebra`: boolean<br>`compact`: boolean | svelte + astro | `styles/elements/table.css` |
 
@@ -129,6 +133,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
+| **AmbientSky** | `shift`: number<br>`turn`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean<br>`position`: 'contained' \| 'fixed'<br>`warmth`: number<br>`uid`: string | svelte + astro | `styles/elements/ambient-sky.css, styles/orbs.css` |
 | **AuroraBg** | — | svelte + astro | `styles/elements/aurora.css, styles/orbs.css` |
 | **BackgroundOrbs** | — | svelte + astro | `styles/elements/bg-orbs.css, styles/orbs.css` |
 | **Brackets** | `variant`: 'page' \| 'loader'<br>`label`: string | svelte + astro | `styles/elements/brackets.css` |
@@ -136,4 +141,4 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Cursor** | — | svelte + astro | `styles/elements/cursor.css` |
 | **LightField** | — | svelte + astro | `styles/elements/light-field.css` |
 | **ReadingProgress** | — | svelte + astro | `styles/elements/reading-progress.css` |
-| **Sky** | `shift`: number<br>`turn`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean | svelte<br>*Svelte only: it follows the pointer and a flow's progress from client state; a static page has neither.* | `styles/orbs.css` |
+| **Sky** | `shift`: number<br>`turn`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean | svelte<br>*Svelte only: it follows the pointer and a flow's progress from client state; a static page has neither.* | — |

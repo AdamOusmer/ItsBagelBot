@@ -1,0 +1,46 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* A cover, optional decorative crowd and large total, with caller-owned
+   content underneath. Scale with --community-card-radius,
+   --community-card-pad, --community-card-artwork-height and
+   --community-card-total-size. */
+@layer bb.elements {
+  .bb-community-card {
+    --community-card-ink: var(--bb-white);
+    --community-card-secondary: var(--bb-muted);
+    --community-card-total-ink: var(--bb-tan-light);
+    min-width: 0;
+    border: 1px solid var(--bb-border-strong);
+    border-radius: var(--community-card-radius, 24px);
+    overflow: hidden;
+    background: var(--bb-card-bg);
+    color: var(--bb-white);
+    font-family: var(--bb-font-body);
+  }
+  .bb-community-card__cover { position: relative; padding: var(--community-card-pad, 26px); color: var(--community-card-ink); background: linear-gradient(145deg, rgba(var(--bb-tan-rgb), .12), rgba(var(--bb-green-rgb), .18)); }
+  .bb-community-card--green .bb-community-card__cover { background: linear-gradient(145deg, rgba(var(--bb-green-rgb), .35), rgba(var(--bb-tan-rgb), .08)); }
+  .bb-community-card--solid.bb-community-card--green {
+    --community-card-secondary: var(--bb-tan-pale);
+    --community-card-total-ink: var(--bb-white);
+  }
+  .bb-community-card--solid.bb-community-card--green .bb-community-card__cover { background: var(--bb-green); }
+  .bb-community-card--solid.bb-community-card--tan {
+    --community-card-ink: var(--bb-black);
+    --community-card-secondary: var(--bb-black);
+    --community-card-total-ink: var(--bb-black);
+  }
+  .bb-community-card--solid.bb-community-card--tan .bb-community-card__cover { background: var(--bb-tan-light); }
+  .bb-community-card__head { display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 1; }
+  .bb-community-card__title { overflow-wrap: anywhere; margin: 0; color: var(--community-card-ink); font: 600 23px/1.3 var(--bb-font-display); letter-spacing: var(--bb-tracking-display); }
+  .bb-community-card__subtitle { overflow-wrap: anywhere; margin: 0; color: var(--community-card-secondary); font: 400 12px/1.5 var(--bb-font-body); }
+  .bb-community-card__artwork { display: flex; align-items: flex-end; justify-content: var(--community-card-artwork-align, flex-end); min-height: var(--community-card-artwork-height, 86px); margin-top: 8px; pointer-events: none; line-height: 0; }
+  .bb-community-card__measure { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 14px; container-type: inline-size; margin-top: 4px; }
+  .bb-community-card__total { min-width: 0; overflow-wrap: anywhere; color: var(--community-card-total-ink); font: 600 var(--community-card-total-size, clamp(38px, 22cqi, 64px))/1 var(--bb-font-body); letter-spacing: -.055em; font-variant-numeric: tabular-nums; }
+  .bb-community-card__period { margin: 0; color: var(--community-card-secondary); font: 400 12px/1.5 var(--bb-font-body); }
+  .bb-community-card__body { padding: var(--community-card-body-pad, 22px 24px); }
+  @media (max-width: 650px) {
+    .bb-community-card { --community-card-pad: 22px; --community-card-body-pad: 20px; }
+  }
+}

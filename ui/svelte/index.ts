@@ -104,3 +104,13 @@ export { focusFirstInvalid } from './forms';
 export { default as StatusDot } from './StatusDot.svelte';
 
 export { default as NotificationBell } from './NotificationBell.svelte';
+
+export { default as AmbientSky } from './AmbientSky.svelte';
+
+export { default as StatsPageLayout } from './StatsPageLayout.svelte';
+
+export { default as CounterCard } from './CounterCard.svelte';
+
+export { default as CommunityCard } from './CommunityCard.svelte';
+
+export { default as RankingCard } from './RankingCard.svelte';

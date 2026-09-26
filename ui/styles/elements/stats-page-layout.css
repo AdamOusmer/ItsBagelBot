@@ -1,0 +1,156 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* Stats-page compositions. Slots keep data, translated copy and figures in
+   the consuming application; all placement belongs to the shared contract. */
+@layer bb.elements {
+  .bb-stats-page {
+    --bb-stats-gap: 24px;
+    --ambient-ring-top: 390px;
+    --ambient-ring-right: -230px;
+    --ambient-ring-opacity: 0.17;
+    --ambient-dawn-bottom: -20%;
+    --ambient-dawn-height: 90%;
+    --ambient-tan-bottom: 20%;
+    position: relative;
+    isolation: isolate;
+    min-width: 0;
+    padding: var(--bb-stats-top, calc(var(--nav-offset, var(--bb-nav-height, 72px)) + 56px)) 24px 72px;
+  }
+
+  .bb-stats-page__inner {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 1100px);
+    margin-inline: auto;
+  }
+
+  .bb-stats-page__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    min-height: 148px;
+    margin-bottom: 42px;
+  }
+
+  .bb-stats-page__heading {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .bb-stats-page__heading h1 {
+    max-width: 100%;
+    font-family: var(--bb-font-display);
+    font-size: var(--bb-stats-heading-size, clamp(48px, 6vw, 64px));
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.035em;
+    overflow-wrap: anywhere;
+  }
+
+  .bb-stats-page__crowd {
+    position: relative;
+    flex: none;
+    width: 330px;
+    height: 148px;
+  }
+
+  .bb-stats-page__crowd > * {
+    --bb-crowd-order: 0;
+    position: absolute;
+    top: 0;
+    left: calc(var(--bb-crowd-order) * 45px);
+    width: 100px;
+    height: 100px;
+    filter: drop-shadow(0 8px 8px rgba(var(--bb-black-rgb), 0.28));
+  }
+  .bb-stats-page__crowd > :nth-child(2) { --bb-crowd-order: 1; }
+  .bb-stats-page__crowd > :nth-child(3) { --bb-crowd-order: 2; top: 15px; }
+  .bb-stats-page__crowd > :nth-child(4) { --bb-crowd-order: 3; }
+  .bb-stats-page__crowd > :nth-child(5) { --bb-crowd-order: 4; top: -6px; }
+  .bb-stats-page__crowd > :nth-child(6) { --bb-crowd-order: 5; }
+  .bb-stats-page__crowd > :nth-child(even) { top: 46px; }
+  .bb-stats-page__crowd > * > :is(svg, img, canvas) { display: block; width: 100%; height: 100%; overflow: visible; }
+
+  .bb-stats-page__notice { margin-bottom: 24px; }
+
+  .bb-stats-page__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+    grid-template-areas: 'counters counters' 'ranking community';
+    align-items: start;
+    gap: 36px var(--bb-stats-gap);
+  }
+  .bb-stats-page__counters {
+    grid-area: counters;
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: var(--bb-stats-gap);
+    padding: 4px 5px 10px;
+    min-width: 0;
+  }
+  .bb-stats-page__ranking { grid-area: ranking; min-width: 0; }
+  .bb-stats-page__community { grid-area: community; min-width: 0; }
+  .bb-stats-page__footer { margin-top: 28px; }
+
+  /* Same anatomy, arranged around the quieter onboarding surfaces. */
+  .bb-stats-page--onboarding .bb-stats-page__header { margin-bottom: 52px; }
+  .bb-stats-page--onboarding .bb-stats-page__body {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-template-areas: 'counters community' 'ranking ranking';
+    row-gap: 32px;
+  }
+  .bb-stats-page--onboarding .bb-stats-page__counters { grid-template-columns: minmax(0, 1fr); padding: 0; }
+
+  /* Community leads, with the ranking alongside and the two counters below. */
+  .bb-stats-page--gathering .bb-stats-page__body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    grid-template-areas: 'community ranking' 'counters counters';
+    row-gap: 32px;
+  }
+  .bb-stats-page--gathering .bb-stats-page__counters { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0; }
+  .bb-stats-page--gathering .bb-stats-page__crowd { width: 370px; }
+  .bb-stats-page--gathering .bb-stats-page__crowd > * { left: calc(var(--bb-crowd-order) * 52px); }
+
+  @media (max-width: 900px) {
+    .bb-stats-page { padding-inline: 28px; }
+    .bb-stats-page__crowd { width: 290px; }
+    .bb-stats-page__crowd > * { left: calc(var(--bb-crowd-order) * 38px); }
+    .bb-stats-page--gathering .bb-stats-page__crowd { width: 300px; }
+    .bb-stats-page--gathering .bb-stats-page__crowd > * { left: calc(var(--bb-crowd-order) * 40px); }
+    .bb-stats-page__body { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+    .bb-stats-page--onboarding .bb-stats-page__body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .bb-stats-page--gathering .bb-stats-page__body { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+  }
+
+  @media (max-width: 650px) {
+    .bb-stats-page { padding: var(--bb-stats-top, calc(var(--nav-offset, var(--bb-nav-height, 72px)) + 28px)) 18px 48px; }
+    .bb-stats-page__header { flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 32px; }
+    .bb-stats-page__heading h1 { font-size: var(--bb-stats-heading-size, 48px); }
+    .bb-stats-page__crowd,
+    .bb-stats-page--gathering .bb-stats-page__crowd { width: 100%; height: 116px; align-self: center; }
+    .bb-stats-page__crowd > *,
+    .bb-stats-page--gathering .bb-stats-page__crowd > * { left: calc(var(--bb-crowd-order) * 17%); width: 70px; height: 70px; }
+    .bb-stats-page__crowd > :last-child,
+    .bb-stats-page--gathering .bb-stats-page__crowd > :last-child { left: auto; right: 0; }
+    .bb-stats-page__body,
+    .bb-stats-page--onboarding .bb-stats-page__body,
+    .bb-stats-page--gathering .bb-stats-page__body { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'counters' 'ranking' 'community'; gap: 28px; }
+    .bb-stats-page--gathering .bb-stats-page__body { grid-template-areas: 'community' 'ranking' 'counters'; }
+    .bb-stats-page__counters,
+    .bb-stats-page--gathering .bb-stats-page__counters { grid-template-columns: minmax(0, 1fr); gap: 42px; padding-inline: 4px; }
+    .bb-stats-page--onboarding .bb-stats-page__counters { gap: 32px; }
+  }
+
+  @media (max-width: 370px) {
+    .bb-stats-page { padding-inline: 14px; }
+    .bb-stats-page__crowd > *,
+    .bb-stats-page--gathering .bb-stats-page__crowd > * { width: 62px; height: 62px; }
+  }
+}

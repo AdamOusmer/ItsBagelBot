@@ -1,0 +1,39 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* The list order and numeric labels belong to the caller. Bars compare
+   each nonnegative finite value to the largest supplied value; they are
+   decorative, as the textual labels carry the same information. */
+@layer bb.elements {
+  .bb-ranking-card { min-width: 0; padding: var(--ranking-card-pad, 28px); border: 1px solid var(--bb-border); border-radius: var(--ranking-card-radius, 24px); background: linear-gradient(160deg, rgba(var(--bb-tan-rgb), .035), transparent 60%), var(--bb-card-bg); color: var(--bb-white); font-family: var(--bb-font-body); }
+  .bb-ranking-card__head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
+  .bb-ranking-card__intro { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .bb-ranking-card__title { overflow-wrap: anywhere; margin: 0; font: 600 23px/1.3 var(--bb-font-display); letter-spacing: var(--bb-tracking-display); color: var(--bb-white); }
+  .bb-ranking-card__description, .bb-ranking-card__empty { margin: 0; font: 400 12px/1.5 var(--bb-font-body); color: var(--bb-muted); }
+  .bb-ranking-card__actions { min-width: 0; }
+  .bb-ranking-card__list { list-style: none; margin: 0; padding: 0; }
+  .bb-ranking-card__row { display: flex; align-items: center; gap: 14px; padding: 18px 0; }
+  .bb-ranking-card__row + .bb-ranking-card__row { border-top: 1px solid var(--bb-border); }
+  .bb-ranking-card__leading { display: flex; flex: none; align-items: center; gap: 4px; }
+  .bb-ranking-card__position { min-width: 20px; font: 400 11px/1.2 var(--bb-font-mono); color: var(--bb-muted); }
+  .bb-ranking-card__row:first-child .bb-ranking-card__position { color: var(--bb-tan-light); }
+  .bb-ranking-card__artwork { display: block; width: var(--ranking-card-artwork-size, 48px); height: var(--ranking-card-artwork-size, 48px); line-height: 0; pointer-events: none; }
+  .bb-ranking-card__artwork > :where(svg, img) { width: 100%; height: 100%; object-fit: contain; }
+  .bb-ranking-card__content { flex: 1; min-width: 0; }
+  .bb-ranking-card__line { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .bb-ranking-card__label { min-width: 0; font: 500 14px/1.4 var(--bb-font-body); color: var(--bb-white); text-decoration: none; overflow-wrap: anywhere; }
+  a.bb-ranking-card__label:hover { color: var(--bb-tan-light); }
+  a.bb-ranking-card__label:focus-visible { outline: 2px solid var(--bb-focus); outline-offset: 3px; border-radius: var(--bb-radius-xs); }
+  .bb-ranking-card__value { min-width: 0; max-width: 100%; overflow-wrap: anywhere; font: 500 17px/1.2 var(--bb-font-mono); color: var(--bb-tan-light); font-variant-numeric: tabular-nums; }
+  .bb-ranking-card__track { height: 5px; margin: 10px 0 8px; background: rgba(var(--bb-tan-rgb), .08); border-radius: 5px; overflow: hidden; }
+  .bb-ranking-card__track > span { display: block; height: 100%; background: var(--bb-green-glow); border-radius: inherit; }
+  .bb-ranking-card__secondary { margin: 0; font: 400 11px/1.5 var(--bb-font-body); color: var(--bb-muted); }
+  @media (max-width: 650px) {
+    .bb-ranking-card { --ranking-card-pad: 22px 18px; --ranking-card-artwork-size: 38px; }
+    .bb-ranking-card__head { align-items: flex-start; }
+    .bb-ranking-card__row { gap: 8px; }
+    .bb-ranking-card__label { font-size: 13px; }
+    .bb-ranking-card__value { font-size: 15px; }
+  }
+}
