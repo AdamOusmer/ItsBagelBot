@@ -19,7 +19,6 @@ import (
 	"ItsBagelBot/app/deployer/internal/kube/watch"
 	"ItsBagelBot/app/deployer/internal/natsclaims"
 	"ItsBagelBot/app/deployer/internal/ports"
-	"ItsBagelBot/app/deployer/internal/reconcile"
 	"ItsBagelBot/app/deployer/internal/registry"
 	"ItsBagelBot/app/deployer/internal/rpc"
 	"ItsBagelBot/app/deployer/internal/stage"
@@ -71,9 +70,6 @@ func main() {
 		Log:      log,
 	})
 	stopped := runEngine(ctx, eng, log)
-	startReconcile(ctx, cfg.Deploy.NATSAuthMode, reconcile.Deps{
-		Store: runs, GitHub: deps.GitHub, Claims: deps.Claims, Config: cfg.Deploy, Log: log,
-	})
 
 	wiring := bus.RPCWiring{NC: nc, App: core.NR, Queue: queueGroup, Log: log, Timeout: cfg.RPCTimeout}
 	svcboot.FatalIf(log, rpc.Serve(wiring, cfg.RPCPrefix, eng, rpc.NewAuthorizer(nc, rpc.AuthSubject(cfg.UsersAuthSubject))),
@@ -150,11 +146,4 @@ func openClaims(cfg *config.Config, log *zap.Logger) (ports.ClaimsPusher, func()
 	})
 	svcboot.FatalIf(log, err, "failed to connect nats claims adapter")
 	return adapter, adapter.Close
-}
-
-func startReconcile(ctx context.Context, mode ports.NATSAuthMode, deps reconcile.Deps) {
-	if mode != ports.NATSAuthJWT {
-		return
-	}
-	go reconcile.Run(ctx, deps)
 }

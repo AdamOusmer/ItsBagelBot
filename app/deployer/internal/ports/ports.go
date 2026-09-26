@@ -88,13 +88,12 @@ type Config struct {
 	LockTTL               time.Duration
 	HeartbeatEvery        time.Duration
 
-	NATSAuthMode      NATSAuthMode
-	NATSSigningSeed   string
-	NATSSysJWT        string
-	NATSSysNKeySeed   string
-	NATSHubURL        string
-	NATSLeafURL       string
-	ACLReconcileEvery time.Duration
+	NATSAuthMode    NATSAuthMode
+	NATSSigningSeed string
+	NATSSysJWT      string
+	NATSSysNKeySeed string
+	NATSHubURL      string
+	NATSLeafURL     string
 }
 
 type Clock interface {

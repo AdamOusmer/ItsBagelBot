@@ -5,7 +5,6 @@ package config
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -77,7 +76,6 @@ func TestLoadDefaultsToConfigModeWithNoJWTVarsSet(t *testing.T) {
 	assert.Equal(t, "", cfg.Deploy.NATSSysNKeySeed)
 	assert.Equal(t, "", cfg.Deploy.NATSHubURL)
 	assert.Equal(t, "", cfg.Deploy.NATSLeafURL)
-	assert.Equal(t, 5*time.Minute, cfg.Deploy.ACLReconcileEvery)
 	assert.Equal(t, ports.FilePath("deploy/messaging/accounts.yaml"), cfg.Deploy.AccountsFile)
 	assert.Equal(t, ports.FilePath("deploy/messaging/accounts.keys.yaml"), cfg.Deploy.AccountsKeysFile)
 }
@@ -90,7 +88,6 @@ func TestLoadReadsJWTModeVars(t *testing.T) {
 	t.Setenv("DEPLOY_NATS_SYS_NKEY_SEED", "SUSEED")
 	t.Setenv("DEPLOY_NATS_HUB_URL", "tls://nats.messaging:4222")
 	t.Setenv("DEPLOY_NATS_LEAF_URL", "tls://nats-leaf.messaging:4222")
-	t.Setenv("DEPLOY_ACL_RECONCILE_EVERY", "90s")
 
 	cfg, err := Load()
 	if err != nil {
@@ -102,5 +99,4 @@ func TestLoadReadsJWTModeVars(t *testing.T) {
 	assert.Equal(t, "SUSEED", cfg.Deploy.NATSSysNKeySeed)
 	assert.Equal(t, "tls://nats.messaging:4222", cfg.Deploy.NATSHubURL)
 	assert.Equal(t, "tls://nats-leaf.messaging:4222", cfg.Deploy.NATSLeafURL)
-	assert.Equal(t, 90*time.Second, cfg.Deploy.ACLReconcileEvery)
 }

@@ -78,3 +78,28 @@ func committedPreload(t *testing.T) map[string]*jwt.AccountClaims {
 	}
 	return preloaded
 }
+
+func TestPreloadedDeadLetterOwnersHaveRuntimePermissions(t *testing.T) {
+	bus := committedPreload(t)[committedKeys(t).Accounts["BUS"]]
+	for _, role := range []string{"projector_bus", "users_bus"} {
+		t.Run(role, func(t *testing.T) {
+			key := committedKeys(t).Roles["BUS"][role]
+			scope, ok := bus.SigningKeys[key].(*jwt.UserScope)
+			if !ok {
+				t.Fatalf("missing scoped signer for %s", role)
+			}
+			for _, action := range []string{"INFO", "CREATE", "UPDATE"} {
+				want := "$JS.API.STREAM." + action + ".BAGEL_DLQ"
+				found := false
+				for _, subject := range scope.Template.Pub.Allow {
+					if subject == want {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("preload %s lacks %s", role, want)
+				}
+			}
+		})
+	}
+}
