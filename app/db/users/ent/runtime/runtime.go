@@ -2,7 +2,229 @@
 
 package runtime
 
-// The schema-stitching logic is generated in ItsBagelBot/app/db/users/ent/runtime.go
+import (
+	"ItsBagelBot/app/db/users/ent/adminaudit"
+	"ItsBagelBot/app/db/users/ent/adminuser"
+	"ItsBagelBot/app/db/users/ent/delegation"
+	"ItsBagelBot/app/db/users/ent/premiumgrant"
+	"ItsBagelBot/app/db/users/ent/schema"
+	"ItsBagelBot/app/db/users/ent/user"
+	"time"
+)
+
+// The init function reads all schema descriptors with runtime code
+// (default values, validators, hooks and policies) and stitches it
+// to their package variables.
+func init() {
+	adminauditFields := schema.AdminAudit{}.Fields()
+	_ = adminauditFields
+	// adminauditDescActorLogin is the schema descriptor for actor_login field.
+	adminauditDescActorLogin := adminauditFields[1].Descriptor()
+	// adminaudit.ActorLoginValidator is a validator for the "actor_login" field. It is called by the builders before save.
+	adminaudit.ActorLoginValidator = adminauditDescActorLogin.Validators[0].(func(string) error)
+	// adminauditDescAction is the schema descriptor for action field.
+	adminauditDescAction := adminauditFields[2].Descriptor()
+	// adminaudit.ActionValidator is a validator for the "action" field. It is called by the builders before save.
+	adminaudit.ActionValidator = adminauditDescAction.Validators[0].(func(string) error)
+	// adminauditDescOk is the schema descriptor for ok field.
+	adminauditDescOk := adminauditFields[5].Descriptor()
+	// adminaudit.DefaultOk holds the default value on creation for the ok field.
+	adminaudit.DefaultOk = adminauditDescOk.Default.(bool)
+	// adminauditDescCreatedAt is the schema descriptor for created_at field.
+	adminauditDescCreatedAt := adminauditFields[7].Descriptor()
+	// adminaudit.DefaultCreatedAt holds the default value on creation for the created_at field.
+	adminaudit.DefaultCreatedAt = adminauditDescCreatedAt.Default.(func() time.Time)
+	adminuserFields := schema.AdminUser{}.Fields()
+	_ = adminuserFields
+	// adminuserDescLogin is the schema descriptor for login field.
+	adminuserDescLogin := adminuserFields[1].Descriptor()
+	// adminuser.LoginValidator is a validator for the "login" field. It is called by the builders before save.
+	adminuser.LoginValidator = adminuserDescLogin.Validators[0].(func(string) error)
+	// adminuserDescDisplayName is the schema descriptor for display_name field.
+	adminuserDescDisplayName := adminuserFields[2].Descriptor()
+	// adminuser.DisplayNameValidator is a validator for the "display_name" field. It is called by the builders before save.
+	adminuser.DisplayNameValidator = adminuserDescDisplayName.Validators[0].(func(string) error)
+	// adminuserDescActive is the schema descriptor for active field.
+	adminuserDescActive := adminuserFields[4].Descriptor()
+	// adminuser.DefaultActive holds the default value on creation for the active field.
+	adminuser.DefaultActive = adminuserDescActive.Default.(bool)
+	// adminuserDescAddedBy is the schema descriptor for added_by field.
+	adminuserDescAddedBy := adminuserFields[5].Descriptor()
+	// adminuser.DefaultAddedBy holds the default value on creation for the added_by field.
+	adminuser.DefaultAddedBy = adminuserDescAddedBy.Default.(uint64)
+	// adminuserDescCreatedAt is the schema descriptor for created_at field.
+	adminuserDescCreatedAt := adminuserFields[6].Descriptor()
+	// adminuser.DefaultCreatedAt holds the default value on creation for the created_at field.
+	adminuser.DefaultCreatedAt = adminuserDescCreatedAt.Default.(func() time.Time)
+	// adminuserDescUpdatedAt is the schema descriptor for updated_at field.
+	adminuserDescUpdatedAt := adminuserFields[7].Descriptor()
+	// adminuser.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	adminuser.DefaultUpdatedAt = adminuserDescUpdatedAt.Default.(func() time.Time)
+	// adminuser.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	adminuser.UpdateDefaultUpdatedAt = adminuserDescUpdatedAt.UpdateDefault.(func() time.Time)
+	delegationFields := schema.Delegation{}.Fields()
+	_ = delegationFields
+	// delegationDescToken is the schema descriptor for token field.
+	delegationDescToken := delegationFields[0].Descriptor()
+	// delegation.TokenValidator is a validator for the "token" field. It is called by the builders before save.
+	delegation.TokenValidator = delegationDescToken.Validators[0].(func(string) error)
+	// delegationDescDelegateID is the schema descriptor for delegate_id field.
+	delegationDescDelegateID := delegationFields[4].Descriptor()
+	// delegation.DefaultDelegateID holds the default value on creation for the delegate_id field.
+	delegation.DefaultDelegateID = delegationDescDelegateID.Default.(uint64)
+	// delegationDescCreatedAt is the schema descriptor for created_at field.
+	delegationDescCreatedAt := delegationFields[7].Descriptor()
+	// delegation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	delegation.DefaultCreatedAt = delegationDescCreatedAt.Default.(func() time.Time)
+	premiumgrantFields := schema.PremiumGrant{}.Fields()
+	_ = premiumgrantFields
+	// premiumgrantDescGiveawayID is the schema descriptor for giveaway_id field.
+	premiumgrantDescGiveawayID := premiumgrantFields[1].Descriptor()
+	// premiumgrant.GiveawayIDValidator is a validator for the "giveaway_id" field. It is called by the builders before save.
+	premiumgrant.GiveawayIDValidator = func() func(string) error {
+		validators := premiumgrantDescGiveawayID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(giveaway_id string) error {
+			for _, fn := range fns {
+				if err := fn(giveaway_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// premiumgrantDescAwardID is the schema descriptor for award_id field.
+	premiumgrantDescAwardID := premiumgrantFields[2].Descriptor()
+	// premiumgrant.AwardIDValidator is a validator for the "award_id" field. It is called by the builders before save.
+	premiumgrant.AwardIDValidator = func() func(string) error {
+		validators := premiumgrantDescAwardID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(award_id string) error {
+			for _, fn := range fns {
+				if err := fn(award_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// premiumgrantDescIntervalRuleVersion is the schema descriptor for interval_rule_version field.
+	premiumgrantDescIntervalRuleVersion := premiumgrantFields[7].Descriptor()
+	// premiumgrant.IntervalRuleVersionValidator is a validator for the "interval_rule_version" field. It is called by the builders before save.
+	premiumgrant.IntervalRuleVersionValidator = func() func(string) error {
+		validators := premiumgrantDescIntervalRuleVersion.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(interval_rule_version string) error {
+			for _, fn := range fns {
+				if err := fn(interval_rule_version); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// premiumgrantDescCreatedAt is the schema descriptor for created_at field.
+	premiumgrantDescCreatedAt := premiumgrantFields[8].Descriptor()
+	// premiumgrant.DefaultCreatedAt holds the default value on creation for the created_at field.
+	premiumgrant.DefaultCreatedAt = premiumgrantDescCreatedAt.Default.(func() time.Time)
+	// premiumgrantDescUpdatedAt is the schema descriptor for updated_at field.
+	premiumgrantDescUpdatedAt := premiumgrantFields[9].Descriptor()
+	// premiumgrant.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	premiumgrant.DefaultUpdatedAt = premiumgrantDescUpdatedAt.Default.(func() time.Time)
+	// premiumgrant.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	premiumgrant.UpdateDefaultUpdatedAt = premiumgrantDescUpdatedAt.UpdateDefault.(func() time.Time)
+	tokensFields := schema.Tokens{}.Fields()
+	_ = tokensFields
+	userHooks := schema.User{}.Hooks()
+	user.Hooks[0] = userHooks[0]
+	userFields := schema.User{}.Fields()
+	_ = userFields
+	// userDescUsername is the schema descriptor for username field.
+	userDescUsername := userFields[1].Descriptor()
+	// user.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
+	user.UsernameValidator = userDescUsername.Validators[0].(func(string) error)
+	// userDescDisplayName is the schema descriptor for display_name field.
+	userDescDisplayName := userFields[2].Descriptor()
+	// user.DefaultDisplayName holds the default value on creation for the display_name field.
+	user.DefaultDisplayName = userDescDisplayName.Default.(string)
+	// user.DisplayNameValidator is a validator for the "display_name" field. It is called by the builders before save.
+	user.DisplayNameValidator = userDescDisplayName.Validators[0].(func(string) error)
+	// userDescEmail is the schema descriptor for email field.
+	userDescEmail := userFields[3].Descriptor()
+	// user.EmailValidator is a validator for the "email" field. It is called by the builders before save.
+	user.EmailValidator = userDescEmail.Validators[0].(func(string) error)
+	// userDescStateRevision is the schema descriptor for state_revision field.
+	userDescStateRevision := userFields[5].Descriptor()
+	// user.DefaultStateRevision holds the default value on creation for the state_revision field.
+	user.DefaultStateRevision = userDescStateRevision.Default.(int64)
+	// user.StateRevisionValidator is a validator for the "state_revision" field. It is called by the builders before save.
+	user.StateRevisionValidator = userDescStateRevision.Validators[0].(func(int64) error)
+	// userDescIsActive is the schema descriptor for is_active field.
+	userDescIsActive := userFields[6].Descriptor()
+	// user.DefaultIsActive holds the default value on creation for the is_active field.
+	user.DefaultIsActive = userDescIsActive.Default.(bool)
+	// userDescBanned is the schema descriptor for banned field.
+	userDescBanned := userFields[7].Descriptor()
+	// user.DefaultBanned holds the default value on creation for the banned field.
+	user.DefaultBanned = userDescBanned.Default.(bool)
+	// userDescLocale is the schema descriptor for locale field.
+	userDescLocale := userFields[9].Descriptor()
+	// user.DefaultLocale holds the default value on creation for the locale field.
+	user.DefaultLocale = userDescLocale.Default.(string)
+	// user.LocaleValidator is a validator for the "locale" field. It is called by the builders before save.
+	user.LocaleValidator = userDescLocale.Validators[0].(func(string) error)
+	// userDescCustomCursor is the schema descriptor for custom_cursor field.
+	userDescCustomCursor := userFields[10].Descriptor()
+	// user.DefaultCustomCursor holds the default value on creation for the custom_cursor field.
+	user.DefaultCustomCursor = userDescCustomCursor.Default.(bool)
+	// userDescCommandsPageHidden is the schema descriptor for commands_page_hidden field.
+	userDescCommandsPageHidden := userFields[11].Descriptor()
+	// user.DefaultCommandsPageHidden holds the default value on creation for the commands_page_hidden field.
+	user.DefaultCommandsPageHidden = userDescCommandsPageHidden.Default.(bool)
+	// userDescCreatorCode is the schema descriptor for creator_code field.
+	userDescCreatorCode := userFields[12].Descriptor()
+	// user.CreatorCodeValidator is a validator for the "creator_code" field. It is called by the builders before save.
+	user.CreatorCodeValidator = userDescCreatorCode.Validators[0].(func(string) error)
+	// userDescSubscriptionSource is the schema descriptor for subscription_source field.
+	userDescSubscriptionSource := userFields[13].Descriptor()
+	// user.DefaultSubscriptionSource holds the default value on creation for the subscription_source field.
+	user.DefaultSubscriptionSource = userDescSubscriptionSource.Default.(string)
+	// userDescSubscriptionCancelPending is the schema descriptor for subscription_cancel_pending field.
+	userDescSubscriptionCancelPending := userFields[16].Descriptor()
+	// user.DefaultSubscriptionCancelPending holds the default value on creation for the subscription_cancel_pending field.
+	user.DefaultSubscriptionCancelPending = userDescSubscriptionCancelPending.Default.(bool)
+	// userDescGiftsSent is the schema descriptor for gifts_sent field.
+	userDescGiftsSent := userFields[19].Descriptor()
+	// user.DefaultGiftsSent holds the default value on creation for the gifts_sent field.
+	user.DefaultGiftsSent = userDescGiftsSent.Default.(uint32)
+	// userDescOnboarded is the schema descriptor for onboarded field.
+	userDescOnboarded := userFields[20].Descriptor()
+	// user.DefaultOnboarded holds the default value on creation for the onboarded field.
+	user.DefaultOnboarded = userDescOnboarded.Default.(bool)
+	// userDescTestAccount is the schema descriptor for test_account field.
+	userDescTestAccount := userFields[21].Descriptor()
+	// user.DefaultTestAccount holds the default value on creation for the test_account field.
+	user.DefaultTestAccount = userDescTestAccount.Default.(bool)
+	// userDescCreatedAt is the schema descriptor for created_at field.
+	userDescCreatedAt := userFields[22].Descriptor()
+	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
+	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
+	// userDescUpdatedAt is the schema descriptor for updated_at field.
+	userDescUpdatedAt := userFields[23].Descriptor()
+	// user.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	user.DefaultUpdatedAt = userDescUpdatedAt.Default.(func() time.Time)
+	// user.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	user.UpdateDefaultUpdatedAt = userDescUpdatedAt.UpdateDefault.(func() time.Time)
+}
 
 const (
 	Version = "v0.14.6"                                         // Version of ent codegen.

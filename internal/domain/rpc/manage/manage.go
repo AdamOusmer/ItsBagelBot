@@ -97,12 +97,37 @@ type Chatter struct {
 	Login string `json:"login"`
 }
 
+// ChattersRequest asks for one bounded attendance page. Identity and deadline
+// survive queueing and retries; a cursor belongs to this broadcaster/window.
 type ChattersRequest struct {
-	BroadcasterID string `json:"broadcaster_id"`
+	BroadcasterID     string `json:"broadcaster_id"`
+	RequestID         string `json:"request_id"`
+	WindowID          string `json:"window_id"`
+	SessionGeneration string `json:"session_generation,omitempty"`
+	LiveSession       string `json:"live_session,omitempty"`
+	DeadlineUnixMilli int64  `json:"deadline_unix_milli"`
+	Cursor            string `json:"cursor,omitempty"`
+	CheckLive         bool   `json:"check_live,omitempty"`
 }
 
+// ChattersReply preserves request identity and explicitly distinguishes a page
+// from a completed listing. A successful live check remains usable even if the
+// attendance page subsequently fails; callers must fence it by generation.
 type ChattersReply struct {
-	Chatters     []Chatter `json:"chatters,omitempty"`
-	MissingScope bool      `json:"missing_scope,omitempty"`
-	Error        string    `json:"error,omitempty"`
+	BroadcasterID            string    `json:"broadcaster_id"`
+	RequestID                string    `json:"request_id"`
+	WindowID                 string    `json:"window_id"`
+	SessionGeneration        string    `json:"session_generation,omitempty"`
+	LiveSession              string    `json:"live_session,omitempty"`
+	Chatters                 []Chatter `json:"chatters,omitempty"`
+	Complete                 bool      `json:"complete"`
+	NextCursor               string    `json:"next_cursor,omitempty"`
+	CheckedAtUnixMilli       int64     `json:"checked_at_unix_milli,omitempty"`
+	StreamID                 string    `json:"stream_id,omitempty"`
+	StreamStartedAtUnixMilli int64     `json:"stream_started_at_unix_milli,omitempty"`
+	Live                     bool      `json:"live"`
+	MissingScope             bool      `json:"missing_scope,omitempty"`
+	Error                    string    `json:"error,omitempty"`
+	ErrorCode                string    `json:"error_code,omitempty"`
+	RetryAtUnixMilli         int64     `json:"retry_at_unix_milli,omitempty"`
 }

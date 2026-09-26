@@ -5,10 +5,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"ItsBagelBot/app/db/modules/ent"
 	"ItsBagelBot/app/db/modules/ent/modules"
+	"ItsBagelBot/app/db/modules/ent/predicate"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/domain/validate"
@@ -45,14 +47,15 @@ type moduleKey struct {
 }
 
 type Modules struct {
-	client  *ent.Client
-	views   *cache.Cache[[]ModuleView]
-	pub     bus.Publisher
-	batcher *batch.Batcher[moduleKey, data.ModuleChangedDTO]
-	app     *newrelic.Application
-	log     *zap.Logger
-	govee   *GoveeCreds
-	spotify *SpotifyCreds
+	instanceResolver AccountInstanceResolver
+	client           *ent.Client
+	views            *cache.Cache[[]ModuleView]
+	pub              bus.Publisher
+	batcher          *batch.Batcher[moduleKey, data.ModuleChangedDTO]
+	app              *newrelic.Application
+	log              *zap.Logger
+	govee            *GoveeCreds
+	spotify          *SpotifyCreds
 }
 
 func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application, log *zap.Logger) *Modules {
@@ -73,29 +76,8 @@ func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application
 }
 
 func (r *Modules) List(ctx context.Context, userID uint64) ([]ModuleView, error) {
-
 	return r.views.GetOrLoad(ctx, cache.UserKey(modulesKeyPrefix, userID), func(ctx context.Context) ([]ModuleView, error) {
-		return db.WithQuery(ctx, func(ctx context.Context) ([]ModuleView, error) {
-
-			rows, err := r.client.Modules.Query().
-				Where(modules.UserIDEQ(userID)).
-				All(ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			views := make([]ModuleView, len(rows))
-			for i, row := range rows {
-				views[i] = ModuleView{
-					Name:      row.Name,
-					IsEnabled: row.IsEnabled,
-					Configs:   row.Configs,
-					Revision:  row.Revision,
-				}
-			}
-
-			return views, nil
-		})
+		return r.loadModuleViews(ctx, userID)
 	})
 }
 
@@ -111,49 +93,40 @@ func (r *Modules) Set(userID uint64, name string, enabled bool, configs codec.Ra
 		return err
 	}
 
+	if name == "loyalty" {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		var err error
+		configs, err = r.stampLoyalty(ctx, userID, configs)
+		if err != nil {
+			return err
+		}
+	}
 	r.batcher.Add(moduleKey{userID: userID, name: name}, data.ModuleChangedDTO{
-		UserID:    userID,
-		Name:      name,
-		IsEnabled: enabled,
-		Configs:   configs,
+		AccountCreatedAt: accountInstance(configs),
+		UserID:           userID,
+		Name:             name,
+		IsEnabled:        enabled,
+		Configs:          configs,
 	})
 
 	return nil
 }
 
 func (r *Modules) Reproject(ctx context.Context) error {
-
 	const pageSize = 500
-
 	afterID := 0
-
 	for {
-		rows, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Modules, error) {
-			return r.client.Modules.Query().
-				Where(modules.IDGT(afterID)).
-				Order(ent.Asc(modules.FieldID)).
-				Limit(pageSize).
-				All(ctx)
-		})
+		rows, err := r.modulePage(ctx, afterID, pageSize)
 		if err != nil {
 			return err
 		}
-
-		for _, row := range rows {
-			if err := bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, data.ModuleChangedDTO{
-				UserID:    row.UserID,
-				Name:      row.Name,
-				IsEnabled: row.IsEnabled,
-				Configs:   row.Configs,
-			}); err != nil {
-				return err
-			}
+		if err := r.publishModuleRows(ctx, rows); err != nil {
+			return err
 		}
-
 		if len(rows) < pageSize {
 			return nil
 		}
-
 		afterID = rows[len(rows)-1].ID
 	}
 }
@@ -210,31 +183,22 @@ func (r *Modules) Patch(ctx context.Context, userID uint64, name string, enabled
 	if err := validate.ModuleName(name); err != nil {
 		return PatchResult{}, err
 	}
-
-	var (
-		res     PatchResult
-		blobOut []byte
-	)
-	err := db.WithExec(ctx, func(ctx context.Context) error {
-		row, qerr := r.client.Modules.Query().
-			Where(modules.UserIDEQ(userID), modules.NameEQ(name)).
-			Only(ctx)
-		switch {
-		case ent.IsNotFound(qerr):
-			res, blobOut, qerr = r.patchInsert(ctx, userID, name, enabled, partial, expectedRev)
-			return qerr
-		case qerr != nil:
-			return qerr
-		default:
-			res, blobOut, qerr = r.patchUpdate(ctx, row, enabled, partial, expectedRev)
-			return qerr
-		}
+	partial, err := r.stampModulePatch(ctx, userID, name, partial)
+	if err != nil {
+		return PatchResult{}, err
+	}
+	var res PatchResult
+	var blob []byte
+	err = db.WithExec(ctx, func(ctx context.Context) error {
+		var err error
+		res, blob, err = r.persistPatch(ctx, userID, name, enabled, partial, expectedRev)
+		return err
 	})
 	if err != nil {
 		return PatchResult{}, err
 	}
 	if !res.Conflict {
-		r.announcePatch(ctx, userID, name, enabled, blobOut)
+		r.announcePatch(ctx, userID, name, enabled, blob)
 	}
 	return res, nil
 }
@@ -261,7 +225,11 @@ func (r *Modules) patchUpdate(ctx context.Context, row *ent.Modules, enabled boo
 	if expectedRev != nil && *expectedRev != row.Revision {
 		return PatchResult{Conflict: true, Rev: row.Revision}, nil, nil
 	}
-	blob, err := mergedBlob(decodeConfig(row.Configs), partial, row.Revision+1)
+	cur, err := patchBaseConfig(row, partial)
+	if err != nil {
+		return PatchResult{}, nil, err
+	}
+	blob, err := mergedBlob(cur, partial, row.Revision+1)
 	if err != nil {
 		return PatchResult{}, nil, err
 	}
@@ -294,7 +262,7 @@ func mergedBlob(cur, partial map[string]codec.RawMessage, rev int) ([]byte, erro
 func (r *Modules) announcePatch(ctx context.Context, userID uint64, name string, enabled bool, blob []byte) {
 	r.Invalidate(userID)
 	if pubErr := bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, data.ModuleChangedDTO{
-		UserID: userID, Name: name, IsEnabled: enabled, Configs: blob,
+		AccountCreatedAt: accountInstance(blob), UserID: userID, Name: name, IsEnabled: enabled, Configs: blob, Revision: configRevision(blob),
 	}); pubErr != nil {
 		r.log.Error("failed to publish module patch",
 			zap.Uint64("user_id", userID), zap.String("module", name), zap.Error(pubErr))
@@ -336,34 +304,19 @@ func (r *Modules) Close(ctx context.Context) {
 }
 
 func (r *Modules) flush(ctx context.Context, items []data.ModuleChangedDTO) error {
-
+	if len(items) == 0 {
+		return nil
+	}
 	txn := r.app.StartTransaction("flush modules")
 	defer txn.End()
-
 	ctx = newrelic.NewContext(ctx, txn)
+	ordinary, loyalty := partitionModuleChanges(items)
+	landed := r.upsertEach(ctx, txn, loyalty)
+	landed = append(landed, r.upsertOrdinaryModules(ctx, txn, ordinary)...)
 	log := monitor.TxnLogger(ctx, r.log)
-
-	landed := items
-	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return bulkUpsertModules(ctx, r.client, items)
-	}); err != nil {
-		txn.NoticeError(err)
-		landed = r.upsertEach(ctx, txn, items)
+	for _, item := range r.persistedDTOs(ctx, landed) {
+		r.publishCommittedModule(ctx, item, log)
 	}
-
-	for _, item := range landed {
-
-		r.Invalidate(item.UserID)
-
-		if err := bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, item); err != nil {
-			log.Error("failed to publish module change",
-				zap.Uint64("user_id", item.UserID),
-				zap.String("module", item.Name),
-				zap.Error(err),
-			)
-		}
-	}
-
 	return nil
 }
 
@@ -375,45 +328,32 @@ func bulkUpsertModules(ctx context.Context, client *ent.Client, items []data.Mod
 			SetUserID(item.UserID).
 			SetName(item.Name).
 			SetIsEnabled(item.IsEnabled).
-			SetConfigs(item.Configs))
+			SetConfigs(item.Configs).
+			SetRevision(1))
 	}
 
+	// MySQL ignores the conflict target (ON DUPLICATE KEY UPDATE is index-less);
+	// SQLite (tests) requires it.
 	return client.Modules.CreateBulk(builders...).
 		OnConflict(entsql.ConflictColumns(modules.FieldUserID, modules.FieldName)).
 		Update(func(u *ent.ModulesUpsert) {
 			u.UpdateIsEnabled()
 			u.UpdateConfigs()
 			u.UpdateUpdatedAt()
+			u.AddRevision(1)
 		}).
 		Exec(ctx)
 }
 
 func (r *Modules) upsertEach(ctx context.Context, txn *newrelic.Transaction, items []data.ModuleChangedDTO) []data.ModuleChangedDTO {
-
 	landed := make([]data.ModuleChangedDTO, 0, len(items))
 	for _, item := range items {
-		err := db.WithExec(ctx, func(ctx context.Context) error {
-			return upsertModule(ctx, r.client.Modules, item)
-		})
-		if err == nil {
-			landed = append(landed, item)
+		err := db.WithExec(ctx, func(ctx context.Context) error { return r.persistModuleChange(ctx, item) })
+		if err != nil {
+			r.handleModuleWriteFailure(txn, item, err)
 			continue
 		}
-		txn.NoticeError(err)
-		if ent.IsValidationError(err) || ent.IsConstraintError(err) {
-			r.log.Error("dropping unpersistable module change",
-				zap.Uint64("user_id", item.UserID),
-				zap.String("module", item.Name),
-				zap.Error(err),
-			)
-			continue
-		}
-		r.log.Warn("requeueing module change after transient flush failure",
-			zap.Uint64("user_id", item.UserID),
-			zap.String("module", item.Name),
-			zap.Error(err),
-		)
-		r.batcher.Requeue(moduleKey{userID: item.UserID, name: item.Name}, item)
+		landed = append(landed, item)
 	}
 	return landed
 }
@@ -427,6 +367,7 @@ func upsertModule(ctx context.Context, c *ent.ModulesClient, item data.ModuleCha
 		).
 		SetIsEnabled(item.IsEnabled).
 		SetConfigs(item.Configs).
+		AddRevision(1).
 		Save(ctx)
 	if err != nil {
 		return err
@@ -441,6 +382,7 @@ func upsertModule(ctx context.Context, c *ent.ModulesClient, item data.ModuleCha
 		SetName(item.Name).
 		SetIsEnabled(item.IsEnabled).
 		SetConfigs(item.Configs).
+		SetRevision(1).
 		Exec(ctx); err != nil {
 		if ent.IsConstraintError(err) {
 			_, err = c.Update().
@@ -450,9 +392,191 @@ func upsertModule(ctx context.Context, c *ent.ModulesClient, item data.ModuleCha
 				).
 				SetIsEnabled(item.IsEnabled).
 				SetConfigs(item.Configs).
+				AddRevision(1).
 				Save(ctx)
 		}
 		return err
 	}
 	return nil
+}
+
+func (r *Modules) persistedDTOs(ctx context.Context, landed []data.ModuleChangedDTO) []data.ModuleChangedDTO {
+	if len(landed) == 0 {
+		return nil
+	}
+	where := make([]predicate.Modules, 0, len(landed))
+	for _, item := range landed {
+		where = append(where, modules.And(modules.UserIDEQ(item.UserID), modules.NameEQ(item.Name)))
+	}
+	rows, err := r.client.Modules.Query().Where(modules.Or(where...)).All(ctx)
+	if err != nil {
+		r.log.Warn("failed to reload committed module rows", zap.Error(err))
+		return nil
+	}
+	result := make([]data.ModuleChangedDTO, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, persistedModuleEvent(row))
+	}
+	return result
+}
+
+func (r *Modules) loadModuleViews(ctx context.Context, userID uint64) ([]ModuleView, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) ([]ModuleView, error) {
+		rows, err := r.client.Modules.Query().Where(modules.UserIDEQ(userID)).All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return r.projectableModuleViews(rows), nil
+	})
+}
+
+func (r *Modules) projectableModuleViews(rows []*ent.Modules) []ModuleView {
+	views := make([]ModuleView, 0, len(rows))
+	for _, row := range rows {
+		if !r.mayProjectModule(row) {
+			continue
+		}
+		views = append(views, ModuleView{AccountCreatedAt: accountInstance(row.Configs), Name: row.Name, IsEnabled: row.IsEnabled, Configs: row.Configs, Revision: row.Revision})
+	}
+	return views
+}
+
+func (r *Modules) mayProjectModule(row *ent.Modules) bool {
+	if row.Name != "loyalty" {
+		return true
+	}
+	if r.instanceResolver == nil {
+		return true
+	}
+	return accountInstance(row.Configs) != 0
+}
+
+func (r *Modules) modulePage(ctx context.Context, afterID, limit int) ([]*ent.Modules, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.Modules, error) {
+		return r.client.Modules.Query().Where(modules.IDGT(afterID)).Order(ent.Asc(modules.FieldID)).Limit(limit).All(ctx)
+	})
+}
+
+func (r *Modules) publishModuleRows(ctx context.Context, rows []*ent.Modules) error {
+	for _, row := range rows {
+		if err := r.publishProjectableModule(ctx, row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func persistedModuleEvent(row *ent.Modules) data.ModuleChangedDTO {
+	return data.ModuleChangedDTO{AccountCreatedAt: accountInstance(row.Configs), UserID: row.UserID, Name: row.Name, IsEnabled: row.IsEnabled, Configs: row.Configs, Revision: row.Revision}
+}
+
+func (r *Modules) stampModulePatch(ctx context.Context, id uint64, name string, partial map[string]codec.RawMessage) (map[string]codec.RawMessage, error) {
+	if name != "loyalty" {
+		return partial, nil
+	}
+	blob, err := codec.Marshal(partial)
+	if err != nil {
+		return nil, err
+	}
+	stamped, err := r.stampLoyalty(ctx, id, blob)
+	if err != nil {
+		return nil, err
+	}
+	return decodeConfig(stamped), nil
+}
+
+func (r *Modules) persistPatch(ctx context.Context, id uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev *int) (PatchResult, []byte, error) {
+	row, err := r.client.Modules.Query().Where(modules.UserIDEQ(id), modules.NameEQ(name)).Only(ctx)
+	switch {
+	case ent.IsNotFound(err):
+		return r.patchInsert(ctx, id, name, enabled, partial, expectedRev)
+	case err != nil:
+		return PatchResult{}, nil, err
+	default:
+		return r.patchUpdate(ctx, row, enabled, partial, expectedRev)
+	}
+}
+
+func patchBaseConfig(row *ent.Modules, partial map[string]codec.RawMessage) (map[string]codec.RawMessage, error) {
+	cur := decodeConfig(row.Configs)
+	if row.Name != "loyalty" {
+		return cur, nil
+	}
+	incoming := accountInstanceMap(partial)
+	current := accountInstance(row.Configs)
+	if current > incoming {
+		return nil, errStaleAccount
+	}
+	if incoming != current {
+		return map[string]codec.RawMessage{}, nil
+	}
+	return cur, nil
+}
+
+func partitionModuleChanges(items []data.ModuleChangedDTO) (ordinary, loyalty []data.ModuleChangedDTO) {
+	ordinary = make([]data.ModuleChangedDTO, 0, len(items))
+	loyalty = make([]data.ModuleChangedDTO, 0, len(items))
+	for _, item := range items {
+		if item.Name == "loyalty" {
+			loyalty = append(loyalty, item)
+		} else {
+			ordinary = append(ordinary, item)
+		}
+	}
+	return ordinary, loyalty
+}
+
+func (r *Modules) upsertOrdinaryModules(ctx context.Context, txn *newrelic.Transaction, items []data.ModuleChangedDTO) []data.ModuleChangedDTO {
+	if len(items) == 0 {
+		return nil
+	}
+	err := db.WithExec(ctx, func(ctx context.Context) error { return bulkUpsertModules(ctx, r.client, items) })
+	if err == nil {
+		return items
+	}
+	txn.NoticeError(err)
+	return r.upsertEach(ctx, txn, items)
+}
+
+func (r *Modules) publishCommittedModule(ctx context.Context, item data.ModuleChangedDTO, log *zap.Logger) {
+	r.Invalidate(item.UserID)
+	if err := bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, item); err != nil {
+		// SQL is committed; a lost notification delays convergence until hydration.
+		log.Error("failed to publish module change", zap.Uint64("user_id", item.UserID), zap.String("module", item.Name), zap.Error(err))
+	}
+}
+
+func (r *Modules) persistModuleChange(ctx context.Context, item data.ModuleChangedDTO) error {
+	if item.Name == "loyalty" {
+		return r.upsertLoyalty(ctx, item)
+	}
+	return upsertModule(ctx, r.client.Modules, item)
+}
+
+func unpersistableModuleChange(err error) bool {
+	if errors.Is(err, errStaleAccount) {
+		return true
+	}
+	if ent.IsValidationError(err) {
+		return true
+	}
+	return ent.IsConstraintError(err)
+}
+
+func (r *Modules) handleModuleWriteFailure(txn *newrelic.Transaction, item data.ModuleChangedDTO, err error) {
+	txn.NoticeError(err)
+	fields := []zap.Field{zap.Uint64("user_id", item.UserID), zap.String("module", item.Name), zap.Error(err)}
+	if unpersistableModuleChange(err) {
+		r.log.Error("dropping unpersistable module change", fields...)
+		return
+	}
+	r.log.Warn("requeueing module change after transient flush failure", fields...)
+	r.batcher.Requeue(moduleKey{userID: item.UserID, name: item.Name}, item)
+}
+
+func (r *Modules) publishProjectableModule(ctx context.Context, row *ent.Modules) error {
+	if !r.mayProjectModule(row) {
+		return nil
+	}
+	return bus.PublishJSON(ctx, r.pub, data.SubjectModuleChanged, persistedModuleEvent(row))
 }

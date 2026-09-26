@@ -176,6 +176,7 @@ var (
 		{Name: "display_name", Type: field.TypeString, Size: 64, Default: ""},
 		{Name: "email", Type: field.TypeString, Unique: true},
 		{Name: "email_enc", Type: field.TypeBytes, Nullable: true},
+		{Name: "state_revision", Type: field.TypeInt64, Default: 1},
 		{Name: "is_active", Type: field.TypeBool, Default: true},
 		{Name: "banned", Type: field.TypeBool, Default: false},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"free", "paid", "vip"}, Default: "free"},
@@ -204,7 +205,7 @@ var (
 			{
 				Name:    "user_status_subscription_source_subscription_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[7], UsersColumns[12], UsersColumns[13]},
+				Columns: []*schema.Column{UsersColumns[8], UsersColumns[13], UsersColumns[14]},
 			},
 			{
 				Name:    "user_username",

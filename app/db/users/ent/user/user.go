@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 )
@@ -23,6 +24,8 @@ const (
 	FieldEmail = "email"
 	// FieldEmailEnc holds the string denoting the email_enc field in the database.
 	FieldEmailEnc = "email_enc"
+	// FieldStateRevision holds the string denoting the state_revision field in the database.
+	FieldStateRevision = "state_revision"
 	// FieldIsActive holds the string denoting the is_active field in the database.
 	FieldIsActive = "is_active"
 	// FieldBanned holds the string denoting the banned field in the database.
@@ -88,6 +91,7 @@ var Columns = []string{
 	FieldDisplayName,
 	FieldEmail,
 	FieldEmailEnc,
+	FieldStateRevision,
 	FieldIsActive,
 	FieldBanned,
 	FieldStatus,
@@ -118,7 +122,13 @@ func ValidColumn(column string) bool {
 	return false
 }
 
+// Note that the variables below are initialized by the runtime
+// package on the initialization of the application. Therefore,
+// it should be imported in the main as follows:
+//
+//	import _ "ItsBagelBot/app/db/users/ent/runtime"
 var (
+	Hooks [1]ent.Hook
 	// UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	UsernameValidator func(string) error
 	// DefaultDisplayName holds the default value on creation for the "display_name" field.
@@ -127,6 +137,10 @@ var (
 	DisplayNameValidator func(string) error
 	// EmailValidator is a validator for the "email" field. It is called by the builders before save.
 	EmailValidator func(string) error
+	// DefaultStateRevision holds the default value on creation for the "state_revision" field.
+	DefaultStateRevision int64
+	// StateRevisionValidator is a validator for the "state_revision" field. It is called by the builders before save.
+	StateRevisionValidator func(int64) error
 	// DefaultIsActive holds the default value on creation for the "is_active" field.
 	DefaultIsActive bool
 	// DefaultBanned holds the default value on creation for the "banned" field.
@@ -207,6 +221,11 @@ func ByDisplayName(opts ...sql.OrderTermOption) OrderOption {
 // ByEmail orders the results by the email field.
 func ByEmail(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEmail, opts...).ToFunc()
+}
+
+// ByStateRevision orders the results by the state_revision field.
+func ByStateRevision(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldStateRevision, opts...).ToFunc()
 }
 
 // ByIsActive orders the results by the is_active field.

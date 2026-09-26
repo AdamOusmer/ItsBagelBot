@@ -42,7 +42,9 @@ const (
 
 // UserView is cached in process, so it must carry no sensitive fields.
 type UserView struct {
+	StateRevision             int64      `json:"state_revision,omitempty"`
 	ID                        uint64     `json:"id"`
+	AccountCreatedAt          int64      `json:"account_created_at,omitempty"`
 	Username                  string     `json:"username"`
 	DisplayName               string     `json:"display_name"`
 	IsActive                  bool       `json:"is_active"`
@@ -181,6 +183,8 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 
 			return UserView{
 				ID:                        u.ID,
+				AccountCreatedAt:          u.CreatedAt.UnixMicro(),
+				StateRevision:             u.StateRevision,
 				Username:                  u.Username,
 				DisplayName:               u.DisplayName,
 				IsActive:                  u.IsActive,
@@ -300,16 +304,31 @@ func (r *Users) SetOnboarded(ctx context.Context, id uint64, onboarded bool) err
 }
 
 func (r *Users) Delete(ctx context.Context, id uint64) error {
+	var accountCreatedAt int64
 
 	if err := db.WithExec(ctx, func(ctx context.Context) error {
-		return r.client.User.DeleteOneID(id).Exec(ctx)
+		row, err := r.client.User.Query().Where(user.IDEQ(id)).Only(ctx)
+		if err != nil {
+			return err
+		}
+		accountCreatedAt = row.CreatedAt.UnixMicro()
+		// Match the incarnation read above so a concurrent delete/register
+		// cannot turn this request into deletion of the replacement account.
+		n, err := r.client.User.Delete().Where(user.IDEQ(id), user.CreatedAtEQ(row.CreatedAt)).Exec(ctx)
+		if err != nil {
+			return err
+		}
+		if n != 1 {
+			return fmt.Errorf("user account changed during deletion")
+		}
+		return nil
 	}); err != nil {
 		return err
 	}
 
 	r.views.Invalidate(cache.UserKey(userKeyPrefix, id))
 
-	return bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, data.UserDeletedDTO{UserID: id})
+	return bus.PublishJSON(ctx, r.pub, data.SubjectUserDeleted, data.UserDeletedDTO{UserID: id, AccountCreatedAt: accountCreatedAt})
 }
 
 func (r *Users) Invalidate(id uint64) {
@@ -333,6 +352,8 @@ func (r *Users) publishChanged(ctx context.Context, id uint64) error {
 
 	return bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, data.UserChangedDTO{
 		UserID:             view.ID,
+		AccountCreatedAt:   view.AccountCreatedAt,
+		StateRevision:      view.StateRevision,
 		Username:           view.Username,
 		IsActive:           view.IsActive,
 		Status:             view.Status,
@@ -385,7 +406,9 @@ func (r *Users) Reproject(ctx context.Context) error {
 func (r *Users) publishReprojectedUser(ctx context.Context, row *ent.User) error {
 	return bus.PublishJSON(ctx, r.pub, data.SubjectUserChanged, data.UserChangedDTO{
 		UserID: row.ID, Username: row.Username, IsActive: row.IsActive,
-		Status: string(row.Status), Banned: row.Banned, Locale: row.Locale,
+		AccountCreatedAt: row.CreatedAt.UnixMicro(),
+		StateRevision:    row.StateRevision,
+		Status:           string(row.Status), Banned: row.Banned, Locale: row.Locale,
 	})
 }
 

@@ -317,10 +317,160 @@ func (f *fakeValkey) execEVAL(args cmdArgs) []byte {
 	numkeys, _ := strconv.Atoi(args[1])
 	keys := args[2 : 2+numkeys]
 	argv := args[2+numkeys:]
+	if strings.Contains(script, "user watch admission write") {
+		return f.execUserAdmissionWrite(keys, argv)
+	}
+	if strings.Contains(script, "user watch deletion") {
+		return f.execUserWatchDeletion(keys)
+	}
+	if strings.Contains(script, "module revision gate") {
+		return f.execModuleRevisionGate(keys, argv)
+	}
+	if strings.Contains(script, "module hydration revision seed") {
+		return f.execModuleHydrationSeed(keys, argv)
+	}
 	if !strings.Contains(script, "HKEYS") || !strings.Contains(script, "HDEL") {
 		return respError("unsupported script in fake")
 	}
 	return respInt(f.deleteByPrefixes(keys[0], argv))
+}
+
+func (f *fakeValkey) execUserAdmissionWrite(keys, argv cmdArgs) []byte {
+	if !f.userAdmissionWriteAllowed(keys[1], argv) {
+		return respInt(0)
+	}
+	f.applyUserAdmissionWrite(keys[0], keys[1], argv)
+	return respInt(1)
+}
+
+func (f *fakeValkey) userAdmissionWriteAllowed(admission string, argv cmdArgs) bool {
+	if f.hashes[admission]["deleted"] == "1" {
+		return false
+	}
+	if instance := f.hashes[admission]["instance"]; instance != "" && instance != argv[6] {
+		return false
+	}
+	previous, _ := strconv.ParseInt(f.hashes[admission]["state_revision"], 10, 64)
+	incoming, _ := strconv.ParseInt(argv[7], 10, 64)
+	return incoming >= previous
+}
+
+func (f *fakeValkey) applyUserAdmissionWrite(settings, admission string, argv cmdArgs) {
+	if f.hashes[settings] == nil {
+		f.hashes[settings] = fakeHash{}
+	}
+	if f.hashes[admission] == nil {
+		f.hashes[admission] = fakeHash{}
+	}
+	incoming, _ := strconv.ParseInt(argv[7], 10, 64)
+	if incoming > 0 {
+		f.hashes[admission]["state_revision"] = argv[7]
+	}
+	if f.hashes[settings]["active"] != argv[0] || f.hashes[settings]["banned"] != argv[1] {
+		n, _ := strconv.Atoi(f.hashes[admission]["epoch"])
+		f.hashes[admission]["epoch"] = strconv.Itoa(n + 1)
+	}
+	for i, name := range []string{"active", "banned", "status", "commands_page_hidden"} {
+		f.hashes[settings][name] = argv[i]
+	}
+	if argv[4] != "" {
+		f.hashes[settings]["locale"] = argv[4]
+	}
+	secs, _ := strconv.Atoi(argv[5])
+	f.expires[settings] = f.nowFunc().Add(time.Duration(secs) * time.Second)
+}
+
+func (f *fakeValkey) execUserWatchDeletion(keys cmdArgs) []byte {
+	current, _ := strconv.ParseInt(f.hashes[keys[1]]["instance"], 10, 64)
+	if current > 0 {
+		return respInt(0)
+	}
+	delete(f.hashes, keys[0])
+	delete(f.expires, keys[0])
+	if f.hashes[keys[1]] == nil {
+		f.hashes[keys[1]] = fakeHash{}
+	}
+	n, _ := strconv.Atoi(f.hashes[keys[1]]["epoch"])
+	f.hashes[keys[1]]["epoch"] = strconv.Itoa(n + 1)
+	f.hashes[keys[1]]["deleted"] = "1"
+	return respInt(1)
+}
+
+func (f *fakeValkey) execModuleRevisionGate(keys, argv cmdArgs) []byte {
+	if len(argv) != 8 {
+		return respError("invalid module gate")
+	}
+	if !f.moduleRevisionWriteAllowed(keys[0], keys[1], argv) {
+		return respInt(0)
+	}
+	f.applyModuleRevisionWrite(keys[0], argv)
+	return respInt(1)
+}
+
+func (f *fakeValkey) moduleRevisionWriteAllowed(settings, admission string, argv cmdArgs) bool {
+	if f.hashes[admission]["deleted"] == "1" {
+		return false
+	}
+	if !f.moduleInstanceMatches(admission, argv[2], argv[7]) {
+		return false
+	}
+	incoming, _ := strconv.Atoi(argv[1])
+	current, _ := strconv.Atoi(f.hashes[settings][argv[0]])
+	_, settingsExist := f.hashes[settings]
+	return !settingsExist || incoming >= current
+}
+
+func (f *fakeValkey) moduleInstanceMatches(admission, field, incoming string) bool {
+	if field != "module:loyalty:enabled" {
+		return true
+	}
+	instance := f.hashes[admission]["instance"]
+	if instance == "" {
+		return true
+	}
+	return instance == incoming
+}
+
+func (f *fakeValkey) applyModuleRevisionWrite(settings string, argv cmdArgs) {
+	if f.hashes[settings] == nil {
+		f.hashes[settings] = fakeHash{}
+	}
+	f.hashes[settings][argv[0]] = argv[1]
+	f.hashes[settings][argv[2]] = argv[3]
+	f.hashes[settings][argv[4]] = argv[5]
+	f.hashes[settings][strings.TrimSuffix(argv[2], ":enabled")+":account_created_at"] = argv[7]
+}
+
+func (f *fakeValkey) execModuleHydrationSeed(keys, argv cmdArgs) []byte {
+	if len(argv) < 2 {
+		return respError("invalid module hydration")
+	}
+	n, err := strconv.Atoi(argv[1])
+	if err != nil || len(argv) != 2+5*n {
+		return respError("invalid module hydration")
+	}
+	if f.hashes[keys[0]] == nil {
+		f.hashes[keys[0]] = fakeHash{}
+	}
+	for i := 0; i < n; i++ {
+		f.seedHydratedModule(keys[0], argv, i)
+	}
+	f.hashes[keys[0]]["modules:projected"] = "1"
+	return respInt(1)
+}
+
+func (f *fakeValkey) seedHydratedModule(key string, argv cmdArgs, index int) {
+	position := 2 + index*5
+	name := argv[position]
+	incoming, _ := strconv.Atoi(argv[position+1])
+	current, _ := strconv.Atoi(f.hashes[key]["module:"+name+":revision"])
+	if incoming < current {
+		return
+	}
+	f.hashes[key]["module:"+name+":revision"] = argv[position+1]
+	f.hashes[key]["module:"+name+":enabled"] = argv[position+2]
+	f.hashes[key]["module:"+name+":config"] = argv[position+3]
+	f.hashes[key]["module:"+name+":account_created_at"] = argv[position+4]
 }
 
 func (f *fakeValkey) deleteByPrefixes(key string, prefixes cmdArgs) int64 {

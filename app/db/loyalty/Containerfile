@@ -10,6 +10,7 @@ RUN for i in 1 2 3 4 5; do go mod download && exit 0; echo "go mod download fail
 COPY internal/domain internal/domain
 COPY internal/moderation internal/moderation
 COPY internal/utils internal/utils
+COPY internal/watchtime internal/watchtime
 COPY pkg pkg
 COPY app/db/loyalty app/db/loyalty
 RUN go run -mod=mod entgo.io/ent/cmd/ent generate --feature sql/upsert,sql/lock ./app/db/loyalty/ent/schema \

@@ -108,6 +108,19 @@ spec:
                   key: ca.pem
             - name: NATS_RPC_URL
               value: tls://nats-leaf.messaging:4222
+            - name: VALKEY_ADDR
+              value: valkey.cache.svc.cluster.local:26380
+            - name: VALKEY_TLS_CA_PEM
+              valueFrom:
+                configMapKeyRef:
+                  name: fleet-ca
+                  key: ca.pem
+            - name: VALKEY_TLS_SERVER_NAME
+              value: valkey.cache.svc.cluster.local
+            - name: VALKEY_TLS_CLIENT_CERT_FILE
+              value: /etc/valkey/client-tls/tls.crt
+            - name: VALKEY_TLS_CLIENT_KEY_FILE
+              value: /etc/valkey/client-tls/tls.key
             - name: NATS_LEAF_URL
               value: tls://nats-leaf.messaging:4222
             - name: NODE_NAME
@@ -134,6 +147,7 @@ spec:
             - secretRef:
                 name: loyalty-env
           volumeMounts:
+            - {name: valkey-client-tls, mountPath: /etc/valkey/client-tls, readOnly: true}
             - {name: nats-client-tls, mountPath: /etc/nats-client/tls, readOnly: true}
             - {name: health-tls, mountPath: /etc/loyalty/tls, readOnly: true}
           ports:
@@ -165,6 +179,9 @@ spec:
             failureThreshold: 18
             periodSeconds: 5
       volumes:
+        - name: valkey-client-tls
+          secret:
+            secretName: valkey-client-tls
         - name: nats-client-tls
           secret:
             secretName: nats-client-tls

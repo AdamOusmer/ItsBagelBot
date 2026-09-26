@@ -109,6 +109,8 @@ func (s *statusRPC) tierFromValkey(ctx context.Context, id uint64) (statusEntry,
 
 func (s *statusRPC) fetchUserFallback(ctx context.Context, id uint64) statusEntry {
 	reply, err := bus.RequestJSON[struct {
+		StateRevision      int64  `json:"state_revision"`
+		AccountCreatedAt   int64  `json:"account_created_at"`
 		Status             string `json:"status"`
 		IsActive           bool   `json:"is_active"`
 		Banned             bool   `json:"banned"`
@@ -120,6 +122,8 @@ func (s *statusRPC) fetchUserFallback(ctx context.Context, id uint64) statusEntr
 	}
 
 	_ = s.valkey.SetUser(ctx, id, projection.UserProjection{
+		AccountCreatedAt:   reply.AccountCreatedAt,
+		StateRevision:      reply.StateRevision,
 		Status:             reply.Status,
 		IsActive:           reply.IsActive,
 		Banned:             reply.Banned,
