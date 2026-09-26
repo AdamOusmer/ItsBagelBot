@@ -3767,7 +3767,7 @@
     "degraded": "Live counters are temporarily unavailable, so the numbers below are not current. They will catch up on their own.",
     "boardsEyebrow": "Per channel",
     "trafficBoardTitle": "Busiest channels",
-    "trafficBoardNote": "Ranked by chat messages handled since the bot joined.",
+    "trafficBoardNote": "Top channels by chat messages, ranked by the selected counter since the bot joined.",
     "feedBoardTitle": "Feed the bagel",
     "feedBoardNote": "One bagel, every channel feeds it.",
     "feedTotalLabel": "Feedings, all time",

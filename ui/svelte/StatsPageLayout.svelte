@@ -31,7 +31,7 @@
 </script>
 
 <div class={classes} {...rest}>
-  <AmbientSky position="contained" progress={0.65} turn={24} />
+  <AmbientSky position="fixed" progress={0.65} turn={24} />
   <div class="bb-stats-page__inner">
     <header class="bb-stats-page__header">
       <div class="bb-stats-page__heading">{@render heading()}</div>
