@@ -8,7 +8,11 @@ export type PipelineTraffic = 'stream' | 'standard' | 'premium' | 'system';
 export type PipelineStageFilter = 'all' | 'twitch' | PipelineStage;
 export type PipelineTrafficFilter = 'all' | Exclude<PipelineTraffic, 'system'>;
 
-function compatibleTokens(left: string, right: string): boolean {
+type TokenPair = readonly [left: string, right: string];
+type SubjectPair = readonly [subject: string, filter: string];
+
+function compatibleTokens(pair: TokenPair): boolean {
+  const [left, right] = pair;
   if (left === '*') return true;
   if (right === '*') return true;
   return left === right;
@@ -16,13 +20,14 @@ function compatibleTokens(left: string, right: string): boolean {
 
 /** Whether two NATS subject filters share a possible subject. A terminal >
  * matches one or more tokens; * matches exactly one token. */
-function overlaps(a: string, b: string): boolean {
-  const left = a.split('.');
-  const right = b.split('.');
+function overlaps(pair: SubjectPair): boolean {
+  const [subject, filter] = pair;
+  const left = subject.split('.');
+  const right = filter.split('.');
   const sharedLength = Math.min(left.length, right.length);
   for (let i = 0; i < sharedLength; i++) {
     if ([left[i], right[i]].includes('>')) return true;
-    if (!compatibleTokens(left[i], right[i])) return false;
+    if (!compatibleTokens([left[i], right[i]])) return false;
   }
   return left.length === right.length;
 }
@@ -89,8 +94,13 @@ function consumerSubjects(subject: string): string[] {
   return subjects.length > 0 ? subjects : ['>'];
 }
 
-function subjectsOverlap(subjects: string[], filters: readonly string[]): boolean {
-  return subjects.some((subject) => filters.some((filter) => overlaps(subject, filter)));
+interface SubjectFilters {
+  subjects: readonly string[];
+  filters: readonly string[];
+}
+
+function subjectsOverlap(comparison: SubjectFilters): boolean {
+  return comparison.subjects.some((subject) => comparison.filters.some((filter) => overlaps([subject, filter])));
 }
 
 export function pipelineTraffic(lane: LaneView): PipelineTraffic[] {
@@ -98,7 +108,7 @@ export function pipelineTraffic(lane: LaneView): PipelineTraffic[] {
   if (!pipeline) return [];
   const subjects = consumerSubjects(lane.subject);
   return pipeline.traffic
-    .filter((rule) => subjectsOverlap(subjects, rule.subjects))
+    .filter((rule) => subjectsOverlap({ subjects, filters: rule.subjects }))
     .map((rule) => rule.traffic);
 }
 
