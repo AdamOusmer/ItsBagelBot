@@ -18,24 +18,39 @@ const (
 )
 
 type UserChangedDTO struct {
-	UserID             uint64 `json:"user_id"`
-	Username           string `json:"username"`
-	IsActive           bool   `json:"is_active"`
-	Status             string `json:"status"`
-	Banned             bool   `json:"banned"`
-	Locale             string `json:"locale,omitempty"`
-	CommandsPageHidden bool   `json:"commands_page_hidden"`
+	StateRevision int64  `json:"state_revision,omitempty"`
+	UserID        uint64 `json:"user_id"`
+	// AccountCreatedAt identifies this incarnation of a broadcaster account.
+	// A deleted Twitch ID may register again; old events must not restore or
+	// remove the newer account. Unix microseconds stay exact in Valkey Lua.
+	AccountCreatedAt int64  `json:"account_created_at,omitempty"`
+	Username         string `json:"username"`
+	IsActive         bool   `json:"is_active"`
+	Status           string `json:"status"`
+	Banned           bool   `json:"banned"`
+	// Locale is the user's console UI language, projected so the worker can
+	// answer system commands in their language. Omitted by older publishers;
+	// the projector treats an empty value as "unchanged" and never clobbers a
+	// previously projected locale.
+	Locale string `json:"locale,omitempty"`
+	// CommandsPageHidden mirrors the inverted flag (D2): a publisher that lacks
+	// this field zero-values to false, so a projector still on the old shape
+	// folds "visible", the pre-feature behaviour.
+	CommandsPageHidden bool `json:"commands_page_hidden"`
 }
 
 type UserDeletedDTO struct {
-	UserID uint64 `json:"user_id"`
+	UserID           uint64 `json:"user_id"`
+	AccountCreatedAt int64  `json:"account_created_at,omitempty"`
 }
 
 type ModuleChangedDTO struct {
-	UserID    uint64           `json:"user_id"`
-	Name      string           `json:"name"`
-	IsEnabled bool             `json:"is_enabled"`
-	Configs   codec.RawMessage `json:"configs,omitempty"`
+	AccountCreatedAt int64            `json:"account_created_at,omitempty"`
+	UserID           uint64           `json:"user_id"`
+	Name             string           `json:"name"`
+	IsEnabled        bool             `json:"is_enabled"`
+	Configs          codec.RawMessage `json:"configs,omitempty"`
+	Revision         int              `json:"revision,omitempty"`
 }
 
 type CommandChangedDTO struct {

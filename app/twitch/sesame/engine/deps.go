@@ -170,6 +170,14 @@ type LoyaltyTicker interface {
 	Disarm(ctx context.Context, broadcasterID uint64)
 }
 
+// VersionedLoyaltyTicker fences lifecycle effects against delayed events.
+// Legacy implementations retain the two-method LoyaltyTicker surface.
+type VersionedLoyaltyTicker interface {
+	LoyaltyTicker
+	ArmVersioned(ctx context.Context, broadcasterID uint64, version int64)
+	DisarmVersioned(ctx context.Context, broadcasterID uint64, version int64)
+}
+
 type TimersStore interface {
 	ArmAll(ctx context.Context, broadcasterID uint64)
 	DisarmAll(ctx context.Context, broadcasterID uint64)

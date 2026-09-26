@@ -16,10 +16,11 @@ import (
 	"ItsBagelBot/app/db/loyalty/repository"
 	"ItsBagelBot/app/db/loyalty/rpc"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
-	"ItsBagelBot/pkg/bus/consumers"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/env"
+	"ItsBagelBot/pkg/health"
 	"ItsBagelBot/pkg/monitor"
 	"ItsBagelBot/pkg/svcboot"
 	"ItsBagelBot/pkg/svcboot/databoot"
@@ -42,6 +43,7 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 		{"loyalty earned events", data.SubjectLoyaltyEarned, recordEarned(repo, log)},
 		{"loyalty counter events", data.SubjectLoyaltyCounters, recordBumps(repo, log)},
 		{"user deleted events", data.SubjectUserDeleted, deleteAllForUser(repo, log)},
+		{"user lifecycle events", data.SubjectUserChanged, restoreUser(repo, log)},
 	}
 	for _, s := range subs {
 		if err := bus.Consume(ctx, nrApp, grouped, s.subject, s.handle, log); err != nil {
@@ -92,7 +94,14 @@ func recordBumps(repo bumpApplier, log *zap.Logger) func(*bus.Message) error {
 }
 
 func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
-	return consumers.OnUserDeleted(serviceName, log, repo.DeleteAllForUser)
+	return func(msg *bus.Message) error {
+		var dto data.UserDeletedDTO
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
+			log.Warn("loyalty: bad deletion payload", zap.Error(err))
+			return nil
+		}
+		return repo.DeleteAccount(msg.Context(), dto.UserID, dto.AccountCreatedAt)
+	}
 }
 
 func main() {
@@ -108,6 +117,15 @@ func main() {
 
 	repo := repository.NewLoyalty(client, driver, core.NR, log)
 	defer repo.Close(context.Background())
+	svcboot.FatalIf(log, repo.EnsureWatchSchema(core.Ctx), "failed to initialize watch inbox")
+	vc := svcboot.MustValkey(core)
+	defer vc.Close()
+	watchCtx, stopWatch := context.WithCancel(core.Ctx)
+	watchDone := make(chan struct{})
+	watchConsumer := watchtime.NewConsumer(vc, repo.ApplyWatchAward, log, watchtime.WithHistoryMaintenance(repo.PruneWatchHistory))
+	svcboot.FatalIf(log, watchConsumer.Ensure(core.Ctx), "failed to initialize watch outbox consumer")
+	go func() { defer close(watchDone); watchConsumer.Run(watchCtx) }()
+	defer func() { stopWatch(); <-watchDone }()
 
 	stopPruner := repo.StartBatchReceiptPruner(core.Ctx, repository.BatchReceiptPruneInterval, repository.BatchReceiptRetention)
 	defer stopPruner()
@@ -133,11 +151,22 @@ func main() {
 			Log: log, NC: nc, Service: serviceName, QueueGroup: queueGroup, ListenAddr: core.ListenAddr,
 		},
 		Pool: driver.DB(),
-	}, bus.LaneCheck("data", grouped))
+	}, bus.LaneCheck("data", grouped), health.Check{Name: "watchtime", Probe: watchConsumer.Check})
 
 	log.Info("loyalty service ready",
 		zap.String("loyalty_prefix", loyaltyPrefix),
 	)
 
 	core.Await()
+}
+
+func restoreUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
+	return func(msg *bus.Message) error {
+		var dto data.UserChangedDTO
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
+			log.Warn("loyalty: bad lifecycle payload", zap.Error(err))
+			return nil
+		}
+		return repo.RestoreUser(msg.Context(), dto.UserID, dto.AccountCreatedAt)
+	}
 }

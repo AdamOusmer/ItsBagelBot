@@ -25,20 +25,28 @@ type CommandView struct {
 }
 
 type ModuleView struct {
-	Name      string           `json:"name"`
-	IsEnabled bool             `json:"is_enabled"`
-	Configs   codec.RawMessage `json:"configs,omitempty"`
-	Revision  int              `json:"revision,omitempty"`
+	AccountCreatedAt int64            `json:"account_created_at,omitempty"`
+	Name             string           `json:"name"`
+	IsEnabled        bool             `json:"is_enabled"`
+	Configs          codec.RawMessage `json:"configs,omitempty"`
+	// Revision is the optimistic-concurrency token a client echoes back on a
+	// patch; a stale value is rejected. Omitted (0) for legacy rows.
+	Revision int `json:"revision,omitempty"`
 }
 
 // internal/projection.Client decodes this into projection.User; keep the tags in sync.
 type UserReply struct {
-	UserID             string `json:"user_id"`
-	Status             string `json:"status"`
-	IsActive           bool   `json:"is_active"`
-	Banned             bool   `json:"banned"`
-	Locale             string `json:"locale,omitempty"`
-	CommandsPageHidden bool   `json:"commands_page_hidden,omitempty"`
+	StateRevision    int64  `json:"state_revision,omitempty"`
+	AccountCreatedAt int64  `json:"account_created_at,omitempty"`
+	UserID           string `json:"user_id"`
+	Status           string `json:"status"`
+	IsActive         bool   `json:"is_active"`
+	Banned           bool   `json:"banned"`
+	Locale           string `json:"locale,omitempty"`
+	// CommandsPageHidden mirrors internal/projection.User's field of the same
+	// name; field set and json tag match exactly so the worker's cold-key RPC
+	// reply decodes without conversion (see CommandView's comment above).
+	CommandsPageHidden bool `json:"commands_page_hidden,omitempty"`
 	rpc.Refusal
 }
 

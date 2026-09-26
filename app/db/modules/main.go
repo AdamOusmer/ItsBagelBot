@@ -5,6 +5,13 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strconv"
+
+	domainrpc "ItsBagelBot/internal/domain/rpc"
+	"ItsBagelBot/internal/domain/rpc/projection"
+	"ItsBagelBot/pkg/codec"
 
 	"ItsBagelBot/app/db/modules/ent"
 	// Without the ent runtime import every write fails.
@@ -48,6 +55,22 @@ func main() {
 	defer func() { _ = n.Pub.Close() }()
 
 	repo := repository.NewModules(client, n.Pub, core.NR, log)
+	repo.SetAccountInstanceResolver(func(ctx context.Context, id uint64) (int64, error) {
+		requested := strconv.FormatUint(id, 10)
+		body, err := codec.Marshal(projection.Request{UserID: requested})
+		if err != nil {
+			return 0, err
+		}
+		msg, err := bus.RequestWithContext(ctx, n.RPC, env.Get("NATS_INTERNAL_PROJECTION_USERS_SUBJECT", "bagel.rpc.internal.projection.users.get"), body)
+		if err != nil {
+			return 0, err
+		}
+		var reply projection.UserReply
+		if err := codec.Unmarshal(msg.Data, &reply); err != nil {
+			return 0, err
+		}
+		return canonicalAccountInstance(reply, requested)
+	})
 	defer repo.Close(context.Background())
 	defer closeIntake() // stops intake before the repo flush above
 
@@ -102,12 +125,18 @@ func consumeEvents(ctx context.Context, w eventsWiring) {
 func changedUserID(dto data.ModuleChangedDTO) uint64 { return dto.UserID }
 
 func deleteUser(w eventsWiring) func(*bus.Message) error {
-	return consumers.OnUserDeleted(serviceName, w.log, func(ctx context.Context, userID uint64) error {
-		if err := w.repo.DeleteAllForUser(ctx, userID); err != nil {
-			return err
+	return func(msg *bus.Message) error {
+		var dto data.UserDeletedDTO
+		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
+			return nil
 		}
-		return w.quotes.DeleteAllForUser(ctx, userID)
-	})
+		if err := validate.UserID(dto.UserID); err != nil {
+			return nil
+		}
+		ctx := msg.Context()
+		userID := dto.UserID
+		return w.repo.DeleteAccount(ctx, userID, dto.AccountCreatedAt)
+	}
 }
 
 type rpcWiring struct {
@@ -144,4 +173,25 @@ func subscribeRPCs(w rpcWiring) string {
 		w.log.Fatal("failed to subscribe personality rpc", zap.Error(err))
 	}
 	return projectionSubject
+}
+
+// Only the canonical service's explicit not-found reply proves absence. Other
+// refusals or unstamped successes cannot authorize destructive account cleanup.
+func canonicalAccountInstance(reply projection.UserReply, requested string) (int64, error) {
+	if reply.Code == domainrpc.CodeNotFound {
+		if reply.UserID != requested || reply.AccountCreatedAt != 0 {
+			return 0, errors.New("invalid canonical absence identity")
+		}
+		return 0, nil
+	}
+	if reply.Error != "" {
+		return 0, errors.New(reply.Error)
+	}
+	if reply.Code != domainrpc.CodeOK {
+		return 0, fmt.Errorf("canonical account refusal: %s", reply.Code)
+	}
+	if reply.UserID != requested || reply.AccountCreatedAt <= 0 {
+		return 0, errors.New("invalid canonical account identity")
+	}
+	return reply.AccountCreatedAt, nil
 }

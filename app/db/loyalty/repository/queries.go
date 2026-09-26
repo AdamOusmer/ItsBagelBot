@@ -504,16 +504,7 @@ func (r *Loyalty) CounterDelete(ctx context.Context, userID uint64, name string)
 }
 
 func (r *Loyalty) DeleteAllForUser(ctx context.Context, userID uint64) error {
-	return db.WithExec(ctx, func(ctx context.Context) error {
-		if _, err := r.client.Balance.Delete().Where(balance.UserIDEQ(userID)).Exec(ctx); err != nil {
-			return err
-		}
-		if _, err := r.client.CounterEntry.Delete().Where(counterentry.UserIDEQ(userID)).Exec(ctx); err != nil {
-			return err
-		}
-		_, err := r.client.Counter.Delete().Where(counter.UserIDEQ(userID)).Exec(ctx)
-		return err
-	})
+	return r.DeleteAccount(ctx, userID, 0)
 }
 
 func getOptional[T any](ctx context.Context, fn func(context.Context) (*T, error)) (*T, bool, error) {

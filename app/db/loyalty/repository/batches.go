@@ -116,7 +116,21 @@ func (r *Loyalty) commitBumpBatch(ctx context.Context, batch counterBatch) error
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	added, err := insertBatchReceipt(ctx, tx, batch.dto.BatchID)
+	if r.watchReady.Load() && batch.dto.UserID != 0 {
+		_, deleted, err := r.fence(ctx, tx, batch.dto.UserID, 0)
+		if err != nil {
+			return err
+		}
+		if deleted {
+			// Persist the existing replay identity even for discarded work. A
+			// lost acknowledgement must not make it payable after recreation.
+			if _, err := r.insertCounterBatchReceipt(ctx, tx, batch.dto.BatchID); err != nil {
+				return err
+			}
+			return tx.Commit()
+		}
+	}
+	added, err := r.insertCounterBatchReceipt(ctx, tx, batch.dto.BatchID)
 	if err != nil || !added {
 		return err
 	}
@@ -190,4 +204,18 @@ func writeBatchBumps(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum
 	}}
 	writer.flushBumps(ctx, nil, bumps)
 	return writeErr
+}
+
+// Keep the existing MySQL receipt writer and support the SQLite watch fence
+// fixture without changing the receipt's identity or transactional boundaries.
+func (r *Loyalty) insertCounterBatchReceipt(ctx context.Context, tx *sql.Tx, batchID string) (bool, error) {
+	if r.dialect != "sqlite3" {
+		return insertBatchReceipt(ctx, tx, batchID)
+	}
+	result, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO counter_batches (id, created_at) VALUES (?, ?)", batchID, time.Now())
+	if err != nil {
+		return false, err
+	}
+	added, err := result.RowsAffected()
+	return added != 0, err
 }

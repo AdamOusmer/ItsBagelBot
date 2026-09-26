@@ -84,6 +84,27 @@ func (_u *UserUpdate) ClearEmailEnc() *UserUpdate {
 	return _u
 }
 
+// SetStateRevision sets the "state_revision" field.
+func (_u *UserUpdate) SetStateRevision(v int64) *UserUpdate {
+	_u.mutation.ResetStateRevision()
+	_u.mutation.SetStateRevision(v)
+	return _u
+}
+
+// SetNillableStateRevision sets the "state_revision" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableStateRevision(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetStateRevision(*v)
+	}
+	return _u
+}
+
+// AddStateRevision adds value to the "state_revision" field.
+func (_u *UserUpdate) AddStateRevision(v int64) *UserUpdate {
+	_u.mutation.AddStateRevision(v)
+	return _u
+}
+
 // SetIsActive sets the "is_active" field.
 func (_u *UserUpdate) SetIsActive(v bool) *UserUpdate {
 	_u.mutation.SetIsActive(v)
@@ -444,7 +465,9 @@ func (_u *UserUpdate) RemovePremiumGrants(v ...*PremiumGrant) *UserUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (_u *UserUpdate) Save(ctx context.Context) (int, error) {
-	_u.defaults()
+	if err := _u.defaults(); err != nil {
+		return 0, err
+	}
 	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
@@ -471,11 +494,15 @@ func (_u *UserUpdate) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (_u *UserUpdate) defaults() {
+func (_u *UserUpdate) defaults() error {
 	if _, ok := _u.mutation.UpdatedAt(); !ok {
+		if user.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized user.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := user.UpdateDefaultUpdatedAt()
 		_u.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -493,6 +520,11 @@ func (_u *UserUpdate) check() error {
 	if v, ok := _u.mutation.Email(); ok {
 		if err := user.EmailValidator(v); err != nil {
 			return &ValidationError{Name: "email", err: fmt.Errorf(`ent: validator failed for field "User.email": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.StateRevision(); ok {
+		if err := user.StateRevisionValidator(v); err != nil {
+			return &ValidationError{Name: "state_revision", err: fmt.Errorf(`ent: validator failed for field "User.state_revision": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.Status(); ok {
@@ -539,6 +571,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.EmailEncCleared() {
 		_spec.ClearField(user.FieldEmailEnc, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.StateRevision(); ok {
+		_spec.SetField(user.FieldStateRevision, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedStateRevision(); ok {
+		_spec.AddField(user.FieldStateRevision, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.IsActive(); ok {
 		_spec.SetField(user.FieldIsActive, field.TypeBool, value)
@@ -773,6 +811,27 @@ func (_u *UserUpdateOne) SetEmailEnc(v []byte) *UserUpdateOne {
 // ClearEmailEnc clears the value of the "email_enc" field.
 func (_u *UserUpdateOne) ClearEmailEnc() *UserUpdateOne {
 	_u.mutation.ClearEmailEnc()
+	return _u
+}
+
+// SetStateRevision sets the "state_revision" field.
+func (_u *UserUpdateOne) SetStateRevision(v int64) *UserUpdateOne {
+	_u.mutation.ResetStateRevision()
+	_u.mutation.SetStateRevision(v)
+	return _u
+}
+
+// SetNillableStateRevision sets the "state_revision" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableStateRevision(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetStateRevision(*v)
+	}
+	return _u
+}
+
+// AddStateRevision adds value to the "state_revision" field.
+func (_u *UserUpdateOne) AddStateRevision(v int64) *UserUpdateOne {
+	_u.mutation.AddStateRevision(v)
 	return _u
 }
 
@@ -1149,7 +1208,9 @@ func (_u *UserUpdateOne) Select(field string, fields ...string) *UserUpdateOne {
 
 // Save executes the query and returns the updated User entity.
 func (_u *UserUpdateOne) Save(ctx context.Context) (*User, error) {
-	_u.defaults()
+	if err := _u.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
@@ -1176,11 +1237,15 @@ func (_u *UserUpdateOne) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (_u *UserUpdateOne) defaults() {
+func (_u *UserUpdateOne) defaults() error {
 	if _, ok := _u.mutation.UpdatedAt(); !ok {
+		if user.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized user.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := user.UpdateDefaultUpdatedAt()
 		_u.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -1198,6 +1263,11 @@ func (_u *UserUpdateOne) check() error {
 	if v, ok := _u.mutation.Email(); ok {
 		if err := user.EmailValidator(v); err != nil {
 			return &ValidationError{Name: "email", err: fmt.Errorf(`ent: validator failed for field "User.email": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.StateRevision(); ok {
+		if err := user.StateRevisionValidator(v); err != nil {
+			return &ValidationError{Name: "state_revision", err: fmt.Errorf(`ent: validator failed for field "User.state_revision": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.Status(); ok {
@@ -1261,6 +1331,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if _u.mutation.EmailEncCleared() {
 		_spec.ClearField(user.FieldEmailEnc, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.StateRevision(); ok {
+		_spec.SetField(user.FieldStateRevision, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedStateRevision(); ok {
+		_spec.AddField(user.FieldStateRevision, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.IsActive(); ok {
 		_spec.SetField(user.FieldIsActive, field.TypeBool, value)
