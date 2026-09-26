@@ -181,11 +181,21 @@ async function loadAliases(): Promise<Map<string, string>> {
   return aliasCache;
 }
 
+function hasFreshLaneSample() {
+  if (currentLanes.length === 0) return false;
+  return Date.now() - lastCollectionAt < SAMPLE_INTERVAL_MS;
+}
+
+function reuseLaneSample(force: boolean) {
+  if (force) return false;
+  return hasFreshLaneSample();
+}
+
 async function collectLanes(force = false) {
   if (sampling) return sampling;
   // Polling clients and the timer share one cadence. Sampling every warm read
   // creates tiny rate windows and makes a steady consumer look bursty.
-  if (!force && currentLanes.length > 0 && Date.now() - lastCollectionAt < SAMPLE_INTERVAL_MS) return;
+  if (reuseLaneSample(force)) return;
   lastCollectionAt = Date.now();
   sampling = collectLanesOnce().finally(() => {
     sampling = null;

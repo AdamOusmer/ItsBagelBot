@@ -8,9 +8,15 @@ export function laneKey(lane: LaneView): string {
   return `${lane.stream}/${lane.consumer}`;
 }
 
+function laneHasWarning(lane: LaneView): boolean {
+  if (lane.ephemeral) return true;
+  if (lane.pending > 0) return true;
+  return lane.redelivered > 0;
+}
+
 export function laneTone(lane: LaneView): StatusTone {
   if (lane.orphan) return 'error';
-  if (lane.ephemeral || lane.pending > 0 || lane.redelivered > 0) return 'warning';
+  if (laneHasWarning(lane)) return 'warning';
   if (lane.connection === 'unknown') return 'neutral';
   return 'success';
 }

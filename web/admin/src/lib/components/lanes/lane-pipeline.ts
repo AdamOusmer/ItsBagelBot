@@ -22,42 +22,90 @@ function overlaps(a: string, b: string): boolean {
   return i === left.length && i === right.length;
 }
 
-function ownerStage(lane: LaneView): PipelineStage | null {
-  // Sesame deliberately retains the former worker durable group. Subject
-  // tokens and optional pod identity follow it (pkg/bus/durableName).
-  if ((lane.stream === 'TWITCH_INGRESS' || lane.stream === 'TWITCH_INGRESS_STANDARD') &&
-      /^(worker|sesame)(?:_|$)/.test(lane.consumer)) return 'ingress';
-  if (lane.stream === 'TWITCH_OUTGRESS' && /^outgress-(premium|standard)(?:_|$)/.test(lane.consumer)) return 'outgress';
-  if (lane.stream === 'TWITCH_OUTGRESS_SYSTEM' && /^outgress-system(?:_|$)/.test(lane.consumer)) return 'system';
-  return null;
+interface TrafficRule {
+  traffic: PipelineTraffic;
+  subjects: readonly string[];
+}
+
+interface StreamPipeline {
+  stage: PipelineStage;
+  owner: RegExp;
+  traffic: readonly TrafficRule[];
+}
+
+const STANDARD: TrafficRule = {
+  traffic: 'standard', subjects: ['twitch.ingress.event.standard', 'twitch.ingress.v2.standard.>']
+};
+
+// Sesame retains the worker durable group. Subject tokens and optional pod
+// identity follow it (pkg/bus/durableName).
+const STREAM_PIPELINES: Record<string, StreamPipeline> = {
+  TWITCH_INGRESS: {
+    stage: 'ingress', owner: /^(worker|sesame)(?:_|$)/,
+    traffic: [
+      { traffic: 'stream', subjects: ['twitch.ingress.event.stream', 'twitch.ingress.status.>'] },
+      STANDARD,
+      { traffic: 'premium', subjects: ['twitch.ingress.event.premium', 'twitch.ingress.v2.premium.>'] }
+    ]
+  },
+  TWITCH_INGRESS_STANDARD: {
+    stage: 'ingress', owner: /^(worker|sesame)(?:_|$)/, traffic: [STANDARD]
+  },
+  TWITCH_OUTGRESS: {
+    stage: 'outgress', owner: /^outgress-(premium|standard)(?:_|$)/,
+    traffic: [
+      { traffic: 'standard', subjects: ['twitch.outgress.standard'] },
+      { traffic: 'premium', subjects: ['twitch.outgress.premium'] }
+    ]
+  },
+  TWITCH_OUTGRESS_SYSTEM: {
+    stage: 'system', owner: /^outgress-system(?:_|$)/,
+    traffic: [{ traffic: 'system', subjects: ['twitch.outgress.system'] }]
+  }
+};
+
+const STAGE_FILTERS: Record<PipelineStageFilter, readonly PipelineStage[]> = {
+  all: ['ingress', 'outgress', 'system'],
+  twitch: ['ingress', 'outgress', 'system'],
+  ingress: ['ingress'],
+  outgress: ['outgress', 'system'],
+  system: ['system']
+};
+
+function ownedPipeline(lane: LaneView): StreamPipeline | null {
+  if (!Object.hasOwn(STREAM_PIPELINES, lane.stream)) return null;
+  const pipeline = STREAM_PIPELINES[lane.stream];
+  return pipeline.owner.test(lane.consumer) ? pipeline : null;
+}
+
+function consumerSubjects(subject: string): string[] {
+  const subjects = subject.split(',').map((value) => value.trim()).filter(Boolean);
+  // No filter means the consumer sees its entire stream.
+  return subjects.length > 0 ? subjects : ['>'];
+}
+
+function subjectsOverlap(subjects: string[], filters: readonly string[]): boolean {
+  return subjects.some((subject) => filters.some((filter) => overlaps(subject, filter)));
 }
 
 export function pipelineTraffic(lane: LaneView): PipelineTraffic[] {
-  const stage = ownerStage(lane);
-  if (!stage) return [];
-  const subjects = lane.subject.split(',').map((subject) => subject.trim()).filter(Boolean);
-  // No filter means the consumer sees its entire stream.
-  if (subjects.length === 0) subjects.push('>');
-  const matches = (...filters: string[]) => subjects.some((subject) => filters.some((filter) => overlaps(subject, filter)));
-  if (stage === 'system') return matches('twitch.outgress.system') ? ['system'] : [];
-  if (stage === 'outgress') {
-    return (['standard', 'premium'] as const).filter((traffic) => matches(`twitch.outgress.${traffic}`));
-  }
-  const traffic: PipelineTraffic[] = [];
-  if (lane.stream === 'TWITCH_INGRESS' && matches('twitch.ingress.event.stream', 'twitch.ingress.status.>')) traffic.push('stream');
-  if (matches('twitch.ingress.event.standard', 'twitch.ingress.v2.standard.>')) traffic.push('standard');
-  if (lane.stream === 'TWITCH_INGRESS' && matches('twitch.ingress.event.premium', 'twitch.ingress.v2.premium.>')) traffic.push('premium');
-  return traffic;
+  const pipeline = ownedPipeline(lane);
+  if (!pipeline) return [];
+  const subjects = consumerSubjects(lane.subject);
+  return pipeline.traffic
+    .filter((rule) => subjectsOverlap(subjects, rule.subjects))
+    .map((rule) => rule.traffic);
 }
 
 export function pipelineStage(lane: LaneView): PipelineStage | null {
-  return pipelineTraffic(lane).length > 0 ? ownerStage(lane) : null;
+  if (pipelineTraffic(lane).length === 0) return null;
+  return ownedPipeline(lane)?.stage ?? null;
 }
 
 export function matchesPipeline(lane: LaneView, stage: PipelineStageFilter, traffic: PipelineTrafficFilter): boolean {
   if (stage === 'all' && traffic === 'all') return true;
   const laneStage = pipelineStage(lane);
   if (!laneStage) return false;
-  if (stage !== 'all' && stage !== 'twitch' && stage !== laneStage && !(stage === 'outgress' && laneStage === 'system')) return false;
+  if (!STAGE_FILTERS[stage].includes(laneStage)) return false;
   return traffic === 'all' || pipelineTraffic(lane).includes(traffic);
 }
