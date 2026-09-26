@@ -587,8 +587,18 @@ spec:
         secret:
           defaultMode: 288
           secretName: valkey-server-tls
-      - name: valkey-data
-        emptyDir:
-          sizeLimit: 8Gi
+  # Watchtime due windows, admission tombstones and unpaid award records are
+  # authoritative state. Retain each member's AOF across pod replacements;
+  # emptyDir would lose that work during a complete fleet restart. The default
+  # StorageClass must provision these claims. Node-local volumes still need
+  # operator recovery after node loss; see docs/operations/watchtime-rollout.md.
+  volumeClaimTemplates:
+  - metadata:
+      name: valkey-data
+    spec:
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: 8Gi
   updateStrategy:
     type: RollingUpdate

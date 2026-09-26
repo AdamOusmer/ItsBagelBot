@@ -95,10 +95,13 @@ type bumpSum struct {
 }
 
 type Loyalty struct {
-	client *ent.Client
-	sqldb  *sql.DB
-	app    *newrelic.Application
-	log    *zap.Logger
+	dialect    string
+	persistMu  sync.Mutex
+	watchReady atomic.Bool
+	client     *ent.Client
+	sqldb      *sql.DB
+	app        *newrelic.Application
+	log        *zap.Logger
 
 	// A transaction-scoped writer reuses the same bulk statement builders.
 	writeChunk func(context.Context, chunkStmt)
@@ -118,6 +121,7 @@ type Loyalty struct {
 
 func NewLoyalty(client *ent.Client, driver *entsql.Driver, app *newrelic.Application, log *zap.Logger) *Loyalty {
 	r := &Loyalty{
+		dialect:  driver.Dialect(),
 		client:   client,
 		sqldb:    driver.DB(),
 		app:      app,
@@ -273,6 +277,8 @@ func (r *Loyalty) tryFlush() {
 
 // A failed chunk is dropped: retrying would double-apply the chunks around it.
 func (r *Loyalty) Flush(ctx context.Context) {
+	r.persistMu.Lock()
+	defer r.persistMu.Unlock()
 	earn, bumps := r.drain()
 	if len(earn) == 0 && len(bumps) == 0 {
 		return
@@ -319,7 +325,11 @@ func (s upsertSpec) render(chunk [][]any) chunkStmt {
 	args := make([]any, 0, len(chunk)*len(chunk[0]))
 	for i, row := range chunk {
 		if i > 0 {
-			sb.WriteByte(',')
+			if strings.HasPrefix(s.placeholder, "SELECT ") {
+				sb.WriteString(" UNION ALL ")
+			} else {
+				sb.WriteByte(',')
+			}
 		}
 		sb.WriteString(s.placeholder)
 		args = append(args, row...)
@@ -330,7 +340,12 @@ func (s upsertSpec) render(chunk [][]any) chunkStmt {
 
 func (r *Loyalty) upsertRows(ctx context.Context, txn *newrelic.Transaction, spec upsertSpec, rows [][]any) {
 	for start := 0; start < len(rows); start += upsertChunk {
-		stmt := spec.render(rows[start:min(start+upsertChunk, len(rows))])
+		chunk := rows[start:min(start+upsertChunk, len(rows))]
+		guarded := spec
+		if r.watchReady.Load() && r.writeChunk == nil {
+			guarded, chunk = r.guardLegacyChunk(spec, chunk)
+		}
+		stmt := guarded.render(chunk)
 		r.execChunk(ctx, txn, stmt)
 	}
 }
@@ -505,4 +520,23 @@ func (r *Loyalty) Close(ctx context.Context) {
 	r.lifecycleMu.Unlock()
 	r.flushWG.Wait()
 	r.Flush(ctx)
+}
+
+// Legacy earned events have no replay identity. Account retirement must still
+// serialize with their additive writes so an old buffered flush cannot revive rows.
+func (r *Loyalty) guardLegacyChunk(spec upsertSpec, rows [][]any) (upsertSpec, [][]any) {
+	if !strings.Contains(spec.insert, " INTO balances ") && !strings.Contains(spec.insert, " INTO counters ") && !strings.Contains(spec.insert, " INTO counter_entries ") {
+		return spec, rows
+	}
+	guarded := make([][]any, 0, len(rows))
+	for _, row := range rows {
+		guarded = append(guarded, append(append([]any(nil), row...), row[0]))
+	}
+	spec.insert = strings.TrimSuffix(spec.insert, "VALUES ")
+	locking := ""
+	if r.dialect != "sqlite3" {
+		locking = " FOR UPDATE"
+	}
+	spec.placeholder = "SELECT " + strings.TrimSuffix(strings.TrimPrefix(spec.placeholder, "("), ")") + " WHERE NOT EXISTS (SELECT 1 FROM loyalty_account_fences WHERE user_id = ? AND deleted = 1" + locking + ")"
+	return spec, guarded
 }

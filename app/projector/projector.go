@@ -94,7 +94,18 @@ func validateUserChanged(dto data.UserChangedDTO) error {
 }
 
 func (p *Projector) applyUserChanged(ctx context.Context, dto data.UserChangedDTO) error {
+	if dto.AccountCreatedAt > 0 {
+		allowed, err := p.store.RestoreAccount(ctx, dto.UserID, dto.AccountCreatedAt)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			return nil // a delayed change cannot revive a retired incarnation
+		}
+	}
 	if err := p.store.SetUser(ctx, dto.UserID, projection.UserProjection{
+		AccountCreatedAt:   dto.AccountCreatedAt,
+		StateRevision:      dto.StateRevision,
 		Status:             dto.Status,
 		IsActive:           dto.IsActive,
 		Banned:             dto.Banned,
@@ -122,8 +133,22 @@ func validateUserDeleted(dto data.UserDeletedDTO) error {
 }
 
 func (p *Projector) applyUserDeleted(ctx context.Context, dto data.UserDeletedDTO) error {
-	if err := p.store.DeleteUser(ctx, dto.UserID); err != nil {
-		return err
+	if dto.AccountCreatedAt > 0 {
+		applied, err := p.store.DeleteAccount(ctx, dto.UserID, dto.AccountCreatedAt)
+		if err != nil {
+			return err
+		}
+		if !applied {
+			return nil // deletion from an older incarnation cannot remove a new one
+		}
+	} else {
+		applied, err := p.store.DeleteLegacyAccount(ctx, dto.UserID)
+		if err != nil {
+			return err
+		}
+		if !applied {
+			return nil
+		}
 	}
 	if p.live != nil {
 		if err := p.live.DeleteLiveCounters(ctx, dto.UserID, boardCounters); err != nil {
@@ -131,6 +156,8 @@ func (p *Projector) applyUserDeleted(ctx context.Context, dto data.UserDeletedDT
 		}
 	}
 	p.broadcastInvalidate(dto.UserID)
+	p.broadcastCacheInvalidate(dto.UserID, "status")
+	p.broadcastCacheInvalidate(dto.UserID, "modules")
 	return nil
 }
 
@@ -172,9 +199,11 @@ func validateModuleChanged(dto data.ModuleChangedDTO) error {
 
 func (p *Projector) applyModuleChanged(ctx context.Context, dto data.ModuleChangedDTO) error {
 	if err := p.store.SetModule(ctx, dto.UserID, projection.ModuleView{
-		Name:      dto.Name,
-		IsEnabled: dto.IsEnabled,
-		Configs:   dto.Configs,
+		AccountCreatedAt: dto.AccountCreatedAt,
+		Name:             dto.Name,
+		IsEnabled:        dto.IsEnabled,
+		Configs:          dto.Configs,
+		Revision:         dto.Revision,
 	}); err != nil {
 		return err
 	}

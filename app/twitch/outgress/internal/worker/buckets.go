@@ -38,7 +38,6 @@ const (
 var (
 	chatSpec              = ratelimit.NewSpec(chatCapacity, chatCapacity/chatWindowSeconds)
 	chatModSpec           = ratelimit.NewSpec(chatModCapacity, chatModCapacity/chatWindowSeconds)
-	helixGeneralSpec      = ratelimit.NewSpec(helixGeneralCapacity, helixGeneralCapacity/helixWindowSeconds)
 	helixStandardSpec     = ratelimit.NewSpec(helixGeneralCapacity/2, helixGeneralCapacity/helixWindowSeconds/2)
 	helixSystemSpec       = ratelimit.NewSpec(helixSystemReserve, helixSystemReserve/helixWindowSeconds)
 	helixUserSpec         = ratelimit.NewSpec(helixUserCapacity, helixUserCapacity/helixWindowSeconds)
@@ -49,13 +48,13 @@ func generalHelixRequests(payload *outgress.Message) (standard, shared ratelimit
 	identity := twitch.ResolveIdentity(twitch.ParseIdentity(payload.As), payload.Endpoint)
 	switch identity {
 	case twitch.IdentityBot:
-		shared = helixUserSpec.ForKey("ratelimit:helix:user:bot")
+		shared = ratelimit.HelixBotRequest()
 		standard = helixUserStandardSpec.ForKey("ratelimit:helix:user:bot:standard")
 	case twitch.IdentityBroadcaster:
 		shared = helixUserSpec.ForDynamicKey("ratelimit:helix:user:", "helix:user", payload.BroadcasterID)
 		standard = helixUserStandardSpec.ForDynamicKey("ratelimit:helix:user:standard:", "helix:user:standard", payload.BroadcasterID)
 	default:
-		shared = helixGeneralSpec.ForKey(helixAppKey)
+		shared = ratelimit.HelixAppRequest()
 		standard = helixStandardSpec.ForKey(helixAppStandardKey)
 	}
 	return standard, shared
@@ -78,7 +77,7 @@ func (w *Worker) takeGeneralHelix(ctx context.Context, payload *outgress.Message
 }
 
 func (w *Worker) takeAppHelix(ctx context.Context) error {
-	shared := helixGeneralSpec.ForKey(helixAppKey)
+	shared := ratelimit.HelixAppRequest()
 	if w.lane == LaneStandard {
 		return w.takeOrdered(ctx, helixStandardSpec.ForKey(helixAppStandardKey), shared)
 	}
@@ -90,7 +89,7 @@ func (w *Worker) takeSystemHelix(ctx context.Context) error {
 	if !errors.Is(err, errRateLimitShared) {
 		return err
 	}
-	return w.takeSystem(ctx, helixGeneralSpec.ForKey(helixAppKey))
+	return w.takeSystem(ctx, ratelimit.HelixAppRequest())
 }
 
 func (w *Worker) takeSystem(ctx context.Context, req ratelimit.Request) error {

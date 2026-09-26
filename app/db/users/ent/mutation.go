@@ -3981,6 +3981,8 @@ type UserMutation struct {
 	display_name                *string
 	email                       *string
 	email_enc                   *[]byte
+	state_revision              *int64
+	addstate_revision           *int64
 	is_active                   *bool
 	banned                      *bool
 	status                      *user.Status
@@ -4271,6 +4273,62 @@ func (m *UserMutation) EmailEncCleared() bool {
 func (m *UserMutation) ResetEmailEnc() {
 	m.email_enc = nil
 	delete(m.clearedFields, user.FieldEmailEnc)
+}
+
+// SetStateRevision sets the "state_revision" field.
+func (m *UserMutation) SetStateRevision(i int64) {
+	m.state_revision = &i
+	m.addstate_revision = nil
+}
+
+// StateRevision returns the value of the "state_revision" field in the mutation.
+func (m *UserMutation) StateRevision() (r int64, exists bool) {
+	v := m.state_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStateRevision returns the old "state_revision" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldStateRevision(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStateRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStateRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStateRevision: %w", err)
+	}
+	return oldValue.StateRevision, nil
+}
+
+// AddStateRevision adds i to the "state_revision" field.
+func (m *UserMutation) AddStateRevision(i int64) {
+	if m.addstate_revision != nil {
+		*m.addstate_revision += i
+	} else {
+		m.addstate_revision = &i
+	}
+}
+
+// AddedStateRevision returns the value that was added to the "state_revision" field in this mutation.
+func (m *UserMutation) AddedStateRevision() (r int64, exists bool) {
+	v := m.addstate_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetStateRevision resets all changes to the "state_revision" field.
+func (m *UserMutation) ResetStateRevision() {
+	m.state_revision = nil
+	m.addstate_revision = nil
 }
 
 // SetIsActive sets the "is_active" field.
@@ -5148,7 +5206,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 22)
+	fields := make([]string, 0, 23)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -5160,6 +5218,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.email_enc != nil {
 		fields = append(fields, user.FieldEmailEnc)
+	}
+	if m.state_revision != nil {
+		fields = append(fields, user.FieldStateRevision)
 	}
 	if m.is_active != nil {
 		fields = append(fields, user.FieldIsActive)
@@ -5231,6 +5292,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Email()
 	case user.FieldEmailEnc:
 		return m.EmailEnc()
+	case user.FieldStateRevision:
+		return m.StateRevision()
 	case user.FieldIsActive:
 		return m.IsActive()
 	case user.FieldBanned:
@@ -5284,6 +5347,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldEmail(ctx)
 	case user.FieldEmailEnc:
 		return m.OldEmailEnc(ctx)
+	case user.FieldStateRevision:
+		return m.OldStateRevision(ctx)
 	case user.FieldIsActive:
 		return m.OldIsActive(ctx)
 	case user.FieldBanned:
@@ -5356,6 +5421,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetEmailEnc(v)
+		return nil
+	case user.FieldStateRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStateRevision(v)
 		return nil
 	case user.FieldIsActive:
 		v, ok := value.(bool)
@@ -5491,6 +5563,9 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *UserMutation) AddedFields() []string {
 	var fields []string
+	if m.addstate_revision != nil {
+		fields = append(fields, user.FieldStateRevision)
+	}
 	if m.addgifts_sent != nil {
 		fields = append(fields, user.FieldGiftsSent)
 	}
@@ -5502,6 +5577,8 @@ func (m *UserMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case user.FieldStateRevision:
+		return m.AddedStateRevision()
 	case user.FieldGiftsSent:
 		return m.AddedGiftsSent()
 	}
@@ -5513,6 +5590,13 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *UserMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case user.FieldStateRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddStateRevision(v)
+		return nil
 	case user.FieldGiftsSent:
 		v, ok := value.(int32)
 		if !ok {
@@ -5597,6 +5681,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldEmailEnc:
 		m.ResetEmailEnc()
+		return nil
+	case user.FieldStateRevision:
+		m.ResetStateRevision()
 		return nil
 	case user.FieldIsActive:
 		m.ResetIsActive()

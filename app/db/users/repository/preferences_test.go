@@ -113,3 +113,31 @@ func TestMoneyAndModerationWritesStayImmediate(t *testing.T) {
 	assert.Equal(t, string(user.StatusPaid), events[1].Status)
 	assert.True(t, events[2].Banned)
 }
+
+func TestAccountStateRevisionOwnedByEveryEntMutation(t *testing.T) {
+	client, pub, repo := setup(t)
+	ctx := t.Context()
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	row := client.User.GetX(ctx, 1001)
+	require.EqualValues(t, 1, row.StateRevision)
+	require.NoError(t, repo.SetBanned(ctx, 1001, true))
+	row = client.User.GetX(ctx, 1001)
+	require.EqualValues(t, 2, row.StateRevision)
+	// Builder callers cannot overwrite the source-owned revision.
+	require.NoError(t, client.User.UpdateOneID(1001).SetStateRevision(999).SetIsActive(false).Exec(ctx))
+	row = client.User.GetX(ctx, 1001)
+	require.EqualValues(t, 3, row.StateRevision)
+	_, err := client.User.Update().Where(user.IDEQ(1001)).SetLocale("fr").Save(ctx)
+	require.NoError(t, err)
+	row = client.User.GetX(ctx, 1001)
+	require.EqualValues(t, 4, row.StateRevision)
+	tx, err := client.Tx(ctx)
+	require.NoError(t, err)
+	require.NoError(t, tx.User.UpdateOneID(1001).SetBanned(false).Exec(ctx))
+	require.NoError(t, tx.Commit())
+	row = client.User.GetX(ctx, 1001)
+	require.EqualValues(t, 5, row.StateRevision)
+	require.NoError(t, repo.Reproject(ctx))
+	events := decodeChanged(t, pub)
+	require.EqualValues(t, 5, events[len(events)-1].StateRevision)
+}

@@ -61,3 +61,43 @@ func TestSetModuleNeverMarksTheSectionProjected(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, projected)
 }
+
+func TestModuleRevisionSurvivesProjection(t *testing.T) {
+	store, _ := newTestStore(t)
+	require.NoError(t, store.SetModules(context.Background(), 84, []ModuleView{{Name: "automod", IsEnabled: true, Revision: 7}}))
+	got, projected, err := store.GetModules(context.Background(), 84)
+	require.NoError(t, err)
+	assert.True(t, projected)
+	assert.Equal(t, 7, got["automod"].Revision)
+}
+
+func TestSetModuleRejectsDelayedRevision(t *testing.T) {
+	store, _ := newTestStore(t)
+	ctx := context.Background()
+	require.NoError(t, store.SetModule(ctx, 85, ModuleView{Name: "automod", IsEnabled: true, Configs: codec.RawMessage(`{"block_terms":"new"}`), Revision: 2}))
+	require.NoError(t, store.SetModule(ctx, 85, ModuleView{Name: "automod", IsEnabled: false, Configs: codec.RawMessage(`{"block_terms":"old"}`), Revision: 1}))
+	got, _, err := store.GetModules(ctx, 85)
+	require.NoError(t, err)
+	assert.True(t, got["automod"].IsEnabled)
+	assert.Equal(t, 2, got["automod"].Revision)
+	assert.JSONEq(t, `{"block_terms":"new"}`, string(got["automod"].Configs))
+}
+
+// A hydration reply can race an event projection. Its older row must not undo
+// the event, and a module created after the hydration query must survive even
+// when that snapshot does not contain it.
+func TestSetModulesPreservesNewerConcurrentModuleRows(t *testing.T) {
+	store, _ := newTestStore(t)
+	ctx := context.Background()
+	require.NoError(t, store.SetModule(ctx, 86, ModuleView{Name: "automod", IsEnabled: true, Configs: codec.RawMessage(`{"block_terms":"new"}`), Revision: 2}))
+	require.NoError(t, store.SetModule(ctx, 86, ModuleView{Name: "timers", IsEnabled: true, Configs: codec.RawMessage(`{"seconds":30}`), Revision: 3}))
+	require.NoError(t, store.SetModules(ctx, 86, []ModuleView{{Name: "automod", IsEnabled: false, Configs: codec.RawMessage(`{"block_terms":"old"}`), Revision: 1}}))
+	got, projected, err := store.GetModules(ctx, 86)
+	require.NoError(t, err)
+	assert.True(t, projected)
+	assert.True(t, got["automod"].IsEnabled)
+	assert.Equal(t, 2, got["automod"].Revision)
+	assert.JSONEq(t, `{"block_terms":"new"}`, string(got["automod"].Configs))
+	assert.Equal(t, 3, got["timers"].Revision)
+	assert.JSONEq(t, `{"seconds":30}`, string(got["timers"].Configs))
+}

@@ -480,3 +480,54 @@ func TestLoyaltyPointMutationsDeduplicateRedelivery(t *testing.T) {
 		})
 	}
 }
+
+// This fixture applies the same lifecycle ordering contract as the persisted
+// schedule; legacy methods panic so losing the event version cannot go unnoticed.
+type versionedWatchTicker struct {
+	version   int64
+	armed     bool
+	completed chan bool
+}
+
+func (f *versionedWatchTicker) Arm(context.Context, uint64) {
+	panic("versioned ticker called through legacy Arm")
+}
+func (f *versionedWatchTicker) Disarm(context.Context, uint64) {
+	panic("versioned ticker called through legacy Disarm")
+}
+func (f *versionedWatchTicker) ArmVersioned(_ context.Context, _ uint64, version int64) {
+	if version >= f.version {
+		f.version = version
+		f.armed = true
+	}
+	f.completed <- f.armed
+}
+func (f *versionedWatchTicker) DisarmVersioned(_ context.Context, _ uint64, version int64) {
+	if version >= f.version {
+		f.version = version
+		f.armed = false
+	}
+	f.completed <- f.armed
+}
+func TestLoyaltyLifecycleForwardsVersionAndRejectsStaleOffline(t *testing.T) {
+	tick := &versionedWatchTicker{completed: make(chan bool, 1)}
+	m := Loyalty(engine.Deps{LoyaltyTick: tick, Log: zap.NewNop()})
+	events := []struct {
+		event, at string
+		wantArmed bool
+	}{
+		{"stream.online", "2026-09-25T20:01:00Z", true},
+		{"stream.offline", "2026-09-25T20:00:00Z", true},
+		{"stream.offline", "2026-09-25T20:02:00Z", false},
+		{"stream.online", "2026-09-25T20:01:00Z", false},
+	}
+	for _, ev := range events {
+		require.NoError(t, m.Events[ev.event](context.Background(), liveCtx(ev.event, ev.at), func(*module.Output) {}))
+		select {
+		case armed := <-tick.completed:
+			require.Equal(t, ev.wantArmed, armed, ev.event+" "+ev.at)
+		case <-time.After(time.Second):
+			t.Fatal("lifecycle task did not finish")
+		}
+	}
+}

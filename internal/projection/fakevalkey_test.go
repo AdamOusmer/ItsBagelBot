@@ -317,6 +317,106 @@ func (f *fakeValkey) execEVAL(args cmdArgs) []byte {
 	numkeys, _ := strconv.Atoi(args[1])
 	keys := args[2 : 2+numkeys]
 	argv := args[2+numkeys:]
+	if strings.Contains(script, "user watch admission write") {
+		if f.hashes[keys[1]]["deleted"] == "1" {
+			return respInt(0)
+		}
+		if instance := f.hashes[keys[1]]["instance"]; instance != "" && instance != argv[6] {
+			return respInt(0)
+		}
+		previous, _ := strconv.ParseInt(f.hashes[keys[1]]["state_revision"], 10, 64)
+		incoming, _ := strconv.ParseInt(argv[7], 10, 64)
+		if incoming < previous {
+			return respInt(0)
+		}
+		if f.hashes[keys[0]] == nil {
+			f.hashes[keys[0]] = fakeHash{}
+		}
+		if f.hashes[keys[1]] == nil {
+			f.hashes[keys[1]] = fakeHash{}
+		}
+		if incoming > 0 {
+			f.hashes[keys[1]]["state_revision"] = argv[7]
+		}
+		if f.hashes[keys[0]]["active"] != argv[0] || f.hashes[keys[0]]["banned"] != argv[1] {
+			n, _ := strconv.Atoi(f.hashes[keys[1]]["epoch"])
+			f.hashes[keys[1]]["epoch"] = strconv.Itoa(n + 1)
+		}
+		for i, name := range []string{"active", "banned", "status", "commands_page_hidden"} {
+			f.hashes[keys[0]][name] = argv[i]
+		}
+		if argv[4] != "" {
+			f.hashes[keys[0]]["locale"] = argv[4]
+		}
+		secs, _ := strconv.Atoi(argv[5])
+		f.expires[keys[0]] = f.nowFunc().Add(time.Duration(secs) * time.Second)
+		return respInt(1)
+	}
+	if strings.Contains(script, "user watch deletion") {
+		current, _ := strconv.ParseInt(f.hashes[keys[1]]["instance"], 10, 64)
+		if current > 0 {
+			return respInt(0)
+		}
+		delete(f.hashes, keys[0])
+		delete(f.expires, keys[0])
+		if f.hashes[keys[1]] == nil {
+			f.hashes[keys[1]] = fakeHash{}
+		}
+		n, _ := strconv.Atoi(f.hashes[keys[1]]["epoch"])
+		f.hashes[keys[1]]["epoch"] = strconv.Itoa(n + 1)
+		f.hashes[keys[1]]["deleted"] = "1"
+		return respInt(1)
+	}
+	if strings.Contains(script, "module revision gate") {
+		if f.hashes[keys[1]]["deleted"] == "1" {
+			return respInt(0)
+		}
+		if instance := f.hashes[keys[1]]["instance"]; instance != "" && instance != argv[7] && argv[2] == "module:loyalty:enabled" {
+			return respInt(0)
+		}
+		if len(argv) != 8 {
+			return respError("invalid module gate")
+		}
+		incoming, _ := strconv.Atoi(argv[1])
+		current, _ := strconv.Atoi(f.hashes[keys[0]][argv[0]])
+		if _, ok := f.hashes[keys[0]]; ok && incoming < current {
+			return respInt(0)
+		}
+		if f.hashes[keys[0]] == nil {
+			f.hashes[keys[0]] = fakeHash{}
+		}
+		f.hashes[keys[0]][argv[0]] = argv[1]
+		f.hashes[keys[0]][argv[2]] = argv[3]
+		f.hashes[keys[0]][argv[4]] = argv[5]
+		f.hashes[keys[0]][strings.TrimSuffix(argv[2], ":enabled")+":account_created_at"] = argv[7]
+		return respInt(1)
+	}
+	if strings.Contains(script, "module hydration revision seed") {
+		if len(argv) < 2 {
+			return respError("invalid module hydration")
+		}
+		n, err := strconv.Atoi(argv[1])
+		if err != nil || len(argv) != 2+5*n {
+			return respError("invalid module hydration")
+		}
+		if f.hashes[keys[0]] == nil {
+			f.hashes[keys[0]] = fakeHash{}
+		}
+		for i := 0; i < n; i++ {
+			p := 2 + i*5
+			name := argv[p]
+			incoming, _ := strconv.Atoi(argv[p+1])
+			current, _ := strconv.Atoi(f.hashes[keys[0]]["module:"+name+":revision"])
+			if incoming >= current {
+				f.hashes[keys[0]]["module:"+name+":revision"] = argv[p+1]
+				f.hashes[keys[0]]["module:"+name+":enabled"] = argv[p+2]
+				f.hashes[keys[0]]["module:"+name+":config"] = argv[p+3]
+				f.hashes[keys[0]]["module:"+name+":account_created_at"] = argv[p+4]
+			}
+		}
+		f.hashes[keys[0]]["modules:projected"] = "1"
+		return respInt(1)
+	}
 	if !strings.Contains(script, "HKEYS") || !strings.Contains(script, "HDEL") {
 		return respError("unsupported script in fake")
 	}

@@ -5,10 +5,12 @@ package projection
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
 	"ItsBagelBot/internal/utils"
+	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/cache"
 	"ItsBagelBot/pkg/codec"
 	pkg_valkey "ItsBagelBot/pkg/valkey"
@@ -32,10 +34,15 @@ func NewStore(client valkey.Client) *Store {
 }
 
 type UserProjection struct {
-	Status             string
-	IsActive           bool
-	Banned             bool
-	Locale             string
+	StateRevision    int64
+	AccountCreatedAt int64
+	Status           string
+	IsActive         bool
+	Banned           bool
+	Locale           string
+	// CommandsPageHidden mirrors the inverted flag (D2): written unconditionally
+	// (unlike Locale below), so an absent hash field decodes as false, meaning
+	// visible -- the pre-feature behaviour needs no "skip when empty" rule.
 	CommandsPageHidden bool
 }
 
@@ -46,23 +53,41 @@ func (v *Store) SetUser(ctx context.Context, userID uint64, u UserProjection) er
 func (v *Store) SetUserWithTTL(ctx context.Context, userID uint64, u UserProjection, ttl time.Duration) error {
 
 	defer segment(ctx, "HSET")()
+	// Hydration and status write-back share this path with ordinary events.
+	// Restore the canonical incarnation before applying revision fencing; the
+	// final script still rejects an intervening deletion or recreation.
+	if u.AccountCreatedAt > 0 {
+		restored, err := v.RestoreAccount(ctx, userID, u.AccountCreatedAt)
+		if err != nil || !restored {
+			return err
+		}
+	}
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 
-	fields := v.client.B().Hset().
-		Key(key).
-		FieldValue().
-		FieldValue("status", u.Status).
-		FieldValue("active", utils.BoolField(u.IsActive)).
-		FieldValue("banned", utils.BoolField(u.Banned)).
-		FieldValue("commands_page_hidden", utils.BoolField(u.CommandsPageHidden))
-	if u.Locale != "" {
-		fields = fields.FieldValue("locale", u.Locale)
-	}
-
-	return v.pipelineWithTTL(ctx, key, ttl, fields.Build())
+	args := []string{utils.BoolField(u.IsActive), utils.BoolField(u.Banned), u.Status, utils.BoolField(u.CommandsPageHidden), u.Locale, strconv.FormatInt(max(1, int64(ttl/time.Second)), 10), strconv.FormatInt(u.AccountCreatedAt, 10), strconv.FormatInt(u.StateRevision, 10)}
+	return v.primary.Do(ctx, v.primary.B().Eval().Script(userAdmissionWrite).Numkeys(2).Key(key, watchtime.AdmissionKey(userID)).Arg(args...).Build()).Error()
 }
 
+const userAdmissionWrite = `-- user watch admission write
+local instance=redis.call('HGET',KEYS[2],'instance')
+if redis.call('HGET',KEYS[2],'deleted') == '1' then return 0 end
+if instance and instance ~= ARGV[7] then return 0 end
+local revision=tonumber(redis.call('HGET',KEYS[2],'state_revision') or '0')
+local incoming=tonumber(ARGV[8])
+if incoming < revision then return 0 end
+if incoming > 0 then redis.call('HSET',KEYS[2],'state_revision',ARGV[8]) end
+local active=redis.call('HGET',KEYS[1],'active'); local banned=redis.call('HGET',KEYS[1],'banned')
+if active ~= ARGV[1] or banned ~= ARGV[2] then redis.call('HINCRBY',KEYS[2],'epoch',1) end
+redis.call('HSET',KEYS[1],'active',ARGV[1],'banned',ARGV[2],'status',ARGV[3],'commands_page_hidden',ARGV[4])
+if ARGV[5] ~= '' then redis.call('HSET',KEYS[1],'locale',ARGV[5]) end
+local existing=redis.call('TTL',KEYS[1]); if existing<0 or existing<tonumber(ARGV[6]) then redis.call('EXPIRE',KEYS[1],ARGV[6]) end
+return 1`
+
+// GetUser retrieves the tier status, active flag, ban flag, UI locale and
+// commands-page-hidden flag of one user. locale is empty when the hash
+// predates locale projection; commandsPageHidden reads false the same way
+// when the hash predates this field (D2's absent-means-visible rule).
 func (v *Store) GetUser(ctx context.Context, userID uint64) (status string, active, banned bool, locale string, commandsPageHidden bool, err error) {
 	defer segment(ctx, "HGETALL")()
 
@@ -214,12 +239,19 @@ func (v *Store) clearProjectionFields(ctx context.Context, key string, prefixes 
 }
 
 func (v *Store) DeleteUser(ctx context.Context, userID uint64) error {
+	_, err := v.DeleteLegacyAccount(ctx, userID)
+	return err
+}
 
+// DeleteLegacyAccount refuses an unstamped delete once a current incarnation
+// is known. Its result also fences callers' subsequent cleanup side effects.
+func (v *Store) DeleteLegacyAccount(ctx context.Context, userID uint64) (bool, error) {
 	defer segment(ctx, "DEL")()
-
 	key := cache.UserKey(settingsKeyPrefix, userID)
-
-	return v.client.Do(ctx, v.client.B().Del().Key(key).Build()).Error()
+	n, err := v.primary.Do(ctx, v.primary.B().Eval().Script(`-- user watch deletion
+if tonumber(redis.call('HGET',KEYS[2],'instance') or '0') > 0 then return 0 end
+redis.call('HINCRBY',KEYS[2],'epoch',1); redis.call('HSET',KEYS[2],'deleted','1'); redis.call('DEL',KEYS[1]); return 1`).Numkeys(2).Key(key, watchtime.AdmissionKey(userID)).Build()).AsInt64()
+	return n == 1, err
 }
 
 func (v *Store) Close() {

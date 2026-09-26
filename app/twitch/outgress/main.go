@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"os"
+	"strconv"
 	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/channels"
@@ -17,7 +18,9 @@ import (
 	"ItsBagelBot/app/twitch/outgress/rpc"
 	"ItsBagelBot/internal/activity"
 	"ItsBagelBot/internal/domain/i18n"
+	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/ratelimit"
@@ -144,7 +147,29 @@ func main() {
 	svcboot.FatalIf(log, rpc.SubscribeChannelPoints(nc, tw, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
 		"failed to subscribe channel-points rpc")
 
-	svcboot.FatalIf(log, rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc")),
+	watchAttendance := watchtime.NewStore(valkeyClient)
+	viewerAdmission := projection.NewStore(pkg_valkey.Primary(valkeyClient))
+	svcboot.FatalIf(log, rpc.SubscribeChatters(nc, tw, cfg.TwitchBotUserID, cfg.RPCPrefix, queueGroup, nrApp, log.Named("rpc"), rpc.ChattersOptions{
+		AdmitViewer: func(ctx context.Context, id string) (bool, error) {
+			bid, err := strconv.ParseUint(id, 10, 64)
+			if err != nil {
+				return false, err
+			}
+			_, active, banned, _, _, err := viewerAdmission.GetUser(ctx, bid)
+			return active && !banned, err
+		},
+		Limiter:              limiter,
+		ProviderRetryAt:      watchAttendance.ProviderRetryAt,
+		ObserveProviderReset: watchAttendance.ObserveProviderReset,
+		Admit: func(ctx context.Context, req manage.ChattersRequest) (bool, error) {
+			id, err := strconv.ParseUint(req.BroadcasterID, 10, 64)
+			if err != nil {
+				return false, err
+			}
+			snap, active, err := watchAttendance.Capture(ctx, id)
+			return active && snap.Generation == req.SessionGeneration && snap.LiveSession == req.LiveSession, err
+		},
+	}),
 		"failed to subscribe chatters rpc")
 	d.serveHealth(premiumSub, standardSub, systemSub)
 
