@@ -45,6 +45,7 @@
     --bb-font-display: "Syne", "Inter Tight", sans-serif;
     --bb-font-body:    "DM Sans", "Inter", system-ui, sans-serif;
     --bb-font-mono:    "DM Mono", "JetBrains Mono", ui-monospace, monospace;
+    --bb-font-hand:    "Caveat", cursive;
 
     --bb-tracking-tight: -0.03em;
     --bb-tracking-display: -0.02em;

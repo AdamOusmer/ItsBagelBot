@@ -7,7 +7,6 @@ import { SITE } from '@bagel/kit/site-links';
 import '../styles/style.css';
 import '../lib/contentGuards';
 
-import '@fontsource-variable/caveat';
 import syneLatinWoff2 from '@bagel/ui/fonts/syne-latin.woff2?url';
 import dmSansLatinWoff2 from '@bagel/ui/fonts/dm-sans-latin.woff2?url';
 
@@ -288,7 +287,6 @@ const contentSecurityPolicy = [
         legal={footerLegal}
         copyright="© 2026 ItsBagelBot"
         note={t('footer.note')}
-        style="--footer-signoff-sub-font: var(--font-hand, 'Caveat', cursive);"
     >
         {isHome && <section class="colophon" slot="colophon">
             <div class="colophon__owner" id="about">
