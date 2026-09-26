@@ -62,7 +62,7 @@
     font-variant-numeric: tabular-nums;
   }
   .bb-counter-card__unit { font: 400 32px/1 var(--bb-font-mono); color: var(--counter-card-secondary); }
-  .bb-counter-card__detail { margin: 0; font: 400 16px/1.5 var(--bb-font-body); color: var(--counter-card-secondary); overflow-wrap: anywhere; }
+  .bb-counter-card__detail { margin: 0; font: 400 20px/1.5 var(--bb-font-body); color: var(--counter-card-secondary); overflow-wrap: anywhere; }
   .bb-counter-card__foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; padding: 17px var(--counter-card-pad, 28px); border-top: 1px solid var(--counter-card-seam); }
   .bb-counter-card__rate { font: 500 clamp(30px, 4vw, 40px)/1.2 var(--bb-font-mono); font-variant-numeric: tabular-nums; }
   .bb-counter-card__rate small { margin-left: 6px; font-size: 16px; font-weight: 400; }
