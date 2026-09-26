@@ -91,6 +91,16 @@ spec:
           image: ghcr.io/adamousmer/itsbagelbot/warp:v0.2.4-beta@sha256:fa5bb3b23dbd36d47bb518980dd18ba3b3c113e82389fc43c4b7f079d1c151a9
           imagePullPolicy: IfNotPresent
           restartPolicy: Always
+          env:
+            # Bound glibc arena proliferation and trim freed heap sooner. Live
+            # inspection on 2026-09-26 found ~210Mi anonymous RSS and dozens of
+            # arena mappings on the busiest replica without these settings.
+            # This reduces allocator retention; it cannot fix live allocations
+            # leaked inside the vendor daemon. Compare RssAnon over time after rollout.
+            - name: MALLOC_ARENA_MAX
+              value: "2"
+            - name: MALLOC_TRIM_THRESHOLD_
+              value: "131072"
           command:
             - /bin/sh
             - -ec
@@ -144,12 +154,16 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 30
           resources:
+            # Reserve the daemon's working set plus diagnostic-file cache. Live
+            # replicas reached the former 256Mi cgroup limit after 44h (memory.events
+            # max > 0); 512Mi adds headroom while allocator retention is reduced above.
+            # Reclaimable file cache is distinct from anonymous daemon RSS.
             requests:
               cpu: 50m
-              memory: 64Mi
+              memory: 256Mi
             limits:
               cpu: 500m
-              memory: 256Mi
+              memory: 512Mi
       containers:
         - name: gossip
           image: ghcr.io/adamousmer/itsbagelbot/gossip:v0.2.4-beta@sha256:6edfe5aa5432dc658c4421ca98d20f699247701b600855cab48db921288af3c8
