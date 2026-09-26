@@ -261,10 +261,13 @@ func (c *Client) getStream(ctx context.Context, broadcasterID string) (helixStre
 
 func (c *Client) StreamSession(ctx context.Context, broadcasterID string) (string, time.Time, bool, error) {
 	stream, live, err := c.getStream(ctx, broadcasterID)
-	if err != nil || !live {
+	if err != nil {
 		return "", time.Time{}, live, err
 	}
-	if stream.ID == "" || len(stream.ID) > 128 || stream.UserID != broadcasterID || stream.StartedAt.IsZero() {
+	if !live {
+		return "", time.Time{}, live, err
+	}
+	if !stream.matchesBroadcaster(broadcasterID) {
 		return "", time.Time{}, false, errors.New("invalid live stream identity")
 	}
 	return stream.ID, stream.StartedAt, true, nil
@@ -534,4 +537,17 @@ func scanModeratedPage(res *http.Response, broadcasterID string) (bool, string, 
 func drain(res *http.Response) {
 	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 64<<10))
 	_ = res.Body.Close()
+}
+
+func (s helixStream) matchesBroadcaster(id string) bool {
+	if s.ID == "" {
+		return false
+	}
+	if len(s.ID) > 128 {
+		return false
+	}
+	if s.UserID != id {
+		return false
+	}
+	return !s.StartedAt.IsZero()
 }

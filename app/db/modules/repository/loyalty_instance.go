@@ -62,38 +62,13 @@ func (r *Modules) stampLoyalty(ctx context.Context, id uint64, blob []byte) ([]b
 }
 func (r *Modules) upsertLoyalty(ctx context.Context, item data.ModuleChangedDTO) error {
 	epoch := accountInstance(item.Configs)
-	if r.instanceResolver != nil {
-		resolveCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-		current, err := r.instanceResolver(resolveCtx, item.UserID)
-		if err != nil {
-			return err
-		}
-		if current <= 0 || current != epoch {
-			return errStaleAccount
-		}
+	if err := r.validateCapturedAccount(ctx, item.UserID, epoch); err != nil {
+		return err
 	}
 	for attempt := 0; attempt < 4; attempt++ {
-		row, err := r.client.Modules.Query().Where(modules.UserIDEQ(item.UserID), modules.NameEQ("loyalty")).Only(ctx)
-		if ent.IsNotFound(err) {
-			err = r.client.Modules.Create().SetUserID(item.UserID).SetName("loyalty").SetIsEnabled(item.IsEnabled).SetConfigs(item.Configs).SetRevision(1).Exec(ctx)
-			if ent.IsConstraintError(err) {
-				continue
-			}
+		done, err := r.upsertLoyaltyAttempt(ctx, item, epoch)
+		if err != nil || done {
 			return err
-		}
-		if err != nil {
-			return err
-		}
-		if accountInstance(row.Configs) > epoch {
-			return errStaleAccount
-		}
-		n, err := r.client.Modules.Update().Where(modules.IDEQ(row.ID), modules.RevisionEQ(row.Revision)).SetIsEnabled(item.IsEnabled).SetConfigs(item.Configs).AddRevision(1).Save(ctx)
-		if err != nil {
-			return err
-		}
-		if n == 1 {
-			return nil
 		}
 	}
 	return errors.New("loyalty module concurrent update; retry")
@@ -106,87 +81,215 @@ func (r *Modules) DeleteAccount(ctx context.Context, id uint64, epoch int64) err
 	if epoch <= 0 || r.instanceResolver == nil {
 		return nil
 	}
-	rows, err := r.client.Modules.Query().Where(modules.UserIDEQ(id)).All(ctx)
+	snapshot, err := r.captureAccountCleanup(ctx, id)
 	if err != nil {
 		return err
 	}
-	govee, err := r.client.GoveeCredential.Query().Where(goveecredential.UserIDEQ(id)).All(ctx)
+	allowed, err := r.authorizeAccountCleanup(ctx, id, epoch, snapshot)
+	if err != nil || !allowed {
+		return err
+	}
+	applied, err := r.deleteAccountSnapshot(ctx, id, epoch, snapshot)
 	if err != nil {
 		return err
 	}
-	spotify, err := r.client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(id)).All(ctx)
-	if err != nil {
-		return err
+	if applied {
+		r.Invalidate(id)
 	}
-	quotes, err := r.client.Quote.Query().Where(quote.UserIDEQ(id)).All(ctx)
-	if err != nil {
-		return err
+	return nil
+}
+
+func (r *Modules) validateCapturedAccount(ctx context.Context, id uint64, epoch int64) error {
+	if r.instanceResolver == nil {
+		return nil
 	}
 	resolveCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
 	current, err := r.instanceResolver(resolveCtx, id)
-	cancel()
 	if err != nil {
 		return err
+	}
+	if current <= 0 {
+		return errStaleAccount
+	}
+	if current != epoch {
+		return errStaleAccount
+	}
+	return nil
+}
+
+func (r *Modules) upsertLoyaltyAttempt(ctx context.Context, item data.ModuleChangedDTO, epoch int64) (bool, error) {
+	row, err := r.client.Modules.Query().Where(modules.UserIDEQ(item.UserID), modules.NameEQ("loyalty")).Only(ctx)
+	if ent.IsNotFound(err) {
+		return r.createLoyaltyAttempt(ctx, item)
+	}
+	if err != nil {
+		return false, err
+	}
+	if accountInstance(row.Configs) > epoch {
+		return false, errStaleAccount
+	}
+	n, err := r.client.Modules.Update().Where(modules.IDEQ(row.ID), modules.RevisionEQ(row.Revision)).SetIsEnabled(item.IsEnabled).SetConfigs(item.Configs).AddRevision(1).Save(ctx)
+	return n == 1, err
+}
+
+func (r *Modules) createLoyaltyAttempt(ctx context.Context, item data.ModuleChangedDTO) (bool, error) {
+	err := r.client.Modules.Create().SetUserID(item.UserID).SetName("loyalty").SetIsEnabled(item.IsEnabled).SetConfigs(item.Configs).SetRevision(1).Exec(ctx)
+	if ent.IsConstraintError(err) {
+		return false, nil
+	}
+	return true, err
+}
+
+type accountCleanupSnapshot struct {
+	modules []*ent.Modules
+	govee   []*ent.GoveeCredential
+	spotify []*ent.SpotifyCredential
+	quotes  []*ent.Quote
+}
+
+func (r *Modules) captureAccountCleanup(ctx context.Context, id uint64) (accountCleanupSnapshot, error) {
+	var snapshot accountCleanupSnapshot
+	var err error
+	snapshot.modules, err = r.client.Modules.Query().Where(modules.UserIDEQ(id)).All(ctx)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.govee, err = r.client.GoveeCredential.Query().Where(goveecredential.UserIDEQ(id)).All(ctx)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.spotify, err = r.client.SpotifyCredential.Query().Where(spotifycredential.UserIDEQ(id)).All(ctx)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.quotes, err = r.client.Quote.Query().Where(quote.UserIDEQ(id)).All(ctx)
+	return snapshot, err
+}
+
+func (r *Modules) authorizeAccountCleanup(ctx context.Context, id uint64, epoch int64, snapshot accountCleanupSnapshot) (bool, error) {
+	resolveCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	current, err := r.instanceResolver(resolveCtx, id)
+	if err != nil {
+		return false, err
 	}
 	if current < 0 {
-		return errors.New("invalid canonical account instance")
+		return false, errors.New("invalid canonical account instance")
 	}
 	if current > 0 && current != epoch {
-		return nil
+		return false, nil
 	}
-	for _, row := range rows {
-		if row.Name == "loyalty" && accountInstance(row.Configs) > epoch {
-			return nil
+	return !snapshot.hasNewerLoyalty(epoch), nil
+}
+
+func (s accountCleanupSnapshot) hasNewerLoyalty(epoch int64) bool {
+	for _, row := range s.modules {
+		if newerLoyaltyRow(row, epoch) {
+			return true
 		}
 	}
+	return false
+}
+
+func (r *Modules) deleteAccountSnapshot(ctx context.Context, id uint64, epoch int64, snapshot accountCleanupSnapshot) (bool, error) {
 	tx, err := r.client.Tx(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback()
-	// Recheck persisted loyalty ownership using the transaction's current row.
-	// A concurrent stamped replacement aborts cleanup of every captured section.
-	loyalty, err := tx.Modules.Query().Where(modules.UserIDEQ(id), modules.NameEQ("loyalty")).Only(ctx)
-	if err != nil && !ent.IsNotFound(err) {
+	// A stamped replacement aborts every captured section, not just loyalty.
+	newer, err := newerPersistedLoyalty(ctx, tx, id, epoch)
+	if err != nil || newer {
+		return false, err
+	}
+	if err := snapshot.deleteCapturedRows(ctx, tx); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func newerPersistedLoyalty(ctx context.Context, tx *ent.Tx, id uint64, epoch int64) (bool, error) {
+	row, err := tx.Modules.Query().Where(modules.UserIDEQ(id), modules.NameEQ("loyalty")).Only(ctx)
+	if ent.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return accountInstance(row.Configs) > epoch, nil
+}
+
+func (s accountCleanupSnapshot) deleteCapturedRows(ctx context.Context, tx *ent.Tx) error {
+	if err := s.deleteModules(ctx, tx); err != nil {
 		return err
 	}
-	if err == nil && accountInstance(loyalty.Configs) > epoch {
-		return nil
+	if err := s.deleteGovee(ctx, tx); err != nil {
+		return err
 	}
-	for _, row := range rows {
+	if err := s.deleteSpotify(ctx, tx); err != nil {
+		return err
+	}
+	return s.deleteQuotes(ctx, tx)
+}
+
+func (s accountCleanupSnapshot) deleteModules(ctx context.Context, tx *ent.Tx) error {
+	for _, row := range s.modules {
 		if _, err := tx.Modules.Delete().Where(modules.IDEQ(row.ID), modules.RevisionEQ(row.Revision), modules.UpdatedAtEQ(row.UpdatedAt)).Exec(ctx); err != nil {
 			return err
 		}
 	}
-	for _, row := range govee {
+	return nil
+}
+
+func (s accountCleanupSnapshot) deleteGovee(ctx context.Context, tx *ent.Tx) error {
+	for _, row := range s.govee {
 		if _, err := tx.GoveeCredential.Delete().Where(goveecredential.IDEQ(row.ID), goveecredential.UpdatedAtEQ(row.UpdatedAt), goveecredential.KeyEncEQ(row.KeyEnc)).Exec(ctx); err != nil {
 			return err
 		}
 	}
-	for _, row := range spotify {
-		conditions := []predicate.SpotifyCredential{spotifycredential.IDEQ(row.ID), spotifycredential.UpdatedAtEQ(row.UpdatedAt), spotifycredential.ClientIDEQ(row.ClientID), spotifycredential.ScopesEQ(row.Scopes)}
-		if row.TokenEnc == nil {
-			conditions = append(conditions, spotifycredential.TokenEncIsNil())
-		} else {
-			conditions = append(conditions, spotifycredential.TokenEncEQ(row.TokenEnc))
-		}
-		if row.ClientSecretEnc == nil {
-			conditions = append(conditions, spotifycredential.ClientSecretEncIsNil())
-		} else {
-			conditions = append(conditions, spotifycredential.ClientSecretEncEQ(row.ClientSecretEnc))
-		}
-		if _, err := tx.SpotifyCredential.Delete().Where(conditions...).Exec(ctx); err != nil {
+	return nil
+}
+
+func (s accountCleanupSnapshot) deleteSpotify(ctx context.Context, tx *ent.Tx) error {
+	for _, row := range s.spotify {
+		if _, err := tx.SpotifyCredential.Delete().Where(spotifyCleanupConditions(row)...).Exec(ctx); err != nil {
 			return err
 		}
 	}
-	for _, row := range quotes {
+	return nil
+}
+
+func spotifyCleanupConditions(row *ent.SpotifyCredential) []predicate.SpotifyCredential {
+	conditions := []predicate.SpotifyCredential{spotifycredential.IDEQ(row.ID), spotifycredential.UpdatedAtEQ(row.UpdatedAt), spotifycredential.ClientIDEQ(row.ClientID), spotifycredential.ScopesEQ(row.Scopes)}
+	if row.TokenEnc == nil {
+		conditions = append(conditions, spotifycredential.TokenEncIsNil())
+	} else {
+		conditions = append(conditions, spotifycredential.TokenEncEQ(row.TokenEnc))
+	}
+	if row.ClientSecretEnc == nil {
+		conditions = append(conditions, spotifycredential.ClientSecretEncIsNil())
+	} else {
+		conditions = append(conditions, spotifycredential.ClientSecretEncEQ(row.ClientSecretEnc))
+	}
+	return conditions
+}
+
+func (s accountCleanupSnapshot) deleteQuotes(ctx context.Context, tx *ent.Tx) error {
+	for _, row := range s.quotes {
 		if _, err := tx.Quote.Delete().Where(quote.IDEQ(row.ID), quote.CreatedAtEQ(row.CreatedAt), quote.TextEQ(row.Text), quote.AddedByEQ(row.AddedBy)).Exec(ctx); err != nil {
 			return err
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	r.Invalidate(id)
 	return nil
+}
+
+func newerLoyaltyRow(row *ent.Modules, epoch int64) bool {
+	if row.Name != "loyalty" {
+		return false
+	}
+	return accountInstance(row.Configs) > epoch
 }

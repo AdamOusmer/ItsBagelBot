@@ -525,7 +525,7 @@ func (r *Loyalty) Close(ctx context.Context) {
 // Legacy earned events have no replay identity. Account retirement must still
 // serialize with their additive writes so an old buffered flush cannot revive rows.
 func (r *Loyalty) guardLegacyChunk(spec upsertSpec, rows [][]any) (upsertSpec, [][]any) {
-	if !strings.Contains(spec.insert, " INTO balances ") && !strings.Contains(spec.insert, " INTO counters ") && !strings.Contains(spec.insert, " INTO counter_entries ") {
+	if !legacyAccountWrite(spec.insert) {
 		return spec, rows
 	}
 	guarded := make([][]any, 0, len(rows))
@@ -539,4 +539,13 @@ func (r *Loyalty) guardLegacyChunk(spec upsertSpec, rows [][]any) (upsertSpec, [
 	}
 	spec.placeholder = "SELECT " + strings.TrimSuffix(strings.TrimPrefix(spec.placeholder, "("), ")") + " WHERE NOT EXISTS (SELECT 1 FROM loyalty_account_fences WHERE user_id = ? AND deleted = 1" + locking + ")"
 	return spec, guarded
+}
+
+func legacyAccountWrite(insert string) bool {
+	for _, table := range []string{"balances", "counters", "counter_entries"} {
+		if strings.Contains(insert, " INTO "+table+" ") {
+			return true
+		}
+	}
+	return false
 }

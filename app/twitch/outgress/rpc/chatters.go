@@ -88,226 +88,375 @@ func SubscribeChatters(nc *nats.Conn, tw *twitch.Client, botID, prefix, queueGro
 	return nc.Flush()
 }
 
-func (c *chatters) handleGet(parent context.Context, req manage.ChattersRequest) (reply manage.ChattersReply) {
-	if req.RequestID == "" && req.WindowID == "" && req.SessionGeneration == "" && req.LiveSession == "" && req.Cursor == "" && !req.CheckLive {
-		return c.handleViewer(parent, req)
-	}
-	reply = manage.ChattersReply{BroadcasterID: req.BroadcasterID, RequestID: req.RequestID, WindowID: req.WindowID, SessionGeneration: req.SessionGeneration, LiveSession: req.LiveSession}
-	fail := func(code string, retryAt time.Time) manage.ChattersReply {
-		reply.ErrorCode = code
-		reply.Error = "attendance request failed"
-		if !retryAt.IsZero() {
-			reply.RetryAtUnixMilli = retryAt.UnixMilli()
+// A request either asks for one correlated watch page or the legacy complete
+// viewer snapshot. These protocols share HTTP admission, never award ownership.
+func isViewerRequest(req manage.ChattersRequest) bool {
+	for _, value := range []string{req.RequestID, req.WindowID, req.SessionGeneration, req.LiveSession, req.Cursor} {
+		if value != "" {
+			return false
 		}
-		reply.MissingScope = code == "authorization"
-		if code == "rate_limited" && c.log != nil {
-			c.log.Debug("watchtime: attendance quota rejected", zap.String("broadcaster_id", req.BroadcasterID), zap.String("request_id", req.RequestID), zap.String("window_id", req.WindowID), zap.Bool("check_live", req.CheckLive), zap.Int64("retry_at_unix_milli", reply.RetryAtUnixMilli))
-		}
-		return reply
 	}
-	now := c.now()
-	if req.BroadcasterID == "" || c.botID == "" || req.RequestID == "" || req.WindowID == "" || len(req.BroadcasterID) > 64 || len(req.RequestID) > 128 || len(req.WindowID) > 128 || len(req.Cursor) > 4096 || req.DeadlineUnixMilli <= 0 {
-		return fail("invalid", time.Time{})
+	return !req.CheckLive
+}
+
+func correlatedReply(req manage.ChattersRequest) manage.ChattersReply {
+	return manage.ChattersReply{BroadcasterID: req.BroadcasterID, RequestID: req.RequestID, WindowID: req.WindowID, SessionGeneration: req.SessionGeneration, LiveSession: req.LiveSession}
+}
+
+func (c *chatters) handleGet(parent context.Context, req manage.ChattersRequest) manage.ChattersReply {
+	ctx, cancel, err := c.requestContext(parent, req)
+	if err != nil {
+		return c.failedReply(req, correlatedReply(req), err)
 	}
-	if _, err := strconv.ParseUint(req.BroadcasterID, 10, 64); err != nil || req.BroadcasterID == "0" {
-		return fail("invalid", time.Time{})
-	}
-	deadline := time.UnixMilli(req.DeadlineUnixMilli)
-	if !deadline.After(now) {
-		return fail("expired", time.Time{})
-	}
-	if max := now.Add(chattersHandleTimeout); deadline.After(max) {
-		deadline = max
-	}
-	ctx, cancel := context.WithDeadline(parent, deadline)
 	defer cancel()
-	if err := ctx.Err(); err != nil {
-		return fail("expired", time.Time{})
+	if isViewerRequest(req) {
+		return c.collectResponse(ctx, req, c.collectViewerReply)
 	}
-	if c.opts.Admit == nil || c.opts.Limiter == nil {
-		return fail("unavailable", now.Add(time.Second))
+	return c.collectResponse(ctx, req, c.collectWatchPage)
+}
+func (c *chatters) requestContext(parent context.Context, req manage.ChattersRequest) (context.Context, context.CancelFunc, error) {
+	if isViewerRequest(req) {
+		return c.viewerContext(parent, req)
 	}
-	allowed, err := c.opts.Admit(ctx, req)
+	return c.watchContext(parent, req)
+}
+func (c *chatters) collectResponse(ctx context.Context, req manage.ChattersRequest, collect func(context.Context, manage.ChattersRequest) (manage.ChattersReply, error)) manage.ChattersReply {
+	if err := c.preflight(ctx, req); err != nil {
+		return c.failedReply(req, correlatedReply(req), err)
+	}
+	reply, err := collect(c.attemptContext(ctx, req), req)
 	if err != nil {
-		code, retryAt := chattersFailure(err, c.now())
-		return fail(code, retryAt)
+		return c.failedReply(req, reply, err)
 	}
-	if !allowed {
-		return fail("inactive", time.Time{})
-	}
-	ctx = twitch.WithAttemptAdmission(ctx, c.admit(req))
-	ctx = twitch.WithProviderResetObserver(ctx, func(ctx context.Context, endpoint string, reset time.Time) error {
-		return c.recordProviderReset(ctx, c.providerIdentity(endpoint), reset)
-	})
-	if req.CheckLive {
-		streamID, startedAt, live, err := c.twitch.StreamSession(ctx, req.BroadcasterID)
-		reply.StreamID = streamID
-		if !startedAt.IsZero() {
-			reply.StreamStartedAtUnixMilli = startedAt.UnixMilli()
-		}
-		if err != nil {
-			code, retryAt := c.providerFailure(ctx, "helix:app", err)
-			return fail(code, retryAt)
-		}
-		reply.Live = live
-		reply.CheckedAtUnixMilli = c.now().UnixMilli()
-		if !live {
-			reply.Complete = true
-			return reply
-		}
-	}
-	page, err := c.twitch.GetChattersPage(ctx, req.BroadcasterID, c.botID, req.Cursor)
-	if err != nil {
-		code, retryAt := c.providerFailure(ctx, "helix:bot:"+c.botID, err)
-		return fail(code, retryAt)
-	}
-	reply.Chatters = make([]manage.Chatter, 0, len(page.Chatters))
-	for _, ch := range page.Chatters {
-		reply.Chatters = append(reply.Chatters, manage.Chatter{ID: ch.ID, Login: ch.Login})
-	}
-	reply.NextCursor = page.NextCursor
-	reply.Complete = page.Complete
 	return reply
 }
 
-// The viewer fallback predates correlated watch pages. Return a full bounded
-// listing or an error: a partial page must never become an authoritative cache.
-func (c *chatters) handleViewer(parent context.Context, req manage.ChattersRequest) manage.ChattersReply {
-	reply := manage.ChattersReply{BroadcasterID: req.BroadcasterID}
-	fail := func(err error) manage.ChattersReply {
-		reply.ErrorCode, _ = chattersFailure(err, c.now())
-		reply.Error = "viewer request failed"
-		reply.MissingScope = reply.ErrorCode == "authorization"
-		reply.Chatters = nil
-		return reply
+func validBroadcaster(id string) bool {
+	if !boundedIdentity(id, 64) {
+		return false
 	}
-	if id, err := strconv.ParseUint(req.BroadcasterID, 10, 64); err != nil || id == 0 || len(req.BroadcasterID) > 64 || c.botID == "" {
-		return fail(&twitch.AdmissionError{Code: "invalid"})
-	}
-	deadline := c.now().Add(viewerChattersTimeout)
-	if req.DeadlineUnixMilli > 0 && time.UnixMilli(req.DeadlineUnixMilli).Before(deadline) {
-		deadline = time.UnixMilli(req.DeadlineUnixMilli)
-	}
-	ctx, cancel := context.WithDeadline(parent, deadline)
-	defer cancel()
-	if c.opts.Limiter == nil || c.opts.AdmitViewer == nil {
-		return fail(&twitch.AdmissionError{Code: "unavailable"})
-	}
-	if err := ctx.Err(); err != nil {
-		return fail(err)
-	}
-	allowed, err := c.admitTenant(ctx, req)
+	n, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
-		return fail(err)
+		return false
 	}
-	if !allowed {
-		return fail(&twitch.AdmissionError{Code: "inactive"})
+	return n != 0
+}
+func boundedIdentity(value string, limit int) bool {
+	if value == "" {
+		return false
 	}
+	return len(value) <= limit
+}
+func validWatchRequest(req manage.ChattersRequest) bool {
+	if !validBroadcaster(req.BroadcasterID) {
+		return false
+	}
+	if !boundedIdentity(req.RequestID, 128) {
+		return false
+	}
+	if !boundedIdentity(req.WindowID, 128) {
+		return false
+	}
+	if len(req.Cursor) > 4096 {
+		return false
+	}
+	return req.DeadlineUnixMilli > 0
+}
+func (c *chatters) watchContext(parent context.Context, req manage.ChattersRequest) (context.Context, context.CancelFunc, error) {
+	if c.botID == "" {
+		return nil, nil, &twitch.AdmissionError{Code: "invalid"}
+	}
+	if !validWatchRequest(req) {
+		return nil, nil, &twitch.AdmissionError{Code: "invalid"}
+	}
+	deadline := time.UnixMilli(req.DeadlineUnixMilli)
+	if !deadline.After(c.now()) {
+		return nil, nil, &twitch.AdmissionError{Code: "expired"}
+	}
+	deadline = minDeadline(deadline, c.now().Add(chattersHandleTimeout))
+	ctx, cancel := context.WithDeadline(parent, deadline)
+	return ctx, cancel, nil
+}
+func minDeadline(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
+}
+
+func (c *chatters) preflight(ctx context.Context, req manage.ChattersRequest) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if c.opts.Limiter == nil {
+		return c.unavailable()
+	}
+	active, err := c.admitTenant(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !active {
+		return &twitch.AdmissionError{Code: "inactive"}
+	}
+	return nil
+}
+func (c *chatters) attemptContext(ctx context.Context, req manage.ChattersRequest) context.Context {
 	ctx = twitch.WithAttemptAdmission(ctx, c.admit(req))
-	ctx = twitch.WithProviderResetObserver(ctx, func(ctx context.Context, endpoint string, reset time.Time) error {
+	return twitch.WithProviderResetObserver(ctx, func(ctx context.Context, endpoint string, reset time.Time) error {
 		return c.recordProviderReset(ctx, c.providerIdentity(endpoint), reset)
 	})
-	cursor := ""
-	seen := map[string]bool{}
+}
+func (c *chatters) failedReply(req manage.ChattersRequest, reply manage.ChattersReply, err error) manage.ChattersReply {
+	code, retryAt := chattersFailure(err, c.now())
+	reply.ErrorCode = code
+	reply.Error = "attendance request failed"
+	reply.MissingScope = code == "authorization"
+	if !retryAt.IsZero() {
+		reply.RetryAtUnixMilli = retryAt.UnixMilli()
+	}
+	c.logQuotaRejection(req, reply)
+	return reply
+}
+func (c *chatters) logQuotaRejection(req manage.ChattersRequest, reply manage.ChattersReply) {
+	if reply.ErrorCode != "rate_limited" {
+		return
+	}
+	if c.log == nil {
+		return
+	}
+	c.log.Debug("watchtime: attendance quota rejected", zap.String("broadcaster_id", req.BroadcasterID), zap.String("request_id", req.RequestID), zap.String("window_id", req.WindowID), zap.Bool("check_live", req.CheckLive), zap.Int64("retry_at_unix_milli", reply.RetryAtUnixMilli))
+}
+func (c *chatters) collectWatchPage(ctx context.Context, req manage.ChattersRequest) (manage.ChattersReply, error) {
+	reply := correlatedReply(req)
+	if req.CheckLive {
+		var err error
+		reply, err = c.confirmLive(ctx, req, reply)
+		if err != nil {
+			return reply, err
+		}
+		if !reply.Live {
+			return reply, nil
+		}
+	}
+	page, err := c.fetchChatterPage(ctx, req.BroadcasterID, req.Cursor)
+	if err != nil {
+		return reply, err
+	}
+	reply.Chatters = appendChatters(nil, page.Chatters)
+	reply.NextCursor = page.NextCursor
+	reply.Complete = page.Complete
+	return reply, nil
+}
+func (c *chatters) confirmLive(ctx context.Context, req manage.ChattersRequest, reply manage.ChattersReply) (manage.ChattersReply, error) {
+	streamID, startedAt, live, err := c.twitch.StreamSession(ctx, req.BroadcasterID)
+	reply.StreamID = streamID
+	if !startedAt.IsZero() {
+		reply.StreamStartedAtUnixMilli = startedAt.UnixMilli()
+	}
+	if err != nil {
+		return reply, c.providerError(ctx, "helix:app", err)
+	}
+	reply.Live = live
+	reply.CheckedAtUnixMilli = c.now().UnixMilli()
+	reply.Complete = !live
+	return reply, nil
+}
+func (c *chatters) fetchChatterPage(ctx context.Context, broadcasterID, cursor string) (twitch.ChattersPage, error) {
+	page, err := c.twitch.GetChattersPage(ctx, broadcasterID, c.botID, cursor)
+	if err != nil {
+		return page, c.providerError(ctx, "helix:bot:"+c.botID, err)
+	}
+	return page, nil
+}
+func appendChatters(out []manage.Chatter, chatters []twitch.Chatter) []manage.Chatter {
+	for _, ch := range chatters {
+		out = append(out, manage.Chatter{ID: ch.ID, Login: ch.Login})
+	}
+	return out
+}
+
+// The legacy viewer cache accepts only complete bounded listings. Failed pages
+// never expose their partially collected attendance as a successful snapshot.
+func (c *chatters) collectViewerReply(ctx context.Context, req manage.ChattersRequest) (manage.ChattersReply, error) {
+	reply := correlatedReply(req)
+	entries, err := c.collectViewer(ctx, req.BroadcasterID)
+	if err != nil {
+		return reply, err
+	}
+	reply.Chatters = entries
+	reply.Complete = true
+	return reply, nil
+}
+func (c *chatters) viewerContext(parent context.Context, req manage.ChattersRequest) (context.Context, context.CancelFunc, error) {
+	if !validBroadcaster(req.BroadcasterID) {
+		return nil, nil, &twitch.AdmissionError{Code: "invalid"}
+	}
+	if c.botID == "" {
+		return nil, nil, &twitch.AdmissionError{Code: "invalid"}
+	}
+	deadline := c.now().Add(viewerChattersTimeout)
+	if req.DeadlineUnixMilli > 0 {
+		deadline = minDeadline(deadline, time.UnixMilli(req.DeadlineUnixMilli))
+	}
+	ctx, cancel := context.WithDeadline(parent, deadline)
+	return ctx, cancel, nil
+}
+
+type viewerPagination struct {
+	cursor string
+	seen   map[string]bool
+}
+
+func (p *viewerPagination) advance(next string) error {
+	if next == "" {
+		return twitch.ErrRepeatedCursor
+	}
+	if next == p.cursor {
+		return twitch.ErrRepeatedCursor
+	}
+	if p.seen[next] {
+		return twitch.ErrRepeatedCursor
+	}
+	p.seen[next] = true
+	p.cursor = next
+	return nil
+}
+func (c *chatters) collectViewer(ctx context.Context, id string) ([]manage.Chatter, error) {
+	progress := viewerPagination{seen: map[string]bool{}}
+	var entries []manage.Chatter
 	for range viewerChattersMaxPages {
 		if err := ctx.Err(); err != nil {
-			return fail(err)
+			return nil, err
 		}
-		page, err := c.twitch.GetChattersPage(ctx, req.BroadcasterID, c.botID, cursor)
+		page, err := c.fetchChatterPage(ctx, id, progress.cursor)
 		if err != nil {
-			code, at := c.providerFailure(ctx, "helix:bot:"+c.botID, err)
-			return fail(&twitch.AdmissionError{Code: code, RetryAt: at})
+			return nil, err
 		}
-		for _, ch := range page.Chatters {
-			reply.Chatters = append(reply.Chatters, manage.Chatter{ID: ch.ID, Login: ch.Login})
-		}
+		entries = appendChatters(entries, page.Chatters)
 		if page.Complete {
-			reply.Complete = true
-			return reply
+			return entries, nil
 		}
-		if page.NextCursor == "" || page.NextCursor == cursor || seen[page.NextCursor] {
-			return fail(twitch.ErrRepeatedCursor)
+		if err := progress.advance(page.NextCursor); err != nil {
+			return nil, err
 		}
-		seen[page.NextCursor] = true
-		cursor = page.NextCursor
 	}
-	return fail(twitch.ErrChattersIncomplete)
+	return nil, twitch.ErrChattersIncomplete
 }
 
 func (c *chatters) admitTenant(ctx context.Context, req manage.ChattersRequest) (bool, error) {
 	if req.RequestID == "" {
-		if c.opts.AdmitViewer == nil {
-			return false, errors.New("viewer admission unavailable")
-		}
-		return c.opts.AdmitViewer(ctx, req.BroadcasterID)
+		return c.admitViewer(ctx, req.BroadcasterID)
 	}
 	if c.opts.Admit == nil {
 		return false, errors.New("watch admission unavailable")
 	}
 	return c.opts.Admit(ctx, req)
 }
-
+func (c *chatters) admitViewer(ctx context.Context, id string) (bool, error) {
+	if c.opts.AdmitViewer == nil {
+		return false, errors.New("viewer admission unavailable")
+	}
+	return c.opts.AdmitViewer(ctx, id)
+}
+func (c *chatters) tenantReady(ctx context.Context, req manage.ChattersRequest) error {
+	active, err := c.admitTenant(ctx, req)
+	if err != nil {
+		return c.unavailable()
+	}
+	if !active {
+		return &twitch.AdmissionError{Code: "inactive"}
+	}
+	return nil
+}
+func (c *chatters) unavailable() error {
+	return &twitch.AdmissionError{Code: "unavailable", RetryAt: c.now().Add(time.Second)}
+}
 func (c *chatters) admit(req manage.ChattersRequest) twitch.AttemptAdmission {
 	return func(ctx context.Context, endpoint string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		active, err := c.admitTenant(ctx, req)
-		if err != nil {
-			return &twitch.AdmissionError{Code: "unavailable", RetryAt: c.now().Add(time.Second)}
+		if err := c.tenantReady(ctx, req); err != nil {
+			return err
 		}
-		if !active {
-			return &twitch.AdmissionError{Code: "inactive"}
+		if err := c.providerReady(ctx, endpoint); err != nil {
+			return err
 		}
-		identity := c.providerIdentity(endpoint)
-		if c.opts.ProviderRetryAt != nil {
-			reset, err := c.opts.ProviderRetryAt(ctx, identity)
-			if err != nil {
-				return &twitch.AdmissionError{Code: "unavailable", RetryAt: c.now().Add(time.Second)}
-			}
-			// The provider authority expires resets using server TIME. Do not
-			// override its live-reset decision with this pod's wall clock.
-			if !reset.IsZero() {
-				return &twitch.AdmissionError{Code: "rate_limited", RetryAt: reset}
-			}
+		if err := c.payTenant(ctx, req.BroadcasterID); err != nil {
+			return err
 		}
-		tenant := chatterTenantSpec.ForDynamicKey("ratelimit:watch:tenant:", "watch:tenant", req.BroadcasterID)
-		allowed, err := c.opts.Limiter.Allow(ctx, tenant)
-		if err != nil {
-			return &twitch.AdmissionError{Code: "unavailable", RetryAt: c.now().Add(time.Second)}
-		}
-		if !allowed {
-			return &twitch.AdmissionError{Code: "rate_limited", RetryAt: c.now().Add(2 * time.Second)}
-		}
-		share, shared := chatterWatchSpec.ForKey("ratelimit:watch:chatters"), ratelimit.HelixBotRequest()
-		if strings.HasPrefix(endpoint, "/helix/streams?") {
-			share = chatterLiveSpec.ForKey("ratelimit:watch:live")
-			shared = ratelimit.HelixAppRequest()
-		}
-		denied, err := c.opts.Limiter.AllowOrdered(ctx, share, shared)
-		if err != nil {
-			return &twitch.AdmissionError{Code: "unavailable", RetryAt: c.now().Add(time.Second)}
-		}
-		if denied != 0 {
-			return &twitch.AdmissionError{Code: "rate_limited", RetryAt: c.now().Add(time.Second)}
-		}
-		return nil
+		return c.payShared(ctx, endpoint)
 	}
 }
+func (c *chatters) providerReady(ctx context.Context, endpoint string) error {
+	if c.opts.ProviderRetryAt == nil {
+		return nil
+	}
+	reset, err := c.opts.ProviderRetryAt(ctx, c.providerIdentity(endpoint))
+	if err != nil {
+		return c.unavailable()
+	}
+	// Server TIME decides whether a cooldown is live, never this pod's clock.
+	if !reset.IsZero() {
+		return &twitch.AdmissionError{Code: "rate_limited", RetryAt: reset}
+	}
+	return nil
+}
+func (c *chatters) payTenant(ctx context.Context, id string) error {
+	tenant := chatterTenantSpec.ForDynamicKey("ratelimit:watch:tenant:", "watch:tenant", id)
+	allowed, err := c.opts.Limiter.Allow(ctx, tenant)
+	if err != nil {
+		return c.unavailable()
+	}
+	if !allowed {
+		return &twitch.AdmissionError{Code: "rate_limited", RetryAt: c.now().Add(2 * time.Second)}
+	}
+	return nil
+}
+func attendanceQuotas(endpoint string) (ratelimit.Request, ratelimit.Request) {
+	if strings.HasPrefix(endpoint, "/helix/streams?") {
+		return chatterLiveSpec.ForKey("ratelimit:watch:live"), ratelimit.HelixAppRequest()
+	}
+	return chatterWatchSpec.ForKey("ratelimit:watch:chatters"), ratelimit.HelixBotRequest()
+}
+func (c *chatters) payShared(ctx context.Context, endpoint string) error {
+	share, shared := attendanceQuotas(endpoint)
+	denied, err := c.opts.Limiter.AllowOrdered(ctx, share, shared)
+	if err != nil {
+		return c.unavailable()
+	}
+	if denied != 0 {
+		return &twitch.AdmissionError{Code: "rate_limited", RetryAt: c.now().Add(time.Second)}
+	}
+	return nil
+}
 
-// providerFailure persists only actual provider feedback; local tenant/share
-// denials must not establish a token-wide cooldown.
+func (c *chatters) providerError(ctx context.Context, identity string, err error) error {
+	code, retryAt := c.providerFailure(ctx, identity, err)
+	return &twitch.AdmissionError{Code: code, RetryAt: retryAt}
+}
+
+// Only actual provider feedback establishes token-wide cooldown; quota denials
+// and canceled work cannot masquerade as a provider observation.
 func (c *chatters) providerFailure(ctx context.Context, identity string, err error) (string, time.Time) {
-	var observed *twitch.AdmissionError
-	if errors.As(err, &observed) && observed.Provider && !observed.ProviderObserved && c.opts.ObserveProviderReset != nil {
-		// Keep the reset even if the caller's deadline expired after HTTP returned.
-		if persistErr := c.recordProviderReset(ctx, identity, observed.RetryAt); persistErr != nil {
-			return "unavailable", c.now().Add(time.Second)
-		}
+	if persistErr := c.persistUnobservedReset(ctx, identity, err); persistErr != nil {
+		return "unavailable", c.now().Add(time.Second)
 	}
 	return chattersFailure(err, c.now())
 }
-
+func (c *chatters) persistUnobservedReset(ctx context.Context, identity string, err error) error {
+	var observed *twitch.AdmissionError
+	if !errors.As(err, &observed) {
+		return nil
+	}
+	if !observed.Provider {
+		return nil
+	}
+	if observed.ProviderObserved {
+		return nil
+	}
+	return c.recordProviderReset(ctx, identity, observed.RetryAt)
+}
 func (c *chatters) providerIdentity(endpoint string) string {
 	if strings.HasPrefix(endpoint, "/helix/streams?") {
 		return "helix:app"
@@ -321,35 +470,53 @@ func (c *chatters) recordProviderReset(ctx context.Context, identity string, res
 	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 	defer cancel()
 	if err := c.opts.ObserveProviderReset(persistCtx, identity, reset); err != nil {
-		return &twitch.AdmissionError{Code: "unavailable", RetryAt: c.now().Add(time.Second)}
+		return c.unavailable()
 	}
 	return nil
 }
-
 func chattersFailure(err error, now time.Time) (string, time.Time) {
 	var admission *twitch.AdmissionError
 	if errors.As(err, &admission) {
 		return admission.Code, admission.RetryAt
 	}
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+	if matchesError(err, context.DeadlineExceeded, context.Canceled) {
 		return "expired", time.Time{}
 	}
 	if errors.Is(err, twitch.ErrRepeatedCursor) {
 		return "repeated_cursor", time.Time{}
 	}
-	if errors.Is(err, twitch.ErrMissingScope) || errors.Is(err, twitch.ErrNoUserToken) || twitch.GrantDead(err) {
+	if authorizationFailure(err) {
 		return "authorization", time.Time{}
 	}
-	var status *twitch.StatusError
-	if errors.As(err, &status) {
-		switch status.Status {
-		case http.StatusUnauthorized, http.StatusForbidden:
-			return "authorization", time.Time{}
-		case http.StatusBadRequest:
-			return "invalid", time.Time{}
-		case http.StatusTooManyRequests:
-			return "rate_limited", now.Add(time.Second)
+	return chatterStatusFailure(err, now)
+}
+func matchesError(err error, candidates ...error) bool {
+	for _, candidate := range candidates {
+		if errors.Is(err, candidate) {
+			return true
 		}
 	}
-	return "unavailable", now.Add(time.Second)
+	return false
+}
+func authorizationFailure(err error) bool {
+	if matchesError(err, twitch.ErrMissingScope, twitch.ErrNoUserToken) {
+		return true
+	}
+	return twitch.GrantDead(err)
+}
+func chatterStatusFailure(err error, now time.Time) (string, time.Time) {
+	var status *twitch.StatusError
+	if !errors.As(err, &status) {
+		return "unavailable", now.Add(time.Second)
+	}
+	switch status.Status {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return "authorization", time.Time{}
+	case http.StatusBadRequest:
+		return "invalid", time.Time{}
+	case http.StatusTooManyRequests:
+		return "rate_limited", now.Add(time.Second)
+	default:
+		return "unavailable", now.Add(time.Second)
+	}
 }

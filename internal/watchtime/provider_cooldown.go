@@ -21,11 +21,17 @@ func providerCooldownKey(identity string) (string, error) {
 		return providerCooldownPrefix + identity, nil
 	}
 	id, ok := strings.CutPrefix(identity, "helix:bot:")
-	if !ok || id == "" || len(id) > 20 {
+	if !ok {
+		return "", errors.New("invalid watch provider identity")
+	}
+	if id == "" || len(id) > 20 {
 		return "", errors.New("invalid watch provider identity")
 	}
 	n, err := strconv.ParseUint(id, 10, 64)
-	if err != nil || n == 0 || strconv.FormatUint(n, 10) != id {
+	if err != nil {
+		return "", errors.New("invalid watch provider identity")
+	}
+	if n == 0 || strconv.FormatUint(n, 10) != id {
 		return "", errors.New("invalid watch provider identity")
 	}
 	return providerCooldownPrefix + identity, nil

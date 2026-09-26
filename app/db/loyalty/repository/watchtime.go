@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"strconv"
 	"time"
@@ -16,41 +17,16 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/codec"
-	"github.com/go-sql-driver/mysql"
 )
 
 // EnsureWatchSchema installs the narrow durable inbox and lifecycle fences.
 // Called at service startup before accepting any events or outbox deliveries.
 func (r *Loyalty) EnsureWatchSchema(ctx context.Context) error {
-	for _, stmt := range []string{
-		`CREATE TABLE IF NOT EXISTS loyalty_account_fences (user_id BIGINT PRIMARY KEY, account_created_at BIGINT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0)`,
-		`CREATE TABLE IF NOT EXISTS loyalty_watch_operations (operation_id VARCHAR(64) PRIMARY KEY, payload_hash VARCHAR(64) NOT NULL, user_id BIGINT NOT NULL, created_at BIGINT NOT NULL, window_started_at_ms BIGINT NOT NULL DEFAULT 0)`,
-		`CREATE TABLE IF NOT EXISTS loyalty_watch_viewers (award_id VARCHAR(64) PRIMARY KEY, user_id BIGINT NOT NULL, created_at BIGINT NOT NULL, window_started_at_ms BIGINT NOT NULL DEFAULT 0)`,
-	} {
-		if _, err := r.sqldb.ExecContext(ctx, stmt); err != nil {
-			return err
-		}
+	if err := r.ensureWatchTables(ctx); err != nil {
+		return err
 	}
-	for _, table := range []string{"loyalty_watch_operations", "loyalty_watch_viewers"} {
-		name := "idx_" + table + "_created"
-		if r.dialect == "sqlite3" {
-			if _, err := r.sqldb.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS "+name+" ON "+table+" (created_at)"); err != nil {
-				return err
-			}
-			continue
-		}
-		var present int
-		if err := r.sqldb.QueryRowContext(ctx, "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND index_name=?", table, name).Scan(&present); err != nil {
-			return err
-		}
-		if present == 0 {
-			if _, err := r.sqldb.ExecContext(ctx, "CREATE INDEX "+name+" ON "+table+" (created_at)"); err != nil {
-				var myErr *mysql.MySQLError
-				if !errors.As(err, &myErr) || myErr.Number != 1061 {
-					return err
-				}
-			}
-		}
+	if err := r.ensureWatchCreatedIndexes(ctx); err != nil {
+		return err
 	}
 	if err := r.ensureWatchWindowStartColumns(ctx); err != nil {
 		return err
@@ -101,90 +77,13 @@ func (r *Loyalty) ApplyWatchAward(ctx context.Context, a data.WatchAwardDTO) err
 		return err
 	}
 	digest := sha256.Sum256(body)
-	hash := hex.EncodeToString(digest[:])
-	op := watchtime.OperationID(a)
 	tx, err := r.sqldb.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	finalized, err := r.readWatchRetention(ctx, tx)
-	if err != nil {
+	if err := r.applyWatchAward(ctx, tx, a, hex.EncodeToString(digest[:])); err != nil {
 		return err
-	}
-	windowStart := watchtime.WindowStartUnixMilli(a)
-	if finalized > 0 && windowStart <= finalized {
-		return tx.Commit()
-	}
-	current, deleted, err := r.fence(ctx, tx, a.UserID, a.AccountCreatedAt)
-	if err != nil {
-		return err
-	}
-	var previous string
-	err = tx.QueryRowContext(ctx, "SELECT payload_hash FROM loyalty_watch_operations WHERE operation_id=?", op).Scan(&previous)
-	if err == nil {
-		if previous != hash {
-			return errors.New("watch operation payload mismatch")
-		}
-		return tx.Commit()
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, "INSERT INTO loyalty_watch_operations (operation_id,payload_hash,user_id,created_at,window_started_at_ms) VALUES (?, ?, ?, ?, ?)", op, hash, a.UserID, time.Now().Unix(), windowStart); err != nil {
-		return err
-	}
-	// Admission was accepted against the source incarnation. Its award may
-	// outrun UserChanged on the independent lifecycle subscription.
-	if a.AccountCreatedAt > current {
-		if current > 0 {
-			for _, table := range []string{"balances", "counter_entries", "counters"} {
-				if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE user_id=?", a.UserID); err != nil {
-					return err
-				}
-			}
-		}
-		if _, err := tx.ExecContext(ctx, "UPDATE loyalty_account_fences SET account_created_at=?,deleted=0 WHERE user_id=?", a.AccountCreatedAt, a.UserID); err != nil {
-			return err
-		}
-		current = a.AccountCreatedAt
-		deleted = false
-	}
-	if deleted || current != a.AccountCreatedAt {
-		return tx.Commit()
-	}
-	now := time.Now()
-	for _, e := range a.Entries {
-		entryHash := sha256.Sum256([]byte(strconv.FormatUint(a.UserID, 10) + ":" + strconv.FormatInt(a.AccountCreatedAt, 10) + ":" + a.LiveSession + ":" + a.WindowID + ":" + strconv.FormatUint(e.ViewerID, 10)))
-		result, err := tx.ExecContext(ctx, r.insertIgnore()+" INTO loyalty_watch_viewers (award_id,user_id,created_at,window_started_at_ms) VALUES (?, ?, ?, ?)", hex.EncodeToString(entryHash[:]), a.UserID, time.Now().Unix(), windowStart)
-		if err != nil {
-			return err
-		}
-		n, err := result.RowsAffected()
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			continue
-		}
-		var existingPoints int64
-		var existingWatch uint64
-		readErr := tx.QueryRowContext(ctx, "SELECT points,watch_seconds FROM balances WHERE user_id=? AND viewer_id=?", a.UserID, e.ViewerID).Scan(&existingPoints, &existingWatch)
-		if readErr != nil && !errors.Is(readErr, sql.ErrNoRows) {
-			return readErr
-		}
-		if existingPoints > math.MaxInt64-e.Points || existingWatch > math.MaxUint64-e.WatchSeconds {
-			return fmt.Errorf("%w: watch balance overflow", ErrInvalidInput)
-		}
-		stmt := `INSERT INTO balances (user_id,viewer_id,viewer_login,viewer_name,points,watch_seconds,created_at,updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-		if r.dialect == "sqlite3" {
-			stmt += ` ON CONFLICT(user_id,viewer_id) DO UPDATE SET points=points+excluded.points, watch_seconds=watch_seconds+excluded.watch_seconds, viewer_login=CASE WHEN excluded.viewer_login='' THEN viewer_login ELSE excluded.viewer_login END, viewer_name=CASE WHEN excluded.viewer_name='' THEN viewer_name ELSE excluded.viewer_name END, updated_at=excluded.updated_at`
-		} else {
-			stmt += ` ON DUPLICATE KEY UPDATE points=points+VALUES(points),watch_seconds=watch_seconds+VALUES(watch_seconds),viewer_login=IF(VALUES(viewer_login)='',viewer_login,VALUES(viewer_login)),viewer_name=IF(VALUES(viewer_name)='',viewer_name,VALUES(viewer_name)),updated_at=VALUES(updated_at)`
-		}
-		if _, err := tx.ExecContext(ctx, stmt, a.UserID, e.ViewerID, e.ViewerLogin, e.ViewerName, e.Points, e.WatchSeconds, now, now); err != nil {
-			return err
-		}
 	}
 	return tx.Commit()
 }
@@ -207,14 +106,7 @@ func (r *Loyalty) RestoreUser(ctx context.Context, id uint64, instance int64) er
 		return err
 	}
 	if instance > current {
-		if current > 0 {
-			for _, table := range []string{"balances", "counter_entries", "counters"} {
-				if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE user_id=?", id); err != nil {
-					return err
-				}
-			}
-		}
-		if _, err := tx.ExecContext(ctx, "UPDATE loyalty_account_fences SET account_created_at=?,deleted=0 WHERE user_id=?", instance, id); err != nil {
+		if err := replaceLoyaltyAccount(ctx, tx, id, current, instance); err != nil {
 			return err
 		}
 	}
@@ -232,42 +124,222 @@ func (r *Loyalty) DeleteAccount(ctx context.Context, id uint64, instance int64) 
 		return err
 	}
 	defer tx.Rollback()
-	current, _, err := r.fence(ctx, tx, id, instance)
+	retired, err := r.retireLoyaltyAccount(ctx, tx, id, instance)
 	if err != nil {
 		return err
 	}
-	// A legacy event cannot prove which incarnation it retires.
-	if instance == 0 && current > 0 {
-		return tx.Commit()
-	}
-	if instance > 0 && instance < current {
-		return tx.Commit()
-	}
-	if instance < current {
-		instance = current
-	}
-	if _, err := tx.ExecContext(ctx, "UPDATE loyalty_account_fences SET account_created_at=?,deleted=1 WHERE user_id=?", instance, id); err != nil {
+	if err := tx.Commit(); err != nil {
 		return err
 	}
+	if retired {
+		r.discardPendingAccount(id)
+	}
+	return nil
+}
+
+var watchHistoryTables = []string{"loyalty_watch_operations", "loyalty_watch_viewers"}
+
+func (r *Loyalty) ensureWatchTables(ctx context.Context) error {
+	for _, stmt := range []string{
+		`CREATE TABLE IF NOT EXISTS loyalty_account_fences (user_id BIGINT PRIMARY KEY, account_created_at BIGINT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0)`,
+		`CREATE TABLE IF NOT EXISTS loyalty_watch_operations (operation_id VARCHAR(64) PRIMARY KEY, payload_hash VARCHAR(64) NOT NULL, user_id BIGINT NOT NULL, created_at BIGINT NOT NULL, window_started_at_ms BIGINT NOT NULL DEFAULT 0)`,
+		`CREATE TABLE IF NOT EXISTS loyalty_watch_viewers (award_id VARCHAR(64) PRIMARY KEY, user_id BIGINT NOT NULL, created_at BIGINT NOT NULL, window_started_at_ms BIGINT NOT NULL DEFAULT 0)`,
+	} {
+		if _, err := r.sqldb.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *Loyalty) ensureWatchCreatedIndexes(ctx context.Context) error {
+	for _, table := range watchHistoryTables {
+		if err := r.ensureWatchIndex(ctx, table, "created", "created_at"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Lock order remains retention, account, operation, viewer, then balance.
+func (r *Loyalty) applyWatchAward(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, hash string) error {
+	allowed, err := r.recordAdmittedWatchAward(ctx, tx, a, hash)
+	if err != nil || !allowed {
+		return err
+	}
+	return r.postWatchViewers(ctx, tx, a)
+}
+
+func (r *Loyalty) recordAdmittedWatchAward(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, hash string) (bool, error) {
+	open, err := r.watchWindowOpen(ctx, tx, a)
+	if err != nil || !open {
+		return false, err
+	}
+	current, deleted, err := r.fence(ctx, tx, a.UserID, a.AccountCreatedAt)
+	if err != nil {
+		return false, err
+	}
+	added, err := recordWatchOperation(ctx, tx, a, hash)
+	if err != nil || !added {
+		return false, err
+	}
+	return admitWatchAccount(ctx, tx, a, current, deleted)
+}
+
+func (r *Loyalty) watchWindowOpen(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) (bool, error) {
+	finalized, err := r.readWatchRetention(ctx, tx)
+	if err != nil {
+		return false, err
+	}
+	if finalized <= 0 {
+		return true, nil
+	}
+	return watchtime.WindowStartUnixMilli(a) > finalized, nil
+}
+
+func recordWatchOperation(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, hash string) (bool, error) {
+	op := watchtime.OperationID(a)
+	var previous string
+	err := tx.QueryRowContext(ctx, "SELECT payload_hash FROM loyalty_watch_operations WHERE operation_id=?", op).Scan(&previous)
+	if err == nil {
+		if previous != hash {
+			return false, errors.New("watch operation payload mismatch")
+		}
+		return false, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return false, err
+	}
+	_, err = tx.ExecContext(ctx, "INSERT INTO loyalty_watch_operations (operation_id,payload_hash,user_id,created_at,window_started_at_ms) VALUES (?, ?, ?, ?, ?)", op, hash, a.UserID, time.Now().Unix(), watchtime.WindowStartUnixMilli(a))
+	return true, err
+}
+
+// Accepted awards may outrun the independent UserChanged subscription.
+func admitWatchAccount(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, current int64, deleted bool) (bool, error) {
+	if a.AccountCreatedAt > current {
+		err := replaceLoyaltyAccount(ctx, tx, a.UserID, current, a.AccountCreatedAt)
+		return err == nil, err
+	}
+	if deleted {
+		return false, nil
+	}
+	return current == a.AccountCreatedAt, nil
+}
+
+func replaceLoyaltyAccount(ctx context.Context, tx *sql.Tx, id uint64, prior, instance int64) error {
+	if prior > 0 {
+		if err := deleteLoyaltyRows(ctx, tx, id); err != nil {
+			return err
+		}
+	}
+	_, err := tx.ExecContext(ctx, "UPDATE loyalty_account_fences SET account_created_at=?,deleted=0 WHERE user_id=?", instance, id)
+	return err
+}
+
+func deleteLoyaltyRows(ctx context.Context, tx *sql.Tx, id uint64) error {
 	for _, table := range []string{"balances", "counter_entries", "counters"} {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE user_id=?", id); err != nil {
 			return err
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for key := range r.earnPend {
-		if key.userID == id {
-			delete(r.earnPend, key)
-		}
-	}
-	for key := range r.bumpPend {
-		if key.userID == id {
-			delete(r.bumpPend, key)
+	return nil
+}
+
+func (r *Loyalty) postWatchViewers(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO) error {
+	now := time.Now()
+	for _, e := range a.Entries {
+		if err := r.postWatchViewer(ctx, tx, a, e, now); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (r *Loyalty) postWatchViewer(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, e data.LoyaltyEarnEntry, now time.Time) error {
+	added, err := r.recordWatchViewer(ctx, tx, a, e.ViewerID)
+	if err != nil || !added {
+		return err
+	}
+	if err := checkWatchBalance(ctx, tx, a.UserID, e); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, r.watchBalanceUpsert(), a.UserID, e.ViewerID, e.ViewerLogin, e.ViewerName, e.Points, e.WatchSeconds, now, now)
+	return err
+}
+
+func (r *Loyalty) recordWatchViewer(ctx context.Context, tx *sql.Tx, a data.WatchAwardDTO, viewer uint64) (bool, error) {
+	identity := strconv.FormatUint(a.UserID, 10) + ":" + strconv.FormatInt(a.AccountCreatedAt, 10) + ":" + a.LiveSession + ":" + a.WindowID + ":" + strconv.FormatUint(viewer, 10)
+	digest := sha256.Sum256([]byte(identity))
+	result, err := tx.ExecContext(ctx, r.insertIgnore()+" INTO loyalty_watch_viewers (award_id,user_id,created_at,window_started_at_ms) VALUES (?, ?, ?, ?)", hex.EncodeToString(digest[:]), a.UserID, time.Now().Unix(), watchtime.WindowStartUnixMilli(a))
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	return n != 0, err
+}
+
+func checkWatchBalance(ctx context.Context, tx *sql.Tx, user uint64, e data.LoyaltyEarnEntry) error {
+	var points int64
+	var seconds uint64
+	err := tx.QueryRowContext(ctx, "SELECT points,watch_seconds FROM balances WHERE user_id=? AND viewer_id=?", user, e.ViewerID).Scan(&points, &seconds)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return err
+	}
+	if !watchBalanceFits(points, seconds, e) {
+		return fmt.Errorf("%w: watch balance overflow", ErrInvalidInput)
+	}
+	return nil
+}
+
+func watchBalanceFits(points int64, seconds uint64, e data.LoyaltyEarnEntry) bool {
+	if points > math.MaxInt64-e.Points {
+		return false
+	}
+	return seconds <= math.MaxUint64-e.WatchSeconds
+}
+
+func (r *Loyalty) watchBalanceUpsert() string {
+	stmt := `INSERT INTO balances (user_id,viewer_id,viewer_login,viewer_name,points,watch_seconds,created_at,updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	if r.dialect == "sqlite3" {
+		return stmt + ` ON CONFLICT(user_id,viewer_id) DO UPDATE SET points=points+excluded.points, watch_seconds=watch_seconds+excluded.watch_seconds, viewer_login=CASE WHEN excluded.viewer_login='' THEN viewer_login ELSE excluded.viewer_login END, viewer_name=CASE WHEN excluded.viewer_name='' THEN viewer_name ELSE excluded.viewer_name END, updated_at=excluded.updated_at`
+	}
+	return stmt + ` ON DUPLICATE KEY UPDATE points=points+VALUES(points),watch_seconds=watch_seconds+VALUES(watch_seconds),viewer_login=IF(VALUES(viewer_login)='',viewer_login,VALUES(viewer_login)),viewer_name=IF(VALUES(viewer_name)='',viewer_name,VALUES(viewer_name)),updated_at=VALUES(updated_at)`
+}
+
+func (r *Loyalty) retireLoyaltyAccount(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (bool, error) {
+	current, _, err := r.fence(ctx, tx, id, instance)
+	if err != nil {
+		return false, err
+	}
+	instance, allowed := retirementInstance(instance, current)
+	if !allowed {
+		return false, nil
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE loyalty_account_fences SET account_created_at=?,deleted=1 WHERE user_id=?", instance, id); err != nil {
+		return false, err
+	}
+	err = deleteLoyaltyRows(ctx, tx, id)
+	return err == nil, err
+}
+
+func (r *Loyalty) discardPendingAccount(id uint64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	maps.DeleteFunc(r.earnPend, func(key balKey, _ *earnSum) bool { return key.userID == id })
+	maps.DeleteFunc(r.bumpPend, func(key bumpKey, _ *bumpSum) bool { return key.userID == id })
+}
+
+// Unknown lineage cannot retire a known incarnation; stamped older deletions
+// are likewise ignored. Preserve the existing legacy fence normalization.
+func retirementInstance(instance, current int64) (int64, bool) {
+	if instance == 0 && current > 0 {
+		return current, false
+	}
+	if instance > 0 && instance < current {
+		return current, false
+	}
+	return max(instance, current), true
 }

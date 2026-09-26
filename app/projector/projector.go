@@ -133,32 +133,34 @@ func validateUserDeleted(dto data.UserDeletedDTO) error {
 }
 
 func (p *Projector) applyUserDeleted(ctx context.Context, dto data.UserDeletedDTO) error {
-	if dto.AccountCreatedAt > 0 {
-		applied, err := p.store.DeleteAccount(ctx, dto.UserID, dto.AccountCreatedAt)
-		if err != nil {
-			return err
-		}
-		if !applied {
-			return nil // deletion from an older incarnation cannot remove a new one
-		}
-	} else {
-		applied, err := p.store.DeleteLegacyAccount(ctx, dto.UserID)
-		if err != nil {
-			return err
-		}
-		if !applied {
-			return nil
-		}
+	applied, err := p.deleteUserProjection(ctx, dto)
+	if err != nil {
+		return err
 	}
-	if p.live != nil {
-		if err := p.live.DeleteLiveCounters(ctx, dto.UserID, boardCounters); err != nil {
-			return err
-		}
+	if !applied {
+		return nil
+	}
+	if err := p.clearDeletedUserCounters(ctx, dto.UserID); err != nil {
+		return err
 	}
 	p.broadcastInvalidate(dto.UserID)
 	p.broadcastCacheInvalidate(dto.UserID, "status")
 	p.broadcastCacheInvalidate(dto.UserID, "modules")
 	return nil
+}
+
+func (p *Projector) deleteUserProjection(ctx context.Context, dto data.UserDeletedDTO) (bool, error) {
+	if dto.AccountCreatedAt > 0 {
+		return p.store.DeleteAccount(ctx, dto.UserID, dto.AccountCreatedAt)
+	}
+	return p.store.DeleteLegacyAccount(ctx, dto.UserID)
+}
+
+func (p *Projector) clearDeletedUserCounters(ctx context.Context, id uint64) error {
+	if p.live == nil {
+		return nil
+	}
+	return p.live.DeleteLiveCounters(ctx, id, boardCounters)
 }
 
 func (p *Projector) broadcastCacheInvalidate(userID uint64, scope string, keys ...string) {

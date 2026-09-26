@@ -3,110 +3,147 @@
 package watchtime_test
 
 import (
-	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/internal/projection"
-	"ItsBagelBot/internal/watchtime"
 	"context"
-	"github.com/stretchr/testify/require"
-	"github.com/valkey-io/valkey-go"
 	"os"
 	"strconv"
 	"testing"
 	"time"
+
+	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/internal/watchtime"
+
+	"github.com/stretchr/testify/require"
+	"github.com/valkey-io/valkey-go"
 )
 
-func TestPrimaryAdmissionFencesAndOwnedOutbox(t *testing.T) {
+type primaryAdmissionFixture struct {
+	client valkey.Client
+	store  *watchtime.Store
+	proj   *projection.Store
+	id     uint64
+	sid    string
+}
+
+func newPrimaryAdmissionFixture(t *testing.T) *primaryAdmissionFixture {
+	t.Helper()
 	addr := os.Getenv("VALKEY_TEST_ADDR")
 	if addr == "" {
 		t.Skip("VALKEY_TEST_ADDR requires an isolated real Valkey")
 	}
 	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, DisableCache: true})
 	require.NoError(t, err)
-	defer client.Close()
-	ctx := context.Background()
 	id := uint64(time.Now().UnixNano()%100000000 + 8000000000)
 	sid := strconv.FormatUint(id, 10)
 	keys := []string{"settings:" + sid, watchtime.AdmissionKey(id), "live:" + sid, "watchtime:operations:" + sid, "loyaltick:state:" + sid, "loyaltick:claim:" + sid}
-	defer client.Do(ctx, client.B().Del().Key(keys...).Build())
-	store := watchtime.NewStore(client)
-	proj := projection.NewStore(client)
-	_, ok, err := store.Capture(ctx, id)
+	t.Cleanup(func() {
+		client.Do(context.Background(), client.B().Del().Key(keys...).Build())
+		client.Do(context.Background(), client.B().Srem().Key("trial:desired").Member(sid).Build())
+		client.Close()
+	})
+	return &primaryAdmissionFixture{client: client, store: watchtime.NewStore(client), proj: projection.NewStore(client), id: id, sid: sid}
+}
+
+func (f *primaryAdmissionFixture) enable(ctx context.Context, t *testing.T) {
+	t.Helper()
+	allowed, err := f.store.RestoreAccount(ctx, f.id, 100)
+	require.NoError(t, err)
+	require.True(t, allowed)
+	require.NoError(t, f.proj.SetUser(ctx, f.id, projection.UserProjection{AccountCreatedAt: 100, IsActive: true, Status: "paid"}))
+	require.NoError(t, f.proj.SetModule(ctx, f.id, projection.ModuleView{AccountCreatedAt: 100, Name: "loyalty", IsEnabled: true, Revision: 1}))
+	require.NoError(t, f.client.Do(ctx, f.client.B().Set().Key("live:"+f.sid).Value("s").Build()).Error())
+}
+
+func awardFor(f *primaryAdmissionFixture, snap watchtime.Snapshot) data.WatchAwardDTO {
+	return data.WatchAwardDTO{UserID: f.id, AccountCreatedAt: 100, Generation: snap.Generation, LiveSession: snap.LiveSession, WindowID: "w", Entries: []data.LoyaltyEarnEntry{{ViewerID: 77, Points: 10, WatchSeconds: 300}}}
+}
+
+func TestPrimaryAdmissionFencesAndOwnedOutbox(t *testing.T) {
+	f := newPrimaryAdmissionFixture(t)
+	ctx := t.Context()
+	_, ok, err := f.store.Capture(ctx, f.id)
 	require.NoError(t, err)
 	require.False(t, ok)
-	ok, err = store.RestoreAccount(ctx, id, 100)
+	f.enable(ctx, t)
+	snap, ok, err := f.store.Capture(ctx, f.id)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.NoError(t, proj.SetUser(ctx, id, projection.UserProjection{AccountCreatedAt: 100, IsActive: true, Status: "paid"}))
-	require.NoError(t, proj.SetModule(ctx, id, projection.ModuleView{AccountCreatedAt: 100, Name: "loyalty", IsEnabled: true, Revision: 1}))
-	require.NoError(t, client.Do(ctx, client.B().Set().Key("live:"+sid).Value("s").Build()).Error())
-	snap, ok, err := store.Capture(ctx, id)
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.NoError(t, proj.SetUser(ctx, id, projection.UserProjection{AccountCreatedAt: 100, IsActive: true, Status: "paid"}))
-	same, ok, err := store.Capture(ctx, id)
+	require.NoError(t, f.proj.SetUser(ctx, f.id, projection.UserProjection{AccountCreatedAt: 100, IsActive: true, Status: "paid"}))
+	same, ok, err := f.store.Capture(ctx, f.id)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, snap.Generation, same.Generation)
-	a := data.WatchAwardDTO{UserID: id, AccountCreatedAt: 100, Generation: snap.Generation, LiveSession: snap.LiveSession, WindowID: "w", Entries: []data.LoyaltyEarnEntry{{ViewerID: 77, Points: 10, WatchSeconds: 300}}}
-	ok, err = store.Enqueue(ctx, a)
+	a := awardFor(f, snap)
+	ok, err = f.store.Enqueue(ctx, a)
 	require.NoError(t, err)
 	require.True(t, ok)
-	ok, err = store.Enqueue(ctx, a)
+	ok, err = f.store.Enqueue(ctx, a)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.NoError(t, proj.SetUser(ctx, id, projection.UserProjection{AccountCreatedAt: 100, IsActive: false, Status: "paid"}))
-	ok, err = store.Enqueue(ctx, a)
+	require.NoError(t, f.proj.SetUser(ctx, f.id, projection.UserProjection{AccountCreatedAt: 100, IsActive: false, Status: "paid"}))
+	ok, err = f.store.Enqueue(ctx, a)
 	require.NoError(t, err)
 	require.False(t, ok)
-	require.NoError(t, proj.SetUser(ctx, id, projection.UserProjection{AccountCreatedAt: 100, IsActive: true, Status: "paid"}))
-	ok, err = store.Enqueue(ctx, a)
+	require.NoError(t, f.proj.SetUser(ctx, f.id, projection.UserProjection{AccountCreatedAt: 100, IsActive: true, Status: "paid"}))
+	ok, err = f.store.Enqueue(ctx, a)
 	require.NoError(t, err)
 	require.False(t, ok)
-	snap, ok, err = store.Capture(ctx, id)
+}
+
+func TestOwnedOutboxRequiresEligibleTenantAndCurrentLease(t *testing.T) {
+	f := newPrimaryAdmissionFixture(t)
+	ctx := t.Context()
+	f.enable(ctx, t)
+	snap, ok, err := f.store.Capture(ctx, f.id)
 	require.NoError(t, err)
 	require.True(t, ok)
-	a.Generation = snap.Generation
-	require.NoError(t, client.Do(ctx, client.B().Sadd().Key("trial:desired").Member(sid).Build()).Error())
-	ok, err = store.Enqueue(ctx, a)
+	require.NoError(t, f.client.Do(ctx, f.client.B().Sadd().Key("trial:desired").Member(f.sid).Build()).Error())
+	ok, err = f.store.Enqueue(ctx, awardFor(f, snap))
 	require.NoError(t, err)
 	require.False(t, ok)
-	require.NoError(t, client.Do(ctx, client.B().Srem().Key("trial:desired").Member(sid).Build()).Error())
-	require.NoError(t, client.Do(ctx, client.B().Hset().Key("loyaltick:state:"+sid).FieldValue().FieldValue("active", "1").FieldValue("session", "stable").FieldValue("window", "w").Build()).Error())
-	require.NoError(t, client.Do(ctx, client.B().Set().Key("loyaltick:claim:"+sid).Value("owner").Build()).Error())
-	snap, ok, err = store.Capture(ctx, id)
+	require.NoError(t, f.client.Do(ctx, f.client.B().Srem().Key("trial:desired").Member(f.sid).Build()).Error())
+	require.NoError(t, f.client.Do(ctx, f.client.B().Hset().Key("loyaltick:state:"+f.sid).FieldValue().FieldValue("active", "1").FieldValue("session", "stable").FieldValue("window", "w").Build()).Error())
+	require.NoError(t, f.client.Do(ctx, f.client.B().Set().Key("loyaltick:claim:"+f.sid).Value("owner").Build()).Error())
+	snap, ok, err = f.store.Capture(ctx, f.id)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, "stable", snap.LiveSession)
-	a.LiveSession = "stable"
-	ok, err = store.EnqueueOwned(ctx, a, "wrong")
+	a := awardFor(f, snap)
+	ok, err = f.store.EnqueueOwned(ctx, a, "wrong")
 	require.NoError(t, err)
 	require.False(t, ok)
-	ok, err = store.EnqueueOwned(ctx, a, "owner")
+	ok, err = f.store.EnqueueOwned(ctx, a, "owner")
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.NoError(t, client.Do(ctx, client.B().Set().Key("live:"+sid).Value("recheck").Build()).Error())
-	ok, err = store.EnqueueOwned(ctx, a, "owner")
+	require.NoError(t, f.client.Do(ctx, f.client.B().Set().Key("live:"+f.sid).Value("recheck").Build()).Error())
+	ok, err = f.store.EnqueueOwned(ctx, a, "owner")
 	require.NoError(t, err)
 	require.True(t, ok)
-	ok, err = store.DeleteAccount(ctx, id, 100)
+}
+
+func TestAccountIncarnationFencesOutdatedWork(t *testing.T) {
+	f := newPrimaryAdmissionFixture(t)
+	ctx := t.Context()
+	f.enable(ctx, t)
+	ok, err := f.store.DeleteAccount(ctx, f.id, 100)
 	require.NoError(t, err)
 	require.True(t, ok)
-	ok, err = store.RestoreAccount(ctx, id, 100)
+	ok, err = f.store.RestoreAccount(ctx, f.id, 100)
 	require.NoError(t, err)
 	require.False(t, ok)
-	ok, err = store.RestoreAccount(ctx, id, 101)
+	ok, err = f.store.RestoreAccount(ctx, f.id, 101)
 	require.NoError(t, err)
 	require.True(t, ok)
-	ok, err = store.DeleteAccount(ctx, id, 100)
+	ok, err = f.store.DeleteAccount(ctx, f.id, 100)
 	require.NoError(t, err)
 	require.False(t, ok)
-	require.NoError(t, proj.SetUser(ctx, id, projection.UserProjection{AccountCreatedAt: 101, IsActive: true, Status: "paid"}))
-	require.NoError(t, proj.SetModule(ctx, id, projection.ModuleView{AccountCreatedAt: 101, Name: "loyalty", IsEnabled: true, Revision: 1}))
-	require.NoError(t, client.Do(ctx, client.B().Set().Key("live:"+sid).Value("new").Build()).Error())
-	require.NoError(t, proj.SetUser(ctx, id, projection.UserProjection{AccountCreatedAt: 100, IsActive: false, Status: "standard"}))
-	require.NoError(t, proj.SetModule(ctx, id, projection.ModuleView{AccountCreatedAt: 100, Name: "loyalty", IsEnabled: false, Revision: 999}))
-	require.NoError(t, proj.SetModules(ctx, id, []projection.ModuleView{{AccountCreatedAt: 100, Name: "loyalty", IsEnabled: false, Revision: 999}}))
-	_, ok, err = store.Capture(ctx, id)
+	require.NoError(t, f.proj.SetUser(ctx, f.id, projection.UserProjection{AccountCreatedAt: 101, IsActive: true, Status: "paid"}))
+	require.NoError(t, f.proj.SetModule(ctx, f.id, projection.ModuleView{AccountCreatedAt: 101, Name: "loyalty", IsEnabled: true, Revision: 1}))
+	require.NoError(t, f.client.Do(ctx, f.client.B().Set().Key("live:"+f.sid).Value("new").Build()).Error())
+	require.NoError(t, f.proj.SetUser(ctx, f.id, projection.UserProjection{AccountCreatedAt: 100, IsActive: false, Status: "standard"}))
+	require.NoError(t, f.proj.SetModule(ctx, f.id, projection.ModuleView{AccountCreatedAt: 100, Name: "loyalty", IsEnabled: false, Revision: 999}))
+	require.NoError(t, f.proj.SetModules(ctx, f.id, []projection.ModuleView{{AccountCreatedAt: 100, Name: "loyalty", IsEnabled: false, Revision: 999}}))
+	_, ok, err = f.store.Capture(ctx, f.id)
 	require.NoError(t, err)
 	require.True(t, ok, "old instance writes cannot alter recreated account")
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"strconv"
@@ -29,56 +30,54 @@ func TestChattersPageBindsTenantAndBotToken(t *testing.T) {
 	broadcaster := "123"
 	c := chattersTestClient(func(req *http.Request) (*http.Response, error) {
 		q := req.URL.Query()
-		if req.URL.Path != chattersPath || q.Get("broadcaster_id") != broadcaster || q.Get("moderator_id") != "456" || q.Get("first") != "1000" || q.Get("after") != "opaque &cursor" {
-			t.Fatalf("unexpected request: %s", req.URL)
-		}
-		if req.Header.Get("Authorization") != "Bearer bot-token" || req.Header.Get("Client-Id") != "client" {
-			t.Fatal("incorrect token identity")
-		}
+		require.Equal(t, chattersPath, req.URL.Path)
+		require.Equal(t, broadcaster, q.Get("broadcaster_id"))
+		require.Equal(t, "456", q.Get("moderator_id"))
+		require.Equal(t, "1000", q.Get("first"))
+		require.Equal(t, "opaque &cursor", q.Get("after"))
+		require.Equal(t, "Bearer bot-token", req.Header.Get("Authorization"))
+		require.Equal(t, "client", req.Header.Get("Client-Id"))
+
 		return chatterResponse(200, fmt.Sprintf(`{"data":[{"user_id":"%s","user_login":"alice"}],"pagination":{"cursor":"next"}}`, broadcaster)), nil
 	})
 	for _, id := range []string{"123", "789"} {
 		broadcaster = id
 		page, err := c.GetChattersPage(t.Context(), id, "456", "opaque &cursor")
-		if err != nil || page.Complete || page.NextCursor != "next" || len(page.Chatters) != 1 || page.Chatters[0].ID != id {
-			t.Fatalf("tenant page mismatch: %+v %v", page, err)
-		}
+		require.NoError(t, err)
+		require.False(t, page.Complete)
+		require.Equal(t, "next", page.NextCursor)
+		require.Equal(t, 1, len(page.Chatters))
+		require.Equal(t, id, page.Chatters[0].ID)
 	}
 }
 
+// numberedChatterPage models a provider cursor independently of the caller's
+// persisted progress, so pagination tests cover continuation rather than mocks.
+func numberedChatterPage(t *testing.T, req *http.Request, total int) *http.Response {
+	t.Helper()
+	page := 1
+	if cursor := req.URL.Query().Get("after"); cursor != "" {
+		n, err := strconv.Atoi(cursor)
+		require.NoError(t, err)
+		page = n + 1
+	}
+	next := fmt.Sprintf(`{"cursor":"%d"}`, page)
+	if page == total {
+		next = "{}"
+	}
+	return chatterResponse(200, fmt.Sprintf(`{"data":[{"user_id":"%d","user_login":"viewer"}],"pagination":%s}`, page, next))
+}
 func TestChattersContinuesBeyondThirtyPages(t *testing.T) {
 	calls := 0
-	c := chattersTestClient(func(req *http.Request) (*http.Response, error) {
-		calls++
-		cursor := req.URL.Query().Get("after")
-		page := 1
-		if cursor != "" {
-			n, err := strconv.Atoi(cursor)
-			if err != nil {
-				t.Fatal(err)
-			}
-			page = n + 1
-		}
-		next := fmt.Sprintf(`{"cursor":"%d"}`, page)
-		if page == 35 {
-			next = "{}"
-		}
-		return chatterResponse(200, fmt.Sprintf(`{"data":[{"user_id":"%d","user_login":"viewer"}],"pagination":%s}`, page, next)), nil
-	})
+	c := chattersTestClient(func(req *http.Request) (*http.Response, error) { calls++; return numberedChatterPage(t, req, 35), nil })
 	cursor := ""
 	for i := 1; i <= 35; i++ {
 		page, err := c.GetChattersPage(t.Context(), "123", "456", cursor)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if page.Complete != (i == 35) {
-			t.Fatalf("page %d completeness=%v", i, page.Complete)
-		}
+		require.NoError(t, err)
+		require.Equal(t, i == 35, page.Complete, "page %d", i)
 		cursor = page.NextCursor
 	}
-	if calls != 35 {
-		t.Fatalf("calls=%d", calls)
-	}
+	require.Equal(t, 35, calls)
 }
 
 func TestChattersConvenienceListingReportsTruncation(t *testing.T) {
@@ -88,9 +87,9 @@ func TestChattersConvenienceListingReportsTruncation(t *testing.T) {
 		return chatterResponse(200, fmt.Sprintf(`{"data":[{"user_id":"%d"}],"pagination":{"cursor":"%d"}}`, calls, calls)), nil
 	})
 	list, err := c.GetChatters(t.Context(), "123", "456")
-	if !errors.Is(err, ErrChattersIncomplete) || len(list) != 30 || calls != 30 {
-		t.Fatalf("silent truncation: count=%d calls=%d err=%v", len(list), calls, err)
-	}
+	require.True(t, errors.Is(err, ErrChattersIncomplete))
+	require.Equal(t, 30, len(list))
+	require.Equal(t, 30, calls)
 }
 
 func TestChattersRepeatedCursorRefused(t *testing.T) {
@@ -98,9 +97,7 @@ func TestChattersRepeatedCursorRefused(t *testing.T) {
 		return chatterResponse(200, `{"data":[],"pagination":{"cursor":"same"}}`), nil
 	})
 	_, err := c.GetChattersPage(t.Context(), "123", "456", "same")
-	if !errors.Is(err, ErrRepeatedCursor) {
-		t.Fatalf("err=%v", err)
-	}
+	require.True(t, errors.Is(err, ErrRepeatedCursor))
 }
 
 func TestChattersChargesEveryAttemptIncluding401Retry(t *testing.T) {
@@ -115,9 +112,9 @@ func TestChattersChargesEveryAttemptIncluding401Retry(t *testing.T) {
 	c.user.refresh = func(context.Context) (string, time.Duration, error) { return "renewed", time.Hour, nil }
 	ctx := WithAttemptAdmission(t.Context(), func(context.Context, string) error { admitted++; return nil })
 	_, err := c.GetChattersPage(ctx, "123", "456", "")
-	if err != nil || calls != 2 || admitted != 2 {
-		t.Fatalf("calls=%d admission=%d err=%v", calls, admitted, err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, 2, calls)
+	require.Equal(t, 2, admitted)
 }
 
 func TestChattersRetryAdmissionDenialPreventsSecondHTTP(t *testing.T) {
@@ -136,9 +133,9 @@ func TestChattersRetryAdmissionDenialPreventsSecondHTTP(t *testing.T) {
 	})
 	_, err := c.GetChattersPage(ctx, "123", "456", "")
 	var denied *AdmissionError
-	if !errors.As(err, &denied) || calls != 1 || admitted != 2 {
-		t.Fatalf("calls=%d admission=%d err=%v", calls, admitted, err)
-	}
+	require.True(t, errors.As(err, &denied))
+	require.Equal(t, 1, calls)
+	require.Equal(t, 2, admitted)
 }
 
 func TestChatters429PreservesProviderReset(t *testing.T) {
@@ -151,9 +148,10 @@ func TestChatters429PreservesProviderReset(t *testing.T) {
 	ctx := WithAttemptAdmission(t.Context(), func(context.Context, string) error { return nil })
 	_, err := c.GetChattersPage(ctx, "123", "456", "")
 	var denied *AdmissionError
-	if !errors.As(err, &denied) || denied.Code != "rate_limited" || denied.RetryAt.Sub(reset) > time.Millisecond || reset.Sub(denied.RetryAt) > time.Millisecond {
-		t.Fatalf("reset lost: err=%v", err)
-	}
+	require.True(t, errors.As(err, &denied))
+	require.Equal(t, "rate_limited", denied.Code)
+	require.LessOrEqual(t, denied.RetryAt.Sub(reset), time.Millisecond)
+	require.LessOrEqual(t, reset.Sub(denied.RetryAt), time.Millisecond)
 }
 
 func TestChattersExpiredContextDoesNotSpendOrCallHTTP(t *testing.T) {
@@ -166,38 +164,39 @@ func TestChattersExpiredContextDoesNotSpendOrCallHTTP(t *testing.T) {
 	cancel()
 	ctx = WithAttemptAdmission(ctx, func(context.Context, string) error { admitted++; return nil })
 	_, err := c.GetChattersPage(ctx, "123", "456", "")
-	if !errors.Is(err, context.Canceled) || calls != 0 || admitted != 0 {
-		t.Fatalf("expired context executed: calls=%d admission=%d err=%v", calls, admitted, err)
-	}
+	require.True(t, errors.Is(err, context.Canceled))
+	require.Equal(t, 0, calls)
+	require.Equal(t, 0, admitted)
 }
 
 func TestChattersFreshLiveReadUsesAppTokenAndAdmission(t *testing.T) {
 	admitted := 0
 	c := chattersTestClient(func(req *http.Request) (*http.Response, error) {
-		if req.URL.Path != "/helix/streams" || req.URL.Query().Get("user_id") != "123" || req.Header.Get("Authorization") != "Bearer app-token" {
-			t.Fatalf("wrong live identity: %v", req.URL)
-		}
+		require.Equal(t, "/helix/streams", req.URL.Path)
+		require.Equal(t, "123", req.URL.Query().Get("user_id"))
+		require.Equal(t, "Bearer app-token", req.Header.Get("Authorization"))
+
 		return chatterResponse(200, `{"data":[{"type":"live"}]}`), nil
 	})
 	ctx := WithAttemptAdmission(t.Context(), func(_ context.Context, endpoint string) error {
 		admitted++
-		if endpoint != "/helix/streams?user_id=123" {
-			t.Fatalf("wrong admission route %q", endpoint)
-		}
+		require.Equal(t, "/helix/streams?user_id=123", endpoint)
+
 		return nil
 	})
 	live, err := c.IsStreamLive(ctx, "123")
-	if err != nil || !live || admitted != 1 {
-		t.Fatalf("live=%v admission=%d err=%v", live, admitted, err)
-	}
+	require.NoError(t, err)
+	require.True(t, live)
+	require.Equal(t, 1, admitted)
 }
 
 func TestChattersRejectsMalformedSuccessEnvelope(t *testing.T) {
 	for _, body := range []string{`{}`, `{"data":[]}`, `{"pagination":{}}`, `{"data":null,"pagination":{}}`, `{"data":[],"pagination":null}`, `{"data":{},"pagination":{}}`, `{"data":[],"pagination":[]}`} {
 		t.Run(body, func(t *testing.T) {
 			c := chattersTestClient(func(*http.Request) (*http.Response, error) { return chatterResponse(200, body), nil })
-			if page, err := c.GetChattersPage(t.Context(), "123", "456", ""); err == nil {
-				t.Fatalf("malformed success became complete attendance: %+v", page)
+			{
+				_, err := c.GetChattersPage(t.Context(), "123", "456", "")
+				require.Error(t, err)
 			}
 		})
 	}
@@ -235,9 +234,10 @@ func TestReadyCredentialsRevalidateAdmissionBeforeHTTP(t *testing.T) {
 			close(release)
 			err := <-done
 			var denied *AdmissionError
-			if !errors.As(err, &denied) || denied.Code != code || calls != 0 || admissions != 1 {
-				t.Fatalf("stale precredential admission reached HTTP: %v calls=%d admission=%d", err, calls, admissions)
-			}
+			require.True(t, errors.As(err, &denied))
+			require.Equal(t, code, denied.Code)
+			require.Equal(t, 0, calls)
+			require.Equal(t, 1, admissions)
 		})
 	}
 }
@@ -283,14 +283,14 @@ func TestStreamSessionReturnsProviderIdentityAndValidatesBinding(t *testing.T) {
 			c := chattersTestClient(func(*http.Request) (*http.Response, error) { return chatterResponse(200, tc.body), nil })
 			id, started, live, err := c.StreamSession(t.Context(), "123")
 			if tc.invalid {
-				if err == nil {
-					t.Fatal("invalid provider session accepted")
-				}
+				require.NotEqual(t, nil, err)
+
 				return
 			}
-			if err != nil || !live || id != "stream-42" || started.IsZero() {
-				t.Fatalf("lost stream identity: %s %v %v %v", id, started, live, err)
-			}
+			require.NoError(t, err)
+			require.True(t, live)
+			require.Equal(t, "stream-42", id)
+			require.False(t, started.IsZero())
 		})
 	}
 }

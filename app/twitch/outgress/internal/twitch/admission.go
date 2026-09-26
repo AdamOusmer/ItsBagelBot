@@ -41,16 +41,30 @@ func admitAttempt(ctx context.Context, endpoint string) error {
 	return nil
 }
 func observeAttempt(ctx context.Context, res *http.Response) error {
-	_, admitted := ctx.Value(attemptAdmissionKey{}).(AttemptAdmission)
-	_, observed := ctx.Value(providerResetObserverKey{}).(ProviderResetObserver)
-	if (!admitted && !observed) || res.StatusCode != http.StatusTooManyRequests {
+	if res.StatusCode != http.StatusTooManyRequests {
 		return nil
 	}
-	reset := time.Now().Add(time.Second)
-	if seconds, err := strconv.ParseInt(res.Header.Get("Ratelimit-Reset"), 10, 64); err == nil && seconds > 0 {
-		reset = time.Unix(seconds, 0)
+	if !observesProviderReset(ctx) {
+		return nil
 	}
-	return &AdmissionError{Provider: true, Code: "rate_limited", RetryAt: reset}
+	return &AdmissionError{Provider: true, Code: "rate_limited", RetryAt: providerResetHeader(res)}
+}
+func observesProviderReset(ctx context.Context) bool {
+	if _, ok := ctx.Value(attemptAdmissionKey{}).(AttemptAdmission); ok {
+		return true
+	}
+	_, ok := ctx.Value(providerResetObserverKey{}).(ProviderResetObserver)
+	return ok
+}
+func providerResetHeader(res *http.Response) time.Time {
+	seconds, err := strconv.ParseInt(res.Header.Get("Ratelimit-Reset"), 10, 64)
+	if err != nil {
+		return time.Now().Add(time.Second)
+	}
+	if seconds <= 0 {
+		return time.Now().Add(time.Second)
+	}
+	return time.Unix(seconds, 0)
 }
 
 // ProviderResetObserver receives a real HTTP429 at headers, before body cleanup.

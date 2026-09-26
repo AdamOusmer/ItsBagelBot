@@ -14,61 +14,9 @@ import (
 )
 
 func (r *Loyalty) ensureWatchWindowStartColumns(ctx context.Context) error {
-	for _, table := range []string{"loyalty_watch_operations", "loyalty_watch_viewers"} {
-		present := false
-		if r.dialect == "sqlite3" {
-			rows, err := r.sqldb.QueryContext(ctx, "PRAGMA table_info("+table+")")
-			if err != nil {
-				return err
-			}
-			for rows.Next() {
-				var position, nonnull, primary int
-				var name, kind string
-				var defaultValue sql.NullString
-				if err := rows.Scan(&position, &name, &kind, &nonnull, &defaultValue, &primary); err != nil {
-					rows.Close()
-					return err
-				}
-				present = present || name == "window_started_at_ms"
-			}
-			err = rows.Err()
-			rows.Close()
-			if err != nil {
-				return err
-			}
-		} else {
-			var n int
-			if err := r.sqldb.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name='window_started_at_ms'`, table).Scan(&n); err != nil {
-				return err
-			}
-			present = n != 0
-		}
-		if !present {
-			if _, err := r.sqldb.ExecContext(ctx, "ALTER TABLE "+table+" ADD COLUMN window_started_at_ms BIGINT NOT NULL DEFAULT 0"); err != nil {
-				var myErr *mysql.MySQLError
-				if !errors.As(err, &myErr) || myErr.Number != 1060 {
-					return err
-				}
-			}
-		}
-		name := "idx_" + table + "_window"
-		if r.dialect == "sqlite3" {
-			if _, err := r.sqldb.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS "+name+" ON "+table+" (window_started_at_ms,created_at)"); err != nil {
-				return err
-			}
-		} else {
-			var n int
-			if err := r.sqldb.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND index_name=?`, table, name).Scan(&n); err != nil {
-				return err
-			}
-			if n == 0 {
-				if _, err := r.sqldb.ExecContext(ctx, "CREATE INDEX "+name+" ON "+table+" (window_started_at_ms,created_at)"); err != nil {
-					var myErr *mysql.MySQLError
-					if !errors.As(err, &myErr) || myErr.Number != 1061 {
-						return err
-					}
-				}
-			}
+	for _, table := range watchHistoryTables {
+		if err := r.ensureWatchHistoryAgeSchema(ctx, table); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -122,50 +70,150 @@ func (r *Loyalty) PruneWatchHistory(ctx context.Context, safeCutoffUnixMilli int
 	}
 	ctx, cancel := context.WithTimeout(ctx, watchHistoryPruneBudget)
 	defer cancel()
-	limit := time.Now().Add(-watchtime.HistoryRetention).UnixMilli()
-	if safeCutoffUnixMilli > limit {
-		safeCutoffUnixMilli = limit
-	}
-	tx, err := r.sqldb.BeginTx(ctx, nil)
+	cutoff := min(safeCutoffUnixMilli, time.Now().Add(-watchtime.HistoryRetention).UnixMilli())
+	finalized, err := r.advanceWatchRetention(ctx, cutoff)
 	if err != nil {
 		return err
+	}
+	// Cleanup runs after the barrier transaction releases its lock. Retired
+	// source windows can no longer write markers, so batches commit separately.
+	return r.pruneRetiredWatchHistory(ctx, finalized)
+}
+
+func (r *Loyalty) ensureWatchWindowStartColumn(ctx context.Context, table string) error {
+	present, err := r.watchWindowStartColumnPresent(ctx, table)
+	if err != nil || present {
+		return err
+	}
+	_, err = r.sqldb.ExecContext(ctx, "ALTER TABLE "+table+" ADD COLUMN window_started_at_ms BIGINT NOT NULL DEFAULT 0")
+	return ignoreMySQLSchemaRace(err, 1060)
+}
+
+func (r *Loyalty) watchWindowStartColumnPresent(ctx context.Context, table string) (bool, error) {
+	if r.dialect == "sqlite3" {
+		return r.sqliteWatchColumnPresent(ctx, table)
+	}
+	var count int
+	err := r.sqldb.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name='window_started_at_ms'`, table).Scan(&count)
+	return count != 0, err
+}
+
+func (r *Loyalty) sqliteWatchColumnPresent(ctx context.Context, table string) (bool, error) {
+	rows, err := r.sqldb.QueryContext(ctx, "PRAGMA table_info("+table+")")
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	present := false
+	for rows.Next() {
+		matches, err := scanWatchWindowColumn(rows)
+		if err != nil {
+			return false, err
+		}
+		present = present || matches
+	}
+	return present, rows.Err()
+}
+
+func (r *Loyalty) ensureWatchIndex(ctx context.Context, table, suffix, columns string) error {
+	name := "idx_" + table + "_" + suffix
+	stmt := "CREATE INDEX " + name + " ON " + table + " (" + columns + ")"
+	if r.dialect == "sqlite3" {
+		_, err := r.sqldb.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS "+name+" ON "+table+" ("+columns+")")
+		return err
+	}
+	var count int
+	if err := r.sqldb.QueryRowContext(ctx, "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND index_name=?", table, name).Scan(&count); err != nil {
+		return err
+	}
+	if count != 0 {
+		return nil
+	}
+	_, err := r.sqldb.ExecContext(ctx, stmt)
+	return ignoreMySQLSchemaRace(err, 1061)
+}
+
+func ignoreMySQLSchemaRace(err error, number uint16) error {
+	var myErr *mysql.MySQLError
+	if !errors.As(err, &myErr) {
+		return err
+	}
+	if myErr.Number == number {
+		return nil
+	}
+	return err
+}
+
+func (r *Loyalty) advanceWatchRetention(ctx context.Context, cutoff int64) (int64, error) {
+	tx, err := r.sqldb.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
 	}
 	defer tx.Rollback()
 	finalized, err := r.lockWatchRetention(ctx, tx)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if safeCutoffUnixMilli > finalized {
-		finalized = safeCutoffUnixMilli
+	if cutoff > finalized {
+		finalized = cutoff
 		if _, err := tx.ExecContext(ctx, `UPDATE loyalty_watch_retention SET finalized_window_ms=? WHERE id=1`, finalized); err != nil {
+			return 0, err
+		}
+	}
+	err = tx.Commit()
+	return finalized, err
+}
+
+func (r *Loyalty) pruneRetiredWatchHistory(ctx context.Context, finalized int64) error {
+	for pass := 0; pass < watchHistoryPrunePasses && ctx.Err() == nil; pass++ {
+		more, err := r.pruneWatchHistoryPass(ctx, finalized)
+		if err != nil || !more {
 			return err
 		}
 	}
-	if err := tx.Commit(); err != nil {
+	return nil
+}
+
+func (r *Loyalty) pruneWatchHistoryPass(ctx context.Context, finalized int64) (bool, error) {
+	more := false
+	for _, table := range []struct{ name, identity string }{{"loyalty_watch_operations", "operation_id"}, {"loyalty_watch_viewers", "award_id"}} {
+		filled, err := r.pruneWatchTable(ctx, finalized, table.name, table.identity)
+		if err != nil {
+			return false, err
+		}
+		more = more || filled
+	}
+	return more, nil
+}
+
+func (r *Loyalty) watchHistoryDeleteQuery(table, identity string) string {
+	condition := " WHERE created_at<=? AND window_started_at_ms<=? ORDER BY window_started_at_ms,created_at LIMIT ?"
+	if r.dialect == "sqlite3" {
+		return "DELETE FROM " + table + " WHERE " + identity + " IN (SELECT " + identity + " FROM " + table + condition + ")"
+	}
+	return "DELETE FROM " + table + condition
+}
+
+func (r *Loyalty) ensureWatchHistoryAgeSchema(ctx context.Context, table string) error {
+	if err := r.ensureWatchWindowStartColumn(ctx, table); err != nil {
 		return err
 	}
-	// Cleanup does not hold the global barrier lock. Retired source windows
-	// cannot write more markers, so each indexed batch can commit separately.
-	for pass := 0; pass < watchHistoryPrunePasses && ctx.Err() == nil; pass++ {
-		more := false
-		for _, table := range []struct{ name, identity string }{{"loyalty_watch_operations", "operation_id"}, {"loyalty_watch_viewers", "award_id"}} {
-			query := "DELETE FROM " + table.name + " WHERE created_at<=? AND window_started_at_ms<=? ORDER BY window_started_at_ms,created_at LIMIT ?"
-			if r.dialect == "sqlite3" {
-				query = "DELETE FROM " + table.name + " WHERE " + table.identity + " IN (SELECT " + table.identity + " FROM " + table.name + " WHERE created_at<=? AND window_started_at_ms<=? ORDER BY window_started_at_ms,created_at LIMIT ?)"
-			}
-			result, err := r.sqldb.ExecContext(ctx, query, finalized/1000, finalized, watchHistoryPruneBatch)
-			if err != nil {
-				return err
-			}
-			n, err := result.RowsAffected()
-			if err != nil {
-				return err
-			}
-			more = more || n == watchHistoryPruneBatch
-		}
-		if !more {
-			return nil
-		}
+	return r.ensureWatchIndex(ctx, table, "window", "window_started_at_ms,created_at")
+}
+
+func scanWatchWindowColumn(rows *sql.Rows) (bool, error) {
+	var position, nonnull, primary int
+	var name, kind string
+	var defaultValue sql.NullString
+	err := rows.Scan(&position, &name, &kind, &nonnull, &defaultValue, &primary)
+	return name == "window_started_at_ms", err
+}
+
+func (r *Loyalty) pruneWatchTable(ctx context.Context, finalized int64, table, identity string) (bool, error) {
+	result, err := r.sqldb.ExecContext(ctx, r.watchHistoryDeleteQuery(table, identity), finalized/1000, finalized, watchHistoryPruneBatch)
+	if err != nil {
+		return false, err
 	}
-	return nil
+	n, err := result.RowsAffected()
+	return n == watchHistoryPruneBatch, err
 }

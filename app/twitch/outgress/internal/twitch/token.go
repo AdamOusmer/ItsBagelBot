@@ -383,28 +383,34 @@ func (s *Source) singleflightRefreshOnce(ctx context.Context) (token string, sta
 	s.mu.RUnlock()
 	key := "refresh-" + strconv.FormatUint(gen, 10)
 
-	result := s.group.DoChan(key, func() (any, error) {
-		// Another caller may have completed the refresh while this caller waited.
-		if token, ok := s.cached(refreshMargin); ok {
-			return refreshResult{token: token}, nil
-		}
+	result := s.group.DoChan(key, func() (any, error) { return s.refreshGeneration(ctx, gen) })
+	return awaitTokenRefresh(ctx, result)
+}
 
-		// refresh performs NATS RPC and HTTP I/O. It intentionally runs outside
-		// mu so status calls and invalidation never queue behind a slow network
-		// operation; singleflight still guarantees one refresh per Source.
-		token, ttl, err := s.refresh(ctx)
-		if err != nil {
-			if cached, ok := s.cached(0); ok {
-				return refreshResult{token: cached}, nil
-			}
-			return nil, err
-		}
-
-		if !s.storeIfGen(gen, token, ttl) {
-			return refreshResult{stale: true}, nil
-		}
+func (s *Source) refreshGeneration(ctx context.Context, gen uint64) (any, error) {
+	// Another caller may have completed the refresh while this caller waited.
+	if token, ok := s.cached(refreshMargin); ok {
 		return refreshResult{token: token}, nil
-	})
+	}
+
+	// refresh performs NATS RPC and HTTP I/O. It intentionally runs outside
+	// mu so status calls and invalidation never queue behind a slow network
+	// operation; singleflight still guarantees one refresh per Source.
+	token, ttl, err := s.refresh(ctx)
+	if err != nil {
+		if cached, ok := s.cached(0); ok {
+			return refreshResult{token: cached}, nil
+		}
+		return nil, err
+	}
+
+	if !s.storeIfGen(gen, token, ttl) {
+		return refreshResult{stale: true}, nil
+	}
+	return refreshResult{token: token}, nil
+}
+
+func awaitTokenRefresh(ctx context.Context, result <-chan singleflight.Result) (string, bool, error) {
 	select {
 	case <-ctx.Done():
 		return "", false, ctx.Err()

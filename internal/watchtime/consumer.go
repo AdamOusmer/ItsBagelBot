@@ -12,12 +12,11 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
-	"ItsBagelBot/pkg/codec"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
+
 	"github.com/nats-io/nuid"
 	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
-
-	pkgvalkey "ItsBagelBot/pkg/valkey"
 )
 
 const (
@@ -75,42 +74,81 @@ func (c *Consumer) Run(ctx context.Context) {
 		c.log.Error("watchtime: no award repository configured")
 		return
 	}
-	var nextClaim time.Time
-	var nextMaintenance time.Time
-	ready := false
+	state := consumerSchedule{}
 	for ctx.Err() == nil {
-		if !ready {
-			if err := c.Ensure(ctx); err != nil {
-				c.log.Error("watchtime: outbox unavailable", zap.Error(err))
-				if !consumerPause(ctx, time.Second) {
-					return
-				}
-				continue
-			}
-			ready = true
+		if !c.consumeCycle(ctx, &state) {
+			return
 		}
-		if time.Now().After(nextClaim) {
-			nextClaim = time.Now().Add(time.Second)
-			if err := c.recoverBatch(ctx, claimIdle); err != nil && ctx.Err() == nil {
-				c.log.Error("watchtime: pending recovery failed", zap.Error(err))
-				if strings.HasPrefix(err.Error(), "NOGROUP") {
-					ready = false
-				}
-			}
+	}
+}
+
+type consumerSchedule struct {
+	nextClaim       time.Time
+	nextMaintenance time.Time
+	ready           bool
+}
+
+func (c *Consumer) consumeCycle(ctx context.Context, state *consumerSchedule) bool {
+	if !state.ready {
+		state.ready = c.prepareOutbox(ctx)
+		if !state.ready {
+			return consumerPause(ctx, time.Second)
 		}
-		if c.maintain != nil && time.Now().After(nextMaintenance) {
-			nextMaintenance = time.Now().Add(10 * time.Second)
-			_ = c.pruneHistory(ctx) // Logs its result with cutoff/stage context.
-		}
-		if err := c.read(ctx); err != nil && ctx.Err() == nil {
-			c.log.Error("watchtime: outbox read failed", zap.Error(err))
-			if strings.HasPrefix(err.Error(), "NOGROUP") {
-				ready = false
-			}
-			if !consumerPause(ctx, time.Second) {
-				return
-			}
-		}
+	}
+	c.recoverDue(ctx, state)
+	c.maintainDue(ctx, state)
+	return c.readFresh(ctx, state)
+}
+
+func (c *Consumer) prepareOutbox(ctx context.Context) bool {
+	if err := c.Ensure(ctx); err != nil {
+		c.log.Error("watchtime: outbox unavailable", zap.Error(err))
+		return false
+	}
+	return true
+}
+
+func (c *Consumer) recoverDue(ctx context.Context, state *consumerSchedule) {
+	if !time.Now().After(state.nextClaim) {
+		return
+	}
+	state.nextClaim = time.Now().Add(time.Second)
+	c.recordStreamFailure(ctx, state, "watchtime: pending recovery failed", c.recoverBatch(ctx, claimIdle))
+}
+
+func (c *Consumer) maintainDue(ctx context.Context, state *consumerSchedule) {
+	if c.maintain == nil {
+		return
+	}
+	if !time.Now().After(state.nextMaintenance) {
+		return
+	}
+	state.nextMaintenance = time.Now().Add(10 * time.Second)
+	_ = c.pruneHistory(ctx) // Logs the result with cutoff/stage context.
+}
+
+func (c *Consumer) readFresh(ctx context.Context, state *consumerSchedule) bool {
+	err := c.read(ctx)
+	if err == nil {
+		return true
+	}
+	if ctx.Err() != nil {
+		return false
+	}
+	c.recordStreamFailure(ctx, state, "watchtime: outbox read failed", err)
+	return consumerPause(ctx, time.Second)
+}
+
+func (c *Consumer) recordStreamFailure(ctx context.Context, state *consumerSchedule, message string, err error) {
+	if err == nil {
+		return
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	c.log.Error(message, zap.Error(err))
+	if strings.HasPrefix(err.Error(), "NOGROUP") {
+		state.ready = false
 	}
 }
 
@@ -231,59 +269,6 @@ func (c *Consumer) reclaimOne(ctx context.Context, idle time.Duration) (int, err
 		c.process(ctx, entry)
 	}
 	return len(entries), nil
-}
-
-// ValidateAward is shared by outbox readers and repository entry points. The
-// public API never accepts an unbounded payload or numeric mutation.
-func ValidateAward(a data.WatchAwardDTO) error {
-	if a.UserID == 0 || a.AccountCreatedAt <= 0 || a.AccountCreatedAt > data.MaxCounter || a.WindowStartedAtUnixMilli < 0 || a.WindowStartedAtUnixMilli > data.MaxCounter || a.Generation == "" || len(a.Generation) > 64 || a.LiveSession == "" || len(a.LiveSession) > 128 || a.WindowID == "" || len(a.WindowID) > 128 || len(a.Entries) == 0 || len(a.Entries) > 1000 {
-		return errors.New("invalid watch award identity or batch size")
-	}
-	for _, e := range a.Entries {
-		if e.ViewerID == 0 || e.Points < 0 || e.Points > 1_000_000_000 || e.WatchSeconds == 0 || e.WatchSeconds > 300 || len(e.ViewerLogin) > 64 || len(e.ViewerName) > 64 {
-			return errors.New("invalid watch award entry")
-		}
-	}
-	return nil
-}
-
-func (c *Consumer) process(parent context.Context, entry valkey.XRangeEntry) {
-	ctx, cancel := context.WithTimeout(parent, awardTimeout)
-	defer cancel()
-	var award data.WatchAwardDTO
-	err := codec.Unmarshal([]byte(entry.FieldValues["payload"]), &award)
-	if err == nil {
-		err = ValidateAward(award)
-	}
-	if err == nil && entry.FieldValues["operation_id"] != OperationID(award) {
-		err = errors.New("watch operation identity mismatch")
-	}
-	if err != nil {
-		if quarantineErr := c.quarantine(ctx, entry, err); quarantineErr != nil {
-			c.log.Error("watchtime: quarantine failed; delivery retained", zap.String("stream_id", entry.ID), zap.Error(quarantineErr))
-		} else {
-			c.log.Error("watchtime: malformed award quarantined", zap.String("stream_id", entry.ID), zap.Error(err))
-		}
-		return
-	}
-	fields := []zap.Field{zap.Uint64("broadcaster_id", award.UserID), zap.String("operation_id", OperationID(award)), zap.String("stream_id", entry.ID), zap.String("window_id", award.WindowID), zap.Uint32("chunk", award.Chunk), zap.Int("viewer_count", len(award.Entries))}
-	if ms, err := strconv.ParseInt(strings.SplitN(entry.ID, "-", 2)[0], 10, 64); err == nil {
-		fields = append(fields, zap.Int64("outbox_delivery_age_ms", max(0, time.Now().UnixMilli()-ms)))
-	}
-	if start := WindowStartUnixMilli(award); start > 0 {
-		fields = append(fields, zap.Int64("window_age_ms", max(0, time.Now().UnixMilli()-start)))
-	}
-	started := time.Now()
-	err = c.handle(ctx, award)
-	fields = append(fields, zap.Duration("sql_commit_duration", time.Since(started)))
-	if err != nil {
-		c.log.Warn("watchtime: award commit failed; delivery retained", append(fields, zap.Error(err))...)
-		return
-	}
-	c.log.Debug("watchtime: award committed", fields...)
-	if err := c.ack(ctx, entry.ID, award); err != nil {
-		c.log.Warn("watchtime: committed award acknowledgement failed; replay is safe", append(fields, zap.Error(err))...)
-	}
 }
 
 func (c *Consumer) ack(ctx context.Context, id string, award data.WatchAwardDTO) error {

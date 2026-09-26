@@ -38,11 +38,7 @@ func (c *Client) GetChattersPage(ctx context.Context, broadcasterID, moderatorID
 	if c.user == nil {
 		return ChattersPage{}, ErrNoUserToken
 	}
-	endpoint := chattersPath + "?broadcaster_id=" + url.QueryEscape(broadcasterID) +
-		"&moderator_id=" + url.QueryEscape(moderatorID) + "&first=" + strconv.Itoa(chattersPageSize)
-	if cursor != "" {
-		endpoint += "&after=" + url.QueryEscape(cursor)
-	}
+	endpoint := chatterPageEndpoint(broadcasterID, moderatorID, cursor)
 	res, err := c.ExecuteAs(ctx, IdentityBot, "", getCall(endpoint))
 	if err != nil {
 		return ChattersPage{}, err
@@ -59,7 +55,7 @@ func (c *Client) GetChattersPage(ctx context.Context, broadcasterID, moderatorID
 	if err != nil {
 		return ChattersPage{}, err
 	}
-	if next != "" && next == cursor {
+	if !cursorAdvanced(cursor, next) {
 		return ChattersPage{}, ErrRepeatedCursor
 	}
 	return ChattersPage{Chatters: batch, NextCursor: next, Complete: next == ""}, nil
@@ -89,38 +85,78 @@ func (c *Client) GetChatters(ctx context.Context, broadcasterID, moderatorID str
 
 func decodeChattersPage(res *http.Response) ([]Chatter, string, error) {
 	defer drain(res)
-	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
-		return nil, "", ErrMissingScope
-	}
-	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return nil, "", &StatusError{Status: res.StatusCode, Body: string(body)}
+	if err := chatterResponseStatus(res); err != nil {
+		return nil, "", err
 	}
 
-	var payload struct {
-		Data *[]struct {
-			UserID    string `json:"user_id"`
-			UserLogin string `json:"user_login"`
-		} `json:"data"`
-		Pagination *struct {
-			Cursor string `json:"cursor"`
-		} `json:"pagination"`
-	}
+	var payload chatterPayload
 	if err := codec.NewDecoder(io.LimitReader(res.Body, 2<<20)).Decode(&payload); err != nil {
 		return nil, "", err
 	}
-	if payload.Data == nil || payload.Pagination == nil {
-		return nil, "", errors.New("invalid chatter response envelope")
+	if err := payload.validate(); err != nil {
+		return nil, "", err
 	}
-	if len(*payload.Data) > chattersPageSize || len(payload.Pagination.Cursor) > 4096 {
-		return nil, "", errors.New("invalid oversized chatter page")
+	return payload.chatters(), payload.Pagination.Cursor, nil
+}
+
+func chatterPageEndpoint(broadcasterID, moderatorID, cursor string) string {
+	endpoint := chattersPath + "?broadcaster_id=" + url.QueryEscape(broadcasterID) +
+		"&moderator_id=" + url.QueryEscape(moderatorID) + "&first=" + strconv.Itoa(chattersPageSize)
+	if cursor != "" {
+		endpoint += "&after=" + url.QueryEscape(cursor)
 	}
-	batch := make([]Chatter, 0, len(*payload.Data))
-	for _, d := range *payload.Data {
+	return endpoint
+}
+func cursorAdvanced(current, next string) bool {
+	if next == "" {
+		return true
+	}
+	return next != current
+}
+
+type chatterPayload struct {
+	Data *[]struct {
+		UserID    string `json:"user_id"`
+		UserLogin string `json:"user_login"`
+	} `json:"data"`
+	Pagination *struct {
+		Cursor string `json:"cursor"`
+	} `json:"pagination"`
+}
+
+func (p chatterPayload) validate() error {
+	if p.Data == nil {
+		return errors.New("invalid chatter response envelope")
+	}
+	if p.Pagination == nil {
+		return errors.New("invalid chatter response envelope")
+	}
+	if len(*p.Data) > chattersPageSize {
+		return errors.New("invalid oversized chatter page")
+	}
+	if len(p.Pagination.Cursor) > 4096 {
+		return errors.New("invalid oversized chatter page")
+	}
+	return nil
+}
+func (p chatterPayload) chatters() []Chatter {
+	batch := make([]Chatter, 0, len(*p.Data))
+	for _, d := range *p.Data {
 		if d.UserID == "" {
 			continue
 		}
 		batch = append(batch, Chatter{ID: d.UserID, Login: d.UserLogin})
 	}
-	return batch, payload.Pagination.Cursor, nil
+	return batch
+}
+func chatterResponseStatus(res *http.Response) error {
+	switch res.StatusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return ErrMissingScope
+	}
+	if res.StatusCode >= http.StatusOK && res.StatusCode < http.StatusMultipleChoices {
+		return nil
+	}
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
+	return &StatusError{Status: res.StatusCode, Body: string(body)}
 }

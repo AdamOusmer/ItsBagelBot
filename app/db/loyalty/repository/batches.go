@@ -116,23 +116,17 @@ func (r *Loyalty) commitBumpBatch(ctx context.Context, batch counterBatch) error
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if r.watchReady.Load() && batch.dto.UserID != 0 {
-		_, deleted, err := r.fence(ctx, tx, batch.dto.UserID, 0)
-		if err != nil {
-			return err
-		}
-		if deleted {
-			// Persist the existing replay identity even for discarded work. A
-			// lost acknowledgement must not make it payable after recreation.
-			if _, err := r.insertCounterBatchReceipt(ctx, tx, batch.dto.BatchID); err != nil {
-				return err
-			}
-			return tx.Commit()
-		}
+	retired, err := r.counterBatchRetired(ctx, tx, batch.dto.UserID)
+	if err != nil {
+		return err
 	}
-	added, err := r.insertCounterBatchReceipt(ctx, tx, batch.dto.BatchID)
+	added, err := insertBatchReceipt(ctx, tx, batch.dto.BatchID, r.insertIgnore())
 	if err != nil || !added {
 		return err
+	}
+	// Discarded deliveries retain receipts so a lost ACK cannot pay a replacement account.
+	if retired {
+		return tx.Commit()
 	}
 	if err := writeCounterBatch(ctx, tx, batch); err != nil {
 		return err
@@ -186,8 +180,12 @@ func trialPromoted(ctx context.Context, tx *sql.Tx, query string, userID uint64)
 	return err == nil, err
 }
 
-func insertBatchReceipt(ctx context.Context, tx *sql.Tx, batchID string) (bool, error) {
-	result, err := tx.ExecContext(ctx, "INSERT IGNORE INTO counter_batches (id, created_at) VALUES (?, ?)", batchID, time.Now())
+func insertBatchReceipt(ctx context.Context, tx *sql.Tx, batchID string, dialectInsert ...string) (bool, error) {
+	insert := "INSERT IGNORE"
+	if len(dialectInsert) > 0 {
+		insert = dialectInsert[0]
+	}
+	result, err := tx.ExecContext(ctx, insert+" INTO counter_batches (id, created_at) VALUES (?, ?)", batchID, time.Now())
 	if err != nil {
 		return false, err
 	}
@@ -206,16 +204,13 @@ func writeBatchBumps(ctx context.Context, tx *sql.Tx, bumps map[bumpKey]*bumpSum
 	return writeErr
 }
 
-// Keep the existing MySQL receipt writer and support the SQLite watch fence
-// fixture without changing the receipt's identity or transactional boundaries.
-func (r *Loyalty) insertCounterBatchReceipt(ctx context.Context, tx *sql.Tx, batchID string) (bool, error) {
-	if r.dialect != "sqlite3" {
-		return insertBatchReceipt(ctx, tx, batchID)
+func (r *Loyalty) counterBatchRetired(ctx context.Context, tx *sql.Tx, id uint64) (bool, error) {
+	if !r.watchReady.Load() {
+		return false, nil
 	}
-	result, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO counter_batches (id, created_at) VALUES (?, ?)", batchID, time.Now())
-	if err != nil {
-		return false, err
+	if id == 0 {
+		return false, nil
 	}
-	added, err := result.RowsAffected()
-	return added != 0, err
+	_, retired, err := r.fence(ctx, tx, id, 0)
+	return retired, err
 }
