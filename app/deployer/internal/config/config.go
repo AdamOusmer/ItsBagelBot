@@ -97,13 +97,12 @@ func loadDeploy() ports.Config {
 		LockTTL:               env.GetDuration("DEPLOY_LOCK_TTL", 2*time.Minute),
 		HeartbeatEvery:        env.GetDuration("DEPLOY_HEARTBEAT_EVERY", 20*time.Second),
 
-		NATSAuthMode:      ports.NATSAuthMode(env.Get("DEPLOY_NATS_AUTH", string(ports.NATSAuthConfig))),
-		NATSSigningSeed:   env.Get("DEPLOY_NATS_SIGNING_SEED", ""),
-		NATSSysJWT:        env.Get("DEPLOY_NATS_SYS_JWT", ""),
-		NATSSysNKeySeed:   env.Get("DEPLOY_NATS_SYS_NKEY_SEED", ""),
-		NATSHubURL:        env.Get("DEPLOY_NATS_HUB_URL", ""),
-		NATSLeafURL:       env.Get("DEPLOY_NATS_LEAF_URL", ""),
-		ACLReconcileEvery: env.GetDuration("DEPLOY_ACL_RECONCILE_EVERY", 5*time.Minute),
+		NATSAuthMode:    ports.NATSAuthMode(env.Get("DEPLOY_NATS_AUTH", string(ports.NATSAuthConfig))),
+		NATSSigningSeed: env.Get("DEPLOY_NATS_SIGNING_SEED", ""),
+		NATSSysJWT:      env.Get("DEPLOY_NATS_SYS_JWT", ""),
+		NATSSysNKeySeed: env.Get("DEPLOY_NATS_SYS_NKEY_SEED", ""),
+		NATSHubURL:      env.Get("DEPLOY_NATS_HUB_URL", ""),
+		NATSLeafURL:     env.Get("DEPLOY_NATS_LEAF_URL", ""),
 	}
 }
 
