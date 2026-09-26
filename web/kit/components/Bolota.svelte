@@ -3,12 +3,13 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { onDestroy } from 'svelte';
   import { prefersReducedMotion as reducedMotion } from '@bagel/ui/lib/motion-query';
-  import { parts } from '@luzir/bolota';
+  import { parts, type Palette } from '@luzir/bolota';
   import type { EngineHandle } from '@luzir/bolota/engine';
 
   let {
     name,
     size = 30,
+    palette,
     active = false,
     cycle = true,
     motionState = 'wander',
@@ -24,6 +25,7 @@
   }: {
     name: string;
     size?: number;
+    palette?: Palette;
     active?: boolean;
     cycle?: boolean;
     motionState?: string;
@@ -54,7 +56,7 @@
   const CYCLE_MS = 2600;
 
   const label = $derived(title || name);
-  const pose = $derived(parts(name, { size, background: false, title: label }));
+  const pose = $derived(parts(name, { size, palette, background: false, title: label }));
   const styleVars = $derived(
     pose.vars
       ? Object.entries(pose.vars)
@@ -109,7 +111,7 @@
       mounting = false;
       return;
     }
-    const h = mountEngine(el, name, { size, background: false });
+    const h = mountEngine(el, name, { size, palette, background: false });
     h.loop(motionState);
     if (follow) h.follow('window');
     step = 0;

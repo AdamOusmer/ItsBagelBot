@@ -1,0 +1,75 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+/* A number-first plate with optional artwork peeking above its rim. The
+   artwork belongs to the caller; this contract knows no product mascots.
+   --counter-card-radius, --counter-card-pad and --counter-card-value-size
+   let a composition adjust scale without reaching into adapter markup. */
+@layer bb.elements {
+  .bb-counter-card {
+    --counter-card-ink: var(--bb-white);
+    --counter-card-secondary: var(--bb-tan-pale);
+    --counter-card-seam: rgba(var(--bb-tan-pale-rgb), .13);
+    position: relative;
+    min-width: 0;
+    border: 1px solid rgba(var(--bb-green-glow-rgb), .32);
+    border-radius: var(--counter-card-radius, 24px);
+    background: linear-gradient(140deg, rgba(var(--bb-green-rgb), .45), transparent 85%), var(--bb-card-bg);
+    color: var(--counter-card-ink);
+    font-family: var(--bb-font-body);
+  }
+  .bb-counter-card--tan {
+    --counter-card-secondary: var(--bb-tan-light);
+    border-color: var(--bb-border-strong);
+    background: linear-gradient(140deg, rgba(var(--bb-tan-rgb), .16), transparent 85%), var(--bb-card-bg);
+  }
+  .bb-counter-card--solid.bb-counter-card--green {
+    background: var(--bb-green);
+    border-color: var(--bb-green-light);
+    box-shadow: 0 7px 0 rgba(var(--bb-green-light-rgb), .24);
+  }
+  .bb-counter-card--solid.bb-counter-card--tan {
+    --counter-card-ink: var(--bb-black);
+    --counter-card-secondary: var(--bb-black);
+    --counter-card-seam: rgba(var(--bb-black-rgb), .15);
+    background: var(--bb-tan-light);
+    border-color: var(--bb-tan-pale);
+    box-shadow: 0 7px 0 rgba(var(--bb-tan-rgb), .24);
+  }
+  .bb-counter-card--tilt-left { transform: rotate(-.8deg); }
+  .bb-counter-card--tilt-right { transform: rotate(.8deg); }
+  .bb-counter-card__artwork {
+    position: absolute;
+    top: var(--counter-card-artwork-top, -60px);
+    right: var(--counter-card-artwork-right, 26px);
+    z-index: 2;
+    pointer-events: none;
+    line-height: 0;
+  }
+  .bb-counter-card__body { position: relative; z-index: 1; padding: var(--counter-card-pad, 28px); }
+  .bb-counter-card__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .bb-counter-card__label { min-width: 0; overflow-wrap: anywhere; margin: 0; color: var(--counter-card-ink); font: 600 20px/1.3 var(--bb-font-display); letter-spacing: -.025em; }
+  .bb-counter-card__period { min-width: 0; overflow-wrap: anywhere; margin: 0; font: 400 11px/1.5 var(--bb-font-body); color: var(--counter-card-secondary); }
+  .bb-counter-card__measure { display: flex; align-items: baseline; gap: 8px; container-type: inline-size; margin: 28px 0 8px; }
+  .bb-counter-card__value {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--counter-card-ink);
+    font: 600 var(--counter-card-value-size, clamp(42px, 18cqi, 84px))/1 var(--bb-font-body);
+    letter-spacing: -.065em;
+    font-variant-numeric: tabular-nums;
+  }
+  .bb-counter-card__unit { font: 400 24px/1 var(--bb-font-mono); color: var(--counter-card-secondary); }
+  .bb-counter-card__detail { margin: 0; font: 400 12px/1.5 var(--bb-font-body); color: var(--counter-card-secondary); overflow-wrap: anywhere; }
+  .bb-counter-card__foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; padding: 17px var(--counter-card-pad, 28px); border-top: 1px solid var(--counter-card-seam); }
+  .bb-counter-card__rate { font: 500 20px/1.2 var(--bb-font-mono); font-variant-numeric: tabular-nums; }
+  .bb-counter-card__rate small { margin-left: 6px; font-size: 12px; font-weight: 400; }
+  .bb-counter-card__rate-label { margin: 0; font: 400 11px/1.5 var(--bb-font-body); color: var(--counter-card-secondary); }
+  @media (max-width: 650px) {
+    .bb-counter-card { --counter-card-pad: 22px; }
+    .bb-counter-card__label { font-size: 21px; }
+    .bb-counter-card__measure { margin-top: 22px; }
+  }
+}

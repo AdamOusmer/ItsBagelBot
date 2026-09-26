@@ -1,0 +1,34 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+// Astro twin of StatsPageLayout.svelte. Named slots carry the foreground;
+// this library owns their placement and never imports an app's creature engine.
+import AmbientSky from './AmbientSky.astro';
+import '../styles/elements/stats-page-layout.css';
+
+interface Props {
+    arrangement?: 'playful' | 'onboarding' | 'gathering';
+    class?: string;
+    [key: string]: unknown;
+}
+const { arrangement = 'playful', class: className = '', ...rest } = Astro.props;
+const classes = ['bb-stats-page', `bb-stats-page--${arrangement}`, className].filter(Boolean).join(' ');
+---
+
+<div class={classes} {...rest}>
+  <AmbientSky position="contained" progress={0.65} turn={24} />
+  <div class="bb-stats-page__inner">
+    <header class="bb-stats-page__header">
+      <div class="bb-stats-page__heading"><slot name="heading" /></div>
+      {Astro.slots.has('crowd') && <div class="bb-stats-page__crowd" aria-hidden="true"><slot name="crowd" /></div>}
+    </header>
+    {Astro.slots.has('notice') && <div class="bb-stats-page__notice"><slot name="notice" /></div>}
+    <div class="bb-stats-page__body">
+      <div class="bb-stats-page__counters"><slot name="counters" /></div>
+      <div class="bb-stats-page__ranking"><slot name="ranking" /></div>
+      <div class="bb-stats-page__community"><slot name="community" /></div>
+    </div>
+    {Astro.slots.has('footer') && <div class="bb-stats-page__footer"><slot name="footer" /></div>}
+  </div>
+</div>

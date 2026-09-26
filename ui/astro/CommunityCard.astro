@@ -1,0 +1,32 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import '../styles/elements/community-card.css';
+
+interface Props {
+  title: string;
+  subtitle?: string;
+  total: string;
+  period?: string;
+  tone?: 'green' | 'tan';
+  appearance?: 'solid' | 'soft';
+  class?: string;
+  [key: string]: unknown;
+}
+const {
+  title, subtitle = '', total, period = 'All time', tone = 'tan',
+  appearance = 'soft', class: cls = '', ...rest
+} = Astro.props;
+const classes = [
+  'bb-community-card', `bb-community-card--${tone}`, `bb-community-card--${appearance}`, cls,
+].filter(Boolean).join(' ');
+---
+
+<section class={classes} aria-label={title} {...rest}>
+  <div class="bb-community-card__cover">
+    <div class="bb-community-card__head"><h2 class="bb-community-card__title">{title}</h2>{subtitle && <p class="bb-community-card__subtitle">{subtitle}</p>}</div>
+    {Astro.slots.has('artwork') && <div class="bb-community-card__artwork" aria-hidden="true"><slot name="artwork" /></div>}
+    <div class="bb-community-card__measure"><strong class="bb-community-card__total">{total}</strong>{period && <p class="bb-community-card__period">{period}</p>}</div>
+  </div>
+  {Astro.slots.has('default') && <div class="bb-community-card__body"><slot /></div>}
+</section>

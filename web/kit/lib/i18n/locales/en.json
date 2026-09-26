@@ -3782,7 +3782,21 @@
     "rightNow": "right now",
     "minuteAverage": "{rate}/s average over the last minute",
     "trafficBoardCh": "traffic",
-    "feedBoardCh": "feed"
+    "feedBoardCh": "feed",
+    "pageHeadline": "Stats",
+    "pageTagline": "All the channels. All the activity.",
+    "messagesShortLabel": "Chat messages",
+    "eventsShortLabel": "Twitch events",
+    "processedTotal": "{count} processed",
+    "allTime": "All time",
+    "rankBy": "Sort these channels by",
+    "trafficEventsNote": "Top channels by chat messages, sorted by Twitch events since the bot joined.",
+    "messagesCount": "{count} messages",
+    "eventsCount": "{count} events",
+    "feedingsTitle": "Bagel feedings",
+    "topFeeders": "Top feeders",
+    "feedings": "Feedings",
+    "boardsUnavailable": "Channel rankings are temporarily unavailable. They will refresh on their own."
   },
   "timers": {
     "errMessage": "Enter a message for this timer.",

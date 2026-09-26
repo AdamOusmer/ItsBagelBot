@@ -1,0 +1,40 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+import '../styles/elements/counter-card.css';
+
+interface Props {
+  label: string;
+  value: string;
+  unit?: string;
+  detail?: string;
+  rate?: string | null;
+  rateUnit?: string;
+  rateLabel?: string;
+  period?: string;
+  tone?: 'green' | 'tan';
+  appearance?: 'solid' | 'soft';
+  tilt?: 'left' | 'right' | 'none';
+  class?: string;
+  [key: string]: unknown;
+}
+const {
+  label, value, unit = '', detail = '', rate = null, rateUnit = '/s',
+  rateLabel = 'Right now', period = 'All time', tone = 'green',
+  appearance = 'soft', tilt = 'none', class: cls = '', ...rest
+} = Astro.props;
+const classes = [
+  'bb-counter-card', `bb-counter-card--${tone}`, `bb-counter-card--${appearance}`,
+  tilt !== 'none' && `bb-counter-card--tilt-${tilt}`, cls,
+].filter(Boolean).join(' ');
+---
+
+<article class={classes} aria-label={label} {...rest}>
+  {Astro.slots.has('artwork') && <div class="bb-counter-card__artwork" aria-hidden="true"><slot name="artwork" /></div>}
+  <div class="bb-counter-card__body">
+    <div class="bb-counter-card__head"><p class="bb-counter-card__label">{label}</p>{period && <p class="bb-counter-card__period">{period}</p>}</div>
+    <div class="bb-counter-card__measure"><strong class="bb-counter-card__value">{value}</strong>{unit && <span class="bb-counter-card__unit">{unit}</span>}</div>
+    {detail && <p class="bb-counter-card__detail">{detail}</p>}
+  </div>
+  {rate !== null && <div class="bb-counter-card__foot"><span class="bb-counter-card__rate">{rate}{rateUnit && <small>{rateUnit}</small>}</span>{rateLabel && <p class="bb-counter-card__rate-label">{rateLabel}</p>}</div>}
+</article>
