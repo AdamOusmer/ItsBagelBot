@@ -38,10 +38,26 @@
         </span>
       </span>
       <span class="counts">
-        <span class="num" class:hot={lane.pending > 0}>
-          {t('admin.lanes.pending', { n: lane.pending.toLocaleString() })}
+        <span class="metric">
+          <span class="metric-label">{t('admin.lanes.factDelivered')}</span>
+          <strong>{lane.delivered?.toLocaleString() ?? '—'}</strong>
         </span>
-        <span class="num">{t('admin.lanes.inFlight', { n: lane.inFlight })}</span>
+        <span class="metric traffic">
+          <span class="metric-label">{t('admin.lanes.traffic')}</span>
+          <strong>{lane.rate === '-' ? t('admin.lanes.sampling') : lane.rate}</strong>
+        </span>
+        <span class="metric" class:hot={lane.pending > 0}>
+          <span class="metric-label">{t('admin.lanes.factPending')}</span>
+          <strong>{lane.pending.toLocaleString()}</strong>
+        </span>
+        <span class="metric" title={t('admin.lanes.capacityHint')}>
+          <span class="metric-label">{t('admin.lanes.awaitingAck')}</span>
+          <strong>{lane.inFlight}</strong>
+        </span>
+        <span class="metric" class:hot={lane.redelivered > 0}>
+          <span class="metric-label">{t('admin.lanes.factRedelivered')}</span>
+          <strong>{lane.redelivered.toLocaleString()}</strong>
+        </span>
       </span>
       <span class="marks">
         <StatePill tone={lane.ephemeral ? 'paid' : 'free'}>
@@ -57,7 +73,8 @@
 
 <style>
   .row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 10px minmax(0, 1fr) auto;
     align-items: center;
     gap: 12px;
     min-width: 0;
@@ -88,30 +105,33 @@
   }
 
   .counts {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    align-items: flex-end;
-    flex: none;
+    display: grid;
+    grid-column: 2 / -1;
+    grid-row: 2;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+    padding-top: 6px;
+    border-top: 1px solid color-mix(in srgb, var(--bb-muted) 14%, transparent);
   }
-  .num {
+  .metric { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+  .metric-label { color: var(--bb-muted); font-size: 10px; }
+  .metric strong {
     font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--bb-white);
     white-space: nowrap;
   }
-  .num.hot {
-    color: var(--bb-tan-light);
-  }
-
-  .marks {
-    display: flex;
-    gap: 6px;
-    flex: none;
-  }
+  .traffic strong { color: var(--bb-green-glow); }
+  .metric.hot strong { color: var(--bb-tan-light); }
+  .marks { display: flex; gap: 6px; flex: none; }
+  .marks { grid-column: 3; grid-row: 1; }
   @media (max-width: 760px) {
-    .counts {
-      display: none;
-    }
+    .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  }
+  @media (max-width: 500px) {
+    .row { grid-template-columns: 10px minmax(0, 1fr); }
+    .counts { grid-column: 2; grid-row: 3; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .marks { grid-column: 2; grid-row: 2; }
   }
 </style>

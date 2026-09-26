@@ -25,8 +25,10 @@
   import type { LaneView, LanesResult } from '$lib/server/lanes';
   import LaneRow from '$lib/components/lanes/LaneRow.svelte';
   import LaneEditor from '$lib/components/lanes/LaneEditor.svelte';
+  import { matchesPipeline } from '$lib/components/lanes/lane-pipeline';
   import {
     currentAlias,
+    groupLanes,
     laneKey,
     normalizeAlias,
     type LaneDraft
@@ -61,7 +63,7 @@
         return false;
       }
       result = (await res.json()) as LanesResult;
-      live = true;
+      live = !result.degraded;
     } catch {
       live = false;
     }
@@ -87,6 +89,29 @@
   const CATEGORIES = ['all', 'system', 'projection', 'ephemeral'] as const;
   let category = $state<string>('all');
   let search = $state('');
+  const PIPELINE_STAGES = ['all', 'twitch', 'ingress', 'outgress', 'system'] as const;
+  const TRAFFIC_TIERS = ['all', 'stream', 'standard', 'premium'] as const;
+  let pipelineStage = $state<(typeof PIPELINE_STAGES)[number]>('all');
+  let trafficTier = $state<(typeof TRAFFIC_TIERS)[number]>('all');
+  const pipelineOptions = $derived([
+    t('admin.lanes.pipelineAll'), t('admin.lanes.pipelineTwitch'),
+    t('admin.lanes.pipelineIngress'), t('admin.lanes.pipelineOutgress'),
+    t('admin.lanes.pipelineSystem')
+  ]);
+  const trafficOptions = $derived([
+    t('admin.lanes.trafficAll'), t('admin.lanes.trafficStream'),
+    t('admin.lanes.trafficStandard'), t('admin.lanes.trafficPremium')
+  ]);
+
+  function selectPipeline(label: string) {
+    pipelineStage = PIPELINE_STAGES[pipelineOptions.indexOf(label)] ?? 'all';
+    category = 'all';
+  }
+
+  function selectTraffic(label: string) {
+    trafficTier = TRAFFIC_TIERS[trafficOptions.indexOf(label)] ?? 'all';
+    category = 'all';
+  }
 
   const lanes = $derived(result?.lanes ?? []);
 
@@ -103,9 +128,12 @@
   const rows = $derived.by(() => {
     const q = search.trim().toLowerCase();
     return lanes.filter(
-      (l) => (category === 'all' || l.category === category) && matchesSearch(l, q)
+      (l) => (category === 'all' || l.category === category) &&
+        matchesPipeline(l, pipelineStage, trafficTier) && matchesSearch(l, q)
     );
   });
+
+  const groups = $derived(groupLanes(rows));
 
   const orphanCount = $derived(lanes.filter((l) => l.orphan).length);
   const totalPending = $derived(lanes.reduce((sum, l) => sum + l.pending, 0));
@@ -241,11 +269,32 @@
   </PageToolbar>
 
   <div class="filters">
-    <SegmentedControl
-      options={CATEGORIES}
-      label={t('admin.lanes.categoryFilter')}
-      bind:value={category}
-    />
+    <div class="filter-group">
+      <p class="filter-label">{t('admin.lanes.pipelineFilter')}</p>
+      <SegmentedControl
+        options={pipelineOptions}
+        label={t('admin.lanes.pipelineFilter')}
+        bind:value={() => pipelineOptions[PIPELINE_STAGES.indexOf(pipelineStage)], selectPipeline}
+      />
+    </div>
+    <div class="filter-group">
+      <p class="filter-label">{t('admin.lanes.trafficFilter')}</p>
+      <SegmentedControl
+        options={trafficOptions}
+        label={t('admin.lanes.trafficFilter')}
+        bind:value={() => trafficOptions[TRAFFIC_TIERS.indexOf(trafficTier)], selectTraffic}
+      />
+    </div>
+    {#if pipelineStage === 'all' && trafficTier === 'all'}
+      <div class="filter-group">
+        <p class="filter-label">{t('admin.lanes.categoryFilter')}</p>
+        <SegmentedControl
+          options={CATEGORIES}
+          label={t('admin.lanes.categoryFilter')}
+          bind:value={category}
+        />
+      </div>
+    {/if}
   </div>
 
   <div class="deck" class:inspecting={inspector.isOpen}>
@@ -253,18 +302,30 @@
       {#if result === null}
         <SkeletonStack rows={5} height="56px" />
       {:else if rows.length}
-        <ul class="bb-list" aria-label={t('admin.lanes.listLabel')}>
-          {#each rows as lane (laneKey(lane))}
-            <li>
-              <LaneRow
-                {lane}
-                selected={inspector.selectedId === laneKey(lane)}
-                controls="lane-inspector"
-                onselect={() => openLane(lane)}
-              />
-            </li>
+        <div class="stream-groups">
+          {#each groups as group (group.stream)}
+            <section class="stream-group">
+              <header class="stream-heading">
+                <h2 class="stream-title">{group.stream}</h2>
+                <span class="stream-summary">{t('admin.lanes.groupSummary', {
+                  lanes: String(group.lanes.length), pending: group.pending.toLocaleString()
+                })}</span>
+              </header>
+              <ul class="bb-list" aria-label={`${t('admin.lanes.listLabel')} · ${group.stream}`}>
+                {#each group.lanes as lane (laneKey(lane))}
+                  <li>
+                    <LaneRow
+                      {lane}
+                      selected={inspector.selectedId === laneKey(lane)}
+                      controls="lane-inspector"
+                      onselect={() => openLane(lane)}
+                    />
+                  </li>
+                {/each}
+              </ul>
+            </section>
           {/each}
-        </ul>
+        </div>
       {:else if lanes.length}
         <EmptyState title={t('admin.lanes.emptyMatch')} />
       {:else}
@@ -357,6 +418,23 @@
 />
 
 <style>
+  .stream-groups { display: grid; gap: 20px; }
+  .stream-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 14px 16px 10px;
+  }
+  .stream-title {
+    margin: 0;
+    font-family: var(--bb-font-mono);
+    font-size: 12px;
+    color: var(--bb-tan-light);
+    overflow-wrap: anywhere;
+  }
+  .stream-summary { color: var(--bb-muted); font-size: 11px; }
   .stats {
     font-family: var(--bb-font-mono);
     font-size: 11.5px;
@@ -376,7 +454,16 @@
   
 
   .filters {
-    margin: 0 0 14px;
+    display: grid;
+    gap: 14px;
+    margin: 0 0 18px;
+  }
+  .filter-group { min-width: 0; }
+  .filter-label {
+    margin: 0 0 6px;
+    color: var(--bb-muted);
+    font-family: var(--bb-font-mono);
+    font-size: 10px;
   }
 
   .deck {
