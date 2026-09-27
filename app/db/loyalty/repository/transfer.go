@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"ItsBagelBot/app/db/loyalty/ent"
 	"ItsBagelBot/app/db/loyalty/ent/balance"
@@ -53,15 +54,9 @@ func (r *Loyalty) BalanceTransfer(ctx context.Context, t Transfer) (*TransferOut
 }
 
 func (r *Loyalty) transferParties(ctx context.Context, t Transfer) (sender, recipient *ent.Balance, found bool, err error) {
-	login, err := normalizeSpendTarget(t.TargetLogin, t.Amount)
+	login, err := validTransfer(t)
 	if err != nil {
 		return nil, nil, false, err
-	}
-	if t.TargetViewerID != 0 && t.TargetViewerID == t.FromViewerID {
-		return nil, nil, true, fmt.Errorf("%w: self transfer", ErrInvalidInput)
-	}
-	if t.FromViewerID == 0 {
-		return nil, nil, false, fmt.Errorf("%w: from_viewer_id", ErrInvalidInput)
 	}
 
 	sender, found, err = getOptional(ctx, func(ctx context.Context) (*ent.Balance, error) {
@@ -83,6 +78,20 @@ func (r *Loyalty) transferParties(ctx context.Context, t Transfer) (sender, reci
 		return nil, nil, true, fmt.Errorf("%w: self transfer", ErrInvalidInput)
 	}
 	return sender, recipient, true, nil
+}
+
+func validTransfer(t Transfer) (string, error) {
+	login, err := normalizeSpendTarget(t.TargetLogin, t.Amount)
+	if err != nil {
+		return "", err
+	}
+	if t.TargetViewerID != 0 && t.TargetViewerID == t.FromViewerID {
+		return "", fmt.Errorf("%w: self transfer", ErrInvalidInput)
+	}
+	if t.FromViewerID == 0 {
+		return "", fmt.Errorf("%w: from_viewer_id", ErrInvalidInput)
+	}
+	return login, nil
 }
 
 // A resolved Twitch ID allows a first transfer to create the recipient's balance.
@@ -114,18 +123,30 @@ func (r *Loyalty) moveBalance(ctx context.Context, senderID int, recipient *ent.
 			if updated == 0 {
 				return errInsufficient
 			}
-			return tx.Balance.Create().
-				SetUserID(recipient.UserID).
-				SetViewerID(recipient.ViewerID).
-				SetViewerLogin(recipient.ViewerLogin).
-				SetPoints(amount).
-				OnConflictColumns(balance.FieldUserID, balance.FieldViewerID).
-				AddPoints(amount).
-				UpdateViewerLogin().
-				UpdateUpdatedAt().
-				Exec(ctx)
+			return creditTransfer(ctx, tx, recipient, amount)
 		})
 	})
+}
+
+// The conflict write locks an existing recipient before checking integer capacity.
+// No floating SQL arithmetic is used at the signed BIGINT boundary.
+func creditTransfer(ctx context.Context, tx *ent.Tx, recipient *ent.Balance, amount int64) error {
+	if err := tx.Balance.Create().
+		SetUserID(recipient.UserID).
+		SetViewerID(recipient.ViewerID).
+		SetViewerLogin(recipient.ViewerLogin).
+		OnConflictColumns(balance.FieldUserID, balance.FieldViewerID).
+		Ignore().Exec(ctx); err != nil {
+		return err
+	}
+	row, err := tx.Balance.Query().Where(balance.UserIDEQ(recipient.UserID), balance.ViewerIDEQ(recipient.ViewerID)).Only(ctx)
+	if err != nil {
+		return err
+	}
+	if row.Points > math.MaxInt64-amount {
+		return fmt.Errorf("%w: recipient balance exceeds BIGINT", ErrInvalidInput)
+	}
+	return tx.Balance.UpdateOneID(row.ID).AddPoints(amount).SetViewerLogin(recipient.ViewerLogin).Exec(ctx)
 }
 
 func (r *Loyalty) transferOutcome(ctx context.Context, senderID int, userID, recipientID uint64) (*TransferOutcome, bool, error) {

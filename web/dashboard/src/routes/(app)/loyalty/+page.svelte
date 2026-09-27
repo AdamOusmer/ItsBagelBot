@@ -19,6 +19,7 @@
     toast,
     getI18n,
     LOYALTY_DEFAULTS,
+    formatPointValue,
     moduleDef,
     catalogChildren,
     type LoyaltyConfig
@@ -234,7 +235,7 @@
                 <tr>
                   <th scope="row" class="r rank">{i + 1}</th>
                   <td>{row.viewerName || row.viewerLogin || row.viewerId}</td>
-                  <td class="r">{row.points.toLocaleString()}</td>
+                  <td class="r">{formatPointValue(row.points)}</td>
                   <td class="r mut">{hours(row.watchSeconds)}</td>
                 </tr>
               {/each}

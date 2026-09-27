@@ -6,6 +6,7 @@ package modules
 import (
 	"context"
 	"errors"
+	"math"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"go.uber.org/zap"
@@ -205,4 +206,47 @@ func TestPointsGiveRecipientLookup(t *testing.T) {
 func (f *fakeAccountAge) ResolveLogin(ctx context.Context, login string) (string, bool, error) {
 	r, err := f.Lookup(ctx, "", login)
 	return r.TargetID, r.UserFound, err
+}
+
+func TestPointsAdjustCreatesResolvedUsers(t *testing.T) {
+	for _, verb := range []string{"set", "add", "remove"} {
+		t.Run(verb, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			lookup := &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "42", UserFound: true}}
+			m := Loyalty(engine.Deps{Loyalty: fake, TwitchAccounts: lookup, Log: zap.NewNop()})
+			c := loyaltyCtx("channel.chat.message", "", "")
+			c.Env.ChatterUserID = "2"
+			var col collector
+			require.NoError(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, verb+" @Blemmyz 5000", col.emit))
+			require.Len(t, fake.adjusts, 1)
+			assert.Equal(t, uint64(42), fake.adjusts[0].viewerID)
+			assert.Equal(t, "blemmyz", fake.adjusts[0].login)
+			assert.Equal(t, verb == "set", fake.adjusts[0].absolute)
+			expected := int64(5000)
+			if verb == "remove" {
+				expected = -expected
+			}
+			assert.Equal(t, expected, fake.adjusts[0].value)
+			assert.Equal(t, "blemmyz", lookup.got.targetLogin)
+		})
+	}
+}
+
+func TestPointsSetAcceptsExactBIGINTAmount(t *testing.T) {
+	fake := &fakeLoyalty{}
+	m := loyaltyModule(t, fake)
+	c := loyaltyCtx("channel.chat.message", "", "")
+	c.Env.ChatterUserID = "2"
+	var col collector
+	require.NoError(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, "set blemmyz 9223372036854775807", col.emit))
+	require.Len(t, fake.adjusts, 1)
+	assert.Equal(t, int64(math.MaxInt64), fake.adjusts[0].value)
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "9223372036854775807")
+	fake = &fakeLoyalty{}
+	m = loyaltyModule(t, fake)
+	col = collector{}
+	require.NoError(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, "set blemmyz 9223372036854775808", col.emit))
+	assert.Empty(t, fake.adjusts)
+	assert.Contains(t, strings.ToLower(col.out[0].Text), "usage")
 }

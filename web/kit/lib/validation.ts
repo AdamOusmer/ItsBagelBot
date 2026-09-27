@@ -99,3 +99,5 @@ export function clampInt(raw: unknown, min: number, max: number, dflt: number): 
 	if (!Number.isFinite(n)) return dflt;
 	return Math.min(max, Math.max(min, n));
 }
+
+export { parsePointValue, readPointBalance, formatPointValue } from './point-value';

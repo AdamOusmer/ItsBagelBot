@@ -63,6 +63,6 @@ export interface LoyaltyStanding {
   viewerId: string;
   viewerLogin: string;
   viewerName: string;
-  points: number;
+  points: string;
   watchSeconds: number;
 }

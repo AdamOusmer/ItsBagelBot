@@ -7,7 +7,7 @@ import { blankLoyaltyConfig, COUNTER_SCOPES, MOD } from '@bagel/kit';
 import { SUB } from './services';
 import { upsertModule } from './commands-store';
 import { readModuleBlob } from './module-blob';
-import { parseCounterValue } from '@bagel/kit/validation';
+import { parseCounterValue, readPointBalance } from '@bagel/kit/validation';
 
 const LOYALTY_MODULE = MOD.loyalty;
 
@@ -21,6 +21,7 @@ interface BalanceWire {
   viewer_login?: string;
   viewer_name?: string;
   points: number;
+  points_exact?: string;
   watch_seconds: number;
 }
 
@@ -176,7 +177,7 @@ export async function topStandings(userId: string, limit = 10): Promise<LoyaltyS
     viewerId: b.viewer_id,
     viewerLogin: b.viewer_login ?? '',
     viewerName: b.viewer_name ?? '',
-    points: b.points,
+    points: readPointBalance(b),
     watchSeconds: b.watch_seconds
   }));
 }

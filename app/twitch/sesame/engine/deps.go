@@ -146,12 +146,21 @@ type CounterBump struct {
 	Delta         int64
 }
 
+type BalanceAdjustment struct {
+	BroadcasterID uint64
+	ViewerID      uint64
+	ViewerLogin   string
+	Value         int64
+	Absolute      bool
+}
+
 type LoyaltyStore interface {
 	Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64)
 	CounterBump(ctx context.Context, b CounterBump) (int64, error)
 	CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error)
 	BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error)
 	BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error)
+	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
 	BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (bal loyaltyrpc.Balance, found, spent bool, err error)
 	BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error)
 	Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error)

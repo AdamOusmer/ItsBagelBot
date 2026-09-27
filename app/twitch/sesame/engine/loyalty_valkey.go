@@ -335,11 +335,15 @@ func decodeBalance(raw string) (points int64, watch uint64, ok bool) {
 }
 
 func (s *ValkeyLoyaltyStore) BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error) {
-	bal, found, err := s.rpc.BalanceAdjust(ctx, broadcasterID, viewerLogin, value, absolute)
+	return s.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerLogin: viewerLogin, Value: value, Absolute: absolute})
+}
+
+func (s *ValkeyLoyaltyStore) BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
+	bal, found, err := s.rpc.BalanceAdjustViewer(ctx, adjustment)
 	if err != nil || !found {
 		return bal, found, err
 	}
-	s.dropBalanceCache(ctx, broadcasterID, bal.ViewerID)
+	s.dropBalanceCache(ctx, adjustment.BroadcasterID, bal.ViewerID)
 	return bal, true, nil
 }
 

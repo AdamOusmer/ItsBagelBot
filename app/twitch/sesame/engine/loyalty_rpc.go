@@ -65,11 +65,19 @@ func (l *LoyaltyRPC) BalanceGet(ctx context.Context, broadcasterID, viewerID uin
 }
 
 func (l *LoyaltyRPC) BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error) {
+	return l.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerLogin: viewerLogin, Value: value, Absolute: absolute})
+}
+
+func (l *LoyaltyRPC) BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
 	verb := "balance.add"
-	if absolute {
+	if adjustment.Absolute {
 		verb = "balance.set"
 	}
-	reply, err := l.call(ctx, verb, loyaltyrpc.Request{UserID: fmtID(broadcasterID), ViewerLogin: viewerLogin, Value: value})
+	req := loyaltyrpc.Request{UserID: fmtID(adjustment.BroadcasterID), ViewerLogin: adjustment.ViewerLogin, Value: adjustment.Value}
+	if adjustment.ViewerID != 0 {
+		req.TargetViewerID = fmtID(adjustment.ViewerID)
+	}
+	reply, err := l.call(ctx, verb, req)
 	if err != nil {
 		return loyaltyrpc.Balance{}, false, err
 	}

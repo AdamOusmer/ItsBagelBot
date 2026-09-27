@@ -87,6 +87,7 @@ func balanceView(row *ent.Balance) *loyaltyrpc.Balance {
 		ViewerLogin:  row.ViewerLogin,
 		ViewerName:   row.ViewerName,
 		Points:       row.Points,
+		PointsExact:  strconv.FormatInt(row.Points, 10),
 		WatchSeconds: row.WatchSeconds,
 	}
 }
@@ -137,7 +138,11 @@ func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, 
 	if !ok {
 		return reply
 	}
-	row, found, err := l.repo.BalanceAdjust(ctx, userID, req.ViewerLogin, req.Value, absolute)
+	targetID, err := transferTargetID(req.TargetViewerID)
+	if err != nil {
+		return refuse(domainrpc.CodeInvalid, err.Error())
+	}
+	row, found, err := l.adjustViewerBalance(ctx, repository.BalanceAdjustment{UserID: userID, ViewerID: targetID, ViewerLogin: req.ViewerLogin, Value: req.Value, Absolute: absolute})
 	if err != nil {
 		return l.fail("loyalty balance adjust", err)
 	}
@@ -145,6 +150,13 @@ func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, 
 		return loyaltyrpc.Reply{Found: false}
 	}
 	return loyaltyrpc.Reply{Balance: balanceView(row), Found: true}
+}
+
+func (l *loyaltyRPC) adjustViewerBalance(ctx context.Context, target repository.BalanceAdjustment) (*ent.Balance, bool, error) {
+	if target.ViewerID != 0 {
+		return l.repo.BalanceAdjustViewer(ctx, target)
+	}
+	return l.repo.BalanceAdjust(ctx, target.UserID, target.ViewerLogin, target.Value, target.Absolute)
 }
 
 func transferTargetID(id string) (uint64, error) {

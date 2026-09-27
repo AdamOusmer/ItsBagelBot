@@ -24,6 +24,7 @@ type Balance struct {
 	ViewerLogin  string `json:"viewer_login,omitempty"`
 	ViewerName   string `json:"viewer_name,omitempty"`
 	Points       int64  `json:"points"`
+	PointsExact  string `json:"points_exact,omitempty"`
 	WatchSeconds uint64 `json:"watch_seconds"`
 }
 

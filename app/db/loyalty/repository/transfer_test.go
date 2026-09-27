@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 
 	baseent "entgo.io/ent"
 	"testing"
@@ -56,10 +57,7 @@ func seedBalance(t *testing.T, client *ent.Client, row seedRow) {
 }
 
 func TestBalanceTransferMovesPoints(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	ctx := context.Background()
-
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 1000})
+	repo, client, ctx := fundedLoyalty(t, 1000)
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "receiver", Points: 100})
 
 	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "@Receiver", Amount: 400})
@@ -75,10 +73,7 @@ func TestBalanceTransferMovesPoints(t *testing.T) {
 }
 
 func TestBalanceTransferRefusesShortfall(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	ctx := context.Background()
-
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
+	repo, client, ctx := fundedLoyalty(t, 100)
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "receiver", Points: 0})
 
 	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "receiver", Amount: 400})
@@ -91,10 +86,7 @@ func TestBalanceTransferRefusesShortfall(t *testing.T) {
 }
 
 func TestBalanceTransferUnknownTarget(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	ctx := context.Background()
-
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
+	repo, client, ctx := fundedLoyalty(t, 100)
 
 	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "ghost", Amount: 10})
 	require.NoError(t, err)
@@ -107,10 +99,7 @@ func TestBalanceTransferUnknownTarget(t *testing.T) {
 }
 
 func TestBalanceTransferRefusesSelfAndBadInput(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	ctx := context.Background()
-
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
+	repo, _, ctx := fundedLoyalty(t, 100)
 
 	_, _, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "sender", Amount: 10})
 	require.Error(t, err)
@@ -138,9 +127,7 @@ func TestBalanceTransferRefusesSelfAndBadInput(t *testing.T) {
 }
 
 func TestBalanceTransferCreatesResolvedRecipient(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	ctx := context.Background()
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 1000})
+	repo, client, ctx := fundedLoyalty(t, 1000)
 	// The same viewer's balance in another channel must stay independent.
 	seedBalance(t, client, seedRow{UserID: 3, ViewerID: 8, Login: "blemmyz", Points: 20})
 	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetViewerID: 8, TargetLogin: "@Blemmyz", Amount: 400})
@@ -157,9 +144,7 @@ func TestBalanceTransferCreatesResolvedRecipient(t *testing.T) {
 }
 
 func TestBalanceTransferResolvedIdentityPreservesExistingBalance(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	ctx := context.Background()
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 1000})
+	repo, client, ctx := fundedLoyalty(t, 1000)
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "oldlogin", Points: 100})
 	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 9, Login: "receiver", Points: 70})
 	require.NoError(t, client.Balance.Update().SetViewerName("Receiver").SetWatchSeconds(123).Exec(ctx))
@@ -181,9 +166,7 @@ func TestBalanceTransferResolvedIdentityPreservesExistingBalance(t *testing.T) {
 }
 
 func TestBalanceTransferShortfallDoesNotCreateRecipient(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	ctx := context.Background()
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 100})
+	repo, _, ctx := fundedLoyalty(t, 100)
 	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetViewerID: 8, TargetLogin: "newviewer", Amount: 200})
 	require.NoError(t, err)
 	require.True(t, found)
@@ -195,9 +178,7 @@ func TestBalanceTransferShortfallDoesNotCreateRecipient(t *testing.T) {
 }
 
 func TestBalanceTransferCreditFailureRollsBackDebit(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
-	ctx := context.Background()
-	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: 1000})
+	repo, client, ctx := fundedLoyalty(t, 1000)
 	creditErr := errors.New("recipient creation failed")
 	client.Balance.Use(func(next baseent.Mutator) baseent.Mutator {
 		return baseent.MutateFunc(func(ctx context.Context, m baseent.Mutation) (baseent.Value, error) {
@@ -221,4 +202,33 @@ func TestBalanceTransferRejectsResolvedSelf(t *testing.T) {
 	repo, _ := newLoyaltyRepo(t)
 	_, _, err := repo.BalanceTransfer(context.Background(), loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetViewerID: 7, TargetLogin: "renamed", Amount: 10})
 	require.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput)
+}
+
+func fundedLoyalty(t *testing.T, points int64) (*loyaltyrepo.Loyalty, *ent.Client, context.Context) {
+	t.Helper()
+	repo, client := newLoyaltyRepo(t)
+	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 7, Login: "sender", Points: points})
+	return repo, client, context.Background()
+}
+
+func TestBalanceTransferBIGINTBoundary(t *testing.T) {
+	repo, _, ctx := fundedLoyalty(t, math.MaxInt64)
+	out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetViewerID: 8, TargetLogin: "newviewer", Amount: math.MaxInt64})
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Zero(t, out.From.Points)
+	assert.Equal(t, int64(math.MaxInt64), out.To.Points)
+}
+
+func TestBalanceTransferOverflowRollsBack(t *testing.T) {
+	repo, client, ctx := fundedLoyalty(t, 1000)
+	seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "receiver", Points: math.MaxInt64})
+	_, _, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetViewerID: 8, TargetLogin: "receiver", Amount: 1})
+	require.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput)
+	from, _, err := repo.BalanceGet(ctx, 2, 7)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1000), from.Points)
+	to, _, err := repo.BalanceGet(ctx, 2, 8)
+	require.NoError(t, err)
+	assert.Equal(t, int64(math.MaxInt64), to.Points)
 }

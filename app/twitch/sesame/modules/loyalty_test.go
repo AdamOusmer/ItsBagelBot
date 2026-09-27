@@ -37,6 +37,7 @@ type bumpCall struct {
 }
 
 type adjustCall struct {
+	viewerID uint64
 	login    string
 	value    int64
 	absolute bool
@@ -84,7 +85,12 @@ func (f *fakeLoyalty) BalanceGet(_ context.Context, _, viewerID uint64) (loyalty
 }
 
 func (f *fakeLoyalty) BalanceAdjust(_ context.Context, _ uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error) {
-	f.adjusts = append(f.adjusts, adjustCall{login: viewerLogin, value: value, absolute: absolute})
+	return f.BalanceAdjustViewer(context.Background(), engine.BalanceAdjustment{ViewerLogin: viewerLogin, Value: value, Absolute: absolute})
+}
+
+func (f *fakeLoyalty) BalanceAdjustViewer(_ context.Context, a engine.BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
+	viewerID, viewerLogin, value, absolute := a.ViewerID, a.ViewerLogin, a.Value, a.Absolute
+	f.adjusts = append(f.adjusts, adjustCall{viewerID: viewerID, login: viewerLogin, value: value, absolute: absolute})
 	if viewerLogin == "ghost" {
 		return loyaltyrpc.Balance{}, false, nil
 	}
@@ -381,7 +387,7 @@ func TestLoyaltyPointsModAdjust(t *testing.T) {
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), modCtx(), "set @CoolViewer 500", col.emit))
 	require.Len(t, fake.adjusts, 1)
-	assert.Equal(t, adjustCall{login: "coolviewer", value: 500, absolute: true}, fake.adjusts[0])
+	assert.Equal(t, adjustCall{viewerID: 8, login: "coolviewer", value: 500, absolute: true}, fake.adjusts[0])
 	require.Len(t, col.out, 1)
 	assert.Contains(t, col.out[0].Text, "500")
 	assert.Contains(t, col.out[0].Text, "coolviewer")
@@ -389,12 +395,12 @@ func TestLoyaltyPointsModAdjust(t *testing.T) {
 	col = collector{}
 	require.NoError(t, cmd.Run(context.Background(), modCtx(), "add coolviewer -100", col.emit))
 	require.Len(t, fake.adjusts, 2)
-	assert.Equal(t, adjustCall{login: "coolviewer", value: -100, absolute: false}, fake.adjusts[1])
+	assert.Equal(t, adjustCall{viewerID: 8, login: "coolviewer", value: -100, absolute: false}, fake.adjusts[1])
 	assert.Contains(t, col.out[0].Text, "400")
 
 	col = collector{}
 	require.NoError(t, cmd.Run(context.Background(), modCtx(), "set ghost 10", col.emit))
-	assert.Contains(t, strings.ToLower(col.out[0].Text), "haven't seen")
+	assert.Contains(t, strings.ToLower(col.out[0].Text), "try again")
 
 	col = collector{}
 	require.NoError(t, cmd.Run(context.Background(), loyaltyCtx("channel.chat.message", "", ""), "set @CoolViewer 500", col.emit))
