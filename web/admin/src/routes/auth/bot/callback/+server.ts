@@ -3,15 +3,15 @@
 
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { ResponseBodyError } from '@bagel/kit/server/oauth';
+import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
 import { botTwitch, botClientId, botScopes } from '$lib/server/oauth';
-import { tokenSet } from '$lib/server/services';
-import { requireRole } from '$lib/server/access';
+import { botTokenSet } from '$lib/server/services';
 import { env } from '$env/dynamic/private';
 
 type BotIdentity = {
-  claims: { sub: string; aud?: string | string[]; iss?: string };
+  claims: { sub: string; aud?: string | string[]; iss?: string; nonce?: string };
   configuredId: string;
+  nonce: string;
 };
 
 function configuredBotId(): string {
@@ -26,7 +26,7 @@ function assertBotIdentity(identity: BotIdentity): void {
   const intendedAudience = Array.isArray(claims.aud)
     ? claims.aud.includes(clientId)
     : claims.aud === clientId;
-  if (!intendedAudience || claims.iss !== 'https://id.twitch.tv/oauth2') {
+  if (!intendedAudience || claims.iss !== 'https://id.twitch.tv/oauth2' || claims.nonce !== identity.nonce) {
     throw redirect(302, '/auth/bot/done?e=state');
   }
   if (claims.sub !== identity.configuredId) {
@@ -34,32 +34,31 @@ function assertBotIdentity(identity: BotIdentity): void {
   }
 }
 
-export const GET: RequestHandler = async ({ url, cookies, locals }) => {
-  const owner = await requireRole({ locals }, 'bot.token');
-  if (!owner) throw redirect(302, '/auth/bot/done?e=denied');
-
+export const GET: RequestHandler = async ({ url, cookies }) => {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const stored = cookies.get('bot_oauth_state');
+  const nonce = cookies.get('bot_oauth_nonce');
   cookies.delete('bot_oauth_state', { path: '/' });
+  cookies.delete('bot_oauth_nonce', { path: '/' });
 
-  if (!code || !state || !stored || state !== stored) {
+  if (!code || !state || !stored || !nonce || state !== stored) {
     throw redirect(302, '/auth/bot/done?e=state');
   }
 
   const botId = configuredBotId();
 
   try {
-    const tokens = await botTwitch(url.origin).validateAuthorizationCode(code);
-    assertBotIdentity({ claims: tokens.claims(), configuredId: botId });
+    const tokens = await botTwitch(url.origin).validateAuthorizationCode(code, nonce);
+    assertBotIdentity({ claims: tokens.claims(), configuredId: botId, nonce });
     const granted = new Set(tokens.scopes());
     if (botScopes().some((scope) => !granted.has(scope))) {
       throw redirect(302, '/auth/bot/done?e=scope');
     }
 
-    await tokenSet({ actorId: owner.id, userId: botId }, tokens.accessToken(), tokens.refreshToken());
+    await botTokenSet(botId, tokens.accessToken(), tokens.refreshToken());
   } catch (e) {
-    if (e instanceof ResponseBodyError) throw redirect(302, '/auth/bot/done?e=oauth');
+    if (isOAuthProtocolError(e)) throw redirect(302, '/auth/bot/done?e=oauth');
     throw e;
   }
 

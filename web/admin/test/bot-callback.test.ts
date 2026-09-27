@@ -5,10 +5,11 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const privateEnv: Record<string, string | undefined> = {};
-const claims: { sub: string; aud: string; iss: string } = {
+const claims: { sub: string; aud: string; iss: string; nonce: string } = {
   sub: 'configured-bot',
   aud: 'bot-client',
-  iss: 'https://id.twitch.tv/oauth2'
+  iss: 'https://id.twitch.tv/oauth2',
+  nonce: 'nonce'
 };
 let grantedScopes = ['openid', 'moderator:read:chatters'];
 const validateAuthorizationCode = mock(async () => ({
@@ -19,7 +20,7 @@ const validateAuthorizationCode = mock(async () => ({
 }));
 const createAuthorizationURL = mock(() => new URL('https://id.twitch.tv/oauth2/authorize'));
 const botTwitch = mock(() => ({ validateAuthorizationCode, createAuthorizationURL }));
-const tokenSet = mock(async () => undefined);
+const botTokenSet = mock(async () => undefined);
 
 class TestRedirect extends Error {
   constructor(
@@ -36,8 +37,7 @@ mock.module('$lib/server/oauth', () => ({
   botScopes: () => ['openid', 'moderator:read:chatters'],
   botTwitch
 }));
-mock.module('$lib/server/services', () => ({ tokenSet }));
-mock.module('$lib/server/access', () => ({ requireRole: async () => ({ id: 'owner' }) }));
+mock.module('$lib/server/services', () => ({ botTokenSet }));
 mock.module('@sveltejs/kit', () => ({
   redirect: (status: number, location: string) => new TestRedirect(status, location)
 }));
@@ -48,8 +48,9 @@ const { GET: loginGET } = await import('../src/routes/auth/bot/login/+server');
 function callbackEvent() {
   return {
     url: new URL('https://admin.example/auth/bot/callback?code=code&state=state'),
+    locals: { session: null },
     cookies: {
-      get: (name: string) => (name === 'bot_oauth_state' ? 'state' : undefined),
+      get: (name: string) => (name === 'bot_oauth_state' ? 'state' : name === 'bot_oauth_nonce' ? 'nonce' : undefined),
       delete: mock(() => {})
     }
   };
@@ -71,10 +72,11 @@ beforeEach(() => {
   claims.sub = 'configured-bot';
   claims.aud = 'bot-client';
   claims.iss = 'https://id.twitch.tv/oauth2';
+  claims.nonce = 'nonce';
   botTwitch.mockClear();
   validateAuthorizationCode.mockClear();
   createAuthorizationURL.mockClear();
-  tokenSet.mockClear();
+  botTokenSet.mockClear();
 });
 
 describe('bot OAuth callback account pinning', () => {
@@ -102,7 +104,7 @@ describe('bot OAuth callback account pinning', () => {
 
     expect(botTwitch).not.toHaveBeenCalled();
     expect(validateAuthorizationCode).not.toHaveBeenCalled();
-    expect(tokenSet).not.toHaveBeenCalled();
+    expect(botTokenSet).not.toHaveBeenCalled();
   });
 
   test('rejects a different Twitch account without storing its token', async () => {
@@ -115,7 +117,7 @@ describe('bot OAuth callback account pinning', () => {
     );
 
     expect(validateAuthorizationCode).toHaveBeenCalledTimes(1);
-    expect(tokenSet).not.toHaveBeenCalled();
+    expect(botTokenSet).not.toHaveBeenCalled();
   });
 
   test('refuses a token without chatter access instead of reporting authorization success', async () => {
@@ -125,7 +127,7 @@ describe('bot OAuth callback account pinning', () => {
       () => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]),
       '/auth/bot/done?e=scope'
     );
-    expect(tokenSet).not.toHaveBeenCalled();
+    expect(botTokenSet).not.toHaveBeenCalled();
   });
 
   test('refuses a response that does not report its granted scopes', async () => {
@@ -135,10 +137,10 @@ describe('bot OAuth callback account pinning', () => {
       () => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]),
       '/auth/bot/done?e=scope'
     );
-    expect(tokenSet).not.toHaveBeenCalled();
+    expect(botTokenSet).not.toHaveBeenCalled();
   });
 
-  test('stores the token only under the matching configured account', async () => {
+  test('stores the configured bot token without a console session', async () => {
     privateEnv.ADMIN_BOT_USER_ID = ' configured-bot ';
 
     await expectRedirectLocation(
@@ -146,7 +148,56 @@ describe('bot OAuth callback account pinning', () => {
       '/auth/bot/done?ok=1'
     );
 
-    expect(tokenSet).toHaveBeenCalledTimes(1);
-    expect(tokenSet).toHaveBeenCalledWith({ actorId: 'owner', userId: 'configured-bot' }, 'access-token', 'refresh-token');
+    expect(validateAuthorizationCode).toHaveBeenCalledWith('code', 'nonce');
+    expect(botTokenSet).toHaveBeenCalledTimes(1);
+    expect(botTokenSet).toHaveBeenCalledWith('configured-bot', 'access-token', 'refresh-token');
   });
+
+  test('starts consent without a staff session and binds a nonce cookie', async () => {
+    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    const set = mock(() => {});
+    try {
+      loginGET({ url: new URL('https://admin.example/auth/bot/login'), cookies: { set }, locals: { session: null } } as unknown as Parameters<typeof loginGET>[0]);
+    } catch (error) {
+      expect(error).toBeInstanceOf(TestRedirect);
+      const auth = new URL((error as TestRedirect).location);
+      expect(auth.searchParams.get('force_verify')).toBe('true');
+      const nonce = auth.searchParams.get('nonce');
+      expect(nonce).toBeTruthy();
+      expect(set).toHaveBeenCalledWith('bot_oauth_nonce', nonce, expect.objectContaining({ httpOnly: true, secure: true, sameSite: 'lax' }));
+    }
+  });
+
+  for (const missingCookie of ['bot_oauth_state', 'bot_oauth_nonce']) {
+    test(`rejects absent ${missingCookie} before exchanging a code`, async () => {
+      privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+      const event = callbackEvent();
+      const get = event.cookies.get;
+      event.cookies.get = (name) => name === missingCookie ? undefined : get(name);
+      await expectRedirectLocation(() => callbackGET(event as Parameters<typeof callbackGET>[0]), '/auth/bot/done?e=state');
+      expect(validateAuthorizationCode).not.toHaveBeenCalled();
+      expect(botTokenSet).not.toHaveBeenCalled();
+      expect(event.cookies.delete).toHaveBeenCalledWith('bot_oauth_state', { path: '/' });
+      expect(event.cookies.delete).toHaveBeenCalledWith('bot_oauth_nonce', { path: '/' });
+    });
+  }
+
+  test('rejects a mismatched OAuth state before exchanging a code', async () => {
+    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    const event = callbackEvent();
+    event.url.searchParams.set('state', 'other-state');
+    await expectRedirectLocation(() => callbackGET(event as Parameters<typeof callbackGET>[0]), '/auth/bot/done?e=state');
+    expect(validateAuthorizationCode).not.toHaveBeenCalled();
+    expect(botTokenSet).not.toHaveBeenCalled();
+  });
+
+  for (const field of ['aud', 'iss', 'nonce'] as const) {
+    test(`rejects mismatched ${field} without saving a token`, async () => {
+      privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+      claims[field] = 'mismatch';
+      await expectRedirectLocation(() => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]), '/auth/bot/done?e=state');
+      expect(botTokenSet).not.toHaveBeenCalled();
+    });
+  }
+
 });
