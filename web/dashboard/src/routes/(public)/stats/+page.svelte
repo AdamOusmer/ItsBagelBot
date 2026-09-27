@@ -15,6 +15,7 @@
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
+  import { StatsCounter } from '$lib/stats-counter';
   import { visibleEventSource } from '$lib/visible-stream';
   import { exactDisplay, formatStatTotal, validBoards, validStats } from '$lib/stats-values';
   import { formatCounterValue } from '@bagel/kit/validation';
@@ -25,11 +26,6 @@
 
   const POLL_MS = 5000;
   const INTRO_MS = 900;
-  const TAU_MS = 200;
-  const RATE_TAU_MS = 300;
-  const MAX_DT_MS = 250;
-  const MAX_PROJECT_S = 10;
-  const MIN_CRAWL = 0.25;
 
   const seed = untrack(() => validStats(data.stats) ?? {
     messages_total: '0',
@@ -56,64 +52,56 @@
     eventRate: seed.event_rate_now ?? seed.event_rate ?? 0
   });
 
-  type Frame = typeof display;
-
-  let snapAt = 0;
+  let messages: StatsCounter;
+  let events: StatsCounter;
   let introAt = 0;
   let lastFrame = 0;
   let raf = 0;
   let reduced = false;
   let streamDown = false;
 
-  function targetFrame(now: number): Frame {
-    const secs = Math.min(Math.max(0, now - snapAt) / 1000, MAX_PROJECT_S);
-    const msgAvg = live.msg_rate ?? 0;
-    const eventAvg = live.event_rate ?? 0;
-    return {
-      messages: exactDisplay(Number(live.messages_total) + msgAvg * secs),
-      events: exactDisplay(Number(live.events_total) + eventAvg * secs),
-      msgRate: live.msg_rate_now ?? msgAvg,
-      eventRate: live.event_rate_now ?? eventAvg
-    };
-  }
-
-  function lerp(from: number, to: number, eased: number): number {
-    return from + (to - from) * eased;
-  }
-
-  function closingFraction(now: number, dt: number): number {
-    const p = (now - introAt) / INTRO_MS;
-    if (p >= 1) return 1 - Math.exp(-dt / TAU_MS);
-    const before = Math.max(0, (now - dt - introAt) / INTRO_MS);
-    return 1 - Math.pow((1 - p) / (1 - before), 4);
-  }
-
-  function advance(cur: number, target: number, rate: number, dt: number, k: number): number {
-    return exactDisplay(Math.max(lerp(cur, target, k), cur + rate * (dt / 1000) * MIN_CRAWL));
-  }
-
   function tick(now: number): void {
-    const dt = Math.min(now - lastFrame, MAX_DT_MS);
+    const dt = now - lastFrame;
     lastFrame = now;
     if (degraded) {
       raf = requestAnimationFrame(tick);
       return;
     }
-    const target = targetFrame(now);
-    const k = closingFraction(now, dt);
-    const rateK = 1 - Math.exp(-dt / RATE_TAU_MS);
+    messages.advance(now, dt);
+    events.advance(now, dt);
+    // The intro is cosmetic. Totals then integrate a smoothed speed instead
+    // of repeatedly easing toward each incoming server total.
+    const p = Math.min(1, Math.max(0, (now - introAt) / INTRO_MS));
+    const intro = 1 - Math.pow(1 - p, 4);
     display = {
-      messages: advance(display.messages, target.messages, target.msgRate, dt, k),
-      events: advance(display.events, target.events, target.eventRate, dt, k),
-      msgRate: lerp(display.msgRate, target.msgRate, rateK),
-      eventRate: lerp(display.eventRate, target.eventRate, rateK)
+      messages: exactDisplay(messages.value * intro),
+      events: exactDisplay(events.value * intro),
+      msgRate: messages.rate * intro,
+      eventRate: events.rate * intro
     };
     raf = requestAnimationFrame(tick);
   }
 
   function snap(now: number): void {
     lastFrame = now;
-    display = targetFrame(now);
+    introAt = now - INTRO_MS;
+    if (reduced) {
+      display = {
+        messages: exactDisplay(Number(live.messages_total)),
+        events: exactDisplay(Number(live.events_total)),
+        msgRate: live.msg_rate_now ?? live.msg_rate ?? 0,
+        eventRate: live.event_rate_now ?? live.event_rate ?? 0
+      };
+      return;
+    }
+    messages.snap(now);
+    events.snap(now);
+    display = {
+      messages: exactDisplay(messages.value),
+      events: exactDisplay(events.value),
+      msgRate: messages.rate,
+      eventRate: events.rate
+    };
   }
 
   function applySnapshot(raw: unknown): void {
@@ -124,15 +112,14 @@
     }
     degraded = next.degraded;
     if (next.degraded) return;
-    const prev = live;
     live = next;
-    snapAt = performance.now();
+    const now = performance.now();
     if (reduced) {
-      snap(snapAt);
+      snap(now);
       return;
     }
-    if (BigInt(next.messages_total) < BigInt(prev.messages_total)) display.messages = exactDisplay(Number(next.messages_total));
-    if (BigInt(next.events_total) < BigInt(prev.events_total)) display.events = exactDisplay(Number(next.events_total));
+    messages.sample(next.messages_total, next.msg_rate ?? next.msg_rate_now, now);
+    events.sample(next.events_total, next.event_rate ?? next.event_rate_now, now);
   }
 
   async function refresh(): Promise<void> {
@@ -184,7 +171,8 @@
   onMount(() => {
     reduced = prefersReducedMotion();
     const now = performance.now();
-    snapAt = now;
+    messages = new StatsCounter(seed.messages_total, seed.msg_rate ?? seed.msg_rate_now, now);
+    events = new StatsCounter(seed.events_total, seed.event_rate ?? seed.event_rate_now, now);
     introAt = now;
     lastFrame = now;
     if (reduced) {
@@ -230,7 +218,7 @@
   const PENDING = '-';
 
   // Keep the locale's compact suffix separate for the larger counter type.
-  // The exact odometer reading remains printed below it, so compact rounding
+  // The full odometer reading remains printed below it, so compact rounding
   // never hides the live count (or substitutes a made-up scale).
   function compactTotal(raw: string, animated: number): { value: string; unit: string } {
     const exact = BigInt(raw);
