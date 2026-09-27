@@ -53,6 +53,12 @@ export async function listModules(userId: string): Promise<ModuleView[]> {
   });
 }
 
+// Editors read the owning service so a conflict reload cannot reuse a stale projection.
+export async function listModulesForEditing(userId: string): Promise<ModuleView[]> {
+  const reply = await rpc<{ modules?: ModuleView[] }>(`${SUB.modules}.list`, { user_id: userId }, READ_TIMEOUT_MS);
+  return reply.modules ?? [];
+}
+
 async function replaceProjected(kind: section, userId: string, rows: unknown[]): Promise<boolean> {
   try {
     await rpc(`${SUB.projector}.${kind}.replace`, { user_id: userId, [kind]: rows }, 2000);
@@ -120,7 +126,10 @@ export async function patchModule(p: ModulePatch): Promise<{ rev: number; confli
     configs: p.partial,
     expected_rev: p.expectedRev
   });
-  if (reply.conflict) return { rev: reply.rev ?? p.expectedRev, conflict: true };
+  if (reply.conflict) {
+    invalidate(cacheKey('modules', p.userId));
+    return { rev: reply.rev ?? p.expectedRev, conflict: true };
+  }
   await replaceProjectedModules(p.userId, reply.modules);
   return { rev: reply.rev ?? p.expectedRev + 1, conflict: false };
 }

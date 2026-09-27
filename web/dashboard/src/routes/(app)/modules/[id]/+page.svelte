@@ -65,15 +65,17 @@
     timers.set(key, [setTimeout(() => (modStatus = { ...modStatus, [key]: 'idle' }), 4000)]);
   }
 
+  type PatchOutcome = 'saved' | 'conflict' | 'failed';
   let writeChain: Promise<unknown> = Promise.resolve();
+  let writeGeneration = 0;
 
-  async function runPatch(partial: Record<string, string>, en: boolean): Promise<boolean> {
+  async function runPatch(partial: Record<string, string>, en: boolean): Promise<PatchOutcome> {
     const body = new FormData();
     body.set('is_enabled', en ? 'on' : '');
     body.set('expected_rev', String(rev));
     body.set('partial', JSON.stringify(partial));
     const res = await fetch('?/patch', { method: 'POST', body }).catch(() => null);
-    if (!res) return false;
+    if (!res) return 'failed';
     const result = deserialize(await res.text());
     const payload =
       result.type === 'success' || result.type === 'failure'
@@ -81,21 +83,26 @@
         : undefined;
     if (result.type === 'success' && payload?.ok) {
       if (typeof payload.rev === 'number') rev = payload.rev;
-      return true;
+      return 'saved';
     }
     if (payload?.conflict) {
+      // Cancel queued edits drafted against the state being replaced.
+      writeGeneration += 1;
       await invalidateAll();
+      // The reseed effect only fires on module navigation, so refresh in place.
       enabled = data.enabled;
       config = { ...data.config };
       rev = data.revision ?? 0;
       rules = parseRules(data.config.rules ?? '');
       toast('err', t('modules.patchConflict'));
+      return 'conflict';
     }
-    return false;
+    return 'failed';
   }
 
-  function patch(partial: Record<string, string>, en: boolean): Promise<boolean> {
-    const result = writeChain.then(() => runPatch(partial, en));
+  function patch(partial: Record<string, string>, en: boolean): Promise<PatchOutcome> {
+    const generation = writeGeneration;
+    const result = writeChain.then(() => generation === writeGeneration ? runPatch(partial, en) : 'conflict' as const);
     writeChain = result.catch(() => {});
     return result;
   }
@@ -104,11 +111,14 @@
     const before = enabled;
     enabled = !enabled;
     setStatus('module', 'saving');
-    if (await patch({}, enabled)) ackSaved('module');
+    const outcome = await patch({}, enabled);
+    if (outcome === 'saved') ackSaved('module');
     else {
-      enabled = before;
       flagError('module');
-      toast('err', t('modules.couldNotToggle', { label: modLabel }));
+      if (outcome === 'failed') {
+        enabled = before;
+        toast('err', t('modules.couldNotToggle', { label: modLabel }));
+      }
     }
   }
 
@@ -118,11 +128,14 @@
     if (value.trim() === before.trim()) return;
     config = { ...config, [key]: value.trim() };
     setStatus(`setting:${key}`, 'saving');
-    if (await patch({ [key]: value.trim() }, enabled)) ackSaved(`setting:${key}`);
+    const outcome = await patch({ [key]: value.trim() }, enabled);
+    if (outcome === 'saved') ackSaved(`setting:${key}`);
     else {
-      config = { ...config, [key]: before };
       flagError(`setting:${key}`);
-      toast('err', t('modules.saveFailed'));
+      if (outcome === 'failed') {
+        config = { ...config, [key]: before };
+        toast('err', t('modules.saveFailed'));
+      }
     }
   }
 
@@ -146,11 +159,14 @@
     const was = replyOn(reply);
     config = { ...config, [key]: was ? 'off' : 'on' };
     setStatus(reply.key, 'saving');
-    if (await patch({ [key]: was ? 'off' : 'on' }, enabled)) ackSaved(reply.key);
+    const outcome = await patch({ [key]: was ? 'off' : 'on' }, enabled);
+    if (outcome === 'saved') ackSaved(reply.key);
     else {
-      config = { ...config, [key]: was ? 'on' : 'off' };
       flagError(reply.key);
-      toast('err', t('modules.couldNotToggle', { label: tModuleReplyPart(t, def.id, reply, 'label') }));
+      if (outcome === 'failed') {
+        config = { ...config, [key]: was ? 'on' : 'off' };
+        toast('err', t('modules.couldNotToggle', { label: tModuleReplyPart(t, def.id, reply, 'label') }));
+      }
     }
   }
 
@@ -186,15 +202,18 @@
     config = { ...config, [r.messageKey]: editMessage };
     busy = true;
     setStatus(r.key, 'saving');
-    const ok = await patch({ [r.messageKey]: editMessage }, enabled);
+    const outcome = await patch({ [r.messageKey]: editMessage }, enabled);
     busy = false;
-    if (ok) {
+    if (outcome === 'saved') {
       ackSaved(r.key);
+      // Save keeps the inspector open on the saved reply (now clean); no close.
       toast('ok', t('modules.saved', { label: modLabel }));
     } else {
-      config = { ...config, [r.messageKey]: prev ?? '' };
       flagError(r.key);
-      toast('err', t('modules.saveFailed'));
+      if (outcome === 'failed') {
+        config = { ...config, [r.messageKey]: prev ?? '' };
+        toast('err', t('modules.saveFailed'));
+      }
     }
   }
 
@@ -285,11 +304,11 @@
   let draftPhrase = $state('');
   let draftMatch = $state<Match>('word');
 
-  async function persistRules(next: Rule[]): Promise<boolean> {
+  async function persistRules(next: Rule[]): Promise<PatchOutcome> {
     const rulesStr = serializeRules(next);
-    const ok = await patch({ rules: rulesStr }, enabled);
-    if (ok) config = { ...config, rules: rulesStr };
-    return ok;
+    const outcome = await patch({ rules: rulesStr }, enabled);
+    if (outcome === 'saved') config = { ...config, rules: rulesStr };
+    return outcome;
   }
 
   function openRule(i: number) {
@@ -315,16 +334,20 @@
 
   async function saveRule() {
     if (ruleIndex === null) return;
+    // Phrases are stored as structured JSON now, so any characters are safe:
+    // no reserved-syntax restriction.
     const keepOn = ruleIndex === -1 ? true : (rules[ruleIndex]?.enabled ?? true);
     const draft: Rule = { phrase: draftPhrase.trim(), response: editMessage, match: draftMatch, enabled: keepOn };
     const next = ruleIndex === -1 ? [...rules, draft] : rules.map((r, i) => (i === ruleIndex ? draft : r));
     const key = expanded ?? 'rule';
     busy = true;
     setStatus(key, 'saving');
-    const ok = await persistRules(next);
+    const outcome = await persistRules(next);
     busy = false;
-    if (ok) {
+    if (outcome === 'saved') {
       rules = next;
+      // Keep the inspector open on the saved rule (a new rule becomes the last
+      // row); it now reads clean.
       if (ruleIndex === -1) {
         ruleIndex = next.length - 1;
         expanded = `rule:${next.length - 1}`;
@@ -332,32 +355,34 @@
       toast('ok', t('modules.saved', { label: modLabel }));
     } else {
       flagError(key);
-      toast('err', t('modules.saveFailed'));
+      if (outcome === 'failed') toast('err', t('modules.saveFailed'));
     }
   }
 
   async function deleteRule(i: number) {
     const next = rules.filter((_, idx) => idx !== i);
     setStatus(`rule:${i}`, 'saving');
-    if (await persistRules(next)) {
+    const outcome = await persistRules(next);
+    if (outcome === 'saved') {
       rules = next;
       if (expanded === `rule:${i}`) doClose();
       toast('ok', t('modules.saved', { label: modLabel }));
     } else {
       flagError(`rule:${i}`);
-      toast('err', t('modules.saveFailed'));
+      if (outcome === 'failed') toast('err', t('modules.saveFailed'));
     }
   }
 
   async function toggleRule(i: number) {
     const next = rules.map((r, idx) => (idx === i ? { ...r, enabled: !r.enabled } : r));
     setStatus(`rule:${i}`, 'saving');
-    if (await persistRules(next)) {
+    const outcome = await persistRules(next);
+    if (outcome === 'saved') {
       rules = next;
       ackSaved(`rule:${i}`);
     } else {
       flagError(`rule:${i}`);
-      toast('err', t('modules.couldNotToggle', { label: rules[i].phrase }));
+      if (outcome === 'failed') toast('err', t('modules.couldNotToggle', { label: rules[i].phrase }));
     }
   }
 

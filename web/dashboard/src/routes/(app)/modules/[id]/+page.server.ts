@@ -3,7 +3,7 @@
 
 import type { Actions, PageServerLoad } from './$types';
 import { moduleDef, type ModuleDef, MOD } from '@bagel/kit';
-import { listModules, upsertModule, patchModule } from '$lib/server/commands-store';
+import { listModulesForEditing, upsertModule, patchModule } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
 import { assertModuleWritable, moduleLocked } from '$lib/server/module-gate';
@@ -16,6 +16,7 @@ import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { actionError } from '$lib/server/action-errors';
+import { moduleEditState } from '$lib/server/module-edit-state';
 
 const DEMO = dev && env.DEMO === '1';
 
@@ -23,21 +24,6 @@ function gateModules(session: Session | null | undefined): void {
   if (session?.delegate_of && !(session.sections ?? []).includes('modules')) {
     throw redirect(302, '/');
   }
-}
-
-function asConfig(raw: unknown): { config: Record<string, string>; revision: number } {
-  const config: Record<string, string> = {};
-  let revision = 0;
-  if (raw && typeof raw === 'object') {
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-      if (k === '__rev') {
-        revision = Number(v) || 0;
-        continue;
-      }
-      config[k] = v == null ? '' : String(v);
-    }
-  }
-  return { config, revision };
 }
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -52,10 +38,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   return moduleLoad(def.id, locals.session, {
     demo: DEMO ? async () => blank() : undefined,
     read: async (uid) => {
-      const rows = await listModules(uid);
+      const rows = await listModulesForEditing(uid);
       const row = rows.find((r) => r.name === def.id);
-      const { config, revision } = asConfig(row?.configs);
-      return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision: row?.revision ?? revision };
+      const { config, revision } = moduleEditState(row);
+      return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision };
     },
     blank
   });
