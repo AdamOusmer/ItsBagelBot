@@ -24,36 +24,58 @@ export function draftKey(originalName: string, edit: boolean): string {
   return `${PREFIX}${edit ? originalName : 'new'}`;
 }
 
+type StoredDraft = Partial<Omit<CommandDraft, 'edit' | 'originalName' | 'builtin'>>;
+
+const isString = (value: unknown): value is string => typeof value === 'string';
+const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.every(isString);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const STORED_FIELDS: Record<string, (value: unknown) => boolean> = {
+  name: isString,
+  aliases: isStringArray,
+  response: isString,
+  perm: isString,
+  cooldown: isFiniteNumber,
+  allowed_user_id: isString,
+  bump_counter: isString,
+  stream_online_only: isBoolean,
+  is_active: isBoolean
+};
+
+function parseStoredDraft(raw: string): StoredDraft | null {
+  const decoded: unknown = JSON.parse(raw);
+  if (!isRecord(decoded)) return null;
+  // Ignore stale metadata and removed fields, but refuse incompatible editor
+  // values. Invalid command text remains editable; this only checks its shape.
+  const fields = Object.entries(decoded).filter(([key]) => Object.hasOwn(STORED_FIELDS, key));
+  if (!fields.every(([key, value]) => STORED_FIELDS[key](value))) return null;
+  return Object.fromEntries(fields) as StoredDraft;
+}
+
 export function loadDraft(originalName: string, edit: boolean): CommandDraft | null {
   try {
     const raw = sessionStorage.getItem(draftKey(originalName, edit));
     if (!raw) return null;
-    const stored: unknown = JSON.parse(raw);
-    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return null;
-    const d = stored as Record<string, unknown>;
-    // Storage is untrusted, and older content-only snapshots omitted Active.
-    // Every bound editor field must have a value before the component mounts:
-    // binding undefined to Checkbox's fallback throws in production too.
-    for (const field of ['name', 'response', 'perm', 'allowed_user_id', 'bump_counter']) {
-      if (d[field] !== undefined && typeof d[field] !== 'string') return null;
-    }
-    if (d.aliases !== undefined && (!Array.isArray(d.aliases) || d.aliases.some((a) => typeof a !== 'string'))) return null;
-    if (d.cooldown !== undefined && (typeof d.cooldown !== 'number' || !Number.isFinite(d.cooldown))) return null;
-    for (const field of ['is_active', 'stream_online_only']) {
-      if (d[field] !== undefined && typeof d[field] !== 'boolean') return null;
-    }
+    const stored = parseStoredDraft(raw);
+    if (!stored) return null;
+    // Old content-only snapshots omitted Active. Complete every bound field
+    // before mounting: an undefined Checkbox binding throws in production.
     return {
       edit,
       originalName,
-      name: (d.name as string | undefined) ?? originalName,
-      aliases: (d.aliases as string[] | undefined) ?? [],
-      response: (d.response as string | undefined) ?? '',
-      perm: (d.perm as Perm | undefined) ?? 'everyone',
-      cooldown: (d.cooldown as number | undefined) ?? 0,
-      allowed_user_id: (d.allowed_user_id as string | undefined) ?? '',
-      bump_counter: (d.bump_counter as string | undefined) ?? '',
-      stream_online_only: (d.stream_online_only as boolean | undefined) ?? false,
-      is_active: (d.is_active as boolean | undefined) ?? true
+      name: originalName,
+      aliases: [],
+      response: '',
+      perm: 'everyone',
+      cooldown: 0,
+      allowed_user_id: '',
+      bump_counter: '',
+      stream_online_only: false,
+      is_active: true,
+      ...stored
     };
   } catch {
     return null;
