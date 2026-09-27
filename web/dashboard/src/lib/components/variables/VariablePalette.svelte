@@ -161,30 +161,35 @@
 {/snippet}
 
 <div class="vp">
-  <div class="vp-row">
-    <div class="vp-scroll">
+  <div class="vp-row" role="group" aria-label={t('commandEditor.insertVariable')}>
+    <div class="vp-tokens">
       {#each pinnedChips as c (c.token)}
-        <Chip tone="muted" title={rowHint(c) ?? c.token} onclick={() => insert(c.token)}>{c.token}</Chip>
+        <Chip tone="muted" title={rowHint(c) ?? c.token} onclick={() => insert(c.token)}>
+          <span class="vp-token">{c.token}</span>
+        </Chip>
       {/each}
-
-      {#if isCustom}
-        <span class="vp-sep" aria-hidden="true"></span>
-        <CounterPicker onInsert={insert} />
-        <FetchSourcePicker defs={fetchDefs} keys={fetchKeys} onInsert={insert} onDefsChanged={onFetchDefsChanged} />
-      {/if}
     </div>
 
-    {#if !sheetEmpty}
-      <button
-        type="button"
-        class="bb-chip bb-chip--muted vp-all"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onclick={toggle}
-        bind:this={btnEl}
-      >
-        {t('commandEditor.allVariables')}
-      </button>
+    {#if isCustom || !sheetEmpty}
+      <div class="vp-actions">
+        {#if isCustom}
+          <CounterPicker onInsert={insert} />
+          <FetchSourcePicker defs={fetchDefs} keys={fetchKeys} onInsert={insert} onDefsChanged={onFetchDefsChanged} />
+        {/if}
+
+        {#if !sheetEmpty}
+          <button
+            type="button"
+            class="bb-chip bb-chip--muted vp-all"
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            onclick={toggle}
+            bind:this={btnEl}
+          >
+            {t('commandEditor.allVariables')}
+          </button>
+        {/if}
+      </div>
     {/if}
   </div>
 
@@ -236,40 +241,25 @@
 <style>
   .vp { display: contents; }
 
+  /* Suggestions stay visible in compact rows; picker actions follow them. */
   .vp-row {
-    display: flex;
-    align-items: center;
+    display: grid;
+    min-width: 0;
     gap: 6px;
-    min-height: calc(11.5px + 2 * 7px + 2 * 1px);
     margin-top: 8px;
   }
 
-  .vp-scroll {
+  .vp-tokens,
+  .vp-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    flex: 1 1 auto;
     min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x proximity;
+    gap: 6px;
   }
-  .vp-scroll :global(> *) {
-    flex: none;
-    scroll-snap-align: start;
-  }
-  .vp-scroll :global(.bb-chip) { white-space: nowrap; }
 
+  .vp-token { min-width: 0; overflow-wrap: anywhere; text-align: left; }
   .vp-all { flex: none; }
-
-  .vp-sep {
-    width: 1px;
-    align-self: stretch;
-    min-height: 16px;
-    margin: 0 2px;
-    background: var(--rule, var(--bb-border));
-    flex: none;
-  }
 
   .sheet { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 
