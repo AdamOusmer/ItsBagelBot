@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -107,19 +108,29 @@ func (r *LoyaltyReporter) Earn(broadcasterID, viewerID uint64, login, name strin
 		agg = &earnAgg{}
 		r.earn[key] = agg
 	}
-	agg.points += points
-	agg.watchSeconds += watchSeconds
-	if login != "" {
-		agg.login = login
-	}
-	if name != "" {
-		agg.name = name
-	}
+	agg.add(data.LoyaltyEarnEntry{ViewerLogin: login, ViewerName: name, Points: points, WatchSeconds: watchSeconds})
+
 	overflow := len(r.earn) >= loyaltyMaxKeys
 	r.mu.Unlock()
 
 	if overflow {
 		r.nudge()
+	}
+}
+
+// Saturate before serialization so a producer window cannot wrap earned points.
+func (agg *earnAgg) add(entry data.LoyaltyEarnEntry) {
+	if entry.Points > 0 && agg.points > math.MaxInt64-entry.Points {
+		agg.points = math.MaxInt64
+	} else {
+		agg.points += entry.Points
+	}
+	agg.watchSeconds += entry.WatchSeconds
+	if entry.ViewerLogin != "" {
+		agg.login = entry.ViewerLogin
+	}
+	if entry.ViewerName != "" {
+		agg.name = entry.ViewerName
 	}
 }
 

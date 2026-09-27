@@ -33,43 +33,44 @@ type QuotesStore interface {
 }
 
 type Deps struct {
-	TrialStore    valkey.Client
-	Proj          projection.Reader
-	Live          LiveStore
-	Greet         GreetStore
-	Cooldown      CooldownStore
-	Special       *SpecialSet
-	Pub           bus.Publisher
-	Commands      CommandManager
-	Gossip        GossipCaller
-	CustomFetch   UrlFetchCaller
-	Followage     FollowageLookup
-	AccountAge    AccountAgeLookup
-	Uptime        UptimeLookup
-	StreamInfo    StreamInfoLookup
-	ChannelCounts ChannelCountsLookup
-	Viewers       ViewerLookup
-	Log           *zap.Logger
-	Timers        TimersStore
-	ChatLines     ChatLineCounter
-	Automod       *automod.Gate
-	Reputation    Reputation
-	Campaign      Campaign
-	Queue         QueueStore
-	SongQueue     SongQueueStore
-	Raffle        RaffleStore
-	Duel          DuelStore
-	Quotes        QuotesStore
-	Loyalty       LoyaltyStore
-	LoyaltyTick   LoyaltyTicker
-	Stats         CounterBumper
-	PublicBaseURL string
-	Personality   PersonalityStore
-	EmotePlay     EmotePlayStore
-	Emotes        scope.EmoteSource
-	Dedup         *EventDedup
-	Seq           *Sequencer
-	Nuke          *Nuke
+	TrialStore     valkey.Client
+	Proj           projection.Reader
+	Live           LiveStore
+	Greet          GreetStore
+	Cooldown       CooldownStore
+	Special        *SpecialSet
+	Pub            bus.Publisher
+	Commands       CommandManager
+	Gossip         GossipCaller
+	CustomFetch    UrlFetchCaller
+	Followage      FollowageLookup
+	AccountAge     AccountAgeLookup
+	TwitchAccounts TwitchAccountLookup
+	Uptime         UptimeLookup
+	StreamInfo     StreamInfoLookup
+	ChannelCounts  ChannelCountsLookup
+	Viewers        ViewerLookup
+	Log            *zap.Logger
+	Timers         TimersStore
+	ChatLines      ChatLineCounter
+	Automod        *automod.Gate
+	Reputation     Reputation
+	Campaign       Campaign
+	Queue          QueueStore
+	SongQueue      SongQueueStore
+	Raffle         RaffleStore
+	Duel           DuelStore
+	Quotes         QuotesStore
+	Loyalty        LoyaltyStore
+	LoyaltyTick    LoyaltyTicker
+	Stats          CounterBumper
+	PublicBaseURL  string
+	Personality    PersonalityStore
+	EmotePlay      EmotePlayStore
+	Emotes         scope.EmoteSource
+	Dedup          *EventDedup
+	Seq            *Sequencer
+	Nuke           *Nuke
 }
 
 type FeedCounts struct {
@@ -145,14 +146,39 @@ type CounterBump struct {
 	Delta         int64
 }
 
+type BalanceAdjustment struct {
+	BroadcasterID uint64
+	ViewerID      uint64
+	ViewerLogin   string
+	Value         int64
+	Absolute      bool
+}
+
+type PointWager struct {
+	BroadcasterID uint64
+	ViewerID      uint64
+	Login         string
+	Amount        int64
+	Won           bool
+}
+
+type WagerOutcome struct {
+	Balance       loyaltyrpc.Balance
+	Found         bool
+	Applied       bool
+	LimitExceeded bool
+}
+
 type LoyaltyStore interface {
 	Earn(broadcasterID, viewerID uint64, login, name string, points int64, watchSeconds uint64)
 	CounterBump(ctx context.Context, b CounterBump) (int64, error)
 	CounterPeek(ctx context.Context, target CounterTarget) (loyaltyrpc.Counter, bool, error)
+	BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error)
 	BalanceGet(ctx context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error)
 	BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error)
+	BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error)
 	BalanceSpend(ctx context.Context, broadcasterID uint64, viewerLogin string, amount int64) (bal loyaltyrpc.Balance, found, spent bool, err error)
-	BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error)
+	BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error)
 	Top(ctx context.Context, broadcasterID uint64, limit int) ([]loyaltyrpc.Balance, error)
 	CounterCreate(ctx context.Context, broadcasterID uint64, name, scope string) (loyaltyrpc.Counter, error)
 	CounterSet(ctx context.Context, broadcasterID uint64, name string, viewerID uint64, command string, value int64) (bool, error)

@@ -37,6 +37,7 @@ type bumpCall struct {
 }
 
 type adjustCall struct {
+	viewerID uint64
 	login    string
 	value    int64
 	absolute bool
@@ -53,6 +54,7 @@ type fakeLoyalty struct {
 	adjusts     []adjustCall
 	spends      []spendCall
 	transfers   []transferCall
+	wagers      []engine.PointWager
 	spendBad    bool
 	transferBad bool
 	topViewers  []topViewer
@@ -84,7 +86,12 @@ func (f *fakeLoyalty) BalanceGet(_ context.Context, _, viewerID uint64) (loyalty
 }
 
 func (f *fakeLoyalty) BalanceAdjust(_ context.Context, _ uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error) {
-	f.adjusts = append(f.adjusts, adjustCall{login: viewerLogin, value: value, absolute: absolute})
+	return f.BalanceAdjustViewer(context.Background(), engine.BalanceAdjustment{ViewerLogin: viewerLogin, Value: value, Absolute: absolute})
+}
+
+func (f *fakeLoyalty) BalanceAdjustViewer(_ context.Context, a engine.BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
+	viewerID, viewerLogin, value, absolute := a.ViewerID, a.ViewerLogin, a.Value, a.Absolute
+	f.adjusts = append(f.adjusts, adjustCall{viewerID: viewerID, login: viewerLogin, value: value, absolute: absolute})
 	if viewerLogin == "ghost" {
 		return loyaltyrpc.Balance{}, false, nil
 	}
@@ -113,13 +120,14 @@ func (f *fakeLoyalty) BalanceSpend(_ context.Context, _ uint64, viewerLogin stri
 }
 
 type transferCall struct {
-	fromID uint64
-	login  string
-	amount int64
+	fromID   uint64
+	targetID uint64
+	login    string
+	amount   int64
 }
 
-func (f *fakeLoyalty) BalanceTransfer(_ context.Context, _ uint64, fromViewerID uint64, targetLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
-	f.transfers = append(f.transfers, transferCall{fromViewerID, targetLogin, amount})
+func (f *fakeLoyalty) BalanceTransfer(_ context.Context, _ uint64, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
+	f.transfers = append(f.transfers, transferCall{fromViewerID, targetViewerID, targetLogin, amount})
 	if targetLogin == "ghost" {
 		return loyaltyrpc.Balance{}, false, false, nil
 	}
@@ -205,7 +213,7 @@ func loyaltyCtx(eventType, payload, config string) *module.Context {
 
 func loyaltyModule(t *testing.T, fake *fakeLoyalty) module.Module {
 	t.Helper()
-	m := Loyalty(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
+	m := Loyalty(engine.Deps{Loyalty: fake, TwitchAccounts: &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "8", UserFound: true}}, Log: zap.NewNop()})
 	assert.Equal(t, engine.LoyaltyModuleName, m.Name)
 	assert.Equal(t, module.KindOptIn, m.Kind)
 	return m
@@ -380,7 +388,7 @@ func TestLoyaltyPointsModAdjust(t *testing.T) {
 	var col collector
 	require.NoError(t, cmd.Run(context.Background(), modCtx(), "set @CoolViewer 500", col.emit))
 	require.Len(t, fake.adjusts, 1)
-	assert.Equal(t, adjustCall{login: "coolviewer", value: 500, absolute: true}, fake.adjusts[0])
+	assert.Equal(t, adjustCall{viewerID: 8, login: "coolviewer", value: 500, absolute: true}, fake.adjusts[0])
 	require.Len(t, col.out, 1)
 	assert.Contains(t, col.out[0].Text, "500")
 	assert.Contains(t, col.out[0].Text, "coolviewer")
@@ -388,12 +396,12 @@ func TestLoyaltyPointsModAdjust(t *testing.T) {
 	col = collector{}
 	require.NoError(t, cmd.Run(context.Background(), modCtx(), "add coolviewer -100", col.emit))
 	require.Len(t, fake.adjusts, 2)
-	assert.Equal(t, adjustCall{login: "coolviewer", value: -100, absolute: false}, fake.adjusts[1])
+	assert.Equal(t, adjustCall{viewerID: 8, login: "coolviewer", value: -100, absolute: false}, fake.adjusts[1])
 	assert.Contains(t, col.out[0].Text, "400")
 
 	col = collector{}
 	require.NoError(t, cmd.Run(context.Background(), modCtx(), "set ghost 10", col.emit))
-	assert.Contains(t, strings.ToLower(col.out[0].Text), "haven't seen")
+	assert.Contains(t, strings.ToLower(col.out[0].Text), "try again")
 
 	col = collector{}
 	require.NoError(t, cmd.Run(context.Background(), loyaltyCtx("channel.chat.message", "", ""), "set @CoolViewer 500", col.emit))
@@ -516,7 +524,7 @@ func TestLoyaltyPointMutationsDeduplicateRedelivery(t *testing.T) {
 			c.Env.MsgID = "chat-one"
 			var col collector
 			for range 2 {
-				m := Loyalty(engine.Deps{Loyalty: fake, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
+				m := Loyalty(engine.Deps{Loyalty: fake, TwitchAccounts: &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "8", UserFound: true}}, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
 				require.NoError(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, verb+" @receiver 100", col.emit))
 			}
 			assert.Equal(t, 1, len(fake.adjusts)+len(fake.transfers))
@@ -573,4 +581,24 @@ func TestLoyaltyLifecycleForwardsVersionAndRejectsStaleOffline(t *testing.T) {
 			t.Fatal("lifecycle task did not finish")
 		}
 	}
+}
+
+func (f *fakeLoyalty) BalanceWager(_ context.Context, wager engine.PointWager) (engine.WagerOutcome, error) {
+	f.wagers = append(f.wagers, wager)
+	if wager.Login == "ghost" {
+		return engine.WagerOutcome{}, nil
+	}
+	bal := f.standing(wager.Login)
+	out := engine.WagerOutcome{Balance: bal, Found: true}
+	if f.spendBad || bal.Points < wager.Amount {
+		return out, nil
+	}
+	if wager.Won {
+		bal.Points += wager.Amount
+	} else {
+		bal.Points -= wager.Amount
+	}
+	f.balances[wager.Login] = bal.Points
+	out.Balance, out.Applied = bal, true
+	return out, nil
 }

@@ -85,7 +85,8 @@ function parseConfig(raw: string): LoyaltyConfig | null {
     watchPointsPerTick: clampRate(obj.watchPointsPerTick),
     modSetPoints: permValue(obj.modSetPoints),
     modAdjustPoints: permValue(obj.modAdjustPoints),
-    viewerTransfers: permValue(obj.viewerTransfers)
+    viewerTransfers: permValue(obj.viewerTransfers),
+    streamerPoints: permValue(obj.streamerPoints)
   };
 }
 

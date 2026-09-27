@@ -190,8 +190,8 @@ export function demoTimers(): TimerDef[] {
 
 export function demoStandings(): LoyaltyStanding[] {
   return [
-    { viewerId: '1', viewerLogin: 'sesame_sam', viewerName: 'sesame_sam', points: 12400, watchSeconds: 90_000 },
-    { viewerId: '2', viewerLogin: 'bagel_fan', viewerName: 'Bagel_Fan', points: 8300, watchSeconds: 64_800 }
+    { viewerId: '1', viewerLogin: 'sesame_sam', viewerName: 'sesame_sam', points: '12400', watchSeconds: 90_000 },
+    { viewerId: '2', viewerLogin: 'bagel_fan', viewerName: 'Bagel_Fan', points: '8300', watchSeconds: 64_800 }
   ];
 }
 

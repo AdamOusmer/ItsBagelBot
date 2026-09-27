@@ -77,7 +77,7 @@
             <span class="avatar" aria-hidden="true">{rowName(viewer).slice(0, 2)}</span>
             <span class="name" title={viewer.viewerLogin || viewer.viewerName}>{rowName(viewer)}</span>
             <span class="points">
-              <span class="num">{totalFmt.format(viewer.points)}</span>
+              <span class="num">{totalFmt.format(BigInt(viewer.points))}</span>
               <span class="currency">{data.currencyName}</span>
             </span>
             <span class="watched">
@@ -122,7 +122,7 @@
                     <td class="n muted">
                       {hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}
                     </td>
-                    <td class="n points-cell">{totalFmt.format(viewer.points)}</td>
+                    <td class="n points-cell">{totalFmt.format(BigInt(viewer.points))}</td>
                   </tr>
                 {/each}
               </tbody>

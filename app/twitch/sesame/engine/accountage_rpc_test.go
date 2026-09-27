@@ -36,3 +36,27 @@ func TestAccountAgeLookupCachesInSesame(t *testing.T) {
 	}
 	require.Equal(t, int32(1), calls.Load(), "the second command lookup must be served by Sesame's cache")
 }
+
+func TestResolveLoginBypassesAccountAgeCache(t *testing.T) {
+	var calls int
+	a := &AccountAgeRPC{
+		cache: cache.New[AccountAgeResult](100, time.Minute),
+		request: func(_ context.Context, req outgressrpc.AccountAgeRequest) (outgressrpc.AccountAgeReply, error) {
+			calls++
+			require.Equal(t, "alice", req.TargetLogin)
+			if calls == 1 {
+				return outgressrpc.AccountAgeReply{TargetID: "8", UserFound: true}, nil
+			}
+			return outgressrpc.AccountAgeReply{UserFound: false}, nil
+		},
+	}
+	defer a.cache.Close()
+	cached, err := a.Lookup(context.Background(), "", "alice")
+	require.NoError(t, err)
+	require.True(t, cached.UserFound)
+	id, found, err := a.ResolveLogin(context.Background(), "alice")
+	require.NoError(t, err)
+	require.False(t, found, "a renamed account must not receive a transfer through its old login")
+	require.Empty(t, id)
+	require.Equal(t, 2, calls)
+}

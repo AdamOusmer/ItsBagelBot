@@ -2349,6 +2349,8 @@
     "fieldGift": "Per gifted sub (to the gifter)",
     "fieldCheer": "Per 100 bits cheered",
     "fieldWatch": "Per 5 minutes watched",
+    "streamerPoints": "Streamer earns points",
+    "streamerPointsHint": "Allow the channel owner to earn automatic points, including watch points while present in chat during a live stream. Watch time, transfers and manual grants remain available when off.",
     "tierHint": "Sub and resub awards scale with the tier: ×1, ×2 (tier 2), ×6 (tier 3).",
     "defaultTag": "default {n}",
     "save": "Save rates",

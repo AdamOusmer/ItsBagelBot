@@ -5,6 +5,7 @@ package modules
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"strings"
 
@@ -110,12 +111,7 @@ func (gc gambleCmd) run(ctx context.Context, arg string, emit module.Emit) error
 		return nil
 	}
 
-	// Escrow before the dice: the conditional debit is the wager, so overlapping bets cannot overpay.
-	balance, ok, err := gc.escrow(ctx, login, bet, emit)
-	if err != nil || !ok {
-		return err
-	}
-	return gc.settle(ctx, login, wagerOutcome{bet: bet, balance: balance}, emit)
+	return gc.settle(ctx, login, wagerOutcome{bet: bet}, emit)
 }
 
 func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
@@ -125,8 +121,18 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 		return err
 	}
 	wager.roll = roll
+	out, err := gc.d.Loyalty.BalanceWager(ctx, engine.PointWager{BroadcasterID: gc.c.BroadcasterID, ViewerID: gc.viewerID(), Login: login, Amount: wager.bet, Won: engine.GambleWins(roll, gc.cfg.WinPercent)})
+	if err != nil {
+		gc.log.Warn("gamble: settlement failed", gc.c.BID(), zap.Error(err))
+		return err
+	}
+	if !gc.acceptSettlement(out, emit) {
+		return nil
+	}
+	wager.balance = out.Balance.Points
 	if engine.GambleWins(roll, gc.cfg.WinPercent) {
-		return gc.settleWin(ctx, login, wager, emit)
+		gc.announce(emit, gc.tmpl.WinMessage, "gamble.win", wager)
+		return nil
 	}
 	gc.reply(emit, gc.tmpl.LoseMessage, "gamble.lose",
 		"roll", strconv.FormatInt(roll, 10),
@@ -136,21 +142,18 @@ func (gc gambleCmd) settle(ctx context.Context, login string, wager wagerOutcome
 	return nil
 }
 
-func (gc gambleCmd) escrow(ctx context.Context, login string, bet int64, emit module.Emit) (balance int64, ok bool, err error) {
-	newBal, found, spent, err := gc.d.Loyalty.BalanceSpend(ctx, gc.c.BroadcasterID, login, bet)
+func (gc gambleCmd) acceptSettlement(out engine.WagerOutcome, emit module.Emit) bool {
 	switch {
-	case err != nil:
-		gc.log.Warn("gamble: stake debit failed", gc.c.BID(), zap.Error(err))
-		return 0, false, err
-	case !found:
+	case !out.Found:
 		gc.reply(emit, "", "gamble.unknown")
-		return 0, false, nil
-	case !spent:
-		gc.reply(emit, "", "gamble.broke",
-			"balance", strconv.FormatInt(newBal.Points, 10))
-		return 0, false, nil
+	case out.LimitExceeded:
+		gc.reply(emit, "", "gamble.range")
+	case !out.Applied:
+		gc.reply(emit, "", "gamble.broke", "balance", strconv.FormatInt(out.Balance.Points, 10))
+	default:
+		return true
 	}
-	return newBal.Points, true, nil
+	return false
 }
 
 type wagerOutcome struct {
@@ -168,7 +171,7 @@ func (gc gambleCmd) refuse(arg string) (int64, refusal) {
 	bet, outcome := engine.ResolveGambleBet(arg, gc.balance, gc.cfg.MinBet, gc.cfg.MaxBet)
 	switch outcome {
 	case engine.BetOK:
-		return bet, refusal{}
+		return gc.acceptBet(bet)
 	case engine.BetEmpty, engine.BetInvalid:
 		return 0, refusal{key: "gamble.usage"}
 	case engine.BetBelowMin:
@@ -178,6 +181,14 @@ func (gc gambleCmd) refuse(arg string) (int64, refusal) {
 	default:
 		return 0, refusal{key: "gamble.broke", tokens: []string{"balance", strconv.FormatInt(gc.balance, 10)}}
 	}
+}
+
+// Refuse a wager whose possible net win exceeds the cached balance capacity.
+func (gc gambleCmd) acceptBet(bet int64) (int64, refusal) {
+	if gc.balance > math.MaxInt64-bet {
+		return 0, refusal{key: "gamble.range"}
+	}
+	return bet, refusal{}
 }
 
 func boundKV(name string, limit int64) []string {
@@ -196,21 +207,6 @@ func (gc gambleCmd) claimCooldown(ctx context.Context, login string) (bool, erro
 		return false, err
 	}
 	return allowed, nil
-}
-
-func (gc gambleCmd) settleWin(ctx context.Context, login string, wager wagerOutcome, emit module.Emit) error {
-	newBal, found, err := gc.d.Loyalty.BalanceAdjust(ctx, gc.c.BroadcasterID, login, wager.bet*2, false)
-	if err != nil {
-		gc.log.Warn("gamble: win credit failed", gc.c.BID(), zap.Error(err))
-		return err
-	}
-	if !found {
-		gc.reply(emit, "", "gamble.err")
-		return nil
-	}
-	wager.balance = newBal.Points
-	gc.announce(emit, gc.tmpl.WinMessage, "gamble.win", wager)
-	return nil
 }
 
 func (gc gambleCmd) announce(emit module.Emit, override string, key replyKey, wager wagerOutcome) {

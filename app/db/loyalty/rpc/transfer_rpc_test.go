@@ -95,3 +95,34 @@ func TestHandleBalanceTransferRefusals(t *testing.T) {
 	})
 	assert.NotEmpty(t, reply.Error)
 }
+
+func TestHandleBalanceTransferResolvedRecipient(t *testing.T) {
+	l := newTransferHarness(t)
+	reply := l.handleBalanceTransfer(context.Background(), loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: "9", ViewerLogin: "blemmyz", Value: 400})
+	require.Empty(t, reply.Error)
+	require.True(t, reply.Spent)
+	assert.Equal(t, int64(600), reply.Balance.Points)
+	assert.Equal(t, "9", reply.TargetBalance.ViewerID)
+	assert.Equal(t, int64(400), reply.TargetBalance.Points)
+}
+
+func TestHandleBalanceTransferMissingSenderIsInsufficient(t *testing.T) {
+	l := newTransferHarness(t)
+	reply := l.handleBalanceTransfer(context.Background(), loyaltyrpc.Request{UserID: "2", ViewerID: "99", TargetViewerID: "9", ViewerLogin: "blemmyz", Value: 400})
+	require.Empty(t, reply.Error)
+	assert.True(t, reply.Found)
+	assert.False(t, reply.Spent)
+	require.NotNil(t, reply.Balance)
+	assert.Equal(t, "99", reply.Balance.ViewerID)
+	assert.Zero(t, reply.Balance.Points)
+	assert.Nil(t, reply.TargetBalance)
+}
+
+func TestHandleBalanceTransferRejectsInvalidTargetID(t *testing.T) {
+	l := newTransferHarness(t)
+	for _, id := range []string{"0", "-1", "nope", "18446744073709551616", "7"} {
+		reply := l.handleBalanceTransfer(context.Background(), loyaltyrpc.Request{UserID: "2", ViewerID: "7", TargetViewerID: id, ViewerLogin: "renamed", Value: 400})
+		assert.NotEmpty(t, reply.Error, id)
+		assert.False(t, reply.Spent, id)
+	}
+}

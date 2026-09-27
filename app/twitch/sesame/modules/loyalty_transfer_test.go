@@ -5,6 +5,11 @@ package modules
 
 import (
 	"context"
+	"errors"
+	"math"
+
+	"ItsBagelBot/app/twitch/sesame/engine"
+	"go.uber.org/zap"
 	"strings"
 	"testing"
 
@@ -29,7 +34,7 @@ func TestPointsGiveTransfersOwnPoints(t *testing.T) {
 	text, _ := runPoints(t, fake, "", "give @bagelfan 500")
 
 	require.Len(t, fake.transfers, 1)
-	assert.Equal(t, transferCall{fromID: 7, login: "bagelfan", amount: 500}, fake.transfers[0])
+	assert.Equal(t, transferCall{fromID: 7, targetID: 8, login: "bagelfan", amount: 500}, fake.transfers[0])
 	assert.Empty(t, fake.adjusts, "give must never take the mod-grant path")
 	assert.Contains(t, text, "bagelfan")
 	assert.Contains(t, text, "500")
@@ -58,7 +63,7 @@ func TestPointsGiveGuards(t *testing.T) {
 
 	fake = &fakeLoyalty{}
 	text, _ = runPoints(t, fake, "", "give ghost 10")
-	assert.Contains(t, strings.ToLower(text), "haven't seen")
+	assert.Contains(t, strings.ToLower(text), "try again")
 
 	fake = &fakeLoyalty{}
 	text, _ = runPoints(t, fake, "", "give bagelfan nope")
@@ -158,4 +163,90 @@ func TestLeaderboardShowsTopStandings(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), loyaltyCtx("channel.chat.message", "", ""), "99", bad.emit))
 	require.Len(t, bad.out, 1)
 	assert.Contains(t, strings.ToLower(bad.out[0].Text), "usage")
+}
+
+func TestPointsGiveRecipientLookup(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		lookup       *fakeAccountAge
+		wantText     string
+		wantTransfer bool
+	}{
+		{"new recipient", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "42"}}, "you gave", true},
+		{"unknown account", &fakeAccountAge{}, "was not found", false},
+		{"lookup failure", &fakeAccountAge{err: errors.New("unavailable")}, "try again", false},
+		{"missing lookup", nil, "try again", false},
+		{"invalid lookup ID", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "0"}}, "try again", false},
+		{"self under another login", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "7"}}, "yourself", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			deps := engine.Deps{Loyalty: fake, Log: zap.NewNop()}
+			if tc.lookup != nil {
+				deps.TwitchAccounts = tc.lookup
+			}
+			cmd := loyaltyCommand(t, Loyalty(deps), "points")
+			var col collector
+			require.NoError(t, cmd.Run(context.Background(), loyaltyCtx("channel.chat.message", "", ""), "give @Blemmyz 500", col.emit))
+			require.Len(t, col.out, 1)
+			assert.Contains(t, strings.ToLower(col.out[0].Text), tc.wantText)
+			if tc.wantTransfer {
+				require.Len(t, fake.transfers, 1)
+				assert.Equal(t, transferCall{fromID: 7, targetID: 42, login: "blemmyz", amount: 500}, fake.transfers[0])
+			} else {
+				assert.Empty(t, fake.transfers)
+			}
+			if tc.lookup != nil {
+				assert.Equal(t, "blemmyz", tc.lookup.got.targetLogin)
+			}
+		})
+	}
+}
+
+func (f *fakeAccountAge) ResolveLogin(ctx context.Context, login string) (string, bool, error) {
+	r, err := f.Lookup(ctx, "", login)
+	return r.TargetID, r.UserFound, err
+}
+
+func TestPointsAdjustCreatesResolvedUsers(t *testing.T) {
+	for _, verb := range []string{"set", "add", "remove"} {
+		t.Run(verb, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			lookup := &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "42", UserFound: true}}
+			m := Loyalty(engine.Deps{Loyalty: fake, TwitchAccounts: lookup, Log: zap.NewNop()})
+			c := loyaltyCtx("channel.chat.message", "", "")
+			c.Env.ChatterUserID = "2"
+			var col collector
+			require.NoError(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, verb+" @Blemmyz 5000", col.emit))
+			require.Len(t, fake.adjusts, 1)
+			assert.Equal(t, uint64(42), fake.adjusts[0].viewerID)
+			assert.Equal(t, "blemmyz", fake.adjusts[0].login)
+			assert.Equal(t, verb == "set", fake.adjusts[0].absolute)
+			expected := int64(5000)
+			if verb == "remove" {
+				expected = -expected
+			}
+			assert.Equal(t, expected, fake.adjusts[0].value)
+			assert.Equal(t, "blemmyz", lookup.got.targetLogin)
+		})
+	}
+}
+
+func TestPointsSetAcceptsExactBIGINTAmount(t *testing.T) {
+	fake := &fakeLoyalty{}
+	m := loyaltyModule(t, fake)
+	c := loyaltyCtx("channel.chat.message", "", "")
+	c.Env.ChatterUserID = "2"
+	var col collector
+	require.NoError(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, "set blemmyz 9223372036854775807", col.emit))
+	require.Len(t, fake.adjusts, 1)
+	assert.Equal(t, int64(math.MaxInt64), fake.adjusts[0].value)
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "9223372036854775807")
+	fake = &fakeLoyalty{}
+	m = loyaltyModule(t, fake)
+	col = collector{}
+	require.NoError(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, "set blemmyz 9223372036854775808", col.emit))
+	assert.Empty(t, fake.adjusts)
+	assert.Contains(t, strings.ToLower(col.out[0].Text), "usage")
 }

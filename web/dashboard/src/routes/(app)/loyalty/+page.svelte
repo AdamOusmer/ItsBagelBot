@@ -19,6 +19,7 @@
     toast,
     getI18n,
     LOYALTY_DEFAULTS,
+    formatPointValue,
     moduleDef,
     catalogChildren,
     type LoyaltyConfig
@@ -171,6 +172,19 @@
           </Field>
         {/each}
 
+        <div class="perm">
+          <span class="perm-copy">
+            <span class="perm-label">{t('loyalty.streamerPoints')}</span>
+            <span class="perm-hint" id="streamer-points-hint">{t('loyalty.streamerPointsHint')}</span>
+          </span>
+          <Switch
+            label={t('loyalty.streamerPoints')}
+            describedby="streamer-points-hint"
+            checked={config.streamerPoints >= 0}
+            onchange={(v) => (config.streamerPoints = v ? 0 : -1)}
+          />
+        </div>
+
         <p class="hint">{t('loyalty.tierHint')}</p>
 
         <h3 class="perm-title">{t('loyalty.permissionsTitle')}</h3>
@@ -221,7 +235,7 @@
                 <tr>
                   <th scope="row" class="r rank">{i + 1}</th>
                   <td>{row.viewerName || row.viewerLogin || row.viewerId}</td>
-                  <td class="r">{row.points.toLocaleString()}</td>
+                  <td class="r">{formatPointValue(row.points)}</td>
                   <td class="r mut">{hours(row.watchSeconds)}</td>
                 </tr>
               {/each}

@@ -335,11 +335,15 @@ func decodeBalance(raw string) (points int64, watch uint64, ok bool) {
 }
 
 func (s *ValkeyLoyaltyStore) BalanceAdjust(ctx context.Context, broadcasterID uint64, viewerLogin string, value int64, absolute bool) (loyaltyrpc.Balance, bool, error) {
-	bal, found, err := s.rpc.BalanceAdjust(ctx, broadcasterID, viewerLogin, value, absolute)
+	return s.BalanceAdjustViewer(ctx, BalanceAdjustment{BroadcasterID: broadcasterID, ViewerLogin: viewerLogin, Value: value, Absolute: absolute})
+}
+
+func (s *ValkeyLoyaltyStore) BalanceAdjustViewer(ctx context.Context, adjustment BalanceAdjustment) (loyaltyrpc.Balance, bool, error) {
+	bal, found, err := s.rpc.BalanceAdjustViewer(ctx, adjustment)
 	if err != nil || !found {
 		return bal, found, err
 	}
-	s.dropBalanceCache(ctx, broadcasterID, bal.ViewerID)
+	s.dropBalanceCache(ctx, adjustment.BroadcasterID, bal.ViewerID)
 	return bal, true, nil
 }
 
@@ -352,8 +356,8 @@ func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, broadcasterID uin
 	return bal, true, spent, nil
 }
 
-func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error) {
-	bal, target, found, moved, err := s.rpc.BalanceTransfer(ctx, broadcasterID, fromViewerID, targetLogin, amount)
+func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error) {
+	bal, target, found, moved, err := s.rpc.BalanceTransfer(ctx, broadcasterID, fromViewerID, targetViewerID, targetLogin, amount)
 	if err != nil || !found {
 		return bal, found, moved, err
 	}
@@ -409,4 +413,12 @@ func (s *ValkeyLoyaltyStore) CounterDelete(ctx context.Context, broadcasterID ui
 
 func (s *ValkeyLoyaltyStore) CounterList(ctx context.Context, broadcasterID uint64) ([]loyaltyrpc.Counter, error) {
 	return s.rpc.CounterList(ctx, broadcasterID)
+}
+
+func (s *ValkeyLoyaltyStore) BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error) {
+	out, err := s.rpc.BalanceWager(ctx, wager)
+	if err == nil && out.Found {
+		s.dropBalanceCache(ctx, wager.BroadcasterID, out.Balance.ViewerID)
+	}
+	return out, err
 }

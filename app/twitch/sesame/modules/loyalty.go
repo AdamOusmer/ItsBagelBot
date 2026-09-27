@@ -107,6 +107,7 @@ type pointsGiveRequest struct {
 	login    string
 	value    int64
 	senderID uint64
+	targetID uint64
 }
 
 func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, ev T) accrual) module.EventHandler {
@@ -123,7 +124,7 @@ func onAccrual[T any](d engine.Deps, award func(cfg engine.LoyaltyModuleConfig, 
 			return err
 		}
 		a := award(cfg, ev)
-		earn(ctx, d, c, a)
+		a.earn(ctx, d, c, cfg)
 		return nil
 	}
 }
@@ -221,14 +222,9 @@ type loyaltyCmd struct {
 	log  *zap.Logger
 }
 
-const pointsAdjustMax = 100_000_000
-
 func boundedAmount(amount string, positiveOnly bool) (int64, bool) {
 	v, err := strconv.ParseInt(amount, 10, 64)
 	if err != nil {
-		return 0, false
-	}
-	if v > pointsAdjustMax || v < -pointsAdjustMax {
 		return 0, false
 	}
 	if positiveOnly && v <= 0 {
@@ -248,6 +244,14 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 		lc.reply("loyalty.points.usage")
 		return nil
 	}
+	viewerID, ok := lc.resolvePointsUser(ctx, login)
+	if !ok {
+		return nil
+	}
+	return lc.adjustPoints(ctx, engine.BalanceAdjustment{BroadcasterID: lc.c.BroadcasterID, ViewerID: viewerID, ViewerLogin: login, Value: value, Absolute: absolute})
+}
+
+func (lc loyaltyCmd) adjustPoints(ctx context.Context, adjustment engine.BalanceAdjustment) error {
 	var cfg engine.LoyaltyModuleConfig
 	_ = lc.c.Decode(&cfg)
 
@@ -255,7 +259,7 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 	if duplicate {
 		return nil
 	}
-	bal, found, err := lc.d.Loyalty.BalanceAdjust(ctx, lc.c.BroadcasterID, login, value, absolute)
+	bal, found, err := lc.d.Loyalty.BalanceAdjustViewer(ctx, adjustment)
 	if err != nil {
 		release()
 		lc.log.Warn("loyalty: balance adjust failed", lc.c.BID(), zap.Error(err))
@@ -263,11 +267,12 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 		return nil
 	}
 	if !found {
-		lc.reply("loyalty.points.unknown", "target", login)
+		release()
+		lc.reply("loyalty.counter.err")
 		return nil
 	}
 	lc.reply("loyalty.points.adjusted",
-		"target", login,
+		"target", adjustment.ViewerLogin,
 		"points", strconv.FormatInt(bal.Points, 10),
 		"name", cfg.Name(),
 	)
@@ -298,11 +303,54 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 		lc.reply("loyalty.points.self", "name", cfg.Name())
 		return nil
 	}
+	targetID, ok := lc.resolvePointsUser(ctx, req.login)
+	if !ok {
+		return nil
+	}
+	if targetID == req.senderID {
+		lc.reply("loyalty.points.self", "name", cfg.Name())
+		return nil
+	}
+	req.targetID = targetID
+	return lc.transferPoints(ctx, req, cfg)
+}
+
+func (lc loyaltyCmd) resolvePointsUser(ctx context.Context, login string) (uint64, bool) {
+	id, err := lc.pointsRecipient(ctx, login)
+	if err != nil {
+		lc.log.Warn("loyalty: account lookup failed", lc.c.BID(), zap.Error(err))
+		lc.reply("loyalty.counter.err")
+		return 0, false
+	}
+	if id == 0 {
+		lc.reply("loyalty.points.user.unknown", "target", login)
+		return 0, false
+	}
+	return id, true
+}
+
+// The account lookup returns Twitch's stable ID even before loyalty has a row.
+func (lc loyaltyCmd) pointsRecipient(ctx context.Context, login string) (uint64, error) {
+	if lc.d.TwitchAccounts == nil {
+		return 0, errors.New("Twitch account lookup unavailable")
+	}
+	targetID, found, err := lc.d.TwitchAccounts.ResolveLogin(ctx, login)
+	if err != nil || !found {
+		return 0, err
+	}
+	id, err := strconv.ParseUint(targetID, 10, 64)
+	if err != nil || id == 0 {
+		return 0, errors.New("invalid Twitch account ID")
+	}
+	return id, nil
+}
+
+func (lc loyaltyCmd) transferPoints(ctx context.Context, req pointsGiveRequest, cfg engine.LoyaltyModuleConfig) error {
 	duplicate, release := lc.d.Dedup.Claim(ctx, engine.EffectRef{Identity: engine.EventIdentity(&lc.c.Env), Effect: engine.EffectPointsAdjust})
 	if duplicate {
 		return nil
 	}
-	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, lc.c.BroadcasterID, req.senderID, req.login, req.value)
+	bal, found, moved, err := lc.d.Loyalty.BalanceTransfer(ctx, lc.c.BroadcasterID, req.senderID, req.targetID, req.login, req.value)
 	if err != nil {
 		release()
 		lc.log.Warn("loyalty: balance transfer failed", lc.c.BID(), zap.Error(err))
@@ -310,7 +358,8 @@ func (lc loyaltyCmd) pointsGive(ctx context.Context, target, amount string, enab
 		return nil
 	}
 	if !found {
-		lc.reply("loyalty.points.unknown", "target", req.login)
+		release()
+		lc.reply("loyalty.counter.err")
 		return nil
 	}
 	if !moved {
@@ -445,12 +494,13 @@ func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
 	return nil
 }
 
-func earn(ctx context.Context, d engine.Deps, c *module.Context, a accrual) {
-	if a.points <= 0 {
-		return
-	}
+func (a accrual) earn(ctx context.Context, d engine.Deps, c *module.Context, cfg engine.LoyaltyModuleConfig) {
 	viewerID, err := strconv.ParseUint(a.userID, 10, 64)
 	if err != nil || viewerID == 0 {
+		return
+	}
+	a.points = cfg.AutomaticPoints(c.BroadcasterID, viewerID, a.points)
+	if a.points <= 0 {
 		return
 	}
 	if d.Dedup.Duplicate(ctx, engine.EffectRef{Identity: engine.EventIdentity(&c.Env), Effect: engine.EffectEarn}) {

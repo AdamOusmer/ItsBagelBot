@@ -6,16 +6,18 @@ package loyaltyrpc
 import "ItsBagelBot/internal/domain/rpc"
 
 type Request struct {
-	UserID       string `json:"user_id"`
-	ViewerID     string `json:"viewer_id,omitempty"`
-	ViewerLogin  string `json:"viewer_login,omitempty"`
-	Name         string `json:"name,omitempty"`
-	NewName      string `json:"new_name,omitempty"`
-	Scope        string `json:"scope,omitempty"`
-	Command      string `json:"command,omitempty"`
-	Value        int64  `json:"value,omitempty"`
-	CounterValue string `json:"counter_value,omitempty"`
-	Limit        int    `json:"limit,omitempty"`
+	UserID         string `json:"user_id"`
+	ViewerID       string `json:"viewer_id,omitempty"`
+	ViewerLogin    string `json:"viewer_login,omitempty"`
+	TargetViewerID string `json:"target_viewer_id,omitempty"`
+	Name           string `json:"name,omitempty"`
+	NewName        string `json:"new_name,omitempty"`
+	Scope          string `json:"scope,omitempty"`
+	Command        string `json:"command,omitempty"`
+	Value          int64  `json:"value,omitempty"`
+	Won            bool   `json:"won,omitempty"`
+	CounterValue   string `json:"counter_value,omitempty"`
+	Limit          int    `json:"limit,omitempty"`
 }
 
 type Balance struct {
@@ -23,6 +25,7 @@ type Balance struct {
 	ViewerLogin  string `json:"viewer_login,omitempty"`
 	ViewerName   string `json:"viewer_name,omitempty"`
 	Points       int64  `json:"points"`
+	PointsExact  string `json:"points_exact,omitempty"`
 	WatchSeconds uint64 `json:"watch_seconds"`
 }
 
@@ -55,5 +58,6 @@ type Reply struct {
 	Board         []CounterRank  `json:"board,omitempty"`
 	Found         bool           `json:"found,omitempty"`
 	Spent         bool           `json:"spent,omitempty"`
+	LimitExceeded bool           `json:"limit_exceeded,omitempty"`
 	rpc.Refusal
 }

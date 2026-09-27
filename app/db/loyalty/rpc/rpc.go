@@ -30,6 +30,7 @@ func Subscribe(w Wiring, prefix string) error {
 		bus.At("balance.set", l.handleBalanceSet),
 		bus.At("balance.add", l.handleBalanceAdd),
 		bus.At("balance.spend", l.handleBalanceSpend),
+		bus.At("balance.wager", l.handleBalanceWager),
 		bus.At("balance.transfer", l.handleBalanceTransfer),
 		bus.At("top.get", l.handleTopGet),
 		bus.At("counter.get", l.handleCounterGet),
@@ -87,6 +88,7 @@ func balanceView(row *ent.Balance) *loyaltyrpc.Balance {
 		ViewerLogin:  row.ViewerLogin,
 		ViewerName:   row.ViewerName,
 		Points:       row.Points,
+		PointsExact:  strconv.FormatInt(row.Points, 10),
 		WatchSeconds: row.WatchSeconds,
 	}
 }
@@ -137,7 +139,11 @@ func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, 
 	if !ok {
 		return reply
 	}
-	row, found, err := l.repo.BalanceAdjust(ctx, userID, req.ViewerLogin, req.Value, absolute)
+	targetID, err := transferTargetID(req.TargetViewerID)
+	if err != nil {
+		return refuse(domainrpc.CodeInvalid, err.Error())
+	}
+	row, found, err := l.adjustViewerBalance(ctx, repository.BalanceAdjustment{UserID: userID, ViewerID: targetID, ViewerLogin: req.ViewerLogin, Value: req.Value, Absolute: absolute})
 	if err != nil {
 		return l.fail("loyalty balance adjust", err)
 	}
@@ -145,6 +151,24 @@ func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, 
 		return loyaltyrpc.Reply{Found: false}
 	}
 	return loyaltyrpc.Reply{Balance: balanceView(row), Found: true}
+}
+
+func (l *loyaltyRPC) adjustViewerBalance(ctx context.Context, target repository.BalanceAdjustment) (*ent.Balance, bool, error) {
+	if target.ViewerID != 0 {
+		return l.repo.BalanceAdjustViewer(ctx, target)
+	}
+	return l.repo.BalanceAdjust(ctx, target.UserID, target.ViewerLogin, target.Value, target.Absolute)
+}
+
+func transferTargetID(id string) (uint64, error) {
+	if id == "" {
+		return 0, nil // Existing callers still resolve recipients by stored login.
+	}
+	viewerID, err := strconv.ParseUint(id, 10, 64)
+	if err != nil || viewerID == 0 {
+		return 0, errors.New("invalid target_viewer_id")
+	}
+	return viewerID, nil
 }
 
 func (l *loyaltyRPC) handleBalanceTransfer(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
@@ -155,7 +179,11 @@ func (l *loyaltyRPC) handleBalanceTransfer(ctx context.Context, req loyaltyrpc.R
 	if viewerID == 0 {
 		return refuse(domainrpc.CodeInvalid, "invalid viewer_id")
 	}
-	out, found, err := l.repo.BalanceTransfer(ctx, repository.Transfer{UserID: userID, FromViewerID: viewerID, TargetLogin: req.ViewerLogin, Amount: req.Value})
+	targetID, err := transferTargetID(req.TargetViewerID)
+	if err != nil {
+		return refuse(domainrpc.CodeInvalid, err.Error())
+	}
+	out, found, err := l.repo.BalanceTransfer(ctx, repository.Transfer{UserID: userID, FromViewerID: viewerID, TargetLogin: req.ViewerLogin, TargetViewerID: targetID, Amount: req.Value})
 	if err != nil {
 		return l.fail("loyalty balance.transfer", err)
 	}
