@@ -44,7 +44,7 @@ func (p *Pipeline) commandChain(ctx context.Context, run commandRun, toks []tmpl
 			Max:     maxUrlFetchTokens,
 		})
 	}
-	return chain
+	return p.namespaceChain(ctx, run, toks, chain)
 }
 
 type commandRun struct {

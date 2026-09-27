@@ -28,6 +28,7 @@ func SubscribeDashboard(w Wiring, prefix string) error {
 		bus.VerbForUser[modulesrpc.DashboardRequest, modulesrpc.DashboardReply]("list", d.handleList),
 		bus.VerbForUser[modulesrpc.DashboardRequest, modulesrpc.DashboardReply]("upsert", d.handleUpsert),
 		bus.VerbForUser[modulesrpc.DashboardRequest, modulesrpc.DashboardReply]("patch", d.handlePatch),
+		bus.VerbForUser[modulesrpc.DashboardRequest, modulesrpc.DashboardReply]("patch-existing", d.handlePatchExisting),
 	); err != nil {
 		return err
 	}
@@ -52,6 +53,17 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req modulesrpc.Dashboar
 }
 
 func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
+	return d.patch(ctx, req, id, false)
+}
+
+func (d *dashboardRPC) handlePatchExisting(ctx context.Context, req modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
+	if req.ExpectedID == nil || req.ExpectedRev == nil || *req.ExpectedID <= 0 || *req.ExpectedRev < 0 {
+		return modulesrpc.DashboardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "expected row ID and revision are required")}, nil
+	}
+	return d.patch(ctx, req, id, true)
+}
+
+func (d *dashboardRPC) patch(ctx context.Context, req modulesrpc.DashboardRequest, id uint64, existingOnly bool) (modulesrpc.DashboardReply, error) {
 	partial := map[string]codec.RawMessage{}
 	if len(req.Configs) > 0 {
 		if err := codec.Unmarshal(req.Configs, &partial); err != nil {
@@ -59,7 +71,13 @@ func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.Dashboard
 		}
 	}
 
-	res, err := d.repo.Patch(ctx, id, req.Name, req.IsEnabled, partial, req.ExpectedRev)
+	var res repository.PatchResult
+	var err error
+	if existingOnly {
+		res, err = d.repo.PatchExisting(ctx, id, req.Name, req.IsEnabled, partial, *req.ExpectedRev, *req.ExpectedID)
+	} else {
+		res, err = d.repo.Patch(ctx, id, req.Name, req.IsEnabled, partial, req.ExpectedRev)
+	}
 	if err != nil {
 		return modulesrpc.DashboardReply{}, err
 	}

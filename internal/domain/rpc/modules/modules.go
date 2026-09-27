@@ -16,6 +16,7 @@ type DashboardRequest struct {
 	IsEnabled   bool             `json:"is_enabled"`
 	Configs     codec.RawMessage `json:"configs,omitempty"`
 	ExpectedRev *int             `json:"expected_rev,omitempty"`
+	ExpectedID  *int             `json:"expected_id,omitempty"`
 }
 
 type DashboardReply struct {

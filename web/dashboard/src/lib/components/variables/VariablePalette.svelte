@@ -5,6 +5,7 @@
   import { getI18n, Chip, PickerPanel, SearchInput, Tag, moduleDef, builtinDef } from '@bagel/kit';
   import { pinnedFor, sheetFor, type VariableChip, type VariableGroup, type VariableSurface } from '@bagel/kit/variables';
   import { webHref } from '@bagel/kit/site-links';
+  import ModuleVariablePicker from '$lib/components/commands/ModuleVariablePicker.svelte';
   import CounterPicker from '$lib/components/counters/CounterPicker.svelte';
   import FetchSourcePicker, { type SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
 
@@ -175,6 +176,7 @@
         {#if isCustom}
           <CounterPicker onInsert={insert} />
           <FetchSourcePicker defs={fetchDefs} keys={fetchKeys} onInsert={insert} onDefsChanged={onFetchDefsChanged} />
+          <ModuleVariablePicker onInsert={insert} />
         {/if}
 
         {#if !sheetEmpty}

@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { Select } from '@bagel/kit';
+  import { namespaceReplyTemplate, namespaceReplySamples, moduleDef } from '@bagel/kit';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, Switch, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
@@ -29,8 +30,9 @@
 
   const { t } = getI18n();
 
-  const DEFAULT_REPLY = '@{user} set the lights to {color}!';
-  const replySamples: Record<string, string> = { user: 'sesame_sam', input: 'blue', color: 'Blue' };
+  const DEFAULT_REPLY = '@{govee:user} set the lights to {govee:color}!';
+  const reply = moduleDef('govee')!.replies.find((reply) => reply.key === 'reply')!;
+  const replySamples: Record<string, string> = namespaceReplySamples('govee', { user: 'sesame_sam', input: 'blue', color: 'Blue' });
 
   // svelte-ignore state_referenced_locally
   const reward = binding?.reward ?? null;
@@ -48,7 +50,7 @@
   // svelte-ignore state_referenced_locally
   let onRedeem = $state<string>(binding?.onRedeem ?? 'fulfill');
   // svelte-ignore state_referenced_locally
-  let replyMessage = $state(binding?.replyMessage ?? '');
+  let replyMessage = $state(namespaceReplyTemplate('govee', reply, binding?.replyMessage ?? ''));
   // svelte-ignore state_referenced_locally
   let allowOff = $state(binding?.allowOff ?? false);
   // svelte-ignore state_referenced_locally
@@ -65,6 +67,8 @@
       void focusFirstInvalid(formEl);
       return;
     }
+    replyMessage = namespaceReplyTemplate('govee', reply, replyMessage);
+    input.formData.set('replyMessage', replyMessage);
     return onSubmit(input);
   };
 </script>

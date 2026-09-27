@@ -6,7 +6,7 @@ package modules
 var personalityGoodPack = []string{
 	"Validation received. existential crisis postponed",
 	"I know. but it's nice to hear it out loud.",
-	"Careful, {user}. I crumble under praise too.",
+	"Careful, {personality:user}. I crumble under praise too.",
 	"Screenshot that. The other bagels never believe me.",
 	"I loaf compliments",
 	"Awwwww you're buttering me up",
@@ -27,7 +27,7 @@ var personalityBadPack = []string{
 }
 
 var personalityGiveBagel = []string{
-	"{user} in this economy?",
+	"{personality:user} in this economy?",
 	"Not with this inflation.",
 	"Only if you ask nicely.",
 }
@@ -36,11 +36,11 @@ var personalityThanksPack = []string{
 	"anything for you. except my last schmear.",
 	"You're welcome. Tips accepted in sesame seeds.",
 	"Don't mention it. Seriously. The other bagels get jealous.",
-	"{user} I ain't do nothing.",
+	"{personality:user} I ain't do nothing.",
 }
 
 var personalityAffectionPack = []string{
-	"hugging {user}. careful. I crumble under pressure. literally.",
+	"hugging {personality:user}. careful. I crumble under pressure. literally.",
 	"Acceptable. Continue.",
 	"This is nice. Don't tell the toaster.",
 	"accepted. you smell like warm bread. highest compliment I have.",
@@ -60,7 +60,7 @@ var personalityFeedCountPack = []string{
 
 var personalityBoopPack = []string{
 	"boop received. processing. ok. you may live.",
-	"boop registered. this changes nothing between us, {user}.",
+	"boop registered. this changes nothing between us, {personality:user}.",
 	"*Boops back* JUSTICE !!",
 	"do I look like a button. don't answer that. I'm round.",
 	"Does this mean we are friends now? Idk if im into that atm",
@@ -95,7 +95,7 @@ var personalityEmojiPack = []string{
 	"you rang?",
 }
 
-const personalityGoldenLine = "🌟 GOLDEN BAGEL 🌟 {user} rolled the everything bagel of destiny. 1-in-200. screenshot it or it didn't happen."
+const personalityGoldenLine = "🌟 GOLDEN BAGEL 🌟 {personality:user} rolled the everything bagel of destiny. 1-in-200. screenshot it or it didn't happen."
 
 var personalityToastLines = []string{
 	"toast level %d/10: you call that toasting. I felt a breeze.",

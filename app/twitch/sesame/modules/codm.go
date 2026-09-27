@@ -17,7 +17,7 @@ const (
 	codmModuleName = "codm"
 	codmCooldown   = 10 * time.Second
 	codmUsage      = "Usage: !codm [UID or exact nickname]"
-	codmTemplate   = "{player} · level {level} · MP {rank} · {rating} rating · {country}"
+	codmTemplate   = "{codm:player} · level {codm:level} · MP {codm:rank} · {codm:rating} rating · {codm:country}"
 )
 
 type codmConfig struct {
@@ -40,7 +40,7 @@ func CODM(d engine.Deps) module.Module {
 	profile.render = func(call statsCall[codmConfig], reply *gossiprpc.CODMProfileReply) string {
 		safeReply := *reply
 		safeReply.Player = codmProfileTarget(call).Display
-		return tokens.Expand(orDefault(call.Cfg.ProfileMessage, codmTemplate), &safeReply)
+		return tokens.ExpandNamespaced("codm", orDefault(call.Cfg.ProfileMessage, codmTemplate), &safeReply)
 	}
 
 	m := module.NewModule(codmModuleName, module.KindOptIn)

@@ -37,7 +37,11 @@ func (g chatReplier) reply(emit module.Emit, override string, key replyKey, kv .
 		p = p.Merge(module.KV("points", g.points))
 	}
 	p = p.Merge(module.KV(kv...))
-	text := p.ExpandString(line)
+	namespace, _, _ := strings.Cut(string(key), ".")
+	if namespace == "quote" {
+		namespace = "quotes"
+	}
+	text := p.WithNamespace(namespace).ExpandString(line)
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: g.c.Env.BroadcasterUserID,

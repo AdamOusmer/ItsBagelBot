@@ -1,8 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+
+import { namespaceReplyTemplate } from './catalog/template-namespaces';
 import type { MessageKey } from './i18n/keys';
+
 import type { Perm } from './types';
+
 import type { ModuleCommandInfo, ModuleDef, ModuleField, ModuleReply } from './catalog/module-def';
 
 type TFn = (key: MessageKey, params?: Record<string, string | number>) => string;
@@ -62,7 +66,7 @@ export function tModuleReplyPart(
 
 export function tModuleReplyDefault(t: TFn, moduleId: string, reply: ModuleReply): string {
   const key = catalogKey(moduleId, 'replies', reply.key, 'defaultMessage');
-  return tCatalog(t, key, reply.defaultMessage);
+  return namespaceReplyTemplate(moduleId, reply, tCatalog(t, key, reply.defaultMessage));
 }
 
 export function commandSummarySlug(trigger: string): string {

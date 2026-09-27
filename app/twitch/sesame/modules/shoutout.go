@@ -14,7 +14,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-const defaultShoutoutTemplate = "Massive shoutout to {raider} for the raid with {viewers} viewers! Check them out at twitch.tv/{raider.login}"
+const defaultShoutoutTemplate = "Massive shoutout to {shoutout:raider} for the raid with {shoutout:viewers} viewers! Check them out at twitch.tv/{shoutout:raider.login}"
 
 type shoutoutConfig struct {
 	Message        string `json:"message"`
@@ -58,7 +58,7 @@ func Shoutout(_ engine.Deps) module.Module {
 			"raider", strings.TrimPrefix(raider, "@"),
 			"raider.login", strings.TrimPrefix(ev.FromBroadcasterUserLogin, "@"),
 			"viewers", strconv.Itoa(ev.Viewers),
-		).WithLocale(module.Locale(c.Locale)).ExpandString(text)
+		).WithLocale(module.Locale(c.Locale)).WithNamespace("shoutout").ExpandString(text)
 
 		emit(&module.Output{
 			Type:          outgress.TypeChat,

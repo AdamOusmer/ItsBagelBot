@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { SaveStatus, ManagementRow, Switch, getI18n, tModuleReplyPart, tModuleReplyDefault, type ModuleReply } from '@bagel/kit';
+  import { namespaceReplyTemplate } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -29,7 +30,7 @@
   } = $props();
 
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
-  const preview = $derived(message.trim() ? message : tModuleReplyDefault(t, moduleId, reply));
+  const preview = $derived(namespaceReplyTemplate(moduleId, reply, message.trim() ? message : tModuleReplyDefault(t, moduleId, reply)));
 </script>
 
 <div class="row-wrap" class:flash-save={status === 'saved'}>

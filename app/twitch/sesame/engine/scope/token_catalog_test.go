@@ -90,9 +90,9 @@ func ExampleCommandTokenFamilies() {
 	// pure: 8 examples
 	// chatters: 3 examples
 	// emotes: 4 examples
-	// channel: 6 examples
-	// viewer: 5 examples
-	// modules: 7 examples
+	// channel: 16 examples
+	// viewer: 17 examples
+	// modules: 573 examples
 	// uses: 1 examples
 	// store: 2 examples
 	// external: 1 examples

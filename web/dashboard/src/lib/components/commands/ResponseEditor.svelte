@@ -2,7 +2,9 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
+  import { moduleDef, tModuleLabel } from '@bagel/kit';
   import { RESPONSE_MAX, getI18n, Textarea } from '@bagel/kit';
+  import { requiredModuleVariables } from '@bagel/kit/variables';
   import type { VariableSurface } from '@bagel/kit/variables';
   import VariablePalette from '$lib/components/variables/VariablePalette.svelte';
   import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
@@ -38,6 +40,10 @@
     onFetchDefsChanged?: (defs: SourceDef[]) => void;
     onblur?: () => void;
   } = $props();
+
+  const requiredModules = $derived(surface === 'custom' || surface === 'timer' ? requiredModuleVariables(value) : []);
+  const moduleLink = (id: string) => moduleDef(id)?.href ?? (moduleDef(id) ? `/modules/${id}` : '/commands');
+  const parentModule = (id: string) => { const parent = moduleDef(id)?.parent; return parent ? moduleDef(parent) : undefined; };
 
   const moduleFlags = $derived(page.data.moduleFlags as Record<string, boolean> | undefined);
 
@@ -182,7 +188,15 @@
   <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} />
 </div>
 
+{#each requiredModules as mod (mod.id)}
+  <p class="module-requirement">{i18n.t('commandEditor.moduleVariableRequires', { module: i18n.t(`vars.${mod.id}.name`) })} <a href={moduleLink(mod.head)}>{i18n.t('commandEditor.manageModules')}</a></p>
+  {@const parent = parentModule(mod.head)}
+  {#if parent}<p class="module-requirement">{i18n.t('commandEditor.moduleVariableParentRequires', { module: tModuleLabel(i18n.t, parent) })}</p>{/if}
+{/each}
+
 <style>
+  .module-requirement { margin: 6px 0 0; font-size: 0.78rem; line-height: 1.4; color: var(--bb-muted); }
+
   .resp-wrap { position: relative; flex: 1; min-width: 0; }
 
   :global(.resp-area textarea) { min-height: 96px; padding-bottom: 16px; }

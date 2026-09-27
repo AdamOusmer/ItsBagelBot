@@ -2,6 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { ModuleDef } from './module-def';
+import { namespacedModuleDef } from './template-namespaces';
+export { namespaceReplyTemplate } from './template-namespaces';
 import { GAME_MODULE_DEFS } from './games';
 import { VALORANT_MODULE_DEF } from './valorant';
 import { ALERTS_MODULE } from './alerts';
@@ -57,7 +59,7 @@ export const MOD = {
   stream: 'stream'
 } as const;
 
-export const MODULE_CATALOG: readonly ModuleDef[] = [
+export const MODULE_CATALOG: readonly ModuleDef[] = ([
   CHANNELPOINTS_MODULE,
   STREAM_MODULE,
   TIMERS_MODULE,
@@ -83,7 +85,7 @@ export const MODULE_CATALOG: readonly ModuleDef[] = [
   GOVEE_MODULE,
   DISCORD_MODULE,
   SONGQUEUE_MODULE
-];
+] satisfies ModuleDef[]).map(namespacedModuleDef);
 
 export function moduleDef(id: string): ModuleDef | undefined {
   return MODULE_CATALOG.find((m) => m.id === id);

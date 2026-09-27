@@ -44,7 +44,7 @@
   } = $props();
   const t = (key: string, params?: Record<string, string | number>) => translate(locale ?? i18n.locale, key, params);
 
-  const viewerName = $derived(samples?.user ?? COMMAND_SAMPLES.user);
+  const viewerName = $derived(samples?.user ?? Object.entries(samples ?? {}).find(([key]) => key.endsWith(':user'))?.[1] ?? COMMAND_SAMPLES.user);
 
   const botSeed = $derived(broadcasterName ?? (page.data.displayName as string | undefined) ?? 'ItsBagelBot');
 

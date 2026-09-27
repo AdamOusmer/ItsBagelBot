@@ -3,7 +3,11 @@
 
 package scope
 
-import "sort"
+import (
+	"ItsBagelBot/internal/domain/modulevars"
+	"ItsBagelBot/pkg/tmpl"
+	"sort"
+)
 
 type TokenFamily struct {
 	ID       string
@@ -32,7 +36,7 @@ func CommandTokenFamilies() []TokenFamily {
 	pure = append(pure, "{random}", "{choice:yes,no}")
 	sort.Strings(pure)
 
-	return []TokenFamily{
+	families := []TokenFamily{
 		{ID: "message", Examples: message, Aliases: messageAliasExamples},
 		{ID: "pure", Examples: pure},
 		{ID: "chatters", Examples: []string{"{" + ChattersToken + "}", "{" + RandomChatterToken + "}", "{" + RandomViewerToken + "}"}},
@@ -56,6 +60,22 @@ func CommandTokenFamilies() []TokenFamily {
 		},
 		{ID: "external", Examples: []string{"{urlfetch:weather}"}},
 	}
+	// Preserve each legacy token head's existing family when publishing namespace forms.
+	owners := make(map[string]int)
+	for i, family := range families {
+		for _, example := range append(append([]string{}, family.Examples...), family.Aliases...) {
+			owners[tmpl.Lex(example)[0].Name] = i
+		}
+	}
+	for _, example := range moduleNamespaceExamples() {
+		i, found := owners[tmpl.Lex(example)[0].Name]
+		if !found {
+			i = 6
+		}
+		families[i].Examples = append(families[i].Examples, example)
+	}
+	return families
+
 }
 
 func TimerFamilies() []string {
@@ -78,4 +98,21 @@ func timerAllowedFamilies() map[string]bool {
 		"modules":  true,
 		"external": true,
 	}
+}
+
+func moduleNamespaceExamples() []string {
+	var examples []string
+	for _, spec := range modulevars.Catalog() {
+		seen := make(map[string]bool)
+		for _, group := range spec.Groups {
+			for _, field := range group.Fields {
+				if !seen[field] {
+					examples = append(examples, "{"+spec.ID+":"+field+"}")
+					seen[field] = true
+				}
+				examples = append(examples, "{"+spec.ID+":"+group.Name+":"+field+"}")
+			}
+		}
+	}
+	return examples
 }

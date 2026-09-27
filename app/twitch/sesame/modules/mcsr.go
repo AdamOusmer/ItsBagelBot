@@ -19,20 +19,20 @@ const mcsrModuleName = "mcsr"
 const mcsrCooldown = 10 * time.Second
 
 const (
-	defaultMcsrEloTemplate     = "{player}: {elo} elo · rank #{rank} · {wins}W {losses}L this season"
-	defaultMcsrSessionTemplate = "{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L {draws}D in {matches} matches"
+	defaultMcsrEloTemplate     = "{mcsr:player}: {mcsr:elo} elo · rank #{mcsr:rank} · {mcsr:wins}W {mcsr:losses}L this season"
+	defaultMcsrSessionTemplate = "{mcsr:player} this stream: {mcsr:elochange} elo ({mcsr:elo} now) · {mcsr:wins}W {mcsr:losses}L {mcsr:draws}D in {mcsr:matches} matches"
 
 	legacyMcsrSessionTemplate = "{player} this stream: {elochange} elo ({elo} now) · {wins}W {losses}L in {matches} matches"
 
-	defaultMcsrLastMatchTemplate = "{player} vs {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · {ago} ago"
-	defaultMcsrRecordTemplate    = "{playera} {winsa} - {winsb} {playerb} · {played} played"
-	defaultMcsrLbTemplate        = "{board}: {list}"
-	defaultMcsrRaceTemplate      = "#1 {leader} ({leadertime}) · {player}: {time} (#{rank})"
-	defaultMcsrPbTemplate        = "{player}: {time} ({window} PB)"
+	defaultMcsrLastMatchTemplate = "{mcsr:player} vs {mcsr:opponent}: {mcsr:result} · {mcsr:time} · {mcsr:seed} {mcsr:structure} · {mcsr:elochange} elo · {mcsr:ago} ago"
+	defaultMcsrRecordTemplate    = "{mcsr:playera} {mcsr:winsa} - {mcsr:winsb} {mcsr:playerb} · {mcsr:played} played"
+	defaultMcsrLbTemplate        = "{mcsr:board}: {mcsr:list}"
+	defaultMcsrRaceTemplate      = "#1 {mcsr:leader} ({mcsr:leadertime}) · {mcsr:player}: {mcsr:time} (#{mcsr:rank})"
+	defaultMcsrPbTemplate        = "{mcsr:player}: {mcsr:time} ({mcsr:window} PB)"
 
-	defaultMcsrPaceTemplate     = "{player} this session: {nethers} nethers (avg {nether}) · bastion {bastion} · fortress {fortress} · fp {firstportal} · {nph} nph"
-	defaultMcsrNethersTemplate  = "{player}: {nethers} nethers this session (avg {nether}) · {nph} nph"
-	defaultMcsrLastFortTemplate = "{player} last fort: nether {nether} · bastion {bastion} · fortress {fortress} · fp {firstportal} · sh {stronghold} · {ago} ago"
+	defaultMcsrPaceTemplate     = "{mcsr:player} this session: {mcsr:nethers} nethers (avg {mcsr:nether}) · bastion {mcsr:bastion} · fortress {mcsr:fortress} · fp {mcsr:firstportal} · {mcsr:nph} nph"
+	defaultMcsrNethersTemplate  = "{mcsr:player}: {mcsr:nethers} nethers this session (avg {mcsr:nether}) · {mcsr:nph} nph"
+	defaultMcsrLastFortTemplate = "{mcsr:player} last fort: nether {mcsr:nether} · bastion {mcsr:bastion} · fortress {mcsr:fortress} · fp {mcsr:firstportal} · sh {mcsr:stronghold} · {mcsr:ago} ago"
 )
 
 type mcsrConfig struct {

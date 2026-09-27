@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
@@ -19,6 +20,7 @@ import (
 
 type timerRun struct {
 	ref     timerRef
+	user    projection.User
 	locale  string
 	firedAt time.Time
 }
@@ -28,7 +30,12 @@ func timerRunIdentity(ref timerRef, firedAt time.Time) string {
 }
 
 func (p *Pipeline) timerChain(ctx context.Context, run timerRun, toks []tmpl.Token) scope.Chain {
+	regress := module.RegressStandard
+	if run.user.Premium() {
+		regress = module.RegressPremium
+	}
 	c := &module.Context{
+		Regress:       regress,
 		BroadcasterID: run.ref.broadcasterID,
 		Locale:        run.locale,
 		Env: lane.Envelope{
@@ -55,7 +62,7 @@ func (p *Pipeline) timerChain(ctx context.Context, run timerRun, toks []tmpl.Tok
 			Max:     maxUrlFetchTokens,
 		})
 	}
-	return chain
+	return p.namespaceChain(ctx, commandRun{c: c, command: "timer:" + run.ref.id}, toks, chain)
 }
 
 func (p *Pipeline) logTimerScopeFailure(ref timerRef) func(error) {

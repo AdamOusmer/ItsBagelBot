@@ -120,7 +120,7 @@ func TestTimeLookup(t *testing.T) {
 
 func TestTimeLookupUnknownPlace(t *testing.T) {
 	now := time.Date(2026, 7, 13, 18, 30, 0, 0, time.UTC)
-	want := strings.ReplaceAll(i18n.T("en", "time.unknown"), "{place}", "narnia")
+	want := strings.ReplaceAll(i18n.T("en", "time.unknown"), "{time:place}", "narnia")
 	assert.Equal(t, want, timeReply(zap.NewNop(), timeContext(""), now, "narnia"))
 }
 

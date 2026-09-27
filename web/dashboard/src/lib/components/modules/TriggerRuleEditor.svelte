@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { Select } from '@bagel/kit';
+  import { namespaceReplyTemplate } from '@bagel/kit';
   import { Button, Cluster, Field, getI18n } from '@bagel/kit';
   import { focusFirstInvalid } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
@@ -38,7 +39,7 @@
     { value: 'prefix' as Match, label: t('modules.matchPrefix'), hint: t('modules.matchHintPrefix') }
   ]);
 
-  const DEFAULT_RESPONSE = $derived(t('modules.triggerDefaultResponse'));
+  const DEFAULT_RESPONSE = $derived(namespaceReplyTemplate('triggers', { tokens: [{ name: 'triggers:user', sample: '' }, { name: 'triggers:channel', sample: '' }] }, t('modules.triggerDefaultResponse')));
   const effectiveMessage = $derived(message.trim() ? message : DEFAULT_RESPONSE);
   const modeHint = $derived(modes.find((m) => m.value === match)?.hint ?? '');
 
@@ -109,7 +110,7 @@
     name=""
     viewerText={sampleMessage}
     tag={t('modules.triggerPreviewTag', { phrase: phrase.trim() || t('modules.triggerPhraseExample') })}
-    samples={{ user: 'sesame_sam' }}
+    samples={{ 'triggers:user': 'sesame_sam', 'triggers:channel': 'bagel_stream' }}
     response={effectiveMessage}
   />
 

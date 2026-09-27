@@ -124,7 +124,7 @@ func isOffInput(input string) bool {
 	}
 }
 
-const defaultGoveeReply = "@{user} set the lights to {color}!"
+const defaultGoveeReply = "@{govee:user} set the lights to {govee:color}!"
 
 func renderGoveeReply(locale, text string, ev redemptionEvent, color string) string {
 	if strings.TrimSpace(text) == "" {
@@ -135,7 +135,7 @@ func renderGoveeReply(locale, text string, ev redemptionEvent, color string) str
 		"user", user,
 		"color", color,
 		"input", sanitizeRewardInput(ev.UserInput),
-	).WithLocale(module.Locale(locale)).ExpandString(text)
+	).WithLocale(module.Locale(locale)).WithNamespace("govee").ExpandString(text)
 }
 
 func decodeGoveeRedemption(c *module.Context) (goveeConfig, redemptionEvent, bool) {

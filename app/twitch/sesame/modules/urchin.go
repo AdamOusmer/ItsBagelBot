@@ -20,13 +20,13 @@ const urchinModuleName = "urchin"
 const urchinCooldown = 5 * time.Second
 
 const (
-	defaultUrchinDailyTemplate          = "{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinWeeklyTemplate         = "{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinMonthlyTemplate        = "{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinStatsTemplate          = "{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken"
-	defaultUrchinSniperTemplate         = "{player} urchin score: {score}"
-	defaultUrchinTagsTemplate           = "{player}: {tags}"
-	defaultUrchinTagDescriptionTemplate = "{player}: {tags}"
+	defaultUrchinDailyTemplate          = "{urchin:player} today: {urchin:wins}W {urchin:losses}L · {urchin:finals} finals · {urchin:beds} beds · {urchin:fkdr} FKDR"
+	defaultUrchinWeeklyTemplate         = "{urchin:player} this week: {urchin:wins}W {urchin:losses}L · {urchin:finals} finals · {urchin:beds} beds · {urchin:fkdr} FKDR"
+	defaultUrchinMonthlyTemplate        = "{urchin:player} this month: {urchin:wins}W {urchin:losses}L · {urchin:finals} finals · {urchin:beds} beds · {urchin:fkdr} FKDR"
+	defaultUrchinStatsTemplate          = "{urchin:player}: {urchin:stars} stars · {urchin:wins} wins · {urchin:finals} finals · {urchin:fkdr} FKDR · {urchin:beds} beds broken"
+	defaultUrchinSniperTemplate         = "{urchin:player} urchin score: {urchin:score}"
+	defaultUrchinTagsTemplate           = "{urchin:player}: {urchin:tags}"
+	defaultUrchinTagDescriptionTemplate = "{urchin:player}: {urchin:tags}"
 )
 
 type urchinConfig struct {
@@ -111,17 +111,7 @@ func urchinSessionRun(d engine.Deps, w urchinWindow) module.RunFunc {
 		enabled:  w.enabled,
 		message:  w.message,
 		fallback: w.fallback,
-		tokens: module.TokenExpander[reply]{
-			"player":      func(r *reply) string { return r.Player },
-			"wins":        func(r *reply) string { return i64(r.Wins) },
-			"losses":      func(r *reply) string { return i64(r.Losses) },
-			"finals":      func(r *reply) string { return i64(r.FinalKills) },
-			"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
-			"beds":        func(r *reply) string { return i64(r.BedsBroken) },
-			"games":       func(r *reply) string { return i64(r.GamesPlayed) },
-			"levels":      func(r *reply) string { return i64(r.Levels) },
-			"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
-		},
+		tokens:   urchinSessionTokens(),
 	}.run(d)
 }
 
@@ -132,17 +122,7 @@ func urchinStatsRun(d engine.Deps) module.RunFunc {
 		enabled:  func(c urchinConfig) string { return c.StatsEnabled },
 		message:  func(c urchinConfig) string { return c.StatsMessage },
 		fallback: defaultUrchinStatsTemplate,
-		tokens: module.TokenExpander[reply]{
-			"player":      func(r *reply) string { return r.Player },
-			"stars":       func(r *reply) string { return i64(r.Stars) },
-			"wins":        func(r *reply) string { return i64(r.Wins) },
-			"losses":      func(r *reply) string { return i64(r.Losses) },
-			"finals":      func(r *reply) string { return i64(r.FinalKills) },
-			"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
-			"beds":        func(r *reply) string { return i64(r.BedsBroken) },
-			"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
-			"wlr":         func(r *reply) string { return ratio(r.Wins, r.Losses) },
-		},
+		tokens:   urchinStatsTokens(),
 	}.run(d)
 }
 
@@ -153,12 +133,7 @@ func urchinSniperRun(d engine.Deps) module.RunFunc {
 		enabled:  func(c urchinConfig) string { return c.SniperEnabled },
 		message:  func(c urchinConfig) string { return c.SniperMessage },
 		fallback: defaultUrchinSniperTemplate,
-		tokens: module.TokenExpander[reply]{
-			"player":   func(r *reply) string { return r.Player },
-			"score":    func(r *reply) string { return trimScore(r.Score) },
-			"mode":     func(r *reply) string { return r.Mode },
-			"tagcount": func(r *reply) string { return i64(int64(r.TagCount)) },
-		},
+		tokens:   urchinSniperTokens(),
 	}.run(d)
 }
 
@@ -257,4 +232,44 @@ func formatUrchinTagDescriptions(tags []gossiprpc.UrchinTag) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+func urchinSessionTokens() module.TokenExpander[gossiprpc.UrchinSessionReply] {
+	type reply = gossiprpc.UrchinSessionReply
+	return module.TokenExpander[reply]{
+		"player":      func(r *reply) string { return r.Player },
+		"wins":        func(r *reply) string { return i64(r.Wins) },
+		"losses":      func(r *reply) string { return i64(r.Losses) },
+		"finals":      func(r *reply) string { return i64(r.FinalKills) },
+		"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
+		"beds":        func(r *reply) string { return i64(r.BedsBroken) },
+		"games":       func(r *reply) string { return i64(r.GamesPlayed) },
+		"levels":      func(r *reply) string { return i64(r.Levels) },
+		"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
+	}
+}
+
+func urchinStatsTokens() module.TokenExpander[gossiprpc.HypixelStatsReply] {
+	type reply = gossiprpc.HypixelStatsReply
+	return module.TokenExpander[reply]{
+		"player":      func(r *reply) string { return r.Player },
+		"stars":       func(r *reply) string { return i64(r.Stars) },
+		"wins":        func(r *reply) string { return i64(r.Wins) },
+		"losses":      func(r *reply) string { return i64(r.Losses) },
+		"finals":      func(r *reply) string { return i64(r.FinalKills) },
+		"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
+		"beds":        func(r *reply) string { return i64(r.BedsBroken) },
+		"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
+		"wlr":         func(r *reply) string { return ratio(r.Wins, r.Losses) },
+	}
+}
+
+func urchinSniperTokens() module.TokenExpander[gossiprpc.UrchinSniperReply] {
+	type reply = gossiprpc.UrchinSniperReply
+	return module.TokenExpander[reply]{
+		"player":   func(r *reply) string { return r.Player },
+		"score":    func(r *reply) string { return trimScore(r.Score) },
+		"mode":     func(r *reply) string { return r.Mode },
+		"tagcount": func(r *reply) string { return i64(int64(r.TagCount)) },
+	}
 }

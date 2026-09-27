@@ -12,6 +12,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
+	"ItsBagelBot/internal/domain/modulevars"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 )
 
@@ -19,7 +20,7 @@ func mcsrEloRun(d engine.Deps) module.RunFunc {
 	type reply = gossiprpc.McsrUserReply
 	h := mcsrCommand(d, mcsrRoute("user"), func(cfg mcsrConfig) string { return cfg.EloEnabled },
 		func(call statsCall[mcsrConfig], r *reply) string {
-			return mcsrEloPalette(call.Ctx, r).Expand(orDefault(call.Cfg.EloMessage, defaultMcsrEloTemplate))
+			return mcsrEloPalette(call.Ctx, r).ExpandNamespaced("mcsr", orDefault(call.Cfg.EloMessage, defaultMcsrEloTemplate))
 		})
 	return mcsrSeasonRun(h, mcsrAccountSeason)
 }
@@ -51,11 +52,12 @@ func mcsrSessionText(call statsCall[mcsrConfig], r *gossiprpc.McsrSessionReply) 
 		started := i18n.T(call.Ctx.Locale, "mcsr.session.started")
 		return r.Nickname + ": " + fmt.Sprintf(started, mcsrElo(call.Ctx, r.Elo))
 	}
-	return mcsrSessionPalette(call.Ctx, r).Expand(mcsrSessionTemplate(call.Cfg.SessionMessage))
+	return mcsrSessionPalette(call.Ctx, r).ExpandNamespaced("mcsr", mcsrSessionTemplate(call.Cfg.SessionMessage))
 }
 
 func mcsrSessionTemplate(stored string) string {
-	if strings.TrimSpace(stored) == legacyMcsrSessionTemplate {
+	canonicalLegacy := modulevars.NamespaceTemplate("mcsr", []string{"player", "elochange", "elo", "wins", "losses", "matches"}, legacyMcsrSessionTemplate)
+	if text := strings.TrimSpace(stored); text == legacyMcsrSessionTemplate || text == canonicalLegacy {
 		return defaultMcsrSessionTemplate
 	}
 	return orDefault(stored, defaultMcsrSessionTemplate)
@@ -75,7 +77,7 @@ func mcsrLastMatchRun(d engine.Deps) module.RunFunc {
 			if r.Empty {
 				return mcsrEmptyText(call.Ctx, r.Player, "mcsr.lastmatch.empty")
 			}
-			return mcsrLastMatchPalette(call.Ctx, r).Expand(orDefault(call.Cfg.LastMatchMessage, defaultMcsrLastMatchTemplate))
+			return mcsrLastMatchPalette(call.Ctx, r).ExpandNamespaced("mcsr", orDefault(call.Cfg.LastMatchMessage, defaultMcsrLastMatchTemplate))
 		})
 	return mcsrSeasonRun(h, mcsrAccountSeason)
 }
@@ -120,7 +122,7 @@ func mcsrRecordRun(d engine.Deps) module.RunFunc {
 	type reply = gossiprpc.McsrRecordReply
 	h := mcsrCommand(d, mcsrRoute("versus"), func(cfg mcsrConfig) string { return cfg.RecordEnabled },
 		func(call statsCall[mcsrConfig], r *reply) string {
-			return mcsrRecordTokens.Expand(orDefault(call.Cfg.RecordMessage, defaultMcsrRecordTemplate), r)
+			return mcsrRecordTokens.ExpandNamespaced("mcsr", orDefault(call.Cfg.RecordMessage, defaultMcsrRecordTemplate), r)
 		})
 	h.target = mcsrRecordSubject
 	return mcsrSeasonRun(h, mcsrVersusSeason)
@@ -175,7 +177,7 @@ func mcsrLbRun(d engine.Deps) module.RunFunc {
 			if r.Empty {
 				return mcsrBoardLabel(r.Board) + ": " + i18n.T(call.Ctx.Locale, "mcsr.leaderboard.empty")
 			}
-			return mcsrLbTokens.Expand(orDefault(call.Cfg.LbMessage, defaultMcsrLbTemplate), r)
+			return mcsrLbTokens.ExpandNamespaced("mcsr", orDefault(call.Cfg.LbMessage, defaultMcsrLbTemplate), r)
 		})
 	h.target = func(call statsCall[mcsrConfig]) statsSubject {
 		board, _, _ := parseMcsrBoardArgs(call.Args)
@@ -353,7 +355,7 @@ func mcsrPbText(call statsCall[mcsrConfig], v mcsrPbView) string {
 		"time":   v.Time,
 		"window": v.WindowLabel,
 	}
-	return palette.Expand(orDefault(call.Cfg.PbMessage, defaultMcsrPbTemplate))
+	return palette.ExpandNamespaced("mcsr", orDefault(call.Cfg.PbMessage, defaultMcsrPbTemplate))
 }
 
 func mcsrPbEmptyText(c *module.Context, player, window string) string {

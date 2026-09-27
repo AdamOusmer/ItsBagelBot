@@ -206,6 +206,16 @@ type PatchResult struct {
 }
 
 func (r *Modules) Patch(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev *int) (PatchResult, error) {
+	return r.patch(ctx, userID, name, enabled, partial, expectedRev, nil)
+}
+
+// PatchExisting only updates the row identified by both its ID and revision.
+// Missing or replaced rows conflict; this path never creates a module.
+func (r *Modules) PatchExisting(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev, expectedID int) (PatchResult, error) {
+	return r.patch(ctx, userID, name, enabled, partial, &expectedRev, &expectedID)
+}
+
+func (r *Modules) patch(ctx context.Context, userID uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev, expectedID *int) (PatchResult, error) {
 	if err := validate.UserID(userID); err != nil {
 		return PatchResult{}, err
 	}
@@ -220,7 +230,7 @@ func (r *Modules) Patch(ctx context.Context, userID uint64, name string, enabled
 	var blob []byte
 	err = db.WithExec(ctx, func(ctx context.Context) error {
 		var err error
-		res, blob, err = r.persistPatch(ctx, userID, name, enabled, partial, expectedRev)
+		res, blob, err = r.persistPatch(ctx, userID, name, enabled, partial, expectedRev, expectedID)
 		return err
 	})
 	if err != nil {
@@ -263,7 +273,7 @@ func (r *Modules) patchUpdate(ctx context.Context, row *ent.Modules, enabled boo
 		return PatchResult{}, nil, err
 	}
 	affected, err := r.client.Modules.Update().
-		Where(modules.UserIDEQ(row.UserID), modules.NameEQ(row.Name), modules.RevisionEQ(row.Revision)).
+		Where(modules.IDEQ(row.ID), modules.UserIDEQ(row.UserID), modules.NameEQ(row.Name), modules.RevisionEQ(row.Revision)).
 		SetIsEnabled(enabled).SetConfigs(blob).AddRevision(1).
 		Save(ctx)
 	if err != nil {
@@ -514,14 +524,22 @@ func (r *Modules) stampModulePatch(ctx context.Context, id uint64, name string, 
 	return decodeConfig(stamped), nil
 }
 
-func (r *Modules) persistPatch(ctx context.Context, id uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev *int) (PatchResult, []byte, error) {
+func (r *Modules) persistPatch(ctx context.Context, id uint64, name string, enabled bool, partial map[string]codec.RawMessage, expectedRev, expectedID *int) (PatchResult, []byte, error) {
 	row, err := r.client.Modules.Query().Where(modules.UserIDEQ(id), modules.NameEQ(name)).Only(ctx)
 	switch {
 	case ent.IsNotFound(err):
+		if expectedID != nil {
+			return PatchResult{Conflict: true}, nil, nil
+		}
 		return r.patchInsert(ctx, id, name, enabled, partial, expectedRev)
 	case err != nil:
 		return PatchResult{}, nil, err
 	default:
+		if expectedID != nil && (row.ID != *expectedID || row.Name == "loyalty" && accountInstance(row.Configs) != accountInstanceMap(partial)) {
+			// Guarded maintenance must not reset settings when account ownership
+			// differs. The normal dashboard Patch path retains that behavior.
+			return PatchResult{Conflict: true, Rev: row.Revision}, nil, nil
+		}
 		return r.patchUpdate(ctx, row, enabled, partial, expectedRev)
 	}
 }

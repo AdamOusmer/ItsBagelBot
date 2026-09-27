@@ -39,9 +39,10 @@ func newTriggerWord(phrase, response, match string) triggerWord {
 }
 
 type triggerLine struct {
-	text   string
-	user   string
-	locale string
+	text    string
+	user    string
+	locale  string
+	channel string
 }
 
 func Triggers(_ engine.Deps) module.Module {
@@ -59,7 +60,7 @@ func triggersOnChat(ctx context.Context, c *module.Context, emit module.Emit) er
 	if parsed.err != nil {
 		return parsed.err
 	}
-	line := triggerLine{text: text, user: strings.TrimPrefix(c.Env.ChatterName(), "@"), locale: c.Locale}
+	line := triggerLine{text: text, user: strings.TrimPrefix(c.Env.ChatterName(), "@"), locale: c.Locale, channel: c.Env.BroadcasterName()}
 	response, ok := line.firstResponse(parsed.rules)
 	if !ok {
 		return nil
@@ -219,7 +220,7 @@ func (l triggerLine) firstResponse(rules []triggerWord) (string, bool) {
 	return "", false
 }
 func (l triggerLine) expandReply(response string) string {
-	return module.KV("user", l.user).WithLocale(module.Locale(l.locale)).ExpandString(response)
+	return module.KV("user", l.user, "channel", l.channel).WithNamespace("triggers").WithLocale(module.Locale(l.locale)).ExpandString(response)
 }
 
 func (tw triggerWord) matches(text string) bool {

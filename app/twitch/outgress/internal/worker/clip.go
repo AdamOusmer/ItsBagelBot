@@ -183,12 +183,16 @@ func clipExpand(meta clipMeta, clipURL string) string {
 		"target":  title,
 		"title":   title,
 	}
-	return expandTokens(strings.TrimSpace(meta.Reply), tokens)
+	return expandTokensNamespaced("clip", strings.TrimSpace(meta.Reply), tokens)
 }
 
 func expandTokens(t string, tokens map[string]string) string {
+	return expandTokensNamespaced("", t, tokens)
+}
+
+func expandTokensNamespaced(namespace, t string, tokens map[string]string) string {
 	return tmpl.Expand(t, func(tok tmpl.Token) (string, bool) {
-		if val, ok := tokens[tok.Key()]; ok {
+		if val, ok := tokens[tmpl.TokenKey(tok, namespace)]; ok {
 			return val, true
 		}
 		return tmpl.Dynamic(tok)

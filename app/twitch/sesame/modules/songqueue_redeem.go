@@ -145,7 +145,7 @@ func (r songqueueRedeemRun) chat(text string) {
 	})
 }
 
-const defaultSongqueueRedeemReply = "@{user} queued {track}, position #{pos}."
+const defaultSongqueueRedeemReply = "@{songqueue:user} queued {songqueue:track}, position #{songqueue:pos}."
 
 type songqueueRedeemReplyParams struct {
 	locale string
@@ -166,5 +166,5 @@ func renderSongqueueRedeemReply(p songqueueRedeemReplyParams) string {
 		"track", p.track,
 		"input", sanitizeRewardInput(p.event.UserInput),
 		"pos", strconv.Itoa(p.pos),
-	).WithLocale(module.Locale(p.locale)).ExpandString(text)
+	).WithLocale(module.Locale(p.locale)).WithNamespace("songqueue").ExpandString(text)
 }

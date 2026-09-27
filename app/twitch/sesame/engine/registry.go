@@ -15,18 +15,23 @@ type BoundCommand struct {
 }
 
 type Registry struct {
-	byEvent   map[string][]module.Module
-	commands  map[string]BoundCommand
-	needViews map[string]bool
+	variableModules map[string]module.Module
+	byEvent         map[string][]module.Module
+	commands        map[string]BoundCommand
+	needViews       map[string]bool
 }
 
 func NewRegistry(log *zap.Logger, mods ...module.Module) *Registry {
 	r := &Registry{
-		byEvent:   make(map[string][]module.Module),
-		commands:  make(map[string]BoundCommand),
-		needViews: make(map[string]bool),
+		variableModules: make(map[string]module.Module),
+		byEvent:         make(map[string][]module.Module),
+		commands:        make(map[string]BoundCommand),
+		needViews:       make(map[string]bool),
 	}
 	for _, m := range mods {
+		if len(m.Variables) > 0 {
+			r.variableModules[m.Name] = m
+		}
 		r.indexEvents(m)
 		r.indexCommands(log, m)
 	}
