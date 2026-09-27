@@ -700,6 +700,21 @@
       display: block;
     }
 
+    /* A rail uses this dock as its phone navigation. Keep destination names
+       visible on touch, where the rail and hover labels are unavailable. */
+    .bb-shell--railed .bb-dock-item,
+    .bb-shell--railed .bb-dock-item[data-active] { flex: 1; }
+    .bb-shell--railed .bb-dock-item__label {
+      display: block;
+      width: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      text-align: center;
+      font-size: 10px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
     .bb-dock__group {
       flex: 1;
     }

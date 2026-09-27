@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { SaveStatus, Switch, Tag, getI18n, moduleCommandChips, moduleHref, tModuleLabel, tModuleTagline, type ModuleState } from '@bagel/kit';
+  import { Icon, SaveStatus, Switch, Tag, getI18n, moduleCommandChips, moduleHref, tModuleLabel, tModuleTagline, type ModuleState } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -27,7 +27,7 @@
 </script>
 
 <article class="mod" class:on={module.enabled && !locked} class:off={!module.enabled || locked} class:locked>
-  <a class="main" {href} data-cursor="quiet">
+  <a class="main" {href} data-cursor="quiet" aria-label="{t('modules.openSettings')}: {tModuleLabel(t, def)}">
     <span class="copy">
       <span class="name">
         {tModuleLabel(t, def)}
@@ -44,6 +44,9 @@
           {/if}
         </span>
       {/if}
+    </span>
+    <span class="open-action" aria-hidden="true" title={t('modules.openSettings')}>
+      <Icon name="gear" size={16} />
     </span>
   </a>
   <div class="side">
@@ -72,7 +75,9 @@
 
 <style>
   .mod {
-    display: flex;
+    display: grid;
+    /* Reserve one control column so the gear stays aligned in both states. */
+    grid-template-columns: minmax(0, 1fr) 9rem;
     align-items: stretch;
     border-bottom: 1px solid var(--rule);
     isolation: isolate;
@@ -81,9 +86,11 @@
   .mod.on { background: linear-gradient(90deg, rgba(82, 183, 136, 0.07), transparent 42%); }
 
   .main {
-    flex: 1 1 auto;
     min-width: 0;
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
     padding: 14px 12px 14px 16px;
     text-decoration: none;
     color: inherit;
@@ -104,6 +111,16 @@
     box-shadow: 0 0 8px var(--bb-green-glow);
   }
   .main:hover { background: rgba(201, 168, 124, 0.05); }
+  .open-action {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    padding: 8px;
+    border: 1px solid var(--rule);
+    border-radius: var(--bb-radius-sm);
+    color: var(--bb-tan-light);
+  }
+  .main:hover .open-action { border-color: var(--bb-tan); }
   .main:focus-visible {
     outline: 2px solid var(--bb-tan);
     outline-offset: -2px;
@@ -145,11 +162,12 @@
     margin-left: 8px;
   }
   .side {
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
     gap: 10px;
     padding: 0 16px 0 8px;
-    flex: none;
   }
   .always {
     font-family: var(--bb-font-mono);
@@ -169,6 +187,8 @@
   .lock:hover { text-decoration: underline; }
 
   @media (max-width: 760px) {
+    .mod { grid-template-columns: minmax(0, 1fr) 8.5rem; }
+    .main { gap: 10px; }
     .side { padding-right: 10px; padding-left: 0; }
   }
 </style>

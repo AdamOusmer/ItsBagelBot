@@ -14,6 +14,7 @@
   <div class="ov-quick__row">
     <ButtonLink href="/commands" variant="primary" class="ov-quick__btn">{t('overview.quickNewCommand')}</ButtonLink>
     <ButtonLink href="/modules" variant="ghost" class="ov-quick__btn">{t('overview.quickModules')}</ButtonLink>
+    <ButtonLink href="/songqueue" variant="ghost" class="ov-quick__btn">{t('nav.songqueue')}</ButtonLink>
     {#if needsAttention}
       <ButtonLink href="/settings" variant="ghost" class="ov-quick__btn">{t('overview.quickSettings')}</ButtonLink>
     {/if}

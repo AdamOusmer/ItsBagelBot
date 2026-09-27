@@ -2379,6 +2379,9 @@
     "toastGameToggleFailed": "Impossible de mettre à jour {label}."
   },
   "modules": {
+    "quickAccess": "Accès rapide",
+    "openHint": "Ouvrez un module pour modifier ses réglages. Utilisez l’interrupteur pour l’activer ou le désactiver.",
+    "openSettings": "Ouvrir les réglages",
     "addTrigger": "Ajouter un déclencheur",
     "allModules": "Tous les modules",
     "alwaysOn": "Toujours actif",
@@ -2392,7 +2395,7 @@
     "catChannelHint": "Points de chaîne, alertes de follow et de sub, et shoutouts de raid.",
     "catChat": "Chat",
     "catChatHint": "Minuteurs, mots déclencheurs, citations, et ce que le chat tape.",
-    "catGear": "Matériel",
+    "catGear": "Musique et lumières",
     "catGearHint": "Connectez Spotify pour les demandes de morceaux et Govee pour vos lumières.",
     "catModeration": "Modération",
     "catModerationHint": "Filtres et AutoMod pour garder le chat propre.",
@@ -2458,8 +2461,8 @@
     "saveFailed": "Échec de l'enregistrement.",
     "saved": "{label} enregistré.",
     "searchClear": "Effacer la recherche",
-    "searchLabel": "Rechercher des modules",
-    "searchPlaceholder": "Nom, commande ou rôle…",
+    "searchLabel": "Trouver un module",
+    "searchPlaceholder": "Chansons, minuteries, !sr…",
     "settingsTitle": "Réglages",
     "stateDisabled": "Désactivé",
     "stateEnabled": "Activé",
@@ -3212,6 +3215,7 @@
     "triggerPreviewTag": "sur « {phrase} »"
   },
   "nav": {
+    "songqueue": "Demandes de chansons",
     "lockedBroadcaster": "Réservé au diffuseur",
     "ariaMain": "Navigation principale",
     "manage": "Gérer",

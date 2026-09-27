@@ -25,6 +25,7 @@
     SectionNav,
     categoryAnchorId,
     categoryHref,
+    moduleHref,
     tModuleLabel,
     tModuleTagline,
     tModuleDescription,
@@ -87,6 +88,15 @@
       label: catLabel(group.name),
       count: group.modules.length
     }))
+  );
+
+  // Use only modules present in this viewer's catalog so shortcuts respect
+  // the same delegation rules as the rows below.
+  const shortcuts = $derived(
+    ['songqueue', 'timers', 'loyalty', 'quotes'].flatMap((id) => {
+      const module = items.find((m) => m.def.id === id);
+      return module ? [module] : [];
+    })
   );
 
   function clearSearch() {
@@ -174,14 +184,31 @@
   {/if}
 
   <div class="deck">
+    <label class="find-label" for="module-search">{t('modules.searchLabel')}</label>
     <div class="find">
-      <SearchInput bind:value={searchQuery} bind:element={searchInput} placeholder={t('modules.searchPlaceholder')}
-        aria-label={t('modules.searchLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
+      <SearchInput id="module-search" bind:value={searchQuery} bind:element={searchInput} placeholder={t('modules.searchPlaceholder')}
+        aria-label={t('modules.searchLabel')} aria-describedby="module-search-hint" clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
       {#if !searchQuery}<span class="keys" aria-hidden="true"><Kbd>/</Kbd></span>{/if}
     </div>
   </div>
 
-  <p class="bb-sr-only" aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</p>
+  <div class="find-help">
+    <p id="module-search-hint">{t('modules.openHint')}</p>
+    <p class="result-count" aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</p>
+  </div>
+
+  {#if !searchQuery.trim() && shortcuts.length}
+    <nav class="shortcuts" aria-label={t('modules.quickAccess')}>
+      <span class="shortcut-label">{t('modules.quickAccess')}</span>
+      {#each shortcuts as module (module.def.id)}
+        <a class="bb-btn bb-btn--ghost" href={moduleHref(module.def)}>
+          {#if module.def.id === 'songqueue'}<Icon name="music" size={16} />{/if}
+          {tModuleLabel(t, module.def)}
+          <Icon name="chevron" size={12} class="shortcut-chevron" />
+        </a>
+      {/each}
+    </nav>
+  {/if}
 
   {#if groups.length === 0}
     <EmptyState title={t('modules.noMatch')} body={t('modules.noMatchBody')}>
@@ -219,12 +246,36 @@
 </section>
 
 <style>
+  .find-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--bb-white);
+    font-family: var(--bb-font-body);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .find-help {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px 20px;
+    margin-bottom: 16px;
+    color: var(--bb-muted);
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .find-help p { margin: 0; }
+  .result-count { flex: none; }
+  .shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 22px; }
+  .shortcut-label { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 12px; margin-right: 4px; }
+  .shortcuts :global(.shortcut-chevron) { transform: rotate(-90deg); }
   .deck {
     position: sticky;
     top: calc(58px + env(safe-area-inset-top, 0px));
     z-index: 5;
     padding: 10px 0 14px;
-    margin: 0 0 22px;
+    margin: 0 0 10px;
     background: var(--bb-bg-0);
     border-bottom: 1px solid var(--rule);
   }
@@ -241,7 +292,7 @@
   .index {
     display: grid;
     gap: 18px 32px;
-    --bb-tabs-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
+    --bb-tabs-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 98px);
   }
   @media (min-width: 761px) {
     .index {
@@ -250,7 +301,7 @@
   }
   .families { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
   .family {
-    scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 72px);
+    scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 102px);
   }
   .family:focus { outline: none; }
   .family:target :global(.family-title) { color: var(--bb-tan-pale, var(--bb-tan-light)); }
@@ -262,10 +313,10 @@
       top: calc(52px + env(safe-area-inset-top, 0px));
     }
     .index {
-      --bb-tabs-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px);
+      --bb-tabs-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 98px);
     }
     .family {
-      scroll-margin-top: calc(52px + env(safe-area-inset-top, 0px) + 72px);
+      scroll-margin-top: calc(52px + env(safe-area-inset-top, 0px) + 102px);
     }
     .keys { display: none; }
   }
