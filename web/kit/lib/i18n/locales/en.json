@@ -2190,7 +2190,7 @@
     "instrSe": [
       "Sign in at streamelements.com and open your dashboard.",
       "Go to Account Settings → Channels, or use the direct link below.",
-      "In your browser's developer tools → Network tab, click any request to api.streamelements.com and copy the token after “Bearer ” in its Authorization header.",
+      "Copy your JWT token from your StreamElements account.",
       "Paste the JWT below to continue."
     ],
     "instrSl": [
@@ -2206,7 +2206,7 @@
       "Only commands that post chat text come over. Screen animations and sound-only commands are skipped, and when a command carries a public description, Wizebot publishes that instead of its chat message, so check the review step."
     ],
     "jwtFieldAria": "StreamElements JWT",
-    "jwtHint": "Open the StreamElements dashboard while signed in, then copy the JWT your browser sends to api.streamelements.com (any request's <code>Authorization</code> header, the part after “Bearer ”).",
+    "jwtHint": "Copy your JWT token from your StreamElements account, then paste it here.",
     "moobotDesc": "Upload your Moobot command export (.json).",
     "nbConnectCta": "Connect Nightbot",
     "nbConnected": "Nightbot account connected.",
