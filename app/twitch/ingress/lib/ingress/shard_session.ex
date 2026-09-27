@@ -40,13 +40,17 @@ defmodule Ingress.ShardSession do
 
   def start_link(opts) do
     if Keyword.get(opts, :rescue?, false) do
-      GenServer.start_link(__MODULE__, opts)
+      GenServer.start_link(__MODULE__, opts, name: rescue_via(Keyword.fetch!(opts, :shard_id)))
     else
       GenServer.start_link(__MODULE__, opts, name: via(Keyword.fetch!(opts, :shard_id)))
     end
   end
 
   def via(shard_id), do: {:via, Horde.Registry, {Ingress.Registry, {:shard, shard_id}}}
+  def rescue_via(shard_id), do: {:via, Horde.Registry, {Ingress.Registry, {:rescue, shard_id}}}
+
+  defp registration_key(%{name_state: :rescue, shard_id: id}), do: {:rescue, id}
+  defp registration_key(%{shard_id: id}), do: {:shard, id}
 
   def status(pid, timeout \\ 2_000), do: GenServer.call(pid, :status, timeout)
 
@@ -90,6 +94,9 @@ defmodule Ingress.ShardSession do
   end
 
   @impl true
+  def handle_call(:release_name, _from, %{name_state: :rescue} = state),
+    do: {:reply, {:error, :rescue_session}, state}
+
   def handle_call(:release_name, _from, state) do
     Horde.Registry.unregister(Ingress.Registry, {:shard, state.shard_id})
     {:reply, :ok, %{state | name_state: :released}}
@@ -97,6 +104,9 @@ defmodule Ingress.ShardSession do
 
   # Must run in this process: Horde binds the name to the caller.
   @impl true
+  def handle_call(:reclaim_name, _from, %{name_state: :rescue} = state),
+    do: {:reply, {:error, :rescue_session}, state}
+
   def handle_call(:reclaim_name, _from, state) do
     result = Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil)
     {:reply, result, %{state | name_state: reclaimed_name_state(result, state.name_state)}}
@@ -200,9 +210,10 @@ defmodule Ingress.ShardSession do
   def handle_info(:handshake_deadline, state), do: {:noreply, state}
 
   def handle_info(
-        {:EXIT, _from, {:name_conflict, {{:shard, _id}, _value}, _registry, winner}},
+        {:EXIT, _from, {:name_conflict, {{kind, _id}, _value}, _registry, winner}},
         state
-      ) do
+      )
+      when kind in [:shard, :rescue] do
     winner_status =
       try do
         GenServer.call(winner, :status, 2_000)
@@ -596,8 +607,9 @@ defmodule Ingress.ShardSession do
   defp schedule_registry_check,
     do: Process.send_after(self(), :registry_check, @registry_check_interval_ms)
 
-  defp verify_registration(%{name_state: :named, takeover: nil} = state) do
-    case Horde.Registry.lookup(Ingress.Registry, {:shard, state.shard_id}) do
+  defp verify_registration(%{name_state: kind, takeover: nil} = state)
+       when kind in [:named, :rescue] do
+    case Horde.Registry.lookup(Ingress.Registry, registration_key(state)) do
       [{pid, _}] when pid == self() -> state
       [{_other, _}] -> state
       [] -> reregister(state)
@@ -608,7 +620,7 @@ defmodule Ingress.ShardSession do
 
   # Leave duplicates to the reconciler: killing the copy that noticed can close the routed socket.
   defp reregister(state) do
-    case Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil) do
+    case Horde.Registry.register(Ingress.Registry, registration_key(state), nil) do
       {:ok, _pid} ->
         Logger.warning("shard registration was missing; re-registered")
         Metrics.count("Shard/RegistrationRepairs")
@@ -630,7 +642,7 @@ defmodule Ingress.ShardSession do
     cancel(timer)
     state = %{state | takeover: nil}
 
-    case Horde.Registry.register(Ingress.Registry, {:shard, state.shard_id}, nil) do
+    case Horde.Registry.register(Ingress.Registry, registration_key(state), nil) do
       {:ok, _} ->
         Logger.info("duplicate shard resolved: registration reclaimed, we keep serving")
         reassert_binding(state)
