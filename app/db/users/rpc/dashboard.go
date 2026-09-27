@@ -202,7 +202,7 @@ func (d *dashboardRPC) handleActiveSet(ctx context.Context, msg *nats.Msg) {
 	setBoolPref(d, ctx, msg, "status", "active_set",
 		func(r usersrpc.ActiveSetRequest) string { return r.BroadcasterUserID },
 		func(ctx context.Context, id uint64, r usersrpc.ActiveSetRequest) error {
-			return d.repo.SetActive(ctx, id, r.Active)
+			return d.repo.SetActiveNow(ctx, id, r.Active)
 		})
 }
 

@@ -42,6 +42,7 @@ function merge(rows: ModuleView[], session: Session | null | undefined, premium:
     return {
       def,
       enabled: def.toggleable === false ? true : row ? row.is_enabled : def.defaultEnabled,
+      revision: row?.revision ?? 0,
       config: asConfig(row?.configs),
       locked: betaLocked(def, premium)
     };
@@ -101,13 +102,12 @@ async function flipModule(
 ) {
   const { name, uid, enabled } = flip;
   try {
-    await setModuleEnabled(uid, name, enabled);
+    const saved = await setModuleEnabled(uid, name, enabled);
     if (!enabled) await disableChildren(uid, name);
+    auditDashboardImpersonation(session, 'module:toggle', `${name}=${enabled}`);
+    return { ok: true, name, enabled, revision: saved?.revision };
   } catch (e) {
     logger.error({ err: e }, `[modules] toggle ${name} failed`);
     return fail(400, { ok: false });
   }
-
-  auditDashboardImpersonation(session, 'module:toggle', `${name}=${enabled}`);
-  return { ok: true, name, enabled };
 }

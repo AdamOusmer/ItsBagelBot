@@ -19,6 +19,7 @@ import (
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 
 	"ItsBagelBot/internal/testdb"
+	"ItsBagelBot/pkg/bus/bustest"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
@@ -368,4 +369,18 @@ func replyIDs(reply usersrpc.AdminReply) []uint64 {
 		ids = append(ids, u.ID)
 	}
 	return ids
+}
+
+func TestAdminActiveToggleEchoesCommittedState(t *testing.T) {
+	a, client := setupAdminRPCTest(t)
+	createAdminUser(t, client, 0, time.Now())
+	a.repo = repository.NewUsers(client, nil, bustest.NewPublisher(), nil, zap.NewNop())
+	t.Cleanup(func() { a.repo.Close(context.Background()) })
+	for _, active := range []bool{false, true} {
+		reply := a.setActive(t.Context(), usersrpc.AdminRequest{UserID: "9000", Active: active})
+		require.Empty(t, reply.Error)
+		require.NotNil(t, reply.User)
+		require.Equal(t, active, reply.User.IsActive, "action reply must not restore the old optimistic toggle value")
+		require.Equal(t, active, client.User.GetX(t.Context(), 9000).IsActive)
+	}
 }

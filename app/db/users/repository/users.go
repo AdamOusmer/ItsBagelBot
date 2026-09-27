@@ -278,6 +278,11 @@ func (r *Users) SetActive(ctx context.Context, id uint64, active bool) error {
 	return nil
 }
 
+// SetActiveNow commits interactive toggles before an RPC read or invalidation.
+func (r *Users) SetActiveNow(ctx context.Context, id uint64, active bool) error {
+	return r.updateAndPublish(ctx, id, func(u *ent.UserUpdateOne) { u.SetIsActive(active) })
+}
+
 func (r *Users) SetLocale(ctx context.Context, id uint64, locale string) error {
 	r.queuePref(id, prefLocale, prefWrite{str: locale})
 	return nil

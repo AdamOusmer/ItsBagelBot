@@ -180,3 +180,40 @@ func TestSetFlushIncrementsRevisionAndPublishesPersistedSnapshot(t *testing.T) {
 	assert.Equal(t, row.IsEnabled, dto.IsEnabled)
 	assert.JSONEq(t, string(row.Configs), string(dto.Configs))
 }
+
+func TestSetNowReturnsCommittedRevisionAndRefreshesCachedList(t *testing.T) {
+	client, pub, repo := setup(t)
+	defer repo.Close(t.Context())
+	ctx := t.Context()
+	client.Modules.Create().SetUserID(1001).SetName("queue").SetIsEnabled(false).SetConfigs([]byte(`{"message":"old"}`)).SetRevision(7).ExecX(ctx)
+	_, err := repo.List(ctx, 1001)
+	require.NoError(t, err)
+	views, err := repo.SetNow(ctx, 1001, "queue", true, codec.RawMessage(`{"message":"new"}`))
+	require.NoError(t, err)
+	require.Len(t, views, 1)
+	require.True(t, views[0].IsEnabled)
+	require.Equal(t, 8, views[0].Revision)
+	row := client.Modules.Query().OnlyX(ctx)
+	require.True(t, row.IsEnabled, "save acknowledgement must follow the SQL commit")
+	require.Equal(t, row.Revision, views[0].Revision)
+	require.JSONEq(t, string(row.Configs), string(views[0].Configs))
+	var event data.ModuleChangedDTO
+	events := pub.On(data.SubjectModuleChanged)
+	require.Len(t, events, 1)
+	require.NoError(t, codec.Unmarshal(events[0].Payload, &event))
+	require.Equal(t, row.Revision, event.Revision)
+	require.True(t, event.IsEnabled)
+}
+
+func TestSetNowReturnsServerOwnedLoyaltyMetadata(t *testing.T) {
+	_, _, repo := setup(t)
+	defer repo.Close(t.Context())
+	repo.SetAccountInstanceResolver(func(context.Context, uint64) (int64, error) { return 100, nil })
+	views, err := repo.SetNow(t.Context(), 1001, "loyalty", true, codec.RawMessage(`{"__account_created_at":999}`))
+	require.NoError(t, err)
+	require.Len(t, views, 1)
+	require.Equal(t, int64(100), views[0].AccountCreatedAt)
+	require.Equal(t, 1, views[0].Revision)
+	_, err = repo.SetNow(t.Context(), 1001, "invalid.module", true, codec.RawMessage(`{}`))
+	require.Error(t, err)
+}

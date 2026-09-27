@@ -91,6 +91,7 @@ export function moduleDelegateSections(def: ModuleDef): readonly string[] {
 export interface ModuleState {
   def: ModuleDef;
   enabled: boolean;
+  revision?: number;
   config: Record<string, string>;
   locked?: boolean;
 }

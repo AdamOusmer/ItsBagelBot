@@ -3,7 +3,8 @@
   import { SearchInput } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
+  import { reconcileModuleToggles } from '$lib/module-toggle';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -42,10 +43,11 @@
   let items = $state<ModuleState[]>(data.modules ?? []);
   // svelte-ignore state_referenced_locally
   let seed = data.modules;
+  const pendingToggles = new Map<string, boolean>();
   $effect(() => {
     if (data.modules !== seed) {
       seed = data.modules;
-      items = data.modules ?? [];
+      items = reconcileModuleToggles(data.modules ?? [], untrack(() => items), pendingToggles);
     }
   });
 
@@ -134,14 +136,19 @@
     (m: ModuleState): SubmitFunction =>
     () => {
       const was = m.enabled;
+      pendingToggles.set(m.def.id, !was);
       items = items.map((x) => (x.def.id === m.def.id ? { ...x, enabled: !was } : x));
       setStatus(m.def.id, 'saving');
       return async ({ result }) => {
         const payload =
           result.type === 'success' || result.type === 'failure'
-            ? (result.data as { ok?: boolean } | undefined)
+            ? (result.data as { ok?: boolean; revision?: number } | undefined)
             : undefined;
+        pendingToggles.delete(m.def.id);
         if (result.type === 'success' && payload?.ok) {
+          items = items.map((x) => x.def.id === m.def.id
+            ? { ...x, enabled: !was, revision: payload.revision ?? x.revision }
+            : x);
           ackSaved(m.def.id);
         } else {
           items = items.map((x) => (x.def.id === m.def.id ? { ...x, enabled: was } : x));

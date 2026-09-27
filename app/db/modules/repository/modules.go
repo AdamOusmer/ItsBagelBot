@@ -81,36 +81,65 @@ func (r *Modules) List(ctx context.Context, userID uint64) ([]ModuleView, error)
 	})
 }
 
+// Set batches background writes. Interactive saves use SetNow so their reply
+// carries a committed revision that can pass the projection's revision gate.
 func (r *Modules) Set(userID uint64, name string, enabled bool, configs codec.RawMessage) error {
-
-	if err := validate.UserID(userID); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	item, err := r.moduleChange(ctx, userID, name, enabled, configs)
+	if err != nil {
 		return err
+	}
+	r.batcher.Add(moduleKey{userID: userID, name: name}, item)
+	return nil
+}
+
+func (r *Modules) SetNow(ctx context.Context, userID uint64, name string, enabled bool, configs codec.RawMessage) ([]ModuleView, error) {
+	item, err := r.moduleChange(ctx, userID, name, enabled, configs)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.WithExec(ctx, func(ctx context.Context) error { return r.persistModuleChange(ctx, item) }); err != nil {
+		return nil, err
+	}
+	r.Invalidate(userID)
+	views, err := r.List(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for _, view := range views {
+		if view.Name == name {
+			r.publishCommittedModule(ctx, data.ModuleChangedDTO{
+				UserID: userID, Name: view.Name, IsEnabled: view.IsEnabled,
+				Configs: view.Configs, Revision: view.Revision, AccountCreatedAt: view.AccountCreatedAt,
+			}, monitor.TxnLogger(ctx, r.log))
+			break
+		}
+	}
+	return views, nil
+}
+
+func (r *Modules) moduleChange(ctx context.Context, userID uint64, name string, enabled bool, configs codec.RawMessage) (data.ModuleChangedDTO, error) {
+	if err := validate.UserID(userID); err != nil {
+		return data.ModuleChangedDTO{}, err
 	}
 	if err := validate.ModuleName(name); err != nil {
-		return err
+		return data.ModuleChangedDTO{}, err
 	}
 	if err := validate.ConfigsJSON(configs); err != nil {
-		return err
+		return data.ModuleChangedDTO{}, err
 	}
-
 	if name == "loyalty" {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
 		var err error
 		configs, err = r.stampLoyalty(ctx, userID, configs)
 		if err != nil {
-			return err
+			return data.ModuleChangedDTO{}, err
 		}
 	}
-	r.batcher.Add(moduleKey{userID: userID, name: name}, data.ModuleChangedDTO{
-		AccountCreatedAt: accountInstance(configs),
-		UserID:           userID,
-		Name:             name,
-		IsEnabled:        enabled,
-		Configs:          configs,
-	})
-
-	return nil
+	return data.ModuleChangedDTO{
+		AccountCreatedAt: accountInstance(configs), UserID: userID,
+		Name: name, IsEnabled: enabled, Configs: configs,
+	}, nil
 }
 
 func (r *Modules) Reproject(ctx context.Context) error {
