@@ -141,7 +141,14 @@ export function moduleMatchesQuery(def: ModuleDef, query: string, extraHay = '')
   if (hay.includes(q)) return true;
   const compactHay = hay.replace(/[^a-z0-9]+/g, '');
   const compactQ = q.replace(/[^a-z0-9]+/g, '');
-  return compactQ.length >= 4 && compactHay.includes(compactQ);
+  if (compactQ.length >= 4 && compactHay.includes(compactQ)) return true;
+  // Match combined clues across the name, purpose and commands, in any order:
+  // "Spotify song requests" and "timers messages" need no exact phrase.
+  return q.split(/\s+/).every((term) => {
+    if (hay.includes(term)) return true;
+    const compactTerm = term.replace(/[^a-z0-9]+/g, '');
+    return compactTerm.length >= 4 && compactHay.includes(compactTerm);
+  });
 }
 
 export function filterModuleIndex(

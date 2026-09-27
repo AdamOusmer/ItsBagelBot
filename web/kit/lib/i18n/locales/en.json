@@ -2379,6 +2379,9 @@
     "toastGameToggleFailed": "Could not update {label}."
   },
   "modules": {
+    "quickAccess": "Quick access",
+    "openHint": "Open a module to edit its settings. Use the switch to turn it on or off.",
+    "openSettings": "Open settings",
     "addTrigger": "Add trigger",
     "allModules": "All modules",
     "alwaysOn": "Always on",
@@ -2392,7 +2395,7 @@
     "catChannelHint": "Channel points, follow and sub alerts, and raid shoutouts.",
     "catChat": "Chat",
     "catChatHint": "Timers, trigger words, quotes, and what chat types.",
-    "catGear": "Gear",
+    "catGear": "Music & lights",
     "catGearHint": "Connect Spotify for song requests and Govee for your lights.",
     "catModeration": "Moderation",
     "catModerationHint": "Filters and AutoMod for keeping chat clean.",
@@ -2458,8 +2461,8 @@
     "saveFailed": "Save failed.",
     "saved": "{label} saved.",
     "searchClear": "Clear search",
-    "searchLabel": "Search modules",
-    "searchPlaceholder": "Search name, command, or what it does…",
+    "searchLabel": "Find a module",
+    "searchPlaceholder": "Song requests, timers, !sr…",
     "settingsTitle": "Settings",
     "stateDisabled": "Disabled",
     "stateEnabled": "Enabled",
@@ -3212,6 +3215,7 @@
     "triggerPreviewTag": "on \"{phrase}\""
   },
   "nav": {
+    "songqueue": "Song Requests",
     "lockedBroadcaster": "Broadcaster only",
     "ariaMain": "Main navigation",
     "manage": "Manage",

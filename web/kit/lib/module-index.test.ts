@@ -48,6 +48,15 @@ describe('module index matching', () => {
     expect(moduleMatchesQuery(fn!, 'songrequest')).toBe(false);
   });
 
+  test('combines feature and command clues in any order, requiring every term', () => {
+    const song = moduleDef('songqueue')!;
+    expect(moduleMatchesQuery(song, 'Spotify song requests')).toBe(true);
+    expect(moduleMatchesQuery(song, '!sr spotify')).toBe(true);
+    expect(moduleMatchesQuery(song, 'songrequests spotify')).toBe(true);
+    expect(moduleMatchesQuery(song, 'spotify fortnite')).toBe(false);
+    expect(moduleMatchesQuery(moduleDef('fortnite')!, '!sr spotify')).toBe(false);
+  });
+
   test('localized extra haystack finds CODM by copy that is not in the English catalog', () => {
     const def = moduleDef('codm')!;
     expect(moduleMatchesQuery(def, 'consultation', 'Consultation de profil Call of Duty: Mobile')).toBe(true);

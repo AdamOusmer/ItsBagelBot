@@ -9,7 +9,7 @@ import { identity, navGroups, navItems, resolveSection, type SectionDef } from '
 export const GRANTABLE_SECTIONS = ['commands', 'modules', 'discord', 'channelpoints', 'billing'] as const;
 export type GrantSection = (typeof GRANTABLE_SECTIONS)[number];
 
-export type SectionId = 'overview' | 'commands' | 'modules' | 'discord' | 'billing' | 'settings';
+export type SectionId = 'overview' | 'commands' | 'modules' | 'songqueue' | 'discord' | 'billing' | 'settings';
 
 export interface DashboardSectionDef extends SectionDef {
   id: SectionId;
@@ -17,6 +17,7 @@ export interface DashboardSectionDef extends SectionDef {
     | 'nav.overview'
     | 'nav.commands'
     | 'nav.modules'
+    | 'nav.songqueue'
     | 'nav.discord'
     | 'nav.billing'
     | 'nav.settings';
@@ -25,6 +26,8 @@ export interface DashboardSectionDef extends SectionDef {
   match: readonly string[];
   ownerOnly?: boolean;
   grant?: GrantSection;
+  /** Visible when any of these existing delegation grants opens the page. */
+  grantsAny?: readonly GrantSection[];
 }
 
 export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
@@ -49,8 +52,16 @@ export const DASHBOARD_SECTIONS: readonly DashboardSectionDef[] = [
     labelKey: 'nav.modules',
     icon: 'modules',
     href: '/modules',
-    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty', '/songqueue'],
+    match: ['/modules', '/counters', '/quotes', '/govee', '/channelpoints', '/timers', '/loyalty'],
     grant: 'modules'
+  },
+  {
+    id: 'songqueue',
+    labelKey: 'nav.songqueue',
+    icon: 'music',
+    href: '/songqueue',
+    match: ['/songqueue'],
+    grantsAny: ['modules', 'channelpoints']
   },
   {
     id: 'discord',
@@ -94,7 +105,10 @@ export function dashboardNavItems(opts: {
     sections: DASHBOARD_SECTIONS,
     visible: (def) =>
       !(def.ownerOnly && isDelegate) &&
-      (!isDelegate || !def.grant || sections.includes(def.grant)),
+      (!isDelegate ||
+        (def.grantsAny
+          ? def.grantsAny.some((grant) => sections.includes(grant))
+          : !def.grant || sections.includes(def.grant))),
     active: (def) => section === def.id,
     children: (def) => (def.id === 'modules' ? [...opts.moduleLinks] : undefined),
     t: opts.t

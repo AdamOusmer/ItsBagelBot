@@ -26,6 +26,7 @@ describe('nav registry', () => {
       expect(sectionForPath(p)).toBe('modules');
     }
     expect(sectionForPath('/discord')).toBe('discord');
+    expect(sectionForPath('/songqueue')).toBe('songqueue');
     expect(sectionForPath('/billing')).toBe('billing');
     expect(sectionForPath('/settings')).toBe('settings');
     expect(sectionForPath('/access')).toBe('settings');
@@ -37,13 +38,14 @@ describe('nav registry', () => {
       '/',
       '/commands',
       '/modules',
+      '/songqueue',
       '/discord',
       '/billing',
       '/settings'
     ]);
   });
 
-  test('an owner sees all six entries with active following the section', () => {
+  test('an owner sees all seven entries with active following the section', () => {
     const items = dashboardNavItems({
       isDelegate: false,
       sections: [],
@@ -54,11 +56,12 @@ describe('nav registry', () => {
       'en:nav.overview',
       'en:nav.commands',
       'en:nav.modules',
+      'en:nav.songqueue',
       'en:nav.discord',
       'en:nav.billing',
       'en:nav.settings'
     ]);
-    expect(items.map((i) => i.active)).toEqual([false, false, false, false, true, false]);
+    expect(items.map((i) => i.active)).toEqual([false, false, false, false, false, true, false]);
   });
 
   test('a delegate sees only granted sections, never owner-only ones', () => {
@@ -71,8 +74,20 @@ describe('nav registry', () => {
       sections: [...GRANTABLE_SECTIONS],
       section: 'modules'
     });
-    expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/discord', '/billing']);
-    expect(full.map((i) => i.active)).toEqual([false, true, false, false]);
+    expect(full.map((i) => i.href)).toEqual(['/commands', '/modules', '/songqueue', '/discord', '/billing']);
+    expect(full.map((i) => i.active)).toEqual([false, true, false, false, false]);
+  });
+
+  test.each([
+    [['modules'], true],
+    [['channelpoints'], true],
+    [['commands'], false],
+    [['billing'], false],
+    [[], false]
+  ] as [string[], boolean][])('Song Requests shortcut respects existing grants %o', (sections, visible) => {
+    const items = dashboardNavItems({ isDelegate: true, sections, section: 'songqueue' });
+    expect(items.some((item) => item.href === '/songqueue')).toBe(visible);
+    expect(items.filter((item) => item.active).map((item) => item.href)).toEqual(visible ? ['/songqueue'] : []);
   });
 
   test('the rail nests the /modules sections, not the modules themselves', () => {
@@ -114,7 +129,7 @@ describe('nav registry', () => {
     );
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('en:nav.manage');
-    expect(groups[0].items).toHaveLength(6);
+    expect(groups[0].items).toHaveLength(7);
   });
 });
 
