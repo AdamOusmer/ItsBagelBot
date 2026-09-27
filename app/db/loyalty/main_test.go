@@ -24,7 +24,7 @@ type stubApplier struct {
 	got []data.CounterBumpedDTO
 }
 
-func (s *stubApplier) ApplyBumps(_ context.Context, dto data.CounterBumpedDTO) error {
+func (s *stubApplier) Process(_ context.Context, dto data.CounterBumpedDTO) error {
 	s.got = append(s.got, dto)
 	return s.err
 }
