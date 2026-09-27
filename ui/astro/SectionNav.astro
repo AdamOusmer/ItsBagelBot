@@ -22,4 +22,4 @@ const { label, items, orientation = 'auto', class: className = '', ...rest } = A
 const classes = ['bb-tabs', MODIFIER[orientation], className].filter(Boolean).join(' ');
 ---
 
-<div class="bb-tabs-host"><nav class={classes} aria-label={label} {...rest}>{items.map((item) => (<a class="bb-tab" href={item.href}>{item.label}{item.count != null && (<span class="bb-tab__count">{item.count}</span>)}</a>))}</nav></div>
+<div class="bb-tabs-host"><nav class={classes} aria-label={label} data-lenis-prevent="" {...rest}>{items.map((item) => (<a class="bb-tab" href={item.href}>{item.label}{item.count != null && (<span class="bb-tab__count">{item.count}</span>)}</a>))}</nav></div>
