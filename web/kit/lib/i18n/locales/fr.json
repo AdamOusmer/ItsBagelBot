@@ -2190,7 +2190,7 @@
     "instrSe": [
       "Connectez-vous sur streamelements.com et ouvrez votre tableau de bord.",
       "Allez dans Paramètres du compte → Chaînes, ou utilisez le lien direct ci-dessous.",
-      "Dans les outils de développement du navigateur → onglet Réseau, cliquez une requête vers api.streamelements.com et copiez le jeton après « Bearer » dans son en-tête Authorization.",
+      "Copiez votre jeton JWT depuis votre compte StreamElements.",
       "Collez le JWT ci-dessous pour continuer."
     ],
     "instrSl": [
@@ -2206,7 +2206,7 @@
       "Seules les commandes qui écrivent dans le chat sont reprises. Les animations à l’écran et les commandes sonores sont ignorées, et lorsqu’une commande porte une description publique, Wizebot publie celle-ci à la place de son message de chat : vérifiez donc l’étape de révision."
     ],
     "jwtFieldAria": "JWT StreamElements",
-    "jwtHint": "Ouvrez le tableau de bord StreamElements en étant connecté, puis copiez le JWT que votre navigateur envoie à api.streamelements.com (l’en-tête <code>Authorization</code> d’une requête, la partie après « Bearer »).",
+    "jwtHint": "Copiez votre jeton JWT depuis votre compte StreamElements, puis collez-le ici.",
     "moobotDesc": "Téléversez votre export de commandes Moobot (.json).",
     "nbConnectCta": "Connecter Nightbot",
     "nbConnected": "Compte Nightbot connecté.",
