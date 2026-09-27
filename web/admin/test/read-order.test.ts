@@ -37,4 +37,17 @@ describe('independent shard reads', () => {
     expect(trials.accept(0)).toBe(true);
     expect(fleet.accept(0)).toBe(false);
   });
+  test('a mutation fences outstanding polls and leaves subsequent reads eligible', () => {
+    const order = new ReadOrder();
+    const beforeSave = order.start();
+    order.invalidate();
+    expect(order.accept(beforeSave)).toBe(false);
+    expect(order.accept(0)).toBe(false);
+    const duringSave = order.start();
+    order.invalidate();
+    expect(order.accept(duringSave)).toBe(false);
+    expect(order.current(duringSave)).toBe(false);
+    expect(order.accept(order.start())).toBe(true);
+  });
+
 });

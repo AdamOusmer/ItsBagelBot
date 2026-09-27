@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 // A module with NO row is disabled: `?? true` would silently turn it on for every broadcaster.
-import { listModules, upsertModule } from './commands-store';
+import { listModules, upsertModule, type ModuleView } from './commands-store';
 
 export type ModuleBlob<T> = { enabled: boolean; configs: T };
 
@@ -13,7 +13,8 @@ export async function readModuleBlob<T>(userId: string, modId: string): Promise<
 }
 
 /** Raw blob write: the upsert replaces the whole value, and re-parsing drops unmodelled keys. */
-export async function setModuleEnabled(userId: string, modId: string, enabled: boolean): Promise<void> {
+export async function setModuleEnabled(userId: string, modId: string, enabled: boolean): Promise<ModuleView | undefined> {
   const { configs } = await readModuleBlob<Record<string, unknown>>(userId, modId);
-  await upsertModule(userId, modId, enabled, configs);
+  const { modules } = await upsertModule(userId, modId, enabled, configs);
+  return modules.find((row) => row.name === modId);
 }

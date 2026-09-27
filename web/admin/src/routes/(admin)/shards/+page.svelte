@@ -83,6 +83,7 @@
   }
 
   async function pollSnapshot(): Promise<boolean> {
+    if (busy) return false;
     const ticket = fleetOrder.start();
     try {
       const res = await fetch('/shards/snapshot');
@@ -218,9 +219,11 @@
 
   const scaleSubmit: SubmitFunction = ({ formData }) => {
     formData.set('count', String(scaleCount));
+    fleetOrder.invalidate();
     busy = true;
     confirmScaleDown = false;
     return async ({ result }) => {
+      fleetOrder.invalidate();
       busy = false;
       fastUntil = Date.now() + SETTLE_WINDOW_MS;
       const p = actionPayload<ActionPayload>(result);
@@ -234,10 +237,12 @@
   };
 
   const autoscaleSubmit: SubmitFunction = () => {
+    fleetOrder.invalidate();
     busy = true;
     const before = snap ? { ...snap } : null;
     if (snap) snap = { ...snap, autoscale: !snap.autoscale };
     return async ({ result }) => {
+      fleetOrder.invalidate();
       busy = false;
       fastUntil = Date.now() + SETTLE_WINDOW_MS;
       const p = actionPayload<ActionPayload>(result);

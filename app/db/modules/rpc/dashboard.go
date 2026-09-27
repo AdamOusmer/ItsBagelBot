@@ -46,8 +46,9 @@ func (d *dashboardRPC) handleList(ctx context.Context, _ modulesrpc.DashboardReq
 	return modulesrpc.DashboardReply{Modules: views}, nil
 }
 
-func (d *dashboardRPC) handleUpsert(_ context.Context, req modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
-	return modulesrpc.DashboardReply{}, d.repo.Set(id, req.Name, req.IsEnabled, req.Configs)
+func (d *dashboardRPC) handleUpsert(ctx context.Context, req modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
+	views, err := d.repo.SetNow(ctx, id, req.Name, req.IsEnabled, req.Configs)
+	return modulesrpc.DashboardReply{Modules: views}, err
 }
 
 func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
@@ -62,5 +63,9 @@ func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.Dashboard
 	if err != nil {
 		return modulesrpc.DashboardReply{}, err
 	}
-	return modulesrpc.DashboardReply{Rev: res.Rev, Conflict: res.Conflict}, nil
+	if res.Conflict {
+		return modulesrpc.DashboardReply{Rev: res.Rev, Conflict: true}, nil
+	}
+	views, err := d.repo.List(ctx, id)
+	return modulesrpc.DashboardReply{Rev: res.Rev, Modules: views}, err
 }

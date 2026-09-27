@@ -141,3 +141,19 @@ func TestAccountStateRevisionOwnedByEveryEntMutation(t *testing.T) {
 	events := decodeChanged(t, pub)
 	require.EqualValues(t, 5, events[len(events)-1].StateRevision)
 }
+
+func TestInteractiveActiveToggleIsCommittedBeforeReadback(t *testing.T) {
+	client, pub, repo := setup(t)
+	defer repo.Close(t.Context())
+	ctx := t.Context()
+	require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+	_, err := repo.Get(ctx, 1001)
+	require.NoError(t, err)
+	require.NoError(t, repo.SetActiveNow(ctx, 1001, false))
+	require.False(t, client.User.GetX(ctx, 1001).IsActive)
+	view, err := repo.Get(ctx, 1001)
+	require.NoError(t, err)
+	require.False(t, view.IsActive)
+	events := decodeChanged(t, pub)
+	require.False(t, events[len(events)-1].IsActive)
+}

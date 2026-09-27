@@ -11,6 +11,12 @@ export class ReadOrder {
     return ++this.issued;
   }
 
+  // A mutation makes every read dispatched before it stale, even if no
+  // newer read has finished yet.
+  invalidate(): void {
+    this.applied = ++this.issued;
+  }
+
   current(ticket: number): boolean {
     return ticket >= this.applied;
   }
