@@ -3,6 +3,8 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { focusFirstInvalid } from '@bagel/kit';
@@ -69,8 +71,9 @@
   </p>
 
   <Field label={t('spotify.fieldTitle')}>
-    <input
-      class="input"
+    <Input
+      fill
+      invalid={!!titleError}
       type="text"
       name="title"
       maxlength="45"
@@ -84,19 +87,19 @@
 
   <div class="field-row">
     <Field label={t('spotify.fieldCost')}>
-      <input class="input" type="number" name="cost" min="1" max="10000000" bind:value={cost} required />
+      <Input fill type="number" name="cost" min="1" max="10000000" bind:value={cost} required />
     </Field>
     <label class="color-field">
       <span class="color-label">{t('spotify.fieldColor')}</span>
       <span class="color-row">
-        <input class="color-in" type="color" name="color" bind:value={color} />
+        <input data-cursor class="color-in" type="color" name="color" bind:value={color} />
         <span class="color-hex">{color}</span>
       </span>
     </label>
   </div>
 
   <Field label={t('spotify.fieldCooldown')} tag={t('spotify.fieldCooldownTag')}>
-    <input class="input" type="number" name="cooldown" min="0" max="604800" bind:value={cooldown} />
+    <Input fill type="number" name="cooldown" min="0" max="604800" bind:value={cooldown} />
   </Field>
 
   <Field label={t('spotify.fieldReply')} tag={t('common.optional')}>
@@ -105,11 +108,11 @@
   <ChatPreview kind="reply" response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('spotify.previewTag')} samples={replySamples} />
 
   <Field label={t('spotify.afterTitle')}>
-    <select class="input" name="onRedeem" bind:value={onRedeem}>
+    <Select fill name="onRedeem" bind:value={onRedeem}>
       <option value="fulfill">{t('spotify.afterFulfill')}</option>
       <option value="cancel">{t('spotify.afterCancel')}</option>
       <option value="leave">{t('spotify.afterLeave')}</option>
-    </select>
+    </Select>
   </Field>
 
   {#if !isNew}
@@ -132,25 +135,11 @@
   .editor { padding: 4px 2px 2px; display: grid; gap: 14px; }
   .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
 
-  .editor :global(.field) { margin-bottom: 0; }
-  .input {
-    padding: 8px 12px;
-    border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--rule);
-    background: rgba(240, 236, 228, 0.04);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    width: 100%;
-    box-sizing: border-box;
-    transition: border-color var(--bb-dur-fast, 140ms) ease;
-  }
-  .input:focus { outline: none; border-color: var(--bb-tan, #c9a87c); }
-
+  .editor :global(.bb-field) { margin-bottom: 0; }
   .field-error { display: block; margin-top: 4px; font-family: var(--bb-font-body); font-size: 11.5px; color: #cf8a78; }
 
   .field-row { display: flex; gap: 12px; align-items: flex-start; }
-  .field-row :global(.field) { flex: 1; min-width: 0; }
+  .field-row :global(.bb-field) { flex: 1; min-width: 0; }
 
   .color-field { display: flex; flex-direction: column; gap: 6px; flex: none; width: 116px; }
   .color-label { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }

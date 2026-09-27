@@ -38,6 +38,9 @@
     Code,
     Tag,
   } from '@bagel/kit';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import SpotifySetup from '$lib/components/spotify/SpotifySetup.svelte';
   import SpotifyRewardEditor from '$lib/components/spotify/SpotifyRewardEditor.svelte';
   import SpotifyRewardRow from '$lib/components/spotify/SpotifyRewardRow.svelte';
   import ModuleCommandList from '$lib/components/modules/ModuleCommandList.svelte';
@@ -295,6 +298,16 @@
   let redeemForm = $state<HTMLFormElement | null>(null);
 </script>
 
+{#if !connected}
+  <SpotifySetup
+    name={data.displayName}
+    app={app}
+    redirectUri={data.redirectUri ?? ''}
+    preview={'setupPreview' in data && data.setupPreview === true}
+    degraded={data.degraded}
+    error={data.errorSlug ? t(ERROR_SLUG_KEYS[data.errorSlug] ?? 'spotify.errOauth') : ''}
+  />
+{:else}
 <section class="screen active">
   <a class="back" href="/modules">{t('spotify.back')}</a>
   <PageHead eyebrow={t('spotify.eyebrow')} description={t('spotify.description')}>
@@ -364,11 +377,11 @@
       {:else}
         <form method="POST" action="?/saveApp" use:enhance={appSubmit}>
           <Field label={t('spotify.appClientIdLabel')}>
-            <input class="input" name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required />
+            <Input fill name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required />
           </Field>
           <p class="muted-text small field-hint">{t('spotify.appClientIdHint')}</p>
           <Field label={t('spotify.appClientSecretLabel')}>
-            <input class="input" name="client_secret" type="password" bind:value={clientSecret} autocomplete="off" spellcheck="false" required />
+            <Input fill name="client_secret" type="password" bind:value={clientSecret} autocomplete="off" spellcheck="false" required />
           </Field>
           <p class="muted-text small field-hint">{t('spotify.appClientSecretHint')}</p>
           <div class="row">
@@ -463,11 +476,11 @@
             <input type="hidden" name="sr_allow_offline" value={sr.allowOffline ? 'on' : ''} />
             {#if sr.enabled}
               <Field label={t('spotify.srPermLabel')}>
-                <select class="input" name="perm" value={sr.perm} onchange={srChanged}>
+                <Select fill name="perm" bind:value={sr.perm} onchange={srChanged}>
                   {#each SPOTIFY_SR_PERMS as p (p)}
                     <option value={p}>{t(PERM_LABEL_KEYS[p])}</option>
                   {/each}
-                </select>
+                </Select>
               </Field>
             {:else}
               <input type="hidden" name="perm" value={sr.perm} />
@@ -480,8 +493,8 @@
             <div class="quota-grid">
               {#each SPOTIFY_QUOTA_TIERS as tier (tier)}
                 <Field label={t(QUOTA_LABEL_KEYS[tier])}>
-                  <input
-                    class="input"
+                  <Input
+                    fill
                     name={`quota_${tier}`}
                     type="number"
                     min="1"
@@ -569,6 +582,7 @@
     </div>
   {/if}
 </section>
+{/if}
 
 <ConfirmDialog
   open={connectionAction !== null}
@@ -667,19 +681,6 @@
   }
   .enable-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
   .enable-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
-
-  .input {
-    padding: 8px 12px;
-    border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--rule);
-    background: rgba(240, 236, 228, 0.04);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    width: 100%;
-    box-sizing: border-box;
-  }
-  .input:focus { outline: none; border-color: var(--bb-tan, #c9a87c); }
 
   .paths {
     display: grid;
