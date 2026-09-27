@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { lex, parseCond, type Token } from '../engine/tmpl';
+import { lex, parseCond, type Token, type VarToken } from '../engine/tmpl';
 import { MODULE_CATALOG } from '../catalog';
 import { BUILTIN_COMMANDS } from '../catalog/builtin-commands';
 import type { VariableDef } from './types';
@@ -99,5 +99,11 @@ function namespacedReferences(token: Token): string[] {
   const references = [token];
   const cond = parseCond(token);
   if (cond !== null) references.push(cond.ref);
-  return references.filter((reference) => reference.payload !== null).map((reference) => reference.name);
+  return references.filter(isPublishedNamespaceReference).map((reference) => reference.name);
+}
+
+function isPublishedNamespaceReference(reference: VarToken): boolean {
+  if (reference.payload === null) return false;
+  const key = `{${reference.name}:${reference.payload.trim().toLowerCase()}}`;
+  return Object.hasOwn(MODULE_VARIABLE_SAMPLES, key);
 }

@@ -4,41 +4,47 @@
 import { lex, parseCond, type Token, type VarToken } from '../engine/tmpl';
 import type { ModuleDef, ModuleReply } from './module-def';
 
+interface ReplyNamespace {
+  readonly prefix: string;
+  readonly fields: ReadonlySet<string>;
+}
+
 /** Convert only this reply's published fields. Unknown/dynamic tokens and
  * literal text stay intact, including fallbacks and conditional branch text. */
 export function namespaceReplyTemplate(moduleId: string, reply: Pick<ModuleReply, 'tokens'>, template: string): string {
-  const prefix = `${moduleId}:`;
-  const fields = replyFieldNames(prefix, reply);
-  return lex(template).map((token) => namespaceReplyToken(prefix, fields, token)).join('');
+  const namespace = replyNamespace(moduleId, reply);
+  return lex(template).map((token) => namespaceReplyToken(namespace, token)).join('');
 }
 
-function replyFieldNames(prefix: string, reply: Pick<ModuleReply, 'tokens'>): Set<string> {
-  return new Set((reply.tokens ?? []).map((token) =>
+function replyNamespace(moduleId: string, reply: Pick<ModuleReply, 'tokens'>): ReplyNamespace {
+  const prefix = `${moduleId}:`;
+  const fields = new Set((reply.tokens ?? []).map((token) =>
     token.name.startsWith(prefix) ? token.name.slice(prefix.length) : token.name
   ));
+  return { prefix, fields };
 }
 
 function isLegacyReplyField(token: VarToken, fields: ReadonlySet<string>): boolean {
   return token.payload === null && fields.has(token.name);
 }
 
-function namespaceReplyToken(prefix: string, fields: ReadonlySet<string>, token: Token): string {
+function namespaceReplyToken(namespace: ReplyNamespace, token: Token): string {
   if (token.kind === 'literal') return token.text;
-  if (isLegacyReplyField(token, fields)) {
-    return `{${prefix}${token.name}${token.fallback === null ? '' : `|${token.fallback}`}}`;
+  if (isLegacyReplyField(token, namespace.fields)) {
+    return `{${namespace.prefix}${token.name}${token.fallback === null ? '' : `|${token.fallback}`}}`;
   }
   const cond = parseCond(token);
-  if (cond === null || !isLegacyReplyField(cond.ref, fields)) return token.raw;
-  return namespaceReplyConditional(prefix, token, cond.ref.name);
+  if (cond === null || !isLegacyReplyField(cond.ref, namespace.fields)) return token.raw;
+  return namespaceReplyConditional(namespace, token, cond.ref);
 }
 
-function namespaceReplyConditional(prefix: string, token: VarToken, field: string): string {
+function namespaceReplyConditional(namespace: ReplyNamespace, token: VarToken, reference: VarToken): string {
   const singleBranch = token.payload!.split(':').length === 2;
   // A nested opening brace can hide later branches from the shared lexer.
   // Keep these ambiguous conditionals intact during migration.
   if (singleBranch && token.raw.slice(1).includes('{')) return token.raw;
   // Preserve the comparison and branches byte for byte; only the reference changes.
-  const migrated = token.raw.replace(/^\{if:[^:=|}]+/i, `{if:${prefix}${field}`);
+  const migrated = token.raw.replace(/^\{if:[^:=|}]+/i, `{if:${namespace.prefix}${reference.name}`);
   return singleBranch ? appendEmptyElse(migrated, token.fallback) : migrated;
 }
 

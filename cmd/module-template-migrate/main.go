@@ -262,8 +262,8 @@ func (m *migration) patch(ctx context.Context, row *ent.Modules, partial map[str
 	if err != nil {
 		return errors.New("cannot encode migration patch")
 	}
-	reply, err := m.requestPatch(ctx, row, patch)
-	return m.completePatch(ctx, row, entry, reply, err)
+	outcome := m.requestPatch(ctx, row, patch)
+	return m.completePatch(ctx, row, entry, outcome)
 }
 
 func logPatch(row *ent.Modules, partial map[string]codec.RawMessage) {
@@ -311,21 +311,22 @@ func replaceFields(full, partial map[string]codec.RawMessage) (map[string]codec.
 	return before, nil
 }
 
-func (m *migration) requestPatch(ctx context.Context, row *ent.Modules, patch []byte) (modulesrpc.DashboardReply, error) {
+func (m *migration) requestPatch(ctx context.Context, row *ent.Modules, patch []byte) patchOutcome {
 	qctx, cancel := context.WithTimeout(ctx, m.opts.timeout)
 	defer cancel()
-	return bus.RequestJSON[modulesrpc.DashboardReply](qctx, m.nc, m.opts.prefix+".patch-existing", modulesrpc.DashboardRequest{
+	reply, err := bus.RequestJSON[modulesrpc.DashboardReply](qctx, m.nc, m.opts.prefix+".patch-existing", modulesrpc.DashboardRequest{
 		UserID: strconv.FormatUint(row.UserID, 10), Name: row.Name, IsEnabled: row.IsEnabled, Configs: patch, ExpectedRev: &row.Revision, ExpectedID: &row.ID})
+	return patchOutcome{reply: reply, err: err}
 }
 
-func (m *migration) completePatch(ctx context.Context, row *ent.Modules, entry journalEntry, reply modulesrpc.DashboardReply, rpcErr error) error {
+func (m *migration) completePatch(ctx context.Context, row *ent.Modules, entry journalEntry, outcome patchOutcome) error {
 	entry.BeforeConfigs, entry.AfterConfigs, entry.Before, entry.After = nil, nil, nil, nil
 	entry.At = time.Now().UTC()
-	if !patchOutcomeCertain(row, reply, rpcErr) {
+	if !outcome.certain(row) {
 		return m.recordUncertain(entry)
 	}
-	entry.AfterRevision = reply.Rev
-	if reply.Conflict {
+	entry.AfterRevision = outcome.reply.Rev
+	if outcome.reply.Conflict {
 		entry.Kind = "conflict"
 		m.conflicts++
 		m.logConflict(ctx, row)
@@ -336,17 +337,22 @@ func (m *migration) completePatch(ctx context.Context, row *ent.Modules, entry j
 	return m.record(entry)
 }
 
-func patchOutcomeCertain(row *ent.Modules, reply modulesrpc.DashboardReply, rpcErr error) bool {
-	if rpcErr != nil {
+type patchOutcome struct {
+	reply modulesrpc.DashboardReply
+	err   error
+}
+
+func (o patchOutcome) certain(row *ent.Modules) bool {
+	if o.err != nil {
 		return false
 	}
-	if reply.Error != "" {
+	if o.reply.Error != "" {
 		return false
 	}
-	if reply.Conflict {
+	if o.reply.Conflict {
 		return true
 	}
-	return reply.Rev == row.Revision+1
+	return o.reply.Rev == row.Revision+1
 }
 
 func (m *migration) recordUncertain(entry journalEntry) error {

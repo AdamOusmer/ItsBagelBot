@@ -37,6 +37,15 @@ describe('module custom command variables', () => {
     expect(requiredModuleVariables('{valorant:tier} {valorant:rr}')).toHaveLength(1);
   });
 
+  test('requirements distinguish published module facts from legacy payloads and unknown fields', () => {
+    expect(requiredModuleVariables('{time:Tokyo} {title:other_channel}')).toHaveLength(0);
+    expect(requiredModuleVariables('{if:time:Tokyo:yes:no} {if:title:other_channel:yes:no}')).toHaveLength(0);
+    expect(requiredModuleVariables('{valorant:unknown} {valorant:unknown:rr} {if:valorant:unknown:yes:no}')).toHaveLength(0);
+    expect(requiredModuleVariables('{time:date}').map((module) => module.head)).toEqual(['time']);
+    expect(requiredModuleVariables('{TIME: DATE |unknown} {if:VALORANT: RANK:RR :yes:no}').map((module) => module.head))
+      .toEqual(['time', 'valorant']);
+  });
+
   test('every variable requires its own module and uses a colon namespace', () => {
     for (const variable of MODULE_VARIABLES) {
       expect(variable.requires).toBe(variable.head);

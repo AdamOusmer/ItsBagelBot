@@ -13,20 +13,40 @@ import (
 // NamespaceTemplate converts only a module's known, unqualified fields. It
 // retains literal text, unknown variables, dynamic payloads and fallbacks.
 func NamespaceTemplate(moduleID string, fields []string, text string) string {
-	namespace := templateNamespace{moduleID: moduleID, fields: make(map[string]bool, len(fields))}
-	for _, field := range fields {
-		namespace.fields[strings.ToLower(field)] = true
-	}
-	var out strings.Builder
-	for _, token := range tmpl.Lex(text) {
-		out.WriteString(namespace.rewrite(token))
-	}
-	return out.String()
+	namespace := newTemplateNamespace(replyPalette{moduleID: moduleID, fields: fields})
+	return replyTemplate{namespace: namespace, text: text}.rewrite()
+}
+
+// replyPalette fixes the public fields a saved reply is allowed to rewrite.
+type replyPalette struct {
+	moduleID string
+	fields   []string
 }
 
 type templateNamespace struct {
 	moduleID string
 	fields   map[string]bool
+}
+
+func newTemplateNamespace(palette replyPalette) templateNamespace {
+	namespace := templateNamespace{moduleID: palette.moduleID, fields: make(map[string]bool, len(palette.fields))}
+	for _, field := range palette.fields {
+		namespace.fields[strings.ToLower(field)] = true
+	}
+	return namespace
+}
+
+type replyTemplate struct {
+	namespace templateNamespace
+	text      string
+}
+
+func (r replyTemplate) rewrite() string {
+	var out strings.Builder
+	for _, token := range tmpl.Lex(r.text) {
+		out.WriteString(r.namespace.rewrite(token))
+	}
+	return out.String()
 }
 
 func (n templateNamespace) rewrite(token tmpl.Token) string {
@@ -36,6 +56,10 @@ func (n templateNamespace) rewrite(token tmpl.Token) string {
 	if condition, ok := token.Cond(); ok {
 		return n.rewriteCondition(token, condition)
 	}
+	return n.rewriteVariable(token)
+}
+
+func (n templateNamespace) rewriteVariable(token tmpl.Token) string {
 	if token.HasPayload || !n.fields[token.Name] {
 		return token.Raw
 	}
@@ -56,20 +80,25 @@ func (n templateNamespace) rewriteCondition(token tmpl.Token, condition tmpl.Con
 	start := strings.IndexByte(token.Raw, ':') + 1
 	end := start + len(condition.Ref.Name)
 	converted := token.Raw[:start] + n.moduleID + ":" + condition.Ref.Name + token.Raw[end:]
-	return preserveConditionalElse(token, converted)
+	return preserveConditionalElse(conditionalRewrite{token: token, converted: converted})
 }
 
-func preserveConditionalElse(token tmpl.Token, converted string) string {
+type conditionalRewrite struct {
+	token     tmpl.Token
+	converted string
+}
+
+func preserveConditionalElse(rewrite conditionalRewrite) string {
 	// A namespaced reference consumes an extra ':' segment. A single then
 	// branch therefore needs an explicit empty else to preserve its meaning.
-	if strings.Count(token.Payload, ":") != 1 {
-		return converted
+	if strings.Count(rewrite.token.Payload, ":") != 1 {
+		return rewrite.converted
 	}
-	at := len(converted) - 1
-	if token.HasFallback {
-		at = strings.LastIndexByte(converted, '|')
+	at := len(rewrite.converted) - 1
+	if rewrite.token.HasFallback {
+		at = strings.LastIndexByte(rewrite.converted, '|')
 	}
-	return converted[:at] + ":" + converted[at:]
+	return rewrite.converted[:at] + ":" + rewrite.converted[at:]
 }
 
 // MigrateConfig returns only changed top-level config keys, suitable for the
@@ -83,7 +112,7 @@ func MigrateConfig(moduleID string, raw []byte) (map[string]codec.RawMessage, er
 	if err := codec.Unmarshal(raw, &config); err != nil {
 		return nil, err
 	}
-	migration := newConfigMigration(moduleID, config)
+	migration := newConfigMigration(savedConfig{owner: Module{ID: moduleID}, values: config})
 	if len(migration.fields) == 0 {
 		return nil, nil
 	}
@@ -97,24 +126,30 @@ func MigrateConfig(moduleID string, raw []byte) (map[string]codec.RawMessage, er
 	return migration.patch, nil
 }
 
+// savedConfig binds catalogue ownership to the complete persisted values.
+type savedConfig struct {
+	owner  Module
+	values map[string]codec.RawMessage
+}
+
 type configMigration struct {
-	moduleID      string
+	owner         Module
 	config, patch map[string]codec.RawMessage
-	groups        []Group
 	fields        []string
 }
 
-func newConfigMigration(moduleID string, config map[string]codec.RawMessage) configMigration {
-	migration := configMigration{moduleID: moduleID, config: config, patch: make(map[string]codec.RawMessage), groups: replyGroups(moduleID)}
-	for _, group := range migration.groups {
+func newConfigMigration(saved savedConfig) configMigration {
+	migration := configMigration{owner: saved.owner, config: saved.values, patch: make(map[string]codec.RawMessage)}
+	migration.owner.Groups = replyGroups(saved.owner)
+	for _, group := range migration.owner.Groups {
 		migration.fields = append(migration.fields, group.Fields...)
 	}
 	return migration
 }
 
-func replyGroups(moduleID string) []Group {
+func replyGroups(owner Module) []Group {
 	for _, module := range Catalog() {
-		if module.ID == moduleID {
+		if module.ID == owner.ID {
 			return module.Groups
 		}
 	}
@@ -122,27 +157,36 @@ func replyGroups(moduleID string) []Group {
 }
 
 func (m configMigration) migrateReplyGroups() {
-	for _, group := range m.groups {
+	for _, group := range m.owner.Groups {
 		if group.MessageKey != "" {
-			m.migrateReply(group.MessageKey, group.Fields)
+			m.reply(group).migrateString()
 		}
 	}
 }
 
-func (m configMigration) migrateReply(key string, fields []string) {
-	migrateString(m.config, m.patch, key, m.moduleID, fields)
+// replyMigration owns the exact palette, saved key, and partial patch target.
+// Nested objects can reuse the same definition with their own value maps.
+type replyMigration struct {
+	namespace     templateNamespace
+	key           string
+	config, patch map[string]codec.RawMessage
+}
+
+func (m configMigration) reply(group Group) replyMigration {
+	palette := replyPalette{moduleID: m.owner.ID, fields: group.Fields}
+	return replyMigration{namespace: newTemplateNamespace(palette), key: group.MessageKey, config: m.config, patch: m.patch}
 }
 
 func (m configMigration) migrateAdditionalReplies() error {
-	switch m.moduleID {
+	switch m.owner.ID {
 	case "govee":
-		m.migrateReply("replyMessage", m.fields)
-		return m.migrateReplyArray("bindings", "replyMessage")
+		m.reply(Group{MessageKey: "replyMessage", Fields: m.fields}).migrateString()
+		return m.migrateReplyArray(replyCollection{key: "bindings", group: Group{MessageKey: "replyMessage", Fields: m.fields}})
 	case "channelpoints":
-		return m.migrateReplyArray("rewards", "message")
+		return m.migrateReplyArray(replyCollection{key: "rewards", group: Group{MessageKey: "message", Fields: m.fields}})
 	case "queue":
-		m.migrateReply("openedMessage", []string{"user"})
-		m.migrateReply("closedMessage", []string{"user"})
+		m.reply(Group{MessageKey: "openedMessage", Fields: []string{"user"}}).migrateString()
+		m.reply(Group{MessageKey: "closedMessage", Fields: []string{"user"}}).migrateString()
 	case "songqueue":
 		return m.migrateSongqueueReplies()
 	case "triggers":
@@ -151,20 +195,26 @@ func (m configMigration) migrateAdditionalReplies() error {
 	return nil
 }
 
-func (m configMigration) migrateReplyArray(configKey, replyKey string) error {
-	updated, changed, err := migrateObjects(m.config[configKey], replyKey, m.moduleID, m.fields)
+type replyCollection struct {
+	key   string
+	group Group
+}
+
+func (m configMigration) migrateReplyArray(collection replyCollection) error {
+	plan := replyArrayMigration{reply: m.reply(collection.group), raw: m.config[collection.key]}
+	updated, changed, err := plan.migrate()
 	if err != nil {
 		return err
 	}
 	if changed {
-		m.patch[configKey] = updated
+		m.patch[collection.key] = updated
 	}
 	return nil
 }
 
-func (m configMigration) groupFields(name string) []string {
-	for _, group := range m.groups {
-		if group.Name == name {
+func (m configMigration) redeemFields() []string {
+	for _, group := range m.owner.Groups {
+		if group.Name == "redeem" {
 			return group.Fields
 		}
 	}
@@ -173,10 +223,10 @@ func (m configMigration) groupFields(name string) []string {
 
 func (m configMigration) migrateSongqueueReplies() error {
 	// Legacy chat replies have exact palettes distinct from current/redeem.
-	m.migrateReply("addMessage", []string{"user", "title", "artist", "pos"})
-	m.migrateReply("playingMessage", []string{"user", "title", "artist", "req"})
-	m.migrateReply("retractMessage", []string{"user", "title"})
-	m.migrateReply("currentMessage", []string{"user", "title", "artist", "url", "req"})
+	m.reply(Group{MessageKey: "addMessage", Fields: []string{"user", "title", "artist", "pos"}}).migrateString()
+	m.reply(Group{MessageKey: "playingMessage", Fields: []string{"user", "title", "artist", "req"}}).migrateString()
+	m.reply(Group{MessageKey: "retractMessage", Fields: []string{"user", "title"}}).migrateString()
+	m.reply(Group{MessageKey: "currentMessage", Fields: []string{"user", "title", "artist", "url", "req"}}).migrateString()
 	return m.migrateRedeemReply()
 }
 
@@ -189,14 +239,13 @@ func (m configMigration) migrateRedeemReply() error {
 	if err := codec.Unmarshal(raw, &object); err != nil {
 		return err
 	}
-	change := make(map[string]codec.RawMessage)
-	migrateString(object, change, "replyMessage", m.moduleID, m.groupFields("redeem"))
-	if len(change) == 0 {
+	reply := m.reply(Group{MessageKey: "replyMessage", Fields: m.redeemFields()})
+	reply.config = object
+	reply.patch = make(map[string]codec.RawMessage)
+	if !reply.migrateString() {
 		return nil
 	}
-	for key, value := range change {
-		object[key] = value
-	}
+	object[reply.key] = reply.patch[reply.key]
 	encoded, err := codec.Marshal(object)
 	if err != nil {
 		return err
@@ -210,7 +259,8 @@ func (m configMigration) migrateTriggerReplies() error {
 	if codec.Unmarshal(m.config["rules"], &rules) != nil {
 		return nil
 	}
-	updated, err := m.rewriteTriggerRules(rules)
+	plan := triggerMigration{reply: m.reply(Group{MessageKey: "response", Fields: m.fields}), rules: rules}
+	updated, err := plan.rewrite()
 	if err != nil {
 		return err
 	}
@@ -220,29 +270,36 @@ func (m configMigration) migrateTriggerReplies() error {
 	return err
 }
 
-func (m configMigration) rewriteTriggerRules(rules string) (string, error) {
-	if !strings.HasPrefix(strings.TrimSpace(rules), "[") {
-		return m.rewriteLegacyTriggerRules(rules), nil
+// triggerMigration keeps the structured/legacy rule source with its reply plan.
+type triggerMigration struct {
+	reply replyMigration
+	rules string
+}
+
+func (m triggerMigration) rewrite() (string, error) {
+	if !strings.HasPrefix(strings.TrimSpace(m.rules), "[") {
+		return m.rewriteLegacyRules(), nil
 	}
-	encoded, changed, err := migrateObjects([]byte(rules), "response", m.moduleID, m.fields)
+	plan := replyArrayMigration{reply: m.reply, raw: []byte(m.rules)}
+	encoded, changed, err := plan.migrate()
 	if err != nil {
 		return "", err
 	}
 	if !changed {
-		return rules, nil
+		return m.rules, nil
 	}
 	return string(encoded), nil
 }
 
-func (m configMigration) rewriteLegacyTriggerRules(rules string) string {
-	lines := strings.Split(rules, "\n")
+func (m triggerMigration) rewriteLegacyRules() string {
+	lines := strings.Split(m.rules, "\n")
 	for i, line := range lines {
-		lines[i] = m.rewriteLegacyTriggerLine(line)
+		lines[i] = m.rewriteLegacyLine(line)
 	}
 	return strings.Join(lines, "\n")
 }
 
-func (m configMigration) rewriteLegacyTriggerLine(line string) string {
+func (m triggerMigration) rewriteLegacyLine(line string) string {
 	if strings.HasPrefix(strings.TrimSpace(line), "#") {
 		return line
 	}
@@ -250,39 +307,49 @@ func (m configMigration) rewriteLegacyTriggerLine(line string) string {
 	if at < 0 {
 		return line
 	}
-	return line[:at+2] + NamespaceTemplate(m.moduleID, m.fields, line[at+2:])
+	reply := replyTemplate{namespace: m.reply.namespace, text: line[at+2:]}
+	return line[:at+2] + reply.rewrite()
 }
 
-func migrateString(config, patch map[string]codec.RawMessage, key, moduleID string, fields []string) {
+func (m replyMigration) migrateString() bool {
 	var text string
-	if codec.Unmarshal(config[key], &text) != nil {
-		return
+	if codec.Unmarshal(m.config[m.key], &text) != nil {
+		return false
 	}
-	if converted := NamespaceTemplate(moduleID, fields, text); converted != text {
-		// Marshal of a string cannot fail.
-		patch[key], _ = codec.Marshal(converted)
+	converted := replyTemplate{namespace: m.namespace, text: text}.rewrite()
+	if converted == text {
+		return false
 	}
+	// Marshal of a string cannot fail.
+	m.patch[m.key], _ = codec.Marshal(converted)
+	return true
 }
 
-func migrateObjects(raw []byte, key, moduleID string, fields []string) ([]byte, bool, error) {
-	if len(raw) == 0 || string(raw) == "null" {
-		return raw, false, nil
+type replyArrayMigration struct {
+	reply replyMigration
+	raw   codec.RawMessage
+}
+
+func (m replyArrayMigration) migrate() ([]byte, bool, error) {
+	if len(m.raw) == 0 || string(m.raw) == "null" {
+		return m.raw, false, nil
 	}
 	var objects []map[string]codec.RawMessage
-	if err := codec.Unmarshal(raw, &objects); err != nil {
+	if err := codec.Unmarshal(m.raw, &objects); err != nil {
 		return nil, false, err
 	}
 	changed := false
 	for _, object := range objects {
-		patch := make(map[string]codec.RawMessage)
-		migrateString(object, patch, key, moduleID, fields)
-		for field, value := range patch {
-			object[field] = value
+		reply := m.reply
+		reply.config = object
+		reply.patch = make(map[string]codec.RawMessage)
+		if reply.migrateString() {
+			object[reply.key] = reply.patch[reply.key]
 			changed = true
 		}
 	}
 	if !changed {
-		return raw, false, nil
+		return m.raw, false, nil
 	}
 	encoded, err := codec.Marshal(objects)
 	return encoded, true, err
