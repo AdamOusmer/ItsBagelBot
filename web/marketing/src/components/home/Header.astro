@@ -583,12 +583,13 @@ const t = useTranslations(lang);
         .header-material {
             align-items: flex-start;
             text-align: left;
-            width: 100%;
+            width: min(100%, 1360px);
+            margin-inline: auto;
         }
 
         .split {
             display: grid;
-            grid-template-columns: auto 1fr;
+            grid-template-columns: auto minmax(0, 1fr);
             gap: 56px;
             align-items: end;
             width: 100%;
