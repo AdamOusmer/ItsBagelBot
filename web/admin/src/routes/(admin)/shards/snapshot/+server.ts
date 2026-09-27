@@ -4,8 +4,8 @@
 import type { RequestHandler } from './$types';
 import { json, error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import { allows, requireAdmin } from '$lib/server/access';
-import { shardSnapshot, trialList } from '$lib/server/services';
+import { requireAdmin } from '$lib/server/access';
+import { shardSnapshot } from '$lib/server/services';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -13,12 +13,9 @@ export const GET: RequestHandler = async ({ locals }) => {
   const admin = await requireAdmin(locals.session);
   if (!admin) throw error(403, 'forbidden');
   if (DEMO) {
-    const { sampleSnapshot, sampleTrials } = await import('$lib/server/demo-data');
-    return json({ snapshot: sampleSnapshot, trials: allows(admin.role, 'trials.manage') ? sampleTrials : null });
+    const { sampleSnapshot } = await import('$lib/server/demo-data');
+    return json({ snapshot: sampleSnapshot });
   }
-  const [snapshot, trials] = await Promise.all([
-    shardSnapshot().catch(() => null),
-    (allows(admin.role, 'trials.manage') ? trialList() : Promise.resolve(null)).catch(() => null)
-  ]);
-  return json({ snapshot, trials });
+  const snapshot = await shardSnapshot().catch(() => null);
+  return json({ snapshot });
 };
