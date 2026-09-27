@@ -184,58 +184,72 @@ func (f *counterFakeValkey) execute(args []string) []byte {
 }
 
 // Script handlers and receipt helpers run while execute holds f.mu.
+type counterTestLease struct {
+	key   string
+	owner string
+	ttl   time.Duration
+}
+
+func counterTestScriptLease(args []string) counterTestLease {
+	lease := counterTestLease{key: args[3], owner: args[4]}
+	if len(args) > 5 {
+		milliseconds, _ := strconv.ParseInt(args[5], 10, 64)
+		lease.ttl = time.Duration(milliseconds) * time.Millisecond
+	}
+	return lease
+}
+
 func (f *counterFakeValkey) executeScript(args []string) []byte {
-	script, key, owner := args[1], args[3], args[4]
-	f.expireReceipt(key)
-	switch script {
+	lease := counterTestScriptLease(args)
+	f.expireReceipt(lease.key)
+	switch args[1] {
 	case counterClaimScript:
-		return f.claimReceipt(key, owner, args[5])
+		return f.claimReceipt(lease)
 	case counterCompleteScript:
-		return f.completeReceipt(key, owner, args[5])
+		return f.completeReceipt(lease)
 	case counterReleaseScript:
-		return f.releaseReceipt(key, owner)
+		return f.releaseReceipt(lease)
 	default:
 		return []byte("-ERR unsupported command\r\n")
 	}
 }
 
-func (f *counterFakeValkey) claimReceipt(key, owner, ttl string) []byte {
+func (f *counterFakeValkey) claimReceipt(lease counterTestLease) []byte {
 	if f.failClaim {
 		return []byte("-ERR unavailable\r\n")
 	}
-	if f.values[key] == "done" {
+	if f.values[lease.key] == "done" {
 		return []byte(":2\r\n")
 	}
-	if f.values[key] != "" {
+	if f.values[lease.key] != "" {
 		return []byte(":0\r\n")
 	}
-	f.storeReceipt(key, owner, ttl)
+	f.storeReceipt(lease, lease.owner)
 	return []byte(":1\r\n")
 }
 
-func (f *counterFakeValkey) completeReceipt(key, owner, ttl string) []byte {
+func (f *counterFakeValkey) completeReceipt(lease counterTestLease) []byte {
 	if f.failComplete {
 		return []byte("-ERR unavailable\r\n")
 	}
-	if f.values[key] != owner {
+	if f.values[lease.key] != lease.owner {
 		return []byte(":0\r\n")
 	}
-	f.storeReceipt(key, "done", ttl)
+	f.storeReceipt(lease, "done")
 	return []byte(":1\r\n")
 }
 
-func (f *counterFakeValkey) releaseReceipt(key, owner string) []byte {
-	if f.values[key] != owner {
+func (f *counterFakeValkey) releaseReceipt(lease counterTestLease) []byte {
+	if f.values[lease.key] != lease.owner {
 		return []byte(":0\r\n")
 	}
-	f.deleteReceipt(key)
+	f.deleteReceipt(lease.key)
 	return []byte(":1\r\n")
 }
 
-func (f *counterFakeValkey) storeReceipt(key, value, ttl string) {
-	f.values[key] = value
-	milliseconds, _ := strconv.ParseInt(ttl, 10, 64)
-	f.expires[key] = f.now.Add(time.Duration(milliseconds) * time.Millisecond)
+func (f *counterFakeValkey) storeReceipt(lease counterTestLease, value string) {
+	f.values[lease.key] = value
+	f.expires[lease.key] = f.now.Add(lease.ttl)
 }
 
 func (f *counterFakeValkey) expireReceipt(key string) {
