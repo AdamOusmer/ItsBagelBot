@@ -2,7 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { expect, test } from 'bun:test';
-import { decodeModuleFields } from './valkey-store';
+import { decodeModuleFields } from './module-projection';
 
 test('module reads retain revision and account metadata for fenced replacement', () => {
   const decoded = decodeModuleFields({
