@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/bus"
 
 	"go.uber.org/zap"
 )
@@ -175,8 +176,8 @@ func (qc songQueueCmd) livePlayer(ctx context.Context) (*gossiprpc.SpotifyTrack,
 	err := qc.gossip.Call(ctx,
 		engine.GossipRoute{Provider: "spotify", Endpoint: "nowplaying"},
 		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10)}, &reply)
-	if reply.Error != "" {
-		return nil, reply.Error
+	if reason := qc.spotifyFailureMessage(reply.Error, err); reason != "" {
+		return nil, reason
 	}
 	if err != nil {
 		qc.log.Warn("songqueue: nowplaying rpc failed", qc.c.BID(), zap.Error(err))
@@ -399,8 +400,8 @@ func (qc songQueueCmd) pushToPlayer(ctx context.Context, trackID string) string 
 	err := qc.gossip.Call(ctx,
 		engine.GossipRoute{Provider: "spotify", Endpoint: "queue"},
 		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10), TrackID: trackID}, &reply)
-	if reply.Error != "" {
-		return reply.Error
+	if reason := qc.spotifyFailureMessage(reply.Error, err); reason != "" {
+		return reason
 	}
 	if err != nil {
 		qc.log.Warn("songqueue: player queue push failed", qc.c.BID(), zap.Error(err))
@@ -417,8 +418,8 @@ func (qc songQueueCmd) skipPlayer(ctx context.Context) string {
 	err := qc.gossip.Call(ctx,
 		engine.GossipRoute{Provider: "spotify", Endpoint: "next"},
 		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10)}, &reply)
-	if reply.Error != "" {
-		return reply.Error
+	if reason := qc.spotifyFailureMessage(reply.Error, err); reason != "" {
+		return reason
 	}
 	if err != nil {
 		qc.log.Warn("songqueue: player skip failed", qc.c.BID(), zap.Error(err))
@@ -459,9 +460,9 @@ func (qc songQueueCmd) resolveTrack(ctx context.Context, query string) (*gossipr
 			Query:     query,
 			Limit:     1,
 		}, &reply)
-	switch {
-	case reply.Error != "":
-		return nil, reply.Error
+	switch reason := qc.spotifyFailureMessage(reply.Error, err); {
+	case reason != "":
+		return nil, reason
 	case err != nil:
 		qc.log.Warn("songqueue: search rpc failed",
 			zap.String("query", query), qc.c.BID(), zap.Error(err))
@@ -470,6 +471,44 @@ func (qc songQueueCmd) resolveTrack(ctx context.Context, query string) (*gossipr
 		return nil, i18n.T(qc.c.Locale, "songqueue.search.none")
 	}
 	return &reply.Tracks[0], ""
+}
+
+// GossipRPC returns provider refusals as RPCReplyError before decoding the
+// typed reply. Only exact, fixed messages from the Spotify provider may reach
+// chat: arbitrary RPC text can include credentials, URLs or internal details.
+func (qc songQueueCmd) spotifyFailureMessage(replyError string, err error) string {
+	message := replyError
+	if message == "" {
+		var re bus.RPCReplyError
+		if errors.As(err, &re) {
+			message = re.Message
+		}
+	}
+	if message == "" {
+		return ""
+	}
+	switch message {
+	case "no active Spotify device, start playing something first",
+		"Spotify Premium is required for queue control",
+		"the Spotify connection is missing playback control, reconnect it on the dashboard",
+		"your Spotify connection needs to be set up again",
+		"no Spotify connection on file",
+		"no Spotify app set up for this channel",
+		"could not read your Spotify connection",
+		"could not reach Spotify",
+		"that Spotify link type isn't supported; share a track or album",
+		"invalid request",
+		"not found on Spotify",
+		"Spotify playback not permitted right now",
+		"Spotify is unavailable right now, try again in a moment",
+		"Spotify is busy right now, try again in a few seconds",
+		"Spotify is busy right now, try again in a moment",
+		"Spotify is rate limiting requests right now, try again in a moment",
+		"track search failed":
+		return message
+	default:
+		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+	}
 }
 
 func (qc songQueueCmd) entry(t gossiprpc.SpotifyTrack) engine.SongEntry {
