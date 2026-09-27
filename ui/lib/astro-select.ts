@@ -62,9 +62,9 @@ function appendChevron(trigger: HTMLButtonElement, fallback: HTMLElement): void 
   trigger.append(chevron);
 }
 
-function mountNativeBridge(root: HTMLElement, native: HTMLSelectElement, fallback: HTMLElement, trigger: HTMLButtonElement, id: string): void {
+function mountNativeBridge(root: HTMLElement, native: HTMLSelectElement, fallback: HTMLElement, trigger: HTMLButtonElement): void {
   if (root.dataset.value !== undefined) native.value = root.dataset.value;
-  native.id = `${id}-native`;
+  native.id = `${trigger.id}-native`;
   native.classList.add('bb-select__native');
   native.tabIndex = -1;
   native.setAttribute('aria-hidden', 'true');
@@ -90,7 +90,15 @@ function appendOptionText(item: HTMLLIElement, option: SelectOption): void {
   description.className = 'bb-select__description'; description.textContent = option.description; item.append(description);
 }
 
-function createOptionItem(option: SelectOption, index: number, id: string, selected: string, activate: (index: number) => void, pick: (option: SelectOption) => void): HTMLLIElement {
+interface OptionRenderContext {
+  id: string;
+  selected: string;
+  activate: (index: number) => void;
+  pick: (option: SelectOption) => void;
+}
+
+function createOptionItem(option: SelectOption, index: number, context: OptionRenderContext): HTMLLIElement {
+  const { id, selected, activate, pick } = context;
   const item = document.createElement('li');
   item.id = `${id}-option-${index}`; item.className = 'bb-select__option';
   item.setAttribute('role', 'option'); item.setAttribute('aria-selected', String(option.value === selected));
@@ -183,7 +191,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   valueLabel.className = 'bb-select__value';
   trigger.append(valueLabel);
   appendChevron(trigger, fallback);
-  mountNativeBridge(root, native, fallback, trigger, id);
+  mountNativeBridge(root, native, fallback, trigger);
 
   let panel: HTMLDivElement | undefined;
   let shell: HTMLDivElement | undefined;
@@ -256,20 +264,29 @@ export function enhanceAstroSelect(root: HTMLElement): void {
     }
   }
 
+  function appendChoices(target: HTMLUListElement) {
+    const context: OptionRenderContext = { id, selected: native!.value, activate, pick };
+    let group: string | undefined;
+    for (const [index, option] of matches.entries()) {
+      appendGroupHeading(target, option.group, group);
+      group = option.group;
+      target.append(createOptionItem(option, index, context));
+    }
+    if (!matches.length) appendEmptyMessage(target, root.dataset.emptyLabel ?? 'No matches');
+  }
+
+  function resetActive() {
+    const selected = matches.findIndex((option) => option.value === native!.value && !option.disabled);
+    activate(selected >= 0 ? selected : nextEnabledOption(matches, -1, 'first'));
+  }
+
   function renderOptions() {
     if (!list) return;
     matches = filterSelectOptions(options(), input?.value ?? '');
     list.replaceChildren();
-    let group: string | undefined;
-    for (const [index, option] of matches.entries()) {
-      appendGroupHeading(list, option.group, group);
-      group = option.group;
-      list.append(createOptionItem(option, index, id, native!.value, activate, pick));
-    }
-    if (!matches.length) appendEmptyMessage(list, root.dataset.emptyLabel ?? 'No matches');
+    appendChoices(list);
     if (clear) clear.hidden = !input?.value;
-    const selected = matches.findIndex((option) => option.value === native!.value && !option.disabled);
-    activate(selected >= 0 ? selected : nextEnabledOption(matches, -1, 'first'));
+    resetActive();
   }
 
   function handleEscape(event: KeyboardEvent) {
