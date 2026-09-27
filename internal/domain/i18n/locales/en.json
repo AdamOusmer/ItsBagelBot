@@ -94,6 +94,7 @@
   "loyalty.leaderboard.empty": "No standings yet — stick around while live to earn some {name}!",
   "loyalty.leaderboard.usage": "Usage: !leaderboard [1-10]",
   "loyalty.points": "@{user} you have {points} {name} and {hours} hours watched.",
+  "loyalty.watchtime": "@{user} you have watched for {duration}.",
   "loyalty.points.adjusted": "@{target} now has {points} {name}.",
   "loyalty.points.disabled": "@{user} that action is turned off in this channel.",
   "loyalty.points.gave": "@{user} you gave {amount} {name} to @{target} — you now have {points}.",
