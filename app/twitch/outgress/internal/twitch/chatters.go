@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -157,10 +158,40 @@ func (p chatterPayload) chatters() []Chatter {
 	}
 	return batch
 }
+
+// ChatterAuthorizationError preserves the reason without exposing provider
+// response bodies or credentials to callers.
+type ChatterAuthorizationError struct {
+	Status       int
+	MissingScope string
+}
+
+func (e *ChatterAuthorizationError) Error() string {
+	if e.MissingScope != "" {
+		return "bot token missing " + e.MissingScope + "; reauthorize the bot in the admin console"
+	}
+	if e.Status == http.StatusForbidden {
+		return "bot does not have moderator access to this channel"
+	}
+	return "bot token is not authorized to read chatters"
+}
+
+func (e *ChatterAuthorizationError) Unwrap() error { return ErrMissingScope }
+
 func chatterResponseStatus(res *http.Response) error {
 	switch res.StatusCode {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return ErrMissingScope
+		var payload struct {
+			Message string `json:"message"`
+		}
+		_ = codec.NewDecoder(io.LimitReader(res.Body, 2048)).Decode(&payload)
+		failure := &ChatterAuthorizationError{Status: res.StatusCode}
+		// Only the documented scope name is forwarded. Never forward raw
+		// provider bodies, even when a proxy returns unexpected content.
+		if strings.EqualFold(strings.TrimSpace(payload.Message), "Missing scope: moderator:read:chatters") {
+			failure.MissingScope = "moderator:read:chatters"
+		}
+		return failure
 	}
 	if res.StatusCode >= http.StatusOK && res.StatusCode < http.StatusMultipleChoices {
 		return nil

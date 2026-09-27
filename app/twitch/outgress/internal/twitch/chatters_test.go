@@ -297,3 +297,56 @@ func TestStreamSessionReturnsProviderIdentityAndValidatesBinding(t *testing.T) {
 		})
 	}
 }
+
+func TestChattersAuthorizationReasons(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		status               int
+		body, scope, message string
+	}{
+		{"missing scope", 401, `{"message":"Missing scope: moderator:read:chatters"}`, "moderator:read:chatters", "bot token missing moderator:read:chatters; reauthorize the bot in the admin console"},
+		{"not moderator", 403, `{"message":"moderator forbidden"}`, "", "bot does not have moderator access to this channel"},
+		{"unexpected body", 401, `{"message":"unexpected-secret-provider-content"}`, "", "bot token is not authorized to read chatters"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := decodeChattersPage(chatterResponse(tc.status, tc.body))
+			var failure *ChatterAuthorizationError
+			require.ErrorAs(t, err, &failure)
+			require.ErrorIs(t, err, ErrMissingScope)
+			require.Equal(t, tc.scope, failure.MissingScope)
+			require.EqualError(t, err, tc.message)
+		})
+	}
+}
+
+func TestChattersAdoptsReauthorizedBotTokenAfterMissingScope(t *testing.T) {
+	expiry := time.Now().Add(time.Hour)
+	stored := StoredLoad{AccessToken: "under-scoped", AccessTokenExpiresAt: &expiry}
+	source := NewStoredUserTokenSource(ClientCredentials{}, "", StoredTokenIO{
+		Load: func(context.Context) StoredLoad { return stored },
+		Persist: func(context.Context, string, string, time.Time) error {
+			t.Fatal("adopting a reauthorized token must not rotate or persist it")
+			return nil
+		},
+	}, MintLease{})
+	requests := 0
+	client := NewClient("client", nil, source, nil)
+	client.SetTransport(roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requests++
+		if req.Header.Get("Authorization") == "Bearer under-scoped" {
+			return chatterResponse(401, `{"message":"Missing scope: moderator:read:chatters"}`), nil
+		}
+		require.Equal(t, "Bearer reauthorized", req.Header.Get("Authorization"))
+		return chatterResponse(200, `{"data":[{"user_id":"viewer","user_login":"viewer"}],"pagination":{}}`), nil
+	}))
+	request := ChattersPageRequest{BroadcasterID: "channel", ModeratorID: "bot"}
+	_, err := client.GetChattersPage(t.Context(), request)
+	require.ErrorIs(t, err, ErrMissingScope)
+	require.Equal(t, 1, requests, "a missing scope must not trigger a pointless refresh")
+	stored.AccessToken = "reauthorized"
+	page, err := client.GetChattersPage(t.Context(), request)
+	require.NoError(t, err)
+	require.True(t, page.Complete)
+	require.Len(t, page.Chatters, 1)
+	require.Equal(t, 2, requests)
+}

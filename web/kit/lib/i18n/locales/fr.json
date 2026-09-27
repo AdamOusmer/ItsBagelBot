@@ -245,6 +245,7 @@
       "errScope": "Autorisation requise manquante."
     },
     "botAuth": {
+      "errScope": "Twitch n’a pas accordé toutes les autorisations requises du bot. Autorisez à nouveau le bot depuis la console d’administration et acceptez toutes les autorisations demandées.",
       "okTitle": "Bot autorisé",
       "okBody": "Le jeton du compte du bot a été enregistré. Vous pouvez fermer cet onglet.",
       "failTitle": "Échec de l’autorisation",

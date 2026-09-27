@@ -125,6 +125,13 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Use the same bot identity as outgress so dashboard sign-in cannot
+            # replace its moderator grant with a broadcaster grant.
+            - name: TWITCH_BOT_USER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: outgress-env
+                  key: TWITCH_BOT_USER_ID
             - name: DASHBOARD_L1_CACHE_CAPACITY
               value: "1000"
             - name: NATS_PROJECTOR_DASHBOARD_SUBJECT_PREFIX

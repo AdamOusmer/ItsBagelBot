@@ -519,3 +519,14 @@ func TestLegacyViewerCooldownAndRevocationStopHTTP(t *testing.T) {
 		})
 	}
 }
+
+func TestChattersRPCReportsMissingBotScope(t *testing.T) {
+	now := time.Now()
+	api := &chatterFakeAPI{err: &twitch.ChatterAuthorizationError{Status: http.StatusUnauthorized, MissingScope: "moderator:read:chatters"}}
+	reply := chatterHandler(api, now).handleGet(t.Context(), chatterReq(now))
+	require.Equal(t, "authorization", reply.ErrorCode)
+	require.True(t, reply.MissingScope)
+	require.Contains(t, reply.Error, "moderator:read:chatters")
+	require.Contains(t, reply.Error, "reauthorize the bot")
+	require.Empty(t, reply.Chatters)
+}

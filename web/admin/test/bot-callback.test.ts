@@ -10,10 +10,12 @@ const claims: { sub: string; aud: string; iss: string } = {
   aud: 'bot-client',
   iss: 'https://id.twitch.tv/oauth2'
 };
+let grantedScopes = ['openid', 'moderator:read:chatters'];
 const validateAuthorizationCode = mock(async () => ({
   claims: () => ({ ...claims }),
   accessToken: () => 'access-token',
-  refreshToken: () => 'refresh-token'
+  refreshToken: () => 'refresh-token',
+  scopes: () => grantedScopes
 }));
 const createAuthorizationURL = mock(() => new URL('https://id.twitch.tv/oauth2/authorize'));
 const botTwitch = mock(() => ({ validateAuthorizationCode, createAuthorizationURL }));
@@ -31,10 +33,11 @@ class TestRedirect extends Error {
 mock.module('$env/dynamic/private', () => ({ env: privateEnv }));
 mock.module('$lib/server/oauth', () => ({
   botClientId: () => 'bot-client',
-  botScopes: () => ['openid'],
+  botScopes: () => ['openid', 'moderator:read:chatters'],
   botTwitch
 }));
 mock.module('$lib/server/services', () => ({ tokenSet }));
+mock.module('$lib/server/access', () => ({ requireRole: async () => ({ id: 'owner' }) }));
 mock.module('@sveltejs/kit', () => ({
   redirect: (status: number, location: string) => new TestRedirect(status, location)
 }));
@@ -64,6 +67,7 @@ async function expectRedirectLocation(request: () => unknown, location: string):
 
 beforeEach(() => {
   for (const key of Object.keys(privateEnv)) delete privateEnv[key];
+  grantedScopes = ['openid', 'moderator:read:chatters'];
   claims.sub = 'configured-bot';
   claims.aud = 'bot-client';
   claims.iss = 'https://id.twitch.tv/oauth2';
@@ -114,6 +118,26 @@ describe('bot OAuth callback account pinning', () => {
     expect(tokenSet).not.toHaveBeenCalled();
   });
 
+  test('refuses a token without chatter access instead of reporting authorization success', async () => {
+    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    grantedScopes = ['openid'];
+    await expectRedirectLocation(
+      () => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]),
+      '/auth/bot/done?e=scope'
+    );
+    expect(tokenSet).not.toHaveBeenCalled();
+  });
+
+  test('refuses a response that does not report its granted scopes', async () => {
+    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    grantedScopes = [];
+    await expectRedirectLocation(
+      () => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]),
+      '/auth/bot/done?e=scope'
+    );
+    expect(tokenSet).not.toHaveBeenCalled();
+  });
+
   test('stores the token only under the matching configured account', async () => {
     privateEnv.ADMIN_BOT_USER_ID = ' configured-bot ';
 
@@ -123,6 +147,6 @@ describe('bot OAuth callback account pinning', () => {
     );
 
     expect(tokenSet).toHaveBeenCalledTimes(1);
-    expect(tokenSet).toHaveBeenCalledWith('configured-bot', 'access-token', 'refresh-token');
+    expect(tokenSet).toHaveBeenCalledWith({ actorId: 'owner', userId: 'configured-bot' }, 'access-token', 'refresh-token');
   });
 });

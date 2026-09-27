@@ -13,6 +13,7 @@ import { saveGrant, isBanned, delegationConsume, userLocale, setLocale, userCurs
 import { COOKIE, CURSOR_COOKIE, seal, SESSION_TTL_SECONDS } from '$lib/server/session';
 import { isLocale, LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { env } from '$env/dynamic/private';
+import { isBotAccount } from '$lib/server/bot-account';
 
 const DASHBOARD = env.NATS_DASHBOARD_SUBJECT_PREFIX ?? 'bagel.rpc.dashboard';
 
@@ -33,11 +34,6 @@ function audIssuerOk(claims: IdTokenClaims): boolean {
   return audOk && claims.iss === 'https://id.twitch.tv/oauth2';
 }
 
-function isBotAccount(sub: string): boolean {
-  const botId = env.ADMIN_BOT_USER_ID ?? '';
-  return botId !== '' && sub === botId;
-}
-
 function nonceMismatch(claims: IdTokenClaims, storedNonce: string | undefined): boolean {
   return !!storedNonce && claims.nonce !== storedNonce;
 }
@@ -49,7 +45,7 @@ function missingOpenidScope(claims: IdTokenClaims): boolean {
 function claimRejection(claims: IdTokenClaims, storedNonce: string | undefined): string | null {
   if (!audIssuerOk(claims)) return 'state';
   if (nonceMismatch(claims, storedNonce)) return 'state';
-  if (isBotAccount(claims.sub)) return 'bot';
+  if (isBotAccount(claims.sub, env)) return 'bot';
   if (missingOpenidScope(claims)) return 'scope';
   return null;
 }
