@@ -25,21 +25,34 @@ func denyAll(t *testing.T) http.Handler {
 
 func TestSearchTrackLinkLooksUpDirectly(t *testing.T) {
 	mint, _ := newMintServer(t, "tok-1")
+	calls := 0
 	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
 		require.Equal(t, "/v1/tracks/3n3Ppam7vgaVa1iaRUc9Lp", r.URL.Path)
 		assert.Equal(t, "Bearer tok-1", r.Header.Get("Authorization"))
 		_, _ = io.WriteString(w, brightsideBody)
 	})
 	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
 
-	reply := asReply[gossiprpc.SpotifySearchReply](t,
-		endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
-			ChannelID: "2",
-			Query:     "https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp?si=abc",
-		}))
-	assert.Equal(t, viaTrackLink, reply.ResolvedAs, "a pasted link must report an exact match")
-	require.Len(t, reply.Tracks, 1)
-	assert.Equal(t, "3n3Ppam7vgaVa1iaRUc9Lp", reply.Tracks[0].ID)
+	for _, query := range []string{
+		"https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp?si=abc",
+		"https://open.spotify.com/intl-ca/track/3n3Ppam7vgaVa1iaRUc9Lp?si=abc#fragment",
+		"https://open.spotify.com/embed/track/3n3Ppam7vgaVa1iaRUc9Lp?utm_source=oembed",
+		"https://open.spotify.com/embed?uri=spotify%3Atrack%3A3n3Ppam7vgaVa1iaRUc9Lp",
+		"open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp",
+		"https://play.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp",
+		"spotify:track:3n3Ppam7vgaVa1iaRUc9Lp",
+	} {
+		t.Run(query, func(t *testing.T) {
+			reply := asReply[gossiprpc.SpotifySearchReply](t,
+				endpoint(t, p, "search")(context.Background(), gossiprpc.Request{ChannelID: "2", Query: query}))
+			assert.Empty(t, reply.Error)
+			assert.Equal(t, viaTrackLink, reply.ResolvedAs)
+			require.Len(t, reply.Tracks, 1)
+			assert.Equal(t, "3n3Ppam7vgaVa1iaRUc9Lp", reply.Tracks[0].ID)
+		})
+	}
+	assert.Equal(t, 1, calls, "equivalent links reuse one exact catalog lookup")
 }
 
 func TestSearchUnsupportedLinksRejectedWithoutCredentials(t *testing.T) {
@@ -97,7 +110,7 @@ func TestSearchFilteredFallsBackToPlainWhenEmpty(t *testing.T) {
 			_, _ = io.WriteString(w, `{"tracks":{"items":[]}}`)
 			return
 		}
-		_, _ = io.WriteString(w, `{"tracks":{"items":[`+brightsideBody+`]}}`)
+		writeSearchTracks(t, w, searchTrack("stand-by-me", "Stand by Me", "Ben E. King"))
 	})
 	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
 
@@ -111,6 +124,7 @@ func TestSearchFilteredFallsBackToPlainWhenEmpty(t *testing.T) {
 	assert.Equal(t, "stand by me", searches[1])
 	assert.Equal(t, viaText, reply.ResolvedAs, "the fallback win reports itself as best-effort")
 	require.Len(t, reply.Tracks, 1)
+	assert.Equal(t, "stand-by-me", reply.Tracks[0].ID)
 }
 
 func TestSearchPlainTextStaysSingleShot(t *testing.T) {
@@ -131,6 +145,24 @@ func TestSearchPlainTextStaysSingleShot(t *testing.T) {
 	assert.EqualValues(t, 1, mints.Load())
 	assert.Equal(t, viaText, reply.ResolvedAs)
 	require.Len(t, reply.Tracks, 1)
+}
+
+func TestMalformedSpotifyLinksNeverSearchOrMint(t *testing.T) {
+	for _, query := range []string{
+		"spotify:track:short", "https://open.spotify.com/track/not-valid", "https://open.spotify.com/embed/track",
+		"https://open.spotify.com/track/%invalid", "https://spotify.link:8080/share",
+	} {
+		t.Run(query, func(t *testing.T) {
+			mint, mints := newMintServer(t, "unused")
+			p := newTestProvider(t, fakeKeys{key: "rt-1"}, denyAll(t), mint)
+			reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
+				ChannelID: "2", Query: query,
+			}))
+			assert.Equal(t, "invalid request", reply.Error)
+			assert.Empty(t, reply.Tracks)
+			assert.Zero(t, mints.Load())
+		})
+	}
 }
 
 func init() { core.SetSSRFCheckForTests(false) }

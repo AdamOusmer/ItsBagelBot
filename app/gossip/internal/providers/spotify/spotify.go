@@ -53,16 +53,24 @@ const (
 	minTokenTTL     = 30 * time.Second
 )
 
+// Config carries the provider's environment: the Spotify hosts and the
+// per-broadcaster request ceiling. There are no app credentials here: the
+// fleet no longer owns a Spotify application. Every broadcaster registers
+// their own and every credential, app included, is resolved per caller
+// just-in-time.
 type Config struct {
-	BaseURL     string
-	AccountsURL string
-	RateLimit   float64
+	BaseURL      string
+	AccountsURL  string
+	EmbedBaseURL string
+	RateLimit    float64
 }
 
 const providerName = "spotify"
 
 type api struct {
-	http    *core.HTTPClient
+	http *core.HTTPClient
+	// embeds resolves short shares without sending a broadcaster credential.
+	embeds  *core.HTTPClient
 	auth    *core.HTTPClient
 	cache   *core.Cache
 	keys    provider.SpotifyCredResolver
@@ -94,12 +102,17 @@ func newAPI(cfg Config, d provider.Deps, b *provider.Builder) *api {
 	if accounts == "" {
 		accounts = "https://accounts.spotify.com"
 	}
+	embeds := strings.TrimSuffix(cfg.EmbedBaseURL, "/")
+	if embeds == "" {
+		embeds = "https://open.spotify.com"
+	}
 	if cfg.RateLimit <= 0 {
 		cfg.RateLimit = defaultRateLimit
 	}
 	return &api{
 		http:    b.Client(base, nil, httpTimeout),
 		auth:    b.Client(accounts, nil, httpTimeout),
+		embeds:  b.Client(embeds, nil, httpTimeout),
 		cache:   d.Cache,
 		keys:    d.SpotifyKeys,
 		log:     d.Logger(),
@@ -326,7 +339,6 @@ func shapeArtist(id string, it artistItem) *gossiprpc.SpotifyArtist {
 	return out
 }
 
-// Concatenated into the request path: anything outside [A-Za-z0-9] must be rejected.
 func validCatalogID(id string) bool {
 	if id == "" || len(id) > 22 {
 		return false
@@ -378,6 +390,9 @@ func (p *api) search(ctx context.Context, req gossiprpc.Request) any {
 	if target.kind == resolveUnsupportedLink {
 		return gossiprpc.SpotifySearchReply{Error: "that Spotify link type isn't supported; share a track or album"}
 	}
+	if target.kind == resolveInvalidLink {
+		return gossiprpc.SpotifySearchReply{Error: "invalid request"}
+	}
 
 	tok, msg := p.accessTokenFor(ctx, broadcaster)
 	if msg != "" {
@@ -397,8 +412,11 @@ func (p *api) search(ctx context.Context, req gossiprpc.Request) any {
 	case resolveAlbumID:
 		scope.ttl = trackTTL
 		return p.searchCached(ctx, scope, p.albumTracksFetch(tok, target.id, scope.limit))
+	case resolveShareLink:
+		scope.ttl = trackTTL
+		return p.searchCached(ctx, scope, p.shareLinkFetch(tok, target.text, scope.limit))
 	default:
-		return p.searchCached(ctx, scope, p.textFetch(tok, rawQuery(req), scope.limit))
+		return p.searchCached(ctx, scope, p.textFetch(tok, rawQuery(req), scope.limit, broadcaster))
 	}
 }
 
@@ -472,25 +490,10 @@ func (p *api) albumTracksFetch(tok accessToken, id string, limit int) searchFetc
 	}
 }
 
-func (p *api) textFetch(tok accessToken, raw string, limit int) searchFetch {
+func (p *api) textFetch(tok accessToken, raw string, limit int, broadcaster string) searchFetch {
 	return func(ctx context.Context) (gossiprpc.SpotifySearchReply, error) {
-		return p.searchText(ctx, tok, planTextSearch(raw), limit)
+		return p.searchText(ctx, tok, textSearchRequest{raw: raw, limit: limit, broadcaster: broadcaster})
 	}
-}
-
-func (p *api) searchText(ctx context.Context, tok accessToken, plan []searchCandidate, limit int) (gossiprpc.SpotifySearchReply, error) {
-	var last gossiprpc.SpotifySearchReply
-	for _, c := range plan {
-		reply, err := p.runSearch(ctx, tok, c, limit)
-		if err != nil {
-			return gossiprpc.SpotifySearchReply{}, err
-		}
-		last = reply
-		if len(reply.Tracks) > 0 {
-			return reply, nil
-		}
-	}
-	return last, nil
 }
 
 func (p *api) runSearch(ctx context.Context, tok accessToken, c searchCandidate, limit int) (gossiprpc.SpotifySearchReply, error) {
