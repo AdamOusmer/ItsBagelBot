@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 
@@ -29,28 +30,29 @@ import (
 )
 
 const (
-	serviceName = "loyalty"
-	queueGroup  = "loyalty-rpc"
+	serviceName    = "loyalty"
+	queueGroup     = "loyalty-rpc"
+	counterWorkers = 32
 )
 
-// Grouped subscriber only: every event must be folded exactly once.
-func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Loyalty, grouped bus.Subscriber, log *zap.Logger) error {
+// Grouped subscriber keeps account cleanup and delta folding on one durable lane.
+// Counter handlers share bounded batches and wait for persistence before ACK.
+func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Loyalty, counters counterProcessor, grouped bus.Subscriber, log *zap.Logger) (*bus.ConcurrentConsumer, error) {
 	subs := []struct {
 		name    string
 		subject string
 		handle  func(*bus.Message) error
 	}{
 		{"loyalty earned events", data.SubjectLoyaltyEarned, recordEarned(repo, log)},
-		{"loyalty counter events", data.SubjectLoyaltyCounters, recordBumps(repo, log)},
 		{"user deleted events", data.SubjectUserDeleted, deleteAllForUser(repo, log)},
 		{"user lifecycle events", data.SubjectUserChanged, restoreUser(repo, log)},
 	}
 	for _, s := range subs {
 		if err := bus.Consume(ctx, nrApp, grouped, s.subject, s.handle, log); err != nil {
-			return fmt.Errorf("subscribe to %s: %w", s.name, err)
+			return nil, fmt.Errorf("subscribe to %s: %w", s.name, err)
 		}
 	}
-	return nil
+	return bus.ConsumeConcurrent(ctx, nrApp, grouped, data.SubjectLoyaltyCounters, counterWorkers, recordBumps(counters, log), log)
 }
 
 func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
@@ -66,11 +68,11 @@ func recordEarned(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) 
 	}
 }
 
-type bumpApplier interface {
-	ApplyBumps(context.Context, data.CounterBumpedDTO) error
+type counterProcessor interface {
+	Process(context.Context, data.CounterBumpedDTO) error
 }
 
-func recordBumps(repo bumpApplier, log *zap.Logger) func(*bus.Message) error {
+func recordBumps(repo counterProcessor, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
 		log := monitor.TxnLogger(msg.Context(), log)
 		var dto data.CounterBumpedDTO
@@ -81,7 +83,7 @@ func recordBumps(repo bumpApplier, log *zap.Logger) func(*bus.Message) error {
 		if dto.BatchID == "" {
 			dto.BatchID = msg.UUID
 		}
-		err := repo.ApplyBumps(msg.Context(), dto)
+		err := repo.Process(msg.Context(), dto)
 		if errors.Is(err, repository.ErrInvalidInput) {
 			log.Warn("loyalty: dropping invalid counter batch",
 				zap.String("batch_id", dto.BatchID),
@@ -120,6 +122,14 @@ func main() {
 	svcboot.FatalIf(log, repo.EnsureWatchSchema(core.Ctx), "failed to initialize watch inbox")
 	vc := svcboot.MustValkey(core)
 	defer vc.Close()
+	counters := repository.NewCounterProcessor(repo, vc)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+		if err := counters.Close(ctx); err != nil {
+			log.Warn("loyalty: counter processor shutdown failed", zap.Error(err))
+		}
+	}()
 	watchCtx, stopWatch := context.WithCancel(core.Ctx)
 	watchDone := make(chan struct{})
 	watchConsumer := watchtime.NewConsumer(vc, repo.ApplyWatchAward, log, watchtime.WithHistoryMaintenance(repo.PruneWatchHistory))
@@ -127,17 +137,25 @@ func main() {
 	go func() { defer close(watchDone); watchConsumer.Run(watchCtx) }()
 	defer func() { stopWatch(); <-watchDone }()
 
-	stopPruner := repo.StartBatchReceiptPruner(core.Ctx, repository.BatchReceiptPruneInterval, repository.BatchReceiptRetention)
-	defer stopPruner()
-
 	nc := svcboot.MustRPCConn(core, bus.RPCURL(core.NATSURL))
 	defer nc.Close()
 
 	grouped, err := bus.NewSubscriber(core.NATSURL, serviceName, log)
 	svcboot.FatalIf(log, err, "failed to connect group subscriber")
-	defer func() { _ = grouped.Close() }()
+	var counterConsumer *bus.ConcurrentConsumer
+	defer func() {
+		if err := grouped.Close(); err != nil {
+			log.Warn("loyalty: group subscriber shutdown failed", zap.Error(err))
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+		if err := counterConsumer.Drain(ctx); err != nil {
+			log.Warn("loyalty: counter consumer shutdown failed", zap.Error(err))
+		}
+	}()
 
-	svcboot.FatalIf(log, registerConsumers(core.Ctx, core.NR, repo, grouped, log), "failed to subscribe to events")
+	counterConsumer, err = registerConsumers(core.Ctx, core.NR, repo, counters, grouped, log)
+	svcboot.FatalIf(log, err, "failed to subscribe to events")
 
 	loyaltyPrefix := env.Get("NATS_LOYALTY_SUBJECT_PREFIX", "bagel.rpc.loyalty")
 	svcboot.FatalIf(log, rpc.Subscribe(rpc.Wiring{
