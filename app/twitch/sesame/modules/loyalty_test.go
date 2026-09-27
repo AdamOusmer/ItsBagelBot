@@ -5,6 +5,7 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -287,6 +288,47 @@ func TestLoyaltyPointsCommand(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "1234")
 	assert.Contains(t, col.out[0].Text, "bagels")
 	assert.Contains(t, col.out[0].Text, "2.0")
+}
+
+type watchtimeLoyalty struct {
+	fakeLoyalty
+	seconds                 uint64
+	err                     error
+	broadcasterID, viewerID uint64
+}
+
+func (f *watchtimeLoyalty) BalanceGet(_ context.Context, broadcasterID, viewerID uint64) (loyaltyrpc.Balance, error) {
+	f.broadcasterID, f.viewerID = broadcasterID, viewerID
+	return loyaltyrpc.Balance{WatchSeconds: f.seconds}, f.err
+}
+
+func TestLoyaltyWatchtimeCommand(t *testing.T) {
+	for _, tc := range []struct {
+		name, locale, want string
+		seconds            uint64
+		err                error
+	}{
+		{name: "recorded time", locale: "en", seconds: 9000, want: "@coolviewer you have watched for 2 hours, 30 minutes."},
+		{name: "no recorded time", locale: "en", want: "@coolviewer you have watched for less than a minute."},
+		{name: "localized time", locale: "fr", seconds: 7200, want: "@coolviewer vous avez regardé pendant 2 heures."},
+		{name: "store unavailable", locale: "en", err: errors.New("loyalty unavailable"), want: "@coolviewer that didn't work, please try again."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &watchtimeLoyalty{seconds: tc.seconds, err: tc.err}
+			cmd := loyaltyCommand(t, Loyalty(engine.Deps{Loyalty: fake, Log: zap.NewNop()}), "watchtime")
+			assert.Equal(t, module.RoleEveryone, cmd.Perm)
+			assert.Equal(t, 5*time.Second, cmd.Cooldown)
+			c := loyaltyCtx("channel.chat.message", "", "")
+			c.Locale = tc.locale
+			var col collector
+			require.NoError(t, cmd.Run(context.Background(), c, "", col.emit))
+			require.Len(t, col.out, 1)
+			assert.Equal(t, tc.want, col.out[0].Text)
+			assert.Equal(t, uint64(2), fake.broadcasterID)
+			assert.Equal(t, uint64(7), fake.viewerID)
+			assert.Empty(t, fake.earns)
+		})
+	}
 }
 
 func TestLoyaltyCounterCommand(t *testing.T) {

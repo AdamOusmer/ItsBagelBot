@@ -16,6 +16,7 @@ export const LOYALTY_MODULE: ModuleDef =
   replies: [],
   commands: [
     { trigger: '!points', summary: 'Check your balance and watch time.' },
+    { trigger: '!watchtime', summary: 'Check your accrued watch time.' },
     { trigger: '!points give @user 500', summary: "Give some of your own points to another viewer." },
     { trigger: '!leaderboard', summary: "Show the channel's top standings." },
     { trigger: '!points set @user 500', summary: "Set a viewer's balance.", perm: 'mod' },

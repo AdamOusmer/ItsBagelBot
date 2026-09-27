@@ -94,6 +94,7 @@
   "loyalty.leaderboard.empty": "Pas encore de classement — restez pendant le live pour gagner des {name} !",
   "loyalty.leaderboard.usage": "Utilisation : !leaderboard [1-10]",
   "loyalty.points": "@{user} vous avez {points} {name} et {hours} heures de visionnage.",
+  "loyalty.watchtime": "@{user} vous avez regardé pendant {duration}.",
   "loyalty.points.adjusted": "@{target} a maintenant {points} {name}.",
   "loyalty.points.disabled": "@{user} cette action est désactivée sur cette chaîne.",
   "loyalty.points.gave": "@{user} vous avez donné {amount} {name} à @{target} — il vous reste {points}.",
