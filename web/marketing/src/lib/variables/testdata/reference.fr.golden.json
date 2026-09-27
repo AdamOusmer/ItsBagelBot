@@ -181,7 +181,7 @@
     ],
     "name": "Un viewer au hasard",
     "hint": "quelqu’un dans le chat en ce moment, choisi au hasard (jamais vous, jamais le bot)",
-    "description": "Le nom d’une personne que Twitch indique comme présente dans le chat en ce moment, choisie au hasard — pas forcément quelqu’un ayant parlé. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts. Juste après un redémarrage du bot, avant qu’il ait chargé qui est dans le chat, elle nomme plutôt quelqu’un ayant parlé récemment.",
+    "description": "Le nom d’une personne que Twitch indique comme présente dans le chat en ce moment, choisie au hasard, pas forcément quelqu’un ayant parlé. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts. Juste après un redémarrage du bot, avant qu’il ait chargé qui est dans le chat, elle nomme plutôt quelqu’un ayant parlé récemment.",
     "group": "who",
     "groups": [
       "who"
@@ -1390,7 +1390,7 @@
     ],
     "name": "Votre heure locale",
     "hint": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale) ; {time:Paris} pour ailleurs, sans module",
-    "description": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré. {time:Paris} consulte plutôt un autre lieu — une ville, un pays, une abréviation comme EST, ou un décalage UTC — et fonctionne même sans le module : il n’a besoin d’aucun fuseau propre, seulement du format d’horloge choisi si vous en avez un. Un lieu inconnu renvoie du vide.",
+    "description": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré. {time:Paris} consulte plutôt un autre lieu (une ville, un pays, une abréviation comme EST, ou un décalage UTC), et fonctionne même sans le module : il n’a besoin d’aucun fuseau propre, seulement du format d’horloge choisi si vous en avez un. Un lieu inconnu renvoie du vide.",
     "group": "stream",
     "groups": [
       "stream"
@@ -2592,7 +2592,7 @@
       }
     ],
     "name": "Liste d’émotes",
-    "hint": "tous les codes d’émotes globales d’un fournisseur — {emotes:7tv}, {emotes:bttv} ou {emotes:ffz} — séparés par des espaces",
+    "hint": "tous les codes d’émotes globales d’un fournisseur ({emotes:7tv}, {emotes:bttv} ou {emotes:ffz}), séparés par des espaces",
     "description": "Les codes des émotes globales d’un fournisseur (7TV, BetterTTV ou FrankerFaceZ), séparés par des espaces. Ce sont celles que toutes les chaînes ont, pas les émotes que vous avez ajoutées à la vôtre, et une longue liste est coupée pour tenir sur une ligne de chat.",
     "group": "fun",
     "groups": [

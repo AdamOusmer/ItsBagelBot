@@ -44,14 +44,14 @@ func mcsrElo(c *module.Context, elo int) string {
 
 func mcsrRank(rank int) string {
 	if rank < 0 {
-		return "—"
+		return "-"
 	}
 	return strconv.Itoa(rank)
 }
 
 func mcsrSplit(s string) string {
 	if s == "" {
-		return "—"
+		return "-"
 	}
 	return s
 }

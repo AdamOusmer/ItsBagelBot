@@ -75,7 +75,7 @@ func TestMcsrLastFortDefaultTemplate(t *testing.T) {
 	}}
 	col := runMcsrCmd(t, gw, mcsrCmdCall{"lastfort", "", ""})
 	require.Len(t, col.out, 1)
-	assert.Equal(t, "Feinberg last fort: nether 1:30 · bastion 2:45 · fortress 5:00 · fp — · sh — · 2m ago", col.out[0].Text)
+	assert.Equal(t, "Feinberg last fort: nether 1:30 · bastion 2:45 · fortress 5:00 · fp - · sh - · 2m ago", col.out[0].Text)
 }
 
 func TestMcsrLastFortEmpty(t *testing.T) {

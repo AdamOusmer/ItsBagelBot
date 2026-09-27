@@ -252,7 +252,7 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
     });
     expect(
       offenders,
-      'a string/template literal outside targets.ts that opens with a bare "{" — route it through emit/positional/slice, or allowlist a genuine non-mint with "// brace-literal-ok: <reason>"'
+      'a string/template literal outside targets.ts that opens with a bare "{"; route it through emit/positional/slice, or allowlist a genuine non-mint with "// brace-literal-ok: <reason>"'
     ).toEqual([]);
   });
 

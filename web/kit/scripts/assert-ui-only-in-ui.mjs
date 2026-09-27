@@ -72,7 +72,7 @@ if (offenders.length > 0) {
   console.error(
     `\n${offenders.length} component${offenders.length === 1 ? '' : 's'} with a <style> block.` +
       `\nAllowlisted, with the reason, in ${'web/kit/scripts/assert-ui-only-in-ui.mjs'}:` +
-      `\n${[...ALLOWLIST.entries()].map(([k, why]) => `  ${k} — ${why}`).join('\n')}`,
+      `\n${[...ALLOWLIST.entries()].map(([k, why]) => `  ${k}: ${why}`).join('\n')}`,
   );
   process.exit(1);
 }

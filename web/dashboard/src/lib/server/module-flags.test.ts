@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test';
 import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, flagsFromRows } from './module-flags';
 
-describe('flagsFromRows([]) — the "no rows at all" reading', () => {
+describe('flagsFromRows([]): the "no rows at all" reading', () => {
   test('an opt-in module with no row is off (OptInView: missing row = off)', () => {
     expect(flagsFromRows([])['quotes']).toBe(false);
     expect(flagsFromRows([])['time']).toBe(false);

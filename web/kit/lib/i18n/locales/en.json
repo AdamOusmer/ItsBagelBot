@@ -1685,7 +1685,7 @@
     "errState": "That Discord link expired. Start from Add Bagel again.",
     "errTicketsOff": "Turn the ticket desk on and save before reposting the panel.",
     "errUnavailable": "Discord did not answer. Try again in a moment.",
-    "errTimeout": "This took too long. Some of it may be missing — reload to see the rest.",
+    "errTimeout": "This took too long. Some of it may be missing; reload to see the rest.",
     "errNotFound": "That channel or role is gone from the server. Pick another one.",
     "errUnknown": "Something went wrong on our side. Try again, and tell support if it keeps happening.",
     "errUnconfigured": "Discord is not configured on this deployment (missing client id or redirect).",
@@ -4098,7 +4098,7 @@
     "time": {
       "name": "Your local time",
       "hint": "your local time, on the clock face you set (Local time module); {time:Paris} for anywhere else, no module needed",
-      "desc": "The time where you are, on the timezone and clock face you set on the Local time module. Needs that module, with a timezone saved. {time:Paris} looks up a different place instead — a city, a country, an abbreviation like EST or a UTC offset — and works even without the module: it just needs no timezone of its own, only the clock face you picked if you ever set one. A place it does not recognize comes back empty.",
+      "desc": "The time where you are, on the timezone and clock face you set on the Local time module. Needs that module, with a timezone saved. {time:Paris} looks up a different place instead (a city, a country, an abbreviation like EST or a UTC offset), and works even without the module: it just needs no timezone of its own, only the clock face you picked if you ever set one. A place it does not recognize comes back empty.",
       "placeHint": "the time at a place you name, no module needed"
     },
     "song": {
@@ -4119,11 +4119,11 @@
     "randomViewer": {
       "name": "A random viewer",
       "hint": "someone in chat right now, picked at random (never you, never the bot)",
-      "desc": "The name of one person Twitch says is in chat right now, picked at random — not someone who has necessarily said anything. Never you and never the bot. Two of them in one response are two separate picks. Right after the bot restarts, before it has loaded who is in chat, it names someone who has spoken recently instead."
+      "desc": "The name of one person Twitch says is in chat right now, picked at random, not someone who has necessarily said anything. Never you and never the bot. Two of them in one response are two separate picks. Right after the bot restarts, before it has loaded who is in chat, it names someone who has spoken recently instead."
     },
     "emotes": {
       "name": "Emote list",
-      "hint": "every global emote code from one provider — {emotes:7tv}, {emotes:bttv} or {emotes:ffz} — space-separated",
+      "hint": "every global emote code from one provider ({emotes:7tv}, {emotes:bttv} or {emotes:ffz}), space-separated",
       "desc": "The global emote codes for one provider (7TV, BetterTTV or FrankerFaceZ), separated by spaces. These are the ones every channel has, not the emotes you added to yours, and a long list is cut to fit one chat line."
     },
     "randomEmote": {
@@ -4154,12 +4154,12 @@
     "followers": {
       "name": "Follower count",
       "hint": "your current follower count",
-      "desc": "Your current follower count, straight from Twitch. Takes no payload — it always counts your own channel."
+      "desc": "Your current follower count, straight from Twitch. Takes no payload; it always counts your own channel."
     },
     "subs": {
       "name": "Subscriber count",
       "hint": "your current subscriber count",
-      "desc": "Your current subscriber count, straight from Twitch. Takes no payload — it always counts your own channel."
+      "desc": "Your current subscriber count, straight from Twitch. Takes no payload; it always counts your own channel."
     },
     "urlfetch": {
       "name": "Fetched value",

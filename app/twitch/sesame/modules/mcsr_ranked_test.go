@@ -37,7 +37,7 @@ func TestMcsrEloUnrated(t *testing.T) {
 	col := runMcsrCmd(t, gw, mcsrCmdCall{"elo", "", ""})
 	require.Len(t, col.out, 1)
 	assert.Contains(t, col.out[0].Text, "unrated elo")
-	assert.Contains(t, col.out[0].Text, "#—")
+	assert.Contains(t, col.out[0].Text, "#-")
 }
 
 func TestMcsrEloErrorChatsLinkedNameNotUUID(t *testing.T) {
@@ -136,7 +136,7 @@ func TestMcsrLastMatchForfeit(t *testing.T) {
 	col := runMcsrCmd(t, gw, mcsrCmdCall{"lastmatch", "", ""})
 	require.Len(t, col.out, 1)
 	assert.Contains(t, col.out[0].Text, "lost (forfeit)")
-	assert.Contains(t, col.out[0].Text, "—", "no completion time renders as a dash")
+	assert.Contains(t, col.out[0].Text, "-", "no completion time renders as a dash")
 }
 
 func TestMcsrLastMatchDecayed(t *testing.T) {

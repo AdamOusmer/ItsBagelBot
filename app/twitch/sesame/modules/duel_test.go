@@ -185,7 +185,7 @@ func TestDuelChallengeSent(t *testing.T) {
 	out := runGames(t, m, gamesCtx("maya", ""), "@crust 400")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "@maya challenges @crust for 400 points")
-	assert.Contains(t, out[0].Text, "winner takes 800", "the reply names the doubled pot")
+	assert.Contains(t, out[0].Text, "Winner takes 800", "the reply names the doubled pot")
 
 	assert.Equal(t, engine.DuelChallenge, f.openSpec.Kind)
 	assert.Equal(t, "maya", f.openSpec.Opener)
@@ -212,7 +212,7 @@ func TestDuelAcceptUnpaid(t *testing.T) {
 	out := runGames(t, m, gamesCtx("crust", ""), "accept")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "@crust takes the 800 points")
-	assert.Contains(t, out[0].Text, "payout is landing")
+	assert.Contains(t, out[0].Text, "Payout is landing")
 }
 
 func TestDuelChallengeSelf(t *testing.T) {
@@ -239,7 +239,7 @@ func TestDuelAcceptOutcomes(t *testing.T) {
 		{
 			name: "unpaid payout",
 			res:  engine.DuelAcceptResult{Found: true, Accepted: true, Unpaid: true, Winner: "crust", Loser: "maya", Pot: 800},
-			want: []string{"@crust takes the 800 points", "payout is landing"},
+			want: []string{"@crust takes the 800 points", "Payout is landing"},
 		},
 	}
 	for _, tc := range cases {
@@ -306,7 +306,8 @@ func TestDuelCancelAuthorization(t *testing.T) {
 		out := runGames(t, m, queueCtx("mod_kim", "moderator"), "cancel")
 		require.Len(t, out, 1)
 		assert.True(t, f.cancelMod, "the chatter's moderator role rides to the store")
-		assert.Contains(t, out[0].Text, "Duel cancelled — 3 refunded, 1500 points returned")
+		assert.Contains(t, out[0].Text, "Duel cancelled")
+		assert.Contains(t, out[0].Text, "3 refunded, 1500 points returned")
 	})
 	t.Run("nothing running", func(t *testing.T) {
 		f := &fakeDuel{}

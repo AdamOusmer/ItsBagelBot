@@ -90,7 +90,7 @@ describe('bump_counter option validation', () => {
     ).toBeUndefined();
   });
 
-  test('rejects ":" — the {counter:…}/{count:…} payload separator', () => {
+  test('rejects ":" because it is the {counter:…}/{count:…} payload separator', () => {
     expect(
       validateCommand({ ...validFields, response: 'hi', bumpCounter: 'target:deaths' }).bump_counter
     ).toContain(':');
