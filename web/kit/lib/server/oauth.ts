@@ -50,6 +50,12 @@ export class OAuth2Tokens {
     return typeof this.result.refresh_token === 'string' ? this.result.refresh_token : undefined;
   }
 
+  scopes(): string[] {
+    return typeof this.result.scope === 'string'
+      ? this.result.scope.split(/\s+/).filter(Boolean)
+      : [];
+  }
+
   claims(): IDToken {
     const claims = getValidatedIdTokenClaims(this.result as never);
     if (!claims) throw new Error('Token response carried no ID Token claims');

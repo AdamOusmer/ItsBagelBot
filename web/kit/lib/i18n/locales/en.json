@@ -245,6 +245,7 @@
       "errScope": "Missing required permission."
     },
     "botAuth": {
+      "errScope": "Twitch did not grant all required bot permissions. Authorize the bot again from the admin console and approve every requested permission.",
       "okTitle": "Bot authorized",
       "okBody": "The bot account token was stored. You can close this tab.",
       "failTitle": "Authorization failed",

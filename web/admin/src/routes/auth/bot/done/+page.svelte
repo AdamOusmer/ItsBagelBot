@@ -13,6 +13,7 @@
   const MESSAGES = {
     state: 'admin.botAuth.errState',
     oauth: 'admin.botAuth.errOauth',
+    scope: 'admin.botAuth.errScope',
     account: 'admin.botAuth.errAccount',
     config: 'admin.botAuth.errConfig'
   } as const;

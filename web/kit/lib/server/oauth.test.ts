@@ -7,7 +7,7 @@ import {
   type AuthorizationServer,
   type Client
 } from 'oauth4webapi';
-import { __normalizeTwitchScopeForTests as normalizeTwitchScope } from './oauth';
+import { OAuth2Tokens, __normalizeTwitchScopeForTests as normalizeTwitchScope } from './oauth';
 
 const AS: AuthorizationServer = {
   issuer: 'https://id.twitch.tv/oauth2',
@@ -79,5 +79,15 @@ describe('normalizeTwitchScope', () => {
     const resp = new Response('gateway timeout', { status: 200 });
     const out = await normalizeTwitchScope(resp);
     expect(out).toBe(resp);
+  });
+});
+
+describe('OAuth2Tokens granted scopes', () => {
+  it('reads normalized provider scopes without consulting identity claims', () => {
+    expect(new OAuth2Tokens({ scope: 'openid moderator:read:chatters' }).scopes())
+      .toEqual(['openid', 'moderator:read:chatters']);
+  });
+  it('does not assume a response granted permissions when scope is absent', () => {
+    expect(new OAuth2Tokens({}).scopes()).toEqual([]);
   });
 });

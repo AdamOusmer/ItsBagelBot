@@ -4,7 +4,7 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { ResponseBodyError } from '@bagel/kit/server/oauth';
-import { botTwitch, botClientId } from '$lib/server/oauth';
+import { botTwitch, botClientId, botScopes } from '$lib/server/oauth';
 import { tokenSet } from '$lib/server/services';
 import { requireRole } from '$lib/server/access';
 import { env } from '$env/dynamic/private';
@@ -52,6 +52,10 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
   try {
     const tokens = await botTwitch(url.origin).validateAuthorizationCode(code);
     assertBotIdentity({ claims: tokens.claims(), configuredId: botId });
+    const granted = new Set(tokens.scopes());
+    if (botScopes().some((scope) => !granted.has(scope))) {
+      throw redirect(302, '/auth/bot/done?e=scope');
+    }
 
     await tokenSet({ actorId: owner.id, userId: botId }, tokens.accessToken(), tokens.refreshToken());
   } catch (e) {

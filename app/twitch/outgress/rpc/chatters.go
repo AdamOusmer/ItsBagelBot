@@ -210,6 +210,10 @@ func (c *chatters) failedReply(req manage.ChattersRequest, reply manage.Chatters
 	code, retryAt := chattersFailure(err, c.now())
 	reply.ErrorCode = code
 	reply.Error = "attendance request failed"
+	var authorization *twitch.ChatterAuthorizationError
+	if errors.As(err, &authorization) {
+		reply.Error = authorization.Error()
+	}
 	reply.MissingScope = code == "authorization"
 	if !retryAt.IsZero() {
 		reply.RetryAtUnixMilli = retryAt.UnixMilli()
@@ -433,6 +437,10 @@ func (c *chatters) payShared(ctx context.Context, endpoint string) error {
 
 func (c *chatters) providerError(ctx context.Context, identity string, err error) error {
 	code, retryAt := c.providerFailure(ctx, identity, err)
+	var authorization *twitch.ChatterAuthorizationError
+	if code == "authorization" && errors.As(err, &authorization) {
+		return authorization
+	}
 	return &twitch.AdmissionError{Code: code, RetryAt: retryAt}
 }
 
