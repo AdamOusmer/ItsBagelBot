@@ -37,7 +37,7 @@ mock.module('$lib/server/oauth', () => ({
   botScopes: () => ['openid', 'moderator:read:chatters'],
   botTwitch
 }));
-mock.module('$lib/server/services', () => ({ botTokenSet }));
+mock.module('$lib/server/bot-token', () => ({ botTokenSet }));
 mock.module('@sveltejs/kit', () => ({
   redirect: (status: number, location: string) => new TestRedirect(status, location)
 }));

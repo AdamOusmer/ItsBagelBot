@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
 import { botTwitch, botClientId, botScopes } from '$lib/server/oauth';
-import { botTokenSet } from '$lib/server/services';
+import { botTokenSet } from '$lib/server/bot-token';
 import { env } from '$env/dynamic/private';
 
 type BotIdentity = {
@@ -26,7 +26,10 @@ function assertBotIdentity(identity: BotIdentity): void {
   const intendedAudience = Array.isArray(claims.aud)
     ? claims.aud.includes(clientId)
     : claims.aud === clientId;
-  if (!intendedAudience || claims.iss !== 'https://id.twitch.tv/oauth2' || claims.nonce !== identity.nonce) {
+  if (claims.nonce !== identity.nonce) {
+    throw redirect(302, '/auth/bot/done?e=state');
+  }
+  if (!intendedAudience || claims.iss !== 'https://id.twitch.tv/oauth2') {
     throw redirect(302, '/auth/bot/done?e=state');
   }
   if (claims.sub !== identity.configuredId) {
@@ -42,7 +45,10 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   cookies.delete('bot_oauth_state', { path: '/' });
   cookies.delete('bot_oauth_nonce', { path: '/' });
 
-  if (!code || !state || !stored || !nonce || state !== stored) {
+  if (!code || !nonce) {
+    throw redirect(302, '/auth/bot/done?e=state');
+  }
+  if (!state || state !== stored) {
     throw redirect(302, '/auth/bot/done?e=state');
   }
 

@@ -12,7 +12,10 @@ import (
 // The trusted admin console exchanges the OAuth code and verifies the bot identity.
 // This separate RPC permits only that configured account to replace its own token.
 func (a *adminRPC) botTokenSet(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
-	if a.botUserID == "" || req.UserID != a.botUserID || req.ActorID != a.botUserID {
+	if a.botUserID == "" {
+		return adminError(domainrpc.Refused(domainrpc.CodeForbidden, "configured bot identity required"))
+	}
+	if req.UserID != a.botUserID || req.ActorID != a.botUserID {
 		return adminError(domainrpc.Refused(domainrpc.CodeForbidden, "configured bot identity required"))
 	}
 	if req.AccessToken == "" || req.RefreshToken == "" {

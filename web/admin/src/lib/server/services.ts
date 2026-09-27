@@ -383,19 +383,6 @@ export const tokenSet = defineWrite({
   after: (token, ref) => setCached(`token:${ref.userId}`, token, POLICY.adminRead)
 });
 
-// Called after the bot OAuth callback verifies the configured Twitch identity and scopes.
-export const botTokenSet = defineWrite({
-  subject: `${SUB.user}.bot_token_set`,
-  request: (userId: string, accessToken: string, refreshToken: string) => ({
-    actor_id: userId,
-    user_id: userId,
-    access_token: accessToken,
-    refresh_token: refreshToken
-  }),
-  map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
-  after: (token, userId) => setCached(`token:${userId}`, token, POLICY.adminRead)
-});
-
 export const tokenClear = defineWrite({
   subject: `${SUB.user}.token_clear`,
   request: (ref: UserRef) => ({ actor_id: ref.actorId, user_id: ref.userId }),
