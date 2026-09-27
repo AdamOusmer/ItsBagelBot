@@ -5,11 +5,8 @@ package repository
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,7 +15,6 @@ import (
 	"ItsBagelBot/pkg/valkey"
 	"github.com/google/uuid"
 	valkey_go "github.com/valkey-io/valkey-go"
-	"go.uber.org/zap"
 )
 
 const (
@@ -39,20 +35,6 @@ var (
 	ErrCounterPending         = errors.New("counter batch is already being processed")
 	ErrCounterProcessorClosed = errors.New("counter processor is closed")
 )
-
-// A claim and its expiry are atomic. A pending delivery is retryable, never
-// acknowledged as completed. Owners prevent late cleanup from deleting a
-// replacement claim after a timeout.
-const counterClaimScript = `local value = redis.call('GET', KEYS[1])
-if value == 'done' then return 2 end
-if value then return 0 end
-redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
-return 1`
-const counterCompleteScript = `if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
-redis.call('SET', KEYS[1], 'done', 'PX', ARGV[2])
-return 1`
-const counterReleaseScript = `if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
-return redis.call('DEL', KEYS[1])`
 
 type counterRequest struct {
 	ctx    context.Context
@@ -94,43 +76,59 @@ func (p *CounterProcessor) Process(ctx context.Context, dto data.CounterBumpedDT
 	if err := validateCounterBatch(dto); err != nil {
 		return err
 	}
-	if err := ctx.Err(); err != nil {
+	request, err := p.enqueueCounter(ctx, dto)
+	if err != nil {
 		return err
 	}
-	p.mu.Lock()
-	if p.closed {
-		p.mu.Unlock()
-		return ErrCounterProcessorClosed
-	}
-	p.admissions.Add(1)
-	p.mu.Unlock()
-	// Reserve bounded payload space before copying. Callers can safely return
-	// on cancellation while the independently bounded worker finishes a write.
-	select {
-	case p.slots <- struct{}{}:
-	case <-ctx.Done():
-		p.admissions.Done()
-		return ctx.Err()
-	}
-	dto.Bumps = append([]data.CounterBumpEntry(nil), dto.Bumps...)
-	for i := range dto.Bumps {
-		dto.Bumps[i].Scope, _ = ValidScope(dto.Bumps[i].Scope)
-	}
-	request := &counterRequest{ctx: ctx, dto: dto, result: make(chan error, 1)}
-	select {
-	case p.queue <- request:
-	case <-ctx.Done():
-		<-p.slots
-		p.admissions.Done()
-		return ctx.Err()
-	}
-	p.admissions.Done()
 	select {
 	case err := <-request.result:
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (p *CounterProcessor) beginCounterAdmission(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return ErrCounterProcessorClosed
+	}
+	p.admissions.Add(1)
+	return nil
+}
+
+func (p *CounterProcessor) enqueueCounter(ctx context.Context, dto data.CounterBumpedDTO) (*counterRequest, error) {
+	if err := p.beginCounterAdmission(ctx); err != nil {
+		return nil, err
+	}
+	defer p.admissions.Done()
+	// Reserve bounded payload space before copying. The worker retains an
+	// immutable payload if its caller leaves while persistence is in flight.
+	select {
+	case p.slots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	request := newCounterRequest(ctx, dto)
+	select {
+	case p.queue <- request:
+		return request, nil
+	case <-ctx.Done():
+		<-p.slots
+		return nil, ctx.Err()
+	}
+}
+
+func newCounterRequest(ctx context.Context, dto data.CounterBumpedDTO) *counterRequest {
+	dto.Bumps = append([]data.CounterBumpEntry(nil), dto.Bumps...)
+	for i := range dto.Bumps {
+		dto.Bumps[i].Scope, _ = ValidScope(dto.Bumps[i].Scope)
+	}
+	return &counterRequest{ctx: ctx, dto: dto, result: make(chan error, 1)}
 }
 
 // Close rejects new calls and waits for all admitted batches. A caller's
@@ -153,73 +151,83 @@ func (p *CounterProcessor) Close(ctx context.Context) error {
 
 func (p *CounterProcessor) run() {
 	defer close(p.done)
-	stopping := false
-	var carry *counterRequest
+	collector := counterQueueCollector{processor: p}
 	for {
-		var first *counterRequest
-		if carry != nil {
-			first, carry = carry, nil
-		} else if stopping {
-			select {
-			case first = <-p.queue:
-			default:
-				return
-			}
-		} else {
-			select {
-			case first = <-p.queue:
-			case <-p.stop:
-				stopping = true
-				continue
-			}
+		first, ok := collector.next()
+		if !ok {
+			return
 		}
-		batch := []*counterRequest{first}
-		bumps := len(first.dto.Bumps)
-		timer := time.NewTimer(counterBatchWindow)
-	collect:
-		for len(batch) < counterBatchMessages && bumps < counterBatchBumps {
-			select {
-			case request := <-p.queue:
-				if bumps+len(request.dto.Bumps) > counterBatchBumps {
-					carry = request
-					break collect
-				}
-				batch = append(batch, request)
-				bumps += len(request.dto.Bumps)
-			case <-timer.C:
-				break collect
-			case <-p.stop:
-				stopping = true
-				break collect
-			}
-		}
-		timer.Stop()
-		p.processBatch(batch)
+		p.processBatch(collector.collect(first))
 	}
 }
 
+type counterQueueCollector struct {
+	processor *CounterProcessor
+	carry     *counterRequest
+	stopping  bool
+}
+
+func (c *counterQueueCollector) next() (*counterRequest, bool) {
+	if c.carry != nil {
+		request := c.carry
+		c.carry = nil
+		return request, true
+	}
+	if c.stopping {
+		return c.drainNext()
+	}
+	select {
+	case request := <-c.processor.queue:
+		return request, true
+	case <-c.processor.stop:
+		c.stopping = true
+		return c.drainNext()
+	}
+}
+
+func (c *counterQueueCollector) drainNext() (*counterRequest, bool) {
+	select {
+	case request := <-c.processor.queue:
+		return request, true
+	default:
+		return nil, false
+	}
+}
+
+func (c *counterQueueCollector) collect(first *counterRequest) []*counterRequest {
+	batch := []*counterRequest{first}
+	bumps := len(first.dto.Bumps)
+	timer := time.NewTimer(counterBatchWindow)
+	defer timer.Stop()
+	for len(batch) < counterBatchMessages && bumps < counterBatchBumps {
+		select {
+		case request := <-c.processor.queue:
+			if bumps+len(request.dto.Bumps) > counterBatchBumps {
+				c.carry = request
+				return batch
+			}
+			batch = append(batch, request)
+			bumps += len(request.dto.Bumps)
+		case <-timer.C:
+			return batch
+		case <-c.processor.stop:
+			c.stopping = true
+			return batch
+		}
+	}
+	return batch
+}
+
 func validateCounterBatch(dto data.CounterBumpedDTO) error {
-	if len(dto.BatchID) > 256 || len(dto.Bumps) == 0 || len(dto.Bumps) > counterMaxBumps {
-		return fmt.Errorf("%w: counter batch size or id", ErrInvalidInput)
+	if err := validateCounterBatchSize(dto); err != nil {
+		return err
 	}
 	sums := make(map[bumpKey]int64, len(dto.Bumps))
 	for _, bump := range dto.Bumps {
-		name := normalizeName(bump.Name)
-		if !usableCounterName(name) {
-			return fmt.Errorf("%w: counter name", ErrInvalidInput)
-		}
-		scope, err := ValidScope(bump.Scope)
+		key, err := validatedCounterTarget(dto.UserID, bump)
 		if err != nil {
 			return err
 		}
-		bump.Scope = scope
-		if (dto.UserID == 0) != (scope == data.CounterScopeBot) || (viewerScoped(scope) && bump.ViewerID == 0) {
-			return fmt.Errorf("%w: counter namespace or viewer", ErrInvalidInput)
-		}
-		if data.SystemCounter(name) && bump.Delta < 0 {
-			return fmt.Errorf("%w: negative system counter delta", ErrInvalidInput)
-		}
-		key, _ := scopeKey(dto.UserID, name, bump)
 		delta, err := addCounterDelta(sums[key], bump.Delta)
 		if err != nil {
 			return err
@@ -229,42 +237,87 @@ func validateCounterBatch(dto data.CounterBumpedDTO) error {
 	return nil
 }
 
+func validateCounterBatchSize(dto data.CounterBumpedDTO) error {
+	if len(dto.BatchID) > 256 {
+		return fmt.Errorf("%w: counter batch size or id", ErrInvalidInput)
+	}
+	if len(dto.Bumps) == 0 {
+		return fmt.Errorf("%w: counter batch size or id", ErrInvalidInput)
+	}
+	if len(dto.Bumps) > counterMaxBumps {
+		return fmt.Errorf("%w: counter batch size or id", ErrInvalidInput)
+	}
+	return nil
+}
+
+func validatedCounterTarget(userID uint64, bump data.CounterBumpEntry) (bumpKey, error) {
+	name := normalizeName(bump.Name)
+	if !usableCounterName(name) {
+		return bumpKey{}, fmt.Errorf("%w: counter name", ErrInvalidInput)
+	}
+	scope, err := ValidScope(bump.Scope)
+	if err != nil {
+		return bumpKey{}, err
+	}
+	bump.Scope = scope
+	if err := validateCounterNamespace(userID, bump); err != nil {
+		return bumpKey{}, err
+	}
+	if data.SystemCounter(name) && bump.Delta < 0 {
+		return bumpKey{}, fmt.Errorf("%w: negative system counter delta", ErrInvalidInput)
+	}
+	key, _ := scopeKey(userID, name, bump)
+	return key, nil
+}
+
+func validateCounterNamespace(userID uint64, bump data.CounterBumpEntry) error {
+	if (userID == 0) != (bump.Scope == data.CounterScopeBot) {
+		return fmt.Errorf("%w: counter namespace or viewer", ErrInvalidInput)
+	}
+	if viewerScoped(bump.Scope) && bump.ViewerID == 0 {
+		return fmt.Errorf("%w: counter namespace or viewer", ErrInvalidInput)
+	}
+	return nil
+}
+
 func addCounterDelta(current, delta int64) (int64, error) {
-	max := data.MaxCounter
-	if delta > max || delta < -max || (delta > 0 && current > max-delta) || (delta < 0 && current < -max-delta) {
+	if err := validateBatchDelta(current, delta); err != nil {
 		return 0, fmt.Errorf("%w: counter delta exceeds signed range", ErrInvalidInput)
 	}
 	return current + delta, nil
 }
 
-func counterReceiptKey(dto data.CounterBumpedDTO) string {
-	if dto.BatchID == "" {
-		return ""
-	}
-	hash := sha256.Sum256([]byte(dto.BatchID))
-	return "loyalty:counter:receipt:" + strconv.FormatUint(dto.UserID, 10) + ":" + hex.EncodeToString(hash[:])
-}
-
-type counterDelivery struct {
-	request     *counterRequest
-	key         string
-	aliases     []*counterRequest
-	err         error
-	claimed     bool
-	cacheFailed bool
-}
-
 func (p *CounterProcessor) processBatch(batch []*counterRequest) {
+	deliveries := p.gatherCounterDeliveries(batch)
+	if len(deliveries) == 0 {
+		return
+	}
+	// An individual caller's cancellation must not poison its neighbours.
+	ctx, cancel := context.WithTimeout(context.Background(), counterSQLTimeout)
+	defer cancel()
+	if err := p.repo.lockCounterPersistence(ctx); err != nil {
+		setCounterDeliveryErrors(deliveries, err)
+		p.finish(deliveries)
+		return
+	}
+	defer p.repo.persistMu.Unlock()
+	owner := "pending:" + uuid.NewString()
+	tracked := p.claimCounterDeliveries(ctx, deliveries, owner)
+	p.persistDeliveries(ctx, activeCounterDeliveries(deliveries))
+	p.finalizeCounterClaims(tracked, owner)
+	p.finish(deliveries)
+}
+
+func (p *CounterProcessor) gatherCounterDeliveries(batch []*counterRequest) []*counterDelivery {
 	deliveries := make([]*counterDelivery, 0, len(batch))
 	seen := make(map[string]*counterDelivery, len(batch))
 	for _, request := range batch {
 		if err := request.ctx.Err(); err != nil {
-			request.result <- err
-			<-p.slots
+			p.finishCounterRequest(request, err)
 			continue
 		}
 		key := counterReceiptKey(request.dto)
-		if previous := seen[key]; key != "" && previous != nil {
+		if previous := seen[key]; previous != nil {
 			previous.aliases = append(previous.aliases, request)
 			continue
 		}
@@ -274,98 +327,13 @@ func (p *CounterProcessor) processBatch(batch []*counterRequest) {
 		}
 		deliveries = append(deliveries, delivery)
 	}
-	if len(deliveries) == 0 {
-		return
-	}
-	// Do not let one canceled caller poison its healthy coalesced neighbours.
-	// Individual callers may leave early; admitted SQL is independently bounded.
-	ctx, cancel := context.WithTimeout(context.Background(), counterSQLTimeout)
-	defer cancel()
-	if err := p.repo.lockCounterPersistence(ctx); err != nil {
-		for _, d := range deliveries {
-			d.err = err
-		}
-		p.finish(deliveries)
-		return
-	}
-	defer p.repo.persistMu.Unlock()
-	owner := "pending:" + uuid.NewString()
-	claims := make([]valkey_go.Completed, 0, len(deliveries))
-	tracked := make([]*counterDelivery, 0, len(deliveries))
+	return deliveries
+}
+
+func setCounterDeliveryErrors(deliveries []*counterDelivery, err error) {
 	for _, delivery := range deliveries {
-		if delivery.key == "" {
-			continue
-		}
-		claims = append(claims, p.client.B().Eval().Script(counterClaimScript).Numkeys(1).Key(delivery.key).Arg(owner, strconv.FormatInt(counterPendingTTL.Milliseconds(), 10)).Build())
-		tracked = append(tracked, delivery)
+		delivery.err = err
 	}
-	if len(claims) > 0 {
-		claimCtx, claimCancel := context.WithTimeout(ctx, counterCacheTimeout)
-		results := p.client.DoMulti(claimCtx, claims...)
-		claimCancel()
-		for i, delivery := range tracked {
-			if i >= len(results) {
-				delivery.cacheFailed = true
-				p.warnCounterCache(errors.New("counter claim response missing"))
-				continue
-			}
-			status, err := results[i].ToInt64()
-			switch {
-			case err != nil:
-				delivery.cacheFailed = true
-				p.warnCounterCache(fmt.Errorf("counter claim: %w", err))
-			case status == 1:
-				delivery.claimed = true
-			case status == 2: // Already completed: exclude it from SQL.
-			case status == 0:
-				delivery.err = ErrCounterPending
-			default:
-				delivery.err = fmt.Errorf("unexpected counter claim status %d", status)
-			}
-		}
-	}
-	active := make([]*counterDelivery, 0, len(deliveries))
-	for _, delivery := range deliveries {
-		if delivery.err == nil && (delivery.key == "" || delivery.claimed || delivery.cacheFailed) {
-			active = append(active, delivery)
-		}
-	}
-	p.persistDeliveries(ctx, active)
-	// Completion/release has its own short bound even when SQL exhausted its
-	// deadline. Owner checks make cleanup safe if another claimant took over.
-	cacheCtx, cacheCancel := context.WithTimeout(context.Background(), counterCacheTimeout)
-	defer cacheCancel()
-	commands := make([]valkey_go.Completed, 0, len(tracked))
-	finalized := make([]*counterDelivery, 0, len(tracked))
-	for _, delivery := range tracked {
-		if (delivery.claimed || delivery.cacheFailed) && delivery.err == nil {
-			commands = append(commands, p.client.B().Eval().Script(counterCompleteScript).Numkeys(1).Key(delivery.key).Arg(owner, strconv.FormatInt(counterCompletedTTL.Milliseconds(), 10)).Build())
-			finalized = append(finalized, delivery)
-		} else if delivery.err != nil && !errors.Is(delivery.err, ErrCounterPending) {
-			// Include unknown claims: a response can fail after SET reached Valkey.
-			commands = append(commands, p.client.B().Eval().Script(counterReleaseScript).Numkeys(1).Key(delivery.key).Arg(owner).Build())
-			finalized = append(finalized, delivery)
-		}
-	}
-	if len(commands) > 0 {
-		results := p.client.DoMulti(cacheCtx, commands...)
-		for i, delivery := range finalized {
-			if delivery.err != nil {
-				continue
-			} // Preserve genuine SQL/claim failures.
-			if i >= len(results) {
-				p.warnCounterCache(errors.New("counter completion response missing"))
-				continue
-			}
-			status, err := results[i].ToInt64()
-			if err != nil {
-				p.warnCounterCache(fmt.Errorf("counter completion: %w", err))
-			} else if status != 1 {
-				p.warnCounterCache(errors.New("counter completion lease lost"))
-			}
-		}
-	}
-	p.finish(deliveries)
 }
 
 // Only proven permanent range failures are isolated. Each unsuccessful SQL
@@ -386,20 +354,21 @@ func (p *CounterProcessor) persistDeliveries(ctx context.Context, deliveries []*
 		p.persistDeliveries(ctx, deliveries[middle:])
 		return
 	}
-	for _, delivery := range deliveries {
-		delivery.err = err
-	}
+	setCounterDeliveryErrors(deliveries, err)
 }
 
 func (p *CounterProcessor) finish(deliveries []*counterDelivery) {
 	for _, delivery := range deliveries {
-		delivery.request.result <- delivery.err
-		<-p.slots
+		p.finishCounterRequest(delivery.request, delivery.err)
 		for _, alias := range delivery.aliases {
-			alias.result <- delivery.err
-			<-p.slots
+			p.finishCounterRequest(alias, delivery.err)
 		}
 	}
+}
+
+func (p *CounterProcessor) finishCounterRequest(request *counterRequest, err error) {
+	request.result <- err
+	<-p.slots
 }
 
 func (r *Loyalty) lockCounterPersistence(ctx context.Context) error {
@@ -417,20 +386,5 @@ func (r *Loyalty) lockCounterPersistence(ctx context.Context) error {
 				return nil
 			}
 		}
-	}
-}
-
-// Dedup is best effort for these loss-tolerant counters. A Valkey outage must
-// not discard a counter window whose SQL write can succeed; warnings are
-// throttled so an outage cannot flood logs. Explicit live-owner collisions
-// remain retryable because another delivery has not yet proved persistence.
-func (p *CounterProcessor) warnCounterCache(err error) {
-	now := time.Now().Unix()
-	previous := p.cacheWarning.Load()
-	if now-previous < 60 || !p.cacheWarning.CompareAndSwap(previous, now) {
-		return
-	}
-	if p.repo.log != nil {
-		p.repo.log.Warn("loyalty: counter dedup unavailable; recount is possible", zap.Error(err))
 	}
 }

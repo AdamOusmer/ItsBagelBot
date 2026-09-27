@@ -113,35 +113,61 @@ func (f *counterFakeValkey) session(c net.Conn) {
 	defer c.Close()
 	r := bufio.NewReader(c)
 	for {
-		line, err := r.ReadString('\n')
+		args, err := readCounterRESPCommand(r)
 		if err != nil {
 			return
-		}
-		n, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "*")))
-		if err != nil {
-			return
-		}
-		args := make([]string, n)
-		for i := range args {
-			line, err = r.ReadString('\n')
-			if err != nil {
-				return
-			}
-			size, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "$")))
-			if err != nil {
-				return
-			}
-			body := make([]byte, size+2)
-			if _, err = io.ReadFull(r, body); err != nil {
-				return
-			}
-			args[i] = string(body[:size])
 		}
 		if _, err = c.Write(f.execute(args)); err != nil {
 			return
 		}
 	}
 }
+
+func readCounterRESPCommand(r *bufio.Reader) ([]string, error) {
+	n, err := readCounterRESPLength(r, "*")
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, fmt.Errorf("empty RESP command")
+	}
+	args := make([]string, n)
+	for i := range args {
+		args[i], err = readCounterRESPBulkString(r)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return args, nil
+}
+
+func readCounterRESPBulkString(r *bufio.Reader) (string, error) {
+	size, err := readCounterRESPLength(r, "$")
+	if err != nil {
+		return "", err
+	}
+	body := make([]byte, size+2)
+	if _, err := io.ReadFull(r, body); err != nil {
+		return "", err
+	}
+	return string(body[:size]), nil
+}
+
+func readCounterRESPLength(r *bufio.Reader, prefix string) (int, error) {
+	line, err := r.ReadString('\n')
+	if err != nil {
+		return 0, err
+	}
+	size, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, prefix)))
+	if err != nil {
+		return 0, err
+	}
+	if size < 0 {
+		return 0, fmt.Errorf("negative RESP length: %d", size)
+	}
+	return size, nil
+}
+
 func (f *counterFakeValkey) execute(args []string) []byte {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -151,48 +177,76 @@ func (f *counterFakeValkey) execute(args []string) []byte {
 	case "CLIENT", "AUTH", "SELECT", "COMMAND", "PING":
 		return []byte("+OK\r\n")
 	case "EVAL":
-		script, key, owner := args[1], args[3], args[4]
-		if expiry, ok := f.expires[key]; ok && !expiry.After(f.now) {
-			delete(f.values, key)
-			delete(f.expires, key)
-		}
-		value := f.values[key]
-		switch script {
-		case counterClaimScript:
-			if f.failClaim {
-				return []byte("-ERR unavailable\r\n")
-			}
-			if value == "done" {
-				return []byte(":2\r\n")
-			}
-			if value != "" {
-				return []byte(":0\r\n")
-			}
-			f.values[key] = owner
-			ttl, _ := strconv.ParseInt(args[5], 10, 64)
-			f.expires[key] = f.now.Add(time.Duration(ttl) * time.Millisecond)
-			return []byte(":1\r\n")
-		case counterCompleteScript:
-			if f.failComplete {
-				return []byte("-ERR unavailable\r\n")
-			}
-			if value != owner {
-				return []byte(":0\r\n")
-			}
-			f.values[key] = "done"
-			ttl, _ := strconv.ParseInt(args[5], 10, 64)
-			f.expires[key] = f.now.Add(time.Duration(ttl) * time.Millisecond)
-			return []byte(":1\r\n")
-		case counterReleaseScript:
-			if value != owner {
-				return []byte(":0\r\n")
-			}
-			delete(f.values, key)
-			delete(f.expires, key)
-			return []byte(":1\r\n")
-		}
+		return f.executeScript(args)
+	default:
+		return []byte("-ERR unsupported command\r\n")
 	}
-	return []byte("-ERR unsupported command\r\n")
+}
+
+// Script handlers and receipt helpers run while execute holds f.mu.
+func (f *counterFakeValkey) executeScript(args []string) []byte {
+	script, key, owner := args[1], args[3], args[4]
+	f.expireReceipt(key)
+	switch script {
+	case counterClaimScript:
+		return f.claimReceipt(key, owner, args[5])
+	case counterCompleteScript:
+		return f.completeReceipt(key, owner, args[5])
+	case counterReleaseScript:
+		return f.releaseReceipt(key, owner)
+	default:
+		return []byte("-ERR unsupported command\r\n")
+	}
+}
+
+func (f *counterFakeValkey) claimReceipt(key, owner, ttl string) []byte {
+	if f.failClaim {
+		return []byte("-ERR unavailable\r\n")
+	}
+	if f.values[key] == "done" {
+		return []byte(":2\r\n")
+	}
+	if f.values[key] != "" {
+		return []byte(":0\r\n")
+	}
+	f.storeReceipt(key, owner, ttl)
+	return []byte(":1\r\n")
+}
+
+func (f *counterFakeValkey) completeReceipt(key, owner, ttl string) []byte {
+	if f.failComplete {
+		return []byte("-ERR unavailable\r\n")
+	}
+	if f.values[key] != owner {
+		return []byte(":0\r\n")
+	}
+	f.storeReceipt(key, "done", ttl)
+	return []byte(":1\r\n")
+}
+
+func (f *counterFakeValkey) releaseReceipt(key, owner string) []byte {
+	if f.values[key] != owner {
+		return []byte(":0\r\n")
+	}
+	f.deleteReceipt(key)
+	return []byte(":1\r\n")
+}
+
+func (f *counterFakeValkey) storeReceipt(key, value, ttl string) {
+	f.values[key] = value
+	milliseconds, _ := strconv.ParseInt(ttl, 10, 64)
+	f.expires[key] = f.now.Add(time.Duration(milliseconds) * time.Millisecond)
+}
+
+func (f *counterFakeValkey) expireReceipt(key string) {
+	if expiry, ok := f.expires[key]; ok && !expiry.After(f.now) {
+		f.deleteReceipt(key)
+	}
+}
+
+func (f *counterFakeValkey) deleteReceipt(key string) {
+	delete(f.values, key)
+	delete(f.expires, key)
 }
 
 func TestCounterProcessorBatchesSQLAndValkey(t *testing.T) {

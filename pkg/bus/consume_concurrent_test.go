@@ -6,6 +6,7 @@ package bus
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,63 +26,103 @@ func (s *concurrentTestSubscriber) Subscribe(context.Context, string) (<-chan *M
 }
 func (s *concurrentTestSubscriber) Close() error { close(s.messages); return nil }
 
-func TestConsumeConcurrentBoundsHandlersAndAcknowledgesAfterResult(t *testing.T) {
-	s := &concurrentTestSubscriber{messages: make(chan *Message, 5)}
-	started := make(chan *Message, 5)
-	release := make(chan struct{})
-	consumer, err := ConsumeConcurrent(t.Context(), nil, s, "test.concurrent.counter", 3, func(msg *Message) error {
-		started <- msg
-		<-release
-		if msg.UUID == "failed" {
-			return errors.New("SQL rolled back")
-		}
-		return nil
-	}, zap.NewNop())
-	require.NoError(t, err)
-	messages := []*Message{NewMessage("one", nil), NewMessage("failed", nil), NewMessage("three", nil), NewMessage("four", nil), NewMessage("five", nil)}
-	for _, msg := range messages {
-		s.messages <- msg
+type concurrentTestHarness struct {
+	subscriber *concurrentTestSubscriber
+	started    chan *Message
+	release    chan struct{}
+	consumer   *ConcurrentConsumer
+	messages   []*Message
+	stop       sync.Once
+}
+
+func newConcurrentTestHarness(t *testing.T) *concurrentTestHarness {
+	t.Helper()
+	h := &concurrentTestHarness{
+		subscriber: &concurrentTestSubscriber{messages: make(chan *Message, 5)},
+		started:    make(chan *Message, 5),
+		release:    make(chan struct{}),
+		messages:   []*Message{NewMessage("one", nil), NewMessage("failed", nil), NewMessage("three", nil), NewMessage("four", nil), NewMessage("five", nil)},
 	}
+	consumer, err := ConsumeConcurrent(t.Context(), nil, h.subscriber, "test.concurrent.counter", 3, h.handle, zap.NewNop())
+	require.NoError(t, err)
+	h.consumer = consumer
+	t.Cleanup(h.finish)
+	for _, msg := range h.messages {
+		h.subscriber.messages <- msg
+	}
+	return h
+}
+
+func (h *concurrentTestHarness) handle(msg *Message) error {
+	h.started <- msg
+	<-h.release
+	if msg.UUID == "failed" {
+		return errors.New("SQL rolled back")
+	}
+	return nil
+}
+
+func (h *concurrentTestHarness) finish() {
+	h.stop.Do(func() { close(h.release); _ = h.subscriber.Close() })
+}
+
+func assertNoSignal(t *testing.T, signal <-chan struct{}, message string) {
+	t.Helper()
+	select {
+	case <-signal:
+		t.Fatal(message)
+	default:
+	}
+}
+
+func assertSignal(t *testing.T, signal <-chan struct{}, message string) {
+	t.Helper()
+	select {
+	case <-signal:
+	default:
+		t.Fatal(message)
+	}
+}
+
+func (h *concurrentTestHarness) assertBoundedHandlers(t *testing.T) {
+	t.Helper()
 	for range 3 {
 		select {
-		case msg := <-started:
-			select {
-			case <-msg.Acked():
-				t.Fatal("ACK before handler completion")
-			default:
-			}
+		case msg := <-h.started:
+			assertNoSignal(t, msg.Acked(), "ACK before handler completion")
 		case <-time.After(time.Second):
 			t.Fatal("handlers did not run concurrently")
 		}
 	}
 	select {
-	case <-started:
+	case <-h.started:
 		t.Fatal("exceeded fixed worker count")
 	default:
 	}
+}
+
+func (h *concurrentTestHarness) assertResults(t *testing.T) {
+	t.Helper()
+	for _, msg := range h.messages {
+		if msg.UUID == "failed" {
+			assertSignal(t, msg.Nacked(), "failed write was not NACKed")
+			continue
+		}
+		assertSignal(t, msg.Acked(), "successful write was not ACKed")
+	}
+}
+
+func TestConsumeConcurrentBoundsHandlersAndAcknowledgesAfterResult(t *testing.T) {
+	h := newConcurrentTestHarness(t)
+	h.assertBoundedHandlers(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	require.ErrorIs(t, consumer.Drain(ctx), context.Canceled)
-	close(release)
-	require.NoError(t, s.Close())
+	require.ErrorIs(t, h.consumer.Drain(ctx), context.Canceled)
+	h.finish()
 	ctx, cancel = context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	require.NoError(t, consumer.Drain(ctx))
-	for _, msg := range messages {
-		if msg.UUID == "failed" {
-			select {
-			case <-msg.Nacked():
-			default:
-				t.Fatal("failed write was not NACKed")
-			}
-		} else {
-			select {
-			case <-msg.Acked():
-			default:
-				t.Fatal("successful write was not ACKed")
-			}
-		}
-	}
+	require.NoError(t, h.consumer.Drain(ctx))
+	h.assertResults(t)
 }
 
 func TestConsumeConcurrentRejectsInvalidWorkersAndSubscriptionErrors(t *testing.T) {
