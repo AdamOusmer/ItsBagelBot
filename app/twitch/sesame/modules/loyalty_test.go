@@ -54,6 +54,7 @@ type fakeLoyalty struct {
 	adjusts     []adjustCall
 	spends      []spendCall
 	transfers   []transferCall
+	wagers      []engine.PointWager
 	spendBad    bool
 	transferBad bool
 	topViewers  []topViewer
@@ -580,4 +581,24 @@ func TestLoyaltyLifecycleForwardsVersionAndRejectsStaleOffline(t *testing.T) {
 			t.Fatal("lifecycle task did not finish")
 		}
 	}
+}
+
+func (f *fakeLoyalty) BalanceWager(_ context.Context, wager engine.PointWager) (engine.WagerOutcome, error) {
+	f.wagers = append(f.wagers, wager)
+	if wager.Login == "ghost" {
+		return engine.WagerOutcome{}, nil
+	}
+	bal := f.standing(wager.Login)
+	out := engine.WagerOutcome{Balance: bal, Found: true}
+	if f.spendBad || bal.Points < wager.Amount {
+		return out, nil
+	}
+	if wager.Won {
+		bal.Points += wager.Amount
+	} else {
+		bal.Points -= wager.Amount
+	}
+	f.balances[wager.Login] = bal.Points
+	out.Balance, out.Applied = bal, true
+	return out, nil
 }

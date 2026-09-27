@@ -106,17 +106,7 @@ func (r *Loyalty) BalanceAdjust(ctx context.Context, userID uint64, viewerLogin 
 	if err != nil || !found {
 		return nil, found, err
 	}
-	return row, true, db.WithExec(ctx, func(ctx context.Context) error {
-		upd := r.client.Balance.UpdateOneID(row.ID)
-		if absolute {
-			row.Points = value
-			upd.SetPoints(value)
-		} else {
-			row.Points += value
-			upd.AddPoints(value)
-		}
-		return upd.Exec(ctx)
-	})
+	return r.BalanceAdjustViewer(ctx, BalanceAdjustment{UserID: userID, ViewerID: row.ViewerID, ViewerLogin: login, Value: value, Absolute: absolute})
 }
 
 // The points >= amount guard must stay in the UPDATE's WHERE so concurrent spends cannot go negative.

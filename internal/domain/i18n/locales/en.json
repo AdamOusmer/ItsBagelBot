@@ -70,6 +70,7 @@
   "gamble.cool": "@{user} the dice need a breather. Try again in {secs}s.",
   "gamble.err": "@{user} that didn't work, please try again.",
   "gamble.lose": "@{user} rolled {roll} (needed {chance} or less) and lost {amount} {points}. Now at {balance}.",
+  "gamble.range": "@{user} that bet could exceed the points limit.",
   "gamble.max": "@{user} max bet is {max} {points}.",
   "gamble.min": "@{user} minimum bet is {min} {points}.",
   "gamble.usage": "Usage: !gamble <amount|half|all>",

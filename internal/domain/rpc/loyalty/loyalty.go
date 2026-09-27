@@ -15,6 +15,7 @@ type Request struct {
 	Scope          string `json:"scope,omitempty"`
 	Command        string `json:"command,omitempty"`
 	Value          int64  `json:"value,omitempty"`
+	Won            bool   `json:"won,omitempty"`
 	CounterValue   string `json:"counter_value,omitempty"`
 	Limit          int    `json:"limit,omitempty"`
 }
@@ -57,5 +58,6 @@ type Reply struct {
 	Board         []CounterRank  `json:"board,omitempty"`
 	Found         bool           `json:"found,omitempty"`
 	Spent         bool           `json:"spent,omitempty"`
+	LimitExceeded bool           `json:"limit_exceeded,omitempty"`
 	rpc.Refusal
 }

@@ -248,10 +248,10 @@ func (lc loyaltyCmd) pointsAdjust(ctx context.Context, target, amount string, ab
 	if !ok {
 		return nil
 	}
-	return lc.adjustPoints(ctx, viewerID, login, value, absolute)
+	return lc.adjustPoints(ctx, engine.BalanceAdjustment{BroadcasterID: lc.c.BroadcasterID, ViewerID: viewerID, ViewerLogin: login, Value: value, Absolute: absolute})
 }
 
-func (lc loyaltyCmd) adjustPoints(ctx context.Context, viewerID uint64, login string, value int64, absolute bool) error {
+func (lc loyaltyCmd) adjustPoints(ctx context.Context, adjustment engine.BalanceAdjustment) error {
 	var cfg engine.LoyaltyModuleConfig
 	_ = lc.c.Decode(&cfg)
 
@@ -259,7 +259,7 @@ func (lc loyaltyCmd) adjustPoints(ctx context.Context, viewerID uint64, login st
 	if duplicate {
 		return nil
 	}
-	bal, found, err := lc.d.Loyalty.BalanceAdjustViewer(ctx, engine.BalanceAdjustment{BroadcasterID: lc.c.BroadcasterID, ViewerID: viewerID, ViewerLogin: login, Value: value, Absolute: absolute})
+	bal, found, err := lc.d.Loyalty.BalanceAdjustViewer(ctx, adjustment)
 	if err != nil {
 		release()
 		lc.log.Warn("loyalty: balance adjust failed", lc.c.BID(), zap.Error(err))
@@ -272,7 +272,7 @@ func (lc loyaltyCmd) adjustPoints(ctx context.Context, viewerID uint64, login st
 		return nil
 	}
 	lc.reply("loyalty.points.adjusted",
-		"target", login,
+		"target", adjustment.ViewerLogin,
 		"points", strconv.FormatInt(bal.Points, 10),
 		"name", cfg.Name(),
 	)

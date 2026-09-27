@@ -414,3 +414,11 @@ func (s *ValkeyLoyaltyStore) CounterDelete(ctx context.Context, broadcasterID ui
 func (s *ValkeyLoyaltyStore) CounterList(ctx context.Context, broadcasterID uint64) ([]loyaltyrpc.Counter, error) {
 	return s.rpc.CounterList(ctx, broadcasterID)
 }
+
+func (s *ValkeyLoyaltyStore) BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error) {
+	out, err := s.rpc.BalanceWager(ctx, wager)
+	if err == nil && out.Found {
+		s.dropBalanceCache(ctx, wager.BroadcasterID, out.Balance.ViewerID)
+	}
+	return out, err
+}

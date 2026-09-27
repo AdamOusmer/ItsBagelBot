@@ -70,6 +70,7 @@
   "gamble.cool": "@{user} les dés ont besoin de souffler. Réessaie dans {secs}s.",
   "gamble.err": "@{user} ça n'a pas fonctionné, veuillez réessayer.",
   "gamble.lose": "@{user} a tiré {roll} (il fallait {chance} ou moins) et perd {amount} {points}. Il te reste {balance}.",
+  "gamble.range": "@{user} cette mise pourrait dépasser la limite de points.",
   "gamble.max": "@{user} la mise maximale est de {max} {points}.",
   "gamble.min": "@{user} la mise minimale est de {min} {points}.",
   "gamble.usage": "Utilisation : !gamble <montant|half|all>",

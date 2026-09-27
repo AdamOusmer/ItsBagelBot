@@ -26,8 +26,11 @@ type BalanceAdjustment struct {
 // simultaneous earnings cannot be overwritten by an earlier balance snapshot.
 func (r *Loyalty) BalanceAdjustViewer(ctx context.Context, target BalanceAdjustment) (*ent.Balance, bool, error) {
 	target.ViewerLogin = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(target.ViewerLogin), "@"))
-	if target.UserID == 0 || target.ViewerID == 0 || target.ViewerLogin == "" || len(target.ViewerLogin) > maxCounterName {
-		return nil, false, fmt.Errorf("%w: user_id/viewer_id/viewer_login", ErrInvalidInput)
+	if target.UserID == 0 || target.ViewerID == 0 {
+		return nil, false, fmt.Errorf("%w: user_id/viewer_id", ErrInvalidInput)
+	}
+	if target.ViewerLogin == "" || len(target.ViewerLogin) > maxCounterName {
+		return nil, false, fmt.Errorf("%w: viewer_login", ErrInvalidInput)
 	}
 	var row *ent.Balance
 	err := db.WithExec(ctx, func(ctx context.Context) error {

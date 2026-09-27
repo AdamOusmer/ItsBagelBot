@@ -167,7 +167,7 @@ func (r *Loyalty) foldEarn(key balKey, e data.LoyaltyEarnEntry) {
 		sum = &earnSum{}
 		r.earnPend[key] = sum
 	}
-	sum.points += e.Points
+	sum.points = sumEarnedPoints(sum.points, e.Points)
 	sum.watchSeconds += e.WatchSeconds
 	sum.login = displayUpdate(sum.login, e.ViewerLogin)
 	sum.name = displayUpdate(sum.name, e.ViewerName)
@@ -395,12 +395,7 @@ func (r *Loyalty) flushEarned(ctx context.Context, txn *newrelic.Transaction, ea
 		label:       "balances",
 		insert:      "INSERT INTO balances (user_id, viewer_id, viewer_login, viewer_name, points, watch_seconds, created_at, updated_at) VALUES ",
 		placeholder: "(?, ?, ?, ?, ?, ?, ?, ?)",
-		suffix: " ON DUPLICATE KEY UPDATE" +
-			" points = points + VALUES(points)," +
-			" watch_seconds = watch_seconds + VALUES(watch_seconds)," +
-			" viewer_login = IF(VALUES(viewer_login) = '', viewer_login, VALUES(viewer_login))," +
-			" viewer_name = IF(VALUES(viewer_name) = '', viewer_name, VALUES(viewer_name))," +
-			" updated_at = VALUES(updated_at)",
+		suffix:      r.earnedBalanceConflict(),
 	}, rows)
 }
 

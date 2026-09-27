@@ -3,10 +3,10 @@
 package repository_test
 
 import (
+	loyaltyrepo "ItsBagelBot/app/db/loyalty/repository"
 	"ItsBagelBot/internal/domain/event/data"
 	"context"
 	"github.com/stretchr/testify/require"
-	"math"
 	"testing"
 )
 
@@ -71,22 +71,27 @@ func TestWatchPostingDeletionAndRecreationFence(t *testing.T) {
 	require.EqualValues(t, 10, row.Points)
 }
 func TestWatchFailedPostingRemainsReplayable(t *testing.T) {
-	repo, client := newLoyaltyRepo(t)
+	repo, raw := sqliteRetentionRepo(t)
 	ctx := context.Background()
-	require.NoError(t, repo.EnsureWatchSchema(ctx))
 	a := watchAward(17, 77, 100)
-	// Overflow occurs after inbox/viewer insertion. Repair and retry proves
-	// both dedup markers roll back with the failed balance posting.
-	seedBalance(t, client, seedRow{UserID: 17, ViewerID: 77, Login: "viewer", Points: math.MaxInt64})
-	require.ErrorContains(t, repo.ApplyWatchAward(ctx, a), "overflow")
+	_, _, err := repo.BalanceAdjustViewer(ctx, loyaltyrepo.BalanceAdjustment{UserID: 17, ViewerID: 77, ViewerLogin: "viewer", Value: 100, Absolute: true})
+	require.NoError(t, err)
+	// A real posting error occurs after inbox/viewer insertion. Repair and
+	// retry proves both dedup markers roll back with the failed balance write.
+	_, err = raw.ExecContext(ctx, "CREATE TRIGGER fail_watch BEFORE UPDATE ON balances BEGIN SELECT RAISE(ABORT, 'posting failure'); END")
+	require.NoError(t, err)
+	require.ErrorContains(t, repo.ApplyWatchAward(ctx, a), "posting failure")
 	row, found, err := repo.BalanceGet(ctx, 17, 77)
 	require.NoError(t, err)
 	require.True(t, found)
-	require.NoError(t, client.Balance.UpdateOneID(row.ID).SetPoints(0).Exec(ctx))
+	require.EqualValues(t, 100, row.Points)
+	require.Zero(t, row.WatchSeconds)
+	_, err = raw.ExecContext(ctx, "DROP TRIGGER fail_watch")
+	require.NoError(t, err)
 	require.NoError(t, repo.ApplyWatchAward(ctx, a))
 	row, _, err = repo.BalanceGet(ctx, 17, 77)
 	require.NoError(t, err)
-	require.EqualValues(t, 10, row.Points)
+	require.EqualValues(t, 110, row.Points)
 	require.EqualValues(t, 300, row.WatchSeconds)
 }
 

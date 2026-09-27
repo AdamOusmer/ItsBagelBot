@@ -178,3 +178,15 @@ func (l *LoyaltyRPC) CounterList(ctx context.Context, broadcasterID uint64) ([]l
 	}
 	return reply.Counters, nil
 }
+
+func (l *LoyaltyRPC) BalanceWager(ctx context.Context, wager PointWager) (WagerOutcome, error) {
+	reply, err := l.call(ctx, "balance.wager", loyaltyrpc.Request{UserID: fmtID(wager.BroadcasterID), ViewerID: fmtID(wager.ViewerID), Value: wager.Amount, Won: wager.Won})
+	if err != nil {
+		return WagerOutcome{}, err
+	}
+	out := WagerOutcome{Found: reply.Found, Applied: reply.Spent, LimitExceeded: reply.LimitExceeded}
+	if reply.Balance != nil {
+		out.Balance = *reply.Balance
+	}
+	return out, nil
+}

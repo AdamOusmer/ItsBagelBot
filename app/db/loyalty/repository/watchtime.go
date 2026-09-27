@@ -307,34 +307,23 @@ func (r *Loyalty) recordWatchViewer(ctx context.Context, tx *sql.Tx, a data.Watc
 }
 
 func checkWatchBalance(ctx context.Context, tx *sql.Tx, user uint64, e data.LoyaltyEarnEntry) error {
-	var points int64
 	var seconds uint64
-	err := tx.QueryRowContext(ctx, "SELECT points,watch_seconds FROM balances WHERE user_id=? AND viewer_id=?", user, e.ViewerID).Scan(&points, &seconds)
+	err := tx.QueryRowContext(ctx, "SELECT watch_seconds FROM balances WHERE user_id=? AND viewer_id=?", user, e.ViewerID).Scan(&seconds)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
 		return err
 	}
-	if !watchBalanceFits(points, seconds, e) {
+	if seconds > math.MaxUint64-e.WatchSeconds {
 		return fmt.Errorf("%w: watch balance overflow", ErrInvalidInput)
 	}
 	return nil
 }
 
-func watchBalanceFits(points int64, seconds uint64, e data.LoyaltyEarnEntry) bool {
-	if points > math.MaxInt64-e.Points {
-		return false
-	}
-	return seconds <= math.MaxUint64-e.WatchSeconds
-}
-
 func (r *Loyalty) watchBalanceUpsert() string {
 	stmt := `INSERT INTO balances (user_id,viewer_id,viewer_login,viewer_name,points,watch_seconds,created_at,updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	if r.dialect == "sqlite3" {
-		return stmt + ` ON CONFLICT(user_id,viewer_id) DO UPDATE SET points=points+excluded.points, watch_seconds=watch_seconds+excluded.watch_seconds, viewer_login=CASE WHEN excluded.viewer_login='' THEN viewer_login ELSE excluded.viewer_login END, viewer_name=CASE WHEN excluded.viewer_name='' THEN viewer_name ELSE excluded.viewer_name END, updated_at=excluded.updated_at`
-	}
-	return stmt + ` ON DUPLICATE KEY UPDATE points=points+VALUES(points),watch_seconds=watch_seconds+VALUES(watch_seconds),viewer_login=IF(VALUES(viewer_login)='',viewer_login,VALUES(viewer_login)),viewer_name=IF(VALUES(viewer_name)='',viewer_name,VALUES(viewer_name)),updated_at=VALUES(updated_at)`
+	return stmt + r.earnedBalanceConflict()
 }
 
 func (r *Loyalty) retireLoyaltyAccount(ctx context.Context, tx *sql.Tx, id uint64, instance int64) (bool, error) {

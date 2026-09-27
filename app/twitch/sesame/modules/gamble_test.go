@@ -64,13 +64,13 @@ func TestGambleWinCreditsStake(t *testing.T) {
 	assert.Contains(t, out[0].Text, "won 300")
 	assert.Contains(t, out[0].Text, "1534", "the reply carries the post-wager standing")
 
-	require.Len(t, fake.spends, 1)
-	assert.Equal(t, int64(300), fake.spends[0].amount)
-	require.Len(t, fake.adjusts, 1)
-	assert.Equal(t, int64(600), fake.adjusts[0].value, "a win returns the stake plus its match")
+	require.Len(t, fake.wagers, 1)
+	assert.Equal(t, int64(300), fake.wagers[0].Amount)
+	assert.True(t, fake.wagers[0].Won)
+	assert.Empty(t, fake.adjusts, "the complete result is one atomic wager")
 }
 
-func TestGambleLossDebitsThroughSpend(t *testing.T) {
+func TestGambleLossAppliesAtomicWager(t *testing.T) {
 	pinRoll(t, 87)
 	fake := &fakeLoyalty{}
 	m := Gamble(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
@@ -80,8 +80,8 @@ func TestGambleLossDebitsThroughSpend(t *testing.T) {
 	assert.Contains(t, out[0].Text, "lost 300")
 	assert.Contains(t, out[0].Text, "934")
 
-	require.Len(t, fake.spends, 1)
-	assert.Equal(t, int64(300), fake.spends[0].amount)
+	require.Len(t, fake.wagers, 1)
+	assert.Equal(t, int64(300), fake.wagers[0].Amount)
 	assert.Empty(t, fake.adjusts, "a loss never rides the open-ended adjust")
 }
 
@@ -102,7 +102,7 @@ func TestGambleRefusedWagersNeverClaimCooldown(t *testing.T) {
 	assert.Contains(t, out[0].Text, "max bet is 500")
 
 	assert.Empty(t, cd.keys, "no refusal may burn the chatter's cooldown")
-	assert.Empty(t, fake.spends)
+	assert.Empty(t, fake.wagers)
 	assert.Empty(t, fake.adjusts)
 }
 
@@ -114,12 +114,13 @@ func TestGambleDerivedAndOverBalance(t *testing.T) {
 	out := runGames(t, m, gamesCtx("bob", ""), "all")
 	require.Len(t, out, 1)
 	assert.Contains(t, out[0].Text, "won 1000")
-	require.Len(t, fake.adjusts, 1)
-	assert.Equal(t, int64(2000), fake.adjusts[0].value, "the credit is stake plus match")
+	require.Len(t, fake.wagers, 1)
+	assert.Equal(t, int64(1000), fake.wagers[0].Amount)
+	assert.True(t, fake.wagers[0].Won)
 
 	out = runGames(t, m, gamesCtx("bob", `{"maxBet":5000}`), "2000")
 	assert.Contains(t, out[0].Text, "can't cover that")
-	assert.Len(t, fake.adjusts, 1, "refusal moved nothing")
+	assert.Len(t, fake.wagers, 1, "refusal moved nothing")
 }
 
 func TestGamblePerUserCooldown(t *testing.T) {
@@ -190,7 +191,7 @@ func TestGambleInertWhenLoyaltyOff(t *testing.T) {
 
 	out := runGames(t, m, gamesCtx("alice", ""), "300")
 	assert.Empty(t, out, "an enabled gamble row still stays silent while loyalty is off")
-	assert.Empty(t, fake.spends)
+	assert.Empty(t, fake.wagers)
 }
 
 type loyaltyProj struct {

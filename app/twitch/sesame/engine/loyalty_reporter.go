@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -107,7 +108,7 @@ func (r *LoyaltyReporter) Earn(broadcasterID, viewerID uint64, login, name strin
 		agg = &earnAgg{}
 		r.earn[key] = agg
 	}
-	agg.points += points
+	agg.points = cappedEarnedPoints(agg.points, points)
 	agg.watchSeconds += watchSeconds
 	if login != "" {
 		agg.login = login
@@ -121,6 +122,14 @@ func (r *LoyaltyReporter) Earn(broadcasterID, viewerID uint64, login, name strin
 	if overflow {
 		r.nudge()
 	}
+}
+
+// Saturate before serialization so a producer window cannot wrap earned points.
+func cappedEarnedPoints(current, incoming int64) int64 {
+	if incoming > 0 && current > math.MaxInt64-incoming {
+		return math.MaxInt64
+	}
+	return current + incoming
 }
 
 type CounterBumpTarget struct {
