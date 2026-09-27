@@ -116,6 +116,8 @@ export interface ProjectedModule {
   name: string;
   is_enabled: boolean;
   configs?: unknown;
+  revision?: number;
+  account_created_at?: number;
 }
 
 const MISS_USER: ValkeyUser = { status: '', active: false, banned: false, known: false };
@@ -153,23 +155,31 @@ export function getModules(
 ): Promise<{ modules: ProjectedModule[]; projected: boolean }> {
   return op(async (c) => {
     const fields = await c.hgetall(settingsKey(userId));
-    let projected = fields['modules:projected'] === '1';
-    const byName = new Map<string, ProjectedModule>();
-    for (const [field, value] of Object.entries(fields)) {
-      const parsed = parseModuleField(field);
-      if (!parsed) continue;
-      const mod = byName.get(parsed.name) ?? { name: parsed.name, is_enabled: false };
-      if (parsed.suffix === 'enabled') {
-        mod.is_enabled = value === '1';
-        projected = true;
-      } else if (parsed.suffix === 'config') {
-        mod.configs = safeJson(value);
-        projected = true;
-      }
-      byName.set(parsed.name, mod);
-    }
-    return { modules: [...byName.values()], projected };
+    return decodeModuleFields(fields);
   }, { modules: [], projected: false });
+}
+
+export function decodeModuleFields(fields: Record<string, string>): { modules: ProjectedModule[]; projected: boolean } {
+  let projected = fields['modules:projected'] === '1';
+  const byName = new Map<string, ProjectedModule>();
+  for (const [field, value] of Object.entries(fields)) {
+    const parsed = parseModuleField(field);
+    if (!parsed) continue;
+    const mod = byName.get(parsed.name) ?? { name: parsed.name, is_enabled: false };
+    if (parsed.suffix === 'enabled') {
+      mod.is_enabled = value === '1';
+      projected = true;
+    } else if (parsed.suffix === 'config') {
+      mod.configs = safeJson(value);
+      projected = true;
+    } else if (parsed.suffix === 'revision') {
+      mod.revision = Number(value);
+    } else if (parsed.suffix === 'account_created_at') {
+      mod.account_created_at = Number(value);
+    }
+    byName.set(parsed.name, mod);
+  }
+  return { modules: [...byName.values()], projected };
 }
 
 function parseModuleField(field: string): { name: string; suffix: string } | null {

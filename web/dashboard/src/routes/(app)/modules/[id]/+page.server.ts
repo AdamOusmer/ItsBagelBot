@@ -55,7 +55,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       const rows = await listModules(uid);
       const row = rows.find((r) => r.name === def.id);
       const { config, revision } = asConfig(row?.configs);
-      return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision };
+      return { def, locked, enabled: row ? row.is_enabled : def.defaultEnabled, config, revision: row?.revision ?? revision };
     },
     blank
   });

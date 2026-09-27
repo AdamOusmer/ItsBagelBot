@@ -323,7 +323,7 @@ func (a *adminRPC) findOrProvision(ctx context.Context, req usersrpc.AdminReques
 func (a *adminRPC) setActive(ctx context.Context, req usersrpc.AdminRequest) usersrpc.AdminReply {
 	return a.mutate(ctx, req, mutation{
 		logMsg: "admin set active",
-		write:  func(ctx context.Context, id uint64) error { return a.repo.SetActive(ctx, id, req.Active) },
+		write:  func(ctx context.Context, id uint64) error { return a.repo.SetActiveNow(ctx, id, req.Active) },
 		reply:  a.getByID,
 		fields: []zap.Field{zap.Bool("active", req.Active)},
 	})

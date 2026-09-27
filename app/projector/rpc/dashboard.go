@@ -194,8 +194,19 @@ func (d *Dashboard) handleModulesReplace(ctx context.Context, req projectorrpc.D
 	if err != nil {
 		return rpcprojection.ModulesReply{Refusal: bus.Classify(err)}
 	}
-	d.writeModulesAsync(userID, req.Modules)
-	return rpcprojection.ModulesReply{UserID: req.UserID, Modules: req.Modules}
+	if err := d.store.SetModules(ctx, userID, req.Modules); err != nil {
+		return rpcprojection.ModulesReply{Refusal: bus.Classify(err)}
+	}
+	// Revision and account fences may reject stale rows. Echo the state that
+	// actually landed, and only invalidate after the primary write completes.
+	byName, _, err := d.store.GetModulesPrimary(ctx, userID)
+	if err != nil {
+		return rpcprojection.ModulesReply{Refusal: bus.Classify(err)}
+	}
+	if d.cacheInvalidatePrefix != "" {
+		_ = invalidate.PublishKeys(d.nc, d.cacheInvalidatePrefix, "modules", req.UserID)
+	}
+	return rpcprojection.ModulesReply{UserID: req.UserID, Modules: projection.ModuleList(byName)}
 }
 
 func (d *Dashboard) writeCommandsAsync(userID uint64, commands []projection.CommandView) {
@@ -215,15 +226,6 @@ func commandKeys(commands []projection.CommandView) []string {
 		keys = append(keys, c.Aliases...)
 	}
 	return keys
-}
-
-func (d *Dashboard) writeModulesAsync(userID uint64, modules []projection.ModuleView) {
-	modules = append([]projection.ModuleView(nil), modules...)
-	d.writeAsync(userID, projectionWrite{
-		section: "modules",
-		failure: "projector module valkey write failed",
-		set:     func(ctx context.Context) error { return d.store.SetModules(ctx, userID, modules) },
-	})
 }
 
 type projectionWrite struct {

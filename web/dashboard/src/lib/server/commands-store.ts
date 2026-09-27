@@ -42,6 +42,8 @@ export interface ModuleView {
   name: string;
   is_enabled: boolean;
   configs?: unknown;
+  revision?: number;
+  account_created_at?: number;
 }
 
 export async function listModules(userId: string): Promise<ModuleView[]> {
@@ -65,8 +67,21 @@ async function replaceProjected(kind: section, userId: string, rows: unknown[]):
   }
 }
 
-export function replaceProjectedModules(userId: string, modules: ModuleView[]): Promise<boolean> {
-  return replaceProjected('modules', userId, modules);
+export async function replaceProjectedModules(userId: string, modules: ModuleView[]): Promise<boolean> {
+  try {
+    const reply = await rpc<{ modules: ModuleView[] }>(`${SUB.projector}.modules.replace`, {
+      user_id: userId, modules
+    }, 2000);
+    commitOptimistic(cacheKey('modules', userId), reply.modules, true);
+    return true;
+  } catch (err) {
+    newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), {
+      component: 'projector-replace', kind: 'modules', userId
+    });
+    // These are committed SQL rows; keep them briefly if projection is unavailable.
+    commitOptimistic(cacheKey('modules', userId), modules, false);
+    return false;
+  }
 }
 
 function commitOptimistic<T>(key: string, value: T, synced: boolean): void {
@@ -79,32 +94,14 @@ export async function upsertModule(
   isEnabled: boolean,
   configs?: unknown
 ): Promise<{ modules: ModuleView[] }> {
-  await rpc(`${SUB.modules}.upsert`, {
+  const reply = await rpc<{ modules: ModuleView[] }>(`${SUB.modules}.upsert`, {
     user_id: userId,
     name,
     is_enabled: isEnabled,
     configs: configs && Object.keys(configs as object).length ? configs : undefined
   });
-  try {
-    const current = await listModules(userId);
-    const upserted: ModuleView = { name, is_enabled: isEnabled, configs: configs ?? {} };
-    let merged = false;
-    const modules = current.map((v) => {
-      if (v.name === name) {
-        merged = true;
-        return upserted;
-      }
-      return v;
-    });
-    if (!merged) modules.push(upserted);
-
-    const synced = await replaceProjected('modules', userId, modules);
-    commitOptimistic(cacheKey('modules', userId), modules, synced);
-    return { modules };
-  } catch {
-    invalidate(cacheKey('modules', userId));
-    return { modules: [] };
-  }
+  await replaceProjectedModules(userId, reply.modules);
+  return reply;
 }
 
 export interface ModulePatch {
@@ -116,7 +113,7 @@ export interface ModulePatch {
 }
 
 export async function patchModule(p: ModulePatch): Promise<{ rev: number; conflict: boolean }> {
-  const reply = await rpc<{ rev?: number; conflict?: boolean }>(`${SUB.modules}.patch`, {
+  const reply = await rpc<{ rev?: number; conflict?: boolean; modules: ModuleView[] }>(`${SUB.modules}.patch`, {
     user_id: p.userId,
     name: p.name,
     is_enabled: p.isEnabled,
@@ -124,7 +121,7 @@ export async function patchModule(p: ModulePatch): Promise<{ rev: number; confli
     expected_rev: p.expectedRev
   });
   if (reply.conflict) return { rev: reply.rev ?? p.expectedRev, conflict: true };
-  invalidate(cacheKey('modules', p.userId));
+  await replaceProjectedModules(p.userId, reply.modules);
   return { rev: reply.rev ?? p.expectedRev + 1, conflict: false };
 }
 
