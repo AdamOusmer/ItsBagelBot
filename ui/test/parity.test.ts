@@ -1173,14 +1173,14 @@ const PRIMITIVES: {
     svelte: SvelteSectionNav,
     astro: AstroSectionNav,
     props: {"label":"Sections","items":[{"href":"#a","label":"A","count":2}]},
-    html: "<div class=\"bb-tabs-host\"><nav class=\"bb-tabs bb-tabs--auto\" aria-label=\"Sections\"><a class=\"bb-tab\" href=\"#a\">A<span class=\"bb-tab__count\">2</span></a></nav></div>",
+    html: "<div class=\"bb-tabs-host\"><nav class=\"bb-tabs bb-tabs--auto\" aria-label=\"Sections\" data-lenis-prevent><a class=\"bb-tab\" href=\"#a\">A<span class=\"bb-tab__count\">2</span></a></nav></div>",
   },
   {
     name: "SectionNav|vertical",
     svelte: SvelteSectionNav,
     astro: AstroSectionNav,
     props: {"label":"Sections","items":[{"href":"#a","label":"A"}],"orientation":"vertical"},
-    html: "<div class=\"bb-tabs-host\"><nav class=\"bb-tabs bb-tabs--vertical\" aria-label=\"Sections\"><a class=\"bb-tab\" href=\"#a\">A</a></nav></div>",
+    html: "<div class=\"bb-tabs-host\"><nav class=\"bb-tabs bb-tabs--vertical\" aria-label=\"Sections\" data-lenis-prevent><a class=\"bb-tab\" href=\"#a\">A</a></nav></div>",
   },
   {
     name: "Scroller",

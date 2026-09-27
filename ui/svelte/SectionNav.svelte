@@ -3,7 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   import '../styles/tags.css';
-  import { mountHashActive } from '../lib/hash-active';
+  import { mountSectionNav } from '../lib/scroll-spy';
 
   let {
     label,
@@ -32,12 +32,12 @@
   let navEl = $state<HTMLElement | null>(null);
   $effect(() => {
     if (!navEl) return;
-    return mountHashActive(navEl);
+    return mountSectionNav(navEl);
   });
 </script>
 
 <div class="bb-tabs-host"
-  ><nav bind:this={navEl} class={classes} aria-label={label} {...rest}
+  ><nav bind:this={navEl} class={classes} aria-label={label} data-lenis-prevent="" {...rest}
     >{#each items as item (item.href)}<a class="bb-tab" href={item.href}
         >{item.label}{#if item.count != null}<span class="bb-tab__count"
             >{item.count}</span
