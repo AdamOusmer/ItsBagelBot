@@ -33,7 +33,7 @@
   } = $props();
 
   const c = $derived(command);
-  const cd = $derived(c.cooldown && c.cooldown > 0 ? `${c.cooldown}s` : '\u2014');
+  const cd = $derived(c.cooldown && c.cooldown > 0 ? `${c.cooldown}s` : '-');
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
   const uses = $derived(usesCount(c));
   const barPct = $derived(usesMax > 0n ? Math.min(100, Number((uses * 100n + usesMax / 2n) / usesMax)) : 0);

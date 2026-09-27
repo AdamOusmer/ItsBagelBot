@@ -195,11 +195,11 @@ func (res sweepResult) summary(locale string, shielded bool) string {
 	s = strings.ReplaceAll(s, "{seconds}", strconv.FormatInt(res.seconds, 10))
 	switch {
 	case shielded:
-		s += " " + i18n.T(locale, "nuke.shielded")
+		s += i18n.T(locale, "nuke.shielded")
 	case res.overflow > 0:
 		cap := i18n.T(locale, "nuke.capped")
 		cap = strings.ReplaceAll(cap, "{count}", strconv.Itoa(res.overflow))
-		s += " " + cap
+		s += cap
 	}
 	return s
 }

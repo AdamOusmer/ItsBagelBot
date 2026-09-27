@@ -392,8 +392,8 @@ describe('module scope (engine/scope/modules.go mirror)', () => {
   });
 
   test('the song halves preview as the halves of the whole', () => {
-    const [line] = rehearseCommand('{song.title} — {song.artist}');
-    expect(textOf(line.segments)).toBe('Everything In Its Right Place — Radiohead');
+    const [line] = rehearseCommand('{song.title}: {song.artist}');
+    expect(textOf(line.segments)).toBe('Everything In Its Right Place: Radiohead');
   });
 
   test('a numbered quote previews the same stand-in as the random draw', () => {

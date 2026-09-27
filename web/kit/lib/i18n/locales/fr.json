@@ -2567,7 +2567,7 @@
             "label": "Ligne de gain",
             "tagline": "Quand le lancer tombe dans la chance de gain.",
             "event": "!gamble 100",
-            "defaultMessage": "@{user} a tiré {roll} (il fallait {chance} ou moins) et gagne {amount} {points} — il lui reste {balance} !"
+            "defaultMessage": "@{user} a tiré {roll} (il fallait {chance} ou moins) et gagne {amount} {points} ; il lui reste {balance} !"
           },
           "lost": {
             "label": "Ligne de perte",
@@ -2610,7 +2610,7 @@
             "label": "Pot ouvert",
             "tagline": "Quand un pot démarre et que les mises s'ouvrent.",
             "event": "!duel 100",
-            "defaultMessage": "Duel à cagnotte LANCÉ ! @{user} a misé {stake} {points} — tape !duel <montant> pour rejoindre. Tirage dans {secs}s !"
+            "defaultMessage": "Duel à cagnotte LANCÉ ! @{user} a misé {stake} {points}. Tape !duel <montant> pour rejoindre. Tirage dans {secs}s !"
           },
           "joined": {
             "label": "Confirmation d'entrée",
@@ -2622,13 +2622,13 @@
             "label": "Défi envoyé",
             "tagline": "Quand un viewer défie un autre à mises égales.",
             "event": "!duel @maya_live 500",
-            "defaultMessage": "@{user} défie @{target} pour {stake} {points} ! @{target}, tape !duel accept dans les {secs}s — le vainqueur prend {pot} !"
+            "defaultMessage": "@{user} défie @{target} pour {stake} {points} ! @{target}, tape !duel accept dans les {secs}s. Le vainqueur prend {pot} !"
           },
           "won": {
             "label": "Ligne de résultat",
             "tagline": "Quand un défi est accepté et réglé.",
             "event": "!duel accept",
-            "defaultMessage": "Les lames retombent — @{winner} bat @{loser} et rafle {pot} {points} !"
+            "defaultMessage": "Les lames retombent. @{winner} bat @{loser} et rafle {pot} {points} !"
           }
         },
         "commands": {
@@ -2699,10 +2699,10 @@
             "help": "Définit le défaut de chaque contrôle ci-dessous. Le plancher de sécurité s'applique à tous les niveaux.",
             "placeholder": "moderate",
             "options": {
-              "none": "Aucun — plancher de sécurité seulement",
-              "basic": "Basique — plancher + harcèlement",
-              "moderate": "Modéré — recommandé (défaut)",
-              "strict": "Tout — chaque contrôle, strict famille"
+              "none": "Aucun : plancher de sécurité seulement",
+              "basic": "Basique : plancher + harcèlement",
+              "moderate": "Modéré (recommandé par défaut)",
+              "strict": "Tout : chaque contrôle, strict famille"
             }
           },
           "harassment": {
@@ -3126,18 +3126,18 @@
             "label": "Tirage ouvert",
             "tagline": "Quand un tirage démarre et que les inscriptions s'ouvrent.",
             "event": "!raffle open",
-            "defaultMessage": "La loterie est LANCÉE ! Tape !join pour participer — tirage dans {mins} min !"
+            "defaultMessage": "La loterie est LANCÉE ! Tape !join pour participer. Tirage dans {mins} min !"
           },
           "won": {
             "label": "Gagnants annoncés",
             "tagline": "Quand un tirage nomme ses gagnants (manuel ou chronométré).",
             "event": "!raffle draw",
-            "defaultMessage": "{targets} — félicitations ! Vous avez gagné la loterie ({count} gagnant(s) parmi {entrants}) ! Tapez !claim dans les {claim} min pour confirmer votre lot !"
+            "defaultMessage": "{targets}, félicitations ! Vous avez gagné la loterie ({count} gagnant(s) parmi {entrants}) ! Tapez !claim dans les {claim} min pour confirmer votre lot !"
           },
           "claimOk": {
             "label": "Prix confirmé",
             "tagline": "Quand un gagnant confirme avec !claim.",
-            "defaultMessage": "@{user} ton lot est confirmé — profite bien !"
+            "defaultMessage": "@{user} ton lot est confirmé. Profite bien !"
           }
         },
         "commands": {
@@ -4098,7 +4098,7 @@
     "time": {
       "name": "Votre heure locale",
       "hint": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale) ; {time:Paris} pour ailleurs, sans module",
-      "desc": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré. {time:Paris} consulte plutôt un autre lieu — une ville, un pays, une abréviation comme EST, ou un décalage UTC — et fonctionne même sans le module : il n’a besoin d’aucun fuseau propre, seulement du format d’horloge choisi si vous en avez un. Un lieu inconnu renvoie du vide.",
+      "desc": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré. {time:Paris} consulte plutôt un autre lieu (une ville, un pays, une abréviation comme EST, ou un décalage UTC), et fonctionne même sans le module : il n’a besoin d’aucun fuseau propre, seulement du format d’horloge choisi si vous en avez un. Un lieu inconnu renvoie du vide.",
       "placeHint": "l’heure à un lieu que vous nommez, sans module"
     },
     "song": {
@@ -4119,11 +4119,11 @@
     "randomViewer": {
       "name": "Un viewer au hasard",
       "hint": "quelqu’un dans le chat en ce moment, choisi au hasard (jamais vous, jamais le bot)",
-      "desc": "Le nom d’une personne que Twitch indique comme présente dans le chat en ce moment, choisie au hasard — pas forcément quelqu’un ayant parlé. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts. Juste après un redémarrage du bot, avant qu’il ait chargé qui est dans le chat, elle nomme plutôt quelqu’un ayant parlé récemment."
+      "desc": "Le nom d’une personne que Twitch indique comme présente dans le chat en ce moment, choisie au hasard, pas forcément quelqu’un ayant parlé. Jamais vous ni le bot. Deux dans une même réponse font deux tirages distincts. Juste après un redémarrage du bot, avant qu’il ait chargé qui est dans le chat, elle nomme plutôt quelqu’un ayant parlé récemment."
     },
     "emotes": {
       "name": "Liste d’émotes",
-      "hint": "tous les codes d’émotes globales d’un fournisseur — {emotes:7tv}, {emotes:bttv} ou {emotes:ffz} — séparés par des espaces",
+      "hint": "tous les codes d’émotes globales d’un fournisseur ({emotes:7tv}, {emotes:bttv} ou {emotes:ffz}), séparés par des espaces",
       "desc": "Les codes des émotes globales d’un fournisseur (7TV, BetterTTV ou FrankerFaceZ), séparés par des espaces. Ce sont celles que toutes les chaînes ont, pas les émotes que vous avez ajoutées à la vôtre, et une longue liste est coupée pour tenir sur une ligne de chat."
     },
     "randomEmote": {

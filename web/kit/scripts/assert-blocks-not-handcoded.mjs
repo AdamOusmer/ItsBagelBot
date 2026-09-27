@@ -18,7 +18,7 @@ const ALLOWLIST = new Map([
     'marketing/src/components/home/Header.astro',
     'The hero wordmark. Its `h1` rules are a per-glyph motion rig (three ' +
       'breakpoint clamps, a .line/.glyph split the entrance animation drives), ' +
-      'not a type size — the element is the animation. Moving it into the ' +
+      'not a type size. The element is the animation. Moving it into the ' +
       'library would ship a landing-page motion to every surface.',
   ],
   [
@@ -35,8 +35,8 @@ const ALLOWLIST = new Map([
   [
     'docs/src/components/MermaidStyles.astro',
     'Dresses the SVG mermaid renders at runtime. Every selector here reaches ' +
-      'into a DOM this repo does not author and cannot add class names to — ' +
-      'mermaid names its own nodes — so `pre.mermaid svg … text|span|p` is ' +
+      'into a DOM this repo does not author and cannot add class names to. ' +
+      'Mermaid names its own nodes, so `pre.mermaid svg … text|span|p` is ' +
       'the only handle there is.',
   ],
   [
