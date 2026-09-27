@@ -1,0 +1,30 @@
+{
+  "tag": "beta",
+  "version": "v0.2.6-beta",
+  "date": "2026-09-27",
+  "title": {
+    "en": "Better Commands, Reliable Loyalty and a Clearer Dashboard",
+    "fr": "Commandes améliorées, fidélité fiabilisée et tableau de bord plus clair"
+  },
+  "highlights": {
+    "en": [
+      "New module:variable syntax for commands, with automatic migration of existing reply templates.",
+      "Added the watchtime chat command and corrected offline watchtime handling.",
+      "Improved point transfers and grants, preserved large balance precision, and added a streamer earnings toggle.",
+      "Improved bot authorization and preserved the Twitch permissions needed for watchtime.",
+      "Added Spotify setup guidance, confirmation dialogs, and clearer song request errors.",
+      "Improved dashboard navigation, dropdowns, toggle stability, and recovery of command drafts and module saves.",
+      "Reduced first-message processing latency and improved ingress discovery and shard recovery during deployments."
+    ],
+    "fr": [
+      "Nouvelle syntaxe module:variable pour les commandes, avec migration automatique des modèles de réponse existants.",
+      "Ajout de la commande de temps de visionnage et correction de sa gestion lorsque la chaîne est hors ligne.",
+      "Amélioration des transferts et des attributions de points, préservation de la précision des grands soldes et ajout d’une option de gains pour le streamer.",
+      "Amélioration de l’autorisation du bot et conservation des permissions Twitch nécessaires au temps de visionnage.",
+      "Ajout d’un accompagnement pour configurer Spotify, de confirmations et d’erreurs plus claires pour les demandes de chansons.",
+      "Amélioration de la navigation, des listes déroulantes, de la stabilité des interrupteurs et de la récupération des brouillons et des sauvegardes.",
+      "Réduction du délai de traitement du premier message et amélioration de la découverte des instances et du rééquilibrage des shards pendant les déploiements."
+    ]
+  },
+  "github": "https://github.com/AdamOusmer/ItsBagelBot/releases/tag/v0.2.6-beta"
+}
