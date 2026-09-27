@@ -21,16 +21,24 @@ function searchGlyph(clear = false): SVGSVGElement {
   return svg;
 }
 
-/** Enhance once; the native select remains the form and change-event bridge. */
-export function enhanceAstroSelect(root: HTMLElement): void {
-  if (root.hasAttribute('data-select-enhanced')) return;
-  const native = root.querySelector<HTMLSelectElement>('select');
-  const fallback = root.querySelector<HTMLElement>('[data-select-fallback]');
-  if (!native || !fallback) return;
-  root.dataset.selectEnhanced = '';
-  const id = native.id || `bb-astro-select-${++sequence}`;
-  const labels = Array.from(native.labels);
-  const label = root.dataset.label || 'Select an option';
+type NavigationDirection = 1 | -1 | 'first' | 'last';
+const NAVIGATION_KEYS: Record<string, NavigationDirection | undefined> = {
+  ArrowDown: 1, ArrowUp: -1, Home: 'first', End: 'last',
+};
+
+function hasAccessibleName(element: HTMLElement): boolean {
+  return element.hasAttribute('aria-labelledby') || element.hasAttribute('aria-label');
+}
+
+function labelIds(labels: HTMLLabelElement[], id: string): string {
+  return labels.map((field, index) => {
+    const text = field.querySelector<HTMLElement>('.bb-field__label') || field;
+    text.id ||= `${id}-label-${index}`;
+    return text.id;
+  }).join(' ');
+}
+
+function createTrigger(native: HTMLSelectElement, fallback: HTMLElement, id: string, label: string): HTMLButtonElement {
   const trigger = document.createElement('button');
   trigger.type = 'button';
   trigger.id = id;
@@ -41,19 +49,20 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   }
   trigger.setAttribute('aria-haspopup', 'dialog');
   trigger.setAttribute('aria-expanded', 'false');
-  if (!trigger.hasAttribute('aria-labelledby') && !trigger.hasAttribute('aria-label') && labels.length) {
-    trigger.setAttribute('aria-labelledby', labels.map((field, index) => {
-      const text = field.querySelector<HTMLElement>('.bb-field__label') || field;
-      text.id ||= `${id}-label-${index}`;
-      return text.id;
-    }).join(' '));
-  }
-  if (!trigger.hasAttribute('aria-label') && !trigger.hasAttribute('aria-labelledby')) trigger.setAttribute('aria-label', label);
-  const valueLabel = document.createElement('span');
-  valueLabel.className = 'bb-select__value';
-  trigger.append(valueLabel);
+  const labels = Array.from(native.labels);
+  if (!hasAccessibleName(trigger) && labels.length) trigger.setAttribute('aria-labelledby', labelIds(labels, id));
+  if (!hasAccessibleName(trigger)) trigger.setAttribute('aria-label', label);
+  return trigger;
+}
+
+function appendChevron(trigger: HTMLButtonElement, fallback: HTMLElement): void {
   const chevron = fallback.querySelector('svg')?.cloneNode(true) as SVGElement | undefined;
-  if (chevron) { chevron.setAttribute('class', 'bb-select__chevron'); trigger.append(chevron); }
+  if (!chevron) return;
+  chevron.setAttribute('class', 'bb-select__chevron');
+  trigger.append(chevron);
+}
+
+function mountNativeBridge(root: HTMLElement, native: HTMLSelectElement, fallback: HTMLElement, trigger: HTMLButtonElement, id: string): void {
   if (root.dataset.value !== undefined) native.value = root.dataset.value;
   native.id = `${id}-native`;
   native.classList.add('bb-select__native');
@@ -61,6 +70,120 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   native.setAttribute('aria-hidden', 'true');
   root.append(native);
   fallback.replaceWith(trigger);
+}
+
+function readOption(option: HTMLOptionElement): SelectOption {
+  const group = option.parentElement instanceof HTMLOptGroupElement ? option.parentElement : undefined;
+  return {
+    value: option.value, label: option.label,
+    disabled: option.disabled || group?.disabled,
+    group: option.dataset.group || group?.label,
+    description: option.dataset.description, searchText: option.dataset.searchText, triggerLabel: option.dataset.triggerLabel,
+  };
+}
+
+function appendOptionText(item: HTMLLIElement, option: SelectOption): void {
+  const text = document.createElement('span');
+  text.className = 'bb-select__label'; text.textContent = option.label; item.append(text);
+  if (!option.description) return;
+  const description = document.createElement('span');
+  description.className = 'bb-select__description'; description.textContent = option.description; item.append(description);
+}
+
+function createOptionItem(option: SelectOption, index: number, id: string, selected: string, activate: (index: number) => void, pick: (option: SelectOption) => void): HTMLLIElement {
+  const item = document.createElement('li');
+  item.id = `${id}-option-${index}`; item.className = 'bb-select__option';
+  item.setAttribute('role', 'option'); item.setAttribute('aria-selected', String(option.value === selected));
+  if (option.disabled) item.setAttribute('aria-disabled', 'true');
+  appendOptionText(item, option);
+  item.addEventListener('pointerenter', () => { if (!option.disabled) activate(index); });
+  item.addEventListener('click', () => pick(option));
+  return item;
+}
+
+function appendGroupHeading(list: HTMLUListElement, group: string | undefined, previous: string | undefined): void {
+  if (!group || group === previous) return;
+  const heading = document.createElement('li');
+  heading.className = 'bb-select__group'; heading.setAttribute('role', 'presentation');
+  heading.textContent = group; list.append(heading);
+}
+
+function appendEmptyMessage(list: HTMLUListElement, label: string): void {
+  const empty = document.createElement('li');
+  empty.className = 'bb-select__empty'; empty.setAttribute('role', 'presentation');
+  empty.textContent = label; list.append(empty);
+}
+
+function isTypeaheadKey(event: KeyboardEvent): boolean {
+  if (event.key.length !== 1) return false;
+  return ![event.ctrlKey, event.metaKey, event.altKey].some(Boolean);
+}
+
+function typeaheadIndices(options: readonly SelectOption[], query: string): number[] {
+  const prefix = normalizeSelectQuery(query);
+  return options.flatMap((option, index) => {
+    if (option.disabled) return [];
+    return normalizeSelectQuery(option.label).startsWith(prefix) ? [index] : [];
+  });
+}
+
+function createPanel(label: string, keydown: (event: KeyboardEvent) => void): HTMLDivElement {
+  const panel = document.createElement('div'); panel.className = 'bb-picker-panel';
+  panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', label);
+  panel.dataset.overlay = ''; panel.dataset.lenisPrevent = ''; panel.tabIndex = -1;
+  panel.addEventListener('keydown', keydown);
+  return panel;
+}
+
+function mountMobilePanel(panel: HTMLDivElement, label: string, close: () => void): { shell: HTMLDivElement; overlayId: number } {
+  const shell = document.createElement('div'); shell.className = 'bb-picker-panel__shell'; shell.dataset.overlay = '';
+  const scrim = document.createElement('button'); scrim.type = 'button';
+  scrim.className = 'bb-picker-panel__scrim'; scrim.setAttribute('aria-label', label);
+  scrim.addEventListener('click', close);
+  panel.classList.add('bb-picker-panel--sheet'); panel.setAttribute('aria-modal', 'true');
+  shell.append(scrim, panel); document.body.append(shell);
+  const overlayId = pushOverlay(); shell.style.zIndex = String(300 + overlayIndex(overlayId) * 10);
+  return { shell, overlayId };
+}
+
+function mountDesktopPanel(panel: HTMLDivElement, trigger: HTMLButtonElement): void {
+  const rect = trigger.getBoundingClientRect();
+  const width = Math.min(Math.max(rect.width, 260), window.innerWidth - 16);
+  const height = Math.min(380, window.innerHeight - 16);
+  panel.classList.add('bb-picker-panel--dropdown'); panel.style.width = `${width}px`; panel.style.maxHeight = `${height}px`;
+  panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+  panel.style.top = `${rect.bottom + 8 + height <= window.innerHeight ? rect.bottom + 8 : Math.max(8, rect.top - height - 8)}px`;
+  document.body.append(panel);
+}
+
+function createSearch(root: HTMLElement, panel: HTMLDivElement, id: string, render: () => void): { input: HTMLInputElement; clear: HTMLButtonElement } {
+  const search = document.createElement('label'); search.className = 'bb-search bb-input bb-input--fill';
+  const input = document.createElement('input'); input.type = 'search'; input.className = 'bb-search__input';
+  input.placeholder = root.dataset.searchPlaceholder ?? 'Search…'; input.setAttribute('aria-label', input.placeholder);
+  input.setAttribute('role', 'combobox'); input.setAttribute('aria-expanded', 'true'); input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-controls', `${id}-list`); input.autocomplete = 'off'; input.addEventListener('input', render);
+  const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'bb-search__clear';
+  clear.setAttribute('aria-label', root.dataset.searchClearLabel ?? 'Clear search'); clear.append(searchGlyph(true));
+  clear.addEventListener('click', () => { input.value = ''; render(); input.focus(); });
+  search.append(searchGlyph(), input, clear); panel.append(search);
+  return { input, clear };
+}
+
+/** Enhance once; the native select remains the form and change-event bridge. */
+export function enhanceAstroSelect(root: HTMLElement): void {
+  if (root.hasAttribute('data-select-enhanced')) return;
+  const native = root.querySelector<HTMLSelectElement>('select');
+  const fallback = root.querySelector<HTMLElement>('[data-select-fallback]');
+  if (!native || !fallback) return;
+  root.dataset.selectEnhanced = '';
+  const id = native.id || `bb-astro-select-${++sequence}`;
+  const label = root.dataset.label || 'Select an option';
+  const trigger = createTrigger(native, fallback, id, label);
+  const valueLabel = document.createElement('span');
+  valueLabel.className = 'bb-select__value';
+  trigger.append(valueLabel);
+  appendChevron(trigger, fallback);
+  mountNativeBridge(root, native, fallback, trigger, id);
 
   let panel: HTMLDivElement | undefined;
   let shell: HTMLDivElement | undefined;
@@ -77,12 +200,9 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   let typedAt = 0;
 
   function options(includeFallback = false): SelectOption[] {
-    return Array.from(native!.options).filter((option) => includeFallback || !option.hasAttribute('data-select-fallback-option')).map((option) => ({
-      value: option.value, label: option.label,
-      disabled: option.disabled || (option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled),
-      group: option.dataset.group || (option.parentElement instanceof HTMLOptGroupElement ? option.parentElement.label : undefined),
-      description: option.dataset.description, searchText: option.dataset.searchText, triggerLabel: option.dataset.triggerLabel,
-    }));
+    return Array.from(native!.options)
+      .filter((option) => includeFallback || !option.hasAttribute('data-select-fallback-option'))
+      .map(readOption);
   }
 
   function sync() {
@@ -142,67 +262,82 @@ export function enhanceAstroSelect(root: HTMLElement): void {
     list.replaceChildren();
     let group: string | undefined;
     for (const [index, option] of matches.entries()) {
-      if (option.group && option.group !== group) {
-        const heading = document.createElement('li');
-        heading.className = 'bb-select__group'; heading.setAttribute('role', 'presentation');
-        heading.textContent = option.group; list.append(heading);
-      }
+      appendGroupHeading(list, option.group, group);
       group = option.group;
-      const item = document.createElement('li');
-      item.id = `${id}-option-${index}`; item.className = 'bb-select__option';
-      item.setAttribute('role', 'option'); item.setAttribute('aria-selected', String(option.value === native!.value));
-      if (option.disabled) item.setAttribute('aria-disabled', 'true');
-      const text = document.createElement('span');
-      text.className = 'bb-select__label'; text.textContent = option.label; item.append(text);
-      if (option.description) {
-        const description = document.createElement('span');
-        description.className = 'bb-select__description'; description.textContent = option.description; item.append(description);
-      }
-      item.addEventListener('pointerenter', () => { if (!option.disabled) activate(index); });
-      item.addEventListener('click', () => pick(option)); list.append(item);
+      list.append(createOptionItem(option, index, id, native!.value, activate, pick));
     }
-    if (!matches.length) {
-      const empty = document.createElement('li');
-      empty.className = 'bb-select__empty'; empty.setAttribute('role', 'presentation');
-      empty.textContent = root.dataset.emptyLabel ?? 'No matches'; list.append(empty);
-    }
+    if (!matches.length) appendEmptyMessage(list, root.dataset.emptyLabel ?? 'No matches');
     if (clear) clear.hidden = !input?.value;
     const selected = matches.findIndex((option) => option.value === native!.value && !option.disabled);
     activate(selected >= 0 ? selected : nextEnabledOption(matches, -1, 'first'));
   }
 
+  function handleEscape(event: KeyboardEvent) {
+    if (!panel) return;
+    if (overlayId !== undefined && !isTopmost(overlayId)) return;
+    event.preventDefault(); event.stopPropagation(); close();
+  }
+
+  function handleNavigation(event: KeyboardEvent, direction: NavigationDirection) {
+    // Home and End keep their editing meaning in a searchable picker.
+    if (input && typeof direction === 'string') return;
+    if (!panel) open();
+    event.preventDefault();
+    activate(nextEnabledOption(matches, active, direction));
+  }
+
+  function handleSelection(event: KeyboardEvent) {
+    if (!panel) return;
+    event.preventDefault();
+    if (matches[active]) pick(matches[active]);
+  }
+
+  function handleSpace(event: KeyboardEvent) {
+    if (!input) handleSelection(event);
+  }
+
+  function handleTab() {
+    if (overlayId !== undefined) return;
+    if (panel) close(true);
+  }
+
+  function handleTypeahead(event: KeyboardEvent) {
+    if (!panel) return;
+    if (input) return;
+    if (!isTypeaheadKey(event)) return;
+    event.preventDefault();
+    const now = Date.now();
+    typeahead = (now - typedAt > 700 ? '' : typeahead) + event.key;
+    typedAt = now;
+    const hits = typeaheadIndices(matches, typeahead);
+    if (hits.length) activate(hits.find((index) => index > active) ?? hits[0]);
+  }
+
   function keydown(event: KeyboardEvent) {
-    // The search clear button keeps its native keyboard activation, including
-    // Enter when the mobile focus trap tabs from the input to this button.
+    // The clear button keeps native activation, including Enter after mobile Tab.
     if (event.target === clear && event.key !== 'Escape') return;
-    if (event.key === 'Escape' && panel) {
-      if (overlayId !== undefined && !isTopmost(overlayId)) return;
-      event.preventDefault(); event.stopPropagation(); close();
-    } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-      if (input && (event.key === 'Home' || event.key === 'End')) return;
-      if (!panel) open();
-      event.preventDefault();
-      const direction = event.key === 'Home' ? 'first' : event.key === 'End' ? 'last' : event.key === 'ArrowDown' ? 1 : -1;
-      activate(nextEnabledOption(matches, active, direction));
-    } else if ((event.key === 'Enter' || (event.key === ' ' && !input)) && panel) {
-      event.preventDefault(); if (matches[active]) pick(matches[active]);
-    } else if (event.key === 'Tab' && panel && overlayId === undefined) close(true);
-    else if (panel && !input && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      event.preventDefault();
-      const now = Date.now();
-      typeahead = (now - typedAt > 700 ? '' : typeahead) + event.key;
-      typedAt = now;
-      const hits = matches.map((option, index) => ({ option, index })).filter(({ option }) => !option.disabled && normalizeSelectQuery(option.label).startsWith(normalizeSelectQuery(typeahead)));
-      if (hits.length) activate(hits.find(({ index }) => index > active)?.index ?? hits[0].index);
+    const direction = NAVIGATION_KEYS[event.key];
+    if (direction !== undefined) {
+      handleNavigation(event, direction);
+      return;
     }
+    const handlers: Record<string, (event: KeyboardEvent) => void> = {
+      Escape: handleEscape, Enter: handleSelection, ' ': handleSpace, Tab: handleTab,
+    };
+    (handlers[event.key] ?? handleTypeahead)(event);
   }
 
   function outside(event: PointerEvent) {
     const target = event.target as Node | null;
-    if (target && !(panel && overlayContains(panel, target)) && !trigger.contains(target)) close(false);
+    if (!target) return;
+    if (trigger.contains(target)) return;
+    if (panel && overlayContains(panel, target)) return;
+    close(false);
   }
   function moved(event: Event) {
-    if (overlayId !== undefined || (panel && event.target instanceof Node && overlayContains(panel, event.target))) return;
+    if (overlayId !== undefined) return;
+    if (!(event.target instanceof Node)) { close(false); return; }
+    if (panel && overlayContains(panel, event.target)) return;
     close(false);
   }
 
@@ -210,40 +345,12 @@ export function enhanceAstroSelect(root: HTMLElement): void {
     if (trigger.disabled || panel) return;
     sync();
     if (trigger.disabled) return;
-    panel = document.createElement('div'); panel.className = 'bb-picker-panel';
-    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', label);
-    panel.dataset.overlay = ''; panel.dataset.lenisPrevent = ''; panel.tabIndex = -1;
-    panel.addEventListener('keydown', keydown);
+    panel = createPanel(label, keydown);
     const mobile = window.matchMedia('(max-width: 639px)').matches;
-    if (mobile) {
-      shell = document.createElement('div'); shell.className = 'bb-picker-panel__shell'; shell.dataset.overlay = '';
-      const scrim = document.createElement('button'); scrim.type = 'button';
-      scrim.className = 'bb-picker-panel__scrim'; scrim.setAttribute('aria-label', label);
-      scrim.addEventListener('click', () => close());
-      panel.classList.add('bb-picker-panel--sheet'); panel.setAttribute('aria-modal', 'true');
-      shell.append(scrim, panel); document.body.append(shell);
-      overlayId = pushOverlay(); shell.style.zIndex = String(300 + overlayIndex(overlayId) * 10);
-    } else {
-      const rect = trigger.getBoundingClientRect();
-      const width = Math.min(Math.max(rect.width, 260), window.innerWidth - 16);
-      const height = Math.min(380, window.innerHeight - 16);
-      panel.classList.add('bb-picker-panel--dropdown'); panel.style.width = `${width}px`; panel.style.maxHeight = `${height}px`;
-      panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
-      panel.style.top = `${rect.bottom + 8 + height <= window.innerHeight ? rect.bottom + 8 : Math.max(8, rect.top - height - 8)}px`;
-      document.body.append(panel);
-    }
+    if (mobile) ({ shell, overlayId } = mountMobilePanel(panel, label, () => close()));
+    else mountDesktopPanel(panel, trigger);
     unregisterAnchor = registerOverlayAnchor(shell ?? panel, trigger);
-    if (searchable) {
-      const search = document.createElement('label'); search.className = 'bb-search bb-input bb-input--fill';
-      input = document.createElement('input'); input.type = 'search'; input.className = 'bb-search__input';
-      input.placeholder = root.dataset.searchPlaceholder ?? 'Search…'; input.setAttribute('aria-label', input.placeholder);
-      input.setAttribute('role', 'combobox'); input.setAttribute('aria-expanded', 'true'); input.setAttribute('aria-autocomplete', 'list');
-      input.setAttribute('aria-controls', `${id}-list`); input.autocomplete = 'off'; input.addEventListener('input', renderOptions);
-      clear = document.createElement('button'); clear.type = 'button'; clear.className = 'bb-search__clear';
-      clear.setAttribute('aria-label', root.dataset.searchClearLabel ?? 'Clear search'); clear.append(searchGlyph(true));
-      clear.addEventListener('click', () => { if (input) input.value = ''; renderOptions(); input?.focus(); });
-      search.append(searchGlyph(), input, clear); panel.append(search);
-    }
+    if (searchable) ({ input, clear } = createSearch(root, panel, id, renderOptions));
     list = document.createElement('ul'); list.id = `${id}-list`; list.className = 'bb-select__list';
     list.setAttribute('role', 'listbox'); list.setAttribute('aria-label', label); list.tabIndex = searchable ? -1 : 0;
     panel.append(list); renderOptions();

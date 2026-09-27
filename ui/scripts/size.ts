@@ -19,8 +19,8 @@ const ENTRIES: {
              globalThis.x = { filterSelectOptions, nextEnabledOption };`,
   },
   {
-    // Astro's optional-search picker plus shared overlay/focus: 3972 B gzip
-    // measured 2026-09-27, +150 B platform delta and ~10% room.
+    // Astro's optional-search picker plus shared overlay/focus: 4188 B gzip
+    // measured 2026-09-27, +150 B platform delta and ~5% room.
     name: "astro-select",
     budget: 4540,
     external: [],

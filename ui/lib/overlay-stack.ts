@@ -82,20 +82,24 @@ export function registerOverlayAnchor(panel: HTMLElement, anchor: HTMLElement): 
   };
 }
 
+/** Find the trigger that owns the nearest registered portal ancestor. */
+function owningOverlayAnchor(target: Node): HTMLElement | null {
+  let element = target.nodeType === 1 ? target as HTMLElement : target.parentElement;
+  while (element) {
+    const anchor = overlayAnchors.get(element);
+    if (anchor) return anchor;
+    element = element.parentElement;
+  }
+  return null;
+}
+
 export function overlayContains(panel: HTMLElement, target: Node | null): boolean {
   const visited = new Set<Node>();
   let current = target;
   while (current && !visited.has(current)) {
     if (panel.contains(current)) return true;
     visited.add(current);
-    let element = current.nodeType === 1 ? current as HTMLElement : current.parentElement;
-    let anchor: HTMLElement | undefined;
-    while (element) {
-      anchor = overlayAnchors.get(element);
-      if (anchor) break;
-      element = element.parentElement;
-    }
-    current = anchor || null;
+    current = owningOverlayAnchor(current);
   }
   return false;
 }
