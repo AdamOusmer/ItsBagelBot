@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const privateEnv: Record<string, string | undefined> = {};
-const claims: { sub: string; aud: string; iss: string; nonce: string } = {
+const claims: { sub: string; aud: string | string[]; iss: string; nonce: string } = {
   sub: 'configured-bot',
   aud: 'bot-client',
   iss: 'https://id.twitch.tv/oauth2',
@@ -199,5 +199,20 @@ describe('bot OAuth callback account pinning', () => {
       expect(botTokenSet).not.toHaveBeenCalled();
     });
   }
+
+
+  test('accepts an ID token audience array containing the bot client', async () => {
+    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    claims.aud = ['other-client', 'bot-client'];
+    await expectRedirectLocation(() => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]), '/auth/bot/done?ok=1');
+    expect(botTokenSet).toHaveBeenCalledTimes(1);
+  });
+
+  test('rejects an ID token audience array without the bot client', async () => {
+    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    claims.aud = ['other-client'];
+    await expectRedirectLocation(() => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]), '/auth/bot/done?e=state');
+    expect(botTokenSet).not.toHaveBeenCalled();
+  });
 
 });

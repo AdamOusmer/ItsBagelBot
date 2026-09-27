@@ -20,16 +20,17 @@ function configuredBotId(): string {
   return botId;
 }
 
+function intendedBotAudience(audience: BotIdentity['claims']['aud']): boolean {
+  const clientId = botClientId();
+  return Array.isArray(audience) ? audience.includes(clientId) : audience === clientId;
+}
+
 function assertBotIdentity(identity: BotIdentity): void {
   const claims = identity.claims;
-  const clientId = botClientId();
-  const intendedAudience = Array.isArray(claims.aud)
-    ? claims.aud.includes(clientId)
-    : claims.aud === clientId;
   if (claims.nonce !== identity.nonce) {
     throw redirect(302, '/auth/bot/done?e=state');
   }
-  if (!intendedAudience || claims.iss !== 'https://id.twitch.tv/oauth2') {
+  if (!intendedBotAudience(claims.aud) || claims.iss !== 'https://id.twitch.tv/oauth2') {
     throw redirect(302, '/auth/bot/done?e=state');
   }
   if (claims.sub !== identity.configuredId) {
