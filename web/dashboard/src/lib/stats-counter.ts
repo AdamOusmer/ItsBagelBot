@@ -34,16 +34,25 @@ export class StatsCounter {
     const last = this.samples[this.samples.length - 1];
     const total = BigInt(rawTotal);
     if (total < last.total) {
-      // A real reset starts a new history; ordinary estimation error never
-      // makes the displayed digits run backwards.
-      this.value = Math.min(Number(total), Number.MAX_SAFE_INTEGER);
-      this.rate = this.targetRate = Math.max(0, rate ?? 0);
-      this.observedGrowth = false;
-      this.samples = [{ total, at: now }];
+      this.reset(total, rate, now);
       return;
     }
-
     this.observedGrowth ||= total > last.total;
+    this.recordSample(total, now);
+    this.updateRate(rate, now);
+  }
+
+  private reset(total: bigint, rate: number | null, now: number): void {
+    // A real reset starts a new history; ordinary estimation error never
+    // makes the displayed digits run backwards.
+    this.value = Math.min(Number(total), Number.MAX_SAFE_INTEGER);
+    this.rate = this.targetRate = Math.max(0, rate ?? 0);
+    this.observedGrowth = false;
+    this.samples = [{ total, at: now }];
+  }
+
+  private recordSample(total: bigint, now: number): void {
+    const last = this.samples[this.samples.length - 1];
     if (now === last.at) this.samples[this.samples.length - 1] = { total, at: now };
     else this.samples.push({ total, at: now });
 
@@ -51,14 +60,28 @@ export class StatsCounter {
     // counted over its full elapsed time.
     const cutoff = now - RATE_WINDOW_MS;
     while (this.samples.length > 1 && this.samples[1].at <= cutoff) this.samples.shift();
+  }
+
+  private updateRate(rate: number | null, now: number): void {
     const first = this.samples[0];
     const elapsed = now - first.at;
-    if (elapsed > 0 && (this.observedGrowth || elapsed >= RATE_WINDOW_MS)) {
-      this.targetRate = Math.max(0, Number(total - first.total)) / (elapsed / 1000);
-    } else if (this.targetRate === 0) {
-      // Bootstrap from the server until we have a useful delta of our own.
-      this.targetRate = Math.max(0, rate ?? 0);
+    if (elapsed <= 0) {
+      this.bootstrapRate(rate);
+      return;
     }
+    if (!this.observedGrowth) {
+      if (elapsed < RATE_WINDOW_MS) {
+        this.bootstrapRate(rate);
+        return;
+      }
+    }
+    const last = this.samples[this.samples.length - 1];
+    this.targetRate = Math.max(0, Number(last.total - first.total)) / (elapsed / 1000);
+  }
+
+  private bootstrapRate(rate: number | null): void {
+    // Bootstrap from the server until we have a useful delta of our own.
+    if (this.targetRate === 0) this.targetRate = Math.max(0, rate ?? 0);
   }
 
   advance(now: number, elapsedMs: number): void {
