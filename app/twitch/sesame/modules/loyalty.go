@@ -415,7 +415,13 @@ func (lc loyaltyCmd) watchtimeShow(ctx context.Context, _ string) error {
 		lc.reply("loyalty.counter.err")
 		return nil
 	}
-	lc.reply("loyalty.watchtime", "duration", i18n.HumanizeDuration(lc.c.Locale, time.Duration(bal.WatchSeconds)*time.Second))
+	// Clamp before converting seconds to a signed nanosecond duration.
+	const maxWatchSeconds = uint64((1<<63 - 1) / time.Second)
+	seconds := bal.WatchSeconds
+	if seconds > maxWatchSeconds {
+		seconds = maxWatchSeconds
+	}
+	lc.reply("loyalty.watchtime", "duration", i18n.HumanizeDuration(lc.c.Locale, time.Duration(seconds)*time.Second))
 	return nil
 }
 

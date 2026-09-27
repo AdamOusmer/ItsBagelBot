@@ -310,6 +310,7 @@ func TestLoyaltyWatchtimeCommand(t *testing.T) {
 	}{
 		{name: "recorded time", locale: "en", seconds: 9000, want: "@coolviewer you have watched for 2 hours, 30 minutes."},
 		{name: "no recorded time", locale: "en", want: "@coolviewer you have watched for less than a minute."},
+		{name: "duration overflow", locale: "en", seconds: ^uint64(0), want: "@coolviewer you have watched for 292 years, 5 months."},
 		{name: "localized time", locale: "fr", seconds: 7200, want: "@coolviewer vous avez regardé pendant 2 heures."},
 		{name: "store unavailable", locale: "en", err: errors.New("loyalty unavailable"), want: "@coolviewer that didn't work, please try again."},
 	} {
