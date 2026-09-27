@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { Select } from '@bagel/kit';
   import { deserialize } from '$app/forms';
   import { getI18n, type CounterScope } from '@bagel/kit';
   import { PickerPanel } from '@bagel/kit';
@@ -110,11 +111,11 @@
     {#snippet children()}
       <label class="counts-for">
         <span class="panel-title">{t('counters.fieldScope')}</span>
-        <select class="bb-input" bind:value={countsFor}>
-          {#each COUNTS_FOR as s (s)}
-            <option value={s}>{countsForLabel[s]}</option>
-          {/each}
-        </select>
+        <Select
+          fill
+          bind:value={countsFor}
+          options={COUNTS_FOR.map((s) => ({ value: s, label: countsForLabel[s] }))}
+        />
       </label>
       {#if countTarget}
         <code class="preview">{'{counter:target:'}{newName || 'name'}{'}'}</code>

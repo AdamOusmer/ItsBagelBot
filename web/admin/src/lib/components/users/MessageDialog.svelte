@@ -67,11 +67,7 @@
       <Textarea rows={3} maxlength={2000} fill mono bind:value={body} />
     </Field>
     <Field label={t('admin.users.messageFieldLevel')}>
-      <Select fill bind:value={level}>
-        {#each LEVELS as lvl (lvl.value)}
-          <option value={lvl.value}>{t(lvl.label)}</option>
-        {/each}
-      </Select>
+      <Select fill options={LEVELS.map((lvl) => ({ value: lvl.value, label: t(lvl.label) }))} bind:value={level} />
     </Field>
   </div>
 </ConfirmDialog>

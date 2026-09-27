@@ -34,6 +34,7 @@ export { default as RadioGroup } from './RadioGroup.astro';
 export { default as SearchInput } from './SearchInput.astro';
 export { default as SegmentedControl } from './SegmentedControl.astro';
 export { default as Select } from './Select.astro';
+export type { SelectOption } from '../lib/select';
 export { default as Switch } from './Switch.astro';
 export { default as Textarea } from './Textarea.astro';
 

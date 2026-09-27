@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { Select } from '@bagel/kit';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, Switch, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
@@ -114,11 +115,11 @@
   <ChatPreview kind="reply" response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('govee.previewTag')} samples={replySamples} />
 
   <Field label={t('govee.afterTitle')}>
-    <select class="input" name="onRedeem" bind:value={onRedeem}>
-      <option value="fulfill">{t('govee.afterFulfill')}</option>
-      <option value="cancel">{t('govee.afterCancel')}</option>
-      <option value="leave">{t('govee.afterLeave')}</option>
-    </select>
+    <Select
+      fill
+      name="onRedeem" bind:value={onRedeem}
+      options={[{ value: 'fulfill', label: t('govee.afterFulfill') }, { value: 'cancel', label: t('govee.afterCancel') }, { value: 'leave', label: t('govee.afterLeave') }]}
+    />
   </Field>
 
   <div class="setrow {allowOff ? 'on' : ''}">

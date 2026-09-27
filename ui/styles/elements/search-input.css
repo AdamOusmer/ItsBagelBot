@@ -28,4 +28,5 @@
     .bb-search__clear svg { width: 12px; height: 12px; stroke-linecap: round; stroke-linejoin: round; }
 
     .bb-search__clear:hover { color: var(--bb-white); }
+    .bb-search__clear[hidden] { display: none; }
 }

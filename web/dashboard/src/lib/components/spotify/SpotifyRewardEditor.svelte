@@ -108,11 +108,16 @@
   <ChatPreview kind="reply" response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('spotify.previewTag')} samples={replySamples} />
 
   <Field label={t('spotify.afterTitle')}>
-    <Select fill name="onRedeem" bind:value={onRedeem}>
-      <option value="fulfill">{t('spotify.afterFulfill')}</option>
-      <option value="cancel">{t('spotify.afterCancel')}</option>
-      <option value="leave">{t('spotify.afterLeave')}</option>
-    </Select>
+    <Select
+      fill
+      name="onRedeem"
+      options={[
+        { value: 'fulfill', label: t('spotify.afterFulfill') },
+        { value: 'cancel', label: t('spotify.afterCancel') },
+        { value: 'leave', label: t('spotify.afterLeave') }
+      ]}
+      bind:value={onRedeem}
+    />
   </Field>
 
   {#if !isNew}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { Select } from '@bagel/kit';
   import { Button, Cluster, Field, getI18n } from '@bagel/kit';
   import { focusFirstInvalid } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
@@ -85,9 +86,11 @@
   </Field>
 
   <Field label={t('modules.matchLabel')} hint={modeHint}>
-    <select class="bb-input" bind:value={match}>
-      {#each modes as m (m.value)}<option value={m.value}>{m.label}</option>{/each}
-    </select>
+    <Select
+      fill
+      bind:value={match}
+      options={modes}
+    />
   </Field>
 
   <Field label={t('modules.responseLabel')} error={responseError} errorId={RESPONSE_ERR_ID}>

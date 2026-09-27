@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { Select } from '@bagel/kit';
   import { getI18n, type DiscordConfig, type RefusedFields } from '@bagel/kit';
   import type { DiscordEntry } from '$lib/server/discord-store';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
@@ -36,18 +37,21 @@
     <span class="tr-label">{label}</span>
     <span class="tr-help" id="dch-{field}">{help}</span>
   </label>
-  <select
-    id="dc-{field}"
-    class="setting-input"
-    aria-describedby="dch-{field}"
-    disabled={options.length === 0}
-    value={draft.config[field]}
-    onchange={(e) => draft.set(field, e.currentTarget.value)}
-  >
-    <option value="">{t('discord.notSet')}</option>
-    {#each options as opt (opt.id)}
-      <option value={opt.id}>{prefix}{optionLabel(opt)}</option>
-    {/each}
-  </select>
+  <div class="setting-picker">
+    <Select
+      fill
+      searchable
+      label={label}
+      searchPlaceholder={t('common.searchOptions')}
+      searchClearLabel={t('common.searchClear')}
+      emptyLabel={t('common.selectNoMatch')}
+      id="dc-{field}"
+      aria-describedby="dch-{field}"
+      disabled={options.length === 0}
+      value={String(draft.config[field] ?? '')}
+      onchange={(e) => draft.set(field, e.currentTarget.value)}
+      options={[{ value: '', label: t('discord.notSet') }, ...options.map((opt) => ({ value: opt.id, label: `${prefix}${optionLabel(opt)}` }))]}
+    />
+  </div>
   <FieldNote {invalid} {field} />
 </div>

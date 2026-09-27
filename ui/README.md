@@ -80,6 +80,36 @@ and Cloudflare Pages need no extra step. If you ever install with
 `--production` means a web-side install does NOT give you this package's
 devDependencies. Working on the library is `cd ui && bun install`.
 
+## Custom dropdowns
+
+`Select` accepts an `options` array of `{ value, label }` objects. Set
+`searchable` to add a search field; it defaults to off. Options can also carry
+`description`, `group`, `disabled`, `searchText` (aliases), and `triggerLabel`.
+Both adapters use the shared picker styling, with a modal sheet on mobile.
+
+```svelte
+<script lang="ts">
+  import { Select } from '@bagel/ui/svelte';
+  let zone = $state('America/Toronto');
+  const options = [
+    { value: 'America/Toronto', label: 'Toronto', description: 'America/Toronto' },
+    { value: 'Europe/Paris', label: 'Paris', description: 'Europe/Paris' }
+  ];
+</script>
+
+<Select name="timezone" label="Timezone" bind:value={zone} {options} searchable />
+```
+
+Pass localized `searchPlaceholder`, `searchClearLabel`, and `emptyLabel` from
+the host application. Svelte also accepts `filterOptions` for domain-specific
+ranking or aliases, as used by the dashboard's timezone wrapper. A native
+fallback preserves form submission without JavaScript; after enhancement it
+bridges validation, form reset, and real `input`/`change` events. Change handlers
+receive an `HTMLSelectElement` as `currentTarget`, with bindings and form data
+updated before the handler runs. Astro additionally supports native option
+slots for existing callers. The adapters have separate SSR contract tests
+because Svelte pre-renders its trigger and Astro creates it during enhancement.
+
 ## Checks
 
 ```bash

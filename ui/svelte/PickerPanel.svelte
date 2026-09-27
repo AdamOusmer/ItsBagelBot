@@ -1,3 +1,8 @@
+<script module lang="ts">
+  // Capture listeners run in mount order; nested pickers dismiss newest first.
+  const openPickerRoots = new Set<HTMLElement>();
+</script>
+
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
@@ -5,7 +10,7 @@
   import type { Snippet } from 'svelte';
   import '../styles/elements/picker-panel.css';
   import { mediaQuery } from '../lib/motion-query';
-  import { portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus } from '../lib/overlay-stack';
+  import { portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains } from '../lib/overlay-stack';
 
   let {
     open = false,
@@ -51,6 +56,17 @@
     return () => removeOverlay(id);
   });
 
+  $effect(() => {
+    if (!open || !panelEl) return;
+    const root = panelEl.closest<HTMLElement>('[data-overlay]') || panelEl;
+    openPickerRoots.add(root);
+    const unregister = anchor ? registerOverlayAnchor(root, anchor) : undefined;
+    return () => {
+      unregister?.();
+      openPickerRoots.delete(root);
+    };
+  });
+
   function place() {
     if (!anchor) return;
     const r = anchor.getBoundingClientRect();
@@ -67,7 +83,7 @@
   $effect(() => {
     if (!open || isSheet) return;
     const close = (e: Event) => {
-      if (panelEl && e.target instanceof Node && panelEl.contains(e.target)) return;
+      if (e.type === 'scroll' && panelEl && e.target instanceof Node && overlayContains(panelEl, e.target)) return;
       onClose();
     };
     window.addEventListener('scroll', close, { capture: true, passive: true });
@@ -83,7 +99,7 @@
     const onDown = (e: PointerEvent) => {
       const t = e.target as Node | null;
       if (!t) return;
-      if (panelEl?.contains(t) || anchor?.contains(t)) return;
+      if ((panelEl && overlayContains(panelEl, t)) || anchor?.contains(t)) return;
       onClose();
     };
     document.addEventListener('pointerdown', onDown, true);
@@ -93,7 +109,11 @@
 
 <svelte:window
   onkeydowncapture={(e) => {
-    if (!open || e.key !== 'Escape') return;
+    if (!open || e.key !== 'Escape' || !panelEl) return;
+    const root = panelEl.closest<HTMLElement>('[data-overlay]') || panelEl;
+    if (Array.from(openPickerRoots).at(-1) !== root) return;
+    // A child portal may use another adapter and handle Escape at its target.
+    if (e.target instanceof Node && !root.contains(e.target) && overlayContains(root, e.target)) return;
     if (isSheet && !isTopmost(overlayId)) return;
     e.preventDefault();
     e.stopImmediatePropagation();

@@ -476,11 +476,13 @@
             <input type="hidden" name="sr_allow_offline" value={sr.allowOffline ? 'on' : ''} />
             {#if sr.enabled}
               <Field label={t('spotify.srPermLabel')}>
-                <Select fill name="perm" bind:value={sr.perm} onchange={srChanged}>
-                  {#each SPOTIFY_SR_PERMS as p (p)}
-                    <option value={p}>{t(PERM_LABEL_KEYS[p])}</option>
-                  {/each}
-                </Select>
+                <Select
+                  fill
+                  name="perm"
+                  options={SPOTIFY_SR_PERMS.map((p) => ({ value: p, label: t(PERM_LABEL_KEYS[p]) }))}
+                  bind:value={() => sr.perm, (value) => (sr.perm = value as SpotifySrPerm)}
+                  onchange={srChanged}
+                />
               </Field>
             {:else}
               <input type="hidden" name="perm" value={sr.perm} />

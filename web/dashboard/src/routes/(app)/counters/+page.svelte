@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { Select } from '@bagel/kit';
   import { enhance, deserialize } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
   import { tick } from 'svelte';
@@ -483,11 +484,11 @@
               {/if}
 
               <Field label={t('counters.fieldScope')}>
-                <select class="bb-input" name="scope" bind:value={newScope}>
-                  {#each COUNTER_SCOPES as s}
-                    <option value={s}>{scopeLabel[s]}</option>
-                  {/each}
-                </select>
+                <Select
+                  fill
+                  name="scope" bind:value={newScope}
+                  options={COUNTER_SCOPES.map((s) => ({ value: s, label: scopeLabel[s] }))}
+                />
               </Field>
               <div class="hints">
                 <p class="hint">{t('counters.scopeHint')}</p>
