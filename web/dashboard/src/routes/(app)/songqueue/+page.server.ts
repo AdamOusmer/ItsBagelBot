@@ -32,6 +32,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
     demo: DEMO
       ? async () => {
           const { demoSpotifyView } = await import('$lib/server/demo-data');
+          const setupPreview = url.searchParams.get('setup') === '1';
           return {
             ...demoSpotifyView(),
             quotas: blankSpotifyQuotas(),
@@ -42,9 +43,10 @@ export const load: PageServerLoad = ({ locals, url }) => {
                 { title: 'Somebody Told Me', artists: 'The Killers', requester: 'carol' }
               ]
             } as QueueView,
-            connected: true,
+            setupPreview,
+            connected: !setupPreview,
             scopeGap: [] as string[],
-            app: { present: true, clientId: 'demo-client-id' },
+            app: { present: !setupPreview, clientId: setupPreview ? '' : 'demo-client-id' },
             redirectUri: 'https://console.example/spotify/callback',
             justConnected: false,
             errorSlug: ''

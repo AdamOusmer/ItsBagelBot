@@ -9,5 +9,7 @@ await assertProductionClean({
   buildRoot: fileURLToPath(new URL('../build/', import.meta.url)),
   fixtureChunks: ['demo-data', 'demo-notifications', 'sample'],
   // Verbatim from billing/demo-checkout/copy/en.json; drift makes this check pass vacuously.
-  demoCopy: ['No card is charged', 'Demo checkout']
+  demoCopy: ['No card is charged', 'Demo checkout',
+    // The Spotify sample-key shortcut must be erased, including source maps.
+    'preview-client-id']
 });
