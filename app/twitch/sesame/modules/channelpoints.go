@@ -31,7 +31,7 @@ const (
 	onRedeemLeave   = "leave"
 )
 
-const defaultRewardChatTemplate = "{user} redeemed {reward}!"
+const defaultRewardChatTemplate = "{channelpoints:user} redeemed {channelpoints:reward}!"
 
 type channelPointsConfig struct {
 	Rewards []rewardBinding `json:"rewards"`
@@ -212,5 +212,5 @@ func expandReward(p rewardChatParams) string {
 		kv = append(kv, "points", strconv.FormatInt(p.binding.Points, 10))
 	}
 	text := orDefault(p.binding.Message, defaultRewardChatTemplate)
-	return module.KV(kv...).WithLocale(module.Locale(p.locale)).ExpandString(text)
+	return module.KV(kv...).WithLocale(module.Locale(p.locale)).WithNamespace("channelpoints").ExpandString(text)
 }

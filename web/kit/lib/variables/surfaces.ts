@@ -20,7 +20,7 @@ const TIMER_VARIABLES: readonly string[] = VARIABLES.filter(
 
 const TIMER_SET = new Set(TIMER_VARIABLES);
 
-const TRIGGERS_VARIABLE_IDS = new Set(['user', 'random', 'choice']);
+const TRIGGERS_VARIABLE_IDS = new Set(['user', 'channel', 'random', 'choice']);
 
 export type VariableSurface =
   | 'custom'
@@ -87,7 +87,10 @@ function replyTokensFor(target: { module: string; reply: string } | { builtin: s
 }
 
 export function chipsFor(surface: VariableSurface): readonly VariableChip[] {
-  if (isManifestSurface(surface)) return forSurface(surface).flatMap(chipsOfVariable);
+  if (isManifestSurface(surface)) {
+    const chips = forSurface(surface).flatMap(chipsOfVariable);
+    return surface === 'triggers' ? chips.map((chip) => chip.id === 'user' || chip.id === 'channel' ? { ...chip, token: `{triggers:${chip.id}}`, requires: 'triggers' } : chip) : chips;
+  }
   const target = typeof surface === 'string' ? REWARD_TARGETS[surface] : surface;
   return replyTokensFor(target).flatMap((tk) => {
     const chip = chipOfReplyToken(tk);

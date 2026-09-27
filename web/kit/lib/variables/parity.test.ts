@@ -80,12 +80,13 @@ const duplicatesIn = (values: string[]): string[] =>
 
 interface ReplySource {
   where: string;
+  moduleID: string;
   tokens: readonly ReplyToken[];
 }
 
 const REPLY_SOURCES: ReplySource[] = [
-  ...MODULE_CATALOG.flatMap((mod) => mod.replies.map((reply) => ({ where: `${mod.id}.${reply.key}`, tokens: reply.tokens ?? [] }))),
-  ...BUILTIN_COMMANDS.map((cmd) => ({ where: `builtin.${cmd.id}`, tokens: cmd.tokens ?? [] }))
+  ...MODULE_CATALOG.flatMap((mod) => mod.replies.map((reply) => ({ where: `${mod.id}.${reply.key}`, moduleID: mod.id, tokens: reply.tokens ?? [] }))),
+  ...BUILTIN_COMMANDS.map((cmd) => ({ where: `builtin.${cmd.id}`, moduleID: cmd.id, tokens: cmd.tokens ?? [] }))
 ];
 
 const leafAt = (tree: unknown, key: string): unknown =>
@@ -110,7 +111,7 @@ const replyMismatches = (source: ReplySource): string[] => {
   if (!ns) return [];
   const goNames = replyTokensGolden.replies[ns];
   if (!goNames) return [`${source.where}: reply_tokens.golden.json has no "${ns}"; add it to app/twitch/sesame/modules/reply_tokens.go and regenerate`];
-  const kitNames = sortedNames(source.tokens.map((token) => token.name));
+  const kitNames = sortedNames(source.tokens.map((token) => token.name.startsWith(`${source.moduleID}:`) ? token.name.slice(source.moduleID.length + 1) : token.name));
   const same = JSON.stringify(kitNames) === JSON.stringify(sortedNames(goNames));
   return same ? [] : [`${source.where}: kit tokens ${JSON.stringify(kitNames)} differ from Go "${ns}" ${JSON.stringify(sortedNames(goNames))}`];
 };

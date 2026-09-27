@@ -29,7 +29,7 @@ const (
 var spotifyNowPlaying = GossipRoute{Provider: "spotify", Endpoint: "nowplaying"}
 
 func (p *Pipeline) moduleScope(ctx context.Context, c *module.Context, toks []tmpl.Token) (scope.Modules, bool) {
-	wants := moduleWantsOf(toks)
+	wants := p.legacyModuleWants(toks)
 	if !wants.any() {
 		return scope.Modules{}, false
 	}
@@ -42,6 +42,16 @@ func (p *Pipeline) moduleScope(ctx context.Context, c *module.Context, toks []tm
 		Songs:      p.nowPlaying(ctx, c, wants.song),
 	}
 	return m, m.Quotes != nil || m.Clock != nil || m.Places != nil || m.Songs != nil
+}
+
+func (p *Pipeline) legacyModuleWants(toks []tmpl.Token) moduleWants {
+	var wants moduleWants
+	for _, tok := range toks {
+		if _, canonical := p.namespaceModule(tok); !canonical {
+			wants.mark(tok)
+		}
+	}
+	return wants
 }
 
 type moduleWants struct {
@@ -160,7 +170,7 @@ func quoteLine(locale string, q modulesrpc.Quote) string {
 		"num", strconv.FormatUint(q.Number, 10),
 		"text", q.Text,
 		"date", quoteDate(q.CreatedAt),
-	).WithLocale(module.Locale(locale)).ExpandString(i18n.T(locale, "quote.show"))
+	).WithLocale(module.Locale(locale)).WithNamespace("quotes").ExpandString(i18n.T(locale, "quote.show"))
 }
 
 func quoteDate(createdAt string) string {

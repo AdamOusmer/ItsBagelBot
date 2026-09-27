@@ -1345,7 +1345,13 @@
     "bumpCounterPlaceholder": "Nom du compteur (facultatif)",
     "saving": "Enregistrement…",
     "saveChanges": "Enregistrer les modifications",
-    "create": "Créer"
+    "create": "Créer",
+    "pickModuleVariable": "Variables de modules",
+    "variableModule": "Module",
+    "moduleVariableRequires": "Nécessite {module} activé. Ajouter cette variable n’active pas le module.",
+    "manageModules": "Gérer les modules",
+    "moduleVariableContext": "Les valeurs liées à un événement sont vides sans événement correspondant. L’aperçu utilise des exemples.",
+    "moduleVariableParentRequires": "Nécessite aussi {module} activé."
   },
   "commandRow": {
     "lockedTo": "Verrouillé sur l'utilisateur {id}",
@@ -4218,6 +4224,156 @@
       "name": "Artiste de la chanson",
       "hint": "seulement le nom de l’artiste, la seconde moitié de {song}",
       "desc": "Le nom de l’artiste seul, la seconde moitié de {song}. Rien en lecture ne renvoie rien. Nécessite le module Requêtes musicales."
+    },
+    "modulechannelpoints": {
+      "name": "Points de chaîne",
+      "hint": "Nécessite le module Points de chaîne activé.",
+      "desc": "Utilisez {channelpoints:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Points de chaîne doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulestream": {
+      "name": "Gestion du stream",
+      "hint": "Nécessite le module Gestion du stream activé.",
+      "desc": "Utilisez {stream:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Gestion du stream doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduleloyalty": {
+      "name": "Points de fidélité",
+      "hint": "Nécessite le module Points de fidélité activé.",
+      "desc": "Utilisez {loyalty:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Points de fidélité doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulegamble": {
+      "name": "Pari",
+      "hint": "Nécessite le module Pari activé. Nécessite aussi Points de fidélité activé.",
+      "desc": "Utilisez {gamble:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Pari doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module. Le module Points de fidélité doit aussi être activé."
+    },
+    "moduleduel": {
+      "name": "Duels",
+      "hint": "Nécessite le module Duels activé. Nécessite aussi Points de fidélité activé.",
+      "desc": "Utilisez {duel:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Duels doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module. Le module Points de fidélité doit aussi être activé."
+    },
+    "moduleshoutout": {
+      "name": "Shoutout automatique",
+      "hint": "Nécessite le module Shoutout automatique activé.",
+      "desc": "Utilisez {shoutout:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Shoutout automatique doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulealerts": {
+      "name": "Alertes de chat",
+      "hint": "Nécessite le module Alertes de chat activé.",
+      "desc": "Utilisez {alerts:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Alertes de chat doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduleurchin": {
+      "name": "Statistiques Bedwars",
+      "hint": "Nécessite le module Statistiques Bedwars activé.",
+      "desc": "Utilisez {urchin:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Statistiques Bedwars doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulemcsr": {
+      "name": "MCSR Ranked",
+      "hint": "Nécessite le module MCSR Ranked activé.",
+      "desc": "Utilisez {mcsr:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module MCSR Ranked doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulefortnite": {
+      "name": "Statistiques Fortnite",
+      "hint": "Nécessite le module Statistiques Fortnite activé.",
+      "desc": "Utilisez {fortnite:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Statistiques Fortnite doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulecodm": {
+      "name": "Profil CODM",
+      "hint": "Nécessite le module Profil CODM activé.",
+      "desc": "Utilisez {codm:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Profil CODM doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduleclashroyale": {
+      "name": "Statistiques Clash Royale",
+      "hint": "Nécessite le module Statistiques Clash Royale activé.",
+      "desc": "Utilisez {clashroyale:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Statistiques Clash Royale doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulevalorant": {
+      "name": "Statistiques Valorant",
+      "hint": "Nécessite le module Statistiques Valorant activé.",
+      "desc": "Utilisez {valorant:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Statistiques Valorant doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulequeue": {
+      "name": "File de joueurs",
+      "hint": "Nécessite le module File de joueurs activé.",
+      "desc": "Utilisez {queue:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module File de joueurs doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduleraffle": {
+      "name": "Tirage au sort",
+      "hint": "Nécessite le module Tirage au sort activé.",
+      "desc": "Utilisez {raffle:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Tirage au sort doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulequotes": {
+      "name": "Citations",
+      "hint": "Nécessite le module Citations activé.",
+      "desc": "Utilisez {quotes:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Citations doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulegovee": {
+      "name": "Lumières Govee",
+      "hint": "Nécessite le module Lumières Govee activé.",
+      "desc": "Utilisez {govee:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Lumières Govee doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulesongqueue": {
+      "name": "Demandes de chansons",
+      "hint": "Nécessite le module Demandes de chansons activé.",
+      "desc": "Utilisez {songqueue:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Demandes de chansons doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduletime": {
+      "name": "Heure locale",
+      "hint": "Nécessite le module Heure locale activé.",
+      "desc": "Utilisez {time:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Heure locale doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduleaccountage": {
+      "name": "Âge du compte",
+      "hint": "Nécessite le module Âge du compte activé.",
+      "desc": "Utilisez {accountage:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Âge du compte doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulefollowage": {
+      "name": "Ancienneté du suivi",
+      "hint": "Nécessite le module Ancienneté du suivi activé.",
+      "desc": "Utilisez {followage:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Ancienneté du suivi doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduleclip": {
+      "name": "Clip",
+      "hint": "Nécessite le module Clip activé.",
+      "desc": "Utilisez {clip:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Clip doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduletitle": {
+      "name": "Titre du stream",
+      "hint": "Nécessite le module Titre du stream activé.",
+      "desc": "Utilisez {title:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Titre du stream doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulegame": {
+      "name": "Catégorie du stream",
+      "hint": "Nécessite le module Catégorie du stream activé.",
+      "desc": "Utilisez {game:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Catégorie du stream doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduletags": {
+      "name": "Tags du stream",
+      "hint": "Nécessite le module Tags du stream activé.",
+      "desc": "Utilisez {tags:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Tags du stream doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulecommercial": {
+      "name": "Pause publicitaire",
+      "hint": "Nécessite le module Pause publicitaire activé.",
+      "desc": "Utilisez {commercial:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Pause publicitaire doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulemarker": {
+      "name": "Marqueur",
+      "hint": "Nécessite le module Marqueur activé.",
+      "desc": "Utilisez {marker:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Marqueur doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduletriggers": {
+      "name": "Mots déclencheurs",
+      "hint": "Nécessite le module Mots déclencheurs activé.",
+      "desc": "Utilisez {triggers:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Mots déclencheurs doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "moduleuptime": {
+      "name": "Durée du live",
+      "hint": "Nécessite le module Durée du live activé.",
+      "desc": "Utilisez {uptime:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Durée du live doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+    },
+    "modulepersonality": {
+      "name": "Personnalité du chat",
+      "hint": "Nécessite le module Personnalité du chat activé.",
+      "desc": "Utilisez {personality:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Personnalité du chat doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
     }
   },
   "replyVars": {

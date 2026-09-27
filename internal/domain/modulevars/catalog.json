@@ -1,0 +1,996 @@
+[
+  {
+    "id": "channelpoints",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "user",
+          "input",
+          "reward",
+          "cost",
+          "channel",
+          "counter",
+          "points"
+        ],
+        "message_key": "message"
+      },
+      {
+        "name": "redeem",
+        "fields": [
+          "user",
+          "reward",
+          "input",
+          "cost",
+          "channel",
+          "counter",
+          "points"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "stream",
+    "groups": [
+      {
+        "name": "channel",
+        "fields": [
+          "uptime",
+          "title",
+          "game",
+          "viewers"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "timers",
+    "groups": []
+  },
+  {
+    "id": "loyalty",
+    "groups": [
+      {
+        "name": "balance",
+        "fields": [
+          "points",
+          "pointsname",
+          "watchtime",
+          "duration",
+          "user",
+          "name",
+          "hours"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "counters",
+    "groups": []
+  },
+  {
+    "id": "gamble",
+    "groups": [
+      {
+        "name": "won",
+        "fields": [
+          "user",
+          "roll",
+          "chance",
+          "amount",
+          "balance",
+          "points"
+        ],
+        "message_key": "winMessage"
+      },
+      {
+        "name": "lost",
+        "fields": [
+          "user",
+          "roll",
+          "chance",
+          "amount",
+          "balance",
+          "points"
+        ],
+        "message_key": "loseMessage"
+      }
+    ]
+  },
+  {
+    "id": "duel",
+    "groups": [
+      {
+        "name": "opened",
+        "fields": [
+          "user",
+          "stake",
+          "secs",
+          "points"
+        ],
+        "message_key": "openedMessage"
+      },
+      {
+        "name": "joined",
+        "fields": [
+          "user",
+          "stake",
+          "count",
+          "pot",
+          "points"
+        ],
+        "message_key": "joinMessage"
+      },
+      {
+        "name": "challenge",
+        "fields": [
+          "user",
+          "target",
+          "stake",
+          "pot",
+          "secs",
+          "points"
+        ],
+        "message_key": "challengeMessage"
+      },
+      {
+        "name": "won",
+        "fields": [
+          "winner",
+          "loser",
+          "pot",
+          "points"
+        ],
+        "message_key": "wonMessage"
+      }
+    ]
+  },
+  {
+    "id": "triggers",
+    "groups": [
+      {
+        "name": "response",
+        "fields": [
+          "user",
+          "channel"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "time",
+    "groups": [
+      {
+        "name": "time",
+        "fields": [
+          "time",
+          "date",
+          "timezone",
+          "user"
+        ],
+        "message_key": "message"
+      },
+      {
+        "name": "lookup",
+        "fields": [
+          "time",
+          "date",
+          "place",
+          "timezone",
+          "user"
+        ],
+        "message_key": "lookupMessage"
+      }
+    ]
+  },
+  {
+    "id": "emoteplay",
+    "groups": []
+  },
+  {
+    "id": "personality",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "user"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "automod",
+    "groups": []
+  },
+  {
+    "id": "shoutout",
+    "groups": [
+      {
+        "name": "shoutout",
+        "fields": [
+          "raider",
+          "raider.login",
+          "viewers"
+        ],
+        "message_key": "message"
+      }
+    ]
+  },
+  {
+    "id": "alerts",
+    "groups": [
+      {
+        "name": "follow",
+        "fields": [
+          "user"
+        ],
+        "message_key": "followMessage"
+      },
+      {
+        "name": "sub",
+        "fields": [
+          "user",
+          "tier"
+        ],
+        "message_key": "subMessage"
+      },
+      {
+        "name": "gift",
+        "fields": [
+          "user",
+          "count",
+          "tier"
+        ],
+        "message_key": "giftMessage"
+      },
+      {
+        "name": "cheer",
+        "fields": [
+          "user",
+          "bits"
+        ],
+        "message_key": "cheerMessage"
+      },
+      {
+        "name": "raid",
+        "fields": [
+          "user",
+          "viewers"
+        ],
+        "message_key": "raidMessage"
+      },
+      {
+        "name": "ads",
+        "fields": [
+          "duration"
+        ],
+        "message_key": "adsMessage"
+      }
+    ]
+  },
+  {
+    "id": "urchin",
+    "groups": [
+      {
+        "name": "daily",
+        "fields": [
+          "player",
+          "wins",
+          "losses",
+          "finals",
+          "finaldeaths",
+          "beds",
+          "games",
+          "levels",
+          "fkdr"
+        ],
+        "message_key": "dailyMessage"
+      },
+      {
+        "name": "weekly",
+        "fields": [
+          "player",
+          "wins",
+          "losses",
+          "finals",
+          "finaldeaths",
+          "beds",
+          "games",
+          "levels",
+          "fkdr"
+        ],
+        "message_key": "weeklyMessage"
+      },
+      {
+        "name": "monthly",
+        "fields": [
+          "player",
+          "wins",
+          "losses",
+          "finals",
+          "finaldeaths",
+          "beds",
+          "games",
+          "levels",
+          "fkdr"
+        ],
+        "message_key": "monthlyMessage"
+      },
+      {
+        "name": "stats",
+        "fields": [
+          "player",
+          "stars",
+          "wins",
+          "losses",
+          "finals",
+          "finaldeaths",
+          "beds",
+          "fkdr",
+          "wlr"
+        ],
+        "message_key": "statsMessage"
+      },
+      {
+        "name": "sniper",
+        "fields": [
+          "player",
+          "score",
+          "mode",
+          "tagcount"
+        ],
+        "message_key": "sniperMessage"
+      },
+      {
+        "name": "tags",
+        "fields": [
+          "player",
+          "tags",
+          "tagcount"
+        ],
+        "message_key": "tagsMessage"
+      },
+      {
+        "name": "tagdescription",
+        "fields": [
+          "player",
+          "tags",
+          "tagcount"
+        ],
+        "message_key": "tagDescriptionMessage"
+      }
+    ]
+  },
+  {
+    "id": "mcsr",
+    "groups": [
+      {
+        "name": "elo",
+        "fields": [
+          "player",
+          "elo",
+          "rank",
+          "wins",
+          "losses",
+          "draws",
+          "matches",
+          "country"
+        ],
+        "message_key": "eloMessage"
+      },
+      {
+        "name": "session",
+        "fields": [
+          "player",
+          "elo",
+          "elochange",
+          "wins",
+          "losses",
+          "draws",
+          "matches"
+        ],
+        "message_key": "sessionMessage"
+      },
+      {
+        "name": "pace",
+        "fields": [
+          "player",
+          "nethers",
+          "nether",
+          "bastion",
+          "fortress",
+          "firststructure",
+          "secondstructure",
+          "firstportal",
+          "stronghold",
+          "end",
+          "finish",
+          "nph"
+        ],
+        "message_key": "paceMessage"
+      },
+      {
+        "name": "nethers",
+        "fields": [
+          "player",
+          "nethers",
+          "nether",
+          "nph"
+        ],
+        "message_key": "nethersMessage"
+      },
+      {
+        "name": "lastfort",
+        "fields": [
+          "player",
+          "nether",
+          "bastion",
+          "fortress",
+          "firstportal",
+          "stronghold",
+          "end",
+          "finish",
+          "ago"
+        ],
+        "message_key": "lastFortMessage"
+      },
+      {
+        "name": "lastmatch",
+        "fields": [
+          "player",
+          "opponent",
+          "result",
+          "time",
+          "seed",
+          "structure",
+          "elochange",
+          "ago"
+        ],
+        "message_key": "lastMatchMessage"
+      },
+      {
+        "name": "record",
+        "fields": [
+          "playera",
+          "playerb",
+          "winsa",
+          "winsb",
+          "played"
+        ],
+        "message_key": "recordMessage"
+      },
+      {
+        "name": "lb",
+        "fields": [
+          "board",
+          "list"
+        ],
+        "message_key": "lbMessage"
+      },
+      {
+        "name": "race",
+        "fields": [
+          "leader",
+          "leadertime",
+          "player",
+          "time",
+          "rank"
+        ],
+        "message_key": "raceMessage"
+      },
+      {
+        "name": "pb",
+        "fields": [
+          "player",
+          "time",
+          "window"
+        ],
+        "message_key": "pbMessage"
+      }
+    ]
+  },
+  {
+    "id": "fortnite",
+    "groups": [
+      {
+        "name": "stats",
+        "fields": [
+          "player",
+          "window",
+          "wins",
+          "matches",
+          "kills",
+          "kd",
+          "winrate",
+          "solowins",
+          "solomatches",
+          "solokd",
+          "duowins",
+          "duomatches",
+          "duokd",
+          "squadwins",
+          "squadmatches",
+          "squadkd"
+        ],
+        "message_key": "statsMessage"
+      },
+      {
+        "name": "season",
+        "fields": [
+          "player",
+          "window",
+          "wins",
+          "matches",
+          "kills",
+          "kd",
+          "winrate",
+          "solowins",
+          "solomatches",
+          "solokd",
+          "duowins",
+          "duomatches",
+          "duokd",
+          "squadwins",
+          "squadmatches",
+          "squadkd"
+        ],
+        "message_key": "seasonMessage"
+      },
+      {
+        "name": "session",
+        "fields": [
+          "player",
+          "wins",
+          "matches",
+          "kills",
+          "kd",
+          "winrate"
+        ],
+        "message_key": "sessionMessage"
+      },
+      {
+        "name": "store",
+        "fields": [
+          "date",
+          "count",
+          "items"
+        ],
+        "message_key": "storeMessage"
+      }
+    ]
+  },
+  {
+    "id": "codm",
+    "groups": [
+      {
+        "name": "profile",
+        "fields": [
+          "player",
+          "level",
+          "rank",
+          "rankclass",
+          "rating",
+          "country",
+          "shortid"
+        ],
+        "message_key": "profileMessage"
+      }
+    ]
+  },
+  {
+    "id": "clashroyale",
+    "groups": [
+      {
+        "name": "stats",
+        "fields": [
+          "player",
+          "tag",
+          "level",
+          "wins",
+          "losses",
+          "draws",
+          "battles",
+          "winrate",
+          "crowns",
+          "challengemax",
+          "donations",
+          "totaldonations",
+          "clan",
+          "favcard"
+        ],
+        "message_key": "statsMessage"
+      },
+      {
+        "name": "decks",
+        "fields": [
+          "player",
+          "tag",
+          "cards",
+          "support",
+          "elixir",
+          "count"
+        ],
+        "message_key": "decksMessage"
+      },
+      {
+        "name": "ranked",
+        "fields": [
+          "player",
+          "tag",
+          "league",
+          "trophies",
+          "rank",
+          "prevleague",
+          "prevtrophies",
+          "bestleague",
+          "besttrophies",
+          "bestrank"
+        ],
+        "message_key": "rankedMessage"
+      },
+      {
+        "name": "road",
+        "fields": [
+          "player",
+          "tag",
+          "trophies",
+          "besttrophies",
+          "arena"
+        ],
+        "message_key": "roadMessage"
+      }
+    ]
+  },
+  {
+    "id": "valorant",
+    "groups": [
+      {
+        "name": "rank",
+        "fields": [
+          "player",
+          "region",
+          "tier",
+          "elo",
+          "rr",
+          "lastchange",
+          "peaktier",
+          "placement"
+        ],
+        "message_key": "rankMessage"
+      },
+      {
+        "name": "matches",
+        "fields": [
+          "player",
+          "region",
+          "count",
+          "matches",
+          "lastago"
+        ],
+        "message_key": "matchesMessage"
+      },
+      {
+        "name": "account",
+        "fields": [
+          "player",
+          "puuid",
+          "region",
+          "level",
+          "card",
+          "title"
+        ],
+        "message_key": "accountMessage"
+      },
+      {
+        "name": "board",
+        "fields": [
+          "player",
+          "board",
+          "count",
+          "entries"
+        ],
+        "message_key": "boardMessage"
+      },
+      {
+        "name": "shop",
+        "fields": [
+          "count",
+          "items",
+          "reset"
+        ],
+        "message_key": "shopMessage"
+      }
+    ]
+  },
+  {
+    "id": "queue",
+    "groups": [
+      {
+        "name": "join",
+        "fields": [
+          "user",
+          "pos",
+          "channel"
+        ],
+        "message_key": "joinMessage"
+      },
+      {
+        "name": "already",
+        "fields": [
+          "user",
+          "pos"
+        ],
+        "message_key": "alreadyMessage"
+      },
+      {
+        "name": "leave",
+        "fields": [
+          "user"
+        ],
+        "message_key": "leaveMessage"
+      },
+      {
+        "name": "next",
+        "fields": [
+          "target",
+          "count",
+          "user",
+          "channel"
+        ],
+        "message_key": "nextMessage"
+      },
+      {
+        "name": "status",
+        "fields": [
+          "size",
+          "entries",
+          "open"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "raffle",
+    "groups": [
+      {
+        "name": "status",
+        "fields": [
+          "entrants",
+          "seconds",
+          "open"
+        ]
+      },
+      {
+        "name": "joined",
+        "fields": [
+          "user",
+          "count"
+        ],
+        "message_key": "joinMessage"
+      },
+      {
+        "name": "already",
+        "fields": [
+          "user",
+          "count"
+        ],
+        "message_key": "alreadyMessage"
+      },
+      {
+        "name": "noraffle",
+        "fields": [
+          "user"
+        ],
+        "message_key": "noRaffleMessage"
+      },
+      {
+        "name": "opened",
+        "fields": [
+          "mins"
+        ],
+        "message_key": "openedMessage"
+      },
+      {
+        "name": "won",
+        "fields": [
+          "targets",
+          "count",
+          "entrants",
+          "claim"
+        ],
+        "message_key": "wonMessage"
+      },
+      {
+        "name": "claimok",
+        "fields": [
+          "user"
+        ],
+        "message_key": "claimOkMessage"
+      }
+    ]
+  },
+  {
+    "id": "quotes",
+    "groups": [
+      {
+        "name": "quote",
+        "fields": [
+          "quote",
+          "num",
+          "text",
+          "date"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "govee",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "user",
+          "input",
+          "color"
+        ],
+        "message_key": "replyMessage"
+      },
+      {
+        "name": "redeem",
+        "fields": [
+          "user",
+          "color"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "discord",
+    "groups": []
+  },
+  {
+    "id": "songqueue",
+    "groups": [
+      {
+        "name": "redeem",
+        "fields": [
+          "user",
+          "track",
+          "input",
+          "pos"
+        ],
+        "message_key": "replyMessage"
+      },
+      {
+        "name": "current",
+        "fields": [
+          "song",
+          "title",
+          "artist",
+          "url",
+          "req"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "accountage",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "target"
+        ]
+      },
+      {
+        "name": "status",
+        "fields": [
+          "accountage",
+          "createdat"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "followage",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "target"
+        ]
+      },
+      {
+        "name": "status",
+        "fields": [
+          "followage",
+          "followedat"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "clip",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "clip",
+          "user",
+          "target"
+        ],
+        "message_key": "reply"
+      }
+    ]
+  },
+  {
+    "id": "title",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "user",
+          "title"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "game",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "user",
+          "game"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "tags",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "user",
+          "tags"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "commercial",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "user",
+          "length"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "marker",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "user"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "uptime",
+    "groups": [
+      {
+        "name": "reply",
+        "fields": [
+          "uptime"
+        ]
+      }
+    ]
+  }
+]

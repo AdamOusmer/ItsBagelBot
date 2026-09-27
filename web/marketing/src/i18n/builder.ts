@@ -6,7 +6,7 @@ import { SITE } from '@bagel/kit/site-links';
 import { COMMAND_NAME_MAX, RESPONSE_MAX, RESPONSE_MAX_LINES, COOLDOWN_MAX } from '@bagel/kit/engine/commands-validate';
 import { staticText } from '@bagel/kit/i18n/static';
 import { VARIABLES as KIT_VARIABLES, variableById, type VariableDef, type VariableForm } from '@bagel/kit/variables';
-import { moduleDef } from '@bagel/kit/catalog';
+import { moduleDef, namespaceReplyTemplate } from '@bagel/kit/catalog';
 import { BUILTIN_COMMANDS } from '@bagel/kit/catalog/builtin-commands';
 import type { ReplyToken } from '@bagel/kit/catalog/module-def';
 
@@ -130,10 +130,10 @@ function builtinSurfaceVars(id: string): VarDef[] {
 }
 
 function explicitVars(surfaceId: string, tokens: readonly ReplyToken[]): VarDef[] {
-  return tokens.map((token) => replyTokenVarDef({ ...token, hintKey: `replyVars.${surfaceId}.${token.name}.hint` }));
+  return tokens.map((token) => replyTokenVarDef({ ...token, name: `${surfaceId}:${token.name}`, hintKey: token.name === 'channel' ? 'vars.channel.hint' : `replyVars.${surfaceId}.${token.name}.hint` }));
 }
 
-export const SURFACES: SurfaceDef[] = [
+export const SURFACES: SurfaceDef[] = ([
   {
     id: 'custom',
     group: { en: 'Commands', fr: 'Commandes' },
@@ -202,7 +202,7 @@ export const SURFACES: SurfaceDef[] = [
     hint: { en: 'Trigger Words module → the response side of a rule.', fr: 'Module Mots déclencheurs → la partie réponse d’une règle.' },
     example: { en: 'Hey {user}! {choice:Welcome in,Good to see you}!', fr: 'Salut {user}! {choice:Bienvenue,Contente de te voir}!' },
     prompt: { en: 'hello everyone', fr: 'bonjour tout le monde' },
-    vars: [...explicitVars('triggers', [{ name: 'user', sample: 'maya_live' }]), ...dynamicFormVars()],
+    vars: [...explicitVars('triggers', [{ name: 'user', sample: 'maya_live' }, { name: 'channel', sample: 'itsmavey' }]), ...dynamicFormVars()],
   },
   {
     id: 'clip',
@@ -404,7 +404,18 @@ export const SURFACES: SurfaceDef[] = [
     prompt: { en: '!fn store', fr: '!fn store' },
     vars: moduleSurfaceVars('fortnite.store'),
   },
-];
+] satisfies SurfaceDef[]).map((surface) => {
+  if (surface.id === 'custom') return surface;
+  const namespaced = surface.vars.find((variable) => /^\{[^:}]+:/.test(variable.token) && !variable.kitId);
+  if (!namespaced) return surface;
+  const moduleId = namespaced.token.slice(1).split(':')[0];
+  const tokens = surface.vars.filter((variable) => variable.token.startsWith(`{${moduleId}:`))
+    .map((variable) => ({ name: variable.token.slice(1, -1), sample: variable.sample }));
+  return { ...surface, example: {
+    en: namespaceReplyTemplate(moduleId, { tokens }, surface.example.en),
+    fr: namespaceReplyTemplate(moduleId, { tokens }, surface.example.fr)
+  } };
+});
 
 export const STYLES: { value: string; label: L10n }[] = [
   { value: '', label: { en: 'Normal message', fr: 'Message normal' } },

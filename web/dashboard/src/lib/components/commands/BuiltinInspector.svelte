@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
+  import { namespaceReplyTemplate } from '@bagel/kit';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Code,
@@ -38,12 +39,17 @@
   $effect(() => {
     if (command.name !== seededFor) {
       seededFor = command.name;
-      message = command.response;
+      message = namespaceReplyTemplate(def.id, def, command.response);
     }
   });
 
   const rehearsalSamples = $derived(Object.fromEntries((def.tokens ?? []).map((tk) => [tk.name, tk.sample])));
   const effectiveMessage = $derived(message.trim() ? message : def.preview);
+  const saveReply: SubmitFunction = (input) => {
+    message = namespaceReplyTemplate(def.id, def, message);
+    input.formData.set('reply', message);
+    return replySubmit?.(input);
+  };
 </script>
 
 <div class="editor builtin">
@@ -68,7 +74,7 @@
   </Field>
 
   {#if def.editable && replySubmit}
-    <form class="reply-form" method="POST" action="?/saveBuiltinReply" use:enhance={replySubmit}>
+    <form class="reply-form" method="POST" action="?/saveBuiltinReply" use:enhance={saveReply}>
       <input type="hidden" name="name" value={c.name} />
       <input type="hidden" name="is_active" value={c.is_active ? 'on' : ''} />
       <Field label={t('builtinInspector.replyMessage')} hint={t('builtinInspector.replyHint')}>

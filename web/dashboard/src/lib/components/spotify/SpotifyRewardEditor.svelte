@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
   import { enhance } from '$app/forms';
+  import { namespaceReplyTemplate, namespaceReplySamples, moduleDef } from '@bagel/kit';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Button, Code, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
   import Input from '@bagel/ui/svelte/Input.svelte';
@@ -25,13 +26,14 @@
 
   const { t } = getI18n();
 
-  const DEFAULT_REPLY = '@{user} queued {track}!';
-  const replySamples: Record<string, string> = {
+  const DEFAULT_REPLY = '@{songqueue:user} queued {songqueue:track}!';
+  const reply = moduleDef('songqueue')!.replies.find((reply) => reply.key === 'redeem')!;
+  const replySamples: Record<string, string> = namespaceReplySamples('songqueue', {
     user: t('spotify.previewUserSample'),
     track: 'Never Gonna Give You Up',
     input: 'rick roll',
     pos: '3'
-  };
+  });
 
   // svelte-ignore state_referenced_locally
   const isNew = !redeem.rewardId;
@@ -47,7 +49,7 @@
   // svelte-ignore state_referenced_locally
   let onRedeem = $state<string>(redeem.onRedeem ?? 'fulfill');
   // svelte-ignore state_referenced_locally
-  let replyMessage = $state(redeem.replyMessage ?? '');
+  let replyMessage = $state(namespaceReplyTemplate('songqueue', reply, redeem.replyMessage ?? ''));
 
   const TITLE_ERR_ID = 'spotify-title-err';
   let titleError = $state<string | undefined>(undefined);
@@ -60,6 +62,8 @@
       void focusFirstInvalid(formEl);
       return;
     }
+    replyMessage = namespaceReplyTemplate('songqueue', reply, replyMessage);
+    input.formData.set('replyMessage', replyMessage);
     return onSubmit(input);
   };
 </script>

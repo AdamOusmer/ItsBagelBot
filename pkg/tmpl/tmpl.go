@@ -43,6 +43,26 @@ func (t Token) Resolve(val string, ok bool) string {
 	}
 }
 
+// HasInnerBrace identifies spans cut short by another opening brace. The lexer
+// closes at the first '}', so template migrations must preserve that inner
+// literal rather than insert new conditional delimiters beside its closing brace.
+func (t Token) HasInnerBrace() bool {
+	return len(t.Raw) > 1 && strings.Contains(t.Raw[1:], "{")
+}
+
+// TokenKey recognizes one surface's {namespace:field} spelling while retaining
+// unqualified legacy fields and the keys of other namespaces. Payload data in
+// dynamic tokens remains untouched because their namespace does not match.
+func TokenKey(tok Token, namespace string) string {
+	if namespace == "" || !tok.HasPayload {
+		return tok.Key()
+	}
+	if tok.Name == namespace {
+		return strings.ToLower(strings.TrimSpace(tok.Payload))
+	}
+	return tok.Key()
+}
+
 func Lex(s string) []Token {
 	var out []Token
 	from := 0

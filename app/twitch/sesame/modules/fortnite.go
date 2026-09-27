@@ -24,10 +24,10 @@ const fortniteCooldown = 10 * time.Second
 const fortniteSnapshotTimeout = 10 * time.Second
 
 const (
-	defaultFortniteStatsTemplate   = "{player} all time: {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D · solo {solowins}W / duo {duowins}W / squad {squadwins}W"
-	defaultFortniteSeasonTemplate  = "{player} this season: {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D · solo {solowins}W / duo {duowins}W / squad {squadwins}W"
-	defaultFortniteSessionTemplate = "{player} this stream: {wins} wins in {matches} matches · {winrate}% WR · {kills} kills · {kd} K/D"
-	defaultFortniteStoreTemplate   = "Item Shop {date}: {items}"
+	defaultFortniteStatsTemplate   = "{fortnite:player} all time: {fortnite:wins} wins in {fortnite:matches} matches · {fortnite:winrate}% WR · {fortnite:kills} kills · {fortnite:kd} K/D · solo {fortnite:solowins}W / duo {fortnite:duowins}W / squad {fortnite:squadwins}W"
+	defaultFortniteSeasonTemplate  = "{fortnite:player} this season: {fortnite:wins} wins in {fortnite:matches} matches · {fortnite:winrate}% WR · {fortnite:kills} kills · {fortnite:kd} K/D · solo {fortnite:solowins}W / duo {fortnite:duowins}W / squad {fortnite:squadwins}W"
+	defaultFortniteSessionTemplate = "{fortnite:player} this stream: {fortnite:wins} wins in {fortnite:matches} matches · {fortnite:winrate}% WR · {fortnite:kills} kills · {fortnite:kd} K/D"
+	defaultFortniteStoreTemplate   = "Item Shop {fortnite:date}: {fortnite:items}"
 )
 
 const fortniteShopBudget = 380
@@ -161,7 +161,7 @@ func fortniteSessionText(locale string, cfg fortniteConfig, reply *gossiprpc.For
 		"kills", i64(reply.Kills),
 		"kd", trimScore(reply.KD),
 		"winrate", trimScore(reply.WinRate),
-	).WithLocale(module.Locale(locale)).ExpandString(orDefault(cfg.SessionMessage, defaultFortniteSessionTemplate))
+	).WithLocale(module.Locale(locale)).WithNamespace("fortnite").ExpandString(orDefault(cfg.SessionMessage, defaultFortniteSessionTemplate))
 }
 
 func fortniteSessionRun(d engine.Deps) module.RunFunc {
@@ -198,7 +198,7 @@ func fortniteStoreRun(d engine.Deps) module.RunFunc {
 				"date", r.Date,
 				"count", strconv.Itoa(r.Count),
 				"items", formatShopEntries(call.Ctx.Locale, r.Entries),
-			).WithLocale(module.Locale(call.Ctx.Locale)).ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate))
+			).WithLocale(module.Locale(call.Ctx.Locale)).WithNamespace("fortnite").ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate))
 		},
 	}.run
 }

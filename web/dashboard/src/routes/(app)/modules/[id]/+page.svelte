@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { Select } from '@bagel/kit';
+  import { namespaceReplyTemplate } from '@bagel/kit';
   import { deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { Card, PageHead, Scroller, SaveStatus, Switch, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
@@ -187,7 +188,7 @@
       return;
     }
     discard.guard(() => {
-      editMessage = config[reply.messageKey] ?? '';
+      editMessage = namespaceReplyTemplate(def.id, reply, config[reply.messageKey] ?? '');
       expanded = reply.key;
     });
   }
@@ -198,6 +199,7 @@
   async function saveReply() {
     const r = selectedReply;
     if (!r) return;
+    editMessage = namespaceReplyTemplate(def.id, r, editMessage);
     const prev = config[r.messageKey];
     config = { ...config, [r.messageKey]: editMessage };
     busy = true;
@@ -318,7 +320,7 @@
       ruleIndex = i;
       draftPhrase = r.phrase;
       draftMatch = r.match;
-      editMessage = r.response;
+      editMessage = namespaceReplyTemplate('triggers', { tokens: [{ name: 'triggers:user', sample: '' }, { name: 'triggers:channel', sample: '' }] }, r.response);
       expanded = `rule:${i}`;
     });
   }
@@ -334,6 +336,7 @@
 
   async function saveRule() {
     if (ruleIndex === null) return;
+    editMessage = namespaceReplyTemplate('triggers', { tokens: [{ name: 'triggers:user', sample: '' }, { name: 'triggers:channel', sample: '' }] }, editMessage);
     // Phrases are stored as structured JSON now, so any characters are safe:
     // no reserved-syntax restriction.
     const keepOn = ruleIndex === -1 ? true : (rules[ruleIndex]?.enabled ?? true);
@@ -404,9 +407,9 @@
       if (ruleIndex === null) return false;
       if (ruleIndex === -1) return draftPhrase.trim() !== '' || editMessage.trim() !== '';
       const r = rules[ruleIndex];
-      return !r || draftPhrase !== r.phrase || draftMatch !== r.match || editMessage !== r.response;
+      return !r || draftPhrase !== r.phrase || draftMatch !== r.match || editMessage !== namespaceReplyTemplate('triggers', { tokens: [{ name: 'triggers:user', sample: '' }, { name: 'triggers:channel', sample: '' }] }, r.response);
     }
-    if (selectedReply) return editMessage !== (config[selectedReply.messageKey] ?? '');
+    if (selectedReply) return editMessage !== namespaceReplyTemplate(def.id, selectedReply, config[selectedReply.messageKey] ?? '');
     return false;
   });
 

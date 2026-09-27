@@ -20,13 +20,13 @@ const urchinModuleName = "urchin"
 const urchinCooldown = 5 * time.Second
 
 const (
-	defaultUrchinDailyTemplate          = "{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinWeeklyTemplate         = "{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinMonthlyTemplate        = "{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
-	defaultUrchinStatsTemplate          = "{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken"
-	defaultUrchinSniperTemplate         = "{player} urchin score: {score}"
-	defaultUrchinTagsTemplate           = "{player}: {tags}"
-	defaultUrchinTagDescriptionTemplate = "{player}: {tags}"
+	defaultUrchinDailyTemplate          = "{urchin:player} today: {urchin:wins}W {urchin:losses}L · {urchin:finals} finals · {urchin:beds} beds · {urchin:fkdr} FKDR"
+	defaultUrchinWeeklyTemplate         = "{urchin:player} this week: {urchin:wins}W {urchin:losses}L · {urchin:finals} finals · {urchin:beds} beds · {urchin:fkdr} FKDR"
+	defaultUrchinMonthlyTemplate        = "{urchin:player} this month: {urchin:wins}W {urchin:losses}L · {urchin:finals} finals · {urchin:beds} beds · {urchin:fkdr} FKDR"
+	defaultUrchinStatsTemplate          = "{urchin:player}: {urchin:stars} stars · {urchin:wins} wins · {urchin:finals} finals · {urchin:fkdr} FKDR · {urchin:beds} beds broken"
+	defaultUrchinSniperTemplate         = "{urchin:player} urchin score: {urchin:score}"
+	defaultUrchinTagsTemplate           = "{urchin:player}: {urchin:tags}"
+	defaultUrchinTagDescriptionTemplate = "{urchin:player}: {urchin:tags}"
 )
 
 type urchinConfig struct {
@@ -62,9 +62,9 @@ func Urchin(d engine.Deps) module.Module {
 	m.Command("monthly").Everyone().Cooldown(urchinCooldown).Aliases("bwmonthly").
 		Run(urchinSessionRun(d, urchinMonthlyWindow))
 	m.Command("bwstats").Everyone().Cooldown(urchinCooldown).Aliases("bedwars").
-		Run(urchinStatsRun(d))
+		Run(urchinStatsCommand.run(d))
 	m.Command("sniper").Everyone().Cooldown(urchinCooldown).Aliases("urchin").
-		Run(urchinSniperRun(d))
+		Run(urchinSniperCommand.run(d))
 	m.Command("tag").Everyone().Cooldown(urchinCooldown).Aliases("tags", "bwtags").
 		Run(urchinTagsRun(d))
 	m.Command("tagdescription").Everyone().Cooldown(urchinCooldown).
@@ -111,55 +111,24 @@ func urchinSessionRun(d engine.Deps, w urchinWindow) module.RunFunc {
 		enabled:  w.enabled,
 		message:  w.message,
 		fallback: w.fallback,
-		tokens: module.TokenExpander[reply]{
-			"player":      func(r *reply) string { return r.Player },
-			"wins":        func(r *reply) string { return i64(r.Wins) },
-			"losses":      func(r *reply) string { return i64(r.Losses) },
-			"finals":      func(r *reply) string { return i64(r.FinalKills) },
-			"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
-			"beds":        func(r *reply) string { return i64(r.BedsBroken) },
-			"games":       func(r *reply) string { return i64(r.GamesPlayed) },
-			"levels":      func(r *reply) string { return i64(r.Levels) },
-			"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
-		},
+		tokens:   urchinSessionTokens(),
 	}.run(d)
 }
 
-func urchinStatsRun(d engine.Deps) module.RunFunc {
-	type reply = gossiprpc.HypixelStatsReply
-	return externalCommand[urchinConfig, reply]{
-		route:    urchinRoute("hypixel", "stats"),
-		enabled:  func(c urchinConfig) string { return c.StatsEnabled },
-		message:  func(c urchinConfig) string { return c.StatsMessage },
-		fallback: defaultUrchinStatsTemplate,
-		tokens: module.TokenExpander[reply]{
-			"player":      func(r *reply) string { return r.Player },
-			"stars":       func(r *reply) string { return i64(r.Stars) },
-			"wins":        func(r *reply) string { return i64(r.Wins) },
-			"losses":      func(r *reply) string { return i64(r.Losses) },
-			"finals":      func(r *reply) string { return i64(r.FinalKills) },
-			"finaldeaths": func(r *reply) string { return i64(r.FinalDeaths) },
-			"beds":        func(r *reply) string { return i64(r.BedsBroken) },
-			"fkdr":        func(r *reply) string { return ratio(r.FinalKills, r.FinalDeaths) },
-			"wlr":         func(r *reply) string { return ratio(r.Wins, r.Losses) },
-		},
-	}.run(d)
+var urchinStatsCommand = externalCommand[urchinConfig, gossiprpc.HypixelStatsReply]{
+	route:    urchinRoute("hypixel", "stats"),
+	enabled:  func(c urchinConfig) string { return c.StatsEnabled },
+	message:  func(c urchinConfig) string { return c.StatsMessage },
+	fallback: defaultUrchinStatsTemplate,
+	tokens:   urchinStatsTokens(),
 }
 
-func urchinSniperRun(d engine.Deps) module.RunFunc {
-	type reply = gossiprpc.UrchinSniperReply
-	return externalCommand[urchinConfig, reply]{
-		route:    urchinRoute("urchin", "sniper"),
-		enabled:  func(c urchinConfig) string { return c.SniperEnabled },
-		message:  func(c urchinConfig) string { return c.SniperMessage },
-		fallback: defaultUrchinSniperTemplate,
-		tokens: module.TokenExpander[reply]{
-			"player":   func(r *reply) string { return r.Player },
-			"score":    func(r *reply) string { return trimScore(r.Score) },
-			"mode":     func(r *reply) string { return r.Mode },
-			"tagcount": func(r *reply) string { return i64(int64(r.TagCount)) },
-		},
-	}.run(d)
+var urchinSniperCommand = externalCommand[urchinConfig, gossiprpc.UrchinSniperReply]{
+	route:    urchinRoute("urchin", "sniper"),
+	enabled:  func(c urchinConfig) string { return c.SniperEnabled },
+	message:  func(c urchinConfig) string { return c.SniperMessage },
+	fallback: defaultUrchinSniperTemplate,
+	tokens:   urchinSniperTokens(),
 }
 
 func urchinTagsRun(d engine.Deps) module.RunFunc {
@@ -257,4 +226,51 @@ func formatUrchinTagDescriptions(tags []gossiprpc.UrchinTag) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+type urchinPerformance struct {
+	player                                  string
+	wins, losses, finals, finalDeaths, beds int64
+}
+
+func urchinPerformanceTokens[R any](read func(*R) urchinPerformance) module.TokenExpander[R] {
+	return module.TokenExpander[R]{
+		"player":      func(r *R) string { return read(r).player },
+		"wins":        func(r *R) string { return i64(read(r).wins) },
+		"losses":      func(r *R) string { return i64(read(r).losses) },
+		"finals":      func(r *R) string { return i64(read(r).finals) },
+		"finaldeaths": func(r *R) string { return i64(read(r).finalDeaths) },
+		"beds":        func(r *R) string { return i64(read(r).beds) },
+		"fkdr":        func(r *R) string { facts := read(r); return ratio(facts.finals, facts.finalDeaths) },
+	}
+}
+
+func urchinSessionTokens() module.TokenExpander[gossiprpc.UrchinSessionReply] {
+	type reply = gossiprpc.UrchinSessionReply
+	tokens := urchinPerformanceTokens(func(r *reply) urchinPerformance {
+		return urchinPerformance{player: r.Player, wins: r.Wins, losses: r.Losses, finals: r.FinalKills, finalDeaths: r.FinalDeaths, beds: r.BedsBroken}
+	})
+	tokens["games"] = func(r *reply) string { return i64(r.GamesPlayed) }
+	tokens["levels"] = func(r *reply) string { return i64(r.Levels) }
+	return tokens
+}
+
+func urchinStatsTokens() module.TokenExpander[gossiprpc.HypixelStatsReply] {
+	type reply = gossiprpc.HypixelStatsReply
+	tokens := urchinPerformanceTokens(func(r *reply) urchinPerformance {
+		return urchinPerformance{player: r.Player, wins: r.Wins, losses: r.Losses, finals: r.FinalKills, finalDeaths: r.FinalDeaths, beds: r.BedsBroken}
+	})
+	tokens["stars"] = func(r *reply) string { return i64(r.Stars) }
+	tokens["wlr"] = func(r *reply) string { return ratio(r.Wins, r.Losses) }
+	return tokens
+}
+
+func urchinSniperTokens() module.TokenExpander[gossiprpc.UrchinSniperReply] {
+	type reply = gossiprpc.UrchinSniperReply
+	return module.TokenExpander[reply]{
+		"player":   func(r *reply) string { return r.Player },
+		"score":    func(r *reply) string { return trimScore(r.Score) },
+		"mode":     func(r *reply) string { return r.Mode },
+		"tagcount": func(r *reply) string { return i64(int64(r.TagCount)) },
+	}
 }

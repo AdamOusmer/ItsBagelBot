@@ -225,7 +225,15 @@ func streamExpand(locale, key string, tokens map[string]string) string {
 	if len(tokens) == 0 {
 		return tmpl
 	}
-	return expandTokens(tmpl, tokens)
+	parts := strings.Split(key, ".")
+	namespace := "stream"
+	if len(parts) > 1 {
+		switch parts[1] {
+		case "title", "game", "tags", "commercial", "marker":
+			namespace = parts[1]
+		}
+	}
+	return expandTokensNamespaced(namespace, tmpl, tokens)
 }
 
 func splitStreamTags(s string) []string {

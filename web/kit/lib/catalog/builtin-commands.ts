@@ -3,6 +3,7 @@
 
 import type { Perm } from '../types';
 import { replyTokens, type ReplyToken } from './module-def';
+import { namespaceReplyTemplate } from './template-namespaces';
 
 export interface BuiltinCommandDef {
   id: string;
@@ -22,7 +23,7 @@ export interface BuiltinCommandDef {
   aliases?: string[];
 }
 
-export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
+export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = ([
   {
     id: 'accountage',
     label: 'Account age',
@@ -162,7 +163,11 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = [
     defaultCooldown: 10,
     liveOnly: true
   }
-];
+] satisfies BuiltinCommandDef[]).map((def) => ({
+  ...def,
+  preview: namespaceReplyTemplate(def.id, def, def.preview),
+  tokens: def.tokens?.map((token) => ({ ...token, name: token.name.startsWith(`${def.id}:`) ? token.name : `${def.id}:${token.name}` }))
+}));
 
 export function builtinDef(id: string): BuiltinCommandDef | undefined {
   return BUILTIN_COMMANDS.find((b) => b.id === id);

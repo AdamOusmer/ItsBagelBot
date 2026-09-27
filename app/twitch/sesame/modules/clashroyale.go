@@ -17,10 +17,10 @@ const clashroyaleModuleName = "clashroyale"
 const clashroyaleCooldown = 10 * time.Second
 
 const (
-	defaultClashStatsTemplate  = "{player} · level {level} · {wins}W/{losses}L · {winrate}% WR · {crowns} three-crowns · {clan}"
-	defaultClashDecksTemplate  = "{player}'s deck ({count}/8): {cards} · avg elixir {elixir}"
-	defaultClashRankedTemplate = "{player} Path of Legends: league {league} · {trophies} trophies · rank #{rank} · best {besttrophies}"
-	defaultClashRoadTemplate   = "{player}: {trophies} trophies · best {besttrophies} · {arena}"
+	defaultClashStatsTemplate  = "{clashroyale:player} · level {clashroyale:level} · {clashroyale:wins}W/{clashroyale:losses}L · {clashroyale:winrate}% WR · {clashroyale:crowns} three-crowns · {clashroyale:clan}"
+	defaultClashDecksTemplate  = "{clashroyale:player}'s deck ({clashroyale:count}/8): {clashroyale:cards} · avg elixir {clashroyale:elixir}"
+	defaultClashRankedTemplate = "{clashroyale:player} Path of Legends: league {clashroyale:league} · {clashroyale:trophies} trophies · rank #{clashroyale:rank} · best {clashroyale:besttrophies}"
+	defaultClashRoadTemplate   = "{clashroyale:player}: {clashroyale:trophies} trophies · best {clashroyale:besttrophies} · {clashroyale:arena}"
 )
 
 const clashroyaleUnrankedText = "has no Path of Legends record this season"

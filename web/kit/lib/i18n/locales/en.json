@@ -1345,7 +1345,13 @@
     "bumpCounterPlaceholder": "Counter name (optional)",
     "saving": "Saving…",
     "saveChanges": "Save changes",
-    "create": "Create"
+    "create": "Create",
+    "pickModuleVariable": "Module variables",
+    "variableModule": "Module",
+    "moduleVariableRequires": "Requires {module} enabled. Adding this variable does not enable the module.",
+    "manageModules": "Manage modules",
+    "moduleVariableContext": "Event-only values are empty without a matching event. The preview uses sample data.",
+    "moduleVariableParentRequires": "Also requires {module} enabled."
   },
   "commandRow": {
     "lockedTo": "Locked to user {id}",
@@ -4218,6 +4224,156 @@
       "name": "Song artist",
       "hint": "just the artist name, the second half of {song}",
       "desc": "The artist name on its own, the second half of {song}. Nothing playing comes back empty. Needs the Song requests module."
+    },
+    "modulechannelpoints": {
+      "name": "Channel Points",
+      "hint": "Needs the Channel Points module enabled.",
+      "desc": "Use {channelpoints:variable} in a custom command to read this module's public values. Needs the Channel Points module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulestream": {
+      "name": "Stream Management",
+      "hint": "Needs the Stream Management module enabled.",
+      "desc": "Use {stream:variable} in a custom command to read this module's public values. Needs the Stream Management module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduleloyalty": {
+      "name": "Loyalty Points",
+      "hint": "Needs the Loyalty Points module enabled.",
+      "desc": "Use {loyalty:variable} in a custom command to read this module's public values. Needs the Loyalty Points module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulegamble": {
+      "name": "Gamble",
+      "hint": "Needs the Gamble module enabled. Also needs Loyalty Points enabled.",
+      "desc": "Use {gamble:variable} in a custom command to read this module's public values. Needs the Gamble module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled. Also needs the Loyalty Points module enabled."
+    },
+    "moduleduel": {
+      "name": "Duels",
+      "hint": "Needs the Duels module enabled. Also needs Loyalty Points enabled.",
+      "desc": "Use {duel:variable} in a custom command to read this module's public values. Needs the Duels module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled. Also needs the Loyalty Points module enabled."
+    },
+    "moduleshoutout": {
+      "name": "Auto Shoutout",
+      "hint": "Needs the Auto Shoutout module enabled.",
+      "desc": "Use {shoutout:variable} in a custom command to read this module's public values. Needs the Auto Shoutout module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulealerts": {
+      "name": "Chat Alerts",
+      "hint": "Needs the Chat Alerts module enabled.",
+      "desc": "Use {alerts:variable} in a custom command to read this module's public values. Needs the Chat Alerts module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduleurchin": {
+      "name": "Bedwars Stats",
+      "hint": "Needs the Bedwars Stats module enabled.",
+      "desc": "Use {urchin:variable} in a custom command to read this module's public values. Needs the Bedwars Stats module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulemcsr": {
+      "name": "MCSR Ranked",
+      "hint": "Needs the MCSR Ranked module enabled.",
+      "desc": "Use {mcsr:variable} in a custom command to read this module's public values. Needs the MCSR Ranked module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulefortnite": {
+      "name": "Fortnite Stats",
+      "hint": "Needs the Fortnite Stats module enabled.",
+      "desc": "Use {fortnite:variable} in a custom command to read this module's public values. Needs the Fortnite Stats module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulecodm": {
+      "name": "CODM Profile",
+      "hint": "Needs the CODM Profile module enabled.",
+      "desc": "Use {codm:variable} in a custom command to read this module's public values. Needs the CODM Profile module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduleclashroyale": {
+      "name": "Clash Royale Stats",
+      "hint": "Needs the Clash Royale Stats module enabled.",
+      "desc": "Use {clashroyale:variable} in a custom command to read this module's public values. Needs the Clash Royale Stats module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulevalorant": {
+      "name": "Valorant Stats",
+      "hint": "Needs the Valorant Stats module enabled.",
+      "desc": "Use {valorant:variable} in a custom command to read this module's public values. Needs the Valorant Stats module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulequeue": {
+      "name": "Play Queue",
+      "hint": "Needs the Play Queue module enabled.",
+      "desc": "Use {queue:variable} in a custom command to read this module's public values. Needs the Play Queue module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduleraffle": {
+      "name": "Raffle",
+      "hint": "Needs the Raffle module enabled.",
+      "desc": "Use {raffle:variable} in a custom command to read this module's public values. Needs the Raffle module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulequotes": {
+      "name": "Quotes",
+      "hint": "Needs the Quotes module enabled.",
+      "desc": "Use {quotes:variable} in a custom command to read this module's public values. Needs the Quotes module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulegovee": {
+      "name": "Govee Lights",
+      "hint": "Needs the Govee Lights module enabled.",
+      "desc": "Use {govee:variable} in a custom command to read this module's public values. Needs the Govee Lights module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulesongqueue": {
+      "name": "Song Requests",
+      "hint": "Needs the Song Requests module enabled.",
+      "desc": "Use {songqueue:variable} in a custom command to read this module's public values. Needs the Song Requests module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduletime": {
+      "name": "Local Time",
+      "hint": "Needs the Local Time module enabled.",
+      "desc": "Use {time:variable} in a custom command to read this module's public values. Needs the Local Time module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduleaccountage": {
+      "name": "Account age",
+      "hint": "Needs the Account age module enabled.",
+      "desc": "Use {accountage:variable} in a custom command to read this module's public values. Needs the Account age module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulefollowage": {
+      "name": "Followage",
+      "hint": "Needs the Followage module enabled.",
+      "desc": "Use {followage:variable} in a custom command to read this module's public values. Needs the Followage module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduleclip": {
+      "name": "Clip",
+      "hint": "Needs the Clip module enabled.",
+      "desc": "Use {clip:variable} in a custom command to read this module's public values. Needs the Clip module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduletitle": {
+      "name": "Title",
+      "hint": "Needs the Title module enabled.",
+      "desc": "Use {title:variable} in a custom command to read this module's public values. Needs the Title module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulegame": {
+      "name": "Game",
+      "hint": "Needs the Game module enabled.",
+      "desc": "Use {game:variable} in a custom command to read this module's public values. Needs the Game module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduletags": {
+      "name": "Tags",
+      "hint": "Needs the Tags module enabled.",
+      "desc": "Use {tags:variable} in a custom command to read this module's public values. Needs the Tags module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulecommercial": {
+      "name": "Commercial",
+      "hint": "Needs the Commercial module enabled.",
+      "desc": "Use {commercial:variable} in a custom command to read this module's public values. Needs the Commercial module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulemarker": {
+      "name": "Marker",
+      "hint": "Needs the Marker module enabled.",
+      "desc": "Use {marker:variable} in a custom command to read this module's public values. Needs the Marker module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduletriggers": {
+      "name": "Trigger Words",
+      "hint": "Needs the Trigger Words module enabled.",
+      "desc": "Use {triggers:variable} in a custom command to read this module's public values. Needs the Trigger Words module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "moduleuptime": {
+      "name": "Uptime",
+      "hint": "Needs the Uptime module enabled.",
+      "desc": "Use {uptime:variable} in a custom command to read this module's public values. Needs the Uptime module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+    },
+    "modulepersonality": {
+      "name": "Chat personality",
+      "hint": "Needs the Chat personality module enabled.",
+      "desc": "Use {personality:variable} in a custom command to read this module's public values. Needs the Chat personality module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
     }
   },
   "replyVars": {

@@ -18,11 +18,11 @@ const valModuleName = "valorant"
 const valCooldown = 10 * time.Second
 
 const (
-	defaultValRankTemplate    = "{player} · {tier} · {rr} RR ({lastchange}) · peak {peaktier}"
-	defaultValMatchesTemplate = "{player}'s last {count}: {matches}"
-	defaultValAccountTemplate = "{player} · account level {level}"
-	defaultValBoardTemplate   = "{board}: {entries}"
-	defaultValShopTemplate    = "Daily rotation ({count}): {items} · resets in {reset}"
+	defaultValRankTemplate    = "{valorant:player} · {valorant:tier} · {valorant:rr} RR ({valorant:lastchange}) · peak {valorant:peaktier}"
+	defaultValMatchesTemplate = "{valorant:player}'s last {valorant:count}: {valorant:matches}"
+	defaultValAccountTemplate = "{valorant:player} · account level {valorant:level}"
+	defaultValBoardTemplate   = "{valorant:board}: {valorant:entries}"
+	defaultValShopTemplate    = "Daily rotation ({valorant:count}): {valorant:items} · resets in {valorant:reset}"
 )
 
 const (

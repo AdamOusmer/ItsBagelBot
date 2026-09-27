@@ -98,7 +98,7 @@ func feedBoardName(entry engine.FeedBoardEntry) string {
 
 func feedText(c *module.Context, key string, kv ...string) string {
 	p := module.Common(c).Merge(module.KV(kv...))
-	return p.ExpandString(i18n.T(c.Locale, key))
+	return p.WithNamespace("personality").ExpandString(i18n.T(c.Locale, key))
 }
 
 func feedEmit(c *module.Context, emit module.Emit, text string) {

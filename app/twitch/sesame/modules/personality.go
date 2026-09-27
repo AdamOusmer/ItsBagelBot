@@ -281,5 +281,5 @@ func toastReply(_ context.Context, _ engine.Deps, _ *module.Context) string {
 func pickLine(pack []string) string { return pack[pickIndex(len(pack))] }
 
 func expandUser(line string, c *module.Context) string {
-	return module.KV("user", strings.TrimPrefix(c.Env.ChatterName(), "@")).WithLocale(module.Locale(c.Locale)).ExpandString(line)
+	return module.KV("user", strings.TrimPrefix(c.Env.ChatterName(), "@")).WithLocale(module.Locale(c.Locale)).WithNamespace("personality").ExpandString(line)
 }

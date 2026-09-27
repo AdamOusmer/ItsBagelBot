@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { Select } from '@bagel/kit';
+  import { namespaceReplyTemplate, namespaceReplySamples, moduleDef } from '@bagel/kit';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Field, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
@@ -36,10 +37,14 @@
     draft.backgroundColor = color;
   });
 
-  const DEFAULT_MESSAGE = '{user} redeemed {reward}!';
+  const DEFAULT_MESSAGE = '{channelpoints:user} redeemed {channelpoints:reward}!';
+  const reply = moduleDef('channelpoints')!.replies.find((reply) => reply.key === 'reply')!;
+  // svelte-ignore state_referenced_locally
+  let message = $state(namespaceReplyTemplate('channelpoints', reply, draft.message));
+  $effect(() => { draft.message = message; });
   const payload = $derived(JSON.stringify(draft));
 
-  const samples = $derived<Record<string, string>>({
+  const samples = $derived<Record<string, string>>(namespaceReplySamples('channelpoints', {
     user: 'sesame_sam',
     input: draft.isUserInputRequired ? 'good luck!' : '',
     reward: draft.title || t('channelpoints.fieldTitle'),
@@ -47,7 +52,7 @@
     channel: 'bagel_bakery',
     counter: '42',
     points: String(draft.points || 0)
-  });
+  }));
 
   let counterOn = $state(!!draft.counter.trim());
   let pointsOn = $state(draft.points > 0);
@@ -83,6 +88,9 @@
       void focusFirstInvalid(formEl);
       return;
     }
+    message = namespaceReplyTemplate('channelpoints', reply, message);
+    draft.message = message;
+    input.formData.set('reward', JSON.stringify(draft));
     return onSubmit(input);
   };
 </script>
@@ -134,7 +142,7 @@
 
   {#if replyOn}
     <Field label={t('channelpoints.fieldMessage')}>
-      <ResponseEditor bind:value={draft.message} surface="reward:channelpoints" placeholder={DEFAULT_MESSAGE} />
+      <ResponseEditor bind:value={message} surface="reward:channelpoints" placeholder={DEFAULT_MESSAGE} />
     </Field>
     <ChatPreview
       kind="reply"

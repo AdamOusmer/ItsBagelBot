@@ -578,15 +578,15 @@ func (s *ValkeyTimerStore) fire(ctx context.Context, at armedTimer) {
 
 	idStr := strconv.FormatUint(at.ref.broadcasterID, 10)
 	subject := s.outgressStandard
-	locale := ""
+	user := projection.User{}
 	if u, err := s.proj.User(ctx, at.ref.broadcasterID); err == nil {
 		if u.Premium() {
 			subject = s.outgressPremium
 		}
-		locale = u.Locale
+		user = u
 	}
 
-	text := s.timerText(ctx, at, locale)
+	text := s.timerText(ctx, at, user)
 	outputs := s.timerOutputs(idStr, text)
 	if len(outputs) == 0 {
 		s.warnBlankFire(at)
@@ -605,12 +605,12 @@ func (s *ValkeyTimerStore) warnBlankFire(at armedTimer) {
 		module.BIDField(at.ref.broadcasterID), zap.String("timer_id", at.ref.id))
 }
 
-func (s *ValkeyTimerStore) timerText(ctx context.Context, at armedTimer, locale string) string {
+func (s *ValkeyTimerStore) timerText(ctx context.Context, at armedTimer, user projection.User) string {
 	if s.pipeline == nil {
 		return at.def.Message
 	}
 	message := defangTimerSlashLines(at.def.Message)
-	run := timerRun{ref: at.ref, locale: locale, firedAt: s.now()}
+	run := timerRun{ref: at.ref, locale: user.Locale, user: user, firedAt: s.now()}
 	return s.pipeline.expandTimerText(ctx, run, message)
 }
 

@@ -104,23 +104,23 @@ describe('module catalog', () => {
       event: '!codm [UID/exact nickname]',
       enableKey: 'profileEnabled',
       messageKey: 'profileMessage',
-      defaultMessage: '{player} · level {level} · MP {rank} · {rating} rating · {country}',
+      defaultMessage: '{codm:player} · level {codm:level} · MP {codm:rank} · {codm:rating} rating · {codm:country}',
       previewArgs: 'iFerg',
       tokens: [
-        { name: 'player', sample: 'iFerg' },
-        { name: 'level', sample: '414' },
-        { name: 'rank', sample: 'Master I' },
-        { name: 'rankclass', sample: '21' },
-        { name: 'rating', sample: '4590' },
-        { name: 'country', sample: 'US' },
-        { name: 'shortid', sample: 'IFERG' }
+        { name: 'codm:player', sample: 'iFerg' },
+        { name: 'codm:level', sample: '414' },
+        { name: 'codm:rank', sample: 'Master I' },
+        { name: 'codm:rankclass', sample: '21' },
+        { name: 'codm:rating', sample: '4590' },
+        { name: 'codm:country', sample: 'US' },
+        { name: 'codm:shortid', sample: 'IFERG' }
       ]
     });
     expect(def.settings![0]).toMatchObject({
       key: 'account',
       help: 'Default profile for the command. If blank, enter a CODM UID or exact nickname after !codm.'
     });
-    expect(profile.tokens?.find((tk) => tk.name === 'player')?.sample).toBe(profile.previewArgs);
+    expect(profile.tokens?.find((tk) => tk.name === 'codm:player')?.sample).toBe(profile.previewArgs);
     expect(def.settings!.map((field) => field.key)).toEqual(['account', 'linkedOnly']);
   });
 

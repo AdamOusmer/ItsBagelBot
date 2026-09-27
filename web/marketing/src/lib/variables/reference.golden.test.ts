@@ -1,10 +1,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { variableReferenceData } from './index';
+import { SURFACES } from '../../i18n/builder';
+import { lex } from '@bagel/kit/engine/tmpl';
+import { rehearseReply } from '@bagel/kit/engine/rehearsal';
 
 const FIXTURES: Record<'en' | 'fr', string> = {
   en: join(import.meta.dir, 'testdata/reference.en.golden.json'),
@@ -42,5 +45,18 @@ describe('variableReferenceData golden (lib/variables/testdata)', () => {
       }
       assertMatchesFixture(lang, path, got);
     });
+  }
+});
+
+test('module builder examples use published namespaces and rehearse with their palette samples', () => {
+  for (const surface of SURFACES.filter((surface) => surface.id !== 'custom')) {
+    const samples = Object.fromEntries(surface.vars.flatMap((variable) => {
+      const token = lex(variable.token)[0];
+      return token?.kind === 'var' ? [[token.key, variable.sample]] : [];
+    }));
+    for (const lang of ['en', 'fr'] as const) {
+      expect(rehearseReply(surface.example[lang], samples).flatMap((line) => line.segments)
+        .filter((segment) => segment.kind === 'unknown'), `${surface.id} ${lang}`).toEqual([]);
+    }
   }
 });

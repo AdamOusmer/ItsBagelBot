@@ -74,13 +74,13 @@ func emotePlayAnnounce(c *module.Context, emit module.Emit, emote string, res en
 			"user", strings.TrimPrefix(c.Env.ChatterName(), "@"),
 			"emote", emote,
 			"height", strconv.Itoa(res.Apex),
-		).WithLocale(module.Locale(c.Locale)).ExpandString(i18n.T(c.Locale, "emoteplay.pyramid"))
+		).WithLocale(module.Locale(c.Locale)).WithNamespace("emoteplay").ExpandString(i18n.T(c.Locale, "emoteplay.pyramid"))
 		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
 	case res.StreakMilestone:
 		text := module.KV(
 			"emote", emote,
 			"count", strconv.Itoa(res.Streak),
-		).WithLocale(module.Locale(c.Locale)).ExpandString(i18n.T(c.Locale, "emoteplay.streak"))
+		).WithLocale(module.Locale(c.Locale)).WithNamespace("emoteplay").ExpandString(i18n.T(c.Locale, "emoteplay.streak"))
 		emit(&module.Output{Type: outgress.TypeChat, BroadcasterID: c.Env.BroadcasterUserID, Text: text})
 	}
 }

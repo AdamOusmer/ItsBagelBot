@@ -9,7 +9,7 @@ import (
 )
 
 func All(d engine.Deps) []module.Module {
-	return []module.Module{
+	mods := []module.Module{
 		Core(d),
 		Personality(d),
 		Live(d),
@@ -41,4 +41,19 @@ func All(d engine.Deps) []module.Module {
 		SongQueue(d),
 		TrialTemplate(),
 	}
+	registered := make(map[string]bool, len(mods))
+	for i := range mods {
+		mods[i] = withVariables(d, mods[i])
+		registered[mods[i].Name] = true
+	}
+	// Built-in commands whose handlers live in unnamed core modules still have
+	// individually gated rows. Publish their facts without duplicating handlers.
+	for _, spec := range variableCatalog {
+		if !registered[spec.ID] {
+			mods = append(mods, withVariables(d, module.Module{Name: spec.ID, Kind: module.KindDefault}))
+			registered[spec.ID] = true
+		}
+	}
+	return mods
+
 }

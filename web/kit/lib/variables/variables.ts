@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { MODULE_VARIABLES } from './module-variables';
+
 import {
   ARGS_SAMPLE,
   BTTV_EMOTES_SAMPLE,
@@ -49,7 +51,7 @@ import {
 } from './preview-values';
 import type { VariableDef } from './types';
 
-export const VARIABLES: readonly VariableDef[] = [
+const BASE_VARIABLES: readonly VariableDef[] = [
   { id: 'user', head: 'user', group: 'who', requires: null, pinned: true, aliases: ['sender'], forms: [{ syntax: '{user}', example: '{user}', output: USER_SAMPLE }] },
   { id: 'touser', head: 'touser', group: 'who', requires: null, pinned: true, aliases: ['target'], forms: [{ syntax: '{touser}', example: '{touser}', output: TOUSER_SAMPLE }] },
   { id: 'args', head: 'args', group: 'typed', requires: null, pinned: true, forms: [{ syntax: '{args}', example: '{args}', output: ARGS_SAMPLE }] },
@@ -214,4 +216,13 @@ export const VARIABLES: readonly VariableDef[] = [
   { id: 'followers', head: 'followers', group: 'stream', requires: null, forms: [{ syntax: '{followers}', example: '{followers}', output: FOLLOWERS_SAMPLE }] },
   { id: 'subs', head: 'subs', group: 'stream', requires: null, forms: [{ syntax: '{subs}', example: '{subs}', output: SUBS_SAMPLE }] },
   { id: 'urlfetch', head: 'urlfetch', group: 'data', requires: null, forms: [{ syntax: '{urlfetch:<definition>}', example: '{urlfetch:weather}', output: URLFETCH_SAMPLE }] },
+];
+
+// Keep existing bare variables and aliases beside module namespace forms.
+export const VARIABLES: readonly VariableDef[] = [
+  ...BASE_VARIABLES.map((variable) => {
+    const namespace = MODULE_VARIABLES.find((mod) => mod.head === variable.head);
+    return namespace ? { ...variable, forms: [...variable.forms, ...namespace.forms] } : variable;
+  }),
+  ...MODULE_VARIABLES.filter((mod) => !BASE_VARIABLES.some((variable) => variable.head === mod.head))
 ];

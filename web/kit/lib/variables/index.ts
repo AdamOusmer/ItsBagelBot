@@ -24,3 +24,5 @@ export function variableById(id: string): VariableDef | undefined {
 export function variableByHead(head: string): VariableDef | undefined {
   return BY_HEAD.get(head);
 }
+
+export * from './module-variables';

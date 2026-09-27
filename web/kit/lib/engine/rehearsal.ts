@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { MODULE_VARIABLES, MODULE_VARIABLE_SAMPLES } from '../variables/module-variables';
+
 import { RESPONSE_MAX_LINES, responseLines } from './commands-validate';
 import { queryEscape, resolveComputedUtil, UTIL_NAMES } from './pure';
 import { condText, type Cond, lex, parseCond, resolveToken, type VarToken } from './tmpl';
@@ -183,6 +185,7 @@ function chainResolver(chain: readonly SampleScope[]): Resolve {
 
 function commandChain(samples: Samples): SampleScope[] {
   return [
+    NAMESPACED_MODULE_SCOPE,
     PURE_SCOPE,
     UTIL_SCOPE,
     messageScope(samples),
@@ -199,17 +202,19 @@ function commandChain(samples: Samples): SampleScope[] {
 
 export function ownedByCore(name: string): boolean {
   if (name === COND_TOKEN_NAME) return true;
+  if (MODULE_VARIABLES.some((variable) => variable.head === name)) return true;
   return commandChain(COMMAND_SAMPLES).some((scope) => scope.owns({ name }));
 }
 
 const COND_TOKEN_NAME = 'if';
 
 export function timerOwns(name: string): boolean {
+  if (MODULE_VARIABLES.some((variable) => variable.head === name) && !VIEWER_SCOPE.owns({ name })) return true;
   return timerChain().some((scope) => scope.owns({ name }));
 }
 
 function timerChain(): SampleScope[] {
-  return [PURE_SCOPE, UTIL_SCOPE, CHATTER_SCOPE, EMOTE_SCOPE, CHANNEL_SCOPE, MODULE_SCOPE, EXTERNAL_SCOPE];
+  return [NAMESPACED_MODULE_SCOPE, PURE_SCOPE, UTIL_SCOPE, CHATTER_SCOPE, EMOTE_SCOPE, CHANNEL_SCOPE, MODULE_SCOPE, EXTERNAL_SCOPE];
 }
 
 export type ChainKind = 'command' | 'reply';
@@ -522,3 +527,8 @@ function sliceSegments(segments: Seg[], action: SlashAction): Seg[] {
   }
   return out;
 }
+
+const NAMESPACED_MODULE_SCOPE: SampleScope = {
+  owns: (query) => query.payload !== undefined && query.payload !== null && `{${query.name}:${query.payload.trim().toLowerCase()}}` in MODULE_VARIABLE_SAMPLES,
+  get: (token) => MODULE_VARIABLE_SAMPLES[`{${token.name}:${token.payload?.trim().toLowerCase()}}`] ?? null
+};

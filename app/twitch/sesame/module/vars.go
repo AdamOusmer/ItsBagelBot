@@ -23,14 +23,7 @@ func pureFallback(tok tmpl.Token) (string, bool) {
 
 type TokenExpander[R any] map[string]func(*R) string
 
-func (t TokenExpander[R]) Expand(text string, r *R) string {
-	return ExpandString(text, func(tok tmpl.Token) (string, bool) {
-		if field, ok := t[tok.Key()]; ok {
-			return field(r), true
-		}
-		return pureFallback(tok)
-	})
-}
+func (t TokenExpander[R]) Expand(text string, r *R) string { return t.ExpandNamespaced("", text, r) }
 
 func (t TokenExpander[R]) Names() []string {
 	out := make([]string, 0, len(t))
@@ -42,14 +35,7 @@ func (t TokenExpander[R]) Names() []string {
 
 type StringPalette map[string]string
 
-func (p StringPalette) Expand(text string) string {
-	return ExpandString(text, func(tok tmpl.Token) (string, bool) {
-		if val, ok := p[tok.Key()]; ok {
-			return val, true
-		}
-		return pureFallback(tok)
-	})
-}
+func (p StringPalette) Expand(text string) string { return p.ExpandNamespaced("", text) }
 
 func (p StringPalette) Merge(parts ...StringPalette) StringPalette {
 	out := make(StringPalette, len(p)+len(parts)*4)
@@ -96,8 +82,9 @@ type Entry struct {
 }
 
 type Palette struct {
-	entries []Entry
-	locale  string
+	entries   []Entry
+	locale    string
+	namespace Namespace
 }
 
 func (p Palette) Names() []string {
@@ -121,6 +108,7 @@ func (p Palette) Merge(others ...Palette) Palette {
 		add(e)
 	}
 	locale := p.locale
+	namespace := p.namespace
 	for _, other := range others {
 		for _, e := range other.entries {
 			add(e)
@@ -128,18 +116,22 @@ func (p Palette) Merge(others ...Palette) Palette {
 		if other.locale != "" {
 			locale = other.locale
 		}
+		if other.namespace != "" {
+			namespace = other.namespace
+		}
 	}
 	out := make([]Entry, len(order))
 	for i, name := range order {
 		out[i] = byName[name]
 	}
-	return Palette{entries: out, locale: locale}
+	return Palette{entries: out, locale: locale, namespace: namespace}
 }
 
 func (p Palette) Resolve(tok tmpl.Token) (string, bool) {
+	name := TokenKey(tok, p.namespace)
 	for _, e := range p.entries {
-		if e.Name == tok.Name {
-			if tok.HasPayload {
+		if e.Name == name {
+			if tok.HasPayload && tok.Name != string(p.namespace) {
 				return "", false
 			}
 			return e.Value(), true

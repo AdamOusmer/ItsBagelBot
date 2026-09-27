@@ -129,7 +129,7 @@ describe('catalog i18n overlay', () => {
   test('French queue previews use the localized default without changing the stored override', () => {
     const def = moduleDef('queue')!;
     const reply = def.replies.find((r) => r.key === 'join')!;
-    expect(tModuleReplyDefault(tFr, def.id, reply)).toBe('@{user} vous avez rejoint la file en position n°{pos}.');
+    expect(tModuleReplyDefault(tFr, def.id, reply)).toBe('@{queue:user} vous avez rejoint la file en position n°{queue:pos}.');
     const storedOverride = '';
     expect(storedOverride).toBe('');
     expect(tModuleReplyDefault(tEn, def.id, reply)).toBe(reply.defaultMessage);

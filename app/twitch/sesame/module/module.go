@@ -66,11 +66,19 @@ type Command struct {
 	Run           RunFunc
 }
 
+// VariableGroup publishes a read-only public reply view for custom commands.
+type VariableGroup struct {
+	Name   string
+	Fields []string
+	Read   func(context.Context, *Context) (map[string]string, error)
+}
+
 type Module struct {
-	Name     string
-	Kind     Kind
-	Events   map[string]EventHandler
-	Commands []Command
-	Beta     bool
-	Trial    bool
+	Variables []VariableGroup
+	Name      string
+	Kind      Kind
+	Events    map[string]EventHandler
+	Commands  []Command
+	Beta      bool
+	Trial     bool
 }

@@ -63,3 +63,5 @@ export { intactSpan } from './engine/tmpl';
 export * from './validation';
 export * from './action-result';
 export * from './format';
+
+export * from './catalog/template-namespaces';
