@@ -236,6 +236,7 @@
     "saved": "Saved",
     "saveFailed": "Could not save",
     "login": {
+      "botCta": "Authorize bot account",
       "sub": "Admin Console",
       "lede": "Operator access. Sign in with the Twitch account on the staff allowlist.",
       "cta": "Sign in with Twitch",
@@ -245,11 +246,11 @@
       "errScope": "Missing required permission."
     },
     "botAuth": {
-      "errScope": "Twitch did not grant all required bot permissions. Authorize the bot again from the admin console and approve every requested permission.",
+      "errScope": "Twitch did not grant all required bot permissions. Authorize the bot again and approve every requested permission.",
       "okTitle": "Bot authorized",
       "okBody": "The bot account token was stored. You can close this tab.",
       "failTitle": "Authorization failed",
-      "errState": "The authorization link expired or was invalid. Generate a new one from the admin console.",
+      "errState": "The authorization link expired or was invalid. Start bot authorization again.",
       "errOauth": "Twitch rejected the authorization. Try again.",
       "errAccount": "That Twitch account is not the configured bot account.",
       "errConfig": "Bot authorization is disabled until ADMIN_BOT_USER_ID is configured.",

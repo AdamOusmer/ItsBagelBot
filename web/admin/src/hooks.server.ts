@@ -6,7 +6,7 @@ import { redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import newrelic from 'newrelic';
 import { COOKIE, open } from '$lib/server/session';
-import { requireAdmin, requireRole } from '$lib/server/access';
+import { requireAdmin } from '$lib/server/access';
 import { initConsoleRuntime } from '@bagel/kit/server/boot';
 import {
   harden,
@@ -20,6 +20,7 @@ import { detectLocale, isLocale, LOCALE_COOKIE, ensureCatalog } from '@bagel/kit
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { ensureLaneStoreHA } from '$lib/server/lanes';
+import { isPublicAdminRoute } from '$lib/server/public-routes';
 
 const DEMO = dev && process.env.DEMO === '1';
 
@@ -36,35 +37,10 @@ export const init: ServerInit = async () => {
   startInvalidationListener();
 };
 
-// Not all of '/auth': /auth/bot/* writes the bot's live Twitch token and is owner-gated below.
-const PUBLIC_PREFIXES = [
-  '/auth/login',
-  '/auth/callback',
-  '/auth/logout',
-  '/login',
-  '/healthz',
-  '/readyz'
-];
-
-const BOT_FLOW_PREFIX = '/auth/bot';
-
-function matches(pathname: string, prefix: string): boolean {
-  return pathname === prefix || pathname.startsWith(prefix + '/');
-}
-
-function isPublic(pathname: string): boolean {
-  return PUBLIC_PREFIXES.some((p) => matches(pathname, p));
-}
-
 async function staleStaffSession(event: RequestEvent): Promise<boolean> {
-  if (DEMO || isPublic(event.url.pathname)) return false;
+  if (DEMO || isPublicAdminRoute(event.url.pathname)) return false;
   if (!event.locals.session) return false;
   return !(await requireAdmin(event.locals.session));
-}
-
-async function botFlowRefused(event: RequestEvent): Promise<boolean> {
-  if (DEMO || !matches(event.url.pathname, BOT_FLOW_PREFIX)) return false;
-  return !(await requireRole(event, 'bot.token'));
 }
 
 function resolveLocale(event: RequestEvent): ReturnType<typeof detectLocale> {
@@ -90,8 +66,6 @@ export const handle: Handle = async ({ event, resolve }) => {
     event.locals.session = null;
     throw redirect(303, '/login?e=denied');
   }
-
-  if (await botFlowRefused(event)) throw redirect(303, '/login?e=denied');
 
   tagTransaction(newrelic, event, event.locals.session);
 

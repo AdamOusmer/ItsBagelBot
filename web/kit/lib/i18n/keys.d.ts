@@ -492,6 +492,7 @@ export type KnownMessageKey =
   | 'admin.lanes.trafficStandard'
   | 'admin.lanes.trafficStream'
   | 'admin.lanes.waitingPulls'
+  | 'admin.login.botCta'
   | 'admin.login.cta'
   | 'admin.login.errDenied'
   | 'admin.login.errOauth'

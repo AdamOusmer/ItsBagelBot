@@ -91,6 +91,9 @@ spec:
           image: ghcr.io/adamousmer/itsbagelbot/users:v0.2.5-beta@sha256:393d436a7d0879982f160234b5a81a5d229d5fa20ca38df7f0eb90b1a29da7c3
           imagePullPolicy: IfNotPresent
           env:
+            # The bot may save only its own verified OAuth grant without a staff session.
+            - name: TWITCH_BOT_USER_ID
+              value: "1061740761"
             - name: NATS_HOST
               value: nats
             - name: NATS_URL

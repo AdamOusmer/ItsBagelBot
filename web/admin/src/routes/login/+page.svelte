@@ -40,6 +40,7 @@
       </svg>
       {t('admin.login.cta')}
     </ButtonLink>
+    <ButtonLink href="/auth/bot/login" variant="ghost">{t('admin.login.botCta')}</ButtonLink>
   </div>
 </main>
 

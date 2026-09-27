@@ -25,6 +25,7 @@ import (
 )
 
 type adminRPC struct {
+	botUserID          string
 	repo               *repository.Users
 	gate               staffGate
 	nc                 *nats.Conn
@@ -90,6 +91,7 @@ const (
 )
 
 type AdminConfig struct {
+	BotUserID          string
 	Prefix             string
 	InternalGetSubject string
 	InvalidationPrefix string
@@ -97,6 +99,7 @@ type AdminConfig struct {
 
 func SubscribeAdmin(w Wiring, db *ent.Client, cfg AdminConfig) error {
 	a := &adminRPC{
+		botUserID:          cfg.BotUserID,
 		repo:               w.Repo,
 		gate:               staffGate{db: db},
 		nc:                 w.NC,
@@ -105,10 +108,11 @@ func SubscribeAdmin(w Wiring, db *ent.Client, cfg AdminConfig) error {
 	}
 
 	table := a.verbs()
-	bound := make([]bus.Verb[usersrpc.AdminRequest, usersrpc.AdminReply], 0, len(table))
+	bound := make([]bus.Verb[usersrpc.AdminRequest, usersrpc.AdminReply], 0, len(table)+1)
 	for _, v := range table {
 		bound = append(bound, bus.At(v.name, a.guarded(v)))
 	}
+	bound = append(bound, bus.At("bot_token_set", a.botTokenSet))
 	if err := bus.ServeVerbs(w.Within(adminBudget), cfg.Prefix, bound...); err != nil {
 		return err
 	}
