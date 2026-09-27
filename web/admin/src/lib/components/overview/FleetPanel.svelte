@@ -33,30 +33,49 @@
     };
   });
 
-  onMount(() =>
-    livePoll(
-      async () => {
-        try {
-          const res = await fetch('/shards/snapshot');
-          if (!res.ok) return false;
-          const body = (await res.json()) as { snapshot?: ShardSnapshot | null; trials?: TrialSnapshot | null };
-          if (body.snapshot) polled = body.snapshot;
-          if (showTrials && body.trials) {
-            trialsPolled = true;
-            trials = { ok: true, value: body.trials };
-          }
-        } catch {
-          return false;
-        }
+  onMount(() => {
+    let alive = true;
+    const options = {
+      firstDelayMs: 8000,
+      delayMs: () => (document.hidden ? 15000 : 8000),
+      timeoutMs: Number.POSITIVE_INFINITY
+    };
+
+    async function pollFleet(): Promise<boolean> {
+      try {
+        const res = await fetch('/shards/snapshot');
+        if (!res.ok) return false;
+        const body = (await res.json()) as { snapshot?: ShardSnapshot | null };
+        if (alive && body.snapshot) polled = body.snapshot;
+      } catch {
         return false;
-      },
-      {
-        firstDelayMs: 8000,
-        delayMs: () => (document.hidden ? 15000 : 8000),
-        timeoutMs: Number.POSITIVE_INFINITY
       }
-    )
-  );
+      return false;
+    }
+
+    async function pollTrials(): Promise<boolean> {
+      try {
+        const res = await fetch('/trials/snapshot');
+        if (!res.ok) return false;
+        const body = (await res.json()) as { snapshot?: TrialSnapshot | null };
+        if (alive && body.snapshot) {
+          trialsPolled = true;
+          trials = { ok: true, value: body.snapshot };
+        }
+      } catch {
+        return false;
+      }
+      return false;
+    }
+
+    const stopFleet = livePoll(pollFleet, options);
+    const stopTrials = showTrials ? livePoll(pollTrials, options) : () => {};
+    return () => {
+      alive = false;
+      stopFleet();
+      stopTrials();
+    };
+  });
 
   const connected = $derived(view.shards.filter((s) => s.state === 'connected').length);
   const total = $derived(view.shard_count || view.shards.length);

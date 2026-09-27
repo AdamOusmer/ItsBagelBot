@@ -25,6 +25,7 @@
   import ShardTopology from '$lib/components/shards/ShardTopology.svelte';
   import ThroughputChart from '$lib/components/shards/ThroughputChart.svelte';
   import { ThroughputHistory, type ThroughputPoint } from '$lib/components/shards/throughput-history';
+  import { ReadOrder } from '$lib/components/shards/read-order';
   import { rateLabel } from '$lib/components/shards/shard-state';
   import { eventsPerSecond, pctLabel, resolveCapacity, utilizationPct } from '$lib/throughput';
   import { RATE_NOW_SECONDS } from '@bagel/kit/rates';
@@ -37,19 +38,31 @@
 
   let snap = $state<ShardSnapshot | null>(null);
   let trialSnapshot = $state<TrialSnapshot | null>(null);
-  let trialPolled = false;
+  const fleetOrder = new ReadOrder();
+  const trialOrder = new ReadOrder();
   const throughputHistory = new ThroughputHistory();
   let throughputPoints = $state<ThroughputPoint[]>([]);
   let degraded = $state(false);
   let live = $state(false);
+  let pollingActive = true;
+  let initialTrialsPending = true;
   $effect(() => {
     let alive = true;
-    data.bundle.then((b) => {
-      if (!alive || trialPolled || snap !== null) return;
-      snap = b.snapshot;
-      trialSnapshot = b.trials;
-      throughputPoints = throughputHistory.record(b.degraded ? null : b.snapshot, b.trials);
-      degraded = b.degraded;
+    initialTrialsPending = true;
+    data.fleet.then((fleet) => {
+      if (!alive || !fleetOrder.accept(0)) return;
+      snap = fleet.snapshot;
+      degraded = fleet.degraded;
+      throughputPoints = throughputHistory.record(fleet.degraded ? null : fleet.snapshot, trialSnapshot);
+    });
+    data.trials.then((trials) => {
+      if (!alive) return;
+      initialTrialsPending = false;
+      if (trialOrder.accept(0)) trialSnapshot = trials;
+    }).catch(() => {
+      if (!alive) return;
+      initialTrialsPending = false;
+      if (trialOrder.accept(0)) trialSnapshot = null;
     });
     return () => {
       alive = false;
@@ -63,44 +76,70 @@
 
   const HIDDEN_MS = 15_000;
 
+  function fleetUnavailable(ticket: number) {
+    if (!pollingActive || !fleetOrder.current(ticket)) return;
+    live = false;
+    throughputPoints = throughputHistory.record(null, trialSnapshot);
+  }
+
   async function pollSnapshot(): Promise<boolean> {
-    trialPolled = true;
+    const ticket = fleetOrder.start();
     try {
       const res = await fetch('/shards/snapshot');
       if (!res.ok) {
-        live = false;
-        throughputPoints = throughputHistory.record(null, null);
+        fleetUnavailable(ticket);
         return false;
       }
-      const body = (await res.json()) as { snapshot?: ShardSnapshot | null; trials?: TrialSnapshot | null };
-      throughputPoints = throughputHistory.record(body.snapshot ?? null, body.trials ?? null);
-      trialSnapshot = body.trials ?? null;
+      const body = (await res.json()) as { snapshot?: ShardSnapshot | null };
       if (!body.snapshot) {
-        live = false;
+        fleetUnavailable(ticket);
         return false;
       }
+      if (!pollingActive || !fleetOrder.accept(ticket)) return false;
       snap = body.snapshot;
+      throughputPoints = throughputHistory.record(body.snapshot, trialSnapshot);
       degraded = false;
       live = true;
     } catch {
-      throughputPoints = throughputHistory.record(null, null);
-      live = false;
+      fleetUnavailable(ticket);
+    }
+    return false;
+  }
+
+  async function pollTrials(): Promise<boolean> {
+    if (initialTrialsPending) return false;
+    const ticket = trialOrder.start();
+    try {
+      const res = await fetch('/trials/snapshot');
+      if (!res.ok) throw new Error('Trial snapshot unavailable');
+      const body = (await res.json()) as { snapshot?: TrialSnapshot | null };
+      if (!pollingActive || !trialOrder.current(ticket)) return false;
+      if (body.snapshot) trialOrder.accept(ticket);
+      trialSnapshot = body.snapshot ?? null;
+    } catch {
+      if (pollingActive && trialOrder.current(ticket)) trialSnapshot = null;
     }
     return false;
   }
 
   onMount(() => {
-    const stop = livePoll(pollSnapshot, {
+    const options = {
       firstDelayMs: 1500,
       delayMs: () => (document.hidden ? HIDDEN_MS : Date.now() < fastUntil ? FAST_MS : SLOW_MS),
       timeoutMs: Number.POSITIVE_INFINITY
-    });
+    };
+    const stopFleet = livePoll(pollSnapshot, options);
+    const stopTrials = data.canViewTrials ? livePoll(pollTrials, options) : () => {};
     const onVis = () => {
-      if (!document.hidden) pollSnapshot();
+      if (document.hidden) return;
+      pollSnapshot();
+      if (data.canViewTrials) pollTrials();
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {
-      stop();
+      pollingActive = false;
+      stopFleet();
+      stopTrials();
       document.removeEventListener('visibilitychange', onVis);
     };
   });

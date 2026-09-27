@@ -11,7 +11,10 @@ const DEMO = dev && process.env.DEMO === '1';
 
 export const GET: RequestHandler = async ({ locals }) => {
   if (!(await requireRole({ locals }, 'trials.manage'))) throw error(403, 'forbidden');
-  if (DEMO) return json({ snapshot: { version: 1, trials: [] } });
+  if (DEMO) {
+    const { sampleTrials } = await import('$lib/server/demo-data');
+    return json({ snapshot: sampleTrials });
+  }
   try {
     return json({ snapshot: await trialList() });
   } catch {
