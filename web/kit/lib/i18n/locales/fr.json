@@ -1523,7 +1523,11 @@
     "done": "Terminé",
     "gotIt": "Compris",
     "retry": "Réessayer",
-    "optional": "(optionnel)"
+    "optional": "(optionnel)",
+    "selectTitle": "Choisir une option",
+    "searchOptions": "Rechercher une option…",
+    "searchClear": "Effacer la recherche",
+    "selectNoMatch": "Aucune option ne correspond à votre recherche."
   },
   "error": {
     "notFoundEyebrow": "Perdu dans les miettes",

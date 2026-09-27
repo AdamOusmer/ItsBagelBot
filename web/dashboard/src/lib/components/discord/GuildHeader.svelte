@@ -106,11 +106,18 @@
       />
     {:else if guilds.length > SEGMENTED_MAX}
       <label class="bb-sr-only" for="dc-switcher">{t('discord.switcherLabel')}</label>
-      <Select id="dc-switcher" class="guild-select" value={guildId} onchange={(e: Event) => switchTo((e.currentTarget as HTMLSelectElement).value)}>
-        {#each guilds as g, i (g.guildId)}
-          <option value={g.guildId}>{switchLabels[i]}</option>
-        {/each}
-      </Select>
+      <Select
+        id="dc-switcher"
+        class="guild-select"
+        searchable
+        label={t('discord.switcherLabel')}
+        searchPlaceholder={t('common.searchOptions')}
+        searchClearLabel={t('common.searchClear')}
+        emptyLabel={t('common.selectNoMatch')}
+        options={guilds.map((g, i) => ({ value: g.guildId, label: switchLabels[i] }))}
+        value={guildId}
+        onchange={(e: Event) => switchTo((e.currentTarget as HTMLSelectElement).value)}
+      />
     {/if}
   </div>
 </div>

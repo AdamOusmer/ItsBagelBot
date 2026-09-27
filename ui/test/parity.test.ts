@@ -835,8 +835,6 @@ import SvelteSpacer from '../svelte/Spacer.svelte';
 import AstroSpacer from '../astro/Spacer.astro';
 import SvelteInput from '../svelte/Input.svelte';
 import AstroInput from '../astro/Input.astro';
-import SvelteSelect from '../svelte/Select.svelte';
-import AstroSelect from '../astro/Select.astro';
 import SvelteTextarea from '../svelte/Textarea.svelte';
 import AstroTextarea from '../astro/Textarea.astro';
 import SvelteCheckbox from '../svelte/Checkbox.svelte';
@@ -1061,14 +1059,6 @@ const PRIMITIVES: {
     astro: AstroInput,
     props: {"type":"email","invalid":true,"name":"email","placeholder":"you@example.com"},
     html: "<span class=\"bb-input\" data-invalid><input type=\"email\" value name=\"email\" placeholder=\"you@example.com\"></span>",
-  },
-  {
-    name: "Select",
-    svelte: SvelteSelect,
-    astro: AstroSelect,
-    props: {"name":"mode"},
-    slot: "<option value=\"a\">A</option>",
-    html: "<span class=\"bb-input bb-input--select\"><select name=\"mode\"><option value=\"a\">A</option></select><svg class=\"bb-input__chevron\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"></path></svg></span>",
   },
   {
     name: "Textarea",

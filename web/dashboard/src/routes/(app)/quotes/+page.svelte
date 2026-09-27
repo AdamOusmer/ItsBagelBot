@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { Select } from '@bagel/kit';
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -300,22 +301,22 @@
         <form method="POST" action="?/perm" use:enhance={addPermSubmit} bind:this={addPermForm}>
           <input type="hidden" name="kind" value="add" />
           <Field label={t('quotes.permLabel')}>
-            <select class="bb-input" name="perm" value={addPerm} onchange={onAddPermChange}>
-              {#each permOptions as option (option.value)}
-                <option value={option.value}>{option.label}</option>
-              {/each}
-            </select>
+            <Select
+              fill
+              name="perm" value={addPerm} onchange={onAddPermChange}
+              options={permOptions}
+            />
           </Field>
         </form>
 
         <form method="POST" action="?/perm" use:enhance={editPermSubmit} bind:this={editPermForm}>
           <input type="hidden" name="kind" value="edit" />
           <Field label={t('quotes.permEditLabel')}>
-            <select class="bb-input" name="perm" value={editPerm} onchange={onEditPermChange}>
-              {#each permOptions as option (option.value)}
-                <option value={option.value}>{option.label}</option>
-              {/each}
-            </select>
+            <Select
+              fill
+              name="perm" value={editPerm} onchange={onEditPermChange}
+              options={permOptions}
+            />
           </Field>
         </form>
       </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { Select } from '@bagel/kit';
   import { deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { Card, PageHead, Scroller, SaveStatus, Switch, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
@@ -520,16 +521,15 @@
             </label>
             <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
             {#if field.type === 'select'}
-              <select
-                id="mod-setting-{field.key}"
-                class="setting-input"
-                value={config[field.key] || field.placeholder || field.options?.[0]?.value || ''}
-                onchange={(e) => saveSetting(field, e.currentTarget.value)}
-              >
-                {#each field.options ?? [] as opt (opt.value)}
-                  <option value={opt.value}>{tModuleFieldOption(t, def.id, field.key, opt)}</option>
-                {/each}
-              </select>
+              <div class="setting-picker">
+                <Select
+                  fill
+                  id="mod-setting-{field.key}"
+                  value={config[field.key] || field.placeholder || field.options?.[0]?.value || ''}
+                  onchange={(e) => saveSetting(field, e.currentTarget.value)}
+                  options={(field.options ?? []).map((opt) => ({ value: opt.value, label: tModuleFieldOption(t, def.id, field.key, opt) }))}
+                />
+              </div>
             {:else if field.type === 'textarea'}
               <textarea
                 id="mod-setting-{field.key}"
@@ -727,6 +727,7 @@
     padding: 14px 18px;
     border-top: 1px solid var(--rule);
   }
+  .setting-picker { width: min(260px, 44vw); }
   .setting-input {
     width: min(260px, 44vw);
     padding: 8px 12px;
@@ -757,7 +758,7 @@
   }
   @media (max-width: 560px) {
     .setting-row { flex-wrap: wrap; }
-    .setting-input { width: 100%; }
+    .setting-input, .setting-picker { width: 100%; }
   }
 
   .tz-suggest {

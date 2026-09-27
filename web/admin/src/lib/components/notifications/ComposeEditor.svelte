@@ -109,11 +109,12 @@
       </Field>
 
       <Field label={t('admin.notifications.fieldLevel')}>
-        <Select fill name="level" bind:value={() => draft.level, (value) => (draft.level = value as NotificationLevel)}>
-          {#each LEVELS as level (level)}
-            <option value={level}>{t(LEVEL_LABEL[level as NotificationLevel])}</option>
-          {/each}
-        </Select>
+        <Select
+          fill
+          name="level"
+          options={LEVELS.map((level) => ({ value: level, label: t(LEVEL_LABEL[level as NotificationLevel]) }))}
+          bind:value={() => draft.level, (value) => (draft.level = value as NotificationLevel)}
+        />
       </Field>
 
       <Field label={t('admin.notifications.fieldExpires')} tag={t('common.optional')}>

@@ -10,6 +10,24 @@ const ENTRIES: {
   source: string;
 }[] = [
   {
+    // Shared filtering/navigation: 364 B gzip measured 2026-09-27,
+    // +150 B platform delta and ~10% room.
+    name: "select",
+    budget: 580,
+    external: [],
+    source: `import { filterSelectOptions, nextEnabledOption } from "../../lib/select";
+             globalThis.x = { filterSelectOptions, nextEnabledOption };`,
+  },
+  {
+    // Astro's optional-search picker plus shared overlay/focus: 3972 B gzip
+    // measured 2026-09-27, +150 B platform delta and ~10% room.
+    name: "astro-select",
+    budget: 4540,
+    external: [],
+    source: `import { enhanceAstroSelect } from "../../lib/astro-select";
+             globalThis.x = enhanceAstroSelect;`,
+  },
+  {
     name: "light-field",
     budget: 1400,
     external: [],
@@ -141,6 +159,8 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/typography", budget: 1320 },
   { name: "elements/layout", budget: 1210 },
   { name: "elements/input", budget: 1230 },
+  // Custom select styling: 811 B gzip, +150 B platform variance and ~10% room.
+  { name: "elements/select", budget: 1060 },
   { name: "elements/tooltip", budget: 730 },
   { name: "elements/table", budget: 700 },
   { name: "tags", budget: 2020 },

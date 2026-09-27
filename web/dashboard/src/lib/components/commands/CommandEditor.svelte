@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { Select } from '@bagel/kit';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
@@ -154,11 +155,11 @@
 
   <Grid cols={2} gap={3}>
     <Field label={t('commandEditor.access')}>
-      <select class="bb-input" name="perm" bind:value={draft.perm}>
-        {#each PERMS as p}
-          <option value={p}>{tPerm(t, p)}</option>
-        {/each}
-      </select>
+      <Select
+        fill
+        name="perm" bind:value={draft.perm}
+        options={PERMS.map((p) => ({ value: p, label: tPerm(t, p) }))}
+      />
     </Field>
 
     <Field label={t('commandEditor.cooldownS')} error={errors.cooldown} errorId="command-cooldown-err">

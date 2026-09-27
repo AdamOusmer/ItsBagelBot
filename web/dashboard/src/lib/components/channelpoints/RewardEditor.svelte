@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { Select } from '@bagel/kit';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Field, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
@@ -145,11 +146,11 @@
   {/if}
 
   <Field label={t('channelpoints.queueTitle')} hint={t('channelpoints.queueHint')}>
-    <select class="bb-input" bind:value={draft.onRedeem}>
-      <option value="fulfill">{t('channelpoints.queueFulfill')}</option>
-      <option value="cancel">{t('channelpoints.queueCancel')}</option>
-      <option value="leave">{t('channelpoints.queueLeave')}</option>
-    </select>
+    <Select
+      fill
+      bind:value={draft.onRedeem}
+      options={[{ value: 'fulfill', label: t('channelpoints.queueFulfill') }, { value: 'cancel', label: t('channelpoints.queueCancel') }, { value: 'leave', label: t('channelpoints.queueLeave') }]}
+    />
   </Field>
 
   <section class="hooks">

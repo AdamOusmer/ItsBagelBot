@@ -1523,7 +1523,11 @@
     "done": "Done",
     "gotIt": "Got it",
     "retry": "Retry",
-    "optional": "(optional)"
+    "optional": "(optional)",
+    "selectTitle": "Select an option",
+    "searchOptions": "Search options…",
+    "searchClear": "Clear search",
+    "selectNoMatch": "No options match your search."
   },
   "error": {
     "notFoundEyebrow": "Lost in the crumbs",

@@ -70,6 +70,36 @@ export function portal(node: HTMLElement, target: HTMLElement = document.body) {
   };
 }
 
+// Portalled child pickers are still owned by the panel containing their trigger.
+// Track that relationship so pointer and scroll dismissal can follow it even
+// though the child's DOM has moved to a separate body subtree.
+const overlayAnchors = new WeakMap<HTMLElement, HTMLElement>();
+
+export function registerOverlayAnchor(panel: HTMLElement, anchor: HTMLElement): () => void {
+  overlayAnchors.set(panel, anchor);
+  return () => {
+    if (overlayAnchors.get(panel) === anchor) overlayAnchors.delete(panel);
+  };
+}
+
+export function overlayContains(panel: HTMLElement, target: Node | null): boolean {
+  const visited = new Set<Node>();
+  let current = target;
+  while (current && !visited.has(current)) {
+    if (panel.contains(current)) return true;
+    visited.add(current);
+    let element = current.nodeType === 1 ? current as HTMLElement : current.parentElement;
+    let anchor: HTMLElement | undefined;
+    while (element) {
+      anchor = overlayAnchors.get(element);
+      if (anchor) break;
+      element = element.parentElement;
+    }
+    current = anchor || null;
+  }
+  return false;
+}
+
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 

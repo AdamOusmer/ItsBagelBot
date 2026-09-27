@@ -10,6 +10,7 @@
 </script>
 
 <script lang="ts">
+  import { Select } from '@bagel/kit';
   import { deserialize } from '$app/forms';
   import { Button, Code, Field, Input, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/kit';
   import { PickerPanel } from '@bagel/kit';
@@ -310,12 +311,11 @@
 
     {#if keys.length > 0}
       <Field label={t('fetches.auth')}>
-        <select class="in" bind:value={keyLabel}>
-          <option value="">{t('fetches.authNone')}</option>
-          {#each keys.toSorted((a, b) => a.label.localeCompare(b.label)) as k (k.label)}
-            <option value={k.label}>{k.label}</option>
-          {/each}
-        </select>
+        <Select
+          fill
+          bind:value={keyLabel}
+          options={[{ value: '', label: t('fetches.authNone') }, ...keys.toSorted((a, b) => a.label.localeCompare(b.label)).map((k) => ({ value: k.label, label: k.label }))]}
+        />
       </Field>
     {/if}
 

@@ -36,6 +36,7 @@ export { default as RadioGroup } from './RadioGroup.svelte';
 export { default as SearchInput } from './SearchInput.svelte';
 export { default as SegmentedControl } from './SegmentedControl.svelte';
 export { default as Select } from './Select.svelte';
+export type { SelectOption } from '../lib/select';
 export { default as Switch } from './Switch.svelte';
 export { default as Textarea } from './Textarea.svelte';
 export { default as Toggle } from './Toggle.svelte';

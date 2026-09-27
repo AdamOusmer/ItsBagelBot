@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { Select } from '@bagel/kit';
   import {
     AlertBanner,
     Chip,
@@ -80,19 +81,22 @@
       >
         {t('discord.pinnedChip')}
       </Chip>
-      <select
-        id="dc-{row.field}"
-        class="setting-input"
-        aria-describedby="dch-{row.field}"
-        disabled={roles.length === 0}
-        value={draft.config[row.field]}
-        onchange={(e) => draft.set(row.field, e.currentTarget.value)}
-      >
-        <option value="">{t('discord.notSet')}</option>
-        {#each roles as opt (opt.id)}
-          <option value={opt.id}>@{opt.name}</option>
-        {/each}
-      </select>
+      <span class="setting-picker">
+        <Select
+          fill
+          searchable
+          label={row.label}
+          searchPlaceholder={t('common.searchOptions')}
+          searchClearLabel={t('common.searchClear')}
+          emptyLabel={t('common.selectNoMatch')}
+          id="dc-{row.field}"
+          aria-describedby="dch-{row.field}"
+          disabled={roles.length === 0}
+          value={String(draft.config[row.field] ?? '')}
+          onchange={(e) => draft.set(row.field, e.currentTarget.value)}
+          options={[{ value: '', label: t('discord.notSet') }, ...roles.map((opt) => ({ value: opt.id, label: `@${opt.name}` }))]}
+        />
+      </span>
     </span>
     <FieldNote invalid={draft.invalid} field={row.field} />
   </div>
