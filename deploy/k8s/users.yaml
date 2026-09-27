@@ -88,7 +88,7 @@ spec:
       priorityClassName: bagel-service
       containers:
         - name: users
-          image: ghcr.io/adamousmer/itsbagelbot/users:sha-8cded1f416c5@sha256:1abf914b0688f5a29495f42706131541feca07446b4d9e638be5540dc7345b50
+          image: ghcr.io/adamousmer/itsbagelbot/users:v0.2.6-beta@sha256:e37692454544289f2efe72f1a86aa8e3492637053c67f8e75dfc71fe5cdf13c0
           imagePullPolicy: IfNotPresent
           env:
             # The bot may save only its own verified OAuth grant without a staff session.
