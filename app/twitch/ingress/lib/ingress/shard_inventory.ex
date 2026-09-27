@@ -7,8 +7,14 @@ defmodule Ingress.ShardInventory do
   @probe_timeout_ms 2_000
 
   def sessions do
-    Ingress.ShardSupervisor
-    |> Horde.DynamicSupervisor.which_children()
+    case Ingress.HordeSupervisor.which_children(Ingress.ShardSupervisor) do
+      children when is_list(children) -> probe_sessions(children)
+      {:error, _reason} -> []
+    end
+  end
+
+  defp probe_sessions(children) do
+    children
     |> Enum.filter(&session_child?/1)
     |> Task.async_stream(&probe_child/1,
       timeout: @probe_timeout_ms + 500,
@@ -18,8 +24,6 @@ defmodule Ingress.ShardInventory do
       {:ok, {_pid, %{shard_id: _}} = entry} -> [entry]
       _dead_or_unreachable -> []
     end)
-  catch
-    :exit, _ -> []
   end
 
   def unmanaged do

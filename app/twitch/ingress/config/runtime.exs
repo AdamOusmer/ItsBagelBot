@@ -15,6 +15,7 @@ topologies =
       [
         ingress: [
           strategy: Cluster.Strategy.Kubernetes.DNS,
+          disconnect: Ingress.ClusterDiscovery.disconnect_mfa(),
           config: [
             service: headless,
             application_name: System.get_env("BAGELBOT_K8S_APP_NAME", "ingress"),

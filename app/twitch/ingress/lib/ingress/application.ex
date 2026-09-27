@@ -47,15 +47,7 @@ defmodule Ingress.Application do
       Ingress.Twitch.AppToken,
       {Cluster.Supervisor, [Config.cluster_topologies(), [name: Ingress.ClusterSupervisor]]},
       {Horde.Registry, [name: Ingress.Registry, keys: :unique, members: :auto]},
-      {Horde.DynamicSupervisor,
-       [
-         name: Ingress.ShardSupervisor,
-         strategy: :one_for_one,
-         members: :auto,
-         # :active stops then restarts shards on every membership change, dropping events.
-         process_redistribution: :passive,
-         distribution_strategy: Ingress.ShardDistribution
-       ]},
+      {Horde.DynamicSupervisor, shard_supervisor_options()},
       connection_child(:nats_connection, :gnat, Config.nats()),
       connection_child(:nats_bus_connection, :gnat_bus, Config.nats_bus()),
       Ingress.NatsFailback,
@@ -66,6 +58,21 @@ defmodule Ingress.Application do
       Ingress.BroadcasterCache,
       Ingress.Squash.Pool,
       Ingress.Dispatcher.Supervisor
+    ]
+  end
+
+  @doc false
+  def shard_supervisor_options do
+    [
+      name: Ingress.ShardSupervisor,
+      strategy: :one_for_one,
+      members: :auto,
+      # :active drops events by restarting sockets on membership changes.
+      process_redistribution: :passive,
+      distribution_strategy: Ingress.ShardDistribution,
+      # Different CRDT availability views can route a start back and forth.
+      # Horde starts locally when this finite forwarding budget is exhausted.
+      proxy_message_ttl: 5
     ]
   end
 
