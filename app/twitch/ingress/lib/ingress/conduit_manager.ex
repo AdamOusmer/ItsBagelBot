@@ -213,7 +213,7 @@ defmodule Ingress.ConduitManager do
   end
 
   defp terminate_shard(shard_id, pid) do
-    case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
+    case Ingress.HordeSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
       :ok -> :ok
       {:error, :not_found} -> stop_orphan_shard(shard_id, pid)
       {:error, reason} -> Logger.warning("stop shard #{shard_id} failed: #{inspect(reason)}")
@@ -241,7 +241,7 @@ defmodule Ingress.ConduitManager do
   defp start_shard(conduit_id, shard_id) do
     spec = {Ingress.ShardSession, shard_id: shard_id, conduit_id: conduit_id}
 
-    case Horde.DynamicSupervisor.start_child(Ingress.ShardSupervisor, spec) do
+    case Ingress.HordeSupervisor.start_child(Ingress.ShardSupervisor, spec) do
       {:ok, pid} ->
         Logger.info("started shard #{shard_id}")
         {:started, pid}
@@ -411,7 +411,7 @@ defmodule Ingress.ConduitManager do
   defp rollback_rebalance(shard_id, old_pid) do
     case Horde.Registry.lookup(Ingress.Registry, {:shard, shard_id}) do
       [{successor, _}] when successor != old_pid ->
-        case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, successor) do
+        case Ingress.HordeSupervisor.terminate_child(Ingress.ShardSupervisor, successor) do
           :ok -> :ok
           {:error, :not_found} -> GenServer.stop(successor, :normal, @orphan_stop_timeout_ms)
           {:error, _reason} -> :ok
@@ -446,13 +446,36 @@ defmodule Ingress.ConduitManager do
   end
 
   defp run_health_pass(state, desired, {:ok, shards}) do
+    state = refresh_rescues(state)
     unhealthy = ShardHealth.unhealthy_ids(shards, desired)
     {counts, rescues} = heal_all(state, unhealthy)
-    rescues = reap_rescues(unhealthy, rescues)
+    rescues = reap_rescues(unhealthy, rescues, desired)
     %{state | unhealthy_counts: counts, rescues: rescues}
   end
 
   defp run_health_pass(state, _desired, :error), do: state
+
+  # A timed-out start may still complete inside Horde. Recover its named
+  # rescue even when it has already healed the slot and no retry is needed.
+  @doc false
+  def refresh_rescues(state) do
+    observed =
+      Horde.Registry.select(Ingress.Registry, [
+        {{{:rescue, :"$1"}, :"$2", :_}, [], [{{:"$1", :"$2"}}]}
+      ])
+
+    rescues =
+      Enum.reduce(observed, state.rescues, fn {id, pid}, tracked ->
+        seen = Map.get(state.unhealthy_counts, id, 0)
+
+        Map.update(tracked, id, {pid, seen}, fn
+          {^pid, original_seen} -> {pid, original_seen}
+          _previous -> {pid, seen}
+        end)
+      end)
+
+    %{state | rescues: rescues}
+  end
 
   defp heal_all(state, unhealthy) do
     Enum.reduce(unhealthy, {%{}, state.rescues}, fn shard_id, {counts, rescues} ->
@@ -533,8 +556,11 @@ defmodule Ingress.ConduitManager do
       restart: :temporary
     }
 
-    case Horde.DynamicSupervisor.start_child(Ingress.ShardSupervisor, spec) do
+    case Ingress.HordeSupervisor.start_child(Ingress.ShardSupervisor, spec) do
       {:ok, pid} ->
+        Map.put(rescues, shard_id, {pid, seen})
+
+      {:error, {:already_started, pid}} ->
         Map.put(rescues, shard_id, {pid, seen})
 
       other ->
@@ -558,12 +584,18 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  defp reap_rescues(unhealthy, rescues) do
-    Enum.reduce(rescues, %{}, fn {shard_id, entry}, acc ->
-      if shard_id in unhealthy do
-        Map.put(acc, shard_id, entry)
-      else
-        maybe_release_rescue(shard_id, entry, acc)
+  defp reap_rescues(unhealthy, rescues, desired) do
+    Enum.reduce(rescues, %{}, fn {shard_id, {pid, _seen} = entry}, acc ->
+      cond do
+        shard_id >= desired ->
+          stop_rescue(shard_id, pid)
+          acc
+
+        shard_id in unhealthy ->
+          Map.put(acc, shard_id, entry)
+
+        true ->
+          maybe_release_rescue(shard_id, entry, acc)
       end
     end)
   end
@@ -592,7 +624,7 @@ defmodule Ingress.ConduitManager do
   defp stop_rescue(shard_id, pid) do
     Logger.info("stopping rescue session for shard #{shard_id}")
 
-    case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
+    case Ingress.HordeSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
       :ok -> :ok
       {:error, _} -> stop_orphan_shard(shard_id, pid)
     end

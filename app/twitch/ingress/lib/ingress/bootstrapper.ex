@@ -28,7 +28,7 @@ defmodule Ingress.Bootstrapper do
   end
 
   defp ensure_singleton(module, label, misses) do
-    case Horde.DynamicSupervisor.start_child(Ingress.ShardSupervisor, module) do
+    case Ingress.HordeSupervisor.start_child(Ingress.ShardSupervisor, module) do
       {:ok, _pid} ->
         Logger.info("#{label} started on #{node()}")
         Map.delete(misses, module)
@@ -77,7 +77,7 @@ defmodule Ingress.Bootstrapper do
   end
 
   defp replace_singleton(label, pid) do
-    case Horde.DynamicSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
+    case Ingress.HordeSupervisor.terminate_child(Ingress.ShardSupervisor, pid) do
       :ok -> :ok
       {:error, reason} -> Logger.warning("#{label} terminate failed: #{inspect(reason)}")
     end
