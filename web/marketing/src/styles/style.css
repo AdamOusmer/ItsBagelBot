@@ -30,7 +30,7 @@
     --font-display: var(--bb-font-display);
     --font-mono: var(--bb-font-mono);
     --font-body: var(--bb-font-body);
-    --font-hand: "Caveat Variable", "Caveat", cursive;
+    --font-hand: var(--bb-font-hand);
 
     --card-pad: 32px;
     --card-body-pad: 24px;

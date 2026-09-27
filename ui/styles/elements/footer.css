@@ -6,7 +6,7 @@
 @layer bb.elements {
   .bb-footer {
     --footer-pad: 72px 4% 40px;
-    --footer-signoff-sub-font: var(--bb-font-body);
+    --footer-signoff-sub-font: var(--bb-font-hand);
     --bb-footer-bg: transparent;
 
     position: relative;
