@@ -89,7 +89,7 @@ return 1`
 // predates locale projection; commandsPageHidden reads false the same way
 // when the hash predates this field (D2's absent-means-visible rule).
 func (v *Store) GetUser(ctx context.Context, userID uint64) (status string, active, banned bool, locale string, commandsPageHidden bool, err error) {
-	defer segment(ctx, "HGETALL")()
+	defer segment(ctx, "HMGET")()
 
 	key := cache.UserKey(settingsKeyPrefix, userID)
 

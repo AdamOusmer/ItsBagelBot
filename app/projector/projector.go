@@ -288,12 +288,14 @@ func (p *Projector) HandleStreamEvent(msg *bus.Message) error {
 		return nil
 	}
 
+	// Launch the independent settings fill before the synchronous loyalty reads.
+	// The durable live write and invalidation stay ahead of both operations.
+	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
+	p.hydrator.RefreshAsync(st.BroadcasterID)
+
 	if isGoLiveEdge(wasLive, st.Live) {
 		p.snapshotCounterBaseline(msg.Context(), st.BroadcasterID, log)
 	}
-
-	log.Info("refreshing settings cache for stream online", zap.Uint64("user_id", st.BroadcasterID))
-	p.hydrator.RefreshAsync(st.BroadcasterID)
 	p.warmBroadcasterToken(st.BroadcasterID)
 	return nil
 }

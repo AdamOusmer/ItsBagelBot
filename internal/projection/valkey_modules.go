@@ -24,6 +24,22 @@ const (
 	modulesMarkerField = "modules:projected"
 )
 
+// moduleSnapshotRead filters one atomic hash snapshot on the server. Returning
+// every module-prefixed field retains dynamic module names, revisions and
+// account fencing data, alongside the complete-section marker. Unlike HSCAN,
+// this cannot combine rows or a marker from different concurrent writes. It
+// performs no writes and EVAL_RO can run on the worker's read-only route.
+const moduleSnapshotRead = `-- module-only settings snapshot
+local fields=redis.call('HGETALL',KEYS[1])
+local out={}
+for i=1,#fields,2 do
+ local name=fields[i]
+ if name == 'modules:projected' or string.sub(name,1,7) == 'module:' then
+  out[#out+1]=name; out[#out+1]=fields[i+1]
+ end
+end
+return out`
+
 // moduleHydrationSeed is intentionally additive. A hydration reply is a
 // snapshot that may have been fetched before a newer ModuleChanged event. It
 // updates only rows whose revision is at least the row already projected and
@@ -177,10 +193,8 @@ func (v *Store) GetModulesPrimary(ctx context.Context, userID uint64) (map[strin
 }
 
 func (v *Store) getModules(ctx context.Context, client valkey.Client, userID uint64) (map[string]ModuleView, bool, error) {
-	defer segment(ctx, "HGETALL")()
-
 	key := cache.UserKey(settingsKeyPrefix, userID)
-	fields, err := client.Do(ctx, client.B().Hgetall().Key(key).Build()).AsStrMap()
+	fields, err := readModuleSnapshot(ctx, client, key)
 	if err != nil {
 		return nil, false, err
 	}
@@ -208,6 +222,29 @@ func (v *Store) getModules(ctx context.Context, client valkey.Client, userID uin
 	}
 
 	return byName, projected, nil
+}
+
+// readModuleSnapshot keeps one atomic snapshot, with compatibility fallback only
+// for servers or ACLs that cannot execute EVAL_RO. Transport failures propagate.
+func readModuleSnapshot(ctx context.Context, client valkey.Client, key string) (map[string]string, error) {
+	end := segment(ctx, "EVAL_RO")
+	fields, err := client.Do(ctx, client.B().EvalRo().Script(moduleSnapshotRead).Numkeys(1).Key(key).Build()).AsStrMap()
+	end()
+	if moduleSnapshotNeedsFallback(err) {
+		defer segment(ctx, "HGETALL")()
+		return client.Do(ctx, client.B().Hgetall().Key(key).Build()).AsStrMap()
+	}
+	return fields, err
+}
+
+func moduleSnapshotNeedsFallback(err error) bool {
+	if err == nil {
+		return false
+	}
+	if strings.Contains(err.Error(), "unknown command") {
+		return true
+	}
+	return strings.Contains(err.Error(), "NOPERM")
 }
 
 func ModuleList(byName map[string]ModuleView) []ModuleView {

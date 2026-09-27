@@ -83,6 +83,7 @@ func personalityOnChat(d engine.Deps) module.EventHandler {
 		if !ok || !personalityAllowed(ctx, d, c, r) {
 			return nil
 		}
+		c.EnsureLocale(ctx)
 		msg := personalityLine(ctx, d, c, r)
 		if msg == "" {
 			return nil

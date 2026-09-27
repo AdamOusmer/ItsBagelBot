@@ -35,13 +35,14 @@ type fakeValkey struct {
 	client  valkey_go.Client
 	nowFunc func() time.Time
 
-	mu       sync.Mutex
-	hashes   map[string]fakeHash
-	strs     map[string]string
-	expires  map[string]time.Time
-	log      []fakeOp
-	done     chan struct{}
-	hgetFail string
+	mu         sync.Mutex
+	hashes     map[string]fakeHash
+	strs       map[string]string
+	expires    map[string]time.Time
+	log        []fakeOp
+	done       chan struct{}
+	hgetFail   string
+	evalROFail string
 }
 
 func newFakeValkey(t *testing.T) *fakeValkey {
@@ -156,6 +157,26 @@ var fakeCommandHandlers = map[string]func(*fakeValkey, cmdArgs) []byte{
 	"SET":     (*fakeValkey).execSET,
 	"EXPIRE":  (*fakeValkey).execEXPIRE,
 	"EVAL":    (*fakeValkey).execEVAL,
+	"EVAL_RO": (*fakeValkey).execEVALRO,
+}
+
+func (f *fakeValkey) execEVALRO(args cmdArgs) []byte {
+	if f.evalROFail != "" {
+		return respError(f.evalROFail)
+	}
+	if args[0] != moduleSnapshotRead {
+		return respError("unsupported read-only script")
+	}
+	key := args[2]
+	flat := []string{}
+	if f.aliveLocked(key) {
+		for name, value := range f.hashes[key] {
+			if name == modulesMarkerField || strings.HasPrefix(name, moduleFieldPrefix) {
+				flat = append(flat, name, value)
+			}
+		}
+	}
+	return respFlatArray(flat)
 }
 
 func (f *fakeValkey) exec(args cmdArgs) []byte {

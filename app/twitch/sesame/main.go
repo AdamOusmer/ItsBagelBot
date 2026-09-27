@@ -17,6 +17,7 @@ import (
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/env"
 	"ItsBagelBot/pkg/svcboot"
+	pkgvalkey "ItsBagelBot/pkg/valkey"
 
 	"go.uber.org/zap"
 )
@@ -102,6 +103,8 @@ func main() {
 
 	pipe.RegisterObserver(chatVolumeObserver{store: chatvolume.New(valkeyClient, log)})
 
+	prepareHotPath(w)
+
 	go engine.NewTrialPromotion(valkeyClient, engine.NewLoyaltyRPC(nc, cfg.LoyaltyRPCPrefix), log.Named("trial-promotion")).Run(ctx)
 
 	weighted, err := newConsumer(sub, nrApp, cfg, log).Start(ctx, pipe.Process)
@@ -111,6 +114,17 @@ func main() {
 
 	<-ctx.Done()
 	drainInflight(weighted, cfg.DrainTimeout, log)
+}
+
+// prepareHotPath moves codec compilation and lazy read dials ahead of consumption.
+// Both are latency optimizations; a failure leaves normal lazy initialization available.
+func prepareHotPath(w wireCtx) {
+	if err := engine.PrepareJSON(); err != nil {
+		w.log.Warn("failed to precompile sesame JSON codecs", zap.Error(err))
+	}
+	if err := pkgvalkey.WarmReads(w.ctx, w.in.vc); err != nil {
+		w.log.Warn("node-local read warmup incomplete; continuing with lazy connections", zap.Error(err))
+	}
 }
 
 // Do not wrap the probes in health.Degrades: a total ingress outage would never page.

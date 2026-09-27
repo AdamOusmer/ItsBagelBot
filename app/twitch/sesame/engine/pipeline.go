@@ -41,11 +41,12 @@ type Config struct {
 }
 
 type Pipeline struct {
-	trialCounts CounterBumper
-	log         *zap.Logger
-	pub         bus.Publisher
-	proj        projection.Reader
-	registry    *Registry
+	trialCounts  CounterBumper
+	log          *zap.Logger
+	pub          bus.Publisher
+	proj         projection.Reader
+	localeLookup func(context.Context, uint64) (string, error)
+	registry     *Registry
 
 	live          IsLiveChecker
 	cooldown      CooldownStore
@@ -125,6 +126,7 @@ func NewPipeline(d Deps, registry *Registry, cfg Config) *Pipeline {
 		autoRefundChannel: cfg.AutoRefundChannel,
 		chatLineCounter:   d.ChatLines,
 	}
+	p.localeLookup = p.readLocale
 	if d.Automod == nil && d.Log != nil {
 		d.Log.Warn("automod gate not wired; chat moderation disabled")
 	}
@@ -163,6 +165,7 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 	}
 	broadcasterID, ok := env.BroadcasterID()
 	p.countDecoded(ctx, env, broadcasterID)
+	traceEnvelope(ctx, env, broadcasterID)
 	if !p.eligible(env) {
 		traceResult(ctx, "filtered")
 		return nil
@@ -172,7 +175,6 @@ func (p *Pipeline) Process(msg *bus.Message) error {
 		traceResult(ctx, "invalid")
 		return nil
 	}
-	traceEvent(ctx, env.Type, env.Lane, broadcasterID)
 	return p.processByOrigin(ctx, env, broadcasterID)
 }
 
@@ -208,19 +210,19 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 		p.nuke.recordChat(broadcasterID, env)
 	}
 
-	views, err := p.tracedModuleViews(ctx, env.Type, broadcasterID)
+	mctx := p.leaseContext(env, broadcasterID)
+	defer PutContext(mctx)
+	views, err := p.loadMessageProjections(ctx, mctx)
 	if err != nil {
 		traceResult(ctx, "error")
 		return err
 	}
 
-	mctx := p.leaseContext(env, broadcasterID)
-	defer PutContext(mctx)
-
 	emission := emitState{
 		subject: p.laneSubject(mctx.Regress),
 		env:     env,
 		locale:  mctx.Locale,
+		mctx:    mctx,
 	}
 	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
 	started := time.Now()
@@ -235,7 +237,7 @@ func (p *Pipeline) processByOrigin(ctx context.Context, env *lane.Envelope, broa
 		BroadcasterID: broadcasterID,
 		Type:          env.Type,
 		At:            started,
-		Locale:        mctx.Locale,
+		Locale:        p.observerLocale(ctx, mctx),
 		Handled:       mctx.Command != "",
 		Command:       mctx.Command,
 		Actor:         env.ChatterUserName,
@@ -311,6 +313,7 @@ func (p *Pipeline) leaseContext(env *lane.Envelope, broadcasterID uint64) *modul
 	mctx.Regress = module.RegressFromLane(env.Lane)
 	mctx.BroadcasterID = broadcasterID
 	mctx.Log = p.log
+	mctx.LocaleLookup = p.localeLookup
 	return mctx
 }
 
@@ -318,6 +321,7 @@ type emitState struct {
 	subject    string
 	replayBase string
 	locale     string
+	mctx       *module.Context
 	env        *lane.Envelope
 	baseDone   bool
 	ordinal    int
@@ -346,7 +350,7 @@ func (p *Pipeline) newEmit(ctx context.Context, partition string, state *emitSta
 			return
 		}
 		Translate(o)
-		applyOutputLocale(o, state.locale)
+		applyOutputLocale(o, state.outputLocale(ctx))
 		if isEmptyAction(o) {
 			return
 		}
@@ -386,7 +390,7 @@ func (p *Pipeline) runStages(ctx context.Context, mctx *module.Context, views ma
 		p.dispatch(ctx, mctx, views, emit)
 	}
 	if len(p.registry.For(env.Type)) > 0 && !consumed {
-		p.ensureLocale(ctx, mctx)
+		p.ensureHandlerLocale(ctx, mctx)
 		p.runHandlers(ctx, views, mctx, emit)
 	}
 }
@@ -451,15 +455,6 @@ func replayOutputID(base string, ordinal int) string {
 		return ""
 	}
 	return base + ":" + strconv.Itoa(ordinal)
-}
-
-func (p *Pipeline) ensureLocale(ctx context.Context, mctx *module.Context) {
-	if mctx.Locale != "" {
-		return
-	}
-	if u, err := p.proj.User(ctx, mctx.BroadcasterID); err == nil {
-		mctx.Locale = u.Locale
-	}
 }
 
 func (p *Pipeline) dropPoison(ctx context.Context, msgID string, err error) error {
@@ -552,14 +547,6 @@ func (p *Pipeline) handlerFailed(ctx context.Context, mctx *module.Context, m mo
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		txn.AddAttribute("module.failed", moduleLabel(m))
 		txn.NoticeError(err)
-	}
-}
-
-func traceEvent(ctx context.Context, eventType, eventLane string, broadcasterID uint64) {
-	if txn := newrelic.FromContext(ctx); txn != nil {
-		txn.AddAttribute("event.type", eventType)
-		txn.AddAttribute("event.lane", eventLane)
-		txn.AddAttribute("event.broadcaster_id", broadcasterID)
 	}
 }
 

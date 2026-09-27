@@ -40,6 +40,10 @@ func (c *Keyed[K, V]) Len() int { return c.client.Len() }
 
 func (c *Keyed[K, V]) Capacity() int64 { return c.capacity }
 
+// Get returns a live cached entry without loading a miss. Fill misses with
+// GetOrLoad so concurrent readers retain singleflight protection.
+func (c *Keyed[K, V]) Get(key K) (V, bool) { return c.client.Get(key) }
+
 func (c *Keyed[K, V]) GetOrLoad(ctx context.Context, key K, loader func(context.Context) (V, error)) (V, error) {
 	return c.GetOrLoadTTL(ctx, key, func(ctx context.Context) (V, time.Duration, error) {
 		value, err := loader(ctx)

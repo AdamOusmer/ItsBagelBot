@@ -6,6 +6,7 @@ package modules
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
@@ -159,4 +160,25 @@ func TestEmotePlayStoreErrorFailsOpenSilently(t *testing.T) {
 func TestEmotePlayNilStoreInert(t *testing.T) {
 	out := runEmotePlay(t, engine.Deps{Log: zap.NewNop()}, lane.Envelope{Text: "Kappa"})
 	assert.Empty(t, out)
+}
+
+func TestEmotePlayResolvesLocaleOnlyForMilestones(t *testing.T) {
+	for _, milestone := range []bool{false, true} {
+		t.Run(strconv.FormatBool(milestone), func(t *testing.T) {
+			store := &stubEmotePlay{result: engine.EmotePlayResult{StreakMilestone: milestone, Streak: 10}}
+			calls := 0
+			c := &module.Context{Env: lane.Envelope{Text: "Kappa", BroadcasterUserID: "42"}, BroadcasterID: 42, LocaleLookup: func(context.Context, uint64) (string, error) { calls++; return "fr", nil }}
+			var col collector
+			require.NoError(t, EmotePlay(emotePlayDeps(store)).Events["channel.chat.message"](context.Background(), c, col.emit))
+			if milestone {
+				require.Equal(t, 1, calls)
+				require.Len(t, col.out, 1)
+				require.Equal(t, "Série Kappa ×10 !", col.out[0].Text)
+				require.Equal(t, "fr", c.Locale)
+			} else {
+				require.Zero(t, calls)
+				require.Empty(t, col.out)
+			}
+		})
+	}
 }

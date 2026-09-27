@@ -12,7 +12,10 @@ const loyaltyDiscoveryPopScript = `
 if redis.call('LINDEX',KEYS[1],0)~=ARGV[1] then return 0 end
 redis.call('LPOP',KEYS[1]);return 1`
 
+// Check live state in the same transaction as scheduling, closing the race
+// between admission capture and offline or a newer online event.
 const loyaltyArmScript = `
+if redis.call('GET',KEYS[4])~=ARGV[4] then return 0 end
 local current=tonumber(redis.call('HGET',KEYS[1],'version') or '-1')
 local incoming=tonumber(ARGV[2]); if incoming<current then return 0 end
 local active=redis.call('HGET',KEYS[1],'active')=='1'
