@@ -1,37 +1,52 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { lex, parseCond } from '../engine/tmpl';
+import { lex, parseCond, type Token, type VarToken } from '../engine/tmpl';
 import type { ModuleDef, ModuleReply } from './module-def';
 
 /** Convert only this reply's published fields. Unknown/dynamic tokens and
  * literal text stay intact, including fallbacks and conditional branch text. */
 export function namespaceReplyTemplate(moduleId: string, reply: Pick<ModuleReply, 'tokens'>, template: string): string {
   const prefix = `${moduleId}:`;
-  const fields = new Set((reply.tokens ?? []).map((token) => token.name.startsWith(prefix) ? token.name.slice(prefix.length) : token.name));
-  return lex(template).map((token) => {
-    if (token.kind === 'literal') return token.text;
-    if (token.payload === null && fields.has(token.name)) {
-      return `{${prefix}${token.name}${token.fallback === null ? '' : `|${token.fallback}`}}`;
-    }
-    const cond = parseCond(token);
-    if (cond && cond.ref.payload === null && fields.has(cond.ref.name)) {
-      // A nested opening brace can hide later branches from the shared lexer.
-      // Keep these ambiguous conditionals intact during migration.
-      if (token.payload!.split(':').length === 2 && token.raw.slice(1).includes('{')) return token.raw;
-      // Keep the original comparison and branches byte for byte; only the
-      // referenced field changes, so a migration never rewrites user text.
-      const migrated = token.raw.replace(/^\{if:[^:=|}]+/i, `{if:${prefix}${cond.ref.name}`);
-      if (token.payload!.split(':').length === 2 && !token.raw.slice(1).includes('{')) {
-        // Adding the namespace spends a colon. Preserve the original
-        // single-branch grammar with an explicit empty else branch.
-        const before = token.fallback === null ? migrated.length - 1 : migrated.lastIndexOf('|');
-        return `${migrated.slice(0, before)}:${migrated.slice(before)}`;
-      }
-      return migrated;
-    }
-    return token.raw;
-  }).join('');
+  const fields = replyFieldNames(prefix, reply);
+  return lex(template).map((token) => namespaceReplyToken(prefix, fields, token)).join('');
+}
+
+function replyFieldNames(prefix: string, reply: Pick<ModuleReply, 'tokens'>): Set<string> {
+  return new Set((reply.tokens ?? []).map((token) =>
+    token.name.startsWith(prefix) ? token.name.slice(prefix.length) : token.name
+  ));
+}
+
+function isLegacyReplyField(token: VarToken, fields: ReadonlySet<string>): boolean {
+  return token.payload === null && fields.has(token.name);
+}
+
+function namespaceReplyToken(prefix: string, fields: ReadonlySet<string>, token: Token): string {
+  if (token.kind === 'literal') return token.text;
+  if (isLegacyReplyField(token, fields)) {
+    return `{${prefix}${token.name}${token.fallback === null ? '' : `|${token.fallback}`}}`;
+  }
+  const cond = parseCond(token);
+  if (cond === null || !isLegacyReplyField(cond.ref, fields)) return token.raw;
+  return namespaceReplyConditional(prefix, token, cond.ref.name);
+}
+
+function namespaceReplyConditional(prefix: string, token: VarToken, field: string): string {
+  const singleBranch = token.payload!.split(':').length === 2;
+  // A nested opening brace can hide later branches from the shared lexer.
+  // Keep these ambiguous conditionals intact during migration.
+  if (singleBranch && token.raw.slice(1).includes('{')) return token.raw;
+  // Preserve the comparison and branches byte for byte; only the reference changes.
+  const migrated = token.raw.replace(/^\{if:[^:=|}]+/i, `{if:${prefix}${field}`);
+  return singleBranch ? appendEmptyElse(migrated, token.fallback) : migrated;
+}
+
+function appendEmptyElse(template: string, fallback: string | null): string {
+  // Adding the namespace spends a colon. Preserve the original single-branch
+  // grammar with an explicit empty else branch before any fallback.
+  const before = fallback === null ? template.length - 1 : template.lastIndexOf('|');
+  return `${template.slice(0, before)}:${template.slice(before)}`;
 }
 
 /** Keep per-module source declarations readable while every public catalog

@@ -91,46 +91,15 @@ func main() {
 }
 
 func run(ctx context.Context, opts options) error {
-	if opts.pageSize < 1 || opts.pageSize > 1000 || opts.timeout <= 0 || opts.timeout > time.Minute {
-		return errors.New("invalid page size or timeout")
-	}
-	if opts.apply && opts.backup == "" {
-		return errors.New("--apply requires --backup with a new file path")
-	}
-	dsn := os.Getenv(opts.dsnEnv)
-	if dsn == "" {
-		return errors.New("the selected DSN environment variable is empty")
-	}
-	if opts.prefix == "" {
-		opts.prefix = "bagel.rpc.modules"
-	}
-	db, err := ent.Open("mysql", dsn)
+	m, err := openMigration(opts)
 	if err != nil {
-		return errors.New("cannot open database reader")
+		return err
 	}
-	defer db.Close()
-	m := migration{opts: opts, db: db}
-	defer func() {
-		fmt.Printf("scanned=%d changed=%d applied=%d conflicts=%d skipped=%d dry_run=%t\n", m.scanned, m.changed, m.applied, m.conflicts, m.skipped, !opts.apply)
-	}()
-	if opts.apply {
-		url := bus.RPCURL(os.Getenv(opts.natsEnv))
-		if leaf := os.Getenv("NATS_LEAF_URL"); leaf != "" {
-			url = leaf
-		}
-		if url == "" {
-			return errors.New("the selected NATS RPC endpoint is empty")
-		}
-		m.nc, err = bus.Connect(url, "module-template-migration")
-		if err != nil {
-			return errors.New("cannot connect to modules RPC")
-		}
-		defer m.nc.Close()
-		m.journal, err = createBackup(opts.backup)
-		if err != nil {
-			return errors.New("cannot create backup; it must be a new writable file")
-		}
-		defer m.journal.Close()
+	defer m.db.Close()
+	defer m.printSummary()
+	defer m.closeApply()
+	if err := m.prepareApply(); err != nil {
+		return err
 	}
 	if opts.restore != "" {
 		return m.restore(ctx)
@@ -138,76 +107,154 @@ func run(ctx context.Context, opts options) error {
 	return m.scan(ctx)
 }
 
+func (o options) validate() error {
+	if o.pageSize < 1 || o.pageSize > 1000 {
+		return errors.New("invalid page size or timeout")
+	}
+	if o.timeout <= 0 || o.timeout > time.Minute {
+		return errors.New("invalid page size or timeout")
+	}
+	if o.apply && o.backup == "" {
+		return errors.New("--apply requires --backup with a new file path")
+	}
+	return nil
+}
+
+func openMigration(opts options) (*migration, error) {
+	if err := opts.validate(); err != nil {
+		return nil, err
+	}
+	dsn := os.Getenv(opts.dsnEnv)
+	if dsn == "" {
+		return nil, errors.New("the selected DSN environment variable is empty")
+	}
+	if opts.prefix == "" {
+		opts.prefix = "bagel.rpc.modules"
+	}
+	db, err := ent.Open("mysql", dsn)
+	if err != nil {
+		return nil, errors.New("cannot open database reader")
+	}
+	return &migration{opts: opts, db: db}, nil
+}
+
+func (m *migration) printSummary() {
+	fmt.Printf("scanned=%d changed=%d applied=%d conflicts=%d skipped=%d dry_run=%t\n", m.scanned, m.changed, m.applied, m.conflicts, m.skipped, !m.opts.apply)
+}
+
+func (m *migration) prepareApply() error {
+	if !m.opts.apply {
+		return nil
+	}
+	url := migrationRPCURL(m.opts.natsEnv)
+	if url == "" {
+		return errors.New("the selected NATS RPC endpoint is empty")
+	}
+	var err error
+	m.nc, err = bus.Connect(url, "module-template-migration")
+	if err != nil {
+		return errors.New("cannot connect to modules RPC")
+	}
+	m.journal, err = createBackup(m.opts.backup)
+	if err != nil {
+		return errors.New("cannot create backup; it must be a new writable file")
+	}
+	return nil
+}
+
+func migrationRPCURL(fallbackEnv string) string {
+	if leaf := os.Getenv("NATS_LEAF_URL"); leaf != "" {
+		return leaf
+	}
+	return bus.RPCURL(os.Getenv(fallbackEnv))
+}
+
+func (m *migration) closeApply() {
+	if m.journal != nil {
+		_ = m.journal.Close()
+	}
+	if m.nc != nil {
+		m.nc.Close()
+	}
+}
+
 func createBackup(path string) (*os.File, error) {
 	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 }
 
 func (m *migration) scan(ctx context.Context) error {
-	for afterID := 0; ; {
-		query := m.db.Modules.Query().Where(modules.IDGT(afterID)).Order(ent.Asc(modules.FieldID)).Limit(m.opts.pageSize)
-		if m.opts.userID != 0 {
-			query.Where(modules.UserIDEQ(m.opts.userID))
-		}
-		qctx, cancel := context.WithTimeout(ctx, m.opts.timeout)
-		rows, err := query.All(qctx)
-		cancel()
+	afterID, more := 0, true
+	for more {
+		var err error
+		afterID, more, err = m.scanPage(ctx, afterID)
 		if err != nil {
-			return errors.New("database page read failed")
+			return err
 		}
-		for _, row := range rows {
-			m.scanned++
-			partial, err := modulevars.MigrateConfig(row.Name, row.Configs)
-			if err != nil {
-				m.skipped++
-				fmt.Printf("skip invalid config row=%d user=%d module=%s\n", row.ID, row.UserID, row.Name)
-				continue
-			}
-			if len(partial) > 0 {
-				if err := m.patch(ctx, row, partial); err != nil {
-					return err
-				}
-			}
-		}
-		if len(rows) < m.opts.pageSize {
-			return nil
-		}
-		afterID = rows[len(rows)-1].ID
 	}
+	return nil
+}
+
+func (m *migration) scanPage(ctx context.Context, afterID int) (int, bool, error) {
+	rows, err := m.readPage(ctx, afterID)
+	if err != nil {
+		return 0, false, err
+	}
+	if err := m.migratePage(ctx, rows); err != nil {
+		return 0, false, err
+	}
+	if len(rows) < m.opts.pageSize {
+		return 0, false, nil
+	}
+	return rows[len(rows)-1].ID, true, nil
+}
+
+func (m *migration) readPage(ctx context.Context, afterID int) ([]*ent.Modules, error) {
+	query := m.db.Modules.Query().Where(modules.IDGT(afterID)).Order(ent.Asc(modules.FieldID)).Limit(m.opts.pageSize)
+	if m.opts.userID != 0 {
+		query.Where(modules.UserIDEQ(m.opts.userID))
+	}
+	qctx, cancel := context.WithTimeout(ctx, m.opts.timeout)
+	defer cancel()
+	rows, err := query.All(qctx)
+	if err != nil {
+		return nil, errors.New("database page read failed")
+	}
+	return rows, nil
+}
+
+func (m *migration) migratePage(ctx context.Context, rows []*ent.Modules) error {
+	for _, row := range rows {
+		if err := m.migrateRow(ctx, row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *migration) migrateRow(ctx context.Context, row *ent.Modules) error {
+	m.scanned++
+	partial, err := modulevars.MigrateConfig(row.Name, row.Configs)
+	if err != nil {
+		m.skipped++
+		fmt.Printf("skip invalid config row=%d user=%d module=%s\n", row.ID, row.UserID, row.Name)
+		return nil
+	}
+	if len(partial) == 0 {
+		return nil
+	}
+	return m.patch(ctx, row, partial)
 }
 
 func (m *migration) patch(ctx context.Context, row *ent.Modules, partial map[string]codec.RawMessage) error {
 	m.changed++
-	keys := make([]string, 0, len(partial))
-	for key := range partial {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	fmt.Printf("change row=%d user=%d module=%s revision=%d keys=%s\n", row.ID, row.UserID, row.Name, row.Revision, strings.Join(keys, ","))
+	logPatch(row, partial)
 	if !m.opts.apply {
 		return nil
 	}
-	var full map[string]codec.RawMessage
-	if err := codec.Unmarshal(row.Configs, &full); err != nil || full == nil {
-		return errors.New("cannot prepare a complete backup")
-	}
-	before := make(map[string]codec.RawMessage, len(partial))
-	for key, value := range partial {
-		old, present := full[key]
-		if !present {
-			return errors.New("migration attempted to change a missing key")
-		}
-		before[key] = old
-		full[key] = value
-	}
-	rev, _ := codec.Marshal(row.Revision + 1)
-	full["__rev"] = rev
-	after, err := codec.Marshal(full)
+	entry, err := preparePatch(row, partial)
 	if err != nil {
-		return errors.New("cannot encode backup")
+		return err
 	}
-	entry := journalEntry{Kind: "prepared", At: time.Now().UTC(), RowID: row.ID, UserID: row.UserID, Module: row.Name,
-		BeforeRevision: row.Revision, AfterRevision: row.Revision + 1, IsEnabled: row.IsEnabled,
-		BeforeConfigs: row.Configs, AfterConfigs: after, Before: before, After: partial}
 	if err := m.record(entry); err != nil {
 		return err
 	}
@@ -215,34 +262,108 @@ func (m *migration) patch(ctx context.Context, row *ent.Modules, partial map[str
 	if err != nil {
 		return errors.New("cannot encode migration patch")
 	}
+	reply, err := m.requestPatch(ctx, row, patch)
+	return m.completePatch(ctx, row, entry, reply, err)
+}
+
+func logPatch(row *ent.Modules, partial map[string]codec.RawMessage) {
+	keys := make([]string, 0, len(partial))
+	for key := range partial {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	fmt.Printf("change row=%d user=%d module=%s revision=%d keys=%s\n", row.ID, row.UserID, row.Name, row.Revision, strings.Join(keys, ","))
+}
+
+func preparePatch(row *ent.Modules, partial map[string]codec.RawMessage) (journalEntry, error) {
+	var full map[string]codec.RawMessage
+	if err := codec.Unmarshal(row.Configs, &full); err != nil {
+		return journalEntry{}, errors.New("cannot prepare a complete backup")
+	}
+	if full == nil {
+		return journalEntry{}, errors.New("cannot prepare a complete backup")
+	}
+	before, err := replaceFields(full, partial)
+	if err != nil {
+		return journalEntry{}, err
+	}
+	rev, _ := codec.Marshal(row.Revision + 1)
+	full["__rev"] = rev
+	after, err := codec.Marshal(full)
+	if err != nil {
+		return journalEntry{}, errors.New("cannot encode backup")
+	}
+	return journalEntry{Kind: "prepared", At: time.Now().UTC(), RowID: row.ID, UserID: row.UserID, Module: row.Name,
+		BeforeRevision: row.Revision, AfterRevision: row.Revision + 1, IsEnabled: row.IsEnabled,
+		BeforeConfigs: row.Configs, AfterConfigs: after, Before: before, After: partial}, nil
+}
+
+func replaceFields(full, partial map[string]codec.RawMessage) (map[string]codec.RawMessage, error) {
+	before := make(map[string]codec.RawMessage, len(partial))
+	for key, value := range partial {
+		old, present := full[key]
+		if !present {
+			return nil, errors.New("migration attempted to change a missing key")
+		}
+		before[key] = old
+		full[key] = value
+	}
+	return before, nil
+}
+
+func (m *migration) requestPatch(ctx context.Context, row *ent.Modules, patch []byte) (modulesrpc.DashboardReply, error) {
 	qctx, cancel := context.WithTimeout(ctx, m.opts.timeout)
-	reply, err := bus.RequestJSON[modulesrpc.DashboardReply](qctx, m.nc, m.opts.prefix+".patch-existing", modulesrpc.DashboardRequest{
+	defer cancel()
+	return bus.RequestJSON[modulesrpc.DashboardReply](qctx, m.nc, m.opts.prefix+".patch-existing", modulesrpc.DashboardRequest{
 		UserID: strconv.FormatUint(row.UserID, 10), Name: row.Name, IsEnabled: row.IsEnabled, Configs: patch, ExpectedRev: &row.Revision, ExpectedID: &row.ID})
-	cancel()
+}
+
+func (m *migration) completePatch(ctx context.Context, row *ent.Modules, entry journalEntry, reply modulesrpc.DashboardReply, rpcErr error) error {
 	entry.BeforeConfigs, entry.AfterConfigs, entry.Before, entry.After = nil, nil, nil, nil
 	entry.At = time.Now().UTC()
-	if err != nil || reply.Error != "" || !reply.Conflict && reply.Rev != row.Revision+1 {
-		entry.Kind = "uncertain"
-		if journalErr := m.record(entry); journalErr != nil {
-			return journalErr
-		}
-		return errors.New("patch RPC failed; its outcome is uncertain, inspect the row before retrying")
+	if !patchOutcomeCertain(row, reply, rpcErr) {
+		return m.recordUncertain(entry)
 	}
 	entry.AfterRevision = reply.Rev
 	if reply.Conflict {
 		entry.Kind = "conflict"
 		m.conflicts++
-		fresh, readErr := m.readRow(ctx, row.ID)
-		if readErr == nil {
-			fmt.Printf("skip conflict row=%d user=%d module=%s current_revision=%d\n", row.ID, row.UserID, row.Name, fresh.Revision)
-		} else {
-			fmt.Printf("skip conflict row=%d user=%d module=%s refetch_failed=true\n", row.ID, row.UserID, row.Name)
-		}
+		m.logConflict(ctx, row)
 	} else {
 		entry.Kind = "applied"
 		m.applied++
 	}
 	return m.record(entry)
+}
+
+func patchOutcomeCertain(row *ent.Modules, reply modulesrpc.DashboardReply, rpcErr error) bool {
+	if rpcErr != nil {
+		return false
+	}
+	if reply.Error != "" {
+		return false
+	}
+	if reply.Conflict {
+		return true
+	}
+	return reply.Rev == row.Revision+1
+}
+
+func (m *migration) recordUncertain(entry journalEntry) error {
+	entry.Kind = "uncertain"
+	if err := m.record(entry); err != nil {
+		return err
+	}
+	return errors.New("patch RPC failed; its outcome is uncertain, inspect the row before retrying")
+}
+
+func (m *migration) logConflict(ctx context.Context, row *ent.Modules) {
+	fresh, err := m.readRow(ctx, row.ID)
+	if err != nil {
+		fmt.Printf("skip conflict row=%d user=%d module=%s refetch_failed=true\n", row.ID, row.UserID, row.Name)
+		return
+	}
+	fmt.Printf("skip conflict row=%d user=%d module=%s current_revision=%d\n", row.ID, row.UserID, row.Name, fresh.Revision)
 }
 
 func (m *migration) record(entry journalEntry) error {
@@ -269,67 +390,165 @@ func (m *migration) restore(ctx context.Context) error {
 		return errors.New("cannot read restore journal")
 	}
 	defer input.Close()
-	decoder := codec.NewDecoder(input)
-	var prepared *journalEntry
-	for {
-		var entry journalEntry
-		if err := decoder.Decode(&entry); err != nil {
-			if errors.Is(err, io.EOF) {
-				if prepared != nil {
-					m.skipped++
-					fmt.Printf("skip unconfirmed backup row=%d\n", prepared.RowID)
-				}
-				return nil
-			}
-			return errors.New("restore journal is incomplete or invalid")
-		}
-		if entry.Kind == "prepared" {
-			if prepared != nil {
-				return errors.New("restore journal has overlapping operations")
-			}
-			prepared = &entry
-			continue
-		}
-		if prepared == nil || entry.RowID != prepared.RowID || entry.UserID != prepared.UserID || entry.Module != prepared.Module || entry.BeforeRevision != prepared.BeforeRevision {
-			return errors.New("restore journal outcome does not match its backup")
-		}
-		original := *prepared
-		prepared = nil
-		if entry.Kind != "applied" || m.opts.userID != 0 && original.UserID != m.opts.userID {
-			continue
-		}
-		m.scanned++
-		row, err := m.readRow(ctx, original.RowID)
-		if err != nil {
-			if !ent.IsNotFound(err) {
-				return errors.New("restore database read failed")
-			}
-			m.skipped++
-			fmt.Printf("skip missing restore row=%d\n", original.RowID)
-			continue
-		}
-		var current map[string]codec.RawMessage
-		if row.UserID != original.UserID || row.Name != original.Module || codec.Unmarshal(row.Configs, &current) != nil || !sameChangedValues(current, original.After) || !sameKeys(original.Before, original.After) || len(original.Before) == 0 {
-			m.skipped++
-			fmt.Printf("skip edited restore row=%d user=%d module=%s\n", row.ID, row.UserID, row.Name)
-			continue
-		}
-		if err := m.patch(ctx, row, original.Before); err != nil {
-			return err
-		}
+	journal := restoreJournal{decoder: codec.NewDecoder(input)}
+	for err == nil {
+		err = m.restoreNext(ctx, &journal)
 	}
+	return m.finishRestore(journal, err)
+}
+
+type restoreJournal struct {
+	decoder  codec.Decoder
+	prepared *journalEntry
+}
+
+type operationIdentity struct {
+	rowID    int
+	userID   uint64
+	module   string
+	revision int
+}
+
+func (e journalEntry) identity() operationIdentity {
+	return operationIdentity{rowID: e.RowID, userID: e.UserID, module: e.Module, revision: e.BeforeRevision}
+}
+
+func (j *restoreJournal) next() (*journalEntry, error) {
+	var entry journalEntry
+	if err := j.decoder.Decode(&entry); err != nil {
+		return nil, restoreDecodeError(err)
+	}
+	if entry.Kind == "prepared" {
+		return nil, j.prepare(entry)
+	}
+	return j.complete(entry)
+}
+
+func restoreDecodeError(err error) error {
+	if errors.Is(err, io.EOF) {
+		return err
+	}
+	return errors.New("restore journal is incomplete or invalid")
+}
+
+func (j *restoreJournal) prepare(entry journalEntry) error {
+	if j.prepared != nil {
+		return errors.New("restore journal has overlapping operations")
+	}
+	j.prepared = &entry
+	return nil
+}
+
+func (j *restoreJournal) complete(entry journalEntry) (*journalEntry, error) {
+	if j.prepared == nil {
+		return nil, errors.New("restore journal outcome does not match its backup")
+	}
+	if entry.identity() != j.prepared.identity() {
+		return nil, errors.New("restore journal outcome does not match its backup")
+	}
+	original := j.prepared
+	j.prepared = nil
+	if entry.Kind != "applied" {
+		return nil, nil
+	}
+	return original, nil
+}
+
+func (m *migration) restoreNext(ctx context.Context, journal *restoreJournal) error {
+	original, err := journal.next()
+	if err != nil {
+		return err
+	}
+	if original == nil {
+		return nil
+	}
+	return m.restoreEntry(ctx, *original)
+}
+
+func (m *migration) finishRestore(journal restoreJournal, err error) error {
+	if !errors.Is(err, io.EOF) {
+		return err
+	}
+	if journal.prepared != nil {
+		m.skipped++
+		fmt.Printf("skip unconfirmed backup row=%d\n", journal.prepared.RowID)
+	}
+	return nil
+}
+
+func (m *migration) restoreEntry(ctx context.Context, original journalEntry) error {
+	if m.opts.userID != 0 && original.UserID != m.opts.userID {
+		return nil
+	}
+	m.scanned++
+	row, err := m.readRestoreRow(ctx, original.RowID)
+	if err != nil {
+		return err
+	}
+	if row == nil {
+		return nil
+	}
+	if !original.canRestore(row) {
+		m.skipped++
+		fmt.Printf("skip edited restore row=%d user=%d module=%s\n", row.ID, row.UserID, row.Name)
+		return nil
+	}
+	return m.patch(ctx, row, original.Before)
+}
+
+func (m *migration) readRestoreRow(ctx context.Context, id int) (*ent.Modules, error) {
+	row, err := m.readRow(ctx, id)
+	if err == nil {
+		return row, nil
+	}
+	if !ent.IsNotFound(err) {
+		return nil, errors.New("restore database read failed")
+	}
+	m.skipped++
+	fmt.Printf("skip missing restore row=%d\n", id)
+	return nil, nil
+}
+
+func (e journalEntry) canRestore(row *ent.Modules) bool {
+	if row.UserID != e.UserID || row.Name != e.Module {
+		return false
+	}
+	if len(e.Before) == 0 {
+		return false
+	}
+	if !sameKeys(e.Before, e.After) {
+		return false
+	}
+	var current map[string]codec.RawMessage
+	if codec.Unmarshal(row.Configs, &current) != nil {
+		return false
+	}
+	return sameChangedValues(current, e.After)
 }
 
 func sameChangedValues(current, expected map[string]codec.RawMessage) bool {
 	for key, want := range expected {
 		got, found := current[key]
-		a, errA := comparisonValue(got)
-		b, errB := comparisonValue(want)
-		if !found || errA != nil || errB != nil || !reflect.DeepEqual(a, b) {
+		if !found {
+			return false
+		}
+		if !equivalentJSON(got, want) {
 			return false
 		}
 	}
 	return true
+}
+
+func equivalentJSON(got, want []byte) bool {
+	a, err := comparisonValue(got)
+	if err != nil {
+		return false
+	}
+	b, err := comparisonValue(want)
+	if err != nil {
+		return false
+	}
+	return reflect.DeepEqual(a, b)
 }
 
 func comparisonValue(raw []byte) (any, error) {

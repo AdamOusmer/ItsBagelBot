@@ -29,13 +29,7 @@ const (
 var spotifyNowPlaying = GossipRoute{Provider: "spotify", Endpoint: "nowplaying"}
 
 func (p *Pipeline) moduleScope(ctx context.Context, c *module.Context, toks []tmpl.Token) (scope.Modules, bool) {
-	var wants moduleWants
-	for _, tok := range toks {
-		if m, found := p.registry.variableModules[tok.Name]; found && tok.HasPayload && newNamespaceReads(p, nil, m.Variables).Has(scope.NamespaceField(tok)) {
-			continue // Canonical fields are mounted and gated by namespaceChain.
-		}
-		wants.mark(tok)
-	}
+	wants := p.legacyModuleWants(toks)
 	if !wants.any() {
 		return scope.Modules{}, false
 	}
@@ -48,6 +42,16 @@ func (p *Pipeline) moduleScope(ctx context.Context, c *module.Context, toks []tm
 		Songs:      p.nowPlaying(ctx, c, wants.song),
 	}
 	return m, m.Quotes != nil || m.Clock != nil || m.Places != nil || m.Songs != nil
+}
+
+func (p *Pipeline) legacyModuleWants(toks []tmpl.Token) moduleWants {
+	var wants moduleWants
+	for _, tok := range toks {
+		if _, canonical := p.namespaceModule(tok); !canonical {
+			wants.mark(tok)
+		}
+	}
+	return wants
 }
 
 type moduleWants struct {

@@ -61,51 +61,98 @@ func gossipVariables[C any, R any](d engine.Deps, route engine.GossipRoute,
 		if d.Gossip == nil {
 			return nil, nil
 		}
-		var cfg C
-		if err := c.Decode(&cfg); err != nil && len(c.Config) > 0 {
-			return nil, err
-		}
-		req := request(statsCall[C]{Ctx: c, Cfg: cfg})
-		if req.Account == "" && route.Endpoint != "shop" && route.Endpoint != "leaderboard" {
-			return nil, nil
-		}
-		if route.Endpoint == "versus" && req.AccountB == "" {
-			return nil, nil
-		}
-		var r R
-		if err := d.Gossip.Call(ctx, route, req, &r); err != nil {
-			return nil, err
-		}
-		// All provider replies share these envelope/empty-state fields. Decode
-		// through the fleet codec rather than guessing from zero-valued stats.
-		raw, err := codec.Marshal(r)
+		call, err := variableStatsCall[C](c)
 		if err != nil {
 			return nil, err
 		}
-		var state struct {
-			Error       string `json:"error"`
-			Empty       bool   `json:"empty"`
-			Unranked    bool   `json:"unranked"`
-			HasSnapshot *bool  `json:"has_snapshot"`
+		req := request(call)
+		if !variableRequestHasTarget(route.Endpoint, req) {
+			return nil, nil
 		}
-		if err := codec.Unmarshal(raw, &state); err != nil {
+		var reply R
+		if err := d.Gossip.Call(ctx, route, req, &reply); err != nil {
 			return nil, err
 		}
-		if state.Error != "" {
-			return nil, errors.New(state.Error)
+		return gossipVariablePalette(c, route, &reply, palette)
+	}
+}
+
+func variableStatsCall[C any](c *module.Context) (statsCall[C], error) {
+	var cfg C
+	if len(c.Config) > 0 {
+		if err := c.Decode(&cfg); err != nil {
+			return statsCall[C]{}, err
 		}
-		values := palette(c, &r)
-		if state.Empty || state.Unranked || state.HasSnapshot != nil && !*state.HasSnapshot {
-			for field := range values {
-				if field != "player" && field != "region" && field != "tag" {
-					delete(values, field)
-				}
-			}
-			if state.Unranked && route.Provider == "valorant" {
-				values["tier"] = "Unranked"
-			}
-		}
+	}
+	return statsCall[C]{Ctx: c, Cfg: cfg}, nil
+}
+
+func variableRequestHasTarget(endpoint string, request gossiprpc.Request) bool {
+	switch endpoint {
+	case "shop", "leaderboard":
+		return true
+	case "versus":
+		return request.Account != "" && request.AccountB != ""
+	default:
+		return request.Account != ""
+	}
+}
+
+// Decode provider state through the fleet codec instead of treating zero-valued
+// stats as proof that a valid reply is empty.
+type variableReplyState struct {
+	Error       string `json:"error"`
+	Empty       bool   `json:"empty"`
+	Unranked    bool   `json:"unranked"`
+	HasSnapshot *bool  `json:"has_snapshot"`
+}
+
+func variableStateOf(reply any) (variableReplyState, error) {
+	raw, err := codec.Marshal(reply)
+	if err != nil {
+		return variableReplyState{}, err
+	}
+	var state variableReplyState
+	if err := codec.Unmarshal(raw, &state); err != nil {
+		return state, err
+	}
+	if state.Error != "" {
+		return state, errors.New(state.Error)
+	}
+	return state, nil
+}
+
+func (s variableReplyState) unavailable() bool {
+	if s.Empty || s.Unranked {
+		return true
+	}
+	return s.HasSnapshot != nil && !*s.HasSnapshot
+}
+
+func gossipVariablePalette[R any](c *module.Context, route engine.GossipRoute, reply *R,
+	palette func(*module.Context, *R) module.StringPalette) (map[string]string, error) {
+	state, err := variableStateOf(*reply)
+	if err != nil {
+		return nil, err
+	}
+	values := palette(c, reply)
+	if !state.unavailable() {
 		return values, nil
+	}
+	retainVariableIdentity(values)
+	if state.Unranked && route.Provider == "valorant" {
+		values["tier"] = "Unranked"
+	}
+	return values, nil
+}
+
+func retainVariableIdentity(values module.StringPalette) {
+	for field := range values {
+		switch field {
+		case "player", "region", "tag":
+		default:
+			delete(values, field)
+		}
 	}
 }
 

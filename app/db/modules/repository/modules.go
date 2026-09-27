@@ -535,13 +535,26 @@ func (r *Modules) persistPatch(ctx context.Context, id uint64, name string, enab
 	case err != nil:
 		return PatchResult{}, nil, err
 	default:
-		if expectedID != nil && (row.ID != *expectedID || row.Name == "loyalty" && accountInstance(row.Configs) != accountInstanceMap(partial)) {
+		if !patchIdentityMatches(row, partial, expectedID) {
 			// Guarded maintenance must not reset settings when account ownership
 			// differs. The normal dashboard Patch path retains that behavior.
 			return PatchResult{Conflict: true, Rev: row.Revision}, nil, nil
 		}
 		return r.patchUpdate(ctx, row, enabled, partial, expectedRev)
 	}
+}
+
+func patchIdentityMatches(row *ent.Modules, partial map[string]codec.RawMessage, expectedID *int) bool {
+	if expectedID == nil {
+		return true
+	}
+	if row.ID != *expectedID {
+		return false
+	}
+	if row.Name != "loyalty" {
+		return true
+	}
+	return accountInstance(row.Configs) == accountInstanceMap(partial)
 }
 
 func patchBaseConfig(row *ent.Modules, partial map[string]codec.RawMessage) (map[string]codec.RawMessage, error) {

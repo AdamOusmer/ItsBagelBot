@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sync/atomic"
@@ -89,73 +90,121 @@ func TestPatchExistingSendsRowIDAndRevision(t *testing.T) {
 func TestRestoreCannotRecreateOrOverwriteRowReplacedAfterRead(t *testing.T) {
 	for _, replace := range []bool{false, true} {
 		t.Run(fmt.Sprintf("replace=%t", replace), func(t *testing.T) {
-			ctx := t.Context()
-			client := testdb.Open(t, "template-migrate-restore", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
-			pub := bustest.NewPublisher()
-			repo := repository.NewModules(client, pub, nil, zap.NewNop())
-			defer repo.Close(ctx)
-			nc := migrationTestNATS(t)
-			row := client.Modules.Create().SetUserID(2).SetName("valorant").SetIsEnabled(true).SetRevision(1).SetConfigs([]byte(`{"rankMessage":"{valorant:tier}","__rev":1}`)).SaveX(ctx)
-			requests := make(chan modulesrpc.DashboardRequest, 1)
-			callbackErrors := make(chan error, 1)
-			_, err := nc.Subscribe("test.modules.patch-existing", func(msg *nats.Msg) {
-				var req modulesrpc.DashboardRequest
-				callbackErr := codec.Unmarshal(msg.Data, &req)
-				if callbackErr == nil {
-					callbackErr = client.Modules.DeleteOneID(row.ID).Exec(ctx)
-				}
-				if callbackErr == nil && replace {
-					callbackErr = client.Modules.Create().SetUserID(row.UserID).SetName(row.Name).SetIsEnabled(false).SetRevision(row.Revision).SetConfigs(row.Configs).Exec(ctx)
-				}
-				var result repository.PatchResult
-				if callbackErr == nil {
-					var partial map[string]codec.RawMessage
-					callbackErr = codec.Unmarshal(req.Configs, &partial)
-					if callbackErr == nil && req.ExpectedRev != nil && req.ExpectedID != nil {
-						result, callbackErr = repo.PatchExisting(ctx, row.UserID, req.Name, req.IsEnabled, partial, *req.ExpectedRev, *req.ExpectedID)
-					} else if callbackErr == nil {
-						callbackErr = fmt.Errorf("missing guards")
-					}
-				}
-				requests <- req
-				callbackErrors <- callbackErr
-				body, _ := codec.Marshal(modulesrpc.DashboardReply{Rev: result.Rev, Conflict: result.Conflict})
-				_ = msg.Respond(body)
-			})
-			require.NoError(t, err)
-			require.NoError(t, nc.Flush())
-			source := filepath.Join(t.TempDir(), "original.jsonl")
-			original, err := createBackup(source)
-			require.NoError(t, err)
-			prepared := journalEntry{Kind: "prepared", RowID: row.ID, UserID: row.UserID, Module: row.Name, BeforeRevision: 0, AfterRevision: 1,
-				Before: map[string]codec.RawMessage{"rankMessage": []byte(`"{tier}"`)}, After: map[string]codec.RawMessage{"rankMessage": []byte(`"{valorant:tier}"`)}}
-			encoder := codec.NewEncoder(original)
-			require.NoError(t, encoder.Encode(prepared))
-			prepared.Kind = "applied"
-			require.NoError(t, encoder.Encode(prepared))
-			require.NoError(t, original.Close())
-			rollback, err := createBackup(filepath.Join(t.TempDir(), "rollback.jsonl"))
-			require.NoError(t, err)
-			defer rollback.Close()
-			m := migration{opts: options{apply: true, restore: source, prefix: "test.modules", timeout: time.Second}, db: client, nc: nc, journal: rollback}
-			require.NoError(t, m.restore(ctx))
-			req := <-requests
-			require.NoError(t, <-callbackErrors)
-			require.NotNil(t, req.ExpectedID)
-			assert.Equal(t, row.ID, *req.ExpectedID)
-			assert.Equal(t, 1, m.conflicts)
-			assert.Zero(t, m.applied)
-			assert.Empty(t, pub.On(data.SubjectModuleChanged))
-			rows := client.Modules.Query().AllX(ctx)
-			if !replace {
-				assert.Empty(t, rows)
-				return
-			}
-			require.Len(t, rows, 1)
-			assert.NotEqual(t, row.ID, rows[0].ID)
-			assert.Equal(t, row.Revision, rows[0].Revision)
-			assert.False(t, rows[0].IsEnabled)
-			assert.JSONEq(t, string(row.Configs), string(rows[0].Configs))
+			verifyRestoreRace(t, replace)
 		})
 	}
+}
+
+type restoreRaceFixture struct {
+	ctx            context.Context
+	client         *ent.Client
+	pub            *bustest.Publisher
+	repo           *repository.Modules
+	nc             *nats.Conn
+	row            *ent.Modules
+	requests       chan modulesrpc.DashboardRequest
+	callbackErrors chan error
+}
+
+func newRestoreRaceFixture(t *testing.T) restoreRaceFixture {
+	t.Helper()
+	ctx := t.Context()
+	client := testdb.Open(t, "template-migrate-restore", func(d, dsn string) *ent.Client { return enttest.Open(t, d, dsn) })
+	pub := bustest.NewPublisher()
+	repo := repository.NewModules(client, pub, nil, zap.NewNop())
+	t.Cleanup(func() { repo.Close(context.Background()) })
+	row := client.Modules.Create().SetUserID(2).SetName("valorant").SetIsEnabled(true).SetRevision(1).SetConfigs([]byte(`{"rankMessage":"{valorant:tier}","__rev":1}`)).SaveX(ctx)
+	return restoreRaceFixture{ctx: ctx, client: client, pub: pub, repo: repo, nc: migrationTestNATS(t), row: row,
+		requests: make(chan modulesrpc.DashboardRequest, 1), callbackErrors: make(chan error, 1)}
+}
+
+func (f restoreRaceFixture) serveReplacement(t *testing.T, replace bool) {
+	t.Helper()
+	_, err := f.nc.Subscribe("test.modules.patch-existing", func(msg *nats.Msg) {
+		req, result, err := f.patchAfterReplacement(msg.Data, replace)
+		f.requests <- req
+		f.callbackErrors <- err
+		body, _ := codec.Marshal(modulesrpc.DashboardReply{Rev: result.Rev, Conflict: result.Conflict})
+		_ = msg.Respond(body)
+	})
+	require.NoError(t, err)
+	require.NoError(t, f.nc.Flush())
+}
+
+func (f restoreRaceFixture) patchAfterReplacement(data []byte, replace bool) (modulesrpc.DashboardRequest, repository.PatchResult, error) {
+	var req modulesrpc.DashboardRequest
+	if err := codec.Unmarshal(data, &req); err != nil {
+		return req, repository.PatchResult{}, err
+	}
+	if err := f.replaceRow(replace); err != nil {
+		return req, repository.PatchResult{}, err
+	}
+	if req.ExpectedRev == nil || req.ExpectedID == nil {
+		return req, repository.PatchResult{}, fmt.Errorf("missing guards")
+	}
+	var partial map[string]codec.RawMessage
+	if err := codec.Unmarshal(req.Configs, &partial); err != nil {
+		return req, repository.PatchResult{}, err
+	}
+	result, err := f.repo.PatchExisting(f.ctx, f.row.UserID, req.Name, req.IsEnabled, partial, *req.ExpectedRev, *req.ExpectedID)
+	return req, result, err
+}
+
+func (f restoreRaceFixture) replaceRow(replace bool) error {
+	if err := f.client.Modules.DeleteOneID(f.row.ID).Exec(f.ctx); err != nil {
+		return err
+	}
+	if !replace {
+		return nil
+	}
+	return f.client.Modules.Create().SetUserID(f.row.UserID).SetName(f.row.Name).SetIsEnabled(false).SetRevision(f.row.Revision).SetConfigs(f.row.Configs).Exec(f.ctx)
+}
+
+func appliedRestoreJournal(t *testing.T, row *ent.Modules) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "original.jsonl")
+	file, err := createBackup(path)
+	require.NoError(t, err)
+	prepared := journalEntry{Kind: "prepared", RowID: row.ID, UserID: row.UserID, Module: row.Name, BeforeRevision: 0, AfterRevision: 1,
+		Before: map[string]codec.RawMessage{"rankMessage": []byte(`"{tier}"`)}, After: map[string]codec.RawMessage{"rankMessage": []byte(`"{valorant:tier}"`)}}
+	encoder := codec.NewEncoder(file)
+	require.NoError(t, encoder.Encode(prepared))
+	prepared.Kind = "applied"
+	require.NoError(t, encoder.Encode(prepared))
+	require.NoError(t, file.Close())
+	return path
+}
+
+func verifyRestoreRace(t *testing.T, replace bool) {
+	t.Helper()
+	fixture := newRestoreRaceFixture(t)
+	fixture.serveReplacement(t, replace)
+	source := appliedRestoreJournal(t, fixture.row)
+	rollback, err := createBackup(filepath.Join(t.TempDir(), "rollback.jsonl"))
+	require.NoError(t, err)
+	defer rollback.Close()
+	m := migration{opts: options{apply: true, restore: source, prefix: "test.modules", timeout: time.Second}, db: fixture.client, nc: fixture.nc, journal: rollback}
+	require.NoError(t, m.restore(fixture.ctx))
+	req := <-fixture.requests
+	require.NoError(t, <-fixture.callbackErrors)
+	require.NotNil(t, req.ExpectedID)
+	assert.Equal(t, fixture.row.ID, *req.ExpectedID)
+	assert.Equal(t, 1, m.conflicts)
+	assert.Zero(t, m.applied)
+	assert.Empty(t, fixture.pub.On(data.SubjectModuleChanged))
+	fixture.assertRemainingRows(t, replace)
+}
+
+func (f restoreRaceFixture) assertRemainingRows(t *testing.T, replace bool) {
+	t.Helper()
+	rows := f.client.Modules.Query().AllX(f.ctx)
+	if !replace {
+		assert.Empty(t, rows)
+		return
+	}
+	require.Len(t, rows, 1)
+	assert.NotEqual(t, f.row.ID, rows[0].ID)
+	assert.Equal(t, f.row.Revision, rows[0].Revision)
+	assert.False(t, rows[0].IsEnabled)
+	assert.JSONEq(t, string(f.row.Configs), string(rows[0].Configs))
 }

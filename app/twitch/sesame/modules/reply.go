@@ -41,7 +41,7 @@ func (g chatReplier) reply(emit module.Emit, override string, key replyKey, kv .
 	if namespace == "quote" {
 		namespace = "quotes"
 	}
-	text := p.WithNamespace(namespace).ExpandString(line)
+	text := p.WithNamespace(module.Namespace(namespace)).ExpandString(line)
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: g.c.Env.BroadcasterUserID,

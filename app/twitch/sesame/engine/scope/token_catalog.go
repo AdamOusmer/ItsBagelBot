@@ -103,16 +103,27 @@ func timerAllowedFamilies() map[string]bool {
 func moduleNamespaceExamples() []string {
 	var examples []string
 	for _, spec := range modulevars.Catalog() {
-		seen := make(map[string]bool)
-		for _, group := range spec.Groups {
-			for _, field := range group.Fields {
-				if !seen[field] {
-					examples = append(examples, "{"+spec.ID+":"+field+"}")
-					seen[field] = true
-				}
-				examples = append(examples, "{"+spec.ID+":"+group.Name+":"+field+"}")
-			}
+		examples = append(examples, namespaceExamples(spec)...)
+	}
+	return examples
+}
+
+func namespaceExamples(spec modulevars.Module) []string {
+	var examples []string
+	seen := make(map[string]bool)
+	for _, group := range spec.Groups {
+		for _, field := range group.Fields {
+			examples = append(examples, namespaceFieldExamples(spec, group, field, seen)...)
 		}
 	}
 	return examples
+}
+
+func namespaceFieldExamples(spec modulevars.Module, group modulevars.Group, field string, seen map[string]bool) []string {
+	var examples []string
+	if !seen[field] {
+		examples = append(examples, "{"+spec.ID+":"+field+"}")
+		seen[field] = true
+	}
+	return append(examples, "{"+spec.ID+":"+group.Name+":"+field+"}")
 }

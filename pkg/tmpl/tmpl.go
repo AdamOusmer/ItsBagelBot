@@ -54,7 +54,10 @@ func (t Token) HasInnerBrace() bool {
 // unqualified legacy fields and the keys of other namespaces. Payload data in
 // dynamic tokens remains untouched because their namespace does not match.
 func TokenKey(tok Token, namespace string) string {
-	if namespace != "" && tok.HasPayload && tok.Name == namespace {
+	if namespace == "" || !tok.HasPayload {
+		return tok.Key()
+	}
+	if tok.Name == namespace {
 		return strings.ToLower(strings.TrimSpace(tok.Payload))
 	}
 	return tok.Key()

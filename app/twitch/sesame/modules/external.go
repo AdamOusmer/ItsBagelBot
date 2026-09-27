@@ -221,7 +221,7 @@ func (e externalCommand[C, R]) render(call statsCall[C], reply *R) string {
 	if text, ok := specialText(e.special, call, reply); ok {
 		return text
 	}
-	return e.tokens.ExpandNamespaced(externalNamespace(e.route), orDefault(e.message(call.Cfg), e.fallback), reply)
+	return e.tokens.ExpandNamespaced(module.Namespace(externalNamespace(e.route)), orDefault(e.message(call.Cfg), e.fallback), reply)
 }
 
 func externalNamespace(route engine.GossipRoute) string {

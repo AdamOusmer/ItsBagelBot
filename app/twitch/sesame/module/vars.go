@@ -8,8 +8,6 @@ import (
 	"ItsBagelBot/pkg/tmpl"
 )
 
-func TokenKey(tok tmpl.Token, namespace string) string { return tmpl.TokenKey(tok, namespace) }
-
 func Expand(dst []byte, s string, repl func(tok tmpl.Token) (val string, ok bool)) []byte {
 	return tmpl.Append(dst, s, repl)
 }
@@ -27,15 +25,6 @@ type TokenExpander[R any] map[string]func(*R) string
 
 func (t TokenExpander[R]) Expand(text string, r *R) string { return t.ExpandNamespaced("", text, r) }
 
-func (t TokenExpander[R]) ExpandNamespaced(namespace, text string, r *R) string {
-	return ExpandString(text, func(tok tmpl.Token) (string, bool) {
-		if field, ok := t[TokenKey(tok, namespace)]; ok {
-			return field(r), true
-		}
-		return pureFallback(tok)
-	})
-}
-
 func (t TokenExpander[R]) Names() []string {
 	out := make([]string, 0, len(t))
 	for name := range t {
@@ -47,15 +36,6 @@ func (t TokenExpander[R]) Names() []string {
 type StringPalette map[string]string
 
 func (p StringPalette) Expand(text string) string { return p.ExpandNamespaced("", text) }
-
-func (p StringPalette) ExpandNamespaced(namespace, text string) string {
-	return ExpandString(text, func(tok tmpl.Token) (string, bool) {
-		if val, ok := p[TokenKey(tok, namespace)]; ok {
-			return val, true
-		}
-		return pureFallback(tok)
-	})
-}
 
 func (p StringPalette) Merge(parts ...StringPalette) StringPalette {
 	out := make(StringPalette, len(p)+len(parts)*4)
@@ -104,7 +84,7 @@ type Entry struct {
 type Palette struct {
 	entries   []Entry
 	locale    string
-	namespace string
+	namespace Namespace
 }
 
 func (p Palette) Names() []string {
@@ -151,7 +131,7 @@ func (p Palette) Resolve(tok tmpl.Token) (string, bool) {
 	name := TokenKey(tok, p.namespace)
 	for _, e := range p.entries {
 		if e.Name == name {
-			if tok.HasPayload && tok.Name != p.namespace {
+			if tok.HasPayload && tok.Name != string(p.namespace) {
 				return "", false
 			}
 			return e.Value(), true
@@ -175,9 +155,6 @@ func (p Palette) WithLocale(locale Locale) Palette {
 	p.locale = string(locale)
 	return p
 }
-
-// WithNamespace accepts both public {module:field} tokens and legacy {field} tokens.
-func (p Palette) WithNamespace(namespace string) Palette { p.namespace = namespace; return p }
 
 func KV(kv ...string) Palette {
 	order := make([]string, 0, len(kv)/2)

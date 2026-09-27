@@ -179,50 +179,67 @@ func TestModuleVariableCatalogueMatchesRegisteredGroups(t *testing.T) {
 }
 
 func TestModuleGameReadersExposeEveryCatalogueField(t *testing.T) {
-	// Valid empty-valued provider replies still have a complete palette. The
-	// snapshot flag keeps session fixtures out of their separate empty state.
+	gossip := &fakeGossip{replies: variableGameReplyFixtures()}
+	d := engine.Deps{Gossip: gossip, Log: zap.NewNop()}
+	for _, spec := range variableGameCatalogue() {
+		assertGameCatalogueReaders(t, spec, moduleVariableReaders(d, spec.ID), gossip)
+	}
+}
+
+func variableGameReplyFixtures() map[string]any {
+	// Valid zero-valued replies still have a complete palette. Session fixtures
+	// need their snapshot flag to avoid the separate empty state.
 	replies := make(map[string]any)
-	for provider, endpoints := range map[string][]string{
-		"valorant":    {"rank", "matches", "account", "leaderboard", "shop"},
-		"codm":        {"profile"},
-		"fortnite":    {"stats", "session", "shop"},
+	endpoints := map[string][]string{
+		"valorant": {"rank", "matches", "account", "leaderboard", "shop"},
+		"codm":     {"profile"}, "fortnite": {"stats", "session", "shop"},
 		"clashroyale": {"stats", "decks", "ranked", "trophy_road"},
-		"urchin":      {"daily", "weekly", "monthly", "sniper", "tags"},
-		"hypixel":     {"stats"},
-		"mcsr":        {"user", "session", "last_match", "versus", "leaderboard", "weekly_race"},
-		"paceman":     {"session", "nethers", "lastfort", "personal_best"},
-	} {
-		for _, endpoint := range endpoints {
+		"urchin":      {"daily", "weekly", "monthly", "sniper", "tags"}, "hypixel": {"stats"},
+		"mcsr":    {"user", "session", "last_match", "versus", "leaderboard", "weekly_race"},
+		"paceman": {"session", "nethers", "lastfort", "personal_best"},
+	}
+	for provider, routes := range endpoints {
+		for _, endpoint := range routes {
 			replies[provider+"."+endpoint] = map[string]any{"has_snapshot": true}
 		}
 	}
-	gossip := &fakeGossip{replies: replies}
-	d := engine.Deps{Gossip: gossip, Log: zap.NewNop()}
+	return replies
+}
+
+func variableGameCatalogue() []modulevars.Module {
+	games := map[string]bool{"valorant": true, "codm": true, "fortnite": true, "clashroyale": true, "urchin": true, "mcsr": true}
+	var specs []modulevars.Module
 	for _, spec := range modulevars.Catalog() {
-		switch spec.ID {
-		case "valorant", "codm", "fortnite", "clashroyale", "urchin", "mcsr":
-		default:
-			continue
-		}
-		readers := moduleVariableReaders(d, spec.ID)
-		for _, group := range spec.Groups {
-			t.Run(spec.ID+":"+group.Name, func(t *testing.T) {
-				reader := readers[group.Name]
-				require.NotNil(t, reader, "a public game view must have a typed reader")
-				c := urchinCtx(`{"account":"Linked","accountUuid":"uuid"}`)
-				c.Env.Text = "!rank Alice Bob"
-				before := len(gossip.calls)
-				values, err := reader(context.Background(), c)
-				require.NoError(t, err)
-				require.Len(t, gossip.calls, before+1, "a variable group performs one read")
-				fields := make([]string, 0, len(values))
-				for field := range values {
-					fields = append(fields, field)
-				}
-				assert.ElementsMatch(t, group.Fields, fields, "typed reply palette drifted from the public catalogue")
-			})
+		if games[spec.ID] {
+			specs = append(specs, spec)
 		}
 	}
+	return specs
+}
+
+func assertGameCatalogueReaders(t *testing.T, spec modulevars.Module, readers map[string]variableRead, gossip *fakeGossip) {
+	t.Helper()
+	for _, group := range spec.Groups {
+		t.Run(spec.ID+":"+group.Name, func(t *testing.T) {
+			assertGameReaderFields(t, readers[group.Name], group.Fields, gossip)
+		})
+	}
+}
+
+func assertGameReaderFields(t *testing.T, reader variableRead, expected []string, gossip *fakeGossip) {
+	t.Helper()
+	require.NotNil(t, reader, "a public game view must have a typed reader")
+	c := urchinCtx(`{"account":"Linked","accountUuid":"uuid"}`)
+	c.Env.Text = "!rank Alice Bob"
+	before := len(gossip.calls)
+	values, err := reader(context.Background(), c)
+	require.NoError(t, err)
+	require.Len(t, gossip.calls, before+1, "a variable group performs one read")
+	fields := make([]string, 0, len(values))
+	for field := range values {
+		fields = append(fields, field)
+	}
+	assert.ElementsMatch(t, expected, fields, "typed reply palette drifted from the public catalogue")
 }
 
 func TestModuleCommandsRenderNamespacedSavedTemplates(t *testing.T) {

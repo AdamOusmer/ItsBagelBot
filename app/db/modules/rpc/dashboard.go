@@ -57,10 +57,20 @@ func (d *dashboardRPC) handlePatch(ctx context.Context, req modulesrpc.Dashboard
 }
 
 func (d *dashboardRPC) handlePatchExisting(ctx context.Context, req modulesrpc.DashboardRequest, id uint64) (modulesrpc.DashboardReply, error) {
-	if req.ExpectedID == nil || req.ExpectedRev == nil || *req.ExpectedID <= 0 || *req.ExpectedRev < 0 {
+	if !validExistingPatchGuard(req) {
 		return modulesrpc.DashboardReply{Refusal: domainrpc.Refused(domainrpc.CodeInvalid, "expected row ID and revision are required")}, nil
 	}
 	return d.patch(ctx, req, id, true)
+}
+
+func validExistingPatchGuard(req modulesrpc.DashboardRequest) bool {
+	if req.ExpectedID == nil || req.ExpectedRev == nil {
+		return false
+	}
+	if *req.ExpectedID <= 0 {
+		return false
+	}
+	return *req.ExpectedRev >= 0
 }
 
 func (d *dashboardRPC) patch(ctx context.Context, req modulesrpc.DashboardRequest, id uint64, existingOnly bool) (modulesrpc.DashboardReply, error) {

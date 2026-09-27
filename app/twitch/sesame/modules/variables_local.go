@@ -14,44 +14,53 @@ import (
 	"time"
 )
 
+type variableReaderFactory func(engine.Deps) variableRead
+
+var localVariableGroups = map[string]map[string]variableReaderFactory{
+	"time":        {"time": fixedVariableReader(timeVariables), "lookup": fixedVariableReader(timeVariables)},
+	"triggers":    {"response": fixedVariableReader(triggerContextVariables)},
+	"personality": {"reply": fixedVariableReader(personalityContextVariables)},
+	"songqueue":   {"current": songVariables},
+	"loyalty":     {"balance": loyaltyVariables},
+	"quotes":      {"quote": quoteVariables},
+	"stream":      {"channel": streamVariables},
+	"queue":       {"status": queueVariables},
+	"raffle":      {"status": raffleVariables},
+	"followage":   {"reply": fixedVariableReader(commandContextVariables), "status": followageVariables},
+	"accountage":  {"reply": fixedVariableReader(commandContextVariables), "status": accountageVariables},
+	"uptime":      {"reply": uptimeVariables},
+	"title":       {"reply": channelCommandVariables},
+	"game":        {"reply": channelCommandVariables},
+	"clip":        {"reply": fixedVariableReader(commandContextVariables)},
+	"tags":        {"reply": fixedVariableReader(commandContextVariables)},
+	"commercial":  {"reply": fixedVariableReader(commandContextVariables)},
+	"marker":      {"reply": fixedVariableReader(commandContextVariables)},
+}
+
 func localVariableReaders(d engine.Deps, name string) map[string]variableRead {
-	switch name {
-	case "time":
-		return map[string]variableRead{"time": timeVariables, "lookup": timeVariables}
-	case "triggers":
-		return map[string]variableRead{"response": func(ctx context.Context, c *module.Context) (map[string]string, error) {
-			values, _ := commandContextVariables(ctx, c)
-			values["channel"] = c.Env.BroadcasterName()
-			return values, nil
-		}}
-	case "personality":
-		return map[string]variableRead{"reply": func(_ context.Context, c *module.Context) (map[string]string, error) {
-			return map[string]string{"user": strings.TrimPrefix(c.Env.ChatterName(), "@")}, nil
-		}}
-	case "songqueue":
-		return map[string]variableRead{"current": songVariables(d)}
-	case "loyalty":
-		return map[string]variableRead{"balance": loyaltyVariables(d)}
-	case "quotes":
-		return map[string]variableRead{"quote": quoteVariables(d)}
-	case "stream":
-		return map[string]variableRead{"channel": streamVariables(d)}
-	case "queue":
-		return map[string]variableRead{"status": queueVariables(d)}
-	case "raffle":
-		return map[string]variableRead{"status": raffleVariables(d)}
-	case "followage", "accountage":
-		read := viewerAgeVariables(d, name)
-		return map[string]variableRead{"reply": commandContextVariables, "status": read}
-	case "uptime":
-		return map[string]variableRead{"reply": uptimeVariables(d)}
-	case "title", "game":
-		return map[string]variableRead{"reply": channelCommandVariables(d)}
-	case "clip", "tags", "commercial", "marker":
-		return map[string]variableRead{"reply": commandContextVariables}
-	default:
-		return nil // These palettes describe events, not stored facts.
+	groups := localVariableGroups[name]
+	if groups == nil {
+		return nil
+	} // Event palettes have no stored facts.
+	readers := make(map[string]variableRead, len(groups))
+	for group, factory := range groups {
+		readers[group] = factory(d)
 	}
+	return readers
+}
+
+func fixedVariableReader(read variableRead) variableReaderFactory {
+	return func(engine.Deps) variableRead { return read }
+}
+
+func triggerContextVariables(ctx context.Context, c *module.Context) (map[string]string, error) {
+	values, _ := commandContextVariables(ctx, c)
+	values["channel"] = c.Env.BroadcasterName()
+	return values, nil
+}
+
+func personalityContextVariables(_ context.Context, c *module.Context) (map[string]string, error) {
+	return map[string]string{"user": strings.TrimPrefix(c.Env.ChatterName(), "@")}, nil
 }
 
 // Values tied to a newly-created clip, channel edit or commercial cannot be
@@ -62,31 +71,53 @@ func commandContextVariables(_ context.Context, c *module.Context) (map[string]s
 	return map[string]string{"user": name, "target": name}, nil
 }
 
-func viewerAgeVariables(d engine.Deps, name string) variableRead {
+func followageVariables(d engine.Deps) variableRead {
 	return func(ctx context.Context, c *module.Context) (map[string]string, error) {
 		values, _ := commandContextVariables(ctx, c)
-		if name == "followage" && d.Followage != nil {
-			result, err := d.Followage.Lookup(ctx, c.Env.BroadcasterUserID, c.Env.ChatterUserID, c.Env.ChatterUserLogin)
-			if err != nil {
-				return nil, err
-			}
-			if result.UserFound && result.Following && !result.FollowedAt.IsZero() {
-				values["followage"] = i18n.HumanizeDuration(c.Locale, time.Since(result.FollowedAt))
-				values["followedat"] = result.FollowedAt.UTC().Format(time.RFC3339)
-			}
+		if d.Followage == nil {
+			return values, nil
 		}
-		if name == "accountage" && d.AccountAge != nil {
-			result, err := d.AccountAge.Lookup(ctx, c.Env.ChatterUserID, c.Env.ChatterUserLogin)
-			if err != nil {
-				return nil, err
-			}
-			if result.UserFound && !result.CreatedAt.IsZero() {
-				values["accountage"] = i18n.HumanizeDuration(c.Locale, time.Since(result.CreatedAt))
-				values["createdat"] = result.CreatedAt.UTC().Format(time.RFC3339)
-			}
+		result, err := d.Followage.Lookup(ctx, c.Env.BroadcasterUserID, c.Env.ChatterUserID, c.Env.ChatterUserLogin)
+		if err != nil {
+			return nil, err
 		}
+		if !result.UserFound {
+			return values, nil
+		}
+		if !result.Following {
+			return values, nil
+		}
+		addAgeVariables(values, c, result.FollowedAt, ageVariableFields{duration: "followage", date: "followedat"})
 		return values, nil
 	}
+}
+
+func accountageVariables(d engine.Deps) variableRead {
+	return func(ctx context.Context, c *module.Context) (map[string]string, error) {
+		values, _ := commandContextVariables(ctx, c)
+		if d.AccountAge == nil {
+			return values, nil
+		}
+		result, err := d.AccountAge.Lookup(ctx, c.Env.ChatterUserID, c.Env.ChatterUserLogin)
+		if err != nil {
+			return nil, err
+		}
+		if !result.UserFound {
+			return values, nil
+		}
+		addAgeVariables(values, c, result.CreatedAt, ageVariableFields{duration: "accountage", date: "createdat"})
+		return values, nil
+	}
+}
+
+type ageVariableFields struct{ duration, date string }
+
+func addAgeVariables(values map[string]string, c *module.Context, at time.Time, fields ageVariableFields) {
+	if at.IsZero() {
+		return
+	}
+	values[fields.duration] = i18n.HumanizeDuration(c.Locale, time.Since(at))
+	values[fields.date] = at.UTC().Format(time.RFC3339)
 }
 
 func uptimeVariables(d engine.Deps) variableRead {
@@ -95,8 +126,14 @@ func uptimeVariables(d engine.Deps) variableRead {
 			return nil, nil
 		}
 		result, err := d.Uptime.Lookup(ctx, c.Env.BroadcasterUserID)
-		if err != nil || !result.Live || result.StartedAt.IsZero() {
+		if err != nil {
 			return nil, err
+		}
+		if !result.Live {
+			return nil, nil
+		}
+		if result.StartedAt.IsZero() {
+			return nil, nil
 		}
 		return map[string]string{"uptime": i18n.HumanizeDuration(c.Locale, time.Since(result.StartedAt))}, nil
 	}
@@ -159,35 +196,67 @@ func raffleVariables(d engine.Deps) variableRead {
 
 func songVariables(d engine.Deps) variableRead {
 	return func(ctx context.Context, c *module.Context) (map[string]string, error) {
-		var r gossiprpc.SpotifyNowPlayingReply
-		if d.Gossip != nil {
-			if err := d.Gossip.Call(ctx, engine.GossipRoute{Provider: "spotify", Endpoint: "nowplaying"}, gossiprpc.Request{ChannelID: strconv.FormatUint(c.BroadcasterID, 10)}, &r); err != nil {
-				return nil, err
-			}
-			if r.Error != "" {
-				return nil, nil
-			}
+		reply, err := variableSpotifyReply(ctx, d.Gossip, c.BroadcasterID)
+		if err != nil {
+			return nil, err
 		}
-		var current *engine.SongEntry
-		if d.SongQueue != nil {
-			snapshot, err := d.SongQueue.Snapshot(ctx, c.BroadcasterID, 0)
-			if err != nil && (!r.IsPlaying || r.Track == nil) {
-				return nil, err
-			}
-			current = snapshot.Current
+		if reply.Error != "" {
+			return nil, nil
 		}
-		if r.IsPlaying && r.Track != nil {
-			requester := ""
-			if current != nil && current.TrackID == r.Track.ID {
-				requester = current.RequesterName
-			}
-			return songVariableValues(r.Track.Name, r.Track.Artists, r.Track.URL, requester), nil
+		current, err := variableQueuedSong(ctx, d.SongQueue, c.BroadcasterID)
+		track := variablePlayingTrack(reply)
+		if err != nil && track == nil {
+			return nil, err
 		}
-		if current != nil {
-			return songVariableValues(current.Title, current.Artists, current.URL, current.RequesterName), nil
-		}
+		return currentSongVariables(track, current), nil
+	}
+}
+
+func variableSpotifyReply(ctx context.Context, gossip engine.GossipCaller, broadcasterID uint64) (gossiprpc.SpotifyNowPlayingReply, error) {
+	var reply gossiprpc.SpotifyNowPlayingReply
+	if gossip == nil {
+		return reply, nil
+	}
+	route := engine.GossipRoute{Provider: "spotify", Endpoint: "nowplaying"}
+	request := gossiprpc.Request{ChannelID: strconv.FormatUint(broadcasterID, 10)}
+	err := gossip.Call(ctx, route, request, &reply)
+	return reply, err
+}
+
+func variableQueuedSong(ctx context.Context, queue engine.SongQueueStore, broadcasterID uint64) (*engine.SongEntry, error) {
+	if queue == nil {
 		return nil, nil
 	}
+	snapshot, err := queue.Snapshot(ctx, broadcasterID, 0)
+	return snapshot.Current, err
+}
+
+func variablePlayingTrack(reply gossiprpc.SpotifyNowPlayingReply) *gossiprpc.SpotifyTrack {
+	if !reply.IsPlaying {
+		return nil
+	}
+	return reply.Track
+}
+
+func currentSongVariables(track *gossiprpc.SpotifyTrack, queued *engine.SongEntry) map[string]string {
+	if track != nil {
+		requester := matchingSongRequester(track.ID, queued)
+		return songVariableValues(track.Name, track.Artists, track.URL, requester)
+	}
+	if queued == nil {
+		return nil
+	}
+	return songVariableValues(queued.Title, queued.Artists, queued.URL, queued.RequesterName)
+}
+
+func matchingSongRequester(trackID string, queued *engine.SongEntry) string {
+	if queued == nil {
+		return ""
+	}
+	if queued.TrackID != trackID {
+		return ""
+	}
+	return queued.RequesterName
 }
 
 func songVariableValues(title string, artists []string, url, requester string) map[string]string {

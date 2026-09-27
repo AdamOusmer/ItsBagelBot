@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { lex, parseCond } from '../engine/tmpl';
+import { lex, parseCond, type Token } from '../engine/tmpl';
 import { MODULE_CATALOG } from '../catalog';
 import { BUILTIN_COMMANDS } from '../catalog/builtin-commands';
 import type { VariableDef } from './types';
@@ -90,12 +90,14 @@ export const MODULE_VARIABLE_SAMPLES = Object.fromEntries(MODULE_VARIABLES.flatM
 
 /** Module requirements include references used only by a conditional. */
 export function requiredModuleVariables(template: string): readonly VariableDef[] {
-  const heads = new Set<string>();
-  for (const token of lex(template)) {
-    if (token.kind !== 'var') continue;
-    if (token.payload !== null) heads.add(token.name);
-    const reference = parseCond(token)?.ref;
-    if (reference?.payload !== null && reference?.payload !== undefined) heads.add(reference.name);
-  }
+  const heads = new Set(lex(template).flatMap(namespacedReferences));
   return MODULE_VARIABLES.filter((variable) => heads.has(variable.head));
+}
+
+function namespacedReferences(token: Token): string[] {
+  if (token.kind !== 'var') return [];
+  const references = [token];
+  const cond = parseCond(token);
+  if (cond !== null) references.push(cond.ref);
+  return references.filter((reference) => reference.payload !== null).map((reference) => reference.name);
 }
