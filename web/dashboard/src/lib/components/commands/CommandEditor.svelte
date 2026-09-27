@@ -74,13 +74,15 @@
     ])
   ) as CommandErrors);
 
+  // Persist every editor field. Active is draft state for creation, but a live
+  // toggle on an existing command must not count as an unsaved content edit.
   const key = draftKey(draft.originalName, draft.edit);
-  const initial = commandContentSnapshot(draft);
+  const initial = draft.edit ? commandContentSnapshot(draft) : JSON.stringify(draft);
   $effect(() => {
-    const current = commandContentSnapshot(draft);
+    const current = draft.edit ? commandContentSnapshot(draft) : JSON.stringify(draft);
     if (current === initial) return;
     try {
-      sessionStorage.setItem(key, current);
+      sessionStorage.setItem(key, JSON.stringify(draft));
     } catch {}
   });
 
