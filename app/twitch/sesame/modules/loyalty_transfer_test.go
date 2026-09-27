@@ -5,6 +5,10 @@ package modules
 
 import (
 	"context"
+	"errors"
+
+	"ItsBagelBot/app/twitch/sesame/engine"
+	"go.uber.org/zap"
 	"strings"
 	"testing"
 
@@ -29,7 +33,7 @@ func TestPointsGiveTransfersOwnPoints(t *testing.T) {
 	text, _ := runPoints(t, fake, "", "give @bagelfan 500")
 
 	require.Len(t, fake.transfers, 1)
-	assert.Equal(t, transferCall{fromID: 7, login: "bagelfan", amount: 500}, fake.transfers[0])
+	assert.Equal(t, transferCall{fromID: 7, targetID: 8, login: "bagelfan", amount: 500}, fake.transfers[0])
 	assert.Empty(t, fake.adjusts, "give must never take the mod-grant path")
 	assert.Contains(t, text, "bagelfan")
 	assert.Contains(t, text, "500")
@@ -58,7 +62,7 @@ func TestPointsGiveGuards(t *testing.T) {
 
 	fake = &fakeLoyalty{}
 	text, _ = runPoints(t, fake, "", "give ghost 10")
-	assert.Contains(t, strings.ToLower(text), "haven't seen")
+	assert.Contains(t, strings.ToLower(text), "try again")
 
 	fake = &fakeLoyalty{}
 	text, _ = runPoints(t, fake, "", "give bagelfan nope")
@@ -158,4 +162,47 @@ func TestLeaderboardShowsTopStandings(t *testing.T) {
 	require.NoError(t, cmd.Run(context.Background(), loyaltyCtx("channel.chat.message", "", ""), "99", bad.emit))
 	require.Len(t, bad.out, 1)
 	assert.Contains(t, strings.ToLower(bad.out[0].Text), "usage")
+}
+
+func TestPointsGiveRecipientLookup(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		lookup       *fakeAccountAge
+		wantText     string
+		wantTransfer bool
+	}{
+		{"new recipient", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "42"}}, "you gave", true},
+		{"unknown account", &fakeAccountAge{}, "was not found", false},
+		{"lookup failure", &fakeAccountAge{err: errors.New("unavailable")}, "try again", false},
+		{"missing lookup", nil, "try again", false},
+		{"invalid lookup ID", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "0"}}, "try again", false},
+		{"self under another login", &fakeAccountAge{result: engine.AccountAgeResult{UserFound: true, TargetID: "7"}}, "yourself", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			deps := engine.Deps{Loyalty: fake, Log: zap.NewNop()}
+			if tc.lookup != nil {
+				deps.TwitchAccounts = tc.lookup
+			}
+			cmd := loyaltyCommand(t, Loyalty(deps), "points")
+			var col collector
+			require.NoError(t, cmd.Run(context.Background(), loyaltyCtx("channel.chat.message", "", ""), "give @Blemmyz 500", col.emit))
+			require.Len(t, col.out, 1)
+			assert.Contains(t, strings.ToLower(col.out[0].Text), tc.wantText)
+			if tc.wantTransfer {
+				require.Len(t, fake.transfers, 1)
+				assert.Equal(t, transferCall{fromID: 7, targetID: 42, login: "blemmyz", amount: 500}, fake.transfers[0])
+			} else {
+				assert.Empty(t, fake.transfers)
+			}
+			if tc.lookup != nil {
+				assert.Equal(t, "blemmyz", tc.lookup.got.targetLogin)
+			}
+		})
+	}
+}
+
+func (f *fakeAccountAge) ResolveLogin(ctx context.Context, login string) (string, bool, error) {
+	r, err := f.Lookup(ctx, "", login)
+	return r.TargetID, r.UserFound, err
 }

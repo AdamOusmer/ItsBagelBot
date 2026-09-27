@@ -2063,6 +2063,8 @@ export type KnownMessageKey =
   | 'loyalty.save'
   | 'loyalty.saving'
   | 'loyalty.statusTitle'
+  | 'loyalty.streamerPoints'
+  | 'loyalty.streamerPointsHint'
   | 'loyalty.tierHint'
   | 'loyalty.titleEm'
   | 'loyalty.titlePre'

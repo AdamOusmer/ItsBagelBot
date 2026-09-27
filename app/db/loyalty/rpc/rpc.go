@@ -147,6 +147,17 @@ func (l *loyaltyRPC) adjustBalance(ctx context.Context, req loyaltyrpc.Request, 
 	return loyaltyrpc.Reply{Balance: balanceView(row), Found: true}
 }
 
+func transferTargetID(id string) (uint64, error) {
+	if id == "" {
+		return 0, nil // Existing callers still resolve recipients by stored login.
+	}
+	viewerID, err := strconv.ParseUint(id, 10, 64)
+	if err != nil || viewerID == 0 {
+		return 0, errors.New("invalid target_viewer_id")
+	}
+	return viewerID, nil
+}
+
 func (l *loyaltyRPC) handleBalanceTransfer(ctx context.Context, req loyaltyrpc.Request) loyaltyrpc.Reply {
 	userID, viewerID, ok, reply := parseIDs(req, false)
 	if !ok {
@@ -155,7 +166,11 @@ func (l *loyaltyRPC) handleBalanceTransfer(ctx context.Context, req loyaltyrpc.R
 	if viewerID == 0 {
 		return refuse(domainrpc.CodeInvalid, "invalid viewer_id")
 	}
-	out, found, err := l.repo.BalanceTransfer(ctx, repository.Transfer{UserID: userID, FromViewerID: viewerID, TargetLogin: req.ViewerLogin, Amount: req.Value})
+	targetID, err := transferTargetID(req.TargetViewerID)
+	if err != nil {
+		return refuse(domainrpc.CodeInvalid, err.Error())
+	}
+	out, found, err := l.repo.BalanceTransfer(ctx, repository.Transfer{UserID: userID, FromViewerID: viewerID, TargetLogin: req.ViewerLogin, TargetViewerID: targetID, Amount: req.Value})
 	if err != nil {
 		return l.fail("loyalty balance.transfer", err)
 	}

@@ -98,6 +98,7 @@
   "loyalty.points.adjusted": "@{target} a maintenant {points} {name}.",
   "loyalty.points.disabled": "@{user} cette action est désactivée sur cette chaîne.",
   "loyalty.points.gave": "@{user} vous avez donné {amount} {name} à @{target}. Il vous reste {points}.",
+  "loyalty.points.give.unknown": "@{user} l'utilisateur Twitch {target} est introuvable.",
   "loyalty.points.give.usage": "Utilisation : !points give <utilisateur> <montant>",
   "loyalty.points.insufficient": "@{user} vous n'avez que {points} {name}.",
   "loyalty.points.self": "@{user} vous ne pouvez pas vous donner des {name}.",

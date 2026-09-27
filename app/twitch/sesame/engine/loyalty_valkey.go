@@ -352,8 +352,8 @@ func (s *ValkeyLoyaltyStore) BalanceSpend(ctx context.Context, broadcasterID uin
 	return bal, true, spent, nil
 }
 
-func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error) {
-	bal, target, found, moved, err := s.rpc.BalanceTransfer(ctx, broadcasterID, fromViewerID, targetLogin, amount)
+func (s *ValkeyLoyaltyStore) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, found, moved bool, err error) {
+	bal, target, found, moved, err := s.rpc.BalanceTransfer(ctx, broadcasterID, fromViewerID, targetViewerID, targetLogin, amount)
 	if err != nil || !found {
 		return bal, found, moved, err
 	}

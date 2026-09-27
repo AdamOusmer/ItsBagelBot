@@ -90,12 +90,13 @@ func (l *LoyaltyRPC) BalanceSpend(ctx context.Context, broadcasterID uint64, vie
 	return *reply.Balance, true, reply.Spent, nil
 }
 
-func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, target *loyaltyrpc.Balance, found, moved bool, err error) {
+func (l *LoyaltyRPC) BalanceTransfer(ctx context.Context, broadcasterID, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (bal loyaltyrpc.Balance, target *loyaltyrpc.Balance, found, moved bool, err error) {
 	reply, err := l.call(ctx, "balance.transfer", loyaltyrpc.Request{
-		UserID:      fmtID(broadcasterID),
-		ViewerID:    fmtID(fromViewerID),
-		ViewerLogin: targetLogin,
-		Value:       amount,
+		UserID:         fmtID(broadcasterID),
+		ViewerID:       fmtID(fromViewerID),
+		ViewerLogin:    targetLogin,
+		TargetViewerID: fmtID(targetViewerID),
+		Value:          amount,
 	})
 	if err != nil {
 		return loyaltyrpc.Balance{}, nil, false, false, err

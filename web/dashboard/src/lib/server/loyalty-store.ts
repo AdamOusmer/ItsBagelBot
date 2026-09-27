@@ -60,7 +60,8 @@ const RATE_KEYS = [
   'watchPointsPerTick',
   'modSetPoints',
   'modAdjustPoints',
-  'viewerTransfers'
+  'viewerTransfers',
+  'streamerPoints'
 ] as const satisfies readonly (keyof LoyaltyConfig)[];
 
 function rate(v: unknown): number {

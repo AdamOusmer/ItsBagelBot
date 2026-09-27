@@ -6,16 +6,17 @@ package loyaltyrpc
 import "ItsBagelBot/internal/domain/rpc"
 
 type Request struct {
-	UserID       string `json:"user_id"`
-	ViewerID     string `json:"viewer_id,omitempty"`
-	ViewerLogin  string `json:"viewer_login,omitempty"`
-	Name         string `json:"name,omitempty"`
-	NewName      string `json:"new_name,omitempty"`
-	Scope        string `json:"scope,omitempty"`
-	Command      string `json:"command,omitempty"`
-	Value        int64  `json:"value,omitempty"`
-	CounterValue string `json:"counter_value,omitempty"`
-	Limit        int    `json:"limit,omitempty"`
+	UserID         string `json:"user_id"`
+	ViewerID       string `json:"viewer_id,omitempty"`
+	ViewerLogin    string `json:"viewer_login,omitempty"`
+	TargetViewerID string `json:"target_viewer_id,omitempty"`
+	Name           string `json:"name,omitempty"`
+	NewName        string `json:"new_name,omitempty"`
+	Scope          string `json:"scope,omitempty"`
+	Command        string `json:"command,omitempty"`
+	Value          int64  `json:"value,omitempty"`
+	CounterValue   string `json:"counter_value,omitempty"`
+	Limit          int    `json:"limit,omitempty"`
 }
 
 type Balance struct {

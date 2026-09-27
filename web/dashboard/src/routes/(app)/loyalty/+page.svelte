@@ -171,6 +171,19 @@
           </Field>
         {/each}
 
+        <div class="perm">
+          <span class="perm-copy">
+            <span class="perm-label">{t('loyalty.streamerPoints')}</span>
+            <span class="perm-hint" id="streamer-points-hint">{t('loyalty.streamerPointsHint')}</span>
+          </span>
+          <Switch
+            label={t('loyalty.streamerPoints')}
+            describedby="streamer-points-hint"
+            checked={config.streamerPoints >= 0}
+            onchange={(v) => (config.streamerPoints = v ? 0 : -1)}
+          />
+        </div>
+
         <p class="hint">{t('loyalty.tierHint')}</p>
 
         <h3 class="perm-title">{t('loyalty.permissionsTitle')}</h3>

@@ -2349,6 +2349,8 @@
     "fieldGift": "Par abonnement offert (pour le donateur)",
     "fieldCheer": "Par 100 bits",
     "fieldWatch": "Par 5 minutes de visionnage",
+    "streamerPoints": "Le streamer gagne des points",
+    "streamerPointsHint": "Autorisez le propriétaire de la chaîne à gagner des points automatiquement, y compris des points de visionnage lorsqu’il est présent dans le chat pendant un live. Le temps de visionnage, les transferts et les ajouts manuels restent disponibles si désactivé.",
     "tierHint": "Les gains d’abonnement suivent le palier : ×1, ×2 (palier 2), ×6 (palier 3).",
     "defaultTag": "défaut {n}",
     "save": "Enregistrer les taux",

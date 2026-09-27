@@ -32,6 +32,23 @@ type AccountAgeLookup interface {
 	Lookup(ctx context.Context, targetID, targetLogin string) (AccountAgeResult, error)
 }
 
+// TwitchAccountLookup resolves current login ownership for point transfers.
+// Age display caches must not send points to an account under an old login.
+type TwitchAccountLookup interface {
+	ResolveLogin(ctx context.Context, login string) (string, bool, error)
+}
+
+func (a *AccountAgeRPC) ResolveLogin(ctx context.Context, login string) (string, bool, error) {
+	reply, err := a.request(ctx, outgressrpc.AccountAgeRequest{TargetLogin: login})
+	if err != nil {
+		return "", false, err
+	}
+	if reply.Error != "" {
+		return "", false, errors.New(reply.Error)
+	}
+	return reply.TargetID, reply.UserFound, nil
+}
+
 type AccountAgeRPC struct {
 	cache   *cache.Cache[AccountAgeResult]
 	request func(context.Context, outgressrpc.AccountAgeRequest) (outgressrpc.AccountAgeReply, error)

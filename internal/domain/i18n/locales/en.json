@@ -98,6 +98,7 @@
   "loyalty.points.adjusted": "@{target} now has {points} {name}.",
   "loyalty.points.disabled": "@{user} that action is turned off in this channel.",
   "loyalty.points.gave": "@{user} you gave {amount} {name} to @{target}. You now have {points}.",
+  "loyalty.points.give.unknown": "@{user} Twitch user {target} was not found.",
   "loyalty.points.give.usage": "Usage: !points give <user> <amount>",
   "loyalty.points.insufficient": "@{user} you only have {points} {name}.",
   "loyalty.points.self": "@{user} you can't give {name} to yourself.",

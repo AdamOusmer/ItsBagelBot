@@ -113,13 +113,14 @@ func (f *fakeLoyalty) BalanceSpend(_ context.Context, _ uint64, viewerLogin stri
 }
 
 type transferCall struct {
-	fromID uint64
-	login  string
-	amount int64
+	fromID   uint64
+	targetID uint64
+	login    string
+	amount   int64
 }
 
-func (f *fakeLoyalty) BalanceTransfer(_ context.Context, _ uint64, fromViewerID uint64, targetLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
-	f.transfers = append(f.transfers, transferCall{fromViewerID, targetLogin, amount})
+func (f *fakeLoyalty) BalanceTransfer(_ context.Context, _ uint64, fromViewerID, targetViewerID uint64, targetLogin string, amount int64) (loyaltyrpc.Balance, bool, bool, error) {
+	f.transfers = append(f.transfers, transferCall{fromViewerID, targetViewerID, targetLogin, amount})
 	if targetLogin == "ghost" {
 		return loyaltyrpc.Balance{}, false, false, nil
 	}
@@ -205,7 +206,7 @@ func loyaltyCtx(eventType, payload, config string) *module.Context {
 
 func loyaltyModule(t *testing.T, fake *fakeLoyalty) module.Module {
 	t.Helper()
-	m := Loyalty(engine.Deps{Loyalty: fake, Log: zap.NewNop()})
+	m := Loyalty(engine.Deps{Loyalty: fake, TwitchAccounts: &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "8", UserFound: true}}, Log: zap.NewNop()})
 	assert.Equal(t, engine.LoyaltyModuleName, m.Name)
 	assert.Equal(t, module.KindOptIn, m.Kind)
 	return m
@@ -516,7 +517,7 @@ func TestLoyaltyPointMutationsDeduplicateRedelivery(t *testing.T) {
 			c.Env.MsgID = "chat-one"
 			var col collector
 			for range 2 {
-				m := Loyalty(engine.Deps{Loyalty: fake, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
+				m := Loyalty(engine.Deps{Loyalty: fake, TwitchAccounts: &fakeAccountAge{result: engine.AccountAgeResult{TargetID: "8", UserFound: true}}, Dedup: engine.NewEventDedup(claims, "", time.Hour, nil)})
 				require.NoError(t, loyaltyCommand(t, m, "points").Run(context.Background(), c, verb+" @receiver 100", col.emit))
 			}
 			assert.Equal(t, 1, len(fake.adjusts)+len(fake.transfers))

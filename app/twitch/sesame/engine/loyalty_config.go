@@ -31,6 +31,7 @@ type LoyaltyModuleConfig struct {
 	ModSetPoints       int    `json:"modSetPoints"`
 	ModAdjustPoints    int    `json:"modAdjustPoints"`
 	ViewerTransfers    int    `json:"viewerTransfers"`
+	StreamerPoints     int    `json:"streamerPoints"`
 }
 
 const maxRate = int64(1_000_000_000)
@@ -74,6 +75,15 @@ func capabilityOn(v int) bool { return v >= 0 }
 func (c LoyaltyModuleConfig) ModsMaySetPoints() bool    { return capabilityOn(c.ModSetPoints) }
 func (c LoyaltyModuleConfig) ModsMayAdjustPoints() bool { return capabilityOn(c.ModAdjustPoints) }
 func (c LoyaltyModuleConfig) ViewersMayTransfer() bool  { return capabilityOn(c.ViewerTransfers) }
+
+// AutomaticPoints applies the streamer's earning preference without restricting
+// transfers, manual grants or watch time.
+func (c LoyaltyModuleConfig) AutomaticPoints(broadcasterID, viewerID uint64, points int64) int64 {
+	if broadcasterID == viewerID && !capabilityOn(c.StreamerPoints) {
+		return 0
+	}
+	return points
+}
 
 func TierMultiplier(tier string) int64 {
 	switch tier {
