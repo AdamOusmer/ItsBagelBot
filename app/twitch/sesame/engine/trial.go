@@ -14,33 +14,48 @@ import (
 	"ItsBagelBot/pkg/codec"
 )
 
-func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadcasterID uint64) error {
+func (p *Pipeline) processTrial(ctx context.Context, env *lane.Envelope, broadcasterID uint64) (err error) {
 	started := time.Now()
-	id, messages := env.BroadcasterUserID, env.MessageCount()
+	answered := false
 	defer func() {
-		p.countTrial(ctx, id, "latency_ns_samples")
-		p.addTrial(ctx, id, "latency_ns_total", time.Since(started).Nanoseconds())
+		p.finishTrial(ctx, env, trialOutcome{err: err, answered: answered, duration: time.Since(started).Nanoseconds()})
 	}()
 	views, err := p.tracedModuleViews(ctx, env.Type, broadcasterID)
 	if err != nil {
-		p.countTrialFailure(ctx, id, messages)
 		return err
 	}
 	mctx := p.leaseContext(env, broadcasterID)
 	defer PutContext(mctx)
-	emission := emitState{subject: p.laneSubject(mctx.Regress), env: env}
+	emission := emitState{subject: p.laneSubject(mctx.Regress), env: env, mctx: mctx}
 	emit := p.newEmit(ctx, env.BroadcasterUserID, &emission)
 	p.runTracedStages(ctx, mctx, views, emit, &emission)
 	p.flushLegacyOutput(ctx, &emission)
-	if emission.err != nil {
-		p.countTrialFailure(ctx, id, messages)
+	answered = mctx.Command != ""
+	return emission.err
+}
+
+// Trial counts already use the bounded aggregate reporter. Keep its weighted
+// message totals and one latency sample per envelope; capture processing time
+// before reporting final outcome counters.
+type trialOutcome struct {
+	err      error
+	answered bool
+	duration int64
+}
+
+func (p *Pipeline) finishTrial(ctx context.Context, env *lane.Envelope, outcome trialOutcome) {
+	id := env.BroadcasterUserID
+	if outcome.err != nil {
+		p.countTrialFailure(ctx, id, env.MessageCount())
 	} else {
-		p.addTrial(ctx, id, "processed", messages)
+		p.addTrial(ctx, id, "processed", env.MessageCount())
 	}
-	if mctx.Command != "" {
+	if outcome.answered {
 		p.countTrial(ctx, id, "answered")
 	}
-	return emission.err
+	p.countTrial(ctx, id, "latency_ns_samples")
+	p.addTrial(ctx, id, "latency_ns_total", outcome.duration)
+	tracePipelineResult(ctx, outcome.err)
 }
 
 func (p *Pipeline) countTrialFailure(ctx context.Context, id string, messages int64) {

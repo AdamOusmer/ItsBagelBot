@@ -52,6 +52,9 @@ func emotePlayOnChat(d engine.Deps) module.EventHandler {
 			logBumpFailure(c, err)
 			return nil
 		}
+		if res.PyramidDone || res.StreakMilestone {
+			c.EnsureLocale(ctx)
+		}
 		emotePlayAnnounce(c, emit, emote, res)
 		return nil
 	}

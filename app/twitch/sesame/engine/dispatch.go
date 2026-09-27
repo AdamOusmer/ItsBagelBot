@@ -59,9 +59,7 @@ func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.C
 		return err
 	}
 	c.Num = num
-	if u, uerr := p.proj.User(ctx, c.BroadcasterID); uerr == nil {
-		c.Locale = u.Locale
-	}
+	p.ensureLocale(ctx, c)
 	run := commandRun{c: c, command: cmd.Name, args: args}
 	var emitErr error
 	err = cmd.Run(ctx, c, args, func(o *module.Output) {

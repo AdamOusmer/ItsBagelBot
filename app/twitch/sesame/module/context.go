@@ -6,6 +6,7 @@ package module
 import (
 	"ItsBagelBot/internal/domain/event/lane"
 	"ItsBagelBot/pkg/codec"
+	"context"
 	"strings"
 
 	"go.uber.org/zap"
@@ -19,6 +20,11 @@ type Context struct {
 	Log           *zap.Logger
 
 	Locale string
+	// LocaleLoaded records even default-language and failed lookups.
+	LocaleLoaded bool
+	// LocaleLookup is supplied once by the engine. Chat handlers resolve it
+	// only when a matched reply requires the broadcaster's language.
+	LocaleLookup func(context.Context, uint64) (string, error)
 
 	Config codec.RawMessage
 
@@ -31,6 +37,26 @@ type Context struct {
 
 	emoteCodes  map[string]struct{}
 	emotesBuilt bool
+}
+
+// EnsureLocale resolves the broadcaster's language at most once per message.
+// Trial provenance already establishes the default language without an account
+// lookup. A missing lookup (standalone module tests) preserves an explicit Locale.
+func (c *Context) EnsureLocale(ctx context.Context) {
+	if c.LocaleLoaded {
+		return
+	}
+	c.LocaleLoaded = true
+	if c.Env.Origin == "trial" {
+		c.Locale = ""
+		return
+	}
+	if c.Locale != "" || c.LocaleLookup == nil {
+		return
+	}
+	if locale, err := c.LocaleLookup(ctx, c.BroadcasterID); err == nil {
+		c.Locale = locale
+	}
 }
 
 func (c *Context) Chatter() Role {
@@ -74,6 +100,8 @@ func (c *Context) Reset() {
 	c.Regress = RegressStandard
 	c.BroadcasterID = 0
 	c.Locale = ""
+	c.LocaleLoaded = false
+	c.LocaleLookup = nil
 	c.Config = nil
 	c.Num = ""
 	c.Command = ""

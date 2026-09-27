@@ -50,7 +50,7 @@ func Triggers(_ engine.Deps) module.Module {
 	return m.Build()
 }
 
-func triggersOnChat(_ context.Context, c *module.Context, emit module.Emit) error {
+func triggersOnChat(ctx context.Context, c *module.Context, emit module.Emit) error {
 	text, ok := triggerCandidate(c)
 	if !ok {
 		return nil
@@ -60,8 +60,14 @@ func triggersOnChat(_ context.Context, c *module.Context, emit module.Emit) erro
 		return parsed.err
 	}
 	line := triggerLine{text: text, user: strings.TrimPrefix(c.Env.ChatterName(), "@"), locale: c.Locale}
-	reply, ok := line.firstReply(parsed.rules)
+	response, ok := line.firstResponse(parsed.rules)
 	if !ok {
+		return nil
+	}
+	c.EnsureLocale(ctx)
+	line.locale = c.Locale
+	reply := line.expandReply(response)
+	if reply == "" {
 		return nil
 	}
 	emit(&module.Output{
@@ -196,18 +202,24 @@ func splitMode(phrase string) (mode, rest string) {
 }
 
 func (l triggerLine) firstReply(rules []triggerWord) (string, bool) {
+	response, ok := l.firstResponse(rules)
+	if !ok {
+		return "", false
+	}
+	reply := l.expandReply(response)
+	return reply, reply != ""
+}
+func (l triggerLine) firstResponse(rules []triggerWord) (string, bool) {
 	text := strings.ToLower(l.text)
 	for _, tw := range rules {
-		if !tw.matches(text) {
-			continue
+		if tw.matches(text) {
+			return tw.Response, true
 		}
-		msg := module.KV("user", l.user).WithLocale(module.Locale(l.locale)).ExpandString(tw.Response)
-		if msg == "" {
-			return "", false
-		}
-		return msg, true
 	}
 	return "", false
+}
+func (l triggerLine) expandReply(response string) string {
+	return module.KV("user", l.user).WithLocale(module.Locale(l.locale)).ExpandString(response)
 }
 
 func (tw triggerWord) matches(text string) bool {

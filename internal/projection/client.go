@@ -54,6 +54,19 @@ type fetchEntry struct {
 	found bool
 }
 
+// Named replies let startup prepare the exact codecs used by cold RPC loads.
+type modulesReply struct {
+	Modules []ModuleView `json:"modules"`
+}
+
+type commandsReply struct {
+	Commands []Command `json:"commands"`
+}
+
+type fetchesReply struct {
+	Fetches []FetchView `json:"fetches"`
+}
+
 type Command struct {
 	Name             string   `json:"name"`
 	Aliases          []string `json:"aliases,omitempty"`
@@ -206,13 +219,16 @@ func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 	return c.users.GetOrLoad(ctx, key("user", userID), func(ctx context.Context) (User, error) {
 		status, active, _, locale, commandsPageHidden, err := c.store.GetUser(ctx, userID)
 		if err == nil && status != "" {
+			loadSource(ctx, "projection.user.source", "valkey")
 			return User{Status: status, IsActive: active, Locale: locale, CommandsPageHidden: commandsPageHidden}, nil
 		}
 
 		reply, err := bus.RequestJSONTimeout[User](ctx, c.nc, c.subjects.Users, projectionRequest(userID), c.rpcTimeout)
 		if err != nil {
+			loadSource(ctx, "projection.user.source", "standard_fallback")
 			return User{Status: "standard"}, nil
 		}
+		loadSource(ctx, "projection.user.source", "rpc")
 		return reply, nil
 	})
 }
@@ -221,16 +237,17 @@ func (c *Client) User(ctx context.Context, userID uint64) (User, error) {
 func (c *Client) Modules(ctx context.Context, userID uint64) (map[string]ModuleView, error) {
 	return c.modules.GetOrLoad(ctx, key("modules", userID), func(ctx context.Context) (map[string]ModuleView, error) {
 		if mods, projected, err := c.store.GetModules(ctx, userID); err == nil && projected {
+			loadSource(ctx, "projection.modules.source", "valkey")
 			return mods, nil
 		}
 
-		reply, err := bus.RequestJSONTimeout[struct {
-			Modules []ModuleView `json:"modules"`
-		}](ctx, c.nc, c.subjects.Modules, projectionRequest(userID), c.rpcTimeout)
+		reply, err := bus.RequestJSONTimeout[modulesReply](ctx, c.nc, c.subjects.Modules, projectionRequest(userID), c.rpcTimeout)
 		if err != nil {
+			loadSource(ctx, "projection.modules.source", "rpc_error")
 			// An empty map here would be cached for the TTL and silently disable automod.
 			return nil, err
 		}
+		loadSource(ctx, "projection.modules.source", "rpc")
 		return ModuleMap(reply.Modules), nil
 	})
 }
@@ -282,9 +299,7 @@ func commandEntryOf(view CommandView, found bool) commandEntry {
 }
 
 func (c *Client) commandsRPC(ctx context.Context, userID uint64, lname string) commandEntry {
-	reply, err := bus.RequestJSONTimeout[struct {
-		Commands []Command `json:"commands"`
-	}](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
+	reply, err := bus.RequestJSONTimeout[commandsReply](ctx, c.nc, c.subjects.Commands, projectionRequest(userID), c.rpcTimeout)
 	if err != nil {
 		return commandEntry{found: false}
 	}
@@ -344,9 +359,7 @@ func fetchEntryOf(view FetchView, found bool) fetchEntry {
 }
 
 func (c *Client) fetchesRPC(ctx context.Context, userID uint64, lname string) fetchEntry {
-	reply, err := bus.RequestJSONTimeout[struct {
-		Fetches []FetchView `json:"fetches"`
-	}](ctx, c.nc, c.subjects.Fetches, projectionRequest(userID), c.rpcTimeout)
+	reply, err := bus.RequestJSONTimeout[fetchesReply](ctx, c.nc, c.subjects.Fetches, projectionRequest(userID), c.rpcTimeout)
 	if err != nil {
 		return fetchEntry{found: false}
 	}

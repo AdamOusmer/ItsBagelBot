@@ -143,14 +143,25 @@ func (s *ValkeyLoyaltyClock) arm(ctx context.Context, request loyaltyArmRequest)
 	if !known {
 		return true
 	}
+	request.version = version
+	return s.persistArm(ctx, request, snap.Generation)
+}
+
+func (s *ValkeyLoyaltyClock) persistArm(ctx context.Context, request loyaltyArmRequest, generation string) bool {
 	offset := time.Duration(rand.Int64N(int64(watchTickJitter/time.Second)+1)) * time.Second
 	due := s.now().Add(watchTickInterval + offset).UnixMilli()
-	_, err = s.eval(ctx, loyaltyArmScript, []string{loyaltyScheduleKey(request.broadcaster), loyaltyDueKey, loyaltyClaimKey(request.broadcaster)}, strconv.FormatUint(request.broadcaster, 10), strconv.FormatInt(version, 10), snap.Generation, strconv.FormatInt(version, 10), strconv.FormatInt(due, 10), request.mode())
+	result, err := s.eval(ctx, loyaltyArmScript, []string{loyaltyScheduleKey(request.broadcaster), loyaltyDueKey, loyaltyClaimKey(request.broadcaster), livekey.Key(request.broadcaster)}, strconv.FormatUint(request.broadcaster, 10), strconv.FormatInt(request.version, 10), generation, strconv.FormatInt(request.version, 10), strconv.FormatInt(due, 10), request.mode())
 	if err != nil {
 		s.log.Warn("loyalty: failed to persist watch schedule", module.BIDField(request.broadcaster), zap.Error(err))
 		return false
 	}
-	s.nudge()
+	armed, err := result.AsInt64()
+	if err != nil {
+		return false
+	}
+	if armed == 1 {
+		s.nudge()
+	}
 	return true
 }
 func (request loyaltyArmRequest) mode() string {
@@ -164,6 +175,9 @@ func (s *ValkeyLoyaltyClock) scheduleVersion(ctx context.Context, request loyalt
 		return request.version, true, nil
 	}
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(livekey.Key(request.broadcaster)).Build()).ToString()
+	if valkey.IsValkeyNil(err) {
+		return 0, false, nil
+	}
 	if err != nil {
 		return 0, false, err
 	}

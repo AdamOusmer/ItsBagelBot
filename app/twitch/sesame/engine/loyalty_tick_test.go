@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ItsBagelBot/internal/domain/event/data"
+	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/rpc/manage"
 	"ItsBagelBot/internal/watchtime"
 	"ItsBagelBot/pkg/codec"
@@ -39,7 +40,7 @@ func watchFixture(t *testing.T, id uint64) *loyaltyClockFixture {
 	client := newHotPathTestClient(t)
 	ctx := context.Background()
 	sid := strconv.FormatUint(id, 10)
-	keys := []string{"settings:" + sid, "live:" + sid, watchtime.AdmissionKey(id), loyaltyScheduleKey(id), loyaltyClaimKey(id), "watchtime:operations:" + sid, loyaltyTickKey(id)}
+	keys := []string{"settings:" + sid, "live:" + sid, livekey.VerKey(id), watchtime.AdmissionKey(id), loyaltyScheduleKey(id), loyaltyClaimKey(id), "watchtime:operations:" + sid, loyaltyTickKey(id)}
 	require.NoError(t, client.Do(ctx, client.B().Del().Key(keys...).Build()).Error())
 	require.NoError(t, client.Do(ctx, client.B().Zrem().Key(loyaltyDueKey).Member(sid).Build()).Error())
 	t.Cleanup(func() {
@@ -163,6 +164,7 @@ func TestWatchTickTenantAndLeaseFences(t *testing.T) {
 				case "lease lost":
 					require.NoError(t, f.client.Do(ctx, f.client.B().Set().Key(loyaltyClaimKey(f.id)).Value("different-worker").PxMilliseconds(30000).Build()).Error())
 				case "new session":
+					require.NoError(t, f.client.Do(ctx, f.client.B().Set().Key(livekey.Key(f.id)).Value("3000").Build()).Error())
 					f.clock.ArmVersioned(ctx, f.id, 3000)
 				}
 				encoded, err := codec.Marshal(reply)
@@ -267,4 +269,145 @@ func TestWatchBoundedQueueYieldsLargeTenantAfterOnePage(t *testing.T) {
 	require.NotEmpty(t, large.fields(t)["window"])
 	require.EqualValues(t, 1, large.operations(t))
 	require.EqualValues(t, 1, small.operations(t))
+}
+
+// interceptLoyaltyArm applies an authoritative live transition exactly after
+// Capture (and the recovery GET) but before the real arm Lua executes.
+type interceptLoyaltyArm struct {
+	valkey.Client
+	before func()
+}
+
+func (c *interceptLoyaltyArm) Do(ctx context.Context, cmd valkey.Completed) valkey.ValkeyResult {
+	if isLoyaltyArm(cmd) && c.before != nil {
+		before := c.before
+		c.before = nil
+		before()
+	}
+	return c.Client.Do(ctx, cmd)
+}
+
+func isLoyaltyArm(cmd valkey.Completed) bool {
+	args := cmd.Commands()
+	if len(args) < 2 {
+		return false
+	}
+	switch args[0] {
+	case "EVAL":
+		return args[1] == loyaltyArmScript
+	default:
+		return false
+	}
+}
+
+func (f *loyaltyClockFixture) clearSchedule(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+	require.NoError(t, f.client.Do(ctx, f.client.B().Del().Key(loyaltyScheduleKey(f.id), loyaltyClaimKey(f.id)).Build()).Error())
+	require.NoError(t, f.client.Do(ctx, f.client.B().Zrem().Key(loyaltyDueKey).Member(strconv.FormatUint(f.id, 10)).Build()).Error())
+}
+func (f *loyaltyClockFixture) requireUnscheduled(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+	n, err := f.client.Do(ctx, f.client.B().Exists().Key(loyaltyScheduleKey(f.id)).Build()).AsInt64()
+	require.NoError(t, err)
+	require.Zero(t, n, "denied arm must not create an active schedule")
+	err = f.client.Do(ctx, f.client.B().Zscore().Key(loyaltyDueKey).Member(strconv.FormatUint(f.id, 10)).Build()).Error()
+	require.True(t, valkey.IsValkeyNil(err), "denied arm must not enter due queue")
+}
+
+func TestWatchTickHydratedOfflineAccountCannotArm(t *testing.T) {
+	f := watchFixture(t, 77121)
+	ctx := context.Background()
+	f.clearSchedule(t)
+	applied, err := clearLiveKey(ctx, f.client, f.id, 3000)
+	require.NoError(t, err)
+	require.True(t, applied)
+	// Settings remain completely hydrated and loyalty-enabled; neither recovery
+	// nor a late online arm can substitute settings for an authoritative live key.
+	f.clock.Arm(ctx, f.id)
+	f.clock.ArmVersioned(ctx, f.id, 2000)
+	f.requireUnscheduled(t)
+	// A later hydration refresh can update settings while offline as well.
+	require.NoError(t, f.client.Do(ctx, f.client.B().Hset().Key("settings:"+strconv.FormatUint(f.id, 10)).FieldValue().FieldValue("active", "1").FieldValue("module:loyalty:enabled", "1").FieldValue("module:loyalty:config", `{"watchPointsPerTick":11}`).Build()).Error())
+	f.clock.Arm(ctx, f.id)
+	f.requireUnscheduled(t)
+	// A real newer online event still admits the hydrated account.
+	n, err := setLiveScript.Exec(ctx, f.client, []string{livekey.Key(f.id), livekey.VerKey(f.id)}, []string{"4000", "3600", "172800"}).AsInt64()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, n)
+	f.clock.ArmVersioned(ctx, f.id, 4000)
+	require.Equal(t, "1", f.fields(t)["active"])
+	require.Equal(t, "4000", f.fields(t)["live_session"])
+}
+
+func TestWatchTickOfflineBetweenAdmissionAndArmIsFenced(t *testing.T) {
+	for _, online := range []bool{false, true} {
+		t.Run(strconv.FormatBool(online), func(t *testing.T) {
+			f := watchFixture(t, 77122)
+			ctx := context.Background()
+			f.clearSchedule(t)
+			f.clock.client = &interceptLoyaltyArm{Client: f.client, before: func() {
+				applied, err := clearLiveKey(ctx, f.client, f.id, 3000)
+				require.NoError(t, err)
+				require.True(t, applied)
+			}}
+			if online {
+				f.clock.ArmVersioned(ctx, f.id, 2000)
+			} else {
+				f.clock.Arm(ctx, f.id)
+			}
+			f.requireUnscheduled(t)
+		})
+	}
+}
+
+func TestWatchTickLiveRecheckPreservesActiveWindow(t *testing.T) {
+	f := watchFixture(t, 77123)
+	ctx := context.Background()
+	before := f.fields(t)
+	n, err := setLiveScript.Exec(ctx, f.client, []string{livekey.Key(f.id), livekey.VerKey(f.id)}, []string{"5000", "3600", "172800"}).AsInt64()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, n)
+	f.clock.Arm(ctx, f.id)
+	require.Equal(t, before, f.fields(t), "live rechecks must preserve the stable active schedule session and due time")
+	// An older online event cannot replace that schedule even while live.
+	f.clock.ArmVersioned(ctx, f.id, 3000)
+	require.Equal(t, before, f.fields(t))
+}
+
+func TestWatchTickNewerLiveBetweenAdmissionAndArmIsFenced(t *testing.T) {
+	for _, online := range []bool{false, true} {
+		t.Run(strconv.FormatBool(online), func(t *testing.T) {
+			f := watchFixture(t, 77124)
+			ctx := context.Background()
+			f.clearSchedule(t)
+			require.NoError(t, f.client.Do(ctx, f.client.B().Set().Key(loyaltyClaimKey(f.id)).Value("existing-claim").Build()).Error())
+			f.clock.client = &interceptLoyaltyArm{Client: f.client, before: func() {
+				n, err := setLiveScript.Exec(ctx, f.client, []string{livekey.Key(f.id), livekey.VerKey(f.id)}, []string{"5000", "3600", "172800"}).AsInt64()
+				require.NoError(t, err)
+				require.EqualValues(t, 1, n)
+			}}
+			if online {
+				f.clock.ArmVersioned(ctx, f.id, 2000)
+			} else {
+				f.clock.Arm(ctx, f.id)
+			}
+			// An admission captured against 2000 cannot create a stale schedule after
+			// authoritative live state moves to 5000, or delete existing worker claims.
+			f.requireUnscheduled(t)
+			claim, err := f.client.Do(ctx, f.client.B().Get().Key(loyaltyClaimKey(f.id)).Build()).ToString()
+			require.NoError(t, err)
+			require.Equal(t, "existing-claim", claim)
+			// Recovery rereads current live state and can admit the legitimate session.
+			f.clock.Arm(ctx, f.id)
+			fields := f.fields(t)
+			require.Equal(t, "1", fields["active"])
+			require.Equal(t, "5000", fields["version"])
+			require.Equal(t, "5000", fields["live_session"])
+			score, err := f.client.Do(ctx, f.client.B().Zscore().Key(loyaltyDueKey).Member(strconv.FormatUint(f.id, 10)).Build()).ToString()
+			require.NoError(t, err)
+			require.Equal(t, fields["due"], score)
+		})
+	}
 }
