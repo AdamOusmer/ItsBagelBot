@@ -25,12 +25,18 @@ func TestClassify(t *testing.T) {
 		{"schemeless paste", "open.spotify.com/album/1DFixLWuPkv3KT3TnV35m3", resolveAlbumID, "1DFixLWuPkv3KT3TnV35m3"},
 		{"play host is artist (unsupported)", "http://play.spotify.com/artist/4pt28jZ9p8nMW6RdcM8GMg", resolveUnsupportedLink, ""},
 		{"uri form preserves base62 case", "spotify:track:" + id, resolveTrackID, id},
+		{"embedded track", "https://open.spotify.com/embed/track/" + id, resolveTrackID, id},
+		{"legacy embedded uri", "https://open.spotify.com/embed?uri=spotify%3Atrack%3A" + id, resolveTrackID, id},
+		{"short share", "https://spotify.link/hRkBrwub9xb", resolveShareLink, ""},
+		{"schemeless short share", "spotify.link/hRkBrwub9xb", resolveShareLink, ""},
+		{"old short share", "https://spoti.fi/abc123", resolveShareLink, ""},
+		{"open short share", "https://open.spotify.com/s/abc123", resolveShareLink, ""},
 		{"foreign host is text", "https://youtube.com/watch?v=abc", resolveText, ""},
-		{"unknown type segment is text", "https://open.spotify.com/genre/something", resolveText, ""},
-		{"truncated path is text", "https://open.spotify.com/track", resolveText, ""},
-		{"invalid id chars degrade to text", "https://open.spotify.com/track/not_a_real_id!!", resolveText, ""},
-		{"uri with short id degrades to text", "spotify:track:short", resolveText, ""},
-		{"uri wrong arity is text", "spotify:track", resolveText, ""},
+		{"unknown type is invalid", "https://open.spotify.com/genre/something", resolveInvalidLink, ""},
+		{"truncated path is invalid", "https://open.spotify.com/track", resolveInvalidLink, ""},
+		{"invalid id chars", "https://open.spotify.com/track/not_a_real_id!!", resolveInvalidLink, ""},
+		{"uri with short id", "spotify:track:short", resolveInvalidLink, ""},
+		{"uri wrong arity", "spotify:track", resolveInvalidLink, ""},
 		{"playlist link is recognized-unsupported", "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=x", resolveUnsupportedLink, ""},
 		{"podcast uri is recognized-unsupported", "spotify:show:4rOoJ6Egrf8K2IrywzwOMk", resolveUnsupportedLink, ""},
 	}
@@ -43,6 +49,13 @@ func TestClassify(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUnrecognizedURLsKeepDistinctTextCacheKeys(t *testing.T) {
+	first := classify("https://example.com/first")
+	second := classify("https://example.com/second")
+	assert.NotEqual(t, first.cacheKey(), second.cacheKey())
+	assert.NotEmpty(t, first.text)
 }
 
 func TestCacheKeyCollapsesSpellings(t *testing.T) {
@@ -67,7 +80,7 @@ func TestPlanTextSearch(t *testing.T) {
 			name: "song by artist",
 			in:   "mr brightside BY the killers",
 			want: []searchCandidate{
-				{q: `track:"mr brightside" artist:"the killers"`, name: viaFiltered},
+				{q: `track:"mr brightside" artist:"the killers"`, name: viaFiltered, song: "mr brightside", artist: "the killers"},
 				{q: "mr brightside by the killers", name: viaText},
 			},
 		},
@@ -75,7 +88,8 @@ func TestPlanTextSearch(t *testing.T) {
 			name: "artist - song dash convention",
 			in:   "the killers - mr brightside",
 			want: []searchCandidate{
-				{q: `track:"mr brightside" artist:"the killers"`, name: viaFiltered},
+				{q: `track:"mr brightside" artist:"the killers"`, name: viaFiltered, song: "mr brightside", artist: "the killers"},
+				{q: `track:"the killers" artist:"mr brightside"`, name: viaFiltered, song: "the killers", artist: "mr brightside"},
 				{q: "the killers - mr brightside", name: viaText},
 			},
 		},
@@ -83,7 +97,7 @@ func TestPlanTextSearch(t *testing.T) {
 			name: "false by split still plans a fallback",
 			in:   "stand by me",
 			want: []searchCandidate{
-				{q: `track:"stand" artist:"me"`, name: viaFiltered},
+				{q: `track:"stand" artist:"me"`, name: viaFiltered, song: "stand", artist: "me"},
 				{q: "stand by me", name: viaText},
 			},
 		},
@@ -93,10 +107,15 @@ func TestPlanTextSearch(t *testing.T) {
 			want: []searchCandidate{{q: "daft punk one more time", name: viaText}},
 		},
 		{
+			name: "Spotify operators containing by are passed through",
+			in:   `track:"stand by me" artist:"ben e king"`,
+			want: []searchCandidate{{q: `track:"stand by me" artist:"ben e king"`, name: viaText, song: "stand by me", artist: "ben e king", operators: true}},
+		},
+		{
 			name: "inner quotes stripped from qualifiers",
 			in:   `say "hi" by x`,
 			want: []searchCandidate{
-				{q: `track:"say hi" artist:"x"`, name: viaFiltered},
+				{q: `track:"say hi" artist:"x"`, name: viaFiltered, song: "say hi", artist: "x"},
 				{q: `say "hi" by x`, name: viaText},
 			},
 		},
