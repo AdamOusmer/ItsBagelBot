@@ -14,6 +14,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/data"
+	"ItsBagelBot/internal/domain/i18n"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
 	"ItsBagelBot/pkg/codec"
 
@@ -88,6 +89,7 @@ func Loyalty(d engine.Deps) module.Module {
 	m.On("stream.offline", onStreamTick(d, false))
 
 	m.Command("points").Everyone().Cooldown(5 * time.Second).Run(loyaltyRun(d, log, loyaltyCmd.pointsRun))
+	m.Command("watchtime").Everyone().Cooldown(5 * time.Second).Run(loyaltyRun(d, log, loyaltyCmd.watchtimeShow))
 
 	m.Command("leaderboard").Everyone().Cooldown(10 * time.Second).Run(loyaltyRun(d, log, loyaltyCmd.leaderboardShow))
 
@@ -399,6 +401,28 @@ func standingsLine(top []loyaltyrpc.Balance) string {
 		fmt.Fprintf(&b, "%d. %s %d", i+1, name, row.Points)
 	}
 	return b.String()
+}
+
+// watchtimeShow answers "!watchtime" from the caller's existing balance.
+func (lc loyaltyCmd) watchtimeShow(ctx context.Context, _ string) error {
+	viewerID, err := strconv.ParseUint(lc.c.Env.ChatterUserID, 10, 64)
+	if err != nil || viewerID == 0 {
+		return nil
+	}
+	bal, err := lc.d.Loyalty.BalanceGet(ctx, lc.c.BroadcasterID, viewerID)
+	if err != nil {
+		lc.log.Warn("loyalty: watchtime read failed", lc.c.BID(), zap.Error(err))
+		lc.reply("loyalty.counter.err")
+		return nil
+	}
+	// Convert only seconds that fit a signed nanosecond duration.
+	duration := time.Duration(1<<63 - 1)
+	const maxWatchSeconds = uint64((1<<63 - 1) / time.Second)
+	if bal.WatchSeconds <= maxWatchSeconds {
+		duration = time.Duration(bal.WatchSeconds) * time.Second
+	}
+	lc.reply("loyalty.watchtime", "duration", i18n.HumanizeDuration(lc.c.Locale, duration))
+	return nil
 }
 
 func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
