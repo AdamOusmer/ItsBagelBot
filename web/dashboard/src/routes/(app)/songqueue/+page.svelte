@@ -146,6 +146,35 @@
       };
   }
 
+  let connectionAction = $state<'disconnect' | 'clearApp' | null>(null);
+  let connectionBusy = $state(false);
+  let connectionForm = $state<HTMLFormElement | null>(null);
+
+  const connectionSubmit: SubmitFunction = async (submission) => {
+    if (!connectionAction || connectionBusy) {
+      submission.cancel();
+      return;
+    }
+    const action = connectionAction;
+    connectionBusy = true;
+    const handleResult = await formResult(
+      t(action === 'clearApp' ? 'spotify.appRemoved' : 'spotify.disconnectedToast'),
+      t(action === 'clearApp' ? 'spotify.appRemoveFailed' : 'spotify.disconnectFailed'),
+      () => {
+        if (action === 'clearApp') app = { present: false, clientId: '' };
+        connected = false;
+        connectionAction = null;
+      }
+    )(submission);
+    return async (result) => {
+      try {
+        if (handleResult) await handleResult(result);
+      } finally {
+        connectionBusy = false;
+      }
+    };
+  };
+
   let missingScope = $state(false);
 
   const srSubmit: SubmitFunction = ({ formData }) => {
@@ -329,9 +358,7 @@
           <Tag tone="live" mark="solid">{t('spotify.appPill')}</Tag>
           <Code class="setup-code">{app.clientId}</Code>
           <Button variant="secondary" type="button" onclick={() => (editingApp = true)}>{t('spotify.appReplace')}</Button>
-          <form method="POST" action="?/clearApp" use:enhance={formResult(t('spotify.appRemoved'), t('spotify.appRemoveFailed'), () => { app = { present: false, clientId: '' }; connected = false; })}>
-            <Button variant="destructive" type="submit">{t('spotify.appRemove')}</Button>
-          </form>
+          <Button variant="destructive" type="button" onclick={() => (connectionAction = 'clearApp')}>{t('spotify.appRemove')}</Button>
         </div>
         <p class="muted-text small">{t('spotify.appRemoveWarning')}</p>
       {:else}
@@ -361,9 +388,7 @@
         <div class="row">
           <Tag tone="live" mark="solid">{t('spotify.connectedPill')}</Tag>
           <ButtonLink variant="secondary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.reconnectSpotify')}</ButtonLink>
-          <form method="POST" action="?/disconnect" use:enhance={formResult(t('spotify.disconnectedToast'), t('spotify.disconnectFailed'), () => (connected = false))}>
-            <Button variant="destructive" type="submit">{t('spotify.disconnect')}</Button>
-          </form>
+          <Button variant="destructive" type="button" onclick={() => (connectionAction = 'disconnect')}>{t('spotify.disconnect')}</Button>
         </div>
         {#if scopeGap.length}
           <AlertBanner variant="warn">
@@ -544,6 +569,20 @@
     </div>
   {/if}
 </section>
+
+<ConfirmDialog
+  open={connectionAction !== null}
+  title={t(connectionAction === 'clearApp' ? 'spotify.appRemoveTitle' : 'spotify.disconnectTitle')}
+  body={t(connectionAction === 'clearApp' ? 'spotify.appRemoveWarning' : 'spotify.disconnectBody')}
+  confirmLabel={t(connectionAction === 'clearApp' ? 'spotify.appRemove' : 'spotify.disconnect')}
+  cancelLabel={t('spotify.appCancel')}
+  busyLabel={t('spotify.saving')}
+  danger
+  busy={connectionBusy}
+  onCancel={() => (connectionAction = null)}
+  onConfirm={() => connectionForm?.requestSubmit()}
+/>
+<form method="POST" action={connectionAction === 'clearApp' ? '?/clearApp' : '?/disconnect'} use:enhance={connectionSubmit} bind:this={connectionForm} hidden></form>
 
 <ConfirmDialog
   open={deletePending}
