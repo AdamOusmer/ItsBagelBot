@@ -4,12 +4,12 @@
 package spotify
 
 import (
-	"ItsBagelBot/pkg/codec"
 	"context"
 	"net/http"
 	"testing"
 
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,17 +92,21 @@ func TestSearchRecoversArtistWhenBroadResultsOmitCorrectSong(t *testing.T) {
 	}
 }
 
-func TestSearchRecoveryRejectsUnverifiedArtistAndBoundsCalls(t *testing.T) {
+func requestTestSearch(t *testing.T, query string, handler http.HandlerFunc) gossiprpc.SpotifySearchReply {
+	t.Helper()
 	mint, _ := newMintServer(t, "tok-1")
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, handler, mint)
+	return asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
+		ChannelID: "2", Query: query, Limit: 1,
+	}))
+}
+
+func TestSearchRecoveryRejectsUnverifiedArtistAndBoundsCalls(t *testing.T) {
 	calls := 0
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	reply := requestTestSearch(t, "all i wanted paramore", func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		writeSearchTracks(t, w, searchTrack("wrong", "ALL I WANTED WAS YOU", "ily", "EVO"))
 	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-	reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
-		ChannelID: "2", Query: "all i wanted paramore", Limit: 1,
-	}))
 	require.Empty(t, reply.Error)
 	assert.Empty(t, reply.Tracks, "a title match cannot account for the missing artist")
 	assert.LessOrEqual(t, calls, maxTextSearchRequests)
@@ -110,9 +114,8 @@ func TestSearchRecoveryRejectsUnverifiedArtistAndBoundsCalls(t *testing.T) {
 }
 
 func TestSearchRecoveryDoesNotHideSpotifyThrottling(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
 	calls := 0
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	reply := requestTestSearch(t, "all i wanted paramore", func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if calls == 1 {
 			writeSearchTracks(t, w, searchTrack("wrong", "ALL I WANTED WAS YOU", "ily", "EVO"))
@@ -120,35 +123,25 @@ func TestSearchRecoveryDoesNotHideSpotifyThrottling(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusTooManyRequests)
 	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-	reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
-		ChannelID: "2", Query: "all i wanted paramore", Limit: 1,
-	}))
 	assert.NotEmpty(t, reply.Error)
 	assert.Empty(t, reply.Tracks)
 	assert.Equal(t, 2, calls, "an upstream failure stops the recovery plan")
 }
 
 func TestSearchExplicitArtistDoesNotFallBackToAnotherArtist(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
 	calls := 0
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	reply := requestTestSearch(t, "all i wanted by paramore", func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		writeSearchTracks(t, w, searchTrack("wrong", "All I Wanted", "ily"))
 	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-	reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
-		ChannelID: "2", Query: "all i wanted by paramore", Limit: 1,
-	}))
 	assert.Empty(t, reply.Error)
 	assert.Empty(t, reply.Tracks)
 	assert.Equal(t, 2, calls)
 }
 
 func TestSearchLiteralTitleContainingBySurvivesWrongFilteredResults(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
 	calls := 0
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	reply := requestTestSearch(t, "stand by me", func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if calls == 1 {
 			writeSearchTracks(t, w, searchTrack("wrong", "Stand", "Other Artist"))
@@ -156,10 +149,6 @@ func TestSearchLiteralTitleContainingBySurvivesWrongFilteredResults(t *testing.T
 		}
 		writeSearchTracks(t, w, searchTrack("right", "Stand by Me", "Ben E. King"))
 	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-	reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
-		ChannelID: "2", Query: "stand by me", Limit: 1,
-	}))
 	require.Empty(t, reply.Error)
 	require.Len(t, reply.Tracks, 1)
 	assert.Equal(t, "right", reply.Tracks[0].ID)
@@ -167,16 +156,11 @@ func TestSearchLiteralTitleContainingBySurvivesWrongFilteredResults(t *testing.T
 }
 
 func TestSearchLiteralTitleSurvivesFailedInterpretations(t *testing.T) {
-	mint, _ := newMintServer(t, "tok-1")
 	calls := 0
-	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	reply := requestTestSearch(t, "i want it that way", func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		writeSearchTracks(t, w, searchTrack("right", "I Want It That Way", "Backstreet Boys"))
 	})
-	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
-	reply := asReply[gossiprpc.SpotifySearchReply](t, endpoint(t, p, "search")(context.Background(), gossiprpc.Request{
-		ChannelID: "2", Query: "i want it that way", Limit: 1,
-	}))
 	require.Len(t, reply.Tracks, 1)
 	assert.Equal(t, "right", reply.Tracks[0].ID)
 	assert.LessOrEqual(t, calls, maxTextSearchRequests)

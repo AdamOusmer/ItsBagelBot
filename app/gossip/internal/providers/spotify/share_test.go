@@ -4,7 +4,6 @@
 package spotify
 
 import (
-	"ItsBagelBot/pkg/codec"
 	"context"
 	"io"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"ItsBagelBot/app/gossip/internal/core"
 	"ItsBagelBot/app/gossip/internal/provider"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
+	"ItsBagelBot/pkg/codec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

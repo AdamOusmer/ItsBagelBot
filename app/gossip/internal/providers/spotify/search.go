@@ -34,58 +34,95 @@ func (b *textSearchBudget) search(ctx context.Context, candidate searchCandidate
 	return b.p.runSearch(ctx, b.tok, candidate, maxSearchLimit)
 }
 
-func (p *api) searchText(ctx context.Context, tok accessToken, raw string, limit int, broadcaster string) (gossiprpc.SpotifySearchReply, error) {
-	budget := textSearchBudget{p: p, tok: tok, remaining: maxTextSearchRequests, admit: p.rateAdmit(broadcaster)}
-	plan := planTextSearch(raw)
-	plain := gossiprpc.SpotifySearchReply{ResolvedAs: viaText}
-	for _, candidate := range plan {
-		if budget.remaining == 0 {
-			break
-		}
-		reply, err := budget.search(ctx, candidate)
-		if err != nil {
-			return gossiprpc.SpotifySearchReply{}, err
-		}
-		if candidate.song != "" || candidate.artist != "" {
-			reply.Tracks = matchingFields(reply.Tracks, candidate)
-			if len(reply.Tracks) > 0 {
-				return truncateTracks(reply, limit), nil
-			}
-			if candidate.operators {
-				return reply, nil
-			}
-			continue
-		}
-		if candidate.operators {
-			// A genre/year/etc query deliberately asks Spotify for discovery.
-			return truncateTracks(reply, limit), nil
-		}
-		plain = reply
-		rankPlain(plain.Tracks, candidate.q)
-		if len(plain.Tracks) > 0 && completeArtistMatch(candidate.q, plain.Tracks[0]) {
-			return truncateTracks(confidentPlain(plain, raw), limit), nil
-		}
+type textSearchRequest struct {
+	raw         string
+	limit       int
+	broadcaster string
+}
+
+type textSearch struct {
+	budget textSearchBudget
+	raw    string
+	plain  gossiprpc.SpotifySearchReply
+}
+
+func (p *api) searchText(ctx context.Context, tok accessToken, request textSearchRequest) (gossiprpc.SpotifySearchReply, error) {
+	search := textSearch{
+		budget: textSearchBudget{p: p, tok: tok, remaining: maxTextSearchRequests, admit: p.rateAdmit(request.broadcaster)},
+		raw:    request.raw,
+		plain:  gossiprpc.SpotifySearchReply{ResolvedAs: viaText},
 	}
-	confident := confidentPlain(plain, raw)
-	// A title containing "by" can be literal, despite the first convention
-	// attempt. A complete metadata match also overrides a false convention.
+	reply, err := search.resolve(ctx)
+	return truncateTracks(reply, request.limit), err
+}
+
+func (s *textSearch) resolve(ctx context.Context) (gossiprpc.SpotifySearchReply, error) {
+	plan := planTextSearch(s.raw)
+	reply, done, err := s.runPlan(ctx, plan)
+	if err != nil || done {
+		return reply, err
+	}
+	confident := confidentPlain(s.plain, s.raw)
+	// A title containing "by" can be literal despite the first convention.
 	if len(plan) > 1 {
-		return truncateTracks(confident, limit), nil
+		return confident, nil
 	}
-	for _, candidate := range recoveryCandidates(raw, plain.Tracks) {
-		if budget.remaining == 0 {
+	reply, done, err = s.recover(ctx)
+	if err != nil || done {
+		return reply, err
+	}
+	return confident, nil
+}
+
+func (s *textSearch) runPlan(ctx context.Context, plan []searchCandidate) (gossiprpc.SpotifySearchReply, bool, error) {
+	for _, candidate := range plan {
+		if s.budget.remaining == 0 {
 			break
 		}
-		reply, err := budget.search(ctx, candidate)
+		reply, err := s.budget.search(ctx, candidate)
 		if err != nil {
-			return gossiprpc.SpotifySearchReply{}, err
+			return reply, false, err
+		}
+		reply, done := s.evaluate(reply, candidate)
+		if done {
+			return reply, true, nil
+		}
+	}
+	return s.plain, false, nil
+}
+
+func (s *textSearch) evaluate(reply gossiprpc.SpotifySearchReply, candidate searchCandidate) (gossiprpc.SpotifySearchReply, bool) {
+	if candidate.song != "" || candidate.artist != "" {
+		reply.Tracks = matchingFields(reply.Tracks, candidate)
+		return reply, len(reply.Tracks) > 0 || candidate.operators
+	}
+	if candidate.operators {
+		// A genre/year/etc query deliberately asks Spotify for discovery.
+		return reply, true
+	}
+	s.plain = reply
+	rankPlain(s.plain.Tracks, candidate.q)
+	if len(s.plain.Tracks) == 0 {
+		return reply, false
+	}
+	return confidentPlain(s.plain, s.raw), completeArtistMatch(candidate.q, s.plain.Tracks[0])
+}
+
+func (s *textSearch) recover(ctx context.Context) (gossiprpc.SpotifySearchReply, bool, error) {
+	for _, candidate := range recoveryCandidates(s.raw, s.plain.Tracks) {
+		if s.budget.remaining == 0 {
+			break
+		}
+		reply, err := s.budget.search(ctx, candidate)
+		if err != nil {
+			return reply, false, err
 		}
 		reply.Tracks = matchingFields(reply.Tracks, candidate)
 		if len(reply.Tracks) > 0 {
-			return truncateTracks(reply, limit), nil
+			return reply, true, nil
 		}
 	}
-	return truncateTracks(confident, limit), nil
+	return gossiprpc.SpotifySearchReply{}, false, nil
 }
 
 func confidentPlain(reply gossiprpc.SpotifySearchReply, query string) gossiprpc.SpotifySearchReply {
@@ -112,7 +149,7 @@ func rankPlain(tracks []gossiprpc.SpotifyTrack, query string) {
 	}
 }
 
-func plainScore(query []string, track gossiprpc.SpotifyTrack) float64 {
+func plainScore(query matchPhrase, track gossiprpc.SpotifyTrack) float64 {
 	best := 0.8 * similarity(query, matchWords(track.Name))
 	if titleMatch(query, track.Name) {
 		best = 0.86
@@ -146,7 +183,7 @@ func matchingFields(tracks []gossiprpc.SpotifyTrack, candidate searchCandidate) 
 	return matched
 }
 
-func fieldsMatch(track gossiprpc.SpotifyTrack, song, artist []string) bool {
+func fieldsMatch(track gossiprpc.SpotifyTrack, song, artist matchPhrase) bool {
 	if len(song) == 0 && len(artist) == 0 {
 		return false
 	}
@@ -164,7 +201,7 @@ func fieldsMatch(track gossiprpc.SpotifyTrack, song, artist []string) bool {
 	return false
 }
 
-func fieldScore(track gossiprpc.SpotifyTrack, song, artist []string) float64 {
+func fieldScore(track gossiprpc.SpotifyTrack, song, artist matchPhrase) float64 {
 	artistScore := 0.0
 	for _, name := range track.Artists {
 		artistScore = max(artistScore, similarity(artist, matchWords(name)))
@@ -182,7 +219,7 @@ func cleanTrackTitle(name string) string {
 
 // Only delimited release/featured-credit metadata is stripped. User query
 // words and recording markers always remain meaningful.
-func titleMatch(query []string, name string) bool {
+func titleMatch(query matchPhrase, name string) bool {
 	metadata := matchWords(name)
 	if conflictingRecording(query, metadata) {
 		return false
@@ -191,8 +228,8 @@ func titleMatch(query []string, name string) bool {
 		sameIdentity(strings.Join(query, " "), strings.Join(matchWords(cleanTrackTitle(name)), " "))
 }
 
-func artistIdentity(query, metadata []string) bool {
-	clean := func(words []string) string {
+func artistIdentity(query, metadata matchPhrase) bool {
+	clean := func(words matchPhrase) string {
 		if len(words) > 1 && words[0] == "the" {
 			words = words[1:]
 		}
@@ -201,7 +238,7 @@ func artistIdentity(query, metadata []string) bool {
 	return sameIdentity(clean(query), clean(metadata))
 }
 
-func conflictingRecording(query, metadata []string) bool {
+func conflictingRecording(query, metadata matchPhrase) bool {
 	for _, word := range []string{"live", "acoustic", "remix", "cover", "instrumental", "karaoke", "demo", "session"} {
 		if slices.Contains(query, word) != slices.Contains(metadata, word) {
 			return true
@@ -210,8 +247,8 @@ func conflictingRecording(query, metadata []string) bool {
 	return false
 }
 
-// Permit one typo in a sufficiently long name, but never partial artist or
-// title containment. A transposition counts as one typo.
+// Permit one typo in a sufficiently long name, never partial containment.
+// A transposition counts as one typo.
 func sameIdentity(a, b string) bool {
 	if a == "" || b == "" {
 		return false
@@ -220,59 +257,108 @@ func sameIdentity(a, b string) bool {
 		return true
 	}
 	left, right := []rune(a), []rune(b)
-	if min(len(left), len(right)) < 5 || len(left)-len(right) > 1 || len(right)-len(left) > 1 {
+	if !canCorrectTypo(left, right) {
 		return false
 	}
+	return matchesOneTypo(left, right, firstMismatch(left, right))
+}
+
+func canCorrectTypo(left, right []rune) bool {
+	if min(len(left), len(right)) < 5 {
+		return false
+	}
+	return absDifference(len(left), len(right)) <= 1
+}
+
+func absDifference(a, b int) int {
+	return max(a-b, b-a)
+}
+
+func firstMismatch(left, right []rune) int {
 	i := 0
-	for i < min(len(left), len(right)) && left[i] == right[i] {
+	for i < min(len(left), len(right)) {
+		if left[i] != right[i] {
+			break
+		}
 		i++
 	}
-	if len(left) == len(right) {
-		if i+1 < len(left) && left[i] == right[i+1] && left[i+1] == right[i] && slices.Equal(left[i+2:], right[i+2:]) {
-			return true
-		}
-		return slices.Equal(left[i+1:], right[i+1:])
-	}
+	return i
+}
+
+func matchesOneTypo(left, right []rune, i int) bool {
 	if len(left) > len(right) {
 		return slices.Equal(left[i+1:], right[i:])
 	}
-	return slices.Equal(left[i:], right[i+1:])
+	if len(left) < len(right) {
+		return slices.Equal(left[i:], right[i+1:])
+	}
+	return transposedAt(left, right, i) || slices.Equal(left[i+1:], right[i+1:])
+}
+
+func transposedAt(left, right []rune, i int) bool {
+	if i+1 >= len(left) {
+		return false
+	}
+	if left[i] != right[i+1] || left[i+1] != right[i] {
+		return false
+	}
+	return slices.Equal(left[i+2:], right[i+2:])
 }
 
 // Recovery requires a title prefix supported by observed metadata, not an
 // arbitrary split. Prefer the longest title prefix, then artist-last input.
+type scoredCandidate struct {
+	candidate searchCandidate
+	score     float64
+}
+
 func recoveryCandidates(raw string, tracks []gossiprpc.SpotifyTrack) []searchCandidate {
-	type scoredCandidate struct {
-		candidate searchCandidate
-		score     float64
-	}
 	var candidates []scoredCandidate
 	for _, split := range wordSplits(matchWords(raw)) {
-		if slices.Contains([]string{"a", "an", "the", "i", "it", "by", "of", "to", "in", "and"}, strings.Join(split[1], " ")) {
-			continue
-		}
-		score := 0.0
-		for _, track := range tracks {
-			title := matchWords(track.Name)
-			// Harmless release suffixes still support a one-word title.
-			if titleMatch(split[0], track.Name) {
-				score = max(score, 1)
-				continue
-			}
-			if len(split[0]) < 2 || len(split[0]) >= len(title) || !slices.Equal(split[0], title[:len(split[0])]) {
-				continue
-			}
-			score = max(score, similarity(split[0], title))
-		}
-		if score == 0 {
-			continue
-		}
-		candidate, ok := (textSplit{left: strings.Join(split[0], " "), right: strings.Join(split[1], " "), ok: true}).candidate()
-		if ok {
-			candidates = append(candidates, scoredCandidate{candidate, score})
+		if candidate, ok := recoverySplit(split, tracks); ok {
+			candidates = append(candidates, candidate)
 		}
 	}
 	slices.SortStableFunc(candidates, func(a, b scoredCandidate) int { return compareScore(b.score, a.score) })
+	return uniqueRecoveryCandidates(candidates)
+}
+
+func recoverySplit(split [2]matchPhrase, tracks []gossiprpc.SpotifyTrack) (scoredCandidate, bool) {
+	if slices.Contains([]string{"a", "an", "the", "i", "it", "by", "of", "to", "in", "and"}, strings.Join(split[1], " ")) {
+		return scoredCandidate{}, false
+	}
+	score := recoveryScore(split[0], tracks)
+	if score == 0 {
+		return scoredCandidate{}, false
+	}
+	candidate, ok := (textSplit{left: strings.Join(split[0], " "), right: strings.Join(split[1], " "), ok: true}).candidate()
+	return scoredCandidate{candidate, score}, ok
+}
+
+func recoveryScore(song matchPhrase, tracks []gossiprpc.SpotifyTrack) float64 {
+	score := 0.0
+	for _, track := range tracks {
+		score = max(score, titleEvidence(song, track.Name))
+	}
+	return score
+}
+
+func titleEvidence(song matchPhrase, name string) float64 {
+	// Harmless release suffixes still support a one-word title.
+	if titleMatch(song, name) {
+		return 1
+	}
+	title := matchWords(name)
+	if len(song) < 2 || len(song) >= len(title) {
+		return 0
+	}
+	if !slices.Equal(song, title[:len(song)]) {
+		return 0
+	}
+	return similarity(song, title)
+}
+
+func uniqueRecoveryCandidates(candidates []scoredCandidate) []searchCandidate {
 	out := make([]searchCandidate, 0, maxRecoverySearches)
 	for _, scored := range candidates {
 		if slices.ContainsFunc(out, func(c searchCandidate) bool { return c.q == scored.candidate.q }) {
@@ -286,15 +372,17 @@ func recoveryCandidates(raw string, tracks []gossiprpc.SpotifyTrack) []searchCan
 	return out
 }
 
-func wordSplits(words []string) [][2][]string {
-	var out [][2][]string
+func wordSplits(words matchPhrase) [][2]matchPhrase {
+	var out [][2]matchPhrase
 	for i := len(words) - 1; i >= 1; i-- {
-		out = append(out, [2][]string{words[:i], words[i:]}, [2][]string{words[i:], words[:i]})
+		out = append(out, [2]matchPhrase{words[:i], words[i:]}, [2]matchPhrase{words[i:], words[:i]})
 	}
 	return out
 }
 
-func matchWords(s string) []string {
+type matchPhrase []string
+
+func matchWords(s string) matchPhrase {
 	s = strings.Map(func(r rune) rune {
 		switch {
 		case unicode.Is(unicode.Mn, r), r == '\'', r == '’':
@@ -308,7 +396,7 @@ func matchWords(s string) []string {
 	return strings.Fields(s)
 }
 
-func coverage(query, metadata []string) float64 {
+func coverage(query, metadata matchPhrase) float64 {
 	if len(query) == 0 {
 		return 0
 	}
@@ -321,7 +409,7 @@ func coverage(query, metadata []string) float64 {
 	return float64(matched) / float64(len(query))
 }
 
-func similarity(a, b []string) float64 {
+func similarity(a, b matchPhrase) float64 {
 	if len(a) == 0 || len(b) == 0 {
 		return 0
 	}

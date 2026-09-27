@@ -492,7 +492,7 @@ func (p *api) albumTracksFetch(tok accessToken, id string, limit int) searchFetc
 
 func (p *api) textFetch(tok accessToken, raw string, limit int, broadcaster string) searchFetch {
 	return func(ctx context.Context) (gossiprpc.SpotifySearchReply, error) {
-		return p.searchText(ctx, tok, raw, limit, broadcaster)
+		return p.searchText(ctx, tok, textSearchRequest{raw: raw, limit: limit, broadcaster: broadcaster})
 	}
 }
 

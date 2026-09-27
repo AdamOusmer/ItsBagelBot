@@ -43,19 +43,27 @@ func (p *api) shareLinkFetch(tok accessToken, link string, limit int) searchFetc
 func embedTarget(markup string) resolvedInput {
 	tokens := html.NewTokenizer(strings.NewReader(markup))
 	for {
-		switch tokens.Next() {
-		case html.ErrorToken:
+		kind := tokens.Next()
+		if kind == html.ErrorToken {
 			return resolvedInput{kind: resolveText}
-		case html.StartTagToken, html.SelfClosingTagToken:
-			token := tokens.Token()
-			if token.Data != "iframe" {
-				continue
-			}
-			for _, attr := range token.Attr {
-				if attr.Key == "src" {
-					return classifyURL(attr.Val)
-				}
-			}
+		}
+		if kind != html.StartTagToken && kind != html.SelfClosingTagToken {
+			continue
+		}
+		if src, ok := iframeSource(tokens.Token()); ok {
+			return classifyURL(src)
 		}
 	}
+}
+
+func iframeSource(token html.Token) (string, bool) {
+	if token.Data != "iframe" {
+		return "", false
+	}
+	for _, attr := range token.Attr {
+		if attr.Key == "src" {
+			return attr.Val, true
+		}
+	}
+	return "", false
 }

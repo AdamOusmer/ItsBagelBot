@@ -66,29 +66,55 @@ func classify(raw string) resolvedInput {
 	if s == "" {
 		return resolvedInput{kind: resolveText}
 	}
-	lower := strings.ToLower(s)
-	var target resolvedInput
-	switch {
-	case strings.HasPrefix(lower, "spotify:"):
-		target = classifyURI(s)
-	case strings.HasPrefix(lower, "//"):
-		target = classifyURL("https:" + s)
-	case strings.HasPrefix(lower, "https://"), strings.HasPrefix(lower, "http://"):
-		target = classifyURL(s)
-	case strings.HasPrefix(lower, "open.spotify.com/"), strings.HasPrefix(lower, "play.spotify.com/"),
-		strings.HasPrefix(lower, "spotify.link/"), strings.HasPrefix(lower, "spoti.fi/"):
-		target = classifyURL("https://" + s)
-	default:
-		if strings.Contains(lower, "spotify.com/") || strings.Contains(lower, "spotify.link/") || strings.Contains(lower, "spoti.fi/") {
-			target = resolvedInput{kind: resolveInvalidLink}
-		} else {
-			target = resolvedInput{kind: resolveText}
-		}
-	}
+	target := classifyReference(inputReference{raw: s, lower: strings.ToLower(s)})
 	if target.kind == resolveText {
 		target.text = normalizeText(s)
 	}
 	return target
+}
+
+type inputReference struct {
+	raw, lower string
+}
+
+func classifyReference(ref inputReference) resolvedInput {
+	s, lower := ref.raw, ref.lower
+	switch {
+	case strings.HasPrefix(lower, "spotify:"):
+		return classifyURI(s)
+	case strings.HasPrefix(lower, "//"):
+		return classifyURL("https:" + s)
+	case ref.hasWebScheme():
+		return classifyURL(s)
+	case ref.hasBareSpotifyHost():
+		return classifyURL("https://" + s)
+	case ref.containsSpotifyHost():
+		return resolvedInput{kind: resolveInvalidLink}
+	default:
+		return resolvedInput{kind: resolveText}
+	}
+}
+
+func (ref inputReference) hasWebScheme() bool {
+	return strings.HasPrefix(ref.lower, "https://") || strings.HasPrefix(ref.lower, "http://")
+}
+
+func (ref inputReference) hasBareSpotifyHost() bool {
+	for _, host := range []string{"open.spotify.com/", "play.spotify.com/", "spotify.link/", "spoti.fi/"} {
+		if strings.HasPrefix(ref.lower, host) {
+			return true
+		}
+	}
+	return false
+}
+
+func (ref inputReference) containsSpotifyHost() bool {
+	for _, host := range []string{"spotify.com/", "spotify.link/", "spoti.fi/"} {
+		if strings.Contains(ref.lower, host) {
+			return true
+		}
+	}
+	return false
 }
 
 func classifyURI(s string) resolvedInput {
@@ -101,35 +127,68 @@ func classifyURI(s string) resolvedInput {
 
 func classifyURL(raw string) resolvedInput {
 	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") {
+	if err != nil {
 		return resolvedInput{kind: resolveInvalidLink}
 	}
-	host := strings.ToLower(u.Hostname())
-	if (linkHosts[host] || host == "spotify.link" || host == "spoti.fi") &&
-		(u.User != nil || u.Port() != "") {
+	if !validSpotifyURL(u) {
 		return resolvedInput{kind: resolveInvalidLink}
 	}
-	// Short shares are resolved by Spotify's fixed oEmbed endpoint, never by
-	// fuzzy-searching the URL or fetching an arbitrary user-provided host.
-	if host == "spotify.link" || host == "spoti.fi" {
+	host := spotifyHost(strings.ToLower(u.Hostname()))
+	if host.isShare() {
 		return resolvedInput{kind: resolveShareLink, text: u.String()}
 	}
-	if !linkHosts[host] {
+	if !linkHosts[string(host)] {
 		return resolvedInput{kind: resolveText}
 	}
-	segs := strings.Split(strings.Trim(u.Path, "/"), "/")
+	return classifySpotifyPath(u)
+}
+
+type spotifyHost string
+
+func (host spotifyHost) isShare() bool {
+	return host == "spotify.link" || host == "spoti.fi"
+}
+
+func validSpotifyURL(u *url.URL) bool {
+	if u.Scheme != "https" && u.Scheme != "http" {
+		return false
+	}
+	host := spotifyHost(strings.ToLower(u.Hostname()))
+	if !linkHosts[string(host)] && !host.isShare() {
+		return true
+	}
+	return u.User == nil && u.Port() == ""
+}
+
+func classifySpotifyPath(u *url.URL) resolvedInput {
+	segs := catalogPath(strings.Split(strings.Trim(u.Path, "/"), "/"))
 	if len(segs) == 2 && segs[0] == "s" {
 		return resolvedInput{kind: resolveShareLink, text: u.String()}
 	}
+	segs = stripRegionalPath(segs)
+	if len(segs) > 0 && strings.EqualFold(segs[0], "embed") {
+		return classifyEmbedPath(u, segs[1:])
+	}
+	return classifyCatalogPath(segs)
+}
+
+type catalogPath []string
+
+func stripRegionalPath(segs catalogPath) catalogPath {
 	for len(segs) > 0 && strings.HasPrefix(strings.ToLower(segs[0]), "intl-") {
 		segs = segs[1:]
 	}
-	if len(segs) > 0 && strings.EqualFold(segs[0], "embed") {
-		segs = segs[1:]
-		if len(segs) == 0 {
-			return classifyURI(u.Query().Get("uri"))
-		}
+	return segs
+}
+
+func classifyEmbedPath(u *url.URL, segs catalogPath) resolvedInput {
+	if len(segs) == 0 {
+		return classifyURI(u.Query().Get("uri"))
 	}
+	return classifyCatalogPath(segs)
+}
+
+func classifyCatalogPath(segs catalogPath) resolvedInput {
 	if len(segs) != 2 {
 		return resolvedInput{kind: resolveInvalidLink}
 	}
@@ -176,30 +235,32 @@ type searchCandidate struct {
 // candidate whose metadata matches wins; plain text recovers from an
 // incorrect convention split such as a title containing "by".
 func planTextSearch(raw string) []searchCandidate {
-	s := normalizeText(raw)
-	if s == "" {
+	s := normalizedQuery{text: normalizeText(raw)}
+	if s.text == "" {
 		return nil
 	}
-	if candidate, ok := operatorCandidate(s); ok {
+	if candidate, ok := s.operatorCandidate(); ok {
 		return []searchCandidate{candidate}
 	}
-	if first, ok := heuristicCandidate(s); ok {
+	if first, ok := s.heuristicCandidate(); ok {
 		plan := []searchCandidate{first}
-		if !splitBy(s).ok {
-			split := splitDash(s)
+		if !s.splitBy().ok {
+			split := s.splitDash()
 			if reverse, ok := split.candidate(); ok && reverse.q != first.q {
 				plan = append(plan, reverse)
 			}
 		}
-		return append(plan, searchCandidate{q: s, name: viaText})
+		return append(plan, searchCandidate{q: s.text, name: viaText})
 	}
-	return []searchCandidate{{q: s, name: viaText}}
+	return []searchCandidate{{q: s.text, name: viaText}}
 }
 
-func heuristicCandidate(s string) (searchCandidate, bool) {
-	split := splitBy(s)
+type normalizedQuery struct{ text string }
+
+func (s normalizedQuery) heuristicCandidate() (searchCandidate, bool) {
+	split := s.splitBy()
 	if !split.ok {
-		split = splitDash(s)
+		split = s.splitDash()
 		split.swap() // the dash convention orders artist first
 	}
 	if !split.ok {
@@ -229,8 +290,8 @@ func (t textSplit) candidate() (searchCandidate, bool) {
 	}, true
 }
 
-func splitBy(s string) textSplit {
-	fields := strings.Fields(s)
+func (s normalizedQuery) splitBy() textSplit {
+	fields := strings.Fields(s.text)
 	for i := len(fields) - 2; i >= 1; i-- {
 		if !strings.EqualFold(fields[i], "by") {
 			continue
@@ -240,7 +301,8 @@ func splitBy(s string) textSplit {
 	return textSplit{}
 }
 
-func splitDash(s string) textSplit {
+func (q normalizedQuery) splitDash() textSplit {
+	s := q.text
 	i := strings.Index(s, " - ")
 	if i <= 0 || i+3 >= len(s) {
 		return textSplit{}
@@ -254,7 +316,8 @@ func normalizeText(s string) string {
 
 var spotifyFilter = regexp.MustCompile(`(?:^|\s)(track|artist|album|year|upc|isrc|genre|tag):(?:"([^"]+)"|(\S+))`)
 
-func operatorCandidate(s string) (searchCandidate, bool) {
+func (q normalizedQuery) operatorCandidate() (searchCandidate, bool) {
+	s := q.text
 	matches := spotifyFilter.FindAllStringSubmatch(s, -1)
 	if len(matches) == 0 {
 		return searchCandidate{}, false
