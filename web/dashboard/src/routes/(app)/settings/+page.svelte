@@ -249,7 +249,7 @@
   <PageHead eyebrow={t('settings.eyebrow')} description={t('settings.description')}>{t('settings.titlePre')}<em>{t('settings.titleEm')}</em></PageHead>
 
   <div class="layout">
-    <aside class="rail">
+    <aside class="rail" data-lenis-prevent>
       <SectionNav label={t('settings.navSections')} items={navItems} />
       <Card class="board">
         <span class="board-title">{t('settings.boardState')}</span>
@@ -601,6 +601,18 @@
   }
   @media (min-width: 761px) {
     .layout { grid-template-columns: 12rem minmax(0, 1fr); align-items: start; }
+    /* The menu's wrapper is only as tall as its links. Stick the whole rail
+       to the content grid so the board and section links travel together. */
+    .rail {
+      position: sticky;
+      top: var(--bb-tabs-sticky-top);
+      max-height: calc(100dvh - var(--bb-tabs-sticky-top) - 64px);
+      overflow-y: auto;
+      overscroll-behavior-y: contain;
+    }
+    /* One scroll region for the links and board, including short windows. */
+    .rail :global(.bb-tabs) { position: static; max-height: none; }
+    .rail :global(.bb-tabs-host), .rail :global(.board) { flex: none; }
   }
   .rail { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
   .rail :global(.board) { display: none; }
