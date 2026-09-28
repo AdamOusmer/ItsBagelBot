@@ -34,6 +34,7 @@ func wireSpotify(w bus.RPCWiring, creds *repository.SpotifyCreds) error {
 		bus.ServeForUser[spotifyrpc.AppStatusRequest, spotifyrpc.AppStatusReply](custody, dash+".app.status", s.handleAppStatus),
 		bus.ServeForUser[spotifyrpc.RefreshTokenGetRequest, spotifyrpc.RefreshTokenGetReply](custody, internal+".get", s.handleGet),
 		bus.ServeForUser[spotifyrpc.RefreshTokenRotateRequest, spotifyrpc.RefreshTokenMutateReply](custody, internal+".rotate", s.handleRotate),
+		bus.ServeForUser[spotifyrpc.RefreshTokenDeadRequest, spotifyrpc.RefreshTokenMutateReply](custody, internal+".dead", s.handleDead),
 	); err != nil {
 		return err
 	}
@@ -59,11 +60,19 @@ func (s *spotifyRPC) handleClear(ctx context.Context, _ spotifyrpc.RefreshTokenC
 
 func (s *spotifyRPC) handleStatus(ctx context.Context, _ spotifyrpc.RefreshTokenStatusRequest, id uint64) (spotifyrpc.RefreshTokenStatusReply, error) {
 	status, err := s.creds.TokenStatus(ctx, id)
-	return spotifyrpc.RefreshTokenStatusReply{Present: status.Present, Scopes: status.Scopes}, err
+	return spotifyrpc.RefreshTokenStatusReply{
+		Present:        status.Present,
+		Scopes:         status.Scopes,
+		NeedsReconnect: status.NeedsReconnect,
+	}, err
 }
 
 func (s *spotifyRPC) handleRotate(ctx context.Context, req spotifyrpc.RefreshTokenRotateRequest, id uint64) (spotifyrpc.RefreshTokenMutateReply, error) {
 	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.RotateToken(ctx, id, req.PrevToken, req.NewToken)
+}
+
+func (s *spotifyRPC) handleDead(ctx context.Context, req spotifyrpc.RefreshTokenDeadRequest, id uint64) (spotifyrpc.RefreshTokenMutateReply, error) {
+	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.MarkTokenDead(ctx, id, req.Token)
 }
 
 func (s *spotifyRPC) handleGet(ctx context.Context, _ spotifyrpc.RefreshTokenGetRequest, id uint64) (spotifyrpc.RefreshTokenGetReply, error) {

@@ -24,12 +24,14 @@
   let {
     app,
     scopeGap,
+    grantRevoked = false,
     redirectUri,
     onRemoveApp,
     onDisconnect
   }: {
     app: { present: boolean; clientId: string };
     scopeGap: string[];
+    grantRevoked?: boolean;
     redirectUri: string;
     onRemoveApp: () => void;
     onDisconnect: () => void;
@@ -42,7 +44,7 @@
   let saving = $state(false);
   let clientId = $state('');
   let clientSecret = $state('');
-  const needsReconnect = $derived(scopeGap.length > 0);
+  const needsReconnect = $derived(scopeGap.length > 0 || grantRevoked);
 
   function startReplace() {
     clientId = app.clientId;
@@ -92,7 +94,7 @@
 
   {#if needsReconnect}
     <div class="alert-slot"><AlertBanner variant="warn">
-      {t('spotify.scopeGap')}
+      {t(grantRevoked ? 'spotify.grantRevoked' : 'spotify.scopeGap')}
       {#snippet action()}
         <ButtonLink variant="primary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.reconnectSpotify')}</ButtonLink>
       {/snippet}

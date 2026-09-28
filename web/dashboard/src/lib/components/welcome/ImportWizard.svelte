@@ -13,6 +13,7 @@
   import StepRail from '$lib/components/welcome/StepRail.svelte';
   import Completion from '$lib/components/welcome/Completion.svelte';
   import ImportAlert from '$lib/import/ImportAlert.svelte';
+  import ImportFailed from '$lib/import/ImportFailed.svelte';
   import ImportSkipped from '$lib/import/ImportSkipped.svelte';
   import { ImportSession } from '$lib/import/session.svelte';
   import {
@@ -765,6 +766,14 @@
           })}
         </p>
         <ImportSkipped skipped={commitResult.skipped} {t} />
+        <ImportFailed
+          failed={commitResult.failed}
+          retryCount={session.retryCount}
+          submitting={session.submitting}
+          onRetry={() => session.runRetry()}
+          {t}
+        />
+        {#if commitError}<ImportAlert message={commitError} />{/if}
         {#if session.appliedTiles.length}
           <div class="applied">
             {#each session.appliedTiles as a (a.label)}

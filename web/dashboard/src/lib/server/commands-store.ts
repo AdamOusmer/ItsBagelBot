@@ -133,14 +133,16 @@ export interface CommandInput {
   cooldown: number;
   allowedUserId: string;
   bumpCounter: string;
+  restoreUses?: number;
 }
 
 export async function upsertCommand(
   userId: string,
   cmd: CommandInput,
   originalName?: string
-): Promise<{ commands: CommandView[] }> {
-  await rpc(`${SUB.commands}.upsert`, {
+): Promise<{ commands: CommandView[]; restored: boolean }> {
+  const canRestore = !originalName && (cmd.restoreUses ?? 0) > 0;
+  const reply = await rpc<{ restored?: boolean }>(`${SUB.commands}.upsert`, {
     user_id: userId,
     name: cmd.name,
     aliases: cmd.aliases,
@@ -151,11 +153,14 @@ export async function upsertCommand(
     cooldown: cmd.cooldown,
     allowed_user_id: cmd.allowedUserId,
     bump_counter: cmd.bumpCounter,
-    original_name: originalName ?? ''
+    original_name: originalName ?? '',
+    restore_uses: canRestore ? cmd.restoreUses : undefined
   });
+  const restored = canRestore && reply?.restored === true;
   try {
     const current = await listCommands(userId);
     let commands = current;
+    const previous = current.find((c) => c.name === (originalName ?? cmd.name));
     if (originalName && originalName !== cmd.name) {
       commands = commands.filter((c) => c.name !== originalName);
     }
@@ -169,7 +174,8 @@ export async function upsertCommand(
       cooldown: cmd.cooldown,
       allowed_user_id: cmd.allowedUserId,
       bump_counter: cmd.bumpCounter,
-      uses: current.find((c) => c.name === (originalName ?? cmd.name))?.uses
+      uses: restored ? String(cmd.restoreUses) : previous?.uses,
+      created_at: previous?.created_at
     };
     let merged = false;
     commands = commands.map((v) => {
@@ -183,10 +189,10 @@ export async function upsertCommand(
 
     const synced = (await replaceProjected('commands', userId, commands)) !== null;
     commitOptimistic(cacheKey('commands', userId), commands, synced);
-    return { commands };
+    return { commands, restored };
   } catch {
     invalidate(cacheKey('commands', userId));
-    return { commands: [] };
+    return { commands: [], restored };
   }
 }
 

@@ -58,6 +58,7 @@ type UserView struct {
 	SubscriptionExpiresAt     *time.Time `json:"subscription_expires_at,omitempty"`
 	SubscriptionRef           *string    `json:"subscription_ref,omitempty"`
 	SubscriptionCancelPending bool       `json:"subscription_cancel_pending"`
+	SubscriptionPaymentFailed bool       `json:"subscription_payment_failed"`
 	Onboarded                 bool       `json:"onboarded"`
 }
 
@@ -198,6 +199,7 @@ func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
 				SubscriptionExpiresAt:     u.SubscriptionExpiresAt,
 				SubscriptionRef:           u.SubscriptionRef,
 				SubscriptionCancelPending: u.SubscriptionCancelPending,
+				SubscriptionPaymentFailed: u.SubscriptionPaymentFailed,
 				Onboarded:                 u.Onboarded,
 			}, nil
 		})

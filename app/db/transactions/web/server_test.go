@@ -509,3 +509,36 @@ func TestGiftNotificationFailureDoesNotFailWebhook(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	require.Len(t, store.changes, 1)
 }
+
+func TestPaymentDeclinedMapsOnlyRecurringAttributableDeclines(t *testing.T) {
+	cases := []struct {
+		name       string
+		subject    string
+		wantAction billingrpc.Action
+	}{
+		{"renewal decline", `{"transaction_id":"tbx-1","recurring_payment_reference":"tbx-r-9","custom":{"user_id":"1001"}}`, billingrpc.ActionPaymentFailed},
+		{"one-off decline", `{"transaction_id":"tbx-2","custom":{"user_id":"1001"}}`, ""},
+		{"recurring decline without user", `{"transaction_id":"tbx-3","recurring_payment_reference":"tbx-r-9"}`, ""},
+	}
+	for _, tc := range cases {
+		store := &fakeStore{}
+		app := newTestApp(store)
+		body := `{"id":"evt-declined","type":"payment.declined","date":"2026-07-02T00:00:00+00:00","subject":` + tc.subject + `}`
+
+		resp := doWebhook(t, app, body, true)
+		resp.Body.Close()
+
+		assert.Equal(t, http.StatusNoContent, resp.StatusCode, tc.name)
+		require.Len(t, store.events, 1, tc.name)
+		if tc.wantAction == "" {
+			assert.Empty(t, store.changes, tc.name)
+			assert.Equal(t, repository.WebhookIgnored, store.events[0].Status, tc.name)
+			continue
+		}
+		require.Len(t, store.changes, 1, tc.name)
+		assert.Equal(t, tc.wantAction, store.changes[0].Action, tc.name)
+		assert.Equal(t, "tbx-r-9", store.changes[0].RecurringReference, tc.name)
+		assert.Nil(t, store.changes[0].ExpiresAt, tc.name)
+		assert.Equal(t, repository.WebhookProcessed, store.events[0].Status, tc.name)
+	}
+}

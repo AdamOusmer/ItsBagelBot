@@ -39,11 +39,7 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 	if u.Status == user.StatusVip {
 		return false, nil
 	}
-	if req.Action == billingrpc.ActionRevoke && u.SubscriptionSource != "tebex" {
-		return false, nil
-	}
-	if req.Action == billingrpc.ActionRevoke && req.RecurringReference != "" &&
-		u.SubscriptionRef != nil && *u.SubscriptionRef != req.RecurringReference {
+	if ignoresTebexScoped(u, req) {
 		return false, nil
 	}
 
@@ -52,24 +48,8 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 			user.IDEQ(req.UserID),
 			user.Or(user.BillingEventAtIsNil(), user.BillingEventAtLTE(req.OccurredAt)),
 		)
-		switch req.Action {
-		case billingrpc.ActionActivate, billingrpc.ActionCancelAborted:
-			applyPaidUpdate(q, req, false, u.SubscriptionExpiresAt)
-
-		case billingrpc.ActionCancelRequested:
-			applyPaidUpdate(q, req, true, u.SubscriptionExpiresAt)
-
-		case billingrpc.ActionRevoke:
-			q.SetStatus(user.StatusFree).
-				SetSubscriptionSource("").
-				SetSubscriptionCancelPending(false).
-				ClearSubscriptionExpiresAt().
-				ClearSubscriptionRef().
-				SetBillingEventAt(req.OccurredAt).
-				SetBillingEventID(req.EventID)
-
-		default:
-			return 0, errors.New("invalid billing action")
+		if err := applyBillingAction(q, u, req); err != nil {
+			return 0, err
 		}
 		return q.Save(ctx)
 	})
@@ -84,6 +64,53 @@ func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (
 		return false, err
 	}
 	return true, nil
+}
+
+func applyBillingAction(q *ent.UserUpdate, u *ent.User, req billingrpc.ApplyRequest) error {
+	switch req.Action {
+	case billingrpc.ActionActivate:
+		applyPaidUpdate(q, req, false, u.SubscriptionExpiresAt)
+		q.SetSubscriptionPaymentFailed(false)
+
+	case billingrpc.ActionCancelAborted:
+		applyPaidUpdate(q, req, false, u.SubscriptionExpiresAt)
+
+	case billingrpc.ActionCancelRequested:
+		applyPaidUpdate(q, req, true, u.SubscriptionExpiresAt)
+
+	case billingrpc.ActionPaymentFailed:
+		q.SetSubscriptionPaymentFailed(true).
+			SetBillingEventAt(req.OccurredAt).
+			SetBillingEventID(req.EventID)
+
+	case billingrpc.ActionRevoke:
+		q.SetStatus(user.StatusFree).
+			SetSubscriptionSource("").
+			SetSubscriptionCancelPending(false).
+			SetSubscriptionPaymentFailed(false).
+			ClearSubscriptionExpiresAt().
+			ClearSubscriptionRef().
+			SetBillingEventAt(req.OccurredAt).
+			SetBillingEventID(req.EventID)
+
+	default:
+		return errors.New("invalid billing action")
+	}
+	return nil
+}
+
+func tebexScoped(action billingrpc.Action) bool {
+	return action == billingrpc.ActionRevoke || action == billingrpc.ActionPaymentFailed
+}
+
+func ignoresTebexScoped(u *ent.User, req billingrpc.ApplyRequest) bool {
+	if !tebexScoped(req.Action) {
+		return false
+	}
+	if u.SubscriptionSource != "tebex" {
+		return true
+	}
+	return req.RecurringReference != "" && u.SubscriptionRef != nil && *u.SubscriptionRef != req.RecurringReference
 }
 
 // Best effort: failing here makes Tebex retry and re-apply the entitlement.
@@ -129,6 +156,7 @@ func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Statu
 		q := r.client.User.UpdateOneID(id).
 			SetStatus(status).
 			SetSubscriptionCancelPending(false).
+			SetSubscriptionPaymentFailed(false).
 			ClearSubscriptionRef().
 			SetBillingEventAt(time.Now()).
 			ClearBillingEventID()
@@ -185,6 +213,7 @@ func (r *Users) ExpireSubscriptions(ctx context.Context, now time.Time, tebexGra
 				SetStatus(user.StatusFree).
 				SetSubscriptionSource("").
 				SetSubscriptionCancelPending(false).
+				SetSubscriptionPaymentFailed(false).
 				ClearSubscriptionExpiresAt().
 				ClearSubscriptionRef().
 				Save(ctx)

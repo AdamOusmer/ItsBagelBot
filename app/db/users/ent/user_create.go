@@ -224,6 +224,20 @@ func (_c *UserCreate) SetNillableSubscriptionCancelPending(v *bool) *UserCreate 
 	return _c
 }
 
+// SetSubscriptionPaymentFailed sets the "subscription_payment_failed" field.
+func (_c *UserCreate) SetSubscriptionPaymentFailed(v bool) *UserCreate {
+	_c.mutation.SetSubscriptionPaymentFailed(v)
+	return _c
+}
+
+// SetNillableSubscriptionPaymentFailed sets the "subscription_payment_failed" field if the given value is not nil.
+func (_c *UserCreate) SetNillableSubscriptionPaymentFailed(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetSubscriptionPaymentFailed(*v)
+	}
+	return _c
+}
+
 // SetBillingEventAt sets the "billing_event_at" field.
 func (_c *UserCreate) SetBillingEventAt(v time.Time) *UserCreate {
 	_c.mutation.SetBillingEventAt(v)
@@ -435,6 +449,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultSubscriptionCancelPending
 		_c.mutation.SetSubscriptionCancelPending(v)
 	}
+	if _, ok := _c.mutation.SubscriptionPaymentFailed(); !ok {
+		v := user.DefaultSubscriptionPaymentFailed
+		_c.mutation.SetSubscriptionPaymentFailed(v)
+	}
 	if _, ok := _c.mutation.GiftsSent(); !ok {
 		v := user.DefaultGiftsSent
 		_c.mutation.SetGiftsSent(v)
@@ -536,6 +554,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.SubscriptionCancelPending(); !ok {
 		return &ValidationError{Name: "subscription_cancel_pending", err: errors.New(`ent: missing required field "User.subscription_cancel_pending"`)}
+	}
+	if _, ok := _c.mutation.SubscriptionPaymentFailed(); !ok {
+		return &ValidationError{Name: "subscription_payment_failed", err: errors.New(`ent: missing required field "User.subscription_payment_failed"`)}
 	}
 	if _, ok := _c.mutation.GiftsSent(); !ok {
 		return &ValidationError{Name: "gifts_sent", err: errors.New(`ent: missing required field "User.gifts_sent"`)}
@@ -648,6 +669,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SubscriptionCancelPending(); ok {
 		_spec.SetField(user.FieldSubscriptionCancelPending, field.TypeBool, value)
 		_node.SubscriptionCancelPending = value
+	}
+	if value, ok := _c.mutation.SubscriptionPaymentFailed(); ok {
+		_spec.SetField(user.FieldSubscriptionPaymentFailed, field.TypeBool, value)
+		_node.SubscriptionPaymentFailed = value
 	}
 	if value, ok := _c.mutation.BillingEventAt(); ok {
 		_spec.SetField(user.FieldBillingEventAt, field.TypeTime, value)
@@ -980,6 +1005,18 @@ func (u *UserUpsert) SetSubscriptionCancelPending(v bool) *UserUpsert {
 // UpdateSubscriptionCancelPending sets the "subscription_cancel_pending" field to the value that was provided on create.
 func (u *UserUpsert) UpdateSubscriptionCancelPending() *UserUpsert {
 	u.SetExcluded(user.FieldSubscriptionCancelPending)
+	return u
+}
+
+// SetSubscriptionPaymentFailed sets the "subscription_payment_failed" field.
+func (u *UserUpsert) SetSubscriptionPaymentFailed(v bool) *UserUpsert {
+	u.Set(user.FieldSubscriptionPaymentFailed, v)
+	return u
+}
+
+// UpdateSubscriptionPaymentFailed sets the "subscription_payment_failed" field to the value that was provided on create.
+func (u *UserUpsert) UpdateSubscriptionPaymentFailed() *UserUpsert {
+	u.SetExcluded(user.FieldSubscriptionPaymentFailed)
 	return u
 }
 
@@ -1389,6 +1426,20 @@ func (u *UserUpsertOne) SetSubscriptionCancelPending(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateSubscriptionCancelPending() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSubscriptionCancelPending()
+	})
+}
+
+// SetSubscriptionPaymentFailed sets the "subscription_payment_failed" field.
+func (u *UserUpsertOne) SetSubscriptionPaymentFailed(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSubscriptionPaymentFailed(v)
+	})
+}
+
+// UpdateSubscriptionPaymentFailed sets the "subscription_payment_failed" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateSubscriptionPaymentFailed() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSubscriptionPaymentFailed()
 	})
 }
 
@@ -1981,6 +2032,20 @@ func (u *UserUpsertBulk) SetSubscriptionCancelPending(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateSubscriptionCancelPending() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSubscriptionCancelPending()
+	})
+}
+
+// SetSubscriptionPaymentFailed sets the "subscription_payment_failed" field.
+func (u *UserUpsertBulk) SetSubscriptionPaymentFailed(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSubscriptionPaymentFailed(v)
+	})
+}
+
+// UpdateSubscriptionPaymentFailed sets the "subscription_payment_failed" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateSubscriptionPaymentFailed() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSubscriptionPaymentFailed()
 	})
 }
 

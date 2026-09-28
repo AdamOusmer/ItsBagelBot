@@ -201,6 +201,11 @@ async function patchBuiltin(
   throw new Error(`Built-in command ${def.id} changed during save`);
 }
 
+function parseRestoreUses(raw: FormDataEntryValue | null): number {
+  const n = Math.floor(Number(raw ?? 0));
+  return Number.isSafeInteger(n) && n > 0 ? n : 0;
+}
+
 // parseSaveForm reads the editor's submission: the shared command fields plus
 // the edit/rename bookkeeping. A rename passes original_name so the commands
 // service updates the row's name field in place (single write) instead of
@@ -211,6 +216,7 @@ function parseSaveForm(f: FormData) {
   const originalName = normName(String(f.get('original_name') ?? ''));
   return {
     cmd,
+    restoreUses: isEdit ? 0 : parseRestoreUses(f.get('restore_uses')),
     isActive: f.get('is_active') === 'on',
     isEdit,
     originalName,
@@ -218,12 +224,13 @@ function parseSaveForm(f: FormData) {
   };
 }
 
-function saveResult(s: ReturnType<typeof parseSaveForm>, commands: CommandView[]) {
+function saveResult(s: ReturnType<typeof parseSaveForm>, commands: CommandView[], restored = false) {
   return {
     ok: true,
     action: s.isEdit ? 'updated' : 'created',
     name: s.cmd.name,
     original: s.renamed ? s.originalName : undefined,
+    restored,
     commands
   };
 }
@@ -290,12 +297,16 @@ export const actions: Actions = {
     if (blocked) return blocked;
 
     const res = await tryRpc('save', () =>
-      upsertCommand(ctx.uid, { ...s.cmd, isActive: s.isActive }, s.renamed ? s.originalName : undefined)
+      upsertCommand(
+        ctx.uid,
+        { ...s.cmd, isActive: s.isActive, restoreUses: s.restoreUses },
+        s.renamed ? s.originalName : undefined
+      )
     );
     if (!res.ok) return fail(400, { ok: false });
 
     auditDashboardImpersonation(ctx.session, s.isEdit ? 'command:update' : 'command:create', s.cmd.name);
-    return saveResult(s, res.value.commands);
+    return saveResult(s, res.value.commands, res.value.restored);
   },
 
   toggle: async (event) => {

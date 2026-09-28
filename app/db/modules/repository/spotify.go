@@ -42,8 +42,9 @@ type SpotifyGrant struct {
 }
 
 type SpotifyGrantStatus struct {
-	Present bool
-	Scopes  []string
+	Present        bool
+	Scopes         []string
+	NeedsReconnect bool
 }
 
 type SpotifyCreds struct {
@@ -104,7 +105,7 @@ func (s *SpotifyCreds) SetToken(ctx context.Context, userID uint64, grant Spotif
 		return create.
 			OnConflictColumns(spotifycredential.FieldUserID).
 			Update(func(u *ent.SpotifyCredentialUpsert) {
-				u.SetTokenEnc(sealed.Ciphertext).SetUpdatedAt(time.Now())
+				u.SetTokenEnc(sealed.Ciphertext).ClearRefreshFailedAt().SetUpdatedAt(time.Now())
 				if grant.Scopes != nil {
 					u.SetScopes(joined)
 				}
@@ -218,6 +219,34 @@ func (s *SpotifyCreds) ClearToken(ctx context.Context, userID uint64) error {
 		_, err := s.client.SpotifyCredential.Update().
 			Where(spotifycredential.UserIDEQ(userID)).
 			ClearTokenEnc().
+			ClearRefreshFailedAt().
+			Save(ctx)
+		return err
+	})
+}
+
+func (s *SpotifyCreds) MarkTokenDead(ctx context.Context, userID uint64, token string) error {
+	row, err := s.tokenRow(ctx, userID)
+	if errors.Is(err, ErrNoSpotifyToken) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	current, err := s.tokenFromRow(row)
+	if errors.Is(err, ErrNoSpotifyToken) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if current != token || row.RefreshFailedAt != nil {
+		return nil
+	}
+	return s.write(ctx, userID, func(ctx context.Context) error {
+		_, err := s.client.SpotifyCredential.Update().
+			Where(spotifycredential.UserIDEQ(userID)).
+			SetRefreshFailedAt(time.Now()).
 			Save(ctx)
 		return err
 	})
@@ -269,7 +298,11 @@ func (s *SpotifyCreds) TokenStatus(ctx context.Context, userID uint64) (SpotifyG
 	case len(row.TokenEnc) == 0:
 		return SpotifyGrantStatus{}, nil
 	default:
-		return SpotifyGrantStatus{Present: true, Scopes: strings.Fields(row.Scopes)}, nil
+		return SpotifyGrantStatus{
+			Present:        true,
+			Scopes:         strings.Fields(row.Scopes),
+			NeedsReconnect: row.RefreshFailedAt != nil,
+		}, nil
 	}
 }
 

@@ -1136,7 +1136,10 @@
     "endsSoon": "Se termine",
     "resumeSubscription": "Reprendre l’abonnement",
     "takingToCheckout": "Redirection vers le paiement sécurisé",
-    "activating": "Activation"
+    "activating": "Activation",
+    "paymentFailed": "Le dernier paiement de renouvellement a échoué. Mets à jour ton moyen de paiement sur Tebex pour garder Premium.",
+    "updatePayment": "Mettre à jour le moyen de paiement",
+    "receiptsEmailed": "Tebex envoie un reçu à ton courriel d'achat après chaque paiement."
   },
   "builtinInspector": {
     "enabled": "Activée",
@@ -1508,7 +1511,9 @@
         "name": "eau",
         "response": "Petit rappel : buvez un peu d'eau et étirez-vous. Le chat aussi, oui."
       }
-    }
+    },
+    "sortRecent": "Ajoutées récemment",
+    "toastRestoredResets": "Commande !{name} restaurée. Son compteur d'utilisation est reparti de zéro."
   },
   "serverErrors": {
     "notSignedIn": "Vous n’êtes pas connecté.",
@@ -2061,7 +2066,9 @@
     "staffRolesNoMatch": "Aucun rôle ne correspond.",
     "staffRoleMissing": "@{id} n’existe plus",
     "staffRoleMissingHelp": "Un rôle sélectionné a été supprimé du serveur. Décochez-le pour l’effacer.",
-    "embedCount": "{n}/{max}"
+    "embedCount": "{n}/{max}",
+    "botCannotPost": "Bagel ne peut pas écrire ici",
+    "savedChannelBlocked": "Bagel ne peut plus écrire dans le salon enregistré. Donnez-lui la permission Envoyer des messages, ou choisissez un autre salon."
   },
   "fetches": {
     "builderNew": "+ Nouvelle source",
@@ -2413,7 +2420,15 @@
     "importAnother": "Importer depuis un autre bot",
     "leaveTitle": "Quitter l’import ?",
     "leaveBody": "Votre révision est conservée. Choisissez à nouveau Commencer l’importation pour reprendre là où vous en étiez.",
-    "leaveStay": "Rester ici"
+    "leaveStay": "Rester ici",
+    "failedHead": "{n} élément(s) n'ont pas pu être importés.",
+    "failedReason": {
+      "rejected": "refusé",
+      "invalid": "invalide",
+      "module": "module indisponible"
+    },
+    "retryFailed": "Réessayer les échecs ({n})",
+    "toastRetried": "Nouvelle tentative terminée."
   },
   "install": {
     "cta": "Installer l’app",
@@ -4083,7 +4098,15 @@
     "connectionTitle": "Connexion",
     "accountLabel": "Compte",
     "appLabel": "Application Spotify",
-    "needsReconnectPill": "Reconnexion requise"
+    "needsReconnectPill": "Reconnexion requise",
+    "queueSkip": "Passer",
+    "queueProgressLabel": "{elapsed} écoulées sur {duration}",
+    "skipped": "Piste actuelle passée.",
+    "skipFailed": "Impossible de passer la piste. Réessayez dans un instant.",
+    "skipNoDevice": "Aucun appareil Spotify actif. Lancez d'abord une lecture.",
+    "skipPremium": "Passer une piste nécessite Spotify Premium.",
+    "skipReauth": "Spotify n'accepte plus cette connexion. Reconnectez-la puis réessayez.",
+    "grantRevoked": "Spotify n'accepte plus cette connexion, les demandes de chansons sont donc en pause. Reconnectez-vous pour les reprendre."
   },
   "stats": {
     "title": "Statistiques en direct",

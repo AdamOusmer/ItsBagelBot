@@ -54,4 +54,14 @@ describe('Spotify queue card', () => {
     const view = shapeQueue({ up: [entry('waiting', 'alice')] }, null, now);
     expect(view.up[0].title).toBe('waiting');
   });
+
+  test.each([
+    ['attached for the current request', 'playing', { progress_ms: 42_000, duration_ms: 180_000, playing: true }, { positionMs: 42_000, durationMs: 180_000, playing: true }],
+    ['clamped to the duration', 'playing', { progress_ms: 999_000, duration_ms: 180_000 }, { positionMs: 180_000, durationMs: 180_000, playing: false }],
+    ['absent from an older service', 'playing', {}, undefined],
+    ['absent when another track is current', 'external', { progress_ms: 1, duration_ms: 180_000 }, undefined]
+  ])('progress is %s', (_name, currentId, wire, expected) => {
+    const view = shapeQueue({ current: entry('playing', 'alice'), up: [] }, { current: { id: currentId }, up_next: [], ...wire }, now);
+    expect(view.progress).toEqual(expected);
+  });
 });

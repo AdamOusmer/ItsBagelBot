@@ -27,6 +27,7 @@ export interface CommandView {
   allowed_user_id?: string;
   bump_counter?: string;
   uses?: string;
+  created_at?: number;
   builtin?: boolean;
 }
 
@@ -149,6 +150,9 @@ export type {
   AutomodTerms,
   CollisionRef,
   ImportDiagnostic,
+  ImportFailedItem,
+  ImportFailedKind,
+  ImportFailedReason,
   ImportManifest,
   ImportSource,
   ImportStats,

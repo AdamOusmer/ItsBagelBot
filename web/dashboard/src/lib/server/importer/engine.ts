@@ -21,11 +21,15 @@ import type { Session } from '../session';
 import { invalidate, SUB } from '../services';
 import { listCommands, listModules, upsertCommand } from '../commands-store';
 import { addQuote } from '../quotes-store';
-import { rpc } from '@bagel/kit/server/nats';
+import { rpc, RpcError } from '@bagel/kit/server/nats';
+import { rowLabel, type RowKind } from '../../import/helpers';
 import { logger } from '@bagel/kit/server/logger';
 import type {
   CommitResponse,
   ImportDiagnostic,
+  ImportFailedItem,
+  ImportFailedKind,
+  ImportFailedReason,
   ImportManifest,
   ImportSource,
   ImportStats,
@@ -147,6 +151,7 @@ interface CommitContext {
   skipCommands: Set<string>;
   collisions: CommitResponse['skipped'];
   diags: ImportDiagnostic[];
+  failures: ImportFailedItem[];
   applied: ImportStats;
   modules: Awaited<ReturnType<typeof listModules>> | null;
 }
@@ -164,6 +169,7 @@ export async function commitImport(s: Session, req: ImportCommitRequest): Promis
     skipCommands: new Set(),
     collisions: [],
     diags,
+    failures: [],
     applied: emptyStats(),
     modules: null
   };
@@ -182,7 +188,12 @@ export async function commitImport(s: Session, req: ImportCommitRequest): Promis
 
   invalidate(`commands:${ctx.uid}`, `modules:${ctx.uid}`);
   logCommit(ctx);
-  return { applied: ctx.applied, skipped: ctx.collisions, diagnostics: ctx.diags };
+  return {
+    applied: ctx.applied,
+    skipped: ctx.collisions,
+    ...(ctx.failures.length > 0 && { failed: ctx.failures }),
+    diagnostics: ctx.diags
+  };
 }
 
 async function commandNamesOrWarn(ctx: CommitContext): Promise<string[] | null> {
@@ -224,6 +235,30 @@ async function patchModule(ctx: CommitContext, patch: ModulePatch): Promise<void
   await rpc(`${SUB.modules}.patch`, { user_id: ctx.uid, name: patch.name, is_enabled: true, configs: patch.configs });
 }
 
+interface Failure {
+  kind: ImportFailedKind;
+  name: string;
+  reason: ImportFailedReason;
+}
+
+function recordFailure(ctx: CommitContext, failure: Failure, err: unknown): void {
+  if (!(err instanceof RpcError)) throw err;
+  ctx.failures.push(failure);
+}
+
+function failRow(ctx: CommitContext, kind: RowKind, idx: number, reason: ImportFailedReason, err: unknown): void {
+  const failureKind = FAILED_KIND[kind];
+  recordFailure(ctx, { kind: failureKind, name: rowLabel(kind, ctx.manifest[kind]![idx]), reason }, err);
+  ctx.diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
+}
+
+const FAILED_KIND: Record<RowKind, Exclude<ImportFailedKind, 'automod'>> = {
+  commands: 'command',
+  timers: 'timer',
+  triggers: 'trigger',
+  quotes: 'quote'
+};
+
 async function commitCommands(ctx: CommitContext): Promise<void> {
   const targets = (ctx.manifest.commands ?? [])
     .map((cmd, idx) => ({ cmd, idx }))
@@ -256,12 +291,21 @@ async function upsertOneCommand(ctx: CommitContext, target: CommandTarget): Prom
     });
     ctx.applied.commands++;
   } catch (err) {
-    ctx.diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
+    failRow(ctx, 'commands', idx, 'rejected', err);
   }
 }
 
+function failUnavailableModules(ctx: CommitContext): void {
+  for (const kind of ['timers', 'triggers'] as const) {
+    for (const idx of eligibleIndexes(ctx, kind)) {
+      ctx.failures.push({ kind: FAILED_KIND[kind], name: rowLabel(kind, ctx.manifest[kind]![idx]), reason: 'module' });
+    }
+  }
+  if (ctx.manifest.automod) ctx.failures.push({ kind: 'automod', name: 'automod', reason: 'module' });
+}
+
 async function commitTimersAndTriggers(ctx: CommitContext): Promise<void> {
-  if (!ctx.modules) return;
+  if (!ctx.modules) return failUnavailableModules(ctx);
   await applyTimers(ctx, moduleBlob(ctx, 'timers'));
   await applyTriggers(ctx, moduleBlob(ctx, 'triggers'));
 }
@@ -277,7 +321,7 @@ async function commitQuotes(ctx: CommitContext): Promise<void> {
       });
       ctx.applied.quotes++;
     } catch (err) {
-      ctx.diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
+      failRow(ctx, 'quotes', idx, 'rejected', err);
     }
   }
 }
@@ -346,7 +390,7 @@ async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): P
     await patchModule(ctx, { name: 'timers', configs: { timers: merged } });
     ctx.applied.timers += targets.length;
   } catch (err) {
-    ctx.diags.push(errorDiag(-1, CODE.writeFailed, `module timers patch failed: ${String(err)}`));
+    for (const idx of targets) failRow(ctx, 'timers', idx, 'module', err);
   }
 }
 
@@ -359,23 +403,24 @@ async function applyTriggers(ctx: CommitContext, blob: Record<string, unknown>):
     .trim()
     .split('\n')
     .filter((l) => l.trim() !== '');
-  let landed = 0;
+  const landed: number[] = [];
   for (const idx of targets) {
     const tr = ctx.manifest.triggers![idx];
     const problem = triggerLineProblem(tr);
     if (problem) {
       ctx.diags.push(errorDiag(idx, CODE.triggerInvalid, problem));
+      ctx.failures.push({ kind: 'trigger', name: rowLabel('triggers', tr), reason: 'invalid' });
       continue;
     }
     lines.push(`${tr.phrase.trim()} => ${tr.response.trim()}`);
-    landed++;
+    landed.push(idx);
   }
-  if (landed === 0) return;
+  if (landed.length === 0) return;
   try {
     await patchModule(ctx, { name: 'triggers', configs: { rules: lines.join('\n') } });
-    ctx.applied.triggers += landed;
+    ctx.applied.triggers += landed.length;
   } catch (err) {
-    ctx.diags.push(errorDiag(-1, CODE.writeFailed, `module triggers patch failed: ${String(err)}`));
+    for (const idx of landed) failRow(ctx, 'triggers', idx, 'module', err);
   }
 }
 
@@ -402,6 +447,7 @@ async function applyAutomodTerms(ctx: CommitContext, blob: Record<string, unknow
   try {
     await patchModule(ctx, { name: 'automod', configs: partial });
   } catch (err) {
+    recordFailure(ctx, { kind: 'automod', name: 'automod', reason: 'module' }, err);
     ctx.diags.push(errorDiag(-1, CODE.writeFailed, `module automod patch failed: ${String(err)}`));
   }
 }

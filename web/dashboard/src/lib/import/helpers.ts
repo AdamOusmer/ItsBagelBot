@@ -1,10 +1,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { normalizeName } from '@bagel/kit/importer/validate';
 import type {
   CollisionRef,
+  CommitResponse,
   ImportDiagnostic,
+  ImportFailedItem,
+  ImportFailedKind,
   ImportManifest,
+  ImportStats,
   PreviewResponse
 } from '@bagel/kit';
 
@@ -93,4 +98,64 @@ export function capSkipped(
 ): { shown: CollisionRef[]; more: number } {
   const all = skipped ?? [];
   return { shown: all.slice(0, cap), more: Math.max(all.length - cap, 0) };
+}
+
+export const FAILED_CAP = 8;
+
+const MAX_LABEL_LENGTH = 80;
+
+const ROW_OF_FAILED: Record<Exclude<ImportFailedKind, 'automod'>, RowKind> = {
+  command: 'commands',
+  timer: 'timers',
+  trigger: 'triggers',
+  quote: 'quotes'
+};
+
+const LABELERS: Record<RowKind, (row: Record<string, string>) => string> = {
+  commands: (row) => normalizeName(row.name ?? ''),
+  timers: (row) => (row.message ?? '').trim().slice(0, MAX_LABEL_LENGTH),
+  triggers: (row) => (row.phrase ?? '').trim().slice(0, MAX_LABEL_LENGTH),
+  quotes: (row) => (row.text ?? '').trim().slice(0, MAX_LABEL_LENGTH)
+};
+
+export function rowLabel(kind: RowKind, row: unknown): string {
+  return LABELERS[kind](row as Record<string, string>);
+}
+
+export function capFailed(
+  failed: ImportFailedItem[] | undefined,
+  cap: number = FAILED_CAP
+): { shown: ImportFailedItem[]; more: number } {
+  const all = failed ?? [];
+  return { shown: all.slice(0, cap), more: Math.max(all.length - cap, 0) };
+}
+
+function failedLabels(failed: ImportFailedItem[], kind: ImportFailedKind): Set<string> {
+  return new Set(failed.filter((f) => f.kind === kind).map((f) => f.name));
+}
+
+export function retryable(failed: ImportFailedItem[] | undefined): ImportFailedItem[] {
+  return (failed ?? []).filter((f) => f.reason !== 'invalid');
+}
+
+export function buildRetryManifest(sentManifestJson: string, failedItems: ImportFailedItem[] | undefined): string {
+  const failed = retryable(failedItems);
+  if (!failed.length) return '{}';
+  const sent = JSON.parse(sentManifestJson) as ImportManifest;
+  const out: Record<string, unknown> = {};
+  for (const [kind, rowKind] of Object.entries(ROW_OF_FAILED) as [keyof typeof ROW_OF_FAILED, RowKind][]) {
+    const labels = failedLabels(failed, kind);
+    const rows = rowsOf(sent, rowKind).filter((row) => labels.has(rowLabel(rowKind, row)));
+    if (rows.length) out[rowKind] = rows;
+  }
+  if (failed.some((f) => f.kind === 'automod') && sent.automod) out.automod = sent.automod;
+  return Object.keys(out).length ? JSON.stringify(out) : '{}';
+}
+
+const STAT_KEYS: readonly (keyof ImportStats)[] = ['commands', 'timers', 'triggers', 'quotes'];
+
+export function mergeRetry(prev: CommitResponse, next: CommitResponse): CommitResponse {
+  const applied = { ...prev.applied };
+  for (const key of STAT_KEYS) applied[key] += next.applied[key];
+  return { ...prev, applied, failed: next.failed, diagnostics: next.diagnostics };
 }

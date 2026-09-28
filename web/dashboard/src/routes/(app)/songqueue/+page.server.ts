@@ -48,6 +48,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
             setupPreview,
             connected: !setupPreview,
             scopeGap: [] as string[],
+            needsReconnect: false,
             app: { present: !setupPreview, clientId: setupPreview ? '' : 'demo-client-id' },
             redirectUri: 'https://console.example/spotify/callback',
             justConnected: false,
@@ -69,6 +70,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
         queue: await queueView(uid, grant.connected, queue),
         connected: grant.connected,
         scopeGap: grant.connected ? spotifyScopeGap(grant.scopes) : [],
+        needsReconnect: grant.connected && grant.needsReconnect,
         app,
         redirectUri,
         justConnected,
@@ -83,6 +85,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
       queue: { current: null, up: [] } as QueueView,
       connected: false,
       scopeGap: [] as string[],
+      needsReconnect: false,
       app: { present: false, clientId: '' },
       redirectUri: '',
       justConnected: false,
@@ -93,6 +96,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
 
 function resultFail(r: Extract<SpotifyResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
+  if (r.code) return fail(400, { ok: false, code: r.code });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
 }
 
@@ -228,5 +232,7 @@ export const actions: Actions = {
 
   deleteReward: mutate('reward_delete', 'Invalid request.', async (store) => done(await store.deleteReward(), '')),
 
-  disconnect: mutate('disconnect', 'Invalid request.', async (store) => done(await store.disconnect(), ''))
+  disconnect: mutate('disconnect', 'Invalid request.', async (store) => done(await store.disconnect(), '')),
+
+  skip: mutate('skip', 'Invalid request.', async (store) => done(await store.skip(), ''))
 };

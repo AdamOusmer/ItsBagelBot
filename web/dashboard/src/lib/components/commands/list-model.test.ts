@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import type { CommandView } from '@bagel/kit';
-import { listCommands, stateCounts } from './list-model';
+import { hasCreatedAt, listCommands, stateCounts } from './list-model';
 
 const items: CommandView[] = [
   { name: 'discord', response: 'join us', is_active: true, perm: 'everyone', uses: '5' },
@@ -20,6 +20,17 @@ describe('listCommands', () => {
 
   test('sorts by name', () => {
     expect(names(listCommands(items, { ...base, sort: 'name' }))).toEqual(['discord', 'lurk', 'uptime']);
+  });
+
+  test('sorts recently added first, undated rows last', () => {
+    const dated = [
+      { ...items[0], created_at: 100 },
+      { ...items[1], created_at: 300 },
+      items[2]
+    ];
+    expect(names(listCommands(dated, { ...base, sort: 'recent' }))).toEqual(['lurk', 'discord', 'uptime']);
+    expect(hasCreatedAt(dated)).toBe(true);
+    expect(hasCreatedAt(items)).toBe(false);
   });
 
   test('filters by permission and state together', () => {

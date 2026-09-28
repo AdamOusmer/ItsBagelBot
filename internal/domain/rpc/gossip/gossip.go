@@ -20,6 +20,7 @@ type Request struct {
 	TrackID  string `json:"track_id,omitempty"`
 	ArtistID string `json:"artist_id,omitempty"`
 	Limit    int    `json:"limit,omitempty"`
+	Progress bool   `json:"progress,omitempty"`
 
 	AccountType string `json:"account_type,omitempty"`
 	TimeWindow  string `json:"time_window,omitempty"`
@@ -245,9 +246,12 @@ type SpotifyNowPlayingReply struct {
 // SpotifyQueueReply is a fresh snapshot of the broadcaster's Spotify player.
 // It includes upcoming tracks so skipped requests can be retired between reads.
 type SpotifyQueueReply struct {
-	Current *SpotifyTrack  `json:"current,omitempty"`
-	UpNext  []SpotifyTrack `json:"up_next,omitempty"`
-	Error   string         `json:"error,omitempty"`
+	Current    *SpotifyTrack  `json:"current,omitempty"`
+	UpNext     []SpotifyTrack `json:"up_next,omitempty"`
+	ProgressMS int64          `json:"progress_ms,omitempty"`
+	DurationMS int64          `json:"duration_ms,omitempty"`
+	Playing    bool           `json:"playing,omitempty"`
+	Error      string         `json:"error,omitempty"`
 }
 
 type SpotifyExchangeReply struct {
@@ -258,7 +262,15 @@ type SpotifyExchangeReply struct {
 
 type SpotifyPlayerReply struct {
 	Error string `json:"error,omitempty"`
+	Code  string `json:"code,omitempty"`
 }
+
+const (
+	SpotifyCodeNoDevice = "no_device"
+	SpotifyCodePremium  = "premium"
+	SpotifyCodeScope    = "scope"
+	SpotifyCodeReauth   = "reauth"
+)
 
 type McsrSessionReply struct {
 	Nickname    string `json:"nickname"`

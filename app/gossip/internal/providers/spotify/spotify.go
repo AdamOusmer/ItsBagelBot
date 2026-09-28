@@ -162,6 +162,7 @@ func (p *api) mintToken(ctx context.Context, broadcaster string, creds core.Spot
 		"client_secret": {creds.ClientSecret},
 	})
 	if err != nil {
+		p.reportRefreshFailure(ctx, broadcaster, creds.RefreshToken, err)
 		return tok, err
 	}
 	p.persistRotation(ctx, broadcaster, creds.RefreshToken, tok.RefreshToken)
@@ -706,7 +707,24 @@ func (p *api) playerQueue(ctx context.Context, req gossiprpc.Request) any {
 			reply.UpNext = append(reply.UpNext, *shapeTrack(item))
 		}
 	}
+	if req.Progress && reply.Current != nil {
+		p.attachProgress(ctx, tok, &reply)
+	}
 	return reply
+}
+
+// Progress is decoration: a failed read leaves the queue reply intact.
+func (p *api) attachProgress(ctx context.Context, tok accessToken, reply *gossiprpc.SpotifyQueueReply) {
+	var resp nowPlayingResponse
+	if err := p.http.Do(ctx, core.Request{Method: http.MethodGet, Path: nowPlayingPath, Headers: bearerHeader(tok)}, &resp); err != nil {
+		return
+	}
+	if resp.Item.ID != reply.Current.ID {
+		return
+	}
+	reply.ProgressMS = resp.ProgressMS
+	reply.DurationMS = reply.Current.DurationMS
+	reply.Playing = resp.IsPlaying
 }
 
 func (p *api) exchange(ctx context.Context, req gossiprpc.Request) any {
@@ -761,30 +779,42 @@ func (p *api) playerWrite(ctx context.Context, req gossiprpc.Request, do func(co
 		return gossiprpc.SpotifyPlayerReply{Error: p.fetchFailed("spotify player write denied", "Spotify is busy right now, try again in a moment", err)}
 	}
 	if err := do(ctx, tok); err != nil {
-		return gossiprpc.SpotifyPlayerReply{Error: p.playerFailed(err)}
+		return p.playerFailed(err)
 	}
 	return gossiprpc.SpotifyPlayerReply{}
 }
 
-func (p *api) playerFailed(err error) string {
+func (p *api) playerFailed(err error) gossiprpc.SpotifyPlayerReply {
 	var ue *core.UpstreamError
 	if errors.As(err, &ue) {
-		switch ue.Status {
-		case http.StatusNotFound:
-			return "no active Spotify device, start playing something first"
-		case http.StatusForbidden:
-			msg := strings.ToUpper(ue.Message)
-			switch {
-			case strings.Contains(msg, "PREMIUM"):
-				return "Spotify Premium is required for queue control"
-			case strings.Contains(msg, "SCOPE"):
-				return "the Spotify connection is missing playback control, reconnect it on the dashboard"
-			}
-		case http.StatusUnauthorized:
-			return "your Spotify connection needs to be set up again"
+		if reply, ok := playerRefusal(ue); ok {
+			return reply
 		}
 	}
-	return p.fetchFailed("spotify player write failed", "could not reach Spotify", err)
+	return gossiprpc.SpotifyPlayerReply{Error: p.fetchFailed("spotify player write failed", "could not reach Spotify", err)}
+}
+
+func playerRefusal(ue *core.UpstreamError) (gossiprpc.SpotifyPlayerReply, bool) {
+	switch ue.Status {
+	case http.StatusNotFound:
+		return gossiprpc.SpotifyPlayerReply{Error: "no active Spotify device, start playing something first", Code: gossiprpc.SpotifyCodeNoDevice}, true
+	case http.StatusForbidden:
+		return playerForbidden(ue.Message)
+	case http.StatusUnauthorized:
+		return gossiprpc.SpotifyPlayerReply{Error: "your Spotify connection needs to be set up again", Code: gossiprpc.SpotifyCodeReauth}, true
+	}
+	return gossiprpc.SpotifyPlayerReply{}, false
+}
+
+func playerForbidden(message string) (gossiprpc.SpotifyPlayerReply, bool) {
+	msg := strings.ToUpper(message)
+	switch {
+	case strings.Contains(msg, "PREMIUM"):
+		return gossiprpc.SpotifyPlayerReply{Error: "Spotify Premium is required for queue control", Code: gossiprpc.SpotifyCodePremium}, true
+	case strings.Contains(msg, "SCOPE"):
+		return gossiprpc.SpotifyPlayerReply{Error: "the Spotify connection is missing playback control, reconnect it on the dashboard", Code: gossiprpc.SpotifyCodeScope}, true
+	}
+	return gossiprpc.SpotifyPlayerReply{}, false
 }
 
 func (p *api) queueTrack(ctx context.Context, req gossiprpc.Request) any {

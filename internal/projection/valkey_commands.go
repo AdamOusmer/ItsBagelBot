@@ -44,6 +44,7 @@ func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
 		AllowedUserID:    allowed,
 		Uses:             dto.Uses,
 		BumpCounter:      dto.BumpCounter,
+		CreatedAt:        dto.CreatedAt,
 	}
 }
 

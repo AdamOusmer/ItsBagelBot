@@ -63,6 +63,12 @@ func (d *dashboardRPC) handleUpsert(ctx context.Context, req commandsrpc.Dashboa
 	if req.OriginalName != "" && req.OriginalName != req.Name {
 		return commandsrpc.DashboardReply{}, d.repo.Rename(ctx, id, req.OriginalName, spec)
 	}
+	if req.RestoreUses > 0 && req.OriginalName == "" {
+		restored, err := d.repo.Restore(ctx, id, spec, req.RestoreUses)
+		if err != nil || restored {
+			return commandsrpc.DashboardReply{Restored: restored}, err
+		}
+	}
 	return commandsrpc.DashboardReply{}, d.repo.Upsert(id, spec)
 }
 

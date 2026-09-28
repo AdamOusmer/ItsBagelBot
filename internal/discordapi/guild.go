@@ -21,6 +21,10 @@ type Snowflake struct {
 	Managed           bool   `json:"managed,omitempty"`
 	Position          int    `json:"position,omitempty"`
 	VerificationLevel int    `json:"verification_level,omitempty"`
+	ParentID          string `json:"parent_id,omitempty"`
+	Permissions       string `json:"permissions,omitempty"`
+
+	PermissionOverwrites []PermissionOverwrite `json:"permission_overwrites,omitempty"`
 }
 
 type PermissionOverwrite struct {

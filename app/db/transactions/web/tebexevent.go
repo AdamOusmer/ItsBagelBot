@@ -79,6 +79,18 @@ var billingEventActions = map[string]struct {
 	"payment.dispute.lost":                     {billingrpc.ActionRevoke, false},
 }
 
+func declinedRenewal(event tebexEvent) bool {
+	if event.Type != "payment.declined" {
+		return false
+	}
+	var payment paymentSubject
+	if err := codec.Unmarshal(event.Subject, &payment); err != nil {
+		return false
+	}
+	_, attributable := userIDFromPayment(payment)
+	return payment.RecurringPaymentReference != "" && attributable
+}
+
 func grantsPaid(action billingrpc.Action) bool {
 	return action == billingrpc.ActionActivate ||
 		action == billingrpc.ActionCancelRequested ||

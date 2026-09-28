@@ -169,6 +169,10 @@ func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 		s.processBillingEvent(ctx, w, billingWork{event: event, action: spec.action, notify: spec.notify})
 		return
 	}
+	if declinedRenewal(event) {
+		s.processBillingEvent(ctx, w, billingWork{event: event, action: billingrpc.ActionPaymentFailed})
+		return
+	}
 	if strings.HasPrefix(event.Type, "recurring-payment.trial") {
 		s.trialLifecycle(ctx, w, event)
 		return

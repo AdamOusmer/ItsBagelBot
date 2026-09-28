@@ -1136,7 +1136,10 @@
     "endsSoon": "Ending",
     "resumeSubscription": "Resume subscription",
     "takingToCheckout": "Taking you to secure checkout",
-    "activating": "Activating"
+    "activating": "Activating",
+    "paymentFailed": "Your last renewal payment failed. Update your payment method on Tebex to keep Premium going.",
+    "updatePayment": "Update payment method",
+    "receiptsEmailed": "Tebex emails a receipt to your purchase email after every payment."
   },
   "builtinInspector": {
     "enabled": "Enabled",
@@ -1508,7 +1511,9 @@
         "name": "hydrate",
         "response": "Quick reminder: drink some water and stretch. Chat, that means you too."
       }
-    }
+    },
+    "sortRecent": "Recently added",
+    "toastRestoredResets": "Command !{name} restored. Its use count started over."
   },
   "serverErrors": {
     "notSignedIn": "Not signed in.",
@@ -2061,7 +2066,9 @@
     "staffRolesNoMatch": "No role matches.",
     "staffRoleMissing": "@{id} no longer exists",
     "staffRoleMissingHelp": "A selected role was deleted from the server. Untick it to clear it.",
-    "embedCount": "{n}/{max}"
+    "embedCount": "{n}/{max}",
+    "botCannotPost": "Bagel cannot post here",
+    "savedChannelBlocked": "Bagel can no longer post in the saved channel. Give it Send Messages there, or pick another channel."
   },
   "fetches": {
     "builderNew": "+ New data source",
@@ -2413,7 +2420,15 @@
     "importAnother": "Import from another bot",
     "leaveTitle": "Leave the import?",
     "leaveBody": "Your review is kept. Choose Start importing again to pick up where you left off.",
-    "leaveStay": "Stay here"
+    "leaveStay": "Stay here",
+    "failedHead": "{n} item(s) could not be imported.",
+    "failedReason": {
+      "rejected": "rejected",
+      "invalid": "invalid",
+      "module": "module unavailable"
+    },
+    "retryFailed": "Retry failed ({n})",
+    "toastRetried": "Retry finished."
   },
   "install": {
     "cta": "Install app",
@@ -4083,7 +4098,15 @@
     "connectionTitle": "Connection",
     "accountLabel": "Account",
     "appLabel": "Spotify app",
-    "needsReconnectPill": "Reconnect needed"
+    "needsReconnectPill": "Reconnect needed",
+    "queueSkip": "Skip",
+    "queueProgressLabel": "{elapsed} elapsed of {duration}",
+    "skipped": "Skipped the current track.",
+    "skipFailed": "Could not skip the track. Try again in a moment.",
+    "skipNoDevice": "No active Spotify device. Start playing something first.",
+    "skipPremium": "Skipping needs Spotify Premium.",
+    "skipReauth": "Spotify no longer accepts this connection. Reconnect it and try again.",
+    "grantRevoked": "Spotify no longer accepts this connection, so song requests are paused. Reconnect to resume them."
   },
   "stats": {
     "title": "Live statistics",

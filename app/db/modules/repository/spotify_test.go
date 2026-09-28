@@ -332,3 +332,32 @@ func TestSpotifyTokenStatusIsEmptyWithoutAGrant(t *testing.T) {
 	assert.False(t, status.Present)
 	assert.Empty(t, status.Scopes)
 }
+
+func TestSpotifyRevokedGrantFlagLifecycle(t *testing.T) {
+	_, creds := spotifySetup(t)
+	ctx := context.Background()
+	needsReconnect := func() bool {
+		status, err := creds.TokenStatus(ctx, 1001)
+		require.NoError(t, err)
+		return status.NeedsReconnect
+	}
+
+	steps := []struct {
+		name string
+		do   func() error
+		want bool
+	}{
+		{"connected grant is healthy", func() error { return creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "rt"}) }, false},
+		{"stale token report is ignored", func() error { return creds.MarkTokenDead(ctx, 1001, "older") }, false},
+		{"current token report flags the grant", func() error { return creds.MarkTokenDead(ctx, 1001, "rt") }, true},
+		{"reconnect clears the flag", func() error { return creds.SetToken(ctx, 1001, repository.SpotifyGrant{RefreshToken: "rt2"}) }, false},
+		{"disconnect clears a fresh flag", func() error {
+			require.NoError(t, creds.MarkTokenDead(ctx, 1001, "rt2"))
+			return creds.ClearToken(ctx, 1001)
+		}, false},
+	}
+	for _, step := range steps {
+		require.NoError(t, step.do(), step.name)
+		assert.Equal(t, step.want, needsReconnect(), step.name)
+	}
+}
