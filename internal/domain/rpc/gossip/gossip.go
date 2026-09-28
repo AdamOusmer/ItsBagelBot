@@ -242,6 +242,14 @@ type SpotifyNowPlayingReply struct {
 	Error      string        `json:"error,omitempty"`
 }
 
+// SpotifyQueueReply is a fresh snapshot of the broadcaster's Spotify player.
+// It includes upcoming tracks so skipped requests can be retired between reads.
+type SpotifyQueueReply struct {
+	Current *SpotifyTrack  `json:"current,omitempty"`
+	UpNext  []SpotifyTrack `json:"up_next,omitempty"`
+	Error   string         `json:"error,omitempty"`
+}
+
 type SpotifyExchangeReply struct {
 	RefreshToken string   `json:"refresh_token,omitempty"`
 	Scopes       []string `json:"scopes,omitempty"`

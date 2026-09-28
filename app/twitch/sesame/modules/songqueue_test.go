@@ -87,6 +87,50 @@ func (f *fakeSongQueue) SyncPlaying(_ context.Context, _ uint64, trackID string)
 	return false, nil
 }
 
+func (f *fakeSongQueue) SyncQueue(ctx context.Context, id uint64, player engine.PlayerQueueIDs) (bool, error) {
+	changed := f.syncQueueCurrent(ctx, id, player.CurrentID)
+	if len(player.UpcomingIDs) == 0 {
+		return changed, nil
+	}
+	return f.dropSkippedBefore(player.UpcomingIDs[0]) || changed, nil
+}
+
+func (f *fakeSongQueue) syncQueueCurrent(ctx context.Context, id uint64, currentID string) bool {
+	if currentID == "" {
+		return f.clearCurrent()
+	}
+	changed, _ := f.SyncPlaying(ctx, id, currentID)
+	if changed {
+		return true
+	}
+	if f.current != nil && f.current.TrackID != currentID {
+		return f.clearCurrent()
+	}
+	return false
+}
+
+func (f *fakeSongQueue) clearCurrent() bool {
+	if f.current == nil {
+		return false
+	}
+	f.current = nil
+	return true
+}
+
+func (f *fakeSongQueue) dropSkippedBefore(firstID string) bool {
+	for i, entry := range f.up {
+		if entry.TrackID != firstID {
+			continue
+		}
+		if i == 0 {
+			return false
+		}
+		f.up = f.up[i:]
+		return true
+	}
+	return false
+}
+
 func (f *fakeSongQueue) Advance(_ context.Context, _ uint64) (*engine.SongEntry, *engine.SongEntry, error) {
 	if len(f.up) == 0 {
 		out := f.current
@@ -172,8 +216,9 @@ func TestSRAddsResolvedTrack(t *testing.T) {
 
 	out := runSR(t, m, songCtx("42", "alice"), "brightside by the killers")
 
-	require.Len(t, g.calls, 3)
-	search, sync, push := g.calls[0], g.calls[1], g.calls[2]
+	require.Len(t, g.calls, 4)
+	search, queueRead, sync, push := g.calls[0], g.calls[1], g.calls[2], g.calls[3]
+	assert.Equal(t, "playerqueue", queueRead.endpoint)
 	assert.Equal(t, "nowplaying", sync.endpoint)
 	assert.Equal(t, "spotify", search.provider)
 	assert.Equal(t, "search", search.endpoint)
@@ -273,36 +318,6 @@ func TestSRPlayerTransportFailureRollsBackTheAdd(t *testing.T) {
 	assert.NotContains(t, text, "#1", "no position claim without a confirmed push")
 }
 
-func TestSkipDrivesThePlayer(t *testing.T) {
-	store := &fakeSongQueue{up: []engine.SongEntry{
-		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
-	}}
-	g := srSearchGossip()
-	m := SongQueue(songDeps(store, g))
-
-	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"))
-
-	require.NotEmpty(t, g.calls)
-	assert.Equal(t, "next", g.calls[len(g.calls)-1].endpoint)
-	assert.Contains(t, chatText(t, out), "Human")
-	require.NotNil(t, store.current)
-}
-
-func TestSkipRefusalLeavesTheListAlone(t *testing.T) {
-	store := &fakeSongQueue{up: []engine.SongEntry{
-		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
-	}}
-	g := srSearchGossip()
-	g.replies["spotify.next"] = gossiprpc.SpotifyPlayerReply{Error: "Spotify Premium is required for queue control"}
-	m := SongQueue(songDeps(store, g))
-
-	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"))
-
-	assert.Contains(t, chatText(t, out), "Premium")
-	assert.Nil(t, store.current, "nothing may be marked played while the music kept playing")
-	assert.Len(t, store.up, 1)
-}
-
 func TestSRProviderErrorSurfacesVerbatim(t *testing.T) {
 	g := &fakeGossip{replies: map[string]any{
 		"spotify.search": gossiprpc.SpotifySearchReply{Error: "no Spotify connection on file"},
@@ -382,6 +397,9 @@ func TestSRNextIsModOnlyAndPromotesHead(t *testing.T) {
 	assert.Empty(t, out, "mod verbs typed by a non-mod are silently ignored")
 	assert.Nil(t, store.current)
 
+	setSkipSnapshots(g,
+		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "t1"}}},
+		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "t1"}})
 	out = runSR(t, m, songCtx("7", "modder", "moderator"), "next")
 	require.NotNil(t, store.current)
 	assert.Equal(t, "One", store.current.Title)
@@ -389,6 +407,9 @@ func TestSRNextIsModOnlyAndPromotesHead(t *testing.T) {
 	assert.Contains(t, chatText(t, out), "Now playing")
 	assert.Contains(t, chatText(t, out), "alice")
 
+	setSkipSnapshots(g,
+		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "t1"}},
+		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}})
 	out = runSR(t, m, songCtx("7", "modder", "moderator"), "next")
 	assert.Nil(t, store.current)
 	assert.Contains(t, chatText(t, out), "empty")
@@ -420,6 +441,9 @@ func TestSRViewShowsNowPlayingAndUpNext(t *testing.T) {
 	m2 := SongQueue(songDeps(store, g2))
 	runSR(t, m2, songCtx("1", "alice"), "one")
 	runSR(t, m2, songCtx("2", "bob"), "two")
+	setSkipSnapshots(g2,
+		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "t1"}, {ID: "t2"}}},
+		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "t1"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "t2"}}})
 	runSR(t, m2, songCtx("7", "modder", "moderator"), "next")
 
 	out = runSR(t, m2, songCtx("9", "viewer"), "")

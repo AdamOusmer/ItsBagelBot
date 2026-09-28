@@ -251,6 +251,26 @@ func TestNowPlayingParsesItem(t *testing.T) {
 	assert.Equal(t, "Mr. Brightside", reply.Track.Name)
 }
 
+func TestPlayerQueueReadsFreshCurrentAndUpcomingTracks(t *testing.T) {
+	mint, _ := newMintServer(t, "tok-1")
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/v1/me/player/queue", r.URL.Path)
+		assert.Equal(t, "Bearer tok-1", r.Header.Get("Authorization"))
+		_, _ = io.WriteString(w, `{"currently_playing":{"id":"current","name":"Playing"},"queue":[{"id":"next","name":"Next"},{"id":"later","name":"Later"}]}`)
+	})
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
+
+	reply := asReply[gossiprpc.SpotifyQueueReply](t,
+		endpoint(t, p, "playerqueue")(context.Background(), gossiprpc.Request{ChannelID: "2"}))
+	assert.Empty(t, reply.Error)
+	require.NotNil(t, reply.Current)
+	assert.Equal(t, "current", reply.Current.ID)
+	require.Len(t, reply.UpNext, 2)
+	assert.Equal(t, "next", reply.UpNext[0].ID)
+	assert.Equal(t, "later", reply.UpNext[1].ID)
+}
+
 func TestSearchMissingQuery(t *testing.T) {
 	mint, _ := newMintServer(t, "unused")
 	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("must not dial Spotify with no query") })
