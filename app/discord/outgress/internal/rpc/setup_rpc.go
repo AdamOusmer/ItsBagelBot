@@ -167,30 +167,9 @@ func (d *discordRPC) handleSetup(ctx context.Context, req outgressrpc.DiscordSet
 		return outgressrpc.DiscordSetupReply{Error: err.Error(), Code: codeFor(err)}
 	}
 	return outgressrpc.DiscordSetupReply{
-		DroppedPins:      got.DroppedPins,
-		GuildID:          got.GuildID,
-		LiveChannelID:    got.LiveChannelID,
-		ClipsChannelID:   got.ClipsChannelID,
-		WelcomeChannelID: got.WelcomeChannelID,
-		VoiceHubID:       got.VoiceHubID,
-		LogChannelID:     got.LogChannelID,
-		TicketChannelID:  got.TicketChannelID,
-		TicketCategoryID: got.TicketCategoryID,
-
-		TicketArchiveCategoryID: got.TicketArchiveCategoryID,
-
-		SubsChannelID:    got.SubsChannelID,
-		SubsCategoryID:   got.SubsCategoryID,
-		VIPChannelID:     got.VIPChannelID,
-		VIPCategoryID:    got.VIPCategoryID,
-		OwnerRoleID:      got.OwnerRoleID,
-		LeadModRoleID:    got.LeadModRoleID,
-		ModsRoleID:       got.ModsRoleID,
-		VIPRoleID:        got.VIPRoleID,
-		SubscriberRoleID: got.SubscriberRoleID,
-		RegularsRoleID:   got.RegularsRoleID,
-		MemberRoleID:     got.MemberRoleID,
-		Refused:          got.Refused,
+		DiscordSetupIDs: got.DiscordSetupIDs,
+		DroppedPins:     got.DroppedPins,
+		Refused:         got.Refused,
 	}
 }
 
