@@ -5,9 +5,9 @@ package modules
 
 import (
 	"ItsBagelBot/app/twitch/sesame/engine"
+	"ItsBagelBot/app/twitch/sesame/engine/scope"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
-	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"context"
 	"strconv"
 	"strings"
@@ -161,7 +161,7 @@ func timeVariables(_ context.Context, c *module.Context) (map[string]string, err
 		return nil, nil
 	}
 	now := time.Now().In(zone)
-	return map[string]string{"time": engine.FormatClock(now, cfg.Format), "date": now.Format("Monday, January 2"), "timezone": zone.String(), "place": zone.String(), "user": strings.TrimPrefix(c.Env.ChatterName(), "@")}, nil
+	return map[string]string{"time": engine.FormatClock(now, cfg.Format), "date": now.Format(timeDateLayout), "timezone": zone.String(), "place": zone.String(), "user": strings.TrimPrefix(c.Env.ChatterName(), "@")}, nil
 }
 
 func queueVariables(d engine.Deps) variableRead {
@@ -196,75 +196,36 @@ func raffleVariables(d engine.Deps) variableRead {
 
 func songVariables(d engine.Deps) variableRead {
 	return func(ctx context.Context, c *module.Context) (map[string]string, error) {
-		reply, err := variableSpotifyReply(ctx, d.Gossip, c.BroadcasterID)
-		if err != nil {
-			return nil, err
-		}
-		if reply.Error != "" {
+		qc, ok := newSongQueueCmd(d, c, songQueueLog(d))
+		if !ok {
 			return nil, nil
 		}
-		current, err := variableQueuedSong(ctx, d.SongQueue, c.BroadcasterID)
-		track := variablePlayingTrack(reply)
-		if err != nil && track == nil {
-			return nil, err
-		}
-		return currentSongVariables(track, current), nil
+		return qc.nowPlayingVariables(ctx)
 	}
 }
 
-func variableSpotifyReply(ctx context.Context, gossip engine.GossipCaller, broadcasterID uint64) (gossiprpc.SpotifyNowPlayingReply, error) {
-	var reply gossiprpc.SpotifyNowPlayingReply
-	if gossip == nil {
-		return reply, nil
-	}
-	route := engine.GossipRoute{Provider: "spotify", Endpoint: "nowplaying"}
-	request := gossiprpc.Request{ChannelID: strconv.FormatUint(broadcasterID, 10)}
-	err := gossip.Call(ctx, route, request, &reply)
-	return reply, err
-}
-
-func variableQueuedSong(ctx context.Context, queue engine.SongQueueStore, broadcasterID uint64) (*engine.SongEntry, error) {
-	if queue == nil {
+// A failure resolves empty: chat failure text must never land in a custom command reply.
+func (qc songQueueCmd) nowPlayingVariables(ctx context.Context) (map[string]string, error) {
+	player, failure := qc.readPlayer(ctx)
+	if failure != "" {
 		return nil, nil
 	}
-	snapshot, err := queue.Snapshot(ctx, broadcasterID, 0)
-	return snapshot.Current, err
-}
-
-func variablePlayingTrack(reply gossiprpc.SpotifyNowPlayingReply) *gossiprpc.SpotifyTrack {
-	if !reply.IsPlaying {
-		return nil
+	if track := player.track; track != nil {
+		return songVariableValues(track.Name, track.Artists, track.URL, qc.requesterOf(ctx, track.ID)), nil
 	}
-	return reply.Track
-}
-
-func currentSongVariables(track *gossiprpc.SpotifyTrack, queued *engine.SongEntry) map[string]string {
-	if track != nil {
-		requester := matchingSongRequester(track.ID, queued)
-		return songVariableValues(track.Name, track.Artists, track.URL, requester)
+	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, songqueueListLen)
+	if err != nil {
+		return nil, err
 	}
-	if queued == nil {
-		return nil
+	if queued := snap.Current; queued != nil {
+		return songVariableValues(queued.Title, queued.Artists, queued.URL, queued.RequesterName), nil
 	}
-	return songVariableValues(queued.Title, queued.Artists, queued.URL, queued.RequesterName)
-}
-
-func matchingSongRequester(trackID string, queued *engine.SongEntry) string {
-	if queued == nil {
-		return ""
-	}
-	if queued.TrackID != trackID {
-		return ""
-	}
-	return queued.RequesterName
+	return nil, nil
 }
 
 func songVariableValues(title string, artists []string, url, requester string) map[string]string {
 	artist := strings.Join(artists, ", ")
-	song := title
-	if artist != "" {
-		song += " by " + artist
-	}
+	song := scope.Track{Title: title, Artist: artist}.Line()
 	return map[string]string{"song": song, "title": title, "artist": artist, "url": url, "req": requester}
 }
 
@@ -283,15 +244,11 @@ func loyaltyVariables(d engine.Deps) variableRead {
 		}
 		var cfg engine.LoyaltyModuleConfig
 		_ = c.Decode(&cfg)
-		duration := time.Duration(1<<63 - 1)
-		if balance.WatchSeconds <= uint64((1<<63-1)/time.Second) {
-			duration = time.Duration(balance.WatchSeconds) * time.Second
-		}
-		watchtime := i18n.HumanizeDuration(c.Locale, duration)
+		watchtime := watchTime(c.Locale, balance.WatchSeconds)
 		return map[string]string{
 			"points": i64(balance.Points), "pointsname": cfg.Name(), "watchtime": watchtime,
 			"duration": watchtime, "user": c.Env.ChatterUserLogin, "name": cfg.Name(),
-			"hours": strconv.FormatFloat(float64(balance.WatchSeconds)/3600, 'f', 1, 64),
+			"hours": watchHours(balance.WatchSeconds),
 		}, nil
 	}
 }
@@ -305,13 +262,10 @@ func quoteVariables(d engine.Deps) variableRead {
 		if err != nil || !found {
 			return nil, err
 		}
-		date := ""
-		if created, err := time.Parse(time.RFC3339, quote.CreatedAt); err == nil {
-			date = created.UTC().Format("2006-01-02")
-		}
-		values := module.StringPalette{"num": strconv.FormatUint(quote.Number, 10), "text": quote.Text, "date": date}
-		values["quote"] = values.ExpandNamespaced("quotes", i18n.T(c.Locale, "quote.show"))
-		return values, nil
+		return map[string]string{
+			"num": strconv.FormatUint(quote.Number, 10), "text": quote.Text, "date": engine.QuoteDate(quote.CreatedAt),
+			"quote": engine.QuoteLine(c.Locale, quote),
+		}, nil
 	}
 }
 

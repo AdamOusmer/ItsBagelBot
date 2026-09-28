@@ -43,7 +43,7 @@ func (*variablePublisher) Close() error                { return nil }
 
 // Run a saved !rank through ingress decoding, custom command dispatch, module
 // gating and the normal chat publisher, using the same module registry as main.
-func runVariableCommand(t *testing.T, response string, views []projection.ModuleView, gossip *fakeGossip) string {
+func runVariableCommand(t *testing.T, response string, views []projection.ModuleView, gossip *fakeGossip, options ...func(*engine.Deps)) string {
 	t.Helper()
 	pub := &variablePublisher{}
 	d := engine.Deps{
@@ -52,6 +52,9 @@ func runVariableCommand(t *testing.T, response string, views []projection.Module
 		}, modules: views},
 		Gossip: gossip, Pub: pub, Live: &fakeLive{live: true}, Greet: &fakeGreet{},
 		Special: engine.NewSpecialSet(""), Cooldown: engine.NoopCooldown{}, Log: zap.NewNop(),
+	}
+	for _, option := range options {
+		option(&d)
 	}
 	pipeline := engine.NewPipeline(d, engine.NewRegistry(d.Log, All(d)...), engine.Config{OutgressStandard: "outgress.standard"})
 	t.Cleanup(pipeline.Close)
