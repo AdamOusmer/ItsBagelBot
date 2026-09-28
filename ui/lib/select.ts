@@ -41,3 +41,52 @@ export function nextEnabledOption(options: readonly SelectOption[], active: numb
   }
   return -1;
 }
+
+export type SelectDirection = 1 | -1 | 'first' | 'last';
+
+export const SELECT_NAVIGATION_KEYS: Readonly<Record<string, SelectDirection | undefined>> = {
+  ArrowDown: 1, ArrowUp: -1, Home: 'first', End: 'last',
+};
+
+export const TYPEAHEAD_RESET_MS = 700;
+
+/** One key searches after the active option; a longer query may keep it, as native selects do. */
+export function typeaheadIndex(options: readonly SelectOption[], active: number, query: string): number {
+  const prefix = normalizeSelectQuery(query);
+  const start = query.length > 1 ? Math.max(active, 0) : active + 1;
+  for (let count = 0; count < options.length; count++) {
+    const index = (start + count) % options.length;
+    if (!options[index].disabled && normalizeSelectQuery(options[index].label).startsWith(prefix)) return index;
+  }
+  return -1;
+}
+
+export interface TypeaheadKey {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+}
+
+export interface Typeahead {
+  /** Printable keys, with Space only while a query is being typed. */
+  accepts(event: TypeaheadKey): boolean;
+  find(options: readonly SelectOption[], active: number, key: string): number;
+}
+
+export function createTypeahead(now: () => number = Date.now): Typeahead {
+  let query = '';
+  let typedAt = -Infinity;
+  const expired = () => now() - typedAt > TYPEAHEAD_RESET_MS;
+  return {
+    accepts(event) {
+      if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return false;
+      return event.key !== ' ' || !expired();
+    },
+    find(options, active, key) {
+      query = (expired() ? '' : query) + key;
+      typedAt = now();
+      return typeaheadIndex(options, active, query);
+    },
+  };
+}
