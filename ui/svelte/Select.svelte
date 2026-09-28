@@ -7,7 +7,8 @@
   import PickerPanel from './PickerPanel.svelte';
   import SearchInput from './SearchInput.svelte';
   import Scroller from './Scroller.svelte';
-  import { filterSelectOptions, nextEnabledOption, normalizeSelectQuery, optionIndexAt, type SelectOption } from '../lib/select';
+  import { createTypeahead, filterSelectOptions, nextEnabledOption, optionIndexAt, SELECT_NAVIGATION_KEYS, type SelectDirection, type SelectOption } from '../lib/select';
+  import { MOBILE_QUERY } from '../lib/overlay-stack';
   import '../styles/elements/field.css';
   import '../styles/elements/input.css';
   import '../styles/elements/select.css';
@@ -49,7 +50,6 @@
   const panelLabel = $derived(label || String(rest['aria-label'] || 'Select an option'));
   const classes = $derived(['bb-input', 'bb-input--select', 'bb-select__trigger', fill ? 'bb-input--fill' : '', className].filter(Boolean).join(' '));
   const selected = $derived(options.find((option) => option.value === value));
-  const nativeOptions = $derived(selected ? options : [{ value, label: value || placeholder }, ...options]);
 
   let enhanced = $state(false);
   let open = $state(false);
@@ -61,8 +61,7 @@
   let inputEl = $state<HTMLInputElement>();
   let listEl = $state<HTMLUListElement>();
   let labelledBy = $state<string>();
-  let typeahead = '';
-  let typedAt = 0;
+  const typeahead = createTypeahead();
   let pointer: { x: number; y: number } | undefined;
 
   onMount(() => {
@@ -129,28 +128,47 @@
       nativeEl.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }
+  function choose(event: KeyboardEvent) {
+    event.preventDefault();
+    if (results[active]) void pick(results[active]);
+  }
+  const keyHandlers: Record<string, (event: KeyboardEvent) => void> = {
+    Escape: (event) => { event.preventDefault(); event.stopPropagation(); close(true); },
+    // Restore normal page tab order from the portalled desktop popup.
+    Tab: () => { if (!window.matchMedia(MOBILE_QUERY).matches) close(true); },
+    Enter: choose,
+    ' ': (event) => { if (!searchable) choose(event); },
+  };
+  function navigate(event: KeyboardEvent, direction: SelectDirection) {
+    if (searchable && typeof direction === 'string') return;
+    event.preventDefault();
+    active = nextEnabledOption(results, active, direction);
+    scrollActive();
+  }
+  function typeTo(event: KeyboardEvent) {
+    event.preventDefault();
+    const index = typeahead.find(results, active, event.key);
+    if (index >= 0) active = index;
+    scrollActive();
+  }
   function onKey(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-      event.preventDefault(); event.stopPropagation(); close(true);
-    } else if (event.key === 'Tab') {
-      // Restore normal page tab order from the portalled desktop popup.
-      if (!window.matchMedia('(max-width: 639px)').matches) close(true);
-    } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-      if (searchable && (event.key === 'Home' || event.key === 'End')) return;
+    const direction = SELECT_NAVIGATION_KEYS[event.key];
+    if (direction !== undefined) navigate(event, direction);
+    else if (!searchable && typeahead.accepts(event)) typeTo(event);
+    else keyHandlers[event.key]?.(event);
+  }
+  function onTriggerKey(event: KeyboardEvent) {
+    const direction = SELECT_NAVIGATION_KEYS[event.key];
+    if (direction !== undefined) {
       event.preventDefault();
-      active = nextEnabledOption(results, active, event.key === 'Home' ? 'first' : event.key === 'End' ? 'last' : event.key === 'ArrowDown' ? 1 : -1);
-      scrollActive();
-    } else if (event.key === 'Enter' || (!searchable && event.key === ' ')) {
+      void show().then(() => {
+        if (typeof direction === 'string') active = nextEnabledOption(results, -1, direction);
+        scrollActive();
+      });
+    } else if (typeahead.accepts(event)) {
       event.preventDefault();
-      if (results[active]) void pick(results[active]);
-    } else if (!searchable && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      event.preventDefault();
-      const now = Date.now();
-      typeahead = (now - typedAt > 700 ? '' : typeahead) + event.key;
-      typedAt = now;
-      const matches = results.map((option, index) => ({ option, index })).filter(({ option }) => !option.disabled && normalizeSelectQuery(option.label).startsWith(normalizeSelectQuery(typeahead)));
-      if (matches.length) active = matches.find(({ index }) => index > active)?.index ?? matches[0].index;
-      scrollActive();
+      const index = typeahead.find(options, options.findIndex((option) => option.value === value), event.key);
+      if (index >= 0) void pick(options[index]);
     }
   }
 </script>
@@ -162,28 +180,21 @@
       {...rest} {onchange} {oninput}
       onfocus={() => { if (enhanced) btnEl?.focus(); }}
       oninvalid={(event) => { if (enhanced) { event.preventDefault(); btnEl?.focus(); void show(); } }}>
-      {#each nativeOptions as option (option.value)}
+      {#if !selected}<option value="" selected disabled hidden>{placeholder}</option>{/if}
+      {#each options as option (option.value)}
         <option value={option.value} disabled={option.disabled}>{option.triggerLabel || option.label}</option>
       {/each}
     </select>
     <svg class="bb-input__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
   </span>
   <button id={enhanced ? controlId : undefined} type="button" class={classes} hidden={!enhanced} {disabled}
-    data-invalid={invalid ? '' : undefined} data-placeholder={!value ? '' : undefined}
+    data-invalid={invalid ? '' : undefined} data-placeholder={!selected?.value ? '' : undefined}
     aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${controlId}-list` : undefined}
     aria-labelledby={rest['aria-labelledby'] ? String(rest['aria-labelledby']) : label ? undefined : labelledBy} aria-label={label}
     {...rest}
     onclick={() => open ? close(true) : void show()}
-    onkeydown={(event) => {
-      if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-        event.preventDefault();
-        void show().then(() => {
-          if (event.key === 'Home' || event.key === 'End') active = nextEnabledOption(results, -1, event.key === 'Home' ? 'first' : 'last');
-          scrollActive();
-        });
-      }
-    }} bind:this={btnEl}>
-    <span class="bb-select__value">{selected?.triggerLabel || selected?.label || value || placeholder}</span>
+    onkeydown={onTriggerKey} bind:this={btnEl}>
+    <span class="bb-select__value">{selected?.triggerLabel || selected?.label || placeholder}</span>
     <svg class="bb-select__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
   </button>
 </span>

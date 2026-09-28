@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AuroraBg, Code, Heading, LightField, AlertBanner, Card, Text, getI18n } from '@bagel/kit';
+  import { AuroraBg, Code, Heading, LightField, AlertBanner, Card, Text, formatPointValue, getI18n } from '@bagel/kit';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
 
@@ -77,7 +77,7 @@
             <span class="avatar" aria-hidden="true">{rowName(viewer).slice(0, 2)}</span>
             <span class="name" title={viewer.viewerLogin || viewer.viewerName}>{rowName(viewer)}</span>
             <span class="points">
-              <span class="num">{totalFmt.format(BigInt(viewer.points))}</span>
+              <span class="num">{formatPointValue(viewer.points, locale)}</span>
               <span class="currency">{data.currencyName}</span>
             </span>
             <span class="watched">
@@ -122,7 +122,7 @@
                     <td class="n muted">
                       {hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}
                     </td>
-                    <td class="n points-cell">{totalFmt.format(BigInt(viewer.points))}</td>
+                    <td class="n points-cell">{formatPointValue(viewer.points, locale)}</td>
                   </tr>
                 {/each}
               </tbody>
