@@ -544,6 +544,28 @@
       };
     };
 
+  const accessSubmit =
+    (c: CommandView): SubmitFunction =>
+    ({ formData }) => {
+      const perm = String(formData.get('perm') ?? '') as Perm;
+      const before = { ...c };
+      items = items.map((x) => (x.name === c.name ? { ...x, perm } : x));
+      setStatus(c.name, 'saving');
+      return async ({ result }) => {
+        const payload = result.type === 'success' || result.type === 'failure'
+          ? (result.data as ActionResult | undefined)
+          : undefined;
+        if (result.type === 'success' && payload?.ok) {
+          applyResult(payload);
+          ackSaved(c.name);
+        } else {
+          items = items.map((x) => (x.name === c.name ? before : x));
+          flagError(c.name);
+          toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+        }
+      };
+    };
+
   function postAction(action: string, body: FormData): Promise<ActionResult | null> {
     return fetch(`?/${action}`, { method: 'POST', body })
       .then(async (res) => {
@@ -770,6 +792,7 @@
                 {def}
                 toggleSubmit={toggleSubmit(selectedCmd)}
                 replySubmit={replySubmit(selectedCmd)}
+                accessSubmit={accessSubmit(selectedCmd)}
                 {busy}
               />
             </Scroller>
