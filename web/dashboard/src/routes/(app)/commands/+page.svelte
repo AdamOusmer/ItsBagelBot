@@ -46,7 +46,7 @@
   import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
   import BuiltinInspector from '$lib/components/commands/BuiltinInspector.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import { loadDraft, clearDraft, hasDraft, discardLegacyDrafts, type CommandDraft } from '$lib/components/commands/drafts';
+  import { loadDraft, clearDraft, hasDraft, discardLegacyDrafts, draftRef, type CommandDraft } from '$lib/components/commands/drafts';
 
   let { data } = $props();
 
@@ -265,14 +265,14 @@
   const discard = createDiscardGuard(
     () => isDirty,
     () => {
-      if (editorDraft && !editorDraft.builtin) clearDraft(data.board, editorDraft.edit ? editorDraft.originalName : '', editorDraft.edit);
+      if (editorDraft && !editorDraft.builtin) clearDraft(draftRef(data.board, editorDraft));
       draftVersion++;
     }
   );
 
   function doOpenNew(name = '') {
     serverErrors = null;
-    const draft = loadDraft(data.board, '', false) ?? blankDraft();
+    const draft = loadDraft({ board: data.board, name: '', edit: false }) ?? blankDraft();
     editorDraft = name ? { ...draft, name } : draft;
     expanded = NEW;
     editorGen++;
@@ -285,7 +285,7 @@
       editorGen++;
       return;
     }
-    editorDraft = overlayLiveActive(loadDraft(data.board, c.name, true) ?? fromView(c), c.is_active);
+    editorDraft = overlayLiveActive(loadDraft({ board: data.board, name: c.name, edit: true }) ?? fromView(c), c.is_active);
     expanded = c.name;
     editorGen++;
   }
@@ -430,7 +430,7 @@
 
   const rowHasDraft = (name: string) => {
     void draftVersion;
-    return hasDraft(data.board, name);
+    return hasDraft({ board: data.board, name, edit: true });
   };
 
   const saveSubmit: SubmitFunction = ({ formData }) => {
@@ -472,7 +472,7 @@
 
       if (result.type === 'success' && payload?.ok) {
         applyResult({ ...payload, silent: true });
-        clearDraft(data.board, d.edit ? d.originalName : '', d.edit);
+        clearDraft(draftRef(data.board, d));
         ackSaved(key);
         if (stillOpen) {
           const saved = items.find((c) => c.name === key);
@@ -587,7 +587,7 @@
     const snapshot = { ...c, aliases: [...(c.aliases ?? [])] };
     items = items.filter((x) => x.name !== c.name);
     if (expanded === c.name) doCloseEditor();
-    clearDraft(data.board, c.name, true);
+    clearDraft({ board: data.board, name: c.name, edit: true });
     draftVersion++;
 
     let undone = false;

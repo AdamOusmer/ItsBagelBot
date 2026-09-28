@@ -18,11 +18,23 @@ export interface CommandDraft {
   builtin?: boolean;
 }
 
+export type BoardId = string;
+
+export interface DraftRef {
+  board: BoardId;
+  name: string;
+  edit: boolean;
+}
+
 const PREFIX = 'bb-cmd-draft@';
 const LEGACY_PREFIX = 'bb-cmd-draft:';
 
-export function draftKey(board: string, originalName: string, edit: boolean): string {
-  return `${PREFIX}${board}:${edit ? originalName : 'new'}`;
+export function draftRef(board: BoardId, draft: Pick<CommandDraft, 'originalName' | 'edit'>): DraftRef {
+  return { board, name: draft.edit ? draft.originalName : '', edit: draft.edit };
+}
+
+export function draftKey(ref: DraftRef): string {
+  return `${PREFIX}${ref.board}:${ref.edit ? ref.name : 'new'}`;
 }
 
 export function discardLegacyDrafts(): void {
@@ -64,34 +76,18 @@ function parseStoredDraft(raw: string): StoredDraft | null {
   return Object.fromEntries(fields) as StoredDraft;
 }
 
-export function readStoredDraft(key: string): string | null {
+export function loadDraft(ref: DraftRef): CommandDraft | null {
   try {
-    const raw = sessionStorage.getItem(key);
-    return raw && parseStoredDraft(raw) ? raw : null;
-  } catch {
-    return null;
-  }
-}
-
-export function writeStoredDraft(key: string, raw: string | null): void {
-  try {
-    if (raw === null) sessionStorage.removeItem(key);
-    else sessionStorage.setItem(key, raw);
-  } catch {}
-}
-
-export function loadDraft(board: string, originalName: string, edit: boolean): CommandDraft | null {
-  try {
-    const raw = sessionStorage.getItem(draftKey(board, originalName, edit));
+    const raw = sessionStorage.getItem(draftKey(ref));
     if (!raw) return null;
     const stored = parseStoredDraft(raw);
     if (!stored) return null;
     // Old content-only snapshots omitted Active. Complete every bound field
     // before mounting: an undefined Checkbox binding throws in production.
     return {
-      edit,
-      originalName,
-      name: originalName,
+      edit: ref.edit,
+      originalName: ref.name,
+      name: ref.name,
       aliases: [],
       response: '',
       perm: 'everyone',
@@ -107,13 +103,20 @@ export function loadDraft(board: string, originalName: string, edit: boolean): C
   }
 }
 
-export function clearDraft(board: string, originalName: string, edit: boolean): void {
-  writeStoredDraft(draftKey(board, originalName, edit), null);
+export function saveDraft(ref: DraftRef, draft: CommandDraft | null): void {
+  try {
+    if (draft === null) sessionStorage.removeItem(draftKey(ref));
+    else sessionStorage.setItem(draftKey(ref), JSON.stringify(draft));
+  } catch {}
 }
 
-export function hasDraft(board: string, originalName: string): boolean {
+export function clearDraft(ref: DraftRef): void {
+  saveDraft(ref, null);
+}
+
+export function hasDraft(ref: DraftRef): boolean {
   try {
-    return sessionStorage.getItem(draftKey(board, originalName, true)) !== null;
+    return sessionStorage.getItem(draftKey(ref)) !== null;
   } catch {
     return false;
   }
