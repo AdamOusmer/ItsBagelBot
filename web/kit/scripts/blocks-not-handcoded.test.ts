@@ -88,6 +88,10 @@ function readBlock(css: string, start: number): string {
   return body;
 }
 
+function opensStyleRule(token: string, selector: string): boolean {
+  return token === '{' && selector !== '' && !selector.startsWith('@');
+}
+
 function* rules(css: string): Generator<Rule> {
   const clean = stripComments(css);
   let line = 1;
@@ -100,8 +104,7 @@ function* rules(css: string): Generator<Rule> {
     }
     const selector = clean.slice(headStart, at).trim();
     headStart = at + 1;
-    if (match[0] !== '{' || !selector || selector.startsWith('@')) continue;
-    yield { selector, line, body: readBlock(clean, at + 1) };
+    if (opensStyleRule(match[0], selector)) yield { selector, line, body: readBlock(clean, at + 1) };
   }
 }
 
@@ -129,11 +132,16 @@ export function offendersIn(rel: string, source: string): Hit[] {
   return hits;
 }
 
+const SKIPPED_DIRS = new Set(['node_modules', '.astro']);
+
+const isComponent = (name: string) => name.endsWith('.svelte') || name.endsWith('.astro');
+
 async function* components(dir: string): AsyncGenerator<string> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
-    if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== '.astro') yield* components(full);
-    else if (entry.name.endsWith('.svelte') || entry.name.endsWith('.astro')) yield full;
+    if (entry.isDirectory()) {
+      if (!SKIPPED_DIRS.has(entry.name)) yield* components(full);
+    } else if (isComponent(entry.name)) yield full;
   }
 }
 
