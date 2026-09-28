@@ -160,8 +160,7 @@ describe('bot OAuth callback account pinning', () => {
     expect(botTokenSet).toHaveBeenCalledTimes(1);
     expect(botTokenSet).toHaveBeenCalledWith(
       { actorId: 'configured-bot', userId: 'configured-bot' },
-      'access-token',
-      'refresh-token'
+      { accessToken: 'access-token', refreshToken: 'refresh-token' }
     );
   });
 

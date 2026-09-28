@@ -6,10 +6,8 @@ import { redirect } from '@sveltejs/kit';
 import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
 import { logger } from '@bagel/kit/server/logger';
 import { botTwitch, botClientId, botScopes } from '$lib/server/oauth';
-import { botTokenSet } from '$lib/server/services';
+import { botTokenSet, type TokenGrant } from '$lib/server/services';
 import { env } from '$env/dynamic/private';
-
-type BotGrant = { accessToken: string; refreshToken: string };
 
 type BotIdentity = {
   claims: { sub: string; aud?: string | string[]; iss?: string; nonce?: string };
@@ -41,7 +39,7 @@ function assertBotIdentity(identity: BotIdentity): void {
   }
 }
 
-async function exchangeBotGrant(origin: string, code: string, nonce: string, botId: string): Promise<BotGrant> {
+async function exchangeBotGrant(origin: string, code: string, nonce: string, botId: string): Promise<TokenGrant> {
   try {
     const tokens = await botTwitch(origin).validateAuthorizationCode(code, nonce);
     assertBotIdentity({ claims: tokens.claims(), configuredId: botId, nonce });
@@ -56,9 +54,9 @@ async function exchangeBotGrant(origin: string, code: string, nonce: string, bot
   }
 }
 
-async function storeBotGrant(botId: string, grant: BotGrant): Promise<void> {
+async function storeBotGrant(botId: string, grant: TokenGrant): Promise<void> {
   try {
-    await botTokenSet({ actorId: botId, userId: botId }, grant.accessToken, grant.refreshToken);
+    await botTokenSet({ actorId: botId, userId: botId }, grant);
   } catch (err) {
     logger.error({ err, botId }, 'bot token save failed');
     throw redirect(302, '/auth/bot/done?e=save');

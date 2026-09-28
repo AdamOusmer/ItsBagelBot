@@ -30,7 +30,7 @@ describe('bot token re-authorization', () => {
     expect(await tokenStatus(bot)).toEqual({ present: false });
 
     replies['bagel.rpc.admin.user.bot_token_set'] = { token: { present: true } };
-    await botTokenSet(bot, 'access-token', 'refresh-token');
+    await botTokenSet(bot, { accessToken: 'access-token', refreshToken: 'refresh-token' });
 
     expect(await tokenStatus(bot)).toEqual({ present: true });
     expect(calls.map((c) => c.subject)).toEqual([
