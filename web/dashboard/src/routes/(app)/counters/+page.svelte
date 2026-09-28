@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/kit';
+  import { Select } from '@bagel/ui/svelte';
   import { enhance, deserialize } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
   import { tick, untrack } from 'svelte';
@@ -31,6 +31,9 @@
     Tag,
     Text,
     toast,
+    SegmentedControl
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     COUNTER_SCOPES,
     type CounterDef,
@@ -38,11 +41,10 @@
     type CounterScope,
     actionPayload,
     toastFailure,
-    type ActionOk,
-    SegmentedControl,
+    type ActionOk
   } from '@bagel/kit';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
-  import { focusFirstInvalid } from '@bagel/kit';
+  import { focusFirstInvalid } from '@bagel/ui/svelte';
   import { formatCounterValue, parseCounterValue } from '@bagel/kit/validation';
 
   let { data } = $props();

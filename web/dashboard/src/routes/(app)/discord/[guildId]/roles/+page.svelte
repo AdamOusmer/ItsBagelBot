@@ -5,7 +5,9 @@
     AlertBanner,
     Chip,
     Select,
-    Text,
+    Text
+  } from '@bagel/ui/svelte';
+  import {
     encodePinnedRoles,
     getI18n,
     parsePinnedRoles,
@@ -103,7 +105,7 @@
 {/snippet}
 
 {#if layoutDown}
-  <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
+  <AlertBanner tone="warning">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}
 
 <GuildForm {draft} id="dc-roles-h" title={t('discord.roles.title')} hint={t('discord.roles.help')}>

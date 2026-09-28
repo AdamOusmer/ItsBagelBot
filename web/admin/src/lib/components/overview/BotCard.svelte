@@ -12,7 +12,7 @@
   import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
-  import { copyFlash } from '@bagel/kit';
+  import { copyFlash } from '@bagel/ui/lib/clipboard';
   import { getI18n } from '@bagel/kit/i18n/context';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
 

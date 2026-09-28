@@ -6,13 +6,15 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Icon,
-    PermBadge,
     ProgressBar,
     SaveStatus,
     ManagementRow,
     Switch,
     Tag,
-    Text,
+    Text
+  } from '@bagel/ui/svelte';
+  import {
+    PermBadge,
     getI18n,
     usesCount,
     type CommandView,

@@ -16,9 +16,11 @@
     Heading,
     Tag,
     Text,
+    toast
+  } from '@bagel/ui/svelte';
+  import {
     actionPayload,
     getI18n,
-    toast,
     toastFailure,
     type ActionOk
   } from '@bagel/kit';
@@ -95,9 +97,9 @@
   </div>
 
   {#if needsReconnect}
-    <div class="alert-slot"><AlertBanner variant="warn">
+    <div class="alert-slot"><AlertBanner tone="warning">
       {t(grantRevoked ? 'spotify.connection.grantRevoked' : 'spotify.connection.scopeGap')}
-      {#snippet action()}
+      {#snippet actions()}
         <ButtonLink variant="primary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connection.reconnectSpotify')}</ButtonLink>
       {/snippet}
     </AlertBanner></div>

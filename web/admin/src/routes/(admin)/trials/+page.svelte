@@ -119,7 +119,7 @@
 
   {#if degraded}<AlertBanner>{t('admin.trials.degraded')}</AlertBanner>{/if}
   {#if form?.error}<AlertBanner>{form.error}</AlertBanner>{/if}
-  {#if form?.notice}<AlertBanner variant="warn" role="status">{form.notice}</AlertBanner>{/if}
+  {#if form?.notice}<AlertBanner tone="warning" role="status">{form.notice}</AlertBanner>{/if}
 
   <Stack gap={4}>
     <form method="POST" action="?/add" class="trial-add">

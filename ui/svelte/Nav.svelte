@@ -90,7 +90,7 @@
       logoSrc={brand.logoSrc}
       logoAlt={brand.logoAlt}
       size="sm"
-      premium={brand.premium}
+      logoShape={brand.logoShape}
       data-home-logo
     /><ul class="bb-nav__links"
       >{#each links as link (link.href)}<li

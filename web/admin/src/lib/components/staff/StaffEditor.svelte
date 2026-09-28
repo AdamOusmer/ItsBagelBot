@@ -13,7 +13,7 @@
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import type { InspectorStatus } from '@bagel/kit';
+  import type { InspectorStatus } from '@bagel/ui/lib/inspector-machine';
   import { statusTone } from '@bagel/kit/status-tone';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';

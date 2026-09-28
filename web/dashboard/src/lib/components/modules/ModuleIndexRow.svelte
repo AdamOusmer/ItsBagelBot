@@ -11,7 +11,9 @@
     Switch,
     Tag,
     Text,
-    TextLink,
+    TextLink
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     moduleCommandChips,
     moduleHref,

@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, Text, getI18n, toast } from '@bagel/kit';
+  import { Icon, Text, toast } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import { copyText } from '@bagel/ui/lib/clipboard';
 
   const { t } = getI18n();

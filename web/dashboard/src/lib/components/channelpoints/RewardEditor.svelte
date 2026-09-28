@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select, namespaceReplySamples, Field, Input, RadioGroup, Checkbox, Text, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
+  import { Select, Field, Input, RadioGroup, Checkbox, Text } from '@bagel/ui/svelte';
+  import { namespaceReplySamples, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { rewardErrors, type RewardErrorField } from './reward-draft';

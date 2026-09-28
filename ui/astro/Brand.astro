@@ -11,7 +11,7 @@ interface Props {
   logoSrc?: string;
   logoAlt?: string;
   size?: 'sm' | 'md' | 'lg';
-  premium?: boolean;
+  logoShape?: 'square' | 'circle';
   class?: string;
   [key: string]: unknown;
 }
@@ -23,7 +23,7 @@ const {
   logoSrc,
   logoAlt = '',
   size = 'md',
-  premium = false,
+  logoShape = 'square',
   class: className = '',
   ...rest
 } = Astro.props;
@@ -36,7 +36,7 @@ const px = size === 'sm' ? 26 : size === 'lg' ? 55 : 30;
 ---
 
 {href ? (
-  <a class={classes} href={href} data-premium={premium ? '' : undefined} {...rest}>{logoSrc && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id"><span class="bb-brand__name">{title}</span>{sub && <span class="bb-brand__sub">{sub}</span>}</span></a>
+  <a class={classes} href={href} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}>{logoSrc && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id"><span class="bb-brand__name">{title}</span>{sub && <span class="bb-brand__sub">{sub}</span>}</span></a>
 ) : (
-  <div class={classes} data-premium={premium ? '' : undefined} {...rest}>{logoSrc && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id"><span class="bb-brand__name">{title}</span>{sub && <span class="bb-brand__sub">{sub}</span>}</span></div>
+  <div class={classes} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}>{logoSrc && <span class="bb-brand__logo"><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span>}<span class="bb-brand__id"><span class="bb-brand__name">{title}</span>{sub && <span class="bb-brand__sub">{sub}</span>}</span></div>
 )}

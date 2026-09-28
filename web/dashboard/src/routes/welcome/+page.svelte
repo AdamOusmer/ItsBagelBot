@@ -593,7 +593,7 @@
               {/if}
             </div>
             {#if saveError}
-              <div class="save-error"><AlertBanner variant="danger">{tr('onboarding.saveError')}</AlertBanner></div>
+              <div class="save-error"><AlertBanner tone="danger">{tr('onboarding.saveError')}</AlertBanner></div>
             {/if}
           </section>
         {/key}

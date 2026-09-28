@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { ManagementRow, getI18n } from '@bagel/kit';
+  import { ManagementRow } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
   import type { QuoteView } from '$lib/server/quotes-store';
 

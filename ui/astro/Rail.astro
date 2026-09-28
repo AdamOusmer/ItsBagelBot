@@ -20,7 +20,7 @@ const { brand, groups, ariaLabel, class: className = '', ...rest } = Astro.props
 const classes = ['bb-rail', className || null].filter(Boolean).join(' ');
 ---
 
-<aside class={classes} aria-label={ariaLabel} {...rest}><Brand title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} premium={brand.premium} /><span class="bb-rail__glide" aria-hidden="true"><span class="bb-rail__glide-edge"></span></span><div class="bb-rail__nav">{groups.map((group) => (
+<aside class={classes} aria-label={ariaLabel} {...rest}><Brand title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} logoShape={brand.logoShape} /><span class="bb-rail__glide" aria-hidden="true"><span class="bb-rail__glide-edge"></span></span><div class="bb-rail__nav">{groups.map((group) => (
   <>{group.label && <div class="bb-rail__label">{group.label}</div>}<div class="bb-rail__group">{group.items.map((item) => (
     item.children && item.children.length ? (
       <>

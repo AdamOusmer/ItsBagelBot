@@ -13,7 +13,7 @@
   import CounterCard from '@bagel/ui/svelte/CounterCard.svelte';
   import CommunityCard from '@bagel/ui/svelte/CommunityCard.svelte';
   import RankingCard from '@bagel/ui/svelte/RankingCard.svelte';
-  import StatsPageLayout from '@bagel/ui/svelte/StatsPageLayout.svelte';
+  import StatsPageLayout from '$lib/components/stats/StatsPageLayout.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import PublicHead from '$lib/components/public/PublicHead.svelte';
@@ -292,9 +292,9 @@
 
     {#snippet notice()}
       {#if degraded}
-        <AlertBanner variant="warn">{t('stats.degraded')}</AlertBanner>
+        <AlertBanner tone="warning">{t('stats.degraded')}</AlertBanner>
       {:else if boards.degraded}
-        <AlertBanner variant="warn">{t('stats.boardsUnavailable')}</AlertBanner>
+        <AlertBanner tone="warning">{t('stats.boardsUnavailable')}</AlertBanner>
       {/if}
     {/snippet}
 

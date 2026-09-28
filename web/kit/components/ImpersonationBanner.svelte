@@ -10,7 +10,7 @@
   let { exitHref, exitForm = false, exitLabel = t('banner.exit'), second = false, children }:
     { exitHref?: string; exitForm?: boolean; exitLabel?: string; second?: boolean; children: Snippet } = $props();
 
-  const exit = $derived(exitForm ? { label: exitLabel, action: '/auth/logout' } : { label: exitLabel, href: exitHref });
+  const action = $derived(exitForm ? { label: exitLabel, formAction: '/auth/logout' } : { label: exitLabel, href: exitHref ?? '/' });
 </script>
 
-<AlertBanner variant="impersonation" role="status" {second} {exit}>{@render children()}</AlertBanner>
+<AlertBanner tone="warm" placement="top" row={second ? 2 : 1} role="status" {action}>{@render children()}</AlertBanner>

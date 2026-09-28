@@ -519,18 +519,18 @@ const REMAINING: {
     html: '<div class="bb-alert bb-alert--danger" role="alert"><span class="bb-alert__msg"></span></div>',
   },
   {
-    name: 'AlertBanner: impersonation',
+    name: 'AlertBanner: accent top bar',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { variant: 'impersonation', role: 'status' },
-    html: '<div class="bb-alert bb-alert--impersonation" role="status"><span class="bb-alert__msg"></span></div>',
+    props: { tone: 'warm', placement: 'top', role: 'status', class: 'host' },
+    html: '<div class="bb-alert bb-alert--warm bb-alert--top host" role="status"><span class="bb-alert__msg"></span></div>',
   },
   {
     name: 'AlertBanner: stack',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { variant: 'warn', role: 'note', flush: true, stack: true },
-    html: '<div class="bb-alert bb-alert--warn bb-alert--flush bb-alert--stack" role="note"><span class="bb-alert__msg"></span></div>',
+    props: { tone: 'warning', role: 'note', flush: true, stack: true },
+    html: '<div class="bb-alert bb-alert--warning bb-alert--flush bb-alert--stack" role="note"><span class="bb-alert__msg"></span></div>',
   },
   {
     name: 'Mark: dash',

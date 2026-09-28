@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, IconButton } from '@bagel/kit';
+  import { Icon, IconButton } from '@bagel/ui/svelte';
 
   let {
     label,

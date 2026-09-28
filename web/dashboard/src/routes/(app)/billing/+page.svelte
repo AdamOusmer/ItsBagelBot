@@ -2,7 +2,9 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
-  import { Badge, Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, Eyebrow, Field, FieldError, AuroraBg, Input, Label, LightField, Spinner, Tag, Heading, Text, Textarea, portal, toast, getI18n, containsLink } from '@bagel/kit';
+  import { Badge, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, Eyebrow, Field, FieldError, AuroraBg, Input, Label, LightField, Spinner, Tag, Heading, Text, Textarea, toast } from '@bagel/ui/svelte';
+  import { Bolota, getI18n, containsLink } from '@bagel/kit';
+  import { portal } from '@bagel/ui/lib/overlay-stack';
   import { fmtDateTime } from '@bagel/kit/format';
   import { page } from '$app/state';
   import { invalidateAll, replaceState } from '$app/navigation';
@@ -461,9 +463,9 @@
     {/if}
   {:else}
     {#if paymentFailed}
-      <AlertBanner variant="warn">
+      <AlertBanner tone="warning">
         {t('billing.paymentFailed')}
-        {#snippet action()}
+        {#snippet actions()}
           <form method="POST" action="?/cancel" onsubmit={() => (managing = true)}>
             <Button type="submit" variant="primary" loading={managing}>{t('billing.updatePayment')}</Button>
           </form>

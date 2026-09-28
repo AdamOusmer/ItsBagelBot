@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, ManagementRow, Tag, Text, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
+  import { Icon, ManagementRow, Tag, Text } from '@bagel/ui/svelte';
+  import { getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
   import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();

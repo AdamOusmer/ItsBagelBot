@@ -11,9 +11,9 @@
     ManagementRow,
     PageHead,
     SearchInput,
-    Text,
-    getI18n
-  } from '@bagel/kit';
+    Text
+  } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import { DISCORD_BADGE_KEYS } from '$lib/discord-messages';
   import GuildCrest from '$lib/components/discord/GuildCrest.svelte';
 

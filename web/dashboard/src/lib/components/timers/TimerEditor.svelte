@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Checkbox, Field, Input, Text, getI18n, type TimerDef } from '@bagel/kit';
+  import { Checkbox, Field, Input, Text } from '@bagel/ui/svelte';
+  import { getI18n, type TimerDef } from '@bagel/kit';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';

@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Text, getI18n } from '@bagel/kit';
+  import { Button, Text } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
 
   const { t } = getI18n();
 

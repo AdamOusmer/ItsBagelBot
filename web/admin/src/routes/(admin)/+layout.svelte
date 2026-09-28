@@ -3,8 +3,8 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
   import { afterNavigate } from '$app/navigation';
-  import AppShell from '@bagel/kit/components/AppShell.svelte';
-  import NotificationBell from '@bagel/ui/svelte/NotificationBell.svelte';
+  import ConsoleShell from '@bagel/kit/components/ConsoleShell.svelte';
+  import NotificationBell from '@bagel/kit/components/NotificationBell.svelte';
   import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import {
@@ -56,7 +56,7 @@
   <meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
-<AppShell
+<ConsoleShell
   brandSub={t('admin.title')}
   crumbRoot={t('admin.title')}
   {crumb}
@@ -86,6 +86,6 @@
     {/await}
   {/snippet}
   {@render children()}
-</AppShell>
+</ConsoleShell>
 
 <ToastHost />

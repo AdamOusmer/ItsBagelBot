@@ -85,7 +85,7 @@ export const CASES: ParityCase[] = [
     name: 'Brand',
     svelte: SvelteBrand,
     astro: AstroBrand,
-    props: { ...brand, premium: true },
+    props: { ...brand, logoShape: 'circle' },
   },
   {
     name: 'Hamburger',

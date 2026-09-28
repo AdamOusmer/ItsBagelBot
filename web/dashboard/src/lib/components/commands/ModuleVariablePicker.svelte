@@ -1,7 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { Chip, Field, Icon, PickerOption, PickerPanel, Select, Text, TextLink, getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
+  import { Chip, Field, Icon, PickerOption, PickerPanel, Select, Text, TextLink } from '@bagel/ui/svelte';
+  import { getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
   import { MODULE_VARIABLES } from '@bagel/kit/variables';
 
   const { t } = getI18n();

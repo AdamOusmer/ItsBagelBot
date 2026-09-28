@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner } from '@bagel/kit';
+  import { AlertBanner } from '@bagel/ui/svelte';
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 
   let { message }: { message: string } = $props();

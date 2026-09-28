@@ -1,7 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, AuroraBg, Button, Card, Heading, Label, LightField, PageHead, Text, TextLink, getI18n } from '@bagel/kit';
+  import { AlertBanner, AuroraBg, Button, Card, Heading, Label, LightField, PageHead, Text, TextLink } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -20,7 +21,7 @@
     {data.copy.demoTitle}
   </PageHead>
 
-  <AlertBanner variant="danger" role="status">{data.copy.demoNotice}</AlertBanner>
+  <AlertBanner tone="danger" role="status">{data.copy.demoNotice}</AlertBanner>
 
   <Card>
     <div class="checkout">

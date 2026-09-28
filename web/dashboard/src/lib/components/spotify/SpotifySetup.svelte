@@ -154,8 +154,8 @@
             <h1 class="title" tabindex="-1" bind:this={heading} in:arrive={{ i: 1 }} out:depart={{ i: 1 }}>{t(`spotifySetup.${done ? 'readyTitle' : titles[step]}`)}</h1>
             <div class="body" in:arrive={{ i: 2 }} out:depart={{ i: 2 }}><Text tone="muted">{t(`spotifySetup.${done ? 'readyBody' : bodies[step]}`)}</Text></div>
             <div class="controls" in:arrive={{ i: 3 }} out:depart={{ i: 3 }}>
-              {#if error}<AlertBanner variant="warn">{error}</AlertBanner>{/if}
-              {#if saveError}<AlertBanner variant="danger">{saveError}</AlertBanner>{/if}
+              {#if error}<AlertBanner tone="warning">{error}</AlertBanner>{/if}
+              {#if saveError}<AlertBanner tone="danger">{saveError}</AlertBanner>{/if}
               {#if done}
                 <ButtonLink href="/songqueue">{t('spotifySetup.readyCta')}</ButtonLink>
               {:else if step === 0}

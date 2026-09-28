@@ -51,7 +51,7 @@
     href={brand.href}
     logoSrc={brand.logoSrc}
     logoAlt={brand.logoAlt}
-    premium={brand.premium}
+    logoShape={brand.logoShape}
   /><span class="bb-rail__glide" aria-hidden="true"
     ><span class="bb-rail__glide-edge"></span></span
   ><div bind:this={navEl} class="bb-rail__nav"

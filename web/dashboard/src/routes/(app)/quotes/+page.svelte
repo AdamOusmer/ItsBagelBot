@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/kit';
+  import { Select } from '@bagel/ui/svelte';
   import { untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import { enhance } from '$app/forms';
@@ -20,8 +20,6 @@
     Scroller,
     ConfirmDialog,
     toast,
-    getI18n,
-    MasterToggle,
     PageToolbar,
     AlertBanner,
     Card,
@@ -29,11 +27,15 @@
     Text,
     DeckLayout,
     DeckList,
-    EmptyState,
+    EmptyState
+  } from '@bagel/ui/svelte';
+  import {
+    getI18n,
+    MasterToggle,
     moduleDef,
     actionPayload,
     toastFailure,
-    type ActionOk,
+    type ActionOk
   } from '@bagel/kit';
   import type { QuoteView } from '$lib/server/quotes-store';
   import QuoteRow from '$lib/components/quotes/QuoteRow.svelte';

@@ -11,7 +11,7 @@
     logoSrc,
     logoAlt = '',
     size = 'md',
-    premium = false,
+    logoShape = 'square',
     class: className = '',
     ...rest
   }: {
@@ -21,7 +21,7 @@
     logoSrc?: string;
     logoAlt?: string;
     size?: 'sm' | 'md' | 'lg';
-    premium?: boolean;
+    logoShape?: 'square' | 'circle';
     class?: string;
     [key: string]: unknown;
   } = $props();
@@ -34,7 +34,7 @@
 </script>
 
 {#if href}
-  <a class={classes} {href} data-premium={premium ? '' : undefined} {...rest}
+  <a class={classes} {href} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}
     >{#if logoSrc}<span class="bb-brand__logo"
         ><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span
       >{/if}<span class="bb-brand__id"
@@ -44,7 +44,7 @@
     ></a
   >
 {:else}
-  <div class={classes} data-premium={premium ? '' : undefined} {...rest}
+  <div class={classes} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}
     >{#if logoSrc}<span class="bb-brand__logo"
         ><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span
       >{/if}<span class="bb-brand__id"

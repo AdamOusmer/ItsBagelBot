@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Switch, customCursor, getI18n, toast } from '@bagel/kit';
+  import { Switch, toast } from '@bagel/ui/svelte';
+  import { customCursor, getI18n } from '@bagel/kit';
 
   let { describedby }: { describedby?: string } = $props();
 

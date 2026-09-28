@@ -9,11 +9,13 @@
     IconButton,
     Input,
     Text,
+    Code
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     KEY_LABEL_MAX,
     KEY_VALUE_MAX,
-    slugifyName,
-    Code
+    slugifyName
   } from '@bagel/kit';
   import type { FetchKeyView } from '$lib/server/fetches-store';
 

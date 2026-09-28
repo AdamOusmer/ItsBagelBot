@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, Card, Code, CopySurface, EmptyState, Eyebrow, Heading, Icon, Label, LightField, SearchInput, SegmentedControl, Tag, Text } from '@bagel/kit';
+  import { AlertBanner, Card, Code, CopySurface, EmptyState, Eyebrow, Heading, Icon, Label, LightField, SearchInput, SegmentedControl, Tag, Text } from '@bagel/ui/svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { commandsHref } from '@bagel/kit/site-links';
   import Mark from '@bagel/ui/svelte/Mark.svelte';
@@ -149,7 +149,7 @@
 
   {#if data.degraded}
     <div class="notice">
-      <AlertBanner variant="warn">{t('public.commands.dataUnavailable')}</AlertBanner>
+      <AlertBanner tone="warning">{t('public.commands.dataUnavailable')}</AlertBanner>
     </div>
   {/if}
 

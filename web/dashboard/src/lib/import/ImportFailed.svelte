@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { Button, Tag, Text } from '@bagel/kit';
+  import { Button, Tag, Text } from '@bagel/ui/svelte';
   import type { ImportFailedItem } from '@bagel/kit';
   import { capFailed } from './helpers';
   import type { Translate } from './session.svelte';

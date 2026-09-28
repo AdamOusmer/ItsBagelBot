@@ -18,7 +18,8 @@
   import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
-  import { actionPayload, adminToastFailure, copyFlash } from '@bagel/kit';
+  import { actionPayload, adminToastFailure } from '@bagel/kit';
+  import { copyFlash } from '@bagel/ui/lib/clipboard';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { allows } from '$lib/access';
   import type { DbCredentialStatus } from '$lib/server/secrets';

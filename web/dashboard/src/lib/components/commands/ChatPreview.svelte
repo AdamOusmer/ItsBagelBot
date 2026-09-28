@@ -10,11 +10,11 @@
     rehearseTimer,
     COMMAND_SAMPLES,
     normName,
-    Tag,
     getI18n,
     type RehearsedLine,
     type Seg
   } from '@bagel/kit';
+  import { Tag } from '@bagel/ui/svelte';
 
   const i18n = getI18n();
 

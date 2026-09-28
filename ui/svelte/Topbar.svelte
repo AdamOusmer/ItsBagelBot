@@ -47,7 +47,7 @@
     logoSrc={brand.logoSrc}
     logoAlt={brand.logoAlt}
     size="sm"
-    premium={brand.premium}
+    logoShape={brand.logoShape}
   />{#if crumbs.length}<nav class="bb-topbar__crumb" aria-label={crumbAriaLabel}
       ><ol
         >{#each crumbs as crumb, i (crumb.label)}<li

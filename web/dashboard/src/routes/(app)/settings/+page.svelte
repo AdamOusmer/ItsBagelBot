@@ -4,6 +4,11 @@
   import { copyText } from '@bagel/ui/lib/clipboard';
   import {
     Bolota,
+    getI18n,
+    toastFailure,
+    type Locale
+  } from '@bagel/kit';
+  import {
     Button,
     ButtonLink,
     Card,
@@ -16,13 +21,10 @@
     ConfirmDialog,
     EmptyState,
     toast,
-    getI18n,
-    toastFailure,
     StatusDot,
     Tag,
-    Switch,
-    type Locale
-  } from '@bagel/kit';
+    Switch
+  } from '@bagel/ui/svelte';
   import { page } from '$app/state';
   import { enhance, deserialize } from '$app/forms';
   import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';

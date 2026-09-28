@@ -7,10 +7,9 @@
     Heading,
     SegmentedControl,
     Select,
-    Text,
-    getI18n,
-    type GuildBotState
-  } from '@bagel/kit';
+    Text
+  } from '@bagel/ui/svelte';
+  import { getI18n, type GuildBotState } from '@bagel/kit';
   import DiscordStateTag from './DiscordStateTag.svelte';
   import GuildCrest from './GuildCrest.svelte';
   import { sinceParts } from '$lib/discord/guild-view';

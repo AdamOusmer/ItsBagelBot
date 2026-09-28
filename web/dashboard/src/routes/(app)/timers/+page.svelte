@@ -13,24 +13,26 @@
     EditorFooter,
     InspectorSurface,
     toast,
-    getI18n,
-    blankTimer,
-    type TimerDef,
-    MasterToggle,
     PageToolbar,
     AlertBanner,
     DeckLayout,
     DeckList,
-    EmptyState,
+    EmptyState
+  } from '@bagel/ui/svelte';
+  import {
+    getI18n,
+    blankTimer,
+    type TimerDef,
+    MasterToggle,
     actionPayload,
     toastFailure,
-    type ActionOk,
+    type ActionOk
   } from '@bagel/kit';
   import { untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import TimerRow from '$lib/components/timers/TimerRow.svelte';
   import TimerEditor from '$lib/components/timers/TimerEditor.svelte';
-  import { focusFirstInvalid } from '@bagel/kit';
+  import { focusFirstInvalid } from '@bagel/ui/svelte';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
 
   let { data } = $props();

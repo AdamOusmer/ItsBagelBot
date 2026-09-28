@@ -13,7 +13,6 @@
     ConfirmDialog,
     EditorFooter,
     InspectorSurface,
-    MasterToggle,
     AlertBanner,
     DeckLayout,
     DeckList,
@@ -25,13 +24,16 @@
     Spinner,
     Text,
     toast,
+    focusFirstInvalid,
+    createDiscardGuard,
+    Tag
+  } from '@bagel/ui/svelte';
+  import {
+    MasterToggle,
     getI18n,
     type GoveeDevice,
     actionPayload,
-    focusFirstInvalid,
-    createDiscardGuard,
-    type ActionOk,
-    Tag,
+    type ActionOk
   } from '@bagel/kit';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
@@ -236,9 +238,9 @@
   {/if}
 
   {#if missingScope}
-    <AlertBanner variant="warn">
+    <AlertBanner tone="warning">
       {t('govee.reconnect')}
-      {#snippet action()}
+      {#snippet actions()}
         <ButtonLink variant="primary" href="/login?next=/govee" data-sveltekit-reload>{t('govee.reconnectCta')}</ButtonLink>
       {/snippet}
     </AlertBanner>

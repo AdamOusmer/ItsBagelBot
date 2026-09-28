@@ -13,13 +13,13 @@ const FAMILY = {
   VisuallyHidden: 'Typography', SectionHeading: 'Typography',
   Container: 'Layout', Section: 'Layout', Stack: 'Layout', Cluster: 'Layout', Grid: 'Layout',
   Divider: 'Layout', Spacer: 'Layout', AppShell: 'Layout', Scroller: 'Layout',
-  InspectorSurface: 'Layout', PageHero: 'Layout', PickerPanel: 'Layout', StatsPageLayout: 'Layout',
+  InspectorSurface: 'Layout', PageHero: 'Layout', PickerPanel: 'Layout',
   Button: 'Controls', ButtonLink: 'Controls', IconButton: 'Controls', Switch: 'Controls',
   Toggle: 'Controls', Field: 'Controls', FieldError: 'Controls', Input: 'Controls',
   Select: 'Controls', Textarea: 'Controls', Checkbox: 'Controls', RadioGroup: 'Controls',
   SegmentedControl: 'Controls', SearchInput: 'Controls',
   SwitchRow: 'Controls', Slider: 'Controls', FileDrop: 'Controls', PickerOption: 'Controls',
-  Badge: 'Feedback', NotificationBell: 'Feedback', StatusDot: 'Feedback', Chip: 'Feedback', Tag: 'Feedback', ToastHost: 'Feedback',
+  Badge: 'Feedback', StatusDot: 'Feedback', Chip: 'Feedback', Tag: 'Feedback', ToastHost: 'Feedback',
   AlertBanner: 'Feedback', Skeleton: 'Feedback', SkeletonStack: 'Feedback',
   EmptyState: 'Feedback', Modal: 'Feedback', ConfirmDialog: 'Feedback', Tooltip: 'Feedback',
   SaveStatus: 'Feedback', ErrorScene: 'Feedback', ProgressBar: 'Feedback', StepList: 'Feedback',
@@ -39,7 +39,6 @@ const FAMILY = {
 };
 
 const ADAPTER_NOTE = {
-  NotificationBell: 'Svelte only: interactive notification popover with caller-owned callbacks.',
   PickerPanel: 'Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.',
   ToastHost: 'Svelte only: it subscribes to the toast store, and a host with nothing to subscribe to renders nothing.',
   ConfirmDialog: 'Svelte only: a composition of Modal + Button with no CSS of its own, and its two callbacks are the element.',

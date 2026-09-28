@@ -2,7 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
-  import { AuroraBg, ButtonLink, Eyebrow, Heading, Lead, getI18n } from '@bagel/kit';
+  import { AuroraBg, ButtonLink, Eyebrow, Heading, Lead } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
 
   const { t } = getI18n();

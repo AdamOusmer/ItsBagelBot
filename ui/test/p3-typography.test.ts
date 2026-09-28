@@ -201,27 +201,27 @@ describe('Code options', () => {
 
 describe('AlertBanner options', () => {
   contract({
-    name: 'positive callout',
+    name: 'success callout',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { variant: 'positive', callout: true, role: 'note' },
+    props: { tone: 'success', variant: 'callout', role: 'note' },
     body: '<b>In plain words</b>We keep nothing.',
-    html: '<div class="bb-alert bb-alert--positive bb-alert--callout" role="note"><span class="bb-alert__msg"><b>In plain words</b>We keep nothing.</span></div>',
+    html: '<div class="bb-alert bb-alert--success bb-alert--callout" role="note"><span class="bb-alert__msg"><b>In plain words</b>We keep nothing.</span></div>',
   });
 
   contract({
-    name: 'flush warn row',
+    name: 'flush warning row',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { variant: 'warn', flush: true, role: 'note' },
+    props: { tone: 'warning', flush: true, role: 'note' },
     body: 'Two commands are off.',
-    html: '<div class="bb-alert bb-alert--warn bb-alert--flush" role="note"><span class="bb-alert__msg">Two commands are off.</span></div>',
+    html: '<div class="bb-alert bb-alert--warning bb-alert--flush" role="note"><span class="bb-alert__msg">Two commands are off.</span></div>',
   });
 
   test('flush comes after callout so it clears both margins', () => {
     const source = css('elements/alert.css');
     expect(source.indexOf('.bb-alert--flush {')).toBeGreaterThan(source.indexOf('.bb-alert--callout {'));
-    expect(source).toMatch(/\.bb-alert--positive \{[^}]*--alert-rgb: var\(--bb-green-glow-rgb\)/);
+    expect(source).toMatch(/\.bb-alert--success \{[^}]*--alert-rgb: var\(--bb-green-glow-rgb\)/);
   });
 
   contract({

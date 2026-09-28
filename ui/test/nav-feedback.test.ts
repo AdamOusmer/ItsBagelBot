@@ -222,39 +222,39 @@ describe('AlertBanner additions', () => {
     name: 'tip callout renders authored markup as its message',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { variant: 'tip', callout: true, role: 'note' },
+    props: { tone: 'warm', variant: 'callout', role: 'note' },
     slots: { default: '<b>Tip</b> Save first.' },
     html:
-      '<div class="bb-alert bb-alert--tip bb-alert--callout" role="note">' +
+      '<div class="bb-alert bb-alert--warm bb-alert--callout" role="note">' +
       '<span class="bb-alert__msg"><b>Tip</b> Save first.</span></div>',
   });
 
   contract({
-    name: 'note variant',
+    name: 'neutral callout',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { variant: 'note', callout: true, role: 'note' },
-    html: '<div class="bb-alert bb-alert--note bb-alert--callout" role="note"><span class="bb-alert__msg"></span></div>',
+    props: { tone: 'neutral', variant: 'callout', role: 'note' },
+    html: '<div class="bb-alert bb-alert--neutral bb-alert--callout" role="note"><span class="bb-alert__msg"></span></div>',
   });
 
   contract({
-    name: 'exit link',
+    name: 'action link',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { variant: 'impersonation', role: 'status', exit: { label: 'Exit', href: '/admin' } },
+    props: { tone: 'warm', placement: 'top', role: 'status', action: { label: 'Exit', href: '/admin' } },
     html:
-      '<div class="bb-alert bb-alert--impersonation" role="status"><span class="bb-alert__msg"></span>' +
-      '<a class="bb-alert__exit" href="/admin">Exit</a></div>',
+      '<div class="bb-alert bb-alert--warm bb-alert--top" role="status"><span class="bb-alert__msg"></span>' +
+      '<a class="bb-alert__action" href="/admin">Exit</a></div>',
   });
 
   contract({
-    name: 'exit through a POST form',
+    name: 'action through a POST form',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { variant: 'impersonation', role: 'status', exit: { label: 'Exit', action: '/auth/logout' } },
+    props: { tone: 'warm', placement: 'top', role: 'status', action: { label: 'Exit', formAction: '/auth/logout' } },
     html:
-      '<div class="bb-alert bb-alert--impersonation" role="status"><span class="bb-alert__msg"></span>' +
-      '<form method="POST" action="/auth/logout"><button type="submit" class="bb-alert__exit">Exit</button></form></div>',
+      '<div class="bb-alert bb-alert--warm bb-alert--top" role="status"><span class="bb-alert__msg"></span>' +
+      '<form method="POST" action="/auth/logout"><button type="submit" class="bb-alert__action">Exit</button></form></div>',
   });
 });
 

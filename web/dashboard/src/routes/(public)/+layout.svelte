@@ -3,7 +3,8 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   import { page } from '$app/state';
-  import { ButtonLink, Footer, LanguageSwitcher, Nav, getI18n } from '@bagel/kit';
+  import { ButtonLink, Footer, LanguageSwitcher, Nav } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import { LOCALES } from '@bagel/kit/i18n';
   import { reveal } from '@bagel/ui/svelte/actions';
   import {

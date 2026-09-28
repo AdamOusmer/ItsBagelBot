@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { namespaceReplySamples, Button, Code, Field, Text, getI18n } from '@bagel/kit';
+  import { namespaceReplySamples, getI18n } from '@bagel/kit';
+  import { Button, Code, Field, Text } from '@bagel/ui/svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';

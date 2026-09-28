@@ -26,7 +26,7 @@ export interface UiBrand {
   href?: string;
   logoSrc?: string;
   logoAlt?: string;
-  premium?: boolean;
+  logoShape?: 'square' | 'circle';
 }
 
 export interface UiLocaleOption {

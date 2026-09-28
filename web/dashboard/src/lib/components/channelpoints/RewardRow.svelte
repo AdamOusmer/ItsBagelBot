@@ -3,7 +3,8 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { ManagementRow, Switch, Tag, getI18n, type ChannelPointReward } from '@bagel/kit';
+  import { ManagementRow, Switch, Tag } from '@bagel/ui/svelte';
+  import { getI18n, type ChannelPointReward } from '@bagel/kit';
   import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();

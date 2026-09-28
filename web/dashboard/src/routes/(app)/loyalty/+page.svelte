@@ -6,7 +6,6 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     PageHead,
-    MasterToggle,
     PageToolbar,
     Switch,
     SwitchRow,
@@ -23,7 +22,10 @@
     EmptyState,
     SaveStatus,
     DeckList,
-    toast,
+    toast
+  } from '@bagel/ui/svelte';
+  import {
+    MasterToggle,
     getI18n,
     LOYALTY_DEFAULTS,
     formatPointValue,

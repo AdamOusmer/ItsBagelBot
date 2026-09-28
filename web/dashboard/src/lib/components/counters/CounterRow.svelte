@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { ManagementRow, Tag, Text, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
+  import { ManagementRow, Tag, Text } from '@bagel/ui/svelte';
+  import { getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
   import { formatCounterValue } from '@bagel/kit/validation';
   import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
 

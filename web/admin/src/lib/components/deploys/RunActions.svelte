@@ -97,7 +97,7 @@
   {#if failure}
     <AlertBanner>{failure.message}</AlertBanner>
   {:else if run.cancel_requested && !isTerminal(run.state)}
-    <AlertBanner variant="warn" role="status">{t('admin.deploys.cancelRequested')}</AlertBanner>
+    <AlertBanner tone="warning" role="status">{t('admin.deploys.cancelRequested')}</AlertBanner>
   {/if}
 </div>
 

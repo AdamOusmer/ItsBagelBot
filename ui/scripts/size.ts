@@ -251,7 +251,6 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/log-tail", budget: 440 },
   // Stats contracts, macOS/arm64: measured gzip bytes +150 B platform variance and ~10% room.
   { name: "elements/ambient-sky", budget: 1130 }, // 869 B
-  { name: "elements/stats-page-layout", budget: 1520 }, // 1231 B
   { name: "elements/counter-card", budget: 1180 }, // 917 B
   { name: "elements/community-card", budget: 1020 }, // 773 B
   { name: "elements/ranking-card", budget: 1190 }, // 928 B

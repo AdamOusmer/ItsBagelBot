@@ -324,12 +324,12 @@
     {#if !cd.ok}
       <section class="ov-top" aria-labelledby="ov-cmd-h">
         <Heading level={6} as="h2" variant="title" id="ov-cmd-h">{t('overview.topCommands')}</Heading>
-        <AlertBanner variant="warn" role="status" flush>
+        <AlertBanner tone="warning" role="status" flush>
           <span class="ov-unavail">
             <Text as="span" size="sm">{t('overview.commandsUnavailable')}</Text>
             <Text as="span" size="sm" tone="muted">{t('overview.commandsUnavailableDesc')}</Text>
           </span>
-          {#snippet action()}
+          {#snippet actions()}
             <RetryButton />
           {/snippet}
         </AlertBanner>

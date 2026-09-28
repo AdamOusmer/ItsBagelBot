@@ -13,7 +13,7 @@
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import type { InspectorStatus } from '@bagel/kit';
+  import type { InspectorStatus } from '@bagel/ui/lib/inspector-machine';
   import { getI18n } from '@bagel/kit/i18n/context';
   import {
     LEVELS,

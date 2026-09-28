@@ -7,7 +7,9 @@
     ManagementRow,
     SaveStatus,
     Switch,
-    Text,
+    Text
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     namespaceReplyTemplate,
     tModuleReplyDefault,

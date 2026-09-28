@@ -27,10 +27,12 @@
     Tag,
     Text,
     Textarea,
+    focusFirstInvalid
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     slugifyName,
     buildJsonPath,
-    focusFirstInvalid,
     DEFS_PER_BROADCASTER
   } from '@bagel/kit';
   import JsonTree from './JsonTree.svelte';

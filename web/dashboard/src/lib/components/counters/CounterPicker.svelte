@@ -14,10 +14,9 @@
     PickerPanel,
     Select,
     Tag,
-    Text,
-    getI18n,
-    type CounterScope
-  } from '@bagel/kit';
+    Text
+  } from '@bagel/ui/svelte';
+  import { getI18n, type CounterScope } from '@bagel/kit';
 
   const { t } = getI18n();
 

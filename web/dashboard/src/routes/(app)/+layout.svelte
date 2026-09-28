@@ -8,10 +8,10 @@
   import { onMount } from 'svelte';
   import { invalidateAll, afterNavigate } from '$app/navigation';
   import { visibleEventSource } from '$lib/visible-stream';
-  import AppShell from '@bagel/kit/components/AppShell.svelte';
+  import ConsoleShell from '@bagel/kit/components/ConsoleShell.svelte';
   import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
-  import NotificationBell from '@bagel/ui/svelte/NotificationBell.svelte';
+  import NotificationBell from '@bagel/kit/components/NotificationBell.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
@@ -101,7 +101,7 @@
   <meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
-<AppShell
+<ConsoleShell
   brandSub={t('common.console')}
   crumbRoot="ItsBagelBot"
   {crumb}
@@ -161,7 +161,7 @@
     {/if}
   {/snippet}
   {@render children()}
-</AppShell>
+</ConsoleShell>
 
 <style>
   .bell-slot {

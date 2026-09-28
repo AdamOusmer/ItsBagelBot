@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, getI18n } from '@bagel/kit';
+  import { AlertBanner } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import ChannelPicker from '$lib/components/discord/ChannelPicker.svelte';
   import { createGuildDraft } from '$lib/discord/guild-draft.svelte';
@@ -20,7 +21,7 @@
 </script>
 
 {#if layoutDown}
-  <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
+  <AlertBanner tone="warning">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}
 
 <GuildForm {draft} id="dc-channels-h" title={t('discord.channels.title')} hint={t('discord.channels.help')}>

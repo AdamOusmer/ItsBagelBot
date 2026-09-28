@@ -10,7 +10,9 @@
     SearchInput,
     SegmentedControl,
     Text,
-    Textarea,
+    Textarea
+  } from '@bagel/ui/svelte';
+  import {
     alertOn,
     encodeIdList,
     getI18n,
@@ -70,7 +72,7 @@
 </script>
 
 {#if layoutDown}
-  <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
+  <AlertBanner tone="warning">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}
 
 <GuildForm {draft} id="dc-tickets-h" title={t('discord.tickets.title')} hint={t('discord.tickets.sectionHelp')}>

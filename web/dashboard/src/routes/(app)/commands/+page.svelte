@@ -26,6 +26,9 @@
     InspectorSurface,
     ConfirmDialog,
     toast,
+    SegmentedControl
+  } from '@bagel/ui/svelte';
+  import {
     normName,
     getI18n,
     tPerm,
@@ -42,8 +45,7 @@
     COOLDOWN_MAX,
     type CommandView,
     type CommandErrors,
-    type Perm,
-    SegmentedControl
+    type Perm
   } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import CommandRow from '$lib/components/commands/CommandRow.svelte';

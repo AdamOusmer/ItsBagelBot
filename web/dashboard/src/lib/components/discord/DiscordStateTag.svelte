@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Tag, getI18n, type GuildBotState } from '@bagel/kit';
+  import { Tag } from '@bagel/ui/svelte';
+  import { getI18n, type GuildBotState } from '@bagel/kit';
   import { DISCORD_PILL_KEYS, DISCORD_STATE_TAG } from '$lib/discord-messages';
 
   let { state }: { state: GuildBotState } = $props();
