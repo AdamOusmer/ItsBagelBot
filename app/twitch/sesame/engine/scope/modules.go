@@ -230,10 +230,10 @@ func (o *moduleValues) song(name string) string {
 	case SongArtistToken:
 		return o.track.Artist
 	}
-	return songLine(o.track)
+	return o.track.Line()
 }
 
-func songLine(t Track) string {
+func (t Track) Line() string {
 	if t.Artist == "" {
 		return t.Title
 	}

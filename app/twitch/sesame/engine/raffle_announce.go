@@ -19,6 +19,30 @@ import (
 	"go.uber.org/zap"
 )
 
+func raffleAutoClosedText(locale string, res *RaffleResult) string {
+	return expandTokens(module.Locale(locale), tokenExpansion{
+		namespace: "raffle",
+		text:      i18n.T(locale, "raffle.auto_closed"),
+		kv: []string{
+			"targets", mentionList(res.Winners),
+			"count", strconv.FormatInt(int64(len(res.Winners)), 10),
+			"entrants", strconv.FormatInt(res.Entrants, 10),
+			"claim", strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10),
+		},
+	})
+}
+
+func raffleRemindText(locale string, leftSeconds, entrants int64) string {
+	return expandTokens(module.Locale(locale), tokenExpansion{
+		namespace: "raffle",
+		text:      i18n.T(locale, "raffle.remind"),
+		kv: []string{
+			"mins", strconv.FormatInt((leftSeconds+59)/60, 10),
+			"count", strconv.FormatInt(entrants, 10),
+		},
+	})
+}
+
 func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) {
 	dctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -35,15 +59,7 @@ func (s *ValkeyRaffleStore) autoDraw(ctx context.Context, broadcasterID uint64) 
 	if len(res.Winners) == 0 {
 		text = i18n.T(locale, "raffle.auto_empty")
 	} else {
-		text = expandTokens(module.Locale(locale), tokenExpansion{
-			text: i18n.T(locale, "raffle.auto_closed"),
-			kv: []string{
-				"targets", mentionList(res.Winners),
-				"count", strconv.FormatInt(int64(len(res.Winners)), 10),
-				"entrants", strconv.FormatInt(res.Entrants, 10),
-				"claim", strconv.FormatInt(int64(raffleClaimWindow.Minutes()), 10),
-			},
-		})
+		text = raffleAutoClosedText(locale, res)
 	}
 	s.post(dctx, broadcasterID, text)
 }
@@ -71,13 +87,7 @@ func (s *ValkeyRaffleStore) remindTick(ctx context.Context, broadcasterID uint64
 	}
 
 	locale := s.localeOf(dctx, broadcasterID)
-	s.post(dctx, broadcasterID, expandTokens(module.Locale(locale), tokenExpansion{
-		text: i18n.T(locale, "raffle.remind"),
-		kv: []string{
-			"mins", strconv.FormatInt((left+59)/60, 10),
-			"count", strconv.FormatInt(entrants, 10),
-		},
-	}))
+	s.post(dctx, broadcasterID, raffleRemindText(locale, left, entrants))
 
 	next := st.RemindSeconds
 	if next <= 0 {

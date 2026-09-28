@@ -121,13 +121,6 @@ const ENTRIES: {
              globalThis.x = dock;`,
   },
   {
-    name: "hash-active",
-    budget: 480,
-    external: [],
-    source: `import { mountHashActive } from "../../lib/hash-active";
-             globalThis.x = mountHashActive;`,
-  },
-  {
     name: "icons",
     budget: 3200,
     external: [],

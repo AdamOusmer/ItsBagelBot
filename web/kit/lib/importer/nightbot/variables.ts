@@ -77,7 +77,7 @@ function specialToken(token: Token): TokenResult | null {
   return timeToken(token) ?? countdownToken(token) ?? twitchToken(token);
 }
 
-function fetchToken(token: Token, sink?: FetchSlotSink): TokenResult {
+export function fetchToken(token: Token, sink?: FetchSlotSink): TokenResult {
   if (!sink) return literal(token);
   const args = parseFetchArgs(token.rest);
   if (!args) return literal(token);
@@ -88,7 +88,7 @@ function fetchToken(token: Token, sink?: FetchSlotSink): TokenResult {
   return { repl: span, warned: false, jsonFetch: args.json };
 }
 
-class Warnings {
+export class Warnings {
   private readonly seen = new Set<string>();
   readonly tokens: string[] = [];
 
@@ -105,12 +105,14 @@ interface Pass {
   jsonFetch: boolean;
 }
 
-function translatePass(text: string, sink: FetchSlotSink | undefined, warns: Warnings): Pass {
+type Classify = (token: Token) => TokenResult;
+
+function translatePass(text: string, classifyToken: Classify, warns: Warnings): Pass {
   const pass: Pass = { text: '', changed: false, jsonFetch: false };
   let pos = 0;
 
   for (let token = nextToken(text, pos); token; token = nextToken(text, pos)) {
-    const res = classify(token, sink);
+    const res = classifyToken(token);
     pass.text += text.slice(pos, token.start) + res.repl;
     pass.jsonFetch ||= res.jsonFetch === true;
     pass.changed ||= res.repl !== token.raw;
@@ -122,16 +124,25 @@ function translatePass(text: string, sink: FetchSlotSink | undefined, warns: War
   return pass;
 }
 
-export function translateVariables(inText: string, sink?: FetchSlotSink): TranslationResult {
-  const warns = new Warnings();
+export function runPasses(
+  inText: string,
+  classifyToken: Classify,
+  warns: Warnings
+): { text: string; jsonFetch: boolean } {
   let text = inText;
   let jsonFetch = false;
 
   for (let n = 0; n < MAX_PASSES; n++) {
-    const pass = translatePass(text, sink, warns);
+    const pass = translatePass(text, classifyToken, warns);
     text = pass.text;
     jsonFetch ||= pass.jsonFetch;
     if (!pass.changed) break;
   }
+  return { text, jsonFetch };
+}
+
+export function translateVariables(inText: string, sink?: FetchSlotSink): TranslationResult {
+  const warns = new Warnings();
+  const { text, jsonFetch } = runPasses(inText, (token) => classify(token, sink), warns);
   return { text, warns: warns.tokens, jsonFetch };
 }

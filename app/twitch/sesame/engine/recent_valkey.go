@@ -10,11 +10,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
 
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
-	"ItsBagelBot/internal/moderation"
 	"ItsBagelBot/pkg/cache"
 
 	"github.com/valkey-io/valkey-go"
@@ -144,9 +142,12 @@ func (v *ValkeyRecent) flushChannel(ctx context.Context, chanID channelID, entri
 }
 
 func (v *ValkeyRecent) Sweep(ctx context.Context, chanID channelID, phrase string, now time.Time) []RecentHit {
-	q := moderation.Normalize(GetBuf(), phrase)
-	defer PutBuf(q)
-	if v.client == nil || utf8.RuneCount(q) == 0 {
+	sweep, ok := newPhraseSweep(phrase)
+	if !ok {
+		return nil
+	}
+	defer sweep.release()
+	if v.client == nil {
 		return nil
 	}
 	cutoff := strconv.FormatInt(now.Add(-recentTTL).UnixMilli(), 10)
@@ -162,22 +163,14 @@ func (v *ValkeyRecent) Sweep(ctx context.Context, chanID channelID, phrase strin
 		return nil
 	}
 
-	hits := make([]RecentHit, 0, len(members))
 	seen := newUIDSet(len(members))
-	t := GetBuf()
-	defer PutBuf(t)
+	sweep.begin(len(members))
 	for _, m := range members {
-		e, ok := parseRecentMember(m)
-		if !ok {
-			continue
+		if e, ok := parseRecentMember(m); ok {
+			sweep.offer(seen, &e)
 		}
-		t = moderation.Normalize(t, e.text)
-		if !containsPhrase(t, q) || !seen.add(channelID(e.uid)) {
-			continue
-		}
-		hits = append(hits, RecentHit{UserID: channelID(e.uid), Role: e.role})
 	}
-	return hits
+	return sweep.hits
 }
 
 func encodeRecentMember(e recentEntry) string {

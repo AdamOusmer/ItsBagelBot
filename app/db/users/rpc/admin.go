@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -26,6 +27,7 @@ import (
 
 type adminRPC struct {
 	botUserID          string
+	validateBotGrant   grantValidator
 	repo               *repository.Users
 	gate               staffGate
 	nc                 *nats.Conn
@@ -98,8 +100,10 @@ type AdminConfig struct {
 }
 
 func SubscribeAdmin(w Wiring, db *ent.Client, cfg AdminConfig) error {
+	logBotIdentity(w.Log, cfg.BotUserID)
 	a := &adminRPC{
 		botUserID:          cfg.BotUserID,
+		validateBotGrant:   twitchGrantValidator(&http.Client{Timeout: twitchValidateTimeout}, twitchValidateURL),
 		repo:               w.Repo,
 		gate:               staffGate{db: db},
 		nc:                 w.NC,

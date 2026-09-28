@@ -166,7 +166,7 @@ defmodule Ingress.ConduitManager do
     applied = maybe_resize_conduit(conduit_id, desired, applied)
 
     stop_excess_shards(desired)
-    sweep_unmanaged_shards(desired)
+    sweep_unmanaged_shards(ShardInventory.unmanaged(), desired)
     start_missing_shards(conduit_id, desired, snapshot)
     applied
   end
@@ -203,13 +203,17 @@ defmodule Ingress.ConduitManager do
     end
   end
 
-  defp sweep_unmanaged_shards(desired) do
-    for {pid, status} <- ShardInventory.unmanaged(),
-        ShardHealth.unmanaged_action(status, desired) == :stop do
+  def sweep_unmanaged_shards({:ok, unmanaged}, desired) do
+    for {pid, status} <- unmanaged, ShardHealth.unmanaged_action(status, desired) == :stop do
       Logger.warning("stopping unmanaged shard #{status.shard_id} (supervised, unregistered)")
       Metrics.count("Conduit/UnmanagedShardStops")
       terminate_shard(status.shard_id, pid)
     end
+  end
+
+  def sweep_unmanaged_shards({:error, reason}, _desired) do
+    Logger.warning("unmanaged shard sweep skipped, inventory unknown: #{inspect(reason)}")
+    :skipped
   end
 
   defp terminate_shard(shard_id, pid) do

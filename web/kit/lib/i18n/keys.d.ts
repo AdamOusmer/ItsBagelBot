@@ -701,6 +701,7 @@ export type KnownMessageKey =
   | 'admin.shards.stateHealthy'
   | 'admin.shards.stateMissing'
   | 'admin.shards.stateRestarting'
+  | 'admin.shards.stateUnknown'
   | 'admin.shards.stateUnmanaged'
   | 'admin.shards.targetLoad'
   | 'admin.shards.throughputData'

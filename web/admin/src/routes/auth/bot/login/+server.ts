@@ -9,7 +9,7 @@ import { botTwitch, botScopes } from '$lib/server/oauth';
 import { env } from '$env/dynamic/private';
 
 export const GET: RequestHandler = ({ cookies, url }) => {
-  if (!env.ADMIN_BOT_USER_ID?.trim()) {
+  if (!env.TWITCH_BOT_USER_ID?.trim()) {
     throw redirect(302, '/auth/bot/done?e=config');
   }
 

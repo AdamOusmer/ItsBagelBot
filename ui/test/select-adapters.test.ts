@@ -61,19 +61,28 @@ test('Svelte Select keeps selected form value, disabled options, and fallback va
   expect(html).toContain('hidden');
 });
 
-test('Svelte Select represents an existing value absent from its refreshed option list', () => {
+test('Svelte Select submits nothing and shows the placeholder for a value absent from its options', () => {
   const html = normalise(render(SvelteSelect, { props: {
-    id: 'stored', name: 'stored', value: 'saved-id', options: [], disabled: true,
+    id: 'stored', name: 'stored', value: 'saved-id', options: [{ value: 'live', label: 'Live' }], disabled: true,
   } }).body);
-  expect(html).toContain('<select id="stored" name="stored" disabled>');
-  expect(html).toContain('<option value="saved-id" selected>saved-id</option>');
-  expect(html).toContain('<span class="bb-select__value">saved-id</span>');
+  expect(html).toContain('<select id="stored" name="stored" disabled><option value selected disabled hidden>Select…</option><option value="live">Live</option></select>');
+  expect(html).not.toContain('saved-id');
+  expect(html).toContain('data-placeholder');
+  expect(html).toContain('<span class="bb-select__value">Select…</span>');
 });
 
-test('Astro Select preserves a stored value omitted from refreshed options during SSR', async () => {
-  const html = await astroSelect({ id: 'stored', name: 'stored', value: 'saved-id', options: [] });
-  expect(html).toContain('<select id="stored" name="stored">');
-  expect(html).toContain('<option value="saved-id" selected data-select-fallback-option>saved-id</option>');
+test('Svelte Select omits the placeholder option when the value is offered', () => {
+  const html = normalise(render(SvelteSelect, { props: {
+    name: 'mode', value: '', options: [{ value: '', label: 'None' }, { value: 'a', label: 'A' }],
+  } }).body);
+  expect(html).not.toContain('disabled hidden');
+  expect(html).toContain('<option value selected>None</option>');
+});
+
+test('Astro Select submits nothing and shows the placeholder for a value absent from its options', async () => {
+  const html = await astroSelect({ id: 'stored', name: 'stored', value: 'saved-id', options: [{ value: 'live', label: 'Live' }] });
+  expect(html).toContain('<select id="stored" name="stored"><option value selected disabled hidden data-select-fallback-option>Select…</option><option value="live">Live</option></select>');
+  expect(html).not.toContain('>saved-id<');
 });
 
 test('an open Svelte picker keeps wheel and touch away from the page smooth-scroller', () => {

@@ -85,7 +85,7 @@ function rollingTrialRate(snapshot: ShardSnapshot | null, fallback: number | nul
 }
 
 function unavailableShard(shard: Shard): boolean {
-  return shard.state === 'unresponsive' && shard.load == null;
+  return (shard.state === 'unresponsive' || shard.state === 'unknown') && shard.load == null;
 }
 
 function productionRate(snapshot: ShardSnapshot | null): number | null {

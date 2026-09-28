@@ -20,14 +20,43 @@ import (
 
 func i18nT(locale, key string) string { return i18n.T(locale, key) }
 
-func (s *ValkeyDuelStore) announce(ctx context.Context, broadcasterID uint64, render func(locale string) string) {
+type duelVoice struct {
+	locale string
+	points string
+}
+
+func duelAutoWonText(v duelVoice, winner string, pot int64) string {
+	return expandTokens(module.Locale(v.locale), tokenExpansion{
+		namespace: "duel",
+		text:      i18nT(v.locale, "duel.auto_won"),
+		kv:        []string{"user", winner, "amount", strconv.FormatInt(pot, 10), "points", v.points},
+	})
+}
+
+func duelNoShowText(v duelVoice, st *DuelState) string {
+	return expandTokens(module.Locale(v.locale), tokenExpansion{
+		namespace: "duel",
+		text:      i18nT(v.locale, "duel.auto_noshow"),
+		kv: []string{
+			"opener", st.Opener, "target", st.Challenged,
+			"amount", strconv.FormatInt(st.OpenerStake, 10), "points", v.points,
+		},
+	})
+}
+
+func (s *ValkeyDuelStore) announce(ctx context.Context, broadcasterID uint64, render func(duelVoice) string) {
 	dctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	text := render(s.localeOf(dctx, broadcasterID))
+	text := render(s.voiceOf(dctx, broadcasterID))
 	if text == "" {
 		return
 	}
 	s.post(dctx, broadcasterID, text)
+}
+
+func (s *ValkeyDuelStore) voiceOf(ctx context.Context, broadcasterID uint64) duelVoice {
+	cfg, _ := ReadLoyaltyConfig(ctx, s.cfg.Proj, broadcasterID)
+	return duelVoice{locale: s.localeOf(ctx, broadcasterID), points: cfg.Name()}
 }
 
 func (s *ValkeyDuelStore) localeOf(ctx context.Context, broadcasterID uint64) string {

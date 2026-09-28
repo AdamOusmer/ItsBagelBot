@@ -135,7 +135,7 @@ func onStreamTick(d engine.Deps, arm bool) module.EventHandler {
 			return nil
 		}
 		id := c.BroadcasterID
-		version := eventVersion(c)
+		version := c.EventVersion()
 		seqOrGo(d.Seq, id, d.Log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), loyaltyTickTimeout)
 			defer cancel()
@@ -464,14 +464,24 @@ func (lc loyaltyCmd) watchtimeShow(ctx context.Context, _ string) error {
 		lc.reply("loyalty.counter.err")
 		return nil
 	}
+	lc.reply("loyalty.watchtime", "duration", watchSeconds(bal.WatchSeconds).humanize(lc.c))
+	return nil
+}
+
+type watchSeconds uint64
+
+func (s watchSeconds) humanize(c *module.Context) string {
 	// Convert only seconds that fit a signed nanosecond duration.
 	duration := time.Duration(1<<63 - 1)
-	const maxWatchSeconds = uint64((1<<63 - 1) / time.Second)
-	if bal.WatchSeconds <= maxWatchSeconds {
-		duration = time.Duration(bal.WatchSeconds) * time.Second
+	const maxWatchSeconds = watchSeconds((1<<63 - 1) / time.Second)
+	if s <= maxWatchSeconds {
+		duration = time.Duration(s) * time.Second
 	}
-	lc.reply("loyalty.watchtime", "duration", i18n.HumanizeDuration(lc.c.Locale, duration))
-	return nil
+	return i18n.HumanizeDuration(c.Locale, duration)
+}
+
+func (s watchSeconds) hours() string {
+	return strconv.FormatFloat(float64(s)/3600, 'f', 1, 64)
 }
 
 func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
@@ -489,7 +499,7 @@ func (lc loyaltyCmd) pointsShow(ctx context.Context) error {
 	lc.reply("loyalty.points",
 		"points", strconv.FormatInt(bal.Points, 10),
 		"name", cfg.Name(),
-		"hours", strconv.FormatFloat(float64(bal.WatchSeconds)/3600, 'f', 1, 64),
+		"hours", watchSeconds(bal.WatchSeconds).hours(),
 	)
 	return nil
 }

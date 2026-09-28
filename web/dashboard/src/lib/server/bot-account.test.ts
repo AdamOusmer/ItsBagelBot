@@ -8,11 +8,8 @@ describe('bot grant protection', () => {
     expect(isBotAccount('bot', { TWITCH_BOT_USER_ID: ' bot ' })).toBe(true);
     expect(isBotAccount('viewer', { TWITCH_BOT_USER_ID: 'bot' })).toBe(false);
   });
-  test('uses the canonical outgress identity ahead of a conflicting admin id', () => {
-    expect(isBotAccount('bot', { TWITCH_BOT_USER_ID: 'bot', ADMIN_BOT_USER_ID: 'other' })).toBe(true);
-  });
-  test('preserves admin-id fallback in other deployments', () => {
-    expect(isBotAccount('bot', { ADMIN_BOT_USER_ID: ' bot ' })).toBe(true);
+  test('ignores the retired admin-only variable', () => {
+    expect(isBotAccount('bot', { ADMIN_BOT_USER_ID: 'bot' })).toBe(false);
     expect(isBotAccount('viewer', {})).toBe(false);
   });
 });

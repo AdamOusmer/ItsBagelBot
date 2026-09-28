@@ -5,6 +5,7 @@ package module
 
 import (
 	"ItsBagelBot/internal/domain/event/lane"
+	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/pkg/codec"
 	"context"
 	"strings"
@@ -37,6 +38,8 @@ type Context struct {
 
 	emoteCodes  map[string]struct{}
 	emotesBuilt bool
+
+	eventVersion int64
 }
 
 // EnsureLocale resolves the broadcaster's language at most once per message.
@@ -65,6 +68,18 @@ func (c *Context) Chatter() Role {
 		c.roleSet = true
 	}
 	return c.role
+}
+
+// EventVersion falls back to one clock reading per event, shared by every
+// handler, so their versioned live and watch-time writes agree.
+func (c *Context) EventVersion() int64 {
+	if c.eventVersion == 0 {
+		c.eventVersion = c.Env.EventVersion()
+	}
+	if c.eventVersion == 0 {
+		c.eventVersion = livekey.VersionNow()
+	}
+	return c.eventVersion
 }
 
 func (c *Context) Decode(out any) error {
@@ -109,8 +124,13 @@ func (c *Context) Reset() {
 	c.roleSet = false
 	c.emoteCodes = nil
 	c.emotesBuilt = false
+	c.eventVersion = 0
 }
 
 func (c *Context) BID() zap.Field { return BIDField(c.BroadcasterID) }
+
+func (c *Context) Palette(namespace Namespace, kv ...string) Palette {
+	return KV(kv...).WithLocale(Locale(c.Locale)).WithNamespace(namespace)
+}
 
 func BIDField(id uint64) zap.Field { return zap.Uint64("broadcaster_id", id) }

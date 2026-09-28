@@ -39,7 +39,7 @@ func (r *Loyalty) BalanceTransfer(ctx context.Context, t Transfer) (*TransferOut
 	if sender.ID == 0 {
 		return &TransferOutcome{From: sender}, true, nil
 	}
-	err = r.moveBalance(ctx, sender.ID, recipient, t.Amount)
+	err = r.moveBalance(ctx, sender, recipient, t.Amount)
 	if errors.Is(err, errInsufficient) {
 		fresh, ferr := r.client.Balance.Get(ctx, sender.ID)
 		if ferr != nil {
@@ -110,22 +110,57 @@ func (r *Loyalty) transferRecipient(ctx context.Context, t Transfer, login strin
 
 // The points >= amount predicate stops a concurrent spend driving the sender negative.
 // Creating or crediting the recipient shares the debit transaction, including rollback.
-func (r *Loyalty) moveBalance(ctx context.Context, senderID int, recipient *ent.Balance, amount int64) error {
+func (r *Loyalty) moveBalance(ctx context.Context, sender, recipient *ent.Balance, amount int64) error {
 	return db.WithExec(ctx, func(ctx context.Context) error {
-		return withTx(ctx, r.client, func(tx *ent.Tx) error {
-			updated, err := tx.Balance.Update().
-				Where(balance.IDEQ(senderID), balance.PointsGTE(amount)).
-				AddPoints(-amount).
-				Save(ctx)
-			if err != nil {
-				return err
-			}
-			if updated == 0 {
-				return errInsufficient
-			}
-			return creditTransfer(ctx, tx, recipient, amount)
+		return retryTx(ctx, func(ctx context.Context) error {
+			return withTx(ctx, r.client, func(tx *ent.Tx) error {
+				if err := r.lockTransferRows(ctx, tx, sender.UserID, transferLockOrder(sender.ViewerID, recipient.ViewerID)); err != nil {
+					return err
+				}
+				return transferMove{senderID: sender.ID, recipient: recipient, amount: amount}.apply(ctx, tx)
+			})
 		})
 	})
+}
+
+type transferMove struct {
+	senderID  int
+	recipient *ent.Balance
+	amount    int64
+}
+
+func (m transferMove) apply(ctx context.Context, tx *ent.Tx) error {
+	updated, err := tx.Balance.Update().
+		Where(balance.IDEQ(m.senderID), balance.PointsGTE(m.amount)).
+		AddPoints(-m.amount).
+		Save(ctx)
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		return errInsufficient
+	}
+	return creditTransfer(ctx, tx, m.recipient, m.amount)
+}
+
+// Opposite transfers must lock the same rows in the same order, or MySQL aborts one with 1213.
+func transferLockOrder(senderViewerID, recipientViewerID uint64) [2]uint64 {
+	if recipientViewerID < senderViewerID {
+		return [2]uint64{recipientViewerID, senderViewerID}
+	}
+	return [2]uint64{senderViewerID, recipientViewerID}
+}
+
+func (r *Loyalty) lockTransferRows(ctx context.Context, tx *ent.Tx, userID uint64, viewerIDs [2]uint64) error {
+	if r.dialect == "sqlite3" {
+		return nil
+	}
+	for _, viewerID := range viewerIDs {
+		if _, err := tx.Balance.Query().Where(balance.UserIDEQ(userID), balance.ViewerIDEQ(viewerID)).ForUpdate().IDs(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // The conflict write locks an existing recipient before checking integer capacity.

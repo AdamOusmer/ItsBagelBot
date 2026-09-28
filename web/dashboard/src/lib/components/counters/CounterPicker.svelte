@@ -96,7 +96,7 @@
 <div class="cp">
   <button
     type="button"
-    class="picker"
+    class="bb-chip bb-chip--muted"
     title={t('vars.counter.hint')}
     aria-haspopup="dialog"
     aria-expanded={open}
@@ -160,26 +160,6 @@
 <style>
   .cp { position: relative; display: inline-flex; }
 
-  .picker {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-family: var(--bb-font-body);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-    background: transparent;
-    border: 1px solid var(--rule, var(--bb-border));
-    border-radius: var(--bb-radius-pill);
-    padding: 3px 10px;
-    cursor: pointer;
-    transition: all var(--bb-dur-fast, 140ms) var(--bb-ease-out-expo, ease);
-  }
-  .picker:hover,
-  .picker[aria-expanded='true'] {
-    color: var(--bb-white);
-    border-color: var(--bb-border-strong, rgba(255, 255, 255, 0.24));
-    background: rgba(255, 255, 255, 0.04);
-  }
   .caret { font-size: 9px; opacity: 0.7; }
 
 

@@ -12,6 +12,7 @@ import (
 	modulesrpc "ItsBagelBot/internal/domain/rpc/modules"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
+	"ItsBagelBot/pkg/env"
 	"bytes"
 	"context"
 	"errors"
@@ -69,7 +70,7 @@ func main() {
 	flag.BoolVar(&opts.apply, "apply", false, "apply changes through modules.patch-existing; otherwise preview only")
 	flag.StringVar(&opts.dsnEnv, "dsn-env", "MODULES_MIGRATION_DSN", "environment variable containing the read-only MySQL DSN")
 	flag.StringVar(&opts.natsEnv, "nats-url-env", "NATS_URL", "environment variable containing the NATS RPC fallback URL")
-	flag.StringVar(&opts.prefix, "subject-prefix", os.Getenv("NATS_MODULES_SUBJECT_PREFIX"), "modules RPC subject prefix; defaults to bagel.rpc.modules")
+	flag.StringVar(&opts.prefix, "subject-prefix", env.Get("NATS_MODULES_SUBJECT_PREFIX", ""), "modules RPC subject prefix; defaults to bagel.rpc.modules")
 	flag.StringVar(&opts.backup, "backup", "", "new exclusive 0600 JSONL journal; required with --apply")
 	flag.StringVar(&opts.restore, "restore", "", "preview or restore changed keys from a migration journal")
 	flag.Uint64Var(&opts.userID, "user-id", 0, "restrict to one Twitch user ID; zero scans all users")
@@ -124,7 +125,7 @@ func openMigration(opts options) (*migration, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
-	dsn := os.Getenv(opts.dsnEnv)
+	dsn := env.Get(opts.dsnEnv, "")
 	if dsn == "" {
 		return nil, errors.New("the selected DSN environment variable is empty")
 	}
@@ -146,11 +147,10 @@ func (m *migration) prepareApply() error {
 	if !m.opts.apply {
 		return nil
 	}
-	url := migrationRPCURL(m.opts.natsEnv)
-	if url == "" {
-		return errors.New("the selected NATS RPC endpoint is empty")
+	url, err := migrationRPCURL(m.opts.natsEnv)
+	if err != nil {
+		return err
 	}
-	var err error
 	m.nc, err = bus.Connect(url, "module-template-migration")
 	if err != nil {
 		return errors.New("cannot connect to modules RPC")
@@ -162,11 +162,12 @@ func (m *migration) prepareApply() error {
 	return nil
 }
 
-func migrationRPCURL(fallbackEnv string) string {
-	if leaf := os.Getenv("NATS_LEAF_URL"); leaf != "" {
-		return leaf
+func migrationRPCURL(fallbackEnv string) (string, error) {
+	url := bus.RPCURL(env.Get(fallbackEnv, ""))
+	if url == "" && env.Get("NATS_LEAF_URL", "") == "" {
+		return "", errors.New("the selected NATS RPC endpoint is empty")
 	}
-	return bus.RPCURL(os.Getenv(fallbackEnv))
+	return url, nil
 }
 
 func (m *migration) closeApply() {

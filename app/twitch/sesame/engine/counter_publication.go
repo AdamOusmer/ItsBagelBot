@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 	"go.uber.org/zap"
@@ -23,10 +24,7 @@ type counterPublication struct {
 	firstAttempt time.Time
 }
 
-// Keep ordinary counter republishing inside the five-minute Valkey receipt
-// window, leaving room for the data lane's 5s/20s/60s backoff and SQL work.
-// Longer broker retention and manual replay remain best-effort.
-const counterPublicationGiveUp = 3 * time.Minute
+const counterPublicationGiveUp = data.CounterRepublishWindow
 
 func abandonStaleCounterPublications(log *zap.Logger, pending []counterPublication, now time.Time) []counterPublication {
 	return slices.DeleteFunc(pending, func(publication counterPublication) bool {

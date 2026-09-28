@@ -82,7 +82,7 @@ func timeLookupReply(c *module.Context, now time.Time, place string) string {
 }
 
 func unknownPlaceReply(c *module.Context, place string) string {
-	return module.KV("place", place).WithLocale(module.Locale(c.Locale)).WithNamespace("time").ExpandString(i18n.T(c.Locale, "time.unknown"))
+	return c.Palette("time", "place", place).ExpandString(i18n.T(c.Locale, "time.unknown"))
 }
 
 type timeRender struct {
@@ -100,13 +100,15 @@ var timeReplySpec = module.Spec{Entries: []module.SpecEntry{
 	{Name: "user", Doc: "the invoking chatter's display name"},
 }}
 
+const timeDateLayout = "Monday, January 2"
+
 func expandTimeTemplate(text string, r timeRender, c *module.Context) string {
 	p := timeReplySpec.Bind(func(name string) func() string {
 		switch name {
 		case "time":
 			return func() string { return engine.FormatClock(r.local, r.format) }
 		case "date":
-			return func() string { return r.local.Format("Monday, January 2") }
+			return func() string { return r.local.Format(timeDateLayout) }
 		case "timezone":
 			return func() string { return r.timezone }
 		case "place":

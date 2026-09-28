@@ -214,7 +214,7 @@
 <div class="fsp">
   <button
     type="button"
-    class="picker bb-chip bb-chip--muted"
+    class="bb-chip bb-chip--muted"
     title={t('vars.urlfetch.hint')}
     aria-haspopup="dialog"
     aria-expanded={open}
@@ -368,13 +368,6 @@
 <style>
   .fsp { position: relative; display: inline-flex; }
 
-  .picker { gap: 5px; font-family: var(--bb-font-body); color: var(--bb-muted); }
-  .picker:hover,
-  .picker[aria-expanded='true'] {
-    color: var(--bb-white);
-    border-color: var(--bb-border-strong, rgba(255, 255, 255, 0.24));
-    background: rgba(255, 255, 255, 0.04);
-  }
   .caret { font-size: 9px; opacity: 0.7; }
 
 

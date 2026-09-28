@@ -78,7 +78,7 @@ func (n templateNamespace) rewriteCondition(token tmpl.Token, condition tmpl.Con
 		return token.Raw
 	}
 	start := strings.IndexByte(token.Raw, ':') + 1
-	end := start + len(condition.Ref.Name)
+	end := start + strings.IndexAny(token.Raw[start:], ":=")
 	converted := token.Raw[:start] + n.moduleID + ":" + condition.Ref.Name + token.Raw[end:]
 	return preserveConditionalElse(conditionalRewrite{token: token, converted: converted})
 }

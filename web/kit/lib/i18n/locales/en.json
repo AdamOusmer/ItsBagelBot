@@ -253,7 +253,8 @@
       "errState": "The authorization link expired or was invalid. Start bot authorization again.",
       "errOauth": "Twitch rejected the authorization. Try again.",
       "errAccount": "That Twitch account is not the configured bot account.",
-      "errConfig": "Bot authorization is disabled until ADMIN_BOT_USER_ID is configured.",
+      "errConfig": "Bot authorization is disabled until TWITCH_BOT_USER_ID is configured.",
+      "errSave": "Twitch approved the bot, but ItsBagelBot could not save its token. Check the bot configuration and authorize the bot again.",
       "errGeneric": "Something went wrong. Generate a new link and try again."
     },
     "notifications": {
@@ -366,6 +367,7 @@
       "stateUnmanaged": "unmanaged",
       "stateMissing": "missing",
       "stateDegraded": "degraded",
+      "stateUnknown": "unknown",
       "scaleDemo": "scale to {count} (demo)",
       "autoscaleOnDemo": "autoscale on (demo)",
       "autoscaleOffDemo": "autoscale off (demo)",

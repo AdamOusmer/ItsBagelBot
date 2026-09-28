@@ -66,6 +66,7 @@ export interface ShardSnapshot {
   nodes: string[];
   shard_count: number;
   conduit_manager?: { state: string; node: string; conduit_id?: string };
+  inventory?: 'available' | 'unavailable';
   shards: Shard[];
   desired_count: number;
   target: number;

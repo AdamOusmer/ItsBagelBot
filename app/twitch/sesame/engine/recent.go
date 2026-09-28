@@ -147,11 +147,11 @@ type RecentHit struct {
 }
 
 func (l *RecentLog) Sweep(_ context.Context, chanID channelID, phrase string, now time.Time) []RecentHit {
-	q := moderation.Normalize(GetBuf(), phrase)
-	defer PutBuf(q)
-	if utf8.RuneCount(q) == 0 {
+	sweep, ok := newPhraseSweep(phrase)
+	if !ok {
 		return nil
 	}
+	defer sweep.release()
 
 	sh := &l.shards[uint64(chanID)%recentShards]
 	sh.mu.Lock()
@@ -162,22 +162,51 @@ func (l *RecentLog) Sweep(_ context.Context, chanID channelID, phrase string, no
 		return nil
 	}
 	cutoff := stamp(now.Add(-recentTTL).UnixNano())
-	hits := make([]RecentHit, 0, 16)
 	seen := newUIDSet(16)
-	t := GetBuf()
+	sweep.begin(16)
 	for i := 0; i < c.len; i++ {
 		e := &c.buf[(c.head-1-i+recentRingCap)%recentRingCap]
 		if e.at < cutoff {
 			break
 		}
-		t = moderation.Normalize(t, e.text)
-		if !containsPhrase(t, q) || !seen.add(channelID(e.uid)) {
-			continue
-		}
-		hits = append(hits, RecentHit{UserID: channelID(e.uid), Role: e.role})
+		sweep.offer(seen, e)
 	}
-	PutBuf(t)
-	return hits
+	return sweep.hits
+}
+
+type phraseSweep struct {
+	query []byte
+	text  []byte
+	hits  []RecentHit
+}
+
+func newPhraseSweep(phrase string) (phraseSweep, bool) {
+	q := moderation.Normalize(GetBuf(), phrase)
+	if utf8.RuneCount(q) == 0 {
+		PutBuf(q)
+		return phraseSweep{}, false
+	}
+	return phraseSweep{query: q}, true
+}
+
+func (s *phraseSweep) begin(hint int) {
+	s.hits = make([]RecentHit, 0, hint)
+	s.text = GetBuf()
+}
+
+func (s *phraseSweep) offer(seen uidSet, e *recentEntry) {
+	s.text = moderation.Normalize(s.text, e.text)
+	if !containsPhrase(s.text, s.query) || !seen.add(channelID(e.uid)) {
+		return
+	}
+	s.hits = append(s.hits, RecentHit{UserID: channelID(e.uid), Role: e.role})
+}
+
+func (s *phraseSweep) release() {
+	PutBuf(s.query)
+	if s.text != nil {
+		PutBuf(s.text)
+	}
 }
 
 func containsPhrase(text, phrase []byte) bool {

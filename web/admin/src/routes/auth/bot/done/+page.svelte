@@ -15,7 +15,8 @@
     oauth: 'admin.botAuth.errOauth',
     scope: 'admin.botAuth.errScope',
     account: 'admin.botAuth.errAccount',
-    config: 'admin.botAuth.errConfig'
+    config: 'admin.botAuth.errConfig',
+    save: 'admin.botAuth.errSave'
   } as const;
 
   const ok = $derived(page.url.searchParams.get('ok') === '1');

@@ -253,13 +253,5 @@ func (qc quotesCmd) allowRead(ctx context.Context) (bool, error) {
 }
 
 func (qc quotesCmd) show(emit module.Emit, quote modulesrpc.Quote) {
-	date := ""
-	if t, err := time.Parse(time.RFC3339, quote.CreatedAt); err == nil {
-		date = t.UTC().Format("2006-01-02")
-	}
-	qc.reply(emit, "", "quote.show",
-		"num", strconv.FormatUint(quote.Number, 10),
-		"text", quote.Text,
-		"date", date,
-	)
+	qc.say(emit, engine.QuoteLine(qc.c.Locale, quote))
 }

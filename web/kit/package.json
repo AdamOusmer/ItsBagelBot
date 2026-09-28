@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check": "bun scripts/gen-i18n-keys.mjs --check",
     "i18n:keys": "bun scripts/gen-i18n-keys.mjs",
     "variables:generate": "bun scripts/gen-module-variables.ts",
     "verify:ui-only": "bun scripts/assert-ui-only-in-ui.mjs"

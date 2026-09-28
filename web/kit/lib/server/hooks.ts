@@ -1,8 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { detectLocale, ensureCatalog, isLocale, LOCALE_COOKIE, type Locale } from '../i18n/messages';
+
 type CookieStore = {
   get(name: string): string | undefined;
+  set(name: string, value: string, opts: { path: string; maxAge: number; secure: boolean; sameSite: 'lax' }): void;
   delete(name: string, opts: { path: string; secure: boolean }): void;
 };
 
@@ -34,6 +37,21 @@ export function openSessionCookie<S>(
     event.cookies.delete(cookie, { path: '/', secure: event.url.protocol === 'https:' });
   }
   return session;
+}
+
+export async function resolveLocale(event: HookEvent, forceEn = false): Promise<Locale> {
+  const queryLang = event.url.searchParams.get('lang');
+  if (isLocale(queryLang)) {
+    event.cookies.set(LOCALE_COOKIE, queryLang, { path: '/', maxAge: 31536000, secure: true, sameSite: 'lax' });
+  }
+  const locale = forceEn
+    ? 'en'
+    : detectLocale({
+        cookie: queryLang || event.cookies.get(LOCALE_COOKIE),
+        accept: event.request.headers.get('accept-language')
+      });
+  await ensureCatalog(locale);
+  return locale;
 }
 
 export function tagTransaction(

@@ -15,6 +15,7 @@ mock.module('@bagel/kit/server/hooks', () => ({
   noticeServerError: () => {},
   openSessionCookie: () => null,
   preloadStrategy: () => true,
+  resolveLocale: async () => 'en',
   tagTransaction: () => {}
 }));
 mock.module('@bagel/kit/server/rum', () => ({ rumTransform: () => (html: string) => html }));
@@ -27,12 +28,6 @@ mock.module('@bagel/kit/server/rate-limit', () => ({
   warmRateLimiter: () => {}
 }));
 mock.module('@bagel/kit/server/session-revocation', () => ({ warmSessionRevocation: () => {} }));
-mock.module('@bagel/kit/i18n', () => ({
-  detectLocale: () => 'en',
-  ensureCatalog: async () => {},
-  isLocale: (v: unknown) => v === 'en' || v === 'fr',
-  LOCALE_COOKIE: 'bb_locale'
-}));
 mock.module('$lib/server/services', () => ({ startInvalidationListener: () => {} }));
 mock.module('$lib/server/config-sanity', () => ({ assertConfigSane: () => {} }));
 

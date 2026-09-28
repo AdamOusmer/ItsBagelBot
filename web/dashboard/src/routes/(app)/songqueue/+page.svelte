@@ -298,25 +298,30 @@
   let redeemForm = $state<HTMLFormElement | null>(null);
 </script>
 
-{#if !connected}
+{#snippet head()}
+  <a class="back" href="/modules">{t('spotify.back')}</a>
+  <PageHead eyebrow={t('spotify.eyebrow')} description={t('spotify.description')}>
+    {t('spotify.titlePre')} <em>{t('spotify.titleEm')}</em>
+  </PageHead>
+{/snippet}
+
+{#if data.degraded}
+<section class="screen active">
+  {@render head()}
+  <AlertBanner>{t('spotify.degraded')}</AlertBanner>
+</section>
+{:else if !connected}
   <SpotifySetup
     name={data.displayName}
     app={app}
     redirectUri={data.redirectUri ?? ''}
     preview={'setupPreview' in data && data.setupPreview === true}
-    degraded={data.degraded}
     error={data.errorSlug ? t(ERROR_SLUG_KEYS[data.errorSlug] ?? 'spotify.errOauth') : ''}
+    onRemoveApp={() => (connectionAction = 'clearApp')}
   />
 {:else}
 <section class="screen active">
-  <a class="back" href="/modules">{t('spotify.back')}</a>
-  <PageHead eyebrow={t('spotify.eyebrow')} description={t('spotify.description')}>
-    {t('spotify.titlePre')} <em>{t('spotify.titleEm')}</em>
-  </PageHead>
-
-  {#if data.degraded}
-    <AlertBanner>{t('spotify.degraded')}</AlertBanner>
-  {/if}
+  {@render head()}
 
   {#if data.errorSlug && ERROR_SLUG_KEYS[data.errorSlug]}
     <AlertBanner variant="warn">{t(ERROR_SLUG_KEYS[data.errorSlug])}</AlertBanner>

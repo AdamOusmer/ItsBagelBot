@@ -5,6 +5,6 @@ export function isBotAccount(
   userId: string,
   config: Readonly<Record<string, string | undefined>>
 ): boolean {
-  const botId = config.TWITCH_BOT_USER_ID?.trim() || config.ADMIN_BOT_USER_ID?.trim();
+  const botId = config.TWITCH_BOT_USER_ID?.trim();
   return !!botId && userId === botId;
 }

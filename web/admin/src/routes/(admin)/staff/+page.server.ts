@@ -5,10 +5,9 @@ import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { allows, requireRole, canManage, type AdminIdentity } from '$lib/server/access';
-import { audit } from '$lib/server/audit';
 import { staffUpsert, staffRemove, adminListAccts, type AdminRole } from '$lib/server/services';
 import type { AdminAcct } from '$lib/server/services';
-import { actionError, adminText } from '$lib/server/admin-action';
+import { actionError, adminText, audited } from '$lib/server/admin-action';
 
 const ROLES = new Set<AdminRole>(['moderator', 'admin', 'owner']);
 const DEMO = dev && process.env.DEMO === '1';
@@ -54,20 +53,11 @@ export const actions: Actions = {
     if (!canManage(admin.role, role)) return fail(403, { error: adminText(locals.locale, 'admin.action.cannotGrantRole', { role }) });
 
     if (DEMO) return { action: { ok: true, notice: adminText(locals.locale, 'admin.staff.grantedDemo', { login, role }) } };
-    try {
-      const staff = await staffUpsert({ id: admin.id }, { userId, login, displayName, role });
-      audit(admin, { action: 'staff_upsert', target: userId, detail: `${login}:${role}`, ok: true });
-      return { action: { ok: true, notice: adminText(locals.locale, 'admin.staff.granted', { login, role }) }, staff };
-    } catch (e) {
-      audit(admin, {
-        action: 'staff_upsert',
-        target: userId,
-        detail: `${login}:${role}`,
-        ok: false,
-        error: (e as Error).message
-      });
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
+    return audited(
+      { admin, action: 'staff_upsert', target: userId, detail: `${login}:${role}` },
+      () => staffUpsert({ id: admin.id }, { userId, login, displayName, role }),
+      (staff) => ({ action: { ok: true, notice: adminText(locals.locale, 'admin.staff.granted', { login, role }) }, staff })
+    );
   },
 
   remove: async ({ request, locals }) => {
@@ -81,19 +71,10 @@ export const actions: Actions = {
     if (targetRole && !canManage(admin.role, targetRole)) return fail(403, { error: actionError(locals.locale, 'cannot remove this member') });
 
     if (DEMO) return { action: { ok: true, notice: adminText(locals.locale, 'admin.staff.removedDemo') } };
-    try {
-      const staff = await staffRemove({ id: admin.id }, userId);
-      audit(admin, { action: 'staff_remove', target: userId, detail: targetRole, ok: true });
-      return { action: { ok: true, notice: adminText(locals.locale, 'admin.staff.removed') }, staff };
-    } catch (e) {
-      audit(admin, {
-        action: 'staff_remove',
-        target: userId,
-        detail: targetRole,
-        ok: false,
-        error: (e as Error).message
-      });
-      return { action: { ok: false, notice: (e as Error).message } };
-    }
+    return audited(
+      { admin, action: 'staff_remove', target: userId, detail: targetRole },
+      () => staffRemove({ id: admin.id }, userId),
+      (staff) => ({ action: { ok: true, notice: adminText(locals.locale, 'admin.staff.removed') }, staff })
+    );
   }
 };

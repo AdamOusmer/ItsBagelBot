@@ -58,4 +58,9 @@ describe('throughput history', () => {
     const snapshot = { ...emptyShardSnapshot(), shards: [{ shard_id: 0, node: 'ingress@1', bound: false, state: 'unresponsive' }] };
     expect(last(history.record(snapshot, trials(), 1000)).production).toBeNull();
   });
+  test('unknown inventory leaves a production gap instead of a zero rate', () => {
+    const history = new ThroughputHistory();
+    const snapshot = { ...emptyShardSnapshot(), inventory: 'unavailable' as const, shards: [{ shard_id: 0, node: '', bound: false, state: 'unknown' }] };
+    expect(last(history.record(snapshot, trials(), 1000)).production).toBeNull();
+  });
 });
