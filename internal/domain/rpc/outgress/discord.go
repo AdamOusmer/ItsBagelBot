@@ -31,32 +31,36 @@ type DiscordSetupRequest struct {
 	InstalledBy string            `json:"installed_by,omitempty"`
 }
 
+type DiscordSetupIDs struct {
+	GuildID                 string `json:"guild_id,omitempty"`
+	LiveChannelID           string `json:"live_channel_id,omitempty"`
+	ClipsChannelID          string `json:"clips_channel_id,omitempty"`
+	WelcomeChannelID        string `json:"welcome_channel_id,omitempty"`
+	VoiceHubID              string `json:"voice_hub_id,omitempty"`
+	LogChannelID            string `json:"log_channel_id,omitempty"`
+	TicketChannelID         string `json:"ticket_channel_id,omitempty"`
+	TicketCategoryID        string `json:"ticket_category_id,omitempty"`
+	TicketArchiveCategoryID string `json:"ticket_archive_category_id,omitempty"`
+	SubsChannelID           string `json:"subs_channel_id,omitempty"`
+	SubsCategoryID          string `json:"subs_category_id,omitempty"`
+	VIPChannelID            string `json:"vip_channel_id,omitempty"`
+	VIPCategoryID           string `json:"vip_category_id,omitempty"`
+	OwnerRoleID             string `json:"owner_role_id,omitempty"`
+	LeadModRoleID           string `json:"lead_mod_role_id,omitempty"`
+	ModsRoleID              string `json:"mods_role_id,omitempty"`
+	VIPRoleID               string `json:"vip_role_id,omitempty"`
+	SubscriberRoleID        string `json:"subscriber_role_id,omitempty"`
+	RegularsRoleID          string `json:"regulars_role_id,omitempty"`
+	MemberRoleID            string `json:"member_role_id,omitempty"`
+}
+
 type DiscordSetupReply struct {
-	GuildID                 string   `json:"guild_id,omitempty"`
-	LiveChannelID           string   `json:"live_channel_id,omitempty"`
-	ClipsChannelID          string   `json:"clips_channel_id,omitempty"`
-	WelcomeChannelID        string   `json:"welcome_channel_id,omitempty"`
-	VoiceHubID              string   `json:"voice_hub_id,omitempty"`
-	LogChannelID            string   `json:"log_channel_id,omitempty"`
-	TicketChannelID         string   `json:"ticket_channel_id,omitempty"`
-	TicketCategoryID        string   `json:"ticket_category_id,omitempty"`
-	TicketArchiveCategoryID string   `json:"ticket_archive_category_id,omitempty"`
-	SubsChannelID           string   `json:"subs_channel_id,omitempty"`
-	SubsCategoryID          string   `json:"subs_category_id,omitempty"`
-	VIPChannelID            string   `json:"vip_channel_id,omitempty"`
-	VIPCategoryID           string   `json:"vip_category_id,omitempty"`
-	OwnerRoleID             string   `json:"owner_role_id,omitempty"`
-	LeadModRoleID           string   `json:"lead_mod_role_id,omitempty"`
-	ModsRoleID              string   `json:"mods_role_id,omitempty"`
-	VIPRoleID               string   `json:"vip_role_id,omitempty"`
-	SubscriberRoleID        string   `json:"subscriber_role_id,omitempty"`
-	RegularsRoleID          string   `json:"regulars_role_id,omitempty"`
-	MemberRoleID            string   `json:"member_role_id,omitempty"`
-	Refused                 string   `json:"refused,omitempty"`
-	DroppedPins             []string `json:"dropped_pins,omitempty"`
-	Fields                  []string `json:"fields,omitempty"`
-	Error                   string   `json:"error,omitempty"`
-	Code                    rpc.Code `json:"code"`
+	DiscordSetupIDs
+	Refused     string   `json:"refused,omitempty"`
+	DroppedPins []string `json:"dropped_pins,omitempty"`
+	Fields      []string `json:"fields,omitempty"`
+	Error       string   `json:"error,omitempty"`
+	Code        rpc.Code `json:"code"`
 }
 
 type DiscordLayoutRequest struct {
