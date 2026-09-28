@@ -37,17 +37,9 @@ defmodule Ingress.StatusPlugTest do
   end
 
   test "status is ok when both connection names are registered" do
-    Process.register(spawn(fn -> Process.sleep(:infinity) end), :gnat)
-    Process.register(spawn(fn -> Process.sleep(:infinity) end), :gnat_bus)
-
-    on_exit(fn ->
-      for name <- [:gnat, :gnat_bus] do
-        case Process.whereis(name) do
-          pid when is_pid(pid) -> Process.exit(pid, :kill)
-          nil -> :ok
-        end
-      end
-    end)
+    names = [:gnat, :gnat_bus]
+    for name <- names, do: Process.register(spawn(fn -> Process.sleep(:infinity) end), name)
+    on_exit(fn -> Enum.each(names, &release_name/1) end)
 
     conn = call("/status")
     assert conn.status == 200
@@ -55,5 +47,16 @@ defmodule Ingress.StatusPlugTest do
     assert body["status"] == "ok"
     assert Enum.all?(body["checks"], & &1["ok"])
     assert call("/readyz").status == 200
+  end
+
+  defp release_name(name) do
+    case Process.whereis(name) do
+      nil ->
+        :ok
+
+      pid ->
+        Process.unregister(name)
+        Process.exit(pid, :kill)
+    end
   end
 end
