@@ -3,13 +3,11 @@
 
 import { emit, normalizeInstant, positional, slice } from '../targets';
 import { normalizeName } from '../validate';
-import { parseFetchArgs } from '../nightbot/fetchdefs';
 import type { FetchSlotSink } from '../nightbot/fetchdefs';
 import { nextToken } from '../nightbot/scan';
 import type { Token } from '../nightbot/scan';
-import { positionalToken } from '../nightbot/variables';
-
-const MAX_PASSES = 3;
+import { Warnings, fetchToken, literal, positionalToken, runPasses } from '../nightbot/variables';
+import type { TokenResult } from '../nightbot/variables';
 
 const MAX_REFERENCE_DEPTH = 3;
 
@@ -24,11 +22,6 @@ export interface TranslationContext {
 }
 
 type Note = (raw: string) => void;
-
-interface TokenResult {
-  repl: string;
-  warned: boolean;
-}
 
 export const SIMPLE_TOKENS: Record<string, string> = {
   user: emit('user')!,
@@ -51,8 +44,6 @@ export const SUBFIELD_TOKENS: Record<string, string> = {
   'chatters.count': emit('chatters')!,
   'user.followers': emit('followers')!
 };
-
-const literal = (token: Token): TokenResult => ({ repl: token.raw, warned: true });
 
 const COUNT_GET = /^\.get\s+(.+)$/;
 
@@ -129,17 +120,6 @@ function classify(token: Token, ctx: TranslationContext): TokenResult {
   return literal(token);
 }
 
-function fetchToken(token: Token, sink?: FetchSlotSink): TokenResult {
-  if (!sink) return literal(token);
-  const args = parseFetchArgs(token.rest);
-  if (!args) return literal(token);
-  const key = sink.acquire(args.url);
-  if (key === null) return literal(token);
-  const span = emit('urlfetch', key);
-  if (span === null) return literal(token);
-  return { repl: span, warned: false };
-}
-
 function expandReferences(text: string, ctx: TranslationContext, depth: number, note: Note): string {
   let out = '';
   let pos = 0;
@@ -166,44 +146,13 @@ function referenceTarget(token: Token, depth: number, ctx: TranslationContext): 
   return name === '' ? null : (ctx.lookup?.(name) ?? null);
 }
 
-interface Pass {
-  text: string;
-  changed: boolean;
-}
-
-function translatePass(text: string, ctx: TranslationContext, note: Note): Pass {
-  const pass: Pass = { text: '', changed: false };
-  let pos = 0;
-
-  for (let token = nextToken(text, pos); token; token = nextToken(text, pos)) {
-    const res = classify(token, ctx);
-    pass.text += text.slice(pos, token.start) + res.repl;
-    pass.changed ||= res.repl !== token.raw;
-    pos = token.end;
-    if (res.warned) note(token.raw);
-  }
-
-  pass.text += text.slice(pos);
-  return pass;
-}
-
 export function translateVariables(
   inText: string,
   ctx: TranslationContext = {}
 ): TranslationResult {
-  const warns: string[] = [];
-  const seen = new Set<string>();
-  const note: Note = (raw) => {
-    if (seen.has(raw)) return;
-    seen.add(raw);
-    warns.push(raw);
-  };
-
-  let text = expandReferences(inText, ctx, 0, note);
-  for (let n = 0; n < MAX_PASSES; n++) {
-    const pass = translatePass(text, ctx, note);
-    text = pass.text;
-    if (!pass.changed) break;
-  }
-  return { text, warns };
+  const warns = new Warnings();
+  const note: Note = (raw) => warns.note(raw);
+  const expanded = expandReferences(inText, ctx, 0, note);
+  const { text } = runPasses(expanded, (token) => classify(token, ctx), warns);
+  return { text, warns: warns.tokens };
 }
