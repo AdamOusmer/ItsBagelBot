@@ -12,12 +12,12 @@ import {
   noticeServerError,
   openSessionCookie,
   preloadStrategy,
+  resolveLocale,
   tagTransaction
 } from '@bagel/kit/server/hooks';
 import { rumTransform } from '@bagel/kit/server/rum';
 import { ValkeyRateLimiter, warmRateLimiter } from '@bagel/kit/server/rate-limit';
 import { warmSessionRevocation } from '@bagel/kit/server/session-revocation';
-import { detectLocale, isLocale, LOCALE_COOKIE, ensureCatalog } from '@bagel/kit/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 
@@ -64,20 +64,6 @@ async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<
   });
 }
 
-function resolveLocale(event: Parameters<Handle>[0]['event']): ReturnType<typeof detectLocale> {
-  const queryLang = event.url.searchParams.get('lang');
-  if (isLocale(queryLang)) {
-    event.cookies.set(LOCALE_COOKIE, queryLang, { path: '/', maxAge: 31536000, secure: true, sameSite: 'lax' });
-  }
-  if (event.locals.session?.impersonator_id) {
-    return 'en';
-  }
-  return detectLocale({
-    cookie: queryLang || event.cookies.get(LOCALE_COOKIE),
-    accept: event.request.headers.get('accept-language')
-  });
-}
-
 const EDGE_CACHE: Record<string, readonly [edgeTtlSec: number, swrSec: number]> = {
   '/login': [600, 86_400],
   '/(public)/stats': [30, 300],
@@ -117,9 +103,8 @@ export const handle: Handle = async ({ event, resolve }) => {
     event.locals.session = await guardSession(event, event.locals.session);
   }
 
-  const locale = resolveLocale(event);
+  const locale = await resolveLocale(event, !!event.locals.session?.impersonator_id);
   event.locals.locale = locale;
-  await ensureCatalog(event.locals.locale);
   event.locals.cursorEnabled = event.cookies.get(CURSOR_COOKIE) !== '0';
   tagTransaction(newrelic, event, event.locals.session);
 
