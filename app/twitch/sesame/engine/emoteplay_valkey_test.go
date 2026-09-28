@@ -7,17 +7,27 @@ import (
 	"context"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
+var emoteplayChannelSeq = func() *atomic.Uint64 {
+	var seq atomic.Uint64
+	seq.Store(uint64(time.Now().UnixNano()))
+	return &seq
+}()
+
+func nextEmotePlayChannel() uint64 {
+	return emoteplayChannelSeq.Add(1)
+}
+
 type emoteplayFixture struct {
 	t     *testing.T
 	ctx   context.Context
 	store *ValkeyEmotePlay
-	seq   int
 }
 
 func newEmotePlayFixture(t *testing.T) *emoteplayFixture {
@@ -27,13 +37,12 @@ func newEmotePlayFixture(t *testing.T) *emoteplayFixture {
 	return &emoteplayFixture{t: t, ctx: ctx, store: NewValkeyEmotePlay(newHotPathTestClient(t))}
 }
 
-func (f *emoteplayFixture) channel() int {
-	f.seq++
-	return f.seq
+func (f *emoteplayFixture) channel() uint64 {
+	return nextEmotePlayChannel()
 }
 
 type emoteBump struct {
-	channel int
+	channel uint64
 	msgID   string
 	emote   string
 	width   int
@@ -47,7 +56,7 @@ func (f *emoteplayFixture) bump(b emoteBump) EmotePlayResult {
 		emote = "Kappa"
 	}
 	res, err := f.store.Bump(f.ctx, EmotePlayUpdate{
-		BroadcasterID: uint64(b.channel), MsgID: b.msgID, Emote: emote, Width: b.width, Copies: b.copies,
+		BroadcasterID: b.channel, MsgID: b.msgID, Emote: emote, Width: b.width, Copies: b.copies,
 	})
 	require.NoError(f.t, err)
 	return res
@@ -149,9 +158,10 @@ func TestEmotePlayWideLineBreaksTheStreakSilently(t *testing.T) {
 func TestEmotePlayExpiredWindowRestartsBothChains(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
+	ch := nextEmotePlayChannel()
 	short := &ValkeyEmotePlay{client: newHotPathTestClient(t), pyrWin: 40 * time.Millisecond, stkWin: 40 * time.Millisecond}
 	bumpShort := func(msgID string, width int) EmotePlayResult {
-		res, err := short.Bump(ctx, EmotePlayUpdate{MsgID: msgID, Emote: "Kappa", Width: width, Copies: 1})
+		res, err := short.Bump(ctx, EmotePlayUpdate{BroadcasterID: ch, MsgID: msgID, Emote: "Kappa", Width: width, Copies: 1})
 		require.NoError(t, err)
 		return res
 	}
@@ -163,8 +173,10 @@ func TestEmotePlayExpiredWindowRestartsBothChains(t *testing.T) {
 		"the pyramid expired: width 2 starts a fresh attempt instead of ascending the dead one")
 }
 
+const racingReplicas = 16
+
 func TestEmotePlayConcurrentReplicasCompleteExactlyOnce(t *testing.T) {
-	const replicas = 16
+	ch := nextEmotePlayChannel()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
 	racing := &ValkeyEmotePlay{client: newHotPathTestClient(t), pyrWin: time.Minute, stkWin: time.Minute}
@@ -172,24 +184,24 @@ func TestEmotePlayConcurrentReplicasCompleteExactlyOnce(t *testing.T) {
 		msgID string
 		width int
 	}{{"p1", 1}, {"p2", 2}, {"p3", 3}, {"p4", 2}} {
-		res, err := racing.Bump(ctx, EmotePlayUpdate{MsgID: w.msgID, Emote: "Kappa", Width: w.width, Copies: 1})
+		res, err := racing.Bump(ctx, EmotePlayUpdate{BroadcasterID: ch, MsgID: w.msgID, Emote: "Kappa", Width: w.width, Copies: 1})
 		require.NoError(t, err)
 		require.False(t, res.PyramidDone)
 	}
-	require.Equal(t, 1, raceWidthOneLines(t, ctx, racing, replicas),
+	require.Equal(t, 1, raceWidthOneLines(t, ctx, racing, ch),
 		"exactly one replica may observe the completion; every other racer must linearize behind it")
 }
 
-func raceWidthOneLines(t *testing.T, ctx context.Context, store *ValkeyEmotePlay, replicas int) int {
+func raceWidthOneLines(t *testing.T, ctx context.Context, store *ValkeyEmotePlay, channel uint64) int {
 	t.Helper()
-	outcomes := make(chan bumpOutcome, replicas)
+	outcomes := make(chan bumpOutcome, racingReplicas)
 	var wg sync.WaitGroup
-	wg.Add(replicas)
-	for i := 0; i < replicas; i++ {
+	wg.Add(racingReplicas)
+	for i := 0; i < racingReplicas; i++ {
 		go func(i int) {
 			defer wg.Done()
 			res, err := store.Bump(ctx, EmotePlayUpdate{
-				MsgID: "race-" + strconv.Itoa(i), Emote: "Kappa", Width: 1, Copies: 1,
+				BroadcasterID: channel, MsgID: "race-" + strconv.Itoa(i), Emote: "Kappa", Width: 1, Copies: 1,
 			})
 			outcomes <- bumpOutcome{res: res, err: err}
 		}(i)
