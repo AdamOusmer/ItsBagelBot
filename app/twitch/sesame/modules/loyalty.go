@@ -135,7 +135,7 @@ func onStreamTick(d engine.Deps, arm bool) module.EventHandler {
 			return nil
 		}
 		id := c.BroadcasterID
-		version := eventVersion(c)
+		version := c.EventVersion()
 		seqOrGo(d.Seq, id, d.Log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), loyaltyTickTimeout)
 			defer cancel()

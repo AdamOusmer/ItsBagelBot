@@ -830,12 +830,7 @@ func (s *ValkeyDuelStore) autoDraw(ctx context.Context, broadcasterID uint64, st
 		s.log.Warn("duel: pot payout failed", module.BIDField(broadcasterID),
 			zap.String("winner", winner), zap.Int64("pot", total), zap.Error(err))
 	}
-	s.announce(ctx, broadcasterID, func(locale string) string {
-		return expandTokens(module.Locale(locale), tokenExpansion{
-			text: i18nT(locale, "duel.auto_won"),
-			kv:   []string{"user", winner, "amount", strconv.FormatInt(total, 10)},
-		})
-	})
+	s.announce(ctx, broadcasterID, func(v duelVoice) string { return duelAutoWonText(v, winner, total) })
 }
 
 func (s *ValkeyDuelStore) autoNoShow(ctx context.Context, broadcasterID uint64, st *DuelState) {
@@ -845,15 +840,7 @@ func (s *ValkeyDuelStore) autoNoShow(ctx context.Context, broadcasterID uint64, 
 	}
 	s.teardown(ctx, broadcasterID, &receipt, false)
 	s.refund(ctx, broadcasterID, DuelStake{Login: st.Opener, Stake: st.OpenerStake})
-	s.announce(ctx, broadcasterID, func(locale string) string {
-		return expandTokens(module.Locale(locale), tokenExpansion{
-			text: i18nT(locale, "duel.auto_noshow"),
-			kv: []string{
-				"opener", st.Opener, "target", st.Challenged,
-				"amount", strconv.FormatInt(st.OpenerStake, 10),
-			},
-		})
-	})
+	s.announce(ctx, broadcasterID, func(v duelVoice) string { return duelNoShowText(v, st) })
 }
 
 func (s *ValkeyDuelStore) refundOnly(ctx context.Context, broadcasterID uint64, st *DuelState, outcome DuelOutcome) {

@@ -341,6 +341,40 @@ func TestWatchTickHydratedOfflineAccountCannotArm(t *testing.T) {
 	require.Equal(t, "4000", f.fields(t)["live_session"])
 }
 
+func TestWatchTickOnlineArmsWhenAnotherWriterStampedLive(t *testing.T) {
+	f := watchFixture(t, 77125)
+	ctx := context.Background()
+	f.clearSchedule(t)
+	n, err := setLiveScript.Exec(ctx, f.client, []string{livekey.Key(f.id), livekey.VerKey(f.id)}, []string{"2500", "3600", "172800"}).AsInt64()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, n)
+	f.clock.ArmVersioned(ctx, f.id, 2000)
+	fields := f.fields(t)
+	require.Equal(t, "1", fields["active"])
+	require.Equal(t, "2000", fields["version"])
+	require.Equal(t, "2000", fields["live_session"])
+	snap, allowed, err := f.clock.awards.Capture(ctx, f.id)
+	require.NoError(t, err)
+	require.True(t, allowed)
+	require.True(t, loyaltySchedule{generation: fields["generation"], liveSession: fields["live_session"]}.matchesAdmission(snap))
+}
+
+func TestWatchTickStaleOnlineStaysRefusedAfterOfflineAndNewerLive(t *testing.T) {
+	f := watchFixture(t, 77126)
+	ctx := context.Background()
+	f.clock.DisarmVersioned(ctx, f.id, 3000)
+	applied, err := clearLiveKey(ctx, f.client, f.id, 3000)
+	require.NoError(t, err)
+	require.True(t, applied)
+	n, err := setLiveScript.Exec(ctx, f.client, []string{livekey.Key(f.id), livekey.VerKey(f.id)}, []string{"5000", "3600", "172800"}).AsInt64()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, n)
+	f.clock.ArmVersioned(ctx, f.id, 2000)
+	fields := f.fields(t)
+	require.Equal(t, "0", fields["active"])
+	require.Equal(t, "3000", fields["version"])
+}
+
 func TestWatchTickOfflineBetweenAdmissionAndArmIsFenced(t *testing.T) {
 	for _, online := range []bool{false, true} {
 		t.Run(strconv.FormatBool(online), func(t *testing.T) {
