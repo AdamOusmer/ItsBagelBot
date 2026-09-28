@@ -66,7 +66,7 @@ func TestCounterPublicationAbandonedAfterGiveUp(t *testing.T) {
 	require.Len(t, r.pending, 1)
 	batchID := r.pending[0].id
 
-	now = now.Add(3*time.Minute - time.Second)
+	now = now.Add(counterPublicationGiveUp - time.Second)
 	r.flush(context.Background())
 	require.Len(t, r.pending, 1)
 	require.Equal(t, batchID, r.pending[0].id)
@@ -85,8 +85,30 @@ func TestCounterPublicationAbandonedAfterGiveUp(t *testing.T) {
 	fields := abandoned[0].ContextMap()
 	require.Equal(t, batchID, fields["batch_id"])
 	require.Equal(t, data.SubjectLoyaltyCounters, fields["subject"])
-	require.Equal(t, 3*time.Minute, fields["age"])
+	require.Equal(t, counterPublicationGiveUp, fields["age"])
 	require.Equal(t, int64(1), fields["entries"])
+}
+
+func TestCounterPublicationSurvivesBrokerOutage(t *testing.T) {
+	pub := &uncertainCounterPublisher{fail: true}
+	now := time.Unix(1_700_000_000, 0)
+	r := &LoyaltyReporter{pub: pub, log: zap.NewNop(), now: func() time.Time { return now }, earn: map[earnKey]*earnAgg{}, bumps: map[counterAgg]*bumpAgg{}}
+	r.BumpBot(data.CounterMessagesProcessed, 3)
+	r.flush(context.Background())
+	batchID := r.pending[0].id
+	for range 30 {
+		now = now.Add(time.Minute)
+		r.flush(context.Background())
+	}
+	require.Len(t, r.pending, 1)
+	require.Equal(t, batchID, r.pending[0].id)
+	pub.fail = false
+	r.flush(context.Background())
+	require.Empty(t, r.pending)
+	bodies := pub.payloads[data.SubjectLoyaltyCounters]
+	var last data.CounterBumpedDTO
+	require.NoError(t, codec.Unmarshal(bodies[len(bodies)-1], &last))
+	require.Equal(t, batchID, last.BatchID)
 }
 
 func TestCommandPublicationRetainsOverflowKeyAndRetry(t *testing.T) {

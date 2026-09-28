@@ -7,7 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"math"
+	"sync"
 
 	baseent "entgo.io/ent"
 	"testing"
@@ -18,6 +20,7 @@ import (
 
 	"ItsBagelBot/internal/testdb"
 
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -202,6 +205,37 @@ func TestBalanceTransferRejectsResolvedSelf(t *testing.T) {
 	repo, _ := newLoyaltyRepo(t)
 	_, _, err := repo.BalanceTransfer(context.Background(), loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetViewerID: 7, TargetLogin: "renamed", Amount: 10})
 	require.ErrorIs(t, err, loyaltyrepo.ErrInvalidInput)
+}
+
+func TestBalanceTransferRetriesALockConflict(t *testing.T) {
+	for _, conflict := range []uint16{1213, 1205} {
+		t.Run(fmt.Sprint(conflict), func(t *testing.T) {
+			repo, client, ctx := fundedLoyalty(t, 1000)
+			seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "receiver", Points: 100})
+			client.Balance.Use(failFirstUpdate(&mysql.MySQLError{Number: conflict}))
+			out, found, err := repo.BalanceTransfer(ctx, loyaltyrepo.Transfer{UserID: 2, FromViewerID: 7, TargetLogin: "receiver", Amount: 400})
+			require.NoError(t, err)
+			require.True(t, found)
+			assert.EqualValues(t, 600, out.From.Points)
+			assert.EqualValues(t, 500, out.To.Points)
+		})
+	}
+}
+
+func failFirstUpdate(conflict error) baseent.Hook {
+	var once sync.Once
+	return func(next baseent.Mutator) baseent.Mutator {
+		return baseent.MutateFunc(func(ctx context.Context, m baseent.Mutation) (baseent.Value, error) {
+			err := error(nil)
+			if m.Op().Is(baseent.OpUpdate) {
+				once.Do(func() { err = conflict })
+			}
+			if err != nil {
+				return nil, err
+			}
+			return next.Mutate(ctx, m)
+		})
+	}
 }
 
 func fundedLoyalty(t *testing.T, points int64) (*loyaltyrepo.Loyalty, *ent.Client, context.Context) {

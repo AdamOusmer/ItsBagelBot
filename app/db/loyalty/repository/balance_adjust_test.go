@@ -5,6 +5,7 @@ package repository_test
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -91,6 +92,19 @@ func TestBalanceAdjustViewerDeltaIncludesInterleavedEarnings(t *testing.T) {
 	require.True(t, found)
 	require.EqualValues(t, 150, row.Points)
 	require.EqualValues(t, 300, row.WatchSeconds)
+}
+
+func TestBalanceAdjustViewerRemovalNeverRaisesANegativeBalance(t *testing.T) {
+	for _, removal := range []int64{-10, math.MinInt64} {
+		t.Run(fmt.Sprint(removal), func(t *testing.T) {
+			repo, client := newLoyaltyRepo(t)
+			seedBalance(t, client, seedRow{UserID: 2, ViewerID: 8, Login: "blemmyz", Points: -50})
+			row, found, err := repo.BalanceAdjustViewer(t.Context(), loyaltyrepo.BalanceAdjustment{UserID: 2, ViewerID: 8, ViewerLogin: "blemmyz", Value: removal})
+			require.NoError(t, err)
+			require.True(t, found)
+			require.EqualValues(t, -50, row.Points)
+		})
+	}
 }
 
 func TestBalanceAdjustViewerRejectsInvalidIdentity(t *testing.T) {

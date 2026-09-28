@@ -7,7 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"regexp"
+	"strconv"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/db/loyalty/repository"
 	"ItsBagelBot/internal/domain/event/data"
@@ -59,4 +63,55 @@ func TestRecordBumpsAcksBadPayload(t *testing.T) {
 	repo := &stubApplier{}
 	require.NoError(t, recordBumps(repo, zap.NewNop())(bus.NewMessage("msg-2", []byte("{"))))
 	assert.Empty(t, repo.got)
+}
+
+type blockingSubscriber struct{ bus.Subscriber }
+
+func (blockingSubscriber) Close() error { select {} }
+
+type blockingCloser struct{ closed chan struct{} }
+
+func (c blockingCloser) Close(ctx context.Context) error {
+	close(c.closed)
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func TestCounterIntakeStopsWithinOneShutdownBudget(t *testing.T) {
+	signal, stop := context.WithCancel(context.Background())
+	const budget = 50 * time.Millisecond
+	shutdown := shutdownContext(signal, budget)
+	counters := blockingCloser{closed: make(chan struct{})}
+	stop()
+	started := time.Now()
+	stopCounterIntake(shutdown, zap.NewNop(), blockingSubscriber{}, nil, counters)
+	assert.Less(t, time.Since(started), budget+time.Second)
+	require.ErrorIs(t, context.Cause(shutdown), errShutdownBudget)
+	select {
+	case <-counters.closed:
+	default:
+		t.Fatal("counter processor was never asked to close")
+	}
+}
+
+func TestShutdownBudgetStartsAtTheSignal(t *testing.T) {
+	signal, stop := context.WithCancel(context.Background())
+	shutdown := shutdownContext(signal, time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+	require.NoError(t, shutdown.Err())
+	stop()
+	require.Eventually(t, func() bool { return shutdown.Err() != nil }, time.Second, time.Millisecond)
+}
+
+func TestShutdownBudgetFitsTheManifestGracePeriod(t *testing.T) {
+	manifest, err := os.ReadFile("../../../deploy/k8s/loyalty.yaml")
+	require.NoError(t, err)
+	match := regexp.MustCompile(`terminationGracePeriodSeconds:\s*(\d+)`).FindAllSubmatch(manifest, -1)
+	require.Len(t, match, 1)
+	seconds, err := strconv.Atoi(string(match[0][1]))
+	require.NoError(t, err)
+	assert.Equal(t, terminationGrace, time.Duration(seconds)*time.Second)
+	assert.Contains(t, string(manifest), "path: /drain")
+	assert.LessOrEqual(t, preStopDrain+shutdownBudget+exitReserve, terminationGrace)
+	assert.Positive(t, shutdownBudget)
 }

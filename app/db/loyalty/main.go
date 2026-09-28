@@ -35,6 +35,49 @@ const (
 	counterWorkers = 32
 )
 
+// terminationGrace must match terminationGracePeriodSeconds in deploy/k8s/loyalty.yaml.
+const (
+	terminationGrace = 45 * time.Second
+	preStopDrain     = 10 * time.Second
+	exitReserve      = 5 * time.Second
+	shutdownBudget   = terminationGrace - preStopDrain - exitReserve
+)
+
+func shutdownContext(signal context.Context, budget time.Duration) context.Context {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	context.AfterFunc(signal, func() {
+		time.AfterFunc(budget, func() { cancel(errShutdownBudget) })
+	})
+	return ctx
+}
+
+var errShutdownBudget = errors.New("shutdown budget exhausted")
+
+type closer interface{ Close(context.Context) error }
+
+func stopCounterIntake(ctx context.Context, log *zap.Logger, grouped bus.Subscriber, consumer *bus.ConcurrentConsumer, counters closer) {
+	if err := closeWithin(ctx, grouped.Close); err != nil {
+		log.Warn("loyalty: group subscriber shutdown failed", zap.Error(err))
+	}
+	if err := consumer.Drain(ctx); err != nil {
+		log.Warn("loyalty: counter consumer shutdown failed", zap.Error(err))
+	}
+	if err := counters.Close(ctx); err != nil {
+		log.Warn("loyalty: counter processor shutdown failed", zap.Error(err))
+	}
+}
+
+func closeWithin(ctx context.Context, closeFn func() error) error {
+	done := make(chan error, 1)
+	go func() { done <- closeFn() }()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	}
+}
+
 // Grouped subscriber keeps account cleanup and delta folding on one durable lane.
 // Counter handlers share bounded batches and wait for persistence before ACK.
 func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Loyalty, counters counterProcessor, grouped bus.Subscriber, log *zap.Logger) (*bus.ConcurrentConsumer, error) {
@@ -110,6 +153,7 @@ func main() {
 	core, done := svcboot.NewCore(serviceName)
 	defer done()
 	log := core.Log
+	shutdown := shutdownContext(core.Ctx, shutdownBudget)
 
 	driver := databoot.MustEntDriver(core, "bagel_loyalty")
 	client := ent.NewClient(ent.Driver(driver))
@@ -123,13 +167,6 @@ func main() {
 	vc := svcboot.MustValkey(core)
 	defer vc.Close()
 	counters := repository.NewCounterProcessor(repo, vc)
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-		defer cancel()
-		if err := counters.Close(ctx); err != nil {
-			log.Warn("loyalty: counter processor shutdown failed", zap.Error(err))
-		}
-	}()
 	watchCtx, stopWatch := context.WithCancel(core.Ctx)
 	watchDone := make(chan struct{})
 	watchConsumer := watchtime.NewConsumer(vc, repo.ApplyWatchAward, log, watchtime.WithHistoryMaintenance(repo.PruneWatchHistory))
@@ -143,16 +180,7 @@ func main() {
 	grouped, err := bus.NewSubscriber(core.NATSURL, serviceName, log)
 	svcboot.FatalIf(log, err, "failed to connect group subscriber")
 	var counterConsumer *bus.ConcurrentConsumer
-	defer func() {
-		if err := grouped.Close(); err != nil {
-			log.Warn("loyalty: group subscriber shutdown failed", zap.Error(err))
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-		defer cancel()
-		if err := counterConsumer.Drain(ctx); err != nil {
-			log.Warn("loyalty: counter consumer shutdown failed", zap.Error(err))
-		}
-	}()
+	defer func() { stopCounterIntake(shutdown, log, grouped, counterConsumer, counters) }()
 
 	counterConsumer, err = registerConsumers(core.Ctx, core.NR, repo, counters, grouped, log)
 	svcboot.FatalIf(log, err, "failed to subscribe to events")
