@@ -129,7 +129,7 @@ func (s *ValkeyLoyaltyClock) arm(ctx context.Context, request loyaltyArmRequest)
 	if request.broadcaster == 0 {
 		return true
 	}
-	liveSession, known, err := s.liveSession(ctx, request.broadcaster)
+	liveSession, known, err := s.liveSession(ctx, request)
 	if err != nil {
 		return false
 	}
@@ -174,8 +174,8 @@ func (request loyaltyArmRequest) mode() string {
 	}
 	return "recover"
 }
-func (s *ValkeyLoyaltyClock) liveSession(ctx context.Context, broadcasterID uint64) (int64, bool, error) {
-	raw, err := s.client.Do(ctx, s.client.B().Get().Key(livekey.Key(broadcasterID)).Build()).ToString()
+func (s *ValkeyLoyaltyClock) liveSession(ctx context.Context, request loyaltyArmRequest) (int64, bool, error) {
+	raw, err := s.client.Do(ctx, s.client.B().Get().Key(livekey.Key(request.broadcaster)).Build()).ToString()
 	if valkey.IsValkeyNil(err) {
 		return 0, false, nil
 	}
