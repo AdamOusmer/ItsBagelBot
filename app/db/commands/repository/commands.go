@@ -247,33 +247,40 @@ func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, sp
 	}
 
 	changed := spec.dto(userID)
-	key := commandKey{userID: userID, name: spec.Name}
-	if states, serr := r.rowStates(ctx, []commandKey{key}); serr == nil {
-		if s, ok := states[key]; ok {
-			changed.Uses = s.Uses
-		}
-	}
+	changed.Uses = r.currentUses(ctx, commandKey{userID: userID, name: spec.Name})
 	return bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, changed)
+}
+
+func (r *Commands) currentUses(ctx context.Context, key commandKey) int64 {
+	states, err := r.rowStates(ctx, []commandKey{key})
+	if err != nil {
+		return 0
+	}
+	return states[key].Uses
 }
 
 func (r *Commands) renameRow(ctx context.Context, userID uint64, oldName string, spec CommandSpec) (int, error) {
 	return db.WithQuery(ctx, func(ctx context.Context) (int, error) {
-		return r.client.Commands.Update().
+		u := r.client.Commands.Update().
 			Where(
 				commands.UserIDEQ(userID),
 				commands.NameEQ(oldName),
 			).
-			SetName(spec.Name).
-			SetAliases(spec.Aliases).
-			SetResponse(spec.Response).
-			SetIsActive(spec.IsActive).
-			SetStreamOnlineOnly(spec.StreamOnlineOnly).
-			SetPerm(spec.Perm).
-			SetCooldown(spec.Cooldown).
-			SetAllowedUserID(spec.AllowedUserID).
-			SetBumpCounter(spec.BumpCounter).
-			Save(ctx)
+			SetName(spec.Name)
+		applyEdit(u.Mutation(), spec.dto(userID))
+		return u.Save(ctx)
 	})
+}
+
+func applyEdit(m *ent.CommandsMutation, item data.CommandChangedDTO) {
+	m.SetAliases(item.Aliases)
+	m.SetResponse(item.Response)
+	m.SetIsActive(item.IsActive)
+	m.SetStreamOnlineOnly(item.StreamOnlineOnly)
+	m.SetPerm(item.Perm)
+	m.SetCooldown(item.Cooldown)
+	m.SetAllowedUserID(item.AllowedUserID)
+	m.SetBumpCounter(item.BumpCounter)
 }
 
 func (r *Commands) Delete(ctx context.Context, userID uint64, name string) error {
@@ -449,17 +456,11 @@ func bulkUpsertCommands(ctx context.Context, client *ent.Client, items []data.Co
 
 	builders := make([]*ent.CommandsCreate, 0, len(items))
 	for _, item := range items {
-		builders = append(builders, client.Commands.Create().
+		b := client.Commands.Create().
 			SetUserID(item.UserID).
-			SetName(item.Name).
-			SetAliases(item.Aliases).
-			SetResponse(item.Response).
-			SetIsActive(item.IsActive).
-			SetStreamOnlineOnly(item.StreamOnlineOnly).
-			SetPerm(item.Perm).
-			SetCooldown(item.Cooldown).
-			SetAllowedUserID(item.AllowedUserID).
-			SetBumpCounter(item.BumpCounter))
+			SetName(item.Name)
+		applyEdit(b.Mutation(), item)
+		builders = append(builders, b)
 	}
 
 	// On conflict, update only edit-owned columns: uses and created_at must not regress.
@@ -511,20 +512,7 @@ func (r *Commands) upsertEach(ctx context.Context, txn *newrelic.Transaction, it
 
 func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.CommandChangedDTO) error {
 
-	updated, err := c.Update().
-		Where(
-			commands.UserIDEQ(item.UserID),
-			commands.NameEQ(item.Name),
-		).
-		SetAliases(item.Aliases).
-		SetResponse(item.Response).
-		SetIsActive(item.IsActive).
-		SetStreamOnlineOnly(item.StreamOnlineOnly).
-		SetPerm(item.Perm).
-		SetCooldown(item.Cooldown).
-		SetAllowedUserID(item.AllowedUserID).
-		SetBumpCounter(item.BumpCounter).
-		Save(ctx)
+	updated, err := updateCommand(ctx, c, item)
 	if err != nil {
 		return err
 	}
@@ -533,37 +521,27 @@ func upsertCommand(ctx context.Context, c *ent.CommandsClient, item data.Command
 		return nil
 	}
 
-	if err := c.Create().
+	b := c.Create().
 		SetUserID(item.UserID).
-		SetName(item.Name).
-		SetAliases(item.Aliases).
-		SetResponse(item.Response).
-		SetIsActive(item.IsActive).
-		SetStreamOnlineOnly(item.StreamOnlineOnly).
-		SetPerm(item.Perm).
-		SetCooldown(item.Cooldown).
-		SetAllowedUserID(item.AllowedUserID).
-		SetBumpCounter(item.BumpCounter).
-		Exec(ctx); err != nil {
+		SetName(item.Name)
+	applyEdit(b.Mutation(), item)
+	if err := b.Exec(ctx); err != nil {
 		if ent.IsConstraintError(err) {
-			_, err = c.Update().
-				Where(
-					commands.UserIDEQ(item.UserID),
-					commands.NameEQ(item.Name),
-				).
-				SetAliases(item.Aliases).
-				SetResponse(item.Response).
-				SetIsActive(item.IsActive).
-				SetStreamOnlineOnly(item.StreamOnlineOnly).
-				SetPerm(item.Perm).
-				SetCooldown(item.Cooldown).
-				SetAllowedUserID(item.AllowedUserID).
-				SetBumpCounter(item.BumpCounter).
-				Save(ctx)
+			_, err = updateCommand(ctx, c, item)
 		}
 		return err
 	}
 	return nil
+}
+
+func updateCommand(ctx context.Context, c *ent.CommandsClient, item data.CommandChangedDTO) (int, error) {
+	u := c.Update().
+		Where(
+			commands.UserIDEQ(item.UserID),
+			commands.NameEQ(item.Name),
+		)
+	applyEdit(u.Mutation(), item)
+	return u.Save(ctx)
 }
 
 func formatAllowed(id uint64) string {

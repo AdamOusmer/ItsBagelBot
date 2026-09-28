@@ -194,11 +194,11 @@ func fortniteStoreRun(d engine.Deps) module.RunFunc {
 		target:  fixedSubject[fortniteConfig]("item shop"),
 		request: accountRequest[fortniteConfig],
 		render: func(call statsCall[fortniteConfig], r *reply) string {
-			return module.KV(
+			return call.Ctx.Palette("fortnite",
 				"date", r.Date,
 				"count", strconv.Itoa(r.Count),
 				"items", formatShopEntries(call.Ctx.Locale, r.Entries),
-			).WithLocale(module.Locale(call.Ctx.Locale)).WithNamespace("fortnite").ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate))
+			).ExpandString(orDefault(call.Cfg.StoreMessage, defaultFortniteStoreTemplate))
 		},
 	}.run
 }
