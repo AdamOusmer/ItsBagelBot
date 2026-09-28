@@ -318,29 +318,36 @@ func reconcileSongQueue(d *songQueueDoc, currentID string, upcomingIDs []string,
 
 func reconcileCurrentSong(d *songQueueDoc, currentID string) bool {
 	if currentID == "" {
-		if d.Current == nil {
-			return false
-		}
-		d.Current = nil
-		return true
+		return clearCurrentSong(d)
 	}
 	if d.Current != nil && d.Current.TrackID == currentID {
 		return false
 	}
-	for i := range d.Up {
-		if d.Up[i].TrackID != currentID {
-			continue
-		}
-		entry := d.Up[i]
-		d.Current = &entry
-		d.Up = d.Up[i+1:]
-		return true
+	i := queuedSongIndex(d.Up, currentID)
+	if i < 0 {
+		return clearCurrentSong(d)
 	}
+	entry := d.Up[i]
+	d.Current = &entry
+	d.Up = d.Up[i+1:]
+	return true
+}
+
+func clearCurrentSong(d *songQueueDoc) bool {
 	if d.Current == nil {
 		return false
 	}
 	d.Current = nil
 	return true
+}
+
+func queuedSongIndex(up []SongEntry, trackID string) int {
+	for i := range up {
+		if up[i].TrackID == trackID {
+			return i
+		}
+	}
+	return -1
 }
 
 // Match duplicate track IDs from the tail: if one of two identical
@@ -365,29 +372,40 @@ func matchUpcomingSongs(up []SongEntry, upcomingIDs []string) ([]bool, int) {
 	return matched, lastMatch
 }
 
-func keepQueuedSong(entry SongEntry, index, lastMatch int, matched bool, shortQueue bool, cutoff int64) bool {
-	if matched {
+type songRetention struct {
+	matched    []bool
+	lastMatch  int
+	shortQueue bool
+	cutoff     int64
+}
+
+func (r songRetention) keep(entry SongEntry, index int) bool {
+	if r.matched[index] {
 		return true
 	}
-	if index < lastMatch {
+	if index < r.lastMatch {
 		return false
 	}
-	if !shortQueue {
+	if !r.shortQueue {
 		return true
 	}
-	return entry.EnqueuedAt <= 0 || entry.EnqueuedAt >= cutoff
+	return entry.EnqueuedAt <= 0 || entry.EnqueuedAt >= r.cutoff
 }
 
 func reconcileUpcomingSongs(d *songQueueDoc, upcomingIDs []string, now time.Time) bool {
 	matched, lastMatch := matchUpcomingSongs(d.Up, upcomingIDs)
-	cutoff := now.Add(-15 * time.Second).UnixMilli()
-	shortQueue := len(upcomingIDs) < 20
+	retention := songRetention{
+		matched:    matched,
+		lastMatch:  lastMatch,
+		shortQueue: len(upcomingIDs) < 20,
+		cutoff:     now.Add(-15 * time.Second).UnixMilli(),
+	}
 	kept := d.Up[:0]
 	changed := false
 	for i, entry := range d.Up {
 		// A full Spotify window may hide later requests. A shorter window
 		// is sufficient evidence that an older, absent request is gone.
-		if !keepQueuedSong(entry, i, lastMatch, matched[i], shortQueue, cutoff) {
+		if !retention.keep(entry, i) {
 			changed = true
 			continue
 		}

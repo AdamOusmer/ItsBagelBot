@@ -23,8 +23,14 @@ import { fail } from '@sveltejs/kit';
 const DEMO = dev && env.DEMO === '1';
 
 async function queueView(uid: string, connected: boolean, queue: SongQueueDoc): Promise<QueueView> {
-  if (!connected || (!queue.current && !queue.up?.length)) return shapeQueue(queue, null);
+  if (!connected) return shapeQueue(queue, null);
+  if (!hasStoredSongs(queue)) return shapeQueue(queue, null);
   return shapeQueue(queue, await readSpotifyPlayerQueue(uid));
+}
+
+function hasStoredSongs(queue: SongQueueDoc): boolean {
+  if (queue.current) return true;
+  return (queue.up?.length ?? 0) > 0;
 }
 
 export const load: PageServerLoad = ({ locals, url }) => {

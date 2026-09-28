@@ -88,32 +88,47 @@ func (f *fakeSongQueue) SyncPlaying(_ context.Context, _ uint64, trackID string)
 }
 
 func (f *fakeSongQueue) SyncQueue(ctx context.Context, id uint64, currentID string, upcomingIDs []string) (bool, error) {
-	changed := false
-	if currentID != "" {
-		changed, _ = f.SyncPlaying(ctx, id, currentID)
-		if !changed && f.current != nil && f.current.TrackID != currentID {
-			f.current = nil
-			changed = true
-		}
-	} else if f.current != nil {
-		f.current = nil
-		changed = true
-	}
+	changed := f.syncQueueCurrent(ctx, id, currentID)
 	if len(upcomingIDs) == 0 {
 		return changed, nil
 	}
-	first := -1
+	return f.dropSkippedBefore(upcomingIDs[0]) || changed, nil
+}
+
+func (f *fakeSongQueue) syncQueueCurrent(ctx context.Context, id uint64, currentID string) bool {
+	if currentID == "" {
+		return f.clearCurrent()
+	}
+	changed, _ := f.SyncPlaying(ctx, id, currentID)
+	if changed {
+		return true
+	}
+	if f.current != nil && f.current.TrackID != currentID {
+		return f.clearCurrent()
+	}
+	return false
+}
+
+func (f *fakeSongQueue) clearCurrent() bool {
+	if f.current == nil {
+		return false
+	}
+	f.current = nil
+	return true
+}
+
+func (f *fakeSongQueue) dropSkippedBefore(firstID string) bool {
 	for i, entry := range f.up {
-		if entry.TrackID == upcomingIDs[0] {
-			first = i
-			break
+		if entry.TrackID != firstID {
+			continue
 		}
+		if i == 0 {
+			return false
+		}
+		f.up = f.up[i:]
+		return true
 	}
-	if first > 0 {
-		f.up = f.up[first:]
-		changed = true
-	}
-	return changed, nil
+	return false
 }
 
 func (f *fakeSongQueue) Advance(_ context.Context, _ uint64) (*engine.SongEntry, *engine.SongEntry, error) {

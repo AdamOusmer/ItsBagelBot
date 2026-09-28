@@ -604,10 +604,17 @@ func (qc songQueueCmd) nextTrack(ctx context.Context, emit module.Emit) error {
 		return nil
 	}
 	after, afterFresh := qc.syncWithPlayer(ctx)
-	return qc.reportSkip(ctx, emit, before, beforeFresh, after, afterFresh)
+	return qc.reportSkip(ctx, emit,
+		playerObservation{track: before, fresh: beforeFresh},
+		playerObservation{track: after, fresh: afterFresh})
 }
 
-func (qc songQueueCmd) reportSkip(ctx context.Context, emit module.Emit, before *gossiprpc.SpotifyTrack, beforeFresh bool, after *gossiprpc.SpotifyTrack, afterFresh bool) error {
+type playerObservation struct {
+	track *gossiprpc.SpotifyTrack
+	fresh bool
+}
+
+func (qc songQueueCmd) reportSkip(ctx context.Context, emit module.Emit, before, after playerObservation) error {
 	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, 1)
 	if err != nil {
 		qc.log.Warn("songqueue: snapshot after skip failed", qc.c.BID(), zap.Error(err))
@@ -620,7 +627,7 @@ func (qc songQueueCmd) reportSkip(ctx context.Context, emit module.Emit, before 
 	// Spotify's 204 means the skip command was received, not that the player
 	// has already moved. Only announce a requested song once a fresh player
 	// snapshot confirms it is now playing.
-	if !skipReachedRequest(snap.Current, before, beforeFresh, after, afterFresh) {
+	if !skipReachedRequest(snap.Current, before, after) {
 		qc.reply(emit, "", "songqueue.next.pending")
 		return nil
 	}
@@ -633,14 +640,27 @@ func (qc songQueueCmd) reportSkip(ctx context.Context, emit module.Emit, before 
 	return nil
 }
 
-func skipReachedRequest(current *engine.SongEntry, before *gossiprpc.SpotifyTrack, beforeFresh bool, after *gossiprpc.SpotifyTrack, afterFresh bool) bool {
-	if !afterFresh || after == nil || current == nil {
+func skipReachedRequest(current *engine.SongEntry, before, after playerObservation) bool {
+	if !after.fresh {
 		return false
 	}
-	if beforeFresh && before != nil && before.ID == after.ID {
+	if after.track == nil {
 		return false
 	}
-	return current.TrackID == after.ID
+	if current == nil {
+		return false
+	}
+	if before.fresh && samePlayerTrack(before.track, after.track) {
+		return false
+	}
+	return current.TrackID == after.track.ID
+}
+
+func samePlayerTrack(before, after *gossiprpc.SpotifyTrack) bool {
+	if before == nil {
+		return false
+	}
+	return before.ID == after.ID
 }
 
 func (qc songQueueCmd) clearAll(ctx context.Context, emit module.Emit) error {

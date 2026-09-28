@@ -21,13 +21,21 @@ const row = (entry: SongQueueEntry): QueueRow => ({
 // The dashboard polls while it is visible. Reconcile its rendered list from
 // Spotify without writing Valkey from the web process; Sesame owns that CAS.
 export function shapeQueue(doc: SongQueueDoc, live: SpotifyPlayerQueue | null, now = Date.now()): QueueView {
-  const upcoming = live?.up_next?.map((track) => track.id).filter(Boolean) ?? [];
-  const currentId = live?.current?.id ?? '';
   const initial = { current: doc.current ?? null, up: [...(doc.up ?? [])] };
-  const visible = live && (currentId || upcoming.length)
-    ? reconcileView(initial, currentId, upcoming, now)
-    : initial;
+  const player = playerItems(live);
+  const visible = player ? reconcileView(initial, player.currentId, player.upcoming, now) : initial;
+  return renderQueue(visible);
+}
 
+function playerItems(live: SpotifyPlayerQueue | null) {
+  if (!live) return null;
+  const upcoming = live.up_next?.map((track) => track.id).filter(Boolean) ?? [];
+  const currentId = live.current?.id ?? '';
+  if (!currentId && upcoming.length === 0) return null;
+  return { currentId, upcoming };
+}
+
+function renderQueue(visible: QueueEntries): QueueView {
   return {
     current: visible.current ? row(visible.current) : null,
     up: visible.up.slice(0, 10).map(row)
