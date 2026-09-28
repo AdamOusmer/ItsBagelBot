@@ -21,7 +21,7 @@
   }
 </script>
 
-<button type="button" class="picker" aria-haspopup="dialog" aria-expanded={open} bind:this={anchor} onclick={() => (open = !open)}>
+<button type="button" class="bb-chip bb-chip--muted" aria-haspopup="dialog" aria-expanded={open} bind:this={anchor} onclick={() => (open = !open)}>
   {t('commandEditor.pickModuleVariable')} <span aria-hidden="true">▾</span>
 </button>
 
@@ -43,8 +43,6 @@
 </PickerPanel>
 
 <style>
-  .picker { display: inline-flex; align-items: center; gap: 5px; font: 11.5px var(--bb-font-body); color: var(--bb-muted); background: transparent; border: 1px solid var(--rule, var(--bb-border)); border-radius: var(--bb-radius-pill); padding: 3px 10px; cursor: pointer; }
-  .picker:hover, .picker[aria-expanded='true'] { color: var(--bb-white); border-color: var(--bb-border-strong); background: var(--glass-fill-2); }
   .module-field { display: flex; flex-direction: column; gap: 5px; font: 11px var(--bb-font-body); color: var(--bb-muted); }
   .requirement, .context { margin: 0; font: 12px/1.5 var(--bb-font-body); color: var(--bb-muted); }
   .module-link { color: var(--bb-green-glow); }

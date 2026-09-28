@@ -69,6 +69,23 @@
   type PatchOutcome = 'saved' | 'conflict' | 'failed';
   let writeChain: Promise<unknown> = Promise.resolve();
   let writeGeneration = 0;
+  type RefetchEdits = { partial: Record<string, string>; enabled?: boolean };
+  let refetchEdits: RefetchEdits | null = null;
+
+  async function reloadAfterConflict() {
+    // Cancel queued edits drafted against the state being replaced.
+    writeGeneration += 1;
+    // Edits made during the refetch are queued against the new revision, so keep them.
+    const edits: RefetchEdits = { partial: {} };
+    refetchEdits = edits;
+    await invalidateAll();
+    refetchEdits = null;
+    // The reseed effect only fires on module navigation, so refresh in place.
+    enabled = edits.enabled ?? data.enabled;
+    config = { ...data.config, ...edits.partial };
+    rev = data.revision ?? 0;
+    rules = parseRules(config.rules ?? '');
+  }
 
   async function runPatch(partial: Record<string, string>, en: boolean): Promise<PatchOutcome> {
     const body = new FormData();
@@ -87,14 +104,7 @@
       return 'saved';
     }
     if (payload?.conflict) {
-      // Cancel queued edits drafted against the state being replaced.
-      writeGeneration += 1;
-      await invalidateAll();
-      // The reseed effect only fires on module navigation, so refresh in place.
-      enabled = data.enabled;
-      config = { ...data.config };
-      rev = data.revision ?? 0;
-      rules = parseRules(data.config.rules ?? '');
+      await reloadAfterConflict();
       toast('err', t('modules.patchConflict'));
       return 'conflict';
     }
@@ -102,6 +112,10 @@
   }
 
   function patch(partial: Record<string, string>, en: boolean): Promise<PatchOutcome> {
+    if (refetchEdits) {
+      Object.assign(refetchEdits.partial, partial);
+      refetchEdits.enabled = en;
+    }
     const generation = writeGeneration;
     const result = writeChain.then(() => generation === writeGeneration ? runPatch(partial, en) : 'conflict' as const);
     writeChain = result.catch(() => {});

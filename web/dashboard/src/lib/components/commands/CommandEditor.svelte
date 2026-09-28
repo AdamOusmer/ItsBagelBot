@@ -27,11 +27,12 @@
   import ResponseEditor from './ResponseEditor.svelte';
   import type { SourceDef } from './fetches/FetchSourcePicker.svelte';
   import ChatPreview from './ChatPreview.svelte';
-  import { draftKey, type CommandDraft } from './drafts';
+  import { draftKey, readStoredDraft, writeStoredDraft, type CommandDraft } from './drafts';
   import { focusFirstInvalid } from '@bagel/kit';
 
   let {
     draft = $bindable<CommandDraft>(),
+    board,
     serverErrors = null as CommandErrors | null,
     status = 'idle' as 'idle' | 'saving' | 'saved' | 'error' | 'conflict',
     dirty = false,
@@ -45,6 +46,7 @@
     onToggleActive
   }: {
     draft: CommandDraft;
+    board: string;
     serverErrors?: CommandErrors | null;
     status?: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
     dirty?: boolean;
@@ -76,14 +78,13 @@
 
   // Persist every editor field. Active is draft state for creation, but a live
   // toggle on an existing command must not count as an unsaved content edit.
-  const key = draftKey(draft.originalName, draft.edit);
+  // svelte-ignore state_referenced_locally
+  const key = draftKey(board, draft.originalName, draft.edit);
   const initial = draft.edit ? commandContentSnapshot(draft) : JSON.stringify(draft);
+  const storedAtOpen = readStoredDraft(key);
   $effect(() => {
     const current = draft.edit ? commandContentSnapshot(draft) : JSON.stringify(draft);
-    if (current === initial) return;
-    try {
-      sessionStorage.setItem(key, JSON.stringify(draft));
-    } catch {}
+    writeStoredDraft(key, current === initial ? storedAtOpen : JSON.stringify(draft));
   });
 
   const submit: SubmitFunction = (input) => {

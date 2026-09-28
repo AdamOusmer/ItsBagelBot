@@ -3,14 +3,27 @@
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { commandContentSnapshot, overlayLiveActive } from '../../../../../kit/lib/command-active';
-import { draftKey, loadDraft, type CommandDraft } from './drafts';
+import {
+  discardLegacyDrafts,
+  draftKey,
+  hasDraft,
+  loadDraft,
+  readStoredDraft,
+  writeStoredDraft,
+  type CommandDraft
+} from './drafts';
 
 const storage = new Map<string, string>();
+const fakeStorage = {
+  get length() { return storage.size; },
+  key: (i: number) => [...storage.keys()][i] ?? null,
+  getItem: (key: string) => storage.get(key) ?? null,
+  setItem: (key: string, value: string) => void storage.set(key, value),
+  removeItem: (key: string) => void storage.delete(key)
+};
 const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
-Object.defineProperty(globalThis, 'sessionStorage', {
-  configurable: true,
-  value: { getItem: (key: string) => storage.get(key) ?? null }
-});
+Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: fakeStorage });
+const BOARD = '1001';
 beforeEach(() => storage.clear());
 afterAll(() => {
   if (originalStorage) Object.defineProperty(globalThis, 'sessionStorage', originalStorage);
@@ -34,21 +47,21 @@ const draft: CommandDraft = {
 describe('command draft restoration', () => {
   test('repairs old content snapshots so New can mount after typing and reloading', () => {
     // This is the exact format the old CommandEditor wrote after each change.
-    storage.set(draftKey('', false), commandContentSnapshot(draft));
-    const restored = loadDraft('', false);
+    storage.set(draftKey(BOARD, '', false), commandContentSnapshot(draft));
+    const restored = loadDraft(BOARD, '', false);
     expect(restored).toEqual(draft);
     expect(typeof restored?.is_active).toBe('boolean');
   });
 
   test('preserves a new command explicitly disabled before a reload', () => {
     const disabled = { ...draft, is_active: false, stream_online_only: true };
-    storage.set(draftKey('', false), JSON.stringify(disabled));
-    expect(loadDraft('', false)).toEqual(disabled);
+    storage.set(draftKey(BOARD, '', false), JSON.stringify(disabled));
+    expect(loadDraft(BOARD, '', false)).toEqual(disabled);
   });
 
   test('the requested edit identity and live Active override stored metadata', () => {
-    storage.set(draftKey('hello', true), JSON.stringify({ ...draft, originalName: 'wrong', builtin: true }));
-    const restored = loadDraft('hello', true)!;
+    storage.set(draftKey(BOARD, 'hello', true), JSON.stringify({ ...draft, originalName: 'wrong', builtin: true }));
+    const restored = loadDraft(BOARD, 'hello', true)!;
     expect(restored.edit).toBe(true);
     expect(restored.originalName).toBe('hello');
     expect(restored.builtin).toBeUndefined();
@@ -58,47 +71,84 @@ describe('command draft restoration', () => {
 
   test('keeps invalid command content editable rather than silently discarding it', () => {
     const invalid = { ...draft, name: '!', response: '', cooldown: -2, aliases: ['!', '!'] };
-    storage.set(draftKey('', false), JSON.stringify(invalid));
-    expect(loadDraft('', false)).toEqual(invalid);
+    storage.set(draftKey(BOARD, '', false), JSON.stringify(invalid));
+    expect(loadDraft(BOARD, '', false)).toEqual(invalid);
   });
 
   test('rejects invalid JSON and incompatible field types without throwing', () => {
     for (const raw of ['{', 'null', '[]', '42', JSON.stringify({ ...draft, response: null }),
       JSON.stringify({ ...draft, aliases: ['hi', 3] }), JSON.stringify({ ...draft, cooldown: '4' }),
       JSON.stringify({ ...draft, is_active: 'on' })]) {
-      storage.set(draftKey('', false), raw);
-      expect(loadDraft('', false)).toBeNull();
+      storage.set(draftKey(BOARD, '', false), raw);
+      expect(loadDraft(BOARD, '', false)).toBeNull();
     }
   });
 
   test('fills missing editor fields in older snapshots', () => {
-    storage.set(draftKey('', false), JSON.stringify({ name: 'hello', response: 'keep my text' }));
-    expect(loadDraft('', false)).toEqual({ ...draft, aliases: [], response: 'keep my text' });
+    storage.set(draftKey(BOARD, '', false), JSON.stringify({ name: 'hello', response: 'keep my text' }));
+    expect(loadDraft(BOARD, '', false)).toEqual({ ...draft, aliases: [], response: 'keep my text' });
   });
 
   test('restores drafts from before the counter field existed', () => {
     const { bump_counter, ...legacy } = draft;
-    storage.set(draftKey('', false), JSON.stringify(legacy));
-    expect(loadDraft('', false)?.bump_counter).toBe('');
-    expect(loadDraft('', false)?.response).toBe(draft.response);
+    storage.set(draftKey(BOARD, '', false), JSON.stringify(legacy));
+    expect(loadDraft(BOARD, '', false)?.bump_counter).toBe('');
+    expect(loadDraft(BOARD, '', false)?.response).toBe(draft.response);
   });
 
   test('preserves a saved counter selection', () => {
     const counted = { ...draft, bump_counter: 'deaths' };
-    storage.set(draftKey('', false), JSON.stringify(counted));
-    expect(loadDraft('', false)).toEqual(counted);
+    storage.set(draftKey(BOARD, '', false), JSON.stringify(counted));
+    expect(loadDraft(BOARD, '', false)).toEqual(counted);
   });
 
   test('a missing draft and unavailable storage are harmless', () => {
-    expect(loadDraft('', false)).toBeNull();
+    expect(loadDraft(BOARD, '', false)).toBeNull();
     Object.defineProperty(globalThis, 'sessionStorage', {
       configurable: true,
       get() { throw new Error('storage unavailable'); }
     });
-    expect(loadDraft('', false)).toBeNull();
-    Object.defineProperty(globalThis, 'sessionStorage', {
-      configurable: true,
-      value: { getItem: (key: string) => storage.get(key) ?? null }
-    });
+    expect(loadDraft(BOARD, '', false)).toBeNull();
+    Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: fakeStorage });
+  });
+});
+
+describe('command draft channel scope', () => {
+  test('a draft typed on one board never restores or badges on another', () => {
+    storage.set(draftKey(BOARD, '', false), JSON.stringify(draft));
+    storage.set(draftKey(BOARD, 'hello', true), JSON.stringify(draft));
+    expect(loadDraft('2002', '', false)).toBeNull();
+    expect(loadDraft('2002', 'hello', true)).toBeNull();
+    expect(hasDraft('2002', 'hello')).toBe(false);
+    expect(hasDraft(BOARD, 'hello')).toBe(true);
+  });
+
+  test('unscoped drafts from before channel scoping are discarded, never restored', () => {
+    storage.set('bb-cmd-draft:new', JSON.stringify(draft));
+    storage.set('bb-cmd-draft:hello', JSON.stringify(draft));
+    storage.set(draftKey(BOARD, 'hello', true), JSON.stringify(draft));
+    storage.set('unrelated', 'keep');
+    expect(loadDraft(BOARD, '', false)).toBeNull();
+    discardLegacyDrafts();
+    expect([...storage.keys()].sort()).toEqual([draftKey(BOARD, 'hello', true), 'unrelated'].sort());
+  });
+
+  test('reverting an edit restores the draft that was stored when the editor opened', () => {
+    const key = draftKey(BOARD, 'hello', true);
+    const opened = readStoredDraft(key);
+    writeStoredDraft(key, JSON.stringify(draft));
+    writeStoredDraft(key, opened);
+    expect(storage.has(key)).toBe(false);
+
+    storage.set(key, JSON.stringify(draft));
+    const restored = readStoredDraft(key);
+    writeStoredDraft(key, JSON.stringify({ ...draft, response: 'changed' }));
+    writeStoredDraft(key, restored);
+    expect(loadDraft(BOARD, 'hello', true)?.response).toBe(draft.response);
+  });
+
+  test('an unreadable stored draft is not carried forward on revert', () => {
+    storage.set(draftKey(BOARD, '', false), '{');
+    expect(readStoredDraft(draftKey(BOARD, '', false))).toBeNull();
   });
 });

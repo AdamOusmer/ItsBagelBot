@@ -46,7 +46,7 @@
   import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
   import BuiltinInspector from '$lib/components/commands/BuiltinInspector.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import { loadDraft, clearDraft, hasDraft, type CommandDraft } from '$lib/components/commands/drafts';
+  import { loadDraft, clearDraft, hasDraft, discardLegacyDrafts, type CommandDraft } from '$lib/components/commands/drafts';
 
   let { data } = $props();
 
@@ -265,14 +265,14 @@
   const discard = createDiscardGuard(
     () => isDirty,
     () => {
-      if (editorDraft && !editorDraft.builtin) clearDraft(editorDraft.edit ? editorDraft.originalName : '', editorDraft.edit);
+      if (editorDraft && !editorDraft.builtin) clearDraft(data.board, editorDraft.edit ? editorDraft.originalName : '', editorDraft.edit);
       draftVersion++;
     }
   );
 
   function doOpenNew(name = '') {
     serverErrors = null;
-    const draft = loadDraft('', false) ?? blankDraft();
+    const draft = loadDraft(data.board, '', false) ?? blankDraft();
     editorDraft = name ? { ...draft, name } : draft;
     expanded = NEW;
     editorGen++;
@@ -285,7 +285,7 @@
       editorGen++;
       return;
     }
-    editorDraft = overlayLiveActive(loadDraft(c.name, true) ?? fromView(c), c.is_active);
+    editorDraft = overlayLiveActive(loadDraft(data.board, c.name, true) ?? fromView(c), c.is_active);
     expanded = c.name;
     editorGen++;
   }
@@ -330,6 +330,7 @@
   const composeReplaces = $derived(composeDraft !== null && !!matchingCustom(composeDraft.name));
 
   onMount(() => {
+    discardLegacyDrafts();
     const url = new URL(window.location.href);
     if (url.searchParams.get('compose') !== '1') return;
 
@@ -429,7 +430,7 @@
 
   const rowHasDraft = (name: string) => {
     void draftVersion;
-    return hasDraft(name);
+    return hasDraft(data.board, name);
   };
 
   const saveSubmit: SubmitFunction = ({ formData }) => {
@@ -471,7 +472,7 @@
 
       if (result.type === 'success' && payload?.ok) {
         applyResult({ ...payload, silent: true });
-        clearDraft(d.edit ? d.originalName : '', d.edit);
+        clearDraft(data.board, d.edit ? d.originalName : '', d.edit);
         ackSaved(key);
         if (stillOpen) {
           const saved = items.find((c) => c.name === key);
@@ -586,7 +587,7 @@
     const snapshot = { ...c, aliases: [...(c.aliases ?? [])] };
     items = items.filter((x) => x.name !== c.name);
     if (expanded === c.name) doCloseEditor();
-    clearDraft(c.name, true);
+    clearDraft(data.board, c.name, true);
     draftVersion++;
 
     let undone = false;
@@ -777,6 +778,7 @@
           {#key expanded + '#' + editorGen}
             <CommandEditor
               bind:draft={editorDraft}
+              board={data.board}
               {serverErrors}
               status={footerStatus()}
               dirty={isDirty}

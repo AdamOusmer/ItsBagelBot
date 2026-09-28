@@ -42,11 +42,12 @@ export async function copyFlash(
   text: string,
   flash: (on: boolean) => void,
   ms = FLASH_MS
-): Promise<void> {
+): Promise<boolean> {
   if (!(await copyText(text))) {
     flash(false);
-    return;
+    return false;
   }
   flash(true);
   setTimeout(() => flash(false), ms);
+  return true;
 }

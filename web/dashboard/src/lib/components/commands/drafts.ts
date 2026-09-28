@@ -18,10 +18,19 @@ export interface CommandDraft {
   builtin?: boolean;
 }
 
-const PREFIX = 'bb-cmd-draft:';
+const PREFIX = 'bb-cmd-draft@';
+const LEGACY_PREFIX = 'bb-cmd-draft:';
 
-export function draftKey(originalName: string, edit: boolean): string {
-  return `${PREFIX}${edit ? originalName : 'new'}`;
+export function draftKey(board: string, originalName: string, edit: boolean): string {
+  return `${PREFIX}${board}:${edit ? originalName : 'new'}`;
+}
+
+export function discardLegacyDrafts(): void {
+  try {
+    const keys = Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.key(i));
+    const legacy = keys.filter((key): key is string => key?.startsWith(LEGACY_PREFIX) === true);
+    legacy.forEach((key) => sessionStorage.removeItem(key));
+  } catch {}
 }
 
 type StoredDraft = Partial<Omit<CommandDraft, 'edit' | 'originalName' | 'builtin'>>;
@@ -55,9 +64,25 @@ function parseStoredDraft(raw: string): StoredDraft | null {
   return Object.fromEntries(fields) as StoredDraft;
 }
 
-export function loadDraft(originalName: string, edit: boolean): CommandDraft | null {
+export function readStoredDraft(key: string): string | null {
   try {
-    const raw = sessionStorage.getItem(draftKey(originalName, edit));
+    const raw = sessionStorage.getItem(key);
+    return raw && parseStoredDraft(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeStoredDraft(key: string, raw: string | null): void {
+  try {
+    if (raw === null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, raw);
+  } catch {}
+}
+
+export function loadDraft(board: string, originalName: string, edit: boolean): CommandDraft | null {
+  try {
+    const raw = sessionStorage.getItem(draftKey(board, originalName, edit));
     if (!raw) return null;
     const stored = parseStoredDraft(raw);
     if (!stored) return null;
@@ -82,15 +107,13 @@ export function loadDraft(originalName: string, edit: boolean): CommandDraft | n
   }
 }
 
-export function clearDraft(originalName: string, edit: boolean): void {
-  try {
-    sessionStorage.removeItem(draftKey(originalName, edit));
-  } catch {}
+export function clearDraft(board: string, originalName: string, edit: boolean): void {
+  writeStoredDraft(draftKey(board, originalName, edit), null);
 }
 
-export function hasDraft(originalName: string): boolean {
+export function hasDraft(board: string, originalName: string): boolean {
   try {
-    return sessionStorage.getItem(draftKey(originalName, true)) !== null;
+    return sessionStorage.getItem(draftKey(board, originalName, true)) !== null;
   } catch {
     return false;
   }
