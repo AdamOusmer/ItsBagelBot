@@ -13,10 +13,10 @@ import {
   noticeServerError,
   openSessionCookie,
   preloadStrategy,
+  resolveLocale,
   tagTransaction
 } from '@bagel/kit/server/hooks';
 import { rumTransform } from '@bagel/kit/server/rum';
-import { detectLocale, isLocale, LOCALE_COOKIE, ensureCatalog } from '@bagel/kit/i18n';
 import { startInvalidationListener } from '$lib/server/services';
 import { assertConfigSane } from '$lib/server/config-sanity';
 import { ensureLaneStoreHA } from '$lib/server/lanes';
@@ -43,23 +43,11 @@ async function staleStaffSession(event: RequestEvent): Promise<boolean> {
   return !(await requireAdmin(event.locals.session));
 }
 
-function resolveLocale(event: RequestEvent): ReturnType<typeof detectLocale> {
-  const queryLang = event.url.searchParams.get('lang');
-  if (isLocale(queryLang)) {
-    event.cookies.set(LOCALE_COOKIE, queryLang, { path: '/', maxAge: 31536000, secure: true, sameSite: 'lax' });
-  }
-  return detectLocale({
-    cookie: queryLang || event.cookies.get(LOCALE_COOKIE),
-    accept: event.request.headers.get('accept-language')
-  });
-}
-
 const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=()';
 
 export const handle: Handle = async ({ event, resolve }) => {
   event.locals.session = openSessionCookie(event, COOKIE, open);
-  event.locals.locale = resolveLocale(event);
-  await ensureCatalog(event.locals.locale);
+  event.locals.locale = await resolveLocale(event);
 
   if (await staleStaffSession(event)) {
     event.cookies.delete(COOKIE, { path: '/', secure: event.url.protocol === 'https:' });

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -37,5 +37,13 @@ ${union};
 export type MessageKey = KnownMessageKey | (string & {});
 `;
 
-writeFileSync(OUT, body);
-console.log(`gen-i18n-keys: wrote ${keys.length} keys to ${OUT}`);
+if (process.argv.includes('--check')) {
+  if (!existsSync(OUT) || readFileSync(OUT, 'utf8') !== body) {
+    console.error('gen-i18n-keys: lib/i18n/keys.d.ts is stale; run `bun run i18n:keys` in web/kit');
+    process.exit(1);
+  }
+  console.log(`gen-i18n-keys: ${keys.length} keys up to date`);
+} else {
+  writeFileSync(OUT, body);
+  console.log(`gen-i18n-keys: wrote ${keys.length} keys to ${OUT}`);
+}
