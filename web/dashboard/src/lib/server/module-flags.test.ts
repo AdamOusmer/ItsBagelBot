@@ -15,6 +15,12 @@ describe('flagsFromRows([]): the "no rows at all" reading', () => {
     expect(flagsFromRows([])['loyalty']).toBe(false);
   });
 
+  test('a default module with no row is on (enabledByDefault: missing row = on)', () => {
+    for (const id of ['alerts', 'automod', 'personality']) {
+      expect(flagsFromRows([])[id]).toBe(true);
+    }
+  });
+
   test('a gated built-in with no row is on (BuiltinEnabled: absent is ModuleOn)', () => {
     for (const id of ['followage', 'accountage', 'uptime', 'title', 'game']) {
       expect(flagsFromRows([])[id]).toBe(true);

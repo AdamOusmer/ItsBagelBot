@@ -519,3 +519,33 @@ describe('rehearseTimer', () => {
     expect(rehearseTimer('  \n ')).toHaveLength(0);
   });
 });
+
+describe('module state (engine/namespaced_vars.go mirror)', () => {
+  test('a variable of a module that is off stays literal, fallback included', () => {
+    const [line] = rehearseCommand('{valorant:rank:tier|unranked}', undefined, { valorant: false });
+    expect(line.segments).toEqual([{ text: '{valorant:rank:tier|unranked}', kind: 'unknown' }]);
+  });
+
+  test('a condition on a module that is off stays literal', () => {
+    const span = '{if:valorant:rank:tier=Gold 2:yes:no}';
+    const [line] = rehearseCommand(span, undefined, { valorant: false });
+    expect(line.segments).toEqual([{ text: span, kind: 'unknown' }]);
+  });
+
+  test('a module that is on, or absent from the flags, previews its sample', () => {
+    for (const modules of [{ valorant: true }, {}]) {
+      const [line] = rehearseCommand('{valorant:tier}', undefined, modules);
+      expect(line.segments).toEqual([{ text: 'Immortal 2', kind: 'sample' }]);
+    }
+  });
+
+  test('a module whose parent is off stays literal', () => {
+    const [line] = rehearseCommand('{gamble:roll}', undefined, { gamble: true, loyalty: false });
+    expect(line.segments).toEqual([{ text: '{gamble:roll}', kind: 'unknown' }]);
+  });
+
+  test('timers apply the same gate', () => {
+    const [line] = rehearseTimer('{valorant:tier}', { valorant: false });
+    expect(line.segments).toEqual([{ text: '{valorant:tier}', kind: 'unknown' }]);
+  });
+});
