@@ -82,7 +82,7 @@ func timeLookupReply(c *module.Context, now time.Time, place string) string {
 }
 
 func unknownPlaceReply(c *module.Context, place string) string {
-	return module.KV("place", place).WithLocale(module.Locale(c.Locale)).WithNamespace("time").ExpandString(i18n.T(c.Locale, "time.unknown"))
+	return c.Palette("time", "place", place).ExpandString(i18n.T(c.Locale, "time.unknown"))
 }
 
 type timeRender struct {

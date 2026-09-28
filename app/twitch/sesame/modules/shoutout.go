@@ -54,11 +54,11 @@ func Shoutout(_ engine.Deps) module.Module {
 		if raider == "" {
 			raider = ev.FromBroadcasterUserLogin
 		}
-		msg := module.KV(
+		msg := c.Palette("shoutout",
 			"raider", strings.TrimPrefix(raider, "@"),
 			"raider.login", strings.TrimPrefix(ev.FromBroadcasterUserLogin, "@"),
 			"viewers", strconv.Itoa(ev.Viewers),
-		).WithLocale(module.Locale(c.Locale)).WithNamespace("shoutout").ExpandString(text)
+		).ExpandString(text)
 
 		emit(&module.Output{
 			Type:          outgress.TypeChat,

@@ -35,10 +35,6 @@ type alertsConfig struct {
 	AdsMessage    string `json:"adsMessage"`
 }
 
-func alertOn(v string) bool { return v != "off" }
-
-func explicitOn(v string) bool { return v == "on" }
-
 const followAlertWindow = 72 * time.Hour
 
 type followEvent struct {
@@ -140,7 +136,7 @@ func onAlert[T any](pick func(alertsConfig) (bool, string), fallbackKey string, 
 		if text == "" {
 			text = i18n.T(c.Locale, fallbackKey)
 		}
-		msg := module.KV(tokenPairs(line.tokens)...).WithLocale(module.Locale(c.Locale)).WithNamespace("alerts").ExpandString(text)
+		msg := c.Palette("alerts", tokenPairs(line.tokens)...).ExpandString(text)
 		emit(&module.Output{
 			Type:          outgress.TypeChat,
 			BroadcasterID: line.broadcasterID,
