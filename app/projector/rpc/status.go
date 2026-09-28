@@ -13,6 +13,7 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
+	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
 	projectorrpc "ItsBagelBot/internal/domain/rpc/projector"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -108,28 +109,12 @@ func (s *statusRPC) tierFromValkey(ctx context.Context, id uint64) (statusEntry,
 }
 
 func (s *statusRPC) fetchUserFallback(ctx context.Context, id uint64) statusEntry {
-	reply, err := bus.RequestJSON[struct {
-		StateRevision      int64  `json:"state_revision"`
-		AccountCreatedAt   int64  `json:"account_created_at"`
-		Status             string `json:"status"`
-		IsActive           bool   `json:"is_active"`
-		Banned             bool   `json:"banned"`
-		Locale             string `json:"locale"`
-		CommandsPageHidden bool   `json:"commands_page_hidden"`
-	}](ctx, s.nc, s.usersTopic, map[string]string{"user_id": fmt.Sprint(id)})
+	reply, err := bus.RequestJSON[rpcprojection.UserReply](ctx, s.nc, s.usersTopic, map[string]string{"user_id": fmt.Sprint(id)})
 	if err != nil {
 		return statusEntry{Tier: "standard"}
 	}
 
-	_ = s.valkey.SetUser(ctx, id, projection.UserProjection{
-		AccountCreatedAt:   reply.AccountCreatedAt,
-		StateRevision:      reply.StateRevision,
-		Status:             reply.Status,
-		IsActive:           reply.IsActive,
-		Banned:             reply.Banned,
-		Locale:             reply.Locale,
-		CommandsPageHidden: reply.CommandsPageHidden,
-	})
+	_ = s.valkey.SetUser(ctx, id, projection.UserFromReply(reply))
 
 	if !reply.IsActive {
 		return statusEntry{Tier: "standard", Banned: reply.Banned}
