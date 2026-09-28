@@ -294,7 +294,7 @@ export type DiscordSetup = {
   code: DiscordCode;
 };
 
-const SETUP_FIELDS: [keyof DiscordConfig, keyof SetupReply][] = [
+export const SETUP_FIELDS: [keyof DiscordConfig, keyof SetupReply][] = [
   ['guildId', 'guild_id'],
   ['liveChannelId', 'live_channel_id'],
   ['clipsChannelId', 'clips_channel_id'],

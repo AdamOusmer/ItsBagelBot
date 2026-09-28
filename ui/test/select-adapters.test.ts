@@ -4,6 +4,8 @@ import { expect, test } from 'bun:test';
 import { experimental_AstroContainer } from 'astro/container';
 import AstroSelect from '../astro/Select.astro';
 import SvelteSelect from '../svelte/Select.svelte';
+import PickerPanel from '../svelte/PickerPanel.svelte';
+import { createRawSnippet } from 'svelte';
 import { render } from 'svelte/server';
 import { normalise } from './normalise';
 
@@ -72,4 +74,12 @@ test('Astro Select preserves a stored value omitted from refreshed options durin
   const html = await astroSelect({ id: 'stored', name: 'stored', value: 'saved-id', options: [] });
   expect(html).toContain('<select id="stored" name="stored">');
   expect(html).toContain('<option value="saved-id" selected data-select-fallback-option>saved-id</option>');
+});
+
+test('an open Svelte picker keeps wheel and touch away from the page smooth-scroller', () => {
+  const children = createRawSnippet(() => ({ render: () => '<ul role="listbox"></ul>' }));
+  for (const placement of ['beside', 'below'] as const) {
+    const html = render(PickerPanel, { props: { open: true, label: 'Pick', placement, onClose: () => {}, children } }).body;
+    expect(html).toContain('class="bb-picker-panel bb-picker-panel--dropdown" data-overlay="" data-lenis-prevent=""');
+  }
 });

@@ -113,4 +113,8 @@ func (c *Context) Reset() {
 
 func (c *Context) BID() zap.Field { return BIDField(c.BroadcasterID) }
 
+func (c *Context) Palette(namespace Namespace, kv ...string) Palette {
+	return KV(kv...).WithLocale(Locale(c.Locale)).WithNamespace(namespace)
+}
+
 func BIDField(id uint64) zap.Field { return zap.Uint64("broadcaster_id", id) }
