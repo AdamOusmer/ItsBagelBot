@@ -71,7 +71,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   const uid = effectiveId(locals.session);
   if (DEMO) {
     const { demoCommandRows, demoFetches } = await import('$lib/server/demo-data');
-    return { commands: mergeCommands(demoCommandRows, []), ...demoFetches() };
+    return { commands: mergeCommands(demoCommandRows, []), ...demoFetches(), board: uid };
   }
   try {
     const [custom, modules, fetches] = await Promise.all([
@@ -79,9 +79,9 @@ export const load: PageServerLoad = async ({ locals }) => {
       listModules(uid).catch(() => []),
       listFetches(uid).catch(() => ({ defs: [], keys: [] }))
     ]);
-    return { commands: mergeCommands(custom, modules), ...fetches };
+    return { commands: mergeCommands(custom, modules), ...fetches, board: uid };
   } catch {
-    return { commands: mergeCommands([], []), defs: [], keys: [], degraded: true };
+    return { commands: mergeCommands([], []), defs: [], keys: [], board: uid, degraded: true };
   }
 };
 
