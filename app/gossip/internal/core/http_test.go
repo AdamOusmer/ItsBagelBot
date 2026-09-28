@@ -73,13 +73,19 @@ func TestSharedTransportSizesTheHTTP1IdlePool(t *testing.T) {
 }
 
 func TestSharedTransportOwnsItsH2Config(t *testing.T) {
-	require.Nil(t, http.DefaultTransport.(*http.Transport).HTTP2,
-		"DefaultTransport carries no h2 config; ours is the only source")
-
+	stock := http.DefaultTransport.(*http.Transport)
 	a, b := newSharedTransport(), newSharedTransport()
-	require.NotNil(t, a.HTTP2)
-	require.NotNil(t, b.HTTP2)
+
 	assert.NotSame(t, a.HTTP2, b.HTTP2)
+	assert.NotSame(t, stock.HTTP2, a.HTTP2, "sharing DefaultTransport's h2 config leaks our timeouts process-wide")
+	assert.Zero(t, h2ConfigOf(stock), "DefaultTransport's h2 config must stay stock")
+}
+
+func h2ConfigOf(tr *http.Transport) http.HTTP2Config {
+	if tr.HTTP2 == nil {
+		return http.HTTP2Config{}
+	}
+	return *tr.HTTP2
 }
 
 func TestNewHTTPClientUsesSharedTransport(t *testing.T) {
