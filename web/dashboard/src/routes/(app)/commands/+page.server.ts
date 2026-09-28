@@ -157,6 +157,11 @@ async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: 
   }
 }
 
+function builtinPermFromForm(f: FormData, defaultPerm: Perm): Perm {
+  const value = String(f.get('perm') ?? '');
+  return (PERMS as readonly string[]).includes(value) ? value as Perm : defaultPerm;
+}
+
 function builtinRow(def: NonNullable<ReturnType<typeof builtinDef>>, response: string, isActive: boolean, perm: Perm = def.defaultPerm): CommandView {
   return { ...builtinView(def), response, is_active: isActive, perm };
 }
@@ -306,8 +311,7 @@ export const actions: Actions = {
     const def = builtinDef(name);
     if (!def) return fail(400, { ok: false, error: actionError(ctx.locale, 'Unknown built-in command.') });
     const isActive = f.get('is_active') === 'on';
-    const submittedPerm = String(f.get('perm') ?? '');
-    const perm = (PERMS as readonly string[]).includes(submittedPerm) ? submittedPerm as Perm : def.defaultPerm;
+    const perm = builtinPermFromForm(f, def.defaultPerm);
     const view = builtinRow(def, String(f.get('response') ?? def.summary), isActive, perm);
 
     if (DEMO) {
@@ -324,9 +328,7 @@ export const actions: Actions = {
   // Save an editable built-in's custom reply template. Like the toggle, the
   // value lives in the modules service (under the built-in id, config key
   // def.replyKey), so this writes there, not the commands service. An empty
-  // reply clears the override, so the bot
-  // falls back to the default template. The current on/off state rides along so
-  // the write preserves it.
+  // reply clears the override, so the bot falls back to the default template.
   saveBuiltinReply: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn(event.locals.locale);
@@ -342,8 +344,7 @@ export const actions: Actions = {
       return fail(400, { ok: false, error: actionError(ctx.locale, `Reply is too long (max ${RESPONSE_MAX}).`) });
     }
     const isActive = f.get('is_active') === 'on';
-    const submittedPerm = String(f.get('perm') ?? '');
-    const perm = (PERMS as readonly string[]).includes(submittedPerm) ? submittedPerm as Perm : def.defaultPerm;
+    const perm = builtinPermFromForm(f, def.defaultPerm);
     const view = builtinRow(def, reply || def.preview, isActive, perm);
 
     if (DEMO) {
