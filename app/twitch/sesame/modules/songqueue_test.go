@@ -87,12 +87,12 @@ func (f *fakeSongQueue) SyncPlaying(_ context.Context, _ uint64, trackID string)
 	return false, nil
 }
 
-func (f *fakeSongQueue) SyncQueue(ctx context.Context, id uint64, currentID string, upcomingIDs []string) (bool, error) {
-	changed := f.syncQueueCurrent(ctx, id, currentID)
-	if len(upcomingIDs) == 0 {
+func (f *fakeSongQueue) SyncQueue(ctx context.Context, id uint64, player engine.PlayerQueueIDs) (bool, error) {
+	changed := f.syncQueueCurrent(ctx, id, player.CurrentID)
+	if len(player.UpcomingIDs) == 0 {
 		return changed, nil
 	}
-	return f.dropSkippedBefore(upcomingIDs[0]) || changed, nil
+	return f.dropSkippedBefore(player.UpcomingIDs[0]) || changed, nil
 }
 
 func (f *fakeSongQueue) syncQueueCurrent(ctx context.Context, id uint64, currentID string) bool {

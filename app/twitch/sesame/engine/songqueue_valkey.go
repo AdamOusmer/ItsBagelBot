@@ -42,6 +42,11 @@ type SongQueueSnapshot struct {
 	UpNext  []SongEntry
 }
 
+type PlayerQueueIDs struct {
+	CurrentID   string
+	UpcomingIDs []string
+}
+
 type SongQueueLimits struct {
 	MaxDepth     int
 	PerRequester int
@@ -55,7 +60,7 @@ type SongQueueStore interface {
 	// SyncQueue reconciles the local request list with a fresh Spotify queue
 	// snapshot. The visible upcoming list can be truncated, so it must not
 	// discard unseen requests beyond that window.
-	SyncQueue(ctx context.Context, broadcasterID uint64, currentID string, upcomingIDs []string) (bool, error)
+	SyncQueue(ctx context.Context, broadcasterID uint64, player PlayerQueueIDs) (bool, error)
 	Advance(ctx context.Context, broadcasterID uint64) (finished, nowPlaying *SongEntry, err error)
 	Clear(ctx context.Context, broadcasterID uint64) error
 	Snapshot(ctx context.Context, broadcasterID uint64, upNext int) (SongQueueSnapshot, error)
@@ -292,10 +297,10 @@ func (s *ValkeySongQueueStore) SyncPlaying(ctx context.Context, broadcasterID ui
 	return changed, err
 }
 
-func (s *ValkeySongQueueStore) SyncQueue(ctx context.Context, broadcasterID uint64, currentID string, upcomingIDs []string) (bool, error) {
+func (s *ValkeySongQueueStore) SyncQueue(ctx context.Context, broadcasterID uint64, player PlayerQueueIDs) (bool, error) {
 	changed := false
 	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
-		changed = reconcileSongQueue(d, currentID, upcomingIDs, time.Now())
+		changed = reconcileSongQueue(d, player, time.Now())
 		return nil
 	})
 	return changed, err
@@ -305,14 +310,14 @@ func (s *ValkeySongQueueStore) SyncQueue(ctx context.Context, broadcasterID uint
 // matching request proves older unmatched requests were skipped; with a short
 // queue, aged absent requests can also be retired. The grace interval protects
 // a newly accepted POST while Spotify's read endpoint catches up.
-func reconcileSongQueue(d *songQueueDoc, currentID string, upcomingIDs []string, now time.Time) bool {
+func reconcileSongQueue(d *songQueueDoc, player PlayerQueueIDs, now time.Time) bool {
 	// An idle or private player can yield no snapshot at all. Without a
 	// current item or an upcoming item, there is no evidence to retire from.
-	if currentID == "" && len(upcomingIDs) == 0 {
+	if player.CurrentID == "" && len(player.UpcomingIDs) == 0 {
 		return false
 	}
-	currentChanged := reconcileCurrentSong(d, currentID)
-	upcomingChanged := reconcileUpcomingSongs(d, upcomingIDs, now)
+	currentChanged := reconcileCurrentSong(d, player.CurrentID)
+	upcomingChanged := reconcileUpcomingSongs(d, player.UpcomingIDs, now)
 	return currentChanged || upcomingChanged
 }
 

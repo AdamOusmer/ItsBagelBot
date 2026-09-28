@@ -233,15 +233,14 @@ func (qc songQueueCmd) playerQueue(ctx context.Context) (gossiprpc.SpotifyQueueR
 }
 
 func (qc songQueueCmd) syncQueueSnapshot(ctx context.Context, reply gossiprpc.SpotifyQueueReply) {
-	ids := make([]string, 0, len(reply.UpNext))
+	player := engine.PlayerQueueIDs{UpcomingIDs: make([]string, 0, len(reply.UpNext))}
 	for _, entry := range reply.UpNext {
-		ids = append(ids, entry.ID)
+		player.UpcomingIDs = append(player.UpcomingIDs, entry.ID)
 	}
-	currentID := ""
 	if reply.Current != nil {
-		currentID = reply.Current.ID
+		player.CurrentID = reply.Current.ID
 	}
-	if _, err := qc.store.SyncQueue(ctx, qc.c.BroadcasterID, currentID, ids); err != nil {
+	if _, err := qc.store.SyncQueue(ctx, qc.c.BroadcasterID, player); err != nil {
 		qc.log.Warn("songqueue: player queue sync failed", qc.c.BID(), zap.Error(err))
 	}
 }
