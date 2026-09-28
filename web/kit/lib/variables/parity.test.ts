@@ -267,6 +267,8 @@ describe('variables parity (engine/scope/testdata/token_catalog.golden.json)', (
   });
 
   test('H: reply-token inventory matches app/twitch/sesame/modules/reply_tokens.go (Go golden)', () => {
+    const misnamed = REPLY_SOURCES.filter((source) => (claimedNamespace(source) ?? source.where) !== source.where);
+    expect(misnamed.map((source) => `${source.where} claims "${claimedNamespace(source)}"`), 'reply namespace must be "<moduleId>.<replyKey>" or "builtin.<id>"; fix web/kit/lib/catalog/*.ts').toEqual([]);
     expect(REPLY_SOURCES.flatMap(replyMismatches)).toEqual([]);
     const claimed = new Set(REPLY_SOURCES.map(claimedNamespace));
     const unclaimed = Object.keys(replyTokensGolden.replies).filter((ns) => !claimed.has(ns));
