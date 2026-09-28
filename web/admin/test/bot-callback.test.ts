@@ -20,7 +20,12 @@ const validateAuthorizationCode = mock(async () => ({
 }));
 const createAuthorizationURL = mock(() => new URL('https://id.twitch.tv/oauth2/authorize'));
 const botTwitch = mock(() => ({ validateAuthorizationCode, createAuthorizationURL }));
-const botTokenSet = mock(async () => undefined);
+let botTokenSetFailure: Error | null = null;
+const botTokenSet = mock(async () => {
+  if (botTokenSetFailure) throw botTokenSetFailure;
+  return { present: true };
+});
+const loggerError = mock(() => {});
 
 class TestRedirect extends Error {
   constructor(
@@ -37,7 +42,8 @@ mock.module('$lib/server/oauth', () => ({
   botScopes: () => ['openid', 'moderator:read:chatters'],
   botTwitch
 }));
-mock.module('$lib/server/bot-token', () => ({ botTokenSet }));
+mock.module('$lib/server/services', () => ({ botTokenSet }));
+mock.module('@bagel/kit/server/logger', () => ({ logger: { error: loggerError } }));
 mock.module('@sveltejs/kit', () => ({
   redirect: (status: number, location: string) => new TestRedirect(status, location)
 }));
@@ -77,6 +83,8 @@ beforeEach(() => {
   validateAuthorizationCode.mockClear();
   createAuthorizationURL.mockClear();
   botTokenSet.mockClear();
+  botTokenSetFailure = null;
+  loggerError.mockClear();
 });
 
 describe('bot OAuth callback account pinning', () => {
@@ -108,7 +116,7 @@ describe('bot OAuth callback account pinning', () => {
   });
 
   test('rejects a different Twitch account without storing its token', async () => {
-    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    privateEnv.TWITCH_BOT_USER_ID = 'configured-bot';
     claims.sub = 'other-account';
 
     await expectRedirectLocation(
@@ -121,7 +129,7 @@ describe('bot OAuth callback account pinning', () => {
   });
 
   test('refuses a token without chatter access instead of reporting authorization success', async () => {
-    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    privateEnv.TWITCH_BOT_USER_ID = 'configured-bot';
     grantedScopes = ['openid'];
     await expectRedirectLocation(
       () => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]),
@@ -131,7 +139,7 @@ describe('bot OAuth callback account pinning', () => {
   });
 
   test('refuses a response that does not report its granted scopes', async () => {
-    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    privateEnv.TWITCH_BOT_USER_ID = 'configured-bot';
     grantedScopes = [];
     await expectRedirectLocation(
       () => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]),
@@ -141,7 +149,7 @@ describe('bot OAuth callback account pinning', () => {
   });
 
   test('stores the configured bot token without a console session', async () => {
-    privateEnv.ADMIN_BOT_USER_ID = ' configured-bot ';
+    privateEnv.TWITCH_BOT_USER_ID = ' configured-bot ';
 
     await expectRedirectLocation(
       () => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]),
@@ -150,11 +158,36 @@ describe('bot OAuth callback account pinning', () => {
 
     expect(validateAuthorizationCode).toHaveBeenCalledWith('code', 'nonce');
     expect(botTokenSet).toHaveBeenCalledTimes(1);
-    expect(botTokenSet).toHaveBeenCalledWith('configured-bot', 'access-token', 'refresh-token');
+    expect(botTokenSet).toHaveBeenCalledWith(
+      { actorId: 'configured-bot', userId: 'configured-bot' },
+      'access-token',
+      'refresh-token'
+    );
   });
 
+  for (const [name, failure] of [
+    ['a users service refusal', Object.assign(new Error('configured bot identity required'), { code: 'forbidden' })],
+    ['no users service responders', new Error('503')]
+  ] as const) {
+    test(`reports ${name} as a save failure instead of a server error`, async () => {
+      privateEnv.TWITCH_BOT_USER_ID = 'configured-bot';
+      botTokenSetFailure = failure;
+
+      await expectRedirectLocation(
+        () => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]),
+        '/auth/bot/done?e=save'
+      );
+
+      expect(botTokenSet).toHaveBeenCalledTimes(1);
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.objectContaining({ err: failure, botId: 'configured-bot' }),
+        'bot token save failed'
+      );
+    });
+  }
+
   test('starts consent without a staff session and binds a nonce cookie', async () => {
-    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    privateEnv.TWITCH_BOT_USER_ID = 'configured-bot';
     const set = mock(() => {});
     try {
       loginGET({ url: new URL('https://admin.example/auth/bot/login'), cookies: { set }, locals: { session: null } } as unknown as Parameters<typeof loginGET>[0]);
@@ -170,7 +203,7 @@ describe('bot OAuth callback account pinning', () => {
 
   for (const missingCookie of ['bot_oauth_state', 'bot_oauth_nonce']) {
     test(`rejects absent ${missingCookie} before exchanging a code`, async () => {
-      privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+      privateEnv.TWITCH_BOT_USER_ID = 'configured-bot';
       const event = callbackEvent();
       const get = event.cookies.get;
       event.cookies.get = (name) => name === missingCookie ? undefined : get(name);
@@ -183,7 +216,7 @@ describe('bot OAuth callback account pinning', () => {
   }
 
   test('rejects a mismatched OAuth state before exchanging a code', async () => {
-    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    privateEnv.TWITCH_BOT_USER_ID = 'configured-bot';
     const event = callbackEvent();
     event.url.searchParams.set('state', 'other-state');
     await expectRedirectLocation(() => callbackGET(event as Parameters<typeof callbackGET>[0]), '/auth/bot/done?e=state');
@@ -193,7 +226,7 @@ describe('bot OAuth callback account pinning', () => {
 
   for (const field of ['aud', 'iss', 'nonce'] as const) {
     test(`rejects mismatched ${field} without saving a token`, async () => {
-      privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+      privateEnv.TWITCH_BOT_USER_ID = 'configured-bot';
       claims[field] = 'mismatch';
       await expectRedirectLocation(() => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]), '/auth/bot/done?e=state');
       expect(botTokenSet).not.toHaveBeenCalled();
@@ -202,14 +235,14 @@ describe('bot OAuth callback account pinning', () => {
 
 
   test('accepts an ID token audience array containing the bot client', async () => {
-    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    privateEnv.TWITCH_BOT_USER_ID = 'configured-bot';
     claims.aud = ['other-client', 'bot-client'];
     await expectRedirectLocation(() => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]), '/auth/bot/done?ok=1');
     expect(botTokenSet).toHaveBeenCalledTimes(1);
   });
 
   test('rejects an ID token audience array without the bot client', async () => {
-    privateEnv.ADMIN_BOT_USER_ID = 'configured-bot';
+    privateEnv.TWITCH_BOT_USER_ID = 'configured-bot';
     claims.aud = ['other-client'];
     await expectRedirectLocation(() => callbackGET(callbackEvent() as Parameters<typeof callbackGET>[0]), '/auth/bot/done?e=state');
     expect(botTokenSet).not.toHaveBeenCalled();

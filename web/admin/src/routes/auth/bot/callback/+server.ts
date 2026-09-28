@@ -4,9 +4,12 @@
 import type { RequestHandler } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { isOAuthProtocolError } from '@bagel/kit/server/oauth';
+import { logger } from '@bagel/kit/server/logger';
 import { botTwitch, botClientId, botScopes } from '$lib/server/oauth';
-import { botTokenSet } from '$lib/server/bot-token';
+import { botTokenSet } from '$lib/server/services';
 import { env } from '$env/dynamic/private';
+
+type BotGrant = { accessToken: string; refreshToken: string };
 
 type BotIdentity = {
   claims: { sub: string; aud?: string | string[]; iss?: string; nonce?: string };
@@ -15,7 +18,7 @@ type BotIdentity = {
 };
 
 function configuredBotId(): string {
-  const botId = env.ADMIN_BOT_USER_ID?.trim();
+  const botId = env.TWITCH_BOT_USER_ID?.trim();
   if (!botId) throw redirect(302, '/auth/bot/done?e=config');
   return botId;
 }
@@ -38,6 +41,30 @@ function assertBotIdentity(identity: BotIdentity): void {
   }
 }
 
+async function exchangeBotGrant(origin: string, code: string, nonce: string, botId: string): Promise<BotGrant> {
+  try {
+    const tokens = await botTwitch(origin).validateAuthorizationCode(code, nonce);
+    assertBotIdentity({ claims: tokens.claims(), configuredId: botId, nonce });
+    const granted = new Set(tokens.scopes());
+    if (botScopes().some((scope) => !granted.has(scope))) {
+      throw redirect(302, '/auth/bot/done?e=scope');
+    }
+    return { accessToken: tokens.accessToken(), refreshToken: tokens.refreshToken() };
+  } catch (e) {
+    if (isOAuthProtocolError(e)) throw redirect(302, '/auth/bot/done?e=oauth');
+    throw e;
+  }
+}
+
+async function storeBotGrant(botId: string, grant: BotGrant): Promise<void> {
+  try {
+    await botTokenSet({ actorId: botId, userId: botId }, grant.accessToken, grant.refreshToken);
+  } catch (err) {
+    logger.error({ err, botId }, 'bot token save failed');
+    throw redirect(302, '/auth/bot/done?e=save');
+  }
+}
+
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
@@ -54,20 +81,8 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   }
 
   const botId = configuredBotId();
-
-  try {
-    const tokens = await botTwitch(url.origin).validateAuthorizationCode(code, nonce);
-    assertBotIdentity({ claims: tokens.claims(), configuredId: botId, nonce });
-    const granted = new Set(tokens.scopes());
-    if (botScopes().some((scope) => !granted.has(scope))) {
-      throw redirect(302, '/auth/bot/done?e=scope');
-    }
-
-    await botTokenSet(botId, tokens.accessToken(), tokens.refreshToken());
-  } catch (e) {
-    if (isOAuthProtocolError(e)) throw redirect(302, '/auth/bot/done?e=oauth');
-    throw e;
-  }
+  const grant = await exchangeBotGrant(url.origin, code, nonce, botId);
+  await storeBotGrant(botId, grant);
 
   throw redirect(302, '/auth/bot/done?ok=1');
 };

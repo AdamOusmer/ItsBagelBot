@@ -371,17 +371,23 @@ export const tokenStatus = defineRead({
   }
 });
 
-export const tokenSet = defineWrite({
-  subject: `${SUB.user}.token_set`,
-  request: (ref: UserRef, accessToken: string, refreshToken: string) => ({
-    actor_id: ref.actorId,
-    user_id: ref.userId,
-    access_token: accessToken,
-    refresh_token: refreshToken
-  }),
-  map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
-  after: (token, ref) => setCached(`token:${ref.userId}`, token, POLICY.adminRead)
-});
+function tokenWrite(subject: string) {
+  return defineWrite({
+    subject,
+    request: (ref: UserRef, accessToken: string, refreshToken: string) => ({
+      actor_id: ref.actorId,
+      user_id: ref.userId,
+      access_token: accessToken,
+      refresh_token: refreshToken
+    }),
+    map: (reply: { token: TokenStatus }) => reply.token ?? { present: false },
+    after: (token, ref) => setCached(`token:${ref.userId}`, token, POLICY.adminRead)
+  });
+}
+
+export const tokenSet = tokenWrite(`${SUB.user}.token_set`);
+
+export const botTokenSet = tokenWrite(`${SUB.user}.bot_token_set`);
 
 export const tokenClear = defineWrite({
   subject: `${SUB.user}.token_clear`,

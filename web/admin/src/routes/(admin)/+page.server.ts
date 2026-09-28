@@ -58,7 +58,7 @@ function liveReads(
   days: EnrollmentWindow,
   { withAudit, withGiveaways, withTrials }: OverviewPermissions
 ): OverviewReads {
-  const botId = env.ADMIN_BOT_USER_ID ?? '';
+  const botId = env.TWITCH_BOT_USER_ID ?? '';
   return {
     enrollment: panel(userEnrollment(actorId, days), emptyEnrollment()),
     fleet: panel(shardSnapshot(), emptyShardSnapshot()),
