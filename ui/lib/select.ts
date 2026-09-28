@@ -26,6 +26,11 @@ export function filterSelectOptions(options: readonly SelectOption[], query: str
   });
 }
 
+export function optionIndexAt(list: Element, target: EventTarget | null): number {
+  const option = target instanceof Element ? target.closest<HTMLElement>('[role="option"]') : null;
+  return option && list.contains(option) ? Number(option.dataset.index) : -1;
+}
+
 /** Wrap keyboard navigation, skipping disabled options, including an all-disabled list. */
 export function nextEnabledOption(options: readonly SelectOption[], active: number, direction: 1 | -1 | 'first' | 'last'): number {
   const step = direction === 'last' || direction === -1 ? -1 : 1;

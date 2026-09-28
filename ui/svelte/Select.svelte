@@ -7,7 +7,7 @@
   import PickerPanel from './PickerPanel.svelte';
   import SearchInput from './SearchInput.svelte';
   import Scroller from './Scroller.svelte';
-  import { filterSelectOptions, nextEnabledOption, normalizeSelectQuery, type SelectOption } from '../lib/select';
+  import { filterSelectOptions, nextEnabledOption, normalizeSelectQuery, optionIndexAt, type SelectOption } from '../lib/select';
   import '../styles/elements/field.css';
   import '../styles/elements/input.css';
   import '../styles/elements/select.css';
@@ -63,6 +63,7 @@
   let labelledBy = $state<string>();
   let typeahead = '';
   let typedAt = 0;
+  let pointer: { x: number; y: number } | undefined;
 
   onMount(() => {
     // Reuse Field's visible label, excluding the selected value from the name.
@@ -102,7 +103,19 @@
     scrollActive();
   }
   function scrollActive() {
+    pointer = undefined;
     document.getElementById(`${controlId}-option-${active}`)?.scrollIntoView({ block: 'nearest' });
+  }
+  function hoverAt(target: EventTarget | null) {
+    const index = listEl ? optionIndexAt(listEl, target) : -1;
+    if (index >= 0 && !results[index].disabled) active = index;
+  }
+  function trackPointer(event: PointerEvent) {
+    pointer = event.pointerType === 'touch' ? undefined : { x: event.clientX, y: event.clientY };
+    hoverAt(event.target);
+  }
+  function followPointer() {
+    if (pointer) hoverAt(document.elementFromPoint(pointer.x, pointer.y));
   }
   async function pick(option: SelectOption) {
     if (disabled || option.disabled) return;
@@ -175,24 +188,24 @@
   </button>
 </span>
 
-<PickerPanel {open} anchor={btnEl} label={panelLabel} width={320} maxHeight={380} onClose={() => close(true)}>
+<PickerPanel {open} anchor={btnEl} label={panelLabel} placement="below" maxHeight={380} onClose={() => close(true)}>
   {#if searchable}
     <SearchInput fill bind:value={query} bind:element={inputEl} placeholder={searchPlaceholder} clearLabel={searchClearLabel}
       aria-label={searchPlaceholder} role="combobox" aria-expanded="true" aria-controls="{controlId}-list"
       aria-activedescendant={active >= 0 ? `${controlId}-option-${active}` : undefined}
       aria-autocomplete="list" autocomplete="off" spellcheck="false" onkeydown={onKey} />
   {/if}
-  <Scroller fill smooth>
+  <Scroller fill onscroll={followPointer}>
     <ul class="bb-select__list" id="{controlId}-list" role="listbox" aria-label={panelLabel}
       tabindex={searchable ? -1 : 0} aria-activedescendant={!searchable && active >= 0 ? `${controlId}-option-${active}` : undefined}
-      onkeydown={onKey} bind:this={listEl}>
+      onkeydown={onKey} onpointermove={trackPointer} onpointerleave={() => (pointer = undefined)} bind:this={listEl}>
       {#each results as option, i (option.value)}
         {#if option.group && (i === 0 || option.group !== results[i - 1].group)}
           <li class="bb-select__group" role="presentation">{option.group}</li>
         {/if}
-        <li id="{controlId}-option-{i}" role="option" tabindex="-1" aria-selected={option.value === value}
+        <li id="{controlId}-option-{i}" data-index={i} role="option" tabindex="-1" aria-selected={option.value === value}
           aria-disabled={option.disabled || undefined} class="bb-select__option" class:active={i === active}
-          onpointerenter={() => { if (!option.disabled) active = i; }} onclick={() => void pick(option)}
+          onclick={() => void pick(option)}
           onkeydown={(event) => { event.stopPropagation(); onKey(event); }}>
           <span class="bb-select__label">{option.label}</span>
           {#if option.description}<span class="bb-select__description">{option.description}</span>{/if}

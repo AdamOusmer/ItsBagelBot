@@ -15,6 +15,7 @@
   }
 
   .bb-picker-panel--dropdown {
+    box-sizing: border-box;
     position: fixed;
     z-index: 300;
     overflow-y: auto;
