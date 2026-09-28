@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+export const MOBILE_QUERY = '(max-width: 639px)';
+
 let seq = 0;
 const stack: number[] = [];
 

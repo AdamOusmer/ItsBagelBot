@@ -29,7 +29,7 @@
   import LoyaltyGameRow from '$lib/components/loyalty/LoyaltyGameRow.svelte';
 
   let { data } = $props();
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
   const loyaltyCommands = moduleDef('loyalty')?.commands ?? [];
 
   // svelte-ignore state_referenced_locally
@@ -236,7 +236,7 @@
                 <tr>
                   <th scope="row" class="r rank">{i + 1}</th>
                   <td>{row.viewerName || row.viewerLogin || row.viewerId}</td>
-                  <td class="r">{formatPointValue(row.points)}</td>
+                  <td class="r">{formatPointValue(row.points, locale)}</td>
                   <td class="r mut">{hours(row.watchSeconds)}</td>
                 </tr>
               {/each}

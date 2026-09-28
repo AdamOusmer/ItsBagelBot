@@ -42,7 +42,7 @@ const classes = ['bb-input', 'bb-input--select', fill ? 'bb-input--fill' : null,
     <span class={classes} data-select-fallback data-invalid={invalid ? '' : undefined}>
         <select {...rest}>
             {options && value !== undefined && !options.some((option) => option.value === value) && (
-                <option value={value} selected data-select-fallback-option>{value || placeholder}</option>
+                <option value="" selected disabled hidden data-select-fallback-option>{placeholder}</option>
             )}
             {options ? options.map((option) => (
                 <option value={option.value} selected={value === option.value} disabled={option.disabled}

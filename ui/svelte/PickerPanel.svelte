@@ -11,7 +11,7 @@
   import '../styles/elements/picker-panel.css';
   import { mediaQuery } from '../lib/motion-query';
   import { naturalHeight, placeDropdown, type DropdownPlacement } from '../lib/dropdown-placement';
-  import { portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains } from '../lib/overlay-stack';
+  import { MOBILE_QUERY, portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains } from '../lib/overlay-stack';
 
   let {
     open = false,
@@ -33,7 +33,6 @@
     children: Snippet;
   } = $props();
 
-  const MOBILE_QUERY = '(max-width: 639px)';
   const GAP_PX = 8;
 
   const sheetQuery = mediaQuery(MOBILE_QUERY);

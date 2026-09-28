@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { filterSelectOptions, nextEnabledOption, normalizeSelectQuery, optionIndexAt, type SelectOption } from './select';
+import { createTypeahead, filterSelectOptions, nextEnabledOption, optionIndexAt, SELECT_NAVIGATION_KEYS, type SelectDirection, type SelectOption } from './select';
 import { naturalHeight, placeDropdown, type DropdownPlacement } from './dropdown-placement';
-import { pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains } from './overlay-stack';
+import { MOBILE_QUERY, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains } from './overlay-stack';
 
 let sequence = 0;
 const MAX_HEIGHT_PX = 380;
@@ -22,11 +22,6 @@ function searchGlyph(clear = false): SVGSVGElement {
   svg.append(path);
   return svg;
 }
-
-type NavigationDirection = 1 | -1 | 'first' | 'last';
-const NAVIGATION_KEYS: Record<string, NavigationDirection | undefined> = {
-  ArrowDown: 1, ArrowUp: -1, Home: 'first', End: 'last',
-};
 
 function hasAccessibleName(element: HTMLElement): boolean {
   return element.hasAttribute('aria-labelledby') || element.hasAttribute('aria-label');
@@ -94,7 +89,7 @@ function appendOptionText(item: HTMLLIElement, option: SelectOption): void {
 
 interface OptionRenderContext {
   id: string;
-  selected: string;
+  selected: string | undefined;
   pick: (option: SelectOption) => void;
 }
 
@@ -120,19 +115,6 @@ function appendEmptyMessage(list: HTMLUListElement, label: string): void {
   const empty = document.createElement('li');
   empty.className = 'bb-select__empty'; empty.setAttribute('role', 'presentation');
   empty.textContent = label; list.append(empty);
-}
-
-function isTypeaheadKey(event: KeyboardEvent): boolean {
-  if (event.key.length !== 1) return false;
-  return ![event.ctrlKey, event.metaKey, event.altKey].some(Boolean);
-}
-
-function typeaheadIndices(options: readonly SelectOption[], query: string): number[] {
-  const prefix = normalizeSelectQuery(query);
-  return options.flatMap((option, index) => {
-    if (option.disabled) return [];
-    return normalizeSelectQuery(option.label).startsWith(prefix) ? [index] : [];
-  });
 }
 
 function createPanel(label: string, keydown: (event: KeyboardEvent) => void): HTMLDivElement {
@@ -214,21 +196,26 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   let focusTrap: ReturnType<typeof trapFocus> | undefined;
   let unregisterAnchor: (() => void) | undefined;
   const searchable = root.hasAttribute('data-searchable');
-  let typeahead = '';
-  let typedAt = 0;
+  const typeahead = createTypeahead();
   let pointer: { x: number; y: number } | undefined;
 
-  function options(includeFallback = false): SelectOption[] {
+  function options(): SelectOption[] {
     return Array.from(native!.options)
-      .filter((option) => includeFallback || !option.hasAttribute('data-select-fallback-option'))
+      .filter((option) => !option.hasAttribute('data-select-fallback-option'))
       .map(readOption);
   }
 
+  function selectedOption(): SelectOption | undefined {
+    const option = native!.selectedOptions[0];
+    if (!option || option.hasAttribute('data-select-fallback-option')) return undefined;
+    return readOption(option);
+  }
+
   function sync() {
-    const selected = options(true).find((option) => option.value === native!.value);
+    const selected = selectedOption();
     valueLabel.textContent = selected?.triggerLabel ?? selected?.label ?? root.dataset.placeholder ?? 'Select…';
     trigger.disabled = native!.disabled;
-    trigger.toggleAttribute('data-placeholder', !native!.value);
+    trigger.toggleAttribute('data-placeholder', !selected?.value);
     if (trigger.disabled && panel) close(false);
   }
 
@@ -253,7 +240,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
 
   function pick(option: SelectOption) {
     if (native!.disabled || option.disabled) return;
-    const changed = native!.value !== option.value;
+    const changed = selectedOption()?.value !== option.value;
     native!.value = option.value;
     sync(); close();
     if (changed) {
@@ -302,7 +289,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   }
 
   function appendChoices(target: HTMLUListElement) {
-    const context: OptionRenderContext = { id, selected: native!.value, pick };
+    const context: OptionRenderContext = { id, selected: selectedOption()?.value, pick };
     let group: string | undefined;
     for (const [index, option] of matches.entries()) {
       appendGroupHeading(target, option.group, group);
@@ -313,7 +300,8 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   }
 
   function resetActive() {
-    const selected = matches.findIndex((option) => option.value === native!.value && !option.disabled);
+    const value = selectedOption()?.value;
+    const selected = matches.findIndex((option) => option.value === value && !option.disabled);
     activate(selected >= 0 ? selected : nextEnabledOption(matches, -1, 'first'));
   }
 
@@ -332,7 +320,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
     event.preventDefault(); event.stopPropagation(); close();
   }
 
-  function handleNavigation(event: KeyboardEvent, direction: NavigationDirection) {
+  function handleNavigation(event: KeyboardEvent, direction: SelectDirection) {
     // Home and End keep their editing meaning in a searchable picker.
     if (input && typeof direction === 'string') return;
     if (!panel) open();
@@ -355,30 +343,37 @@ export function enhanceAstroSelect(root: HTMLElement): void {
     if (panel) close(true);
   }
 
-  function handleTypeahead(event: KeyboardEvent) {
-    if (!panel) return;
-    if (input) return;
-    if (!isTypeaheadKey(event)) return;
+  function pickTyped(key: string) {
+    const choices = options();
+    const value = selectedOption()?.value;
+    const index = typeahead.find(choices, choices.findIndex((option) => option.value === value), key);
+    if (index >= 0) pick(choices[index]);
+  }
+
+  function handleTypeahead(event: KeyboardEvent): boolean {
+    if (input || !typeahead.accepts(event)) return false;
     event.preventDefault();
-    const now = Date.now();
-    typeahead = (now - typedAt > 700 ? '' : typeahead) + event.key;
-    typedAt = now;
-    const hits = typeaheadIndices(matches, typeahead);
-    if (hits.length) activate(hits.find((index) => index > active) ?? hits[0]);
+    if (!panel) pickTyped(event.key);
+    else {
+      const index = typeahead.find(matches, active, event.key);
+      if (index >= 0) activate(index);
+    }
+    return true;
   }
 
   function keydown(event: KeyboardEvent) {
     // The clear button keeps native activation, including Enter after mobile Tab.
     if (event.target === clear && event.key !== 'Escape') return;
-    const direction = NAVIGATION_KEYS[event.key];
+    const direction = SELECT_NAVIGATION_KEYS[event.key];
     if (direction !== undefined) {
       handleNavigation(event, direction);
       return;
     }
+    if (handleTypeahead(event)) return;
     const handlers: Record<string, (event: KeyboardEvent) => void> = {
       Escape: handleEscape, Enter: handleSelection, ' ': handleSpace, Tab: handleTab,
     };
-    (handlers[event.key] ?? handleTypeahead)(event);
+    handlers[event.key]?.(event);
   }
 
   function outside(event: PointerEvent) {
@@ -403,7 +398,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
     if (searchable) ({ input, clear } = createSearch(root, panel, id, renderOptions));
     list = createList(id, label, searchable);
     panel.append(list); renderOptions();
-    const mobile = window.matchMedia('(max-width: 639px)').matches;
+    const mobile = window.matchMedia(MOBILE_QUERY).matches;
     if (mobile) ({ shell, overlayId } = mountMobilePanel(panel, label, () => close()));
     else mountDesktopPanel(panel, trigger);
     unregisterAnchor = registerOverlayAnchor(shell ?? panel, trigger);
