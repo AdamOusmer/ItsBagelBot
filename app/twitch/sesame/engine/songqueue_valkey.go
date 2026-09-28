@@ -311,58 +311,83 @@ func reconcileSongQueue(d *songQueueDoc, currentID string, upcomingIDs []string,
 	if currentID == "" && len(upcomingIDs) == 0 {
 		return false
 	}
-	changed := false
-	if currentID != "" {
-		if d.Current == nil || d.Current.TrackID != currentID {
-			match := -1
-			for i := range d.Up {
-				if d.Up[i].TrackID == currentID {
-					match = i
-					break
-				}
-			}
-			if match >= 0 {
-				entry := d.Up[match]
-				d.Current = &entry
-				d.Up = d.Up[match+1:]
-				changed = true
-			} else if d.Current != nil {
-				d.Current = nil
-				changed = true
-			}
-		}
-	} else if d.Current != nil {
-		d.Current = nil
-		changed = true
-	}
+	currentChanged := reconcileCurrentSong(d, currentID)
+	upcomingChanged := reconcileUpcomingSongs(d, upcomingIDs, now)
+	return currentChanged || upcomingChanged
+}
 
-	// Match duplicate track IDs from the tail: if one of two identical
-	// requests remains in Spotify, the older occurrence is the one that left.
+func reconcileCurrentSong(d *songQueueDoc, currentID string) bool {
+	if currentID == "" {
+		if d.Current == nil {
+			return false
+		}
+		d.Current = nil
+		return true
+	}
+	if d.Current != nil && d.Current.TrackID == currentID {
+		return false
+	}
+	for i := range d.Up {
+		if d.Up[i].TrackID != currentID {
+			continue
+		}
+		entry := d.Up[i]
+		d.Current = &entry
+		d.Up = d.Up[i+1:]
+		return true
+	}
+	if d.Current == nil {
+		return false
+	}
+	d.Current = nil
+	return true
+}
+
+// Match duplicate track IDs from the tail: if one of two identical
+// requests remains in Spotify, the older occurrence is the one that left.
+func matchUpcomingSongs(up []SongEntry, upcomingIDs []string) ([]bool, int) {
 	available := make(map[string]int, len(upcomingIDs))
 	for _, id := range upcomingIDs {
 		available[id]++
 	}
-	matched := make([]bool, len(d.Up))
+	matched := make([]bool, len(up))
 	lastMatch := -1
-	for i := len(d.Up) - 1; i >= 0; i-- {
-		if available[d.Up[i].TrackID] == 0 {
+	for i := len(up) - 1; i >= 0; i-- {
+		if available[up[i].TrackID] == 0 {
 			continue
 		}
-		available[d.Up[i].TrackID]--
+		available[up[i].TrackID]--
 		matched[i] = true
 		if i > lastMatch {
 			lastMatch = i
 		}
 	}
+	return matched, lastMatch
+}
+
+func keepQueuedSong(entry SongEntry, index, lastMatch int, matched bool, shortQueue bool, cutoff int64) bool {
+	if matched {
+		return true
+	}
+	if index < lastMatch {
+		return false
+	}
+	if !shortQueue {
+		return true
+	}
+	return entry.EnqueuedAt <= 0 || entry.EnqueuedAt >= cutoff
+}
+
+func reconcileUpcomingSongs(d *songQueueDoc, upcomingIDs []string, now time.Time) bool {
+	matched, lastMatch := matchUpcomingSongs(d.Up, upcomingIDs)
 	cutoff := now.Add(-15 * time.Second).UnixMilli()
+	shortQueue := len(upcomingIDs) < 20
 	kept := d.Up[:0]
+	changed := false
 	for i, entry := range d.Up {
 		// A full Spotify window may hide later requests. A shorter window
 		// is sufficient evidence that an older, absent request is gone.
-		anchored := i < lastMatch
-		shortQueue := len(upcomingIDs) < 20
-		aged := entry.EnqueuedAt > 0 && entry.EnqueuedAt < cutoff
-		if !matched[i] && (anchored || shortQueue && aged) {
+		if !keepQueuedSong(entry, i, lastMatch, matched[i], shortQueue, cutoff) {
 			changed = true
 			continue
 		}

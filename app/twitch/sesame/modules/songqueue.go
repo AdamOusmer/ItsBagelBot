@@ -208,35 +208,48 @@ func (qc songQueueCmd) requesterOf(ctx context.Context, trackID string) string {
 }
 
 func (qc songQueueCmd) syncWithPlayer(ctx context.Context) (*gossiprpc.SpotifyTrack, bool) {
-	if qc.gossip != nil {
-		var reply gossiprpc.SpotifyQueueReply
-		err := qc.gossip.Call(ctx,
-			engine.GossipRoute{Provider: "spotify", Endpoint: "playerqueue"},
-			gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10)}, &reply)
-		if err == nil && reply.Error == "" {
-			ids := make([]string, 0, len(reply.UpNext))
-			for _, entry := range reply.UpNext {
-				ids = append(ids, entry.ID)
-			}
-			currentID := ""
-			if reply.Current != nil {
-				currentID = reply.Current.ID
-			}
-			if _, err := qc.store.SyncQueue(ctx, qc.c.BroadcasterID, currentID, ids); err != nil {
-				qc.log.Warn("songqueue: player queue sync failed", qc.c.BID(), zap.Error(err))
-			}
-			return reply.Current, true
-		}
+	if reply, ok := qc.playerQueue(ctx); ok {
+		qc.syncQueueSnapshot(ctx, reply)
+		return reply.Current, true
 	}
 	// A queue-read failure must not prevent a normal request or queue view.
 	// The older now-playing endpoint still reconciles any request it sees live.
 	track, failure := qc.livePlayer(ctx)
 	if failure == "" && track != nil {
-		if _, err := qc.store.SyncPlaying(ctx, qc.c.BroadcasterID, track.ID); err != nil {
-			qc.log.Warn("songqueue: player sync failed", qc.c.BID(), zap.Error(err))
-		}
+		qc.syncPlaying(ctx, track.ID)
 	}
 	return track, false
+}
+
+func (qc songQueueCmd) playerQueue(ctx context.Context) (gossiprpc.SpotifyQueueReply, bool) {
+	var reply gossiprpc.SpotifyQueueReply
+	if qc.gossip == nil {
+		return reply, false
+	}
+	err := qc.gossip.Call(ctx,
+		engine.GossipRoute{Provider: "spotify", Endpoint: "playerqueue"},
+		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10)}, &reply)
+	return reply, err == nil && reply.Error == ""
+}
+
+func (qc songQueueCmd) syncQueueSnapshot(ctx context.Context, reply gossiprpc.SpotifyQueueReply) {
+	ids := make([]string, 0, len(reply.UpNext))
+	for _, entry := range reply.UpNext {
+		ids = append(ids, entry.ID)
+	}
+	currentID := ""
+	if reply.Current != nil {
+		currentID = reply.Current.ID
+	}
+	if _, err := qc.store.SyncQueue(ctx, qc.c.BroadcasterID, currentID, ids); err != nil {
+		qc.log.Warn("songqueue: player queue sync failed", qc.c.BID(), zap.Error(err))
+	}
+}
+
+func (qc songQueueCmd) syncPlaying(ctx context.Context, trackID string) {
+	if _, err := qc.store.SyncPlaying(ctx, qc.c.BroadcasterID, trackID); err != nil {
+		qc.log.Warn("songqueue: player sync failed", qc.c.BID(), zap.Error(err))
+	}
 }
 
 func songQueueSkip(d engine.Deps, log *zap.Logger) module.RunFunc {
@@ -591,6 +604,10 @@ func (qc songQueueCmd) nextTrack(ctx context.Context, emit module.Emit) error {
 		return nil
 	}
 	after, afterFresh := qc.syncWithPlayer(ctx)
+	return qc.reportSkip(ctx, emit, before, beforeFresh, after, afterFresh)
+}
+
+func (qc songQueueCmd) reportSkip(ctx context.Context, emit module.Emit, before *gossiprpc.SpotifyTrack, beforeFresh bool, after *gossiprpc.SpotifyTrack, afterFresh bool) error {
 	snap, err := qc.store.Snapshot(ctx, qc.c.BroadcasterID, 1)
 	if err != nil {
 		qc.log.Warn("songqueue: snapshot after skip failed", qc.c.BID(), zap.Error(err))
@@ -603,18 +620,27 @@ func (qc songQueueCmd) nextTrack(ctx context.Context, emit module.Emit) error {
 	// Spotify's 204 means the skip command was received, not that the player
 	// has already moved. Only announce a requested song once a fresh player
 	// snapshot confirms it is now playing.
-	confirmed := afterFresh && after != nil && (!beforeFresh || before == nil || before.ID != after.ID)
-	now := snap.Current
-	if !confirmed || now == nil || now.TrackID != after.ID {
+	if !skipReachedRequest(snap.Current, before, beforeFresh, after, afterFresh) {
 		qc.reply(emit, "", "songqueue.next.pending")
 		return nil
 	}
+	now := snap.Current
 	qc.reply(emit, qc.cfg.PlayingMessage, "songqueue.playing",
 		"title", now.Title,
 		"artist", strings.Join(now.Artists, ", "),
 		"req", now.RequesterName,
 	)
 	return nil
+}
+
+func skipReachedRequest(current *engine.SongEntry, before *gossiprpc.SpotifyTrack, beforeFresh bool, after *gossiprpc.SpotifyTrack, afterFresh bool) bool {
+	if !afterFresh || after == nil || current == nil {
+		return false
+	}
+	if beforeFresh && before != nil && before.ID == after.ID {
+		return false
+	}
+	return current.TrackID == after.ID
 }
 
 func (qc songQueueCmd) clearAll(ctx context.Context, emit module.Emit) error {

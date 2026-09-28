@@ -11,7 +11,7 @@ import type {
 } from '$lib/server/spotify-store';
 import { spotifyStore, readSpotifyPlayerQueue } from '$lib/server/spotify-store';
 import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '$lib/server/oauth';
-import { getSongQueue } from '@bagel/kit/server/songqueue-store';
+import { getSongQueue, type SongQueueDoc } from '@bagel/kit/server/songqueue-store';
 import { shapeQueue, type QueueView } from '$lib/server/songqueue-view';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction } from '$lib/server/module-action';
@@ -21,6 +21,11 @@ import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';
+
+async function queueView(uid: string, connected: boolean, queue: SongQueueDoc): Promise<QueueView> {
+  if (!connected || (!queue.current && !queue.up?.length)) return shapeQueue(queue, null);
+  return shapeQueue(queue, await readSpotifyPlayerQueue(uid));
+}
 
 export const load: PageServerLoad = ({ locals, url }) => {
   const justConnected = url.searchParams.get('connected') === '1';
@@ -62,13 +67,10 @@ export const load: PageServerLoad = ({ locals, url }) => {
         store.app(),
         getSongQueue(uid)
       ]);
-      const liveQueue = grant.connected && (queue.current || queue.up?.length)
-        ? await readSpotifyPlayerQueue(uid)
-        : null;
       const redirectUri = spotifyConfigured() ? spotifyRedirectURI() : '';
       return {
         ...view,
-        queue: shapeQueue(queue, liveQueue),
+        queue: await queueView(uid, grant.connected, queue),
         connected: grant.connected,
         scopeGap: grant.connected ? spotifyScopeGap(grant.scopes) : [],
         app,
