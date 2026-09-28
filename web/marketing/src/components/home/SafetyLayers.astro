@@ -164,7 +164,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         position: absolute;
         top: 9px;
         left: 11px;
-        color: rgba(var(--bb-danger-rgb), 0.74);
+        color: rgba(var(--bb-status-danger-rgb), 0.74);
         font-size: 0.54rem;
         letter-spacing: 0.1em;
         text-transform: uppercase;
@@ -240,9 +240,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         left: 50%;
         bottom: 3px;
         padding: 2px 4px;
-        border: 1px solid rgba(var(--bb-danger-rgb), 0.42);
+        border: 1px solid rgba(var(--bb-status-danger-rgb), 0.42);
         border-radius: var(--bb-radius-xs);
-        color: var(--bb-danger);
+        color: var(--bb-status-danger);
         background: var(--bb-inset-bg);
         font-size: 0.42rem;
         font-style: normal;
@@ -267,9 +267,9 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         top: 50%;
         left: 50%;
         padding: 3px 7px;
-        border: 1px dashed rgba(var(--bb-danger-rgb), 0.5);
+        border: 1px dashed rgba(var(--bb-status-danger-rgb), 0.5);
         border-radius: var(--bb-radius-xs);
-        color: rgba(var(--bb-danger-rgb), 0.9);
+        color: rgba(var(--bb-status-danger-rgb), 0.9);
         background: var(--bb-inset-bg);
         font-size: 0.52rem;
         letter-spacing: 0.12em;
@@ -296,7 +296,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
         justify-content: center;
         gap: 2px;
         text-align: center;
-        text-shadow: 0 0 12px rgba(var(--bb-danger-rgb), 0.3);
+        text-shadow: 0 0 12px rgba(var(--bb-status-danger-rgb), 0.3);
         opacity: 0;
         animation: juryTally 7.2s ease-in-out infinite;
     }
@@ -315,7 +315,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     .jury__tally em {
-        color: var(--bb-danger);
+        color: var(--bb-status-danger);
         font-size: 0.48rem;
         font-style: normal;
         letter-spacing: 0.08em;
@@ -603,7 +603,7 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
     }
 
     .network__ring {
-        fill: rgba(var(--bb-danger-rgb), 0.04);
+        fill: rgba(var(--bb-status-danger-rgb), 0.04);
         stroke: color-mix(in srgb, var(--bb-muted) 35%, transparent);
     }
 
@@ -632,14 +632,14 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 
     .network__ring-alert {
         fill: none;
-        stroke: rgba(var(--bb-danger-rgb), 0.55);
+        stroke: rgba(var(--bb-status-danger-rgb), 0.55);
         opacity: 0;
         animation: networkRingAlert 7.2s ease-in-out infinite;
     }
 
     .network__dot-alert {
-        fill: rgba(var(--bb-danger-rgb), 0.9);
-        filter: drop-shadow(0 0 8px rgba(var(--bb-danger-rgb), 0.65));
+        fill: rgba(var(--bb-status-danger-rgb), 0.9);
+        filter: drop-shadow(0 0 8px rgba(var(--bb-status-danger-rgb), 0.65));
         opacity: 0;
         animation: networkDotAlert 7.2s ease-in-out infinite;
     }
@@ -666,8 +666,8 @@ const nodesIn = (wave: number) => NETWORK_NODES.filter((node) => node.wave === w
 
     .network__alert {
         left: 12px;
-        border: 1px solid rgba(var(--bb-danger-rgb), 0.28);
-        color: rgba(var(--bb-danger-rgb), 0.9);
+        border: 1px solid rgba(var(--bb-status-danger-rgb), 0.28);
+        color: rgba(var(--bb-status-danger-rgb), 0.9);
     }
 
     .network__alert {

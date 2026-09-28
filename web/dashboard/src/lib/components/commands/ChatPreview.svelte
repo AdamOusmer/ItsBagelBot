@@ -264,8 +264,8 @@
     padding: 0 3px;
   }
   .msg mark.unknown {
-    background: rgba(var(--bb-status-error-border-rgb), 0.16);
-    color: var(--bb-status-error);
+    background: rgba(var(--bb-status-danger-border-rgb), 0.16);
+    color: var(--bb-status-danger);
     font-family: var(--bb-font-mono);
     font-size: 12px;
   }

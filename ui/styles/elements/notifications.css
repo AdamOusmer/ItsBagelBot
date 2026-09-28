@@ -66,7 +66,7 @@
   .bb-notifications__text p { margin: 4px 0 0; font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); line-height: 1.45; }
 
   .bb-notifications__item .bb-notifications__level { font-size: 10px; white-space: nowrap; }
-  .bb-notifications__item .bb-notifications__level.bb-notifications__critical { color: #d98a8a; border-bottom-color: rgba(217, 138, 138, 0.45); }
+  .bb-notifications__item .bb-notifications__level.bb-notifications__critical { color: var(--bb-status-danger); border-bottom-color: rgba(var(--bb-status-danger-rgb), 0.45); }
 
   .bb-notifications__item .bb-notifications__mark-read {
     grid-column: 2; grid-row: 1; justify-self: end;

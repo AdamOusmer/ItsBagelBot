@@ -28,7 +28,7 @@
                         background: linear-gradient(90deg, var(--bb-tan), var(--bb-green-glow)) bottom / 100% 1px no-repeat; }
     .bb-tag--quiet    { color: var(--bb-muted);      border-bottom-color: rgba(var(--bb-tan-rgb), 0.20); }
     .bb-tag--incoming { color: var(--bb-green-glow); border-bottom-style: dotted; border-bottom-color: rgba(var(--bb-green-glow-rgb), 0.50); }
-    .bb-tag--error    { color: var(--bb-status-error); border-bottom-color: rgba(var(--bb-status-error-border-rgb), 0.45); }
+    .bb-tag--error    { color: var(--bb-status-danger); border-bottom-color: rgba(var(--bb-status-danger-border-rgb), 0.45); }
 
     :is(.bb-tag--free, .bb-chip--free)         { --tone: var(--bb-tier-free);     --tone-bg: var(--bb-tier-free-bg);     --tone-rule: var(--bb-tier-free-border); }
     :is(.bb-tag--paid, .bb-chip--paid)         { --tone: var(--bb-tier-paid);     --tone-bg: var(--bb-tier-paid-bg);     --tone-rule: var(--bb-tier-paid-border); }
@@ -127,8 +127,8 @@
     .bb-chip:hover { background: rgba(var(--bb-tan-rgb), 0.08); border-color: rgba(var(--bb-tan-rgb), 0.50); color: var(--bb-tan-pale); }
     .bb-chip--muted { color: var(--bb-muted); font-size: 11.5px; padding: 7px 12px; }
     .bb-chip--muted:hover { color: var(--bb-tan-light); }
-    .bb-chip--danger { color: var(--bb-danger); border-style: dashed; border-color: rgba(var(--bb-danger-rgb), 0.40); }
-    .bb-chip--danger:hover { background: rgba(var(--bb-danger-rgb), 0.08); border-color: rgba(var(--bb-danger-rgb), 0.60); color: var(--bb-danger); }
+    .bb-chip--danger { color: var(--bb-status-danger); border-style: dashed; border-color: rgba(var(--bb-status-danger-rgb), 0.40); }
+    .bb-chip--danger:hover { background: rgba(var(--bb-status-danger-rgb), 0.08); border-color: rgba(var(--bb-status-danger-rgb), 0.60); color: var(--bb-status-danger); }
     .bb-chip.is-done { color: var(--bb-green-glow); border-color: rgba(var(--bb-green-glow-rgb), 0.40); background: rgba(var(--bb-green-glow-rgb), 0.07); }
     .bb-chip svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 

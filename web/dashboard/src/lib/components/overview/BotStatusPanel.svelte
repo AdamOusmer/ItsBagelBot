@@ -273,7 +273,7 @@
     color: var(--bb-status-success);
   }
   .tone-error .dot {
-    color: var(--bb-status-error);
+    color: var(--bb-status-danger);
   }
   .tone-warning .dot {
     color: var(--bb-status-warning);
@@ -282,7 +282,7 @@
     color: var(--bb-white);
   }
   .tone-error .state-text {
-    color: var(--bb-status-error-fg);
+    color: var(--bb-status-danger-fg);
   }
   .tone-warning .state-text {
     color: var(--bb-status-warning-fg);

@@ -25,9 +25,9 @@
   }
 
   .bb-alert--danger {
-    --alert-rgb: var(--bb-status-error-border-rgb);
-    --alert-fg: var(--bb-status-error);
-    --alert-accent: var(--bb-danger);
+    --alert-rgb: var(--bb-status-danger-border-rgb);
+    --alert-fg: var(--bb-status-danger);
+    --alert-accent: var(--bb-status-danger);
   }
 
   .bb-alert--positive {
@@ -49,8 +49,8 @@
   }
 
   .bb-alert--callout.bb-alert--danger {
-    --alert-bg: rgba(var(--bb-danger-rgb), 0.06);
-    --alert-border: rgba(var(--bb-danger-rgb), 0.24);
+    --alert-bg: rgba(var(--bb-status-danger-rgb), 0.06);
+    --alert-border: rgba(var(--bb-status-danger-rgb), 0.24);
   }
 
   .bb-alert--callout .bb-alert__msg > b:first-child {

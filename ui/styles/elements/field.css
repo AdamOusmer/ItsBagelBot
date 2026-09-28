@@ -30,7 +30,7 @@
         display: block;
         font-family: var(--bb-font-body);
         font-size: 11.5px;
-        color: var(--bb-status-error);
+        color: var(--bb-status-danger);
         margin-top: 4px;
     }
 

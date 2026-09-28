@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import '../styles/elements/stat-tile.css';
   import type { Snippet } from 'svelte';
   import { countUp } from '../lib/count-up';
   import '../styles/elements/stat-tile.css';

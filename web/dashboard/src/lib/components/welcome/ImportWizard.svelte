@@ -1032,7 +1032,7 @@
     background: var(--bb-glass-fill);
   }
   .row-item.collision {
-    border-color: rgba(var(--bb-status-error-border-rgb), 0.55);
+    border-color: rgba(var(--bb-status-danger-border-rgb), 0.55);
   }
   .pick {
     display: inline-flex;

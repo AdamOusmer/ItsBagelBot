@@ -29,7 +29,7 @@
   }
 
   .bb-step--failed {
-    --step-tone: var(--bb-status-error);
+    --step-tone: var(--bb-status-danger);
   }
 
   .bb-step__row {
@@ -223,8 +223,8 @@
   }
 
   .bb-step--failed .bb-step__mark {
-    border-color: var(--bb-status-error);
-    background: var(--bb-status-error);
+    border-color: var(--bb-status-danger);
+    background: var(--bb-status-danger);
   }
 
   .bb-step--skipped .bb-step__mark,
@@ -254,7 +254,7 @@
   }
 
   .bb-steps--nav .bb-step--failed .bb-step__meta {
-    color: var(--bb-status-error);
+    color: var(--bb-status-danger);
   }
 
   .bb-step__track {
@@ -281,7 +281,7 @@
   }
 
   .bb-step--failed .bb-step__fill {
-    background: var(--bb-status-error);
+    background: var(--bb-status-danger);
   }
 
   .bb-step__fill--indeterminate {

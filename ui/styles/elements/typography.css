@@ -123,7 +123,7 @@
     .bb-text--default { color: var(--bb-white); }
     .bb-text--muted { color: var(--bb-muted); }
     .bb-text--accent { color: var(--bb-tan-light); }
-    .bb-text--danger { color: var(--bb-danger); }
+    .bb-text--danger { color: var(--bb-status-danger); }
     .bb-text--pale { color: var(--bb-tan-pale); }
     .bb-text--warn { color: var(--bb-warn); }
     .bb-text--muted-light { color: var(--bb-muted-light); }
@@ -215,9 +215,9 @@
     }
 
     .bb-code--danger {
-        color: var(--bb-status-error);
-        background: rgba(var(--bb-status-error-border-rgb), 0.12);
-        border-color: rgba(var(--bb-status-error-border-rgb), 0.30);
+        color: var(--bb-status-danger);
+        background: rgba(var(--bb-status-danger-border-rgb), 0.12);
+        border-color: rgba(var(--bb-status-danger-border-rgb), 0.30);
     }
 
     .bb-code--positive {
@@ -291,52 +291,5 @@
         overflow: visible;
         clip-path: none;
         white-space: normal;
-    }
-}
-
-@layer bb.base {
-    h1, h2, h3, h4, h5, h6 {
-        font-family: var(--bb-font-display);
-        color: var(--bb-white);
-    }
-
-    h1 {
-        font-weight: 700;
-        font-size: clamp(40px, 5.5vw, 72px);
-        line-height: 1.02;
-        letter-spacing: var(--bb-tracking-display);
-    }
-
-    h2 {
-        font-weight: 600;
-        font-size: clamp(28px, 3.5vw, 44px);
-        line-height: 1.1;
-        letter-spacing: var(--bb-tracking-display);
-    }
-
-    h3 { font-weight: 600; font-size: 24px; line-height: 1.2; }
-    h4 { font-weight: 600; font-size: 20px; line-height: 1.25; }
-    h5 { font-weight: 600; font-size: 17px; line-height: 1.3; }
-    h6 { font-weight: 600; font-size: 15px; line-height: 1.35; }
-
-    p {
-        font-family: var(--bb-font-body);
-        font-weight: 400;
-        font-size: var(--bb-text-md);
-        line-height: 1.6;
-        color: var(--bb-white);
-    }
-
-    small {
-        font-family: var(--bb-font-body);
-        font-size: var(--bb-text-sm);
-        line-height: 1.5;
-        color: var(--bb-muted);
-    }
-
-    code, pre, kbd, samp {
-        font-family: var(--bb-font-mono);
-        font-size: 14px;
-        color: var(--bb-white);
     }
 }

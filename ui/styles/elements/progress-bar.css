@@ -36,7 +36,7 @@
 
   .bb-progress--error,
   .bb-progress__seg--error {
-    --progress-fill: var(--bb-status-error);
+    --progress-fill: var(--bb-status-danger);
   }
 
   .bb-progress--success.bb-progress--ramp-2 {

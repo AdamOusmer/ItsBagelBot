@@ -19,8 +19,8 @@
     box-shadow: 0 0 8px var(--bb-tan);
   }
   .bb-status-dot.error {
-    background: var(--bb-status-error);
-    box-shadow: 0 0 8px var(--bb-status-error);
+    background: var(--bb-status-danger);
+    box-shadow: 0 0 8px var(--bb-status-danger);
   }
   .bb-status-dot.flat {
     box-shadow: none;

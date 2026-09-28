@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import '../styles/elements/skeleton.css';
   let {
     variant = 'text' as 'text' | 'pill' | 'block',
     width = undefined as string | undefined,

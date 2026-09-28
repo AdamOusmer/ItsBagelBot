@@ -137,13 +137,13 @@
   }
 
   .bb-picker-option__remove:hover {
-    color: var(--bb-status-error);
-    background: color-mix(in srgb, var(--bb-status-error) 12%, transparent);
+    color: var(--bb-status-danger);
+    background: color-mix(in srgb, var(--bb-status-danger) 12%, transparent);
   }
 
   .bb-picker-option__remove[data-armed] {
-    color: var(--bb-status-error);
-    background: color-mix(in srgb, var(--bb-status-error) 16%, transparent);
+    color: var(--bb-status-danger);
+    background: color-mix(in srgb, var(--bb-status-danger) 16%, transparent);
   }
 
   .bb-picker-option__remove:focus-visible {

@@ -260,7 +260,7 @@
     color: var(--bb-green-glow);
   }
   .state.failed {
-    color: var(--bb-status-error);
+    color: var(--bb-status-danger);
   }
   .state.pending,
   .state.skipped,

@@ -775,7 +775,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
     aside { position: sticky; top: calc(var(--nav-offset) + 18px); display: grid; gap: 16px; }
 
     .card-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 16px; }
-    .card-head__rec { display: inline-block; margin-right: 6px; color: var(--bb-status-error); }
+    .card-head__rec { display: inline-block; margin-right: 6px; color: var(--bb-status-danger); }
     .preview__note { display: block; margin-top: 11px; }
 
     .send__help { margin-top: 10px; text-align: center; }
@@ -868,8 +868,8 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
         padding: 0 3px;
     }
     [data-chat] .msg mark.unknown {
-        background: rgba(var(--bb-status-error-border-rgb), 0.16);
-        color: var(--bb-status-error);
+        background: rgba(var(--bb-status-danger-border-rgb), 0.16);
+        color: var(--bb-status-danger);
         font-family: var(--bb-font-mono);
         font-size: var(--bb-text-xs);
     }

@@ -146,16 +146,16 @@
   .bb-btn--destructive,
   .bb-btn--danger {
     border-style: dashed;
-    border-color: rgba(var(--bb-danger-rgb), 0.4);
-    color: var(--bb-danger);
-    --btn-spinner: var(--bb-danger);
+    border-color: rgba(var(--bb-status-danger-rgb), 0.4);
+    color: var(--bb-status-danger);
+    --btn-spinner: var(--bb-status-danger);
   }
 
   .bb-btn--destructive:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
   .bb-btn--danger:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: rgba(var(--bb-danger-rgb), 0.08);
-    border-color: rgba(var(--bb-danger-rgb), 0.6);
-    color: var(--bb-danger);
+    background: rgba(var(--bb-status-danger-rgb), 0.08);
+    border-color: rgba(var(--bb-status-danger-rgb), 0.6);
+    color: var(--bb-status-danger);
   }
 
   .bb-btn--brand {
@@ -244,8 +244,8 @@
   }
 
   .bb-btn.bb-btn--danger-hover:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    color: var(--bb-status-error);
-    border-color: rgba(var(--bb-status-error-border-rgb), 0.4);
+    color: var(--bb-status-danger);
+    border-color: rgba(var(--bb-status-danger-border-rgb), 0.4);
   }
 
   .bb-btn:disabled,

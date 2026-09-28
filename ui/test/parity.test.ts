@@ -1302,18 +1302,18 @@ for (const primitive of PRIMITIVES) {
   });
 }
 
-test('typography.css keeps the bare-element rules in bb.base', async () => {
-  const css = await Bun.file(
-    new URL('../styles/elements/typography.css', import.meta.url),
-  ).text();
-  const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
-  const base = body.slice(body.indexOf('@layer bb.base'));
+test('bare-element rules live only in the opt-in base.css, in bb.base', async () => {
+  const strip = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const base = strip(await Bun.file(new URL('../styles/base.css', import.meta.url)).text());
+  const layered = base.slice(base.indexOf('@layer bb.base {'));
   for (const selector of ['h1 {', 'p {', 'small {', 'code, pre, kbd, samp {']) {
-    expect(body).toContain(selector);
-    expect(base).toContain(selector);
+    expect(layered).toContain(selector);
   }
-  const elements = body.slice(body.indexOf('@layer bb.elements'), body.indexOf('@layer bb.base'));
-  expect(elements).not.toMatch(/^\s{4}(h[1-6]|p|small|code|kbd)\s*[,{]/m);
+  const typography = strip(
+    await Bun.file(new URL('../styles/elements/typography.css', import.meta.url)).text(),
+  );
+  expect(typography).not.toContain('@layer bb.base');
+  expect(typography).not.toMatch(/^\s{4}(h[1-6]|p|small|code|kbd)\s*[,{]/m);
 });
 
 test('magnetic keeps its tuned ease and settle threshold', async () => {

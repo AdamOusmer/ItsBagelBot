@@ -117,7 +117,7 @@
   }
 
   .bb-fact.bb-fact--danger .bb-fact__value {
-    color: var(--bb-status-error);
+    color: var(--bb-status-danger);
   }
 
   :is(.bb-facts, .bb-fact)[hidden] {

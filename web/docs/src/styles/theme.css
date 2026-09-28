@@ -5,6 +5,7 @@
 @import "@bagel/ui/styles/brand.css";
 @import "@bagel/ui/styles/fonts.css";
 @import "@bagel/ui/styles/elements/typography.css";
+@import "@bagel/ui/styles/base.css";
 @import "@bagel/ui/styles/elements/layout.css";
 @import "@bagel/ui/styles/orbs.css";
 @import "@bagel/ui/styles/a11y.css";
@@ -496,8 +497,8 @@ site-search button[data-open-modal]:hover {
 }
 
 .starlight-aside--danger {
-    background: rgba(var(--bb-danger-rgb), 0.06);
-    border-color: var(--bb-danger);
+    background: rgba(var(--bb-status-danger-rgb), 0.06);
+    border-color: var(--bb-status-danger);
 }
 
 .hero {
