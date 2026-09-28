@@ -19,10 +19,12 @@ const ENTRIES: {
              globalThis.x = { filterSelectOptions, nextEnabledOption };`,
   },
   {
-    // Astro's optional-search picker plus shared overlay/focus: 4229 B gzip
-    // measured 2026-09-27, +150 B platform delta and ~4% room.
+    // Astro's optional-search picker plus shared overlay/focus. Raised from 4540
+    // (2026-09-28) for measured below-field placement and hover that follows
+    // the pointer through scrolls: 4608 B gzip measured, +150 B platform delta
+    // and ~4% room.
     name: "astro-select",
-    budget: 4540,
+    budget: 4950,
     external: [],
     source: `import { enhanceAstroSelect } from "../../lib/astro-select";
              globalThis.x = enhanceAstroSelect;`,
