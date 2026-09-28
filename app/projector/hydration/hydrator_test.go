@@ -317,6 +317,25 @@ func TestEnsureAsyncRetriesTransientFetchFailureThenSucceeds(t *testing.T) {
 		"must succeed on the last allowed attempt, proving retry recovered it rather than a single lucky call")
 }
 
+func TestFillUserKeepsCommandsPageHidden(t *testing.T) {
+	var written projection.UserProjection
+	store := noOpStore()
+	store.setUser = func(_ context.Context, _ uint64, u projection.UserProjection, _ time.Duration) error {
+		written = u
+		return nil
+	}
+	fetch := noOpFetchers()
+	fetch.user = func(context.Context, uint64) (rpcprojection.UserReply, error) {
+		return rpcprojection.UserReply{StateRevision: 3, Status: "paid", IsActive: true, CommandsPageHidden: true}, nil
+	}
+
+	h := newHydrator(store, fetch, 2*time.Hour, 24*time.Hour, 1, zap.NewNop())
+	h.fillUser(context.Background(), job{userID: 42, ttl: 2 * time.Hour})
+
+	require.True(t, written.CommandsPageHidden, "cold hydration must not reset a hidden commands page to visible")
+	require.Equal(t, int64(3), written.StateRevision)
+}
+
 func noOpStore() *fakeStore {
 	return &fakeStore{
 		getState: func(context.Context, uint64) (projection.HydrationState, error) {

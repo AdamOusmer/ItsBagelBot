@@ -103,15 +103,7 @@ func (p *Projector) applyUserChanged(ctx context.Context, dto data.UserChangedDT
 			return nil // a delayed change cannot revive a retired incarnation
 		}
 	}
-	if err := p.store.SetUser(ctx, dto.UserID, projection.UserProjection{
-		AccountCreatedAt:   dto.AccountCreatedAt,
-		StateRevision:      dto.StateRevision,
-		Status:             dto.Status,
-		IsActive:           dto.IsActive,
-		Banned:             dto.Banned,
-		Locale:             dto.Locale,
-		CommandsPageHidden: dto.CommandsPageHidden,
-	}); err != nil {
+	if err := p.store.SetUser(ctx, dto.UserID, projection.UserFromChanged(dto)); err != nil {
 		return err
 	}
 	p.broadcastInvalidate(dto.UserID)
