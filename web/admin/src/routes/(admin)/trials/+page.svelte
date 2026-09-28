@@ -6,6 +6,8 @@
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import type { TrialSnapshot } from '$lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -72,7 +74,7 @@
 
   <form method="POST" action="?/add" class="trial-add">
     <label for="trial-broadcaster-id">{t('admin.trials.idLabel')}</label>
-    <input
+    <Input
       id="trial-broadcaster-id"
       name="broadcaster_id"
       type="text"
@@ -114,7 +116,7 @@
             </div>
             <div class="trial-controls">
               <form method="POST" action="?/set_enabled" class="trial-switch">
-                <span aria-hidden="true">{trial.enabled ? t('admin.trials.on') : t('admin.trials.off')}</span>
+                <Text as="span" size="sm" aria-hidden="true">{trial.enabled ? t('admin.trials.on') : t('admin.trials.off')}</Text>
                 <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
                 <input type="hidden" name="enabled" value={trial.enabled ? 'false' : 'true'} />
                 <Switch
@@ -162,7 +164,6 @@
 <style>
   .trial-add { display: flex; align-items: end; gap: .75rem; flex-wrap: wrap; margin: 1.5rem 0 .5rem; }
   .trial-add label { width: 100%; font-weight: 600; }
-  .trial-add input { min-height: 2.75rem; padding: .5rem .75rem; border: 1px solid var(--line, #777); border-radius: .4rem; background: var(--surface, transparent); color: inherit; }
   .trial-note, .trial-count { opacity: .75; }
   .trial-list { list-style: none; margin: 1.25rem 0; padding: 0; display: grid; gap: .75rem; }
   .trial-list li { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 1rem; border: 1px solid var(--line, #777); border-radius: .6rem; }
@@ -173,5 +174,4 @@
   .trial-main small { opacity: .75; }
   .trial-id { opacity: .7; font-size: .75rem; }
   .trial-controls, .trial-switch { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
-  .trial-switch span { font-size: .875rem; }
 </style>

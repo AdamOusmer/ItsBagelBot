@@ -7,6 +7,8 @@
   import OverviewGrid from '@bagel/ui/svelte/OverviewGrid.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import EnrollmentPanel from '$lib/components/overview/EnrollmentPanel.svelte';
   import FleetPanel from '$lib/components/overview/FleetPanel.svelte';
@@ -84,9 +86,9 @@ import type { EnrollmentWindow } from '$lib/enrollment-window';
           <AlertBanner>{t('admin.giveaways.alertsUnavailable')}</AlertBanner>
         {:else if p.value.length}
           <section class="pending-awards" aria-labelledby="pending-awards-title">
-            <div class="pending-head"><h2 id="pending-awards-title">{t('admin.giveaways.alerts')}</h2><StatePill tone="warning">{p.value.length}</StatePill></div>
+            <div class="pending-head"><Heading level={6} as="h2" id="pending-awards-title">{t('admin.giveaways.alerts')}</Heading><StatePill tone="warning">{p.value.length}</StatePill></div>
             {#each p.value.slice(0, 4) as alert (alert.id)}
-              <a href="/giveaways"><strong>{alert.awardId}</strong><span>{alert.reason}</span></a>
+              <a class="pending-row" href="/giveaways"><strong>{alert.awardId}</strong><Text as="span" size="xs" tone="muted">{alert.reason}</Text></a>
             {/each}
           </section>
         {/if}
@@ -98,8 +100,6 @@ import type { EnrollmentWindow } from '$lib/enrollment-window';
 <style>
   .pending-awards { padding:16px; border:1px solid rgba(242,200,121,.35); border-radius:14px; background:rgba(242,200,121,.06); }
   .pending-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
-  .pending-head h2 { margin:0; font-size:14px; }
-  .pending-awards a { display:block; padding:9px 0; border-top:1px solid var(--bb-border); color:inherit; text-decoration:none; }
-  .pending-awards a:hover strong { color:var(--bb-tan-pale); }
-  .pending-awards span { display:block; color:var(--bb-muted); font-size:12px; margin-top:3px; }
+  .pending-row { display:grid; gap:3px; padding:9px 0; border-top:1px solid var(--bb-border); color:inherit; text-decoration:none; }
+  .pending-row:hover strong { color:var(--bb-tan-pale); }
 </style>
