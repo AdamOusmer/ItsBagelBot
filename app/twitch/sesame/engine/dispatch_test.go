@@ -68,6 +68,36 @@ func TestCustomAnnounceAllowedForEveryone(t *testing.T) {
 	assert.Equal(t, "alice says: @bob raid incoming; target=bob", got[0].Text)
 }
 
+func TestBuiltinPermissionOverrideAppliesToAliases(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		config   string
+		badge    string
+		wantRuns int
+	}{
+		{name: "default denies viewer", badge: "", wantRuns: 0},
+		{name: "lowered to everyone", config: `{"permission":"everyone"}`, badge: "", wantRuns: 1},
+		{name: "raised to broadcaster", config: `{"permission":"broadcaster"}`, badge: "lead_moderator", wantRuns: 0},
+		{name: "invalid override is denied", config: `{"permission":"unknown"}`, badge: "lead_moderator", wantRuns: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var runs int
+			b := module.NewModule("", module.KindCore)
+			b.Command("title").Aliases("settitle").LeadMod().Run(func(context.Context, *module.Context, string, module.Emit) error {
+				runs++
+				return nil
+			})
+			modules := map[string]projection.ModuleView{}
+			if tc.config != "" {
+				modules["title"] = projection.ModuleView{Name: "title", IsEnabled: true, Configs: codec.RawMessage(tc.config)}
+			}
+			p := newPipelineWith(&fakePublisher{}, fakeReader{modules: modules}, b.Build())
+			_ = collectDispatch(p, chatCtx("!settitle New title", tc.badge))
+			assert.Equal(t, tc.wantRuns, runs)
+		})
+	}
+}
+
 func TestCustomTokensUseDisplayName(t *testing.T) {
 	p := customPipeline("{channel}: {user}/{sender}", "everyone")
 	c := chatCtx("!so", "")

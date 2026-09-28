@@ -1092,6 +1092,7 @@ export type KnownMessageKey =
   | 'builtinInspector.preview'
   | 'builtinInspector.replyHint'
   | 'builtinInspector.replyMessage'
+  | 'builtinInspector.saveAccess'
   | 'builtinInspector.saveReply'
   | 'builtinInspector.usage'
   | 'channelpoints.botOn'
