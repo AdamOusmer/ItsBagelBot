@@ -6,7 +6,7 @@ import { moduleDef, type ModuleDef, MOD } from '@bagel/kit';
 import { listModulesForEditing, upsertModule, patchModule } from '$lib/server/commands-store';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
-import { assertModuleWritable, moduleLocked } from '$lib/server/module-gate';
+import { gateSection, moduleLocked, moduleWriteDenial } from '$lib/server/module-gate';
 import { parentIsEnabled } from '$lib/server/module-parent';
 import { moduleLoad } from '$lib/server/module-page';
 import { attachLinkedUUID } from '$lib/server/minecraft-uuid';
@@ -20,14 +20,8 @@ import { moduleEditState } from '$lib/server/module-edit-state';
 
 const DEMO = dev && env.DEMO === '1';
 
-function gateModules(session: Session | null | undefined): void {
-  if (session?.delegate_of && !(session.sections ?? []).includes('modules')) {
-    throw redirect(302, '/');
-  }
-}
-
 export const load: PageServerLoad = async ({ params, locals }) => {
-  gateModules(locals.session);
+  gateSection(locals.session, 'modules');
   const def = moduleDef(params.id);
   if (!def || def.hidden) throw error(404, actionError(locals.locale, 'Unknown module'));
   if (def.href) throw redirect(302, def.href);
@@ -79,11 +73,11 @@ type WriteTarget = { denied: ReturnType<typeof fail> } | { def: ModuleDef; uid: 
 
 async function resolveWrite(id: string, locals: App.Locals): Promise<WriteTarget> {
   const session = locals.session;
-  gateModules(session);
+  gateSection(session, 'modules');
   const def = moduleDef(id);
   if (!def || def.href) return { denied: fail(404, { ok: false, error: actionError(locals.locale, 'Unknown module.') }) };
-  if (!assertModuleWritable(session, def)) return { denied: fail(403, { ok: false, error: actionError(locals.locale, 'Not allowed.') }) };
-  if (await moduleLocked(locals, def)) return { denied: fail(403, { ok: false, error: actionError(locals.locale, 'Premium only while in beta.') }) };
+  const denied = await moduleWriteDenial(locals, def);
+  if (denied) return { denied };
   if (!DEMO && !session) return { denied: fail(401, { ok: false, error: actionError(locals.locale, 'Not signed in.') }) };
   return { def, uid: effectiveId(session) };
 }
