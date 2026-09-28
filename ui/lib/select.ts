@@ -74,13 +74,18 @@ export interface Typeahead {
   find(options: readonly SelectOption[], active: number, key: string): number;
 }
 
+function isPrintableKey(event: TypeaheadKey): boolean {
+  if (event.key.length !== 1) return false;
+  return ![event.ctrlKey, event.metaKey, event.altKey].some(Boolean);
+}
+
 export function createTypeahead(now: () => number = Date.now): Typeahead {
   let query = '';
   let typedAt = -Infinity;
   const expired = () => now() - typedAt > TYPEAHEAD_RESET_MS;
   return {
     accepts(event) {
-      if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return false;
+      if (!isPrintableKey(event)) return false;
       return event.key !== ' ' || !expired();
     },
     find(options, active, key) {
