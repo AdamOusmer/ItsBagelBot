@@ -53,6 +53,32 @@ func TestCreateBackupRejectsSymlink(t *testing.T) {
 	assert.Equal(t, "private data", string(got))
 }
 
+func TestMigrationRPCURLLeavesLeafRoutingToBus(t *testing.T) {
+	for _, tc := range []struct {
+		name, leaf, rpc, fallback, want string
+		wantErr                         bool
+	}{
+		{name: "fallback", fallback: "nats://fallback:4222", want: "nats://fallback:4222"},
+		{name: "rpc override", rpc: "nats://rpc:4222", fallback: "nats://fallback:4222", want: "nats://rpc:4222"},
+		{name: "leaf keeps rpc url", leaf: "nats://leaf:4222", fallback: "nats://fallback:4222", want: "nats://fallback:4222"},
+		{name: "leaf only", leaf: "nats://leaf:4222"},
+		{name: "none", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("NATS_LEAF_URL", tc.leaf)
+			t.Setenv("NATS_RPC_URL", tc.rpc)
+			t.Setenv("MIGRATION_TEST_NATS_URL", tc.fallback)
+			got, err := migrationRPCURL("MIGRATION_TEST_NATS_URL")
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestApplyRequiresBackupBeforeOpeningExternalServices(t *testing.T) {
 	err := run(context.Background(), options{apply: true, pageSize: 200, timeout: time.Second})
 	assert.ErrorContains(t, err, "--apply requires --backup")

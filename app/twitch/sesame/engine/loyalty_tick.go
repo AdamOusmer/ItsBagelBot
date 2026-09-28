@@ -115,6 +115,7 @@ type loyaltyArmRequest struct {
 	broadcaster uint64
 	version     int64
 	online      bool
+	liveSession int64
 }
 
 func (s *ValkeyLoyaltyClock) Arm(ctx context.Context, id uint64) {
@@ -128,6 +129,13 @@ func (s *ValkeyLoyaltyClock) arm(ctx context.Context, request loyaltyArmRequest)
 	if request.broadcaster == 0 {
 		return true
 	}
+	liveSession, known, err := s.liveSession(ctx, request)
+	if err != nil {
+		return false
+	}
+	if !known {
+		return true
+	}
 	snap, allowed, err := s.awards.Capture(ctx, request.broadcaster)
 	if err != nil {
 		s.log.Warn("loyalty: admission unavailable while arming", module.BIDField(request.broadcaster), zap.Error(err))
@@ -136,21 +144,17 @@ func (s *ValkeyLoyaltyClock) arm(ctx context.Context, request loyaltyArmRequest)
 	if !allowed || snap.LiveSession == "" {
 		return true
 	}
-	version, known, err := s.scheduleVersion(ctx, request)
-	if err != nil {
-		return false
+	request.liveSession = liveSession
+	if request.version == 0 {
+		request.version = liveSession
 	}
-	if !known {
-		return true
-	}
-	request.version = version
 	return s.persistArm(ctx, request, snap.Generation)
 }
 
 func (s *ValkeyLoyaltyClock) persistArm(ctx context.Context, request loyaltyArmRequest, generation string) bool {
 	offset := time.Duration(rand.Int64N(int64(watchTickJitter/time.Second)+1)) * time.Second
 	due := s.now().Add(watchTickInterval + offset).UnixMilli()
-	result, err := s.eval(ctx, loyaltyArmScript, []string{loyaltyScheduleKey(request.broadcaster), loyaltyDueKey, loyaltyClaimKey(request.broadcaster), livekey.Key(request.broadcaster)}, strconv.FormatUint(request.broadcaster, 10), strconv.FormatInt(request.version, 10), generation, strconv.FormatInt(request.version, 10), strconv.FormatInt(due, 10), request.mode())
+	result, err := s.eval(ctx, loyaltyArmScript, []string{loyaltyScheduleKey(request.broadcaster), loyaltyDueKey, loyaltyClaimKey(request.broadcaster), livekey.Key(request.broadcaster)}, strconv.FormatUint(request.broadcaster, 10), strconv.FormatInt(request.version, 10), generation, strconv.FormatInt(request.liveSession, 10), strconv.FormatInt(due, 10), request.mode())
 	if err != nil {
 		s.log.Warn("loyalty: failed to persist watch schedule", module.BIDField(request.broadcaster), zap.Error(err))
 		return false
@@ -170,10 +174,7 @@ func (request loyaltyArmRequest) mode() string {
 	}
 	return "recover"
 }
-func (s *ValkeyLoyaltyClock) scheduleVersion(ctx context.Context, request loyaltyArmRequest) (int64, bool, error) {
-	if request.version != 0 {
-		return request.version, true, nil
-	}
+func (s *ValkeyLoyaltyClock) liveSession(ctx context.Context, request loyaltyArmRequest) (int64, bool, error) {
 	raw, err := s.client.Do(ctx, s.client.B().Get().Key(livekey.Key(request.broadcaster)).Build()).ToString()
 	if valkey.IsValkeyNil(err) {
 		return 0, false, nil

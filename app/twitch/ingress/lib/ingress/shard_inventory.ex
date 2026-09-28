@@ -5,11 +5,12 @@ defmodule Ingress.ShardInventory do
   alias Ingress.ShardSession
 
   @probe_timeout_ms 2_000
+  @children_timeout_ms 2_000
 
-  def sessions do
-    case Ingress.HordeSupervisor.which_children(Ingress.ShardSupervisor) do
-      children when is_list(children) -> probe_sessions(children)
-      {:error, _reason} -> []
+  def sessions(supervisor \\ Ingress.ShardSupervisor, timeout \\ @children_timeout_ms) do
+    case Ingress.HordeSupervisor.which_children(supervisor, timeout) do
+      children when is_list(children) -> {:ok, probe_sessions(children)}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -26,12 +27,18 @@ defmodule Ingress.ShardInventory do
     end)
   end
 
-  def unmanaged do
-    for {pid, status} <- sessions(), not registered?(pid, status), do: {pid, status}
+  def unmanaged(supervisor \\ Ingress.ShardSupervisor, timeout \\ @children_timeout_ms) do
+    with {:ok, sessions} <- sessions(supervisor, timeout) do
+      {:ok, for({pid, status} <- sessions, not registered?(pid, status), do: {pid, status})}
+    end
   end
 
-  def by_shard do
-    sessions()
+  def by_shard(supervisor \\ Ingress.ShardSupervisor, timeout \\ @children_timeout_ms) do
+    with {:ok, sessions} <- sessions(supervisor, timeout), do: {:ok, index_by_shard(sessions)}
+  end
+
+  defp index_by_shard(sessions) do
+    sessions
     |> Enum.map(fn {pid, status} -> Map.put(status, :managed, registered?(pid, status)) end)
     |> Enum.sort_by(& &1.managed)
     |> Map.new(&{&1.shard_id, &1})

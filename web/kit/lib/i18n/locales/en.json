@@ -366,6 +366,7 @@
       "stateUnmanaged": "unmanaged",
       "stateMissing": "missing",
       "stateDegraded": "degraded",
+      "stateUnknown": "unknown",
       "scaleDemo": "scale to {count} (demo)",
       "autoscaleOnDemo": "autoscale on (demo)",
       "autoscaleOffDemo": "autoscale off (demo)",

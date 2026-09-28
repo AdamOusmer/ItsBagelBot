@@ -176,6 +176,7 @@ Reply (`Snapshot`):
   "nodes": ["node1", "node2"],
   "shard_count": 2,
   "conduit_manager": { "state": "...", "node": "...", "conduit_id": "..." },
+  "inventory": "available",
   "shards": [
     {
       "shard_id": 0, "state": "connected", "node": "node1",
@@ -188,8 +189,9 @@ Reply (`Snapshot`):
 ```
 
 Shard `state` is one of: `connected`, `migrating`, `binding`, `connecting`,
-`backoff`, `unregistered`, `unresponsive`. `conduit_manager` describes the
-cluster-singleton conduit reconciler.
+`backoff`, `unregistered`, `unresponsive`, `unknown`. `conduit_manager` describes the
+cluster-singleton conduit reconciler. `inventory` is `unavailable` when the supervisor
+children listing timed out; every shard not otherwise known is then `unknown`.
 
 ## Cache invalidation — `bagel.cache.invalidate.broadcaster`
 

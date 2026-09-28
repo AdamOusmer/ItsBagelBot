@@ -366,6 +366,7 @@
       "stateUnmanaged": "non géré",
       "stateMissing": "absent",
       "stateDegraded": "dégradé",
+      "stateUnknown": "inconnu",
       "scaleDemo": "mise à l'échelle vers {count} (démo)",
       "autoscaleOnDemo": "autoscaling activé (démo)",
       "autoscaleOffDemo": "autoscaling désactivé (démo)",

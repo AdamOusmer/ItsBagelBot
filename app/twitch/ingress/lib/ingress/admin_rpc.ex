@@ -19,15 +19,7 @@ defmodule Ingress.AdminRpc do
     nodes = [node() | Node.list()] |> Enum.uniq()
     trials = TrialReceiver.cluster_status(nodes)
 
-    inventory = ShardInventory.by_shard()
-    registered_ids = registered_shard_ids()
-
-    all_ids =
-      (Map.keys(inventory) ++ registered_ids ++ Enum.to_list(0..(max(desired, 1) - 1)))
-      |> Enum.uniq()
-      |> Enum.sort()
-
-    shards = Enum.map(all_ids, &shard_status(&1, inventory, registered_ids))
+    fleet = fleet(ShardInventory.by_shard(), registered_shard_ids(), desired)
 
     %{
       generated_at: DateTime.utc_now(),
@@ -44,7 +36,8 @@ defmodule Ingress.AdminRpc do
       max_load: scaler.max_load,
       max_load_shard_id: scaler.max_load_shard_id,
       conduit_manager: manager_status(),
-      shards: shards,
+      inventory: fleet.inventory,
+      shards: fleet.shards,
       trial_loads: trials.loads,
       trial_burst_loads: trials.bursts,
       trial_sockets: trials.sockets
@@ -57,17 +50,35 @@ defmodule Ingress.AdminRpc do
     ])
   end
 
-  defp shard_status(shard_id, inventory, registered_ids) do
+  def fleet(inventory_result, registered_ids, desired) do
+    {availability, inventory} = availability(inventory_result)
+
+    shards =
+      (Map.keys(inventory) ++ registered_ids ++ Enum.to_list(0..(max(desired, 1) - 1)))
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.map(&shard_status(&1, inventory, availability, registered_ids))
+
+    %{inventory: availability, shards: shards}
+  end
+
+  defp availability({:ok, inventory}), do: {"available", inventory}
+  defp availability({:error, _reason}), do: {"unavailable", %{}}
+
+  defp shard_status(shard_id, inventory, availability, registered_ids) do
     case Map.fetch(inventory, shard_id) do
       {:ok, status} -> status
-      :error -> vacant_status(shard_id, shard_id in registered_ids)
+      :error -> vacant_status(shard_id, availability, shard_id in registered_ids)
     end
   end
 
-  defp vacant_status(shard_id, true),
+  defp vacant_status(shard_id, "unavailable", _registered),
+    do: %{shard_id: shard_id, state: "unknown"}
+
+  defp vacant_status(shard_id, "available", true),
     do: %{shard_id: shard_id, state: "unresponsive", managed: true}
 
-  defp vacant_status(shard_id, false),
+  defp vacant_status(shard_id, "available", false),
     do: %{shard_id: shard_id, state: "unregistered", managed: false}
 
   defp manager_status do

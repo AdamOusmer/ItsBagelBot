@@ -11,7 +11,6 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/i18n"
-	livekey "ItsBagelBot/internal/domain/live"
 	"ItsBagelBot/internal/domain/outgress"
 
 	"go.uber.org/zap"
@@ -31,17 +30,10 @@ func Live(d engine.Deps) module.Module {
 	return m.Build()
 }
 
-func eventVersion(c *module.Context) int64 {
-	if v := c.Env.EventVersion(); v != 0 {
-		return v
-	}
-	return livekey.VersionNow()
-}
-
 func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 	return func(_ context.Context, c *module.Context, emit module.Emit) error {
 		id := c.BroadcasterID
-		version := eventVersion(c)
+		version := c.EventVersion()
 		seqOrGo(d.Seq, id, log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), liveWriteTimeout)
 			defer cancel()
@@ -74,7 +66,7 @@ func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 func liveOfflineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 	return func(_ context.Context, c *module.Context, _ module.Emit) error {
 		id := c.BroadcasterID
-		version := eventVersion(c)
+		version := c.EventVersion()
 		seqOrGo(d.Seq, id, log, func() {
 			wctx, cancel := context.WithTimeout(context.Background(), liveWriteTimeout)
 			defer cancel()
