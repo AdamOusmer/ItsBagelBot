@@ -15,6 +15,7 @@ import (
 	discapi "ItsBagelBot/internal/discordapi"
 	"ItsBagelBot/internal/discordstore"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 
 	"go.uber.org/zap"
 )
@@ -35,28 +36,9 @@ var ErrGuildNotBound = fmt.Errorf("%w", ErrGuildBoundElsewhere)
 var ErrDiscordUnavailable = errors.New("discord client unavailable")
 
 type GuildSetupResult struct {
-	GuildID                 string
-	LiveChannelID           string
-	ClipsChannelID          string
-	WelcomeChannelID        string
-	VoiceHubID              string
-	LogChannelID            string
-	TicketChannelID         string
-	TicketCategoryID        string
-	TicketArchiveCategoryID string
-	SubsChannelID           string
-	SubsCategoryID          string
-	VIPChannelID            string
-	VIPCategoryID           string
-	OwnerRoleID             string
-	LeadModRoleID           string
-	ModsRoleID              string
-	VIPRoleID               string
-	SubscriberRoleID        string
-	RegularsRoleID          string
-	MemberRoleID            string
-	Refused                 string
-	DroppedPins             []string
+	outgressrpc.DiscordSetupIDs
+	Refused     string
+	DroppedPins []string
 }
 
 type GuildEntry struct {
@@ -81,7 +63,7 @@ type GuildSetupRequest struct {
 
 func (w *Worker) SetupGuild(ctx context.Context, req GuildSetupRequest) (GuildSetupResult, error) {
 	req.GuildID = strings.TrimSpace(req.GuildID)
-	out := GuildSetupResult{GuildID: req.GuildID}
+	out := GuildSetupResult{DiscordSetupIDs: outgressrpc.DiscordSetupIDs{GuildID: req.GuildID}}
 	fill, err := w.newGuildFill(ctx, req)
 	if err != nil {
 		return GuildSetupResult{}, err

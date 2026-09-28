@@ -10,6 +10,7 @@
   import type { Snippet } from 'svelte';
   import '../styles/elements/picker-panel.css';
   import { mediaQuery } from '../lib/motion-query';
+  import { naturalHeight, placeDropdown, type DropdownPlacement } from '../lib/dropdown-placement';
   import { portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains } from '../lib/overlay-stack';
 
   let {
@@ -18,6 +19,7 @@
     label,
     width = 300,
     maxHeight = 340,
+    placement = 'beside',
     onClose,
     children
   }: {
@@ -26,6 +28,7 @@
     label: string;
     width?: number;
     maxHeight?: number;
+    placement?: 'beside' | 'below';
     onClose: () => void;
     children: Snippet;
   } = $props();
@@ -35,7 +38,7 @@
 
   const sheetQuery = mediaQuery(MOBILE_QUERY);
   let isSheet = $state(sheetQuery.matches);
-  let pos = $state({ top: 0, left: 0 });
+  let pos = $state<DropdownPlacement>({ top: 0, left: 0, width: 0, maxHeight: 0 });
   let panelEl = $state<HTMLDivElement>();
   let overlayId = 0;
   let zIndex = $state(300);
@@ -67,14 +70,22 @@
     };
   });
 
-  function place() {
-    if (!anchor) return;
-    const r = anchor.getBoundingClientRect();
+  function besideAnchor(r: DOMRect): DropdownPlacement {
     const left =
       r.right + GAP_PX + width <= window.innerWidth ? r.right + GAP_PX : Math.max(GAP_PX, r.left - GAP_PX - width);
     const top = Math.max(GAP_PX, Math.min(r.top, window.innerHeight - GAP_PX - maxHeight));
-    pos = { top, left };
+    return { top, left, width, maxHeight };
   }
+
+  function place() {
+    if (!anchor || !panelEl) return;
+    const panel = panelEl;
+    const r = anchor.getBoundingClientRect();
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    pos = placement === 'below' ? placeDropdown(r, viewport, maxHeight, (w) => naturalHeight(panel, w)) : besideAnchor(r);
+  }
+
+  const px = (value: number | undefined) => (value === undefined ? undefined : `${value}px`);
 
   $effect(() => {
     if (open && !isSheet) place();
@@ -125,7 +136,7 @@
   {#if isSheet}
     <div class="bb-picker-panel__shell" data-overlay style="z-index: {zIndex}" use:portal>
       <button class="bb-picker-panel__scrim" type="button" aria-label={label} onclick={onClose}></button>
-      <div class="bb-picker-panel bb-picker-panel--sheet" role="dialog" aria-modal="true" aria-label={label} bind:this={panelEl} tabindex="-1" use:trapFocus>
+      <div class="bb-picker-panel bb-picker-panel--sheet" data-lenis-prevent role="dialog" aria-modal="true" aria-label={label} bind:this={panelEl} tabindex="-1" use:trapFocus>
         <span class="bb-picker-panel__grabber" aria-hidden="true"></span>
         {@render children()}
       </div>
@@ -134,9 +145,14 @@
     <div
       class="bb-picker-panel bb-picker-panel--dropdown"
       data-overlay
+      data-lenis-prevent
       role="dialog"
       aria-label={label}
-      style="top: {pos.top}px; left: {pos.left}px; width: {width}px; max-height: {maxHeight}px"
+      style:top={px(pos.top)}
+      style:bottom={px(pos.bottom)}
+      style:left={px(pos.left)}
+      style:width={px(pos.width)}
+      style:max-height={px(pos.maxHeight)}
       bind:this={panelEl}
       use:portal
     >
