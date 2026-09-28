@@ -32,6 +32,7 @@ type Message struct {
 	ctx        context.Context
 	receivedAt time.Time
 	storedAt   time.Time
+	retryAfter time.Duration
 }
 
 func (m *Message) StoredAt() time.Time { return m.storedAt }
@@ -71,28 +72,39 @@ func (m *Message) setResolveHandler(onResolve func(acked bool)) {
 }
 
 func (m *Message) Ack() bool {
-	return m.resolve(messageAcked)
+	return m.resolve(messageAcked, 0)
 }
 
 func (m *Message) Nack() bool {
-	return m.resolve(messageNacked)
+	return m.resolve(messageNacked, 0)
 }
 
-func (m *Message) resolve(target messageState) bool {
-	won, onResolve := m.transition(target)
+func (m *Message) nackAfter(delay time.Duration) bool {
+	return m.resolve(messageNacked, delay)
+}
+
+func (m *Message) requestedRetryDelay() time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.retryAfter
+}
+
+func (m *Message) resolve(target messageState, retryAfter time.Duration) bool {
+	won, onResolve := m.transition(target, retryAfter)
 	if onResolve != nil {
 		onResolve(target == messageAcked)
 	}
 	return won
 }
 
-func (m *Message) transition(target messageState) (bool, func(bool)) {
+func (m *Message) transition(target messageState, retryAfter time.Duration) (bool, func(bool)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.state != messagePending {
 		return m.state == target, nil
 	}
 	m.state = target
+	m.retryAfter = retryAfter
 	m.closeSignalLocked(target)
 	return true, m.onResolve
 }

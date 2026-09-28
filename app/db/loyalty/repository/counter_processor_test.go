@@ -20,6 +20,7 @@ import (
 	_ "ItsBagelBot/app/db/loyalty/ent/runtime"
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/testdb"
+	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/valkey"
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/stretchr/testify/assert"
@@ -316,6 +317,19 @@ func TestCounterProcessorCompletedDuplicatesAndExpiry(t *testing.T) {
 	require.NoError(t, p.Process(context.Background(), event))
 	assert.EqualValues(t, 4, counterTestValue(t, raw, "deaths"))
 }
+func TestCounterReceiptOutlivesTheLastRepublishedCopy(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	cache := newCounterFakeValkey(t)
+	p := counterTestProcessor(t, repo, cache)
+	event := counterTestEvent("republished", 2)
+	require.NoError(t, p.Process(context.Background(), event))
+	lastCopy := data.CounterRepublishWindow + 2*counterCacheTimeout + bus.BagelDataStream.MaxAge + counterSQLTimeout
+	cache.mu.Lock()
+	cache.now = cache.now.Add(lastCopy)
+	cache.mu.Unlock()
+	require.NoError(t, p.Process(context.Background(), event))
+	assert.EqualValues(t, 2, counterTestValue(t, raw, "deaths"))
+}
 func TestCounterProcessorSQLFailureRollsBackAndReleasesForRetry(t *testing.T) {
 	repo, raw := counterTestRepo(t)
 	cache := newCounterFakeValkey(t)
@@ -354,6 +368,25 @@ func TestCounterProcessorPendingLeaseRetriesAndCannotReleaseOtherOwner(t *testin
 	cache.mu.Lock()
 	assert.Equal(t, "pending:other-owner", cache.values[key])
 	cache.now = cache.now.Add(counterPendingTTL + time.Millisecond)
+	cache.mu.Unlock()
+	require.NoError(t, p.Process(context.Background(), event))
+	assert.EqualValues(t, 1, counterTestValue(t, raw, "deaths"))
+}
+func TestCounterProcessorOrphanedLeaseAsksForRedeliveryAfterItExpires(t *testing.T) {
+	repo, raw := counterTestRepo(t)
+	cache := newCounterFakeValkey(t)
+	p := counterTestProcessor(t, repo, cache)
+	event := counterTestEvent("orphaned", 1)
+	key := counterReceiptKey(event)
+	cache.mu.Lock()
+	cache.values[key] = "pending:killed-pod"
+	cache.expires[key] = cache.now.Add(counterPendingTTL)
+	cache.mu.Unlock()
+	err := p.Process(context.Background(), event)
+	var deferred interface{ RetryAfter() time.Duration }
+	require.ErrorAs(t, err, &deferred)
+	cache.mu.Lock()
+	cache.now = cache.now.Add(deferred.RetryAfter())
 	cache.mu.Unlock()
 	require.NoError(t, p.Process(context.Background(), event))
 	assert.EqualValues(t, 1, counterTestValue(t, raw, "deaths"))

@@ -3,7 +3,10 @@
 
 package data
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	SubjectLoyaltyEarned   = "data.loyalty.earned"
@@ -80,6 +83,12 @@ type CounterBumpEntry struct {
 	Command     string `json:"command,omitempty"`
 	Delta       int64  `json:"delta"`
 }
+
+// The receipt must outlive the last republish plus BAGEL_DATA's MaxAge, or a late copy counts twice.
+const (
+	CounterRepublishWindow = time.Hour
+	CounterReceiptTTL      = CounterRepublishWindow + 10*time.Minute
+)
 
 type CounterBumpedDTO struct {
 	BatchID string             `json:"batch_id,omitempty"`

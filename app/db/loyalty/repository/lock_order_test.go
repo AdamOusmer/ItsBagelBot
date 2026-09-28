@@ -141,3 +141,9 @@ func TestFlushLockOrderHoldsAcrossChunks(t *testing.T) {
 	assert.Len(t, byTable["counters"], 3*upsertChunk)
 	assert.Len(t, stmts, 6)
 }
+
+func TestOppositeTransfersLockBalancesInTheSameOrder(t *testing.T) {
+	assert.Equal(t, transferLockOrder(7, 8), transferLockOrder(8, 7))
+	assert.Equal(t, [2]uint64{7, 8}, transferLockOrder(8, 7))
+	assert.Equal(t, [2]uint64{7, 8}, transferLockOrder(7, 8))
+}

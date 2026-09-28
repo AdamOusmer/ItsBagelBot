@@ -149,7 +149,7 @@ func (lane consumeLane) finish(msg *Message, out outcome, log *zap.Logger) {
 			zap.String("message_id", msg.UUID),
 			zap.Error(out.err))
 	}
-	msg.Nack()
+	msg.nackAfter(requestedRetryDelay(out.err))
 }
 
 type outcome struct {
@@ -174,6 +174,14 @@ func processResult(err error) string {
 		return resultDeferred
 	}
 	return messagingResult(err)
+}
+
+func requestedRetryDelay(err error) time.Duration {
+	var deferred interface{ RetryAfter() time.Duration }
+	if errors.As(err, &deferred) {
+		return deferred.RetryAfter()
+	}
+	return 0
 }
 
 func isExpectedNack(err error) bool {
