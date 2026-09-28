@@ -7,6 +7,8 @@
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import StatePill from '$lib/components/StatePill.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload } from '@bagel/kit';
@@ -77,7 +79,7 @@
 
   <div class="giveaway-grid">
     <article class="panel form-panel">
-      <h2>{t('admin.giveaways.newTitle')}</h2>
+      <Heading level={5} as="h2" class="panel-title">{t('admin.giveaways.newTitle')}</Heading>
       <p class="hint">{t('admin.giveaways.oneEntry')}</p>
       <form method="POST" action="?/preview" use:enhance={submit}>
         <Field label={t('admin.giveaways.fieldTitle')}>
@@ -115,21 +117,21 @@
     </article>
 
     <article class="panel preview-panel">
-      <h2>{t('admin.giveaways.preview')}</h2>
+      <Heading level={5} as="h2" class="panel-title">{t('admin.giveaways.preview')}</Heading>
       {#if preview}
         <div class="stats">
-          <strong>{preview.eligible.eligible}</strong><span>{t('admin.giveaways.eligible')}</span>
+          <strong>{preview.eligible.eligible}</strong><Text as="span" tone="muted">{t('admin.giveaways.eligible')}</Text>
         </div>
         <div class="breakdown">
-          <span>{t('admin.giveaways.free')} <b>{preview.eligible.free}</b></span>
-          <span>{t('admin.giveaways.premium')} <b>{preview.eligible.premium}</b></span>
-          <span>{t('admin.giveaways.subscribers')} <b>{preview.eligible.subscribers}</b></span>
-          <span>{t('admin.giveaways.excluded')} <b>{preview.eligible.excluded}</b></span>
+          <Text as="span" size="sm" tone="muted" class="kv">{t('admin.giveaways.free')} <b>{preview.eligible.free}</b></Text>
+          <Text as="span" size="sm" tone="muted" class="kv">{t('admin.giveaways.premium')} <b>{preview.eligible.premium}</b></Text>
+          <Text as="span" size="sm" tone="muted" class="kv">{t('admin.giveaways.subscribers')} <b>{preview.eligible.subscribers}</b></Text>
+          <Text as="span" size="sm" tone="muted" class="kv">{t('admin.giveaways.excluded')} <b>{preview.eligible.excluded}</b></Text>
         </div>
         {#if Object.entries(preview.exclusions).length}
-          <h3>{t('admin.giveaways.exclusionReasons')}</h3>
+          <Heading level={3} variant="eyebrow" class="exclusions-title">{t('admin.giveaways.exclusionReasons')}</Heading>
           <ul class="exclusions">
-            {#each Object.entries(preview.exclusions) as [key, count]}<li><span>{key}</span><b>{count}</b></li>{/each}
+            {#each Object.entries(preview.exclusions) as [key, count]}<Text as="li" size="sm" tone="muted" class="kv"><span>{key}</span><b>{count}</b></Text>{/each}
           </ul>
         {/if}
         {#if preview.durationProtectionWarnings?.length || previewPending}
@@ -148,7 +150,7 @@
     {#if history.length === 0}<p class="muted">{t('admin.giveaways.empty')}</p>{/if}
     {#each history as giveaway (giveaway.id)}
       <a class="history-row" href={`/giveaways/${encodeURIComponent(giveaway.id)}`}>
-        <span><strong>{giveaway.title}</strong><small>{giveaway.winnerCount} × {giveaway.prizeMonths} · {date(giveaway.createdAt)}</small></span>
+        <span class="row-main"><strong>{giveaway.title}</strong><Text as="small" size="sm" tone="muted">{giveaway.winnerCount} × {giveaway.prizeMonths} · {date(giveaway.createdAt)}</Text></span>
         <span class="row-meta"><StatePill shape="tag" tone={giveaway.status === 'complete' ? 'positive' : giveaway.status === 'drawn' ? 'warning' : 'neutral'}>{statusLabel(giveaway.status)}</StatePill>{#if giveaway.pendingAwards}<b class="pending">{giveaway.pendingAwards}</b>{/if}</span>
       </a>
     {/each}
@@ -158,15 +160,15 @@
 <style>
   .giveaway-grid { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr); gap:18px; margin-top:22px; }
   .panel { padding:24px; border:1px solid var(--bb-border); border-radius:18px; background:var(--bb-surface); }
-  h2 { margin:0 0 8px; font-size:18px; } h3 { margin:24px 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--bb-muted); }
+  .panel :global(.panel-title) { margin:0 0 8px; } .panel :global(.exclusions-title) { margin:24px 0 8px; }
   .hint,.muted { color:var(--bb-muted); font-size:13px; line-height:1.5; } .hint { margin:4px 0 16px; }
   .two-col { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .summary { display:block; margin:16px 0; color:var(--bb-tan-pale); font-size:14px; }
   .actions { display:flex; align-items:center; gap:14px; } .actions .hint { margin:0; }
   .error { color:var(--bb-danger,#f28c8c); font-size:13px; } .warning { padding:12px; border-radius:10px; color:#f2c879; background:color-mix(in srgb,#f2c879 12%,transparent); font-size:13px; line-height:1.5; }
-  .stats { display:flex; align-items:baseline; gap:10px; margin:18px 0; } .stats strong { font-size:38px; } .stats span { color:var(--bb-muted); }
-  .breakdown { display:grid; gap:10px; } .breakdown span,.exclusions li { display:flex; justify-content:space-between; gap:12px; color:var(--bb-muted); font-size:13px; } .breakdown b,.exclusions b { color:var(--bb-text); }
+  .stats { display:flex; align-items:baseline; gap:10px; margin:18px 0; } .stats strong { font-size:38px; }
+  .breakdown { display:grid; gap:10px; } .breakdown :global(.kv),.exclusions :global(.kv) { display:flex; justify-content:space-between; gap:12px; } .breakdown b,.exclusions b { color:var(--bb-text); }
   .exclusions { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
   .history { display:grid; gap:8px; margin-top:12px; } .history-row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 18px; color:inherit; text-decoration:none; border:1px solid var(--bb-border); border-radius:14px; background:var(--bb-surface); } .history-row:hover { border-color:var(--bb-tan); }
-  .history-row strong { display:block; } .history-row small { display:block; color:var(--bb-muted); margin-top:4px; } .row-meta { display:flex; align-items:center; gap:10px; } .pending { color:#f2c879; }
+  .row-main { display:grid; gap:4px; } .row-meta { display:flex; align-items:center; gap:10px; } .pending { color:#f2c879; }
   @media (max-width:760px) { .giveaway-grid { grid-template-columns:1fr; } .actions { align-items:flex-start; flex-direction:column; gap:8px; } }
 </style>

@@ -26,7 +26,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Label** | `htmlFor`: string | svelte + astro | `styles/elements/typography.css` |
 | **Lead** | `as`: 'p' \| 'div' | svelte + astro | `styles/elements/typography.css` |
 | **SectionHeading** | `eyebrow`: string<br>`title*`: string<br>`align`: 'center' \| 'left'<br>`badge`: Snippet | svelte + astro | `styles/elements/section-heading.css` |
-| **Text** | `size`: 'xs' \| 'sm' \| 'md' \| 'lg' \| 'xl'<br>`tone`: 'default' \| 'muted' \| 'accent' \| 'danger'<br>`mono`: boolean<br>`as`: 'p' \| 'span' \| 'small' \| 'div' \| 'li' \| 'dd' \| 'dt' | svelte + astro | `styles/elements/typography.css` |
+| **Text** | `size`: 'xs' \| 'sm' \| 'md' \| 'lg' \| 'xl'<br>`tone`: 'default' \| 'muted' \| 'accent' \| 'danger' \| 'pale' \| 'warn'<br>`mono`: boolean<br>`as`: 'p' \| 'span' \| 'small' \| 'div' \| 'li' \| 'dd' \| 'dt' | svelte + astro | `styles/elements/typography.css` |
 | **TextLink** | `href*`: string<br>`label*`: string<br>`active`: boolean<br>`external`: boolean<br>`size`: string | svelte + astro | `styles/elements/text-link.css` |
 | **VisuallyHidden** | `focusable`: boolean<br>`as`: 'span' \| 'div' \| 'p' \| 'a' | svelte + astro | `styles/elements/typography.css` |
 
@@ -116,7 +116,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
 | **AreaSeries** | `values*`: readonly number[]<br>`ticks`: readonly number[]<br>`ariaLabel*`: string<br>`height`: number<br>`uid`: string | svelte + astro | `styles/elements/area-series.css` |
-| **Card** | `as`: string<br>`href`: string<br>`atmo`: boolean<br>`sheen`: boolean<br>`stat`: boolean<br>`hover`: boolean<br>`label`: string<br>`band`: Snippet | svelte + astro | `styles/elements/card.css` |
+| **Card** | `as`: string<br>`href`: string<br>`atmo`: boolean<br>`sheen`: boolean<br>`stat`: boolean<br>`glass`: boolean<br>`hover`: boolean<br>`label`: string<br>`band`: Snippet | svelte + astro | `styles/elements/card.css` |
 | **CardHead** | — | svelte + astro | `styles/elements/card.css` |
 | **CommunityCard** | `title*`: string<br>`subtitle`: string<br>`total*`: string<br>`period`: string<br>`tone`: 'green' \| 'tan'<br>`appearance`: 'solid' \| 'soft'<br>`artwork`: Snippet | svelte + astro | `styles/elements/community-card.css` |
 | **CounterCard** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`detail`: string<br>`rate`: string \| null<br>`rateUnit`: string<br>`rateLabel`: string<br>`period`: string<br>`tone`: 'green' \| 'tan'<br>`appearance`: 'solid' \| 'soft'<br>`tilt`: 'left' \| 'right' \| 'none'<br>`artwork`: Snippet | svelte + astro | `styles/elements/counter-card.css` |

@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DeployStage } from '$lib/deploys/types';
   import { flight } from './flight';
@@ -86,7 +87,7 @@
           <p class="caption">
             <span>{caption()}</span>
             {#if current.url}
-              <a href={current.url} target="_blank" rel="noopener noreferrer">{t('admin.deploys.run.openJob')}</a>
+              <TextLink href={current.url} label={t('admin.deploys.run.openJob')} external size="11.5px" />
             {/if}
           </p>
           {#if current.detail}<p class="detail">{current.detail}</p>{/if}
@@ -269,16 +270,15 @@
 
   .caption {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 10px;
+    min-height: 1.75em;
     margin: 0;
     font-family: var(--bb-font-mono);
     font-size: 11.5px;
     color: rgba(255, 255, 255, 0.75);
     font-variant-numeric: tabular-nums;
-  }
-  .caption a {
-    color: var(--bb-tan-pale);
   }
   .detail {
     margin: 0;

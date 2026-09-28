@@ -15,7 +15,7 @@
     ...rest
   }: {
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-    tone?: 'default' | 'muted' | 'accent' | 'danger';
+    tone?: 'default' | 'muted' | 'accent' | 'danger' | 'pale' | 'warn';
     mono?: boolean;
     as?: 'p' | 'span' | 'small' | 'div' | 'li' | 'dd' | 'dt';
     class?: string;

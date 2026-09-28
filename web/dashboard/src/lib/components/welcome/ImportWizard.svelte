@@ -23,6 +23,7 @@
     Heading,
     Icon,
     Tag,
+    Text,
     Textarea,
     toast
   } from '@bagel/kit';
@@ -605,7 +606,7 @@
   progress={journeyStep / (journeyLabels.length - 1)}
   leaving={showCompletion}
 />
-<div class="welcome-import" class:leaving={showCompletion} data-welcome>
+<div class="welcome-import" class:leaving={showCompletion} data-orbs="off">
   <header class="top">
     <Brand title="ItsBagelBot" sub={t('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />
     <StepRail labels={journeyLabels} current={journeyStep} maxStep={journeyStep} label={t('onboarding.stepOf', { n: journeyStep + 1, total: journeyLabels.length })} onselect={selectRail} />
@@ -647,7 +648,7 @@
   <div class="scene" in:sceneIn out:sceneOut>
 
   {#if step === 'pick'}
-    <Card>
+    <Card glass>
       <Heading level={2} class="step-title">{unnumbered(t('import.stepPick'))}</Heading>
       <p class="hint">{t('import.pickHint')}</p>
 
@@ -699,7 +700,7 @@
   {:else if step === 'instructions' && source}
     {@const st = IMPORT_STRATEGIES[source]}
     {@const spec = st.input}
-    <Card>
+    <Card glass>
       <div class="instr-head">
         <span class="glyph" aria-hidden="true">{st.initials}</span>
         <Heading level={2} class="step-title">{unnumbered(t('import.stepInstructions', { source: st.label }))}</Heading>
@@ -814,7 +815,7 @@
     </Card>
   {:else if (step === 'commands' || step === 'extras' || step === 'review') && previewResult?.manifest}
     {#if step === 'review'}
-    <Card class="review-head">
+    <Card glass class="review-head">
       <Heading level={2} class="step-title">{unnumbered(t('import.reviewTitle'))}</Heading>
       <p class="hint">{reviewHint}</p>
 
@@ -828,13 +829,13 @@
     {:else}
       <div class="category-head">
         <span class="eyebrow">{step === 'commands' ? t('onboardingImport.commandsEyebrow') : t('onboardingImport.extrasEyebrow')}</span>
-        <h2>{step === 'commands' ? t('onboardingImport.commandsTitle') : t('onboardingImport.extrasTitle')}</h2>
-        <p>{step === 'commands' ? t('onboardingImport.commandsBody') : t('onboardingImport.extrasBody')}</p>
+        <Heading level={2} class="category-title">{step === 'commands' ? t('onboardingImport.commandsTitle') : t('onboardingImport.extrasTitle')}</Heading>
+        <Text tone="muted">{step === 'commands' ? t('onboardingImport.commandsBody') : t('onboardingImport.extrasBody')}</Text>
       </div>
       {#if step === 'extras'}
         <div class="module-note" role="note">
           <strong>{t('onboardingImport.modulesTitle')}</strong>
-          <p>{t('onboardingImport.modulesBody')}</p>
+          <Text tone="muted" class="module-note-body">{t('onboardingImport.modulesBody')}</Text>
         </div>
       {/if}
     {/if}
@@ -853,7 +854,7 @@
       {/if}
 
       {#if step === 'commands' && previewResult.manifest.commands?.length}
-        <Card class="group">
+        <Card glass class="group">
           <div class="group-head">
             <span class="group-title">{t('import.hCommands')}</span>
             <span class="group-count">{previewResult.manifest.commands.length}</span>
@@ -889,7 +890,7 @@
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.timers?.length}
-        <Card class="group">
+        <Card glass class="group">
           <div class="group-head">
             <span class="group-title">{t('import.hTimers')}</span>
             <span class="group-count">{previewResult.manifest.timers.length}</span>
@@ -920,7 +921,7 @@
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.triggers?.length}
-        <Card class="group">
+        <Card glass class="group">
           <div class="group-head">
             <span class="group-title">{t('import.hTriggers')}</span>
             <span class="group-count">{previewResult.manifest.triggers.length}</span>
@@ -950,7 +951,7 @@
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.quotes?.length}
-        <Card class="group">
+        <Card glass class="group">
           <div class="group-head">
             <span class="group-title">{t('import.hQuotes')}</span>
             <span class="group-count">{previewResult.manifest.quotes.length}</span>
@@ -986,7 +987,7 @@
         </div>
       {/if}
   {:else if step === 'done'}
-    <Card class="done-panel">
+    <Card glass class="done-panel">
       <span class="done-seal" aria-hidden="true"><Icon name="check" size={22} /></span>
       <Heading level={2} class="step-title">{unnumbered(t('import.doneTitle'))}</Heading>
       {#if commitResult}
@@ -1040,8 +1041,6 @@
 {#if showCompletion}<Completion label={t('onboardingImport.stageDone')} oncomplete={afterCompletion} />{/if}
 
 <style>
-  :global(body:has([data-welcome]) .bb-bg-orb) { display: none; }
-
   .welcome-import {
     position: relative;
     z-index: 1;
@@ -1144,14 +1143,13 @@
   }
   .companion.flip .companion-blob { transform: translateX(calc(var(--bubble) + 14px)); }
   .companion.flip .bubble { transform: translateX(calc(-1 * (var(--blob) + 14px))); }
-  .category-head h2 {
-    margin: 0 0 12px;
-    font-family: var(--bb-font-display);
+  .category-head :global(.category-title) {
+    margin-bottom: 12px;
     font-weight: 700;
+    font-size: clamp(25px, 3vw, 36px);
     letter-spacing: -.04em;
     line-height: 1.08;
   }
-  .category-head p { margin: 0; color: var(--bb-muted); line-height: 1.6; }
   .category-head {
     padding: 26px 30px;
     border: 1px solid var(--bb-border-strong);
@@ -1159,7 +1157,6 @@
     background: rgba(17, 17, 16, .76);
     backdrop-filter: blur(18px);
   }
-  .category-head h2 { font-size: clamp(25px, 3vw, 36px); }
   .module-note {
     padding: 18px 22px;
     border: 1px solid rgba(201, 168, 124, .38);
@@ -1167,20 +1164,15 @@
     background: rgba(201, 168, 124, .07);
   }
   .module-note strong { color: var(--bb-tan-pale); }
-  .module-note p { margin: 6px 0 0; color: var(--bb-muted); line-height: 1.55; }
+  .module-note :global(.module-note-body) { margin-top: 6px; line-height: 1.55; }
   .category-actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
     padding-top: 8px;
   }
-  :global(.welcome-import .scene > .bb-card) {
-    background: rgba(17, 17, 16, .76);
-    backdrop-filter: blur(18px);
-  }
   :global(:root[data-theme="light"]) .bubble,
-  :global(:root[data-theme="light"]) .category-head,
-  :global(:root[data-theme="light"] .welcome-import .scene > .bb-card) {
+  :global(:root[data-theme="light"]) .category-head {
     background: rgba(255, 255, 255, .72);
   }
 

@@ -309,6 +309,14 @@ describe('Card', () => {
     props: { as: 'a', href: '/x', stat: true, sheen: true, class: 'tile' },
     html: '<a class="bb-card bb-card--stat bb-card--sheen tile" href="/x" data-card>body</a>',
   });
+
+  contract({
+    name: 'glass modifier frosts the surface',
+    svelte: SvelteCard,
+    astro: AstroCard,
+    props: { glass: true },
+    html: '<div class="bb-card bb-card--glass" data-card>body</div>',
+  });
 });
 
 describe('CardHead', () => {
@@ -919,6 +927,22 @@ const PRIMITIVES: {
     props: {"size":"sm","tone":"muted","mono":true,"as":"span"},
     slot: "12 ms",
     html: "<span class=\"bb-text bb-text--sm bb-text--muted bb-text--mono\">12 ms</span>",
+  },
+  {
+    name: "Text|pale",
+    svelte: SvelteText,
+    astro: AstroText,
+    props: {"size":"xs","tone":"pale","as":"span"},
+    slot: "May 1",
+    html: "<span class=\"bb-text bb-text--xs bb-text--pale\">May 1</span>",
+  },
+  {
+    name: "Text|warn",
+    svelte: SvelteText,
+    astro: AstroText,
+    props: {"size":"xs","tone":"warn","as":"small"},
+    slot: "Billing pending",
+    html: "<small class=\"bb-text bb-text--xs bb-text--warn\">Billing pending</small>",
   },
   {
     name: "Eyebrow",

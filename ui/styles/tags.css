@@ -226,11 +226,11 @@
         gap: 2px;
         border-bottom: 0;
         border-left: 1px solid var(--bb-border);
-        position: sticky;
+        position: var(--bb-tabs-position, sticky);
         top: var(--bb-tabs-sticky-top, calc(58px + env(safe-area-inset-top, 0px) + 68px));
         /* Clear the page's bottom gutter so its containing block does not
            push a tall rail underneath the header at the end of the page. */
-        max-height: calc(100dvh - var(--bb-tabs-sticky-top, calc(58px + env(safe-area-inset-top, 0px) + 68px)) - 64px);
+        max-height: var(--bb-tabs-max-height, calc(100dvh - var(--bb-tabs-sticky-top, calc(58px + env(safe-area-inset-top, 0px) + 68px)) - 64px));
         overflow-y: auto;
         overscroll-behavior-y: contain;
     }
@@ -276,9 +276,9 @@
             margin-bottom: 0;
             border-bottom: 0;
             border-left: 1px solid var(--bb-border);
-            position: sticky;
+            position: var(--bb-tabs-position, sticky);
             top: var(--bb-tabs-sticky-top, calc(58px + env(safe-area-inset-top, 0px) + 68px));
-            max-height: calc(100dvh - var(--bb-tabs-sticky-top, calc(58px + env(safe-area-inset-top, 0px) + 68px)) - 64px);
+            max-height: var(--bb-tabs-max-height, calc(100dvh - var(--bb-tabs-sticky-top, calc(58px + env(safe-area-inset-top, 0px) + 68px)) - 64px));
             overflow-y: auto;
             overscroll-behavior-y: contain;
         }
