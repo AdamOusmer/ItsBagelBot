@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"ItsBagelBot/app/twitch/sesame/engine"
@@ -14,6 +15,9 @@ import (
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // Match GossipRPC's production contract: provider errors return through err
@@ -46,10 +50,24 @@ var songQueueFailureCases = []songQueueFailureCase{
 
 func songQueueFailureReply(t *testing.T, tc songQueueFailureCase, g engine.GossipCaller) string {
 	t.Helper()
+	return songQueueFailureReplyLogged(t, tc, songQueueFailureRun{gossip: g, log: zap.NewNop()})
+}
+
+type songQueueFailureRun struct {
+	gossip engine.GossipCaller
+	log    *zap.Logger
+	locale string
+}
+
+func songQueueFailureReplyLogged(t *testing.T, tc songQueueFailureCase, run songQueueFailureRun) string {
+	t.Helper()
 	pending := []engine.SongEntry{{TrackID: "t0", Title: "Existing request", RequesterID: "7"}}
 	store := &fakeSongQueue{up: append([]engine.SongEntry(nil), pending...)}
-	m := SongQueue(songDeps(store, g))
+	deps := songDeps(store, run.gossip)
+	deps.Log = run.log
+	m := SongQueue(deps)
 	c := songCtx("42", "Cardistry", "moderator")
+	c.Locale = run.locale
 	var text string
 	if tc.command == "sr" {
 		text = chatText(t, runSR(t, m, c, "Human"))
@@ -120,5 +138,81 @@ func TestSongQueueErrorsDoNotExposeInternalDetails(t *testing.T) {
 				checkSongQueueSensitiveError(t, tc, sensitive)
 			}
 		})
+	}
+}
+
+func TestSongQueueHiddenSpotifyFailuresAreLogged(t *testing.T) {
+	const sensitive = "client_secret=private-secret"
+	for _, tc := range songQueueFailureCases {
+		t.Run(tc.endpoint, func(t *testing.T) {
+			failure := bus.RPCReplyError{Subject: "bagel.rpc.gossip.spotify." + tc.endpoint, Message: sensitive}
+			base := srSearchGossip(srTrack("t1", "Human", "The Killers"))
+			base.replies["spotify."+tc.endpoint] = map[string]string{"error": sensitive}
+			for _, g := range []engine.GossipCaller{songQueueFailureGossip(tc, failure), base} {
+				core, logs := observer.New(zap.WarnLevel)
+				text := songQueueFailureReplyLogged(t, tc, songQueueFailureRun{gossip: g, log: zap.New(core)})
+				assert.Contains(t, text, "music lookup is down")
+				assert.True(t, loggedRefusal(logs, sensitive), "a hidden failure must be logged with the channel")
+			}
+		})
+	}
+}
+
+func loggedRefusal(logs *observer.ObservedLogs, reason string) bool {
+	for _, entry := range logs.FilterField(zap.String("reason", reason)).All() {
+		if entry.ContextMap()["broadcaster_id"] == uint64(100) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestSongQueueGenericRepliesExpandPlaceholders(t *testing.T) {
+	transport := errors.New("connection reset")
+	for _, locale := range []string{"en", "fr"} {
+		for _, tc := range songQueueFailureCases {
+			t.Run(locale+"/"+tc.endpoint, func(t *testing.T) {
+				text := songQueueFailureReplyLogged(t, tc, songQueueFailureRun{gossip: songQueueFailureGossip(tc, transport), log: zap.NewNop(), locale: locale})
+				assert.NotContains(t, text, "{")
+				assert.Contains(t, text, "@Cardistry")
+			})
+		}
+		t.Run(locale+"/no match", func(t *testing.T) {
+			c := songCtx("42", "Cardistry")
+			c.Locale = locale
+			text := chatText(t, runSR(t, SongQueue(songDeps(&fakeSongQueue{}, srSearchGossip())), c, "zzzz"))
+			assert.NotContains(t, text, "{")
+			assert.Contains(t, text, "@Cardistry")
+		})
+	}
+}
+
+func TestSongRedeemRefundMentionsViewerOnce(t *testing.T) {
+	const config = `{"redeem":{"enabled":true,"rewardId":"rw-sr","onRedeem":"fulfill","allowOffline":true}}`
+	gossips := map[string]func() engine.GossipCaller{
+		"search transport": func() engine.GossipCaller {
+			return songQueueFailureGossip(songQueueFailureCase{endpoint: "search"}, errors.New("connection reset"))
+		},
+		"queue transport": func() engine.GossipCaller {
+			return songQueueFailureGossip(songQueueFailureCase{endpoint: "queue"}, errors.New("connection reset"))
+		},
+		"no match": func() engine.GossipCaller { return srSearchGossip() },
+		"provider reason": func() engine.GossipCaller {
+			return songQueueFailureGossip(songQueueFailureCase{endpoint: "search"}, bus.RPCReplyError{Message: "no Spotify connection on file"})
+		},
+	}
+	for _, locale := range []string{"en", "fr"} {
+		for name, gossip := range gossips {
+			t.Run(locale+"/"+name, func(t *testing.T) {
+				c := songRedeemCtx(config)
+				c.Locale = locale
+				var col collector
+				require.NoError(t, SongQueue(songDeps(&fakeSongQueue{}, gossip())).Events[redemptionAddType](context.Background(), c, col.emit))
+				text := chatText(t, col.out)
+				assert.Equal(t, 1, strings.Count(text, "@"), text)
+				assert.NotContains(t, text, "{")
+				assertRefund(t, col.out)
+			})
+		}
 	}
 }
