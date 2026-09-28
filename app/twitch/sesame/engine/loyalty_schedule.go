@@ -12,13 +12,14 @@ const loyaltyDiscoveryPopScript = `
 if redis.call('LINDEX',KEYS[1],0)~=ARGV[1] then return 0 end
 redis.call('LPOP',KEYS[1]);return 1`
 
-// Check live state in the same transaction as scheduling, closing the race
-// between admission capture and offline or a newer online event.
+// ARGV[4] is the live key read before capture; other writers may restamp it with
+// their own clock, so only an active schedule still needs it to match the event.
 const loyaltyArmScript = `
-if redis.call('GET',KEYS[4])~=ARGV[4] then return 0 end
+local live=redis.call('GET',KEYS[4]); if live~=ARGV[4] then return 0 end
+local active=redis.call('HGET',KEYS[1],'active')=='1'
+if active and live~=ARGV[2] then return 0 end
 local current=tonumber(redis.call('HGET',KEYS[1],'version') or '-1')
 local incoming=tonumber(ARGV[2]); if incoming<current then return 0 end
-local active=redis.call('HGET',KEYS[1],'active')=='1'
 local generation=redis.call('HGET',KEYS[1],'generation')
 if active and generation==ARGV[3] then
  if ARGV[6]=='recover' or incoming==current then return 0 end
@@ -26,7 +27,7 @@ end
 if not active and incoming==current and generation==ARGV[3] and redis.call('HGET',KEYS[1],'stop_reason')=='offline' then return 0 end
 redis.call('DEL',KEYS[3])
 redis.call('PERSIST',KEYS[1])
-redis.call('HSET',KEYS[1],'version',ARGV[2],'session',ARGV[2],'active','1','generation',ARGV[3],'live_session',ARGV[4],'due',ARGV[5],'chunk','0','failures','0','confirmed_at','0')
+redis.call('HSET',KEYS[1],'version',ARGV[2],'session',ARGV[2],'active','1','generation',ARGV[3],'live_session',ARGV[2],'due',ARGV[5],'chunk','0','failures','0','confirmed_at','0')
 redis.call('HDEL',KEYS[1],'window','window_started_at','cursor','pending','pending_cursor','pending_complete','last_error','retry_at','stop_reason','provider_stream_id','provider_started_at')
 redis.call('ZADD',KEYS[2],ARGV[5],ARGV[1]);return 1`
 

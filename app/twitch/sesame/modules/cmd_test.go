@@ -509,6 +509,20 @@ func TestTitleTooLongRefuses(t *testing.T) {
 	assert.Contains(t, col.out[0].Text, "too long")
 }
 
+func TestTitleTooLongExpandsNamespacedTokens(t *testing.T) {
+	cmd := findCmd(t, Cmd(cmdDeps(&fakeProj{}, &fakeCommandManager{})), "title")
+	long := strings.Repeat("a", streamTitleMax+1)
+	for _, locale := range []string{"en", "fr"} {
+		c := cmdCtx("alice", "!title "+long)
+		c.Locale = locale
+		var col collector
+		require.NoError(t, cmd.Run(context.Background(), c, long, col.emit))
+		require.Len(t, col.out, 1)
+		assert.Contains(t, col.out[0].Text, "@alice", locale)
+		assert.NotContains(t, col.out[0].Text, "{", locale)
+	}
+}
+
 func TestTitleSuppressedWhenDisabled(t *testing.T) {
 	proj := &fakeProj{modules: []projection.ModuleView{{Name: "title", IsEnabled: false}}}
 	cmd := findCmd(t, Cmd(cmdDeps(proj, &fakeCommandManager{})), "title")

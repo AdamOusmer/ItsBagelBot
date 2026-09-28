@@ -36,6 +36,19 @@ func TestNamespaceTemplateConvertsOnlyKnownModuleFields(t *testing.T) {
 	}
 }
 
+func TestNamespaceTemplateConditionSlicesOriginalCaseFoldedRef(t *testing.T) {
+	fields := []string{"kills"}
+	for _, tc := range []struct{ name, input, want string }{
+		{"kelvin sign", "{if:\u212Aills:x}", "{if:tracker:kills:x:}"},
+		{"kelvin sign equality", "{if:\u212Aills=3:hat trick:keep going}", "{if:tracker:kills=3:hat trick:keep going}"},
+		{"ascii", "{if:Kills:x}", "{if:tracker:kills:x:}"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, modulevars.NamespaceTemplate("tracker", fields, tc.input))
+		})
+	}
+}
+
 func TestNamespaceTemplateKeepsRenderedConditionAndFallbackBehavior(t *testing.T) {
 	fields := []string{"tier", "rr"}
 	for _, template := range []string{

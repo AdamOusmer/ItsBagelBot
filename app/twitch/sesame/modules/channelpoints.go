@@ -87,7 +87,7 @@ func ChannelPoints(d engine.Deps) module.Module {
 
 		var counterValue string
 		if loyaltyLive(ctx, d, c.BroadcasterID, binding.LiveOnly) {
-			awardRewardPoints(d, c, binding, ev)
+			awardRewardPoints(ctx, d, c, binding, ev)
 			counterValue = bumpRewardCounter(ctx, d, c, binding, ev)
 		}
 		emitRewardAction(rewardChatParams{
@@ -111,7 +111,7 @@ func loyaltyLive(ctx context.Context, d engine.Deps, broadcasterID uint64, liveO
 	return err == nil && live
 }
 
-func awardRewardPoints(d engine.Deps, c *module.Context, b rewardBinding, ev redemptionEvent) {
+func awardRewardPoints(ctx context.Context, d engine.Deps, c *module.Context, b rewardBinding, ev redemptionEvent) {
 	if b.Points <= 0 || d.Loyalty == nil {
 		return
 	}
@@ -119,7 +119,19 @@ func awardRewardPoints(d engine.Deps, c *module.Context, b rewardBinding, ev red
 	if err != nil || viewerID == 0 {
 		return
 	}
-	d.Loyalty.Earn(c.BroadcasterID, viewerID, ev.UserLogin, ev.UserName, b.Points, 0)
+	points := rewardPoints(ctx, d, c.BroadcasterID, viewerID, b.Points)
+	if points <= 0 {
+		return
+	}
+	d.Loyalty.Earn(c.BroadcasterID, viewerID, ev.UserLogin, ev.UserName, points, 0)
+}
+
+func rewardPoints(ctx context.Context, d engine.Deps, broadcasterID, viewerID uint64, points int64) int64 {
+	if broadcasterID != viewerID || d.Proj == nil {
+		return points
+	}
+	cfg, _ := engine.ReadLoyaltyConfig(ctx, d.Proj, broadcasterID)
+	return cfg.AutomaticPoints(broadcasterID, viewerID, points)
 }
 
 func bumpRewardCounter(ctx context.Context, d engine.Deps, c *module.Context, b rewardBinding, ev redemptionEvent) string {

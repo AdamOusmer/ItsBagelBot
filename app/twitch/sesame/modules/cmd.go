@@ -163,7 +163,11 @@ func cmdPageOff(c *module.Context, emit module.Emit, channel string) {
 }
 
 func reply(c *module.Context, emit module.Emit, line, user, command string) {
-	text := module.KV("user", user, "command", command).WithLocale(module.Locale(c.Locale)).ExpandString(line)
+	replyNamespaced(c, emit, "", line, user, command)
+}
+
+func replyNamespaced(c *module.Context, emit module.Emit, namespace module.Namespace, line, user, command string) {
+	text := module.KV("user", user, "command", command).WithLocale(module.Locale(c.Locale)).WithNamespace(namespace).ExpandString(line)
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: c.Env.BroadcasterUserID,
@@ -207,7 +211,7 @@ func streamFieldRun(d engine.Deps, field string) module.RunFunc {
 			return nil
 		}
 		if key := streamFieldRefusal(field, value); key != "" {
-			reply(c, emit, i18n.T(c.Locale, key), c.Env.ChatterName(), "")
+			replyNamespaced(c, emit, module.Namespace(field), i18n.T(c.Locale, key), c.Env.ChatterName(), "")
 			return nil
 		}
 		emitStreamUpdate(c, field, value, emit)

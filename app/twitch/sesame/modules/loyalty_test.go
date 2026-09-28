@@ -15,6 +15,7 @@ import (
 	"ItsBagelBot/internal/domain/event/data"
 	"ItsBagelBot/internal/domain/event/lane"
 	loyaltyrpc "ItsBagelBot/internal/domain/rpc/loyalty"
+	"ItsBagelBot/internal/projection"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -426,6 +427,35 @@ func TestChannelPointsPointsAward(t *testing.T) {
 	assert.Equal(t, "CoolViewer bought 250 points!", col.out[0].Text)
 }
 
+func TestChannelPointsStreamerPointsPreference(t *testing.T) {
+	cfg := `{"rewards":[{"id":"r1","action":"chat","message":"{user} bought points","points":250}]}`
+	for _, tc := range []struct {
+		name    string
+		redeem  string
+		loyalty string
+		earns   bool
+	}{
+		{"streamer default", "2", `{}`, true},
+		{"streamer off", "2", `{"streamerPoints":-1}`, false},
+		{"viewer while streamer off", "7", `{"streamerPoints":-1}`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeLoyalty{}
+			proj := &fakeProj{modules: []projection.ModuleView{{Name: engine.LoyaltyModuleName, IsEnabled: true, Configs: []byte(tc.loyalty)}}}
+			m := ChannelPoints(engine.Deps{Loyalty: fake, Proj: proj, Log: zap.NewNop()})
+			ev := `{"id":"red1","broadcaster_user_id":"2","user_id":"` + tc.redeem + `","user_name":"Person","user_login":"person","reward":{"id":"r1","title":"Point Pack","cost":100}}`
+			var col collector
+			require.NoError(t, m.Events[redemptionAddType](context.Background(), loyaltyCtx(redemptionAddType, ev, cfg), col.emit))
+			if !tc.earns {
+				assert.Empty(t, fake.earns)
+				return
+			}
+			require.Len(t, fake.earns, 1)
+			assert.EqualValues(t, 250, fake.earns[0].points)
+		})
+	}
+}
+
 func TestChannelPointsLoyaltyLiveOnly(t *testing.T) {
 	cfg := `{"rewards":[{"id":"r1","action":"chat","message":"{user} +1","counter":"deaths","points":50,"liveOnly":true}]}`
 	ev := `{"id":"red1","broadcaster_user_id":"2","user_id":"7","user_name":"CoolViewer","user_login":"coolviewer","reward":{"id":"r1","title":"+1 death","cost":100}}`
@@ -581,6 +611,26 @@ func TestLoyaltyLifecycleForwardsVersionAndRejectsStaleOffline(t *testing.T) {
 			t.Fatal("lifecycle task did not finish")
 		}
 	}
+}
+
+func TestLiveAndWatchTimeShareFallbackVersion(t *testing.T) {
+	tick := &versionedWatchTicker{completed: make(chan bool, 1)}
+	fx := newLiveFixture()
+	c := liveCtx("stream.online", "")
+	require.NoError(t, fx.m.Events["stream.online"](context.Background(), c, func(*module.Output) {}))
+	time.Sleep(2 * time.Millisecond)
+	m := Loyalty(engine.Deps{LoyaltyTick: tick, Log: zap.NewNop()})
+	require.NoError(t, m.Events["stream.online"](context.Background(), c, func(*module.Output) {}))
+	select {
+	case <-tick.completed:
+	case <-time.After(time.Second):
+		t.Fatal("lifecycle task did not finish")
+	}
+	waitForLog(t, fx.log, 1)
+	fx.live.mu.Lock()
+	defer fx.live.mu.Unlock()
+	require.Len(t, fx.live.setCalls, 1)
+	assert.Equal(t, fx.live.setCalls[0], tick.version)
 }
 
 func (f *fakeLoyalty) BalanceWager(_ context.Context, wager engine.PointWager) (engine.WagerOutcome, error) {
