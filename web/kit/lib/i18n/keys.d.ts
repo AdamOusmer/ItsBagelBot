@@ -59,6 +59,7 @@ export type KnownMessageKey =
   | 'admin.botAuth.errConfig'
   | 'admin.botAuth.errGeneric'
   | 'admin.botAuth.errOauth'
+  | 'admin.botAuth.errSave'
   | 'admin.botAuth.errScope'
   | 'admin.botAuth.errState'
   | 'admin.botAuth.failTitle'
