@@ -13,7 +13,7 @@ export function flagsFromRows(rows: readonly ModuleView[]): Record<string, boole
   for (const m of MODULE_CATALOG) {
     if (m.toggleable === false) continue;
     const row = byName.get(m.id);
-    flags[m.id] = row ? row.is_enabled : false;
+    flags[m.id] = row ? row.is_enabled : m.defaultEnabled;
   }
 
   for (const id of GATED_BUILTINS) {

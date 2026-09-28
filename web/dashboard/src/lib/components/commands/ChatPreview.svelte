@@ -58,9 +58,11 @@
     purple: '#c77dff'
   };
 
+  const moduleFlags = $derived((page.data.moduleFlags as Record<string, boolean> | undefined) ?? {});
+
   const views = $derived.by<RehearsedLine[]>(() => {
-    if (kind === 'command') return rehearseCommand(response, samples);
-    if (kind === 'timer') return rehearseTimer(response);
+    if (kind === 'command') return rehearseCommand(response, samples, moduleFlags);
+    if (kind === 'timer') return rehearseTimer(response, moduleFlags);
     return rehearseReply(response, samples, { dynamic });
   });
 

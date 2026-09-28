@@ -29,8 +29,9 @@ this gate. For an enabled module, a fallback such as
 `{valorant:tier|rank unavailable}` supplies text when the requested value is empty.
 
 The editor's **Module variables** picker lists the available spellings and tells
-the author which module needs to be enabled. The rehearsal uses example values;
-it does not check the channel's module state or connected account.
+the author which module needs to be enabled. The rehearsal uses example values
+and leaves a variable unresolved while its module is disabled, as chat does; it
+does not check the connected account.
 
 Timers can also read module variables. They have no triggering viewer, so
 viewer-specific fields are empty. Configure an account explicitly for providers

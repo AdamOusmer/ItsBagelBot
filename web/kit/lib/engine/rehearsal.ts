@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import { MODULE_CATALOG } from '../catalog';
 import { MODULE_VARIABLES, MODULE_VARIABLE_SAMPLES } from '../variables/module-variables';
 
 import { RESPONSE_MAX_LINES, responseLines } from './commands-validate';
@@ -63,6 +64,8 @@ export interface RehearsedLine {
 
 export type Samples = Readonly<Record<string, string>>;
 
+export type ModuleFlags = Readonly<Record<string, boolean>>;
+
 export type Token = VarToken;
 
 export type Resolve = (token: Token) => string | null;
@@ -105,8 +108,8 @@ const MESSAGE_NAMES = new Set([
 
 const MAX_POSITIONAL = 30;
 
-export function rehearseCommand(response: string, overrides?: Samples): RehearsedLine[] {
-  const resolve = chainResolver(commandChain({ ...COMMAND_SAMPLES, ...(overrides ?? {}) }));
+export function rehearseCommand(response: string, overrides?: Samples, modules: ModuleFlags = {}): RehearsedLine[] {
+  const resolve = chainResolver(commandChain({ ...COMMAND_SAMPLES, ...(overrides ?? {}) }, modules));
   return responseLines(response)
     .map((line) => expandSegments(line, resolve))
     .filter((segments) => !isBlankLine(segments))
@@ -128,9 +131,9 @@ export function rehearseReply(
   return [rehearseLine(text, chainResolver(replyChain(samples, opts)))];
 }
 
-export function rehearseTimer(response: string): RehearsedLine[] {
+export function rehearseTimer(response: string, modules: ModuleFlags = {}): RehearsedLine[] {
   const text = responseLines(response).join(' ');
-  return text === '' ? [] : [rehearseLine(text, chainResolver(timerChain()))];
+  return text === '' ? [] : [rehearseLine(text, chainResolver(timerChain(modules)))];
 }
 
 export interface ReplyOptions {
@@ -183,9 +186,9 @@ function chainResolver(chain: readonly SampleScope[]): Resolve {
   };
 }
 
-function commandChain(samples: Samples): SampleScope[] {
+function commandChain(samples: Samples, modules: ModuleFlags = {}): SampleScope[] {
   return [
-    NAMESPACED_MODULE_SCOPE,
+    namespacedModuleScope(modules),
     PURE_SCOPE,
     UTIL_SCOPE,
     messageScope(samples),
@@ -213,8 +216,8 @@ export function timerOwns(name: string): boolean {
   return timerChain().some((scope) => scope.owns({ name }));
 }
 
-function timerChain(): SampleScope[] {
-  return [NAMESPACED_MODULE_SCOPE, PURE_SCOPE, UTIL_SCOPE, CHATTER_SCOPE, EMOTE_SCOPE, CHANNEL_SCOPE, MODULE_SCOPE, EXTERNAL_SCOPE];
+function timerChain(modules: ModuleFlags = {}): SampleScope[] {
+  return [namespacedModuleScope(modules), PURE_SCOPE, UTIL_SCOPE, CHATTER_SCOPE, EMOTE_SCOPE, CHANNEL_SCOPE, MODULE_SCOPE, EXTERNAL_SCOPE];
 }
 
 export type ChainKind = 'command' | 'reply';
@@ -528,7 +531,14 @@ function sliceSegments(segments: Seg[], action: SlashAction): Seg[] {
   return out;
 }
 
-const NAMESPACED_MODULE_SCOPE: SampleScope = {
-  owns: (query) => query.payload !== undefined && query.payload !== null && `{${query.name}:${query.payload.trim().toLowerCase()}}` in MODULE_VARIABLE_SAMPLES,
-  get: (token) => MODULE_VARIABLE_SAMPLES[`{${token.name}:${token.payload?.trim().toLowerCase()}}`] ?? null
-};
+function namespacedModuleScope(modules: ModuleFlags): SampleScope {
+  return {
+    owns: (query) => query.payload !== undefined && query.payload !== null && `{${query.name}:${query.payload.trim().toLowerCase()}}` in MODULE_VARIABLE_SAMPLES,
+    get: (token) => (moduleOff(token.name, modules) ? null : MODULE_VARIABLE_SAMPLES[`{${token.name}:${token.payload?.trim().toLowerCase()}}`] ?? null)
+  };
+}
+
+function moduleOff(id: string, modules: ModuleFlags): boolean {
+  const parent = MODULE_CATALOG.find((mod) => mod.id === id)?.parent;
+  return modules[id] === false || (parent !== undefined && modules[parent] === false);
+}
