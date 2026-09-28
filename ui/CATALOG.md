@@ -41,7 +41,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Grid** | `cols`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`min`: string<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
 | **InspectorSurface** | `open`: boolean<br>`title*`: string<br>`controls`: string<br>`closeLabel`: string<br>`onClose*`: () => void | svelte + astro | `styles/elements/card.css, styles/elements/surface.css` |
 | **PageHero** | `eyebrow`: string<br>`title*`: string<br>`description`: string | svelte + astro | `styles/elements/page-hero.css` |
-| **PickerPanel** | `open`: boolean<br>`anchor`: HTMLElement<br>`label*`: string<br>`width`: number<br>`maxHeight`: number<br>`onClose*`: () => void | svelte<br>*Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.* | `styles/elements/picker-panel.css` |
+| **PickerPanel** | `open`: boolean<br>`anchor`: HTMLElement<br>`label*`: string<br>`width`: number<br>`maxHeight`: number<br>`placement`: 'beside' \| 'below'<br>`onClose*`: () => void | svelte<br>*Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.* | `styles/elements/picker-panel.css` |
 | **Scroller** | `maxHeight`: string<br>`fill`: boolean<br>`padding`: string<br>`smooth`: boolean | svelte + astro | `styles/elements/shell.css` |
 | **Section** | `size`: 'default' \| 'sm' \| 'lg' \| 'flush'<br>`anchor`: boolean<br>`reveal`: boolean<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
 | **Spacer** | `size`: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`grow`: boolean | svelte + astro | `styles/elements/layout.css` |
