@@ -171,6 +171,7 @@ Réponse (`Snapshot`) :
   "nodes": ["node1", "node2"],
   "shard_count": 2,
   "conduit_manager": { "state": "...", "node": "...", "conduit_id": "..." },
+  "inventory": "available",
   "shards": [
     {
       "shard_id": 0, "state": "connected", "node": "node1",
@@ -183,8 +184,9 @@ Réponse (`Snapshot`) :
 ```
 
 `state` du shard vaut l'une des valeurs suivantes : `connected`, `migrating`, `binding`, `connecting`,
-`backoff`, `unregistered`, `unresponsive`. `conduit_manager` décrit le reconciler du conduit,
-singleton du cluster.
+`backoff`, `unregistered`, `unresponsive`, `unknown`. `conduit_manager` décrit le reconciler du conduit,
+singleton du cluster. `inventory` vaut `unavailable` quand la liste des enfants du superviseur
+a expiré ; chaque shard sans autre information est alors `unknown`.
 
 ## Invalidation du cache — `bagel.cache.invalidate.broadcaster`
 

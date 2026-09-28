@@ -9,6 +9,7 @@ const RESTARTING = new Set(['connecting', 'reconnecting', 'binding', 'migrating'
 export type ShardBadge = { label: string; tone: StatusTone };
 
 export function shardBadge(shard: Shard): ShardBadge {
+  if (shard.state === 'unknown') return { label: 'admin.shards.stateUnknown', tone: 'neutral' };
   if (shard.state === 'unregistered') {
     return { label: 'admin.shards.stateMissing', tone: 'error' };
   }
