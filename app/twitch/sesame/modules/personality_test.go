@@ -11,6 +11,7 @@ import (
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
 	"ItsBagelBot/internal/domain/event/lane"
+	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/outgress"
 	"ItsBagelBot/pkg/tmpl"
 
@@ -445,4 +446,77 @@ func TestPersonalityFirstMatchWinsThroughGate(t *testing.T) {
 	r, ok = matchReaction("good bagel")
 	require.True(t, ok)
 	assert.Equal(t, "good", r.name)
+}
+
+func TestPersonalityLocalesCoverEveryLine(t *testing.T) {
+	missingFrench := i18n.Missing("fr")
+	packs := map[string][]string{
+		"good": personalityGoodPack, "bad": personalityBadPack,
+		"give": personalityGiveBagel, "thanks": personalityThanksPack,
+		"affection": personalityAffectionPack, "feed": personalityFeedCountPack,
+		"boop": personalityBoopPack, "gn": personalityGnPack,
+		"mood": personalityMoodPack, "emoji": personalityEmojiPack,
+		"toast": personalityToastLines, "fact": personalityFacts,
+	}
+	for name, pack := range packs {
+		for index, english := range pack {
+			key := fmt.Sprintf("personality.%s.%d", name, index)
+			assert.Equal(t, english, i18n.T("en", key), key)
+			assert.NotContains(t, missingFrench, key)
+			assert.NotEqual(t, key, i18n.T("fr", key), key)
+		}
+	}
+	assert.NotEqual(t, "personality.golden", i18n.T("en", "personality.golden"))
+	assert.NotEqual(t, "personality.golden", i18n.T("fr", "personality.golden"))
+	assert.Equal(t, "current mood: ", i18n.T("en", "personality.mood.prefix"))
+	assert.Equal(t, "humeur actuelle : ", i18n.T("fr", "personality.mood.prefix"))
+}
+
+func TestPersonalityFrenchReactionsAndLocaleLookup(t *testing.T) {
+	pinPersonalityRand(t)
+	store := &fakePersonality{cursor: 1, feed: engine.FeedCounts{Today: 3, Total: 7}, mood: personalityMoodPack[2]}
+	h := personalityHandler(t, engine.Deps{Personality: store})
+	for _, tc := range []struct {
+		message string
+		want    string
+	}{
+		{"bon bagel", "Validation reçue. crise existentielle reportée."},
+		{"câlin bagel", "Câlin à Bob. doucement, je m'émiette sous la pression. littéralement."},
+		{"nourris le bagel", "Miam. Ça fait 3 repas aujourd'hui, 7 au total. Aucun regret. Quelques regrets."},
+		{"humeur du bagel", "humeur actuelle : nature. minimaliste. ne me teste pas."},
+		{"@ItsBagelBot", "La première mention écrite du bagel date de 1610 à Cracovie, en Pologne. Mes papiers sont plus vieux que bien des pays."},
+		{"grille le bagel", "niveau de grillage 0/10 : tu appelles ça griller ? J'ai senti un courant d'air."},
+	} {
+		c := personalityCtx(tc.message)
+		calls := 0
+		c.LocaleLookup = func(context.Context, uint64) (string, error) { calls++; return "fr", nil }
+		var col collector
+		require.NoError(t, h(context.Background(), c, col.emit), tc.message)
+		require.Len(t, col.out, 1, tc.message)
+		assert.Equal(t, tc.want, col.out[0].Text, tc.message)
+		assert.Equal(t, 1, calls, tc.message)
+	}
+}
+
+func TestPersonalityUnknownLocaleFallsBackToEnglish(t *testing.T) {
+	pinPersonalityRand(t)
+	c := personalityCtx("bon bagel")
+	c.Locale = "xx"
+	var col collector
+	require.NoError(t, personalityHandler(t, engine.Deps{})(context.Background(), c, col.emit))
+	require.Len(t, col.out, 1)
+	assert.Equal(t, personalityGoodPack[0], col.out[0].Text)
+}
+
+func TestPersonalityFrenchGoldenOverrideExpandsUser(t *testing.T) {
+	pinPersonalityRand(t)
+	goldenRoll = func() bool { return true }
+	c := personalityCtx("bon bagel")
+	c.Locale = "fr"
+	var col collector
+	require.NoError(t, personalityHandler(t, engine.Deps{})(context.Background(), c, col.emit))
+	require.Len(t, col.out, 1)
+	assert.Contains(t, col.out[0].Text, "BAGEL DORÉ")
+	assert.Contains(t, col.out[0].Text, "Bob")
+	assert.NotContains(t, col.out[0].Text, "{personality:user}")
 }
