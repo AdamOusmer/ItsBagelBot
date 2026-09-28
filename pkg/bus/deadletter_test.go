@@ -105,10 +105,42 @@ func TestDataLanesRetryThreeTimesWithBackoffBeforeDeadLettering(t *testing.T) {
 }
 
 func TestDataRetryScheduleFitsInsideTheDataStreamMaxAge(t *testing.T) {
-	delay := newBackoffRetryDelay(dataRetryBackoff)
-	worst := time.Duration(delay.max) * newConcurrentDurableSubscriber(concurrentSubscriberConfig{}).handlerDeadline
+	delay := dataRetryDelay()
+	worst := time.Duration(delay.deliveries())*newConcurrentDurableSubscriber(concurrentSubscriberConfig{}).handlerDeadline + delay.deferral
 	for _, wait := range dataRetryBackoff {
 		worst += wait
 	}
 	require.Less(t, worst, BagelDataStream.MaxAge)
+}
+
+func TestDataLanesGrantOneDeferredDeliveryBeforeDeadLettering(t *testing.T) {
+	delay := dataRetryDelay()
+	require.EqualValues(t, 5, delay.deliveries())
+	require.Equal(t, 5*time.Second, delay.nakDelay(1, 45*time.Second))
+	require.Equal(t, terminateDelivery, delay.nakDelay(4, 0))
+	require.Equal(t, 45*time.Second, delay.nakDelay(4, 45*time.Second))
+	require.Equal(t, dataRetryDeferral, delay.nakDelay(4, time.Hour))
+	require.Equal(t, terminateDelivery, delay.nakDelay(5, 45*time.Second))
+	require.Equal(t, terminateDelivery, newMaxRetryDelay(time.Second, 4).nakDelay(4, 45*time.Second))
+}
+
+func TestDeferredLastDeliveryIsRedeliveredOnceThenDeadLettered(t *testing.T) {
+	js := deadLetterJetStream(t)
+	step := time.Millisecond
+	delay := newBackoffRetryDelay([]time.Duration{step, step, step}).withDeferral(10 * step)
+	s := &concurrentDurableSubscriber{js: js, stream: BagelDataStream.Name, consumer: "loyalty", delay: delay, log: zap.NewNop()}
+	_, err := js.Publish("data.loyalty.counters", []byte(`{"batch_id":"b1"}`))
+	require.NoError(t, err)
+	sub, err := js.PullSubscribe("data.loyalty.counters", "loyalty", nats.MaxDeliver(int(delay.deliveries())), nats.AckWait(time.Minute))
+	require.NoError(t, err)
+	for delivered := uint64(1); delivered <= delay.deliveries(); delivered++ {
+		got, err := sub.Fetch(1, nats.MaxWait(2*time.Second))
+		require.NoError(t, err, "delivery %d", delivered)
+		meta, err := got[0].Metadata()
+		require.NoError(t, err)
+		require.Equal(t, delivered, meta.NumDelivered)
+		require.Zero(t, deadLetters(t, js), "delivery %d", delivered)
+		s.nack(got[0], time.Minute)
+	}
+	require.Equal(t, uint64(1), deadLetters(t, js))
 }

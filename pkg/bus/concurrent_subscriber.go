@@ -89,6 +89,7 @@ type maxRetryDelay struct {
 	delay    time.Duration
 	max      uint64
 	schedule []time.Duration
+	deferral time.Duration
 }
 
 func newMaxRetryDelay(delay time.Duration, max uint64) maxRetryDelay {
@@ -97,6 +98,30 @@ func newMaxRetryDelay(delay time.Duration, max uint64) maxRetryDelay {
 
 func newBackoffRetryDelay(schedule []time.Duration) maxRetryDelay {
 	return maxRetryDelay{max: uint64(len(schedule)) + 1, schedule: schedule}
+}
+
+// A handler error with RetryAfter earns one extra delivery, at most limit later, instead of dead-lettering on the last attempt.
+func (d maxRetryDelay) withDeferral(limit time.Duration) maxRetryDelay {
+	d.deferral = limit
+	return d
+}
+
+func (d maxRetryDelay) deliveries() uint64 {
+	if d.deferral > 0 {
+		return d.max + 1
+	}
+	return d.max
+}
+
+func (d maxRetryDelay) nakDelay(retry uint64, retryAfter time.Duration) time.Duration {
+	wait := d.WaitTime(retry)
+	if wait != terminateDelivery || retryAfter <= 0 {
+		return wait
+	}
+	if retry >= d.deliveries() {
+		return terminateDelivery
+	}
+	return min(retryAfter, d.deferral)
 }
 
 func (d maxRetryDelay) WaitTime(retry uint64) time.Duration {
@@ -268,7 +293,7 @@ func (s *concurrentDurableSubscriber) deliveryCallback(
 }
 
 func (s *concurrentDurableSubscriber) newResultWatch(natsMsg *nats.Msg, msg *Message) *resultWatch {
-	w := &resultWatch{s: s, natsMsg: natsMsg}
+	w := &resultWatch{s: s, natsMsg: natsMsg, msg: msg}
 	// Add before registering: the wheel may release the seat as soon as the watch is registered.
 	s.acks.Add(1)
 	msg.setResolveHandler(w.resolve)
@@ -414,6 +439,7 @@ func jetStreamIdentity(domain, stream string, sequence uint64) string {
 type resultWatch struct {
 	s        *concurrentDurableSubscriber
 	natsMsg  *nats.Msg
+	msg      *Message
 	armEpoch uint64
 	finished atomic.Bool
 }
@@ -438,7 +464,7 @@ func (w *resultWatch) resolve(acked bool) {
 		w.s.ack(w.natsMsg)
 		return
 	}
-	w.s.nack(w.natsMsg)
+	w.s.nack(w.natsMsg, w.msg.requestedRetryDelay())
 }
 
 type keepAliveWheel struct {
@@ -545,7 +571,7 @@ func (s *concurrentDurableSubscriber) ackWorkQueue(msg *nats.Msg) {
 	if err := msg.AckSync(nats.AckWait(ackSyncTimeout)); err != nil {
 		s.log.Warn("work-queue message ack was not confirmed; nacking to force a paced redelivery",
 			zap.String("subject", msg.Subject), zap.Error(err))
-		s.nack(msg)
+		s.nack(msg, 0)
 	}
 }
 
@@ -555,10 +581,10 @@ func (s *concurrentDurableSubscriber) reportProgress(msg *nats.Msg) {
 	}
 }
 
-func (s *concurrentDurableSubscriber) nack(msg *nats.Msg) {
+func (s *concurrentDurableSubscriber) nack(msg *nats.Msg, retryAfter time.Duration) {
 	delay := time.Duration(0)
 	if metadata, err := msg.Metadata(); err == nil {
-		delay = s.delay.WaitTime(metadata.NumDelivered)
+		delay = s.delay.nakDelay(metadata.NumDelivered, retryAfter)
 	}
 	if delay == terminateDelivery {
 		s.terminate(msg, deadLetterMaxDeliveries)

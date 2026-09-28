@@ -28,6 +28,10 @@ func newGameReplier(c *module.Context, pointsName string) chatReplier {
 }
 
 func (g chatReplier) reply(emit module.Emit, override string, key replyKey, kv ...string) {
+	g.say(emit, g.render(override, key, kv...))
+}
+
+func (g chatReplier) render(override string, key replyKey, kv ...string) string {
 	line := override
 	if line == "" {
 		line = i18n.T(g.c.Locale, string(key))
@@ -41,7 +45,10 @@ func (g chatReplier) reply(emit module.Emit, override string, key replyKey, kv .
 	if namespace == "quote" {
 		namespace = "quotes"
 	}
-	text := p.WithNamespace(module.Namespace(namespace)).ExpandString(line)
+	return p.WithNamespace(module.Namespace(namespace)).ExpandString(line)
+}
+
+func (g chatReplier) say(emit module.Emit, text string) {
 	emit(&module.Output{
 		Type:          outgress.TypeChat,
 		BroadcasterID: g.c.Env.BroadcasterUserID,

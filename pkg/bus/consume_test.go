@@ -29,6 +29,31 @@ func TestIsExpectedNack(t *testing.T) {
 	}
 }
 
+type testRetryAfter struct{ delay time.Duration }
+
+func (testRetryAfter) Error() string               { return "lease held" }
+func (e testRetryAfter) RetryAfter() time.Duration { return e.delay }
+
+func TestConsumeLaneCarriesTheRequestedRetryDelayToTheNack(t *testing.T) {
+	lane := testLane(newLocalApplication(t, nil), 1000, zap.NewNop(), func(msg *Message) error {
+		if msg.UUID == "leased" {
+			return fmt.Errorf("wrapped: %w", testRetryAfter{45 * time.Second})
+		}
+		return errors.New("boom")
+	})
+	want := map[string]time.Duration{"leased": 45 * time.Second, "failed": 0}
+	for id, delay := range want {
+		msg := NewMessage(id, nil)
+		var got time.Duration
+		nacked := false
+		msg.setResolveHandler(func(acked bool) { nacked, got = !acked, msg.requestedRetryDelay() })
+		lane.process(msg)
+		if !nacked || got != delay {
+			t.Fatalf("%s: nacked=%v delay=%v, want nack after %v", id, nacked, got, delay)
+		}
+	}
+}
+
 func testLane(app *newrelic.Application, rate uint64, log *zap.Logger, handle func(*Message) error) consumeLane {
 	return consumeLane{
 		app:     app,

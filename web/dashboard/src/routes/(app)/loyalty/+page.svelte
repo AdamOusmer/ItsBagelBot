@@ -161,13 +161,14 @@
 
         {#each rateFields as rf (rf.key)}
           <Field label={rf.label} tag={t('loyalty.defaultTag', { n: String(rf.dflt) })}>
-            <!-- Keep 0 in the payload as the default sentinel, but show the effective rate. -->
+            <!-- Keep 0 in the payload as the default sentinel; an empty field shows the effective rate. -->
             <input
               class="bb-input num"
               type="number"
               min="-1"
               max="1000000"
-              bind:value={() => config[rf.key] === 0 ? rf.dflt : config[rf.key], (value) => (config[rf.key] = value ?? 0)}
+              placeholder={String(rf.dflt)}
+              bind:value={() => config[rf.key] === 0 ? null : config[rf.key], (value) => (config[rf.key] = value ?? 0)}
             />
           </Field>
         {/each}

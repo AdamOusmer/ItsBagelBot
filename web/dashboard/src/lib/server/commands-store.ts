@@ -59,35 +59,24 @@ export async function listModulesForEditing(userId: string): Promise<ModuleView[
   return reply.modules ?? [];
 }
 
-async function replaceProjected(kind: section, userId: string, rows: unknown[]): Promise<boolean> {
+async function replaceProjected<R>(kind: section, userId: string, rows: unknown[]): Promise<{ reply: R } | null> {
   try {
-    await rpc(`${SUB.projector}.${kind}.replace`, { user_id: userId, [kind]: rows }, 2000);
-    return true;
+    return { reply: await rpc<R>(`${SUB.projector}.${kind}.replace`, { user_id: userId, [kind]: rows }, 2000) };
   } catch (err) {
     newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), {
       component: 'projector-replace',
       kind,
       userId
     });
-    return false;
+    return null;
   }
 }
 
 export async function replaceProjectedModules(userId: string, modules: ModuleView[]): Promise<boolean> {
-  try {
-    const reply = await rpc<{ modules: ModuleView[] }>(`${SUB.projector}.modules.replace`, {
-      user_id: userId, modules
-    }, 2000);
-    commitOptimistic(cacheKey('modules', userId), reply.modules, true);
-    return true;
-  } catch (err) {
-    newrelic.noticeError(err instanceof Error ? err : new Error(String(err)), {
-      component: 'projector-replace', kind: 'modules', userId
-    });
-    // These are committed SQL rows; keep them briefly if projection is unavailable.
-    commitOptimistic(cacheKey('modules', userId), modules, false);
-    return false;
-  }
+  const projected = await replaceProjected<{ modules: ModuleView[] }>('modules', userId, modules);
+  // These are committed SQL rows; keep them briefly if projection is unavailable.
+  commitOptimistic(cacheKey('modules', userId), projected ? projected.reply.modules : modules, projected !== null);
+  return projected !== null;
 }
 
 function commitOptimistic<T>(key: string, value: T, synced: boolean): void {
@@ -192,7 +181,7 @@ export async function upsertCommand(
     });
     if (!merged) commands.push(upserted);
 
-    const synced = await replaceProjected('commands', userId, commands);
+    const synced = (await replaceProjected('commands', userId, commands)) !== null;
     commitOptimistic(cacheKey('commands', userId), commands, synced);
     return { commands };
   } catch {
@@ -209,7 +198,7 @@ export async function deleteCommand(
   try {
     const current = await listCommands(userId);
     const commands = current.filter((c) => c.name !== name);
-    const synced = await replaceProjected('commands', userId, commands);
+    const synced = (await replaceProjected('commands', userId, commands)) !== null;
     commitOptimistic(cacheKey('commands', userId), commands, synced);
     return { commands };
   } catch {

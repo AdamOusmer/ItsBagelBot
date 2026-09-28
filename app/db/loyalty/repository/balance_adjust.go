@@ -81,7 +81,7 @@ func adjustedPoints(current int64, target BalanceAdjustment) (int64, error) {
 		return 0, fmt.Errorf("%w: points exceed signed BIGINT range", ErrInvalidInput)
 	}
 	if target.Value < 0 && current < 0 {
-		return 0, nil
+		return current, nil
 	}
 	return max(current+target.Value, 0), nil
 }

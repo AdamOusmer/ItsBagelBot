@@ -204,8 +204,8 @@
     <p class="result-count" aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</p>
   </div>
 
-  {#if !searchQuery.trim() && shortcuts.length}
-    <nav class="shortcuts" aria-label={t('modules.quickAccess')}>
+  {#if shortcuts.length}
+    <nav class="shortcuts" class:concealed={!!searchQuery.trim()} aria-label={t('modules.quickAccess')}>
       <span class="shortcut-label">{t('modules.quickAccess')}</span>
       {#each shortcuts as module (module.def.id)}
         <a class="bb-btn bb-btn--ghost" href={moduleHref(module.def)}>
@@ -277,6 +277,7 @@
   .shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 22px; }
   .shortcut-label { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 12px; margin-right: 4px; }
   .shortcuts :global(.shortcut-chevron) { transform: rotate(-90deg); }
+  .shortcuts.concealed { visibility: hidden; }
   .deck {
     position: sticky;
     top: calc(58px + env(safe-area-inset-top, 0px));

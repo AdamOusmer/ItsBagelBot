@@ -35,6 +35,55 @@ const (
 	counterWorkers = 32
 )
 
+// terminationGrace must match terminationGracePeriodSeconds in deploy/k8s/loyalty.yaml.
+const (
+	terminationGrace = 45 * time.Second
+	preStopDrain     = 10 * time.Second
+	exitReserve      = 5 * time.Second
+	shutdownBudget   = terminationGrace - preStopDrain - exitReserve
+)
+
+func shutdownContext(signal context.Context, budget time.Duration) context.Context {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	context.AfterFunc(signal, func() {
+		time.AfterFunc(budget, func() { cancel(errShutdownBudget) })
+	})
+	return ctx
+}
+
+var errShutdownBudget = errors.New("shutdown budget exhausted")
+
+type closer interface{ Close(context.Context) error }
+
+type counterIntake struct {
+	grouped  bus.Subscriber
+	consumer *bus.ConcurrentConsumer
+	counters closer
+}
+
+func (in counterIntake) stop(ctx context.Context, log *zap.Logger) {
+	if err := closeWithin(ctx, in.grouped.Close); err != nil {
+		log.Warn("loyalty: group subscriber shutdown failed", zap.Error(err))
+	}
+	if err := in.consumer.Drain(ctx); err != nil {
+		log.Warn("loyalty: counter consumer shutdown failed", zap.Error(err))
+	}
+	if err := in.counters.Close(ctx); err != nil {
+		log.Warn("loyalty: counter processor shutdown failed", zap.Error(err))
+	}
+}
+
+func closeWithin(ctx context.Context, closeFn func() error) error {
+	done := make(chan error, 1)
+	go func() { done <- closeFn() }()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	}
+}
+
 // Grouped subscriber keeps account cleanup and delta folding on one durable lane.
 // Counter handlers share bounded batches and wait for persistence before ACK.
 func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *repository.Loyalty, counters counterProcessor, grouped bus.Subscriber, log *zap.Logger) (*bus.ConcurrentConsumer, error) {
@@ -44,8 +93,8 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 		handle  func(*bus.Message) error
 	}{
 		{"loyalty earned events", data.SubjectLoyaltyEarned, recordEarned(repo, log)},
-		{"user deleted events", data.SubjectUserDeleted, deleteAllForUser(repo, log)},
-		{"user lifecycle events", data.SubjectUserChanged, restoreUser(repo, log)},
+		{"user deleted events", data.SubjectUserDeleted, accountEvents(accountChange{"deletion", repo.DeleteAccount}, log)},
+		{"user lifecycle events", data.SubjectUserChanged, accountEvents(accountChange{"lifecycle", repo.RestoreUser}, log)},
 	}
 	for _, s := range subs {
 		if err := bus.Consume(ctx, nrApp, grouped, s.subject, s.handle, log); err != nil {
@@ -95,14 +144,20 @@ func recordBumps(repo counterProcessor, log *zap.Logger) func(*bus.Message) erro
 	}
 }
 
-func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
+type accountChange struct {
+	payload string
+	apply   func(ctx context.Context, userID uint64, accountCreatedAt int64) error
+}
+
+// UserChangedDTO carries every UserDeletedDTO field under the same JSON names.
+func accountEvents(change accountChange, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
-		var dto data.UserDeletedDTO
+		var dto data.UserChangedDTO
 		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("loyalty: bad deletion payload", zap.Error(err))
+			log.Warn("loyalty: bad "+change.payload+" payload", zap.Error(err))
 			return nil
 		}
-		return repo.DeleteAccount(msg.Context(), dto.UserID, dto.AccountCreatedAt)
+		return change.apply(msg.Context(), dto.UserID, dto.AccountCreatedAt)
 	}
 }
 
@@ -110,6 +165,7 @@ func main() {
 	core, done := svcboot.NewCore(serviceName)
 	defer done()
 	log := core.Log
+	shutdown := shutdownContext(core.Ctx, shutdownBudget)
 
 	driver := databoot.MustEntDriver(core, "bagel_loyalty")
 	client := ent.NewClient(ent.Driver(driver))
@@ -123,13 +179,6 @@ func main() {
 	vc := svcboot.MustValkey(core)
 	defer vc.Close()
 	counters := repository.NewCounterProcessor(repo, vc)
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-		defer cancel()
-		if err := counters.Close(ctx); err != nil {
-			log.Warn("loyalty: counter processor shutdown failed", zap.Error(err))
-		}
-	}()
 	watchCtx, stopWatch := context.WithCancel(core.Ctx)
 	watchDone := make(chan struct{})
 	watchConsumer := watchtime.NewConsumer(vc, repo.ApplyWatchAward, log, watchtime.WithHistoryMaintenance(repo.PruneWatchHistory))
@@ -143,16 +192,7 @@ func main() {
 	grouped, err := bus.NewSubscriber(core.NATSURL, serviceName, log)
 	svcboot.FatalIf(log, err, "failed to connect group subscriber")
 	var counterConsumer *bus.ConcurrentConsumer
-	defer func() {
-		if err := grouped.Close(); err != nil {
-			log.Warn("loyalty: group subscriber shutdown failed", zap.Error(err))
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-		defer cancel()
-		if err := counterConsumer.Drain(ctx); err != nil {
-			log.Warn("loyalty: counter consumer shutdown failed", zap.Error(err))
-		}
-	}()
+	defer func() { counterIntake{grouped, counterConsumer, counters}.stop(shutdown, log) }()
 
 	counterConsumer, err = registerConsumers(core.Ctx, core.NR, repo, counters, grouped, log)
 	svcboot.FatalIf(log, err, "failed to subscribe to events")
@@ -176,15 +216,4 @@ func main() {
 	)
 
 	core.Await()
-}
-
-func restoreUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
-	return func(msg *bus.Message) error {
-		var dto data.UserChangedDTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("loyalty: bad lifecycle payload", zap.Error(err))
-			return nil
-		}
-		return repo.RestoreUser(msg.Context(), dto.UserID, dto.AccountCreatedAt)
-	}
 }

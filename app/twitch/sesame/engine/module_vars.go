@@ -162,18 +162,18 @@ func (q quoteReads) render(quote modulesrpc.Quote, found bool, err error) string
 	if !found {
 		return ""
 	}
-	return quoteLine(q.c.Locale, quote)
+	return QuoteLine(q.c.Locale, quote)
 }
 
-func quoteLine(locale string, q modulesrpc.Quote) string {
+func QuoteLine(locale string, q modulesrpc.Quote) string {
 	return module.KV(
 		"num", strconv.FormatUint(q.Number, 10),
 		"text", q.Text,
-		"date", quoteDate(q.CreatedAt),
+		"date", QuoteDate(q.CreatedAt),
 	).WithLocale(module.Locale(locale)).WithNamespace("quotes").ExpandString(i18n.T(locale, "quote.show"))
 }
 
-func quoteDate(createdAt string) string {
+func QuoteDate(createdAt string) string {
 	t, err := time.Parse(time.RFC3339, createdAt)
 	if err != nil {
 		return ""
@@ -213,24 +213,36 @@ type songReads struct {
 }
 
 func (s songReads) NowPlaying(ctx context.Context) scope.Track {
-	var reply gossiprpc.SpotifyNowPlayingReply
-	err := s.p.gossip.Call(ctx, spotifyNowPlaying,
-		gossiprpc.Request{ChannelID: strconv.FormatUint(s.c.BroadcasterID, 10)}, &reply)
+	reply, err := SpotifyNowPlaying(ctx, s.p.gossip, s.c.BroadcasterID)
 	if err != nil && reply.Error == "" {
 		s.p.log.Warn("song token: nowplaying rpc failed", module.BIDField(s.c.BroadcasterID), zap.Error(err))
 	}
-	if !nowPlaying(reply) {
+	track := PlayingTrack(reply)
+	if track == nil {
 		return scope.Track{}
 	}
 	return scope.Track{
-		Title:   reply.Track.Name,
-		Artist:  strings.Join(reply.Track.Artists, ", "),
+		Title:   track.Name,
+		Artist:  strings.Join(track.Artists, ", "),
 		Playing: true,
 	}
 }
 
-func nowPlaying(reply gossiprpc.SpotifyNowPlayingReply) bool {
-	return reply.Error == "" && reply.IsPlaying && reply.Track != nil
+func SpotifyNowPlaying(ctx context.Context, gossip GossipCaller, broadcasterID uint64) (gossiprpc.SpotifyNowPlayingReply, error) {
+	var reply gossiprpc.SpotifyNowPlayingReply
+	err := gossip.Call(ctx, spotifyNowPlaying,
+		gossiprpc.Request{ChannelID: strconv.FormatUint(broadcasterID, 10)}, &reply)
+	return reply, err
+}
+
+func PlayingTrack(reply gossiprpc.SpotifyNowPlayingReply) *gossiprpc.SpotifyTrack {
+	if reply.Error != "" {
+		return nil
+	}
+	if !reply.IsPlaying {
+		return nil
+	}
+	return reply.Track
 }
 
 func (p *Pipeline) moduleGate(c *module.Context, name string) ModuleGate {

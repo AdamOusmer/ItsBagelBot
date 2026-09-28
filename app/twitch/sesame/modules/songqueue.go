@@ -12,8 +12,6 @@ import (
 
 	"ItsBagelBot/app/twitch/sesame/engine"
 	"ItsBagelBot/app/twitch/sesame/module"
-	"ItsBagelBot/internal/domain/i18n"
-	"ItsBagelBot/internal/domain/outgress"
 	gossiprpc "ItsBagelBot/internal/domain/rpc/gossip"
 	"ItsBagelBot/pkg/bus"
 
@@ -68,10 +66,7 @@ type songqueueRedeem struct {
 }
 
 func SongQueue(d engine.Deps) module.Module {
-	log := d.Log
-	if log == nil {
-		log = zap.NewNop()
-	}
+	log := songQueueLog(d)
 
 	m := module.NewModule(songqueueModuleName, module.KindOptIn)
 	m.Command("sr").Everyone().Cooldown(srAddCooldown).
@@ -96,6 +91,13 @@ func SongQueue(d engine.Deps) module.Module {
 
 	m.On(redemptionAddType, songqueueRedemption(d, log))
 	return m.Build()
+}
+
+func songQueueLog(d engine.Deps) *zap.Logger {
+	if d.Log == nil {
+		return zap.NewNop()
+	}
+	return d.Log
 }
 
 type songQueueCmd struct {
@@ -146,15 +148,12 @@ func songQueueView(d engine.Deps, log *zap.Logger) module.RunFunc {
 }
 
 func (qc songQueueCmd) current(ctx context.Context, emit module.Emit) error {
-	track, fresh := qc.syncWithPlayer(ctx)
-	var failure string
-	if !fresh {
-		track, failure = qc.livePlayer(ctx)
-	}
+	player, failure := qc.readPlayer(ctx)
 	if failure != "" {
-		qc.emitChat(emit, failure)
+		qc.say(emit, failure)
 		return nil
 	}
+	track := player.track
 	if track == nil {
 		return qc.view(ctx, emit)
 	}
@@ -176,21 +175,15 @@ func (qc songQueueCmd) livePlayer(ctx context.Context) (*gossiprpc.SpotifyTrack,
 	if qc.gossip == nil {
 		return nil, ""
 	}
-	var reply gossiprpc.SpotifyNowPlayingReply
-	err := qc.gossip.Call(ctx,
-		engine.GossipRoute{Provider: "spotify", Endpoint: "nowplaying"},
-		gossiprpc.Request{ChannelID: strconv.FormatUint(qc.c.BroadcasterID, 10)}, &reply)
+	reply, err := engine.SpotifyNowPlaying(ctx, qc.gossip, qc.c.BroadcasterID)
 	if reason := qc.spotifyFailureMessage(reply.Error, err); reason != "" {
 		return nil, reason
 	}
 	if err != nil {
 		qc.log.Warn("songqueue: nowplaying rpc failed", qc.c.BID(), zap.Error(err))
-		return nil, i18n.T(qc.c.Locale, "songqueue.err.upstream")
+		return nil, qc.render("", "songqueue.err.upstream")
 	}
-	if !reply.IsPlaying {
-		return nil, ""
-	}
-	return reply.Track, ""
+	return engine.PlayingTrack(reply), ""
 }
 
 func (qc songQueueCmd) requesterOf(ctx context.Context, trackID string) string {
@@ -198,19 +191,28 @@ func (qc songQueueCmd) requesterOf(ctx context.Context, trackID string) string {
 	if err != nil {
 		return ""
 	}
-	if snap.Current == nil {
+	return songRequester(snap.Current, trackID)
+}
+
+func songRequester(current *engine.SongEntry, trackID string) string {
+	if current == nil {
 		return ""
 	}
-	if snap.Current.TrackID != trackID {
+	if current.TrackID != trackID {
 		return ""
 	}
-	return snap.Current.RequesterName
+	return current.RequesterName
 }
 
 func (qc songQueueCmd) syncWithPlayer(ctx context.Context) (*gossiprpc.SpotifyTrack, bool) {
+	player, _ := qc.readPlayer(ctx)
+	return player.track, player.fresh
+}
+
+func (qc songQueueCmd) readPlayer(ctx context.Context) (playerObservation, string) {
 	if reply, ok := qc.playerQueue(ctx); ok {
 		qc.syncQueueSnapshot(ctx, reply)
-		return reply.Current, true
+		return playerObservation{track: reply.Current, fresh: true}, ""
 	}
 	// A queue-read failure must not prevent a normal request or queue view.
 	// The older now-playing endpoint still reconciles any request it sees live.
@@ -218,7 +220,7 @@ func (qc songQueueCmd) syncWithPlayer(ctx context.Context) (*gossiprpc.SpotifyTr
 	if failure == "" && track != nil {
 		qc.syncPlaying(ctx, track.ID)
 	}
-	return track, false
+	return playerObservation{track: track}, failure
 }
 
 func (qc songQueueCmd) playerQueue(ctx context.Context) (gossiprpc.SpotifyQueueReply, bool) {
@@ -353,7 +355,7 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 	}
 	track, failure := qc.resolveTrack(ctx, query)
 	if failure != "" {
-		qc.emitChat(emit, failure)
+		qc.say(emit, failure)
 		return nil
 	}
 	qc.syncWithPlayer(ctx)
@@ -365,7 +367,7 @@ func (qc songQueueCmd) request(ctx context.Context, query string, emit module.Em
 		if _, _, rbErr := qc.store.RetractOwn(ctx, qc.c.BroadcasterID, qc.c.Env.ChatterUserID); rbErr != nil {
 			qc.log.Warn("songqueue: rollback after player refusal failed", qc.c.BID(), zap.Error(rbErr))
 		}
-		qc.emitChat(emit, failure)
+		qc.say(emit, failure)
 		return nil
 	}
 	return qc.reportAdd(emit, *track, pos, nil)
@@ -432,7 +434,7 @@ func (qc songQueueCmd) quotaFor() int {
 
 func (qc songQueueCmd) pushToPlayer(ctx context.Context, trackID string) string {
 	if qc.gossip == nil {
-		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+		return qc.render("", "songqueue.err.upstream")
 	}
 	var reply gossiprpc.SpotifyPlayerReply
 	err := qc.gossip.Call(ctx,
@@ -443,14 +445,14 @@ func (qc songQueueCmd) pushToPlayer(ctx context.Context, trackID string) string 
 	}
 	if err != nil {
 		qc.log.Warn("songqueue: player queue push failed", qc.c.BID(), zap.Error(err))
-		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+		return qc.render("", "songqueue.err.upstream")
 	}
 	return ""
 }
 
 func (qc songQueueCmd) skipPlayer(ctx context.Context) string {
 	if qc.gossip == nil {
-		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+		return qc.render("", "songqueue.err.upstream")
 	}
 	var reply gossiprpc.SpotifyPlayerReply
 	err := qc.gossip.Call(ctx,
@@ -461,7 +463,7 @@ func (qc songQueueCmd) skipPlayer(ctx context.Context) string {
 	}
 	if err != nil {
 		qc.log.Warn("songqueue: player skip failed", qc.c.BID(), zap.Error(err))
-		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+		return qc.render("", "songqueue.err.upstream")
 	}
 	return ""
 }
@@ -504,9 +506,9 @@ func (qc songQueueCmd) resolveTrack(ctx context.Context, query string) (*gossipr
 	case err != nil:
 		qc.log.Warn("songqueue: search rpc failed",
 			zap.String("query", query), qc.c.BID(), zap.Error(err))
-		return nil, i18n.T(qc.c.Locale, "songqueue.err.upstream")
+		return nil, qc.render("", "songqueue.err.upstream")
 	case len(reply.Tracks) == 0:
-		return nil, i18n.T(qc.c.Locale, "songqueue.search.none")
+		return nil, qc.render("", "songqueue.search.none")
 	}
 	return &reply.Tracks[0], ""
 }
@@ -545,7 +547,8 @@ func (qc songQueueCmd) spotifyFailureMessage(replyError string, err error) strin
 		"track search failed":
 		return message
 	default:
-		return i18n.T(qc.c.Locale, "songqueue.err.upstream")
+		qc.log.Warn("songqueue: spotify rpc refused", qc.c.BID(), zap.String("reason", message), zap.Error(err))
+		return qc.render("", "songqueue.err.upstream")
 	}
 }
 
@@ -599,7 +602,7 @@ func (qc songQueueCmd) removeAt(ctx context.Context, pos int, emit module.Emit) 
 func (qc songQueueCmd) nextTrack(ctx context.Context, emit module.Emit) error {
 	before, beforeFresh := qc.syncWithPlayer(ctx)
 	if failure := qc.skipPlayer(ctx); failure != "" {
-		qc.emitChat(emit, failure)
+		qc.say(emit, failure)
 		return nil
 	}
 	after, afterFresh := qc.syncWithPlayer(ctx)
@@ -732,12 +735,4 @@ func parsePosition(s string) int {
 		return 0
 	}
 	return n
-}
-
-func (qc songQueueCmd) emitChat(emit module.Emit, text string) {
-	emit(&module.Output{
-		Type:          outgress.TypeChat,
-		BroadcasterID: qc.c.Env.BroadcasterUserID,
-		Text:          text,
-	})
 }

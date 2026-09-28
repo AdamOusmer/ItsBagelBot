@@ -23,7 +23,7 @@ const (
 	counterQueueMessages = 256
 	counterMaxBumps      = 4096
 	counterBatchBumps    = 8192
-	counterCompletedTTL  = 5 * time.Minute
+	counterCompletedTTL  = data.CounterReceiptTTL
 	// SQL plus gate admission is bounded to 30 seconds after claims. The
 	// remaining margin lets completion/release finish before the owner expires.
 	counterPendingTTL   = 45 * time.Second
@@ -32,9 +32,16 @@ const (
 )
 
 var (
-	ErrCounterPending         = errors.New("counter batch is already being processed")
-	ErrCounterProcessorClosed = errors.New("counter processor is closed")
+	ErrCounterPending         error = counterPendingError{}
+	ErrCounterProcessorClosed       = errors.New("counter processor is closed")
 )
+
+type counterPendingError struct{}
+
+func (counterPendingError) Error() string { return "counter batch is already being processed" }
+
+// A dead owner's lease blocks every delivery until it expires; retrying sooner can exhaust the lane's attempts.
+func (counterPendingError) RetryAfter() time.Duration { return counterPendingTTL }
 
 type counterRequest struct {
 	ctx    context.Context
@@ -43,9 +50,9 @@ type counterRequest struct {
 }
 
 // CounterProcessor coalesces acknowledged counter writes into bounded SQL
-// transactions and explicit Valkey pipelines. Completion receipts live for
-// five minutes. The SQL-to-Valkey crash gap and replays after that expiry can
-// count again; these counters intentionally tolerate that tradeoff. Watch
+// transactions and explicit Valkey pipelines. Completion receipts outlive
+// Sesame's republish window. The SQL-to-Valkey crash gap and replays after
+// that expiry can count again; these counters tolerate that tradeoff. Watch
 // awards and balances retain their separate durable posting semantics.
 type CounterProcessor struct {
 	repo         *Loyalty

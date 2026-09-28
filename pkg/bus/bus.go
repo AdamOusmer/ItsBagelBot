@@ -28,8 +28,14 @@ const (
 	fleetNakDelay               = 3 * time.Second
 )
 
-// The whole schedule plus every handler deadline must fit inside BAGEL_DATA's MaxAge, or a retrying message expires before it is dead-lettered.
+// The whole schedule, the deferral and every handler deadline must fit inside BAGEL_DATA's MaxAge, or a retrying message expires before it is dead-lettered.
 var dataRetryBackoff = []time.Duration{5 * time.Second, 20 * time.Second, time.Minute}
+
+const dataRetryDeferral = time.Minute
+
+func dataRetryDelay() maxRetryDelay {
+	return newBackoffRetryDelay(dataRetryBackoff).withDeferral(dataRetryDeferral)
+}
 
 type LaneConfig struct {
 	URL             string
@@ -263,8 +269,8 @@ func (s *fleetSubscriber) subscriberFor(target subscriptionTarget) (Subscriber, 
 	}
 	binding := LaneConfig{URL: s.url, Stream: target.stream, Subject: target.topic, Group: s.group}
 	if deadLettersStream(target.stream) {
-		delay := newBackoffRetryDelay(dataRetryBackoff)
-		return bindDurable(binding, int(delay.max), delay, s.log)
+		delay := dataRetryDelay()
+		return bindDurable(binding, int(delay.deliveries()), delay, s.log)
 	}
 	maxDeliveries := fleetMaxRedeliveries + 1
 	return bindDurable(binding, int(maxDeliveries), newMaxRetryDelay(fleetNakDelay, maxDeliveries), s.log)

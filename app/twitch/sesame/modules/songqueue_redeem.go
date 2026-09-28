@@ -132,9 +132,17 @@ func (r songqueueRedeemRun) apply(ctx context.Context) error {
 }
 
 func (r songqueueRedeemRun) refund(reason string) {
-	user := strings.TrimPrefix(displayName(r.ev.UserName, r.ev.UserLogin), "@")
-	r.chat("@" + user + " " + reason)
+	r.chat(r.addressed(reason))
 	emitRedemptionStatus(r.emit, r.ev, outgress.RedemptionCanceled)
+}
+
+func (r songqueueRedeemRun) addressed(reason string) string {
+	// Rendered songqueue replies already open with the viewer's mention.
+	if strings.HasPrefix(reason, "@") {
+		return reason
+	}
+	user := strings.TrimPrefix(displayName(r.ev.UserName, r.ev.UserLogin), "@")
+	return "@" + user + " " + reason
 }
 
 func (r songqueueRedeemRun) chat(text string) {

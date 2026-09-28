@@ -8,7 +8,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { actionPayload, type ActionOk } from '@bagel/kit';
-  import { copyText } from '@bagel/ui/lib/clipboard';
+  import { copyFlash } from '@bagel/ui/lib/clipboard';
   import { bezier } from '@bagel/ui/lib/tween';
   import { hasFinePointer, prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import AmbientSky from '@bagel/ui/svelte/AmbientSky.svelte';
@@ -20,9 +20,9 @@
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import StepRail from '$lib/components/welcome/StepRail.svelte';
 
-  let { name, app, redirectUri, preview = false, degraded = false, error = '' }: {
+  let { name, app, redirectUri, preview = false, error = '', onRemoveApp }: {
     name: string; app: { present: boolean; clientId: string }; redirectUri: string;
-    preview?: boolean; degraded?: boolean; error?: string;
+    preview?: boolean; error?: string; onRemoveApp: () => void;
   } = $props();
   const { t } = getI18n();
   // Keep dev directly on each preview branch so production can erase the shortcuts.
@@ -32,6 +32,7 @@
   // svelte-ignore state_referenced_locally
   let furthest = $state(app.present ? 3 : 0);
   let saved = $state(false);
+  let replacing = $state(false);
   const appReady = $derived(app.present || saved);
   const labels = $derived(['railWelcome', 'railApp', 'railKeys', 'railConnect'].map(key => t(`spotifySetup.${key}`)));
   const titles = ['welcomeTitle', 'appTitle', 'credentialsTitle', 'connectTitle'];
@@ -45,7 +46,6 @@
   let saving = $state(false);
   let saveError = $state('');
   let copied = $state(false);
-  let copyTimer: ReturnType<typeof setTimeout> | undefined;
   let px = $state(0);
   let py = $state(0);
   let pointerFrame = 0;
@@ -80,11 +80,22 @@
     });
   }
   async function copyRedirect() {
-    if (await copyText(redirectUri)) {
-      copied = true;
-      clearTimeout(copyTimer);
-      copyTimer = setTimeout(() => copied = false, 2200);
-    } else saveError = t('spotify.redirectCopyFailed');
+    if (!(await copyFlash(redirectUri, (on) => copied = on, 2200))) saveError = t('spotify.redirectCopyFailed');
+  }
+  function startReplace() {
+    clientId = app.clientId || clientId;
+    clientSecret = '';
+    saveError = '';
+    replacing = true;
+  }
+  function cancelReplace() {
+    clientSecret = '';
+    saveError = '';
+    replacing = false;
+  }
+  function removeApp() {
+    saved = false;
+    onRemoveApp();
   }
   const submit: SubmitFunction = () => {
     saving = true;
@@ -98,6 +109,7 @@
       }
       clientSecret = '';
       saved = true;
+      replacing = false;
       await invalidateAll();
       await go(3);
     };
@@ -117,7 +129,6 @@
     heading?.focus({ preventScroll: true });
   }
   onDestroy(() => {
-    clearTimeout(copyTimer);
     if (pointerFrame) cancelAnimationFrame(pointerFrame);
   });
 </script>
@@ -146,7 +157,6 @@
             <h1 class="title" tabindex="-1" bind:this={heading} in:arrive={{ i: 1 }} out:depart={{ i: 1 }}>{t(`spotifySetup.${done ? 'readyTitle' : titles[step]}`)}</h1>
             <p class="body" in:arrive={{ i: 2 }} out:depart={{ i: 2 }}>{t(`spotifySetup.${done ? 'readyBody' : bodies[step]}`)}</p>
             <div class="controls" in:arrive={{ i: 3 }} out:depart={{ i: 3 }}>
-              {#if degraded}<AlertBanner>{t('spotify.degraded')}</AlertBanner>{/if}
               {#if error}<AlertBanner variant="warn">{error}</AlertBanner>{/if}
               {#if saveError}<p class="error" role="alert">{saveError}</p>{/if}
               {#if done}
@@ -163,15 +173,24 @@
                 </div>
                 <div class="actions"><Button variant="ghost" onclick={() => go(0)}>{t('onboarding.back')}</Button><Button onclick={() => go(2)} disabled={!redirectUri}>{t('spotifySetup.appCreated')} →</Button></div>
               {:else if step === 2}
-                {#if appReady}
+                {#if appReady && !replacing}
                   <p class="saved">✓ {t('spotifySetup.saved')}</p><code>{app.clientId || clientId}</code>
-                  <div class="actions"><Button variant="ghost" onclick={() => go(1)}>{t('onboarding.back')}</Button><Button onclick={() => go(3)}>{t('onboardingImport.continue')} →</Button></div>
+                  <div class="actions">
+                    <Button variant="ghost" onclick={() => go(1)}>{t('onboarding.back')}</Button>
+                    <Button variant="secondary" onclick={startReplace}>{t('spotify.appReplace')}</Button>
+                    {#if app.present}<Button variant="destructive" onclick={removeApp}>{t('spotify.appRemove')}</Button>{/if}
+                    <Button onclick={() => go(3)}>{t('onboardingImport.continue')} →</Button>
+                  </div>
                 {:else}
                   <form method="POST" action="?/saveApp" use:enhance={submit}>
                     <Field label={t('spotify.appClientIdLabel')}><Input fill mono name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required /></Field>
                     <Field label={t('spotify.appClientSecretLabel')}><Input fill mono name="client_secret" type="password" bind:value={clientSecret} autocomplete="off" spellcheck="false" required /></Field>
                     <p class="hint">{t('spotify.appClientSecretHint')}</p>
-                    <div class="actions"><Button variant="ghost" onclick={() => go(1)} disabled={saving}>{t('onboarding.back')}</Button><Button type="submit" loading={saving}>{t('spotifySetup.saveContinue')} →</Button></div>
+                    <div class="actions">
+                      {#if replacing}<Button variant="ghost" onclick={cancelReplace} disabled={saving}>{t('spotify.appCancel')}</Button>
+                      {:else}<Button variant="ghost" onclick={() => go(1)} disabled={saving}>{t('onboarding.back')}</Button>{/if}
+                      <Button type="submit" loading={saving}>{t('spotifySetup.saveContinue')} →</Button>
+                    </div>
                   </form>
                   {#if dev && preview}<div class="preview-action"><Button variant="ghost" onclick={usePreviewKeys}>{t('spotifySetup.previewKeys')} →</Button></div>{/if}
                 {/if}
