@@ -508,6 +508,10 @@ accounts:
               from: GOSSIP_RPC
             - service: bagel.rpc.gossip.spotify.exchange.node.*
               from: GOSSIP_RPC
+            - service: bagel.rpc.gossip.spotify.playerqueue
+              from: GOSSIP_RPC
+            - service: bagel.rpc.gossip.spotify.playerqueue.node.*
+              from: GOSSIP_RPC
             - service: bagel.rpc.gossip.custom.fetch
               from: GOSSIP_RPC
             - service: bagel.rpc.gossip.custom.fetch.node.*

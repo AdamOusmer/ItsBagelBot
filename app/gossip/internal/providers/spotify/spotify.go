@@ -87,6 +87,7 @@ func New(cfg Config, d provider.Deps) provider.Provider {
 	b.Endpoint("track").Timeout(lookupTimeout).Handle(p.track)
 	b.Endpoint("artist").Timeout(lookupTimeout).Handle(p.artist)
 	b.Endpoint("nowplaying").Timeout(nowplayingTimeout).Handle(p.nowPlaying)
+	b.Endpoint("playerqueue").Timeout(nowplayingTimeout).Handle(p.playerQueue)
 	b.Endpoint("exchange").Timeout(lookupTimeout).Handle(p.exchange)
 	b.Endpoint("queue").Timeout(nowplayingTimeout).Handle(p.queueTrack)
 	b.Endpoint("next").Timeout(nowplayingTimeout).Handle(p.next)
@@ -672,6 +673,40 @@ func (p *api) nowPlaying(ctx context.Context, req gossiprpc.Request) any {
 		return gossiprpc.SpotifyNowPlayingReply{Error: p.fetchFailed("spotify now-playing fetch failed", "could not reach Spotify", err)}
 	}
 	return codec.RawMessage(b)
+}
+
+// playerQueue deliberately bypasses the now-playing cache. A 15-second-old
+// snapshot can still contain a track that was just skipped, which would make
+// the request list advance to the wrong song.
+func (p *api) playerQueue(ctx context.Context, req gossiprpc.Request) any {
+	broadcaster := strings.TrimSpace(req.ChannelID)
+	if broadcaster == "" {
+		return gossiprpc.SpotifyQueueReply{Error: "missing channel"}
+	}
+	tok, msg := p.accessTokenFor(ctx, broadcaster)
+	if msg != "" {
+		return gossiprpc.SpotifyQueueReply{Error: msg}
+	}
+	if err := p.rateAdmit(broadcaster)(ctx); err != nil {
+		return gossiprpc.SpotifyQueueReply{Error: p.fetchFailed("spotify queue read denied", "Spotify is busy right now, try again in a moment", err)}
+	}
+	var resp struct {
+		Current trackItem   `json:"currently_playing"`
+		Queue   []trackItem `json:"queue"`
+	}
+	if err := p.http.Do(ctx, core.Request{Method: http.MethodGet, Path: queuePath, Headers: bearerHeader(tok)}, &resp); err != nil {
+		return gossiprpc.SpotifyQueueReply{Error: p.fetchFailed("spotify queue read failed", "could not reach Spotify", err)}
+	}
+	reply := gossiprpc.SpotifyQueueReply{UpNext: make([]gossiprpc.SpotifyTrack, 0, len(resp.Queue))}
+	if resp.Current.ID != "" {
+		reply.Current = shapeTrack(resp.Current)
+	}
+	for _, item := range resp.Queue {
+		if item.ID != "" {
+			reply.UpNext = append(reply.UpNext, *shapeTrack(item))
+		}
+	}
+	return reply
 }
 
 func (p *api) exchange(ctx context.Context, req gossiprpc.Request) any {

@@ -22,11 +22,12 @@ import (
 )
 
 type fakeGossip struct {
-	mu      sync.Mutex
-	calls   []fakeGossipCall
-	replies map[string]any
-	err     error
-	done    chan struct{}
+	mu        sync.Mutex
+	calls     []fakeGossipCall
+	replies   map[string]any
+	sequences map[string][]any
+	err       error
+	done      chan struct{}
 }
 
 type fakeGossipCall struct {
@@ -46,7 +47,14 @@ func (f *fakeGossip) Call(_ context.Context, route engine.GossipRoute, req gossi
 	if f.err != nil {
 		return f.err
 	}
-	reply, ok := f.replies[route.Provider+"."+route.Endpoint]
+	key := route.Provider + "." + route.Endpoint
+	f.mu.Lock()
+	reply, ok := f.replies[key]
+	if sequence := f.sequences[key]; len(sequence) > 0 {
+		reply, ok = sequence[0], true
+		f.sequences[key] = sequence[1:]
+	}
+	f.mu.Unlock()
 	if !ok {
 		return bus.RPCReplyError{Message: "no responder"}
 	}

@@ -105,7 +105,11 @@ func TestSkipCommandPromotesHead(t *testing.T) {
 	store := &fakeSongQueue{up: []engine.SongEntry{
 		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
 	}}
-	m := SongQueue(songDeps(store, srSearchGossip()))
+	g := srSearchGossip()
+	setSkipSnapshots(g,
+		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "t1"}}},
+		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "t1"}})
+	m := SongQueue(songDeps(store, g))
 
 	out := runSongCmd(t, m, "skip", songCtx("9", "mod", "moderator"))
 
@@ -164,7 +168,11 @@ func TestSRSkipVerbPromotesHead(t *testing.T) {
 	store := &fakeSongQueue{up: []engine.SongEntry{
 		{TrackID: "t1", Title: "Human", Artists: []string{"The Killers"}, RequesterID: "42", RequesterName: "alice"},
 	}}
-	m := SongQueue(songDeps(store, srSearchGossip()))
+	g := srSearchGossip()
+	setSkipSnapshots(g,
+		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "external"}, UpNext: []gossiprpc.SpotifyTrack{{ID: "t1"}}},
+		gossiprpc.SpotifyQueueReply{Current: &gossiprpc.SpotifyTrack{ID: "t1"}})
+	m := SongQueue(songDeps(store, g))
 
 	out := runSR(t, m, songCtx("7", "modder", "moderator"), "skip")
 	assert.Contains(t, chatText(t, out), "Human")

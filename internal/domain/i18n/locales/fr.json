@@ -185,6 +185,7 @@
   "songqueue.current.req": "Sur Spotify en ce moment : {songqueue:title} par {songqueue:artist} (demandé par {songqueue:req})",
   "songqueue.err.upstream": "@{songqueue:user} la recherche musicale est en panne pour le moment, réessaie dans un instant.",
   "songqueue.next.empty": "La file de chansons est vide.",
+  "songqueue.next.pending": "Passage au titre suivant envoyé à Spotify. La file des demandes sera mise à jour quand la lecture changera.",
   "songqueue.playing": "Lecture en cours : {songqueue:title} par {songqueue:artist} (demandée par {songqueue:req})",
   "songqueue.remove.not_found": "Aucune chanson à la position #{songqueue:pos}.",
   "songqueue.remove.ok": "Retiré #{songqueue:pos} : {songqueue:title} (par {songqueue:req}).",

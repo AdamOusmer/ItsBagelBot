@@ -52,6 +52,10 @@ type SongQueueStore interface {
 	RetractOwn(ctx context.Context, broadcasterID uint64, requesterID string) (SongEntry, bool, error)
 	RemoveAt(ctx context.Context, broadcasterID uint64, position int) (SongEntry, bool, error)
 	SyncPlaying(ctx context.Context, broadcasterID uint64, trackID string) (bool, error)
+	// SyncQueue reconciles the local request list with a fresh Spotify queue
+	// snapshot. The visible upcoming list can be truncated, so it must not
+	// discard unseen requests beyond that window.
+	SyncQueue(ctx context.Context, broadcasterID uint64, currentID string, upcomingIDs []string) (bool, error)
 	Advance(ctx context.Context, broadcasterID uint64) (finished, nowPlaying *SongEntry, err error)
 	Clear(ctx context.Context, broadcasterID uint64) error
 	Snapshot(ctx context.Context, broadcasterID uint64, upNext int) (SongQueueSnapshot, error)
@@ -286,6 +290,86 @@ func (s *ValkeySongQueueStore) SyncPlaying(ctx context.Context, broadcasterID ui
 		return nil
 	})
 	return changed, err
+}
+
+func (s *ValkeySongQueueStore) SyncQueue(ctx context.Context, broadcasterID uint64, currentID string, upcomingIDs []string) (bool, error) {
+	changed := false
+	err := s.mutate(ctx, broadcasterID, func(d *songQueueDoc) error {
+		changed = reconcileSongQueue(d, currentID, upcomingIDs, time.Now())
+		return nil
+	})
+	return changed, err
+}
+
+// Spotify may expose only the first part of its upcoming queue. A later
+// matching request proves older unmatched requests were skipped; with a short
+// queue, aged absent requests can also be retired. The grace interval protects
+// a newly accepted POST while Spotify's read endpoint catches up.
+func reconcileSongQueue(d *songQueueDoc, currentID string, upcomingIDs []string, now time.Time) bool {
+	// An idle or private player can yield no snapshot at all. Without a
+	// current item or an upcoming item, there is no evidence to retire from.
+	if currentID == "" && len(upcomingIDs) == 0 {
+		return false
+	}
+	changed := false
+	if currentID != "" {
+		if d.Current == nil || d.Current.TrackID != currentID {
+			match := -1
+			for i := range d.Up {
+				if d.Up[i].TrackID == currentID {
+					match = i
+					break
+				}
+			}
+			if match >= 0 {
+				entry := d.Up[match]
+				d.Current = &entry
+				d.Up = d.Up[match+1:]
+				changed = true
+			} else if d.Current != nil {
+				d.Current = nil
+				changed = true
+			}
+		}
+	} else if d.Current != nil {
+		d.Current = nil
+		changed = true
+	}
+
+	// Match duplicate track IDs from the tail: if one of two identical
+	// requests remains in Spotify, the older occurrence is the one that left.
+	available := make(map[string]int, len(upcomingIDs))
+	for _, id := range upcomingIDs {
+		available[id]++
+	}
+	matched := make([]bool, len(d.Up))
+	lastMatch := -1
+	for i := len(d.Up) - 1; i >= 0; i-- {
+		if available[d.Up[i].TrackID] == 0 {
+			continue
+		}
+		available[d.Up[i].TrackID]--
+		matched[i] = true
+		if i > lastMatch {
+			lastMatch = i
+		}
+	}
+	cutoff := now.Add(-15 * time.Second).UnixMilli()
+	kept := d.Up[:0]
+	for i, entry := range d.Up {
+		// A full Spotify window may hide later requests. A shorter window
+		// is sufficient evidence that an older, absent request is gone.
+		anchored := i < lastMatch
+		shortQueue := len(upcomingIDs) < 20
+		aged := entry.EnqueuedAt > 0 && entry.EnqueuedAt < cutoff
+		if !matched[i] && (anchored || shortQueue && aged) {
+			changed = true
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	d.Up = kept
+	return changed
 }
 
 func (s *ValkeySongQueueStore) Advance(ctx context.Context, broadcasterID uint64) (*SongEntry, *SongEntry, error) {

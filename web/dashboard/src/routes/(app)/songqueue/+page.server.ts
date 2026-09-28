@@ -9,9 +9,10 @@ import type {
   SpotifyStore,
   SpotifySrPerm
 } from '$lib/server/spotify-store';
-import { spotifyStore } from '$lib/server/spotify-store';
+import { spotifyStore, readSpotifyPlayerQueue } from '$lib/server/spotify-store';
 import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '$lib/server/oauth';
-import { getSongQueue, type SongQueueDoc } from '@bagel/kit/server/songqueue-store';
+import { getSongQueue } from '@bagel/kit/server/songqueue-store';
+import { shapeQueue, type QueueView } from '$lib/server/songqueue-view';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction } from '$lib/server/module-action';
 import type { MutationRefusal } from '@bagel/kit/server/form-action';
@@ -61,10 +62,13 @@ export const load: PageServerLoad = ({ locals, url }) => {
         store.app(),
         getSongQueue(uid)
       ]);
+      const liveQueue = grant.connected && (queue.current || queue.up?.length)
+        ? await readSpotifyPlayerQueue(uid)
+        : null;
       const redirectUri = spotifyConfigured() ? spotifyRedirectURI() : '';
       return {
         ...view,
-        queue: shapeQueue(queue),
+        queue: shapeQueue(queue, liveQueue),
         connected: grant.connected,
         scopeGap: grant.connected ? spotifyScopeGap(grant.scopes) : [],
         app,
@@ -88,28 +92,6 @@ export const load: PageServerLoad = ({ locals, url }) => {
     })
   });
 };
-
-export interface QueueView {
-  current: QueueRow | null;
-  up: QueueRow[];
-}
-interface QueueRow {
-  title: string;
-  artists: string;
-  requester: string;
-}
-
-function shapeQueue(doc: SongQueueDoc): QueueView {
-  const row = (e: NonNullable<SongQueueDoc['current']>): QueueRow => ({
-    title: e.title,
-    artists: (e.artists ?? []).join(', '),
-    requester: e.req_name
-  });
-  return {
-    current: doc.current ? row(doc.current) : null,
-    up: (doc.up ?? []).slice(0, 10).map(row)
-  };
-}
 
 function resultFail(r: Extract<SpotifyResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });

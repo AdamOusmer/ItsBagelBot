@@ -39,6 +39,25 @@ export interface SpotifyGrant {
   scopes: string[];
 }
 
+export interface SpotifyPlayerQueue {
+  current?: { id: string } | null;
+  up_next?: { id: string }[];
+  error?: string;
+}
+
+export async function readSpotifyPlayerQueue(userId: string): Promise<SpotifyPlayerQueue | null> {
+  try {
+    const reply = await rpcReply<SpotifyPlayerQueue>(
+      `${SUB.gossip}.spotify.playerqueue`,
+      { channel_id: userId },
+      8000
+    );
+    return reply.error ? null : reply;
+  } catch {
+    return null;
+  }
+}
+
 export interface RewardDraft {
   title: string;
   cost: number;
