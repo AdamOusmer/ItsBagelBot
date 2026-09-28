@@ -1,10 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Redis from 'iovalkey';
-import type { Redis as RedisClient } from 'iovalkey';
-import { getServerConfig } from './config';
-import { VALKEY_TLS_DATA_PORT, valkeyEndpoint, valkeyTLSOptions } from './valkey-connection';
+import { masterClient } from './valkey-master';
 
 export interface SongQueueEntry {
   tid: string;
@@ -23,35 +20,8 @@ export interface SongQueueDoc {
   up?: SongQueueEntry[];
 }
 
-let client: RedisClient | null = null;
-let disabled = false;
-
-function get(): RedisClient | null {
-  if (disabled) return null;
-  if (client) return client;
-  const cfg = getServerConfig().valkey;
-  if (!cfg) {
-    disabled = true;
-    return null;
-  }
-  const tls = valkeyTLSOptions(cfg);
-  const endpoint = valkeyEndpoint(cfg.addr, Boolean(tls), VALKEY_TLS_DATA_PORT);
-  client = new Redis({
-    host: endpoint.host,
-    port: endpoint.port,
-    password: cfg.password || undefined,
-    tls,
-    enableOfflineQueue: false,
-    maxRetriesPerRequest: 1,
-    connectTimeout: 1000,
-    retryStrategy: (times) => Math.min(times * 200, 2000)
-  });
-  client.on('error', () => {});
-  return client;
-}
-
 export async function getSongQueue(broadcasterId: string): Promise<SongQueueDoc> {
-  const c = get();
+  const c = masterClient();
   if (!c) return {};
   try {
     const raw = await c.get(`songqueue:doc:${broadcasterId}`);

@@ -111,6 +111,8 @@ spec:
             - name: VALKEY_ADDR
               # Authoritative: Doppler's copy names a dead host, and explicit env beats envFrom.
               value: valkey-local.cache.svc.cluster.local:6380
+            - name: VALKEY_SENTINEL_ADDR
+              value: valkey.cache.svc.cluster.local:26380
             - name: VALKEY_TLS_SERVER_NAME
               value: valkey.cache.svc.cluster.local
             - name: VALKEY_TLS_CLIENT_CERT_FILE
