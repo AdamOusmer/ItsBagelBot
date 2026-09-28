@@ -25,20 +25,14 @@ import { listFetches, upsertFetchDef, deleteFetchDef } from '$lib/server/fetches
 import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '$lib/server/fetch-def-actions';
 import { auditDashboardImpersonation } from '$lib/server/services';
 import { logger } from '@bagel/kit/server/logger';
-import type { Session } from '$lib/server/session';
 import { actionError, actionErrorBody } from '$lib/server/action-errors';
 import { effectiveId } from '$lib/server/board';
+import { gateSection } from '$lib/server/module-gate';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { fail, redirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';
-
-function gateCommands(session: Session | null | undefined): void {
-  if (session?.delegate_of && !(session.sections ?? []).includes('commands')) {
-    throw redirect(302, '/');
-  }
-}
 
 function configString(configs: unknown, key: string): string {
   if (configs && typeof configs === 'object') {
@@ -73,7 +67,7 @@ function mergeCommands(custom: CommandView[], modules: ModuleView[]): CommandVie
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
-  gateCommands(locals.session);
+  gateSection(locals.session, 'commands');
   const uid = effectiveId(locals.session);
   if (DEMO) {
     const { demoCommandRows, demoFetches } = await import('$lib/server/demo-data');
@@ -134,7 +128,7 @@ function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): Comm
 }
 
 async function actionContext({ request, locals }: { request: Request; locals: App.Locals }) {
-  gateCommands(locals.session);
+  gateSection(locals.session, 'commands');
   if (!DEMO && !locals.session) return null;
   return {
     uid: effectiveId(locals.session),

@@ -2,10 +2,11 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { dev } from '$app/environment';
-import { redirect, type RequestEvent } from '@sveltejs/kit';
+import { fail, redirect, type ActionFailure, type RequestEvent } from '@sveltejs/kit';
 import { MODULE_CATALOG, betaLocked, moduleDef, moduleDelegateSections, type ModuleDef } from '@bagel/kit';
 import type { Session } from '$lib/server/session';
 import { accountState, type AccountState } from '$lib/server/services';
+import { actionError } from '$lib/server/action-errors';
 
 // process.env, not $env/dynamic/private: the dynamic-env proxy deadlocks server.init() at boot.
 const DEMO = dev && process.env.DEMO === '1';
@@ -14,6 +15,12 @@ export function delegateCanOpen(def: ModuleDef, session: Session | null | undefi
   if (!session?.delegate_of || !def.href) return true;
   const sections = session.sections ?? [];
   return moduleDelegateSections(def).some((sec) => sections.includes(sec));
+}
+
+export function gateSection(session: Session | null | undefined, section: string): void {
+  if (session?.delegate_of && !(session.sections ?? []).includes(section)) {
+    throw redirect(302, '/');
+  }
 }
 
 export function gateModulePage(session: Session | null | undefined, moduleId: string): void {
@@ -57,4 +64,13 @@ export async function assertModuleUnlocked(locals: App.Locals, def: ModuleDef): 
 
 export function assertModuleWritable(session: Session | null | undefined, def: ModuleDef): boolean {
   return !def.hidden && delegateCanOpen(def, session);
+}
+
+export async function moduleWriteDenial(
+  locals: App.Locals,
+  def: ModuleDef
+): Promise<ActionFailure<{ ok: false; error: string }> | null> {
+  if (!assertModuleWritable(locals.session, def)) return fail(403, { ok: false, error: actionError(locals.locale, 'Not allowed.') });
+  if (await moduleLocked(locals, def)) return fail(403, { ok: false, error: actionError(locals.locale, 'Premium only while in beta.') });
+  return null;
 }
