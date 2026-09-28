@@ -55,14 +55,20 @@ var errShutdownBudget = errors.New("shutdown budget exhausted")
 
 type closer interface{ Close(context.Context) error }
 
-func stopCounterIntake(ctx context.Context, log *zap.Logger, grouped bus.Subscriber, consumer *bus.ConcurrentConsumer, counters closer) {
-	if err := closeWithin(ctx, grouped.Close); err != nil {
+type counterIntake struct {
+	grouped  bus.Subscriber
+	consumer *bus.ConcurrentConsumer
+	counters closer
+}
+
+func (in counterIntake) stop(ctx context.Context, log *zap.Logger) {
+	if err := closeWithin(ctx, in.grouped.Close); err != nil {
 		log.Warn("loyalty: group subscriber shutdown failed", zap.Error(err))
 	}
-	if err := consumer.Drain(ctx); err != nil {
+	if err := in.consumer.Drain(ctx); err != nil {
 		log.Warn("loyalty: counter consumer shutdown failed", zap.Error(err))
 	}
-	if err := counters.Close(ctx); err != nil {
+	if err := in.counters.Close(ctx); err != nil {
 		log.Warn("loyalty: counter processor shutdown failed", zap.Error(err))
 	}
 }
@@ -87,8 +93,8 @@ func registerConsumers(ctx context.Context, nrApp *newrelic.Application, repo *r
 		handle  func(*bus.Message) error
 	}{
 		{"loyalty earned events", data.SubjectLoyaltyEarned, recordEarned(repo, log)},
-		{"user deleted events", data.SubjectUserDeleted, deleteAllForUser(repo, log)},
-		{"user lifecycle events", data.SubjectUserChanged, restoreUser(repo, log)},
+		{"user deleted events", data.SubjectUserDeleted, accountEvents(accountChange{"deletion", repo.DeleteAccount}, log)},
+		{"user lifecycle events", data.SubjectUserChanged, accountEvents(accountChange{"lifecycle", repo.RestoreUser}, log)},
 	}
 	for _, s := range subs {
 		if err := bus.Consume(ctx, nrApp, grouped, s.subject, s.handle, log); err != nil {
@@ -138,14 +144,20 @@ func recordBumps(repo counterProcessor, log *zap.Logger) func(*bus.Message) erro
 	}
 }
 
-func deleteAllForUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
+type accountChange struct {
+	payload string
+	apply   func(ctx context.Context, userID uint64, accountCreatedAt int64) error
+}
+
+// UserChangedDTO carries every UserDeletedDTO field under the same JSON names.
+func accountEvents(change accountChange, log *zap.Logger) func(*bus.Message) error {
 	return func(msg *bus.Message) error {
-		var dto data.UserDeletedDTO
+		var dto data.UserChangedDTO
 		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("loyalty: bad deletion payload", zap.Error(err))
+			log.Warn("loyalty: bad "+change.payload+" payload", zap.Error(err))
 			return nil
 		}
-		return repo.DeleteAccount(msg.Context(), dto.UserID, dto.AccountCreatedAt)
+		return change.apply(msg.Context(), dto.UserID, dto.AccountCreatedAt)
 	}
 }
 
@@ -180,7 +192,7 @@ func main() {
 	grouped, err := bus.NewSubscriber(core.NATSURL, serviceName, log)
 	svcboot.FatalIf(log, err, "failed to connect group subscriber")
 	var counterConsumer *bus.ConcurrentConsumer
-	defer func() { stopCounterIntake(shutdown, log, grouped, counterConsumer, counters) }()
+	defer func() { counterIntake{grouped, counterConsumer, counters}.stop(shutdown, log) }()
 
 	counterConsumer, err = registerConsumers(core.Ctx, core.NR, repo, counters, grouped, log)
 	svcboot.FatalIf(log, err, "failed to subscribe to events")
@@ -204,15 +216,4 @@ func main() {
 	)
 
 	core.Await()
-}
-
-func restoreUser(repo *repository.Loyalty, log *zap.Logger) func(*bus.Message) error {
-	return func(msg *bus.Message) error {
-		var dto data.UserChangedDTO
-		if err := codec.Unmarshal(msg.Payload, &dto); err != nil {
-			log.Warn("loyalty: bad lifecycle payload", zap.Error(err))
-			return nil
-		}
-		return repo.RestoreUser(msg.Context(), dto.UserID, dto.AccountCreatedAt)
-	}
 }

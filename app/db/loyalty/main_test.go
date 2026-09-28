@@ -84,7 +84,7 @@ func TestCounterIntakeStopsWithinOneShutdownBudget(t *testing.T) {
 	counters := blockingCloser{closed: make(chan struct{})}
 	stop()
 	started := time.Now()
-	stopCounterIntake(shutdown, zap.NewNop(), blockingSubscriber{}, nil, counters)
+	counterIntake{grouped: blockingSubscriber{}, counters: counters}.stop(shutdown, zap.NewNop())
 	assert.Less(t, time.Since(started), budget+time.Second)
 	require.ErrorIs(t, context.Cause(shutdown), errShutdownBudget)
 	select {

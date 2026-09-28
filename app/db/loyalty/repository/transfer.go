@@ -117,16 +117,22 @@ func (r *Loyalty) moveBalance(ctx context.Context, sender, recipient *ent.Balanc
 				if err := r.lockTransferRows(ctx, tx, sender.UserID, transferLockOrder(sender.ViewerID, recipient.ViewerID)); err != nil {
 					return err
 				}
-				return debitAndCredit(ctx, tx, sender.ID, recipient, amount)
+				return transferMove{senderID: sender.ID, recipient: recipient, amount: amount}.apply(ctx, tx)
 			})
 		})
 	})
 }
 
-func debitAndCredit(ctx context.Context, tx *ent.Tx, senderID int, recipient *ent.Balance, amount int64) error {
+type transferMove struct {
+	senderID  int
+	recipient *ent.Balance
+	amount    int64
+}
+
+func (m transferMove) apply(ctx context.Context, tx *ent.Tx) error {
 	updated, err := tx.Balance.Update().
-		Where(balance.IDEQ(senderID), balance.PointsGTE(amount)).
-		AddPoints(-amount).
+		Where(balance.IDEQ(m.senderID), balance.PointsGTE(m.amount)).
+		AddPoints(-m.amount).
 		Save(ctx)
 	if err != nil {
 		return err
@@ -134,7 +140,7 @@ func debitAndCredit(ctx context.Context, tx *ent.Tx, senderID int, recipient *en
 	if updated == 0 {
 		return errInsufficient
 	}
-	return creditTransfer(ctx, tx, recipient, amount)
+	return creditTransfer(ctx, tx, m.recipient, m.amount)
 }
 
 // Opposite transfers must lock the same rows in the same order, or MySQL aborts one with 1213.
