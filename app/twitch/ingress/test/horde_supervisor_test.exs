@@ -187,23 +187,27 @@ defmodule Ingress.HordeSupervisorTest do
   defp unique_name(label),
     do: Module.concat(__MODULE__, label <> Integer.to_string(System.unique_integer([:positive])))
 
-  defp await_members(supervisors, attempts \\ 100)
-  defp await_members(_, 0), do: flunk("Horde member metadata failed to converge")
+  defp await_members(supervisors),
+    do: await_members(supervisors, System.monotonic_time(:millisecond) + 10_000)
 
-  defp await_members(supervisors, attempts) do
-    ready =
-      Enum.all?(supervisors, fn supervisor ->
-        state = :sys.get_state(supervisor)
+  defp await_members(supervisors, deadline_ms) do
+    views = Enum.map(supervisors, &:sys.get_state(&1).members_info)
 
-        map_size(state.members_info) == 2 and
-          Enum.all?(state.members_info, fn {_, member} -> member.status == :alive end)
-      end)
+    cond do
+      Enum.all?(views, &all_alive?/1) ->
+        :ok
 
-    if ready do
-      :ok
-    else
-      Process.sleep(10)
-      await_members(supervisors, attempts - 1)
+      System.monotonic_time(:millisecond) > deadline_ms ->
+        flunk("Horde member metadata failed to converge: #{inspect(views)}")
+
+      true ->
+        Process.sleep(10)
+        await_members(supervisors, deadline_ms)
     end
   end
+
+  defp all_alive?(members_info),
+    do:
+      map_size(members_info) == 2 and
+        Enum.all?(members_info, fn {_, member} -> member.status == :alive end)
 end
