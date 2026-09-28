@@ -1,8 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, expect, test } from 'bun:test';
-import { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, flagsFromRows } from './module-flags';
+import { describe, expect, mock, test } from 'bun:test';
+
+mock.module('$app/environment', () => ({ dev: false }));
+
+const { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, flagsFromRows } = await import('./module-flags');
 
 describe('flagsFromRows([]): the "no rows at all" reading', () => {
   test('an opt-in module with no row is off (OptInView: missing row = off)', () => {

@@ -4,6 +4,12 @@
 name: Console Test
 
 on:
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'web/**'
+      - 'ui/**'
+      - '.github/workflows/console-test.yml'
   push:
     branches: [ "main" ]
     paths:
