@@ -1,9 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-import { filterSelectOptions, nextEnabledOption, normalizeSelectQuery, type SelectOption } from './select';
+import { filterSelectOptions, nextEnabledOption, normalizeSelectQuery, optionIndexAt, type SelectOption } from './select';
+import { naturalHeight, placeDropdown, type DropdownPlacement } from './dropdown-placement';
 import { pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains } from './overlay-stack';
 
 let sequence = 0;
+const MAX_HEIGHT_PX = 380;
 
 function searchGlyph(clear = false): SVGSVGElement {
   const namespace = 'http://www.w3.org/2000/svg';
@@ -93,18 +95,16 @@ function appendOptionText(item: HTMLLIElement, option: SelectOption): void {
 interface OptionRenderContext {
   id: string;
   selected: string;
-  activate: (index: number) => void;
   pick: (option: SelectOption) => void;
 }
 
 function createOptionItem(option: SelectOption, index: number, context: OptionRenderContext): HTMLLIElement {
-  const { id, selected, activate, pick } = context;
+  const { id, selected, pick } = context;
   const item = document.createElement('li');
-  item.id = `${id}-option-${index}`; item.className = 'bb-select__option';
+  item.id = `${id}-option-${index}`; item.className = 'bb-select__option'; item.dataset.index = String(index);
   item.setAttribute('role', 'option'); item.setAttribute('aria-selected', String(option.value === selected));
   if (option.disabled) item.setAttribute('aria-disabled', 'true');
   appendOptionText(item, option);
-  item.addEventListener('pointerenter', () => { if (!option.disabled) activate(index); });
   item.addEventListener('click', () => pick(option));
   return item;
 }
@@ -154,14 +154,24 @@ function mountMobilePanel(panel: HTMLDivElement, label: string, close: () => voi
   return { shell, overlayId };
 }
 
+function applyPlacement(panel: HTMLElement, { left, width, maxHeight, top, bottom }: DropdownPlacement): void {
+  Object.assign(panel.style, {
+    left: `${left}px`, width: `${width}px`, maxHeight: `${maxHeight}px`,
+    top: top === undefined ? '' : `${top}px`, bottom: bottom === undefined ? '' : `${bottom}px`,
+  });
+}
+
 function mountDesktopPanel(panel: HTMLDivElement, trigger: HTMLButtonElement): void {
-  const rect = trigger.getBoundingClientRect();
-  const width = Math.min(Math.max(rect.width, 260), window.innerWidth - 16);
-  const height = Math.min(380, window.innerHeight - 16);
-  panel.classList.add('bb-picker-panel--dropdown'); panel.style.width = `${width}px`; panel.style.maxHeight = `${height}px`;
-  panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
-  panel.style.top = `${rect.bottom + 8 + height <= window.innerHeight ? rect.bottom + 8 : Math.max(8, rect.top - height - 8)}px`;
+  panel.classList.add('bb-picker-panel--dropdown');
   document.body.append(panel);
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  applyPlacement(panel, placeDropdown(trigger.getBoundingClientRect(), viewport, MAX_HEIGHT_PX, (width) => naturalHeight(panel, width)));
+}
+
+function createList(id: string, label: string, searchable: boolean): HTMLUListElement {
+  const list = document.createElement('ul'); list.id = `${id}-list`; list.className = 'bb-select__list';
+  list.setAttribute('role', 'listbox'); list.setAttribute('aria-label', label); list.tabIndex = searchable ? -1 : 0;
+  return list;
 }
 
 function createSearch(root: HTMLElement, panel: HTMLDivElement, id: string, render: () => void): { input: HTMLInputElement; clear: HTMLButtonElement } {
@@ -206,6 +216,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   const searchable = root.hasAttribute('data-searchable');
   let typeahead = '';
   let typedAt = 0;
+  let pointer: { x: number; y: number } | undefined;
 
   function options(includeFallback = false): SelectOption[] {
     return Array.from(native!.options)
@@ -251,21 +262,47 @@ export function enhanceAstroSelect(root: HTMLElement): void {
     }
   }
 
-  function activate(index: number) {
+  function activate(index: number, reveal = true) {
     active = index;
     if (!list) return;
     list.querySelectorAll<HTMLElement>('[role="option"]').forEach((item, i) => item.classList.toggle('active', i === active));
     const focus = input ?? list;
-    if (active < 0) focus.removeAttribute('aria-activedescendant');
-    else {
-      const activeId = `${id}-option-${active}`;
-      focus.setAttribute('aria-activedescendant', activeId);
-      document.getElementById(activeId)?.scrollIntoView({ block: 'nearest' });
+    if (active < 0) {
+      focus.removeAttribute('aria-activedescendant');
+      return;
     }
+    const activeId = `${id}-option-${active}`;
+    focus.setAttribute('aria-activedescendant', activeId);
+    if (reveal) revealOption(activeId);
+  }
+
+  function revealOption(optionId: string) {
+    pointer = undefined;
+    document.getElementById(optionId)?.scrollIntoView({ block: 'nearest' });
+  }
+
+  function hoverAt(target: EventTarget | null) {
+    const index = list ? optionIndexAt(list, target) : -1;
+    if (index >= 0 && !matches[index].disabled) activate(index, false);
+  }
+
+  function trackPointer(event: PointerEvent) {
+    pointer = event.pointerType === 'touch' ? undefined : { x: event.clientX, y: event.clientY };
+    hoverAt(event.target);
+  }
+
+  function followPointer() {
+    if (pointer) hoverAt(document.elementFromPoint(pointer.x, pointer.y));
+  }
+
+  function followHover(scroller: HTMLElement, options: HTMLUListElement) {
+    options.addEventListener('pointermove', trackPointer);
+    options.addEventListener('pointerleave', () => { pointer = undefined; });
+    scroller.addEventListener('scroll', followPointer, { passive: true });
   }
 
   function appendChoices(target: HTMLUListElement) {
-    const context: OptionRenderContext = { id, selected: native!.value, activate, pick };
+    const context: OptionRenderContext = { id, selected: native!.value, pick };
     let group: string | undefined;
     for (const [index, option] of matches.entries()) {
       appendGroupHeading(target, option.group, group);
@@ -363,14 +400,15 @@ export function enhanceAstroSelect(root: HTMLElement): void {
     sync();
     if (trigger.disabled) return;
     panel = createPanel(label, keydown);
+    if (searchable) ({ input, clear } = createSearch(root, panel, id, renderOptions));
+    list = createList(id, label, searchable);
+    panel.append(list); renderOptions();
     const mobile = window.matchMedia('(max-width: 639px)').matches;
     if (mobile) ({ shell, overlayId } = mountMobilePanel(panel, label, () => close()));
     else mountDesktopPanel(panel, trigger);
     unregisterAnchor = registerOverlayAnchor(shell ?? panel, trigger);
-    if (searchable) ({ input, clear } = createSearch(root, panel, id, renderOptions));
-    list = document.createElement('ul'); list.id = `${id}-list`; list.className = 'bb-select__list';
-    list.setAttribute('role', 'listbox'); list.setAttribute('aria-label', label); list.tabIndex = searchable ? -1 : 0;
-    panel.append(list); renderOptions();
+    followHover(panel, list);
+    activate(active);
     trigger.setAttribute('aria-expanded', 'true'); trigger.setAttribute('aria-controls', list.id);
     if (mobile) focusTrap = trapFocus(panel);
     (input ?? list).focus();
