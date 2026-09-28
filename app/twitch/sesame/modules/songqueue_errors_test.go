@@ -50,18 +50,24 @@ var songQueueFailureCases = []songQueueFailureCase{
 
 func songQueueFailureReply(t *testing.T, tc songQueueFailureCase, g engine.GossipCaller) string {
 	t.Helper()
-	return songQueueFailureReplyLogged(t, tc, g, zap.NewNop(), "")
+	return songQueueFailureReplyLogged(t, tc, songQueueFailureRun{gossip: g, log: zap.NewNop()})
 }
 
-func songQueueFailureReplyLogged(t *testing.T, tc songQueueFailureCase, g engine.GossipCaller, log *zap.Logger, locale string) string {
+type songQueueFailureRun struct {
+	gossip engine.GossipCaller
+	log    *zap.Logger
+	locale string
+}
+
+func songQueueFailureReplyLogged(t *testing.T, tc songQueueFailureCase, run songQueueFailureRun) string {
 	t.Helper()
 	pending := []engine.SongEntry{{TrackID: "t0", Title: "Existing request", RequesterID: "7"}}
 	store := &fakeSongQueue{up: append([]engine.SongEntry(nil), pending...)}
-	deps := songDeps(store, g)
-	deps.Log = log
+	deps := songDeps(store, run.gossip)
+	deps.Log = run.log
 	m := SongQueue(deps)
 	c := songCtx("42", "Cardistry", "moderator")
-	c.Locale = locale
+	c.Locale = run.locale
 	var text string
 	if tc.command == "sr" {
 		text = chatText(t, runSR(t, m, c, "Human"))
@@ -144,7 +150,7 @@ func TestSongQueueHiddenSpotifyFailuresAreLogged(t *testing.T) {
 			base.replies["spotify."+tc.endpoint] = map[string]string{"error": sensitive}
 			for _, g := range []engine.GossipCaller{songQueueFailureGossip(tc, failure), base} {
 				core, logs := observer.New(zap.WarnLevel)
-				text := songQueueFailureReplyLogged(t, tc, g, zap.New(core), "")
+				text := songQueueFailureReplyLogged(t, tc, songQueueFailureRun{gossip: g, log: zap.New(core)})
 				assert.Contains(t, text, "music lookup is down")
 				assert.True(t, loggedRefusal(logs, sensitive), "a hidden failure must be logged with the channel")
 			}
@@ -166,7 +172,7 @@ func TestSongQueueGenericRepliesExpandPlaceholders(t *testing.T) {
 	for _, locale := range []string{"en", "fr"} {
 		for _, tc := range songQueueFailureCases {
 			t.Run(locale+"/"+tc.endpoint, func(t *testing.T) {
-				text := songQueueFailureReplyLogged(t, tc, songQueueFailureGossip(tc, transport), zap.NewNop(), locale)
+				text := songQueueFailureReplyLogged(t, tc, songQueueFailureRun{gossip: songQueueFailureGossip(tc, transport), log: zap.NewNop(), locale: locale})
 				assert.NotContains(t, text, "{")
 				assert.Contains(t, text, "@Cardistry")
 			})

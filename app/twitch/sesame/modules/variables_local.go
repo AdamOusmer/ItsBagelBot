@@ -72,45 +72,51 @@ func commandContextVariables(_ context.Context, c *module.Context) (map[string]s
 }
 
 func followageVariables(d engine.Deps) variableRead {
-	return func(ctx context.Context, c *module.Context) (map[string]string, error) {
-		values, _ := commandContextVariables(ctx, c)
-		if d.Followage == nil {
-			return values, nil
-		}
-		result, err := d.Followage.Lookup(ctx, c.Env.BroadcasterUserID, c.Env.ChatterUserID, c.Env.ChatterUserLogin)
-		if err != nil {
-			return nil, err
-		}
-		if !result.UserFound {
-			return values, nil
-		}
-		if !result.Following {
-			return values, nil
-		}
-		addAgeVariables(values, c, result.FollowedAt, ageVariableFields{duration: "followage", date: "followedat"})
-		return values, nil
-	}
+	return ageVariables(d, ageVariableFields{duration: "followage", date: "followedat", since: followedAt})
 }
 
 func accountageVariables(d engine.Deps) variableRead {
+	return ageVariables(d, ageVariableFields{duration: "accountage", date: "createdat", since: accountCreatedAt})
+}
+
+type ageVariableFields struct {
+	duration, date string
+	since          func(context.Context, engine.Deps, *module.Context) (time.Time, error)
+}
+
+func ageVariables(d engine.Deps, fields ageVariableFields) variableRead {
 	return func(ctx context.Context, c *module.Context) (map[string]string, error) {
 		values, _ := commandContextVariables(ctx, c)
-		if d.AccountAge == nil {
-			return values, nil
-		}
-		result, err := d.AccountAge.Lookup(ctx, c.Env.ChatterUserID, c.Env.ChatterUserLogin)
+		at, err := fields.since(ctx, d, c)
 		if err != nil {
 			return nil, err
 		}
-		if !result.UserFound {
-			return values, nil
-		}
-		addAgeVariables(values, c, result.CreatedAt, ageVariableFields{duration: "accountage", date: "createdat"})
+		addAgeVariables(values, c, at, fields)
 		return values, nil
 	}
 }
 
-type ageVariableFields struct{ duration, date string }
+func followedAt(ctx context.Context, d engine.Deps, c *module.Context) (time.Time, error) {
+	if d.Followage == nil {
+		return time.Time{}, nil
+	}
+	result, err := d.Followage.Lookup(ctx, c.Env.BroadcasterUserID, c.Env.ChatterUserID, c.Env.ChatterUserLogin)
+	if !result.UserFound || !result.Following {
+		return time.Time{}, err
+	}
+	return result.FollowedAt, err
+}
+
+func accountCreatedAt(ctx context.Context, d engine.Deps, c *module.Context) (time.Time, error) {
+	if d.AccountAge == nil {
+		return time.Time{}, nil
+	}
+	result, err := d.AccountAge.Lookup(ctx, c.Env.ChatterUserID, c.Env.ChatterUserLogin)
+	if !result.UserFound {
+		return time.Time{}, err
+	}
+	return result.CreatedAt, err
+}
 
 func addAgeVariables(values map[string]string, c *module.Context, at time.Time, fields ageVariableFields) {
 	if at.IsZero() {
@@ -244,11 +250,12 @@ func loyaltyVariables(d engine.Deps) variableRead {
 		}
 		var cfg engine.LoyaltyModuleConfig
 		_ = c.Decode(&cfg)
-		watchtime := watchTime(c.Locale, balance.WatchSeconds)
+		watch := watchSeconds(balance.WatchSeconds)
+		watchtime := watch.humanize(c)
 		return map[string]string{
 			"points": i64(balance.Points), "pointsname": cfg.Name(), "watchtime": watchtime,
 			"duration": watchtime, "user": c.Env.ChatterUserLogin, "name": cfg.Name(),
-			"hours": watchHours(balance.WatchSeconds),
+			"hours": watch.hours(),
 		}, nil
 	}
 }
