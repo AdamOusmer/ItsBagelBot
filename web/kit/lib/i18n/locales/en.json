@@ -1138,6 +1138,7 @@
     "usage": "Usage",
     "preview": "Preview",
     "access": "Access",
+    "saveAccess": "Save access",
     "cooldown": "Cooldown",
     "replyMessage": "Reply message",
     "replyHint": "Leave blank for the default. {clip} = the clip link, {user} = the clipper, {target} = the title.",
