@@ -9,16 +9,18 @@
   let {
     commands,
     moduleId,
-    headingId = 'module-cmds-h'
+    headingId = 'module-cmds-h',
+    sectionId = undefined as string | undefined
   }: {
     commands: readonly ModuleCommandInfo[];
     moduleId: string;
     headingId?: string;
+    sectionId?: string;
   } = $props();
 </script>
 
 {#if commands.length}
-  <div class="section-head cmd-head">
+  <div class="section-head cmd-head" id={sectionId} tabindex="-1">
     <h2 id={headingId} class="section-title">{t('modules.commandsTitle')}</h2>
     <span class="cmd-head-hint">{t('modules.commandsHint')}</span>
   </div>
@@ -45,6 +47,8 @@
     letter-spacing: 0.02em;
     color: var(--bb-tan);
   }
+  .cmd-head { scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 56px); }
+  .cmd-head:focus { outline: none; }
   .cmd-head { flex-direction: column; align-items: flex-start; gap: 2px; }
   .cmd-head-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
 

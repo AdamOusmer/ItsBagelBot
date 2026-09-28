@@ -59,6 +59,7 @@ export const load: PageServerLoad = ({ locals }) => {
 
 function resultFail(r: Extract<GoveeResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
+  if (r.code) return fail(400, { ok: false, code: r.code });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
 }
 

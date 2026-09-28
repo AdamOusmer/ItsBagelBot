@@ -38,6 +38,7 @@
     </button>
   {/each}
   <span class="glide" class:hidden={current < 0} aria-hidden="true"></span>
+  <span class="compact" aria-hidden="true">{labels[current] ?? ''}</span>
 </nav>
 
 <style>
@@ -145,8 +146,22 @@
 
   .glide.hidden { opacity: 0; }
 
+  .compact {
+    display: none;
+    min-height: 44px;
+    align-items: center;
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bb-tan-pale);
+  }
+
   @media (max-width: 760px) {
-    .rail { --cell: clamp(25px, 8vw, 34px); }
+    .idx,
+    .track,
+    .glide { display: none; }
+    .compact { display: flex; }
   }
 
   @media (prefers-reduced-motion: reduce) {

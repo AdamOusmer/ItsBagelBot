@@ -1,59 +1,33 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
-  import { Field, Button, getI18n } from '@bagel/kit';
-  import { focusFirstInvalid } from '@bagel/kit';
+  import { Field, getI18n } from '@bagel/kit';
 
   let {
     draft = $bindable<{ text: string; quoteDate: string }>(),
-    number = null,
-    busy = false,
-    onCancel,
-    onSubmit
+    attempted = false,
+    addedBy = ''
   }: {
     draft: { text: string; quoteDate: string };
-    number?: number | null;
-    busy?: boolean;
-    onCancel: () => void;
-    onSubmit: SubmitFunction;
+    attempted?: boolean;
+    addedBy?: string;
   } = $props();
 
   const { t } = getI18n();
   const MAX = 450;
 
-  const editing = $derived(number !== null);
-  let attempted = $state(false);
-  let formEl = $state<HTMLFormElement | null>(null);
-  const textError = $derived(attempted && !draft.text.trim() ? t('quotes.errText') : undefined);
-  const dayError = $derived(
-    attempted && !/^\d{4}-\d{2}-\d{2}$/.test(draft.quoteDate) ? t('quotes.errDay') : undefined
+  let touched = $state({ text: false, day: false });
+  const textError = $derived(
+    (attempted || touched.text) && !draft.text.trim() ? t('quotes.errText') : undefined
   );
-
-  const submit: SubmitFunction = (input) => {
-    attempted = true;
-    if (!draft.text.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(draft.quoteDate)) {
-      input.cancel();
-      void focusFirstInvalid(formEl);
-      return;
-    }
-    return onSubmit(input);
-  };
+  const dayError = $derived(
+    (attempted || touched.day) && !/^\d{4}-\d{2}-\d{2}$/.test(draft.quoteDate)
+      ? t('quotes.errDay')
+      : undefined
+  );
 </script>
 
-<form
-  method="POST"
-  action={editing ? '?/edit' : '?/add'}
-  class="editor"
-  novalidate
-  use:enhance={submit}
-  bind:this={formEl}
->
-  {#if editing}
-    <input type="hidden" name="number" value={number} />
-  {/if}
-
+<div class="editor">
   <Field label={t('quotes.fieldQuote')} error={textError} errorId="quote-text-err">
     <textarea
       class="bb-input quote-area"
@@ -66,6 +40,7 @@
       aria-describedby={textError ? 'quote-text-err' : undefined}
       rows="4"
       bind:value={draft.text}
+      onblur={() => (touched.text = true)}
     ></textarea>
     <small class="counter">{draft.text.length}/{MAX}</small>
   </Field>
@@ -80,22 +55,21 @@
       aria-invalid={dayError ? 'true' : undefined}
       aria-describedby={dayError ? 'quote-day-hint quote-day-err' : 'quote-day-hint'}
       bind:value={draft.quoteDate}
+      onblur={() => (touched.day = true)}
     />
     <small id="quote-day-hint" class="hint">{t('quotes.fieldDayHint')}</small>
   </Field>
 
-  <div class="actions">
-    <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
-    <Button variant="primary" type="submit" loading={busy}>
-      {editing ? t('quotes.editBtn') : t('quotes.addBtn')}
-    </Button>
-  </div>
-</form>
+  {#if addedBy}
+    <p class="added-by">{t('quotes.addedBy')} @{addedBy}</p>
+  {/if}
+</div>
 
 <style>
   .editor { padding: 4px 2px 2px; }
   .counter { display: block; text-align: right; color: var(--bb-muted); opacity: 0.7; font-size: 11px; margin-top: 4px; }
   .hint { display: block; color: var(--bb-muted); opacity: 0.7; font-size: 11px; margin-top: 4px; }
+  .added-by { margin: 8px 0 0; font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); }
 
   .quote-area,
   .date-input {
@@ -109,10 +83,4 @@
   }
   .quote-area { resize: vertical; min-height: 92px; line-height: 1.5; }
   .date-input { color-scheme: dark; }
-
-  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
-  @media (max-width: 480px) {
-    .actions { flex-direction: column-reverse; }
-    .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
-  }
 </style>

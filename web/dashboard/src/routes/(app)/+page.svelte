@@ -6,7 +6,6 @@
   import { visibleEventSource } from '$lib/visible-stream';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
-  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Modal from '@bagel/ui/svelte/Modal.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
@@ -24,6 +23,7 @@
   import TopCommands from '$lib/components/overview/TopCommands.svelte';
   import SetupProgress from '$lib/components/overview/SetupProgress.svelte';
   import StreamSection from '$lib/components/overview/StreamSection.svelte';
+  import RetryButton from '$lib/components/overview/RetryButton.svelte';
   import ActivityLog from '$lib/components/overview/ActivityLog.svelte';
   import AnsweredTonight from '$lib/components/overview/AnsweredTonight.svelte';
   import { livePoll } from '@bagel/kit/live-poll';
@@ -34,13 +34,7 @@
     connectionPollSettled,
     type ConnectionPollGoal
   } from '$lib/connection-poll';
-  import type {
-    StreamMeta,
-    StreamCounters,
-    ChatVolume,
-    ActivityFeed,
-    AnsweredTonight as AnsweredDigest
-  } from '$lib/overview-live';
+  import { LIVE_STALE_MS, isFreshChannel, mergeLive, type LiveLanes } from '$lib/overview-live';
   let { data } = $props();
 
   const { t } = getI18n();
@@ -71,28 +65,42 @@
     greeting = greetingForHour(new Date().getHours());
   });
 
+  const NOW_TICK_MS = 15_000;
   let now = $state(Date.now());
   onMount(() => {
-    const id = setInterval(() => (now = Date.now()), 1000);
+    const id = setInterval(() => (now = Date.now()), NOW_TICK_MS);
     return () => clearInterval(id);
   });
 
-  let live = $state<{
-    stream: StreamMeta;
-    counters: StreamCounters;
-    volume: ChatVolume;
-    feed: ActivityFeed;
-    answered: AnsweredDigest;
-  } | null>(null);
+  let live = $state<LiveLanes>({});
+  let liveStale = $state(false);
+  let staleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function armStale() {
+    clearTimeout(staleTimer);
+    staleTimer = setTimeout(() => (liveStale = true), LIVE_STALE_MS);
+  }
+
+  function onLiveFrame(raw: string) {
+    try {
+      live = mergeLive(live, JSON.parse(raw));
+    } catch {
+      return;
+    }
+    liveStale = false;
+    armStale();
+  }
+
   onMount(() => {
     if (typeof EventSource === 'undefined' || isDelegate) return;
-    return visibleEventSource('/overview/stream', (es) => {
-      es.addEventListener('live', (e) => {
-        try {
-          live = JSON.parse((e as MessageEvent).data);
-        } catch {}
-      });
+    armStale();
+    const stop = visibleEventSource('/overview/stream', (es) => {
+      es.addEventListener('live', (e) => onLiveFrame((e as MessageEvent).data));
     });
+    return () => {
+      stop();
+      clearTimeout(staleTimer);
+    };
   });
 
   type PendingAction = 'restart' | 'disconnect' | null;
@@ -241,17 +249,23 @@
     />
   {/await}
 
-  {#await Promise.all([data.stream, data.counters, data.volume])}
-    <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
-      <span class="bb-sr-only">{t('overview.checking')}</span>
-      <SkeletonStack rows={1} height="260px" />
+  {#await Promise.all([data.stream, data.counters, data.volume, data.commands, data.conn, data.modules])}
+    <section class="ov-loading" aria-busy="true" aria-label={t('overview.loadingStream')}>
+      <span class="bb-sr-only">{t('overview.loadingStream')}</span>
+      <SkeletonStack rows={1} height="316px" />
     </section>
-  {:then [meta, counters, volume]}
+  {:then [meta, counters, volume, cd, c, md]}
+    {@const fresh = isFreshChannel(meta, cd)}
+    {#if fresh}
+      {@render setup(c, cd.total > 0, md.on > 0)}
+    {/if}
     <StreamSection
-      meta={live?.stream ?? meta}
-      counters={live?.counters ?? counters}
-      volume={live?.volume ?? volume}
+      meta={live.stream ?? meta}
+      counters={live.counters ?? counters}
+      volume={live.volume ?? volume}
       {now}
+      stale={liveStale}
+      slim={fresh}
     />
   {/await}
 
@@ -260,7 +274,7 @@
       {#await data.feed}
         <Skeleton variant="block" height="420px" />
       {:then feed}
-        <ActivityLog feed={live?.feed ?? feed} />
+        <ActivityLog feed={live.feed ?? feed} stale={liveStale} />
       {/await}
     {/snippet}
 
@@ -268,7 +282,7 @@
       {#await data.answered}
         <Skeleton variant="block" height="260px" />
       {:then answered}
-        <AnsweredTonight answered={live?.answered ?? answered} />
+        <AnsweredTonight answered={live.answered ?? answered} />
       {/await}
 
       {#await Promise.all([data.commands, data.shares]) then [cd, sh]}
@@ -297,18 +311,14 @@
     {/snippet}
   </OverviewGrid>
 
-  {#await data.conn}
-    <QuickActions />
-  {:then c}
-    <QuickActions needsAttention={liveUi(c).kind !== 'online'} />
-  {/await}
+  <QuickActions />
 
-  {#await Promise.all([data.commands, data.conn, data.modules])}
-    <section class="ov-loading" aria-busy="true" aria-label={t('overview.checking')}>
-      <span class="bb-sr-only">{t('overview.checking')}</span>
+  {#await Promise.all([data.commands, data.conn, data.modules, data.stream])}
+    <section class="ov-loading" aria-busy="true" aria-label={t('overview.loadingCommands')}>
+      <span class="bb-sr-only">{t('overview.loadingCommands')}</span>
       <SkeletonStack rows={3} height="52px" />
     </section>
-  {:then [cd, c, md]}
+  {:then [cd, c, md, meta]}
     {#if !cd.ok}
       <section class="ov-top" aria-labelledby="ov-cmd-h">
         <h2 id="ov-cmd-h" class="ov-section-h">{t('overview.topCommands')}</h2>
@@ -318,17 +328,21 @@
               <b>{t('overview.commandsUnavailable')}</b>
               <Text as="span" size="sm" tone="muted">{t('overview.commandsUnavailableDesc')}</Text>
             </p>
-            <ButtonLink href="/" variant="ghost" class="ov-cta">{t('overview.retry')}</ButtonLink>
+            <RetryButton class="ov-cta" />
           </div>
         </Card>
       </section>
     {:else if cd.top.length}
       <TopCommands top={cd.top} />
-    {:else}
-      <SetupProgress receiving={liveUi(c).live} hasCommands={cd.total > 0} modulesOn={md.on > 0} />
+    {:else if !isFreshChannel(meta, cd)}
+      {@render setup(c, cd.total > 0, md.on > 0)}
     {/if}
   {/await}
 </section>
+
+{#snippet setup(c: Conn, hasCommands: boolean, modulesOn: boolean)}
+  <SetupProgress receiving={liveUi(c).live} {hasCommands} {modulesOn} />
+{/snippet}
 
 <Modal open={pending !== null} title={modalTitle} closeModal={closeModal}>
   {#if pending !== null}

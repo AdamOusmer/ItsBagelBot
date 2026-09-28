@@ -1,188 +1,137 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/kit';
-  import { namespaceReplyTemplate, namespaceReplySamples, moduleDef } from '@bagel/kit';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
-  import { Button, Code, Field, EditorFooter, Switch, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
+  import { Select, namespaceReplySamples, Button, Code, Field, Switch, getI18n, type GoveeDevice } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-  import { focusFirstInvalid } from '@bagel/kit';
+  import DurationField from '$lib/components/shared/DurationField.svelte';
+  import { GOVEE_COOLDOWN_MAX, goveeErrors, type GoveeDraft, type GoveeErrorField } from './govee-draft';
 
   let {
-    device,
-    binding,
+    draft = $bindable<GoveeDraft>(),
     colors,
+    canDelete,
     busy = false,
-    onSubmit,
-    onCancel,
+    attempted = false,
     onRequestDelete
   }: {
-    device: GoveeDevice;
-    binding: GoveeBinding | null;
+    draft: GoveeDraft;
     colors: string[];
+    canDelete: boolean;
     busy?: boolean;
-    onSubmit: SubmitFunction;
-    onCancel: () => void;
+    attempted?: boolean;
     onRequestDelete: () => void;
   } = $props();
 
   const { t } = getI18n();
 
   const DEFAULT_REPLY = '@{govee:user} set the lights to {govee:color}!';
-  const reply = moduleDef('govee')!.replies.find((reply) => reply.key === 'reply')!;
   const replySamples: Record<string, string> = namespaceReplySamples('govee', { user: 'sesame_sam', input: 'blue', color: 'Blue' });
 
-  // svelte-ignore state_referenced_locally
-  const reward = binding?.reward ?? null;
-  // svelte-ignore state_referenced_locally
-  const isNew = !binding?.rewardId;
-
-  // svelte-ignore state_referenced_locally
-  let title = $state(reward?.title || t('govee.defaultTitle', { name: device.name || t('govee.theLights') }));
-  // svelte-ignore state_referenced_locally
-  let cost = $state(reward?.cost ?? 500);
-  // svelte-ignore state_referenced_locally
-  let color = $state(reward?.color || '#9147ff');
-  // svelte-ignore state_referenced_locally
-  let cooldown = $state(reward?.cooldown ?? 0);
-  // svelte-ignore state_referenced_locally
-  let onRedeem = $state<string>(binding?.onRedeem ?? 'fulfill');
-  // svelte-ignore state_referenced_locally
-  let replyMessage = $state(namespaceReplyTemplate('govee', reply, binding?.replyMessage ?? ''));
-  // svelte-ignore state_referenced_locally
-  let allowOff = $state(binding?.allowOff ?? false);
-  // svelte-ignore state_referenced_locally
-  let liveOnly = $state(!binding?.allowOffline);
-
-  const TITLE_ERR_ID = 'govee-title-err';
-  let titleError = $state<string | undefined>(undefined);
-  let formEl = $state<HTMLFormElement | null>(null);
-
-  const submit: SubmitFunction = (input) => {
-    titleError = title.trim() ? undefined : t('govee.errTitleRequired');
-    if (titleError) {
-      input.cancel();
-      void focusFirstInvalid(formEl);
-      return;
-    }
-    replyMessage = namespaceReplyTemplate('govee', reply, replyMessage);
-    input.formData.set('replyMessage', replyMessage);
-    return onSubmit(input);
-  };
+  const errors = $derived(goveeErrors(draft));
+  const shown = (field: GoveeErrorField) => (attempted && errors[field] ? t(errors[field]!) : undefined);
+  const titleError = $derived(shown('title'));
+  const costError = $derived(shown('cost'));
+  const cooldownError = $derived(shown('cooldown'));
 </script>
 
-<form method="POST" action="?/saveReward" class="editor" novalidate use:enhance={submit} bind:this={formEl}>
-  <input type="hidden" name="device" value={device.device} />
-  <input type="hidden" name="sku" value={device.sku} />
-  <input type="hidden" name="deviceName" value={device.name} />
-
+<div class="editor">
   <p class="hint">
     {t('govee.editorHintNames')} <Code>{colors.join(', ')}</Code>. {t('govee.editorHintHex')} <Code>#00ccff</Code>.
   </p>
 
-  <Field label={t('govee.fieldTitle')}>
+  <Field label={t('govee.fieldTitle')} error={titleError} errorId="govee-title-err">
     <input
-      class="input"
+      class="bb-input"
       type="text"
-      name="title"
       maxlength="45"
-      bind:value={title}
+      bind:value={draft.title}
+      data-invalid={titleError ? '' : undefined}
       aria-invalid={titleError ? 'true' : undefined}
-      aria-describedby={titleError ? TITLE_ERR_ID : undefined}
+      aria-describedby={titleError ? 'govee-title-err' : undefined}
       required
     />
-    {#if titleError}<small id={TITLE_ERR_ID} class="field-error" role="alert">{titleError}</small>{/if}
   </Field>
 
   <div class="field-row">
-    <Field label={t('govee.fieldCost')}>
-      <input class="input" type="number" name="cost" min="1" max="10000000" bind:value={cost} required />
+    <div class="field-grow">
+    <Field label={t('govee.fieldCost')} error={costError} errorId="govee-cost-err">
+      <input
+        class="bb-input"
+        type="number"
+        min="1"
+        max="10000000"
+        bind:value={draft.cost}
+        data-invalid={costError ? '' : undefined}
+        aria-invalid={costError ? 'true' : undefined}
+        aria-describedby={costError ? 'govee-cost-err' : undefined}
+        required
+      />
     </Field>
+    </div>
     <label class="color-field">
       <span class="color-label">{t('govee.fieldColor')}</span>
       <span class="color-row">
-        <input class="color-in" type="color" name="color" bind:value={color} />
-        <span class="color-hex">{color}</span>
+        <input class="color-in" type="color" bind:value={draft.color} />
+        <span class="color-hex">{draft.color}</span>
       </span>
     </label>
   </div>
 
-  <Field label={t('govee.fieldCooldown')} tag={t('govee.fieldCooldownTag')}>
-    <input class="input" type="number" name="cooldown" min="0" max="604800" bind:value={cooldown} />
+  <Field label={t('govee.fieldCooldown')} tag={t('govee.fieldCooldownTag')} error={cooldownError} errorId="govee-cooldown-err">
+    <DurationField
+      bind:value={draft.cooldown}
+      min={0}
+      max={GOVEE_COOLDOWN_MAX}
+      label={t('govee.fieldCooldown')}
+      invalid={!!cooldownError}
+      describedby={cooldownError ? 'govee-cooldown-err' : undefined}
+    />
   </Field>
 
   <Field label={t('govee.fieldReply')} tag={t('common.optional')}>
-    <ResponseEditor bind:value={replyMessage} name="replyMessage" surface="reward:govee" placeholder={DEFAULT_REPLY} />
+    <ResponseEditor bind:value={draft.replyMessage} surface="reward:govee" placeholder={DEFAULT_REPLY} />
   </Field>
-  <ChatPreview kind="reply" response={replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('govee.previewTag')} samples={replySamples} />
+  <ChatPreview kind="reply" response={draft.replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('govee.previewTag')} samples={replySamples} />
 
   <Field label={t('govee.afterTitle')}>
     <Select
       fill
-      name="onRedeem" bind:value={onRedeem}
+      bind:value={draft.onRedeem}
       options={[{ value: 'fulfill', label: t('govee.afterFulfill') }, { value: 'cancel', label: t('govee.afterCancel') }, { value: 'leave', label: t('govee.afterLeave') }]}
     />
   </Field>
 
-  <div class="setrow {allowOff ? 'on' : ''}">
+  <div class="setrow {draft.allowOff ? 'on' : ''}">
     <div class="setrow-text">
       <span class="setrow-label">{t('govee.allowOffLabel')}</span>
       <span class="muted-text" id="govee-allowoff-desc">{t('govee.allowOffHint')}</span>
     </div>
-    <Switch bind:checked={allowOff} label={t('govee.allowOffLabel')} describedby="govee-allowoff-desc" />
+    <Switch bind:checked={draft.allowOff} label={t('govee.allowOffLabel')} describedby="govee-allowoff-desc" />
   </div>
-  <input type="hidden" name="allow_off" value={allowOff ? 'on' : ''} />
 
-  <div class="setrow {liveOnly ? '' : 'warn'}">
+  <div class="setrow {draft.liveOnly ? '' : 'warn'}">
     <div class="setrow-text">
       <span class="setrow-label">{t('govee.liveOnlyLabel')}</span>
-      <span class="muted-text" id="govee-liveonly-desc">{liveOnly ? t('govee.liveOnlyOn') : t('govee.liveOnlyOff')}</span>
+      <span class="muted-text" id="govee-liveonly-desc">{draft.liveOnly ? t('govee.liveOnlyOn') : t('govee.liveOnlyOff')}</span>
     </div>
-    <Switch bind:checked={liveOnly} label={t('govee.liveOnlyLabel')} describedby="govee-liveonly-desc" />
+    <Switch bind:checked={draft.liveOnly} label={t('govee.liveOnlyLabel')} describedby="govee-liveonly-desc" />
   </div>
-  <input type="hidden" name="allow_offline" value={liveOnly ? '' : 'on'} />
 
-  {#if binding}
+  {#if canDelete}
     <div class="del-row">
-      <Button variant="destructive" onclick={onRequestDelete} disabled={busy}>{t('govee.deleteReward')}</Button>
+      <Button variant="destructive" type="button" onclick={onRequestDelete} disabled={busy}>{t('govee.deleteReward')}</Button>
     </div>
   {/if}
-
-  <EditorFooter
-    onCancel={onCancel}
-    canSave={!busy}
-    status={busy ? 'saving' : 'idle'}
-    saveLabel={isNew ? t('govee.create') : t('govee.saveChanges')}
-    savingLabel={t('govee.saving')}
-    cancelLabel={t('common.cancel')}
-  />
-</form>
+</div>
 
 <style>
   .editor { padding: 4px 2px 2px; display: grid; gap: 14px; }
   .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
 
-  .editor :global(.field) { margin-bottom: 0; }
-  .input {
-    padding: 8px 12px;
-    border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--rule);
-    background: rgba(240, 236, 228, 0.04);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    width: 100%;
-    box-sizing: border-box;
-    transition: border-color var(--bb-dur-fast, 140ms) ease;
-  }
-  .input:focus { outline: none; border-color: var(--bb-tan, #c9a87c); }
-
-  .field-error { display: block; margin-top: 4px; font-family: var(--bb-font-body); font-size: 11.5px; color: #cf8a78; }
 
   .field-row { display: flex; gap: 12px; align-items: flex-start; }
-  .field-row :global(.field) { flex: 1; min-width: 0; }
+  .field-grow { flex: 1; min-width: 0; }
 
   .color-field { display: flex; flex-direction: column; gap: 6px; flex: none; width: 116px; }
   .color-label { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }

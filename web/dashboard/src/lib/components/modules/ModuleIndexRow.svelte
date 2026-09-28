@@ -96,20 +96,6 @@
     color: inherit;
     position: relative;
   }
-  .main::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 10px;
-    bottom: 10px;
-    width: 3px;
-    border-radius: var(--bb-radius-xs);
-    background: var(--rule);
-  }
-  .on .main::before {
-    background: var(--bb-green-glow);
-    box-shadow: 0 0 8px var(--bb-green-glow);
-  }
   .main:hover { background: rgba(201, 168, 124, 0.05); }
   .open-action {
     display: inline-flex;

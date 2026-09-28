@@ -17,6 +17,8 @@
   }
 
   const DISMISS_KEY = 'bagel:install-dismissed';
+  const REOFFER_MS = 30 * 24 * 60 * 60 * 1000;
+  const SHOW_DELAY_MS = 4000;
 
   const uid = $props.id();
   const titleId = `install-ios-${uid}`;
@@ -24,8 +26,12 @@
   let promptEvent: BeforeInstallPromptEvent | null = null;
   let mode = $state<'chromium' | 'ios' | null>(null);
   let visible = $state(false);
+  let ready = $state(false);
   let iosOpen = $state(false);
   let closeBtn = $state<HTMLButtonElement | null>(null);
+  let ctaBtn = $state<HTMLButtonElement | null>(null);
+
+  const inApp = $derived(page.route.id?.startsWith('/(app)') ?? false);
 
   function isStandalone(): boolean {
     const nav = window.navigator as Navigator & { standalone?: boolean };
@@ -40,7 +46,8 @@
 
   function isDismissed(): boolean {
     try {
-      return localStorage.getItem(DISMISS_KEY) === '1';
+      const dismissedAt = Number(localStorage.getItem(DISMISS_KEY));
+      return Date.now() - dismissedAt < REOFFER_MS;
     } catch {
       return false;
     }
@@ -52,7 +59,7 @@
 
   function persistDismissed(): void {
     try {
-      localStorage.setItem(DISMISS_KEY, '1');
+      localStorage.setItem(DISMISS_KEY, String(Date.now()));
     } catch {
     }
   }
@@ -65,6 +72,11 @@
   function hide(): void {
     visible = false;
     iosOpen = false;
+  }
+
+  function closeSheet(): void {
+    iosOpen = false;
+    ctaBtn?.focus();
   }
 
   function dismiss(): void {
@@ -101,7 +113,7 @@
   }
 
   function onKeydown(e: KeyboardEvent): void {
-    if (e.key === 'Escape' && iosOpen) iosOpen = false;
+    if (e.key === 'Escape' && iosOpen) closeSheet();
   }
 
   onMount(() => {
@@ -113,7 +125,15 @@
 
     if (isIos()) show('ios');
 
+    const arm = () => (ready = true);
+    const timer = setTimeout(arm, forceShow() ? 0 : SHOW_DELAY_MS);
+    window.addEventListener('pointerdown', arm, { once: true });
+    window.addEventListener('keydown', arm, { once: true });
+
     return () => {
+      clearTimeout(timer);
+      window.removeEventListener('pointerdown', arm);
+      window.removeEventListener('keydown', arm);
       window.removeEventListener('beforeinstallprompt', onBeforeInstall);
       window.removeEventListener('appinstalled', onInstalled);
     };
@@ -126,7 +146,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-{#if browser && visible}
+{#if browser && visible && ready && inApp}
   <div class="install-root">
     <div class="pill">
       <button
@@ -135,6 +155,7 @@
         aria-label={t('install.ariaLabel')}
         aria-haspopup={mode === 'ios' ? 'dialog' : undefined}
         aria-expanded={mode === 'ios' ? iosOpen : undefined}
+        bind:this={ctaBtn}
         onclick={onPillClick}
       >
         <Icon name="home" size={15} />
@@ -153,7 +174,7 @@
             class="sheet-x"
             type="button"
             aria-label={t('install.ios.close')}
-            onclick={() => (iosOpen = false)}
+            onclick={closeSheet}
             bind:this={closeBtn}
           >
             <Icon name="x" size={14} />
@@ -182,7 +203,7 @@
           </li>
         </ol>
 
-        <button class="sheet-done" type="button" onclick={() => (iosOpen = false)}>
+        <button class="sheet-done" type="button" onclick={closeSheet}>
           {t('common.gotIt')}
         </button>
       </div>
@@ -193,13 +214,19 @@
 <style>
   .install-root {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 64px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 108px);
     right: max(14px, env(safe-area-inset-right, 0px));
     z-index: 70;
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
     align-items: flex-end;
     font-family: var(--bb-font-body);
+  }
+
+  @media (min-width: 761px) {
+    .install-root {
+      bottom: 20px;
+    }
   }
 
   .pill {
@@ -215,6 +242,7 @@
   }
 
   .pill-cta {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -229,6 +257,16 @@
     color: var(--bb-white);
     transition: background var(--bb-dur-fast, 180ms) var(--bb-ease-out-expo, ease);
   }
+  .pill-cta::after,
+  .pill-x::after,
+  .sheet-x::after {
+    content: '';
+    position: absolute;
+    inset: -9px;
+  }
+  .pill-cta::after {
+    inset: -7px 0;
+  }
   .pill-cta :global(svg) {
     stroke: var(--bb-green-glow, #52b788);
     fill: none;
@@ -239,6 +277,7 @@
   }
 
   .pill-x {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -265,7 +304,7 @@
   }
 
   .sheet {
-    margin-top: 8px;
+    margin-bottom: 8px;
     width: min(300px, calc(100vw - 28px));
     padding: 16px;
     background: var(--bb-card-bg, #111110);
@@ -283,6 +322,7 @@
     margin-bottom: 12px;
   }
   .sheet-x {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -339,7 +379,7 @@
 
   .sheet-done {
     width: 100%;
-    min-height: 40px;
+    min-height: 44px;
     border: 1px solid rgba(82, 183, 136, 0.4);
     background: rgba(82, 183, 136, 0.12);
     border-radius: var(--bb-radius-sm);

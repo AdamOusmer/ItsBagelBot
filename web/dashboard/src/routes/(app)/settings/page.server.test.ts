@@ -54,6 +54,7 @@ mock.module('$lib/server/services', () => ({
   notificationsForUser: async () => ({ notifications: [] }),
   notificationMarkRead: async () => {},
   notificationMarkPeeked: async () => {},
+  hasGrant: async () => true,
   userLocale: async () => 'en',
   userCommandsPage: async () => true,
   setCommandsPage: async (userId: string, hidden: boolean) => {

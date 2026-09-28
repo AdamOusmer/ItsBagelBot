@@ -2,12 +2,17 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { Select } from '@bagel/kit';
+  import { untrack } from 'svelte';
+  import { createInspector } from '@bagel/ui/svelte/inspector';
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
-    Icon,
     Button,
+    createDiscardGuard,
+    EditorFooter,
+    InspectorSurface,
+    focusFirstInvalid,
     SearchInput,
     Field,
     PageHead,
@@ -19,7 +24,6 @@
     PageToolbar,
     AlertBanner,
     Card,
-    Text,
     DeckList,
     EmptyState,
     moduleDef,
@@ -52,6 +56,7 @@
       enabled = data.enabled ?? false;
       addPerm = data.addPerm ?? 'mod';
       editPerm = data.editPerm ?? 'mod';
+      savedPerm = { add: addPerm, edit: editPerm };
     }
   });
 
@@ -92,117 +97,120 @@
     return `${year}-${month}-${day}`;
   }
 
-  function formatDate(iso: string): string {
-    const parts = iso.slice(0, 10).split('-').map(Number);
-    if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return '';
-    return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  }
-
   function snippet(text: string): string {
     const clean = text.trim();
     return clean.length > 48 ? `${clean.slice(0, 48).trimEnd()}…` : clean;
   }
 
   const NEW = '__new__';
-  let expanded = $state<string | null>(null);
-  let quoteDraft = $state<QuoteDraft | null>(null);
-  let editTarget = $state<number | null>(null);
-  let adding = $state(false);
+  const inspector = createInspector<QuoteDraft>();
+  let draft = $state<QuoteDraft | null>(null);
+  let busy = $state(false);
+  let validationAttempted = $state(false);
+  let formEl = $state<HTMLFormElement | null>(null);
+
+  $effect(() => {
+    const snap = draft ? { ...draft } : null;
+    if (snap) untrack(() => inspector.edit(snap));
+  });
+
+  const creating = $derived(inspector.selectedId === NEW);
+  const canSave = $derived(creating || inspector.dirty);
   const selectedQuote = $derived(
-    expanded && expanded !== NEW ? (quotes.find((quote) => String(quote.number) === expanded) ?? null) : null
+    inspector.selectedId && !creating
+      ? (quotes.find((quote) => String(quote.number) === inspector.selectedId) ?? null)
+      : null
   );
 
-  function openNew() {
-    editTarget = null;
-    quoteDraft = { text: '', quoteDate: todayInput() };
-    expanded = NEW;
-  }
+  const discard = createDiscardGuard(() => inspector.dirty, () => {
+    inspector.reset();
+    draft = null;
+  });
+  const guarded = discard.guard;
 
+  function present(id: string, next: QuoteDraft) {
+    validationAttempted = false;
+    inspector.open(id, { ...next });
+    draft = { ...next };
+  }
+  function openNew() {
+    guarded(() => present(NEW, { text: '', quoteDate: todayInput() }));
+  }
   function openQuote(quote: QuoteView) {
-    if (expanded === String(quote.number)) {
+    if (inspector.selectedId === String(quote.number)) {
       closeInspector();
       return;
     }
-    quoteDraft = null;
-    editTarget = null;
-    expanded = String(quote.number);
+    guarded(() => present(String(quote.number), { text: quote.text, quoteDate: quote.created_at.slice(0, 10) }));
   }
-
-  function openEdit(quote: QuoteView) {
-    editTarget = quote.number;
-    quoteDraft = { text: quote.text, quoteDate: quote.created_at.slice(0, 10) };
-  }
-
-  function closeEditor() {
-    quoteDraft = null;
-    editTarget = null;
-  }
-
   function closeInspector() {
-    expanded = null;
-    quoteDraft = null;
-    editTarget = null;
+    guarded(() => {
+      validationAttempted = false;
+      inspector.reset();
+      draft = null;
+    });
+  }
+  function clearSearch() {
+    search = '';
   }
 
-  const addSubmit: SubmitFunction = () => {
-    if (!quoteDraft?.text.trim() || !quoteDraft.quoteDate) return;
-    adding = true;
+  function invalidDraft(d: QuoteDraft | null): boolean {
+    return !d || !d.text.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(d.quoteDate);
+  }
+
+  const saveSubmit: SubmitFunction = (input) => {
+    if (invalidDraft(draft)) {
+      validationAttempted = true;
+      input.cancel();
+      void focusFirstInvalid(formEl);
+      return;
+    }
+    const requestId = inspector.beginSave()?.requestId;
+    const wasCreating = creating;
+    busy = true;
     return async ({ result }) => {
-      adding = false;
+      busy = false;
       const payload = actionPayload<QuoteActionOk>(result);
-      if (result.type === 'success' && payload?.ok) {
-        closeInspector();
-        toast('ok', t('quotes.toastAdded'));
-        await invalidateAll();
+      const ok = result.type === 'success' && payload?.ok === true;
+      const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
+      if (!ok) {
+        failed(payload, wasCreating ? 'quotes.toastAddFailed' : 'quotes.toastEditFailed');
         return;
       }
-      failed(payload, 'quotes.toastAddFailed');
-    };
-  };
-
-  const editSubmit: SubmitFunction = () => {
-    if (!quoteDraft?.text.trim()) return;
-    adding = true;
-    return async ({ result }) => {
-      adding = false;
-      const payload = actionPayload<QuoteActionOk>(result);
-      if (result.type === 'success' && payload?.ok && payload.quote) {
+      toast('ok', t(wasCreating ? 'quotes.toastAdded' : 'quotes.toastEdited'));
+      if (wasCreating && applied) {
+        inspector.reset();
+        draft = null;
+      } else if (payload?.quote) {
         const updated = payload.quote;
         quotes = quotes.map((quote) => (quote.number === updated.number ? updated : quote));
-        closeEditor();
-        toast('ok', t('quotes.toastEdited'));
-        await invalidateAll();
-        return;
       }
-      failed(payload, 'quotes.toastEditFailed');
+      await invalidateAll();
     };
   };
 
-  function permSubmitFor(get: () => string, set: (value: string) => void): SubmitFunction {
+  let permPending = $state<'add' | 'edit' | null>(null);
+  // svelte-ignore state_referenced_locally
+  let savedPerm = { add: data.addPerm ?? 'mod', edit: data.editPerm ?? 'mod' };
+  function permSubmitFor(kind: 'add' | 'edit', set: (value: string) => void): SubmitFunction {
     return () => {
-      const was = get();
+      permPending = kind;
       return async ({ result }) => {
+        permPending = null;
         const payload = actionPayload<QuoteActionOk>(result);
-        if (result.type === 'success' && payload?.ok) return;
-        set(was);
+        if (result.type === 'success' && payload?.ok) {
+          savedPerm[kind] = kind === 'add' ? addPerm : editPerm;
+          return;
+        }
+        set(savedPerm[kind]);
         failed(payload, 'quotes.toastPermFailed');
       };
     };
   }
   let addPermForm = $state<HTMLFormElement | null>(null);
   let editPermForm = $state<HTMLFormElement | null>(null);
-  const addPermSubmit = permSubmitFor(
-    () => addPerm,
-    (value) => (addPerm = value)
-  );
-  const editPermSubmit = permSubmitFor(
-    () => editPerm,
-    (value) => (editPerm = value)
-  );
+  const addPermSubmit = permSubmitFor('add', (value) => (addPerm = value));
+  const editPermSubmit = permSubmitFor('edit', (value) => (editPerm = value));
   function onAddPermChange(e: Event) {
     addPerm = (e.currentTarget as HTMLSelectElement).value;
     addPermForm?.requestSubmit();
@@ -225,7 +233,10 @@
       if (result.type === 'success' && payload?.ok) {
         if (target) {
           quotes = quotes.filter((quote) => quote.number !== target.number);
-          if (expanded === String(target.number)) closeInspector();
+          if (inspector.selectedId === String(target.number)) {
+            inspector.reset();
+            draft = null;
+          }
           toast('ok', t('quotes.toastDeleted'));
         }
         await invalidateAll();
@@ -243,11 +254,6 @@
     );
   }
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && expanded) {
-      if (editTarget !== null) closeEditor();
-      else closeInspector();
-      return;
-    }
     if (isTyping(e) || e.ctrlKey || e.metaKey || !e.altKey) return;
     if (e.key === '/') {
       e.preventDefault();
@@ -286,7 +292,7 @@
             placeholder={t('quotes.searchLabel')} clearLabel={t('quotes.searchClear')} bind:value={search} fill />
         </div>
 
-        <Button variant="primary" onclick={openNew} disabled={expanded === NEW}>
+        <Button variant="primary" onclick={openNew} disabled={creating}>
           {t('quotes.newQuote')}
         </Button>
       </div>
@@ -303,7 +309,8 @@
           <Field label={t('quotes.permLabel')}>
             <Select
               fill
-              name="perm" value={addPerm} onchange={onAddPermChange}
+              name="perm" value={addPerm} onchange={onAddPermChange} disabled={permPending !== null}
+              aria-busy={permPending === 'add'}
               options={permOptions}
             />
           </Field>
@@ -314,7 +321,8 @@
           <Field label={t('quotes.permEditLabel')}>
             <Select
               fill
-              name="perm" value={editPerm} onchange={onEditPermChange}
+              name="perm" value={editPerm} onchange={onEditPermChange} disabled={permPending !== null}
+              aria-busy={permPending === 'edit'}
               options={permOptions}
             />
           </Field>
@@ -327,14 +335,14 @@
     {searching ? t('quotes.resultsCount', { n: rows.length }) : ''}
   </p>
 
-  <div class="deck" class:inspecting={expanded === NEW || editTarget !== null}>
+  <div class="deck" class:inspecting={inspector.isOpen}>
     <DeckList>
       {#if rows.length}
         <ul class="bb-list quote-list" aria-label={t('quotes.listLabel')}>
           {#each rows as quote (quote.number)}
             <QuoteRow
               {quote}
-              expanded={expanded === String(quote.number)}
+              expanded={inspector.selectedId === String(quote.number)}
               onExpand={() => openQuote(quote)}
               onDelete={() => (deleteTarget = quote)}
             />
@@ -345,80 +353,51 @@
           <Button variant="primary" onclick={openNew}>{t('quotes.newQuote')}</Button>
         </EmptyState>
       {:else}
-        <EmptyState title={t('quotes.noneMatch')} />
+        <EmptyState title={t('quotes.noneMatch')}>
+          <Button variant="secondary" onclick={clearSearch}>{t('quotes.searchClear')}</Button>
+        </EmptyState>
       {/if}
     </DeckList>
 
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="inspector-backdrop"
-      class:open={expanded !== null}
-      role="presentation"
-      onclick={closeInspector}
-      onkeydown={(e) => {
-        if (e.key === 'Enter') closeInspector();
-      }}
-    ></div>
-    <aside id="quote-inspector" class="inspector" class:open={expanded !== null} aria-label={t('quotes.inspector')}>
-      <div class="inspector-head">
-        <span class="inspector-tag">
-          {expanded === NEW
-            ? t('quotes.newQuote')
-            : editTarget !== null
-              ? t('quotes.editQuote')
-              : selectedQuote
-                ? t('quotes.quoteDetails')
-                : t('quotes.inspector')}
-        </span>
-        {#if expanded}
-          <Button variant="icon" size="sm" type="button" aria-label={t('common.cancel')} onclick={closeInspector} ><Icon name="x" size={15} /></Button>
-        {/if}
-      </div>
-
-      {#if quoteDraft}
-        <Scroller fill padding="16px" smooth>
-          <QuoteEditor
-            bind:draft={quoteDraft}
-            number={editTarget}
-            busy={adding}
-            onCancel={editTarget !== null ? closeEditor : closeInspector}
-            onSubmit={editTarget !== null ? editSubmit : addSubmit}
+    {#if inspector.isOpen && draft}
+      <InspectorSurface
+        open
+        title={creating ? t('quotes.newQuote') : t('quotes.editQuote')}
+        controls="quote-inspector"
+        closeLabel={t('common.cancel')}
+        onClose={closeInspector}
+      >
+        <form
+          method="POST"
+          action={creating ? '?/add' : '?/edit'}
+          novalidate
+          use:enhance={saveSubmit}
+          class="inspector-form"
+          bind:this={formEl}
+        >
+          {#if selectedQuote}
+            <input type="hidden" name="number" value={selectedQuote.number} />
+          {/if}
+          <Scroller fill padding="16px" smooth>
+            {#key inspector.selectedId}
+              <QuoteEditor bind:draft attempted={validationAttempted} addedBy={selectedQuote?.added_by ?? ''} />
+            {/key}
+          </Scroller>
+          <EditorFooter
+            status={inspector.status}
+            dirty={inspector.dirty}
+            {canSave}
+            saveLabel={creating ? t('quotes.addBtn') : t('quotes.editBtn')}
+            cancelLabel={t('common.cancel')}
+            savingLabel={t('quotes.saving')}
+            savedLabel={t('quotes.saved')}
+            errorLabel={t(creating ? 'quotes.toastAddFailed' : 'quotes.toastEditFailed')}
+            dirtyLabel={t('quotes.unsavedChanges')}
+            onCancel={closeInspector}
           />
-        </Scroller>
-      {:else if selectedQuote}
-        <Scroller fill padding="18px" smooth>
-          <div class="quote-detail">
-            <div class="quote-number">#{selectedQuote.number}</div>
-            <blockquote>{selectedQuote.text}</blockquote>
-            <dl>
-              <div>
-                <dt>{t('quotes.fieldDay')}</dt>
-                <dd>{formatDate(selectedQuote.created_at)}</dd>
-              </div>
-              {#if selectedQuote.added_by}
-                <div>
-                  <dt>{t('quotes.addedBy')}</dt>
-                  <dd>@{selectedQuote.added_by}</dd>
-                </div>
-              {/if}
-            </dl>
-            <div class="detail-actions">
-              <Button variant="primary" onclick={() => selectedQuote && openEdit(selectedQuote)}>
-                {t('quotes.editBtnShort')}
-              </Button>
-              <Button variant="destructive" onclick={() => (deleteTarget = selectedQuote)}>
-                {t('quotes.del')}
-              </Button>
-            </div>
-          </div>
-        </Scroller>
-      {:else}
-        <div class="inspector-idle">
-          <Text size="sm" tone="muted" class="inspector-idle-note">{t('quotes.inspectorIdle')}</Text>
-          <Button variant="ghost" onclick={openNew}>{t('quotes.newQuote')}</Button>
-        </div>
-      {/if}
-    </aside>
+        </form>
+      </InspectorSurface>
+    {/if}
   </div>
 
   {#if quoteCommands.length}
@@ -432,6 +411,16 @@
 
 <svelte:window onkeydown={onKey} />
 
+<ConfirmDialog
+  open={discard.open}
+  title={t('quotes.discardTitle')}
+  body={t('quotes.discardBody')}
+  confirmLabel={t('quotes.discard')}
+  cancelLabel={t('quotes.keepEditing')}
+  danger
+  onCancel={discard.cancel}
+  onConfirm={discard.confirm}
+/>
 <ConfirmDialog
   open={deleteTarget !== null}
   title={t('quotes.deleteTitle')}
@@ -477,101 +466,11 @@
     align-items: start;
   }
   @media (min-width: 1080px) {
-    .deck { grid-template-columns: minmax(0, 1fr) 300px; }
     .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
   }
   .quote-list :global(.row-shell:last-child) { border-bottom: none; }
 
-  .inspector {
-    position: sticky;
-    top: 62px;
-    border: 1px solid var(--rule);
-    border-top-color: var(--rule-strong);
-    border-radius: var(--bb-radius-md);
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 62px - 108px);
-  }
-  .inspector-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .inspector-tag {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .inspector-idle {
-    padding: 34px 20px;
-    text-align: center;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-  :global(.inspector-idle-note) { max-width: 26ch; }
-
-  .quote-detail { display: flex; flex-direction: column; gap: 18px; }
-  .quote-number {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-tan);
-  }
-  blockquote {
-    margin: 0;
-    padding: 0 0 0 14px;
-    border-left: 2px solid var(--bb-tan);
-    font-family: var(--bb-font-body);
-    font-size: 15px;
-    line-height: 1.6;
-    color: var(--bb-white);
-    overflow-wrap: anywhere;
-  }
-  dl { display: flex; flex-direction: column; gap: 12px; margin: 0; }
-  dl div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
-  dt { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-  dd { margin: 0; font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light); text-align: right; }
-  .detail-actions { display: flex; gap: 10px; align-self: flex-start; margin-top: 4px; }
-  .inspector-backdrop { display: none; }
-
-  @media (max-width: 1079px) {
-    .inspector { display: none; }
-    .inspector.open {
-      display: flex;
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      top: auto;
-      z-index: 220;
-      max-height: 88vh;
-      border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
-      background: var(--bb-bg-1, #111);
-      animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
-    }
-    .inspector-backdrop.open {
-      display: block;
-      position: fixed;
-      inset: 0;
-      z-index: 219;
-      background: rgba(0, 0, 0, 0.55);
-    }
-    @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  }
+  .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 
   @media (max-width: 680px) {
     .toolbar-actions { width: 100%; flex-wrap: wrap; }

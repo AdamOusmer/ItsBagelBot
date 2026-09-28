@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { untrack } from 'svelte';
   import { page } from '$app/state';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import { moduleDef, tModuleLabel } from '@bagel/kit';
   import { RESPONSE_MAX, getI18n, Textarea } from '@bagel/kit';
   import { requiredModuleVariables } from '@bagel/kit/variables';
@@ -10,6 +12,10 @@
   import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
 
   const i18n = getI18n();
+  const uid = $props.id();
+  const WARN_RATIO = 0.9;
+  const capId = `${uid}-cap`;
+  const countId = (i: number) => `${uid}-count-${i}`;
 
   let {
     value = $bindable(''),
@@ -55,6 +61,31 @@
     value = fields.join('\n');
   });
 
+  type Level = 'ok' | 'warn' | 'over';
+  const levelOf = (len: number): Level => (len > RESPONSE_MAX ? 'over' : len >= RESPONSE_MAX * WARN_RATIO ? 'warn' : 'ok');
+  const capped = $derived(fields.length >= maxLines);
+
+  let announcement = $state('');
+  let levels: Level[] = [];
+
+  function announce(message: string) {
+    announcement = '';
+    setTimeout(() => (announcement = message), 60);
+  }
+
+  $effect(() => {
+    const next = fields.map((f) => levelOf(f.length));
+    untrack(() => {
+      const crossed = next.findIndex((l, i) => l !== 'ok' && l !== (levels[i] ?? 'ok'));
+      levels = next;
+      if (crossed < 0) return;
+      const key = next[crossed] === 'over' ? 'commandEditor.lineOver' : 'commandEditor.lineNear';
+      announce(i18n.t(key, { n: String(crossed + 1), len: String(fields[crossed].length), max: String(RESPONSE_MAX) }));
+    });
+  });
+
+  const describedFor = (i: number) => [describedby, countId(i)].filter(Boolean).join(' ');
+
   function insert(token: string) {
     const i = Math.min(focused, fields.length - 1);
     const el = areas[i];
@@ -67,6 +98,7 @@
       const pos = start + token.length;
       el?.setSelectionRange(pos, pos);
     });
+    announce(i18n.t('commandEditor.inserted', { token }));
   }
 
   function focusField(i: number) {
@@ -79,7 +111,10 @@
   }
 
   function addLine(after: number = fields.length - 1) {
-    if (fields.length >= maxLines) return;
+    if (capped) {
+      if (maxLines > 1) announce(i18n.t('commandEditor.linesCapped', { n: String(fields.length), max: String(maxLines) }));
+      return;
+    }
     fields.splice(after + 1, 0, '');
     focused = after + 1;
     focusField(focused);
@@ -131,7 +166,7 @@
             {invalid}
             placeholder={fieldPlaceholder(i)}
             aria-invalid={invalid ? 'true' : undefined}
-            aria-describedby={describedby}
+            aria-describedby={describedFor(i)}
             {required}
             bind:value={fields[i]}
             {maxlength}
@@ -140,7 +175,7 @@
             oninput={() => onInput(i)}
             {onblur}
           />
-          <span class="resp-count" class:over={fields[i].length > RESPONSE_MAX}>{fields[i].length}/{RESPONSE_MAX}</span>
+          <span class="resp-count {levelOf(fields[i].length)}" id={countId(i)}>{fields[i].length}/{RESPONSE_MAX}</span>
         </div>
         {#if fields.length > 1}
           <button
@@ -156,10 +191,11 @@
   </div>
   <input type="hidden" {name} {value} />
   <div class="lines-foot">
-    <button type="button" class="add-line" disabled={fields.length >= maxLines} onclick={() => addLine()}>
+    <button type="button" class="add-line" aria-disabled={capped ? 'true' : undefined} aria-describedby={capId} onclick={() => addLine()}>
       + {i18n.t('commandEditor.addLine')}
     </button>
     <small class="lines-hint">{i18n.t('commandEditor.linesHint', { max: String(maxLines) })}</small>
+    <small class="lines-cap" class:on={capped} id={capId}>{i18n.t('commandEditor.linesCapped', { n: String(fields.length), max: String(maxLines) })}</small>
   </div>
 {:else}
   <div class="resp-wrap">
@@ -171,7 +207,7 @@
       {invalid}
       placeholder={fieldPlaceholder(0)}
       aria-invalid={invalid ? 'true' : undefined}
-      aria-describedby={describedby}
+      aria-describedby={describedFor(0)}
       {required}
       bind:value={fields[0]}
       {maxlength}
@@ -180,9 +216,11 @@
       oninput={() => onInput(0)}
       {onblur}
     />
-    <span class="resp-count" class:over={fields[0].length > RESPONSE_MAX}>{fields[0].length}/{RESPONSE_MAX}</span>
+    <span class="resp-count {levelOf(fields[0].length)}" id={countId(0)}>{fields[0].length}/{RESPONSE_MAX}</span>
   </div>
 {/if}
+
+<VisuallyHidden role="status" aria-live="polite">{announcement}</VisuallyHidden>
 
 <div role="toolbar" aria-label={i18n.t('commandEditor.insertVariable')}>
   <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} />
@@ -212,7 +250,8 @@
     pointer-events: none;
     opacity: 0.7;
   }
-  .resp-count.over { color: #cf8a78; opacity: 1; }
+  .resp-count.warn { color: var(--bb-tan); opacity: 1; }
+  .resp-count.over { color: var(--bb-danger); opacity: 1; }
 
   .lines { display: flex; flex-direction: column; gap: 8px; }
   .line-field { display: flex; align-items: flex-start; gap: 8px; }
@@ -249,7 +288,7 @@
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) ease;
   }
-  .line-remove:hover { color: #cf8a78; border-color: rgba(176, 90, 70, 0.5); }
+  .line-remove:hover { color: var(--bb-danger); border-color: rgba(var(--bb-danger-rgb), 0.5); }
 
   .lines-foot {
     display: flex;
@@ -269,8 +308,18 @@
     cursor: pointer;
     transition: all var(--bb-dur-fast, 140ms) ease;
   }
-  .add-line:hover:not(:disabled) { background: rgba(82, 183, 136, 0.14); }
-  .add-line:disabled { opacity: 0.45; cursor: default; }
+  .add-line:hover:not([aria-disabled='true']) { background: rgba(82, 183, 136, 0.14); }
+  .add-line[aria-disabled='true'] { opacity: 0.45; cursor: default; }
+
+  .lines-cap {
+    flex-basis: 100%;
+    min-height: 16px;
+    font-size: 11px;
+    color: var(--bb-tan);
+    visibility: hidden;
+    opacity: 0;
+  }
+  .lines-cap.on { visibility: visible; opacity: 1; }
 
   .lines-hint {
     font-size: 11px;

@@ -21,9 +21,12 @@ import {
 } from '@bagel/kit';
 import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
 import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
+import { saveConflict, conflictField } from '$lib/server/command-conflict';
+import { isBulkRequest, runBulk } from '$lib/server/commands-bulk';
 import { listFetches, upsertFetchDef, deleteFetchDef } from '$lib/server/fetches-store';
 import { saveFetchDef, removeFetchDef, rehearseFetchDef } from '$lib/server/fetch-def-actions';
-import { auditDashboardImpersonation } from '$lib/server/services';
+import { auditDashboardImpersonation, userCommandsPage } from '$lib/server/services';
+import { commandsHref } from '@bagel/kit/site-links';
 import { logger } from '@bagel/kit/server/logger';
 import { actionError, actionErrorBody } from '$lib/server/action-errors';
 import { effectiveId } from '$lib/server/board';
@@ -60,6 +63,12 @@ function builtinViews(modules: ModuleView[]): CommandView[] {
   });
 }
 
+async function publicPageState(session: App.Locals['session'], uid: string) {
+  const login = (session?.delegate_of ? session.delegate_login : session?.login) ?? '';
+  const on = await userCommandsPage(uid).catch(() => true);
+  return { on, url: login ? commandsHref(login.toLowerCase()) : '' };
+}
+
 function mergeCommands(custom: CommandView[], modules: ModuleView[]): CommandView[] {
   const builtins = builtinViews(modules);
   const customs = custom.filter((c) => !BUILTIN_NAMES.has(c.name));
@@ -71,17 +80,23 @@ export const load: PageServerLoad = async ({ locals }) => {
   const uid = effectiveId(locals.session);
   if (DEMO) {
     const { demoCommandRows, demoFetches } = await import('$lib/server/demo-data');
-    return { commands: mergeCommands(demoCommandRows, []), ...demoFetches(), board: uid };
+    return {
+      commands: mergeCommands(demoCommandRows, []),
+      ...demoFetches(),
+      board: uid,
+      publicPage: { on: true, url: commandsHref('demo') }
+    };
   }
   try {
-    const [custom, modules, fetches] = await Promise.all([
+    const [custom, modules, fetches, publicPage] = await Promise.all([
       listCommands(uid),
       listModules(uid).catch(() => []),
-      listFetches(uid).catch(() => ({ defs: [], keys: [] }))
+      listFetches(uid).catch(() => ({ defs: [], keys: [] })),
+      publicPageState(locals.session, uid)
     ]);
-    return { commands: mergeCommands(custom, modules), ...fetches, board: uid };
+    return { commands: mergeCommands(custom, modules), ...fetches, board: uid, publicPage };
   } catch {
-    return { commands: mergeCommands([], []), defs: [], keys: [], board: uid, degraded: true };
+    return { commands: mergeCommands([], []), defs: [], keys: [], board: uid, degraded: true, publicPage: null };
   }
 };
 
@@ -186,6 +201,21 @@ function saveResult(s: ReturnType<typeof parseSaveForm>, commands: CommandView[]
   };
 }
 
+async function guardSave(uid: string, s: ReturnType<typeof parseSaveForm>) {
+  const listed = await tryRpc('save-guard', () => listCommands(uid));
+  if (!listed.ok) return s.isEdit && !s.renamed ? null : fail(503, { ok: false, code: 'unavailable' });
+  const conflict = saveConflict(
+    { name: s.cmd.name, aliases: s.cmd.aliases, isEdit: s.isEdit, originalName: s.originalName },
+    listed.value
+  );
+  if (!conflict) return null;
+  return fail(409, { ok: false, code: conflict.code, field: conflictField(conflict.code), conflict: conflict.name });
+}
+
+function bulkNames(form: FormData): string[] {
+  return [...new Set(form.getAll('name').map((n) => normName(String(n))).filter(Boolean))];
+}
+
 export const actions: Actions = {
   savefetch: async (event) => {
     const ctx = await actionContext(event);
@@ -228,6 +258,9 @@ export const actions: Actions = {
     if (DEMO) {
       return saveResult(s, [demoView(s.cmd, s.isActive)]);
     }
+
+    const blocked = await guardSave(ctx.uid, s);
+    if (blocked) return blocked;
 
     const res = await tryRpc('save', () =>
       upsertCommand(ctx.uid, { ...s.cmd, isActive: s.isActive }, s.renamed ? s.originalName : undefined)
@@ -273,6 +306,24 @@ export const actions: Actions = {
     auditDashboardImpersonation(ctx.session, 'command:delete', name);
 
     return { ok: true, action: 'deleted', name, commands: res.value.commands };
+  },
+
+  bulk: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn(event.locals.locale);
+    const op = ctx.form.get('op');
+    const names = bulkNames(ctx.form);
+    if (!isBulkRequest(op, names)) {
+      return fail(400, { ok: false, error: actionError(ctx.locale, 'Invalid input.') });
+    }
+
+    if (DEMO) return { ok: true, op, results: names.map((name) => ({ name, ok: true })) };
+
+    const res = await tryRpc('bulk', () => runBulk(ctx.uid, op, names));
+    if (!res.ok) return fail(400, { ok: false });
+
+    auditDashboardImpersonation(ctx.session, `command:bulk_${op}`, names.join(','));
+    return { ok: true, op, results: res.value };
   },
 
   toggleBuiltin: async (event) => {

@@ -3,12 +3,13 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import '../app.css';
   import RootShell from '@bagel/kit/components/RootShell.svelte';
+  import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
+  import { translate } from '@bagel/kit/i18n';
   import InstallAppPrompt from '$lib/components/InstallAppPrompt.svelte';
   let { data, children } = $props();
 
-  const DEFAULT_TITLE = 'ItsBagelBot Dashboard';
-  const DEFAULT_DESC =
-    'Sign in to configure moderation, custom commands, timers, and channel points for your Twitch channel.';
+  const DEFAULT_TITLE = $derived(translate(data.locale, 'meta.defaultTitle'));
+  const DEFAULT_DESC = $derived(translate(data.locale, 'meta.defaultDescription'));
 </script>
 
 <svelte:head>
@@ -23,4 +24,5 @@
 <RootShell locale={data.locale} cursorEnabled={data.cursorEnabled}>
   {@render children()}
   <InstallAppPrompt />
+  <ToastHost />
 </RootShell>

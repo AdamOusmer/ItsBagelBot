@@ -5,9 +5,10 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { LightField, getI18n, Tag } from '@bagel/kit';
-  import { SITE } from '@bagel/kit/site-links';
+  import { SITE, webHref } from '@bagel/kit/site-links';
+  import PublicHead from '$lib/components/public/PublicHead.svelte';
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
   const lines = $derived([
     { text: t('login.title1'), cls: 'tan' },
@@ -122,6 +123,8 @@
   });
 </script>
 
+<PublicHead title={t('login.metaTitle')} description={t('login.metaDescription')} url="https://dashboard.itsbagelbot.com/login" />
+
 <div class="starfield" aria-hidden="true"><LightField /></div>
 
 <header>
@@ -188,6 +191,8 @@
             <span>{fact}</span>
           {/each}
         </div>
+
+        <a class="scopes" href={webHref(locale, '/privacy')} target="_blank" rel="noopener noreferrer">{t('login.scopesLink')}</a>
 
         <a class="cta" href={loginHref} data-sveltekit-reload>
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -411,7 +416,7 @@
     align-items: center;
     margin-top: 26px;
     font-family: var(--bb-font-mono);
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: rgba(201, 168, 124, 0.66);
@@ -455,6 +460,19 @@
     background: var(--bb-tan-light);
     transform: translateY(-2px);
     box-shadow: 0 8px 32px rgba(201, 168, 124, 0.25);
+  }
+
+  .scopes {
+    margin-top: 14px;
+    font-family: var(--bb-font-body);
+    font-size: 0.78rem;
+    color: var(--bb-tan-light);
+    text-underline-offset: 3px;
+    opacity: 0;
+    animation: fadeUp 0.9s 0.72s var(--bb-ease-out-expo) forwards;
+  }
+  .scopes:hover {
+    color: var(--bb-white);
   }
 
   .consent {
@@ -554,7 +572,7 @@
 
     .facts {
       margin-top: 18px;
-      font-size: 0.6rem;
+      font-size: 0.75rem;
       letter-spacing: 0.11em;
     }
     .facts span:not(:last-child)::after { margin: 0 11px; }
@@ -577,14 +595,14 @@
     }
 
     .eyebrow { gap: 8px; margin-bottom: 12px; }
-    .eyebrow__text { font-size: 0.68rem; letter-spacing: 0.14em; }
+    .eyebrow__text { font-size: 0.75rem; letter-spacing: 0.14em; }
 
     h1 {
       font-size: clamp(1.75rem, min(8.4vw, 7.6vh), 2.25rem);
       margin-bottom: 16px;
     }
     .lede { font-size: 0.92rem; line-height: 1.52; margin-bottom: 16px; }
-    .facts { margin-top: 14px; font-size: 0.56rem; }
+    .facts { margin-top: 14px; font-size: 0.75rem; }
     .facts span:not(:last-child)::after { margin: 0 8px; }
     .cta { padding: 14px 24px; font-size: 0.85rem; }
     .migrate { margin-top: 12px; font-size: 0.76rem; }
@@ -644,7 +662,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .reveal, .eyebrow, .lede, .facts, .cta, .consent, .migrate {
+    .reveal, .eyebrow, .lede, .facts, .scopes, .cta, .consent, .migrate {
       animation: none;
       opacity: 1;
     }

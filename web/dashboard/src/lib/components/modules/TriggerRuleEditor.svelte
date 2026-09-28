@@ -134,6 +134,15 @@
   .actions { margin-top: 12px; }
   .spacer { flex: 1; }
 
+  @media (max-width: 1079px) {
+    .actions {
+      position: sticky;
+      bottom: 0;
+      padding: 12px 0;
+      background: var(--bb-bg-1, #111);
+      border-top: 1px solid var(--rule);
+    }
+  }
   @media (max-width: 480px) {
     .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
     .spacer { display: none; }

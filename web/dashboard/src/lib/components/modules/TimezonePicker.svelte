@@ -6,10 +6,11 @@
   import type { SelectOption } from '@bagel/ui/lib/select';
 
   const { t } = getI18n();
-  let { id, value, zones, onPick }: {
+  let { id, value, zones, disabled = false, onPick }: {
     id: string;
     value: string;
     zones: string[];
+    disabled?: boolean;
     onPick: (zone: string) => void;
   } = $props();
 
@@ -52,7 +53,7 @@
 </script>
 
 <div class="timezone-picker">
-  <Select {id} {value} {options} {filterOptions} searchable fill
+  <Select {id} {value} {disabled} {options} {filterOptions} searchable fill
     label={t('modules.tzPickerTitle')} placeholder={t('modules.tzUnset')}
     searchPlaceholder={t('modules.tzSearchPh')} searchClearLabel={t('modules.tzSearchClear')} emptyLabel={t('modules.tzNoMatch')}
     onchange={(event) => onPick(event.currentTarget.value)} />

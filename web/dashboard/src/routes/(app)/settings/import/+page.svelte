@@ -3,10 +3,9 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   import { page } from '$app/state';
-  import { deserialize } from '$app/forms';
   import {
-    AlertBanner,
     PermBadge,
+    AlertBanner,
     Bolota,
     Button,
     ButtonLink,
@@ -17,32 +16,19 @@
     PageHead,
     Tag,
     Textarea,
-    toast,
     getI18n
   } from '@bagel/kit';
-  import { applyImportCaps } from '@bagel/kit/importer/caps';
-  import { localizeImporterError } from '$lib/importer-errors';
   import {
     CHIP_LABEL_KEYS,
     IMPORT_STRATEGIES,
     isImportSource,
-    type FileInputSpec,
     type ImportSourceStrategy,
-    type InputSpec,
-    type OAuthInputSpec,
-    type TextInputSpec
+    type InputSpec
   } from '@bagel/kit/importer/strategy';
-  import {
-    IMPORT_SOURCES,
-    type CommitResponse,
-    type ImportDiagnostic,
-    type ImportSource,
-    type ManifestCommand,
-    type ManifestQuote,
-    type ManifestTimer,
-    type ManifestTrigger,
-    type PreviewResponse
-  } from '@bagel/kit';
+  import { IMPORT_SOURCES, type ImportSource, type ManifestCommand } from '@bagel/kit';
+  import ImportAlert from '$lib/import/ImportAlert.svelte';
+  import ImportSkipped from '$lib/import/ImportSkipped.svelte';
+  import { ImportSession } from '$lib/import/session.svelte';
 
   const { t, tl } = getI18n();
 
@@ -54,10 +40,13 @@
   ] as const;
 
   type Step = 'pick' | 'instructions' | 'review' | 'done';
+
+  const session = new ImportSession();
+  session.configure({ t, isConnected: () => sourceConnected });
+  session.source = deepLinkSource();
+  session.previewError = deepLinkError();
   // svelte-ignore state_referenced_locally
-  let source = $state<ImportSource | ''>(deepLinkSource());
-  // svelte-ignore state_referenced_locally
-  let step = $state<Step>(source ? 'instructions' : 'pick');
+  let step = $state<Step>(session.source ? 'instructions' : 'pick');
 
   function deepLinkSource(): ImportSource | '' {
     const q = page.url.searchParams.get('source') ?? '';
@@ -65,58 +54,50 @@
     return IMPORT_STRATEGIES[q].available ? q : '';
   }
 
+  function deepLinkError(): string {
+    const e = page.url.searchParams.get('e');
+    const source = session.source;
+    const spec = source ? IMPORT_STRATEGIES[source].input : null;
+    if (!e || spec?.kind !== 'oauth') return '';
+    const key = spec.errorParams[e];
+    return key ? t(key) : '';
+  }
+
+  const source = $derived(session.source);
   const strategy = $derived<ImportSourceStrategy | null>(source ? IMPORT_STRATEGIES[source] : null);
   const inputSpec = $derived<InputSpec | null>(strategy?.input ?? null);
 
   const connected = $derived((page.data.connected ?? {}) as Partial<Record<ImportSource, boolean>>);
   const sourceConnected = $derived(source ? connected[source] === true : false);
-  let credential = $state('');
-  let uploadFile = $state<File | null>(null);
   let dragKind = $state<'' | ImportSource>('');
-  let submitting = $state(false);
 
-  let previewResult = $state<PreviewResponse | null>(null);
-  let commitResult = $state<CommitResponse | null>(null);
+  const previewResult = $derived(session.previewResult);
+  const commitResult = $derived(session.commitResult);
+  const submitting = $derived(session.submitting);
+  const previewError = $derived(session.previewError);
+  const commitError = $derived(session.commitError);
+  const uploadFile = $derived(session.uploadFile);
 
   const stepIndex = $derived(
     step === 'pick' ? 0 : step === 'instructions' ? 1 : step === 'review' ? 2 : 3
   );
 
   function choose(s: ImportSource) {
-    source = s;
-    uploadFile = null;
-    credential = '';
+    session.choose(s);
     step = 'instructions';
   }
 
   function reset() {
+    session.reset();
     step = 'pick';
-    source = '';
-    uploadFile = null;
-    credential = '';
-    overwrite = false;
-    previewResult = null;
-    commitResult = null;
-    previewError = '';
-    commitError = '';
   }
 
-  type RowKind = 'commands' | 'timers' | 'triggers' | 'quotes';
+  async function runPreview() {
+    if ((await session.runPreview()) === 'ok') step = 'review';
+  }
 
-  let selected = $state<Record<string, boolean>>({});
-  let overwrite = $state(false);
-
-  const CODE_PREFIX: Record<RowKind, string> = {
-    commands: 'command',
-    timers: 'timer',
-    triggers: 'trigger',
-    quotes: 'quote'
-  };
-
-  function itemDiags(kind: RowKind, i: number): ImportDiagnostic[] {
-    return (previewResult?.diagnostics ?? []).filter(
-      (d) => d.item_index === i && d.code.startsWith(CODE_PREFIX[kind])
-    );
+  async function runCommit() {
+    if ((await session.runCommit()) === 'ok') step = 'done';
   }
 
   const SOURCE_UNTRANSLATED_PATTERN: Record<ImportSource, RegExp> = {
@@ -149,334 +130,34 @@
   }
 
   function sourceLine(c: ManifestCommand): string {
-    return c.source_responses?.join(' / ') || ' ';
-  }
-
-  const fatalCount = $derived.by(() => {
-    const m = previewResult?.manifest;
-    if (!m) return 0;
-    let n = 0;
-    for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
-      const rows = (m[kind] as unknown[] | undefined) ?? [];
-      for (let i = 0; i < rows.length; i++)
-        if (itemDiags(kind, i).some((d) => d.severity === 'error')) n++;
-    }
-    return n;
-  });
-
-  $effect(() => {
-    const m = previewResult?.manifest;
-    if (!m || step !== 'review') return;
-    const next: Record<string, boolean> = {};
-    for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
-      const rows = (m[kind] as unknown[] | undefined) ?? [];
-      for (let i = 0; i < rows.length; i++) {
-        next[`${kind}:${i}`] = !itemDiags(kind, i).some((d) => d.severity === 'error');
-      }
-    }
-    selected = next;
-  });
-
-  function isChecked(kind: RowKind, i: number): boolean {
-    return selected[`${kind}:${i}`] !== false;
-  }
-
-  function toggle(kind: RowKind, i: number, checked: boolean) {
-    selected = { ...selected, [`${kind}:${i}`]: checked };
+    return c.source_responses?.join(' / ') || ' ';
   }
 
   function normalizeName(n: string): string {
     return n.trim().replace(/^!/, '').trim().toLowerCase();
   }
-  const collidedCommands = $derived(
-    new Set(
-      (previewResult?.collisions ?? [])
-        .filter((c) => c.kind === 'command')
-        .map((c) => c.name)
-    )
-  );
-  const anyCollisions = $derived((previewResult?.collisions ?? []).length > 0);
-
-  const statChips = $derived.by(() => {
-    const s = previewResult?.stats;
-    if (!s) return [] as string[];
-    const parts: string[] = [];
-    if (s.commands) parts.push(t('import.statCommands', { n: s.commands }));
-    if (s.timers) parts.push(t('import.statTimers', { n: s.timers }));
-    if (s.triggers) parts.push(t('import.statTriggers', { n: s.triggers }));
-    if (s.quotes) parts.push(t('import.statQuotes', { n: s.quotes }));
-    return parts;
-  });
-
-  const statsLine = $derived(statChips.join(' · ') || t('import.statsNone'));
-
-  function setAll(v: boolean) {
-    const m = previewResult?.manifest;
-    if (!m) return;
-    const next: Record<string, boolean> = {};
-    for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
-      const rows = (m[kind] as unknown[] | undefined) ?? [];
-      for (let i = 0; i < rows.length; i++) {
-        next[`${kind}:${i}`] = v && !itemDiags(kind, i).some((d) => d.severity === 'error');
-      }
-    }
-    selected = next;
-  }
-
-  const rowTotal = $derived.by(() => {
-    const m = previewResult?.manifest;
-    if (!m) return 0;
-    return (Object.keys(CODE_PREFIX) as RowKind[]).reduce(
-      (n, kind) => n + ((m[kind] as unknown[] | undefined) ?? []).length,
-      0
-    );
-  });
-  const rowPicked = $derived.by(() => {
-    const m = previewResult?.manifest;
-    if (!m) return 0;
-    let n = 0;
-    for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
-      const rows = (m[kind] as unknown[] | undefined) ?? [];
-      for (let i = 0; i < rows.length; i++) if (isChecked(kind, i)) n++;
-    }
-    return n;
-  });
-  const selectionLine = $derived(t('import.selectionLine', { n: rowPicked, total: rowTotal }));
 
   const railDetail = $derived.by(() => [
     strategy ? strategy.label : t('import.railPickPending'),
-    inputDetail(),
-    previewResult ? selectionLine : t('import.railReviewPending'),
+    session.inputDetail(inputSpec),
+    previewResult ? session.selectionLine : t('import.railReviewPending'),
     commitResult ? t('import.railDone') : ''
   ]);
 
-  function inputDetail(): string {
-    if (inputSpec?.kind === 'text') return textInputDetail(inputSpec);
-    return uploadFile ? uploadFile.name : t('import.railFilePending');
-  }
-
-  function textInputDetail(spec: TextInputSpec): string {
-    if (spec.secret) return credential ? t('import.railTokenSet') : t('import.railTokenPending');
-    return credential ? t('import.railHandleSet') : t('import.railHandlePending');
-  }
-
-  const appliedTiles = $derived.by(() => {
-    const a = commitResult?.applied;
-    if (!a) return [] as { n: number; label: string }[];
-    const out: { n: number; label: string }[] = [];
-    if (a.commands) out.push({ n: a.commands, label: t('import.hCommands') });
-    if (a.timers) out.push({ n: a.timers, label: t('import.hTimers') });
-    if (a.triggers) out.push({ n: a.triggers, label: t('import.hTriggers') });
-    if (a.quotes) out.push({ n: a.quotes, label: t('import.hQuotes') });
-    return out;
-  });
-
   const reviewHint = $derived.by(() => {
     if (!strategy) return '';
-    let s = t('import.reviewHint', { source: strategy.label, stats: statsLine });
-    if (fatalCount > 0) s += ' ' + t('import.fatalSuffix', { n: fatalCount });
+    let s = t('import.reviewHint', { source: strategy.label, stats: session.statsLine });
+    if (session.fatalCount > 0) s += ' ' + t('import.fatalSuffix', { n: session.fatalCount });
     return s;
   });
-
-  const manifestLevelDiags = $derived(
-    (previewResult?.diagnostics ?? []).filter((d) => d.item_index < 0)
-  );
-
-  function buildSelectedManifest(): string {
-    const m = previewResult?.manifest;
-    if (!m) return '{}';
-    const out: Record<string, unknown> = {};
-    const keep = (rows: unknown[] | undefined, kind: RowKind): unknown[] | undefined => {
-      const picked = (rows ?? []).filter((_, i) => isChecked(kind, i));
-      return picked.length ? picked : undefined;
-    };
-    out.commands = keep(m.commands as ManifestCommand[] | undefined, 'commands');
-    out.timers = keep(m.timers as ManifestTimer[] | undefined, 'timers');
-    out.triggers = keep(m.triggers as ManifestTrigger[] | undefined, 'triggers');
-    out.quotes = keep(m.quotes as ManifestQuote[] | undefined, 'quotes');
-    if (m.automod && rowPicked > 0) out.automod = m.automod;
-    return JSON.stringify(out);
-  }
 
   const instrSteps = $derived.by(() => {
     const key = strategy?.i18n.instr;
     return key ? tl(key) : [];
   });
 
-  // svelte-ignore state_referenced_locally
-  let previewError = $state(deepLinkError());
-
-  function deepLinkError(): string {
-    const e = page.url.searchParams.get('e');
-    const spec = source ? IMPORT_STRATEGIES[source].input : null;
-    if (!e || spec?.kind !== 'oauth') return '';
-    const key = spec.errorParams[e];
-    return key ? t(key) : '';
-  }
-
-  let commitError = $state('');
-
-  async function runPreview() {
-    if (!source || submitting) return;
-    previewError = '';
-
-    const body = new FormData();
-    body.set('source', source);
-
-    submitting = true;
-    const prepared = await prepareInput(IMPORT_STRATEGIES[source].input, body);
-    if ('error' in prepared) {
-      previewError = prepared.error;
-      submitting = false;
-      return;
-    }
-
-    const r = await postPreview(body);
-    if (r.ok && r.preview) {
-      r.preview.diagnostics = [...prepared.diags, ...(r.preview.diagnostics ?? [])];
-      previewResult = r.preview;
-      step = 'review';
-    } else {
-      previewError = localizeImporterError(r.error, t) || t('import.errGeneric');
-    }
-    submitting = false;
-  }
-
-  type PreparedInput = { error: string } | { diags: ImportDiagnostic[] };
-
-  function prepareInput(spec: InputSpec, body: FormData): Promise<PreparedInput> | PreparedInput {
-    if (spec.kind === 'text') return prepareText(spec, body);
-    if (spec.kind === 'oauth') return prepareOauth(spec);
-    return prepareFile(spec, body);
-  }
-
-  function prepareText(spec: TextInputSpec, body: FormData): PreparedInput {
-    const value = credential.trim();
-    if (value === '') return { error: t(spec.i18n.errMissing) };
-    if (!acceptableText(spec, value)) return { error: t(spec.i18n.errShape) };
-    body.set('credential', value);
-    return { diags: [] };
-  }
-
-  function acceptableText(spec: TextInputSpec, value: string): boolean {
-    return value.length <= spec.maxLen && spec.shape.test(value);
-  }
-
-  function prepareOauth(spec: OAuthInputSpec): PreparedInput {
-    if (!sourceConnected) return { error: t(spec.i18n.errNotConnected) };
-    return { diags: [] };
-  }
-
-  async function prepareFile(spec: FileInputSpec, body: FormData): Promise<PreparedInput> {
-    const file = uploadFile;
-    if (!file || file.size === 0) return { error: t('import.errFileMissing') };
-    if (file.size > spec.maxBytes)
-      return { error: t('import.errTooLarge', { limit: Math.round(spec.maxBytes / (1024 * 1024)) }) };
-    if (!spec.parseInBrowser) {
-      body.set('file', file);
-      return { diags: [] };
-    }
-    return parseInPage(spec.parseInBrowser, file, body);
-  }
-
-  async function parseInPage(
-    parse: NonNullable<FileInputSpec['parseInBrowser']>,
-    file: File,
-    body: FormData
-  ): Promise<PreparedInput> {
-    try {
-      const parsed = parse(new Uint8Array(await file.arrayBuffer()));
-      const capped = applyImportCaps(parsed.manifest);
-      body.set('manifest', JSON.stringify(capped.manifest));
-      return { diags: [...capped.diagnostics] };
-    } catch (err) {
-      return { error: parseErrorMessage(err) };
-    }
-  }
-
-  function parseErrorMessage(err: unknown): string {
-    const message = err instanceof Error ? err.message : '';
-    const parserRefusal = /^importer\/[a-z-]+:\s*([\s\S]*)$/.exec(message);
-    if (!parserRefusal) return t('import.errGeneric');
-    return t('import.errParseFailed', { m: parserRefusal[1] });
-  }
-
-  async function postPreview(body: FormData): Promise<{ ok: boolean; preview?: PreviewResponse; error?: string }> {
-    try {
-      const res = await fetch('/settings/import?/preview', { method: 'POST', body });
-      const r = deserialize(await res.text());
-      if (r.type === 'failure') {
-        const d = r.data as { error?: string } | undefined;
-        return { ok: false, error: d?.error };
-      }
-      if (r.type === 'success') {
-        const d = r.data as { ok?: boolean; preview?: PreviewResponse } | undefined;
-        if (d?.ok && d.preview?.manifest) return { ok: true, preview: d.preview };
-      }
-      return { ok: false };
-    } catch {
-      return { ok: false };
-    }
-  }
-
-  async function runCommit() {
-    if (submitting) return;
-    commitError = '';
-    const manifestJson = buildSelectedManifest();
-    if (manifestJson === '{}') {
-      commitError = t('import.errNothingSelected');
-      return;
-    }
-
-    submitting = true;
-    const body = new FormData();
-    body.set('manifest', manifestJson);
-    body.set('source', source);
-    if (overwrite) body.set('overwrite', 'on');
-
-    try {
-      const res = await fetch('/settings/import?/commit', { method: 'POST', body });
-      const r = deserialize(await res.text());
-      if (r.type === 'failure') {
-        const d = r.data as { error?: string } | undefined;
-        commitError = localizeImporterError(d?.error, t) || t('import.errGeneric');
-      } else if (r.type === 'success') {
-        const d = r.data as { ok?: boolean; commit?: CommitResponse } | undefined;
-        if (d?.ok && d.commit) {
-          commitResult = d.commit;
-          step = 'done';
-          toast('ok', t('import.toastApplied'));
-        } else {
-          commitError = t('import.errGeneric');
-        }
-      } else {
-        commitError = t('import.errGeneric');
-      }
-    } catch {
-      commitError = t('import.errGeneric');
-    }
-    submitting = false;
-  }
-
   function pickFile(f: File | null | undefined) {
-    previewError = '';
-    if (!f) {
-      uploadFile = null;
-      return;
-    }
-    const want = wantedExtension();
-    if (want && !f.name.toLowerCase().endsWith(want)) {
-      previewError = t('import.errWrongType', { want });
-      uploadFile = null;
-      return;
-    }
-    uploadFile = f;
-  }
-
-  function wantedExtension(): string {
-    if (inputSpec?.kind !== 'file') return '';
-    const first = inputSpec.accept.split(',')[0];
-    return first.startsWith('.') ? first : '';
+    session.pickFile(f, inputSpec);
   }
 </script>
 
@@ -581,7 +262,7 @@
               fill
               mono
               placeholder={spec.placeholder}
-              bind:value={credential}
+              bind:value={session.credential}
               spellcheck="false"
               autocomplete="off"
               autocapitalize="off"
@@ -592,7 +273,7 @@
               class="bb-input bb-input--fill cred-mono"
               type="text"
               placeholder={spec.placeholder}
-              bind:value={credential}
+              bind:value={session.credential}
               maxlength={spec.maxLen}
               spellcheck="false"
               autocomplete="off"
@@ -654,8 +335,8 @@
         }}
       >
         <div class="actions-row">
-          <Button variant="ghost" type="button" onclick={() => (step = 'pick')} disabled={submitting}
-            >{t('import.back')}</Button
+          <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : (step = 'pick'))}
+            >{submitting ? t('common.cancel') : t('import.back')}</Button
           >
           <Button type="submit" variant="primary" loading={submitting}>
             {t('import.continueCta')}
@@ -669,22 +350,22 @@
       <p class="hint">{reviewHint}</p>
 
       <div class="review-bar">
-        {#each statChips as c (c)}<Tag tone="quiet">{c}</Tag>{/each}
+        {#each session.statChips as c (c)}<Tag tone="quiet">{c}</Tag>{/each}
         <span class="review-spacer"></span>
-        <Button type="button" variant="ghost" size="sm" onclick={() => setAll(true)}>{t('import.selectAll')}</Button>
-        <Button type="button" variant="ghost" size="sm" onclick={() => setAll(false)}>{t('import.selectNone')}</Button>
+        <Button type="button" variant="ghost" size="sm" onclick={() => session.setAll(true)}>{t('import.selectAll')}</Button>
+        <Button type="button" variant="ghost" size="sm" onclick={() => session.setAll(false)}>{t('import.selectNone')}</Button>
       </div>
     </Card>
 
-      {#each manifestLevelDiags as d (d.code + d.message)}
+      {#each session.manifestLevelDiags as d (d.code + d.message)}
         <p class="manifest-warn" role="status">{d.message}</p>
       {/each}
 
-      {#if anyCollisions}
+      {#if session.anyCollisions}
         <div class="collision-note">
           {@html t('import.conflictsNote', { n: previewResult.collisions?.length ?? 0 })}
           <span class="overwrite-toggle">
-            <Checkbox bind:checked={overwrite} name="overwrite" value="on">{t('import.overwriteToggle')}</Checkbox>
+            <Checkbox bind:checked={session.overwrite} name="overwrite" value="on">{t('import.overwriteToggle')}</Checkbox>
           </span>
         </div>
       {/if}
@@ -697,10 +378,10 @@
           </div>
           <ul class="rows">
             {#each previewResult.manifest.commands as c, i (c.name)}
-              {@const diags = itemDiags('commands', i)}
-              <li class="row-item" class:collision={collidedCommands.has(normalizeName(c.name))}>
+              {@const diags = session.diagsFor('commands', i)}
+              <li class="row-item" class:collision={session.collidedCommands.has(normalizeName(c.name))}>
                 <span class="pick">
-                  <Checkbox bind:checked={() => isChecked('commands', i), (on) => toggle('commands', i, on)}><span class="row-name">!{c.name}</span></Checkbox>
+                  <Checkbox bind:checked={() => session.isPicked('commands', i), (on) => session.toggle('commands', i, on)}><span class="row-name">!{c.name}</span></Checkbox>
                 </span>
                 <div class="row-body">
                   <span class="row-response row-response--source">{sourceLine(c)}</span>
@@ -719,7 +400,7 @@
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
                       <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
-                    {#if collidedCommands.has(normalizeName(c.name))}
+                    {#if session.collidedCommands.has(normalizeName(c.name))}
                       <Tag tone="error">{t('import.alreadyExists')}</Tag>
                     {/if}
                   </span>
@@ -738,10 +419,10 @@
           </div>
           <ul class="rows">
             {#each previewResult.manifest.timers as tm, i (tm.message)}
-              {@const diags = itemDiags('timers', i)}
+              {@const diags = session.diagsFor('timers', i)}
               <li class="row-item">
                 <span class="pick">
-                  <Checkbox bind:checked={() => isChecked('timers', i), (on) => toggle('timers', i, on)} aria-label={tm.message} />
+                  <Checkbox bind:checked={() => session.isPicked('timers', i), (on) => session.toggle('timers', i, on)} aria-label={tm.message} />
                 </span>
                 <div class="row-body">
                   <span class="row-response">{tm.message}</span>
@@ -769,10 +450,10 @@
           </div>
           <ul class="rows">
             {#each previewResult.manifest.triggers as tg, i (tg.phrase)}
-              {@const diags = itemDiags('triggers', i)}
+              {@const diags = session.diagsFor('triggers', i)}
               <li class="row-item">
                 <span class="pick">
-                  <Checkbox bind:checked={() => isChecked('triggers', i), (on) => toggle('triggers', i, on)}><span class="row-name">{tg.phrase}</span></Checkbox>
+                  <Checkbox bind:checked={() => session.isPicked('triggers', i), (on) => session.toggle('triggers', i, on)}><span class="row-name">{tg.phrase}</span></Checkbox>
                 </span>
                 <div class="row-body">
                   <span class="row-response">{tg.response}</span>
@@ -801,7 +482,7 @@
         </Card>
       {/if}
 
-      {#if commitError}<AlertBanner>{commitError}</AlertBanner>{/if}
+      {#if commitError}<ImportAlert message={commitError} />{/if}
 
       <form
         class="commit-bar"
@@ -810,10 +491,10 @@
           runCommit();
         }}
       >
-        <span class="commit-line">{selectionLine}</span>
+        <span class="commit-line">{session.selectionLine}</span>
         <div class="actions-row">
-          <Button variant="ghost" type="button" onclick={reset} disabled={submitting}
-            >{t('import.startOver')}</Button
+          <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : reset())}
+            >{submitting ? t('common.cancel') : t('import.startOver')}</Button
           >
           <Button type="submit" variant="primary" loading={submitting}>
             {t('import.importNow')}
@@ -841,16 +522,11 @@
             tg: commitResult.applied.triggers,
             q: commitResult.applied.quotes
           })}
-          {#if commitResult.skipped?.length}
-            {t('import.skippedLine', {
-              n: commitResult.skipped.length,
-              names: commitResult.skipped.map((c) => c.name).join(', ')
-            })}
-          {/if}
         </p>
-        {#if appliedTiles.length}
+        <ImportSkipped skipped={commitResult.skipped} {t} />
+        {#if session.appliedTiles.length}
           <div class="applied">
-            {#each appliedTiles as a (a.label)}
+            {#each session.appliedTiles as a (a.label)}
               <div class="applied-tile">
                 <span class="applied-n">{a.n}</span>
                 <span class="applied-label">{a.label}</span>
@@ -866,8 +542,9 @@
       {:else}
         <p class="hint">{t('import.nothingApplied')}</p>
       {/if}
-      <div class="actions">
-        <Button variant="primary" onclick={reset}>{t('import.backToSources')}</Button>
+      <div class="actions actions-row">
+        <ButtonLink href="/commands" variant="green" solid>{t('import.reviewCommands')}</ButtonLink>
+        <Button variant="ghost" onclick={reset}>{t('import.importAnother')}</Button>
       </div>
       {#if commitResult?.audit_id}
         <p class="audit">{t('import.auditFoot', { n: commitResult.audit_id })}</p>

@@ -1,14 +1,16 @@
 <script lang="ts">
   import { formatCounterValue } from '@bagel/kit/validation';
-  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { Icon, PermBadge, SaveStatus, ManagementRow, Switch, Tag, getI18n, usesCount, type CommandView, type Perm } from '@bagel/kit';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
+  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
+  const ALIAS_VISIBLE = 2;
 
   let {
     command,
@@ -17,6 +19,8 @@
     status = 'idle' as SaveState,
     unsaved = false,
     expanded = false,
+    selecting = false,
+    checked = false,
     onExpand,
     onDelete,
     toggleSubmit
@@ -27,6 +31,8 @@
     status?: SaveState;
     unsaved?: boolean;
     expanded?: boolean;
+    selecting?: boolean;
+    checked?: boolean;
     onExpand: () => void;
     onDelete: () => void;
     toggleSubmit: SubmitFunction;
@@ -36,10 +42,21 @@
   const cd = $derived(c.cooldown && c.cooldown > 0 ? `${c.cooldown}s` : '-');
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
   const uses = $derived(usesCount(c));
+  const aliasList = $derived(c.aliases ?? []);
+  const aliasAll = $derived(aliasList.join(', '));
+  const saving = $derived(status === 'saving');
+  const statusLabels = $derived({
+    savingLabel: t('commandEditor.saving'),
+    savedLabel: t('commands.saved'),
+    errorLabel: t('commandRow.failed')
+  });
+  const statusLabel = $derived(
+    status === 'saving' ? statusLabels.savingLabel : status === 'saved' ? statusLabels.savedLabel : status === 'error' ? statusLabels.errorLabel : undefined
+  );
   const barPct = $derived(usesMax > 0n ? Math.min(100, Number((uses * 100n + usesMax / 2n) / usesMax)) : 0);
 </script>
 
-<div class="row-wrap" class:flash-save={status === 'saved'}>
+<div class="row-wrap" class:flash-save={status === 'saved'} data-row-name={c.name}>
   <ManagementRow
     accent
     selected={expanded}
@@ -48,16 +65,21 @@
     onselect={onExpand}
   >
     {#snippet primary()}
-      <span class="prow">
-        {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
+      <span class="prow" class:selecting>
+        <span class="idx">
+          {#if selecting}
+            <span class="pick" class:on={checked} aria-hidden="true">{#if checked}<Icon name="check" size={11} />{/if}</span>
+            <VisuallyHidden>{checked ? t('commandRow.selected') : t('commandRow.notSelected')}</VisuallyHidden>
+          {:else}<span aria-hidden="true">{idx}</span>{/if}
+        </span>
         <span class="cmd">
           <span class="cmd-name">
             !{c.name}
             {#if c.allowed_user_id}
-              <span class="lock" title={t('commandRow.lockedTo', { id: c.allowed_user_id })}><Icon name="lock" size={11} /></span>
+              <span class="lock" role="img" aria-label={t('commandRow.lockedTo', { id: c.allowed_user_id })} title={t('commandRow.lockedTo', { id: c.allowed_user_id })}><Icon name="lock" size={11} /></span>
             {/if}
             {#if c.stream_online_only}
-              <span class="lock" title={t('commandRow.liveOnly')}><Icon name="pulse" size={11} /></span>
+              <span class="lock" role="img" aria-label={t('commandRow.liveOnly')} title={t('commandRow.liveOnly')}><Icon name="pulse" size={11} /></span>
             {/if}
             {#if c.builtin}
               <span class="name-tag">
@@ -70,9 +92,12 @@
               </span>
             {/if}
           </span>
-          {#if c.aliases?.length}
-            <span class="aliases" title={t('commandRow.also', { aliases: c.aliases.join(', ') })}>
-              {#each c.aliases as a}<span class="bb-tag bb-tag--bare bb-tag--literal">{a}</span>{/each}
+          {#if aliasList.length}
+            <span class="aliases" title={t('commandRow.also', { aliases: aliasAll })}>
+              {#each aliasList as a, i (a)}<span class="bb-tag bb-tag--bare bb-tag--literal" class:extra={i >= ALIAS_VISIBLE}>{a}</span>{/each}
+              {#if aliasList.length > ALIAS_VISIBLE}
+                <span class="bb-tag bb-tag--bare bb-tag--literal more" role="img" aria-label={t('commandRow.moreAliases', { count: aliasList.length - ALIAS_VISIBLE, aliases: aliasList.slice(ALIAS_VISIBLE).join(', ') })}>+{aliasList.length - ALIAS_VISIBLE}</span>
+              {/if}
             </span>
           {/if}
         </span>
@@ -88,7 +113,7 @@
           </span>
         </span>
         <span class="m-cd">{cd}</span>
-        <span class="state"><SaveStatus state={status} /></span>
+        <span class="state"><SaveStatus state={status} {...statusLabels} /></span>
       </span>
     {/snippet}
     {#snippet actions()}
@@ -102,10 +127,11 @@
         <input type="hidden" name="bump_counter" value={c.bump_counter ?? ''} />
         <input type="hidden" name="stream_online_only" value={c.stream_online_only ? 'on' : ''} />
         <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
-        <Switch type="submit" checked={c.is_active} label={t('commandRow.toggleAria', { name: c.name })} />
+        <Switch type="submit" checked={c.is_active} pending={saving} label={t('commandRow.toggleAria', { name: c.name })} />
       </form>
+      <span class="state-compact"><SaveStatus state={status} compact aria-label={statusLabel} {...statusLabels} /></span>
       {#if !c.builtin}
-        <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('commandRow.deleteAria', { name: c.name })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
+        <RowDeleteButton label={t('commandRow.deleteAria', { name: c.name })} onclick={onDelete} />
       {:else}
         <span class="mini-spacer" aria-hidden="true"></span>
       {/if}
@@ -122,7 +148,28 @@
     min-height: 26px;
   }
 
-  .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
+  .idx {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 18px;
+    font-family: var(--bb-font-mono);
+    font-size: 10px;
+    color: var(--bb-muted);
+  }
+  .idx:not(:has(.pick)) { opacity: 0.55; }
+
+  .pick {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--bb-muted);
+    border-radius: var(--bb-radius-xs);
+    color: var(--bb-black);
+  }
+  .pick.on { background: var(--bb-green-glow); border-color: var(--bb-green-glow); }
 
   .cmd { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
   .cmd-name {
@@ -135,6 +182,8 @@
   .name-tag { margin-left: 8px; display: inline-flex; }
 
   .aliases { display: flex; flex-wrap: nowrap; gap: 12px; min-width: 0; overflow: hidden; }
+  .aliases .extra { display: none; }
+  .aliases .more { flex: none; }
 
   .resp {
     font-family: var(--bb-font-body);
@@ -185,16 +234,18 @@
   }
   .m-val.uses { color: var(--bb-white); }
   .state { min-width: 0; }
+  .state-compact { display: none; min-width: 22px; justify-content: center; }
 
-  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
   .mini-spacer { width: 32px; height: 32px; flex: none; }
 
-  @media (max-width: 1080px) {
+  @container (max-width: 820px) {
     .prow { grid-template-columns: 190px minmax(0, 1fr) 104px 92px auto; }
+    .prow.selecting { grid-template-columns: 22px 190px minmax(0, 1fr) 104px 92px auto; }
     .idx, .m-cd { display: none; }
+    .selecting .idx { display: inline-flex; }
   }
 
-  @media (max-width: 760px) {
+  @container (max-width: 560px) {
     .prow {
       grid-template-columns: minmax(0, 1fr);
       grid-template-areas:
@@ -204,12 +255,28 @@
         'uses';
       row-gap: 6px;
     }
+    .prow.selecting {
+      grid-template-columns: 22px minmax(0, 1fr);
+      grid-template-areas:
+        'idx cmd'
+        '. resp'
+        '. perm'
+        '. uses';
+    }
+    .idx { grid-area: idx; }
     .cmd { grid-area: cmd; flex-wrap: wrap; }
     .aliases { flex-wrap: wrap; overflow: visible; }
+    .aliases .extra { display: inline-flex; }
+    .aliases .more { display: none; }
     .resp { grid-area: resp; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
     .m-perm { grid-area: perm; }
     .m-uses { grid-area: uses; width: 130px; }
+    .u-track { display: none; }
     .state { display: none; }
-    :global(.delete-action), .mini-spacer { min-width: 44px; min-height: 44px; }
+    .state-compact { display: inline-flex; }
+  }
+
+  @media (max-width: 760px), (pointer: coarse) {
+    .mini-spacer { width: 44px; height: 44px; }
   }
 </style>

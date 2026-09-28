@@ -4,7 +4,8 @@
   import { Select } from '@bagel/kit';
   import { enhance, deserialize } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
+  import { createInspector } from '@bagel/ui/svelte/inspector';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     PageHead,
@@ -18,6 +19,8 @@
     Button,
     Field,
     FieldError,
+    EditorFooter,
+    createDiscardGuard,
     ConfirmDialog,
     MiniButton,
     toast,
@@ -101,18 +104,32 @@
   }
 
   const NEW = '__new__';
+  type CounterDraft = { name: string; scope: CounterScope; value: string };
+  const inspector = createInspector<CounterDraft>();
   let expanded = $state<string | null>(null);
+  let draft = $state<CounterDraft | null>(null);
+  let attempted = $state(false);
+  let saving = $state(false);
+  let createForm = $state<HTMLFormElement | null>(null);
+  let setForm = $state<HTMLFormElement | null>(null);
 
-  let newName = $state('');
-  let newScope = $state<CounterScope>('channel');
-  let creating = $state(false);
-  let nameError = $state('');
+  $effect(() => {
+    const snap = draft ? { ...draft } : null;
+    if (snap) untrack(() => inspector.edit(snap));
+  });
 
-  let setValue = $state('0');
-  let setting = $state(false);
-
+  const creating = $derived(expanded === NEW);
+  const canSave = $derived(creating || inspector.dirty);
   const selected = $derived(expanded && expanded !== NEW ? items.find((c) => c.name === expanded) : undefined);
   const entriesReady = $derived(!!selected && data.selected === selected.name);
+  const nameError = $derived(
+    creating && attempted && !normCounterName(draft?.name ?? '') ? t('counters.errName') : undefined
+  );
+  const valueError = $derived(
+    selected?.scope === 'channel' && attempted && draft && parseCounterValue(draft.value) === null
+      ? t('counters.errValue')
+      : undefined
+  );
 
   function normCounterName(raw: string): string {
     return raw.trim().replace(/^!/, '').toLowerCase().slice(0, 64);
@@ -123,12 +140,48 @@
     document.getElementById('counter-name')?.focus();
   }
 
+  function present(id: string | null, next: CounterDraft | null) {
+    expanded = id;
+    attempted = false;
+    renameError = '';
+    addAttempted = false;
+    if (id && next) {
+      inspector.open(id, { ...next });
+      draft = { ...next };
+    } else {
+      inspector.reset();
+      draft = null;
+    }
+  }
+
+  function clearSubFields() {
+    renameValue = '';
+    addUser = '';
+    addCommand = '';
+    addValue = '0';
+  }
+
+  const discard = createDiscardGuard(
+    () =>
+      inspector.dirty || renameValue.trim() !== '' || addUser.trim() !== '' || addCommand.trim() !== '',
+    () => {
+      clearSubFields();
+      present(null, null);
+    }
+  );
+  const guarded = discard.guard;
+
+  function syncSelection(name: string | null) {
+    if (name) void goto(`/counters?c=${encodeURIComponent(name)}`, { noScroll: true, keepFocus: true });
+    else if (data.selected) void goto('/counters', { noScroll: true, keepFocus: true });
+  }
+
   function openNew() {
-    nameError = '';
-    newName = '';
-    newScope = 'channel';
-    expanded = NEW;
-    if (data.selected) void goto('/counters', { noScroll: true, keepFocus: true });
+    guarded(() => {
+      clearSubFields();
+      present(NEW, { name: '', scope: 'channel', value: '0' });
+      syncSelection(null);
+    });
   }
 
   function openCounter(c: CounterDef) {
@@ -136,33 +189,29 @@
       closeEditor();
       return;
     }
-    nameError = '';
-    renameValue = '';
-    renameError = '';
-    addUser = '';
-    addCommand = '';
-    addValue = '0';
-    addAttempted = false;
-    expanded = c.name;
-    if (c.scope === 'channel') {
-      setValue = c.value;
-      if (data.selected) void goto('/counters', { noScroll: true, keepFocus: true });
-    } else {
-      void goto(`/counters?c=${encodeURIComponent(c.name)}`, { noScroll: true, keepFocus: true });
-    }
+    guarded(() => {
+      clearSubFields();
+      const channel = c.scope === 'channel';
+      present(c.name, channel ? { name: c.name, scope: c.scope, value: c.value } : null);
+      syncSelection(channel ? null : c.name);
+    });
   }
 
   function closeEditor() {
-    expanded = null;
-    nameError = '';
-    renameError = '';
-    addAttempted = false;
-    if (data.selected) void goto('/counters', { noScroll: true, keepFocus: true });
+    guarded(() => {
+      present(null, null);
+      syncSelection(null);
+    });
+  }
+
+  function clearFilters() {
+    search = '';
+    scopeLabelPicked = t('counters.filterAll');
   }
 
   $effect(() => {
     if (expanded && expanded !== NEW && !items.some((c) => c.name === expanded)) {
-      expanded = null;
+      present(null, null);
     }
   });
 
@@ -174,40 +223,53 @@
         : (selected?.name ?? '')
   );
 
+  function beginSaveRequest() {
+    saving = true;
+    return inspector.beginSave()?.requestId;
+  }
+  function endSaveRequest(requestId: string | undefined, ok: boolean): boolean {
+    saving = false;
+    return requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
+  }
+
   const createSubmit: SubmitFunction = (input) => {
-    const norm = normCounterName(newName);
-    nameError = norm ? '' : t('counters.errName');
-    if (nameError) {
+    attempted = true;
+    if (!normCounterName(draft?.name ?? '')) {
       input.cancel();
       void focusNameError();
       return;
     }
-    creating = true;
+    const requestId = beginSaveRequest();
     return async ({ result }) => {
-      creating = false;
-      if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastCreated'));
-        expanded = null;
-        newName = '';
-        newScope = 'channel';
-        await invalidateAll();
+      const ok = result.type === 'success' && actionPayload(result)?.ok === true;
+      const applied = endSaveRequest(requestId, ok);
+      if (!ok) {
+        failed(actionPayload(result), 'counters.toastFailed');
         return;
       }
-      failed(actionPayload(result), 'counters.toastFailed');
+      toast('ok', t('counters.toastCreated'));
+      if (applied) present(null, null);
+      await invalidateAll();
     };
   };
 
-  const setSubmit: SubmitFunction = () => {
-    setting = true;
+  const setSubmit: SubmitFunction = (input) => {
+    attempted = true;
+    if (!draft || parseCounterValue(draft.value) === null) {
+      input.cancel();
+      void focusFirstInvalid(setForm);
+      return;
+    }
+    const requestId = beginSaveRequest();
     return async ({ result }) => {
-      setting = false;
-      if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastSet'));
-        expanded = null;
-        await invalidateAll();
+      const ok = result.type === 'success' && actionPayload(result)?.ok === true;
+      endSaveRequest(requestId, ok);
+      if (!ok) {
+        failed(actionPayload(result), 'counters.toastFailed');
         return;
       }
-      failed(actionPayload(result), 'counters.toastFailed');
+      toast('ok', t('counters.toastSet'));
+      await invalidateAll();
     };
   };
 
@@ -229,9 +291,9 @@
       renaming = false;
       if (result.type === 'success' && actionPayload(result)?.ok) {
         toast('ok', t('counters.toastRenamed'));
-        renameValue = '';
-        renameError = '';
-        closeEditor();
+        clearSubFields();
+        present(null, null);
+        syncSelection(null);
         await invalidateAll();
         return;
       }
@@ -314,6 +376,15 @@
     return parseCounterValue(raw);
   }
 
+  function entryInvalid(e: CounterEntryView): boolean {
+    const raw = entryEdits[entryKey(e)];
+    return raw !== undefined && raw.trim() !== '' && parseCounterValue(raw) === null;
+  }
+
+  const entryError = $derived(
+    (data.entries ?? []).some(entryInvalid) ? t('counters.errValue') : ''
+  );
+
   function entryDirty(e: CounterEntryView): boolean {
     const n = entryDraftValue(e);
     return n !== null && n !== e.value;
@@ -365,7 +436,7 @@
     const snapshot = target ? { ...target } : null;
     if (target) {
       items = items.filter((c) => c.name !== target.name);
-      if (expanded === target.name) expanded = null;
+      if (expanded === target.name) present(null, null);
     }
     deleteTarget = null;
     return async ({ result }) => {
@@ -382,6 +453,21 @@
     };
   };
 </script>
+
+{#snippet footer(saveLabel: string)}
+  <EditorFooter
+    status={inspector.status}
+    dirty={inspector.dirty}
+    {canSave}
+    {saveLabel}
+    cancelLabel={t('common.cancel')}
+    savingLabel={t('counters.saving')}
+    savedLabel={t('counters.saved')}
+    errorLabel={t('counters.toastFailed')}
+    dirtyLabel={t('counters.unsavedChanges')}
+    onCancel={closeEditor}
+  />
+{/snippet}
 
 {#snippet renameBlock()}
 <div class="rename-row">
@@ -451,7 +537,9 @@
           <Button variant="primary" onclick={openNew}>{t('counters.create')}</Button>
         </EmptyState>
       {:else}
-        <EmptyState title={t('counters.noneMatch')} />
+        <EmptyState title={t('counters.noneMatch')}>
+          <Button variant="secondary" onclick={clearFilters}>{t('counters.clearFilters')}</Button>
+        </EmptyState>
       {/if}
     </DeckList>
 
@@ -463,30 +551,35 @@
         closeLabel={t('common.cancel')}
         onClose={closeEditor}
       >
-        {#if expanded === NEW}
-          <form method="POST" action="?/create" class="ins-form" novalidate use:enhance={createSubmit}>
+        {#if creating && draft}
+          <form
+            method="POST"
+            action="?/create"
+            class="ins-form"
+            novalidate
+            use:enhance={createSubmit}
+            bind:this={createForm}
+          >
             <Scroller fill padding="16px" smooth>
-              <Field label={t('counters.fieldName')}>
+              <Field label={t('counters.fieldName')} error={nameError} errorId="counter-name-err">
                 <input
                   id="counter-name"
                   class="bb-input"
                   name="name"
                   placeholder={t('counters.fieldNamePh')}
                   maxlength="64"
-                  bind:value={newName}
+                  bind:value={draft.name}
+                  data-invalid={nameError ? '' : undefined}
                   aria-invalid={nameError ? 'true' : undefined}
                   aria-describedby={nameError ? 'counter-name-err' : undefined}
                   required
                 />
               </Field>
-              {#if nameError}
-                <small id="counter-name-err" class="field-err" role="alert">{nameError}</small>
-              {/if}
 
               <Field label={t('counters.fieldScope')}>
                 <Select
                   fill
-                  name="scope" bind:value={newScope}
+                  name="scope" bind:value={draft.scope}
                   options={COUNTER_SCOPES.map((s) => ({ value: s, label: scopeLabel[s] }))}
                 />
               </Field>
@@ -495,22 +588,34 @@
                 <p class="hint">{t('counters.scopeLocked')}</p>
               </div>
             </Scroller>
-            <div class="ins-foot">
-              <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
-              <Button variant="primary" type="submit" loading={creating}>
-                {t('counters.create')}
-              </Button>
-            </div>
+            {@render footer(t('counters.create'))}
           </form>
-        {:else if selected?.scope === 'channel'}
-          <form method="POST" action="?/set" class="ins-form" novalidate use:enhance={setSubmit}>
+        {:else if selected?.scope === 'channel' && draft}
+          <form
+            method="POST"
+            action="?/set"
+            class="ins-form"
+            novalidate
+            use:enhance={setSubmit}
+            bind:this={setForm}
+          >
             <input type="hidden" name="name" value={selected.name} />
             <Scroller fill padding="16px" smooth>
               <p class="ins-sub">{scopeLabel[selected.scope]}</p>
 
               <div class="sec">
-                <Field label={t('counters.colValue')}>
-                  <input class="bb-input num big-num" type="text" inputmode="numeric" name="value" bind:value={setValue} use:focusSelect />
+                <Field label={t('counters.colValue')} error={valueError} errorId="counter-value-err">
+                  <input
+                    class="bb-input num big-num"
+                    type="text"
+                    inputmode="numeric"
+                    name="value"
+                    bind:value={draft.value}
+                    data-invalid={valueError ? '' : undefined}
+                    aria-invalid={valueError ? 'true' : undefined}
+                    aria-describedby={valueError ? 'counter-value-err' : undefined}
+                    use:focusSelect
+                  />
                 </Field>
               </div>
 
@@ -519,12 +624,7 @@
                 {@render renameBlock()}
               </div>
             </Scroller>
-            <div class="ins-foot">
-              <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
-              <Button variant="primary" type="submit" loading={setting}>
-                {t('counters.set')}
-              </Button>
-            </div>
+            {@render footer(t('counters.set'))}
           </form>
         {:else if selected}
           {@const showViewer = selected.scope !== 'command'}
@@ -569,6 +669,9 @@
                                     type="text"
                                     inputmode="numeric"
                                     aria-label={t('counters.colValue')}
+                                    data-invalid={entryInvalid(e) ? '' : undefined}
+                                    aria-invalid={entryInvalid(e) ? 'true' : undefined}
+                                    aria-describedby="counter-entry-err"
                                     value={entryEdits[entryKey(e)] ?? e.value}
                                     oninput={(ev) => (entryEdits[entryKey(e)] = ev.currentTarget.value)}
                                     onkeydown={(ev) => {
@@ -603,6 +706,7 @@
                       </tbody>
                     </table>
                   </div>
+                  <small id="counter-entry-err" class="entry-err" role="alert">{entryError}</small>
                 {/if}
               </div>
 
@@ -677,6 +781,17 @@
     {/if}
   </div>
 </section>
+
+<ConfirmDialog
+  open={discard.open}
+  title={t('counters.discardTitle')}
+  body={t('counters.discardBody')}
+  confirmLabel={t('counters.discard')}
+  cancelLabel={t('counters.keepEditing')}
+  danger
+  onCancel={discard.cancel}
+  onConfirm={discard.confirm}
+/>
 
 <ConfirmDialog
   open={deleteTarget !== null}
@@ -769,12 +884,13 @@
     flex: none;
   }
 
-  .field-err {
+  .entry-err {
     display: block;
-    margin: -8px 0 12px;
+    min-height: 16px;
+    margin-top: 6px;
     font-family: var(--bb-font-body);
     font-size: 11.5px;
-    color: #cf8a78;
+    color: var(--bb-danger, #cf8a78);
   }
 
   .ins-sub {

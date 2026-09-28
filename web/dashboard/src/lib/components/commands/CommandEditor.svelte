@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { onMount } from 'svelte';
   import { Select } from '@bagel/kit';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -27,6 +28,7 @@
   import ResponseEditor from './ResponseEditor.svelte';
   import type { SourceDef } from './fetches/FetchSourcePicker.svelte';
   import ChatPreview from './ChatPreview.svelte';
+  import { nameConflict } from './name-conflict';
   import { draftRef, loadDraft, saveDraft, type BoardId, type CommandDraft } from './drafts';
   import { focusFirstInvalid } from '@bagel/kit';
 
@@ -43,7 +45,9 @@
     onCancel,
     onSubmit,
     liveActive = false,
-    onToggleActive
+    onToggleActive,
+    customNames = [],
+    onOpenExisting
   }: {
     draft: CommandDraft;
     board: BoardId;
@@ -58,6 +62,8 @@
     onSubmit: SubmitFunction;
     liveActive?: boolean;
     onToggleActive?: (next: boolean) => void;
+    customNames?: readonly string[];
+    onOpenExisting?: (name: string) => void;
   } = $props();
 
   const busy = $derived(status === 'saving');
@@ -69,12 +75,35 @@
   let chips = $state<ReturnType<typeof AliasChips>>();
   let clientErrors = $state<CommandErrors>({});
   let formEl = $state<HTMLFormElement | null>(null);
-  const errors = $derived<CommandErrors>(Object.fromEntries(
-    Object.entries({ ...(serverErrors ?? {}), ...clientErrors }).map(([field, message]) => [
-      field,
-      translateValidationMessage(message, validationT)
-    ])
-  ) as CommandErrors);
+  const conflict = $derived(nameConflict(draft, customNames));
+  const conflictMessage = $derived(
+    conflict === null
+      ? undefined
+      : conflict.kind === 'builtin'
+        ? t('commands.errBuiltinName')
+        : t('commands.errNameTaken', { name: conflict.name })
+  );
+  const errors = $derived<CommandErrors>({
+    ...(Object.fromEntries(
+      Object.entries({ ...(serverErrors ?? {}), ...clientErrors }).map(([field, message]) => [
+        field,
+        translateValidationMessage(message, validationT)
+      ])
+    ) as CommandErrors),
+    ...(conflictMessage ? { name: conflictMessage } : {})
+  });
+
+  let nameEl = $state<HTMLInputElement>();
+  onMount(() => {
+    let frames = 0;
+    let raf = 0;
+    const settle = () => {
+      if (++frames < 3) raf = requestAnimationFrame(settle);
+      else nameEl?.focus();
+    };
+    raf = requestAnimationFrame(settle);
+    return () => cancelAnimationFrame(raf);
+  });
 
   // Persist every editor field. Active is draft state for creation, but a live
   // toggle on an existing command must not count as an unsaved content edit.
@@ -97,7 +126,7 @@
       allowedUserId: draft.allowed_user_id.replace(/\D/g, ''),
       bumpCounter: normName(draft.bump_counter)
     });
-    if (Object.keys(clientErrors).length) {
+    if (conflictMessage || Object.keys(clientErrors).length) {
       input.cancel();
       void focusFirstInvalid(formEl);
       return;
@@ -114,6 +143,7 @@
     <input type="hidden" name="original_name" value={draft.originalName} />
   {/if}
 
+  <div class="name-wrap">
   <Field
     label={t('commandEditor.name')}
     hint={draft.edit ? t('commandEditor.renameHint') : undefined}
@@ -122,6 +152,7 @@
   >
     <input
       class="bb-input"
+      bind:this={nameEl}
       name="name"
       placeholder={t('commandEditor.namePlaceholder')}
       required
@@ -131,6 +162,13 @@
       bind:value={draft.name}
     />
   </Field>
+  <button
+    type="button"
+    class="open-existing"
+    class:on={conflict?.kind === 'taken' && !!onOpenExisting}
+    onclick={() => conflict?.kind === 'taken' && onOpenExisting?.(conflict.name)}
+  >{t('commands.openExisting')}</button>
+  </div>
 
   <Field label={t('commandEditor.altNames')} tag={t('common.optional')}>
     <AliasChips bind:this={chips} bind:aliases={draft.aliases} bind:draft={aliasDraft} commandName={draft.name} />
@@ -258,6 +296,24 @@
   .editor-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
   .editor { padding: 4px 2px 2px; }
 
+
+  .name-wrap { position: relative; }
+  .open-existing {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font-family: var(--bb-font-body);
+    font-size: 12px;
+    color: var(--bb-green-glow);
+    text-decoration: underline;
+    cursor: pointer;
+    visibility: hidden;
+    opacity: 0;
+  }
+  .open-existing.on { visibility: visible; opacity: 1; }
 
   .check { margin: 4px 0 14px; --bb-check-align: center; }
   .live-active {

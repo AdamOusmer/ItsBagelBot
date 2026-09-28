@@ -15,6 +15,7 @@
     status = 'idle' as SaveState,
     expanded = false,
     enabled = undefined as boolean | undefined,
+    disabled = false,
     onExpand,
     onToggle
   }: {
@@ -25,6 +26,7 @@
     status?: SaveState;
     expanded?: boolean;
     enabled?: boolean;
+    disabled?: boolean;
     onExpand: () => void;
     onToggle?: () => void;
   } = $props();
@@ -38,6 +40,7 @@
     selected={expanded}
     {expanded}
     disabled={enabled === false}
+    aria-disabled={disabled ? 'true' : undefined}
     onselect={onExpand}
   >
     {#snippet primary()}
@@ -52,7 +55,7 @@
     {/snippet}
     {#snippet actions()}
       {#if enabled !== undefined}
-        <Switch checked={enabled} label={t('modules.toggleAria', { label: tModuleReplyPart(t, moduleId, reply, 'label') })} onchange={() => onToggle?.()} />
+        <Switch checked={enabled} label={t('modules.toggleAria', { label: tModuleReplyPart(t, moduleId, reply, 'label') })} disabled={disabled} onchange={() => onToggle?.()} />
       {:else}
         <span class="mini-spacer" aria-hidden="true"></span>
       {/if}

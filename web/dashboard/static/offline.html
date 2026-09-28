@@ -84,7 +84,18 @@
       <p class="sub">Vous êtes hors ligne</p>
       <p>The dashboard needs an internet connection. Check your network and try again.</p>
       <p class="fr">Le tableau de bord a besoin d'une connexion Internet. Vérifiez votre réseau, puis réessayez.</p>
-      <a href="/">Retry · Réessayer</a>
+      <a id="retry" href="/">Retry · Réessayer</a>
     </main>
+    <script>
+      var retry = document.getElementById('retry');
+      retry.href = location.href;
+      retry.addEventListener('click', function (e) {
+        e.preventDefault();
+        location.reload();
+      });
+      window.addEventListener('online', function () {
+        location.reload();
+      });
+    </script>
   </body>
 </html>

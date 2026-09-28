@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, ManagementRow, MiniButton, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
+  import { Icon, ManagementRow, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
+  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();
 
@@ -50,7 +51,7 @@
     {/snippet}
     {#snippet actions()}
       {#if bound}
-        <MiniButton icon="trash" class="row-del" aria-label={t('spotify.removeAria')} onclick={onDelete} />
+        <RowDeleteButton label={t('spotify.removeAria', { name: reward?.title || t('spotify.thisReward') })} onclick={onDelete} />
       {/if}
     {/snippet}
   </ManagementRow>
@@ -108,10 +109,6 @@
     transition: color var(--bb-dur-fast, 140ms) ease, transform var(--bb-dur-fast, 140ms) ease;
   }
   .chev.open { color: var(--bb-tan); transform: rotate(180deg); }
-
-  :global(.mini.row-del) { width: 44px; height: 44px; border-radius: var(--bb-radius-sm); }
-  :global(.mini.row-del:hover) { color: #cf8a78; }
-  :global(.mini.row-del:focus-visible) { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
 
   @media (max-width: 620px) {
     .prow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'light chev' 'status chev'; row-gap: 4px; }

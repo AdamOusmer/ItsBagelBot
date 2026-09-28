@@ -204,3 +204,63 @@ body {
   .status-hero .actions .btn { width: 100%; justify-content: center; }
 
 }
+
+@layer bb.app {
+  .bb-nav-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    z-index: 400;
+    pointer-events: none;
+    background: var(--bb-green-glow, #52b788);
+    transform: scaleX(0);
+    transform-origin: left;
+    opacity: 0;
+    transition: opacity 200ms var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  }
+  .bb-nav-progress--active {
+    transform: scaleX(0.9);
+    opacity: 1;
+    transition:
+      transform 6s var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)),
+      opacity 120ms var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bb-nav-progress--active {
+      transform: scaleX(1);
+      transition: opacity 120ms linear;
+    }
+  }
+  .bb-profile-topbar__op-menu {
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+  }
+  @media (pointer: coarse) {
+    .bb-profile-topbar__op-menu .bb-profile__link,
+    .bb-profile-topbar__op-menu .bb-profile-topbar__op-menu-item {
+      min-height: 44px;
+    }
+  }
+  .bb-shell--stacked {
+    padding-top: 88px;
+  }
+  .bb-shell--stacked .bb-topbar {
+    top: calc(98px + env(safe-area-inset-top, 0px));
+  }
+  .bb-alert--row-2 {
+    top: 44px;
+  }
+  @media (pointer: coarse) {
+    .bb-notifications__icon-btn::after,
+    .bb-profile-topbar__operator::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+    }
+    .bb-profile-topbar__operator {
+      position: relative;
+    }
+  }
+}

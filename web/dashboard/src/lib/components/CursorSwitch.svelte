@@ -17,7 +17,7 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ enabled: on })
       });
-      if (!res.ok) toast('err', t('settings.cursorSaveError'));
+      if (!res.ok) throw new Error(String(res.status));
     } catch {
       customCursor.set(prev);
       toast('err', t('settings.cursorSaveError'));

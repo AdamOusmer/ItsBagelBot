@@ -4,6 +4,9 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { AlertBanner, Card, Code, LightField, SearchInput, Text } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import { commandsHref } from '@bagel/kit/site-links';
+  import { page } from '$app/state';
+  import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -36,6 +39,7 @@
   let filter = $state<Filter>('all');
   let moduleId = $state<string | null>(null);
   let copied = $state<string | null>(null);
+  let copiedTrigger = $state('');
 
   const creatorCode = $derived(String(data.creatorCode ?? '').trim());
 
@@ -95,7 +99,9 @@
     modules: data.modules.length === 1
       ? t('public.commands.summaryOneModule', { count: data.modules.length })
       : t('public.commands.summaryManyModules', { count: data.modules.length }),
-    total: all.length
+    total: all.length === 1
+      ? t('public.commands.summaryOneThing', { count: 1 })
+      : t('public.commands.summaryThings', { count: all.length })
   }));
 
   function pickFilter(id: Filter) {
@@ -112,19 +118,21 @@
   function copy(text: string, key: string) {
     const generation = ++copyGeneration;
     void copyFlash(text, (on) => {
-      if (generation === copyGeneration) copied = on ? key : null;
+      if (generation !== copyGeneration) return;
+      copied = on ? key : null;
+      copiedTrigger = on ? text : '';
     }, 1400);
   }
 
 </script>
 
-<svelte:head>
-  <title>{t('public.commands.pageTitle', { channel: data.channelName })}</title>
-  <meta
-    name="description"
-    content={t('public.commands.pageDescription', { channel: data.channelName })}
-  />
-</svelte:head>
+<PublicHead
+  title={t('public.commands.pageTitle', { channel: data.channelName })}
+  description={t('public.commands.pageDescription', { channel: data.channelName })}
+  url={commandsHref(page.params.channel ?? '')}
+/>
+
+<p class="bb-sr-only" role="status" aria-live="polite">{copiedTrigger ? t('public.commands.copiedAnnounce', { trigger: copiedTrigger }) : ''}</p>
 
 <div class="starfield" aria-hidden="true"><LightField /></div>
 <div class="glow" aria-hidden="true"></div>
@@ -141,7 +149,7 @@
         <span class="creator__label">{t('public.commands.copyCreator')}</span>
         <span class="creator__row">
           <strong>{creatorCode}</strong>
-          <span class="creator__hint bb-chip bb-chip--muted" class:is-done={copied === 'cc'}>{copied === 'cc' ? t('common.copied') : t('public.commands.clickToCopy')}</span>
+          <span class="creator__hint bb-chip bb-chip--muted" class:is-done={copied === 'cc'} aria-hidden="true">{copied === 'cc' ? t('common.copied') : t('public.commands.clickToCopy')}</span>
         </span>
       </button>
     {/if}
@@ -157,10 +165,10 @@
     <div class="search">
       <SearchInput bind:value={query} placeholder={t('public.commands.searchPlaceholder')} />
     </div>
-    <div class="bb-tabs bb-tabs--wrap" role="tablist" aria-label={t('public.commands.sourceLabel')}>
+    <div class="bb-tabs bb-tabs--wrap filters" role="group" aria-label={t('public.commands.sourceLabel')}>
       {#each FILTERS as f (f.id)}
         {@const on = !moduleId && filter === f.id}
-        <button class="bb-tab" class:is-active={on} role="tab" type="button" aria-selected={on} onclick={() => pickFilter(f.id)}
+        <button class="bb-tab" class:is-active={on} type="button" aria-pressed={on} onclick={() => pickFilter(f.id)}
           >{f.label}<span class="bb-tab__count">{countOf(f.id)}</span></button
         >
       {/each}
@@ -186,22 +194,23 @@
                       <span class="row__aliases">{row.aliases.join(' ')}</span>
                     {/if}
                   </span>
-                  <p class="row__response">{row.response}</p>
+                  <span class="row__response">{row.response}</span>
                   <span class="row__tags">
                     {#if copied === row.key}
-                      <span class="copied">{t('common.copied')}</span>
+                      <span class="copied" aria-hidden="true">{t('common.copied')}</span>
                     {/if}
                     <span class="bb-tag bb-tag--alpha">{row.source}</span>
                     {#if row.perm}
                       <span class="bb-tag bb-tag--bare">{row.perm}</span>
                     {/if}
                     {#if row.cooldown > 0}
-                      <span class="bb-tag bb-tag--bare" title={t('public.commands.cooldown')}>
+                      <span class="bb-tag bb-tag--bare" title={t('public.commands.cooldownSeconds', { n: row.cooldown })}>
                         <svg aria-hidden="true" viewBox="0 0 24 24" width="11" height="11">
                           <circle cx="12" cy="12" r="9"></circle>
                           <path d="M12 7v5l3 2"></path>
                         </svg>
-                        {row.cooldown}s
+                        <span aria-hidden="true">{row.cooldown}s</span>
+                        <span class="bb-sr-only">{t('public.commands.cooldownSeconds', { n: row.cooldown })}</span>
                       </span>
                     {/if}
                     {#if row.liveOnly}
@@ -323,7 +332,7 @@
 
   .eyebrow {
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--bb-green-glow);
@@ -369,7 +378,7 @@
   }
   .creator__label {
     font-family: var(--bb-font-mono);
-    font-size: 10.5px;
+    font-size: 12px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--bb-tan);
@@ -385,7 +394,7 @@
     color: var(--bb-tan-pale);
     text-shadow: 0 0 18px rgba(201, 168, 124, 0.25);
   }
-  .creator__hint { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .creator__hint { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
 
   .notice { margin-bottom: 24px; }
 
@@ -434,14 +443,14 @@
     justify-content: space-between;
     gap: 12px;
     font-family: var(--bb-font-mono);
-    font-size: 10.5px;
+    font-size: 12px;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--bb-muted);
   }
   .list__head { padding: 16px 24px; border-bottom: 1px solid var(--bb-border); }
   .side__head { margin-bottom: 16px; }
-  .side__count { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0; text-transform: none; }
+  .side__count { font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0; text-transform: none; }
 
   .rows, .mods { list-style: none; margin: 0; padding: 0; }
 
@@ -475,11 +484,12 @@
   :global(.trigger-code) { font-size: 14.5px; font-weight: 500; color: var(--bb-green-glow); }
   .row__aliases {
     font-family: var(--bb-font-mono);
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--bb-muted);
     overflow-wrap: anywhere;
   }
   .row__response {
+    display: block;
     flex: 1 1 240px;
     min-width: 0;
     font-family: var(--bb-font-body);
@@ -498,7 +508,7 @@
     gap: 6px;
     padding-top: 2px;
     font-family: var(--bb-font-mono);
-    font-size: 10.5px;
+    font-size: 12px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--bb-tan-light);
@@ -550,7 +560,7 @@
     color: var(--bb-muted);
     text-wrap: pretty;
   }
-  .mod__meta { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-tan); white-space: nowrap; }
+  .mod__meta { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan); white-space: nowrap; }
 
   .side__empty { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
 
@@ -568,6 +578,29 @@
 
   @media (max-width: 640px) {
     .page { padding-left: 16px; padding-right: 16px; }
+    .toolbar { display: contents; }
+    .search {
+      position: sticky;
+      top: calc(var(--bb-nav-height, 76px) + env(safe-area-inset-top, 0px));
+      z-index: 40;
+      flex: 0 0 auto;
+      width: 100%;
+      padding: 12px 0;
+      background: var(--bb-black);
+    }
+    .filters { flex: 0 0 100%; width: 100%; margin-bottom: 16px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    .filters > * { flex-shrink: 0; }
+    .columns { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 14px; margin-top: 0; }
+    .list-wrap { flex: 0 0 auto; order: 3; }
+    .side { display: contents; }
+    .legend { order: 4; padding: 14px 16px; }
+    .side :global(.modules) { order: 2; --card-pad: 14px; }
+    .mods { flex-direction: row; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+    .mods::-webkit-scrollbar { display: none; }
+    .mods li { flex: 0 0 auto; }
+    .mod { width: auto; margin: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--bb-border); }
+    .mod__tagline { display: none; }
+    .side__head { margin-bottom: 10px; }
     .row { padding: 16px 18px; }
     .row__trigger { flex-basis: 100%; }
     .row__tags { justify-content: flex-start; }

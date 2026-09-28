@@ -1,10 +1,11 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Chip, getI18n, encodeNameList, parseNameList, CATEGORY_NAME_MAX, type DiscordConfig } from '@bagel/kit';
+  import { Button, getI18n, encodeNameList, parseNameList, CATEGORY_NAME_MAX, type DiscordConfig } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import FieldNote from '$lib/components/discord/FieldNote.svelte';
   import SwitchRow from '$lib/components/discord/SwitchRow.svelte';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import { createGuildDraft } from '$lib/discord/guild-draft.svelte';
   import { ANNOUNCEMENT_FIELDS } from '$lib/discord/guild-fields';
 
@@ -26,7 +27,9 @@
   function addName(field: keyof DiscordConfig, raw: string): boolean {
     const value = raw.trim();
     if (value === '' || value.length > CATEGORY_NAME_MAX) return false;
-    const next = encodeNameList([...parseNameList(draft.config[field]), value]);
+    const current = parseNameList(draft.config[field]);
+    if (current.some((n) => n.toLowerCase() === value.toLowerCase())) return false;
+    const next = encodeNameList([...current, value]);
     if (next === draft.config[field]) return false;
     draft.set(field, next);
     return true;
@@ -34,7 +37,10 @@
 
   function removeName(field: keyof DiscordConfig, name: string) {
     draft.set(field, encodeNameList(parseNameList(draft.config[field]).filter((n) => n !== name)));
+    removedNote = t('discord.chipRemoved', { name });
   }
+
+  let removedNote = $state('');
 
   function commitAllow() {
     if (addName('categoryAllow', allowDraft)) allowDraft = '';
@@ -53,15 +59,20 @@
 {#snippet chipList(field: keyof DiscordConfig, names: string[])}
   <div class="chips">
     {#each names as name (name)}
-      <Chip on onclick={() => removeName(field, name)} aria-label={t('discord.chipRemove', { name })}>
-        {name}<span class="chip-x" aria-hidden="true">×</span>
-      </Chip>
+      <span class="bb-chip" data-on>
+        {name}
+        <button type="button" class="chip-remove" aria-label={t('discord.chipRemove', { name })} onclick={() => removeName(field, name)}>
+          <span class="chip-x" aria-hidden="true">×</span>
+        </button>
+      </span>
     {/each}
     {#if names.length === 0}
       <span class="tr-help">{t('discord.chipEmpty')}</span>
     {/if}
   </div>
 {/snippet}
+
+<VisuallyHidden as="p" role="status" aria-live="polite">{removedNote}</VisuallyHidden>
 
 <GuildForm {draft} id="dc-posts-h" title={t('discord.postsTitle')} hint={t('discord.postsHelp')}>
   {#each switches as row (row.field)}
