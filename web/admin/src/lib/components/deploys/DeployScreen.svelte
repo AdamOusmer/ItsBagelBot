@@ -72,7 +72,7 @@
 
 <Sky shift={turn % 2 ? 1 : -1} turn={turn * 24} {px} {py} progress={clamped} {leaving} />
 
-<div class="screen" data-deploy-screen>
+<div class="screen" data-orbs="off">
   <header class="top">
     <Brand title="ItsBagelBot" sub={t('admin.title')} href="/" logoSrc="/logo.png" logoAlt="" size="md" />
     <div class="ident">
@@ -111,10 +111,6 @@
 <ToastHost />
 
 <style>
-  :global(body:has([data-deploy-screen]) .bb-bg-orb) {
-    display: none;
-  }
-
   .screen {
     --gutter: clamp(16px, 3.5vw, 44px);
     --gap: clamp(20px, 3.5vw, 56px);

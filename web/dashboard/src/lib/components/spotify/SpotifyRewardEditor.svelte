@@ -90,9 +90,11 @@
   </Field>
 
   <div class="field-row">
-    <Field label={t('spotify.fieldCost')}>
-      <Input fill type="number" name="cost" min="1" max="10000000" bind:value={cost} required />
-    </Field>
+    <div class="field-grow">
+      <Field label={t('spotify.fieldCost')}>
+        <Input fill type="number" name="cost" min="1" max="10000000" bind:value={cost} required />
+      </Field>
+    </div>
     <label class="color-field">
       <span class="color-label">{t('spotify.fieldColor')}</span>
       <span class="color-row">
@@ -141,14 +143,13 @@
 </form>
 
 <style>
-  .editor { padding: 4px 2px 2px; display: grid; gap: 14px; }
+  .editor { --field-mb: 0; padding: 4px 2px 2px; display: grid; gap: 14px; }
   .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
 
-  .editor :global(.bb-field) { margin-bottom: 0; }
   .field-error { display: block; margin-top: 4px; font-family: var(--bb-font-body); font-size: 11.5px; color: #cf8a78; }
 
   .field-row { display: flex; gap: 12px; align-items: flex-start; }
-  .field-row :global(.bb-field) { flex: 1; min-width: 0; }
+  .field-grow { flex: 1; min-width: 0; }
 
   .color-field { display: flex; flex-direction: column; gap: 6px; flex: none; width: 116px; }
   .color-label { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }

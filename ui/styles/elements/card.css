@@ -25,6 +25,15 @@
     padding: calc(20px * var(--d, 1));
   }
 
+  .bb-card--glass {
+    background: rgba(17, 17, 16, 0.76);
+    backdrop-filter: blur(18px);
+  }
+
+  :root[data-theme='light'] .bb-card--glass {
+    background: rgba(255, 255, 255, 0.72);
+  }
+
   .bb-card--sheen::before {
     content: "";
     position: absolute;

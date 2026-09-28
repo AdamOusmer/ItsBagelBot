@@ -16,6 +16,7 @@
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import StepRail from '$lib/components/welcome/StepRail.svelte';
@@ -122,7 +123,7 @@
   });
 </script>
 
-<div class="spotify-setup" role="region" aria-label={t('spotify.connectTitle')} data-spotify-setup onpointermove={movePointer} onpointerleave={() => { px = 0; py = 0; }}>
+<div class="spotify-setup" role="region" aria-label={t('spotify.connectTitle')} data-orbs="off" data-canvas="fill" onpointermove={movePointer} onpointerleave={() => { px = 0; py = 0; }}>
   <AmbientSky position="contained" shift={blobRight ? 1 : -1} turn={step * 24} {px} {py} progress={done ? 1 : step / 3} leaving={done} />
   <header class="top">
     <a class="back" href="/modules">← {t('spotify.back')}</a>
@@ -142,7 +143,7 @@
       <div class="copy-col" class:left={blobRight}>
         {#key `${step}-${done}`}
           <section class="step">
-            <p class="kicker" in:arrive={{ i: 0 }} out:depart={{ i: 0 }}>{t('spotify.eyebrow')} <span> / {String(step + 1).padStart(2, '0')}</span></p>
+            <p class="kicker" in:arrive={{ i: 0 }} out:depart={{ i: 0 }}>{t('spotify.eyebrow')} <span class="kicker-step"> / {String(step + 1).padStart(2, '0')}</span></p>
             <h1 class="title" tabindex="-1" bind:this={heading} in:arrive={{ i: 1 }} out:depart={{ i: 1 }}>{t(`spotifySetup.${done ? 'readyTitle' : titles[step]}`)}</h1>
             <p class="body" in:arrive={{ i: 2 }} out:depart={{ i: 2 }}>{t(`spotifySetup.${done ? 'readyBody' : bodies[step]}`)}</p>
             <div class="controls" in:arrive={{ i: 3 }} out:depart={{ i: 3 }}>
@@ -152,19 +153,19 @@
               {#if done}
                 <ButtonLink href="/songqueue">{t('spotifySetup.readyCta')}</ButtonLink>
               {:else if step === 0}
-                <div class="premium-note"><strong>{t('spotifySetup.premiumTitle')}</strong><p>{t('spotifySetup.premiumBody')}</p></div>
-                <div class="promise"><span aria-hidden="true">♪</span><span>Spotify <i>×</i> ItsBagelBot</span></div>
+                <div class="premium-note"><strong>{t('spotifySetup.premiumTitle')}</strong><Text size="xs" tone="muted" class="premium-body">{t('spotifySetup.premiumBody')}</Text></div>
+                <div class="promise"><span class="promise-glyph" aria-hidden="true">♪</span><span>Spotify <i>×</i> ItsBagelBot</span></div>
                 <div class="actions"><Button onclick={() => go(1)} onpointerenter={() => hover = true} onpointerleave={() => hover = false}>{t('spotifySetup.start')} →</Button></div>
               {:else if step === 1}
                 <ButtonLink href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" variant="secondary">{t('spotifySetup.developer')} ↗</ButtonLink>
                 <div class="redirect-block"><span class="field-label">Redirect URI</span>
-                  {#if redirectUri}<div class="redirect"><code>{redirectUri}</code><Button variant="ghost" size="sm" onclick={copyRedirect}>{copied ? t('spotify.redirectCopied') : t('spotify.redirectCopy')}</Button></div>
+                  {#if redirectUri}<div class="redirect"><Text as="span" mono tone="pale" class="setup-value redirect-value">{redirectUri}</Text><Button variant="ghost" size="sm" onclick={copyRedirect}>{copied ? t('spotify.redirectCopied') : t('spotify.redirectCopy')}</Button></div>
                   {:else}<p class="body small">{t('spotifySetup.redirectMissing')}</p>{/if}
                 </div>
                 <div class="actions"><Button variant="ghost" onclick={() => go(0)}>{t('onboarding.back')}</Button><Button onclick={() => go(2)} disabled={!redirectUri}>{t('spotifySetup.appCreated')} →</Button></div>
               {:else if step === 2}
                 {#if appReady}
-                  <p class="saved">✓ {t('spotifySetup.saved')}</p><code>{app.clientId || clientId}</code>
+                  <p class="saved">✓ {t('spotifySetup.saved')}</p><Text as="span" mono tone="pale" class="setup-value">{app.clientId || clientId}</Text>
                   <div class="actions"><Button variant="ghost" onclick={() => go(1)}>{t('onboarding.back')}</Button><Button onclick={() => go(3)}>{t('onboardingImport.continue')} →</Button></div>
                 {:else}
                   <form method="POST" action="?/saveApp" use:enhance={submit}>
@@ -189,12 +190,10 @@
       </div>
     </div>
   </div>
-  <footer><span>{dev && preview ? t('spotifySetup.preview') : t('spotifySetup.footer')}</span><a href="/modules">{t('spotifySetup.later')} ↗</a></footer>
+  <footer><span>{dev && preview ? t('spotifySetup.preview') : t('spotifySetup.footer')}</span><a class="later" href="/modules">{t('spotifySetup.later')} ↗</a></footer>
 </div>
 
 <style>
-  :global(body:has([data-spotify-setup]) .bb-bg-orb) { display: none; }
-  :global(.bb-shell__canvas:has([data-spotify-setup])) { max-width: none; padding: 0; flex: 1; display: flex; }
   .spotify-setup { --gap: clamp(24px, 4vw, 64px); --setup-gutter: clamp(24px, 4vw, 56px); position: relative; isolation: isolate; width: 100%; min-height: calc(100svh - 76px); display: grid; grid-template-rows: auto 1fr auto; overflow: clip; }
   .top, .stage, footer { position: relative; z-index: 1; }
   .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px var(--setup-gutter); }
@@ -212,15 +211,15 @@
   .copy-col { display: grid; padding-top: 48px; }
   .step { grid-area: 1 / 1; min-width: 0; }
   .kicker { margin: 0 0 18px; font: 11px var(--bb-font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--bb-tan); }
-  .kicker span { color: var(--bb-muted); }
+  .kicker-step { color: var(--bb-muted); }
   .title { margin: 0 0 22px; font: 700 clamp(2rem, 3.8vw, 3.5rem)/1.04 var(--bb-font-display); letter-spacing: -.035em; outline: none; background: linear-gradient(100deg, var(--bb-white) 0 40%, var(--bb-tan-pale) 50%, var(--bb-white) 60% 100%); background-size: 260% 100%; background-position: 120% 0; background-clip: text; -webkit-text-fill-color: transparent; animation: sheen 1.8s var(--bb-ease-out-expo) 520ms both; }
   .body { margin: 0; max-width: 46ch; font: 16px/1.65 var(--bb-font-body); color: var(--bb-muted); }
   .controls { margin-top: 26px; }
   .premium-note { padding: 14px 16px; background: rgba(var(--bb-tan-rgb), .06); border-radius: var(--bb-radius-md); margin-bottom: 14px; }
   .premium-note strong { font: 600 13px var(--bb-font-body); color: var(--bb-tan-pale); }
-  .premium-note p { margin: 6px 0 0; font: 12px/1.6 var(--bb-font-body); color: var(--bb-muted); }
+  .premium-note :global(.premium-body) { margin-top: 6px; line-height: 1.6; }
   .promise { display: flex; align-items: center; gap: 12px; padding: 12px 0; color: var(--bb-tan-pale); font: 13px var(--bb-font-body); }
-  .promise > span:first-child { color: var(--bb-green-glow); font-size: 26px; }
+  .promise-glyph { color: var(--bb-green-glow); font-size: 26px; }
   .promise i { font-style: normal; padding: 0 8px; color: var(--bb-muted); }
   .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
   form { display: grid; gap: 16px; }
@@ -229,16 +228,16 @@
   .redirect-block { margin-top: 24px; }
   .field-label { display: block; margin-bottom: 8px; font: 11px var(--bb-font-mono); color: var(--bb-tan); }
   .redirect { border-block: 1px solid var(--bb-border); padding: 12px 0; display: flex; gap: 8px; align-items: center; }
-  code { font: 11px/1.6 var(--bb-font-mono); color: var(--bb-tan-pale); overflow-wrap: anywhere; min-width: 0; }
-  .redirect code { flex: 1; user-select: all; }
+  .controls :global(.setup-value) { font-size: 11px; overflow-wrap: anywhere; min-width: 0; }
+  .redirect :global(.redirect-value) { flex: 1; user-select: all; }
   .hint { margin: 0; font: 12px/1.6 var(--bb-font-body); color: var(--bb-muted); }
   .actions + .hint { margin-top: 16px; }
   .saved { font: 13px/1.5 var(--bb-font-body); color: var(--bb-green-glow); }
   .error { font: 13px/1.5 var(--bb-font-body); color: var(--bb-danger); }
   .small { font-size: 13px; }
   footer { padding: 20px var(--setup-gutter) 28px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; font: 11px var(--bb-font-mono); color: var(--bb-muted); }
-  footer a { color: var(--bb-muted); text-decoration: none; }
-  footer a:hover, .back:hover { color: var(--bb-tan-pale); }
+  .later { color: var(--bb-muted); text-decoration: none; }
+  .later:hover, .back:hover { color: var(--bb-tan-pale); }
   @keyframes float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-12px) rotate(2deg); } }
   @keyframes breathe { 0%, 100% { opacity: .7; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
   @keyframes sheen { from { background-position: 120% 0; } to { background-position: -20% 0; } }

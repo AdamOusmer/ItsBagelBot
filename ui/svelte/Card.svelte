@@ -12,6 +12,7 @@
     atmo = false,
     sheen = false,
     stat = false,
+    glass = false,
     hover = false,
     label = '',
     band,
@@ -24,6 +25,7 @@
     atmo?: boolean;
     sheen?: boolean;
     stat?: boolean;
+    glass?: boolean;
     hover?: boolean;
     label?: string;
     band?: Snippet;
@@ -38,6 +40,7 @@
       band && 'bb-card--band',
       stat && 'bb-card--stat',
       sheen && 'bb-card--sheen',
+      glass && 'bb-card--glass',
       cls,
     ]
       .filter(Boolean)

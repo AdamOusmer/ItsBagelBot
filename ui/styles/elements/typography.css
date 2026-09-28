@@ -100,6 +100,8 @@
     .bb-text--muted { color: var(--bb-muted); }
     .bb-text--accent { color: var(--bb-tan-light); }
     .bb-text--danger { color: var(--bb-danger, #d98a8a); }
+    .bb-text--pale { color: var(--bb-tan-pale); }
+    .bb-text--warn { color: #f2c879; }
 
     .bb-text--mono {
         font-family: var(--bb-font-mono);

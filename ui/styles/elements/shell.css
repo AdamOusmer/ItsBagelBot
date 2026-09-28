@@ -99,6 +99,13 @@
     }
   }
 
+  .bb-shell__canvas:has([data-canvas="fill"]) {
+    display: flex;
+    flex: 1;
+    max-width: none;
+    padding: 0;
+  }
+
   .bb-rail {
     --rail-width: 240px;
     --rail-pad: 14px;

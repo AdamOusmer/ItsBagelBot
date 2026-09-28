@@ -609,10 +609,10 @@
       max-height: calc(100dvh - var(--bb-tabs-sticky-top) - 64px);
       overflow-y: auto;
       overscroll-behavior-y: contain;
+      --bb-tabs-position: static;
+      --bb-tabs-max-height: none;
     }
-    /* One scroll region for the links and board, including short windows. */
-    .rail :global(.bb-tabs) { position: static; max-height: none; }
-    .rail :global(.bb-tabs-host), .rail :global(.board) { flex: none; }
+    .rail > :global(*) { flex: none; }
   }
   .rail { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
   .rail :global(.board) { display: none; }

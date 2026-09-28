@@ -339,7 +339,7 @@
 {:else}
 <Sky shift={blobRight ? 1 : -1} turn={step * 24} {px} {py} {progress} {leaving} />
 
-<div class="welcome" class:leaving data-welcome>
+<div class="welcome" class:leaving data-orbs="off">
   <header class="top">
     <Brand title="ItsBagelBot" sub={tr('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />
     <StepRail
@@ -539,8 +539,6 @@
 {#if veiled}<div class="veil" aria-hidden="true"></div>{/if}
 
 <style>
-  :global(body:has([data-welcome]) .bb-bg-orb) { display: none; }
-
   .welcome {
     --gutter: clamp(20px, 4vw, 48px);
     --gap: clamp(24px, 5vw, 72px);
