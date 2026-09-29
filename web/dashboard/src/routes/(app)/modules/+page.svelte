@@ -58,19 +58,22 @@
   );
 
   let searchQuery = $state(initial.q);
+  let statusFilter = $state<'all' | 'on'>(initial.status === 'on' ? 'on' : 'all');
+  const STATUS_OPTIONS = ['all', 'on'] as const;
+  const seededOn = $derived(new Set((data.modules ?? []).filter((m) => m.enabled).map((m) => m.def.id)));
 
   const activeCount = $derived(items.filter((m) => m.enabled).length);
   const filtered = $derived(
     filterModuleIndex(items, { q: searchQuery, category: '', status: 'all' }, (def) =>
       [tModuleLabel(t, def), tModuleTagline(t, def), tModuleDescription(t, def)].join('\n')
-    )
+    ).filter((m) => statusFilter === 'all' || seededOn.has(m.def.id))
   );
   const groups = $derived(
     groupModulesByCategory(filtered).map((group) => ({
       ...group,
       modules: [
-        ...group.modules.filter((m) => m.enabled),
-        ...group.modules.filter((m) => !m.enabled)
+        ...group.modules.filter((m) => seededOn.has(m.def.id)),
+        ...group.modules.filter((m) => !seededOn.has(m.def.id))
       ]
     }))
   );
@@ -103,6 +106,7 @@
 
   function clearSearch() {
     searchQuery = '';
+    statusFilter = 'all';
   }
 
   let urlReady = $state(false);
@@ -112,7 +116,7 @@
   $effect(() => {
     if (!urlReady) return;
     const url = new URL(page.url);
-    writeModuleIndexQuery(url, { q: searchQuery, category: '', status: 'all' });
+    writeModuleIndexQuery(url, { q: searchQuery, category: '', status: statusFilter });
     const next = url.pathname + url.search;
     if (next !== page.url.pathname + page.url.search) replaceState(url, {});
   });
@@ -192,10 +196,23 @@
 
   <div class="deck">
     <label class="find-label" for="module-search">{t('modules.searchLabel')}</label>
+    <div class="find-row">
     <div class="find">
       <SearchInput id="module-search" bind:value={searchQuery} bind:element={searchInput} placeholder={t('modules.searchPlaceholder')}
         aria-label={t('modules.searchLabel')} aria-describedby="module-search-hint" clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
       {#if !searchQuery}<span class="keys" aria-hidden="true"><Kbd>/</Kbd></span>{/if}
+    </div>
+    <div class="bb-tabs status-filter" role="radiogroup" aria-label={t('modules.statusFilterLabel')}>
+      {#each STATUS_OPTIONS as opt (opt)}
+        <button
+          type="button"
+          class="bb-tab {statusFilter === opt ? 'is-active' : ''}"
+          role="radio"
+          aria-checked={statusFilter === opt}
+          onclick={() => (statusFilter = opt)}
+        >{opt === 'all' ? t('modules.filterAll') : t('modules.filterOn')}</button>
+      {/each}
+    </div>
     </div>
   </div>
 
@@ -287,7 +304,10 @@
     background: var(--bb-bg-0);
     border-bottom: 1px solid var(--rule);
   }
-  .find { width: 100%; min-width: 0; position: relative; }
+  .find { min-width: 0; position: relative; }
+  .find-row { display: flex; align-items: center; gap: 12px; }
+  .find-row .find { flex: 1; }
+  .status-filter { flex: none; }
   .find .keys { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
   .keys {
     font-family: var(--bb-font-mono);

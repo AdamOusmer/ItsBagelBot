@@ -3,13 +3,15 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import '@bagel/ui/styles/elements/profile-menu.css';
   import { afterNavigate } from '$app/navigation';
-  import Button from '@bagel/ui/svelte/Button.svelte';
   import Bolota from './Bolota.svelte';
+  import LogoutForm from './LogoutForm.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import type { DashboardLink } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
   import { SITE } from '../lib/site-links';
+  import { supportLines } from '../lib/support-lines';
+  import { menuKeys } from '../lib/menu-keys';
 
   const { t } = getI18n();
 
@@ -35,22 +37,21 @@
   let menuOpen = $state(false);
   let supportOpen = $state(false);
 
-  const supportLines = [
-    { title: 'Discord', hint: t('topbar.supportDiscordHint'), href: SITE.discord, icon: 'discord', external: true },
-    { title: 'Support', hint: SITE.supportEmail, href: `mailto:${SITE.supportEmail}`, icon: 'link', external: false },
-    { title: 'Enterprise', hint: SITE.enterpriseEmail, href: `mailto:${SITE.enterpriseEmail}`, icon: 'server', external: false },
-    { title: 'GitHub', hint: t('topbar.supportGithubHint'), href: SITE.github, icon: 'github', external: true },
-  ] as const;
+  const lines = $derived(supportLines(t));
+  let supportBtn = $state<HTMLButtonElement | null>(null);
+  let accountBtn = $state<HTMLButtonElement | null>(null);
 
-  function closeMenus() {
+  function closeMenus(restoreFocus = false) {
+    const trigger = supportOpen ? supportBtn : menuOpen ? accountBtn : null;
     menuOpen = false;
     supportOpen = false;
+    if (restoreFocus) trigger?.focus();
   }
 
-  afterNavigate(closeMenus);
+  afterNavigate(() => closeMenus());
 </script>
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeMenus(); }} />
+<svelte:window onkeydown={(e) => { if ((menuOpen || supportOpen) && e.key === 'Escape') closeMenus(true); }} />
 
 <div class="bb-profile-rail__side-foot">
   <div class="bb-profile-rail__help">
@@ -60,6 +61,7 @@
       type="button"
       aria-expanded={supportOpen}
       aria-haspopup="menu"
+      bind:this={supportBtn}
       onclick={() => { menuOpen = false; supportOpen = !supportOpen; }}
     >
       {t('topbar.support')}
@@ -73,13 +75,12 @@
     <div
       class="bb-profile__scrim"
       role="presentation"
-      onclick={closeMenus}
-      onkeydown={(e) => { if (e.key === 'Enter') closeMenus(); }}
+      onclick={() => closeMenus()}
     ></div>
   {/if}
   {#if supportOpen}
-    <div class="bb-profile-rail__foot-menu" role="menu" aria-label={t('topbar.support')}>
-      {#each supportLines as line (line.title)}
+    <div class="bb-profile-rail__foot-menu" role="menu" aria-label={t('topbar.support')} use:menuKeys={() => closeMenus(true)}>
+      {#each lines as line (line.href)}
         <a
           class="bb-profile__link"
           href={line.href}
@@ -103,6 +104,7 @@
       type="button"
       aria-expanded={menuOpen}
       aria-haspopup="menu"
+      bind:this={accountBtn}
       onclick={() => { supportOpen = false; menuOpen = !menuOpen; }}
       onpointerenter={() => (hovered = true)}
       onpointerleave={() => (hovered = false)}
@@ -117,7 +119,7 @@
       </span>
     </button>
     {#if menuOpen}
-      <div class="bb-profile-rail__foot-menu" role="menu">
+      <div class="bb-profile-rail__foot-menu" role="menu" aria-label={name} use:menuKeys={() => closeMenus(true)}>
         <div class="bb-profile__head">
           <span class="bb-profile__portrait">
             <Bolota name={name} size={72} active={menuOpen} />
@@ -155,9 +157,5 @@
       </div>
     </div>
   {/if}
-  <form method="POST" action="/auth/logout" onsubmit={() => localStorage.removeItem('bb-onboarded')}>
-    <Button variant="ghost" type="submit" style="width:100%;justify-content:center;margin-top:10px">
-      {t('topbar.logout')}
-    </Button>
-  </form>
+  <LogoutForm />
 </div>

@@ -20,7 +20,17 @@ const store = writable<ToastItem[]>([]);
 export const toasts = { subscribe: store.subscribe };
 
 let nextId = 1;
-const timers = new Map<number, ReturnType<typeof setTimeout>>();
+interface ToastTimer {
+  handle?: ReturnType<typeof setTimeout>;
+  remaining: number;
+  startedAt: number;
+}
+
+const timers = new Map<number, ToastTimer>();
+
+function arm(id: number, ms: number): void {
+  timers.set(id, { handle: setTimeout(() => dismissToast(id), ms), remaining: ms, startedAt: Date.now() });
+}
 
 export interface ToastOptions {
   ttlMs?: number;
@@ -33,14 +43,27 @@ export function toast(kind: ToastKind, text: string, opts: ToastOptions = {}): n
   const item: ToastItem = { id, kind, text, undoLabel: opts.undoLabel, onUndo: opts.onUndo };
   store.update((list) => [...list, item]);
   const ttl = opts.ttlMs ?? (opts.onUndo ? UNDO_TTL_MS : DEFAULT_TTL_MS);
-  const timer = setTimeout(() => dismissToast(id), ttl);
-  timers.set(id, timer);
+  arm(id, ttl);
   return id;
 }
 
 export function dismissToast(id: number): void {
   const timer = timers.get(id);
-  if (timer) clearTimeout(timer);
+  if (timer?.handle) clearTimeout(timer.handle);
   timers.delete(id);
   store.update((list) => list.filter((t) => t.id !== id));
+}
+
+export function pauseToast(id: number): void {
+  const timer = timers.get(id);
+  if (!timer?.handle) return;
+  clearTimeout(timer.handle);
+  const remaining = Math.max(0, timer.remaining - (Date.now() - timer.startedAt));
+  timers.set(id, { remaining, startedAt: 0 });
+}
+
+export function resumeToast(id: number): void {
+  const timer = timers.get(id);
+  if (!timer || timer.handle) return;
+  arm(id, timer.remaining);
 }

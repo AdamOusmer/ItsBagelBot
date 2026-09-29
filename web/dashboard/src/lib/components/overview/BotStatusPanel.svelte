@@ -5,6 +5,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import RetryButton from './RetryButton.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
@@ -44,7 +45,7 @@
   const tone = $derived(statusTone(kind));
   const live = $derived(kind === 'online');
 
-  const strip = $derived(!loading && kind === 'online');
+  const strip = $derived(kind === 'online');
 
   const title = $derived.by(() => {
     switch (kind) {
@@ -91,7 +92,30 @@
   });
 </script>
 
-{#if strip}
+{#snippet restartIcon()}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </svg>
+{/snippet}
+
+{#snippet disconnectIcon()}
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M18.4 5.6a9 9 0 1 1-12.8 0" />
+    <line x1="12" y1="2" x2="12" y2="12" />
+  </svg>
+{/snippet}
+
+<span class="bb-sr-only" role="status" aria-live="polite">{loading ? '' : title}</span>
+
+{#if loading}
+  <Card as="section" sheen class="ov-status ov-status--strip" aria-busy="true" aria-label={t('overview.statusHeading')}>
+    <span class="bb-sr-only">{checkingText}</span>
+    <span aria-hidden="true"><Skeleton variant="text" width="18ch" /></span>
+    <div class="ov-strip__spacer"></div>
+    <span class="bb-chip bb-chip--muted ov-strip__ghost" aria-hidden="true">{@render restartIcon()}{t('overview.restart')}</span>
+    <span class="bb-chip bb-chip--muted ov-strip__ghost" aria-hidden="true">{@render disconnectIcon()}{t('overview.disconnect')}</span>
+  </Card>
+{:else if strip}
   <Card as="section" sheen class="ov-status ov-status--strip" aria-label={t('overview.statusHeading')}>
     <i class="bb-mark ov-strip__dot" class:bb-mark--hollow={!live} aria-hidden="true"></i>
     <span class="ov-strip__title">{title}</span>
@@ -101,16 +125,11 @@
       <p class="ov-status__note">{t('overview.statusDelegateDetail')}</p>
     {:else if ui?.canManage}
       <button type="button" class="bb-chip bb-chip--muted" disabled={busy} onclick={() => onRestart?.()}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-        </svg>
+        {@render restartIcon()}
         {t('overview.restart')}
       </button>
       <button type="button" class="bb-chip bb-chip--muted" disabled={busy} onclick={() => onDisconnect?.()}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M18.4 5.6a9 9 0 1 1-12.8 0" />
-          <line x1="12" y1="2" x2="12" y2="12" />
-        </svg>
+        {@render disconnectIcon()}
         {t('overview.disconnect')}
       </button>
     {/if}
@@ -122,28 +141,20 @@
     <div class="ov-status__body">
       <h2 id="ov-status-h" class="ov-status__heading">{t('overview.statusHeading')}</h2>
 
-      {#if loading}
-        <p class="ov-status__state" aria-busy="true">
-          <span class="bb-sr-only">{checkingText}</span>
-          <span aria-hidden="true"><Skeleton variant="text" width="14ch" /></span>
-        </p>
-        <p class="ov-status__detail" aria-hidden="true"><Skeleton variant="text" lines={2} width="90%" /></p>
-      {:else}
-        <p class="ov-status__state tone-{tone}">
-          <i class="bb-mark dot" class:bb-mark--hollow={!live} aria-hidden="true"></i>
-          <span class="state-text">{title}</span>
-        </p>
-        {#if detail}<p class="ov-status__detail">{detail}</p>{/if}
+      <p class="ov-status__state tone-{tone}">
+        <i class="bb-mark dot" class:bb-mark--hollow={!live} aria-hidden="true"></i>
+        <span class="state-text">{title}</span>
+      </p>
+      {#if detail}<p class="ov-status__detail">{detail}</p>{/if}
 
-        {#if planLabel}
-          <div class="ov-status__meta">
-            <Tag tone={isPremium ? 'pre' : 'quiet'}>{planLabel}</Tag>
-          </div>
-        {/if}
+      {#if planLabel}
+        <div class="ov-status__meta">
+          <Tag tone={isPremium ? 'pre' : 'quiet'}>{planLabel}</Tag>
+        </div>
       {/if}
     </div>
 
-    {#if !loading && ui}
+    {#if ui}
       <div class="ov-status__actions">
         {#if isDelegate}
           <p class="ov-status__note">{t('overview.statusDelegateDetail')}</p>
@@ -161,10 +172,10 @@
             <Button variant="primary" type="submit" class="ov-cta" loading={busy}>{t('overview.enable')}</Button>
           </form>
         {:else if ui.showConnect}
-          <ButtonLink href="/settings" variant="primary" class="ov-cta"
+          <ButtonLink href="/settings#account" variant="primary" class="ov-cta"
             >{kind === 'reauth_required' ? t('common.reconnect') : t('overview.issueNoAuthCta')}</ButtonLink>
         {:else if ui.canRetry}
-          <ButtonLink href="/" variant="ghost" class="ov-cta">{t('overview.retry')}</ButtonLink>
+          <RetryButton class="ov-cta" />
         {/if}
       </div>
     {/if}
@@ -209,6 +220,9 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--bb-muted);
+  }
+  .ov-strip__ghost {
+    visibility: hidden;
   }
   .ov-strip__spacer {
     flex: 1 1 auto;

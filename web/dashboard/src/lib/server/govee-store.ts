@@ -33,7 +33,9 @@ export interface RewardDraft {
   allowOffline: boolean;
 }
 
-export type GoveeResult = { ok: true } | { ok: false; missingScope?: boolean; error?: string };
+export type GoveeResult =
+  | { ok: true }
+  | { ok: false; missingScope?: boolean; error?: string; code?: 'key_invalid' };
 
 function coerceOnRedeem(v: unknown): GoveeOnRedeem {
   return v === 'cancel' || v === 'leave' ? v : 'fulfill';
@@ -179,7 +181,20 @@ export function goveeStore(userId: string): GoveeStore {
     const r = await rpcReply<{ error?: string }>(`${SUB.goveeKey}.set`, { user_id: userId, key }, 3000);
     if (r.error) return { ok: false, error: r.error };
     invalidate(devicesCacheKey(userId));
+    if (!(await keyWorks())) {
+      await rpcReply(`${SUB.goveeKey}.clear`, { user_id: userId }, 3000).catch(() => undefined);
+      return { ok: false, code: 'key_invalid' };
+    }
     return { ok: true };
+  }
+
+  async function keyWorks(): Promise<boolean> {
+    try {
+      const r = await rpc<{ devices?: GoveeDevice[] }>(`${SUB.gossip}.govee.devices`, { channel_id: userId }, 9000);
+      return Array.isArray(r.devices);
+    } catch {
+      return false;
+    }
   }
 
   async function clearKey(): Promise<GoveeResult> {

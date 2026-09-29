@@ -4,6 +4,7 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { toast } from '@bagel/ui/svelte/toast';
+  import { getI18n } from '../lib/i18n/context';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import '@bagel/ui/styles/elements/toggle.css';
 
@@ -25,6 +26,7 @@
     failMessage?: string;
   } = $props();
 
+  const { t } = getI18n();
   const uid = $props.id();
   const hintId = `master-hint-${uid}`;
 
@@ -34,7 +36,7 @@
     return async ({ result }) => {
       if (result.type !== 'success') {
         enabled = was;
-        toast('err', failMessage ?? 'Could not update.');
+        toast('err', failMessage ?? t('serverErrors.updateRetry'));
       }
     };
   };

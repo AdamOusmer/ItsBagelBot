@@ -1,14 +1,22 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { ButtonLink, Card, Chip, EmptyState, Icon, PageHead, getI18n } from '@bagel/kit';
+  import { ButtonLink, Card, Chip, EmptyState, Icon, PageHead, SearchInput, getI18n } from '@bagel/kit';
   import { DISCORD_BADGE_KEYS } from '$lib/discord-messages';
   import GuildCrest from '$lib/components/discord/GuildCrest.svelte';
 
   let { data } = $props();
   const { t } = getI18n();
 
-  const choices = $derived(data.choices ?? []);
+  const BADGE_RANK = { mine: 0, addable: 1, elsewhere: 2 } as const;
+  let query = $state('');
+  const choices = $derived.by(() => {
+    const q = query.trim().toLowerCase();
+    return [...(data.choices ?? [])]
+      .filter((c) => !q || c.name.toLowerCase().includes(q))
+      .sort((a, b) => BADGE_RANK[a.badge] - BADGE_RANK[b.badge] || a.name.localeCompare(b.name));
+  });
+  const total = $derived((data.choices ?? []).length);
 </script>
 
 <section class="screen active">
@@ -19,12 +27,15 @@
   <section class="block reveal" style="--i:0" aria-labelledby="dc-pick-h">
     <h2 id="dc-pick-h" class="block-title">{t('discord.pickTitle')}</h2>
     <Card>
-      {#if choices.length === 0}
+      {#if total === 0}
         <EmptyState title={t('discord.pickEmptyTitle')} body={t('discord.pickEmptyBody')}>
           <ButtonLink variant="secondary" href="/discord">{t('discord.pickBack')}</ButtonLink>
         </EmptyState>
       {:else}
         <p class="hint">{t('discord.pickHelp')}</p>
+        <div class="find">
+          <SearchInput bind:value={query} placeholder={t('discord.pickSearchPh')} aria-label={t('discord.pickSearchLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" fill />
+        </div>
         <ul class="servers">
           {#each choices as c (c.guildId)}
             <li class="server">
@@ -39,7 +50,7 @@
                     {t('discord.openCta')}
                   </ButtonLink>
                 {:else if c.badge === 'elsewhere'}
-                  <Chip disabled aria-disabled="true">{t('discord.pickElsewhereChip')}</Chip>
+                  <Chip disabled aria-disabled="true" title={t('discord.pickElsewhere')}>{t('discord.pickElsewhereChip')}</Chip>
                 {:else}
                   <ButtonLink variant="primary" href={c.installURL} data-sveltekit-reload>
                     {t('discord.pickCta')}
@@ -49,6 +60,10 @@
             </li>
           {/each}
         </ul>
+        {#if choices.length === 0}
+          <p class="hint">{t('discord.pickNoMatch')}</p>
+        {/if}
+        <p class="hint missing">{t('discord.pickMissingHint')}</p>
         <p class="note"><Icon name="lock" size={13} />{t('discord.pickPrivacy')}</p>
       {/if}
     </Card>
@@ -74,6 +89,8 @@
     color: var(--bb-muted);
   }
 
+  .find { margin-bottom: 14px; }
+  .missing { margin: 0 0 14px; }
   .servers { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; }
   .server {
     display: flex;

@@ -6,8 +6,12 @@
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Bolota from './Bolota.svelte';
+  import LogoutForm from './LogoutForm.svelte';
   import type { DashboardLink } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
+  import { SITE } from '../lib/site-links';
+  import { supportLines } from '../lib/support-lines';
+  import { menuKeys } from '../lib/menu-keys';
 
   const { t } = getI18n();
 
@@ -28,13 +32,25 @@
   } = $props();
 
   let menuOpen = $state(false);
+  let trigger = $state<HTMLButtonElement | null>(null);
 
   let hovered = $state(false);
 
-  afterNavigate(() => (menuOpen = false));
+  const lines = $derived(supportLines(t));
+  const helpLinks = $derived([
+    { label: t('topbar.feedback'), href: SITE.newIssue, icon: 'edit' },
+    { label: t('nav.status'), href: SITE.status, icon: 'pulse' }
+  ] as const);
+
+  function close(restoreFocus = false) {
+    menuOpen = false;
+    if (restoreFocus) trigger?.focus();
+  }
+
+  afterNavigate(() => close());
 </script>
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape') menuOpen = false; }} />
+<svelte:window onkeydown={(e) => { if (menuOpen && e.key === 'Escape') close(true); }} />
 
 <button
   class="bb-profile-topbar__operator"
@@ -43,6 +59,7 @@
   aria-label="{accountName} · {accountRole}"
   aria-expanded={menuOpen}
   aria-haspopup="menu"
+  bind:this={trigger}
   onclick={() => (menuOpen = !menuOpen)}
   onpointerenter={() => (hovered = true)}
   onpointerleave={() => (hovered = false)}
@@ -58,10 +75,9 @@
   <div
     class="bb-profile__scrim"
     role="presentation"
-    onclick={() => (menuOpen = false)}
-    onkeydown={(e) => { if (e.key === 'Enter') menuOpen = false; }}
+    onclick={() => close()}
   ></div>
-  <div class="bb-profile-topbar__op-menu" role="menu">
+  <div class="bb-profile-topbar__op-menu" role="menu" aria-label="{accountName} · {accountRole}" use:menuKeys={() => close(true)}>
     <div class="bb-profile__head">
       <span class="bb-profile__portrait">
         <Bolota name={accountName} size={72} active={menuOpen} />
@@ -92,10 +108,30 @@
         </a>
       </div>
     {/if}
-    <form method="POST" action="/auth/logout">
-      <button type="submit" class="bb-profile-topbar__op-menu-item" role="menuitem">
-        {t('topbar.logout')}
-      </button>
-    </form>
+    <div class="bb-profile-topbar__op-dash-group bb-op-help">
+      <div class="bb-profile__section">{t('topbar.supportTitle')}</div>
+      {#each lines as line (line.href)}
+        <a
+          class="bb-profile__link"
+          href={line.href}
+          role="menuitem"
+          target={line.external ? '_blank' : undefined}
+          rel={line.external ? 'noopener noreferrer' : undefined}
+        >
+          <span class="bb-profile__glyph"><Icon name={line.icon} size={16} /></span>
+          <span class="bb-profile__line">
+            <span class="bb-profile__name">{line.title}</span>
+            <span class="bb-profile__hint" title={line.hint}>{line.hint}</span>
+          </span>
+        </a>
+      {/each}
+      {#each helpLinks as link (link.href)}
+        <a class="bb-profile__link" href={link.href} role="menuitem" target="_blank" rel="noopener noreferrer">
+          <span class="bb-profile__glyph"><Icon name={link.icon} size={16} /></span>
+          <span class="bb-profile__name">{link.label}<span class="bb-sr-only"> {t('common.opensInNewTab')}</span></span>
+        </a>
+      {/each}
+    </div>
+    <LogoutForm menu />
   </div>
 {/if}

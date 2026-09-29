@@ -6,11 +6,13 @@
   import { browser } from '$app/environment';
   import { afterNavigate, beforeNavigate } from '$app/navigation';
   import { updated } from '$app/state';
+  import { toast } from '@bagel/ui/svelte/toast';
+  import NavProgress from './NavProgress.svelte';
   import Cursor from '@bagel/ui/svelte/Cursor.svelte';
   import BackgroundOrbs from '@bagel/ui/svelte/BackgroundOrbs.svelte';
   import { customCursor } from '../lib/cursor';
   import { initLenis } from '../lib/actions';
-  import { setI18n } from '../lib/i18n/context';
+  import { getI18n, setI18n } from '../lib/i18n/context';
   import { DEFAULT_LOCALE, type Locale } from '../lib/i18n/messages';
 
   let {
@@ -27,6 +29,7 @@
 
   // svelte-ignore state_referenced_locally
   setI18n(locale);
+  const { t } = getI18n();
 
   // svelte-ignore state_referenced_locally
   if (browser) customCursor.set(cursorEnabled);
@@ -36,6 +39,15 @@
       navigation.cancel();
       location.href = navigation.to.url.href;
     }
+  });
+
+  $effect(() => {
+    if (!updated.current) return;
+    toast('info', t('common.newVersion'), {
+      ttlMs: 60_000,
+      undoLabel: t('common.reload'),
+      onUndo: () => location.reload()
+    });
   });
 
   onMount(() => {
@@ -60,6 +72,7 @@
   });
 </script>
 
+<NavProgress />
 {#if orbs}<BackgroundOrbs />{/if}
 <Cursor enabled={$customCursor} />
 {@render children()}

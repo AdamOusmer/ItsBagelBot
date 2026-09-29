@@ -6,6 +6,7 @@
     AlertBanner,
     Button,
     Checkbox,
+    SearchInput,
     SegmentedControl,
     Switch,
     alertOn,
@@ -41,6 +42,16 @@
 
   const LIMIT_OPTIONS = ['1', '2', '3', '4', '5'] as const;
   const staffSelected = $derived(parseIdList(draft.config.ticketStaffRoleIds));
+
+  let roleQuery = $state('');
+  const seededStaff = $derived(new Set(parseIdList(data.config?.ticketStaffRoleIds ?? '')));
+  const knownRoleIds = $derived(new Set(roles.map((r) => r.id)));
+  const missingStaff = $derived(staffSelected.filter((id) => !knownRoleIds.has(id)));
+  const visibleRoles = $derived.by(() => {
+    const q = roleQuery.trim().toLowerCase();
+    const hits = roles.filter((r) => !q || r.name.toLowerCase().includes(q));
+    return [...hits.filter((r) => seededStaff.has(r.id)), ...hits.filter((r) => !seededStaff.has(r.id))];
+  });
 
   function toggleStaffRole(id: string, on: boolean) {
     const next = on ? [...staffSelected, id] : staffSelected.filter((r) => r !== id);
@@ -115,8 +126,21 @@
     {#if roles.length === 0}
       <span class="tr-help">{t('discord.staffRolesEmpty')}</span>
     {:else}
+      {#if missingStaff.length}
+        <span class="tr-help stale-note" role="status">{t('discord.staffRoleMissingHelp')}</span>
+      {/if}
+      {#if roles.length > 8}
+        <SearchInput bind:value={roleQuery} placeholder={t('discord.staffRolesFilterPh')} aria-label={t('discord.staffRolesFilterLabel')} clearLabel={t('common.searchClear')} autocomplete="off" fill />
+      {/if}
       <div class="checks">
-        {#each roles as role (role.id)}
+        {#each missingStaff as id (id)}
+          <Checkbox
+            class="check"
+            aria-describedby="dch-staff"
+            bind:checked={() => true, () => toggleStaffRole(id, false)}
+          >{t('discord.staffRoleMissing', { id })}</Checkbox>
+        {/each}
+        {#each visibleRoles as role (role.id)}
           <Checkbox
             class="check"
             aria-describedby="dch-staff"
@@ -124,6 +148,9 @@
           >@{role.name}</Checkbox>
         {/each}
       </div>
+      {#if visibleRoles.length === 0}
+        <span class="tr-help">{t('discord.staffRolesNoMatch')}</span>
+      {/if}
     {/if}
     <FieldNote invalid={draft.invalid} field="ticketStaffRoleIds" />
   </fieldset>
@@ -239,6 +266,11 @@
     body={panel.body}
     button={panel.button}
     color={panel.color}
+    limits={[
+      { label: t('discord.panelTitleLabel'), n: draft.config.ticketPanelTitle.length, max: TICKET_PANEL_TITLE_MAX },
+      { label: t('discord.panelBodyLabel'), n: draft.config.ticketPanelBody.length, max: TICKET_PANEL_BODY_MAX },
+      { label: t('discord.panelButtonLabel'), n: draft.config.ticketPanelButton.length, max: TICKET_PANEL_BUTTON_MAX }
+    ]}
   />
 
   {#snippet after()}

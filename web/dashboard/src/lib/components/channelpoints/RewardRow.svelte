@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, ManagementRow, Switch, getI18n, type ChannelPointReward } from '@bagel/kit';
+  import { ManagementRow, Switch, getI18n, type ChannelPointReward } from '@bagel/kit';
+  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();
 
@@ -74,7 +74,7 @@
         <input type="hidden" name="reward" value={togglePayload} />
         <Switch type="submit" checked={r.isEnabled} label={t('channelpoints.toggleAria', { name: r.title })} />
       </form>
-      <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('channelpoints.deleteAria', { name: r.title })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
+      <RowDeleteButton label={t('channelpoints.deleteAria', { name: r.title })} onclick={onDelete} />
     {/snippet}
   </ManagementRow>
 </li>
@@ -134,7 +134,6 @@
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
 
   @media (max-width: 760px) {
     .prow {
@@ -156,6 +155,5 @@
       -webkit-box-orient: vertical;
     }
     .meta { grid-area: meta; flex-direction: row; align-items: center; gap: 12px; }
-    :global(.delete-action) { min-width: 44px; min-height: 44px; }
   }
 </style>

@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, ManagementRow, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
+  import { ManagementRow, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
   import { formatCounterValue } from '@bagel/kit/validation';
+  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();
 
@@ -56,7 +56,7 @@
     </span>
   {/snippet}
   {#snippet actions()}
-    <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('counters.deleteAria', { name: c.name })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
+    <RowDeleteButton label={t('counters.deleteAria', { name: c.name })} onclick={onDelete} />
   {/snippet}
 </ManagementRow>
 
@@ -92,8 +92,6 @@
   }
   .m-note { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); white-space: nowrap; }
 
-  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
-
   @media (max-width: 760px) {
     .prow {
       grid-template-columns: minmax(0, 1fr);
@@ -105,6 +103,5 @@
     .idx { display: none; }
     .name { grid-area: name; }
     .meta { grid-area: meta; justify-content: flex-start; }
-    :global(.delete-action) { min-width: 44px; min-height: 44px; }
   }
 </style>

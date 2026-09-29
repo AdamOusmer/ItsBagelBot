@@ -9,10 +9,11 @@ import type {
   SpotifyStore,
   SpotifySrPerm
 } from '$lib/server/spotify-store';
-import { spotifyStore, readSpotifyPlayerQueue } from '$lib/server/spotify-store';
+import { spotifyStore } from '$lib/server/spotify-store';
 import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '$lib/server/oauth';
-import { getSongQueue, type SongQueueDoc } from '@bagel/kit/server/songqueue-store';
-import { shapeQueue, type QueueView } from '$lib/server/songqueue-view';
+import { getSongQueue } from '@bagel/kit/server/songqueue-store';
+import type { QueueView } from '$lib/server/songqueue-view';
+import { queueView } from '$lib/server/songqueue-live';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction } from '$lib/server/module-action';
 import type { MutationRefusal } from '@bagel/kit/server/form-action';
@@ -21,17 +22,6 @@ import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';
-
-async function queueView(uid: string, connected: boolean, queue: SongQueueDoc): Promise<QueueView> {
-  if (!connected) return shapeQueue(queue, null);
-  if (!hasStoredSongs(queue)) return shapeQueue(queue, null);
-  return shapeQueue(queue, await readSpotifyPlayerQueue(uid));
-}
-
-function hasStoredSongs(queue: SongQueueDoc): boolean {
-  if (queue.current) return true;
-  return (queue.up?.length ?? 0) > 0;
-}
 
 export const load: PageServerLoad = ({ locals, url }) => {
   const justConnected = url.searchParams.get('connected') === '1';
@@ -49,10 +39,10 @@ export const load: PageServerLoad = ({ locals, url }) => {
             ...demoSpotifyView(),
             quotas: blankSpotifyQuotas(),
             queue: {
-              current: { title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice' },
+              current: { tid: 'demo-1', title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice' },
               up: [
-                { title: 'Human', artists: 'The Killers', requester: 'bob' },
-                { title: 'Somebody Told Me', artists: 'The Killers', requester: 'carol' }
+                { tid: 'demo-2', title: 'Human', artists: 'The Killers', requester: 'bob' },
+                { tid: 'demo-3', title: 'Somebody Told Me', artists: 'The Killers', requester: 'carol' }
               ]
             } as QueueView,
             setupPreview,

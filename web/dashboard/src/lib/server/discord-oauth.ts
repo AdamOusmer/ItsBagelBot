@@ -135,6 +135,10 @@ export const DISCORD_ERROR_SLUGS = [
 
 export type DiscordErrorSlug = (typeof DISCORD_ERROR_SLUGS)[number];
 
+export function returnIfDeclined(url: URL): void {
+  if (url.searchParams.get('error') === 'access_denied' && !url.searchParams.get('code')) throw redirect(302, '/discord');
+}
+
 export function discordFail(slug: DiscordErrorSlug): never {
   throw redirect(302, `/discord?e=${slug}`);
 }

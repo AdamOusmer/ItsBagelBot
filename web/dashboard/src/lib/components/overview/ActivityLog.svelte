@@ -5,9 +5,9 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { clockFace, type ActivityFeed, type ActivityKind } from '$lib/overview-live';
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
-  let { feed }: { feed: ActivityFeed } = $props();
+  let { feed, stale = false }: { feed: ActivityFeed; stale?: boolean } = $props();
 
   const KIND_LABEL: Record<ActivityKind, string> = {
     command: 'overview.kindCommand',
@@ -35,11 +35,18 @@
   <div class="ov-log__head">
     <h2 id="ov-log-h" class="ov-log__h">{t('overview.botJustDid')}</h2>
     {#if feed.ok && feed.rows.length}
-      <span class="bb-tag bb-tag--incoming">
-        <i class="bb-mark bb-mark--plus" aria-hidden="true"></i>
-        {t('overview.feedLive')}
-        <i class="bb-sweep" aria-hidden="true"></i>
-      </span>
+      {#if stale}
+        <span class="bb-tag bb-tag--quiet">
+          <i class="bb-mark bb-mark--hollow" aria-hidden="true"></i>
+          {t('overview.feedReconnecting')}
+        </span>
+      {:else}
+        <span class="bb-tag bb-tag--incoming">
+          <i class="bb-mark bb-mark--plus" aria-hidden="true"></i>
+          {t('overview.feedLive')}
+          <i class="bb-sweep" aria-hidden="true"></i>
+        </span>
+      {/if}
     {/if}
   </div>
 
@@ -48,10 +55,10 @@
   {:else if !feed.rows.length}
     <p class="ov-log__empty">{t('overview.feedEmpty')}</p>
   {:else}
-    <ul class="ov-log__list">
+    <ul class="ov-log__list" class:ov-log__list--stale={stale}>
       {#each feed.rows as row (row.id)}
         <li class="ov-log__row">
-          <span class="ov-log__time">{clockFace(row.at)}</span>
+          <span class="ov-log__time">{clockFace(row.at, locale)}</span>
           <span class="bb-tag bb-tag--bare ov-log__chip ov-log__chip--{row.kind}">{t(KIND_LABEL[row.kind])}</span>
           <span class="ov-log__text">{row.text}</span>
           <span class="ov-log__meta">{row.meta}</span>
@@ -93,6 +100,12 @@
     margin: 0;
     padding: 0;
   }
+  .ov-log__list {
+    transition: opacity 240ms var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  }
+  .ov-log__list--stale {
+    opacity: 0.55;
+  }
   .ov-log__row {
     display: flex;
     align-items: center;
@@ -103,7 +116,8 @@
   }
   .ov-log__time {
     flex: none;
-    width: 46px;
+    width: 4.75rem;
+    white-space: nowrap;
     font-family: var(--bb-font-mono);
     font-size: 11px;
     color: var(--bb-muted);

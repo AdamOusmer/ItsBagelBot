@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, ManagementRow, Switch, getI18n, fmtDate, type TimerDef } from '@bagel/kit';
+  import { ManagementRow, Switch, getI18n, fmtDate, type TimerDef } from '@bagel/kit';
+  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
+  import { formatDuration } from '$lib/components/shared/duration';
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
   let {
     timer,
@@ -28,11 +29,7 @@
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
   const togglePayload = $derived(JSON.stringify({ ...r, enabled: !r.enabled }));
 
-  const schedule = $derived.by(() => {
-    const s = r.intervalSeconds;
-    if (s > 0 && s % 3600 === 0) return `${s / 3600} h`;
-    return `${Math.max(1, Math.round(s / 60))} min`;
-  });
+  const schedule = $derived(formatDuration(r.intervalSeconds, t, locale));
 
   const ended = $derived.by(() => {
     if (!r.endsAt) return false;
@@ -84,7 +81,7 @@
       <input type="hidden" name="timer" value={togglePayload} />
       <Switch type="submit" checked={r.enabled} label={t('timers.toggleAria', { name: r.message })} />
     </form>
-    <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('timers.deleteAria', { name: r.message })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
+    <RowDeleteButton label={t('timers.deleteAria', { name: r.message })} onclick={onDelete} />
   {/snippet}
 </ManagementRow>
 
@@ -120,8 +117,6 @@
 
   .m-state, .m-pill { flex: none; }
 
-  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
-
   @media (max-width: 760px) {
     .prow {
       grid-template-columns: minmax(0, 1fr);
@@ -133,6 +128,5 @@
     .idx { display: none; }
     .msg { grid-area: msg; }
     .meta { grid-area: meta; justify-content: flex-start; flex-wrap: wrap; gap: 8px 12px; }
-    :global(.delete-action) { min-width: 44px; min-height: 44px; }
   }
 </style>

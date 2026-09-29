@@ -1043,15 +1043,16 @@
     "title": "Notifications",
     "viewAll": "View all →",
     "empty": "Nothing yet.",
-    "read": "Read"
+    "read": "Read",
+    "markFailed": "Could not mark that as read."
   },
   "billing": {
     "activeThroughTebex": "Premium is active through Tebex",
     "activeUntil": ", active until {date}",
     "buyOneMonth": "Buy one month",
-    "cancelConfirmBody": "Your Premium stays active until {date}. After that it will not renew and you return to the free plan.",
-    "cancelConfirmBodyNoDate": "Your Premium will not renew. You return to the free plan at the end of the current period.",
-    "cancelConfirmLabel": "Yes, cancel",
+    "cancelConfirmBody": "You will finish cancelling on Tebex. Your plan stays active until {date}.",
+    "cancelConfirmBodyNoDate": "You will finish cancelling on Tebex. Your plan stays active until the end of the current period.",
+    "cancelConfirmLabel": "Continue to Tebex",
     "cancelConfirmTitle": "Cancel your subscription?",
     "cancelScheduled": "Cancellation is scheduled",
     "cancelSubscription": "Cancel subscription",
@@ -1074,7 +1075,7 @@
     "giftNeedRecipient": "Enter a Twitch username to send a gift.",
     "giftNoteLink": "Gift notes can't contain links or web addresses. Please remove it and try again.",
     "giftPremium": "Gift Premium",
-    "giftSent": "Gift sent 🎁",
+    "giftSent": "Gift sent",
     "giftSentBody": "Their month of Premium is activating now, and they have been notified.",
     "giftSentNamedPost": " has been told. Their month of Premium is activating now.",
     "giftSentNamedPre": "",
@@ -1099,13 +1100,13 @@
     "openingCheckout": "Opening checkout…",
     "optional": "(optional)",
     "paymentReceived": "Payment received",
-    "paymentReceivedBody": "Thank you. Your Premium is activating. This updates on its own, usually within a minute.",
-    "paymentReceivedTitle": "Payment received 🥯",
-    "paymentSlowBody": "Tebex confirmed the payment, but activation is taking longer than usual. Give it a minute and refresh. If it still shows Free, get in touch.",
-    "perMonth": "CAD +tx /month",
+    "paymentReceivedBody": "Thank you. This page updates on its own, usually within a minute.",
+    "paymentReceivedTitle": "Payment received, activating your plan",
+    "paymentSlowBody": "Tebex confirmed the payment, but activation is taking longer than usual. It can take a few minutes. Refresh this page later, and contact support if it still shows Free.",
+    "perMonth": "per month, taxes added at checkout",
     "planEm": "plan",
     "premium": "Premium",
-    "premiumActivated": "Premium activated 🎉",
+    "premiumActivated": "Premium activated",
     "premiumActivatedBody": "Your support keeps ItsBagelBot running. The priority lane and every premium perk are unlocked now.",
     "premiumActive": "Premium is active{until}.",
     "premiumDesc": "Keeps the servers warm and bumps you to the front of the queue when chat gets loud.",
@@ -1130,7 +1131,12 @@
     "upgrade": "Upgrade",
     "usernamePlaceholder": "e.g. streamername",
     "vipHint": "VIP is permanent. It never expires and there is nothing to pay.",
-    "prizeUnavailable": "Prize history is temporarily unavailable. Try again shortly."
+    "prizeUnavailable": "Prize history is temporarily unavailable. Try again shortly.",
+    "endsOn": "Ends {date}",
+    "endsSoon": "Ending",
+    "resumeSubscription": "Resume subscription",
+    "takingToCheckout": "Taking you to secure checkout",
+    "activating": "Activating"
   },
   "builtinInspector": {
     "enabled": "Enabled",
@@ -1298,7 +1304,12 @@
     "toastSaveFailed": "Could not save the reward.",
     "toastDuplicateTitle": "A reward with this title already exists on your channel. Pick another title.",
     "toastDeleteFailed": "Could not delete the reward.",
-    "toastToggleFailed": "Could not update the reward."
+    "toastToggleFailed": "Could not update the reward.",
+    "errCost": "Enter a whole number of points, at least 1.",
+    "errLimit": "Enter a whole number, at least 1.",
+    "errCooldown": "Enter a cooldown between 1 second and 7 days.",
+    "unsavedChanges": "Unsaved changes",
+    "saved": "Saved"
   },
   "chatPreview": {
     "rehearsal": "Chat rehearsal",
@@ -1354,7 +1365,11 @@
     "moduleVariableRequires": "Requires {module} enabled. Adding this variable does not enable the module.",
     "manageModules": "Manage modules",
     "moduleVariableContext": "Event-only values are empty without a matching event. The preview uses sample data.",
-    "moduleVariableParentRequires": "Also requires {module} enabled."
+    "moduleVariableParentRequires": "Also requires {module} enabled.",
+    "lineOver": "Line {n} is over the limit: {len} of {max} characters.",
+    "lineNear": "Line {n} is close to the limit: {len} of {max} characters.",
+    "inserted": "Inserted {token}",
+    "linesCapped": "{n} of {max} messages. Remove one to add another."
   },
   "commandRow": {
     "lockedTo": "Locked to user {id}",
@@ -1367,7 +1382,11 @@
     "toggleAria": "Toggle !{name}",
     "deleteAria": "Delete !{name}",
     "builtin": "Built-in",
-    "builtinTitle": "Built-in command: toggle only, no editable response"
+    "builtinTitle": "Built-in command: toggle only, no editable response",
+    "failed": "Failed",
+    "moreAliases": "{count} more alternate names: {aliases}",
+    "selected": "Selected",
+    "notSelected": "Not selected"
   },
   "commands": {
     "eyebrow": "Board · Commands",
@@ -1426,7 +1445,70 @@
     "groupBuiltinNote": "Reply template only",
     "createHint": "doesn't exist yet, build it",
     "createHintCta": "Create →",
-    "createHintAria": "Create the command !{name}"
+    "createHintAria": "Create the command !{name}",
+    "errNameTaken": "You already have !{name}. Pick another name, or open it.",
+    "errAliasTaken": "An alternate name is already used by another command or built-in.",
+    "errUnavailable": "Could not check your existing commands. Try again in a moment.",
+    "openExisting": "Open it",
+    "sortLabel": "Sort commands",
+    "sortUses": "Most used",
+    "sortName": "Name A to Z",
+    "permLabel": "Filter by access",
+    "permAll": "Any access",
+    "filterWithCount": "{label} {count}",
+    "keysClear": "clear",
+    "selectMode": "Select",
+    "selectDone": "Done",
+    "selectedCount": "{count} selected",
+    "selectAll": "Select all shown",
+    "bulkBar": "Bulk actions",
+    "bulkEnable": "Enable",
+    "bulkDisable": "Disable",
+    "bulkDelete": "Delete",
+    "bulkDeleteTitle": "Delete the selected commands?",
+    "bulkDeleteBody": "This removes {count} of your commands, and their use counts. Built-in commands in the selection stay.",
+    "bulkDeleteConfirm": "Delete {count}",
+    "bulkEnabled": "Enabled: {count}.",
+    "bulkDisabled": "Disabled: {count}.",
+    "bulkDeleted": "Deleted: {count}.",
+    "bulkPartial": "{failed} could not be changed and were put back.",
+    "bulkFailed": "The bulk action failed. Nothing was changed.",
+    "toastDeletedResets": "Deleted !{name}. Undoing it starts its use count over.",
+    "publicPageOn": "Public page",
+    "publicPageCopy": "Copy link",
+    "publicPageOpen": "Open",
+    "publicPageCopied": "Link copied.",
+    "publicPageCopyFailed": "Could not copy the link.",
+    "publicPageOff": "Public page hidden",
+    "publicPageOffTitle": "Turn it on in Settings",
+    "noneYetBody": "Create your first custom response. Viewers trigger it with !{name} in chat.",
+    "startersTitle": "Or start from a template",
+    "starters": {
+      "discord": {
+        "name": "discord",
+        "response": "Join the community on Discord: discord.gg/your-invite"
+      },
+      "socials": {
+        "name": "socials",
+        "response": "Find me elsewhere: twitter.com/yourname and instagram.com/yourname"
+      },
+      "lurk": {
+        "name": "lurk",
+        "response": "{user} is lurking. Thanks for hanging out, enjoy the stream!"
+      },
+      "rules": {
+        "name": "rules",
+        "response": "Be kind, keep spoilers and spam out, and have fun. Mods have the last word."
+      },
+      "schedule": {
+        "name": "schedule",
+        "response": "I stream Monday, Wednesday and Friday at 8pm. See you there!"
+      },
+      "hydrate": {
+        "name": "hydrate",
+        "response": "Quick reminder: drink some water and stretch. Chat, that means you too."
+      }
+    }
   },
   "serverErrors": {
     "notSignedIn": "Not signed in.",
@@ -1538,7 +1620,21 @@
     "selectTitle": "Select an option",
     "searchOptions": "Search options…",
     "searchClear": "Clear search",
-    "selectNoMatch": "No options match your search."
+    "selectNoMatch": "No options match your search.",
+    "unit": {
+      "label": "Unit",
+      "seconds": "seconds",
+      "minutes": "minutes",
+      "hours": "hours"
+    },
+    "duration": {
+      "seconds": "{n} s",
+      "minutes": "{n} min",
+      "hours": "{n} h"
+    },
+    "newVersion": "New version available",
+    "reload": "Reload",
+    "opensInNewTab": "(opens in a new tab)"
   },
   "error": {
     "notFoundEyebrow": "Lost in the crumbs",
@@ -1645,7 +1741,16 @@
     "entryDeleteTitle": "Remove this value?",
     "entryDeleteBody": "The stored value for {name} is removed. A future bump recreates it from zero. This cannot be undone.",
     "toastEntryRemoved": "Value removed.",
-    "toastFailed": "That didn’t work. Try again."
+    "toastFailed": "That didn’t work. Try again.",
+    "errValue": "Enter a whole number.",
+    "clearFilters": "Clear search and filter",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "unsavedChanges": "Unsaved changes",
+    "discardTitle": "Discard changes?",
+    "discardBody": "You have unsaved changes to this counter. Discard them?",
+    "discard": "Discard",
+    "keepEditing": "Keep editing"
   },
   "discord": {
     "addCta": "Add a server",
@@ -1755,7 +1860,7 @@
     "pickBack": "Back to my servers",
     "pickCta": "Add Bagel here",
     "pickDescription": "These are the servers you own or can manage. Pick one and Discord will ask you to confirm before Bagel joins.",
-    "pickElsewhere": "This server is linked to another Twitch channel.",
+    "pickElsewhere": "This server is linked to another Twitch channel. Ask that channel's owner to unlink it first.",
     "pickElsewhereChip": "Linked to another channel",
     "pickEmptyBody": "Bagel can only be added to a server you own, or one where you have Manage Server. Ask its owner, or create your own server first.",
     "pickEmptyTitle": "No server we can add Bagel to",
@@ -1945,7 +2050,18 @@
       "linkedFor": "Linked {since} ago"
     },
     "setupFirstRun": "This server has no saved settings yet. The first setup writes them.",
-    "dangerTitle": "Danger zone"
+    "dangerTitle": "Danger zone",
+    "pickSearchLabel": "Find a server",
+    "pickSearchPh": "Search your servers",
+    "pickNoMatch": "No server matches that search.",
+    "pickMissingHint": "Server missing? You need the Manage Server permission on it.",
+    "chipRemoved": "Removed {name}",
+    "staffRolesFilterLabel": "Filter roles",
+    "staffRolesFilterPh": "Filter roles",
+    "staffRolesNoMatch": "No role matches.",
+    "staffRoleMissing": "@{id} no longer exists",
+    "staffRoleMissingHelp": "A selected role was deleted from the server. Untick it to clear it.",
+    "embedCount": "{n}/{max}"
   },
   "fetches": {
     "builderNew": "+ New data source",
@@ -2067,7 +2183,9 @@
     "heroPre": "Sorry to see you ",
     "heroAccent": "go.",
     "lede": "Your account, commands, and links have been removed. Thanks for being part of the bakery. The door's always open if you come back.",
-    "cta": "Back to itsbagelbot.com"
+    "cta": "Back to itsbagelbot.com",
+    "redirecting": "Returning to itsbagelbot.com in a few seconds. Hover or focus this page to pause.",
+    "paused": "Redirect paused. Use the button when you are ready."
   },
   "govee": {
     "back": "All modules",
@@ -2122,7 +2240,7 @@
     "fieldCost": "Cost (points)",
     "fieldColor": "Tile colour",
     "fieldCooldown": "Cooldown",
-    "fieldCooldownTag": "seconds, 0 = none",
+    "fieldCooldownTag": "0 = off",
     "fieldReply": "Chat reply",
     "previewTag": "on redemption",
     "afterTitle": "After it runs",
@@ -2137,11 +2255,26 @@
     "deleteReward": "Delete reward",
     "create": "Create reward",
     "saveChanges": "Save changes",
-    "saving": "Saving…"
+    "saving": "Saving…",
+    "unsavedChanges": "Unsaved changes",
+    "saved": "Saved",
+    "discardTitle": "Discard changes?",
+    "discardBody": "You have unsaved changes to this reward. Discard them?",
+    "discard": "Discard",
+    "keepEditing": "Keep editing",
+    "keyRemoveTitle": "Remove the Govee key?",
+    "keyRemoveBody": "The bot stops driving your lights until you paste a key again. Your rewards stay on Twitch.",
+    "keyInvalid": "Govee did not accept this key. Check it and try again.",
+    "devicesRetry": "Try again",
+    "noLightsBody": "Add a light to your Govee account in the Govee app. Only models that support colour appear here.",
+    "noLightsCta": "Refresh lights",
+    "errCost": "Enter a whole number of points, at least 1.",
+    "errCooldown": "Enter a cooldown between 0 seconds and 7 days.",
+    "keyCardTitle": "Govee connection"
   },
   "import": {
     "alreadyExists": "already exists",
-    "auditFoot": "Audit #{n} · revert available for 30 days",
+    "auditFoot": "Import reference: {n}",
     "auditLine": "Audit #{n}.",
     "back": "Back",
     "backToSources": "Back to sources",
@@ -2235,7 +2368,7 @@
     "pickHint": "Pick the bot you are migrating away from.",
     "previewCta": "Preview import",
     "quotesAll": "All {n} quote(s) are imported together.",
-    "railAudit": "Imports are logged and reversible from the audit trail for 30 days.",
+    "railAudit": "You review everything before anything is written.",
     "railDone": "Import applied",
     "railFilePending": "No file chosen",
     "railHandlePending": "Channel name needed",
@@ -2269,7 +2402,18 @@
     "stepPick": "1 · Choose a source",
     "tileCta": "Pick this source",
     "toastApplied": "Import applied.",
-    "wizebotDesc": "Type your channel name and the commands published on your Wizebot streaming website come over."
+    "wizebotDesc": "Type your channel name and the commands published on your Wizebot streaming website come over.",
+    "errOffline": "You appear to be offline. Check your connection and try again. Your input is kept.",
+    "errTimeout": "The importer took too long to answer. Try again in a moment. Your input is kept.",
+    "errRateLimited": "Too many import attempts. Wait a minute, then try again.",
+    "errUnavailable": "The importer is not available right now. Try again in a moment. Your input is kept.",
+    "skippedHead": "{n} item(s) skipped because they already exist.",
+    "skippedMore": "+{n} more",
+    "reviewCommands": "Review imported commands",
+    "importAnother": "Import from another bot",
+    "leaveTitle": "Leave the import?",
+    "leaveBody": "Your review is kept. Choose Start importing again to pick up where you left off.",
+    "leaveStay": "Stay here"
   },
   "install": {
     "cta": "Install app",
@@ -2337,7 +2481,10 @@
     "noticeRetry": "Sign-in did not finish on the server. Nothing was saved. Please try again.",
     "noticeImpersonation": "That view-as link is invalid or has already been used. Mint a new one from the admin console.",
     "consent": "I agree to the <a href=\"https://itsbagelbot.com/terms\" target=\"_blank\">Terms</a> and <a href=\"https://itsbagelbot.com/privacy\" target=\"_blank\">Privacy Policy</a>",
-    "back": "Back to itsbagelbot.com"
+    "back": "Back to itsbagelbot.com",
+    "metaTitle": "Sign in - ItsBagelBot",
+    "metaDescription": "Sign in to the ItsBagelBot console with Twitch to manage your bot, commands and modules.",
+    "scopesLink": "What we ask Twitch for, and why"
   },
   "loyalty": {
     "statusTitle": "Status",
@@ -2351,7 +2498,7 @@
     "botOn": "Loyalty active",
     "botOnHint": "Master switch: nobody earns points while this is off.",
     "ratesTitle": "Earning rates",
-    "ratesHint": "Leave a field at 0 to use the default shown next to it. Set it to -1 to turn that source off.",
+    "ratesHint": "Use each switch to turn a source off. The number is what a viewer earns for it. The tag shows the default.",
     "fieldName": "Currency name",
     "fieldNamePh": "points",
     "fieldSub": "New subscription",
@@ -2393,7 +2540,15 @@
     "gamesHint": "Gamble and duels spend this currency. Odds and chat lines stay on each game’s page. This is only the on-switch.",
     "gamesNeedsOn": "Turn loyalty on before these games can run.",
     "gameSetup": "Set up",
-    "toastGameToggleFailed": "Could not update {label}."
+    "toastGameToggleFailed": "Could not update {label}.",
+    "errRate": "Enter a whole number from 1 to {max}.",
+    "rateToggleAria": "Award points for: {name}",
+    "unitSub": "{name} per new sub",
+    "unitResub": "{name} per resub",
+    "unitGift": "{name} per gifted sub",
+    "unitCheer": "{name} per 100 bits",
+    "unitWatch": "{name} per 5 minutes",
+    "topEmptyCta": "Review earning rates"
   },
   "modules": {
     "quickAccess": "Quick access",
@@ -3229,7 +3384,20 @@
     "triggerPhrase": "Trigger phrase",
     "triggerPhraseExample": "hello",
     "triggerPhrasePh": "e.g. hello",
-    "triggerPreviewTag": "on \"{phrase}\""
+    "triggerPreviewTag": "on \"{phrase}\"",
+    "newRule": "New rule",
+    "ruleEvent": "on \"{phrase}\"",
+    "deleteRuleTitle": "Delete this rule?",
+    "deleteRuleBody": "The rule for \"{phrase}\" will be removed and stop replying in chat.",
+    "autoSaveNote": "Changes save automatically",
+    "sectionNav": "Sections",
+    "replyFilterLabel": "Filter replies",
+    "replyFilterPh": "Filter replies",
+    "replyFilterNone": "No replies match.",
+    "statusFilterLabel": "Filter by status",
+    "filterAll": "All",
+    "filterOn": "On",
+    "lockedHint": "Premium only. Upgrade to change this."
   },
   "nav": {
     "songqueue": "Song Requests",
@@ -3317,7 +3485,10 @@
     "skip": "Skip",
     "next": "Next",
     "done": "Done",
-    "saveError": "Your progress could not be saved. Try again."
+    "saveError": "Could not apply your setup. Nothing changed, press Finish setup to try again.",
+    "stepAnnounce": "Step {n} of {total}: {label}",
+    "consentHint": "Accept to continue",
+    "returning": "Returning to setup…"
   },
   "overview": {
     "statusHeading": "Bot status",
@@ -3448,7 +3619,14 @@
     "kindReward": "reward",
     "kindLoyalty": "loyalty",
     "kindEvent": "event",
-    "kindQueue": "queue"
+    "kindQueue": "queue",
+    "loadingStream": "Loading stream details…",
+    "loadingCommands": "Loading your commands…",
+    "feedReconnecting": "Reconnecting",
+    "invitesPendingCta": "Review invites",
+    "setupConnectCta": "Connect",
+    "setupCommandCta": "Create command",
+    "setupModuleCta": "Browse modules"
   },
   "planLabel": {
     "free": "Free",
@@ -3506,7 +3684,7 @@
       "filterBuiltinHeading": "Built-in commands",
       "pageTitle": "{channel} commands - ItsBagelBot",
       "pageDescription": "Active chat commands and modules for {channel} on ItsBagelBot.",
-      "summary": "{commands} custom commands · {modules} active modules · {total} things to type",
+      "summary": "{commands} · {modules} · {total}",
       "summaryOneCommand": "{count} custom command",
       "summaryManyCommands": "{count} custom commands",
       "summaryOneModule": "{count} active module",
@@ -3530,7 +3708,10 @@
       "moduleAuto": "auto",
       "noModules": "No active modules.",
       "legendTitle": "Reading the tags",
-      "legend": "Everyone, Subs, and Mods say who can run it. The clock is the cooldown between uses. Live only commands answer while the stream is up."
+      "legend": "Everyone, Subscribers, VIPs and Moderators say who can run it. The clock is the cooldown between uses. Live only commands answer while the stream is up.",
+      "cooldownSeconds": "Cooldown {n}s",
+      "copiedAnnounce": "Copied {trigger}",
+      "summaryOneThing": "{count} thing to type"
     }
   },
   "quotes": {
@@ -3590,7 +3771,8 @@
     "toastEdited": "Quote updated.",
     "toastPermFailed": "Could not change the permission.",
     "toastToggleFailed": "Could not update the module.",
-    "unsavedChanges": "Unsaved changes"
+    "unsavedChanges": "Unsaved changes",
+    "deleteAriaNamed": "Delete quote #{n}"
   },
   "rewardCounter": {
     "enable": "Keep a counter",
@@ -3695,7 +3877,23 @@
     "markAllRead": "Mark all read",
     "toastAllRead": "All notifications marked read.",
     "keysHint": "Account-level secrets for data sources. Delegates can spend them, never read them.",
-    "importNav": "Import"
+    "importNav": "Import",
+    "level": {
+      "info": "Info",
+      "success": "Success",
+      "warning": "Warning",
+      "critical": "Critical"
+    },
+    "showOlder": "Show older ({n})",
+    "showFewer": "Show fewer",
+    "toastCommandsPageOn": "Public commands page is on.",
+    "toastCommandsPageOff": "Public commands page is off.",
+    "boardTwitchOff": "Twitch not connected",
+    "boardTwitchUnknown": "Twitch status unavailable",
+    "notConnectedPill": "Not connected",
+    "deleteConfirmLabel": "Type {login} to confirm",
+    "deleteConfirmHint": "Your channel login is {login}. Deleting is permanent.",
+    "working": "Working…"
   },
   "spotifySetup": {
     "premiumTitle": "Spotify Premium is required",
@@ -3726,7 +3924,8 @@
     "previewHint": "Try the flow without connecting an account.",
     "footer": "A soundtrack, picked together.",
     "later": "I’ll do this later",
-    "redirectMissing": "The callback URL is not available yet. You can continue once song requests are configured."
+    "redirectMissing": "The callback URL is not available yet. You can continue once song requests are configured.",
+    "redirectLabel": "Redirect URI"
   },
   "spotify": {
     "afterCancel": "Cancel: refund the points, skip the queue",
@@ -3743,7 +3942,7 @@
     "appRemove": "Remove",
     "appRemoveFailed": "Could not remove the Spotify app.",
     "appRemoveTitle": "Remove Spotify app?",
-    "appRemoveWarning": "Removing the app also disconnects the Spotify account, since the connection was issued by it.",
+    "appRemoveWarning": "Removing the app also disconnects the Spotify account, since the connection was issued by it. Song requests stop until you paste the client secret again and reconnect.",
     "appRemoved": "Spotify app removed.",
     "appReplace": "Replace",
     "appSave": "Save app",
@@ -3768,7 +3967,7 @@
     "create": "Create reward",
     "defaultTitle": "Play a song request",
     "degraded": "Could not reach the backend. Try again in a moment.",
-    "deleteBody": "The reward disappears from your Twitch points menu immediately. Queued songs stay.",
+    "deleteBody": "“{name}” disappears from your Twitch points menu immediately. Queued songs stay. This cannot be undone.",
     "deleteCancel": "Keep it",
     "deleteConfirm": "Delete reward",
     "deleteReward": "Delete reward",
@@ -3792,7 +3991,7 @@
     "errUnconfigured": "Song requests are not configured on this deployment yet: the Spotify callback URL is missing. Ask the operator to set SPOTIFY_REDIRECT_URI.",
     "eyebrow": "Song requests",
     "fieldColor": "Colour",
-    "fieldCooldown": "Global cooldown (seconds)",
+    "fieldCooldown": "Global cooldown",
     "fieldCooldownTag": "0 = off",
     "fieldCost": "Point cost",
     "fieldReply": "Chat reply",
@@ -3840,7 +4039,7 @@
     "redirectCopied": "Redirect URI copied.",
     "redirectCopy": "Copy",
     "redirectCopyFailed": "Could not copy. Select the URL and copy it manually.",
-    "removeAria": "Remove the song-request reward",
+    "removeAria": "Delete the reward: {name}",
     "rewardRowHint": "Channel points",
     "rewardRowLabel": "Song request",
     "saveChanges": "Save changes",
@@ -3863,7 +4062,28 @@
     "toastDeleted": "Reward deleted.",
     "toastSaveFailed": "Could not save the reward.",
     "toastSaved": "Reward saved.",
-    "previewUserSample": "Viewer99"
+    "previewUserSample": "Viewer99",
+    "unsavedChanges": "Unsaved changes",
+    "saved": "Saved",
+    "discardTitle": "Discard changes?",
+    "discardBody": "You have unsaved changes to this reward. Discard them?",
+    "discard": "Discard",
+    "keepEditing": "Keep editing",
+    "errCost": "Enter a whole number of points, at least 1.",
+    "errCooldown": "Enter a cooldown between 0 seconds and 7 days.",
+    "queueUpdated": "Updated {when}",
+    "queueRefreshing": "Refreshing…",
+    "queueEmptySr": "Viewers add songs by typing !sr in chat.",
+    "queueEmptyRedeem": "Viewers add songs by redeeming your channel-points reward.",
+    "queueEmptyBoth": "Viewers add songs with !sr in chat or by redeeming your channel-points reward.",
+    "queueEmptyOff": "Both request paths are off. Turn one on so viewers can add songs.",
+    "queueEnableSr": "Turn on !sr",
+    "srPermOffHint": "Turn on !sr to choose who may queue.",
+    "redeemLiveOnlyDisabled": "Turn on redemptions to change this.",
+    "connectionTitle": "Connection",
+    "accountLabel": "Account",
+    "appLabel": "Spotify app",
+    "needsReconnectPill": "Reconnect needed"
   },
   "stats": {
     "title": "Live statistics",
@@ -3909,11 +4129,13 @@
     "feedingsTitle": "Bagel feedings",
     "topFeeders": "Top feeders",
     "feedings": "Feedings",
-    "boardsUnavailable": "Channel rankings are temporarily unavailable. They will refresh on their own."
+    "boardsUnavailable": "Channel rankings are temporarily unavailable. They will refresh on their own.",
+    "rateNa": "n/a",
+    "rateNaSr": "Rate not available yet"
   },
   "timers": {
     "errMessage": "Enter a message for this timer.",
-    "errInterval": "Enter a whole number of minutes between 1 and 1440.",
+    "errInterval": "Enter a whole interval between 1 minute and 24 hours.",
     "errUrlfetchCap": "A timer message can reference at most {max} different fetched values ({urlfetch:…}).",
     "eyebrow": "Manage",
     "titlePre": "Chat ",
@@ -3976,7 +4198,10 @@
     "support": "Support",
     "supportDiscordHint": "usually minutes",
     "supportGithubHint": "source available",
-    "feedback": "Bug or idea"
+    "feedback": "Bug or idea",
+    "enterprise": "Enterprise",
+    "reconnecting": "Reconnecting",
+    "supportTitle": "Help and feedback"
   },
   "perm": {
     "everyone": "Everyone",
@@ -5230,8 +5455,12 @@
     "modulesBody": "Module settings are not included in supported bot exports. After import, review which modules are on from your dashboard.",
     "continue": "Continue",
     "dashboard": "Go to dashboard",
-    "saveFailed": "Could not save your setup. Try again.",
+    "saveFailed": "Could not finish your setup. Your import is kept, press Go to dashboard to try again.",
     "signIn": "Sign in to finish setup.",
     "ownerOnly": "Only the channel owner can finish setup."
+  },
+  "meta": {
+    "defaultTitle": "ItsBagelBot Dashboard",
+    "defaultDescription": "Sign in to configure moderation, custom commands, timers, and channel points for your Twitch channel."
   }
 }

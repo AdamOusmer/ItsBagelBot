@@ -1043,15 +1043,16 @@
     "title": "Notifications",
     "viewAll": "Tout voir →",
     "empty": "Rien pour le moment.",
-    "read": "Lu"
+    "read": "Lu",
+    "markFailed": "Impossible de marquer comme lu."
   },
   "billing": {
     "activeThroughTebex": "Premium est actif via Tebex",
     "activeUntil": ", actif jusqu'au {date}",
     "buyOneMonth": "Acheter un mois",
-    "cancelConfirmBody": "Votre Premium reste actif jusqu’au {date}. Après cette date, il ne se renouvelle pas et vous revenez au forfait gratuit.",
-    "cancelConfirmBodyNoDate": "Votre Premium ne se renouvellera pas. Vous reviendrez au forfait gratuit à la fin de la période en cours.",
-    "cancelConfirmLabel": "Oui, annuler",
+    "cancelConfirmBody": "Vous terminerez l’annulation sur Tebex. Votre forfait reste actif jusqu’au {date}.",
+    "cancelConfirmBodyNoDate": "Vous terminerez l’annulation sur Tebex. Votre forfait reste actif jusqu’à la fin de la période en cours.",
+    "cancelConfirmLabel": "Continuer vers Tebex",
     "cancelConfirmTitle": "Annuler votre abonnement ?",
     "cancelScheduled": "L'annulation est programmée",
     "cancelSubscription": "Annuler l'abonnement",
@@ -1074,7 +1075,7 @@
     "giftNeedRecipient": "Saisissez un nom d’utilisateur Twitch pour envoyer un cadeau.",
     "giftNoteLink": "Les mots pour la carte cadeau ne peuvent pas contenir de liens ou d'adresses web. Merci de les retirer et de réessayer.",
     "giftPremium": "Offrir Premium",
-    "giftSent": "Cadeau envoyé 🎁",
+    "giftSent": "Cadeau envoyé",
     "giftSentBody": "Son mois de Premium s'active maintenant, et il a été prévenu.",
     "giftSentNamedPost": " a été prévenu. Son mois de Premium s'active maintenant.",
     "giftSentNamedPre": "",
@@ -1099,13 +1100,13 @@
     "openingCheckout": "Ouverture du paiement…",
     "optional": "(optionnel)",
     "paymentReceived": "Paiement reçu",
-    "paymentReceivedBody": "Merci. Votre Premium s'active. Cela se met à jour tout seul, généralement en une minute.",
-    "paymentReceivedTitle": "Paiement reçu 🥯",
-    "paymentSlowBody": "Tebex a confirmé le paiement, mais l'activation prend plus de temps que d'habitude. Attendez une minute et actualisez. Si cela affiche toujours Gratuit, écrivez-moi.",
-    "perMonth": "CAD +tx /mois",
+    "paymentReceivedBody": "Merci. Cette page se met à jour toute seule, généralement en une minute.",
+    "paymentReceivedTitle": "Paiement reçu, activation de votre forfait",
+    "paymentSlowBody": "Tebex a confirmé le paiement, mais l’activation prend plus de temps que d’habitude. Cela peut prendre quelques minutes. Actualisez cette page plus tard et contactez le support si elle affiche toujours Gratuit.",
+    "perMonth": "par mois, taxes ajoutées au paiement",
     "planEm": "forfait",
     "premium": "Premium",
-    "premiumActivated": "Premium activé 🎉",
+    "premiumActivated": "Premium activé",
     "premiumActivatedBody": "Votre soutien maintient ItsBagelBot en marche. La file prioritaire et tous les avantages premium sont débloqués maintenant.",
     "premiumActive": "Premium est actif{until}.",
     "premiumDesc": "Garde les serveurs au chaud et vous fait passer en tête de file quand le chat s'emballe.",
@@ -1130,7 +1131,12 @@
     "upgrade": "Améliorer",
     "usernamePlaceholder": "ex. nomdustreamer",
     "vipHint": "Le statut VIP est permanent. Il n'expire jamais et il n'y a rien à payer.",
-    "prizeUnavailable": "L’historique des prix est temporairement indisponible. Réessayez bientôt."
+    "prizeUnavailable": "L’historique des prix est temporairement indisponible. Réessayez bientôt.",
+    "endsOn": "Se termine le {date}",
+    "endsSoon": "Se termine",
+    "resumeSubscription": "Reprendre l’abonnement",
+    "takingToCheckout": "Redirection vers le paiement sécurisé",
+    "activating": "Activation"
   },
   "builtinInspector": {
     "enabled": "Activée",
@@ -1298,7 +1304,12 @@
     "toastSaveFailed": "Impossible d’enregistrer la récompense.",
     "toastDuplicateTitle": "Une récompense porte déjà ce titre sur votre chaîne. Choisissez-en un autre.",
     "toastDeleteFailed": "Impossible de supprimer la récompense.",
-    "toastToggleFailed": "Impossible de mettre à jour la récompense."
+    "toastToggleFailed": "Impossible de mettre à jour la récompense.",
+    "errCost": "Saisissez un nombre entier de points, au moins 1.",
+    "errLimit": "Saisissez un nombre entier, au moins 1.",
+    "errCooldown": "Saisissez un délai entre 1 seconde et 7 jours.",
+    "unsavedChanges": "Modifications non enregistrées",
+    "saved": "Enregistré"
   },
   "chatPreview": {
     "rehearsal": "Répétition du chat",
@@ -1354,7 +1365,11 @@
     "moduleVariableRequires": "Nécessite {module} activé. Ajouter cette variable n’active pas le module.",
     "manageModules": "Gérer les modules",
     "moduleVariableContext": "Les valeurs liées à un événement sont vides sans événement correspondant. L’aperçu utilise des exemples.",
-    "moduleVariableParentRequires": "Nécessite aussi {module} activé."
+    "moduleVariableParentRequires": "Nécessite aussi {module} activé.",
+    "lineOver": "La ligne {n} dépasse la limite : {len} caractères sur {max}.",
+    "lineNear": "La ligne {n} approche de la limite : {len} caractères sur {max}.",
+    "inserted": "{token} inséré",
+    "linesCapped": "{n} messages sur {max}. Supprimez-en un pour en ajouter un autre."
   },
   "commandRow": {
     "lockedTo": "Verrouillé sur l'utilisateur {id}",
@@ -1367,7 +1382,11 @@
     "toggleAria": "Basculer !{name}",
     "deleteAria": "Supprimer !{name}",
     "builtin": "Intégrée",
-    "builtinTitle": "Commande intégrée : activation seulement, pas de réponse modifiable"
+    "builtinTitle": "Commande intégrée : activation seulement, pas de réponse modifiable",
+    "failed": "Échec",
+    "moreAliases": "{count} autres noms alternatifs : {aliases}",
+    "selected": "Sélectionnée",
+    "notSelected": "Non sélectionnée"
   },
   "commands": {
     "eyebrow": "Tableau · Commandes",
@@ -1426,7 +1445,70 @@
     "groupBuiltinNote": "Réponse seulement",
     "createHint": "n'existe pas encore, créez-la",
     "createHintCta": "Créer →",
-    "createHintAria": "Créer la commande !{name}"
+    "createHintAria": "Créer la commande !{name}",
+    "errNameTaken": "Vous avez déjà !{name}. Choisissez un autre nom, ou ouvrez-la.",
+    "errAliasTaken": "Un nom alternatif est déjà utilisé par une autre commande ou une commande intégrée.",
+    "errUnavailable": "Impossible de vérifier vos commandes existantes. Réessayez dans un instant.",
+    "openExisting": "L'ouvrir",
+    "sortLabel": "Trier les commandes",
+    "sortUses": "Les plus utilisées",
+    "sortName": "Nom de A à Z",
+    "permLabel": "Filtrer par accès",
+    "permAll": "Tous les accès",
+    "filterWithCount": "{label} {count}",
+    "keysClear": "effacer",
+    "selectMode": "Sélectionner",
+    "selectDone": "Terminé",
+    "selectedCount": "{count} sélectionnée(s)",
+    "selectAll": "Tout sélectionner",
+    "bulkBar": "Actions groupées",
+    "bulkEnable": "Activer",
+    "bulkDisable": "Désactiver",
+    "bulkDelete": "Supprimer",
+    "bulkDeleteTitle": "Supprimer les commandes sélectionnées ?",
+    "bulkDeleteBody": "Cela supprime {count} de vos commandes, avec leurs compteurs d'utilisation. Les commandes intégrées de la sélection restent en place.",
+    "bulkDeleteConfirm": "Supprimer {count}",
+    "bulkEnabled": "Activées : {count}.",
+    "bulkDisabled": "Désactivées : {count}.",
+    "bulkDeleted": "Supprimées : {count}.",
+    "bulkPartial": "{failed} n'ont pas pu être modifiées et ont été remises en place.",
+    "bulkFailed": "L'action groupée a échoué. Rien n'a été modifié.",
+    "toastDeletedResets": "!{name} supprimée. Annuler remet son compteur d'utilisation à zéro.",
+    "publicPageOn": "Page publique",
+    "publicPageCopy": "Copier le lien",
+    "publicPageOpen": "Ouvrir",
+    "publicPageCopied": "Lien copié.",
+    "publicPageCopyFailed": "Impossible de copier le lien.",
+    "publicPageOff": "Page publique masquée",
+    "publicPageOffTitle": "Activez-la dans les paramètres",
+    "noneYetBody": "Créez votre première réponse personnalisée. Les spectateurs la déclenchent avec !{name} dans le chat.",
+    "startersTitle": "Ou partez d'un modèle",
+    "starters": {
+      "discord": {
+        "name": "discord",
+        "response": "Rejoignez la communauté sur Discord : discord.gg/votre-invitation"
+      },
+      "socials": {
+        "name": "reseaux",
+        "response": "Retrouvez-moi ailleurs : twitter.com/votrenom et instagram.com/votrenom"
+      },
+      "lurk": {
+        "name": "lurk",
+        "response": "{user} est en mode lurk. Merci d'être là, profitez du stream !"
+      },
+      "rules": {
+        "name": "regles",
+        "response": "Soyez sympas, pas de spoil ni de spam, et amusez-vous. Les modos ont le dernier mot."
+      },
+      "schedule": {
+        "name": "horaires",
+        "response": "Je stream le lundi, le mercredi et le vendredi à 20 h. À bientôt !"
+      },
+      "hydrate": {
+        "name": "eau",
+        "response": "Petit rappel : buvez un peu d'eau et étirez-vous. Le chat aussi, oui."
+      }
+    }
   },
   "serverErrors": {
     "notSignedIn": "Vous n’êtes pas connecté.",
@@ -1538,7 +1620,21 @@
     "selectTitle": "Choisir une option",
     "searchOptions": "Rechercher une option…",
     "searchClear": "Effacer la recherche",
-    "selectNoMatch": "Aucune option ne correspond à votre recherche."
+    "selectNoMatch": "Aucune option ne correspond à votre recherche.",
+    "unit": {
+      "label": "Unité",
+      "seconds": "secondes",
+      "minutes": "minutes",
+      "hours": "heures"
+    },
+    "duration": {
+      "seconds": "{n} s",
+      "minutes": "{n} min",
+      "hours": "{n} h"
+    },
+    "newVersion": "Nouvelle version disponible",
+    "reload": "Recharger",
+    "opensInNewTab": "(s’ouvre dans un nouvel onglet)"
   },
   "error": {
     "notFoundEyebrow": "Perdu dans les miettes",
@@ -1645,7 +1741,16 @@
     "entryDeleteTitle": "Retirer cette valeur ?",
     "entryDeleteBody": "La valeur enregistrée pour {name} est supprimée. Un futur incrément la recréera à zéro. Irréversible.",
     "toastEntryRemoved": "Valeur retirée.",
-    "toastFailed": "Ça n’a pas fonctionné. Réessayez."
+    "toastFailed": "Ça n’a pas fonctionné. Réessayez.",
+    "errValue": "Saisissez un nombre entier.",
+    "clearFilters": "Effacer la recherche et le filtre",
+    "saving": "Enregistrement…",
+    "saved": "Enregistré",
+    "unsavedChanges": "Modifications non enregistrées",
+    "discardTitle": "Abandonner les modifications ?",
+    "discardBody": "Vous avez des modifications non enregistrées sur ce compteur. Les abandonner ?",
+    "discard": "Abandonner",
+    "keepEditing": "Continuer la modification"
   },
   "discord": {
     "addCta": "Ajouter un serveur",
@@ -1755,7 +1860,7 @@
     "pickBack": "Retour à mes serveurs",
     "pickCta": "Ajouter Bagel ici",
     "pickDescription": "Voici les serveurs que vous possédez ou pouvez gérer. Choisissez-en un et Discord vous demandera de confirmer avant que Bagel rejoigne.",
-    "pickElsewhere": "Ce serveur est lié à une autre chaîne Twitch.",
+    "pickElsewhere": "Ce serveur est lié à une autre chaîne Twitch. Demandez au propriétaire de cette chaîne de le délier d’abord.",
     "pickElsewhereChip": "Lié à une autre chaîne",
     "pickEmptyBody": "Bagel ne peut rejoindre qu’un serveur qui vous appartient, ou un serveur où vous avez Gérer le serveur. Demandez à son propriétaire, ou créez d’abord le vôtre.",
     "pickEmptyTitle": "Aucun serveur où ajouter Bagel",
@@ -1945,7 +2050,18 @@
       "linkedFor": "Lié depuis {since}"
     },
     "setupFirstRun": "Ce serveur n’a pas encore de réglages enregistrés. La première préparation les écrit.",
-    "dangerTitle": "Zone sensible"
+    "dangerTitle": "Zone sensible",
+    "pickSearchLabel": "Trouver un serveur",
+    "pickSearchPh": "Rechercher dans vos serveurs",
+    "pickNoMatch": "Aucun serveur ne correspond à cette recherche.",
+    "pickMissingHint": "Un serveur manque ? Il faut la permission Gérer le serveur dessus.",
+    "chipRemoved": "{name} retiré",
+    "staffRolesFilterLabel": "Filtrer les rôles",
+    "staffRolesFilterPh": "Filtrer les rôles",
+    "staffRolesNoMatch": "Aucun rôle ne correspond.",
+    "staffRoleMissing": "@{id} n’existe plus",
+    "staffRoleMissingHelp": "Un rôle sélectionné a été supprimé du serveur. Décochez-le pour l’effacer.",
+    "embedCount": "{n}/{max}"
   },
   "fetches": {
     "builderNew": "+ Nouvelle source",
@@ -2067,7 +2183,9 @@
     "heroPre": "Triste de vous voir ",
     "heroAccent": "partir.",
     "lede": "Votre compte, vos commandes et vos liens ont été supprimés. Merci d'avoir fait partie de la boulangerie. La porte reste toujours ouverte si vous revenez.",
-    "cta": "Retour à itsbagelbot.com"
+    "cta": "Retour à itsbagelbot.com",
+    "redirecting": "Retour à itsbagelbot.com dans quelques secondes. Survolez ou sélectionnez cette page pour mettre en pause.",
+    "paused": "Redirection en pause. Utilisez le bouton quand vous êtes prêt."
   },
   "govee": {
     "back": "Tous les modules",
@@ -2122,7 +2240,7 @@
     "fieldCost": "Coût (points)",
     "fieldColor": "Couleur de la tuile",
     "fieldCooldown": "Délai de recharge",
-    "fieldCooldownTag": "secondes, 0 = aucun",
+    "fieldCooldownTag": "0 = désactivé",
     "fieldReply": "Réponse dans le chat",
     "previewTag": "à l’échange",
     "afterTitle": "Après l’exécution",
@@ -2137,11 +2255,26 @@
     "deleteReward": "Supprimer la récompense",
     "create": "Créer la récompense",
     "saveChanges": "Enregistrer les modifications",
-    "saving": "Enregistrement…"
+    "saving": "Enregistrement…",
+    "unsavedChanges": "Modifications non enregistrées",
+    "saved": "Enregistré",
+    "discardTitle": "Abandonner les modifications ?",
+    "discardBody": "Vous avez des modifications non enregistrées sur cette récompense. Les abandonner ?",
+    "discard": "Abandonner",
+    "keepEditing": "Continuer l’édition",
+    "keyRemoveTitle": "Supprimer la clé Govee ?",
+    "keyRemoveBody": "Le bot cesse de piloter vos lumières jusqu’à ce que vous colliez une clé de nouveau. Vos récompenses restent sur Twitch.",
+    "keyInvalid": "Govee n’a pas accepté cette clé. Vérifiez-la et réessayez.",
+    "devicesRetry": "Réessayer",
+    "noLightsBody": "Ajoutez une lumière à votre compte Govee dans l’application Govee. Seuls les modèles compatibles couleur apparaissent ici.",
+    "noLightsCta": "Actualiser les lumières",
+    "errCost": "Saisissez un nombre entier de points, au moins 1.",
+    "errCooldown": "Saisissez un délai entre 0 seconde et 7 jours.",
+    "keyCardTitle": "Connexion Govee"
   },
   "import": {
     "alreadyExists": "existe déjà",
-    "auditFoot": "Audit n°{n} · retour arrière possible pendant 30 jours",
+    "auditFoot": "Référence de l’import : {n}",
     "auditLine": "Audit n° {n}.",
     "back": "Retour",
     "backToSources": "Retour aux sources",
@@ -2235,7 +2368,7 @@
     "pickHint": "Choisissez le bot que vous quittez.",
     "previewCta": "Prévisualiser l’import",
     "quotesAll": "Les {n} citation(s) sont importées ensemble.",
-    "railAudit": "Les imports sont journalisés et réversibles depuis l’audit pendant 30 jours.",
+    "railAudit": "Vous vérifiez tout avant que quoi que ce soit soit écrit.",
     "railDone": "Import appliqué",
     "railFilePending": "Aucun fichier choisi",
     "railHandlePending": "Nom de chaîne requis",
@@ -2269,7 +2402,18 @@
     "stepPick": "1 · Choisissez une source",
     "tileCta": "Choisir cette source",
     "toastApplied": "Import appliqué.",
-    "wizebotDesc": "Indiquez le nom de votre chaîne : les commandes publiées sur votre site de streaming Wizebot arrivent ici."
+    "wizebotDesc": "Indiquez le nom de votre chaîne : les commandes publiées sur votre site de streaming Wizebot arrivent ici.",
+    "errOffline": "Vous semblez hors ligne. Vérifiez votre connexion et réessayez. Votre saisie est conservée.",
+    "errTimeout": "L’importateur a mis trop de temps à répondre. Réessayez dans un instant. Votre saisie est conservée.",
+    "errRateLimited": "Trop de tentatives d’import. Patientez une minute, puis réessayez.",
+    "errUnavailable": "L’importateur n’est pas disponible pour le moment. Réessayez dans un instant. Votre saisie est conservée.",
+    "skippedHead": "{n} élément(s) ignoré(s) car ils existent déjà.",
+    "skippedMore": "+{n} de plus",
+    "reviewCommands": "Vérifier les commandes importées",
+    "importAnother": "Importer depuis un autre bot",
+    "leaveTitle": "Quitter l’import ?",
+    "leaveBody": "Votre révision est conservée. Choisissez à nouveau Commencer l’importation pour reprendre là où vous en étiez.",
+    "leaveStay": "Rester ici"
   },
   "install": {
     "cta": "Installer l’app",
@@ -2337,7 +2481,10 @@
     "noticeRetry": "La connexion n'a pas abouti. Rien n'a été sauvegardé. Veuillez réessayer.",
     "noticeImpersonation": "Ce lien d'aperçu n'est plus valide ou a déjà été utilisé. Générez-en un nouveau depuis la console d'administration.",
     "back": "Retour à itsbagelbot.com",
-    "consent": "J'accepte les <a href=\"https://itsbagelbot.com/terms\" target=\"_blank\">Conditions</a> et la <a href=\"https://itsbagelbot.com/privacy\" target=\"_blank\">Politique de confidentialité</a>"
+    "consent": "J'accepte les <a href=\"https://itsbagelbot.com/terms\" target=\"_blank\">Conditions</a> et la <a href=\"https://itsbagelbot.com/privacy\" target=\"_blank\">Politique de confidentialité</a>",
+    "metaTitle": "Connexion - ItsBagelBot",
+    "metaDescription": "Connectez-vous à la console ItsBagelBot avec Twitch pour gérer votre bot, vos commandes et vos modules.",
+    "scopesLink": "Ce que nous demandons à Twitch, et pourquoi"
   },
   "loyalty": {
     "statusTitle": "Statut",
@@ -2351,7 +2498,7 @@
     "botOn": "Fidélité active",
     "botOnHint": "Interrupteur principal : personne ne gagne de points tant qu’il est éteint.",
     "ratesTitle": "Taux de gain",
-    "ratesHint": "Laissez un champ à 0 pour utiliser la valeur par défaut affichée à côté. Mettez -1 pour désactiver cette source.",
+    "ratesHint": "Utilisez chaque interrupteur pour désactiver une source. Le nombre correspond à ce qu’un viewer gagne. L’étiquette indique la valeur par défaut.",
     "fieldName": "Nom de la monnaie",
     "fieldNamePh": "points",
     "fieldSub": "Nouvel abonnement",
@@ -2393,7 +2540,15 @@
     "gamesHint": "Le pari et les duels dépensent cette monnaie. Les cotes et les lignes de chat restent sur la page de chaque jeu. Ici, c’est seulement l’interrupteur.",
     "gamesNeedsOn": "Activez la fidélité avant de pouvoir lancer ces jeux.",
     "gameSetup": "Régler",
-    "toastGameToggleFailed": "Impossible de mettre à jour {label}."
+    "toastGameToggleFailed": "Impossible de mettre à jour {label}.",
+    "errRate": "Saisissez un nombre entier de 1 à {max}.",
+    "rateToggleAria": "Attribuer des points pour : {name}",
+    "unitSub": "{name} par nouvel abonnement",
+    "unitResub": "{name} par réabonnement",
+    "unitGift": "{name} par abonnement offert",
+    "unitCheer": "{name} par 100 bits",
+    "unitWatch": "{name} par 5 minutes",
+    "topEmptyCta": "Voir les taux de gain"
   },
   "modules": {
     "quickAccess": "Accès rapide",
@@ -3229,7 +3384,20 @@
     "triggerPhrase": "Expression déclencheuse",
     "triggerPhraseExample": "hello",
     "triggerPhrasePh": "ex. hello",
-    "triggerPreviewTag": "sur « {phrase} »"
+    "triggerPreviewTag": "sur « {phrase} »",
+    "newRule": "Nouvelle règle",
+    "ruleEvent": "sur « {phrase} »",
+    "deleteRuleTitle": "Supprimer cette règle ?",
+    "deleteRuleBody": "La règle pour « {phrase} » sera supprimée et ne répondra plus dans le chat.",
+    "autoSaveNote": "Les modifications sont enregistrées automatiquement",
+    "sectionNav": "Sections",
+    "replyFilterLabel": "Filtrer les réponses",
+    "replyFilterPh": "Filtrer les réponses",
+    "replyFilterNone": "Aucune réponse ne correspond.",
+    "statusFilterLabel": "Filtrer par statut",
+    "filterAll": "Tous",
+    "filterOn": "Activés",
+    "lockedHint": "Réservé à Premium. Passez à Premium pour modifier."
   },
   "nav": {
     "songqueue": "Demandes de chansons",
@@ -3317,7 +3485,10 @@
     "skip": "Passer",
     "next": "Suivant",
     "done": "Terminé",
-    "saveError": "Impossible d'enregistrer votre progression. Réessayez."
+    "saveError": "Impossible d’appliquer votre configuration. Rien n’a été modifié, appuyez sur Terminer la configuration pour réessayer.",
+    "stepAnnounce": "Étape {n} sur {total} : {label}",
+    "consentHint": "Acceptez pour continuer",
+    "returning": "Retour à la configuration…"
   },
   "overview": {
     "statusHeading": "État du bot",
@@ -3448,7 +3619,14 @@
     "kindReward": "récompense",
     "kindLoyalty": "fidélité",
     "kindEvent": "événement",
-    "kindQueue": "file"
+    "kindQueue": "file",
+    "loadingStream": "Chargement des détails du stream…",
+    "loadingCommands": "Chargement de vos commandes…",
+    "feedReconnecting": "Reconnexion",
+    "invitesPendingCta": "Voir les invitations",
+    "setupConnectCta": "Connecter",
+    "setupCommandCta": "Créer une commande",
+    "setupModuleCta": "Parcourir les modules"
   },
   "planLabel": {
     "free": "Gratuit",
@@ -3506,7 +3684,7 @@
       "filterBuiltinHeading": "Commandes intégrées",
       "pageTitle": "Commandes de {channel} - ItsBagelBot",
       "pageDescription": "Commandes et modules actifs du chat de {channel} sur ItsBagelBot.",
-      "summary": "{commands} commandes personnalisées · {modules} modules actifs · {total} actions saisissables",
+      "summary": "{commands} · {modules} · {total}",
       "summaryOneCommand": "{count} commande personnalisée",
       "summaryManyCommands": "{count} commandes personnalisées",
       "summaryOneModule": "{count} module actif",
@@ -3530,7 +3708,10 @@
       "moduleAuto": "auto",
       "noModules": "Aucun module actif.",
       "legendTitle": "Lire les étiquettes",
-      "legend": "Everyone, Subs et Mods indiquent qui peut l’utiliser. L’horloge indique le temps entre deux utilisations. Les commandes en direct uniquement répondent quand le stream est actif."
+      "legend": "Tout le monde, Abonnés, VIP et Modérateurs indiquent qui peut l’utiliser. L’horloge indique le temps entre deux utilisations. Les commandes en direct uniquement répondent quand le stream est actif.",
+      "cooldownSeconds": "Temps de recharge : {n} s",
+      "copiedAnnounce": "{trigger} copié",
+      "summaryOneThing": "{count} action saisissable"
     }
   },
   "quotes": {
@@ -3590,7 +3771,8 @@
     "toastEdited": "Citation modifiée.",
     "toastPermFailed": "Impossible de changer la permission.",
     "toastToggleFailed": "Impossible de mettre à jour le module.",
-    "unsavedChanges": "Modifications non enregistrées"
+    "unsavedChanges": "Modifications non enregistrées",
+    "deleteAriaNamed": "Supprimer la citation n° {n}"
   },
   "rewardCounter": {
     "enable": "Tenir un compteur",
@@ -3695,7 +3877,23 @@
     "markAllRead": "Tout marquer comme lu",
     "toastAllRead": "Toutes les notifications sont marquées comme lues.",
     "keysHint": "Secrets au niveau du compte pour les sources de données. Les délégués peuvent les utiliser, jamais les lire.",
-    "importNav": "Import"
+    "importNav": "Import",
+    "level": {
+      "info": "Info",
+      "success": "Succès",
+      "warning": "Avertissement",
+      "critical": "Critique"
+    },
+    "showOlder": "Afficher les plus anciennes ({n})",
+    "showFewer": "Afficher moins",
+    "toastCommandsPageOn": "La page publique des commandes est activée.",
+    "toastCommandsPageOff": "La page publique des commandes est désactivée.",
+    "boardTwitchOff": "Twitch non connecté",
+    "boardTwitchUnknown": "Statut Twitch indisponible",
+    "notConnectedPill": "Non connecté",
+    "deleteConfirmLabel": "Saisissez {login} pour confirmer",
+    "deleteConfirmHint": "Le login de votre chaîne est {login}. La suppression est définitive.",
+    "working": "En cours…"
   },
   "spotifySetup": {
     "premiumTitle": "Spotify Premium est requis",
@@ -3726,7 +3924,8 @@
     "previewHint": "Essaie le parcours sans connecter de compte.",
     "footer": "Une bande-son choisie ensemble.",
     "later": "Je le ferai plus tard",
-    "redirectMissing": "L’URL de retour n’est pas encore disponible. Tu pourras continuer une fois les demandes de chansons configurées."
+    "redirectMissing": "L’URL de retour n’est pas encore disponible. Tu pourras continuer une fois les demandes de chansons configurées.",
+    "redirectLabel": "URI de redirection"
   },
   "spotify": {
     "afterCancel": "Annuler : rembourser les points, ignorer la file",
@@ -3743,7 +3942,7 @@
     "appRemove": "Supprimer",
     "appRemoveFailed": "Impossible de supprimer l'application Spotify.",
     "appRemoveTitle": "Supprimer l’application Spotify ?",
-    "appRemoveWarning": "Supprimer l'application déconnecte aussi le compte Spotify, puisque la connexion venait d'elle.",
+    "appRemoveWarning": "Supprimer l’application déconnecte aussi le compte Spotify, puisque la connexion venait d’elle. Les demandes de chansons s’arrêtent jusqu’à ce que vous colliez de nouveau le secret client et que vous vous reconnectiez.",
     "appRemoved": "Application Spotify supprimée.",
     "appReplace": "Remplacer",
     "appSave": "Enregistrer l'application",
@@ -3768,7 +3967,7 @@
     "create": "Créer la récompense",
     "defaultTitle": "Passe une demande de musique",
     "degraded": "Impossible de joindre le serveur. Réessayez dans un instant.",
-    "deleteBody": "La récompense disparaît immédiatement du menu de points Twitch. Les demandes en file restent.",
+    "deleteBody": "« {name} » disparaît immédiatement de votre menu de points Twitch. Les demandes en file restent. Cette action est irréversible.",
     "deleteCancel": "Conserver",
     "deleteConfirm": "Supprimer la récompense",
     "deleteReward": "Supprimer la récompense",
@@ -3792,7 +3991,7 @@
     "errUnconfigured": "Les demandes de musiques ne sont pas configurées sur ce déploiement : l'URL de callback Spotify est absente. Demandez à l'opérateur de définir SPOTIFY_REDIRECT_URI.",
     "eyebrow": "Demandes de musiques",
     "fieldColor": "Couleur",
-    "fieldCooldown": "Délai global (secondes)",
+    "fieldCooldown": "Délai global",
     "fieldCooldownTag": "0 = désactivé",
     "fieldCost": "Coût en points",
     "fieldReply": "Réponse chat",
@@ -3840,7 +4039,7 @@
     "redirectCopied": "Redirect URI copiée.",
     "redirectCopy": "Copier",
     "redirectCopyFailed": "Copie impossible. Sélectionnez l'URL et copiez-la manuellement.",
-    "removeAria": "Supprimer la récompense de demande de morceau",
+    "removeAria": "Supprimer la récompense : {name}",
     "rewardRowHint": "Points de chaîne",
     "rewardRowLabel": "Demande de morceau",
     "saveChanges": "Enregistrer les modifications",
@@ -3863,7 +4062,28 @@
     "toastDeleted": "Récompense supprimée.",
     "toastSaveFailed": "Impossible d'enregistrer la récompense.",
     "toastSaved": "Récompense enregistrée.",
-    "previewUserSample": "Spectateur99"
+    "previewUserSample": "Spectateur99",
+    "unsavedChanges": "Modifications non enregistrées",
+    "saved": "Enregistré",
+    "discardTitle": "Abandonner les modifications ?",
+    "discardBody": "Vous avez des modifications non enregistrées sur cette récompense. Les abandonner ?",
+    "discard": "Abandonner",
+    "keepEditing": "Continuer l’édition",
+    "errCost": "Saisissez un nombre entier de points, au moins 1.",
+    "errCooldown": "Saisissez un délai entre 0 seconde et 7 jours.",
+    "queueUpdated": "Mis à jour {when}",
+    "queueRefreshing": "Actualisation…",
+    "queueEmptySr": "Les spectateurs ajoutent des morceaux en tapant !sr dans le chat.",
+    "queueEmptyRedeem": "Les spectateurs ajoutent des morceaux en échangeant votre récompense de points de chaîne.",
+    "queueEmptyBoth": "Les spectateurs ajoutent des morceaux avec !sr dans le chat ou en échangeant votre récompense de points de chaîne.",
+    "queueEmptyOff": "Les deux modes de demande sont désactivés. Activez-en un pour que les spectateurs puissent ajouter des morceaux.",
+    "queueEnableSr": "Activer !sr",
+    "srPermOffHint": "Activez !sr pour choisir qui peut ajouter des morceaux.",
+    "redeemLiveOnlyDisabled": "Activez les échanges pour modifier ceci.",
+    "connectionTitle": "Connexion",
+    "accountLabel": "Compte",
+    "appLabel": "Application Spotify",
+    "needsReconnectPill": "Reconnexion requise"
   },
   "stats": {
     "title": "Statistiques en direct",
@@ -3909,11 +4129,13 @@
     "feedingsTitle": "Repas du bagel",
     "topFeeders": "Les plus généreux",
     "feedings": "Repas",
-    "boardsUnavailable": "Les classements des chaînes sont momentanément indisponibles. Ils s'actualiseront tout seuls."
+    "boardsUnavailable": "Les classements des chaînes sont momentanément indisponibles. Ils s'actualiseront tout seuls.",
+    "rateNa": "n.d.",
+    "rateNaSr": "Débit pas encore disponible"
   },
   "timers": {
     "errMessage": "Saisissez un message pour ce minuteur.",
-    "errInterval": "Saisissez un nombre entier de minutes entre 1 et 1440.",
+    "errInterval": "Saisissez un intervalle entier compris entre 1 minute et 24 heures.",
     "errUrlfetchCap": "Un message de minuteur peut référencer au maximum {max} valeurs récupérées différentes ({urlfetch:…}).",
     "eyebrow": "Gérer",
     "titlePre": "Minuteries de ",
@@ -3976,7 +4198,10 @@
     "support": "Assistance",
     "supportDiscordHint": "généralement quelques minutes",
     "supportGithubHint": "source disponible",
-    "feedback": "Bug ou idée"
+    "feedback": "Bug ou idée",
+    "enterprise": "Entreprise",
+    "reconnecting": "Reconnexion",
+    "supportTitle": "Aide et commentaires"
   },
   "perm": {
     "everyone": "Tout le monde",
@@ -5230,8 +5455,12 @@
     "modulesBody": "Les paramètres des modules ne figurent pas dans les exports de bots pris en charge. Après l’import, vérifiez les modules activés depuis votre tableau de bord.",
     "continue": "Continuer",
     "dashboard": "Accéder au tableau de bord",
-    "saveFailed": "Impossible d’enregistrer votre configuration. Réessayez.",
+    "saveFailed": "Impossible de terminer votre configuration. Votre import est conservé, appuyez sur Accéder au tableau de bord pour réessayer.",
     "signIn": "Connectez-vous pour terminer la configuration.",
     "ownerOnly": "Seul le propriétaire de la chaîne peut terminer la configuration."
+  },
+  "meta": {
+    "defaultTitle": "Tableau de bord ItsBagelBot",
+    "defaultDescription": "Connectez-vous pour configurer la modération, les commandes personnalisées, les minuteurs et les points de chaîne de votre chaîne Twitch."
   }
 }

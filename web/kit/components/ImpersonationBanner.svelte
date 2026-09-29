@@ -3,11 +3,11 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import type { Snippet } from 'svelte';
-  let { exitHref, exitForm = false, exitLabel = 'Exit', children }:
-    { exitHref?: string; exitForm?: boolean; exitLabel?: string; children: Snippet } = $props();
+  let { exitHref, exitForm = false, exitLabel = 'Exit', second = false, children }:
+    { exitHref?: string; exitForm?: boolean; exitLabel?: string; second?: boolean; children: Snippet } = $props();
 </script>
 
-<AlertBanner variant="impersonation" role="status">
+<AlertBanner variant="impersonation" role="status" class={second ? 'bb-alert--row-2' : ''}>
   {@render children()}
   {#snippet action()}
     {#if exitForm}

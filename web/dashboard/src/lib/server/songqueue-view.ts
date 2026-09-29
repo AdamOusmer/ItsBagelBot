@@ -6,13 +6,15 @@ export interface QueueView {
   up: QueueRow[];
 }
 
-interface QueueRow {
+export interface QueueRow {
+  tid: string;
   title: string;
   artists: string;
   requester: string;
 }
 
 const row = (entry: SongQueueEntry): QueueRow => ({
+  tid: entry.tid,
   title: entry.title,
   artists: (entry.artists ?? []).join(', '),
   requester: entry.req_name

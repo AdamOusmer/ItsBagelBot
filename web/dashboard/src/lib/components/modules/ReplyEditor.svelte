@@ -70,6 +70,15 @@
 <style>
   .editor { padding: 4px 2px 2px; }
   .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+  @media (max-width: 1079px) {
+    .actions {
+      position: sticky;
+      bottom: 0;
+      padding: 12px 0;
+      background: var(--bb-bg-1, #111);
+      border-top: 1px solid var(--rule);
+    }
+  }
   @media (max-width: 480px) {
     .actions { flex-direction: column-reverse; }
     .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }

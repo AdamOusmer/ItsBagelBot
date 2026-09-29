@@ -13,6 +13,7 @@
   import RankingCard from '@bagel/ui/svelte/RankingCard.svelte';
   import StatsPageLayout from '@bagel/ui/svelte/StatsPageLayout.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
   import { visibleEventSource } from '$lib/visible-stream';
@@ -227,7 +228,7 @@
     notation: 'compact',
     maximumFractionDigits: 2
   });
-  const PENDING = '-';
+  const PENDING = t('stats.rateNa');
 
   // Keep the locale's compact suffix separate for the larger counter type.
   // The exact odometer reading remains printed below it, so compact rounding
@@ -315,16 +316,7 @@
   ];
 </script>
 
-<svelte:head>
-  <title>{t('stats.title')}</title>
-  <meta name="description" content={t('stats.metaDescription')} />
-  <link rel="canonical" href="https://stats.itsbagelbot.com/" />
-  <meta property="og:url" content="https://stats.itsbagelbot.com/" />
-  <meta property="og:title" content={t('stats.title')} />
-  <meta property="og:description" content={t('stats.metaDescription')} />
-  <meta name="twitter:title" content={t('stats.title')} />
-  <meta name="twitter:description" content={t('stats.metaDescription')} />
-</svelte:head>
+<PublicHead title={t('stats.title')} description={t('stats.metaDescription')} url="https://stats.itsbagelbot.com/" />
 
 <main class="stats-page">
   <StatsPageLayout
@@ -447,7 +439,7 @@
   .feed-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
   .feed-list { list-style: none; margin: 0; padding: 0; }
   .feed-list li { display: grid; grid-template-columns: 16px 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 11px 0; border-bottom: 1px solid var(--bb-border); }
-  .feed-rank { color: var(--bb-muted); font-family: var(--bb-font-mono); font-size: 11px; }
+  .feed-rank { color: var(--bb-muted); font-family: var(--bb-font-mono); font-size: 12px; }
   .feed-channel { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
   .feed-link { color: var(--bb-white); text-decoration: none; }
   .feed-link:hover { color: var(--bb-tan-light); }
@@ -458,6 +450,6 @@
   @media (max-width: 420px) {
     .feed-list li { grid-template-columns: 12px 30px minmax(0, 1fr) auto; gap: 6px; }
     .feed-list li :global(svg) { width: 30px; height: 30px; }
-    .feed-count { font-size: 11px; }
+    .feed-count { font-size: 12px; }
   }
 </style>

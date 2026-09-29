@@ -13,6 +13,7 @@ import {
   exchangeInstallCode,
   rememberBoundElsewhere,
   requireDiscordActor,
+  returnIfDeclined,
   type DiscordErrorSlug
 } from '$lib/server/discord-oauth';
 import {
@@ -57,6 +58,7 @@ async function exchangedGuild(cookies: Cookies, url: URL, uid: string): Promise<
 }
 
 function takeInstallCode(cookies: Cookies, url: URL, uid: string): string {
+  returnIfDeclined(url);
   if (!discordStateOK({ cookies, url, leg: DISCORD_INSTALL_LEG, uid })) discordFail('state');
   const code = (url.searchParams.get('code') ?? '').trim();
   if (!code) discordFail('oauth');

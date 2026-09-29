@@ -66,6 +66,7 @@
   const choiceOf = (id: Setup) => CHOICES.find((c) => c.id === id) ?? CHOICES[0];
   const choiceIndex = $derived(Math.max(0, CHOICES.findIndex((c) => c.id === (hoveredChoice ?? setup))));
   const choicePosition = $derived(['12.5%', '37.5%', '62.5%', '87.5%'][choiceIndex]);
+  const choicePositionCompact = $derived(['25%', '75%', '25%', '75%'][choiceIndex]);
   function pickSetup(id: Setup) {
     if (setup === id) return;
     setup = id;
@@ -131,12 +132,13 @@
   const expo = bezier(0.16, 1, 0.3, 1);
   const TRAVEL = 72;
   const sideOf = (i: number) => (i % 2 === 0 ? 1 : -1);
+  let instant = false;
   const arrive = (node: Element, { i = 0 }: { i?: number } = {}) =>
-    prefersReducedMotion()
+    prefersReducedMotion() || instant
       ? { duration: 0 }
       : fly(node, { x: dir * TRAVEL * sideOf(i), duration: 760, delay: 160 + i * 70, easing: expo, opacity: 0 });
   const depart = (node: Element, { i = 0 }: { i?: number } = {}) =>
-    prefersReducedMotion() || departed
+    prefersReducedMotion() || departed || instant
       ? { duration: 0 }
       : fly(node, { x: -dir * 56 * sideOf(i), duration: 380, delay: i * 35, easing: expo, opacity: 0 });
 
@@ -205,6 +207,62 @@
   const goTo = (i: number) => go(i + 1);
 
   const CONSENT_KEY = 'bb-welcome-consent';
+  const TOUR_KEY = 'bb-welcome-tour';
+  const SETUPS: readonly Setup[] = CHOICES.map((c) => c.id);
+  let tourReady = false;
+  let tourDone = false;
+
+  type SavedTour = { step: number; furthest: number; setup: Setup; locale: Locale };
+
+  function readTour(): SavedTour | null {
+    try {
+      const v = JSON.parse(sessionStorage.getItem(TOUR_KEY) ?? 'null') as Partial<SavedTour> | null;
+      if (!v || !SETUPS.includes(v.setup as Setup) || !LOCALES.includes(v.locale as Locale)) return null;
+      if (!Number.isInteger(v.step) || !Number.isInteger(v.furthest)) return null;
+      return v as SavedTour;
+    } catch {
+      return null;
+    }
+  }
+
+  function restoreTour(saved: SavedTour) {
+    setup = saved.setup;
+    const top = INTRO.length + (saved.setup === 'start-new' ? NEW_STREAMER.length : 0);
+    const cap = consentAccepted ? top : Math.min(consentStep, top);
+    step = Math.max(0, Math.min(saved.step, cap));
+    furthest = Math.max(step, Math.min(saved.furthest, cap));
+    if (saved.locale !== locale) void applyLocale(saved.locale);
+  }
+
+  async function applyLocale(l: Locale) {
+    await ensureCatalog(l);
+    locale = l;
+    document.documentElement.lang = l;
+  }
+
+  function saveTour() {
+    try {
+      sessionStorage.setItem(TOUR_KEY, JSON.stringify({ step, furthest, setup, locale }));
+    } catch {
+    }
+  }
+
+  function clearTour() {
+    tourDone = true;
+    try {
+      sessionStorage.removeItem(TOUR_KEY);
+    } catch {
+    }
+  }
+
+  $effect(() => {
+    step;
+    furthest;
+    setup;
+    locale;
+    if (tourReady && !tourDone) saveTour();
+  });
+
   onMount(() => {
     try {
       consentAccepted = sessionStorage.getItem(CONSENT_KEY) === '1';
@@ -212,9 +270,17 @@
         importLink = false;
         replaceState('/welcome', {});
         step = consentStep;
+      } else if (!importRequested) {
+        const saved = readTour();
+        if (saved) {
+          instant = true;
+          restoreTour(saved);
+          requestAnimationFrame(() => requestAnimationFrame(() => (instant = false)));
+        }
       }
     } catch {
     }
+    tourReady = true;
   });
 
   function startImport() {
@@ -279,6 +345,7 @@
   const VEIL_MS = 420;
   let veiled = $state(false);
   function exitTo(to: string) {
+    clearTour();
     if (locale === bootLocale) {
       goto(to);
       return;
@@ -298,6 +365,7 @@
 
   const submit: SubmitFunction = () => async ({ result }) => {
     if (result.type === 'redirect') {
+      clearTour();
       destination = result.location;
       showCompletion = true;
       return;
@@ -307,8 +375,16 @@
     react('attentive', 2400);
   };
 
+  const ARROW_BLOCKERS =
+    'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="group"]:not([data-arrows-ok]), [role="radiogroup"], [role="tablist"]';
+
+  function arrowsBlocked(e: KeyboardEvent): boolean {
+    if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return true;
+    return e.target instanceof Element && e.target.closest(ARROW_BLOCKERS) !== null;
+  }
+
   function onKeydown(e: KeyboardEvent) {
-    if (leaving || importActive) return;
+    if (leaving || importActive || arrowsBlocked(e)) return;
     if (e.key === 'ArrowRight' && canAdvance) {
       e.preventDefault();
       goNext();
@@ -352,7 +428,7 @@
   </header>
 
   <main class="stage">
-    <div class="pair" class:choice-stage={current.kind === 'choice'} class:clearing style="--choice-position: {choicePosition}; --dir: {dir};">
+    <div class="pair" class:choice-stage={current.kind === 'choice'} class:clearing style="--choice-position: {choicePosition}; --choice-position-compact: {choicePositionCompact}; --dir: {dir};">
       <div class="blob-col" class:right={blobRight} class:hero={step === 0}>
         <div class="scale">
           <div class="float">
@@ -397,6 +473,7 @@
                 <Toggle bind:on={consentAccepted} onchange={onConsent} />
                 <span class="bb-prose">{@html tr('onboarding.consentLabel')}</span>
               </div>
+              <p class="consent-hint" id="wlc-consent-hint" class:shown={consentBlocked}>{tr('onboarding.consentHint')}</p>
             {:else if current.kind === 'choice'}
               <div
                 class="control role-choices"
@@ -412,6 +489,7 @@
                     class="role-choice"
                     class:selected={setup === choice.id}
                     aria-pressed={setup === choice.id}
+                    aria-describedby="wlc-preview-{choice.id}"
                     style="--side: {ci % 2 ? 1 : -1};"
                     onclick={() => pickSetup(choice.id)}
                     onpointerenter={() => { hover = choice.face; hoveredChoice = choice.id; }}
@@ -426,6 +504,13 @@
                     <span class="role-detail">{tr(`onboarding.choice${choice.key}Body`)}</span>
                   </button>
                 {/each}
+                <div class="role-previews">
+                  {#each CHOICES as choice (choice.id)}
+                    <p class="role-preview" id="wlc-preview-{choice.id}" class:shown={setup === choice.id}>
+                      {tr(`onboarding.choice${choice.key}Preview`)}
+                    </p>
+                  {/each}
+                </div>
               </div>
             {:else if current.kind === 'lang'}
               <div class="control prefs" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
@@ -482,6 +567,7 @@
             <div
               class="actions"
               role="group"
+              data-arrows-ok
               in:arrive={{ i: 4 }}
               out:depart={{ i: 4 }}
               onpointerover={(e) => (hover = reactionFor(e.target))}
@@ -494,12 +580,18 @@
               {:else}
                 {#if last}
                   {#if setup === 'import'}
-                    <button type="button" class="bb-btn bb-btn--primary" onclick={startImport}>{tr('onboarding.choiceImportCta')}</button>
+                    <button type="button" class="bb-btn bb-btn--green bb-btn--solid" onclick={startImport}>{tr('onboarding.choiceImportCta')}</button>
                   {:else}
-                    <button type="button" class="bb-btn bb-btn--primary" onclick={finish}>{tr('onboarding.finishCta')}</button>
+                    <button type="button" class="bb-btn bb-btn--green bb-btn--solid" onclick={finish}>{tr('onboarding.finishCta')}</button>
                   {/if}
                 {:else}
-                  <button type="button" class="bb-btn bb-btn--primary" onclick={goNext} disabled={nextDisabled}>
+                  <button
+                    type="button"
+                    class="bb-btn bb-btn--primary"
+                    onclick={goNext}
+                    disabled={nextDisabled}
+                    aria-describedby={current.kind === 'consent' ? 'wlc-consent-hint' : undefined}
+                  >
                     {tr('onboarding.next')}
                   </button>
                 {/if}
@@ -521,7 +613,7 @@
       <span class="bead-track"><span class="bead"></span></span>
     </div>
     <div class="meta">
-      <span class="count">{step === 0 ? '' : tr('onboarding.stepOf', { n: step, total: journeyTotal })}</span>
+      <span class="count"></span>
     </div>
   </footer>
 </div>
@@ -712,6 +804,25 @@
   .control { margin-top: 24px; }
 
   .role-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
+  .role-previews { grid-column: 1 / -1; display: grid; margin-top: 4px; }
+  .role-preview {
+    grid-area: 1 / 1;
+    margin: 0;
+    max-width: 62ch;
+    justify-self: center;
+    font-family: var(--bb-font-body);
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--bb-muted);
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 300ms var(--bb-ease-out-expo), visibility 0s linear 300ms;
+  }
+  .role-preview.shown {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 300ms var(--bb-ease-out-expo);
+  }
   .role-choice {
     position: relative;
     display: grid;
@@ -801,6 +912,19 @@
     font-size: 14px;
     color: var(--bb-muted);
   }
+
+  .consent-hint {
+    margin: 8px 0 0;
+    min-height: 20px;
+    font-family: var(--bb-font-body);
+    font-size: 12.5px;
+    line-height: 20px;
+    color: var(--bb-muted);
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 300ms var(--bb-ease-out-expo);
+  }
+  .consent-hint.shown { visibility: visible; opacity: 1; }
 
   .lang-row { display: flex; }
 
@@ -1037,13 +1161,9 @@
   }
 
   @media (max-width: 560px) {
-    .role-choices {
-      grid-template-columns: repeat(4, minmax(150px, 1fr));
-      overflow-x: auto;
-      scroll-snap-type: x mandatory;
-      padding-bottom: 8px;
-    }
-    .role-choice { scroll-snap-align: start; }
+    .role-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .role-choice { min-height: 148px; }
+    .choice-stage .blob-col .scale { left: calc(var(--choice-position-compact) - 120px); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1056,6 +1176,8 @@
     .well,
     .role-choice,
     .role-choice::before,
+    .role-preview,
+    .consent-hint,
     .role-glyph,
     .role-indicator :global(svg),
     .choice-stage .blob-col .scale,

@@ -13,18 +13,22 @@
     type ChatVolume
   } from '$lib/overview-live';
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
   let {
     meta,
     counters,
     volume,
-    now
+    now,
+    stale = false,
+    slim = false
   }: {
     meta: StreamMeta;
     counters: StreamCounters;
     volume: ChatVolume;
     now: number;
+    stale?: boolean;
+    slim?: boolean;
   } = $props();
 
   const elapsed = $derived(formatDuration(minutesSince(meta.startedAt, now)));
@@ -35,26 +39,26 @@
   const stats = $derived.by<Stat[]>(() => [
     {
       id: 'messages',
-      value: formatCounterValue(counters.messages),
+      value: formatCounterValue(counters.messages, locale),
       label: t('overview.statMessagesSeen'),
       tone: 'plain'
     },
     {
       id: 'answered',
-      value: formatCounterValue(counters.answered),
+      value: formatCounterValue(counters.answered, locale),
       label: t('overview.statAnswered'),
       tone: 'green'
     },
     {
       id: 'mod',
-      value: formatCounterValue(counters.modActions),
+      value: formatCounterValue(counters.modActions, locale),
       label: t('overview.statModActions'),
       tone: 'tan'
     }
   ]);
 </script>
 
-<section class="ov-stream" aria-labelledby="ov-stream-h">
+<section class="ov-stream" class:ov-stream--slim={slim} class:ov-stream--stale={stale} aria-labelledby="ov-stream-h">
   <div class="ov-stream__glow" aria-hidden="true"></div>
   <div class="ov-stream__grid">
     <div class="ov-stream__main">
@@ -65,17 +69,24 @@
       {:else if !meta.known}
         <p class="ov-stream__notice">{t('overview.streamNeverSeen')}</p>
       {:else if meta.live}
-        <span class="bb-tag bb-tag--live">
-          <i class="bb-mark" aria-hidden="true"></i>
-          {t('overview.streamLive')}
-          <i class="bb-sweep" aria-hidden="true"></i>
-        </span>
+        {#if stale}
+          <span class="bb-tag bb-tag--quiet">
+            <i class="bb-mark bb-mark--hollow" aria-hidden="true"></i>
+            {t('overview.feedReconnecting')}
+          </span>
+        {:else}
+          <span class="bb-tag bb-tag--live">
+            <i class="bb-mark" aria-hidden="true"></i>
+            {t('overview.streamLive')}
+            <i class="bb-sweep" aria-hidden="true"></i>
+          </span>
+        {/if}
         <div class="ov-stream__big">{elapsed}</div>
         {#if meta.title}<p class="ov-stream__title">{meta.title}</p>{/if}
         <p class="ov-stream__meta">
           {t('overview.streamStartedAt', {
-            time: clockFace(meta.startedAt),
-            n: meta.viewers.toLocaleString()
+            time: clockFace(meta.startedAt, locale),
+            n: meta.viewers.toLocaleString(locale)
           })}
         </p>
       {:else}
@@ -89,15 +100,15 @@
         </p>
         <p class="ov-stream__meta">
           {t('overview.streamEndedAt', {
-            time: clockFace(meta.endedAt),
-            n: meta.peakViewers.toLocaleString()
+            time: clockFace(meta.endedAt, locale),
+            n: meta.peakViewers.toLocaleString(locale)
           })}
         </p>
       {/if}
 
       <div class="ov-stream__spacer"></div>
 
-      {#if counters.ok}
+      {#if !slim && counters.ok}
         <dl class="ov-stream__stats">
           {#each stats as s (s.id)}
             <div class="ov-stat">
@@ -106,14 +117,16 @@
             </div>
           {/each}
         </dl>
-      {:else}
+      {:else if !slim}
         <p class="ov-stream__notice ov-stream__notice--foot">{t('overview.countersUnavailable')}</p>
       {/if}
     </div>
 
-    <div class="ov-stream__side">
-      <ChatVolumeChart {volume} />
-    </div>
+    {#if !slim}
+      <div class="ov-stream__side">
+        <ChatVolumeChart {volume} />
+      </div>
+    {/if}
   </div>
 </section>
 
@@ -232,6 +245,23 @@
     text-transform: uppercase;
     color: var(--bb-muted);
     margin: 0;
+  }
+
+  .ov-stream--slim .ov-stream__grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 16px 24px;
+  }
+  .ov-stream--slim .ov-stream__eyebrow {
+    margin-bottom: 8px;
+  }
+  .ov-stream--stale .ov-stream__big,
+  .ov-stream--stale .ov-stream__stats {
+    opacity: 0.55;
+  }
+  .ov-stream__big,
+  .ov-stream__stats {
+    transition: opacity 240ms var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
   }
 
   @media (max-width: 900px) {

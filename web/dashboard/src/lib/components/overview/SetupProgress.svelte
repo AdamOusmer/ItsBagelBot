@@ -18,12 +18,12 @@
     modulesOn: boolean;
   } = $props();
 
-  type Step = { id: string; label: string; href: string; done: boolean };
+  type Step = { id: string; label: string; cta: string; href: string; done: boolean };
 
   const steps = $derived.by<Step[]>(() => [
-    { id: 'connect', label: t('overview.setupConnect'), href: '/settings', done: receiving },
-    { id: 'command', label: t('overview.setupCommand'), href: '/commands', done: hasCommands },
-    { id: 'module', label: t('overview.setupModule'), href: '/modules', done: modulesOn }
+    { id: 'connect', label: t('overview.setupConnect'), cta: t('overview.setupConnectCta'), href: '/settings#account', done: receiving },
+    { id: 'command', label: t('overview.setupCommand'), cta: t('overview.setupCommandCta'), href: '/commands', done: hasCommands },
+    { id: 'module', label: t('overview.setupModule'), cta: t('overview.setupModuleCta'), href: '/modules', done: modulesOn }
   ]);
 
   const doneCount = $derived(steps.filter((s) => s.done).length);
@@ -45,7 +45,7 @@
           {#if step.done}
             <span class="ov-setup__state">{t('common.done')}</span>
           {:else}
-            <ButtonLink href={step.href} variant="ghost" class="ov-setup__cta">{t('common.open')}</ButtonLink>
+            <ButtonLink href={step.href} variant="ghost" class="ov-setup__cta">{step.cta}</ButtonLink>
           {/if}
         </li>
       {/each}

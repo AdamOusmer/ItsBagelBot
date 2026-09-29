@@ -3,13 +3,14 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
   import { enhance } from '$app/forms';
+  import type { SubmitFunction } from '@sveltejs/kit';
+  import { toast } from '@bagel/ui/svelte/toast';
   import { onMount } from 'svelte';
   import { invalidateAll, afterNavigate } from '$app/navigation';
   import { visibleEventSource } from '$lib/visible-stream';
   import AppShell from '@bagel/kit/components/AppShell.svelte';
   import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
   import NotificationBell from '@bagel/ui/svelte/NotificationBell.svelte';
-  import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { sectionForPath, dashboardNavItems, dashboardNavGroups } from '@bagel/kit/nav-dashboard';
   let { data, children } = $props();
@@ -27,7 +28,9 @@
     };
     const stop = visibleEventSource('/events', (es) => {
       es.addEventListener('invalidate', refresh);
+      es.onerror = () => (reconnecting = true);
       es.addEventListener('ready', () => {
+        reconnecting = false;
         if (seenReady) refresh();
         else seenReady = true;
       });
@@ -39,6 +42,12 @@
   });
 
   const isDelegate = $derived(!!data.delegateOf);
+  let reconnecting = $state(false);
+
+  const failToast = (message: string): SubmitFunction => () => async ({ result, update }) => {
+    if (result.type === 'failure' || result.type === 'error') toast('err', message);
+    await update({ reset: false });
+  };
 
   let markReadForm = $state<HTMLFormElement | null>(null);
   let markReadId = $state<number | null>(null);
@@ -99,6 +108,7 @@
   mobileItems={items}
   rail
   offset={showBanner}
+  stacked={isDelegate && !!data.impersonatorLogin}
   logoSrc={data.isPremium ? '/premium-logo.png' : '/logo.png'}
   isPremium={data.isPremium}
   {isDelegate}
@@ -112,15 +122,24 @@
       </ImpersonationBanner>
     {/if}
     {#if data.impersonatorLogin}
-      <ImpersonationBanner exitForm exitLabel={t('banner.exit')}>
+      <ImpersonationBanner exitForm second={isDelegate} exitLabel={t('banner.exit')}>
         {t('banner.viewingPre')}<b>{data.login}</b>{t('banner.viewingPost', { admin: data.impersonatorLogin })}
       </ImpersonationBanner>
     {/if}
   {/snippet}
   {#snippet topActions()}
-    <a href="https://status.itsbagelbot.com" class="status-link" target="_blank" rel="noopener noreferrer">{t('nav.status')}</a>
+    <span class="live-chip" class:live-chip--on={reconnecting} role="status" aria-live="polite">
+      <span class="live-dot" aria-hidden="true"></span>
+      <span class="live-text">{reconnecting ? t('topbar.reconnecting') : ''}</span>
+    </span>
+    <a href="https://status.itsbagelbot.com" class="status-link" target="_blank" rel="noopener noreferrer">
+      {t('nav.status')}<span class="sr-only"> {t('common.opensInNewTab')}</span>
+      <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9" /></svg>
+    </a>
     {#if !isDelegate}
-      {#await data.bell then bell}
+      {#await data.bell}
+        <span class="bell-slot" aria-hidden="true"></span>
+      {:then bell}
         <NotificationBell
           notifications={bell.notifications}
           unreadCount={bell.unreadCount}
@@ -139,6 +158,54 @@
 </AppShell>
 
 <style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .bell-slot {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    visibility: hidden;
+  }
+  .live-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    font-family: var(--bb-font-body, inherit);
+    font-size: 12px;
+    color: var(--bb-muted, #a39b8b);
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 180ms var(--bb-ease-out-expo);
+  }
+  .live-chip--on {
+    visibility: visible;
+    opacity: 1;
+  }
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bb-tan, #c9a87c);
+  }
+  .live-text {
+    display: none;
+    min-width: 76px;
+  }
+  .status-link svg {
+    margin-left: 4px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   .status-link {
     font-family: var(--bb-font-body, inherit);
     font-size: 13px;
@@ -151,17 +218,64 @@
     display: none;
   }
   @media (min-width: 761px) {
-    .status-link { display: inline; }
+    .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .bell-slot {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    visibility: hidden;
+  }
+  .live-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    font-family: var(--bb-font-body, inherit);
+    font-size: 12px;
+    color: var(--bb-muted, #a39b8b);
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 180ms var(--bb-ease-out-expo);
+  }
+  .live-chip--on {
+    visibility: visible;
+    opacity: 1;
+  }
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bb-tan, #c9a87c);
+  }
+  .live-text {
+    display: none;
+    min-width: 76px;
+  }
+  .status-link svg {
+    margin-left: 4px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .status-link { display: inline; }
   }
   .status-link:hover {
     color: var(--bb-tan-pale, #eceae1);
   }
 </style>
 
-<form method="POST" action="/settings?/markRead" use:enhance bind:this={markReadForm} hidden>
+<form method="POST" action="/settings?/markRead" use:enhance={failToast(t('bell.markFailed'))} bind:this={markReadForm} hidden>
   <input type="hidden" name="id" value={markReadId ?? ''} />
 </form>
 
-<form method="POST" action="/settings?/markPeeked" use:enhance bind:this={peekForm} hidden></form>
+<form method="POST" action="/settings?/markPeeked" use:enhance={failToast(t('serverErrors.updateRetry'))} bind:this={peekForm} hidden></form>
 
-<ToastHost />

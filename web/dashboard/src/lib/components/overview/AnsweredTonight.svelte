@@ -4,7 +4,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AnsweredTonight } from '$lib/overview-live';
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
   let { answered }: { answered: AnsweredTonight } = $props();
 
@@ -39,7 +39,7 @@
         <li class="ov-ans__row">
           <div class="ov-ans__line">
             <b class="ov-ans__name">{bar.name}</b>
-            <span class="ov-ans__count">{bar.count.toLocaleString()}</span>
+            <span class="ov-ans__count">{bar.count.toLocaleString(locale)}</span>
           </div>
           <span class="ov-ans__track">
             <span class="ov-ans__fill ov-ans__fill--{bar.tone}" style:width="{bar.pct}%"></span>

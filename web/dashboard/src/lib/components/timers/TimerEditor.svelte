@@ -7,8 +7,11 @@
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
-  const MIN_INTERVAL_MINUTES = 1;
-  const MAX_INTERVAL_MINUTES = 1440;
+  import DurationField from '$lib/components/shared/DurationField.svelte';
+
+  const MIN_INTERVAL_SECONDS = 60;
+  const MAX_INTERVAL_SECONDS = 86_400;
+  const MESSAGE_MAX = 500;
 
   let {
     draft = $bindable<TimerDef>(),
@@ -20,11 +23,6 @@
 
   const { t } = getI18n();
 
-  let minutes = $state(Math.max(MIN_INTERVAL_MINUTES, Math.round(draft.intervalSeconds / 60)));
-  $effect(() => {
-    draft.intervalSeconds = minutes * 60;
-  });
-
   let touched = $state({ message: false, interval: false });
   const urlfetchOverCap = $derived(urlFetchNames(draft.message).length > URLFETCH_TOKEN_CAP);
   const messageError = $derived(
@@ -35,7 +33,8 @@
         : undefined
   );
   const intervalError = $derived(
-    (attempted || touched.interval) && !(Number.isInteger(minutes) && minutes >= MIN_INTERVAL_MINUTES && minutes <= MAX_INTERVAL_MINUTES)
+    (attempted || touched.interval) &&
+    !(Number.isInteger(draft.intervalSeconds) && draft.intervalSeconds >= MIN_INTERVAL_SECONDS && draft.intervalSeconds <= MAX_INTERVAL_SECONDS)
       ? t('timers.errInterval')
       : undefined
   );
@@ -68,7 +67,7 @@
     <ResponseEditor
       surface="timer"
       name="message"
-      maxlength={500}
+      maxlength={MESSAGE_MAX}
       bind:value={draft.message}
       invalid={!!messageError}
       describedby={messageError ? 'timer-msg-err' : undefined}
@@ -76,25 +75,22 @@
       placeholder={t('timers.fieldMessagePh')}
       onblur={() => (touched.message = true)}
     />
+    <small class="counter">{draft.message.length}/{MESSAGE_MAX}</small>
   </Field>
   <ChatPreview kind="timer" response={draft.message} />
 
   <Field label={t('timers.fieldInterval')} error={intervalError} errorId="timer-int-err">
-    <div class="interval-row">
-      <input
-        class="bb-input num"
-        type="number"
-        min={MIN_INTERVAL_MINUTES}
-        max={MAX_INTERVAL_MINUTES}
-        data-invalid={intervalError ? '' : undefined}
-        aria-invalid={intervalError ? 'true' : undefined}
-        aria-describedby={intervalError ? 'timer-int-help timer-int-err' : 'timer-int-help'}
-        bind:value={minutes}
-        onblur={() => (touched.interval = true)}
-      />
-      <span class="unit">{t('timers.unitMinutes')}</span>
-    </div>
-    <small id="timer-int-help" class="help">{t('timers.fieldIntervalHint')}</small>
+    <DurationField
+      bind:value={draft.intervalSeconds}
+      min={MIN_INTERVAL_SECONDS}
+      max={MAX_INTERVAL_SECONDS}
+      label={t('timers.fieldInterval')}
+      invalid={!!intervalError}
+      describedby={intervalError ? 'timer-int-help timer-int-err' : 'timer-int-help'}
+      onblur={() => (touched.interval = true)}
+    >
+      {#snippet hint()}<span id="timer-int-help">{t('timers.fieldIntervalHint')}</span>{/snippet}
+    </DurationField>
   </Field>
 
   <Field label={t('timers.fieldMinChatLines')}>
@@ -125,10 +121,8 @@
 
   .help { color: var(--bb-muted); opacity: 0.7; font-size: 11px; display: block; margin-top: 2px; }
 
-  .interval-row { display: flex; align-items: center; gap: 10px; }
-  .editor .interval-row .num { width: 100px; flex: none; }
   .editor .num { width: 100px; flex: none; }
-  .unit { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
+  .counter { display: block; text-align: right; color: var(--bb-muted); opacity: 0.7; font-size: 11px; margin-top: 4px; }
 
   .ends-row { display: flex; align-items: center; gap: 10px; }
   .tz { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); white-space: nowrap; }

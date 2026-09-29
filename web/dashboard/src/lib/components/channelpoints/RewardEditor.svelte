@@ -1,48 +1,24 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/kit';
-  import { namespaceReplyTemplate, namespaceReplySamples, moduleDef } from '@bagel/kit';
-  import { enhance } from '$app/forms';
-  import type { SubmitFunction } from '@sveltejs/kit';
-  import { Field, RadioGroup, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
-  import { Checkbox } from '@bagel/kit';
-  import { focusFirstInvalid } from '@bagel/kit';
+  import { Select, namespaceReplySamples, Field, RadioGroup, Checkbox, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
+  import { rewardErrors, type RewardErrorField } from './reward-draft';
 
   let {
     draft = $bindable<ChannelPointReward>(),
-    isNew,
-    busy = false,
-    onCancel,
-    onSubmit
+    counterOn = $bindable(false),
+    attempted = false
   }: {
     draft: ChannelPointReward;
-    isNew: boolean;
-    busy?: boolean;
-    onCancel: () => void;
-    onSubmit: SubmitFunction;
+    counterOn?: boolean;
+    attempted?: boolean;
   } = $props();
 
   const { t } = getI18n();
 
-  let replyOn = $state(draft.action === 'chat');
-  $effect(() => {
-    draft.action = replyOn ? 'chat' : 'none';
-  });
-
-  let color = $state(draft.backgroundColor || '#9147ff');
-  $effect(() => {
-    draft.backgroundColor = color;
-  });
-
   const DEFAULT_MESSAGE = '{channelpoints:user} redeemed {channelpoints:reward}!';
-  const reply = moduleDef('channelpoints')!.replies.find((reply) => reply.key === 'reply')!;
-  // svelte-ignore state_referenced_locally
-  let message = $state(namespaceReplyTemplate('channelpoints', reply, draft.message));
-  $effect(() => { draft.message = message; });
-  const payload = $derived(JSON.stringify(draft));
 
   const samples = $derived<Record<string, string>>(namespaceReplySamples('channelpoints', {
     user: 'sesame_sam',
@@ -54,7 +30,7 @@
     points: String(draft.points || 0)
   }));
 
-  let counterOn = $state(!!draft.counter.trim());
+  // svelte-ignore state_referenced_locally
   let pointsOn = $state(draft.points > 0);
   $effect(() => {
     if (!counterOn && draft.counter) draft.counter = '';
@@ -72,41 +48,18 @@
   const scopeOptions = SCOPES.map((s) => ({ value: s.value, label: s.label }));
   const scopeDesc = $derived(SCOPES.find((s) => s.value === draft.counterScope)?.desc ?? '');
 
-  const TITLE_ERR_ID = 'reward-title-err';
-  const COUNTER_ERR_ID = 'reward-counter-err';
-  let attempted = $state(false);
-  let formEl = $state<HTMLFormElement | null>(null);
-  const titleError = $derived(attempted && !draft.title.trim() ? t('channelpoints.errTitleRequired') : undefined);
-  const counterError = $derived(
-    attempted && counterOn && !draft.counter.trim() ? t('rewardCounter.errNameRequired') : undefined
-  );
-
-  const submit: SubmitFunction = (input) => {
-    attempted = true;
-    if (!draft.title.trim() || (counterOn && !draft.counter.trim())) {
-      input.cancel();
-      void focusFirstInvalid(formEl);
-      return;
-    }
-    message = namespaceReplyTemplate('channelpoints', reply, message);
-    draft.message = message;
-    input.formData.set('reward', JSON.stringify(draft));
-    return onSubmit(input);
-  };
+  const errors = $derived(rewardErrors(draft, counterOn));
+  const shown = (field: RewardErrorField) => (attempted && errors[field] ? t(errors[field]!) : undefined);
+  const titleError = $derived(shown('title'));
+  const costError = $derived(shown('cost'));
+  const counterError = $derived(shown('counter'));
+  const perStreamError = $derived(shown('perStream'));
+  const perUserError = $derived(shown('perUser'));
+  const cooldownError = $derived(shown('cooldown'));
 </script>
 
-<form
-  method="POST"
-  action={isNew ? '?/create' : '?/update'}
-  class="editor"
-  novalidate
-  use:enhance={submit}
-  bind:this={formEl}
->
-  <input type="hidden" name="reward" value={payload} />
-  <input type="hidden" name="counter_enabled" value={counterOn ? 'true' : 'false'} />
-
-  <Field label={t('channelpoints.fieldTitle')} error={titleError} errorId={TITLE_ERR_ID}>
+<div class="editor">
+  <Field label={t('channelpoints.fieldTitle')} error={titleError} errorId="reward-title-err">
     <input
       class="bb-input"
       placeholder={t('channelpoints.fieldTitlePh')}
@@ -114,17 +67,25 @@
       required
       data-invalid={titleError ? '' : undefined}
       aria-invalid={titleError ? 'true' : undefined}
-      aria-describedby={titleError ? TITLE_ERR_ID : undefined}
+      aria-describedby={titleError ? 'reward-title-err' : undefined}
       bind:value={draft.title}
     />
   </Field>
 
   <div class="field-row">
-    <Field label={t('channelpoints.fieldCost')} class="cost-field">
-      <input class="bb-input" type="number" min="1" bind:value={draft.cost} />
+    <Field label={t('channelpoints.fieldCost')} class="cost-field" error={costError} errorId="reward-cost-err">
+      <input
+        class="bb-input"
+        type="number"
+        min="1"
+        data-invalid={costError ? '' : undefined}
+        aria-invalid={costError ? 'true' : undefined}
+        aria-describedby={costError ? 'reward-cost-err' : undefined}
+        bind:value={draft.cost}
+      />
     </Field>
     <Field label={t('channelpoints.fieldColor')} class="color-field">
-      <input class="color-in" type="color" bind:value={color} />
+      <input class="color-in" type="color" bind:value={draft.backgroundColor} />
     </Field>
   </div>
 
@@ -137,12 +98,14 @@
   </div>
 
   <div class="check">
-    <Checkbox bind:checked={replyOn}>{t('channelpoints.replyToggle')}</Checkbox>
+    <Checkbox bind:checked={() => draft.action === 'chat', (on: boolean) => (draft.action = on ? 'chat' : 'none')}>
+      {t('channelpoints.replyToggle')}
+    </Checkbox>
   </div>
 
-  {#if replyOn}
+  {#if draft.action === 'chat'}
     <Field label={t('channelpoints.fieldMessage')}>
-      <ResponseEditor bind:value={message} surface="reward:channelpoints" placeholder={DEFAULT_MESSAGE} />
+      <ResponseEditor bind:value={draft.message} surface="reward:channelpoints" placeholder={DEFAULT_MESSAGE} />
     </Field>
     <ChatPreview
       kind="reply"
@@ -174,7 +137,7 @@
             label={t('rewardCounter.nameLabel')}
             hint={t('rewardCounter.nameHint')}
             error={counterError}
-            errorId={COUNTER_ERR_ID}
+            errorId="reward-counter-err"
           >
             <input
               class="bb-input"
@@ -183,7 +146,7 @@
               required
               data-invalid={counterError ? '' : undefined}
               aria-invalid={counterError ? 'true' : undefined}
-              aria-describedby={counterError ? COUNTER_ERR_ID : undefined}
+              aria-describedby={counterError ? 'reward-counter-err' : undefined}
               bind:value={draft.counter}
             />
           </Field>
@@ -224,40 +187,57 @@
 
     <div class="limit">
       <Checkbox bind:checked={draft.maxPerStreamEnabled}>{t('channelpoints.limitPerStream')}</Checkbox>
-      {#if draft.maxPerStreamEnabled}
-        <input class="bb-input num" type="number" min="1" bind:value={draft.maxPerStream} />
-      {/if}
+      <input
+        class="bb-input num"
+        class:off={!draft.maxPerStreamEnabled}
+        type="number"
+        min="1"
+        aria-label={t('channelpoints.limitPerStream')}
+        aria-invalid={perStreamError ? 'true' : undefined}
+        data-invalid={perStreamError ? '' : undefined}
+        bind:value={draft.maxPerStream}
+      />
     </div>
-    {#if draft.maxPerStreamEnabled}
-      <small class="limit-hint">{t('channelpoints.limitPerStreamHint')}</small>
-    {/if}
+    <small class="limit-note" class:off={!draft.maxPerStreamEnabled && !perStreamError} class:err={!!perStreamError} role={perStreamError ? 'alert' : undefined}>
+      {perStreamError ?? t('channelpoints.limitPerStreamHint')}
+    </small>
 
     <div class="limit">
       <Checkbox bind:checked={draft.maxPerUserPerStreamEnabled}>{t('channelpoints.limitPerUser')}</Checkbox>
-      {#if draft.maxPerUserPerStreamEnabled}
-        <input class="bb-input num" type="number" min="1" bind:value={draft.maxPerUserPerStream} />
-      {/if}
+      <input
+        class="bb-input num"
+        class:off={!draft.maxPerUserPerStreamEnabled}
+        type="number"
+        min="1"
+        aria-label={t('channelpoints.limitPerUser')}
+        aria-invalid={perUserError ? 'true' : undefined}
+        data-invalid={perUserError ? '' : undefined}
+        bind:value={draft.maxPerUserPerStream}
+      />
     </div>
+    <small class="limit-note" class:err={!!perUserError} role={perUserError ? 'alert' : undefined}>{perUserError ?? ''}</small>
 
     <div class="limit">
       <Checkbox bind:checked={draft.globalCooldownEnabled}>{t('channelpoints.limitCooldown')}</Checkbox>
-      {#if draft.globalCooldownEnabled}
-        <input class="bb-input num" type="number" min="1" bind:value={draft.globalCooldownSeconds} />
-      {/if}
+      <input
+        class="bb-input num"
+        class:off={!draft.globalCooldownEnabled}
+        type="number"
+        min="1"
+        aria-label={t('channelpoints.limitCooldown')}
+        aria-invalid={cooldownError ? 'true' : undefined}
+        data-invalid={cooldownError ? '' : undefined}
+        bind:value={draft.globalCooldownSeconds}
+      />
     </div>
+    <small class="limit-note" class:err={!!cooldownError} role={cooldownError ? 'alert' : undefined}>{cooldownError ?? ''}</small>
   </div>
 
   <div class="check">
     <Checkbox bind:checked={draft.isEnabled}>{t('channelpoints.visible')}</Checkbox>
   </div>
+</div>
 
-  <div class="actions">
-    <button type="button" class="bb-btn bb-btn--ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
-    <button type="submit" class="bb-btn bb-btn--primary" disabled={busy}>
-      {busy ? t('channelpoints.saving') : isNew ? t('channelpoints.create') : t('channelpoints.saveChanges')}
-    </button>
-  </div>
-</form>
 
 <style>
   .editor { padding: 4px 2px 2px; }
@@ -304,8 +284,6 @@
     flex-direction: column;
     gap: 14px;
     margin: 12px 0 4px;
-    padding-left: 14px;
-    border-left: 2px solid var(--ui-accent-soft, rgba(240, 236, 228, 0.1));
   }
   .hook-body { --field-mb: 0; }
 
@@ -357,20 +335,19 @@
   }
   .limit { display: flex; align-items: center; gap: 10px; --bb-check-flex: 1; --bb-check-align: center; }
   .limit .num { width: 88px; flex: none; }
-  .limit-hint {
+  .limit .num.off { visibility: hidden; opacity: 0; }
+  .limit-note {
     color: var(--bb-muted);
     opacity: 0.7;
     font-size: 11px;
     font-family: var(--bb-font-body);
     margin: -6px 0 0 26px;
+    min-height: 16px;
   }
-
-  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
-
+  .limit-note.off { visibility: hidden; opacity: 0; }
+  .limit-note.err { color: var(--bb-danger); opacity: 1; }
   @media (max-width: 480px) {
     .field-row { flex-direction: column; gap: 0; }
     :global(.color-field) { width: 100%; }
-    .actions { flex-direction: column-reverse; }
-    .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
   }
 </style>

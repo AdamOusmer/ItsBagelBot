@@ -168,7 +168,7 @@
                 <div class="actions"><Button onclick={() => go(1)} onpointerenter={() => hover = true} onpointerleave={() => hover = false}>{t('spotifySetup.start')} →</Button></div>
               {:else if step === 1}
                 <ButtonLink href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" variant="secondary">{t('spotifySetup.developer')} ↗</ButtonLink>
-                <div class="redirect-block"><span class="field-label">Redirect URI</span>
+                <div class="redirect-block"><span class="field-label">{t('spotifySetup.redirectLabel')}</span>
                   {#if redirectUri}<div class="redirect"><Text as="span" mono tone="pale" class="setup-value redirect-value">{redirectUri}</Text><Button variant="ghost" size="sm" onclick={copyRedirect}>{copied ? t('spotify.redirectCopied') : t('spotify.redirectCopy')}</Button></div>
                   {:else}<p class="body small">{t('spotifySetup.redirectMissing')}</p>{/if}
                 </div>

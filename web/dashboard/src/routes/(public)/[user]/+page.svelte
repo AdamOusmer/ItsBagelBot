@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { AuroraBg, Code, Heading, LightField, AlertBanner, Card, Text, formatPointValue, getI18n } from '@bagel/kit';
+  import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
 
@@ -32,16 +33,11 @@
   const channelHref = $derived(commandsHref(data.login));
 </script>
 
-<svelte:head>
-  <title>{t('leaderboard.title', { channel: data.channelName })}</title>
-  <meta name="description" content={t('leaderboard.metaDescription', { channel: data.channelName })} />
-  <link rel="canonical" href="https://leaderboard.itsbagelbot.com/{data.login}" />
-  <meta property="og:url" content="https://leaderboard.itsbagelbot.com/{data.login}" />
-  <meta property="og:title" content={t('leaderboard.title', { channel: data.channelName })} />
-  <meta property="og:description" content={t('leaderboard.metaDescription', { channel: data.channelName })} />
-  <meta name="twitter:title" content={t('leaderboard.title', { channel: data.channelName })} />
-  <meta name="twitter:description" content={t('leaderboard.metaDescription', { channel: data.channelName })} />
-</svelte:head>
+<PublicHead
+  title={t('leaderboard.title', { channel: data.channelName })}
+  description={t('leaderboard.metaDescription', { channel: data.channelName })}
+  url="https://leaderboard.itsbagelbot.com/{data.login}"
+/>
 
 <AuroraBg />
 <div class="starfield" aria-hidden="true"><LightField /></div>
@@ -388,7 +384,7 @@
   .place-1 .points .num { font-size: clamp(32px, 4vw, 50px); color: var(--bb-tan-light); }
   .points .currency {
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: var(--bb-tracking-eyebrow);
     text-transform: uppercase;
     color: var(--bb-muted);
@@ -399,7 +395,7 @@
     align-items: center;
     gap: 6px;
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--bb-muted);
@@ -454,7 +450,7 @@
 
   th {
     font-family: var(--bb-font-mono);
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: var(--bb-tracking-eyebrow);
     text-transform: uppercase;
     color: var(--bb-muted);
@@ -496,7 +492,7 @@
     border-radius: 50%;
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 11px;
+    font-size: 12px;
     text-transform: uppercase;
     color: var(--bb-green-glow);
     background: rgba(82, 183, 136, 0.1);
@@ -516,7 +512,7 @@
 
   .ranked-note {
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.08em;
     color: var(--bb-muted);
     margin: 0;
@@ -548,9 +544,9 @@
   }
   .cmd-table td.n { text-align: right; white-space: nowrap; }
   :global(.cmd-code) { color: var(--bb-green); white-space: nowrap; }
-  .aliases { display: block; margin-top: 4px; font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
+  .aliases { display: block; margin-top: 4px; font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); }
   .response { overflow-wrap: anywhere; }
-  .perm-cell { font-family: var(--bb-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--bb-muted); }
+  .perm-cell { font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0.06em; color: var(--bb-muted); }
   .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--bb-space-3); }
   .chip {
     display: inline-flex;
@@ -570,7 +566,7 @@
     justify-content: center;
     gap: var(--bb-space-2);
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--bb-muted);
