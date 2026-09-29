@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { uiI18n } from './i18n';
 
 import '../styles/elements/save-status.css';
 
@@ -14,13 +15,14 @@ interface Props {
     class?: string;
 }
 
+const { t } = uiI18n(Astro);
 const {
     state = 'idle',
     compact = false,
-    savingLabel = 'Saving…',
-    savedLabel = 'Saved',
-    liveLabel = 'Synced to chat',
-    errorLabel = 'Failed',
+    savingLabel = t('status.saving'),
+    savedLabel = t('status.saved'),
+    liveLabel = t('status.live'),
+    errorLabel = t('status.failed'),
     class: className = '',
     ...rest
 } = Astro.props;

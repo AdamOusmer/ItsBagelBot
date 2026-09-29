@@ -1,18 +1,20 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
   import { onDestroy } from 'svelte';
   import type { HTMLInputAttributes } from 'svelte/elements';
   import '../styles/elements/field.css';
   import '../styles/elements/search-input.css';
 
+  const i18n = getUiI18n();
   let {
     value = $bindable(''),
     element = $bindable<HTMLInputElement | undefined>(),
     class: className = '',
-    placeholder = 'Search…',
+    placeholder = i18n.t('search.placeholder'),
     debounceMs = 0,
-    clearLabel = 'Clear search',
+    clearLabel = i18n.t('search.clear'),
     fill = false,
     oninput,
     ...rest

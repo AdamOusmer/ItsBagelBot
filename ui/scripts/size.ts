@@ -198,6 +198,13 @@ const ENTRIES: {
     source: `import * as m from "../../lib/roving-focus";
              globalThis.x = m;`,
   },
+  {
+    name: "i18n",
+    budget: 1410, // 1132 B: lookup plus the en and fr catalogs, both bundled; +150 B platform, +10%
+    external: [],
+    source: `import { createUiI18n, uiText, resolveUiLocale } from "../../lib/i18n";
+             globalThis.x = [createUiI18n, uiText, resolveUiLocale];`,
+  },
 ];
 
 const CSS_ENTRIES: { name: string; budget: number }[] = [

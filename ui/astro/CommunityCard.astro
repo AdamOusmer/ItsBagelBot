@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { uiI18n } from './i18n';
 import '../styles/elements/community-card.css';
 
 interface Props {
@@ -13,8 +14,9 @@ interface Props {
   class?: string;
   [key: string]: unknown;
 }
+const { t } = uiI18n(Astro);
 const {
-  title, subtitle = '', total, period = 'All time', tone = 'tan',
+  title, subtitle = '', total, period = t('data.allTime'), tone = 'tan',
   appearance = 'soft', class: cls = '', ...rest
 } = Astro.props;
 const classes = [

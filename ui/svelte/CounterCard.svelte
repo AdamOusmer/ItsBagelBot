@@ -1,12 +1,14 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
   import type { Snippet } from 'svelte';
   import '../styles/elements/counter-card.css';
 
+  const i18n = getUiI18n();
   let {
     label, value, unit = '', detail = '', rate = null, rateUnit = '/s',
-    rateLabel = 'Right now', period = 'All time', tone = 'green',
+    rateLabel = i18n.t('data.rightNow'), period = i18n.t('data.allTime'), tone = 'green',
     appearance = 'soft', tilt = 'none', artwork, class: cls = '', ...rest
   }: {
     label: string;

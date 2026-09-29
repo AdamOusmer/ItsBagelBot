@@ -13,7 +13,8 @@
   import { customCursor } from '../lib/cursor';
   import { initLenis, resetSmoothScroll } from '../lib/actions';
   import { getI18n, setI18n } from '../lib/i18n/context';
-  import { DEFAULT_LOCALE, type Locale } from '../lib/i18n/messages';
+  import { setUiI18n } from '@bagel/ui/svelte/i18n';
+  import { DEFAULT_LOCALE, translate, type Locale } from '../lib/i18n/messages';
 
   let {
     children,
@@ -30,6 +31,10 @@
   // svelte-ignore state_referenced_locally
   setI18n(locale);
   const { t } = getI18n();
+  // svelte-ignore state_referenced_locally
+  setUiI18n(locale, (key, uiLocale) =>
+    key === 'status.live' ? translate(uiLocale, 'common.syncedToChat') : undefined
+  );
 
   // svelte-ignore state_referenced_locally
   if (browser) customCursor.set(cursorEnabled);

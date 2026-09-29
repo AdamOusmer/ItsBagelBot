@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
 
   import '../styles/elements/card.css';
   import '../styles/elements/surface.css';
@@ -17,11 +18,12 @@
     trapFocus,
   } from '../lib/overlay-stack';
 
+  const i18n = getUiI18n();
   let {
     open = false,
     title,
     controls,
-    closeLabel = 'Close',
+    closeLabel = i18n.t('action.close'),
     class: className = '',
     onClose,
     children,

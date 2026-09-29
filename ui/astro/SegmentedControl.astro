@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { uiI18n } from './i18n';
 
 import '../styles/tags.css';
 
@@ -12,7 +13,8 @@ interface Props {
     [key: string]: unknown;
 }
 
-const { options, value = '', label = 'Filter', class: className = '', ...rest } = Astro.props;
+const { t } = uiI18n(Astro);
+const { options, value = '', label = t('choice.filter'), class: className = '', ...rest } = Astro.props;
 const items = options.map((opt) => (typeof opt === 'string' ? { value: opt, label: opt, count: undefined, attrs: undefined } : opt));
 const classes = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
 ---

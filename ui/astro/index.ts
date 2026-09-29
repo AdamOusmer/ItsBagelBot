@@ -118,3 +118,5 @@ export { default as PickerOption } from './PickerOption.astro';
 
 export { default as SkipLink } from './SkipLink.astro';
 export { default as CopySurface } from './CopySurface.astro';
+
+export { uiI18n } from './i18n';

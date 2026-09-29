@@ -2,17 +2,19 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { Snippet } from 'svelte';
+  import { getUiI18n } from './i18n';
   import '../styles/tags.css';
   import '../styles/elements/radio-group.css';
   import Icon from './Icon.svelte';
 
   type RadioOption = { value: string; label: string; description?: string; meta?: string; disabled?: boolean };
 
+  const i18n = getUiI18n();
   let {
     name,
     options,
     value = $bindable(''),
-    label = 'Options',
+    label = i18n.t('choice.options'),
     variant = 'tabs',
     min,
     cols,

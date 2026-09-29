@@ -639,7 +639,7 @@ const REMAINING: {
     props: { state: 'live' },
     html:
       '<span class="bb-tag bb-tag--live" role="status">' +
-      '<i class="bb-mark" aria-hidden="true"></i>Synced to chat' +
+      '<i class="bb-mark" aria-hidden="true"></i>Live' +
       '<i class="bb-sweep" aria-hidden="true"></i></span>',
   },
   {
@@ -771,7 +771,7 @@ const REMAINING: {
       '<div class="bb-ornaments bb-ornaments--loader" aria-hidden="true">' +
       '<div class="bb-corner bb-corner--bl"></div>' +
       '<div class="bb-corner bb-corner--br"></div>' +
-      '<div class="bb-ornament-label">ItsBagelBot</div></div>',
+      '<div class="bb-ornament-label"></div></div>',
   },
   {
     name: 'ReadingProgress: default',

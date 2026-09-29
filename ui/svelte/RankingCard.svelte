@@ -12,12 +12,14 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
   import type { Snippet } from 'svelte';
   import '../styles/elements/ranking-card.css';
 
+  const i18n = getUiI18n();
   let {
     title, description = '', items, actions, leading,
-    emptyLabel = 'No entries yet', class: cls = '', ...rest
+    emptyLabel = i18n.t('data.empty'), class: cls = '', ...rest
   }: {
     title: string;
     description?: string;

@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { uiI18n } from './i18n';
 
 // Native no-JavaScript form fallback, enhanced into the shared custom picker.
 import '../styles/elements/field.css';
@@ -26,10 +27,11 @@ interface Props {
     [key: string]: unknown;
 }
 
+const { t } = uiI18n(Astro);
 const {
     value, options, invalid = false, fill = false, searchable = false,
-    label = 'Select an option', placeholder = 'Select…', searchPlaceholder = 'Search…',
-    searchClearLabel = 'Clear search', emptyLabel = 'No matches', class: className = '', ...rest
+    label = t('select.label'), placeholder = t('select.placeholder'), searchPlaceholder = t('search.placeholder'),
+    searchClearLabel = t('search.clear'), emptyLabel = t('search.empty'), class: className = '', ...rest
 } = Astro.props;
 const classes = ['bb-input', 'bb-input--select', fill ? 'bb-input--fill' : null, className]
     .filter(Boolean)

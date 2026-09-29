@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
 
   import '../styles/elements/modal.css';
   import type { Snippet } from 'svelte';
@@ -13,12 +14,13 @@
     trapFocus,
   } from '../lib/overlay-stack';
 
+  const i18n = getUiI18n();
   let {
     open = false,
     title,
     closeModal,
     busy = false,
-    closeLabel = 'Close',
+    closeLabel = i18n.t('action.close'),
     ariaLabel,
     variant = 'dialog',
     toolbarLabel,

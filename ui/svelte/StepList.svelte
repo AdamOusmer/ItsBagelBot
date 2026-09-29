@@ -27,6 +27,7 @@
   import { prefersReducedMotion } from '../lib/motion-query';
   import Icon from './Icon.svelte';
   import ProgressBar from './ProgressBar.svelte';
+  import { getUiI18n } from './i18n';
   import '../styles/tags.css';
   import '../styles/elements/step-list.css';
 
@@ -50,14 +51,15 @@
     [key: string]: unknown;
   } = $props();
 
+  const i18n = getUiI18n();
   const DEFAULT_LABELS: Record<StepState, string> = {
-    pending: 'Pending',
-    running: 'Running',
-    waiting: 'Waiting',
-    succeeded: 'Succeeded',
-    failed: 'Failed',
-    skipped: 'Skipped',
-    cancelled: 'Cancelled',
+    pending: i18n.t('steps.pending'),
+    running: i18n.t('steps.running'),
+    waiting: i18n.t('steps.waiting'),
+    succeeded: i18n.t('steps.succeeded'),
+    failed: i18n.t('steps.failed'),
+    skipped: i18n.t('steps.skipped'),
+    cancelled: i18n.t('steps.cancelled'),
   };
 
   const TONE: Record<StepState, 'neutral' | 'success' | 'warning' | 'error'> = {

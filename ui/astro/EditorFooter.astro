@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { uiI18n } from './i18n';
 
 import '../styles/elements/editor-footer.css';
 import Button from './Button.astro';
@@ -18,16 +19,17 @@ interface Props {
     class?: string;
 }
 
+const { t } = uiI18n(Astro);
 const {
     status = 'idle',
     dirty = false,
     canSave = true,
-    saveLabel = 'Save',
-    cancelLabel = 'Cancel',
-    savingLabel = 'Saving…',
-    savedLabel = 'Saved',
-    errorLabel = 'Could not save',
-    dirtyLabel = 'Unsaved changes',
+    saveLabel = t('action.save'),
+    cancelLabel = t('action.cancel'),
+    savingLabel = t('status.saving'),
+    savedLabel = t('status.saved'),
+    errorLabel = t('status.saveFailed'),
+    dirtyLabel = t('status.unsaved'),
     class: className = '',
     ...rest
 } = Astro.props;

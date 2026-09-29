@@ -287,6 +287,42 @@ class TreeRules(Fixture):
         self.assertFails('locales/en/docs: English catalog must not be empty')
 
 
+UI_INDEX = "export const CATALOG_FILES = {\n  'en': {},\n  'fr': {},\n} as const;\n"
+
+
+class UiLibrarySurface(Fixture):
+    def setUp(self):
+        super().setUp()
+        write(self.root, 'ui/locales/en/status.json', {'saving': 'Saving…', 'saved': 'Saved'})
+        write(self.root, 'ui/locales/fr/status.json', {'saving': 'Enregistrement…', 'saved': 'Enregistré'})
+        write(self.root, 'ui/locales/index.ts', UI_INDEX)
+
+    def test_ui_catalog_is_checked_like_a_surface(self):
+        code, output = run(t.check, self.root, ('fr',))
+        self.assertEqual(code, 0, output)
+        self.assertOutput(output, 'ui       en       2 keys in 1 file (reference)', 'ui       fr       2/2 keys')
+
+    def test_ui_files_follow_the_same_rules(self):
+        write(self.root, 'ui/locales/fr/status.json', {'saving': 'Enregistrement…', 'extra': 'x'})
+        self.assertFails('ui/locales/fr/status.json: unknown key status.extra')
+
+    def test_ui_folder_holds_only_registered_locales_and_the_index(self):
+        write(self.root, 'ui/locales/de/status.json', {'saved': 'Gespeichert'})
+        write(self.root, 'ui/locales/notes.txt', 'x')
+        self.assertFails('ui/locales/de: locale absent from manifest',
+                         'ui/locales/notes.txt: only locale folders and index.ts belong directly in ui/locales/')
+
+    def test_a_ui_locale_missing_from_the_generated_index_fails(self):
+        write(self.root, 'ui/locales/index.ts', "export const CATALOG_FILES = {\n  'en': {},\n} as const;\n")
+        self.assertFails('ui/locales/fr: not loaded yet; run `bun ui/scripts/gen-locales.mjs`')
+
+    def test_status_lists_ui_files(self):
+        (self.root / 'ui/locales/fr/status.json').unlink()
+        code, output = run(t.status, self.root, 'fr')
+        self.assertEqual(code, 0, output)
+        self.assertOutput(output, 'ui: 0/2 keys translated', '  ui/locales/fr/status.json: 2 missing (new file)')
+
+
 class Status(Fixture):
     def test_status_groups_missing_keys_by_file(self):
         (self.root / 'locales/fr/console/admin/users.json').unlink()

@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { uiI18n } from './i18n';
 
 import '../styles/elements/nav.css';
 import Brand from './Brand.astro';
@@ -26,12 +27,13 @@ interface Props {
   [key: string]: unknown;
 }
 
+const { t } = uiI18n(Astro);
 const {
   brand,
   links,
   cta,
   locales,
-  localeLabel = 'Language',
+  localeLabel = t('nav.language'),
   ariaLabel,
   menuLabels,
   menuMeta,

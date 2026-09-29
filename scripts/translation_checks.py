@@ -18,6 +18,8 @@ ARRAY_SURFACES = frozenset({'console'})
 PRINTF_SURFACES = frozenset({'chat'})
 FLAT_SURFACES = frozenset({'chat'})
 NESTED_SURFACES = frozenset({'console'})
+EXTERNAL_SURFACES = {'ui': 'ui/locales'}
+EXTERNAL_INDEX = 'index.ts'
 
 
 @dataclass(frozen=True)
@@ -144,11 +146,16 @@ def english_surfaces(root):
     surfaces = sorted(path.name for path in folder.iterdir() if path.is_dir() and NAME.fullmatch(path.name))
     if not surfaces:
         raise ValueError(f'{TREE}/en: add at least one surface folder, such as chat or console')
-    return surfaces
+    return surfaces + [surface for surface, base in EXTERNAL_SURFACES.items() if (root / base / 'en').is_dir()]
+
+
+def surface_label(code, surface):
+    base = EXTERNAL_SURFACES.get(surface)
+    return f'{base}/{code}' if base else f'{TREE}/{code}/{surface}'
 
 
 def read_catalog(root, code, surface):
-    catalog = Catalog(f'{TREE}/{code}/{surface}')
+    catalog = Catalog(surface_label(code, surface))
     folder = root / catalog.label
     if folder.is_dir():
         for relative in _catalog_files(folder, catalog, surface):
@@ -282,8 +289,32 @@ def missing_by_file(english, matched):
 
 
 def layout_errors(root, codes, surfaces):
-    return [error for path in sorted((root / TREE).iterdir())
-            for error in _top_level_errors(path, codes, surfaces)]
+    tree_surfaces = [surface for surface in surfaces if surface not in EXTERNAL_SURFACES]
+    errors = [error for path in sorted((root / TREE).iterdir())
+              for error in _top_level_errors(path, codes, tree_surfaces)]
+    for surface in surfaces:
+        if surface in EXTERNAL_SURFACES:
+            errors.extend(_external_layout_errors(root, EXTERNAL_SURFACES[surface], codes))
+    return errors
+
+
+def _external_layout_errors(root, base, codes):
+    errors = []
+    for path in sorted((root / base).iterdir()):
+        if path.name in IGNORED or (path.is_file() and path.name == EXTERNAL_INDEX):
+            continue
+        if not path.is_dir():
+            errors.append(f'{base}/{path.name}: only locale folders and {EXTERNAL_INDEX} belong directly in {base}/')
+        elif path.name not in codes:
+            errors.append(f'{base}/{path.name}: locale absent from manifest; register it in {MANIFEST} or remove the folder')
+    return errors + _external_index_errors(root, base)
+
+
+def _external_index_errors(root, base):
+    index = root / base / EXTERNAL_INDEX
+    listed = index.read_text(encoding='utf-8') if index.is_file() else ''
+    return [f'{base}/{path.name}: not loaded yet; run `bun ui/scripts/gen-locales.mjs` and commit {base}/{EXTERNAL_INDEX}'
+            for path in sorted((root / base).iterdir()) if path.is_dir() and f"'{path.name}': {{" not in listed]
 
 
 def _top_level_errors(path, codes, surfaces):

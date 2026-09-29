@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { uiI18n } from './i18n';
 import '../styles/elements/ranking-card.css';
 
 interface RankingItem {
@@ -20,7 +21,8 @@ interface Props {
   class?: string;
   [key: string]: unknown;
 }
-const { title, description = '', items, emptyLabel = 'No entries yet', class: cls = '', ...rest } = Astro.props;
+const { t } = uiI18n(Astro);
+const { title, description = '', items, emptyLabel = t('data.empty'), class: cls = '', ...rest } = Astro.props;
 const maximum = items.reduce((max, item) =>
   Number.isFinite(item.value) ? Math.max(max, item.value) : max, 0) || 1;
 // Astro's compiler resolves literal <slot> names statically. Render the

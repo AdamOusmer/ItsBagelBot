@@ -1,13 +1,15 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
   import '../styles/tags.css';
   import { rovingTarget } from '../lib/roving-focus';
 
+  const i18n = getUiI18n();
   let {
     options,
     value = $bindable(''),
-    label = 'Filter',
+    label = i18n.t('choice.filter'),
     onchange,
     class: className = '',
     ...rest

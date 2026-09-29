@@ -16,7 +16,7 @@
     [key: string]: unknown;
   } = $props();
 
-  const text = $derived(label ?? (variant === 'loader' ? 'ItsBagelBot' : ''));
+  const text = $derived(label ?? '');
   const classes = $derived(
     ['bb-ornaments', `bb-ornaments--${variant}`, className || null].filter(Boolean).join(' '),
   );

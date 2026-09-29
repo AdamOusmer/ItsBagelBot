@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
 
   import '../styles/elements/nav.css';
   import Brand from './Brand.svelte';
@@ -12,12 +13,13 @@
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiLocaleOption, UiNavLink } from '../lib/nav-types';
 
+  const i18n = getUiI18n();
   let {
     brand,
     links,
     cta,
     locales,
-    localeLabel = 'Language',
+    localeLabel = i18n.t('nav.language'),
     ariaLabel,
     menuLabels,
     menuMeta,

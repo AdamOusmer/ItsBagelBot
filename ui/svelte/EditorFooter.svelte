@@ -1,20 +1,22 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
 
   import '../styles/elements/editor-footer.css';
   import Button from './Button.svelte';
 
+  const i18n = getUiI18n();
   let {
     status = 'idle',
     dirty = false,
     canSave = true,
-    saveLabel = 'Save',
-    cancelLabel = 'Cancel',
-    savingLabel = 'Saving…',
-    savedLabel = 'Saved',
-    errorLabel = 'Could not save',
-    dirtyLabel = 'Unsaved changes',
+    saveLabel = i18n.t('action.save'),
+    cancelLabel = i18n.t('action.cancel'),
+    savingLabel = i18n.t('status.saving'),
+    savedLabel = i18n.t('status.saved'),
+    errorLabel = i18n.t('status.saveFailed'),
+    dirtyLabel = i18n.t('status.unsaved'),
     class: className = '',
     onCancel,
     ...rest

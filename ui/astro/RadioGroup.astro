@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { uiI18n } from './i18n';
 
 import '../styles/tags.css';
 import '../styles/elements/radio-group.css';
@@ -20,7 +21,8 @@ interface Props {
     [key: string]: unknown;
 }
 
-const { name, options, value = '', label = 'Options', variant = 'tabs', min, cols, rail, maxHeight, class: className = '', ...rest } = Astro.props;
+const { t } = uiI18n(Astro);
+const { name, options, value = '', label = t('choice.options'), variant = 'tabs', min, cols, rail, maxHeight, class: className = '', ...rest } = Astro.props;
 const tabsClass = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
 const choicesClass = [
     'bb-choices',

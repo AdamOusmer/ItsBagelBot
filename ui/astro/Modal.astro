@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { uiI18n } from './i18n';
 
 import '../styles/elements/modal.css';
 
@@ -16,11 +17,12 @@ interface Props {
     [key: string]: unknown;
 }
 
+const { t } = uiI18n(Astro);
 const {
     open = true,
     title,
     ariaLabel,
-    closeLabel = 'Close',
+    closeLabel = t('action.close'),
     titleId = 'bb-modal-title',
     variant = 'dialog',
     toolbarLabel,

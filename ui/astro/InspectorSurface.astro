@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import { uiI18n } from './i18n';
 
 import '../styles/elements/card.css';
 import '../styles/elements/surface.css';
@@ -15,7 +16,8 @@ interface Props {
     [key: string]: unknown;
 }
 
-const { open = true, title, controls, closeLabel = 'Close', class: className = '', ...rest } = Astro.props;
+const { t } = uiI18n(Astro);
+const { open = true, title, controls, closeLabel = t('action.close'), class: className = '', ...rest } = Astro.props;
 const idle = !open && Astro.slots.has('idle');
 const classes = ['bb-surface', 'bb-card', 'bb-surface--docked', idle ? 'bb-surface--idle' : null, className]
     .filter(Boolean)
