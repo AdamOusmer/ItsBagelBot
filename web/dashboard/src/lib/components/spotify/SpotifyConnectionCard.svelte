@@ -13,7 +13,9 @@
     Card,
     Code,
     Field,
+    Heading,
     Tag,
+    Text,
     actionPayload,
     getI18n,
     toast,
@@ -79,10 +81,10 @@
 </script>
 
 <Card>
-  <h2 class="title">{t('spotify.connectionTitle')}</h2>
+  <div class="head"><Heading level={6} as="h2">{t('spotify.connectionTitle')}</Heading></div>
 
   <div class="line">
-    <span class="line-label">{t('spotify.accountLabel')}</span>
+    <span class="line-label"><Text as="span" size="sm" tone="muted">{t('spotify.accountLabel')}</Text></span>
     <Tag tone={needsReconnect ? 'error' : 'live'} mark={needsReconnect ? 'hollow' : 'solid'}>
       {needsReconnect ? t('spotify.needsReconnectPill') : t('spotify.connectedPill')}
     </Tag>
@@ -102,8 +104,8 @@
   {/if}
 
   <div class="line">
-    <span class="line-label">{t('spotify.appLabel')}</span>
-    <Code class="client-id">{app.clientId}</Code>
+    <span class="line-label"><Text as="span" size="sm" tone="muted">{t('spotify.appLabel')}</Text></span>
+    <Code>{app.clientId}</Code>
     <span class="line-actions">
       <Button variant="secondary" type="button" onclick={startReplace} disabled={replacing}>{t('spotify.appReplace')}</Button>
       <Button variant="destructive" type="button" onclick={onRemoveApp}>{t('spotify.appRemove')}</Button>
@@ -112,11 +114,11 @@
 
   {#if replacing}
     <form method="POST" action="?/saveApp" use:enhance={appSubmit} class="replace">
-      <p class="muted">
+      <Text size="sm" tone="muted">
         {t('spotify.appStepRedirect')}
-        <Code class="client-id">{redirectUri}</Code>
+        <Code>{redirectUri}</Code>
         <Button variant="ghost" type="button" onclick={copyRedirect}>{t('spotify.redirectCopy')}</Button>
-      </p>
+      </Text>
       <Field label={t('spotify.appClientIdLabel')} hint={t('spotify.appClientIdHint')}>
         <Input fill name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required />
       </Field>
@@ -132,12 +134,10 @@
 </Card>
 
 <style>
-  .title { margin: 0 0 10px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
+  .head { margin-bottom: 10px; }
   .line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 44px; }
   .line + .line, .alert-slot { margin-top: 8px; }
-  .line-label { min-width: 110px; font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
+  .line-label { min-width: 110px; }
   .line-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-left: auto; }
   .replace { display: grid; gap: 12px; margin-top: 14px; }
-  .muted { margin: 0; color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; }
-  :global(.client-id) { color: var(--bb-white); word-break: break-all; }
 </style>

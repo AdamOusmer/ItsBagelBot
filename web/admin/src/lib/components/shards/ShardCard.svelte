@@ -3,7 +3,10 @@
   // Proprietary. No license granted. See LICENSE.md.
   import type { Shard } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import StatePill from '../StatePill.svelte';
   import { pctLabel } from '$lib/throughput';
   import { loadTone, rateLabel, shardBadge } from './shard-state';
@@ -19,59 +22,50 @@
   } = $props();
   const { t } = getI18n();
   const badge = $derived(shardBadge(shard));
+  const PERCENT_TONE = { success: 'muted', warning: 'accent', error: 'danger', neutral: 'muted' } as const;
   const tone = $derived(loadTone(utilization, targetUtilization));
-  const width = $derived(Math.min(100, Math.max(0, utilization)));
+  const instant = $derived(t('admin.shards.rowLoadBurst', { now: rateLabel(burstEps), eps: rateLabel(eps), pct: pctLabel(utilization) }));
 </script>
 
-<article class="socket" data-health={badge.tone} data-cursor="quiet">
-  <header>
-    <strong>{t('admin.shards.rowId', { id: String(shard.shard_id) })}</strong>
-    <span class="state"><StatusDot tone={badge.tone} />{t(badge.label)}</span>
-  </header>
-  <p class="meta" title={shard.node}>
-    {t('admin.shards.rowMeta', {
-      host: shard.host || t('admin.shards.unknownHost'),
-      pod: pod ? `pod${pod}` : '-',
-      bound: shard.bound ? t('admin.shards.bound') : t('admin.shards.unbound'),
-      attempts: String(shard.attempts ?? 0)
-    })}
-  </p>
-  <div class="load" data-tone={tone}>
-    <span class="rate"><strong>{rateLabel(eps)}</strong> {t('admin.shards.eps')}</span>
-    <span class="percent">{pctLabel(utilization)}%</span>
+<Card as="article" data-health={badge.tone} data-cursor="quiet">
+  <div class="socket">
+    <header class="head">
+      <strong class="id">{t('admin.shards.rowId', { id: String(shard.shard_id) })}</strong>
+      <span class="state"><StatusDot tone={badge.tone} /><Text as="span" size="xs" tone="muted">{t(badge.label)}</Text></span>
+    </header>
+    <div class="meta">
+      <Text size="xs" mono tone="muted" title={shard.node}>
+        {t('admin.shards.rowMeta', {
+          host: shard.host || t('admin.shards.unknownHost'),
+          pod: pod ? `pod${pod}` : '-',
+          bound: shard.bound ? t('admin.shards.bound') : t('admin.shards.unbound'),
+          attempts: String(shard.attempts ?? 0)
+        })}
+      </Text>
+    </div>
+    <div class="load">
+      <Text as="span" size="xs" mono tone="muted"><strong class="figure">{rateLabel(eps)}</strong> {t('admin.shards.eps')}</Text>
+      <Text as="span" size="xs" mono tone={PERCENT_TONE[tone]}>{pctLabel(utilization)}%</Text>
+    </div>
+    <Text size="xs" mono tone="muted">{instant}</Text>
+    <ProgressBar value={utilization / 100} {tone} target={targetUtilization / 100} label={instant} aria-hidden="true" />
+    <div class="capacity">
+      <Text as="span" size="xs" mono tone="muted">{t('admin.shards.socketCapacity', { eps: rateLabel(eps), capacity: rateLabel(ratedEps) })}</Text>
+      <Text as="span" size="xs" mono tone="muted">{t('admin.shards.targetLoad', { pct: String(targetUtilization) })}</Text>
+    </div>
+    {#if shard.handshake_in_flight}
+      <div><StatePill tone="paid">{t('admin.shards.handshaking')}</StatePill></div>
+    {/if}
   </div>
-  <p class="instant">{t('admin.shards.rowLoadBurst', { now: rateLabel(burstEps), eps: rateLabel(eps), pct: pctLabel(utilization) })}</p>
-  <div class="bar" aria-hidden="true" data-tone={tone}>
-    <span class="fill" style:width={`${width}%`}></span>
-    <span class="target" style:left={`${Math.min(100, Math.max(0, targetUtilization))}%`}></span>
-  </div>
-  <div class="capacity">
-    <span>{t('admin.shards.socketCapacity', { eps: rateLabel(eps), capacity: rateLabel(ratedEps) })}</span>
-    <span>{t('admin.shards.targetLoad', { pct: String(targetUtilization) })}</span>
-  </div>
-  {#if shard.handshake_in_flight}
-    <div class="marks"><StatePill tone="paid">{t('admin.shards.handshaking')}</StatePill></div>
-  {/if}
-</article>
+</Card>
 
 <style>
-  .socket { position: relative; min-width: 0; padding: 15px; border: 1px solid var(--bb-border); border-radius: 10px; background: var(--bb-card-bg); }
-  header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-  header > strong { font-family: var(--bb-font-mono); font-size: 13px; color: var(--bb-white); }
-  .state { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: var(--bb-muted); }
-  .meta { min-height: 30px; margin: 10px 0 13px; font-family: var(--bb-font-mono); font-size: 10px; line-height: 1.5; color: var(--bb-muted); overflow-wrap: anywhere; }
-  .load { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-family: var(--bb-font-mono); }
-  .rate { color: var(--bb-muted); font-size: 10px; }
-  .rate strong { font-size: 22px; font-weight: 500; color: var(--bb-white); }
-  .percent { font-size: 11px; color: var(--bb-muted); }
-  .instant { margin: 7px 0 0; font-family: var(--bb-font-mono); font-size: 10px; line-height: 1.5; color: var(--bb-muted); }
-  .bar { position: relative; margin: 10px 0 8px; height: 5px; border-radius: 3px; background: var(--bb-border); }
-  .fill { display: block; height: 100%; border-radius: inherit; background: var(--bb-green-glow); transition: width .3s ease; }
-  .target { position: absolute; top: -2px; width: 1px; height: 9px; background: var(--bb-muted); }
-  [data-tone='warning'] .fill { background: var(--bb-tan); }
-  [data-tone='error'] .fill { background: var(--bb-status-error); }
-  [data-tone='warning'] .percent { color: var(--bb-tan-light); }
-  [data-tone='error'] .percent { color: var(--bb-status-error); }
-  .capacity { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; font-family: var(--bb-font-mono); font-size: 9px; color: var(--bb-muted); }
-  .marks { margin-top: 10px; }
+  .socket { display: grid; gap: var(--bb-space-2); min-width: 0; }
+  .head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--bb-space-2); }
+  .id { font-family: var(--bb-font-mono); font-size: var(--bb-text-sm); color: var(--bb-white); }
+  .state { display: inline-flex; align-items: center; gap: var(--bb-space-2); }
+  .meta { min-height: calc(var(--bb-text-xs) * 2.9); overflow-wrap: anywhere; }
+  .load { display: flex; align-items: baseline; justify-content: space-between; gap: var(--bb-space-2); }
+  .figure { font-size: var(--bb-text-xl); font-weight: 500; color: var(--bb-white); }
+  .capacity { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--bb-space-1); }
 </style>

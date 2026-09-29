@@ -94,7 +94,7 @@
   .tiles {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: calc(14px * var(--d, 1));
+    gap: calc(14px * var(--d));
     margin-top: 16px;
   }
   @media (max-width: 700px) {

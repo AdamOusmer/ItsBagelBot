@@ -25,6 +25,7 @@
     class: className = '',
     onClose,
     children,
+    idle,
     ...rest
   }: {
     open?: boolean;
@@ -34,6 +35,7 @@
     class?: string;
     onClose: () => void;
     children?: Snippet;
+    idle?: Snippet;
     [key: string]: unknown;
   } = $props();
 
@@ -72,7 +74,7 @@
   });
 
   const dockedClasses = $derived(
-    ['bb-surface', 'bb-card', 'bb-surface--docked', className || null]
+    ['bb-surface', 'bb-card', 'bb-surface--docked', open ? null : 'bb-surface--idle', className || null]
       .filter(Boolean)
       .join(' '),
   );
@@ -92,7 +94,7 @@
   }}
 />
 
-{#snippet body()}
+{#snippet body(content: Snippet | undefined)}
   <div class="bb-surface__head">
     <span class="bb-surface__tag bb-tag bb-tag--bare">{title}</span>
     <button class="bb-surface__close" type="button" aria-label={closeLabel} onclick={onClose}>
@@ -100,8 +102,12 @@
     </button>
   </div>
   <div class="bb-surface__body" id={controls}>
-    {#if children}{@render children()}{/if}
+    {#if content}{@render content()}{/if}
   </div>
+{/snippet}
+
+{#snippet idleBody()}
+  <div class="bb-surface__idle">{#if idle}{@render idle()}{/if}</div>
 {/snippet}
 
 {#if open}
@@ -119,12 +125,16 @@
         use:trapFocus
         {...rest}
       >
-        {@render body()}
+        {@render body(children)}
       </div>
     </div>
   {:else}
     <aside class={dockedClasses} aria-label={title} {...rest}>
-      {@render body()}
+      {@render body(children)}
     </aside>
   {/if}
+{:else if idle && !isSheet}
+  <aside class={dockedClasses} aria-label={title} {...rest}>
+    {@render body(idleBody)}
+  </aside>
 {/if}

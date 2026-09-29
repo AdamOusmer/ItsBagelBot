@@ -3,7 +3,10 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import Card from '@bagel/ui/svelte/Card.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();
@@ -31,21 +34,23 @@
 
 <section class="ov-setup" aria-labelledby="ov-setup-h">
   <div class="ov-setup__head">
-    <h2 id="ov-setup-h" class="ov-section-h">{t('overview.setupHeading')}</h2>
-    <span class="ov-setup__count">{t('overview.setupProgress', { done: doneCount, total: steps.length })}</span>
+    <Heading level={6} as="h2" variant="title" id="ov-setup-h">{t('overview.setupHeading')}</Heading>
+    <Text as="span" size="xs" mono tone="muted">{t('overview.setupProgress', { done: doneCount, total: steps.length })}</Text>
   </div>
   <Card>
     <ol class="ov-setup__list">
       {#each steps as step, i (step.id)}
         <li class="ov-setup__row" class:done={step.done}>
           <span class="ov-setup__ico" aria-hidden="true">
-            {#if step.done}<Icon name="check" size={15} />{:else}{i + 1}{/if}
+            {#if step.done}<Icon name="check" size={15} strokeWidth={1.7} />{:else}{i + 1}{/if}
           </span>
-          <span class="ov-setup__label">{step.label}</span>
+          <span class="ov-setup__label">
+            <Text as="span" size="sm" tone={step.done ? 'muted' : 'default'}>{step.label}</Text>
+          </span>
           {#if step.done}
-            <span class="ov-setup__state">{t('common.done')}</span>
+            <Tag tone="live">{t('common.done')}</Tag>
           {:else}
-            <ButtonLink href={step.href} variant="ghost" class="ov-setup__cta">{step.cta}</ButtonLink>
+            <ButtonLink href={step.href} variant="ghost">{step.cta}</ButtonLink>
           {/if}
         </li>
       {/each}
@@ -64,22 +69,8 @@
     gap: 12px;
     margin-bottom: 12px;
   }
-  .ov-section-h {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0;
-  }
-  .ov-setup__count {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    color: var(--bb-muted);
-    white-space: nowrap;
-  }
   .ov-setup__list {
+    --btn-min-h: 44px;
     list-style: none;
     margin: 0;
     padding: 0;
@@ -104,44 +95,19 @@
     height: 32px;
     border-radius: var(--bb-radius-sm);
     flex: none;
-    background: rgba(201, 168, 124, 0.1);
-    border: 1px solid rgba(201, 168, 124, 0.28);
+    background: rgba(var(--bb-tan-rgb), 0.1);
+    border: 1px solid rgba(var(--bb-tan-rgb), 0.28);
     color: var(--bb-tan-light);
     font-family: var(--bb-font-mono);
-    font-size: 12px;
+    font-size: var(--bb-text-xs);
   }
   .ov-setup__row.done .ov-setup__ico {
     background: var(--bb-status-success-bg);
     border-color: var(--bb-status-success-border);
     color: var(--bb-status-success);
   }
-  .ov-setup__ico :global(svg) {
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.7;
-  }
   .ov-setup__label {
     flex: 1;
     min-width: 0;
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    color: var(--bb-white);
-  }
-  .ov-setup__row.done .ov-setup__label {
-    color: var(--bb-muted);
-  }
-  .ov-setup__state {
-    display: inline-flex;
-    align-items: center;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-status-success-fg);
-    white-space: nowrap;
-  }
-  .ov-setup__row :global(.ov-setup__cta) {
-    flex: none;
-    min-height: 44px;
   }
 </style>

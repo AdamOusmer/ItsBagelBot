@@ -1,0 +1,66 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/elements/copy-surface.css';
+import Icon from './Icon.astro';
+
+interface Props {
+    text: string;
+    copiedLabel: string;
+    announce?: string;
+    variant?: 'card' | 'row' | 'well';
+    label?: string;
+    hint?: string;
+    flashMs?: number;
+    legacyFallback?: boolean;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const {
+    text,
+    copiedLabel,
+    announce,
+    variant = 'card',
+    label,
+    hint = '',
+    flashMs,
+    legacyFallback = false,
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = ['bb-copy', `bb-copy--${variant}`, className].filter(Boolean).join(' ');
+const glyphs = variant === 'well';
+const hasChildren = Astro.slots.has('default');
+---
+
+<button class={classes} type="button" data-copy={text} data-copy-announce={announce} data-copy-ms={flashMs} data-copy-legacy={legacyFallback ? '' : undefined} {...rest}>{label && <span class="bb-copy__label">{label}</span>}<span class="bb-copy__row"><span class="bb-copy__value">{hasChildren ? <slot /> : text}</span><span class="bb-copy__hint" aria-hidden="true"><span class="bb-copy__idle">{glyphs && <Icon name="copy" size={12} />}{hint}</span><span class="bb-copy__done">{glyphs && <Icon name="check" size={12} />}{copiedLabel}</span></span></span><span class="bb-copy__status" role="status"></span></button>
+
+<script>
+    import { copyText } from '../lib/clipboard';
+
+    const FLASH_MS = 1600;
+    const timers = new WeakMap<HTMLElement, number>();
+
+    function flash(surface: HTMLElement, on: boolean): void {
+        surface.toggleAttribute('data-copied', on);
+        const status = surface.querySelector('.bb-copy__status');
+        const done = surface.querySelector('.bb-copy__done')?.textContent ?? '';
+        if (status) status.textContent = on ? (surface.dataset.copyAnnounce ?? done) : '';
+    }
+
+    async function copy(surface: HTMLElement): Promise<void> {
+        const legacyFallback = surface.hasAttribute('data-copy-legacy');
+        if (!(await copyText(surface.dataset.copy ?? '', { legacyFallback }))) return;
+        window.clearTimeout(timers.get(surface));
+        flash(surface, true);
+        const ms = Number(surface.dataset.copyMs) || FLASH_MS;
+        timers.set(surface, window.setTimeout(() => flash(surface, false), ms));
+    }
+
+    document.addEventListener('click', (event) => {
+        const surface = event.target instanceof Element ? event.target.closest<HTMLElement>('.bb-copy[data-copy]') : null;
+        if (surface) void copy(surface);
+    });
+</script>

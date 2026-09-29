@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import Grid from '@bagel/ui/svelte/Grid.svelte';
   import StatTile from '@bagel/ui/svelte/StatTile.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { ago } from '@bagel/kit';
@@ -45,48 +46,42 @@
 </script>
 
 <div class="strip">
-  <StatTile
-    data-text
-    label={t('admin.deploys.statusLive')}
-    value={plan?.live_version ?? dash}
-    delta={plan?.live_sha ? shortSha(plan.live_sha) : dash}
-  />
-  <StatTile
-    data-text
-    label={t('admin.deploys.statusCluster')}
-    value={clusterValue()}
-    delta={clusterDelta()}
-  >
-    {#snippet trail()}
-      <span class="trail">
-        {#if active}<TextLink href="/deploys/{active.id}" label={t('admin.deploys.openRun')} />{/if}
-      </span>
-    {/snippet}
-  </StatTile>
-  <StatTile data-text label={t('admin.deploys.statusLastRun')} value={lastValue} delta={lastDelta()}>
-    {#snippet trail()}
-      <span class="trail">
-        {#if last}<TextLink href="/deploys/{last.id}" label={t('admin.deploys.openLast')} />{/if}
-      </span>
-    {/snippet}
-  </StatTile>
+  <Grid cols={3} gap={3} stackAt="md">
+    <StatTile
+      data-text
+      label={t('admin.deploys.statusLive')}
+      value={plan?.live_version ?? dash}
+      delta={plan?.live_sha ? shortSha(plan.live_sha) : dash}
+    />
+    <StatTile
+      data-text
+      label={t('admin.deploys.statusCluster')}
+      value={clusterValue()}
+      delta={clusterDelta()}
+    >
+      {#snippet trail()}
+        <span class="trail">
+          {#if active}<TextLink href="/deploys/{active.id}" label={t('admin.deploys.openRun')} />{/if}
+        </span>
+      {/snippet}
+    </StatTile>
+    <StatTile data-text label={t('admin.deploys.statusLastRun')} value={lastValue} delta={lastDelta()}>
+      {#snippet trail()}
+        <span class="trail">
+          {#if last}<TextLink href="/deploys/{last.id}" label={t('admin.deploys.openLast')} />{/if}
+        </span>
+      {/snippet}
+    </StatTile>
+  </Grid>
 </div>
 
 <style>
   .strip {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 16px;
+    margin-bottom: var(--bb-space-4);
   }
   .trail {
     display: inline-block;
     min-height: 1.4em;
-    font-size: 12px;
-  }
-  @media (max-width: 760px) {
-    .strip {
-      grid-template-columns: 1fr;
-    }
+    font-size: var(--bb-text-xs);
   }
 </style>

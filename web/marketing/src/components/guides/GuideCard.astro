@@ -2,7 +2,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Button from '@bagel/ui/astro/Button.astro';
 import Card from '@bagel/ui/astro/Card.astro';
+import Chip from '@bagel/ui/astro/Chip.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 
 interface Props {
     index: string;
@@ -29,14 +33,14 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
     style={`--reveal-i: ${revealIndex}`}
 >
     <span class="gcard__chips" slot="band" aria-hidden="true">
-        {chips.map((chip) => <i>{chip}</i>)}
+        {chips.map((chip) => <Chip as="span">{chip}</Chip>)}
     </span>
     <span class="gcard__body">
-        <b class="gcard__title">{title}</b>
-        <span class="gcard__desc">{description}</span>
+        <Heading level={4} as="span" class="gcard__title">{title}</Heading>
+        <Text as="span" tone="muted-light" class="gcard__desc">{description}</Text>
         <span class="gcard__foot">
-            <span class="gcard__meta">{meta}</span>
-            <span class="bb-btn bb-btn--quiet gcard__btn" data-cursor>{cta}</span>
+            <Text as="span" size="xs" mono tone="muted" class="gcard__meta">{meta}</Text>
+            <Button as="span" variant="quiet" data-cursor>{cta}</Button>
         </span>
     </span>
 </Card>
@@ -52,18 +56,6 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
         padding-right: 48px;
     }
 
-    .gcard__chips i {
-        font-style: normal;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.72rem;
-        letter-spacing: 0.04em;
-        color: var(--tan-light, #e0c49a);
-        padding: 4px 9px;
-        border: 1px solid rgba(201, 168, 124, 0.22);
-        border-radius: var(--radius-sm);
-        background: rgba(201, 168, 124, 0.05);
-    }
-
     .gcard__body {
         display: flex;
         flex-direction: column;
@@ -71,22 +63,10 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
         min-width: 0;
     }
 
-    .gcard__title {
-        display: block;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: clamp(1.15rem, 2vw, 1.4rem);
-        font-weight: 700;
-        letter-spacing: -0.015em;
-        color: var(--white, #f0ece4);
-        margin-bottom: 8px;
-    }
+    .gcard__title { margin-bottom: 8px; }
 
     .gcard__desc {
         display: block;
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.96rem;
-        line-height: 1.6;
-        color: #a39c92;
         max-width: 58ch;
         margin-bottom: 18px;
     }
@@ -100,40 +80,22 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
         margin-top: auto;
     }
 
-    .gcard__meta {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.68rem;
-        letter-spacing: 0.08em;
-        color: var(--muted, #888077);
-        white-space: nowrap;
-    }
+    .gcard__meta { white-space: nowrap; }
 
-    .gcard__btn {
-        white-space: nowrap;
-    }
-
-    @media (hover: hover) and (pointer: fine) {
-        :global(.gcard:hover) .gcard__btn {
-            background: rgba(201, 168, 124, 0.08);
-            border-color: rgba(201, 168, 124, 0.5);
-            color: var(--tan-pale, #f5e6cf);
-        }
-    }
-
-    :global(.gcard:focus-visible) {
-        outline: 2px solid var(--green-glow, #52b788);
+    .gcard:focus-visible {
+        outline: 2px solid var(--bb-green-glow);
         outline-offset: 3px;
     }
 
-    :global(.gcard--wide) .gcard__body {
+    .gcard--wide .gcard__body {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: end;
         gap: 8px 32px;
     }
-    :global(.gcard--wide) .gcard__title { grid-column: 1; }
-    :global(.gcard--wide) .gcard__desc { grid-column: 1; margin-bottom: 0; }
-    :global(.gcard--wide) .gcard__foot {
+    .gcard--wide .gcard__title { grid-column: 1; }
+    .gcard--wide .gcard__desc { grid-column: 1; margin-bottom: 0; }
+    .gcard--wide .gcard__foot {
         grid-column: 2;
         grid-row: 1 / span 2;
         flex-direction: column;
@@ -142,13 +104,9 @@ const { index, href, title, description, meta, chips = [], cta, wide = false, re
     }
 
     @media (max-width: 640px) {
-        :global(.gcard--wide) .gcard__body { display: flex; align-items: stretch; }
-        :global(.gcard--wide) .gcard__desc { margin-bottom: 18px; }
-        :global(.gcard--wide) .gcard__foot { flex-direction: row; align-items: center; }
+        .gcard--wide .gcard__body { display: flex; align-items: stretch; }
+        .gcard--wide .gcard__desc { margin-bottom: 18px; }
+        .gcard--wide .gcard__foot { flex-direction: row; align-items: center; }
         .gcard__chips { padding-right: 0; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .gcard__btn { transition: none; }
     }
 </style>

@@ -2,43 +2,36 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();
 </script>
 
 <section class="ov-quick" aria-labelledby="ov-quick-h">
-  <h2 id="ov-quick-h" class="ov-section-h">{t('overview.quickHeading')}</h2>
+  <Heading level={6} as="h2" variant="title" id="ov-quick-h">{t('overview.quickHeading')}</Heading>
   <div class="ov-quick__row">
-    <ButtonLink href="/commands" variant="primary" class="ov-quick__btn">{t('overview.quickNewCommand')}</ButtonLink>
-    <ButtonLink href="/modules" variant="ghost" class="ov-quick__btn">{t('overview.quickModules')}</ButtonLink>
-    <ButtonLink href="/songqueue" variant="ghost" class="ov-quick__btn">{t('nav.songqueue')}</ButtonLink>
+    <ButtonLink href="/commands" variant="primary">{t('overview.quickNewCommand')}</ButtonLink>
+    <ButtonLink href="/modules" variant="ghost">{t('overview.quickModules')}</ButtonLink>
+    <ButtonLink href="/songqueue" variant="ghost">{t('nav.songqueue')}</ButtonLink>
   </div>
 </section>
 
 <style>
   .ov-quick {
+    display: grid;
+    gap: 12px;
     margin-bottom: var(--row-gap);
   }
-  .ov-section-h {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0 0 12px;
-  }
   .ov-quick__row {
+    --btn-min-h: 44px;
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
   }
-  .ov-quick__row :global(.ov-quick__btn) {
-    min-height: 44px;
-  }
   @media (max-width: 480px) {
-    .ov-quick__row :global(.ov-quick__btn) {
-      flex: 1 1 100%;
+    .ov-quick__row {
+      --btn-w: 100%;
     }
   }
 </style>

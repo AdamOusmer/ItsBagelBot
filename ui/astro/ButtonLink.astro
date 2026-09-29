@@ -6,11 +6,12 @@ import Button from './Button.astro';
 
 interface Props {
     href: string;
-    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go';
+    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
     solid?: boolean;
     block?: boolean;
     size?: 'md' | 'sm';
     done?: boolean;
+    disabled?: boolean;
     class?: string;
     [key: string]: unknown;
 }

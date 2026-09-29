@@ -7,8 +7,11 @@
   import {
     ButtonLink,
     Card,
-    Chip,
+    Heading,
+    Spacer,
     Switch,
+    Tag,
+    Text,
     flagValue,
     getI18n,
     toast,
@@ -61,8 +64,8 @@
 <Card>
   <div class="tile">
     <div class="copy">
-      <span class="name">{name}</span>
-      <span class="help" id={helpId}>{help}</span>
+      <Heading level={6} as="span">{name}</Heading>
+      <Text as="span" size="xs" tone="muted" id={helpId}>{help}</Text>
     </div>
     <form method="POST" action="?/save" use:enhance={submit} class="flip">
       <input type="hidden" name="config" value={payload} />
@@ -73,10 +76,9 @@
 
   <div class="foot">
     {#if on && !tile.ready}
-      <Chip on>{t('discord.overview.needsSetup')}</Chip>
-    {:else}
-      <span class="spacer"></span>
+      <Tag tone="warning">{t('discord.overview.needsSetup')}</Tag>
     {/if}
+    <Spacer grow />
     <ButtonLink variant="ghost" href="/discord/{guildId}{tile.href}">
       {t('discord.overview.configure')}
     </ButtonLink>
@@ -96,18 +98,6 @@
     min-width: 0;
     flex: 1;
   }
-  .name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--bb-white);
-  }
-  .help {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.45;
-    color: var(--bb-muted);
-  }
   .flip {
     flex: none;
     display: flex;
@@ -118,14 +108,9 @@
   .foot {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
     margin-top: 14px;
     padding-top: 12px;
-    border-top: 1px solid var(--glass-border);
-  }
-  .spacer {
-    display: block;
-    min-height: 28px;
+    border-top: 1px solid var(--bb-glass-border);
   }
 </style>

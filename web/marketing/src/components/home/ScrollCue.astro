@@ -39,28 +39,28 @@ const t = useTranslations(lang);
         align-items: center;
         gap: var(--cue-gap, 8px);
         opacity: 0;
-        animation: cueIn 700ms 1600ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+        animation: cueIn 700ms 1600ms var(--bb-ease-out-expo) forwards;
     }
 
     .cue__label {
         display: none;
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.62rem;
         letter-spacing: 0.24em;
         text-transform: uppercase;
-        color: var(--muted, #b0a898);
-        transition: color 0.2s;
+        color: var(--bb-muted);
+        transition: color var(--bb-dur-fast);
     }
 
     .cue__rail {
         position: relative;
         display: block;
         width: 2px;
-        border-radius: var(--radius-pill);
+        border-radius: var(--bb-radius-pill);
         height: var(--cue-rail, 24px);
-        background: linear-gradient(to bottom, rgba(201, 168, 124, 0), rgba(201, 168, 124, 0.45));
+        background: linear-gradient(to bottom, rgba(var(--bb-tan-rgb), 0), rgba(var(--bb-tan-rgb), 0.45));
         overflow: hidden;
-        transition: background 0.2s;
+        transition: background var(--bb-dur-fast);
     }
 
     .cue__dot {
@@ -71,24 +71,24 @@ const t = useTranslations(lang);
         height: 4px;
         margin-left: -1px;
         border-radius: 50%;
-        background: var(--green-glow, #52b788);
-        box-shadow: 0 0 8px rgba(82, 183, 136, 0.85);
+        background: var(--bb-green-glow);
+        box-shadow: 0 0 8px rgba(var(--bb-green-glow-rgb), 0.85);
         animation: cueFall 2.4s ease-in-out infinite;
         animation-play-state: var(--hero-animation-state, running);
     }
 
     .cue:hover .cue__label {
-        color: var(--white, #fff);
+        color: var(--bb-white);
     }
 
     .cue:hover .cue__rail {
-        background: linear-gradient(to bottom, rgba(201, 168, 124, 0), rgba(201, 168, 124, 0.65));
+        background: linear-gradient(to bottom, rgba(var(--bb-tan-rgb), 0), rgba(var(--bb-tan-rgb), 0.65));
     }
 
     .cue:focus-visible {
-        outline: 1px solid var(--tan, #c9a87c);
+        outline: 1px solid var(--bb-tan);
         outline-offset: 4px;
-        border-radius: var(--radius-sm);
+        border-radius: var(--bb-radius-sm);
     }
 
     @keyframes cueIn {

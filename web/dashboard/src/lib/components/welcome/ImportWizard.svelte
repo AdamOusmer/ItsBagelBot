@@ -6,11 +6,10 @@
   import { page } from '$app/state';
   import { translate, translateList, type Locale } from '@bagel/kit/i18n';
   import { bezier } from '@bagel/ui/lib/tween';
-  import { hasFinePointer, prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import Brand from '@bagel/ui/svelte/Brand.svelte';
   import Sky from '@bagel/ui/svelte/Sky.svelte';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
-  import StepRail from '$lib/components/welcome/StepRail.svelte';
   import Completion from '$lib/components/welcome/Completion.svelte';
   import ImportAlert from '$lib/import/ImportAlert.svelte';
   import ImportFailed from '$lib/import/ImportFailed.svelte';
@@ -34,11 +33,20 @@
     Card,
     Checkbox,
     ConfirmDialog,
+    Eyebrow,
+    FileDrop,
     Heading,
     Icon,
+    Input,
+    Label,
+    RadioGroup,
+    StatTile,
+    Stepper,
     Tag,
     Text,
-    Textarea
+    TextLink,
+    Textarea,
+    parallax
   } from '@bagel/kit';
   import {
     CHIP_LABEL_KEYS,
@@ -110,7 +118,6 @@
 
   const connected = $derived((page.data.connected ?? {}) as Partial<Record<ImportSource, boolean>>);
   const sourceConnected = $derived(source ? connected[source] === true : false);
-  let dragKind = $state<'' | ImportSource>('');
   let finishError = $state('');
   let finishing = $state(false);
 
@@ -124,13 +131,13 @@
   const unnumbered = (s: string) => s.replace(/^\s*\d+\s*·\s*/, '');
   const stepIndex = $derived(ORDER.indexOf(step));
   const journeyStep = $derived(BEFORE_IMPORT.length + stepIndex);
-  const journeyLabels = $derived([...BEFORE_IMPORT, ...STAGES]);
+  const journeySteps = $derived([...BEFORE_IMPORT, ...STAGES].map((label) => ({ label })));
   const maxRailStep = $derived(stepIndex);
   const stepAnnouncement = $derived(
     t('onboarding.stepAnnounce', {
       n: journeyStep + 1,
-      total: journeyLabels.length,
-      label: journeyLabels[journeyStep]
+      total: journeySteps.length,
+      label: journeySteps[journeyStep]?.label ?? ''
     })
   );
 
@@ -250,18 +257,32 @@
 
   let px = $state(0);
   let py = $state(0);
-  let pointerFrame = 0;
-  function onPointerMove(e: PointerEvent) {
-    if (!hasFinePointer() || pointerFrame) return;
-    pointerFrame = requestAnimationFrame(() => {
-      pointerFrame = 0;
-      px = (e.clientX / window.innerWidth - 0.5) * 2;
-      py = (e.clientY / window.innerHeight - 0.5) * 2;
-    });
+  function follow(point: { px: number; py: number }) {
+    px = point.px;
+    py = point.py;
   }
 
-  function choose(s: ImportSource) {
-    session.choose(s);
+  const sourceOptions = $derived(
+    IMPORT_SOURCES.map((id) => {
+      const s = IMPORT_STRATEGIES[id];
+      return {
+        value: id,
+        label: s.label,
+        description: t(s.i18n.desc),
+        meta: s.available ? t('import.tileCta') : undefined,
+        disabled: !s.available
+      };
+    })
+  );
+
+  function hoverTile(target: EventTarget | null) {
+    const tile = target instanceof Element ? target.closest('label') : null;
+    hover = tile && !tile.querySelector('input:disabled') ? 'excited' : null;
+  }
+
+  function choose(value: string) {
+    if (!isImportSource(value)) return;
+    session.choose(value);
     react('excited', 1400);
     goStep('instructions');
   }
@@ -363,19 +384,18 @@
 </script>
 
 <svelte:head><title>{t('onboardingImport.pageTitle')} · ItsBagelBot</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
-<svelte:window onpointermove={onPointerMove} />
 <Sky
   shift={stepIndex % 2 ? 1 : -1}
   turn={stepIndex * 24}
   {px}
   {py}
-  progress={journeyStep / (journeyLabels.length - 1)}
+  progress={journeyStep / (journeySteps.length - 1)}
   leaving={showCompletion}
 />
-<div class="welcome-import" class:leaving={showCompletion} data-orbs="off">
+<div class="welcome-import" class:leaving={showCompletion} data-orbs="off" use:parallax={{ scope: 'viewport', onmove: follow }}>
   <header class="top">
     <Brand title="ItsBagelBot" sub={t('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />
-    <StepRail labels={journeyLabels} current={journeyStep} maxStep={journeyStep} label={t('onboarding.stepOf', { n: journeyStep + 1, total: journeyLabels.length })} onselect={selectRail} />
+    <Stepper compact steps={journeySteps} current={journeyStep} maxStep={journeyStep} label={t('onboarding.stepOf', { n: journeyStep + 1, total: journeySteps.length })} onselect={selectRail} />
   </header>
 <section class="screen active">
   <div class="intro">
@@ -415,49 +435,28 @@
 
   {#if step === 'pick'}
     <Card glass>
-      <Heading level={2} class="step-title">{unnumbered(t('import.stepPick'))}</Heading>
-      <p class="hint">{t('import.pickHint')}</p>
+      <div class="step-title"><Heading level={6} as="h2">{unnumbered(t('import.stepPick'))}</Heading></div>
+      <div class="hint"><Text size="sm" tone="muted">{t('import.pickHint')}</Text></div>
 
       <div class="tiles">
-        {#each IMPORT_SOURCES as id, ti (id)}
-          {@const s = IMPORT_STRATEGIES[id]}
-          {#if s.available}
-            <label
-              class="tile"
-              class:picked={source === id}
-              data-cursor
-              style="--ti: {ti};"
-              onpointerenter={() => (hover = 'excited')}
-              onpointerleave={() => (hover = null)}
-            >
-              <input
-                type="radio"
-                name="source-pick"
-                value={id}
-                checked={source === id}
-                onchange={() => choose(id)}
-              />
-              <span class="tile-top">
-                <span class="glyph" aria-hidden="true">{s.initials}</span>
-                <Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>
-              </span>
-              <span class="tile-name">{s.label}</span>
-              <span class="tile-desc">{t(s.i18n.desc)}</span>
-              <span class="tile-foot">
-                <span class="tile-cta">{t('import.tileCta')}</span>
-              </span>
-            </label>
-          {:else}
-            <div class="tile disabled" aria-disabled="true" style="--ti: {ti};">
-              <span class="tile-top">
-                <span class="glyph" aria-hidden="true">{s.initials}</span>
-                <Tag tone="quiet">{t('import.chipSoon')}</Tag>
-              </span>
-              <span class="tile-name">{s.label}</span>
-              <span class="tile-desc">{t(s.i18n.desc)}</span>
-            </div>
-          {/if}
-        {/each}
+        <RadioGroup
+          variant="cards"
+          min="220px"
+          name="source-pick"
+          label={unnumbered(t('import.stepPick'))}
+          value={source}
+          options={sourceOptions}
+          onchange={choose}
+          class="bb-stagger"
+          onpointerover={(e: PointerEvent) => hoverTile(e.target)}
+          onpointerleave={() => (hover = null)}
+        >
+          {#snippet lead(option, on)}
+            {@const s = IMPORT_STRATEGIES[option.value as ImportSource]}
+            <span class="glyph" class:picked={on} aria-hidden="true">{s.initials}</span>
+            {#if s.available}<Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>{:else}<Tag tone="quiet">{t('import.chipSoon')}</Tag>{/if}
+          {/snippet}
+        </RadioGroup>
       </div>
       <div class="actions">
         <Button variant="ghost" type="button" onclick={() => onback(4)}>{t('onboarding.back')}</Button>
@@ -469,21 +468,21 @@
     <Card glass>
       <div class="instr-head">
         <span class="glyph" aria-hidden="true">{st.initials}</span>
-        <Heading level={2} class="step-title">{unnumbered(t('import.stepInstructions', { source: st.label }))}</Heading>
+        <Heading level={6} as="h2">{unnumbered(t('import.stepInstructions', { source: st.label }))}</Heading>
       </div>
-      <p class="hint">{t('import.instrHint', { source: st.label })}</p>
+      <div class="hint"><Text size="sm" tone="muted">{t('import.instrHint', { source: st.label })}</Text></div>
 
       {#if instrSteps.length}
         <ol class="steps">
-          {#each instrSteps as s, i (i)}<li>{s}</li>{/each}
+          {#each instrSteps as s, i (i)}<Text as="li" size="sm">{s}</Text>{/each}
         </ol>
       {/if}
 
       {#if spec.kind === 'text'}
         {#if spec.linkHref && spec.linkLabel}
-          <p class="instr-link bb-prose">
-            <a href={spec.linkHref} target="_blank" rel="noopener noreferrer">{t(spec.linkLabel)}</a>
-          </p>
+          <div class="instr-link">
+            <Text size="sm"><TextLink variant="inline" href={spec.linkHref} external>{t(spec.linkLabel)}</TextLink></Text>
+          </div>
         {/if}
         <div class="cred">
           {#if spec.secret}
@@ -499,9 +498,9 @@
               aria-label={t(spec.i18n.field)}
             />
           {:else}
-            <input
-              class="bb-input bb-input--fill cred-mono"
-              type="text"
+            <Input
+              fill
+              mono
               placeholder={spec.placeholder}
               bind:value={session.credential}
               maxlength={spec.maxLen}
@@ -512,52 +511,28 @@
             />
           {/if}
           {#if spec.i18n.hint}
-            <p class="hint">
-              {@html t(spec.i18n.hint)}
-            </p>
+            <div class="hint"><Text size="sm" tone="muted">{@html t(spec.i18n.hint)}</Text></div>
           {/if}
         </div>
       {:else if spec.kind === 'oauth'}
         <div class="cred">
           {#if sourceConnected}
-            <p class="nb-connected" role="status">
-              {t(spec.i18n.connected)}
-            </p>
+            <Tag tone="live" mark="solid" role="status">{t(spec.i18n.connected)}</Tag>
           {:else}
-            <ButtonLink href={`${spec.connectPath}?return=welcome`} variant="primary" class="cred-cta">
+            <ButtonLink href={`${spec.connectPath}?return=welcome`} variant="primary">
               {t(spec.i18n.cta)}
             </ButtonLink>
           {/if}
-          <p class="hint">{t(spec.i18n.scopeHint)}</p>
+          <div class="hint"><Text size="sm" tone="muted">{t(spec.i18n.scopeHint)}</Text></div>
         </div>
       {:else}
-        <span
-          class="drop"
-          class:over={dragKind === source}
-          class:has-file={!!uploadFile}
-        >
-          <input
-            type="file"
-            accept={spec.accept}
-            onchange={(e) => pickFile(e.currentTarget.files?.[0])}
-            ondragover={(e) => {
-              e.preventDefault();
-              dragKind = source;
-              hover = 'surprised';
-            }}
-            ondragleave={() => {
-              dragKind = '';
-              hover = null;
-            }}
-            ondrop={(e) => {
-              e.preventDefault();
-              dragKind = '';
-              hover = null;
-              pickFile(e.dataTransfer?.files?.[0]);
-            }}
-          />
-          {uploadFile ? uploadFile.name : t('import.dropHint')}
-        </span>
+        <FileDrop
+          label={t('import.dropHint')}
+          accept={spec.accept}
+          file={uploadFile}
+          onfile={pickFile}
+          ondragchange={(over) => (hover = over ? 'surprised' : null)}
+        />
       {/if}
 
       {#if previewError}<AlertBanner>{previewError}</AlertBanner>{/if}
@@ -581,9 +556,9 @@
     </Card>
   {:else if (step === 'commands' || step === 'extras' || step === 'review') && previewResult?.manifest}
     {#if step === 'review'}
-    <Card glass class="review-head">
-      <Heading level={2} class="step-title">{unnumbered(t('import.reviewTitle'))}</Heading>
-      <p class="hint">{reviewHint}</p>
+    <Card glass>
+      <div class="step-title"><Heading level={6} as="h2">{unnumbered(t('import.reviewTitle'))}</Heading></div>
+      <div class="hint"><Text size="sm" tone="muted">{reviewHint}</Text></div>
 
       <div class="review-bar">
         {#each session.statChips as c (c)}<Tag tone="quiet">{c}</Tag>{/each}
@@ -594,50 +569,49 @@
     </Card>
     {:else}
       <div class="category-head">
-        <span class="eyebrow">{step === 'commands' ? t('onboardingImport.commandsEyebrow') : t('onboardingImport.extrasEyebrow')}</span>
-        <Heading level={2} class="category-title">{step === 'commands' ? t('onboardingImport.commandsTitle') : t('onboardingImport.extrasTitle')}</Heading>
+        <Eyebrow>{step === 'commands' ? t('onboardingImport.commandsEyebrow') : t('onboardingImport.extrasEyebrow')}</Eyebrow>
+        <div class="category-title"><Heading level={2}>{step === 'commands' ? t('onboardingImport.commandsTitle') : t('onboardingImport.extrasTitle')}</Heading></div>
         <Text tone="muted">{step === 'commands' ? t('onboardingImport.commandsBody') : t('onboardingImport.extrasBody')}</Text>
       </div>
       {#if step === 'extras'}
-        <div class="module-note" role="note">
-          <strong>{t('onboardingImport.modulesTitle')}</strong>
-          <Text tone="muted" class="module-note-body">{t('onboardingImport.modulesBody')}</Text>
-        </div>
+        <AlertBanner variant="warn" role="note" callout><b>{t('onboardingImport.modulesTitle')}</b>{t('onboardingImport.modulesBody')}</AlertBanner>
       {/if}
     {/if}
 
       {#each session.manifestLevelDiags as d (d.code + d.message)}
-        <p class="manifest-warn" role="status">{d.message}</p>
+        <AlertBanner variant="warn" role="status">{d.message}</AlertBanner>
       {/each}
 
       {#if session.anyCollisions}
-        <div class="collision-note">
-          {@html t('import.conflictsNote', { n: previewResult.collisions?.length ?? 0 })}
-          <span class="overwrite-toggle">
-            <Checkbox bind:checked={session.overwrite} name="overwrite" value="on">{t('import.overwriteToggle')}</Checkbox>
-          </span>
-        </div>
+        <AlertBanner variant="danger" role="note" stack>
+          <span class="conflict-lines">{@html t('import.conflictsNote', { n: previewResult.collisions?.length ?? 0 })}</span>
+          {#snippet action()}
+            <span class="overwrite-toggle">
+              <Checkbox bind:checked={session.overwrite} name="overwrite" value="on">{t('import.overwriteToggle')}</Checkbox>
+            </span>
+          {/snippet}
+        </AlertBanner>
       {/if}
 
       {#if step === 'commands' && previewResult.manifest.commands?.length}
-        <Card glass class="group">
+        <Card glass flush>
           <div class="group-head">
-            <span class="group-title">{t('import.hCommands')}</span>
-            <span class="group-count">{previewResult.manifest.commands.length}</span>
+            <Eyebrow>{t('import.hCommands')}</Eyebrow>
+            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.commands.length}</Text>
           </div>
           <ul class="rows">
             {#each previewResult.manifest.commands as c, i (c.name)}
               {@const diags = session.diagsFor('commands', i)}
               <li class="row-item" class:collision={session.collidedCommands.has(normalizeName(c.name))}>
                 <span class="pick">
-                  <Checkbox bind:checked={() => session.isPicked('commands', i), (on) => session.toggle('commands', i, on)}><span class="row-name">!{c.name}</span></Checkbox>
+                  <Checkbox bind:checked={() => session.isPicked('commands', i), (on) => session.toggle('commands', i, on)}><Text as="span" size="sm" mono>!{c.name}</Text></Checkbox>
                 </span>
                 <div class="row-body">
-                  <span class="row-response">{c.responses?.join(' / ')}</span>
+                  <Text as="span" size="sm" tone="muted">{c.responses?.join(' / ')}</Text>
                   <span class="chips">
                     {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
                     {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
-                    {#each c.aliases ?? [] as a (a)}<Tag tone="bare" class="bb-tag--literal">!{a}</Tag>{/each}
+                    {#each c.aliases ?? [] as a (a)}<Tag bare literal>!{a}</Tag>{/each}
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
@@ -656,10 +630,10 @@
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.timers?.length}
-        <Card glass class="group">
+        <Card glass flush>
           <div class="group-head">
-            <span class="group-title">{t('import.hTimers')}</span>
-            <span class="group-count">{previewResult.manifest.timers.length}</span>
+            <Eyebrow>{t('import.hTimers')}</Eyebrow>
+            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.timers.length}</Text>
           </div>
           <ul class="rows">
             {#each previewResult.manifest.timers as tm, i (tm.message)}
@@ -669,7 +643,7 @@
                   <Checkbox bind:checked={() => session.isPicked('timers', i), (on) => session.toggle('timers', i, on)} aria-label={tm.message} />
                 </span>
                 <div class="row-body">
-                  <span class="row-response">{tm.message}</span>
+                  <Text as="span" size="sm" tone="muted">{tm.message}</Text>
                   <span class="chips">
                     <Tag tone="bare">{t('import.everySeconds', { n: tm.interval_seconds })}</Tag>
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
@@ -687,20 +661,20 @@
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.triggers?.length}
-        <Card glass class="group">
+        <Card glass flush>
           <div class="group-head">
-            <span class="group-title">{t('import.hTriggers')}</span>
-            <span class="group-count">{previewResult.manifest.triggers.length}</span>
+            <Eyebrow>{t('import.hTriggers')}</Eyebrow>
+            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.triggers.length}</Text>
           </div>
           <ul class="rows">
             {#each previewResult.manifest.triggers as tg, i (tg.phrase)}
               {@const diags = session.diagsFor('triggers', i)}
               <li class="row-item">
                 <span class="pick">
-                  <Checkbox bind:checked={() => session.isPicked('triggers', i), (on) => session.toggle('triggers', i, on)}><span class="row-name">{tg.phrase}</span></Checkbox>
+                  <Checkbox bind:checked={() => session.isPicked('triggers', i), (on) => session.toggle('triggers', i, on)}><Text as="span" size="sm" mono>{tg.phrase}</Text></Checkbox>
                 </span>
                 <div class="row-body">
-                  <span class="row-response">{tg.response}</span>
+                  <Text as="span" size="sm" tone="muted">{tg.response}</Text>
                   <span class="chips">
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
@@ -717,12 +691,12 @@
       {/if}
 
       {#if step === 'extras' && previewResult.manifest.quotes?.length}
-        <Card glass class="group">
+        <Card glass flush>
           <div class="group-head">
-            <span class="group-title">{t('import.hQuotes')}</span>
-            <span class="group-count">{previewResult.manifest.quotes.length}</span>
+            <Eyebrow>{t('import.hQuotes')}</Eyebrow>
+            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.quotes.length}</Text>
           </div>
-          <p class="hint">{t('import.quotesAll', { n: previewResult.manifest.quotes.length })}</p>
+          <div class="group-note"><Text size="sm" tone="muted">{t('import.quotesAll', { n: previewResult.manifest.quotes.length })}</Text></div>
         </Card>
       {/if}
 
@@ -736,7 +710,7 @@
           runCommit();
         }}
       >
-        <span class="commit-line">{session.selectionLine}</span>
+        <Label mono as="span">{session.selectionLine}</Label>
         <div class="actions-row">
           <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : reset())}
             >{submitting ? t('common.cancel') : t('import.startOver')}</Button
@@ -753,18 +727,20 @@
         </div>
       {/if}
   {:else if step === 'done'}
-    <Card glass class="done-panel">
+    <Card glass>
       <span class="done-seal" aria-hidden="true"><Icon name="check" size={22} /></span>
-      <Heading level={2} class="step-title">{unnumbered(t('import.doneTitle'))}</Heading>
+      <div class="step-title"><Heading level={6} as="h2">{unnumbered(t('import.doneTitle'))}</Heading></div>
       {#if commitResult}
-        <p class="hint">
-          {t('import.doneLine', {
-            c: commitResult.applied.commands,
-            tm: commitResult.applied.timers,
-            tg: commitResult.applied.triggers,
-            q: commitResult.applied.quotes
-          })}
-        </p>
+        <div class="hint">
+          <Text size="sm" tone="muted">
+            {t('import.doneLine', {
+              c: commitResult.applied.commands,
+              tm: commitResult.applied.timers,
+              tg: commitResult.applied.triggers,
+              q: commitResult.applied.quotes
+            })}
+          </Text>
+        </div>
         <ImportSkipped skipped={commitResult.skipped} {t} />
         <ImportFailed
           failed={commitResult.failed}
@@ -775,22 +751,17 @@
         />
         {#if commitError}<ImportAlert message={commitError} />{/if}
         {#if session.appliedTiles.length}
-          <div class="applied">
+          <div class="applied bb-stagger">
             {#each session.appliedTiles as a (a.label)}
-              <div class="applied-tile">
-                <span class="applied-n">{a.n}</span>
-                <span class="applied-label">{a.label}</span>
-              </div>
+              <div class="applied-tile"><StatTile inline static label={a.label} value={String(a.n)} /></div>
             {/each}
           </div>
         {/if}
         {#each commitResult.diagnostics ?? [] as d (d.code + d.message)}
-          <p class:manifest-warn={d.severity === 'warn'} class:form-error={d.severity === 'error'} role="status">
-            {d.message}
-          </p>
+          <AlertBanner variant={d.severity === 'error' ? 'danger' : 'warn'} role="status">{d.message}</AlertBanner>
         {/each}
       {:else}
-        <p class="hint">{t('import.nothingApplied')}</p>
+        <div class="hint"><Text size="sm" tone="muted">{t('import.nothingApplied')}</Text></div>
       {/if}
       <div class="actions actions-row done-actions">
         <Button variant="green" solid onclick={() => finishOnboarding('/')} loading={finishing}>{t('onboardingImport.dashboard')}</Button>
@@ -799,7 +770,7 @@
       </div>
       {#if finishError}<ImportAlert message={finishError} />{/if}
       {#if commitResult?.audit_id}
-        <p class="audit">{t('import.auditFoot', { n: commitResult.audit_id })}</p>
+        <div class="audit"><Text size="xs" mono tone="muted">{t('import.auditFoot', { n: commitResult.audit_id })}</Text></div>
       {/if}
     </Card>
   {/if}
@@ -830,12 +801,12 @@
     color: var(--bb-white);
     overflow-x: clip;
   }
-  .top { animation: settle 900ms var(--bb-ease-out-expo) backwards; }
-  :global(.welcome-import .screen) { animation: arrive-far 760ms var(--bb-ease-out-expo) backwards; }
+  .top { animation: settle calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) backwards; }
+  .welcome-import .screen { animation: arrive-far var(--bb-dur-slow) var(--bb-ease-out-expo) backwards; }
   .leaving .top,
-  .leaving :global(.screen) {
+  .leaving .screen {
     opacity: 0;
-    transition: opacity 400ms var(--bb-ease-out-expo);
+    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
   }
   .top {
     display: flex;
@@ -844,7 +815,7 @@
     gap: 24px;
     min-height: 96px;
   }
-  :global(.welcome-import .screen) {
+  .welcome-import .screen {
     width: min(1120px, 100%);
     margin: 24px auto 0;
   }
@@ -873,8 +844,8 @@
     height: var(--blob);
     display: grid;
     place-items: center;
-    filter: drop-shadow(0 14px 26px rgba(0, 0, 0, .38));
-    transition: transform 1000ms var(--bb-ease-out-expo);
+    filter: drop-shadow(0 14px 26px rgba(var(--bb-shadow-rgb), .38));
+    transition: transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo);
   }
   .companion-scale {
     display: grid;
@@ -903,10 +874,10 @@
     padding: 12px 16px;
     border: 1px solid var(--bb-border-strong);
     border-radius: var(--bb-radius-md);
-    background: rgba(17, 17, 16, .7);
+    background: rgba(var(--bb-card-bg-rgb), .7);
     backdrop-filter: blur(14px);
     overflow: hidden;
-    transition: transform 1000ms var(--bb-ease-out-expo);
+    transition: transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo);
   }
   .bubble-inner { grid-area: 1 / 1; display: grid; gap: 4px; align-content: center; }
   .bubble-stage {
@@ -924,42 +895,24 @@
   }
   .companion.flip .companion-blob { transform: translateX(calc(var(--bubble) + 14px)); }
   .companion.flip .bubble { transform: translateX(calc(-1 * (var(--blob) + 14px))); }
-  .category-head :global(.category-title) {
-    margin-bottom: 12px;
-    font-weight: 700;
-    font-size: clamp(25px, 3vw, 36px);
-    letter-spacing: -.04em;
-    line-height: 1.08;
-  }
   .category-head {
     padding: 26px 30px;
     border: 1px solid var(--bb-border-strong);
     border-radius: var(--bb-radius-lg);
-    background: rgba(17, 17, 16, .76);
+    background: rgba(var(--bb-card-bg-rgb), .76);
     backdrop-filter: blur(18px);
   }
-  .module-note {
-    padding: 18px 22px;
-    border: 1px solid rgba(201, 168, 124, .38);
-    border-radius: var(--bb-radius-md);
-    background: rgba(201, 168, 124, .07);
-  }
-  .module-note strong { color: var(--bb-tan-pale); }
-  .module-note :global(.module-note-body) { margin-top: 6px; line-height: 1.55; }
+  .category-title { margin-bottom: 12px; }
   .category-actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
     padding-top: 8px;
   }
-  :global(:root[data-theme="light"]) .bubble,
-  :global(:root[data-theme="light"]) .category-head {
-    background: rgba(255, 255, 255, .72);
-  }
 
   @media (max-width: 760px) {
     .top { flex-wrap: wrap; padding: 18px 0; }
-    :global(.welcome-import .screen) { margin-top: 24px; }
+    .welcome-import .screen { margin-top: 24px; }
   }
   @media (max-width: 1000px) {
     .intro {
@@ -978,12 +931,8 @@
     .companion.flip .bubble { transform: none; }
   }
 
-  :global(.step-title) { margin-bottom: 6px; font-size: 16px; }
-  .hint {
-    color: var(--bb-muted, #888077);
-    font-size: 13px;
-    margin: 0 0 12px;
-  }
+  .step-title { margin-bottom: 6px; }
+  .hint { margin: 0 0 12px; }
 
   .wizard {
     display: grid;
@@ -1001,81 +950,26 @@
     flex-direction: column;
     gap: 20px;
   }
+  .tiles,
+  .applied {
+    --stagger-duration: 640ms;
+    --stagger-step: 70ms;
+    --stagger-max: 1s;
+    --bb-reveal-side: 1;
+    --bb-reveal-shift: 22px;
+  }
   .tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 12px;
+    --stagger-delay: 320ms;
+    --choice-min-h: 176px;
     margin: 16px 0 4px;
-  }
-  .tile {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-height: 176px;
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-md);
-    padding: 18px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(0, 0, 0, 0.18));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    cursor: pointer;
-    transition:
-      border-color 200ms ease,
-      background 200ms ease,
-      box-shadow 200ms ease;
-    animation: tile-in 640ms var(--bb-ease-out-expo) calc(320ms + var(--ti, 0) * 70ms) both;
-  }
-  .tile:not(.disabled):hover {
-    border-color: rgba(201, 168, 124, 0.45);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 14px 30px rgba(0, 0, 0, 0.28);
-  }
-  .tile:not(.disabled):hover .glyph { transform: translateX(3px); }
-  .tile-cta { transition: transform 420ms var(--bb-ease-out-expo); }
-  .tile:not(.disabled):hover .tile-cta { transform: translateX(4px); }
-  .tile.picked {
-    border-color: rgba(201, 168, 124, 0.65);
-    background: linear-gradient(180deg, rgba(201, 168, 124, 0.08), rgba(0, 0, 0, 0.18));
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 0 0 1px rgba(201, 168, 124, 0.35),
-      0 10px 26px rgba(0, 0, 0, 0.22);
-  }
-  .tile.disabled {
-    cursor: default;
-    opacity: 0.55;
-  }
-  .tile input[type='radio'] {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-  .tile:has(input[type='radio']:focus-visible) {
-    outline: 2px solid var(--bb-green-glow, #52b788);
-    outline-offset: 2px;
-  }
-  .tile-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 4px;
-  }
-  .tile-foot {
-    display: flex;
-    align-items: center;
-    margin-top: auto;
-    padding-top: 12px;
-    border-top: 1px solid var(--glass-border);
   }
   .glyph {
     flex: none;
     width: 34px;
     height: 34px;
     border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--bb-glass-border);
+    background: rgba(var(--bb-white-pure-rgb), 0.04);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1085,26 +979,12 @@
     letter-spacing: 0.02em;
     color: var(--bb-tan-light);
     transition:
-      border-color 200ms ease,
-      color 200ms ease,
-      transform 420ms var(--bb-ease-out-expo);
+      border-color var(--bb-dur-fast) ease,
+      color var(--bb-dur-fast) ease;
   }
-  .tile.picked .glyph {
-    border-color: rgba(201, 168, 124, 0.55);
+  .glyph.picked {
+    border-color: rgba(var(--bb-tan-rgb), 0.55);
     color: var(--bb-tan);
-  }
-  .tile-name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 15px;
-    line-height: 1.25;
-    color: var(--bb-white);
-    overflow-wrap: break-word;
-  }
-  .tile-desc {
-    color: var(--bb-muted);
-    font-size: 13px;
-    line-height: 1.5;
   }
 
   .steps {
@@ -1113,84 +993,18 @@
     display: flex;
     flex-direction: column;
     gap: 9px;
-  }
-  .steps li {
-    font-size: 13.5px;
-    line-height: 1.55;
-    color: var(--bb-white);
     overflow-wrap: anywhere;
   }
-  .instr-link {
-    margin: 0 0 14px;
-    font-size: 13.5px;
-  }
-  .instr-link a { text-decoration: underline; text-underline-offset: 2px; }
+  .instr-link { margin: 0 0 14px; }
   .cred {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 8px;
     margin-bottom: 6px;
   }
-  :global(.cred-cta) {
-    align-self: flex-start;
-  }
-  .nb-connected {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0;
-    color: var(--bb-green, #7dc98f);
-    font-size: 13px;
-  }
-  .cred-mono { font-family: var(--bb-font-mono); }
-  .drop {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 64px;
-    padding: 10px 34px;
-    border: 1px dashed var(--glass-border);
-    border-radius: var(--bb-radius-md);
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--bb-muted);
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    letter-spacing: 0.04em;
-    text-align: center;
-    overflow-wrap: anywhere;
-    transition:
-      border-color 160ms ease,
-      background 160ms ease,
-      color 160ms ease;
-  }
-  .drop:hover {
-    border-color: var(--bb-tan);
-    color: var(--bb-tan-pale);
-  }
-  .drop.over {
-    border-color: var(--bb-tan);
-    background: rgba(201, 168, 124, 0.08);
-    color: var(--bb-white);
-  }
-  .drop.has-file {
-    color: var(--bb-white);
-  }
-  .drop input[type='file'] {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-  }
-  .drop:focus-within {
-    outline: 2px solid var(--bb-green-glow, #52b788);
-    outline-offset: 2px;
-  }
 
   .done-actions { flex-wrap: wrap; min-height: 44px; }
-  .scene :global(h2:focus) { outline: none; }
   .actions {
     margin-top: 20px;
   }
@@ -1198,16 +1012,6 @@
     display: flex;
     gap: 10px;
     justify-content: flex-end;
-  }
-  .form-error {
-    color: #e5484d;
-    font-size: 13px;
-    margin: 10px 0 0;
-  }
-  .manifest-warn {
-    color: var(--bb-tan-light);
-    font-size: 13px;
-    margin: 8px 0 0;
   }
 
   .rows {
@@ -1222,13 +1026,13 @@
     display: flex;
     align-items: baseline;
     gap: 14px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--bb-glass-border);
     border-radius: var(--bb-radius-sm);
-    padding: 12px 14px;
-    background: var(--glass-fill);
+    padding: 16px 22px;
+    background: var(--bb-glass-fill);
   }
   .row-item.collision {
-    border-color: rgba(229, 72, 77, 0.55);
+    border-color: rgba(var(--bb-status-error-border-rgb), 0.55);
   }
   .pick {
     display: inline-flex;
@@ -1237,21 +1041,11 @@
     white-space: nowrap;
     --bb-check-align: center;
   }
-  .row-name {
-    font-family: var(--bb-font-mono);
-    font-size: 13px;
-    color: var(--bb-white);
-  }
   .row-body {
     display: flex;
     flex-direction: column;
     gap: 6px;
     min-width: 0;
-  }
-  .row-response {
-    color: var(--bb-muted);
-    font-size: 13px;
-    line-height: 1.5;
     overflow-wrap: anywhere;
   }
   .chips {
@@ -1261,45 +1055,13 @@
     align-items: center;
   }
 
-  .collision-note {
-    border: 1px solid rgba(229, 72, 77, 0.35);
-    background: rgba(229, 72, 77, 0.06);
-    border-radius: var(--bb-radius-md);
-    padding: 12px 14px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--bb-white);
-    margin: 0 0 14px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-  }
+  .conflict-lines { display: grid; gap: 10px; }
   .overwrite-toggle {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    margin-left: auto;
     --bb-check-align: center;
-    font-size: 13px;
     white-space: nowrap;
-  }
-
-  @media (max-width: 560px) {
-    .collision-note {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    .overwrite-toggle {
-      margin-left: 0;
-    }
-  }
-  .tile-cta {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow, #52b788);
   }
 
   .instr-head {
@@ -1307,9 +1069,6 @@
     align-items: center;
     gap: 12px;
     margin-bottom: 14px;
-  }
-  .instr-head :global(.step-title) {
-    margin-bottom: 0;
   }
 
   .review-bar {
@@ -1322,10 +1081,6 @@
     flex: 1;
   }
 
-  :global(.group) {
-    padding: 0;
-    overflow: hidden;
-  }
   .group-head {
     display: flex;
     align-items: center;
@@ -1333,26 +1088,7 @@
     padding: 16px 22px;
     border-bottom: 1px solid var(--bb-border);
   }
-  .group-title {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bb-tan, #c9a87c);
-  }
-  .group-count {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: #5f5a53;
-  }
-  :global(.group) .rows {
-    margin: 0;
-  }
-  :global(.group) .hint {
-    margin: 0;
-    padding: 16px 22px;
-  }
-  :global(.group) .row-item {
+  .group-note {
     padding: 16px 22px;
   }
 
@@ -1366,17 +1102,10 @@
     justify-content: space-between;
     border: 1px solid var(--bb-border-strong);
     border-radius: var(--bb-radius-pill);
-    background: rgba(17, 17, 16, 0.92);
+    background: rgba(var(--bb-card-bg-rgb), 0.92);
     backdrop-filter: blur(18px);
     padding: 14px 16px 14px 24px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
-  }
-  .commit-line {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
+    box-shadow: 0 8px 30px rgba(var(--bb-shadow-rgb), 0.35);
   }
 
   .done-seal {
@@ -1390,48 +1119,22 @@
     background: rgba(var(--bb-green-glow-rgb), .14);
     color: var(--bb-green-glow);
     box-shadow: 0 0 0 6px rgba(var(--bb-green-glow-rgb), .06);
-    animation: seal-in 700ms var(--bb-ease-out-expo) 360ms both;
+    animation: seal-in var(--bb-dur-slow) var(--bb-ease-out-expo) 360ms both;
   }
-  .applied-tile { animation: tile-in 640ms var(--bb-ease-out-expo) 520ms both; }
-  .applied-tile:nth-child(2) { animation-delay: 590ms; }
-  .applied-tile:nth-child(3) { animation-delay: 660ms; }
-  .applied-tile:nth-child(4) { animation-delay: 730ms; }
-  .applied-tile:nth-child(5) { animation-delay: 800ms; }
   .applied {
+    --stagger-delay: 520ms;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
     gap: 12px;
     margin: 22px 0 26px;
   }
   .applied-tile {
+    padding: 16px 18px;
     border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-md);
-    padding: 16px 18px;
-    background: var(--glass-fill);
+    background: var(--bb-glass-fill);
   }
-  .applied-n {
-    display: block;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 26px;
-    color: var(--bb-white);
-  }
-  .applied-label {
-    display: block;
-    margin-top: 6px;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .audit {
-    margin: 24px 0 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    color: #5f5a53;
-  }
+  .audit { margin-top: 24px; }
 
   @media (max-width: 560px) {
     .commit-bar {
@@ -1446,10 +1149,6 @@
   }
   @keyframes arrive-far {
     from { opacity: 0; transform: translateX(8vw); }
-    to { opacity: 1; transform: none; }
-  }
-  @keyframes tile-in {
-    from { opacity: 0; transform: translateX(22px); }
     to { opacity: 1; transform: none; }
   }
   @keyframes seal-in {
@@ -1468,15 +1167,12 @@
 
   @media (prefers-reduced-motion: reduce) {
     .top,
-    :global(.welcome-import .screen),
+    .welcome-import .screen,
     .companion-scale,
     .companion-plate,
-    .tile,
-    .done-seal,
-    .applied-tile { animation: none; }
+    .done-seal { animation: none; }
     .companion-blob,
     .bubble,
-    .glyph,
-    .tile-cta { transition: none; }
+    .glyph { transition: none; }
   }
 </style>

@@ -1,0 +1,147 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Text from '@bagel/ui/astro/Text.astro';
+
+export interface ChatLine {
+    who: 'viewer' | 'mod' | 'bot' | 'system';
+    name?: string;
+    text: string;
+    time?: string;
+    hook?: string;
+}
+
+interface Props {
+    title: string;
+    label: string;
+    lines: ChatLine[];
+    class?: string;
+}
+
+const { title, label, lines, class: className } = Astro.props;
+---
+
+<div class:list={['cwin', className]} role="img" aria-label={label}>
+    <div class="cwin__bar">
+        <i class="cwin__dot"></i>
+        <Text as="span" size="xs" mono>{title}</Text>
+        <b class="cwin__kind">chat</b>
+    </div>
+    <div class="cwin__feed">
+        {lines.map((line) => (
+            line.who === 'system' ? (
+                <p class="cwin__sys">{line.text}</p>
+            ) : (
+                <p class="cwin__msg">
+                    {line.time && <time>{line.time}</time>}
+                    <b class:list={['cwin__name', `cwin__name--${line.who}`]}>
+                        {line.who === 'mod' && <i class="cwin__badge" aria-hidden="true">⚔</i>}
+                        {line.who === 'bot' ? 'ItsBagelBot' : (line.name ?? 'viewer')}
+                    </b>
+                    <span class="cwin__text" data-chat-hook={line.hook}>{line.text}</span>
+                </p>
+            )
+        ))}
+    </div>
+</div>
+
+<style>
+    .cwin {
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-md);
+        background: var(--bb-inset-bg);
+        overflow: hidden;
+        box-shadow: 0 18px 40px rgba(var(--bb-shadow-rgb), 0.35);
+    }
+
+    .cwin__bar {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 10px 14px;
+        border-bottom: 1px solid rgba(var(--bb-tan-rgb), 0.1);
+        background: rgba(var(--bb-card-bg-rgb), 0.9);
+    }
+
+    .cwin__dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #e06262;
+        box-shadow: 0 0 8px rgba(224, 98, 98, 0.6);
+    }
+
+    .cwin__kind {
+        margin-left: auto;
+        font-family: var(--bb-font-mono);
+        font-weight: 400;
+        font-size: 0.6rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--bb-muted);
+    }
+
+    .cwin__feed {
+        display: grid;
+        gap: 10px;
+        padding: 16px;
+    }
+
+    .cwin__msg {
+        display: grid;
+        grid-template-columns: auto auto 1fr;
+        gap: 8px;
+        align-items: baseline;
+        font-size: 0.92rem;
+        line-height: 1.55;
+        margin: 0;
+    }
+
+    .cwin__msg:not(:has(time)) { grid-template-columns: auto 1fr; }
+
+    .cwin__msg time {
+        font-family: var(--bb-font-mono);
+        font-size: 0.58rem;
+        color: var(--bb-muted);
+    }
+
+    .cwin__name {
+        font-family: var(--bb-font-body);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .cwin__name::after { content: ":"; color: var(--bb-muted); font-weight: 400; }
+
+    .cwin__name--viewer { color: #bd8ff2; }
+    .cwin__name--mod { color: #7fb8e8; }
+    .cwin__name--bot { color: var(--bb-green-glow); }
+
+    .cwin__badge {
+        margin-right: 4px;
+        font-style: normal;
+        color: #7fb8e8;
+    }
+
+    .cwin__text {
+        color: rgba(var(--bb-white-rgb), 0.85);
+        overflow-wrap: anywhere;
+        transition: transform var(--bb-dur-fast) var(--bb-ease-out-expo), opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
+    }
+
+    .cwin__text.is-swapping { transform: translateX(12px); opacity: 0; }
+
+    .cwin__sys {
+        font-family: var(--bb-font-mono);
+        font-size: var(--bb-text-xs);
+        color: var(--bb-muted);
+        border-left: 2px solid rgba(var(--bb-green-glow-rgb), 0.4);
+        padding-left: 10px;
+        margin: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .cwin__text { transition: none; }
+    }
+</style>

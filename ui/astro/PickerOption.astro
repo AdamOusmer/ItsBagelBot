@@ -1,0 +1,37 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/elements/picker-panel.css';
+import Icon from './Icon.astro';
+
+interface Props {
+    label?: string;
+    description?: string;
+    layout?: 'inline' | 'stacked';
+    selected?: boolean;
+    disabled?: boolean;
+    remove?: { label: string; armed?: boolean; armedLabel?: string };
+    as?: 'div' | 'li';
+    class?: string;
+    [key: string]: unknown;
+}
+
+const {
+    label,
+    description,
+    layout = 'inline',
+    selected = false,
+    disabled = false,
+    remove,
+    as: Tag = 'div',
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = ['bb-picker-option', layout === 'stacked' ? 'bb-picker-option--stacked' : null, className]
+    .filter(Boolean)
+    .join(' ');
+const hasBody = Astro.slots.has('default');
+---
+
+<Tag class={classes}><button type="button" class="bb-picker-option__main" aria-current={selected ? 'true' : undefined} disabled={disabled} {...rest}>{hasBody ? <slot /> : <span class="bb-picker-option__label">{label}</span>}{description && <span class="bb-picker-option__desc">{description}</span>}<slot name="trail" /></button>{remove && (<button type="button" class="bb-picker-option__remove" aria-label={remove.label} data-armed={remove.armed ? '' : undefined}>{remove.armed ? remove.armedLabel : <Icon name="x" size={12} />}</button>)}</Tag>

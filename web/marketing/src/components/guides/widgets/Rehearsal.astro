@@ -2,6 +2,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Badge from '@bagel/ui/astro/Badge.astro';
+import Card from '@bagel/ui/astro/Card.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Input from '@bagel/ui/astro/Input.astro';
+import Label from '@bagel/ui/astro/Label.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
+import Textarea from '@bagel/ui/astro/Textarea.astro';
+
 interface Props {
     labels?: Record<string, string>;
 }
@@ -26,127 +35,67 @@ const L = {
 };
 ---
 
-<div class="rh" data-rehearsal data-pill-label={L.pillLabel} data-counter-sample="128">
-    <div class="rh__head"><b>{L.heading}</b></div>
-    <div class="rh__grid">
-        <label class="rh__field rh__field--wide">
-            <span>{L.responseLabel}</span>
-            <textarea class="rh__control" data-rh-response rows="2" maxlength="500">{L.responseDefault}</textarea>
-        </label>
-        <label class="rh__field">
-            <span>{L.whoLabel}</span>
-            <input class="rh__control" type="text" data-rh-who value={L.whoDefault} maxlength="25" />
-        </label>
-        <label class="rh__field">
-            <span>{L.argsLabel}</span>
-            <input class="rh__control" type="text" data-rh-args value={L.argsDefault} maxlength="80" />
-        </label>
+<Card flush class="rh-card">
+    <div class="rh" data-rehearsal data-counter-sample="128">
+        <Heading level={6} as="div">{L.heading}</Heading>
+        <div class="rh__grid">
+            <label class="rh__field rh__field--wide">
+                <Label mono as="span">{L.responseLabel}</Label>
+                <Textarea fill rows={2} maxlength="500" data-rh-response value={L.responseDefault} />
+            </label>
+            <label class="rh__field">
+                <Label mono as="span">{L.whoLabel}</Label>
+                <Input fill data-rh-who value={L.whoDefault} maxlength="25" />
+            </label>
+            <label class="rh__field">
+                <Label mono as="span">{L.argsLabel}</Label>
+                <Input fill data-rh-args value={L.argsDefault} maxlength="80" />
+            </label>
+        </div>
+        <div class="rh__out">
+            <Label mono as="span">{L.outputLabel}</Label>
+            <p class="rh__line" data-rh-output aria-live="polite">
+                <b class="rh__bot">{L.botName}</b>
+                <span data-rh-content>{L.outputDefault}</span>
+            </p>
+        </div>
+        <Text size="xs" tone="muted">{L.builderNote}{' '}<TextLink variant="inline" href={L.builderHref}>{L.builderLinkText}</TextLink></Text>
+        <template data-rh-pill><Badge shape="pill" tone="paid">{L.pillLabel}</Badge></template>
     </div>
-    <div class="rh__out">
-        <span class="rh__out-tag">{L.outputLabel}</span>
-        <p class="rh__line" data-rh-output aria-live="polite">
-            <b class="rh__bot">{L.botName}</b>
-            <span data-rh-content>{L.outputDefault}</span>
-        </p>
-    </div>
-    <p class="rh__note bb-prose">{L.builderNote} <a href={L.builderHref}>{L.builderLinkText}</a></p>
-</div>
+</Card>
 
 <style>
+    .rh-card { margin: 22px 0; }
+
     .rh {
         display: grid;
         gap: 14px;
-        margin: 22px 0;
         padding: 16px 18px;
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-lg);
-        background: rgba(17, 17, 16, 0.6);
-    }
-
-    .rh__head b {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 0.95rem;
-        color: var(--white, #f0ece4);
     }
 
     .rh__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .rh__field { display: grid; gap: 5px; min-width: 0; }
     .rh__field--wide { grid-column: 1 / -1; }
-
-    .rh__field {
-        display: grid;
-        gap: 5px;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.68rem;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: var(--muted, #888077);
-    }
-
-    .rh__control {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.85rem;
-        text-transform: none;
-        letter-spacing: normal;
-        color: var(--white, #f0ece4);
-        background: rgba(240, 236, 228, 0.04);
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-sm);
-        padding: 8px 10px;
-        resize: vertical;
-    }
-
-    .rh__control:focus {
-        outline: 2px solid var(--green-glow, #52b788);
-        outline-offset: 1px;
-    }
 
     .rh__out {
         display: grid;
         gap: 8px;
         padding-top: 4px;
-        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-    }
-
-    .rh__out-tag {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.62rem;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--muted, #888077);
+        border-top: 1px solid var(--bb-border);
     }
 
     .rh__line {
         margin: 0;
-        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-family: var(--bb-font-body);
         font-size: 0.92rem;
         line-height: 1.6;
-        color: rgba(240, 236, 228, 0.9);
-        transition: opacity 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)),
-            transform 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+        color: rgba(var(--bb-white-rgb), 0.9);
+        transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo),
+            transform var(--bb-dur-fast) var(--bb-ease-out-expo);
     }
 
     .rh__line.is-updating { opacity: 0; transform: translateX(12px); }
-    .rh__bot { color: var(--green-glow, #52b788); margin-right: 6px; }
-
-.rh :global(.rh__pill) {
-        display: inline-block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-style: normal;
-        font-size: 0.68rem;
-        color: var(--tan-light, #e0c49a);
-        background: var(--glow-tan, rgba(201, 168, 124, 0.18));
-        border: 1px solid rgba(201, 168, 124, 0.28);
-        border-radius: var(--radius-pill);
-        padding: 1px 9px;
-        white-space: nowrap;
-    }
-
-    .rh__note {
-        margin: 0;
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.78rem;
-        color: var(--muted, #888077);
-    }
+    .rh__bot { color: var(--bb-green-glow); margin-right: 6px; }
 
     @media (prefers-reduced-motion: reduce) {
         .rh__line { transition: none; }
@@ -210,36 +159,34 @@ const L = {
         return segments;
     }
 
+    function pillFrom(template: HTMLTemplateElement | null): () => Node {
+        const pill = template?.content.firstElementChild;
+        return () => pill?.cloneNode(true) ?? document.createTextNode('');
+    }
+
     function setupRehearsal(root: HTMLElement) {
-        const pillLabel = root.dataset.pillLabel ?? 'fetched at send time';
         const counterSample = root.dataset.counterSample ?? '128';
         const response = root.querySelector<HTMLTextAreaElement>('[data-rh-response]');
         const who = root.querySelector<HTMLInputElement>('[data-rh-who]');
         const args = root.querySelector<HTMLInputElement>('[data-rh-args]');
         const line = root.querySelector<HTMLElement>('[data-rh-output]');
         const content = root.querySelector<HTMLElement>('[data-rh-content]');
-        if (!response || !who || !args || !line || !content) return;
+        const fields = [response, who, args];
+        if (fields.some((field) => !field) || !line || !content) return;
 
+        const makePill = pillFrom(root.querySelector<HTMLTemplateElement>('[data-rh-pill]'));
         const reduceMotion = prefersReducedMotion();
 
         function render(animate: boolean) {
             const segments = expand(response!.value, who!.value, args!.value, counterSample);
-            content!.replaceChildren(
-                ...segments.map((seg) => {
-                    if (!seg.pill) return document.createTextNode(seg.text);
-                    const el = document.createElement('i');
-                    el.className = 'rh__pill';
-                    el.textContent = pillLabel;
-                    return el;
-                }),
-            );
+            content!.replaceChildren(...segments.map((seg) => (seg.pill ? makePill() : document.createTextNode(seg.text))));
             if (animate && !reduceMotion) {
                 line!.classList.add('is-updating');
                 requestAnimationFrame(() => line!.classList.remove('is-updating'));
             }
         }
 
-        [response, who, args].forEach((el) => el.addEventListener('input', () => render(true)));
+        fields.forEach((field) => field!.addEventListener('input', () => render(true)));
         render(false);
     }
 

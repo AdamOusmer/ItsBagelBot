@@ -475,6 +475,8 @@ for (const parityCase of CASES) {
 
 import SvelteAlertBanner from '../svelte/AlertBanner.svelte';
 import AstroAlertBanner from '../astro/AlertBanner.astro';
+import SvelteMark from '../svelte/Mark.svelte';
+import AstroMark from '../astro/Mark.astro';
 import SvelteDeckList from '../svelte/DeckList.svelte';
 import AstroDeckList from '../astro/DeckList.astro';
 import SvelteOverviewGrid from '../svelte/OverviewGrid.svelte';
@@ -524,6 +526,20 @@ const REMAINING: {
     html: '<div class="bb-alert bb-alert--impersonation" role="status"><span class="bb-alert__msg"></span></div>',
   },
   {
+    name: 'AlertBanner: stack',
+    svelte: SvelteAlertBanner,
+    astro: AstroAlertBanner,
+    props: { variant: 'warn', role: 'note', flush: true, stack: true },
+    html: '<div class="bb-alert bb-alert--warn bb-alert--flush bb-alert--stack" role="note"><span class="bb-alert__msg"></span></div>',
+  },
+  {
+    name: 'Mark: dash',
+    svelte: SvelteMark,
+    astro: AstroMark,
+    props: { variant: 'dash' },
+    html: '<i class="bb-mark bb-mark--dash" aria-hidden="true"></i>',
+  },
+  {
     name: 'DeckList: default',
     svelte: SvelteDeckList,
     astro: AstroDeckList,
@@ -536,6 +552,13 @@ const REMAINING: {
     astro: AstroDeckList,
     props: { as: 'section', class: 'timers' },
     html: '<section class="bb-card bb-deck-list timers"></section>',
+  },
+  {
+    name: 'DeckList: as ul',
+    svelte: SvelteDeckList,
+    astro: AstroDeckList,
+    props: { as: 'ul' },
+    html: '<ul class="bb-card bb-deck-list"></ul>',
   },
   {
     name: 'OverviewGrid: default',
@@ -562,6 +585,16 @@ const REMAINING: {
     html:
       '<div class="bb-row row-shell bb-row--accent is-selected is-off">' +
       '<button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded="true" aria-controls="insp" aria-current="true"></button>' +
+      '</div>',
+  },
+  {
+    name: 'ManagementRow: wrap and stacked actions',
+    svelte: SvelteManagementRow,
+    astro: AstroManagementRow,
+    props: { wrap: true, stackActions: true },
+    html:
+      '<div class="bb-row row-shell bb-row--wrap bb-row--stack-actions">' +
+      '<button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded="false"></button>' +
       '</div>',
   },
   {
@@ -1057,6 +1090,14 @@ const PRIMITIVES: {
     html: "<div class=\"bb-grid bb-grid--3 bb-grid--gap-4\">x</div>",
   },
   {
+    name: "Grid|stack md",
+    svelte: SvelteGrid,
+    astro: AstroGrid,
+    props: {"cols":2,"gap":3,"stackAt":"md"},
+    slot: "x",
+    html: "<div class=\"bb-grid bb-grid--2 bb-grid--gap-3 bb-grid--stack-md\">x</div>",
+  },
+  {
     name: "Divider",
     svelte: SvelteDivider,
     astro: AstroDivider,
@@ -1173,7 +1214,7 @@ const PRIMITIVES: {
     svelte: SvelteSegmentedControl,
     astro: AstroSegmentedControl,
     props: {"options":["All","Live"],"value":"Live"},
-    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\">All</button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\">Live</button></div>",
+    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\" value=\"All\">All</button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\" value=\"Live\">Live</button></div>",
   },
   {
     name: "RadioGroup",

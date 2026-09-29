@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import type { Snippet } from 'svelte';
-  import { Select, getI18n } from '@bagel/kit';
+  import { Input, Select, Text, getI18n } from '@bagel/kit';
 
   type Unit = 'seconds' | 'minutes' | 'hours';
   const UNIT_SECONDS: Record<Unit, number> = { seconds: 1, minutes: 60, hours: 3600 };
@@ -65,39 +65,41 @@
 
 <div class="duration">
   <div class="duration-row">
-    <input
-      id={id ?? uid}
-      {name}
-      class="bb-input num"
-      type="number"
-      inputmode="numeric"
-      min={min / UNIT_SECONDS[unit]}
-      max={max / UNIT_SECONDS[unit]}
-      step="1"
-      {disabled}
-      aria-label={label}
-      aria-invalid={invalid ? 'true' : undefined}
-      aria-describedby={describedby}
-      data-invalid={invalid ? '' : undefined}
-      bind:value={amount}
-      oninput={commit}
-      {onblur}
-    />
-    <Select
-      bind:value={unit}
-      options={unitOptions}
-      {disabled}
-      class="duration-unit"
-      aria-label={t('common.unit.label')}
-      onchange={onUnit}
-    />
+    <span class="num">
+      <Input
+        id={id ?? uid}
+        {name}
+        type="number"
+        inputmode="numeric"
+        min={min / UNIT_SECONDS[unit]}
+        max={max / UNIT_SECONDS[unit]}
+        step="1"
+        {disabled}
+        {invalid}
+        aria-label={label}
+        aria-invalid={invalid ? 'true' : undefined}
+        aria-describedby={describedby}
+        bind:value={amount}
+        oninput={commit}
+        {onblur}
+      />
+    </span>
+    <span class="unit">
+      <Select
+        bind:value={unit}
+        options={unitOptions}
+        {disabled}
+        aria-label={t('common.unit.label')}
+        onchange={onUnit}
+      />
+    </span>
   </div>
-  {#if hint}<small class="help">{@render hint()}</small>{/if}
+  {#if hint}<span class="help"><Text as="small" size="xs" tone="muted">{@render hint()}</Text></span>{/if}
 </div>
 
 <style>
   .duration-row { display: flex; align-items: center; gap: 10px; }
-  .duration-row .num { width: 100px; flex: none; }
-  .duration-row :global(.duration-unit) { flex: none; min-width: 130px; }
-  .help { color: var(--bb-muted); opacity: 0.7; font-size: 11px; display: block; margin-top: 2px; }
+  .num { display: block; width: 100px; flex: none; }
+  .unit { flex: 1; min-width: 130px; }
+  .help { display: block; margin-top: 2px; opacity: 0.7; }
 </style>

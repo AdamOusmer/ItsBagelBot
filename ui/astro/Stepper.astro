@@ -1,0 +1,61 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/elements/stepper.css';
+import Icon from './Icon.astro';
+
+interface Props {
+    steps: readonly { label: string; detail?: string }[];
+    current: number;
+    label: string;
+    orientation?: 'horizontal' | 'vertical';
+    compact?: boolean;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { steps, current, label, orientation = 'horizontal', compact = false, class: className = '', ...rest } = Astro.props;
+
+const vertical = orientation === 'vertical';
+const classes = ['bb-stepper', vertical ? 'bb-stepper--vertical' : null, compact ? 'bb-stepper--compact' : null, className || null].filter(Boolean).join(' ');
+const style = `--stepper-i: ${Math.max(current, 0)}; --stepper-n: ${Math.max(steps.length, 1)};`;
+
+function itemClass(index: number): string {
+    if (index === current) return 'bb-stepper__item bb-stepper__item--current';
+    return index < current ? 'bb-stepper__item bb-stepper__item--done' : 'bb-stepper__item';
+}
+
+const ordinal = (index: number) => String(index + 1).padStart(2, '0');
+const currentOf = (index: number) => (index === current ? 'step' : undefined);
+---
+
+{vertical ? (
+    <ol class={classes} aria-label={label} {...rest}>
+        {steps.map((step, i) => (
+            <li class={itemClass(i)} aria-current={currentOf(i)}>
+                <span class="bb-stepper__gutter" aria-hidden="true">
+                    <span class="bb-stepper__dot">{i < current ? <Icon name="check" size={11} /> : i + 1}</span>
+                    {i < steps.length - 1 && <span class="bb-stepper__bar"></span>}
+                </span>
+                <span class="bb-stepper__text">
+                    <span class="bb-stepper__title">{step.label}</span>
+                    {step.detail && <span class="bb-stepper__detail">{step.detail}</span>}
+                </span>
+            </li>
+        ))}
+    </ol>
+) : (
+    <nav class={classes} aria-label={label} style={style} {...rest}>
+        <span class={current < 0 ? 'bb-stepper__track bb-stepper__track--idle' : 'bb-stepper__track'} aria-hidden="true"><span class="bb-stepper__trail"></span></span>
+        <ol class="bb-stepper__list">
+            {steps.map((step, i) => (
+                <li class={itemClass(i)}>
+                    <span class="bb-stepper__step" role="img" aria-label={step.label} aria-current={currentOf(i)}><span class="bb-stepper__num">{ordinal(i)}</span><span class="bb-stepper__pip" aria-hidden="true"></span></span>
+                </li>
+            ))}
+        </ol>
+        <span class={current < 0 ? 'bb-stepper__glide bb-stepper__glide--hidden' : 'bb-stepper__glide'} aria-hidden="true"></span>
+        {compact && <span class="bb-stepper__compact" aria-hidden="true">{steps[current]?.label ?? ''}</span>}
+    </nav>
+)}

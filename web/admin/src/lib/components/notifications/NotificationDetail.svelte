@@ -3,6 +3,11 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import FactList from '@bagel/ui/svelte/FactList.svelte';
+  import Fact from '@bagel/ui/svelte/Fact.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { NotificationWire } from '$lib/server/services';
   import StatePill from '../StatePill.svelte';
@@ -29,46 +34,34 @@
 <div class="detail">
   <Scroller fill padding="18px" smooth>
     <div class="body">
-      <div class="marks">
+      <Cluster gap={2}>
         <StatePill tone={LEVEL_TONE[notification.level]}>
           {t(LEVEL_LABEL[notification.level])}
         </StatePill>
         <StatePill tone="neutral">{t(audience.key, audience.params)}</StatePill>
-      </div>
+      </Cluster>
 
-      <h3 class="title">{notification.title}</h3>
-      <p class="message">{notification.body}</p>
+      <Heading level={5} as="h3" variant="title">{notification.title}</Heading>
+      <div class="message"><Text size="sm" tone="muted">{notification.body}</Text></div>
 
-      <dl class="facts">
-        <div>
-          <dt>{t('admin.notifications.factSentBy')}</dt>
-          <dd>@{notification.created_by_login}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.notifications.factSentAt')}</dt>
-          <dd>{when(notification.created_at)}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.notifications.factExpires')}</dt>
-          <dd>
-            {notification.expires_at
-              ? when(notification.expires_at)
-              : t('admin.notifications.factNoExpiry')}
-          </dd>
-        </div>
-        <div>
-          <dt>{t('admin.notifications.factRead')}</dt>
-          <dd>
-            {notification.read
-              ? t('admin.notifications.factReadYes')
-              : t('admin.notifications.factReadNo')}
-          </dd>
-        </div>
-      </dl>
+      <FactList>
+        <Fact term={t('admin.notifications.factSentBy')}>@{notification.created_by_login}</Fact>
+        <Fact term={t('admin.notifications.factSentAt')}>{when(notification.created_at)}</Fact>
+        <Fact term={t('admin.notifications.factExpires')}>
+          {notification.expires_at
+            ? when(notification.expires_at)
+            : t('admin.notifications.factNoExpiry')}
+        </Fact>
+        <Fact term={t('admin.notifications.factRead')}>
+          {notification.read
+            ? t('admin.notifications.factReadYes')
+            : t('admin.notifications.factReadNo')}
+        </Fact>
+      </FactList>
 
       <section class="block">
-        <h4 class="block-label">{t('admin.notifications.dangerTitle')}</h4>
-        <p class="note">{t('admin.notifications.retractHint')}</p>
+        <Heading level={4} variant="label">{t('admin.notifications.dangerTitle')}</Heading>
+        <Text size="sm" tone="muted">{t('admin.notifications.retractHint')}</Text>
         <Button variant="destructive" disabled={busy} onclick={onRetract}>
           {t('admin.notifications.retract')}
         </Button>
@@ -89,75 +82,15 @@
     flex-direction: column;
     gap: 14px;
   }
-  .marks {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .title {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    color: var(--bb-white);
-    margin: 0;
-  }
   .message {
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    line-height: 1.6;
-    color: var(--bb-muted);
-    margin: 0;
     white-space: pre-wrap;
     word-break: break-word;
-  }
-
-  .facts {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin: 0;
-  }
-  .facts div {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: baseline;
-  }
-  .facts dt {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-muted);
-  }
-  .facts dd {
-    margin: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-tan-light);
-    text-align: right;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .block {
     display: flex;
     flex-direction: column;
-    gap: 9px;
+    gap: var(--bb-space-2);
     align-items: flex-start;
-  }
-  .block-label {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin: 0;
-  }
-  .note {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--bb-muted);
-    margin: 0;
   }
 </style>

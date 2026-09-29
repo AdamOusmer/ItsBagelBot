@@ -5,7 +5,9 @@
   import { onMount } from 'svelte';
   import { visibleEventSource } from '$lib/visible-stream';
   import Button from '@bagel/ui/svelte/Button.svelte';
-  import Card from '@bagel/ui/svelte/Card.svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import FieldError from '@bagel/ui/svelte/FieldError.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Modal from '@bagel/ui/svelte/Modal.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
@@ -321,16 +323,16 @@
   {:then [cd, c, md, meta]}
     {#if !cd.ok}
       <section class="ov-top" aria-labelledby="ov-cmd-h">
-        <h2 id="ov-cmd-h" class="ov-section-h">{t('overview.topCommands')}</h2>
-        <Card>
-          <div class="ov-unavail">
-            <p class="ov-unavail__text">
-              <b>{t('overview.commandsUnavailable')}</b>
-              <Text as="span" size="sm" tone="muted">{t('overview.commandsUnavailableDesc')}</Text>
-            </p>
-            <RetryButton class="ov-cta" />
-          </div>
-        </Card>
+        <Heading level={6} as="h2" variant="title" id="ov-cmd-h">{t('overview.topCommands')}</Heading>
+        <AlertBanner variant="warn" role="status" flush>
+          <span class="ov-unavail">
+            <Text as="span" size="sm">{t('overview.commandsUnavailable')}</Text>
+            <Text as="span" size="sm" tone="muted">{t('overview.commandsUnavailableDesc')}</Text>
+          </span>
+          {#snippet action()}
+            <RetryButton />
+          {/snippet}
+        </AlertBanner>
       </section>
     {:else if cd.top.length}
       <TopCommands top={cd.top} />
@@ -346,9 +348,9 @@
 
 <Modal open={pending !== null} title={modalTitle} closeModal={closeModal}>
   {#if pending !== null}
-    <p class="modal-body">{modalBody}</p>
-    {#if actionError}<p class="modal-error" role="alert">{actionError}</p>{/if}
-    <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="modal-actions">
+    <p class="bb-modal__body">{modalBody}</p>
+    <FieldError message={actionError} />
+    <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="bb-modal__actions">
       <Button variant="ghost" type="button" disabled={actionBusy} onclick={() => closeModal()}>{t('common.cancel')}</Button>
       <Button
         variant={pending === 'disconnect' ? 'tan' : 'primary'}
@@ -367,37 +369,14 @@
   }
 
   .ov-top {
+    --btn-min-h: 44px;
+    display: grid;
+    gap: 12px;
     margin-bottom: var(--row-gap);
-  }
-  .ov-section-h {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0 0 12px;
   }
   .ov-unavail {
     display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-  .ov-unavail__text {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    display: flex;
     flex-direction: column;
     gap: 3px;
-  }
-  .ov-unavail__text b {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    color: var(--bb-white);
-  }
-  .ov-unavail :global(.ov-cta) {
-    flex: none;
-    min-height: 44px;
   }
 </style>

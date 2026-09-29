@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { getI18n } from '@bagel/kit';
+  import { Text, getI18n } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import SwitchRow from '$lib/components/discord/SwitchRow.svelte';
   import { createGuildDraft } from '$lib/discord/guild-draft.svelte';
@@ -37,5 +37,5 @@
   {#each switches as row (row.field)}
     <SwitchRow {draft} invalid={draft.invalid} {...row} />
   {/each}
-  <p class="hint">{t('discord.tierRolesHelp')}</p>
+  <Text size="sm" tone="muted" class="hint">{t('discord.tierRolesHelp')}</Text>
 </GuildForm>

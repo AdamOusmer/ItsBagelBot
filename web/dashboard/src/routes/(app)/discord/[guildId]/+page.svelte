@@ -1,7 +1,19 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, ButtonLink, Card, getI18n, guildModuleTiles, tilesNeedingSetup, type ModuleTileId } from '@bagel/kit';
+  import {
+    AlertBanner,
+    ButtonLink,
+    Card,
+    Fact,
+    FactList,
+    Heading,
+    Text,
+    getI18n,
+    guildModuleTiles,
+    tilesNeedingSetup,
+    type ModuleTileId
+  } from '@bagel/kit';
   import ModuleTile from '$lib/components/discord/ModuleTile.svelte';
   import { CLOSE_KEYS, type I18nKey } from '$lib/discord/guild-fields';
   import { botOnlineOf, layoutDownOf, pillStateOf } from '$lib/discord/guild-view';
@@ -58,46 +70,37 @@
 {/if}
 
 <section class="block reveal" style="--i:1" aria-labelledby="dc-status-h">
-  <h2 id="dc-status-h" class="block-title">{t('discord.statusTitle')}</h2>
+  <Heading level={6} as="h2" variant="title" id="dc-status-h" class="block-title">{t('discord.statusTitle')}</Heading>
   <Card>
-    <dl class="facts">
-      <div class="fact">
-        <dt>{t('discord.overview.botState')}</dt>
-        <dd>
-          <DiscordStateTag state={pillState} />
-        </dd>
-      </div>
-      <div class="fact">
-        <dt>{t('discord.statusResumes')}</dt>
-        <dd>{data.status?.sessionResumes ?? 0}</dd>
-      </div>
-      <div class="fact">
-        <dt>{t('discord.overview.modulesOn')}</dt>
-        <dd>{tiles.filter((tile) => tile.on).length} / {tiles.length}</dd>
-      </div>
-    </dl>
+    <FactList layout="inline">
+      <Fact term={t('discord.overview.botState')}>
+        <DiscordStateTag state={pillState} />
+      </Fact>
+      <Fact term={t('discord.statusResumes')}>{data.status?.sessionResumes ?? 0}</Fact>
+      <Fact term={t('discord.overview.modulesOn')}>{tiles.filter((tile) => tile.on).length} / {tiles.length}</Fact>
+    </FactList>
 
     {#if !botOnline && closeKey}
-      <p class="hint state">{t(closeKey)}</p>
+      <Text size="sm" tone="muted" class="hint state">{t(closeKey)}</Text>
     {:else if !botOnline}
-      <p class="hint state">{t('discord.statusReconnecting')}</p>
+      <Text size="sm" tone="muted" class="hint state">{t('discord.statusReconnecting')}</Text>
     {/if}
 
     {#if layoutDown}
-      <p class="hint state">{t('discord.layoutUnavailable')}</p>
+      <Text size="sm" tone="muted" class="hint state">{t('discord.layoutUnavailable')}</Text>
     {/if}
   </Card>
 </section>
 
 <section class="block reveal" style="--i:2" aria-labelledby="dc-modules-h">
-  <h2 id="dc-modules-h" class="block-title">{t('discord.overview.modulesTitle')}</h2>
-  <p class="hint">
+  <Heading level={6} as="h2" variant="title" id="dc-modules-h" class="block-title">{t('discord.overview.modulesTitle')}</Heading>
+  <Text size="sm" tone="muted" class="hint">
     {#if unfinished.length > 0}
       {t('discord.overview.needsSetupHint', { n: String(unfinished.length) })}
     {:else}
       {t('discord.overview.modulesHelp')}
     {/if}
-  </p>
+  </Text>
   <div class="tiles">
     {#each tiles as tile (tile.id)}
       <ModuleTile
@@ -112,35 +115,6 @@
 </section>
 
 <style>
-  .facts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 26px;
-    margin: 0;
-  }
-  .fact {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .facts dt {
-    font-family: var(--bb-font-body);
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .facts dd {
-    margin: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 13px;
-    color: var(--bb-white);
-    font-variant-numeric: tabular-nums;
-  }
-  .state {
-    margin: 16px 0 0;
-  }
-
   .tiles {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));

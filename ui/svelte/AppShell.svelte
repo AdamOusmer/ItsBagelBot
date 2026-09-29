@@ -16,6 +16,7 @@
     dockItems = [],
     rail = false,
     offset = false,
+    stacked = false,
     skipLabel,
     crumbAriaLabel,
     dockAriaLabel,
@@ -35,6 +36,7 @@
     dockItems?: UiNavLink[];
     rail?: boolean;
     offset?: boolean;
+    stacked?: boolean;
     skipLabel: string;
     crumbAriaLabel?: string;
     dockAriaLabel?: string;
@@ -53,6 +55,7 @@
     [
       'bb-shell',
       offset ? 'bb-shell--offset' : null,
+      stacked ? 'bb-shell--stacked' : null,
       rail ? 'bb-shell--railed' : null,
       className || null,
     ]

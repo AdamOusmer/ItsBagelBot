@@ -4,8 +4,10 @@
   import { goto } from '$app/navigation';
   import {
     ButtonLink,
+    Heading,
     SegmentedControl,
     Select,
+    Text,
     getI18n,
     type GuildBotState
   } from '@bagel/kit';
@@ -84,14 +86,14 @@
   <GuildCrest name={guildName} {iconUrl} />
 
   <div class="copy">
-    <h1 class="name">{guildName}</h1>
+    <Heading level={4} as="h1">{guildName}</Heading>
     <div class="facts">
       <DiscordStateTag state={pillState} />
-      <span class="tr-help">
+      <Text as="span" size="xs" tone="muted">
         {#if members}{t('discord.statusMembers', { n: members })}{:else}{t('discord.statusNoMembers')}{/if}
-      </span>
+      </Text>
       {#if uptime}
-        <span class="tr-help">{t('discord.statusSince')} {uptime}</span>
+        <Text as="span" size="xs" tone="muted">{t('discord.statusSince')} {uptime}</Text>
       {/if}
     </div>
   </div>
@@ -105,7 +107,6 @@
         bind:value={() => switchValue, switchToLabel}
       />
     {:else if guilds.length > SEGMENTED_MAX}
-      <label class="bb-sr-only" for="dc-switcher">{t('discord.switcherLabel')}</label>
       <Select
         id="dc-switcher"
         class="guild-select"
@@ -136,14 +137,6 @@
     gap: 4px;
     min-width: 0;
     flex: 1;
-  }
-  .name {
-    margin: 0;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 19px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
     overflow-wrap: anywhere;
   }
   .facts {
@@ -152,13 +145,6 @@
     gap: 10px;
     flex-wrap: wrap;
   }
-  .tr-help {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    line-height: 1.45;
-  }
-
   .switcher {
     display: flex;
     align-items: center;

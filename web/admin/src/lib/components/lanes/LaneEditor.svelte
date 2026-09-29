@@ -1,7 +1,7 @@
 <script lang="ts">
-  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import Input from '@bagel/ui/svelte/Input.svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
   import Field from '@bagel/ui/svelte/Field.svelte';
@@ -9,6 +9,10 @@
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import FactList from '@bagel/ui/svelte/FactList.svelte';
+  import Fact from '@bagel/ui/svelte/Fact.svelte';
   import type { InspectorStatus } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { LaneView } from '$lib/server/lanes';
@@ -50,66 +54,36 @@
 
   <Scroller fill padding="18px" smooth>
     <div class="body">
-      <dl class="facts">
-        <div>
-          <dt>{t('admin.lanes.factStream')}</dt>
-          <dd>{lane.stream}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.lanes.factConsumer')}</dt>
-          <dd>{lane.consumer}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.lanes.factSubject')}</dt>
-          <dd>{lane.subject || '-'}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.lanes.factCategory')}</dt>
-          <dd>{lane.category}</dd>
-        </div>
+      <FactList>
+        <Fact term={t('admin.lanes.factStream')}>{lane.stream}</Fact>
+        <Fact term={t('admin.lanes.factConsumer')}>{lane.consumer}</Fact>
+        <Fact term={t('admin.lanes.factSubject')}>{lane.subject || '-'}</Fact>
+        <Fact term={t('admin.lanes.factCategory')}>{lane.category}</Fact>
         {#if lane.mode}
-          <div>
-            <dt>{t('admin.lanes.modeLabel')}</dt>
-            <dd>{lane.mode === 'pull' ? t('admin.lanes.modePull') : t('admin.lanes.modePush')}</dd>
-          </div>
+          <Fact term={t('admin.lanes.modeLabel')}>
+            {lane.mode === 'pull' ? t('admin.lanes.modePull') : t('admin.lanes.modePush')}
+          </Fact>
         {/if}
         {#if lane.connection}
-          <div>
-            <dt>{t('admin.lanes.connectionLabel')}</dt>
-            <dd>{lane.connection === 'bound' ? t('admin.lanes.connectionBound')
+          <Fact term={t('admin.lanes.connectionLabel')}>
+            {lane.connection === 'bound' ? t('admin.lanes.connectionBound')
               : lane.connection === 'waiting' ? t('admin.lanes.connectionWaiting')
               : lane.connection === 'unbound' ? t('admin.lanes.connectionUnbound')
-              : t('admin.lanes.connectionUnknown')}</dd>
-          </div>
+              : t('admin.lanes.connectionUnknown')}
+          </Fact>
         {/if}
         {#if lane.mode === 'pull'}
-          <div>
-            <dt>{t('admin.lanes.waitingPulls')}</dt>
-            <dd>{lane.waiting?.toLocaleString() ?? '—'}</dd>
-          </div>
+          <Fact term={t('admin.lanes.waitingPulls')}>{lane.waiting?.toLocaleString() ?? '-'}</Fact>
         {/if}
-        <div>
-          <dt>{t('admin.lanes.factPending')}</dt>
-          <dd>{lane.pending.toLocaleString()}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.lanes.factDelivered')}</dt>
-          <dd>{lane.delivered?.toLocaleString() ?? '—'}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.lanes.awaitingAck')}</dt>
-          <dd>{lane.inFlight}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.lanes.factRate')}</dt>
-          <dd>{lane.rate === '-' ? t('admin.lanes.sampling') : lane.rate}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.lanes.factRedelivered')}</dt>
-          <dd class:err={lane.redelivered > 0}>{lane.redelivered}</dd>
-        </div>
-      </dl>
-      <p class="note">{t('admin.lanes.capacityHint')}</p>
+        <Fact term={t('admin.lanes.factPending')}>{lane.pending.toLocaleString()}</Fact>
+        <Fact term={t('admin.lanes.factDelivered')}>{lane.delivered?.toLocaleString() ?? '-'}</Fact>
+        <Fact term={t('admin.lanes.awaitingAck')}>{lane.inFlight}</Fact>
+        <Fact term={t('admin.lanes.factRate')}>{lane.rate === '-' ? t('admin.lanes.sampling') : lane.rate}</Fact>
+        <Fact term={t('admin.lanes.factRedelivered')} tone={lane.redelivered > 0 ? 'danger' : undefined}>
+          {lane.redelivered}
+        </Fact>
+      </FactList>
+      <Text size="sm" tone="muted">{t('admin.lanes.capacityHint')}</Text>
 
       <Field label={t('admin.lanes.fieldAlias')}>
         <Input
@@ -121,11 +95,11 @@
           bind:value={draft.alias}
         />
       </Field>
-      <p class="note">{t('admin.lanes.aliasHint')}</p>
+      <Text size="sm" tone="muted">{t('admin.lanes.aliasHint')}</Text>
 
       {#if canMutate}
         <section class="block">
-          <h3 class="block-label">{t('admin.lanes.durableLabel')}</h3>
+          <Heading level={3} variant="label">{t('admin.lanes.durableLabel')}</Heading>
           <Switch
             checked={!lane.ephemeral}
             label={t('admin.lanes.durableLabel')}
@@ -134,15 +108,15 @@
             pending={busy}
             onchange={onDurable}
           />
-          <p class="note" id="lane-durable-hint">
+          <Text size="sm" tone="muted" id="lane-durable-hint">
             {lane.ephemeral ? t('admin.lanes.durableHint') : t('admin.lanes.durableAlready')}
-          </p>
+          </Text>
         </section>
 
         {#if lane.orphan}
           <section class="block">
-            <h3 class="block-label">{t('admin.lanes.dangerTitle')}</h3>
-            <p class="note">{t('admin.lanes.deleteHint')}</p>
+            <Heading level={3} variant="label">{t('admin.lanes.dangerTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('admin.lanes.deleteHint')}</Text>
             <Button variant="destructive" disabled={busy} onclick={onDelete}>
               {t('common.delete')}
             </Button>
@@ -181,56 +155,10 @@
     gap: 14px;
   }
 
-  .facts {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    margin: 0;
-  }
-  .facts div {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: baseline;
-  }
-  .facts dt {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-muted);
-    flex: none;
-  }
-  .facts dd {
-    margin: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-tan-light);
-    text-align: right;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .facts dd.err {
-    color: var(--bb-status-error);
-  }
-
   .block {
     display: flex;
     flex-direction: column;
-    gap: 9px;
+    gap: var(--bb-space-2);
     align-items: flex-start;
-  }
-  .block-label {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin: 0;
-  }
-  .note {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--bb-muted);
-    margin: 0;
   }
 </style>

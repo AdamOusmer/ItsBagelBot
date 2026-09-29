@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { navigating } from '$app/state';
+  import NavProgress from '@bagel/ui/svelte/NavProgress.svelte';
 
   const SHOW_AFTER_MS = 150;
 
@@ -17,4 +18,4 @@
   });
 </script>
 
-<div class="bb-nav-progress" class:bb-nav-progress--active={active} role="presentation" aria-hidden="true"></div>
+<NavProgress {active} />

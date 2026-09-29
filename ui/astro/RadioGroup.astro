@@ -3,16 +3,55 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import '../styles/tags.css';
+import '../styles/elements/radio-group.css';
+import Icon from './Icon.astro';
 
 interface Props {
     name: string;
-    options: readonly { value: string; label: string }[];
+    options: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[];
     value?: string;
     label?: string;
+    variant?: 'tabs' | 'cards' | 'rows';
+    min?: string;
+    cols?: number;
+    rail?: 'sm' | 'md';
+    maxHeight?: string;
+    class?: string;
     [key: string]: unknown;
 }
 
-const { name, options, value = '', label = 'Options' } = Astro.props;
+const { name, options, value = '', label = 'Options', variant = 'tabs', min, cols, rail, maxHeight, class: className = '', ...rest } = Astro.props;
+const tabsClass = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
+const choicesClass = [
+    'bb-choices',
+    `bb-choices--${variant}`,
+    cols ? 'bb-choices--cols' : null,
+    rail ? `bb-choices--rail-${rail}` : null,
+    maxHeight ? 'bb-choices--scroll bb-scroll' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
+const style = [min && `--choices-min: ${min};`, cols && `--choices-cols: ${cols};`, maxHeight && `--choices-max-h: ${maxHeight};`]
+    .filter(Boolean)
+    .join(' ') || undefined;
 ---
 
-<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label={label}>{options.map((opt) => (<label class={`bb-tab ${value === opt.value ? 'is-active' : ''}`}><input class="bb-tab__input" type="radio" name={name} value={opt.value} checked={value === opt.value} /> {opt.label}</label>))}</div>
+{variant === 'tabs' ? (
+<div class={tabsClass} role="radiogroup" aria-label={label} {...rest}>{options.map((opt) => (<label class={`bb-tab ${value === opt.value ? 'is-active' : ''}`}><input class="bb-tab__input" type="radio" name={name} value={opt.value} checked={value === opt.value} disabled={opt.disabled} /> {opt.label}</label>))}</div>
+) : (
+<div class={choicesClass} role="radiogroup" aria-label={label} style={style} {...rest}>{options.map((opt) => (<label class="bb-choice"><input class="bb-choice__input" type="radio" name={name} value={opt.value} checked={value === opt.value} disabled={opt.disabled} />{variant === 'cards' && (<span class="bb-choice__top"><span class="bb-choice__tick" aria-hidden="true"><Icon name="check" size={12} /></span></span>)}<span class="bb-choice__label">{opt.label}</span>{opt.description && <span class="bb-choice__desc">{opt.description}</span>}{opt.meta && <span class="bb-choice__meta">{opt.meta}</span>}</label>))}</div>
+)}
+
+<script>
+    function syncTabs(event: Event) {
+        const input = event.target;
+        if (!(input instanceof HTMLInputElement) || !input.matches('.bb-tab__input')) return;
+        input
+            .closest('.bb-tabs')
+            ?.querySelectorAll<HTMLInputElement>('.bb-tab__input')
+            .forEach((radio) => radio.closest('.bb-tab')?.classList.toggle('is-active', radio.checked));
+    }
+
+    document.addEventListener('change', syncTabs);
+</script>

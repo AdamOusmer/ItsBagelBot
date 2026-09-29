@@ -1,7 +1,7 @@
 <script lang="ts">
-  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import Input from '@bagel/ui/svelte/Input.svelte';
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -13,6 +13,10 @@
   import Field from '@bagel/ui/svelte/Field.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
+  import Grid from '@bagel/ui/svelte/Grid.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure, copyFlash } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -132,7 +136,7 @@
   {#if bundle === null}
     <SkeletonStack rows={4} height="220px" columns={2} />
   {:else}
-    <div class="grid">
+    <Grid min="340px" gap={4}>
       {#each services as service (service.id)}
         <ServiceCard
           {service}
@@ -143,31 +147,33 @@
         />
       {/each}
 
-      <Card class="gen-card">
+      <Card dashed>
         <CardHead title={t('admin.secrets.genTitle')}>
           {#snippet action()}
             <StatePill tone="free">{t('admin.secrets.genLocal')}</StatePill>
           {/snippet}
         </CardHead>
-        <p class="note">{t('admin.secrets.genNote')}</p>
-        <div class="kinds">
-          {#each GEN_KINDS as kind (kind)}
-            <Chip on={genKind === kind} onclick={() => (genKind = kind)}>
-              {t(GEN_LABEL[kind])}
-            </Chip>
-          {/each}
-        </div>
-        <div class="gen-row">
-          <Button variant="primary" onclick={generate}>{t('admin.secrets.generate')}</Button>
-          {#if generated}
-            <Input fill mono type="text" readonly value={generated} />
-            <Button variant="ghost" onclick={copyGenerated}>
-              {genCopied ? t('common.copied') : t('common.copy')}
-            </Button>
-          {/if}
-        </div>
+        <Stack gap={3}>
+          <Text size="sm" tone="muted">{t('admin.secrets.genNote')}</Text>
+          <Cluster gap={2}>
+            {#each GEN_KINDS as kind (kind)}
+              <Chip on={genKind === kind} onclick={() => (genKind = kind)}>
+                {t(GEN_LABEL[kind])}
+              </Chip>
+            {/each}
+          </Cluster>
+          <Cluster gap={2}>
+            <Button variant="primary" onclick={generate}>{t('admin.secrets.generate')}</Button>
+            {#if generated}
+              <Input fill mono type="text" readonly value={generated} />
+              <Button variant="ghost" onclick={copyGenerated}>
+                {genCopied ? t('common.copied') : t('common.copy')}
+              </Button>
+            {/if}
+          </Cluster>
+        </Stack>
       </Card>
-    </div>
+    </Grid>
   {/if}
 </section>
 
@@ -183,39 +189,41 @@
 >
   {#if dialog && pendingService}
     <div class="fields">
-      <p class="note">
-        {t(dialog.body, {
-          schema: pendingService.schema,
-          project: pendingService.project,
-          config: pendingService.config,
-          service: pendingService.label
-        })}
-      </p>
+      <Stack gap={4}>
+        <Text size="sm" tone="muted">
+          {t(dialog.body, {
+            schema: pendingService.schema,
+            project: pendingService.project,
+            config: pendingService.config,
+            service: pendingService.label
+          })}
+        </Text>
 
-      {#if dialog.needsUser}
-        <Field label={t('admin.secrets.fieldDbUser')}>
-          <Input
-            fill mono
-            type="text"
-            autocomplete="off"
-            placeholder={`${pendingService.expectedUserPrefix}_…`}
-            bind:value={dbUser}
-          />
+        {#if dialog.needsUser}
+          <Field label={t('admin.secrets.fieldDbUser')}>
+            <Input
+              fill mono
+              type="text"
+              autocomplete="off"
+              placeholder={`${pendingService.expectedUserPrefix}_…`}
+              bind:value={dbUser}
+            />
+          </Field>
+        {/if}
+
+        {#if dialog.needsPassword}
+          <Field label={t('admin.secrets.fieldDbPass')}>
+            <Input fill mono type="password" autocomplete="new-password" bind:value={dbPass} />
+          </Field>
+        {/if}
+
+        <Field label={t('admin.secrets.fieldConfirm', { phrase })}>
+          <Input fill mono type="text" autocomplete="off" bind:value={confirmText} />
         </Field>
-      {/if}
-
-      {#if dialog.needsPassword}
-        <Field label={t('admin.secrets.fieldDbPass')}>
-          <Input fill mono type="password" autocomplete="new-password" bind:value={dbPass} />
-        </Field>
-      {/if}
-
-      <Field label={t('admin.secrets.fieldConfirm', { phrase })}>
-        <Input fill mono type="text" autocomplete="off" bind:value={confirmText} />
-      </Field>
-      {#if !phraseMatches}
-        <p class="note quiet">{t('admin.secrets.confirmHint')}</p>
-      {/if}
+        {#if !phraseMatches}
+          <Text size="sm" tone="muted">{t('admin.secrets.confirmHint')}</Text>
+        {/if}
+      </Stack>
     </div>
   {/if}
 </ConfirmDialog>
@@ -236,45 +244,8 @@
 {/if}
 
 <style>
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: 16px;
-  }
-
-  .note {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.55;
-    color: var(--bb-muted);
-    margin: 0 0 12px;
-  }
-  .note.quiet {
-    opacity: 0.75;
-    margin: 0;
-  }
-
-  .kinds {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-  }
-  .gen-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  :global(.gen-card) {
-    border-style: dashed;
-  }
-
   .fields {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin: 12px 0 4px;
+    --field-mb: 0;
+    margin: var(--bb-space-3) 0 var(--bb-space-1);
   }
 </style>

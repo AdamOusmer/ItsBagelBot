@@ -5,7 +5,7 @@
 
 @layer bb.elements {
   .bb-ov-row {
-    --ov-gap: var(--row-gap, 28px);
+    --ov-gap: var(--row-gap);
 
     display: grid;
     grid-template-columns: 1.4fr 1fr;

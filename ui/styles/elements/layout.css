@@ -26,6 +26,11 @@
     .bb-section--sm { --section-pad: clamp(var(--bb-space-5), 5vw, var(--bb-space-7)); }
     .bb-section--lg { --section-pad: clamp(var(--bb-space-8), 11vw, 140px); }
     .bb-section--flush { --section-pad: 0; }
+    .bb-section--page { --section-pad: var(--bb-space-section); }
+
+    @media (max-width: 640px) {
+        .bb-section--page { --section-pad: var(--bb-space-section-sm); }
+    }
 
     .bb-section--anchor { position: relative; }
 
@@ -102,6 +107,10 @@
 
     @media (max-width: 640px) {
         .bb-grid:not(.bb-grid--auto) { --grid-cols: 1; }
+    }
+
+    @media (max-width: 760px) {
+        .bb-grid--stack-md { --grid-cols: 1; }
     }
 
     .bb-divider {

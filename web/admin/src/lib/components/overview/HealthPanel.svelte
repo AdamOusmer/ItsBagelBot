@@ -5,6 +5,7 @@
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ServiceHealth } from '$lib/server/services';
@@ -27,22 +28,22 @@
 
   <p class="summary">
     <StatusDot {tone} />
-    <span>
+    <Text as="span" size="sm">
       {t('admin.overview.healthSummary', {
         ok: String(responding),
         total: String(probes.length)
       })}
-    </span>
+    </Text>
   </p>
 
   {#if probes.length}
     <Scroller maxHeight="220px">
-      <div class="node-list">
+      <div class="bb-node-list bb-stagger">
         {#each probes as p (p.id)}
-          <div class="node-row">
+          <div class="bb-node-list__row">
             <StatusDot tone={statusTone(p.ok ? 'online' : 'degraded')} />
-            <span class="nm">{p.label}</span>
-            <span class="pg">
+            <span class="bb-node-list__name">{p.label}</span>
+            <span class="bb-node-list__trail">
               {p.ok
                 ? t('admin.overview.healthMs', { ms: String(p.ms) })
                 : t('admin.overview.healthDown')}
@@ -60,10 +61,7 @@
   .summary {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: var(--bb-space-2);
     margin: 0 0 10px;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-white);
   }
 </style>

@@ -15,11 +15,14 @@
     InspectorSurface,
     MasterToggle,
     AlertBanner,
+    DeckLayout,
     DeckList,
     Button,
     ButtonLink,
     Field,
-    Switch,
+    Heading,
+    SwitchRow,
+    Text,
     toast,
     getI18n,
     moduleDef,
@@ -387,11 +390,15 @@
 
 {#snippet enableRow(opts: { label: string; desc: string; descId: string; checked: boolean; disabled?: boolean; onchange: (on: boolean) => void })}
   <div class="enable-row">
-    <div class="enable-text">
-      <span class="enable-label">{opts.label}</span>
-      <span class="muted-text" id={opts.descId}>{opts.desc}</span>
-    </div>
-    <Switch checked={opts.checked} disabled={opts.disabled} onchange={opts.onchange} label={opts.label} describedby={opts.descId} />
+    <SwitchRow
+      control="end"
+      checked={opts.checked}
+      disabled={opts.disabled}
+      onchange={opts.onchange}
+      label={opts.label}
+      hint={opts.desc}
+      hintId={opts.descId}
+    />
   </div>
 {/snippet}
 
@@ -463,8 +470,10 @@
 
     <div class="paths" class:inspecting={inspector.isOpen}>
       <Card>
-        <h2 class="path-title">{t('spotify.srTitle')}</h2>
-        <p class="muted-text">{t('spotify.srHelp')}</p>
+        <div class="path-head">
+          <Heading level={6} as="h2">{t('spotify.srTitle')}</Heading>
+          <Text size="sm" tone="muted">{t('spotify.srHelp')}</Text>
+        </div>
         <form method="POST" action="?/sr" use:enhance={srSubmit} bind:this={srForm}>
           {@render enableRow({
             label: t('spotify.srEnableLabel'),
@@ -489,12 +498,14 @@
               onchange={srChanged}
             />
           </Field>
-          <small class="reserved-hint" class:hidden={sr.enabled}>{t('spotify.srPermOffHint')}</small>
+          <div class="reserved-hint" class:hidden={sr.enabled}><Text size="xs" tone="muted">{t('spotify.srPermOffHint')}</Text></div>
         </form>
 
         <form method="POST" action="?/quotas" use:enhance={quotasSubmit}>
-          <h3 class="path-title quota-title">{t('spotify.quotaTitle')}</h3>
-          <p class="muted-text">{t('spotify.quotaHelp')}</p>
+          <div class="path-head quota-head">
+            <Heading level={6} as="h3">{t('spotify.quotaTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('spotify.quotaHelp')}</Text>
+          </div>
           <div class="quota-grid">
             {#each SPOTIFY_QUOTA_TIERS as tier (tier)}
               <Field label={t(QUOTA_LABEL_KEYS[tier])}>
@@ -514,10 +525,12 @@
         </form>
       </Card>
 
-      <div class="redeem-col">
+      <DeckLayout inspecting={inspector.isOpen} width="440px">
         <Card>
-          <h2 class="path-title">{t('spotify.redeemTitle')}</h2>
-          <p class="muted-text">{t('spotify.redeemHelp')}</p>
+          <div class="path-head">
+            <Heading level={6} as="h2">{t('spotify.redeemTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('spotify.redeemHelp')}</Text>
+          </div>
           <form method="POST" action="?/redeemToggle" use:enhance={redeemToggleSubmit} bind:this={redeemForm}>
             {@render enableRow({
               label: t('spotify.redeemEnableLabel'),
@@ -587,7 +600,7 @@
             </form>
           </InspectorSurface>
         {/if}
-      </div>
+      </DeckLayout>
     </div>
   </div>
 
@@ -641,7 +654,7 @@
 <form method="POST" action="?/deleteReward" use:enhance={deleteSubmit} bind:this={deleteForm} hidden></form>
 
 <style>
-  .quota-title {
+  .quota-head {
     margin-top: 18px;
   }
   .quota-grid {
@@ -653,38 +666,27 @@
 
   .setup { display: grid; gap: 16px; }
 
-  .path-title { margin: 0 0 6px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
-  .muted-text { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; margin: 0 0 14px; }
-  .enable-text .muted-text { margin: 0; font-size: 12px; }
+  .path-head { display: grid; gap: 6px; margin: 0 0 14px; }
 
-  .enable-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 14px;
-  }
-  .enable-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
-  .enable-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
+  .enable-row { margin-bottom: 14px; }
 
   .paths {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     align-items: start;
   }
-  .redeem-col { display: grid; gap: 16px; min-width: 0; }
   .reward-slot {
     margin: 0 -4px;
-    border-top: 1px solid var(--rule);
+    border-top: 1px solid var(--bb-border);
     padding-top: 4px;
   }
   @media (min-width: 1080px) {
-    .paths { grid-template-columns: 1fr 1fr; }
-    .paths.inspecting { grid-template-columns: 1fr; }
-    .paths.inspecting .redeem-col { grid-template-columns: minmax(0, 1fr) 440px; }
+    .paths { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .paths.inspecting { grid-template-columns: minmax(0, 1fr); }
   }
 
-  .reserved-hint { display: block; min-height: 16px; margin: -6px 0 14px; color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 11.5px; }
+  .reserved-hint { min-height: 16px; margin: -6px 0 14px; }
   .reserved-hint.hidden { visibility: hidden; opacity: 0; }
 
   .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }

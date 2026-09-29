@@ -2,22 +2,16 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import AlertBanner from '@bagel/ui/astro/AlertBanner.astro';
+
 interface Props {
     tone: 'tip' | 'warn' | 'note';
     html: string;
 }
 
+const VARIANT = { tip: 'tip', warn: 'danger', note: 'note' } as const;
+
 const { tone, html } = Astro.props;
-const toneClass = { tip: 'gtip', warn: 'gwarn', note: 'gnote' }[tone] ?? 'gtip';
 ---
 
-<p class={toneClass} set:html={html}></p>
-
-<style>
-    .gnote {
-        border-left: 2px solid var(--border, rgba(201, 168, 124, 0.15));
-        background: rgba(240, 236, 228, 0.03);
-    }
-
-    .gnote :global(b) { color: var(--white, #f0ece4); }
-</style>
+<AlertBanner variant={VARIANT[tone] ?? 'tip'} callout role="note"><Fragment set:html={html} /></AlertBanner>

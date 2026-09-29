@@ -69,6 +69,11 @@
         font-size: 13px;
     }
 
+    .bb-input--end input {
+        text-align: end;
+        font-variant-numeric: tabular-nums;
+    }
+
     .bb-input[data-invalid] {
         border-color: rgba(207, 138, 120, 0.55);
     }
@@ -84,6 +89,23 @@
 
     .bb-input :is(input, select, textarea):disabled {
         cursor: not-allowed;
+    }
+
+    .bb-input:has(> input[readonly]) {
+        background: rgba(var(--bb-white-pure-rgb), 0.02);
+    }
+
+    .bb-input--color {
+        width: fit-content;
+        padding: 3px;
+    }
+
+    .bb-input--color input {
+        flex: 1 0 36px;
+        width: 36px;
+        height: 29px;
+        padding: 0;
+        cursor: pointer;
     }
 
     .bb-check {
@@ -132,7 +154,7 @@
         content: "";
         position: absolute;
         inset: 3px;
-        background: var(--bb-black, #0a0a0a);
+        background: var(--bb-black);
         clip-path: polygon(14% 46%, 0 60%, 39% 100%, 100% 22%, 86% 8%, 39% 72%);
         scale: 0;
         transition: scale var(--bb-dur-base) var(--bb-ease-out-back);

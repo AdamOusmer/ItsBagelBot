@@ -5,7 +5,9 @@
   import { browser } from '$app/environment';
   import { page } from '$app/state';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
-  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Popover from '@bagel/ui/svelte/Popover.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();
@@ -20,16 +22,11 @@
   const REOFFER_MS = 30 * 24 * 60 * 60 * 1000;
   const SHOW_DELAY_MS = 4000;
 
-  const uid = $props.id();
-  const titleId = `install-ios-${uid}`;
-
   let promptEvent: BeforeInstallPromptEvent | null = null;
   let mode = $state<'chromium' | 'ios' | null>(null);
   let visible = $state(false);
   let ready = $state(false);
   let iosOpen = $state(false);
-  let closeBtn = $state<HTMLButtonElement | null>(null);
-  let ctaBtn = $state<HTMLButtonElement | null>(null);
 
   const inApp = $derived(page.route.id?.startsWith('/(app)') ?? false);
 
@@ -74,11 +71,6 @@
     iosOpen = false;
   }
 
-  function closeSheet(): void {
-    iosOpen = false;
-    ctaBtn?.focus();
-  }
-
   function dismiss(): void {
     persistDismissed();
     hide();
@@ -104,18 +96,6 @@
     else hide();
   }
 
-  async function onPillClick(): Promise<void> {
-    if (mode === 'ios') {
-      iosOpen = true;
-      return;
-    }
-    await runInstall();
-  }
-
-  function onKeydown(e: KeyboardEvent): void {
-    if (e.key === 'Escape' && iosOpen) closeSheet();
-  }
-
   onMount(() => {
     if (isStandalone()) return;
     if (isDismissed() && !forceShow()) return;
@@ -138,213 +118,41 @@
       window.removeEventListener('appinstalled', onInstalled);
     };
   });
-
-  $effect(() => {
-    if (iosOpen) closeBtn?.focus();
-  });
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
 {#if browser && visible && ready && inApp}
-  <div class="install-root">
-    <div class="pill">
-      <button
-        class="pill-cta"
-        type="button"
-        aria-label={t('install.ariaLabel')}
-        aria-haspopup={mode === 'ios' ? 'dialog' : undefined}
-        aria-expanded={mode === 'ios' ? iosOpen : undefined}
-        bind:this={ctaBtn}
-        onclick={onPillClick}
-      >
-        <Icon name="home" size={15} />
-        <span>{t('install.cta')}</span>
-      </button>
-      <button class="pill-x" type="button" aria-label={t('install.dismiss')} onclick={dismiss}>
-        <Icon name="x" size={13} />
-      </button>
-    </div>
+  <Popover
+    bind:open={iosOpen}
+    placement="bottom"
+    expands={mode === 'ios'}
+    onactivate={runInstall}
+    label={t('install.ariaLabel')}
+    title={t('install.ios.title')}
+    closeLabel={t('install.ios.close')}
+    dismissLabel={t('install.dismiss')}
+    ondismiss={dismiss}
+  >
+    {#snippet pill()}
+      <Icon name="home" size={15} />
+      <span>{t('install.cta')}</span>
+    {/snippet}
 
-    {#if iosOpen}
-      <div class="sheet" role="dialog" aria-modal="false" aria-labelledby={titleId}>
-        <div class="sheet-head">
-          <Heading level={6} as="h2" id={titleId}>{t('install.ios.title')}</Heading>
-          <button
-            class="sheet-x"
-            type="button"
-            aria-label={t('install.ios.close')}
-            onclick={closeSheet}
-            bind:this={closeBtn}
-          >
-            <Icon name="x" size={14} />
-          </button>
-        </div>
+    <ol class="steps">
+      <li>
+        <span class="glyph" aria-hidden="true"><Icon name="share" size={17} strokeWidth={1.7} /></span>
+        <Text as="span" size="sm">{t('install.ios.step1')}</Text>
+      </li>
+      <li>
+        <span class="glyph" aria-hidden="true"><Icon name="addSquare" size={17} strokeWidth={1.7} /></span>
+        <Text as="span" size="sm">{t('install.ios.step2')}</Text>
+      </li>
+    </ol>
 
-        <ol class="steps">
-          <li>
-            <span class="glyph" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 15V4" />
-                <path d="M8 8l4-4 4 4" />
-                <path d="M6 12v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6" />
-              </svg>
-            </span>
-            <span>{t('install.ios.step1')}</span>
-          </li>
-          <li>
-            <span class="glyph" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="4" y="4" width="16" height="16" rx="4" />
-                <path d="M12 9v6M9 12h6" />
-              </svg>
-            </span>
-            <span>{t('install.ios.step2')}</span>
-          </li>
-        </ol>
-
-        <button class="sheet-done" type="button" onclick={closeSheet}>
-          {t('common.gotIt')}
-        </button>
-      </div>
-    {/if}
-  </div>
+    <Button variant="green" block onclick={() => (iosOpen = false)}>{t('common.gotIt')}</Button>
+  </Popover>
 {/if}
 
 <style>
-  .install-root {
-    position: fixed;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 108px);
-    right: max(14px, env(safe-area-inset-right, 0px));
-    z-index: 70;
-    display: flex;
-    flex-direction: column-reverse;
-    align-items: flex-end;
-    font-family: var(--bb-font-body);
-  }
-
-  @media (min-width: 761px) {
-    .install-root {
-      bottom: 20px;
-    }
-  }
-
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    padding: 3px 3px 3px 4px;
-    background: var(--bb-card-bg, #111110);
-    border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: var(--bb-radius-pill);
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
-    animation: pill-in 260ms var(--bb-ease-out-back, ease-out) both;
-  }
-
-  .pill-cta {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 12px;
-    border: none;
-    background: none;
-    border-radius: var(--bb-radius-pill);
-    cursor: pointer;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--bb-white);
-    transition: background var(--bb-dur-fast, 180ms) var(--bb-ease-out-expo, ease);
-  }
-  .pill-cta::after,
-  .pill-x::after,
-  .sheet-x::after {
-    content: '';
-    position: absolute;
-    inset: -9px;
-  }
-  .pill-cta::after {
-    inset: -7px 0;
-  }
-  .pill-cta :global(svg) {
-    stroke: var(--bb-green-glow, #52b788);
-    fill: none;
-    stroke-width: 1.8;
-  }
-  .pill-cta:hover {
-    background: rgba(82, 183, 136, 0.12);
-  }
-
-  .pill-x {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    flex: none;
-    border: none;
-    background: none;
-    border-radius: 50%;
-    cursor: pointer;
-    color: var(--bb-muted);
-    transition:
-      color var(--bb-dur-fast, 180ms) ease,
-      background var(--bb-dur-fast, 180ms) ease;
-  }
-  .pill-x :global(svg) {
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.8;
-  }
-  .pill-x:hover {
-    color: var(--bb-white);
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  .sheet {
-    margin-bottom: 8px;
-    width: min(300px, calc(100vw - 28px));
-    padding: 16px;
-    background: var(--bb-card-bg, #111110);
-    border: 1px solid var(--bb-border-strong, rgba(201, 168, 124, 0.35));
-    border-radius: var(--bb-radius-md);
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
-    animation: sheet-in 240ms var(--bb-ease-out-back, ease-out) both;
-  }
-
-  .sheet-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-  .sheet-x {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    flex: none;
-    border: none;
-    background: none;
-    border-radius: var(--bb-radius-sm);
-    cursor: pointer;
-    color: var(--bb-muted);
-  }
-  .sheet-x :global(svg) {
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.8;
-  }
-  .sheet-x:hover {
-    color: var(--bb-white);
-    background: rgba(255, 255, 255, 0.06);
-  }
-
   .steps {
     list-style: none;
     margin: 0 0 14px;
@@ -357,9 +165,6 @@
     display: flex;
     align-items: center;
     gap: 11px;
-    font-size: 13px;
-    line-height: 1.4;
-    color: var(--bb-white);
   }
   .glyph {
     display: inline-flex;
@@ -368,56 +173,8 @@
     width: 30px;
     height: 30px;
     flex: none;
-    border: 1px solid var(--bb-border, rgba(201, 168, 124, 0.15));
+    border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-sm);
-    color: var(--bb-tan-light, #e0c49a);
-  }
-  .glyph svg {
-    width: 17px;
-    height: 17px;
-  }
-
-  .sheet-done {
-    width: 100%;
-    min-height: 44px;
-    border: 1px solid rgba(82, 183, 136, 0.4);
-    background: rgba(82, 183, 136, 0.12);
-    border-radius: var(--bb-radius-sm);
-    cursor: pointer;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--bb-green-glow, #52b788);
-    transition: background var(--bb-dur-fast, 180ms) ease;
-  }
-  .sheet-done:hover {
-    background: rgba(82, 183, 136, 0.2);
-  }
-
-  @keyframes pill-in {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  @keyframes sheet-in {
-    from {
-      opacity: 0;
-      transform: translateY(-6px) scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .pill,
-    .sheet {
-      animation: none;
-    }
+    color: var(--bb-tan-light);
   }
 </style>

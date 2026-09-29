@@ -8,7 +8,6 @@ export { default as FieldError } from '@bagel/ui/svelte/FieldError.svelte';
 
 export { default as MasterToggle } from '../components/MasterToggle.svelte';
 export { default as PermBadge } from '../components/PermBadge.svelte';
-export { default as NavItem } from '../components/NavItem.svelte';
 export { default as RootShell } from '../components/RootShell.svelte';
 export { default as AppShell } from '../components/AppShell.svelte';
 export { default as Rail } from '../components/Rail.svelte';

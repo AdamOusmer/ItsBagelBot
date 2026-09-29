@@ -42,7 +42,7 @@
     font-size: clamp(1.6rem, 4.5vw, 2.5rem);
     font-weight: 800;
     line-height: 1.1;
-    letter-spacing: var(--bb-tracking-tight, -0.01em);
+    letter-spacing: var(--bb-tracking-tight);
   }
 
   @media (max-width: 640px) {

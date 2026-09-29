@@ -5,9 +5,9 @@
 
 @layer bb.elements {
   .bb-row {
-    --row-rule: var(--rule, var(--bb-border));
-    --row-selected: rgba(201, 168, 124, 0.05);
-    --row-hover: rgba(201, 168, 124, 0.045);
+    --row-rule: var(--bb-border);
+    --row-selected: rgba(var(--bb-tan-rgb), 0.05);
+    --row-hover: rgba(var(--bb-tan-rgb), 0.045);
 
     display: flex;
     align-items: stretch;
@@ -44,6 +44,7 @@
     border: 0;
     background: none;
     text-align: left;
+    text-decoration: none;
     color: inherit;
     font: inherit;
     cursor: pointer;
@@ -59,11 +60,88 @@
     outline-offset: -2px;
   }
 
+  .bb-row--static .bb-row__primary {
+    cursor: default;
+    user-select: auto;
+  }
+
+  .bb-row--static .bb-row__primary:hover {
+    background: none;
+  }
+
+  .bb-row__line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .bb-row__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .bb-row__title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--bb-font-body);
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--bb-white);
+  }
+
+  .bb-row__badge {
+    display: inline-flex;
+    vertical-align: 1px;
+    margin-left: 8px;
+  }
+
+  .bb-row--wrap .bb-row__title {
+    display: flex;
+    align-items: center;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .bb-row--wrap .bb-row__badge {
+    flex: none;
+  }
+
+  .bb-row__meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    color: var(--bb-muted);
+  }
+
+  .bb-row__marks {
+    display: flex;
+    gap: 6px;
+    flex: none;
+  }
+
   .bb-row__actions {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     padding: 0 14px;
     flex: none;
+  }
+
+  @media (max-width: 600px) {
+    .bb-row--stack-actions {
+      flex-wrap: wrap;
+    }
+
+    .bb-row--stack-actions .bb-row__actions {
+      flex-basis: 100%;
+      padding: 0 14px var(--bb-space-3) var(--row-actions-indent, 14px);
+    }
   }
 }

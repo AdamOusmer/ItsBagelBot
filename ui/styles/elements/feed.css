@@ -1,0 +1,105 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+  .bb-node-list,
+  .bb-feed {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .bb-node-list__row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--bb-border);
+    border-radius: var(--bb-radius-sm);
+  }
+
+  .bb-feed__row {
+    display: flex;
+    align-items: flex-start;
+    gap: 13px;
+    padding: 13px 2px;
+    border-bottom: 1px solid var(--bb-border);
+  }
+
+  .bb-node-list__row:last-child,
+  .bb-feed__row:last-child {
+    border-bottom: 0;
+  }
+
+  .bb-node-list__dot,
+  .bb-feed__dot {
+    flex: none;
+    width: 5px;
+    height: 5px;
+    transform: rotate(45deg);
+    background: var(--bb-green-glow);
+  }
+
+  .bb-node-list__dot--warn {
+    border: 1px solid var(--bb-tan);
+    background: transparent;
+  }
+
+  .bb-feed__dot {
+    margin-top: 7px;
+    background: var(--bb-tan-light);
+  }
+
+  .bb-feed__dot--green {
+    background: var(--bb-green-glow);
+  }
+
+  .bb-node-list__name,
+  .bb-feed__title {
+    font-family: var(--bb-font-body);
+    font-weight: 600;
+    font-size: var(--bb-text-sm);
+    color: var(--bb-white);
+  }
+
+  .bb-feed__title--mono {
+    font-family: var(--bb-font-mono);
+  }
+
+  .bb-node-list__meta {
+    min-width: 0;
+    font-family: var(--bb-font-body);
+    font-size: var(--bb-text-xs);
+    color: var(--bb-muted);
+  }
+
+  .bb-node-list__trail {
+    margin-left: auto;
+    font-family: var(--bb-font-mono);
+    font-size: var(--bb-text-xs);
+    color: var(--bb-tan-light);
+  }
+
+  .bb-feed__body {
+    min-width: 0;
+  }
+
+  .bb-feed__desc {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--bb-text-xs);
+    color: var(--bb-muted);
+  }
+
+  .bb-feed__trail {
+    margin-left: auto;
+    white-space: nowrap;
+    font-family: var(--bb-font-mono);
+    font-size: var(--bb-text-xs);
+    color: var(--bb-muted);
+  }
+}

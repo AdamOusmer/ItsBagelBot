@@ -7,6 +7,7 @@
 
   let {
     variant = 'primary',
+    as = 'button',
     solid = false,
     danger = false,
     block = false,
@@ -20,7 +21,8 @@
     children,
     ...rest
   }: {
-    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go';
+    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
+    as?: 'button' | 'span';
     solid?: boolean;
     danger?: boolean;
     block?: boolean;
@@ -42,11 +44,14 @@
   });
 
   const isDisabled = $derived(disabled || loading);
+  const marked = $derived(variant !== 'icon' && variant !== 'add');
+  const isStatic = $derived(as === 'span');
 
   const classes = $derived(
     [
       'bb-btn',
       `bb-btn--${variant}`,
+      isStatic && 'bb-btn--static',
       solid && 'bb-btn--solid',
       danger && 'bb-btn--danger-hover',
       block && 'bb-btn--block',
@@ -58,18 +63,14 @@
       .filter(Boolean)
       .join(' '),
   );
+
+  const elementProps = $derived(
+    isStatic ? {} : { type, disabled: isDisabled, 'aria-busy': loading ? ('true' as const) : undefined, onclick },
+  );
 </script>
 
-<button
-  class={classes}
-  {type}
-  disabled={isDisabled}
-  aria-busy={loading ? 'true' : undefined}
-  data-mark=""
-  {onclick}
-  {...rest}
->
-  {#if variant !== 'icon'}<i class="bb-btn__mark" aria-hidden="true"></i>{/if}
+<svelte:element this={as} class={classes} {...elementProps} data-mark="" {...rest}>
+  {#if marked}<i class="bb-btn__mark" aria-hidden="true"></i>{/if}
   <span class="bb-btn__content">{#if children}{@render children()}{/if}</span>
   {#if loading}<span class="bb-btn__spinner" aria-hidden="true"></span>{/if}
-</button>
+</svelte:element>

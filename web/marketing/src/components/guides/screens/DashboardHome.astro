@@ -6,6 +6,7 @@ import Button from '@bagel/ui/astro/Button.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import DeckList from '@bagel/ui/astro/DeckList.astro';
 import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';
+import Code from '@bagel/ui/astro/Code.astro';
 import ScreenChrome from '../ScreenChrome.astro';
 
 interface Props {
@@ -83,14 +84,14 @@ const nav = {
     <DeckList>
         <ManagementRow>
             <span class="gs-row">
-                <code>{L.cmd1Name}</code>
+                <Code>{L.cmd1Name}</Code>
                 <span class="gs-grow" set:html={L.cmd1Response}></span>
                 <span class="gs-meta"><b>{L.cmd1Count}</b> {L.uses}</span>
             </span>
         </ManagementRow>
         <ManagementRow>
             <span class="gs-row">
-                <code>{L.cmd2Name}</code>
+                <Code>{L.cmd2Name}</Code>
                 <span class="gs-grow" set:html={L.cmd2Response}></span>
                 <span class="gs-meta"><b>{L.cmd2Count}</b> {L.uses}</span>
             </span>

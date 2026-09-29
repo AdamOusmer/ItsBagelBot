@@ -2,8 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
-  import { getI18n } from '@bagel/kit';
-  import '@bagel/ui/styles/tags.css';
+  import { SectionNav, getI18n } from '@bagel/kit';
 
   let { guildId }: { guildId: string } = $props();
   const { t } = getI18n();
@@ -35,20 +34,14 @@
     if (segment === '') return here === root || here === `${root}/`;
     return here === href || here.startsWith(`${href}/`);
   }
+
+  const items = $derived(
+    SEGMENTS.map((item) => ({
+      href: `${root}${item.segment}`,
+      label: t(item.key),
+      current: isCurrent(item.segment)
+    }))
+  );
 </script>
 
-<div class="bb-tabs-host">
-  <nav class="bb-tabs bb-tabs--auto" aria-label={t('discord.nav.label')}>
-    {#each SEGMENTS as item (item.segment)}
-      {@const on = isCurrent(item.segment)}
-      <a
-        class="bb-tab"
-        class:is-active={on}
-        href="{root}{item.segment}"
-        aria-current={on ? 'page' : undefined}
-      >
-        {t(item.key)}
-      </a>
-    {/each}
-  </nav>
-</div>
+<SectionNav label={t('discord.nav.label')} {items} />

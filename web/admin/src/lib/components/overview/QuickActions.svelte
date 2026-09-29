@@ -6,6 +6,8 @@
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   let { canNotify }: { canNotify: boolean } = $props();
@@ -18,32 +20,19 @@
 <Card as="section">
   <CardHead title={t('admin.overview.quickTitle')} />
 
-  <form class="lookup" method="GET" action="/users">
-    <SearchInput fill bind:value={q} placeholder={t('admin.overview.quickLookupPlaceholder')} />
-    <input type="hidden" name="q" value={q} />
-    <Button variant="ghost" type="submit">{t('admin.overview.quickLookupCta')}</Button>
-  </form>
+  <Stack gap={3}>
+    <Cluster as="form" gap={2} nowrap method="GET" action="/users">
+      <SearchInput fill bind:value={q} placeholder={t('admin.overview.quickLookupPlaceholder')} />
+      <input type="hidden" name="q" value={q} />
+      <Button variant="ghost" type="submit">{t('admin.overview.quickLookupCta')}</Button>
+    </Cluster>
 
-  {#if canNotify}
-    <div class="jumps">
-      <ButtonLink variant="ghost" href="/notifications">
-        {t('admin.overview.quickNotifications')}
-      </ButtonLink>
-    </div>
-  {/if}
+    {#if canNotify}
+      <Cluster gap={2}>
+        <ButtonLink variant="ghost" href="/notifications">
+          {t('admin.overview.quickNotifications')}
+        </ButtonLink>
+      </Cluster>
+    {/if}
+  </Stack>
 </Card>
-
-<style>
-  .lookup {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-  
-  .jumps {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-  }
-</style>

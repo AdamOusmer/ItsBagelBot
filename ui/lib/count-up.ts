@@ -25,10 +25,12 @@ function easeOutQuart(p: number): number {
   return 1 - Math.pow(1 - p, 4);
 }
 
+type CountUpOptions = { durationMs?: number; value?: string };
+
 export function countUp(
   node: HTMLElement,
-  opts?: { durationMs?: number },
-): { destroy(): void } | undefined {
+  opts?: CountUpOptions,
+): { update(next?: CountUpOptions): void; destroy(): void } | undefined {
   if (!animates()) return;
 
   const parsed = parseCount((node.textContent ?? '').trim());
@@ -47,6 +49,11 @@ export function countUp(
   raf = requestAnimationFrame(tick);
 
   return {
+    update(next) {
+      if (next?.value === undefined) return;
+      cancelAnimationFrame(raf);
+      node.textContent = next.value;
+    },
     destroy() {
       if (raf) cancelAnimationFrame(raf);
     },

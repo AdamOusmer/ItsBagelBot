@@ -5,7 +5,9 @@
 import '../styles/tags.css';
 
 interface Props {
-    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'error';
+    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'error' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'neutral' | 'positive' | 'warning' | 'danger' | 'info';
+    bare?: boolean;
+    literal?: boolean;
     mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
     sweep?: boolean;
     status?: boolean;
@@ -16,6 +18,8 @@ interface Props {
 
 const {
     tone,
+    bare = false,
+    literal = false,
     mark,
     sweep = false,
     status = false,
@@ -23,7 +27,15 @@ const {
     class: className = '',
     ...rest
 } = Astro.props;
-const classes = ['bb-tag', tone ? `bb-tag--${tone}` : null, className].filter(Boolean).join(' ');
+const classes = [
+    'bb-tag',
+    tone ? `bb-tag--${tone}` : null,
+    bare ? 'bb-tag--bare' : null,
+    literal ? 'bb-tag--literal' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
 ---
 
 <Tag class={classes} role={status ? 'status' : undefined} {...rest}>{mark && (<i class={`bb-mark${mark === 'solid' ? '' : ` bb-mark--${mark}`}`} aria-hidden="true"></i>)}<slot />{sweep && (<i class="bb-sweep" aria-hidden="true"></i>)}</Tag>

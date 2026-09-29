@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { LightField, getI18n, Tag } from '@bagel/kit';
+  import { AlertBanner, Eyebrow, Icon, LightField, Text, TextLink, getI18n, Tag } from '@bagel/kit';
   import { SITE, webHref } from '@bagel/kit/site-links';
   import PublicHead from '$lib/components/public/PublicHead.svelte';
 
@@ -127,7 +127,7 @@
 
 <div class="starfield" aria-hidden="true"><LightField /></div>
 
-<header>
+<header data-orbs="off">
   <div class="bg" aria-hidden="true">
     <div class="bg-ring">
       <svg viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -160,16 +160,16 @@
   </div>
   <div class="header-material">
     {#if notice}
-      <div class="notice reveal" style="--d:0s" role="alert">
-        {notice}
+      <div class="notice reveal">
+        <AlertBanner variant="danger">{notice}</AlertBanner>
       </div>
     {/if}
 
-    <a class="eyebrow" href={SITE.discord} target="_blank" rel="noopener noreferrer">
+    <a class="eyebrow reveal" href={SITE.discord} target="_blank" rel="noopener noreferrer">
       <Tag tone="live" mark="solid" sweep>
         {t('login.badge')}
       </Tag>
-      <span class="eyebrow__text">{t('login.topText')}</span>
+      <Eyebrow tone="go">{t('login.topText')}</Eyebrow>
     </a>
 
     <div class="split">
@@ -184,30 +184,32 @@
       </h1>
 
       <div class="aside">
-        <p class="lede">{t('login.lede')}</p>
+        <div class="lede reveal">
+          <Text tone="muted-soft">{t('login.lede')}</Text>
+        </div>
 
-        <div class="facts">
+        <div class="facts reveal">
           {#each facts as fact (fact)}
             <span>{fact}</span>
           {/each}
         </div>
 
-        <a class="scopes" href={webHref(locale, '/privacy')} target="_blank" rel="noopener noreferrer">{t('login.scopesLink')}</a>
+        <div class="scopes reveal">
+          <Text size="xs"><TextLink variant="inline" href={webHref(locale, '/privacy')} external>{t('login.scopesLink')}</TextLink></Text>
+        </div>
 
-        <a class="cta" href={loginHref} data-sveltekit-reload>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 3h16v12l-4 4h-4l-3 3v-3H4z" />
-            <line x1="9" y1="8" x2="9" y2="12" />
-            <line x1="14" y1="8" x2="14" y2="12" />
-          </svg>
-          {t('login.cta')}
-        </a>
+        <div class="cta reveal">
+          <a class="cta-link" href={loginHref} data-sveltekit-reload>
+            <Icon name="twitch" size={17} />
+            {t('login.cta')}
+          </a>
+        </div>
 
-        <p class="consent">{@html t('login.consent')}</p>
+        <p class="consent reveal">{@html t('login.consent')}</p>
 
-        <a class="migrate" href={SITE.web}>
-          {t('login.back')}<span class="migrate__arrow" aria-hidden="true">→</span>
-        </a>
+        <div class="migrate reveal">
+          <TextLink variant="arrow" tone="go" prose href={SITE.web} label={t('login.back')} />
+        </div>
       </div>
     </div>
   </div>
@@ -222,6 +224,8 @@
   }
 
   header {
+    --bb-entrance: bb-rise-in;
+
     position: relative;
     z-index: 1;
     min-height: 100vh;
@@ -250,10 +254,6 @@
     inset: 0;
     pointer-events: none;
     overflow: hidden;
-  }
-
-  :global(body:has([data-hero-title]) .bb-bg-orb) {
-    display: none;
   }
 
   .bg-ring {
@@ -319,49 +319,18 @@
   }
 
   .notice {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    padding: 11px 18px;
-    margin-bottom: 20px;
-    border-radius: var(--bb-radius-md);
-    background: rgba(176, 90, 70, 0.1);
-    border: 1px solid rgba(176, 90, 70, 0.4);
-    color: #cf8a78;
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
     max-width: 60ch;
     text-align: left;
   }
 
   .eyebrow {
+    --i: 2.5;
+
     display: inline-flex;
     align-items: center;
     gap: 12px;
     margin-bottom: 24px;
     text-decoration: none;
-    opacity: 0;
-    animation: fadeUp 800ms 200ms var(--bb-ease-out-expo) forwards;
-  }
-
-  .eyebrow :global(.bb-tag) {
-    flex-shrink: 0;
-  }
-
-  .eyebrow__text {
-    font-family: var(--bb-font-mono);
-    font-size: 0.9rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-    transition: color 0.2s;
-  }
-
-  .eyebrow:hover :global(.bb-tag--live) {
-    border-bottom-color: rgba(82, 183, 136, 0.70);
-  }
-  .eyebrow:hover .eyebrow__text {
-    color: var(--bb-white);
   }
 
   h1 {
@@ -399,83 +368,69 @@
   }
 
   .lede {
+    --i: 6.25;
+
     max-width: 550px;
-    font-size: 1.05rem;
-    line-height: 1.75;
-    color: #b0a898;
-    margin-top: 0;
     margin-bottom: 24px;
-    opacity: 0;
-    animation: fadeUp 0.9s 0.5s var(--bb-ease-out-expo) forwards;
   }
 
   .facts {
+    --i: 8;
+
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
     margin-top: 26px;
     font-family: var(--bb-font-mono);
-    font-size: 0.75rem;
+    font-size: var(--bb-text-xs);
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: rgba(201, 168, 124, 0.66);
-    opacity: 0;
-    animation: fadeUp 0.9s 0.65s var(--bb-ease-out-expo) forwards;
+    color: rgba(var(--bb-tan-rgb), 0.66);
   }
 
   .facts span:not(:last-child)::after {
     content: '·';
     margin: 0 16px;
-    color: rgba(201, 168, 124, 0.4);
+    color: rgba(var(--bb-tan-rgb), 0.4);
   }
 
   .cta {
+    --i: 10;
+
+    margin-top: 18px;
+  }
+
+  .cta-link {
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    margin-top: 18px;
+    padding: 16px 36px;
+    border-radius: var(--bb-radius-sm);
+    background: var(--bb-tan);
+    color: var(--bb-black);
     font-family: var(--bb-font-display);
     font-weight: 700;
     font-size: 0.95rem;
     letter-spacing: -0.01em;
-    color: #0a0a0a;
-    background: var(--bb-tan);
-    padding: 16px 36px;
-    border-radius: var(--bb-radius-sm);
     text-decoration: none;
-    opacity: 0;
-    animation: fadeUp 0.9s 0.8s var(--bb-ease-out-expo) forwards;
-    transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+    transition: background var(--bb-dur-fast), box-shadow var(--bb-dur-fast);
   }
-  .cta svg {
-    width: 17px;
-    height: 17px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.8;
-    stroke-linejoin: round;
-  }
-  .cta:hover {
+
+  .cta-link:hover {
     background: var(--bb-tan-light);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(201, 168, 124, 0.25);
+    box-shadow: 0 8px 32px rgba(var(--bb-tan-rgb), 0.25);
   }
 
   .scopes {
+    --i: 9;
+
     margin-top: 14px;
-    font-family: var(--bb-font-body);
-    font-size: 0.78rem;
-    color: var(--bb-tan-light);
-    text-underline-offset: 3px;
-    opacity: 0;
-    animation: fadeUp 0.9s 0.72s var(--bb-ease-out-expo) forwards;
-  }
-  .scopes:hover {
-    color: var(--bb-white);
   }
 
   .consent {
+    --i: 11.5;
+
     margin-top: 16px;
     margin-bottom: 0;
     margin-inline: auto;
@@ -485,8 +440,6 @@
     color: var(--bb-muted);
     max-width: 42ch;
     text-align: center;
-    opacity: 0;
-    animation: fadeUp 0.9s 0.92s var(--bb-ease-out-expo) forwards;
   }
   .consent :global(a) {
     color: var(--bb-tan-light);
@@ -497,32 +450,9 @@
   }
 
   .migrate {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
+    --i: 13;
+
     margin-top: 18px;
-    font-size: 0.85rem;
-    color: var(--bb-green-light);
-    text-decoration: none;
-    opacity: 0;
-    animation: fadeUp 0.9s 1.05s var(--bb-ease-out-expo) forwards;
-    transition: color 0.2s;
-  }
-  .migrate__arrow {
-    transition: transform 0.25s var(--bb-ease-out-expo);
-  }
-  .migrate:hover { color: var(--bb-white); }
-  .migrate:hover .migrate__arrow { transform: translateX(4px); }
-
-  .reveal {
-    opacity: 0;
-    animation: fadeUp 0.8s var(--bb-ease-out-expo) both;
-    animation-delay: var(--d, 0s);
-  }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(24px); }
-    to { opacity: 1; transform: translateY(0); }
   }
 
   @media (max-height: 820px) {
@@ -557,32 +487,21 @@
       gap: 8px;
       margin-bottom: 14px;
     }
-    .eyebrow__text {
-      text-align: center;
-      font-size: 0.78rem;
-      letter-spacing: 0.16em;
-    }
 
     .lede {
       max-width: min(520px, 100%);
-      font-size: 0.98rem;
-      line-height: 1.58;
       margin-bottom: 18px;
     }
 
     .facts {
       margin-top: 18px;
-      font-size: 0.75rem;
       letter-spacing: 0.11em;
     }
     .facts span:not(:last-child)::after { margin: 0 11px; }
 
-    .cta {
-      margin-top: 14px;
-      padding: 14px 28px;
-      font-size: 0.9rem;
-    }
-    .migrate { margin-top: 14px; font-size: 0.8rem; }
+    .cta { margin-top: 14px; }
+    .cta-link { padding: 14px 28px; font-size: 0.9rem; }
+    .migrate { margin-top: 14px; }
   }
 
   @media (max-width: 480px) {
@@ -595,17 +514,16 @@
     }
 
     .eyebrow { gap: 8px; margin-bottom: 12px; }
-    .eyebrow__text { font-size: 0.75rem; letter-spacing: 0.14em; }
+    .cta-link { padding: 14px 24px; font-size: 0.85rem; }
 
     h1 {
       font-size: clamp(1.75rem, min(8.4vw, 7.6vh), 2.25rem);
       margin-bottom: 16px;
     }
-    .lede { font-size: 0.92rem; line-height: 1.52; margin-bottom: 16px; }
-    .facts { margin-top: 14px; font-size: 0.75rem; }
+    .lede { margin-bottom: 16px; }
+    .facts { margin-top: 14px; }
     .facts span:not(:last-child)::after { margin: 0 8px; }
-    .cta { padding: 14px 24px; font-size: 0.85rem; }
-    .migrate { margin-top: 12px; font-size: 0.76rem; }
+    .migrate { margin-top: 12px; }
   }
 
   @media (min-width: 901px) {
@@ -662,10 +580,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .reveal, .eyebrow, .lede, .facts, .scopes, .cta, .consent, .migrate {
-      animation: none;
-      opacity: 1;
-    }
     .bg-ring svg, .orb::before { animation: none; }
   }
 </style>

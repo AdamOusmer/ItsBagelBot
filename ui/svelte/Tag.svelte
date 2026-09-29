@@ -7,6 +7,8 @@
 
   let {
     tone = undefined,
+    bare = false,
+    literal = false,
     mark = undefined,
     sweep = false,
     status = false,
@@ -15,7 +17,9 @@
     children,
     ...rest
   }: {
-    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'error';
+    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'error' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'neutral' | 'positive' | 'warning' | 'danger' | 'info';
+    bare?: boolean;
+    literal?: boolean;
     mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
     sweep?: boolean;
     status?: boolean;
@@ -26,7 +30,15 @@
   } = $props();
 
   const classes = $derived(
-    ['bb-tag', tone ? `bb-tag--${tone}` : null, className || null].filter(Boolean).join(' '),
+    [
+      'bb-tag',
+      tone ? `bb-tag--${tone}` : null,
+      bare ? 'bb-tag--bare' : null,
+      literal ? 'bb-tag--literal' : null,
+      className || null,
+    ]
+      .filter(Boolean)
+      .join(' '),
   );
 </script>
 

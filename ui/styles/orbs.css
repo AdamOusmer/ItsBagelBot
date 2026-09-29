@@ -3,12 +3,6 @@
 
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
-@layer bb.tokens {
-    :root {
-        --bb-mint-glow-rgb: 167, 243, 208;
-    }
-}
-
 @layer bb.elements {
     .bb-orb {
         position: absolute;
@@ -60,6 +54,15 @@
         background: var(--bb-tan);
         --bb-orb-core: rgba(var(--bb-tan-pale-rgb), 0.78);
         --bb-orb-soft: rgba(var(--bb-tan-rgb), 0.32);
+    }
+
+    :root[data-theme="light"] .bb-orb--green {
+        background: var(--bb-green-light);
+        opacity: 0.1;
+    }
+
+    :root[data-theme="light"] .bb-orb--tan {
+        opacity: 0.12;
     }
 
     @keyframes bb-orb-pulse {

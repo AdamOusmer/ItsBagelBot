@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import '../app.css';
+  import { page } from '$app/state';
   import RootShell from '@bagel/kit/components/RootShell.svelte';
   import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { translate } from '@bagel/kit/i18n';
@@ -21,7 +22,7 @@
   <meta name="twitter:description" content={DEFAULT_DESC} />
 </svelte:head>
 
-<RootShell locale={data.locale} cursorEnabled={data.cursorEnabled}>
+<RootShell locale={data.locale} cursorEnabled={data.cursorEnabled} orbs={page.route.id !== '/(public)/login'}>
   {@render children()}
   <InstallAppPrompt />
   <ToastHost />

@@ -35,12 +35,12 @@
     display: grid;
     place-items: center;
     overflow: hidden;
-    background: rgba(201, 168, 124, 0.12);
-    border: 1px solid var(--glass-border);
+    background: rgba(var(--bb-tan-rgb), 0.12);
+    border: 1px solid var(--bb-glass-border);
     color: var(--bb-tan-light);
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 15px;
+    font-size: var(--bb-text-md);
     letter-spacing: 0.02em;
   }
   img {

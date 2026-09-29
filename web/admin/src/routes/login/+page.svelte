@@ -5,6 +5,12 @@
   import AuroraBg from '@bagel/ui/svelte/AuroraBg.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import LightField from '@bagel/ui/svelte/LightField.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();
@@ -26,21 +32,28 @@
 
 <main class="login">
   <div class="panel">
-    <img src="/logo.png" alt={t('common.appName')} />
-    <div class="name">{t('common.appName')}</div>
-    <div class="sub">{t('admin.login.sub')}</div>
-    {#if notice}<p class="notice">{notice}</p>{/if}
-    <p class="lede">{t('admin.login.lede')}</p>
-    <ButtonLink href="/auth/login" class="twitch">
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M4 3h17v11l-5 5h-4l-3 3H6v-3H2V7l2-4Zm15 10V5H6v11h4v3l3-3h6l0-3Zm-4-5h2v5h-2V8Zm-5 0h2v5h-2V8Z"
-        />
-      </svg>
-      {t('admin.login.cta')}
-    </ButtonLink>
-    <ButtonLink href="/auth/bot/login" variant="ghost">{t('admin.login.botCta')}</ButtonLink>
+    <Card glass>
+      <Stack gap={5}>
+        <Stack gap={4} align="center">
+          <img class="logo" src="/logo.png" alt={t('common.appName')} width="44" height="44" />
+          <Stack gap={1} align="center">
+            <Heading level={4} as="h1">{t('common.appName')}</Heading>
+            <Label mono as="span">{t('admin.login.sub')}</Label>
+          </Stack>
+          {#if notice}<Text size="xs" tone="danger" mono>{notice}</Text>{/if}
+        </Stack>
+        <Text size="sm" tone="muted">{t('admin.login.lede')}</Text>
+        <Stack gap={2} align="center">
+          <div class="twitch">
+            <ButtonLink href="/auth/login" variant="brand" block>
+              <Icon name="twitch" />
+              {t('admin.login.cta')}
+            </ButtonLink>
+          </div>
+          <ButtonLink href="/auth/bot/login" variant="ghost">{t('admin.login.botCta')}</ButtonLink>
+        </Stack>
+      </Stack>
+    </Card>
   </div>
 </main>
 
@@ -60,63 +73,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: var(--bb-space-5);
   }
   .panel {
+    --card-pad: 44px 40px 40px;
     width: 100%;
     max-width: 420px;
-    padding: 44px 40px 40px;
     text-align: center;
-    background: var(--glass-fill);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-md);
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat, 180%));
-    box-shadow: var(--glass-rim), var(--glass-shadow);
   }
-  .panel img {
-    width: 44px;
-    height: 44px;
+  .logo {
     border-radius: var(--bb-radius-sm);
-    margin-bottom: 16px;
   }
-  .name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 22px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-  }
-  .sub {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin-top: 6px;
-  }
-  .notice {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: #cf8a78;
-    margin: 16px 0 0;
-  }
-  .lede {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    line-height: 1.55;
-    color: var(--bb-muted);
-    margin: 18px 0 24px;
-  }
-  .panel :global(.twitch) {
+  .twitch {
+    --btn-brand: #9146ff;
+    --btn-brand-hover: #7d2ff5;
+    --btn-brand-glow: rgba(145, 70, 255, 0.35);
     width: 100%;
-    justify-content: center;
-    background: #9146ff;
-    color: #fff;
-    border-color: #9146ff;
-  }
-  .panel :global(.twitch:hover) {
-    background: #7d2ff5;
-    border-color: #7d2ff5;
-    box-shadow: 0 0 24px rgba(145, 70, 255, 0.35);
   }
 </style>

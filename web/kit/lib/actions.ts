@@ -10,3 +10,8 @@ export async function initLenis(): Promise<() => void> {
   const { createSmoothScroll } = await import('@bagel/ui/lib/lenis');
   return createSmoothScroll()?.destroy ?? (() => {});
 }
+
+export async function resetSmoothScroll(): Promise<void> {
+  const { getSmoothScroll } = await import('@bagel/ui/lib/lenis');
+  getSmoothScroll()?.scrollTo(0, { immediate: true });
+}

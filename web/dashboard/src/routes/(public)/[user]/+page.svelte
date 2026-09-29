@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AuroraBg, Code, Heading, LightField, AlertBanner, Card, Text, formatPointValue, getI18n } from '@bagel/kit';
+  import { AuroraBg, Chip, Code, EmptyState, Eyebrow, Heading, Lead, LightField, AlertBanner, Card, Table, Tag, Text, TextLink, formatPointValue, getI18n } from '@bagel/kit';
   import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
@@ -44,95 +44,100 @@
 
 <main class="lb-page">
   <header class="hero">
-    <div class="eyebrow reveal" style="--i:0">{t('leaderboard.eyebrow')}</div>
-    <h1 class="headline">
-      <span class="word pre reveal" style="--i:0.5">{t('leaderboard.headlinePrefix')}</span>
-      <span class="word reveal" style="--i:1">{data.channelName}&nbsp;</span>
-    </h1>
-    <p class="lede reveal" style="--i:2">{t('leaderboard.tagline', { channel: data.channelName })}</p>
-    <a class="channel-link reveal" style="--i:2.5" href={channelHref}>{t('leaderboard.visitChannel')}</a>
+    <Eyebrow tone="go" class="reveal">{t('leaderboard.eyebrow')}</Eyebrow>
+    <Heading level={1} class="headline">
+      <span class="word pre reveal">{t('leaderboard.headlinePrefix')}</span>
+      <span class="word name reveal">{data.channelName}&nbsp;</span>
+    </Heading>
+    <div class="lede reveal">
+      <Lead>{t('leaderboard.tagline', { channel: data.channelName })}</Lead>
+    </div>
+    <div class="channel-link reveal">
+      <TextLink variant="arrow" tone="go" href={channelHref} label={t('leaderboard.visitChannel')} />
+    </div>
   </header>
 
   {#if data.degraded}
-    <div class="notice reveal" style="--i:3">
+    <div class="notice reveal">
       <AlertBanner variant="warn">{t('leaderboard.degraded')}</AlertBanner>
     </div>
   {:else if data.top.length === 0}
-    <div class="podium-wrap reveal" style="--i:3">
-      <Card atmo class="empty-card">
-        <Heading level={2} class="empty-title">{t('leaderboard.emptyTitle')}</Heading>
-        <Text class="empty-body">{t('leaderboard.emptyBody', { channel: data.channelName })}</Text>
+    <div class="empty reveal">
+      <Card atmo>
+        <EmptyState title={t('leaderboard.emptyTitle')} body={t('leaderboard.emptyBody', { channel: data.channelName })} />
       </Card>
     </div>
   {:else}
     <section class="podium" aria-label={t('leaderboard.podiumLabel')}>
       {#each podium as viewer, i (viewer.viewerId)}
-        <div class="spot-wrap reveal place-{i + 1}" style="--i:{3 + i * 0.5}">
-          <Card atmo hover class="spot">
-            <span class="medal medal-{i + 1}" aria-hidden="true">{i + 1}</span>
-            <span class="avatar" aria-hidden="true">{rowName(viewer).slice(0, 2)}</span>
-            <span class="name" title={viewer.viewerLogin || viewer.viewerName}>{rowName(viewer)}</span>
-            <span class="points">
-              <span class="num">{formatPointValue(viewer.points, locale)}</span>
-              <span class="currency">{data.currencyName}</span>
-            </span>
-            <span class="watched">
-              {hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}
-            </span>
+        <div class="spot-wrap reveal place-{i + 1}">
+          <Card atmo hover>
+            <div class="spot">
+              <span class="medal medal-{i + 1}" aria-hidden="true">{i + 1}</span>
+              <span class="avatar" aria-hidden="true">{rowName(viewer).slice(0, 2)}</span>
+              <span class="name" title={viewer.viewerLogin || viewer.viewerName}>{rowName(viewer)}</span>
+              <span class="points">
+                <span class="num">{formatPointValue(viewer.points, locale)}</span>
+                <span class="currency">{data.currencyName}</span>
+              </span>
+              <span class="watched">
+                {hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}
+              </span>
+            </div>
           </Card>
         </div>
       {/each}
     </section>
 
-    <section class="board-wrap reveal" style="--i:5" aria-label={t('leaderboard.boardLabel')}>
-      <Card atmo class="board" label={t('leaderboard.boardCh')}>
+    <section class="board-wrap reveal" aria-label={t('leaderboard.boardLabel')}>
+      <Card atmo label={t('leaderboard.boardCh')}>
         {#snippet band()}
           <header class="board-head">
             <div class="board-titles">
-              <Heading level={2} class="board-title">{t('leaderboard.boardTitle')}</Heading>
-              <Text size="sm" tone="muted" class="board-note">{t('leaderboard.boardNote')}</Text>
+              <Heading level={4} as="h2">{t('leaderboard.boardTitle')}</Heading>
+              <Text size="sm" tone="muted">{t('leaderboard.boardNote')}</Text>
             </div>
           </header>
         {/snippet}
         {#if rest.length === 0}
-          <p class="solo-note">{t('leaderboard.soloNote')}</p>
+          <Text size="sm" tone="muted">{t('leaderboard.soloNote')}</Text>
         {:else}
-          <div class="table-scroll">
-            <table>
-              <thead>
+          <Table label={t('leaderboard.boardTitle')}>
+            <thead>
+              <tr>
+                <th scope="col">{t('leaderboard.colRank')}</th>
+                <th scope="col">{t('leaderboard.colViewer')}</th>
+                <th class="r" scope="col">{t('leaderboard.colWatched')}</th>
+                <th class="r" scope="col">{t('leaderboard.colPoints')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each rest as viewer, i (viewer.viewerId)}
                 <tr>
-                  <th class="rank" scope="col">{t('leaderboard.colRank')}</th>
-                  <th scope="col">{t('leaderboard.colViewer')}</th>
-                  <th class="n" scope="col">{t('leaderboard.colWatched')}</th>
-                  <th class="n" scope="col">{t('leaderboard.colPoints')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each rest as viewer, i (viewer.viewerId)}
-                  <tr>
-                    <td class="rank">{i + 4}</td>
-                    <td class="viewer">
+                  <td class="rank"><Text as="span" size="xs" tone="muted" mono>{i + 4}</Text></td>
+                  <td>
+                    <span class="viewer">
                       <span class="avatar-sm" aria-hidden="true">{rowName(viewer).slice(0, 1)}</span>
-                      <span class="viewer-name">{rowName(viewer)}</span>
-                    </td>
-                    <td class="n muted">
-                      {hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}
-                    </td>
-                    <td class="n points-cell">{formatPointValue(viewer.points, locale)}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-          <p class="ranked-note">{t('leaderboard.rankedNote', { count: totalFmt.format(data.top.length) })}</p>
+                      <Text as="span" size="sm" truncate>{rowName(viewer)}</Text>
+                    </span>
+                  </td>
+                  <td class="r">
+                    <Text as="span" size="xs" tone="muted" mono>{hoursFmt(viewer.watchSeconds)}&nbsp;{t('leaderboard.watchUnit')}</Text>
+                  </td>
+                  <td class="r"><strong>{formatPointValue(viewer.points, locale)}</strong></td>
+                </tr>
+              {/each}
+            </tbody>
+          </Table>
+          <Text size="xs" tone="muted" mono>{t('leaderboard.rankedNote', { count: totalFmt.format(data.top.length) })}</Text>
         {/if}
       </Card>
     </section>
   {/if}
 
   {#if data.commands.length > 0 || commandTriggers.length > 0}
-    <section class="cmds-wrap reveal" style="--i:6" aria-label={t('leaderboard.commandsLabel')}>
-      <Card atmo class="cmds-card" label={t('leaderboard.commandsCh')}>
+    <section class="cmds-wrap reveal" aria-label={t('leaderboard.commandsLabel')}>
+      <Card atmo label={t('leaderboard.commandsCh')}>
         {#snippet band()}
           <header class="cmds-head">
             <Heading level={6} as="h2">{t('leaderboard.commandsTitle')}</Heading>
@@ -140,37 +145,35 @@
         {/snippet}
 
         {#if data.commands.length > 0}
-          <div class="table-scroll">
-            <table class="cmd-table">
-              <thead>
+          <Table label={t('leaderboard.commandsTitle')}>
+            <thead>
+              <tr>
+                <th scope="col">{t('leaderboard.colCommand')}</th>
+                <th scope="col">{t('leaderboard.colResponse')}</th>
+                <th scope="col" class="r">{t('leaderboard.colPerm')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each data.commands as cmd (cmd.trigger)}
                 <tr>
-                  <th scope="col">{t('leaderboard.colCommand')}</th>
-                  <th scope="col">{t('leaderboard.colResponse')}</th>
-                  <th scope="col" class="n">{t('leaderboard.colPerm')}</th>
+                  <td>
+                    <Code tone="positive">{cmd.trigger}</Code>
+                    {#if cmd.aliases.length > 0}
+                      <Text as="div" size="xs" tone="muted" mono>{cmd.aliases.join(' ')}</Text>
+                    {/if}
+                  </td>
+                  <td class="response">{cmd.response}</td>
+                  <td class="r"><Text as="span" size="xs" tone="muted" mono>{cmd.perm}</Text></td>
                 </tr>
-              </thead>
-              <tbody>
-                {#each data.commands as cmd (cmd.trigger)}
-                  <tr>
-                    <td>
-                      <Code class="cmd-code">{cmd.trigger}</Code>
-                      {#if cmd.aliases.length > 0}
-                        <span class="aliases">{cmd.aliases.join(' ')}</span>
-                      {/if}
-                    </td>
-                    <td class="response">{cmd.response}</td>
-                    <td class="n perm-cell">{cmd.perm}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
+              {/each}
+            </tbody>
+          </Table>
         {/if}
 
         {#if commandTriggers.length > 0}
           <div class="chip-row">
             {#each commandTriggers as trig (trig)}
-              <code class="chip">{trig}</code>
+              <Chip as="span" tone="muted">{trig}</Chip>
             {/each}
           </div>
         {/if}
@@ -178,8 +181,8 @@
     </section>
   {/if}
 
-  <footer class="foot reveal" style="--i:7">
-    <span class="bb-tag bb-tag--live bb-tag--wrap"><i class="bb-mark" aria-hidden="true"></i>{t('leaderboard.earnNote')}<i class="bb-sweep" aria-hidden="true"></i></span>
+  <footer class="foot reveal">
+    <Tag tone="live" mark="solid" sweep class="bb-tag--wrap">{t('leaderboard.earnNote')}</Tag>
   </footer>
 </main>
 
@@ -192,12 +195,14 @@
   }
 
   .lb-page {
+    --tbl-head-size: var(--bb-text-xs);
+
     position: relative;
     z-index: 1;
-    min-height: calc(100vh - 76px);
+    min-height: calc(100vh - var(--bb-nav-height));
     max-width: var(--bb-content-max);
     margin: 0 auto;
-    padding: calc(76px + env(safe-area-inset-top, 0px) + clamp(40px, 8vh, 88px)) var(--bb-space-5)
+    padding: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px) + clamp(40px, 8vh, 88px)) var(--bb-space-5)
       var(--bb-space-8);
     display: flex;
     flex-direction: column;
@@ -210,29 +215,14 @@
     flex-direction: column;
     align-items: center;
     gap: var(--bb-space-3);
-  }
-
-  .eyebrow {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-  }
-
-  .headline {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: clamp(34px, 6vw, 68px);
-    line-height: 1.04;
-    letter-spacing: var(--bb-tracking-tight);
-    color: var(--bb-white);
-    margin: 0;
-    max-width: 24ch;
     overflow-wrap: anywhere;
   }
+  .hero :global(.headline) { max-width: 24ch; }
+
   .word { display: inline-block; }
   .word.pre {
+    --i: 0.5;
+
     font-size: 0.5em;
     font-weight: 600;
     color: var(--bb-muted);
@@ -240,31 +230,17 @@
     margin-right: 0.35em;
     text-transform: lowercase;
   }
+  .word.name { --i: 1; }
 
-  .lede {
-    font-family: var(--bb-font-body);
-    font-size: clamp(15px, 1.6vw, 18px);
-    line-height: 1.6;
-    color: var(--bb-muted);
-    margin: 0;
-    max-width: 56ch;
-  }
+  .lede { --i: 2; }
+  .channel-link { --i: 2.5; }
 
-  .channel-link {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-    text-decoration: none;
-    border-bottom: 1px solid transparent;
-    transition: border-color 140ms ease;
-  }
-  .channel-link:hover, .channel-link:focus-visible { border-bottom-color: currentColor; }
-
-  .notice { max-width: 640px; width: 100%; margin: 0 auto; }
+  .notice { --i: 3; max-width: 640px; width: 100%; margin: 0 auto; }
+  .empty { --i: 3; max-width: 640px; width: 100%; margin: 0 auto; }
 
   .podium {
+    --card-pad: clamp(20px, 2.4vw, 30px);
+
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--bb-space-4);
@@ -274,43 +250,40 @@
     margin: 0 auto;
   }
 
-  .spot-wrap { min-width: 0; }
-  .place-1 { order: 2; }
-  .place-2 { order: 1; }
-  .place-3 { order: 3; }
+  .spot-wrap { display: grid; min-width: 0; }
+  .place-1 { --i: 3; order: 2; }
+  .place-2 { --i: 3.5; order: 1; }
+  .place-3 { --i: 4; order: 3; }
   @media (max-width: 720px) {
     .place-1, .place-2, .place-3 { order: 0; }
   }
 
-  .podium { --card-pad: clamp(20px, 2.4vw, 30px); }
-  :global(.spot) {
-    height: 100%;
+  .spot {
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
     gap: var(--bb-space-3);
     min-width: 0;
-    position: relative;
   }
-  .place-1 :global(.spot) {
-    padding-top: calc(clamp(20px, 2.4vw, 30px) + var(--bb-space-4));
+  .place-1 .spot {
+    padding-top: var(--bb-space-4);
   }
-  :global(.spot)::before {
+  .spot::before {
     content: '';
     position: absolute;
     inset: 0 0 auto;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+    background: linear-gradient(90deg, transparent, rgba(var(--bb-white-pure-rgb), 0.14), transparent);
   }
-  :global(:root[data-theme='light']) :global(.spot)::before {
-    background: linear-gradient(90deg, transparent, rgba(20, 17, 12, 0.12), transparent);
+  :global(:root[data-theme='light']) .spot::before {
+    background: linear-gradient(90deg, transparent, rgba(var(--bb-ink-rgb), 0.12), transparent);
   }
 
   .medal {
     font-family: var(--bb-font-display);
     font-weight: 800;
-    font-size: 13px;
+    font-size: var(--bb-text-sm);
     line-height: 1;
     display: inline-flex;
     align-items: center;
@@ -323,17 +296,17 @@
     left: 50%;
     transform: translateX(-50%);
     border: 1px solid var(--bb-border);
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(var(--bb-white-pure-rgb), 0.06);
     color: var(--bb-muted);
   }
   .medal-1 {
-    background: rgba(201, 168, 124, 0.16);
+    background: rgba(var(--bb-tan-rgb), 0.16);
     border-color: var(--bb-tan);
     color: var(--bb-tan-light);
-    box-shadow: 0 0 18px rgba(201, 168, 124, 0.25);
+    box-shadow: 0 0 18px rgba(var(--bb-tan-rgb), 0.25);
   }
-  .medal-2 { background: rgba(255, 255, 255, 0.1); color: var(--bb-white); }
-  .medal-3 { background: rgba(201, 168, 124, 0.07); color: rgba(201, 168, 124, 0.8); }
+  .medal-2 { background: rgba(var(--bb-white-pure-rgb), 0.1); color: var(--bb-white); }
+  .medal-3 { background: rgba(var(--bb-tan-rgb), 0.07); color: rgba(var(--bb-tan-rgb), 0.8); }
 
   .avatar {
     display: inline-flex;
@@ -348,7 +321,7 @@
     letter-spacing: var(--bb-tracking-tight);
     text-transform: uppercase;
     color: var(--bb-green-glow);
-    background: rgba(82, 183, 136, 0.1);
+    background: rgba(var(--bb-green-glow-rgb), 0.1);
     border: 1px solid var(--bb-border);
   }
   .place-1 .avatar {
@@ -356,7 +329,7 @@
     height: 62px;
     font-size: 23px;
     color: var(--bb-tan-light);
-    background: rgba(201, 168, 124, 0.12);
+    background: rgba(var(--bb-tan-rgb), 0.12);
   }
 
   .name {
@@ -384,7 +357,7 @@
   .place-1 .points .num { font-size: clamp(32px, 4vw, 50px); color: var(--bb-tan-light); }
   .points .currency {
     font-family: var(--bb-font-mono);
-    font-size: 12px;
+    font-size: var(--bb-text-xs);
     letter-spacing: var(--bb-tracking-eyebrow);
     text-transform: uppercase;
     color: var(--bb-muted);
@@ -395,7 +368,7 @@
     align-items: center;
     gap: 6px;
     font-family: var(--bb-font-mono);
-    font-size: 12px;
+    font-size: var(--bb-text-xs);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--bb-muted);
@@ -403,84 +376,23 @@
   }
 
   .board-wrap {
+    --i: 5;
+    --card-pad: clamp(20px, 2.4vw, 30px);
+    --card-band-h: calc(112px * var(--d));
+    --card-band-pad: calc(16px * var(--d)) var(--card-pad);
+
     min-width: 0;
     max-width: 980px;
     width: 100%;
     margin: 0 auto;
   }
 
-  .board-wrap {
-    --card-pad: clamp(20px, 2.4vw, 30px);
-    --card-band-h: calc(112px * var(--d, 1));
-    --card-band-pad: calc(16px * var(--d, 1)) var(--card-pad);
-  }
-  :global(.board) { min-width: 0; }
-
   .board-head { display: flex; align-items: flex-start; gap: var(--bb-space-3); min-width: 0; }
-  .board-titles { min-width: 0; }
+  .board-titles { display: flex; flex-direction: column; gap: var(--bb-space-1); min-width: 0; }
 
-  :global(.board-title) { font-size: clamp(18px, 2vw, 22px); letter-spacing: var(--bb-tracking-tight); }
-  :global(.board-note) { margin-top: 4px; }
-
-  .empty-card {
-    max-width: 640px;
-    margin: 0 auto;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: var(--bb-space-3);
-    padding-block: var(--bb-space-7);
-  }
-  :global(.empty-title) { font-size: clamp(20px, 2.4vw, 26px); letter-spacing: var(--bb-tracking-tight); }
-  :global(.empty-body) { color: var(--bb-muted); max-width: 44ch; }
-
-  .solo-note {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    line-height: 1.6;
-    color: var(--bb-muted);
-    margin: 0;
-  }
-
-  .table-scroll { overflow-x: auto; margin: 0 calc(-1 * var(--bb-space-2)); padding: 0 var(--bb-space-2); }
-
-  table { width: 100%; border-collapse: collapse; }
-
-  th {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    font-weight: 500;
-    text-align: left;
-    padding: 0 var(--bb-space-3) var(--bb-space-2) 0;
-    white-space: nowrap;
-  }
-
-  td {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    color: var(--bb-white);
-    padding: var(--bb-space-2) var(--bb-space-3) var(--bb-space-2) 0;
-    border-top: 1px solid var(--bb-border);
-    white-space: nowrap;
-  }
-
-  th:last-child, td:last-child { padding-right: 0; }
-
-  .rank {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-muted);
-    width: 2.5ch;
-    font-variant-numeric: tabular-nums;
-  }
+  .rank { width: 2.5ch; }
 
   .viewer { display: flex; align-items: center; gap: var(--bb-space-3); min-width: 0; }
-  .viewer-name { overflow: hidden; text-overflow: ellipsis; }
 
   .avatar-sm {
     display: inline-flex;
@@ -492,88 +404,32 @@
     border-radius: 50%;
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 12px;
+    font-size: var(--bb-text-xs);
     text-transform: uppercase;
     color: var(--bb-green-glow);
-    background: rgba(82, 183, 136, 0.1);
+    background: rgba(var(--bb-green-glow-rgb), 0.1);
     border: 1px solid var(--bb-border);
   }
 
-  .n { text-align: right; font-variant-numeric: tabular-nums; }
-  th.n { text-align: right; padding-right: 0; }
-
-  .muted {
-    color: var(--bb-muted);
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-  }
-
-  .points-cell { font-weight: 600; }
-
-  .ranked-note {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    color: var(--bb-muted);
-    margin: 0;
-  }
-
+  .cmds-wrap { --i: 6; }
   .cmds-head {
     display: flex;
     align-items: center;
     gap: var(--bb-space-2);
   }
-  .cmd-table { width: 100%; border-collapse: collapse; font-family: var(--bb-font-body); font-size: 13px; }
-  .cmd-table th[scope='col'] {
-    text-align: left;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--bb-border);
-    font-weight: 600;
-  }
-  .cmd-table th.n { text-align: right; }
-  .cmd-table td {
-    padding: 8px;
-    border-bottom: 1px solid rgba(240, 236, 228, 0.05);
-    color: var(--bb-tan);
-    vertical-align: top;
-  }
-  .cmd-table td.n { text-align: right; white-space: nowrap; }
-  :global(.cmd-code) { color: var(--bb-green); white-space: nowrap; }
-  .aliases { display: block; margin-top: 4px; font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-muted); }
   .response { overflow-wrap: anywhere; }
-  .perm-cell { font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0.06em; color: var(--bb-muted); }
   .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--bb-space-3); }
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-tan);
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-pill);
-    padding: 2px 10px;
-  }
 
   .foot {
+    --i: 7;
+
     display: flex;
     align-items: center;
     justify-content: center;
     gap: var(--bb-space-2);
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
   }
 
   @media (max-width: 900px) {
     .podium { grid-template-columns: minmax(0, 1fr); max-width: 480px; }
   }
-
 </style>

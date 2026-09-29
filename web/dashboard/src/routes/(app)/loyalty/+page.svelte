@@ -9,12 +9,17 @@
     MasterToggle,
     PageToolbar,
     Switch,
+    SwitchRow,
     focusFirstInvalid,
     AlertBanner,
     Card,
     ButtonLink,
     Button,
     Field,
+    Heading,
+    Input,
+    Table,
+    Text,
     EmptyState,
     SaveStatus,
     DeckList,
@@ -190,9 +195,9 @@
 
   {#if games.length}
     <section class="block" aria-labelledby="loy-games-h">
-      <h2 id="loy-games-h" class="block-title">{t('loyalty.gamesTitle')}</h2>
+      <Heading level={6} as="h2" variant="title" id="loy-games-h">{t('loyalty.gamesTitle')}</Heading>
       <Card>
-        <p class="hint">{enabled ? t('loyalty.gamesHint') : t('loyalty.gamesNeedsOn')}</p>
+        <div class="hint"><Text size="xs" tone="muted">{enabled ? t('loyalty.gamesHint') : t('loyalty.gamesNeedsOn')}</Text></div>
         {#each games as g (g.def.id)}
           <LoyaltyGameRow def={g.def} bind:enabled={g.enabled} loyaltyOn={enabled} />
         {/each}
@@ -201,15 +206,15 @@
   {/if}
 
   <section class="block" aria-labelledby="loy-rates-h">
-    <h2 id="loy-rates-h" class="block-title">{t('loyalty.ratesTitle')}</h2>
+    <Heading level={6} as="h2" variant="title" id="loy-rates-h">{t('loyalty.ratesTitle')}</Heading>
     <Card>
-      <p class="hint">{t('loyalty.ratesHint')}</p>
+      <div class="hint"><Text size="xs" tone="muted">{t('loyalty.ratesHint')}</Text></div>
 
       <form method="POST" action="?/save" use:enhance={saveSubmit} class="rates" novalidate bind:this={formEl}>
         <input type="hidden" name="config" value={payload} />
 
         <Field label={t('loyalty.fieldName')} tag={t('common.optional')}>
-          <input class="bb-input" placeholder={t('loyalty.fieldNamePh')} maxlength="32" bind:value={config.pointsName} />
+          <Input placeholder={t('loyalty.fieldNamePh')} maxlength="32" bind:value={config.pointsName} />
         </Field>
 
         {#each rateFields as rf (rf.key)}
@@ -222,21 +227,23 @@
               errorId="rate-err-{rf.key}"
             >
               <span class="rate-input">
-                <input
-                  class="bb-input num"
-                  type="number"
-                  inputmode="numeric"
-                  min="1"
-                  max={RATE_MAX}
-                  step="1"
-                  disabled={!rates[rf.key].on}
-                  data-invalid={err ? '' : undefined}
-                  aria-invalid={err ? 'true' : undefined}
-                  aria-describedby={err ? `rate-err-${rf.key}` : undefined}
-                  bind:value={rates[rf.key].amount}
-                  onblur={() => (rates[rf.key].touched = true)}
-                />
-                <span class="unit">{rf.unit}</span>
+                <span class="num">
+                  <Input
+                    fill
+                    type="number"
+                    inputmode="numeric"
+                    min="1"
+                    max={RATE_MAX}
+                    step="1"
+                    disabled={!rates[rf.key].on}
+                    invalid={!!err}
+                    aria-invalid={err ? 'true' : undefined}
+                    aria-describedby={err ? `rate-err-${rf.key}` : undefined}
+                    bind:value={rates[rf.key].amount}
+                    onblur={() => (rates[rf.key].touched = true)}
+                  />
+                </span>
+                <Text as="span" size="sm" tone="muted">{rf.unit}</Text>
               </span>
             </Field>
             <span class="rate-switch">
@@ -250,32 +257,28 @@
         {/each}
 
         <div class="perm">
-          <span class="perm-copy">
-            <span class="perm-label">{t('loyalty.streamerPoints')}</span>
-            <span class="perm-hint" id="streamer-points-hint">{t('loyalty.streamerPointsHint')}</span>
-          </span>
-          <Switch
+          <SwitchRow
+            control="end"
             label={t('loyalty.streamerPoints')}
-            describedby="streamer-points-hint"
+            hint={t('loyalty.streamerPointsHint')}
+            hintId="streamer-points-hint"
             checked={config.streamerPoints >= 0}
             onchange={(v) => (config.streamerPoints = v ? 0 : -1)}
           />
         </div>
 
-        <p class="hint">{t('loyalty.tierHint')}</p>
+        <div class="hint"><Text size="xs" tone="muted">{t('loyalty.tierHint')}</Text></div>
 
-        <h3 class="perm-title">{t('loyalty.permissionsTitle')}</h3>
-        <p class="hint">{t('loyalty.permissionsHint')}</p>
+        <div class="perm-title"><Heading level={6} as="h3">{t('loyalty.permissionsTitle')}</Heading></div>
+        <div class="hint"><Text size="xs" tone="muted">{t('loyalty.permissionsHint')}</Text></div>
 
         {#each permToggles as pt (pt.key)}
           <div class="perm">
-            <span class="perm-copy">
-              <span class="perm-label">{pt.label}</span>
-              <span class="perm-hint" id="perm-hint-{pt.key}">{pt.hint}</span>
-            </span>
-            <Switch
+            <SwitchRow
+              control="end"
               label={pt.label}
-              describedby="perm-hint-{pt.key}"
+              hint={pt.hint}
+              hintId="perm-hint-{pt.key}"
               checked={config[pt.key] >= 0}
               onchange={(v) => (config[pt.key] = v ? 0 : -1)}
             />
@@ -291,36 +294,34 @@
   </section>
 
   <section class="block" aria-labelledby="loy-top-h">
-    <h2 id="loy-top-h" class="block-title">{t('loyalty.topTitle')}</h2>
+    <Heading level={6} as="h2" variant="title" id="loy-top-h">{t('loyalty.topTitle')}</Heading>
     <Card>
       {#if top.length === 0}
         <EmptyState title={t('loyalty.topEmpty')}>
           <ButtonLink href="#loy-rates-h" variant="ghost">{t('loyalty.topEmptyCta')}</ButtonLink>
         </EmptyState>
       {:else}
-        <div class="bb-tbl-wrap">
-          <table class="bb-tbl standings">
-            <caption class="bb-sr-only">{t('loyalty.topCaption')}</caption>
-            <thead>
+        <Table label={t('loyalty.topCaption')}>
+          <caption class="bb-sr-only">{t('loyalty.topCaption')}</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="r">{t('loyalty.colRank')}</th>
+              <th scope="col">{t('loyalty.colViewer')}</th>
+              <th scope="col" class="r">{t('loyalty.colPoints')}</th>
+              <th scope="col" class="r">{t('loyalty.colWatch')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each top as row, i (row.viewerId)}
               <tr>
-                <th scope="col" class="r">{t('loyalty.colRank')}</th>
-                <th scope="col">{t('loyalty.colViewer')}</th>
-                <th scope="col" class="r">{t('loyalty.colPoints')}</th>
-                <th scope="col" class="r">{t('loyalty.colWatch')}</th>
+                <th scope="row" class="r rank"><Text as="span" size="sm" tone="muted" mono>{i + 1}</Text></th>
+                <td>{row.viewerName || row.viewerLogin || row.viewerId}</td>
+                <td class="r">{formatPointValue(row.points, locale)}</td>
+                <td class="r mut">{hours(row.watchSeconds)}</td>
               </tr>
-            </thead>
-            <tbody>
-              {#each top as row, i (row.viewerId)}
-                <tr>
-                  <th scope="row" class="r rank">{i + 1}</th>
-                  <td>{row.viewerName || row.viewerLogin || row.viewerId}</td>
-                  <td class="r">{formatPointValue(row.points, locale)}</td>
-                  <td class="r mut">{hours(row.watchSeconds)}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+            {/each}
+          </tbody>
+        </Table>
       {/if}
     </Card>
   </section>
@@ -335,51 +336,26 @@
 </section>
 
 <style>
-  .block { margin-bottom: 26px; }
-  .block-title {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0 0 12px;
-  }
+  .block { display: grid; gap: 12px; margin-bottom: 26px; }
 
+  .hint { margin-bottom: 14px; }
 
-  .hint { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-
-  .perm-title {
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--bb-white);
-    margin: 18px 0 6px;
-  }
+  .perm-title { margin: 18px 0 6px; }
   .perm {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
     padding: 9px 0;
-    border-bottom: 1px solid rgba(240, 236, 228, 0.05);
+    border-bottom: 1px solid rgba(var(--bb-white-rgb), 0.05);
   }
-  .perm:last-of-type { border-bottom: none; }
-  .perm-copy { display: flex; flex-direction: column; gap: 1px; }
-  .perm-label { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-white); }
-  .perm-hint { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-muted); }
 
-  .rates :global(.num) { max-width: 160px; }
   .rate { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
   .rate-switch { padding-top: 26px; min-height: 44px; display: inline-flex; align-items: flex-start; }
   .rate-input { display: flex; align-items: center; gap: 10px; }
-  .unit { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
+  .num { width: 100%; max-width: 160px; }
 
   .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 4px; }
 
   .cmd-block { margin-top: 26px; }
 
-  .standings th[scope='row'] { font-family: var(--bb-font-mono); font-variant-numeric: tabular-nums; }
-  .standings .rank { color: var(--bb-muted); }
+  .rank { font-variant-numeric: tabular-nums; }
 
   @media (max-width: 480px) {
     .actions { flex-wrap: wrap; }

@@ -8,14 +8,22 @@ interface Props {
     label: string;
     zebra?: boolean;
     compact?: boolean;
+    roomy?: boolean;
+    minWidth?: string;
     class?: string;
     [key: string]: unknown;
 }
 
-const { label, zebra = false, compact = false, class: className = '', ...rest } = Astro.props;
-const classes = ['bb-tbl', zebra ? 'bb-tbl--zebra' : null, compact ? 'bb-tbl--compact' : null, className]
+const { label, zebra = false, compact = false, roomy = false, minWidth, class: className = '', ...rest } = Astro.props;
+const classes = [
+    'bb-tbl',
+    zebra ? 'bb-tbl--zebra' : null,
+    compact ? 'bb-tbl--compact' : null,
+    roomy ? 'bb-tbl--roomy' : null,
+    className,
+]
     .filter(Boolean)
     .join(' ');
 ---
 
-<div class="bb-tbl-wrap" role="region" aria-label={label} tabindex="0"><table class={classes} {...rest}><slot /></table></div>
+<div class="bb-tbl-wrap" role="region" aria-label={label} tabindex="0"><table class={classes} style={minWidth ? `--tbl-min-w: ${minWidth};` : undefined} {...rest}><slot /></table></div>

@@ -43,6 +43,7 @@ export { default as Badge } from './Badge.astro';
 export { default as Chip } from './Chip.astro';
 export { default as EmptyState } from './EmptyState.astro';
 export { default as ErrorScene } from './ErrorScene.astro';
+export { default as Mark } from './Mark.astro';
 export { default as Modal } from './Modal.astro';
 export { default as SaveStatus } from './SaveStatus.astro';
 export { default as Skeleton } from './Skeleton.astro';
@@ -85,6 +86,7 @@ export { default as CardAtmosphere } from './CardAtmosphere.astro';
 export { default as Cursor } from './Cursor.astro';
 export { default as LightField } from './LightField.astro';
 export { default as ReadingProgress } from './ReadingProgress.astro';
+export { default as NavProgress } from './NavProgress.astro';
 
 export { default as StatusDot } from './StatusDot.astro';
 
@@ -97,3 +99,23 @@ export { default as CounterCard } from './CounterCard.astro';
 export { default as CommunityCard } from './CommunityCard.astro';
 
 export { default as RankingCard } from './RankingCard.astro';
+
+export { default as DeckLayout } from './DeckLayout.astro';
+export { default as Disclosure } from './Disclosure.astro';
+export { default as Fact } from './Fact.astro';
+export { default as FactList } from './FactList.astro';
+export { default as Pager } from './Pager.astro';
+export { default as ProgressBar } from './ProgressBar.astro';
+
+export { default as StepList } from './StepList.astro';
+export { default as Stepper } from './Stepper.astro';
+export { default as Spinner } from './Spinner.astro';
+export { default as LineSeries } from './LineSeries.astro';
+
+export { default as SwitchRow } from './SwitchRow.astro';
+export { default as Slider } from './Slider.astro';
+export { default as FileDrop } from './FileDrop.astro';
+export { default as PickerOption } from './PickerOption.astro';
+
+export { default as SkipLink } from './SkipLink.astro';
+export { default as CopySurface } from './CopySurface.astro';

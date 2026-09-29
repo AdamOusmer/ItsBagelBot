@@ -6,12 +6,16 @@ import '../styles/elements/typography.css';
 
 interface Props {
     block?: boolean;
-    tone?: 'danger';
+    wrap?: boolean;
+    maxHeight?: string;
+    tone?: 'danger' | 'positive';
     class?: string;
 }
 
-const { block = false, tone, class: className = '', ...rest } = Astro.props;
+const { block = false, wrap = false, maxHeight, tone, class: className = '', ...rest } = Astro.props;
 const classes = ['bb-code', tone && `bb-code--${tone}`, className].filter(Boolean).join(' ');
+const blockClasses = wrap ? 'bb-code-block bb-code-block--wrap' : 'bb-code-block';
+const blockStyle = maxHeight ? `max-height:${maxHeight}` : undefined;
 ---
 
-{block ? (<pre class="bb-code-block" {...rest}><code class={classes}><slot /></code></pre>) : (<code class={classes} {...rest}><slot /></code>)}
+{block ? (<pre class={blockClasses} style={blockStyle} {...rest}><code class={classes}><slot /></code></pre>) : (<code class={classes} {...rest}><slot /></code>)}

@@ -2,6 +2,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Button from '@bagel/ui/astro/Button.astro';
+import Card from '@bagel/ui/astro/Card.astro';
+import Checkbox from '@bagel/ui/astro/Checkbox.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+
 interface Props {
     labels?: Record<string, string>;
     props?: Record<string, unknown>;
@@ -17,77 +23,41 @@ const items = Array.isArray(props.items) ? (props.items as string[]) : [];
 const storageKey = typeof props.storageKey === 'string' ? props.storageKey : 'guides.checklist';
 ---
 
-<div class="gcheck" data-checklist data-key={storageKey}>
-    <div class="gcheck__head">
-        <b>{L.heading}</b>
-        <button type="button" class="gcheck__reset" data-checklist-reset>{L.reset}</button>
+<Card flush class="gcheck-card">
+    <div class="gcheck" data-checklist data-key={storageKey}>
+        <div class="gcheck__head">
+            <Heading level={6} as="span">{L.heading}</Heading>
+            <Button variant="ghost" size="sm" data-checklist-reset>{L.reset}</Button>
+        </div>
+        <ul class="gcheck__list">
+            {items.map((item, i) => (
+                <li class="gcheck__row">
+                    <Checkbox data-checklist-item={String(i)}><Text as="span" tone="muted-light" class="gcheck__label"><Fragment set:html={item} /></Text></Checkbox>
+                </li>
+            ))}
+        </ul>
     </div>
-    <ul class="gcheck__list">
-        {items.map((item, i) => (
-            <li>
-                <label>
-                    <input class="gcheck__box" type="checkbox" data-checklist-item={String(i)} />
-                    <span class="gcheck__label" set:html={item}></span>
-                </label>
-            </li>
-        ))}
-    </ul>
-</div>
+</Card>
 
 <style>
+    .gcheck-card { margin: 22px 0; }
+
     .gcheck {
         display: grid;
         gap: 10px;
-        margin: 22px 0;
         padding: 15px 16px;
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-md);
-        background: rgba(17, 17, 16, 0.6);
     }
 
     .gcheck__head {
         display: flex;
-        align-items: baseline;
+        align-items: center;
         justify-content: space-between;
         gap: 10px;
     }
 
-    .gcheck__head b {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 0.95rem;
-        color: var(--white, #f0ece4);
-    }
-
-    .gcheck__reset {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.62rem;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--muted, #888077);
-        background: none;
-        border: 0;
-        padding: 0;
-        cursor: pointer;
-    }
-
-    .gcheck__reset:hover { color: var(--tan, #c9a87c); }
-
     .gcheck__list { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
 
-    .gcheck__list label {
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.92rem;
-        line-height: 1.6;
-        color: #a39c92;
-        cursor: pointer;
-    }
-
-    .gcheck__box { margin-top: 5px; accent-color: var(--green-glow, #52b788); }
-
-    .gcheck__box:checked + .gcheck__label { color: var(--muted, #888077); text-decoration: line-through; }
+    .gcheck__row:has(:checked) .gcheck__label { color: var(--bb-muted); text-decoration: line-through; }
 </style>
 
 <script>

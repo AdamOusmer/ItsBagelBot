@@ -6,6 +6,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
@@ -14,7 +15,8 @@
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
-  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Pager from '@bagel/ui/svelte/Pager.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
@@ -180,11 +182,11 @@
   <PageToolbar>
     {#snippet lead()}
       {#if loaded}
-        <span class="count">
+        <Text as="span" size="xs" tone="muted" mono>
           {notifications.length === 1
             ? t('admin.notifications.countOne')
             : t('admin.notifications.count', { n: String(notifications.length) })}
-        </span>
+        </Text>
       {:else}
         <Skeleton variant="pill" width="130px" />
       {/if}
@@ -194,7 +196,7 @@
     {/snippet}
   </PageToolbar>
 
-  <div class="deck" class:inspecting={inspector.isOpen}>
+  <DeckLayout inspecting={inspector.isOpen} width="380px">
     <DeckList>
       {#if !loaded}
         <SkeletonStack rows={4} height="60px" />
@@ -208,23 +210,15 @@
                 expanded={inspector.selectedId === String(n.id)}
                 controls="notification-inspector"
                 onselect={() => openNotification(n)}
+                title={n.title}
+                meta={t('admin.notifications.rowMeta', {
+                  who: n.created_by_login,
+                  when: ago(n.created_at)
+                })}
               >
-                {#snippet primary()}
-                  <span class="row">
-                    <span class="who">
-                      <span class="name">{n.title}</span>
-                      <span class="meta">
-                        {t('admin.notifications.rowMeta', {
-                          who: n.created_by_login,
-                          when: ago(n.created_at)
-                        })}
-                      </span>
-                    </span>
-                    <span class="marks">
-                      <StatePill tone={LEVEL_TONE[n.level]}>{t(LEVEL_LABEL[n.level])}</StatePill>
-                      <StatePill tone="neutral">{t(audience.key, audience.params)}</StatePill>
-                    </span>
-                  </span>
+                {#snippet marks()}
+                  <StatePill tone={LEVEL_TONE[n.level]}>{t(LEVEL_LABEL[n.level])}</StatePill>
+                  <span class="audience"><StatePill tone="neutral">{t(audience.key, audience.params)}</StatePill></span>
                 {/snippet}
               </ManagementRow>
             </li>
@@ -238,30 +232,18 @@
       {/if}
 
       {#if loaded && (page > 1 || hasMore)}
-        <div class="pager">
-          <ButtonLink
-            variant="ghost"
-            class={page <= 1 ? 'disabled' : ''}
-            href={pageHref(page - 1)}
-            aria-disabled={page <= 1}
-          >
-            {t('admin.notifications.pagerPrev')}
-          </ButtonLink>
-          <span class="pager-label">
-            {t('admin.notifications.pagerLabel', {
-              page: String(page),
-              max: String(maxPages)
-            })}
-          </span>
-          <ButtonLink
-            variant="ghost"
-            class={!hasMore ? 'disabled' : ''}
-            href={pageHref(page + 1)}
-            aria-disabled={!hasMore}
-          >
-            {t('admin.notifications.pagerNext')}
-          </ButtonLink>
-        </div>
+        <Pager
+          label={t('admin.notifications.pagerLabel', {
+            page: String(page),
+            max: String(maxPages)
+          })}
+          prevHref={pageHref(page - 1)}
+          nextHref={pageHref(page + 1)}
+          hasPrev={page > 1}
+          hasNext={hasMore}
+          prevLabel={t('admin.notifications.pagerPrev')}
+          nextLabel={t('admin.notifications.pagerNext')}
+        />
       {/if}
     </DeckList>
 
@@ -296,7 +278,7 @@
         {/key}
       </InspectorSurface>
     {/if}
-  </div>
+  </DeckLayout>
 </section>
 
 <ConfirmDialog
@@ -324,76 +306,9 @@
 />
 
 <style>
-  .count {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-  }
-
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting {
-      grid-template-columns: minmax(0, 1fr) 380px;
-    }
-  }
-
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-  }
-  .who {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-  }
-  .name {
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 13.5px;
-    color: var(--bb-white);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .meta {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-  }
-  .marks {
-    display: flex;
-    gap: 6px;
-    flex: none;
-  }
   @media (max-width: 560px) {
-    .marks :global(.state-badge:last-child) {
+    .audience {
       display: none;
     }
-  }
-
-  .pager {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    padding: 14px;
-  }
-  .pager-label {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-  }
-  .pager :global(.disabled) {
-    pointer-events: none;
-    opacity: 0.4;
   }
 </style>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, ButtonLink, Card, Chip, getI18n, droppedPinNotice } from '@bagel/kit';
+  import { AlertBanner, ButtonLink, Card, Chip, Heading, Text, getI18n, droppedPinNotice } from '@bagel/kit';
   import GuildHeader from '$lib/components/discord/GuildHeader.svelte';
   import GuildNav from '$lib/components/discord/GuildNav.svelte';
   import { SLOT_LABEL_KEYS } from '$lib/discord/guild-fields';
@@ -26,10 +26,10 @@
 <section class="screen active dc">
   {#if data.locked}
     <section class="block reveal" style="--i:0" aria-labelledby="dc-locked-h">
-      <h2 id="dc-locked-h" class="block-title">{t('modules.betaLocked')}</h2>
+      <Heading level={6} as="h2" variant="title" id="dc-locked-h" class="block-title">{t('modules.betaLocked')}</Heading>
       <Card>
-        <p class="lead"><Chip on>{t('modules.betaChip')}</Chip></p>
-        <p class="hint">{t('modules.betaLockedBody')}</p>
+        <p class="lead"><Chip as="span" on>{t('modules.betaChip')}</Chip></p>
+        <Text size="sm" tone="muted" class="hint">{t('modules.betaLockedBody')}</Text>
         <div class="row">
           <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>
         </div>
@@ -87,6 +87,6 @@
     flex-direction: column;
     gap: 16px;
     padding-bottom: 4px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--bb-glass-border);
   }
 </style>

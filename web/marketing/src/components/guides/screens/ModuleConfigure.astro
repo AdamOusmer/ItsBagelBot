@@ -10,10 +10,10 @@ import Field from '@bagel/ui/astro/Field.astro';
 import InspectorSurface from '@bagel/ui/astro/InspectorSurface.astro';
 import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';
 import Switch from '@bagel/ui/astro/Switch.astro';
+import SwitchRow from '@bagel/ui/astro/SwitchRow.astro';
 import ChatRehearsal from '../ChatRehearsal.astro';
 import ScreenChrome from '../ScreenChrome.astro';
 import '@bagel/ui/styles/elements/field.css';
-import '@bagel/ui/styles/elements/toggle.css';
 
 interface Props {
     labels?: Record<string, string>;
@@ -96,14 +96,9 @@ const replies: { name: string; text: string; on: boolean }[] = [
 >
     <Card>
         <span class="gs-row">
-            <span class="bb-switch-row gs-grow">
-                <span class="bb-switch-row__text">
-                    <span class="bb-switch-row__label">{L.statusLabel}</span>
-                    <span class="bb-switch-row__hint">{L.statusHelp}</span>
-                </span>
-            </span>
-            <Badge tone="live" mark="solid">{L.statusOn}</Badge>
-            <Switch checked label={L.statusLabel} />
+            <SwitchRow control="end" checked label={L.statusLabel} hint={L.statusHelp} class="gs-fill">
+                <Badge slot="status" tone="live" mark="solid">{L.statusOn}</Badge>
+            </SwitchRow>
             <i class="gs-mark" data-note="1"></i>
         </span>
     </Card>

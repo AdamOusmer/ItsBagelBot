@@ -5,10 +5,13 @@
   import { namespaceReplyTemplate } from '@bagel/kit';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
+    Button,
     Code,
     Field,
-    Switch,
+    Input,
     Select,
+    SwitchRow,
+    Text,
     PERMS,
     getI18n,
     tPerm,
@@ -50,11 +53,14 @@
       access = currentAccess;
       savedAccess = currentAccess;
     } else if (currentAccess !== savedAccess) {
-      // Follow a fresh server value unless the viewer is editing this field.
-      if (access === savedAccess) access = currentAccess;
-      savedAccess = currentAccess;
+      adoptServerAccessUnlessEdited(currentAccess);
     }
   });
+
+  function adoptServerAccessUnlessEdited(next: Perm) {
+    if (access === savedAccess) access = next;
+    savedAccess = next;
+  }
 
   const rehearsalSamples = $derived(Object.fromEntries((def.tokens ?? []).map((tk) => [tk.name, tk.sample])));
   const effectiveMessage = $derived(message.trim() ? message : def.preview);
@@ -66,21 +72,23 @@
 </script>
 
 <div class="editor builtin">
-  <div class="toggle-row">
-    <div class="tr-text">
-      <span class="tr-label">{t('builtinInspector.enabled')}</span>
-      <span class="tr-help">{t('builtinInspector.enabledHelp')}</span>
-    </div>
-    <form method="POST" action="?/toggleBuiltin" use:enhance={toggleSubmit}>
-      <input type="hidden" name="name" value={c.name} />
-      <input type="hidden" name="perm" value={c.perm ?? def.defaultPerm} />
-      <input type="hidden" name="response" value={c.response} />
-      <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
-      <Switch type="submit" checked={c.is_active} label={t('commandRow.toggleAria', { name: c.name })} />
-    </form>
-  </div>
+  <form class="toggle-row" method="POST" action="?/toggleBuiltin" use:enhance={toggleSubmit}>
+    <input type="hidden" name="name" value={c.name} />
+    <input type="hidden" name="perm" value={c.perm ?? def.defaultPerm} />
+    <input type="hidden" name="response" value={c.response} />
+    <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
+    <SwitchRow
+      control="end"
+      type="submit"
+      checked={c.is_active}
+      label={t('builtinInspector.enabled')}
+      hint={t('builtinInspector.enabledHelp')}
+      hintId="builtin-enabled-hint"
+      switchLabel={t('commandRow.toggleAria', { name: c.name })}
+    />
+  </form>
 
-  <p class="desc">{def.description}</p>
+  <div class="desc"><Text size="sm" tone="muted">{def.description}</Text></div>
 
   <Field label={t('builtinInspector.usage')}>
     <ul class="usage">
@@ -105,9 +113,9 @@
         samples={rehearsalSamples}
       />
       <div class="reply-actions">
-        <button class="bb-btn bb-btn--primary" type="submit" disabled={busy}>
+        <Button variant="primary" type="submit" disabled={busy}>
           {t('builtinInspector.saveReply')}
-        </button>
+        </Button>
       </div>
     </form>
   {:else}
@@ -117,7 +125,7 @@
   {/if}
 
   <div class="field-row">
-    <form class="field access-form" method="POST" action="?/saveBuiltinAccess" use:enhance={accessSubmit}>
+    <form class="access-form" method="POST" action="?/saveBuiltinAccess" use:enhance={accessSubmit}>
       <input type="hidden" name="name" value={c.name} />
       <input type="hidden" name="response" value={c.response} />
       <input type="hidden" name="is_active" value={c.is_active ? 'on' : ''} />
@@ -129,14 +137,15 @@
           options={PERMS.map((p) => ({ value: p, label: tPerm(t, p) }))}
         />
       </Field>
-      <button class="bb-btn bb-btn--primary access-save" type="submit" disabled={busy || access === (c.perm ?? def.defaultPerm)}>
-        {t('builtinInspector.saveAccess')}
-      </button>
+      <div class="access-save">
+        <Button variant="primary" type="submit" disabled={busy || access === (c.perm ?? def.defaultPerm)}>
+          {t('builtinInspector.saveAccess')}
+        </Button>
+      </div>
     </form>
-    <div class="field">
-      <span>{t('builtinInspector.cooldown')}</span>
-      <div class="ro">{c.cooldown ?? def.defaultCooldown}s</div>
-    </div>
+    <Field label={t('builtinInspector.cooldown')}>
+      <Input readonly mono fill value={`${c.cooldown ?? def.defaultCooldown}s`} />
+    </Field>
   </div>
 </div>
 
@@ -147,39 +156,12 @@
   }
 
   .toggle-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
     padding-bottom: 16px;
     margin-bottom: 16px;
-    border-bottom: 1px solid var(--rule, var(--glass-border));
-  }
-  .tr-text {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-  .tr-label {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 13.5px;
-    color: var(--bb-white);
-  }
-  .tr-help {
-    font-size: 12px;
-    color: var(--bb-muted);
-    line-height: 1.4;
-  }
-  .toggle-row form {
-    margin-left: auto;
+    border-bottom: 1px solid var(--bb-border);
   }
 
-  .desc {
-    margin: 0 0 16px;
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--bb-muted);
-  }
+  .desc { margin-bottom: 16px; }
 
   .reply-form { margin-bottom: 14px; }
   .reply-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
@@ -188,12 +170,10 @@
   }
 
   .field-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
-  }
-  .field-row .field {
-    flex: 1;
-    min-width: 0;
+    --field-mb: 0;
   }
   .access-form { display: flex; flex-direction: column; gap: 10px; }
   .access-save { align-self: flex-end; }
@@ -205,17 +185,5 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-
-  .ro {
-    box-sizing: border-box;
-    width: 100%;
-    padding: 9px 12px;
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(255, 255, 255, 0.02);
-    color: var(--bb-white);
-    font-family: var(--bb-font-mono);
-    font-size: 13px;
   }
 </style>

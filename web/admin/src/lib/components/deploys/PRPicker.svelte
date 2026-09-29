@@ -1,8 +1,13 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import Card from '@bagel/ui/svelte/Card.svelte';
   import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DeployPRInfo } from '$lib/deploys/types';
   import CheckDot from './CheckDot.svelte';
@@ -29,77 +34,54 @@
 </script>
 
 {#if prs.length === 0}
-  <p class="empty">{t('admin.deploys.prsEmpty')}</p>
+  <Card glass flush>
+    <div class="empty"><Text size="sm" tone="muted">{t('admin.deploys.prsEmpty')}</Text></div>
+  </Card>
 {:else}
-  <ul class="prs" aria-label={t('admin.deploys.prs')}>
+  <DeckList as="ul" aria-label={t('admin.deploys.prs')}>
     {#each prs as pr (pr.number)}
-      <li class="pr-row" class:blocked={!tickable(pr)}>
-        <Checkbox
-          class="pick"
-          checked={picked.includes(pr.number)}
-          disabled={!tickable(pr)}
-          onchange={(e: Event) => toggle(pr, (e.currentTarget as HTMLInputElement).checked)}
-        >
-          <span class="pr-label">
-            <span class="num">#{pr.number}</span>
-            <span class="title">{pr.title}</span>
+      <ManagementRow as="li" selectable={false}>
+        {#snippet primary()}
+          <span class="pick" class:blocked={!tickable(pr)}>
+            <Checkbox
+              checked={picked.includes(pr.number)}
+              disabled={!tickable(pr)}
+              onchange={(e: Event) => toggle(pr, (e.currentTarget as HTMLInputElement).checked)}
+            >
+              <span class="pr-label">
+                <Text as="span" size="xs" mono tone="muted">#{pr.number}</Text>
+                <span class="title">{pr.title}</span>
+              </span>
+            </Checkbox>
           </span>
-        </Checkbox>
-        <span class="meta">
+        {/snippet}
+        {#snippet actions()}
           {#if pr.draft}<Tag tone="quiet">{t('admin.deploys.prDraft')}</Tag>{/if}
           {#if pr.behind}<Tag tone="quiet">{t('admin.deploys.prBehind')}</Tag>{/if}
-          <span class="author">{pr.author}</span>
+          <span class="author"><Text as="span" size="xs" mono tone="muted">{pr.author}</Text></span>
           <CheckDot tone={checkTone(pr.checks)} label={checkLabel(pr)} />
           <CheckDot tone={checkTone(pr.codescene)} label={codeSceneLabel(pr)} />
-          <a class="open" href={pr.url} target="_blank" rel="noopener noreferrer"
-            >{t('admin.deploys.prOpen')}</a
-          >
-        </span>
-      </li>
+          <Text as="span" size="xs" mono tone="muted"><TextLink variant="inline" href={pr.url} external>{t('admin.deploys.prOpen')}</TextLink></Text>
+        {/snippet}
+      </ManagementRow>
     {/each}
-  </ul>
+  </DeckList>
 {/if}
 
 <style>
   .empty {
-    margin: 0;
-    font-size: 13px;
-    color: var(--bb-muted);
+    padding: var(--bb-space-2) var(--bb-space-4);
   }
-  .prs {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .pr-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 44px;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--rule);
-  }
-  .pr-row:last-child {
-    border-bottom: none;
-  }
-  .pr-row.blocked .title {
-    color: var(--bb-muted);
-  }
-  .pr-row :global(.pick) {
-    min-width: 0;
+  .pick {
     --bb-check-flex: 1;
     --bb-check-label-min-width: 0;
+    display: flex;
+    min-width: 0;
   }
   .pr-label {
     display: flex;
-    gap: 8px;
+    gap: var(--bb-space-2);
     min-width: 0;
-  }
-  .num {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-muted);
   }
   .title {
     display: -webkit-box;
@@ -107,19 +89,8 @@
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;
-    font-size: 13.5px;
-    line-height: 1.35;
   }
-  .meta {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-  .author,
-  .open {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
+  .blocked .title {
     color: var(--bb-muted);
   }
   @media (max-width: 760px) {

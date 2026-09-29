@@ -1,12 +1,13 @@
 <script lang="ts">
-  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import Input from '@bagel/ui/svelte/Input.svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
@@ -60,15 +61,17 @@
   onConfirm={() => form?.requestSubmit()}
 >
   <div class="fields">
-    <Field label={t('admin.users.messageFieldTitle')}>
-      <Input fill mono type="text" maxlength="120" bind:value={title} />
-    </Field>
-    <Field label={t('admin.users.messageFieldBody')}>
-      <Textarea rows={3} maxlength={2000} fill mono bind:value={body} />
-    </Field>
-    <Field label={t('admin.users.messageFieldLevel')}>
-      <Select fill options={LEVELS.map((lvl) => ({ value: lvl.value, label: t(lvl.label) }))} bind:value={level} />
-    </Field>
+    <Stack gap={3}>
+      <Field label={t('admin.users.messageFieldTitle')}>
+        <Input fill mono type="text" maxlength="120" bind:value={title} />
+      </Field>
+      <Field label={t('admin.users.messageFieldBody')}>
+        <Textarea rows={3} maxlength={2000} fill mono bind:value={body} />
+      </Field>
+      <Field label={t('admin.users.messageFieldLevel')}>
+        <Select fill options={LEVELS.map((lvl) => ({ value: lvl.value, label: t(lvl.label) }))} bind:value={level} />
+      </Field>
+    </Stack>
   </div>
 </ConfirmDialog>
 
@@ -85,9 +88,6 @@
 <style>
   .fields {
     --field-mb: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin: 12px 0 4px;
+    margin: var(--bb-space-3) 0 var(--bb-space-1);
   }
 </style>

@@ -7,6 +7,12 @@ import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import Faq from '../pricing/Faq.astro';
 import Button from '@bagel/ui/astro/Button.astro';
+import Section from '@bagel/ui/astro/Section.astro';
+import Grid from '@bagel/ui/astro/Grid.astro';
+import Cluster from '@bagel/ui/astro/Cluster.astro';
+import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 
 interface Item {
     name?: string;
@@ -44,88 +50,62 @@ const {
 
 <PageHero eyebrow={eyebrow} title={title} description={lead} />
 
-<section class="flhow">
+<Section class="flhow">
     <SectionHeading eyebrow={howEyebrow} title={howTitle} />
-    <ol class="flhow__steps">
+    <Grid as="ol" cols={3} gap={5} stackAt="md">
         {steps.map((step, i) => (
             <li>
                 <Card atmo hover class="flhow__card" data-reveal style={`--reveal-i: ${i}`}>
-                    <span class="flhow__num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                    <h3 class="flhow__title">{step.title}</h3>
-                    <p class="flhow__desc">{step.desc}</p>
+                    <Eyebrow aria-hidden="true">{String(i + 1).padStart(2, '0')}</Eyebrow>
+                    <Heading level={5} as="h3" class="flhow__title">{step.title}</Heading>
+                    <Text size="sm" tone="muted">{step.desc}</Text>
                 </Card>
             </li>
         ))}
-    </ol>
-</section>
+    </Grid>
+</Section>
 
-<section class="fllist">
+<Section class="fllist">
     <SectionHeading eyebrow={listEyebrow} title={listTitle} />
     <dl class="fllist__list">
         {listItems.map((item, i) => (
             <div class="fllist__row" data-reveal style={`--reveal-i: ${i}`}>
-                <dt class="fllist__name">{item.name}</dt>
-                <dd class="fllist__desc">{item.desc}</dd>
+                <Text as="dt" size="sm" mono tone="accent" class="fllist__name">{item.name}</Text>
+                <Text as="dd" size="sm" tone="muted">{item.desc}</Text>
             </div>
         ))}
     </dl>
-    {listNote && <p class="fllist__note" data-reveal>{listNote}</p>}
-</section>
+    {listNote && <Text size="sm" tone="muted" class="fllist__note" data-reveal>{listNote}</Text>}
+</Section>
 
 <Faq eyebrow={faqEyebrow} title={faqTitle} items={faqItems} />
 
-<section class="flcta">
-    <h2 class="flcta__title" data-reveal>{ctaTitle}</h2>
-    <div class="flcta__actions" data-reveal style="--reveal-i: 1">
+<Section class="flcta">
+    <SectionHeading title={ctaTitle} class="flcta__title" />
+    <Cluster justify="center" gap={3} class="flcta__actions" data-reveal>
         <Button href={ctaPrimary.href}>{ctaPrimary.label}</Button>
         {ctaSecondary && <Button variant="quiet" href={ctaSecondary.href}>{ctaSecondary.label}</Button>}
-    </div>
-    {legal && <p class="flcta__legal">{legal}</p>}
-</section>
+    </Cluster>
+    {legal && <Text size="xs" mono tone="muted" class="flcta__legal">{legal}</Text>}
+</Section>
 
 <style>
     .flhow,
-    .fllist {
-        padding: var(--space-section-sm, 88px) 48px;
-        max-width: var(--content-max, 1200px);
-        margin: 0 auto;
+    .fllist,
+    .flcta {
+        max-width: var(--bb-content-max);
+        margin-inline: auto;
+        padding: var(--bb-space-section-sm) var(--bb-space-7);
     }
 
-    .flhow__steps {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 20px;
-        list-style: none;
-        margin: 0;
-        padding: 0;
-    }
+    .flhow { --card-pad: 28px; }
 
-    .flhow__card { height: 100%; padding: 28px; }
+    .flhow__card { height: 100%; }
 
-    .flhow__num {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.68rem;
-        color: var(--tan, #c9a87c);
-    }
-
-    .flhow__title {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: var(--white, #f0ece4);
-        margin: 10px 0 8px;
-    }
-
-    .flhow__desc {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.9rem;
-        line-height: 1.6;
-        color: var(--muted, #888077);
-        margin: 0;
-    }
+    .flhow__title { margin: 10px 0 8px; }
 
     .fllist__list {
-        max-width: var(--content-narrow, 720px);
+        max-width: var(--bb-content-hero);
         margin: 0 auto;
     }
 
@@ -134,65 +114,36 @@ const {
         align-items: baseline;
         gap: 20px;
         padding: 16px 4px;
-        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-bottom: 1px solid var(--bb-border);
     }
 
     .fllist__name {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.85rem;
-        color: var(--tan-light, #e0c49a);
         flex-shrink: 0;
         min-width: 13ch;
     }
 
-    .fllist__desc {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.9rem;
-        color: var(--muted, #888077);
-        margin: 0;
-    }
-
     .fllist__note {
-        max-width: var(--content-narrow, 720px);
+        max-width: var(--bb-content-hero);
         margin: 20px auto 0;
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.85rem;
-        color: var(--muted, #888077);
         text-align: center;
     }
 
     .flcta {
-        padding: var(--space-section-sm, 88px) 48px calc(var(--space-section, 120px));
+        padding-bottom: var(--bb-space-section);
         text-align: center;
     }
 
-    .flcta__title {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: clamp(1.6rem, 3.6vw, 2.4rem);
-        font-weight: 800;
-        color: var(--white, #f0ece4);
-        margin: 0 0 24px;
-    }
+    .flcta__title { margin-bottom: 24px; }
 
-    .flcta__actions {
-        display: flex;
-        justify-content: center;
-        gap: 14px;
-        flex-wrap: wrap;
-    }
+    .flcta__actions { --reveal-i: 2; }
 
     .flcta__legal {
         margin: 32px auto 0;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.68rem;
-        letter-spacing: 0.04em;
-        color: var(--muted, #888077);
         opacity: 0.75;
     }
 
     @media (max-width: 860px) {
         .flhow,
-        .fllist { padding-inline: 24px; }
-        .flhow__steps { grid-template-columns: 1fr; }
+        .fllist { padding-inline: var(--bb-space-5); }
     }
 </style>

@@ -9,19 +9,14 @@
   let { perm }: { perm: Perm } = $props();
   const { t } = getI18n();
 
-  const tone: Record<Perm, [string, string]> = {
-    everyone: ['var(--bb-tier-inactive)', 'var(--bb-tier-inactive-border)'],
-    sub: ['var(--bb-tier-paid)', 'var(--bb-tier-paid-border)'],
-    vip: ['var(--bb-tier-vip)', 'var(--bb-tier-vip-border)'],
-    mod: ['var(--bb-green-glow)', 'rgba(82,183,136,0.30)'],
-    lead_mod: ['var(--bb-green-glow)', 'rgba(82,183,136,0.45)'],
-    broadcaster: ['var(--bb-green-glow)', 'rgba(82,183,136,0.60)']
+  const TONE: Record<Perm, 'inactive' | 'paid' | 'vip' | 'free'> = {
+    everyone: 'inactive',
+    sub: 'paid',
+    vip: 'vip',
+    mod: 'free',
+    lead_mod: 'free',
+    broadcaster: 'free'
   };
-
-  const swatch = $derived(tone[perm] ?? tone.everyone);
 </script>
 
-<Badge
-  dashed={perm === 'lead_mod'}
-  style="--badge-tone:{swatch[0]};--badge-tone-rule:{swatch[1]}"
->{tPermBadge(t, perm)}</Badge>
+<Badge tone={TONE[perm] ?? 'inactive'} dashed={perm === 'lead_mod'}>{tPermBadge(t, perm)}</Badge>

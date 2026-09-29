@@ -10,6 +10,7 @@
     label,
     tooltip = false,
     size = 'md',
+    danger = false,
     type = 'button',
     onclick,
     disabled = false,
@@ -20,6 +21,7 @@
     label: string;
     tooltip?: boolean;
     size?: 'md' | 'sm';
+    danger?: boolean;
     type?: 'button' | 'submit' | 'reset';
     onclick?: (e: MouseEvent) => void;
     disabled?: boolean;
@@ -29,7 +31,13 @@
   } = $props();
 
   const classes = $derived(
-    ['bb-btn', 'bb-btn--icon', size === 'sm' ? 'bb-btn--sm' : null, className || null]
+    [
+      'bb-btn',
+      'bb-btn--icon',
+      size === 'sm' ? 'bb-btn--sm' : null,
+      danger ? 'bb-btn--danger-hover' : null,
+      className || null,
+    ]
       .filter(Boolean)
       .join(' '),
   );

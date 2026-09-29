@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, getI18n } from '@bagel/kit';
+  import { Button, Text, getI18n } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -29,20 +29,20 @@
 </script>
 
 <div class="bulk" role="toolbar" aria-label={t('commands.bulkBar')}>
-  <span class="bulk-count" role="status">{t('commands.selectedCount', { count })}</span>
-  <Button variant="ghost" size="sm" class="bulk-btn" onclick={onAll} disabled={busy}>{t('commands.selectAll')}</Button>
+  <Text as="span" size="xs" mono role="status">{t('commands.selectedCount', { count })}</Text>
+  <span class="hit"><Button variant="ghost" size="sm" onclick={onAll} disabled={busy}>{t('commands.selectAll')}</Button></span>
   <span class="bulk-grow"></span>
-  <Button variant="secondary" size="sm" class="bulk-btn" onclick={onEnable} disabled={none}>{t('commands.bulkEnable')}</Button>
-  <Button variant="secondary" size="sm" class="bulk-btn" onclick={onDisable} disabled={none}>{t('commands.bulkDisable')}</Button>
-  <Button variant="destructive" size="sm" class="bulk-btn" onclick={onDelete} disabled={none || deletable === 0}>{t('commands.bulkDelete')}</Button>
-  <Button variant="ghost" size="sm" class="bulk-btn" onclick={onDone} disabled={busy}>{t('commands.selectDone')}</Button>
+  <span class="hit"><Button variant="secondary" size="sm" onclick={onEnable} disabled={none}>{t('commands.bulkEnable')}</Button></span>
+  <span class="hit"><Button variant="secondary" size="sm" onclick={onDisable} disabled={none}>{t('commands.bulkDisable')}</Button></span>
+  <span class="hit"><Button variant="destructive" size="sm" onclick={onDelete} disabled={none || deletable === 0}>{t('commands.bulkDelete')}</Button></span>
+  <span class="hit"><Button variant="ghost" size="sm" onclick={onDone} disabled={busy}>{t('commands.selectDone')}</Button></span>
 </div>
 
 <style>
   .bulk {
     position: sticky;
     bottom: 16px;
-    z-index: 5;
+    z-index: var(--bb-z-sticky);
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -51,12 +51,12 @@
     padding: 10px 14px;
     border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-md);
-    background: var(--bb-bg-raised, var(--bb-bg));
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    background: var(--bb-card-bg);
+    box-shadow: 0 8px 24px rgba(var(--bb-shadow-rgb), 0.35);
   }
-  .bulk-count { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-white); }
   .bulk-grow { flex: 1; }
+  .hit { display: inline-flex; }
   @media (pointer: coarse), (max-width: 760px) {
-    .bulk :global(.bulk-btn) { min-height: 44px; }
+    .hit { min-height: 44px; }
   }
 </style>

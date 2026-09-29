@@ -2,6 +2,12 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import FactList from '@bagel/ui/svelte/FactList.svelte';
+  import Fact from '@bagel/ui/svelte/Fact.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '$lib/server/services';
@@ -18,55 +24,43 @@
 
 <div class="detail">
   <Scroller fill padding="18px" smooth>
-    <div class="body">
-      <div class="ident">
+    <Stack gap={4}>
+      <Cluster gap={3} nowrap>
         <Bolota name={entry.actor_login} size={40} active />
         <div>
-          <div class="name">@{entry.actor_login}</div>
-          <div class="meta">{t('admin.audit.actorId', { id: String(entry.actor_id) })}</div>
+          <Heading level={6} as="div" variant="title">@{entry.actor_login}</Heading>
+          <Text as="div" size="xs" mono tone="muted">{t('admin.audit.actorId', { id: String(entry.actor_id) })}</Text>
         </div>
-      </div>
+      </Cluster>
 
-      <div class="marks">
+      <Cluster gap={2}>
         <StatePill tone={entry.ok ? 'free' : 'banned'}>
           {entry.ok ? t('admin.audit.outcomeOk') : t('admin.audit.outcomeFailed')}
         </StatePill>
         <StatePill tone="neutral">{t(KIND_LABEL[kind])}</StatePill>
-      </div>
+      </Cluster>
 
-      <dl class="facts">
-        <div>
-          <dt>{t('admin.audit.factAction')}</dt>
-          <dd>{entry.action}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.audit.factTarget')}</dt>
-          <dd>{entry.target || '-'}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.audit.factWhen')}</dt>
-          <dd>{when}</dd>
-        </div>
-        <div>
-          <dt>{t('admin.audit.factEntry')}</dt>
-          <dd>#{entry.id}</dd>
-        </div>
-      </dl>
+      <FactList>
+        <Fact term={t('admin.audit.factAction')}>{entry.action}</Fact>
+        <Fact term={t('admin.audit.factTarget')}>{entry.target || '-'}</Fact>
+        <Fact term={t('admin.audit.factWhen')}>{when}</Fact>
+        <Fact term={t('admin.audit.factEntry')}>#{entry.id}</Fact>
+      </FactList>
 
       {#if entry.detail}
         <section class="block">
-          <h3 class="block-label">{t('admin.audit.factDetail')}</h3>
-          <p class="payload">{entry.detail}</p>
+          <Heading level={3} variant="label">{t('admin.audit.factDetail')}</Heading>
+          <div class="payload"><Text size="xs" mono tone="muted">{entry.detail}</Text></div>
         </section>
       {/if}
 
       {#if !entry.ok && entry.error}
         <section class="block">
-          <h3 class="block-label">{t('admin.audit.factError')}</h3>
-          <p class="payload err">{entry.error}</p>
+          <Heading level={3} variant="label">{t('admin.audit.factError')}</Heading>
+          <div class="payload"><Text size="xs" mono tone="danger">{entry.error}</Text></div>
         </section>
       {/if}
-    </div>
+    </Stack>
   </Scroller>
 </div>
 
@@ -77,86 +71,13 @@
     min-height: 0;
     max-height: 100%;
   }
-  .body {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .ident {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 15px;
-    color: var(--bb-white);
-  }
-  .meta {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-    margin-top: 2px;
-  }
-
-  .marks {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .facts {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    margin: 0;
-  }
-  .facts div {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: baseline;
-  }
-  .facts dt {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-muted);
-    flex: none;
-  }
-  .facts dd {
-    margin: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-tan-light);
-    text-align: right;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
 
   .block {
     display: flex;
     flex-direction: column;
-    gap: 7px;
-  }
-  .block-label {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin: 0;
+    gap: var(--bb-space-2);
   }
   .payload {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    line-height: 1.55;
-    color: var(--bb-muted);
-    margin: 0;
     overflow-wrap: anywhere;
-  }
-  .payload.err {
-    color: var(--bb-status-error);
   }
 </style>

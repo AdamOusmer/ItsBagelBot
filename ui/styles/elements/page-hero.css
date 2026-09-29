@@ -6,7 +6,7 @@
 @layer bb.elements {
   .bb-page-hero {
     --page-hero-top: var(--nav-offset, var(--bb-nav-height));
-    --page-hero-measure: var(--content-narrow, 720px);
+    --page-hero-measure: var(--bb-content-hero);
 
     position: relative;
     display: flex;
@@ -51,7 +51,7 @@
     color: var(--bb-green-glow);
     font-family: var(--bb-font-mono);
     font-size: clamp(0.66rem, 1.4vw, 0.76rem);
-    letter-spacing: var(--bb-tracking-eyebrow, 0.22em);
+    letter-spacing: var(--bb-tracking-eyebrow);
     text-transform: uppercase;
     text-shadow: 0 0 16px rgba(82, 183, 136, 0.5);
     opacity: 0;

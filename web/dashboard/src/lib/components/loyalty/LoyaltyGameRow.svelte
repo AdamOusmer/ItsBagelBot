@@ -4,7 +4,11 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
+    Heading,
+    ManagementRow,
     Switch,
+    Tag,
+    Text,
     toast,
     getI18n,
     tModuleLabel,
@@ -54,22 +58,22 @@
   };
 </script>
 
-<article class="game" class:on={enabled} id={def.id}>
-  <a class="main" {href} data-cursor="quiet">
+<ManagementRow as="article" {href} id={def.id} class="loyalty-game">
+  {#snippet primary()}
     <span class="copy">
-      <span class="name">{tModuleLabel(t, def)}</span>
-      <span class="tagline">{tModuleTagline(t, def)}</span>
+      <Heading level={6} as="span">{tModuleLabel(t, def)}</Heading>
+      <span class="tagline"><Text as="span" size="xs" tone="muted">{tModuleTagline(t, def)}</Text></span>
       {#if chips.length}
         <span class="cmds">
           {#each chips as chip (chip)}
-            <span class="cmd bb-tag bb-tag--bare">{chip}</span>
+            <Tag bare literal>{chip}</Tag>
           {/each}
         </span>
       {/if}
     </span>
-  </a>
-  <div class="side">
-    <form method="POST" action="?/toggleGame" use:enhance={submit}>
+  {/snippet}
+  {#snippet actions()}
+    <form class="game-toggle" method="POST" action="?/toggleGame" use:enhance={submit}>
       <input type="hidden" name="name" value={def.id} />
       <input type="hidden" name="is_enabled" value={enabled ? '' : 'on'} />
       <Switch
@@ -80,46 +84,12 @@
         label={enabled ? t('modules.disableAria', { label: tModuleLabel(t, def) }) : t('modules.enableAria', { label: tModuleLabel(t, def) })}
       />
     </form>
-  </div>
-</article>
+  {/snippet}
+</ManagementRow>
 
 <style>
-  .game {
-    display: flex;
-    align-items: stretch;
-    border-bottom: 1px solid rgba(240, 236, 228, 0.05);
-    isolation: isolate;
-  }
-  .game:last-child { border-bottom: none; }
-
-  .main {
-    flex: 1 1 auto;
-    min-width: 0;
-    display: block;
-    padding: 12px 8px 12px 0;
-    text-decoration: none;
-    color: inherit;
-    border-radius: var(--bb-radius-sm);
-  }
-  .main:hover { background: rgba(201, 168, 124, 0.05); }
-  .main:focus-visible {
-    outline: 2px solid var(--bb-tan);
-    outline-offset: -2px;
-  }
-
   .copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 14px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-  }
   .tagline {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    line-height: 1.35;
-    color: var(--bb-muted);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
@@ -127,18 +97,9 @@
     overflow: hidden;
   }
   .cmds { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
-  .cmd { color: var(--bb-tan-light); text-transform: none; letter-spacing: 0.02em; }
-
-  .side {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    flex: none;
-    padding: 0 0 0 8px;
-  }
 
   @media (max-width: 560px) {
-    .game { flex-wrap: wrap; }
-    .side { margin-left: auto; padding: 0 0 8px; }
+    :global(.loyalty-game) { flex-wrap: wrap; justify-content: flex-end; }
+    .game-toggle { padding-bottom: 8px; }
   }
 </style>

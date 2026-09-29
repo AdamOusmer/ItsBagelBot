@@ -8,7 +8,14 @@
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
@@ -17,7 +24,7 @@
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
-  import { livePoll } from '@bagel/kit/live-poll';
+  import { livePoll } from '@bagel/ui/lib/live-poll';
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -70,21 +77,14 @@
     return false;
   }
 
-  onMount(() => {
-    const stop = livePoll(pollLanes, {
+  onMount(() =>
+    livePoll(pollLanes, {
       firstDelayMs: POLL_MS,
       delayMs: () => POLL_MS,
-      timeoutMs: Number.POSITIVE_INFINITY
-    });
-    const onVis = () => {
-      if (!document.hidden) pollLanes();
-    };
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      stop();
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  });
+      timeoutMs: Number.POSITIVE_INFINITY,
+      refreshOnVisible: true
+    })
+  );
 
   const CATEGORIES = ['all', 'system', 'projection', 'ephemeral'] as const;
   let category = $state<string>('all');
@@ -249,14 +249,16 @@
   <PageToolbar>
     {#snippet lead()}
       {#if result}
-        <span class="stats">
-          {t('admin.lanes.stats', {
-            lanes: String(lanes.length),
-            orphans: String(orphanCount),
-            pending: totalPending.toLocaleString()
-          })}
-          {#if live}<span class="live">{t('admin.lanes.live')}</span>{/if}
-        </span>
+        <Cluster gap={2}>
+          <Text as="span" size="xs" tone="muted" mono>
+            {t('admin.lanes.stats', {
+              lanes: String(lanes.length),
+              orphans: String(orphanCount),
+              pending: totalPending.toLocaleString()
+            })}
+          </Text>
+          {#if live}<Tag tone="live">{t('admin.lanes.live')}</Tag>{/if}
+        </Cluster>
       {:else}
         <Skeleton variant="pill" width="220px" />
       {/if}
@@ -268,103 +270,107 @@
     {/snippet}
   </PageToolbar>
 
-  <div class="filters">
-    <div class="filter-group">
-      <p class="filter-label">{t('admin.lanes.pipelineFilter')}</p>
-      <SegmentedControl
-        options={pipelineOptions}
-        label={t('admin.lanes.pipelineFilter')}
-        bind:value={() => pipelineOptions[PIPELINE_STAGES.indexOf(pipelineStage)], selectPipeline}
-      />
-    </div>
-    <div class="filter-group">
-      <p class="filter-label">{t('admin.lanes.trafficFilter')}</p>
-      <SegmentedControl
-        options={trafficOptions}
-        label={t('admin.lanes.trafficFilter')}
-        bind:value={() => trafficOptions[TRAFFIC_TIERS.indexOf(trafficTier)], selectTraffic}
-      />
-    </div>
-    {#if pipelineStage === 'all' && trafficTier === 'all'}
-      <div class="filter-group">
-        <p class="filter-label">{t('admin.lanes.categoryFilter')}</p>
+  <Stack gap={4}>
+    <Stack gap={3}>
+      <Stack gap={2} align="start">
+        <Label mono as="span">{t('admin.lanes.pipelineFilter')}</Label>
         <SegmentedControl
-          options={CATEGORIES}
-          label={t('admin.lanes.categoryFilter')}
-          bind:value={category}
+          options={pipelineOptions}
+          label={t('admin.lanes.pipelineFilter')}
+          bind:value={() => pipelineOptions[PIPELINE_STAGES.indexOf(pipelineStage)], selectPipeline}
         />
-      </div>
-    {/if}
-  </div>
-
-  <div class="deck" class:inspecting={inspector.isOpen}>
-    <DeckList>
-      {#if result === null}
-        <SkeletonStack rows={5} height="56px" />
-      {:else if rows.length}
-        <div class="stream-groups">
-          {#each groups as group (group.stream)}
-            <section class="stream-group">
-              <header class="stream-heading">
-                <h2 class="stream-title">{group.stream}</h2>
-                <span class="stream-summary">{t('admin.lanes.groupSummary', {
-                  lanes: String(group.lanes.length), pending: group.pending.toLocaleString()
-                })}</span>
-              </header>
-              <ul class="bb-list" aria-label={`${t('admin.lanes.listLabel')} · ${group.stream}`}>
-                {#each group.lanes as lane (laneKey(lane))}
-                  <li>
-                    <LaneRow
-                      {lane}
-                      selected={inspector.selectedId === laneKey(lane)}
-                      controls="lane-inspector"
-                      onselect={() => openLane(lane)}
-                    />
-                  </li>
-                {/each}
-              </ul>
-            </section>
-          {/each}
-        </div>
-      {:else if lanes.length}
-        <EmptyState title={t('admin.lanes.emptyMatch')} />
-      {:else}
-        <EmptyState
-          title={t('admin.lanes.empty')}
-          body={result.degraded ? t('admin.lanes.emptyDegraded') : t('admin.lanes.emptyBody')}
+      </Stack>
+      <Stack gap={2} align="start">
+        <Label mono as="span">{t('admin.lanes.trafficFilter')}</Label>
+        <SegmentedControl
+          options={trafficOptions}
+          label={t('admin.lanes.trafficFilter')}
+          bind:value={() => trafficOptions[TRAFFIC_TIERS.indexOf(trafficTier)], selectTraffic}
         />
-      {/if}
-    </DeckList>
-
-    {#if inspector.isOpen && draft && selected}
-      <InspectorSurface
-        open
-        title={selected.display}
-        controls="lane-inspector"
-        closeLabel={t('admin.close')}
-        onClose={close}
-      >
-        {#key inspector.selectedId}
-          <LaneEditor
-            bind:draft={
-              () => draft!,
-              (v) => (draft = v)
-            }
-            lane={selected}
-            {canMutate}
-            status={inspector.status}
-            dirty={inspector.dirty}
-            {canSave}
-            {busy}
-            onCancel={close}
-            onSubmit={aliasSubmit}
-            onDurable={() => (confirmDurable = true)}
-            onDelete={() => (confirmDelete = true)}
+      </Stack>
+      {#if pipelineStage === 'all' && trafficTier === 'all'}
+        <Stack gap={2} align="start">
+          <Label mono as="span">{t('admin.lanes.categoryFilter')}</Label>
+          <SegmentedControl
+            options={CATEGORIES}
+            label={t('admin.lanes.categoryFilter')}
+            bind:value={category}
           />
-        {/key}
-      </InspectorSurface>
-    {/if}
-  </div>
+        </Stack>
+      {/if}
+    </Stack>
+
+    <DeckLayout inspecting={inspector.isOpen} width="380px">
+      <DeckList>
+        {#if result === null}
+          <SkeletonStack rows={5} height="56px" />
+        {:else if rows.length}
+          <Stack gap={5}>
+            {#each groups as group (group.stream)}
+              <section>
+                <header class="stream-heading">
+                  <Cluster justify="between" align="baseline" gap={2}>
+                    <Heading level={2} variant="eyebrow">{group.stream}</Heading>
+                    <Text as="span" size="xs" tone="muted">{t('admin.lanes.groupSummary', {
+                      lanes: String(group.lanes.length), pending: group.pending.toLocaleString()
+                    })}</Text>
+                  </Cluster>
+                </header>
+                <ul class="bb-list" aria-label={`${t('admin.lanes.listLabel')} · ${group.stream}`}>
+                  {#each group.lanes as lane (laneKey(lane))}
+                    <li>
+                      <LaneRow
+                        {lane}
+                        selected={inspector.selectedId === laneKey(lane)}
+                        controls="lane-inspector"
+                        onselect={() => openLane(lane)}
+                      />
+                    </li>
+                  {/each}
+                </ul>
+              </section>
+            {/each}
+          </Stack>
+        {:else if lanes.length}
+          <EmptyState title={t('admin.lanes.emptyMatch')} />
+        {:else}
+          <EmptyState
+            title={t('admin.lanes.empty')}
+            body={result.degraded ? t('admin.lanes.emptyDegraded') : t('admin.lanes.emptyBody')}
+          />
+        {/if}
+      </DeckList>
+
+      {#if inspector.isOpen && draft && selected}
+        <InspectorSurface
+          open
+          title={selected.display}
+          controls="lane-inspector"
+          closeLabel={t('admin.close')}
+          onClose={close}
+        >
+          {#key inspector.selectedId}
+            <LaneEditor
+              bind:draft={
+                () => draft!,
+                (v) => (draft = v)
+              }
+              lane={selected}
+              {canMutate}
+              status={inspector.status}
+              dirty={inspector.dirty}
+              {canSave}
+              {busy}
+              onCancel={close}
+              onSubmit={aliasSubmit}
+              onDurable={() => (confirmDurable = true)}
+              onDelete={() => (confirmDelete = true)}
+            />
+          {/key}
+        </InspectorSurface>
+      {/if}
+    </DeckLayout>
+  </Stack>
 </section>
 
 <ConfirmDialog
@@ -418,64 +424,13 @@
 />
 
 <style>
-  .stream-groups { display: grid; gap: 20px; }
   .stream-heading {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 14px 16px 10px;
-  }
-  .stream-title {
-    margin: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-tan-light);
+    padding: var(--bb-space-3) var(--bb-space-4) var(--bb-space-2);
     overflow-wrap: anywhere;
-  }
-  .stream-summary { color: var(--bb-muted); font-size: 11px; }
-  .stats {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-  }
-  .live {
-    color: var(--bb-green-glow);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-size: 10px;
-    margin-left: 8px;
   }
 
   .toolbar-search {
     width: 240px;
-  }
-  
-
-  .filters {
-    display: grid;
-    gap: 14px;
-    margin: 0 0 18px;
-  }
-  .filter-group { min-width: 0; }
-  .filter-label {
-    margin: 0 0 6px;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-  }
-
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting {
-      grid-template-columns: minmax(0, 1fr) 380px;
-    }
   }
 
   @media (max-width: 680px) {

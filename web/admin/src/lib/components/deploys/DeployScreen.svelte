@@ -5,6 +5,11 @@
   import { onNavigate } from '$app/navigation';
   import { hasFinePointer, prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import Brand from '@bagel/ui/svelte/Brand.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import Sky from '@bagel/ui/svelte/Sky.svelte';
   import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -76,33 +81,29 @@
   <header class="top">
     <Brand title="ItsBagelBot" sub={t('admin.title')} href="/" logoSrc="/logo.png" logoAlt="" size="md" />
     <div class="ident">
-      <span class="eyebrow">{eyebrow}</span>
-      <span class="name">{name} {#if em}<em>{em}</em>{/if}</span>
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <Heading level={5} as="span">{name} {#if em}<em class="em">{em}</em>{/if}</Heading>
     </div>
     <div class="status">
       {@render status?.()}
-      <a class="close" href={closeHref}>{closeLabel}</a>
+      <ButtonLink href={closeHref} variant="secondary" size="sm">{closeLabel}</ButtonLink>
     </div>
   </header>
 
   <main class="body">
-    <aside class="side">{@render side()}</aside>
+    <aside class="side">
+      <Card glass flush>
+        <div class="side-body">{@render side()}</div>
+      </Card>
+    </aside>
     <section class="theatre">{@render children()}</section>
   </main>
 
   <footer class="foot">
     <span class="count">{count}</span>
-    <div
-      class="bar"
-      role="progressbar"
-      aria-label={progressLabel}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(clamped * 100)}
-      style="--p: {clamped};"
-    >
-      <span class="fill"></span>
-      <span class="bead-track"><span class="bead"></span></span>
+    <div class="meter">
+      <ProgressBar value={clamped} tone="success" size="sm" gradient label={progressLabel} />
+      <span class="bead-track" style:--p={clamped} aria-hidden="true"><span class="bead"></span></span>
     </div>
     <span class="pct">{percent}</span>
   </footer>
@@ -125,58 +126,26 @@
   .top {
     display: flex;
     align-items: center;
-    gap: 12px 28px;
+    gap: var(--bb-space-3) var(--bb-space-5);
     flex-wrap: wrap;
-    padding: 20px var(--gutter) 0;
-    animation: settle 900ms var(--bb-ease-out-expo) backwards;
+    padding: var(--bb-space-5) var(--gutter) 0;
+    animation: settle calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) backwards;
   }
   .ident {
     display: grid;
-    gap: 2px;
+    gap: var(--bb-space-1);
     min-width: 0;
   }
-  .eyebrow {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-tan);
-  }
-  .name {
-    font: 700 17px/1.2 var(--bb-font-display);
-    color: var(--bb-white);
-  }
-  .name em {
+  .em {
     font-style: normal;
     color: var(--bb-tan-pale);
   }
   .status {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: var(--bb-space-4);
     flex-wrap: wrap;
     margin-left: auto;
-  }
-  .close {
-    padding: 8px 14px;
-    border: 1px solid var(--bb-border-strong);
-    border-radius: var(--bb-radius-sm);
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--bb-white);
-    text-decoration: none;
-    transition:
-      border-color var(--bb-dur-base) var(--bb-ease-out-expo),
-      transform var(--bb-dur-base) var(--bb-ease-out-expo);
-  }
-  .close:hover {
-    border-color: var(--bb-tan);
-    transform: translateX(3px);
-  }
-  .close:focus-visible {
-    outline: 2px solid var(--bb-tan);
-    outline-offset: 2px;
   }
 
   .body {
@@ -185,25 +154,20 @@
     gap: var(--gap);
     width: min(100%, 1480px);
     margin-inline: auto;
-    padding: 24px var(--gutter);
+    padding: var(--bb-space-5) var(--gutter);
   }
 
   .side {
     align-self: start;
-    padding: 10px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(0, 0, 0, 0.3));
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-lg);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 24px 60px rgba(0, 0, 0, 0.32);
-    backdrop-filter: blur(12px);
-    animation: settle 900ms var(--bb-ease-out-expo) 80ms backwards;
+    animation: settle calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) 80ms backwards;
+  }
+  .side-body {
+    padding: var(--bb-space-2);
   }
   .theatre {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--bb-space-5);
     min-width: 0;
   }
 
@@ -211,17 +175,17 @@
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 16px;
-    padding: 12px var(--gutter) 18px;
-    animation: settle 900ms var(--bb-ease-out-expo) 120ms backwards;
+    gap: var(--bb-space-4);
+    padding: var(--bb-space-3) var(--gutter) var(--bb-space-4);
+    animation: settle calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) 120ms backwards;
   }
   .count,
   .pct {
     font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    letter-spacing: 0.1em;
+    font-size: var(--bb-text-xs);
+    letter-spacing: var(--bb-tracking-eyebrow);
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(var(--bb-white-pure-rgb), 0.7);
     font-variant-numeric: tabular-nums;
   }
   .pct {
@@ -229,26 +193,17 @@
     text-align: right;
     color: var(--bb-tan-pale);
   }
-  .bar {
+  .meter {
+    --progress-from: var(--bb-tan);
+    --progress-duration: calc(var(--bb-dur-slow) * 1.5);
     position: relative;
-    height: 4px;
-    border-radius: var(--bb-radius-pill);
-    background: rgba(255, 255, 255, 0.08);
-  }
-  .fill {
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    transform-origin: left;
-    transform: scaleX(var(--p));
-    background: linear-gradient(90deg, var(--bb-tan), var(--bb-green-glow));
-    transition: transform 900ms var(--bb-ease-out-expo);
   }
   .bead-track {
     position: absolute;
     inset: 0;
+    pointer-events: none;
     transform: translateX(calc(var(--p) * 100%));
-    transition: transform 900ms var(--bb-ease-out-expo);
+    transition: transform var(--progress-duration) var(--bb-ease-out-expo);
   }
   .bead {
     position: absolute;
@@ -261,7 +216,7 @@
     box-shadow:
       0 0 0 3px rgba(var(--bb-green-glow-rgb), 0.18),
       0 0 16px rgba(var(--bb-green-glow-rgb), 0.75);
-    animation: breathe 3s ease-in-out infinite;
+    animation: breathe calc(var(--bb-dur-slow) * 5) ease-in-out infinite;
   }
 
   @keyframes settle {
@@ -287,10 +242,9 @@
   }
   :global(::view-transition-old(root)),
   :global(::view-transition-new(root)) {
-    animation-duration: 720ms;
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    animation-duration: calc(var(--bb-dur-slow) * 1.2);
+    animation-timing-function: var(--bb-ease-out-expo);
   }
-
 
   @media (min-width: 961px) and (min-height: 640px) {
     .screen {
@@ -300,6 +254,12 @@
       min-height: 0;
     }
     .side {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr);
+      min-height: 0;
+      max-height: 100%;
+    }
+    .side-body {
       max-height: 100%;
       overflow-y: auto;
       scrollbar-width: thin;
@@ -307,7 +267,7 @@
     .theatre {
       min-height: 0;
       overflow-y: auto;
-      padding-right: 8px;
+      padding-right: var(--bb-space-2);
       scrollbar-width: thin;
     }
   }
@@ -315,10 +275,7 @@
   @media (max-width: 960px) {
     .body {
       grid-template-columns: minmax(0, 1fr);
-      gap: 20px;
-    }
-    .side {
-      padding: 6px;
+      gap: var(--bb-space-5);
     }
     .status {
       margin-left: 0;
@@ -326,8 +283,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .close,
-    .fill,
     .bead-track {
       transition: none;
     }

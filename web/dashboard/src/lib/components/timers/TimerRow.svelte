@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { ManagementRow, Switch, getI18n, fmtDate, type TimerDef } from '@bagel/kit';
+  import { ManagementRow, Switch, Tag, getI18n, fmtDate, type TimerDef } from '@bagel/kit';
   import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
   import { formatDuration } from '$lib/components/shared/duration';
 
@@ -58,20 +58,19 @@
           <span class="bb-sr-only">{t('timers.fieldInterval')} </span>
           <span class="sched-val">{schedule}</span>
         </span>
-        <span class="m-state bb-tag {r.enabled ? 'bb-tag--live' : 'bb-tag--quiet'}">
-          <i class="bb-mark {r.enabled ? '' : 'bb-mark--hollow'}" aria-hidden="true"></i>
+        <Tag class="m-state" tone={r.enabled ? 'live' : 'quiet'} mark={r.enabled ? 'solid' : 'hollow'}>
           {r.enabled ? t('timers.active') : t('timers.hiddenTag')}
-        </span>
+        </Tag>
         {#if r.minChatLines > 0}
-          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillMinLines', { n: r.minChatLines })}</span>
+          <Tag class="m-pill" tone="bare">{t('timers.pillMinLines', { n: r.minChatLines })}</Tag>
         {/if}
         {#if r.maxFiresPerStream > 0}
-          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillMaxFires', { n: r.maxFiresPerStream })}</span>
+          <Tag class="m-pill" tone="bare">{t('timers.pillMaxFires', { n: r.maxFiresPerStream })}</Tag>
         {/if}
         {#if ended}
-          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillEnded')}</span>
+          <Tag class="m-pill" tone="bare">{t('timers.pillEnded')}</Tag>
         {:else if untilLabel}
-          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillUntil', { date: untilLabel })}</span>
+          <Tag class="m-pill" tone="bare">{t('timers.pillUntil', { date: untilLabel })}</Tag>
         {/if}
       </span>
     </span>
@@ -92,13 +91,13 @@
     align-items: center;
     gap: 14px;
   }
-  .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
+  .idx { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-muted); opacity: 0.55; }
 
   .msg { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
   .msg-text {
     font-family: var(--bb-font-body);
     font-weight: 600;
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-white);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -109,13 +108,13 @@
   .meta { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 12px; }
   .sched-val {
     font-family: var(--bb-font-mono);
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-tan-light);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
 
-  .m-state, .m-pill { flex: none; }
+  .meta :global(.m-state), .meta :global(.m-pill) { flex: none; }
 
   @media (max-width: 760px) {
     .prow {

@@ -5,6 +5,10 @@
 import { SITE } from '@bagel/kit/site-links';
 
 import Icon from '@bagel/ui/astro/Icon.astro';
+import Tag from '@bagel/ui/astro/Tag.astro';
+import Chip from '@bagel/ui/astro/Chip.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -76,36 +80,36 @@ const lines: Line[] = [
                     target={line.external ? '_blank' : undefined}
                     rel={line.external ? 'noopener noreferrer' : undefined}
                 ></a>
-                <span class="line__index" aria-hidden="true">{line.index}</span>
-                <span
-                    class:list={['line__dot', 'bb-tag', line.tone === 'green' ? 'bb-tag--live' : 'bb-tag--quiet']}
+                <Text as="span" size="xs" mono tone="muted" class="line__index" aria-hidden="true">{line.index}</Text>
+                <Tag
+                    tone={line.tone === 'green' ? 'live' : 'paid'}
+                    mark="solid"
+                    sweep={line.tone === 'green'}
+                    class="line__dot"
                     aria-hidden="true"
-                >
-                    <i class="bb-mark" aria-hidden="true"></i>
-                    {line.tone === 'green' && <i class="bb-sweep" aria-hidden="true"></i>}
-                </span>
+                />
                 <span class="line__main">
-                    <span class="line__title">{line.title}</span>
-                    <span class="line__note">{line.note}</span>
+                    <Heading level={5} as="span" class="line__title">{line.title}</Heading>
+                    <Text as="span" size="sm" tone="muted" class="line__note">{line.note}</Text>
                 </span>
                 <span class="line__meta">
                     {line.copy ? (
-                        <button
-                            type="button"
-                            class="line__copy bb-chip bb-chip--muted"
+                        <Chip
+                            tone="muted"
+                            class="line__copy"
                             data-copy={line.copy}
                             aria-label={`${t('board.copy')} ${line.copy}`}
                         >
-                            <span class="line__hint">{line.hint}</span>
+                            <span>{line.hint}</span>
                             <span class="line__copy-icon line__copy-icon--default" aria-hidden="true">
                                 <Icon name="copy" size={13} strokeWidth={2} />
                             </span>
                             <span class="line__copy-icon line__copy-icon--done" aria-hidden="true">
                                 <Icon name="check" size={13} strokeWidth={2.5} />
                             </span>
-                        </button>
+                        </Chip>
                     ) : (
-                        <span class="line__hint">{line.hint}</span>
+                        <Text as="span" size="xs" mono tone="muted" class="line__hint">{line.hint}</Text>
                     )}
                     <span class="line__arrow" aria-hidden="true">→</span>
                 </span>
@@ -113,20 +117,20 @@ const lines: Line[] = [
         ))}
     </div>
 
-    <p class="board__note" data-reveal style="--reveal-i: 4">
+    <Text size="xs" mono tone="muted" class="board__note" data-reveal>
         {t('board.note')}
-    </p>
+    </Text>
 </section>
 
 <style>
     .board {
         max-width: 860px;
         margin: 0 auto;
-        padding: 0 24px var(--space-section, 96px);
+        padding: 0 24px var(--bb-space-section);
     }
 
     .board__list {
-        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-top: 1px solid var(--bb-border);
     }
 
     .line {
@@ -135,20 +139,20 @@ const lines: Line[] = [
         align-items: center;
         gap: 20px;
         padding: 26px 12px;
-        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-bottom: 1px solid var(--bb-border);
         text-decoration: none;
         overflow: hidden;
-        transition: padding-left 380ms var(--ease-out-expo), background 300ms ease;
+        transition: padding-left var(--bb-dur-base) var(--bb-ease-out-expo), background var(--bb-dur-base) ease;
     }
 
     .line::before {
         content: "";
         position: absolute;
         inset: 0;
-        background: linear-gradient(90deg, rgba(201, 168, 124, 0.07), transparent 65%);
+        background: linear-gradient(90deg, rgba(var(--bb-tan-rgb), 0.07), transparent 65%);
         opacity: 0;
         transform: translateX(-16px);
-        transition: opacity 320ms ease, transform 420ms var(--ease-out-expo);
+        transition: opacity var(--bb-dur-base) ease, transform var(--bb-dur-base) var(--bb-ease-out-expo);
         pointer-events: none;
     }
 
@@ -156,11 +160,11 @@ const lines: Line[] = [
         position: absolute;
         inset: 0;
         z-index: 1;
-        border-radius: var(--radius-xs);
+        border-radius: var(--bb-radius-xs);
     }
 
     .line__target:focus-visible {
-        outline: 2px solid var(--tan-light, #e0c49a);
+        outline: 2px solid var(--bb-tan-light);
         outline-offset: -3px;
     }
 
@@ -170,18 +174,13 @@ const lines: Line[] = [
     }
 
     .line__index {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.7rem;
-        color: var(--muted, #888077);
         flex-shrink: 0;
-        transition: color 240ms ease;
+        transition: color var(--bb-dur-fast) ease;
     }
 
-    .line:hover .line__index { color: var(--tan, #c9a87c); }
+    .line:hover .line__index { color: var(--bb-tan); }
 
     .line__dot { flex-shrink: 0; }
-
-    .line--tan .line__dot { color: var(--tan, #c9a87c); }
 
     .line__main {
         display: flex;
@@ -192,21 +191,12 @@ const lines: Line[] = [
     }
 
     .line__title {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1.15rem;
-        font-weight: 700;
-        letter-spacing: -0.01em;
-        color: var(--white, #f0ece4);
-        transition: color 240ms ease;
+        transition: color var(--bb-dur-fast) ease;
     }
 
-    .line:hover .line__title { color: var(--tan-light, #e0c49a); }
+    .line:hover .line__title { color: var(--bb-tan-light); }
 
     .line__note {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.86rem;
-        line-height: 1.55;
-        color: var(--muted, #888077);
         max-width: 52ch;
     }
 
@@ -218,21 +208,15 @@ const lines: Line[] = [
     }
 
     .line__hint {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.68rem;
-        letter-spacing: 0.05em;
-        color: var(--muted, #888077);
-        transition: color 240ms ease;
+        transition: color var(--bb-dur-fast) ease;
     }
 
-    .line:hover .line__hint { color: var(--tan-light, #e0c49a); }
+    .line:hover .line__hint { color: var(--bb-tan-light); }
 
     .line__copy {
         position: relative;
         z-index: 2;
     }
-
-    .line__copy .line__hint { transition: none; color: inherit; }
 
     .line__copy-icon { display: inline-flex; line-height: 0; }
     .line__copy-icon--done { display: none; }
@@ -241,11 +225,11 @@ const lines: Line[] = [
     .line__copy.is-done .line__copy-icon--done { display: inline-flex; }
 
     .line__arrow {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        color: var(--tan, #c9a87c);
+        font-family: var(--bb-font-mono);
+        color: var(--bb-tan);
         opacity: 0;
         transform: translateX(-8px);
-        transition: opacity 280ms ease, transform 380ms var(--ease-out-expo);
+        transition: opacity var(--bb-dur-base) ease, transform var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
     @media (hover: hover) and (pointer: fine) {
@@ -257,11 +241,7 @@ const lines: Line[] = [
     }
 
     .board__note {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.72rem;
-        letter-spacing: 0.05em;
-        line-height: 1.8;
-        color: var(--muted, #888077);
+        --reveal-i: 4;
         text-align: center;
         margin-top: 40px;
         opacity: 0.8;

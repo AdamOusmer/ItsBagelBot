@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Field, getI18n, tModuleReplyDefault, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
+  import { Button, Field, getI18n, tModuleReplyDefault, tModuleReplyPart, type ModuleReply } from '@bagel/kit';
   import { chipsFor } from '@bagel/kit/variables';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
@@ -60,10 +60,10 @@
   <ReplyTokenList chips={ownTokens} />
 
   <div class="actions">
-    <button type="button" class="bb-btn bb-btn--ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</button>
-    <button type="button" class="bb-btn bb-btn--primary" onclick={onSave} disabled={busy}>
+    <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
+    <Button variant="primary" onclick={onSave} disabled={busy}>
       {busy ? t('modules.loading') : t('modules.saveChanges')}
-    </button>
+    </Button>
   </div>
 </div>
 
@@ -75,8 +75,8 @@
       position: sticky;
       bottom: 0;
       padding: 12px 0;
-      background: var(--bb-bg-1, #111);
-      border-top: 1px solid var(--rule);
+      background: var(--bb-bg-1);
+      border-top: 1px solid var(--bb-border);
     }
   }
   @media (max-width: 480px) {

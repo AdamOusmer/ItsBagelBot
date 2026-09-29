@@ -66,6 +66,10 @@
     white-space: nowrap;
   }
 
+  :root[data-theme="light"] .bb-brand__name {
+    color: var(--bb-ink);
+  }
+
   .bb-brand__sub {
     --brand-sub-size: 9px;
     --brand-sub-tracking: 0.22em;

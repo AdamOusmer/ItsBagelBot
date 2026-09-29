@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Code, getI18n, tModuleCommandSummary, type ModuleCommandInfo } from '@bagel/kit';
+  import { Code, Label, ManagementRow, Tag, Text, getI18n, tModuleCommandSummary, type ModuleCommandInfo } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -10,47 +10,35 @@
   const idx = $derived(String(index).padStart(2, '0'));
 </script>
 
-<div class="row-shell" style="--i: {index - 1}">
-  <div class="crow">
-    <span class="idx" aria-hidden="true">{idx}</span>
-    <span class="cmd">
-      <span class="cmd-name"><Code>{command.trigger}</Code></span>
-      <span class="resp">{tModuleCommandSummary(t, moduleId, command)}</span>
+<ManagementRow selectable={false}>
+  {#snippet primary()}
+    <span class="crow">
+      <span class="idx" aria-hidden="true"><Label mono as="span">{idx}</Label></span>
+      <span class="cmd">
+        <span><Code>{command.trigger}</Code></span>
+        <Text as="span" size="xs" tone="muted" truncate>{tModuleCommandSummary(t, moduleId, command)}</Text>
+      </span>
+      {#if command.perm === 'mod'}
+        <Tag tone="bare">{t('modules.permMods')}</Tag>
+      {:else if command.perm === 'lead_mod'}
+        <Tag tone="bare">{t('modules.permLeadMods')}</Tag>
+      {:else}
+        <span class="mini-spacer" aria-hidden="true"></span>
+      {/if}
     </span>
-    {#if command.perm === 'mod'}
-      <span class="bb-tag bb-tag--bare">{t('modules.permMods')}</span>
-    {:else if command.perm === 'lead_mod'}
-      <span class="bb-tag bb-tag--bare">{t('modules.permLeadMods')}</span>
-    {:else}
-      <span class="mini-spacer" aria-hidden="true"></span>
-    {/if}
-  </div>
-</div>
+  {/snippet}
+</ManagementRow>
 
 <style>
-  .row-shell {
-    border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.08));
-  }
   .crow {
     display: grid;
     grid-template-columns: 28px minmax(0, 1fr) auto;
     align-items: center;
     gap: 14px;
-    padding: 13px 14px;
-    user-select: none;
   }
-  .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
+  .idx { opacity: 0.55; }
 
   .cmd { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .resp {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-  }
 
   .mini-spacer { width: 0; }
 

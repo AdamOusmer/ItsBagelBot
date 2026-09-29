@@ -1,8 +1,19 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { SaveStatus, ManagementRow, Switch, getI18n, tModuleReplyPart, tModuleReplyDefault, type ModuleReply } from '@bagel/kit';
-  import { namespaceReplyTemplate } from '@bagel/kit';
+  import {
+    Heading,
+    Label,
+    ManagementRow,
+    SaveStatus,
+    Switch,
+    Text,
+    getI18n,
+    namespaceReplyTemplate,
+    tModuleReplyDefault,
+    tModuleReplyPart,
+    type ModuleReply
+  } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -45,10 +56,10 @@
   >
     {#snippet primary()}
       <span class="prow">
-        {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
+        {#if idx}<span class="idx" aria-hidden="true"><Label mono as="span">{idx}</Label></span>{/if}
         <span class="cmd">
-          <span class="cmd-name">{tModuleReplyPart(t, moduleId, reply, 'label')}</span>
-          <span class="resp">{preview}</span>
+          <Heading level={6} as="span">{tModuleReplyPart(t, moduleId, reply, 'label')}</Heading>
+          <Text as="span" size="xs" tone="muted" truncate>{preview}</Text>
         </span>
         <span class="state"><SaveStatus state={status} /></span>
       </span>
@@ -70,19 +81,9 @@
     align-items: center;
     gap: 14px;
   }
-  .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
+  .idx { opacity: 0.55; }
 
   .cmd { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .cmd-name { font-family: var(--bb-font-display); font-weight: 700; font-size: 14px; color: var(--bb-white); }
-  .resp {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-  }
   .state { min-width: 0; }
   .mini-spacer { width: 38px; }
 

@@ -7,17 +7,25 @@
 
   let {
     htmlFor,
+    mono = false,
+    as: tag = 'label',
     class: className = '',
     children,
     ...rest
   }: {
     htmlFor?: string;
+    mono?: boolean;
+    as?: 'label' | 'span' | 'legend';
     class?: string;
     children: Snippet;
     [key: string]: unknown;
   } = $props();
 
-  const classes = $derived(['bb-label', className || null].filter(Boolean).join(' '));
+  const classes = $derived(
+    ['bb-label', mono ? 'bb-label--mono' : null, className || null].filter(Boolean).join(' '),
+  );
 </script>
 
-<label class={classes} for={htmlFor} {...rest}>{@render children()}</label>
+<svelte:element this={tag} class={classes} for={tag === 'label' ? htmlFor : undefined} {...rest}
+  >{@render children()}</svelte:element
+>

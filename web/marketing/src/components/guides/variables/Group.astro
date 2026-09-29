@@ -2,7 +2,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Code from '@bagel/ui/astro/Code.astro';
+import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
 import Table from '@bagel/ui/astro/Table.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import Entry from './Entry.astro';
 import type { LocalizedVariableReference } from '../../../lib/variables';
 
@@ -29,7 +33,7 @@ const aliasTokens = [...new Set(entries.flatMap((entry) => entry.aliasTokens))];
 ---
 
 <section id={group} class="vref-group" data-reveal style={`--reveal-i: ${revealIndex}`}>
-    <h2 class="vref-group__heading">{label}</h2>
+    <Heading level={3} as="h2" class="vref-group__heading">{label}</Heading>
     <Table label={label} class="vref-table">
         <thead>
             <tr>
@@ -46,7 +50,7 @@ const aliasTokens = [...new Set(entries.flatMap((entry) => entry.aliasTokens))];
         </tbody>
     </Table>
     {aliasTokens.length > 0 && (
-        <p class="vref-group__footnote"><span>{copy.aliases}</span> {aliasTokens.map((token) => <code>{token}</code>)}</p>
+        <Text size="sm" tone="muted" class="vref-group__footnote"><Eyebrow class="vref-group__aliases">{copy.aliases}</Eyebrow> {aliasTokens.map((token) => <Code class="vref-alias">{token}</Code>)}</Text>
     )}
     <slot />
 </section>

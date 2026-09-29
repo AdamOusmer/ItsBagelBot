@@ -45,21 +45,46 @@ const ICONS = {
   leaf: 'lucide:leaf',
   bulb: 'lucide:lightbulb',
   copy: 'lucide:copy',
+  arrowLeft: 'lucide:arrow-left',
+  arrowUpRight: 'lucide:arrow-up-right',
+  clock: 'lucide:clock',
+  bolt: 'lucide:zap',
+  share: 'lucide:share',
+  addSquare: 'lucide:square-plus',
+  minus: 'lucide:minus',
+  expand: 'lucide:maximize-2',
+  coins: 'lucide:coins',
+  gamepad: 'lucide:gamepad-2',
+  githubLine: 'lucide:github',
   discord: 'simple-icons:discord',
   brandX: 'simple-icons:x',
   tiktok: 'simple-icons:tiktok',
   youtube: 'simple-icons:youtube',
-  github: 'simple-icons:github'
+  github: 'simple-icons:github',
+  twitch: 'simple-icons:twitch'
 };
 
 const STRIP = /\s(?:fill="none"|stroke="currentColor"|stroke-linecap="round"|stroke-linejoin="round"|stroke-width="2")/g;
 
+// lucide redrew these after they shipped; keep the shipped glyphs.
+const PINNED = {
+  'lucide:credit-card': '<g><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></g>',
+  'lucide:leaf': '<g><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8c0 5.5-4.78 10-10 10"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></g>'
+};
+
+function lookup(set, name) {
+  const pack = sets[set] ?? { icons: {} };
+  return pack.icons[name] ?? pack.icons[pack.aliases?.[name]?.parent];
+}
+
+const isSquare = (set) => sets[set].width === 24 && sets[set].height === 24;
+
 function body(ref) {
   const [set, name] = ref.split(':');
-  const icon = sets[set]?.icons[name];
+  const icon = lookup(set, name);
   if (!icon) throw new Error(`gen-icons: ${ref} not found`);
-  if (sets[set].width !== 24 || sets[set].height !== 24) throw new Error(`gen-icons: ${set} is not 24x24`);
-  return set === 'lucide' ? icon.body.replace(STRIP, '') : icon.body.replace('<path ', '<path stroke="none" ');
+  if (!isSquare(set)) throw new Error(`gen-icons: ${set} is not 24x24`);
+  return PINNED[ref] ?? (set === 'lucide' ? icon.body.replace(STRIP, '') : icon.body.replace('<path ', '<path stroke="none" '));
 }
 
 function emit(manifest) {

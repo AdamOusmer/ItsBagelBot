@@ -1,10 +1,14 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary. No license granted. See LICENSE.md.
   import {
     AlertBanner,
     Button,
     ConfirmDialog,
     Icon,
+    IconButton,
+    Input,
+    Text,
     getI18n,
     KEY_LABEL_MAX,
     KEY_VALUE_MAX,
@@ -88,32 +92,30 @@
   <ul class="key-list">
     {#each keys.toSorted((a, b) => a.label.localeCompare(b.label)) as k (k.label)}
       <li class="key-row">
-        <span class="label">{k.label}</span>
-        <span class="last4" title={t('fetches.keyLast4Title')}>••••{k.last4}</span>
+        <span class="label"><Text as="span" size="xs" mono>{k.label}</Text></span>
+        <Text as="span" size="xs" mono tone="muted" title={t('fetches.keyLast4Title')}>••••{k.last4}</Text>
         <span class="acts">
-          <Button
-            type="button"
-            variant="icon" size="sm"
+          <IconButton
+            size="sm"
             title={t('fetches.keyRotate')}
-            aria-label={t('fetches.keyRotateAria', { label: k.label })}
+            label={t('fetches.keyRotateAria', { label: k.label })}
             onclick={() => {
               rotating = rotating === k.label ? '' : k.label;
               rotateValue = '';
               err = '';
             }}
-           ><Icon name="edit" size={15} /></Button>
-          <Button
-            type="button"
-            variant="icon" size="sm"
+          ><Icon name="edit" size={15} /></IconButton>
+          <IconButton
+            size="sm"
             title={t('common.delete')}
-            aria-label={t('fetches.keyDeleteAria', { label: k.label })}
+            label={t('fetches.keyDeleteAria', { label: k.label })}
             onclick={() => (deleteTarget = k)}
-           ><Icon name="trash" size={15} /></Button>
+          ><Icon name="trash" size={15} /></IconButton>
         </span>
         {#if rotating === k.label}
           <form class="rotate" onsubmit={submitRotate}>
-            <input
-              class="bb-input bb-input--fill"
+            <Input
+              fill
               type="password"
               placeholder={t('fetches.keyValuePh')}
               aria-label={t('fetches.keyValueAria', { label: k.label })}
@@ -130,33 +132,37 @@
     {/each}
   </ul>
 {:else}
-  <p class="empty">{t('fetches.keyNoneYet')}</p>
+  <div class="empty"><Text size="sm" tone="muted">{t('fetches.keyNoneYet')}</Text></div>
 {/if}
 
 <form class="add-key" onsubmit={submitNew}>
-  <input
-    class="bb-input bb-input--fill add-key-field"
-    placeholder={t('fetches.keyLabelPh')}
-    aria-label={t('fetches.keyLabelAria')}
-    autocomplete="off"
-    spellcheck="false"
-    maxlength={KEY_LABEL_MAX}
-    bind:value={newLabel}
-  />
-  <input
-    class="bb-input bb-input--fill add-key-field"
-    type="password"
-    placeholder={t('fetches.keyValuePh')}
-    aria-label={t('fetches.keyValueNewAria')}
-    autocomplete="off"
-    spellcheck="false"
-    maxlength={KEY_VALUE_MAX}
-    bind:value={newValue}
-    required
-  />
+  <span class="add-key-field">
+    <Input
+      fill
+      placeholder={t('fetches.keyLabelPh')}
+      aria-label={t('fetches.keyLabelAria')}
+      autocomplete="off"
+      spellcheck="false"
+      maxlength={KEY_LABEL_MAX}
+      bind:value={newLabel}
+    />
+  </span>
+  <span class="add-key-field">
+    <Input
+      fill
+      type="password"
+      placeholder={t('fetches.keyValuePh')}
+      aria-label={t('fetches.keyValueNewAria')}
+      autocomplete="off"
+      spellcheck="false"
+      maxlength={KEY_VALUE_MAX}
+      bind:value={newValue}
+      required
+    />
+  </span>
   <Button type="submit" variant="secondary" disabled={busy}>{t('fetches.keyAdd')}</Button>
 </form>
-<small class="note">{t('fetches.keyNote')}</small>
+<Text size="xs" tone="muted">{t('fetches.keyNote')}</Text>
 
 <ConfirmDialog
   open={deleteTarget !== null}
@@ -169,14 +175,14 @@
   onCancel={() => (deleteTarget = null)}
 >
   {#if referencing.length > 0}
-    <p class="ref-warn">{t('fetches.keyDeleteRefs')}</p>
+    <Text size="sm">{t('fetches.keyDeleteRefs')}</Text>
     <ul class="ref-list">
       {#each referencing as name (name)}
         <li><Code tone="danger">!{name}</Code></li>
       {/each}
     </ul>
   {:else}
-    <p class="ref-note">{t('fetches.keyDeleteSafe')}</p>
+    <Text size="sm" tone="muted">{t('fetches.keyDeleteSafe')}</Text>
   {/if}
 </ConfirmDialog>
 
@@ -187,24 +193,19 @@
     align-items: center;
     gap: 10px;
     padding: 9px 2px;
-    border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.08));
+    border-bottom: 1px solid var(--bb-border);
     flex-wrap: wrap;
   }
   .key-row:last-child { border-bottom: none; }
-  .label { font-family: var(--bb-font-mono); font-size: 12.5px; color: var(--bb-white); min-width: 120px; }
-  .last4 { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); letter-spacing: 0.08em; }
+  .label { min-width: 120px; }
   .acts { margin-left: auto; display: inline-flex; gap: 8px; }
 
   .rotate { display: flex; gap: 8px; width: 100%; }
 
-  .empty { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); font-style: italic; }
+  .empty { margin-bottom: 14px; }
 
-  .add-key { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .add-key-field { min-width: 140px; }
+  .add-key { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .add-key-field { display: flex; flex: 1; min-width: 140px; }
 
-  .note { display: block; margin-top: 8px; font-family: var(--bb-font-body); font-size: 11px; line-height: 1.5; color: var(--bb-muted); opacity: 0.7; }
-
-  .ref-warn { margin: 0 0 8px; font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-white); }
-  .ref-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-  .ref-note { margin: 0; font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
+  .ref-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 </style>

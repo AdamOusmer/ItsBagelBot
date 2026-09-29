@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { NodePod } from '$lib/deploys/types';
   import CheckDot from './CheckDot.svelte';
@@ -19,7 +20,7 @@
 <span class="nodes">
   {#each nodes as n (n.node)}
     <span class="node" role="group" aria-label={t('admin.deploys.nodeDots', { node: n.node })}>
-      <span class="name">{n.node}</span>
+      <Text as="span" size="xs" mono tone="muted">{n.node}</Text>
       {#each n.pods as p (p.pod)}
         <CheckDot tone={podTone(p.phase)} label={podLabel(p)} />
       {/each}
@@ -31,19 +32,13 @@
   .nodes {
     display: inline-flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--bb-space-3);
     min-width: 0;
     overflow: hidden;
   }
   .node {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-  }
-  .name {
-    margin-right: 3px;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    color: var(--bb-muted);
+    gap: var(--bb-space-1);
   }
 </style>

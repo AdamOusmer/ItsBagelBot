@@ -2,6 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -32,21 +35,21 @@ const t = useTranslations(lang);
         </div>
 
         <div class="enc-overlay" id="enc-ov-0">
-            <span class="enc-eyebrow">{t('enc.p1Eyebrow')}</span>
-            <h2 class="enc-h2">{t('enc.p1Title')}</h2>
-            <p class="enc-p">{t('enc.p1Desc')}</p>
+            <Eyebrow tone="go" class="enc-eyebrow">{t('enc.p1Eyebrow')}</Eyebrow>
+            <Heading level={2} class="enc-h2">{t('enc.p1Title')}</Heading>
+            <Text class="enc-p">{t('enc.p1Desc')}</Text>
         </div>
 
         <div class="enc-overlay enc-overlay--right" id="enc-ov-1">
-            <span class="enc-eyebrow">{t('enc.p2Eyebrow')}</span>
-            <h2 class="enc-h2">{t('enc.p2Title')}</h2>
-            <p class="enc-p">{t('enc.p2Desc')}</p>
+            <Eyebrow tone="go" class="enc-eyebrow">{t('enc.p2Eyebrow')}</Eyebrow>
+            <Heading level={2} class="enc-h2">{t('enc.p2Title')}</Heading>
+            <Text class="enc-p">{t('enc.p2Desc')}</Text>
         </div>
 
         <div class="enc-overlay" id="enc-ov-2">
-            <span class="enc-eyebrow">{t('enc.p3Eyebrow')}</span>
-            <h2 class="enc-h2">{t('enc.p3Title')}</h2>
-            <p class="enc-p">{t('enc.p3Desc')}</p>
+            <Eyebrow tone="go" class="enc-eyebrow">{t('enc.p3Eyebrow')}</Eyebrow>
+            <Heading level={2} class="enc-h2">{t('enc.p3Title')}</Heading>
+            <Text class="enc-p">{t('enc.p3Desc')}</Text>
         </div>
 
     </div>
@@ -115,10 +118,10 @@ const t = useTranslations(lang);
         width: 100px;
         height: 1px;
         transform-origin: left center;
-        background: linear-gradient(90deg, rgba(167, 243, 208, 0), rgba(240, 236, 228, 0.92));
+        background: linear-gradient(90deg, rgba(var(--bb-mint-glow-rgb), 0), rgba(var(--bb-white-rgb), 0.92));
         box-shadow:
-            0 0 8px rgba(167, 243, 208, 0.42),
-            0 0 18px rgba(0, 0, 0, 0.65);
+            0 0 8px rgba(var(--bb-mint-glow-rgb), 0.42),
+            0 0 18px rgba(var(--bb-shadow-rgb), 0.65);
         will-change: transform;
     }
 
@@ -127,7 +130,7 @@ const t = useTranslations(lang);
     }
 
     .enc-node-line__segment--flat {
-        background: linear-gradient(90deg, rgba(240, 236, 228, 0.92), rgba(240, 236, 228, 0.68));
+        background: linear-gradient(90deg, rgba(var(--bb-white-rgb), 0.92), rgba(var(--bb-white-rgb), 0.68));
         transform: translate3d(var(--elbow-x), var(--elbow-y), 0) rotate(var(--flat-angle)) scaleX(calc(var(--flat-len) / 100 * var(--flat-progress)));
     }
 
@@ -137,12 +140,12 @@ const t = useTranslations(lang);
         top: 0;
         width: 9px;
         height: 9px;
-        border: 1px solid rgba(240, 236, 228, 0.82);
-        border-radius: var(--radius-pill);
-        background: rgba(167, 243, 208, 0.42);
+        border: 1px solid rgba(var(--bb-white-rgb), 0.82);
+        border-radius: var(--bb-radius-pill);
+        background: rgba(var(--bb-mint-glow-rgb), 0.42);
         box-shadow:
-            0 0 10px rgba(167, 243, 208, 0.85),
-            0 0 22px rgba(82, 183, 136, 0.55);
+            0 0 10px rgba(var(--bb-mint-glow-rgb), 0.85),
+            0 0 22px rgba(var(--bb-green-glow-rgb), 0.55);
         transform: translate3d(calc(var(--node-x) - 4.5px), calc(var(--node-y) - 4.5px), 0) scale(var(--node-scale));
     }
 
@@ -175,40 +178,28 @@ const t = useTranslations(lang);
 
     .enc-eyebrow {
         display: block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: clamp(0.62rem, 1.4vw, 0.72rem);
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        color: var(--green-glow, #52b788);
         margin-bottom: 16px;
         text-shadow:
-            0 0 16px rgba(82, 183, 136, 0.55),
-            0 2px 12px rgba(0, 0, 0, 0.95);
+            0 0 16px rgba(var(--bb-green-glow-rgb), 0.55),
+            0 2px 12px rgba(var(--bb-shadow-rgb), 0.95);
     }
 
     .enc-h2 {
-        font-family: var(--font-display, "Syne", sans-serif);
         font-size: clamp(1.7rem, 3.6vw, 3rem);
         font-weight: 800;
-        line-height: 1.1;
-        letter-spacing: -0.03em;
-        color: var(--white, #f0ece4);
+        letter-spacing: var(--bb-tracking-tight);
         margin-bottom: 46px;
         text-shadow:
-            0 0 22px rgba(240, 236, 228, 0.24),
-            0 3px 18px rgba(0, 0, 0, 0.95),
-            0 0 34px rgba(82, 183, 136, 0.28);
+            0 0 22px rgba(var(--bb-white-rgb), 0.24),
+            0 3px 18px rgba(var(--bb-shadow-rgb), 0.95),
+            0 0 34px rgba(var(--bb-green-glow-rgb), 0.28);
     }
 
     .enc-p {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: clamp(0.9rem, 1.4vw, 1rem);
-        line-height: 1.6;
-        color: var(--white, #f0ece4);
         opacity: 0.9;
         text-shadow:
-            0 2px 10px rgba(0, 0, 0, 0.95),
-            0 0 18px rgba(82, 183, 136, 0.18);
+            0 2px 10px rgba(var(--bb-shadow-rgb), 0.95),
+            0 0 18px rgba(var(--bb-green-glow-rgb), 0.18);
     }
 
     @media (max-width: 900px) {
@@ -232,7 +223,7 @@ const t = useTranslations(lang);
 </style>
 
 <script>
-    import { reduceMotion as reducedMotion } from '@bagel/ui/lib/motion-query';
+    import { mediaQuery, reduceMotion as reducedMotion } from '@bagel/ui/lib/motion-query';
 
     import lenis from '../../script/scroll.js';
     import {
@@ -520,8 +511,8 @@ const t = useTranslations(lang);
             ACESFilmicToneMapping, SRGBColorSpace, AdditiveBlending, HalfFloatType
         } = three;
 
-        const mediaQuery = window.matchMedia('(max-width: 900px)');
-        const isCompact = mediaQuery.matches;
+        const compactQuery = mediaQuery('(max-width: 900px)');
+        const isCompact = compactQuery.matches;
         const maxPixelRatio = isCompact ? 1.25 : 1.5;
         const MAX_DRAW_PIXELS = 3e6;
         const pixelRatioFor = (width: number, height: number) => Math.min(
@@ -784,7 +775,7 @@ const t = useTranslations(lang);
 
         function refreshConnectorLayout() {
             const pinRect = pin.getBoundingClientRect();
-            const pad = mediaQuery.matches ? 22 : 32;
+            const pad = compactQuery.matches ? 22 : 32;
 
             connectorLayouts = overlays.map((overlay, i) => {
                 const heading = headings[i];
@@ -1196,7 +1187,7 @@ const t = useTranslations(lang);
         let removeAfterSwapDispose: (() => void) | null = null;
 
         window.addEventListener('resize', resize);
-        mediaQuery.addEventListener('change', resize);
+        compactQuery.addEventListener('change', resize);
         resize();
         document.fonts?.ready
             .then(() => { if (!disposed) refreshConnectorLayout(); })
@@ -1276,7 +1267,7 @@ const t = useTranslations(lang);
             window.removeEventListener('scroll', onScroll);
             window.removeEventListener('resize', resize);
             document.removeEventListener('visibilitychange', onVisibilityChange);
-            mediaQuery.removeEventListener('change', resize);
+            compactQuery.removeEventListener('change', resize);
             obs.disconnect();
             timer.dispose();
 

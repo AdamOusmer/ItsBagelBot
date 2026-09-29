@@ -7,13 +7,17 @@
 
   let {
     block = false,
+    wrap = false,
+    maxHeight,
     tone = undefined,
     class: className = '',
     children,
     ...rest
   }: {
     block?: boolean;
-    tone?: 'danger';
+    wrap?: boolean;
+    maxHeight?: string;
+    tone?: 'danger' | 'positive';
     class?: string;
     children: Snippet;
     [key: string]: unknown;
@@ -22,9 +26,11 @@
   const classes = $derived(
     ['bb-code', tone ? `bb-code--${tone}` : null, className || null].filter(Boolean).join(' '),
   );
+  const blockClasses = $derived(wrap ? 'bb-code-block bb-code-block--wrap' : 'bb-code-block');
+  const blockStyle = $derived(maxHeight ? `max-height:${maxHeight}` : undefined);
 </script>
 
-{#if block}<pre class="bb-code-block" {...rest}><code class={classes}>{@render children()}</code></pre>{:else}<code
+{#if block}<pre class={blockClasses} style={blockStyle} {...rest}><code class={classes}>{@render children()}</code></pre>{:else}<code
     class={classes}
     {...rest}>{@render children()}</code
   >{/if}

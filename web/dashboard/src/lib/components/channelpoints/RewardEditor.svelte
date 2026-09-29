@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select, namespaceReplySamples, Field, RadioGroup, Checkbox, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
+  import { Select, namespaceReplySamples, Field, Input, RadioGroup, Checkbox, Text, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { rewardErrors, type RewardErrorField } from './reward-draft';
@@ -60,12 +60,11 @@
 
 <div class="editor">
   <Field label={t('channelpoints.fieldTitle')} error={titleError} errorId="reward-title-err">
-    <input
-      class="bb-input"
+    <Input
       placeholder={t('channelpoints.fieldTitlePh')}
       maxlength="45"
       required
-      data-invalid={titleError ? '' : undefined}
+      invalid={!!titleError}
       aria-invalid={titleError ? 'true' : undefined}
       aria-describedby={titleError ? 'reward-title-err' : undefined}
       bind:value={draft.title}
@@ -73,24 +72,27 @@
   </Field>
 
   <div class="field-row">
-    <Field label={t('channelpoints.fieldCost')} class="cost-field" error={costError} errorId="reward-cost-err">
-      <input
-        class="bb-input"
-        type="number"
-        min="1"
-        data-invalid={costError ? '' : undefined}
-        aria-invalid={costError ? 'true' : undefined}
-        aria-describedby={costError ? 'reward-cost-err' : undefined}
-        bind:value={draft.cost}
-      />
-    </Field>
-    <Field label={t('channelpoints.fieldColor')} class="color-field">
-      <input class="color-in" type="color" bind:value={draft.backgroundColor} />
-    </Field>
+    <div class="cost-field">
+      <Field label={t('channelpoints.fieldCost')} error={costError} errorId="reward-cost-err">
+        <Input
+          type="number"
+          min="1"
+          invalid={!!costError}
+          aria-invalid={costError ? 'true' : undefined}
+          aria-describedby={costError ? 'reward-cost-err' : undefined}
+          bind:value={draft.cost}
+        />
+      </Field>
+    </div>
+    <div class="color-field">
+      <Field label={t('channelpoints.fieldColor')}>
+        <Input type="color" bind:value={draft.backgroundColor} />
+      </Field>
+    </div>
   </div>
 
   <Field label={t('channelpoints.fieldPrompt')} tag={t('common.optional')}>
-    <input class="bb-input" placeholder={t('channelpoints.fieldPromptPh')} maxlength="200" bind:value={draft.prompt} />
+    <Input placeholder={t('channelpoints.fieldPromptPh')} maxlength="200" bind:value={draft.prompt} />
   </Field>
 
   <div class="check">
@@ -126,7 +128,7 @@
 
   <section class="hooks">
     <header class="hooks-head">
-      <span>{t('channelpoints.loyaltyTitle')}</span>
+      <Text as="span" size="sm" tone="muted">{t('channelpoints.loyaltyTitle')}</Text>
     </header>
 
     <div class="hook">
@@ -139,12 +141,11 @@
             error={counterError}
             errorId="reward-counter-err"
           >
-            <input
-              class="bb-input"
+            <Input
               placeholder={t('channelpoints.fieldCounterPh')}
               maxlength="64"
               required
-              data-invalid={counterError ? '' : undefined}
+              invalid={!!counterError}
               aria-invalid={counterError ? 'true' : undefined}
               aria-describedby={counterError ? 'reward-counter-err' : undefined}
               bind:value={draft.counter}
@@ -155,7 +156,7 @@
             <RadioGroup name="counterScope" bind:value={draft.counterScope} options={scopeOptions} label={t('rewardCounter.scopeLabel')} />
           </Field>
 
-          <p class="token-note">{t('rewardCounter.tokenNote')}</p>
+          <div class="token-note"><Text size="xs" mono tone="muted">{t('rewardCounter.tokenNote')}</Text></div>
         </div>
       {/if}
     </div>
@@ -164,12 +165,14 @@
       <Checkbox bind:checked={pointsOn}>{t('rewardCounter.pointsEnable')}</Checkbox>
       {#if pointsOn}
         <div class="hook-body">
-          <Field label={t('rewardCounter.pointsLabel')} hint={t('rewardCounter.pointsHint')} class="points-field">
-            <div class="points-input">
-              <span class="plus">+</span>
-              <input class="bb-input num" type="number" min="1" bind:value={draft.points} />
-            </div>
-          </Field>
+          <div class="points-field">
+            <Field label={t('rewardCounter.pointsLabel')} hint={t('rewardCounter.pointsHint')}>
+              <span class="points-input">
+                <span class="plus">+</span>
+                <span class="points-num"><Input type="number" min="1" bind:value={draft.points} /></span>
+              </span>
+            </Field>
+          </div>
         </div>
       {/if}
     </div>
@@ -177,60 +180,67 @@
     {#if counterOn || pointsOn}
       <div class="hook live-gate">
         <Checkbox bind:checked={draft.liveOnly}>{t('rewardCounter.liveOnly')}</Checkbox>
-        <small class="live-hint">{t('rewardCounter.liveOnlyHint')}</small>
+        <span class="live-hint"><Text as="small" size="xs" tone="muted">{t('rewardCounter.liveOnlyHint')}</Text></span>
       </div>
     {/if}
   </section>
 
   <div class="limits">
-    <span class="limits-title">{t('channelpoints.limits')}</span>
+    <Text as="span" size="sm" tone="muted">{t('channelpoints.limits')}</Text>
 
     <div class="limit">
       <Checkbox bind:checked={draft.maxPerStreamEnabled}>{t('channelpoints.limitPerStream')}</Checkbox>
-      <input
-        class="bb-input num"
-        class:off={!draft.maxPerStreamEnabled}
-        type="number"
-        min="1"
-        aria-label={t('channelpoints.limitPerStream')}
-        aria-invalid={perStreamError ? 'true' : undefined}
-        data-invalid={perStreamError ? '' : undefined}
-        bind:value={draft.maxPerStream}
-      />
+      <span class="limit-num" class:off={!draft.maxPerStreamEnabled}>
+        <Input
+          fill
+          type="number"
+          min="1"
+          aria-label={t('channelpoints.limitPerStream')}
+          aria-invalid={perStreamError ? 'true' : undefined}
+          invalid={!!perStreamError}
+          bind:value={draft.maxPerStream}
+        />
+      </span>
     </div>
-    <small class="limit-note" class:off={!draft.maxPerStreamEnabled && !perStreamError} class:err={!!perStreamError} role={perStreamError ? 'alert' : undefined}>
-      {perStreamError ?? t('channelpoints.limitPerStreamHint')}
-    </small>
+    <span class="limit-note" class:off={!draft.maxPerStreamEnabled && !perStreamError} role={perStreamError ? 'alert' : undefined}>
+      <Text as="small" size="xs" tone={perStreamError ? 'danger' : 'muted'}>{perStreamError ?? t('channelpoints.limitPerStreamHint')}</Text>
+    </span>
 
     <div class="limit">
       <Checkbox bind:checked={draft.maxPerUserPerStreamEnabled}>{t('channelpoints.limitPerUser')}</Checkbox>
-      <input
-        class="bb-input num"
-        class:off={!draft.maxPerUserPerStreamEnabled}
-        type="number"
-        min="1"
-        aria-label={t('channelpoints.limitPerUser')}
-        aria-invalid={perUserError ? 'true' : undefined}
-        data-invalid={perUserError ? '' : undefined}
-        bind:value={draft.maxPerUserPerStream}
-      />
+      <span class="limit-num" class:off={!draft.maxPerUserPerStreamEnabled}>
+        <Input
+          fill
+          type="number"
+          min="1"
+          aria-label={t('channelpoints.limitPerUser')}
+          aria-invalid={perUserError ? 'true' : undefined}
+          invalid={!!perUserError}
+          bind:value={draft.maxPerUserPerStream}
+        />
+      </span>
     </div>
-    <small class="limit-note" class:err={!!perUserError} role={perUserError ? 'alert' : undefined}>{perUserError ?? ''}</small>
+    <span class="limit-note" role={perUserError ? 'alert' : undefined}>
+      <Text as="small" size="xs" tone="danger">{perUserError ?? ''}</Text>
+    </span>
 
     <div class="limit">
       <Checkbox bind:checked={draft.globalCooldownEnabled}>{t('channelpoints.limitCooldown')}</Checkbox>
-      <input
-        class="bb-input num"
-        class:off={!draft.globalCooldownEnabled}
-        type="number"
-        min="1"
-        aria-label={t('channelpoints.limitCooldown')}
-        aria-invalid={cooldownError ? 'true' : undefined}
-        data-invalid={cooldownError ? '' : undefined}
-        bind:value={draft.globalCooldownSeconds}
-      />
+      <span class="limit-num" class:off={!draft.globalCooldownEnabled}>
+        <Input
+          fill
+          type="number"
+          min="1"
+          aria-label={t('channelpoints.limitCooldown')}
+          aria-invalid={cooldownError ? 'true' : undefined}
+          invalid={!!cooldownError}
+          bind:value={draft.globalCooldownSeconds}
+        />
+      </span>
     </div>
-    <small class="limit-note" class:err={!!cooldownError} role={cooldownError ? 'alert' : undefined}>{cooldownError ?? ''}</small>
+    <span class="limit-note" role={cooldownError ? 'alert' : undefined}>
+      <Text as="small" size="xs" tone="danger">{cooldownError ?? ''}</Text>
+    </span>
   </div>
 
   <div class="check">
@@ -238,22 +248,12 @@
   </div>
 </div>
 
-
 <style>
   .editor { padding: 4px 2px 2px; }
 
   .field-row { display: flex; gap: 12px; }
-  :global(.cost-field) { flex: 1; min-width: 0; }
-  :global(.color-field) { flex: none; width: 110px; }
-  .color-in {
-    width: 100%;
-    height: 39px;
-    padding: 3px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(0, 0, 0, 0.35);
-    cursor: pointer;
-  }
+  .cost-field { flex: 1; min-width: 0; }
+  .color-field { flex: none; width: 110px; }
 
   .check { margin: 4px 0 14px; --bb-check-align: center; }
 
@@ -261,7 +261,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    border: 1px solid var(--rule, rgba(240, 236, 228, 0.08));
+    border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-md);
     padding: 14px;
     margin-bottom: 14px;
@@ -270,14 +270,10 @@
     display: flex;
     align-items: center;
     gap: 7px;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    letter-spacing: 0.02em;
-    color: var(--bb-muted);
     margin-bottom: 4px;
   }
   .hook { display: flex; flex-direction: column; --bb-check-align: center; }
-  .hook + .hook { border-top: 1px solid rgba(240, 236, 228, 0.06); padding-top: 12px; margin-top: 6px; }
+  .hook + .hook { border-top: 1px solid rgba(var(--bb-white-rgb), 0.06); padding-top: 12px; margin-top: 6px; }
 
   .hook-body {
     display: flex;
@@ -288,66 +284,42 @@
   .hook-body { --field-mb: 0; }
 
   .token-note {
-    margin: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-    background: rgba(0, 0, 0, 0.28);
+    background: rgba(var(--bb-shadow-rgb), 0.28);
     border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-sm);
     padding: 8px 10px;
-    line-height: 1.5;
   }
 
   .live-gate { gap: 4px; }
-  .live-hint {
-    color: var(--bb-muted);
-    opacity: 0.75;
-    font-size: 11px;
-    font-family: var(--bb-font-body);
-    margin: 2px 0 0 26px;
-  }
+  .live-hint { margin: 2px 0 0 26px; }
 
-  :global(.points-field) { max-width: 220px; }
+  .points-field { max-width: 220px; }
   .points-input { display: flex; align-items: center; gap: 8px; }
-  .points-input .plus {
+  .plus {
     font-family: var(--bb-font-display);
-    font-size: 17px;
+    font-size: var(--bb-text-md);
     color: var(--bb-muted);
     line-height: 1;
   }
-  .points-input .num { width: 120px; }
+  .points-num { display: block; width: 120px; }
 
   .limits {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border: 1px solid var(--rule, rgba(240, 236, 228, 0.08));
+    border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-md);
     padding: 14px;
     margin-bottom: 14px;
   }
-  .limits-title {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    letter-spacing: 0.01em;
-  }
   .limit { display: flex; align-items: center; gap: 10px; --bb-check-flex: 1; --bb-check-align: center; }
-  .limit .num { width: 88px; flex: none; }
-  .limit .num.off { visibility: hidden; opacity: 0; }
-  .limit-note {
-    color: var(--bb-muted);
-    opacity: 0.7;
-    font-size: 11px;
-    font-family: var(--bb-font-body);
-    margin: -6px 0 0 26px;
-    min-height: 16px;
-  }
+  .limit-num { display: block; width: 88px; flex: none; }
+  .limit-num.off { visibility: hidden; opacity: 0; }
+  .limit-note { display: block; margin: -6px 0 0 26px; min-height: 16px; }
   .limit-note.off { visibility: hidden; opacity: 0; }
-  .limit-note.err { color: var(--bb-danger); opacity: 1; }
+
   @media (max-width: 480px) {
     .field-row { flex-direction: column; gap: 0; }
-    :global(.color-field) { width: 100%; }
+    .color-field { width: 100%; }
   }
 </style>

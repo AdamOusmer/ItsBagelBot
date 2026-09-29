@@ -17,6 +17,7 @@
 
     .bb-tbl {
         width: 100%;
+        min-width: var(--tbl-min-w, auto);
         border-collapse: collapse;
         font-family: var(--bb-font-body);
         font-size: 13px;
@@ -26,7 +27,7 @@
 
     .bb-tbl th[scope="col"] {
         font-family: var(--bb-font-mono);
-        font-size: 11px;
+        font-size: var(--tbl-head-size, 11px);
         letter-spacing: 0.04em;
         text-transform: uppercase;
         color: var(--bb-muted);
@@ -39,7 +40,7 @@
     .bb-tbl td,
     .bb-tbl th[scope="row"] {
         padding: 7px 8px;
-        border-bottom: 1px solid rgba(240, 236, 228, 0.05);
+        border-bottom: 1px solid rgba(var(--bb-white-rgb), 0.05);
         color: var(--bb-white);
     }
 
@@ -54,10 +55,22 @@
 
     .bb-tbl .r { text-align: right; }
     .bb-tbl .mut { color: var(--bb-muted); }
+    .bb-tbl .acc { color: var(--bb-tan-light); }
 
     .bb-tbl--zebra tbody tr:nth-child(even) td {
-        background: rgba(240, 236, 228, 0.02);
+        background: rgba(var(--bb-white-rgb), 0.02);
     }
 
     .bb-tbl--compact :is(td, th) { padding-block: 4px; }
+
+    .bb-tbl--roomy { font-size: 15px; }
+
+    .bb-tbl--roomy th[scope="col"] { padding: 13px 16px; }
+
+    .bb-tbl--roomy :is(td, th[scope="row"]) {
+        padding: 12px 16px;
+        font-size: inherit;
+        line-height: 1.6;
+        vertical-align: top;
+    }
 }

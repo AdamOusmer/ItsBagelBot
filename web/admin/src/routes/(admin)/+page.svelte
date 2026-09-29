@@ -7,8 +7,11 @@
   import OverviewGrid from '@bagel/ui/svelte/OverviewGrid.svelte';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import EnrollmentPanel from '$lib/components/overview/EnrollmentPanel.svelte';
   import FleetPanel from '$lib/components/overview/FleetPanel.svelte';
@@ -16,7 +19,7 @@
   import AuditPeek from '$lib/components/overview/AuditPeek.svelte';
   import QuickActions from '$lib/components/overview/QuickActions.svelte';
   import BotCard from '$lib/components/overview/BotCard.svelte';
-import type { EnrollmentWindow } from '$lib/enrollment-window';
+  import type { EnrollmentWindow } from '$lib/enrollment-window';
   import StatePill from '$lib/components/StatePill.svelte';
 
   let { data } = $props();
@@ -85,12 +88,24 @@ import type { EnrollmentWindow } from '$lib/enrollment-window';
         {#if !p.ok}
           <AlertBanner>{t('admin.giveaways.alertsUnavailable')}</AlertBanner>
         {:else if p.value.length}
-          <section class="pending-awards" aria-labelledby="pending-awards-title">
-            <div class="pending-head"><Heading level={6} as="h2" id="pending-awards-title">{t('admin.giveaways.alerts')}</Heading><StatePill tone="warning">{p.value.length}</StatePill></div>
-            {#each p.value.slice(0, 4) as alert (alert.id)}
-              <a class="pending-row" href="/giveaways"><strong>{alert.awardId}</strong><Text as="span" size="xs" tone="muted">{alert.reason}</Text></a>
-            {/each}
-          </section>
+          <div class="pending-awards">
+            <Card as="section" aria-labelledby="pending-awards-title">
+              <Stack gap={2}>
+                <Cluster justify="between" gap={3}>
+                  <Heading level={6} as="h2" id="pending-awards-title">{t('admin.giveaways.alerts')}</Heading>
+                  <StatePill tone="warning">{p.value.length}</StatePill>
+                </Cluster>
+                <Stack gap={0}>
+                  {#each p.value.slice(0, 4) as alert (alert.id)}
+                    <a class="pending-row" href="/giveaways">
+                      <strong class="award">{alert.awardId}</strong>
+                      <Text as="span" size="xs" tone="muted">{alert.reason}</Text>
+                    </a>
+                  {/each}
+                </Stack>
+              </Stack>
+            </Card>
+          </div>
         {/if}
       {/await}
     {/snippet}
@@ -98,8 +113,20 @@ import type { EnrollmentWindow } from '$lib/enrollment-window';
 </section>
 
 <style>
-  .pending-awards { padding:16px; border:1px solid rgba(242,200,121,.35); border-radius:14px; background:rgba(242,200,121,.06); }
-  .pending-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
-  .pending-row { display:grid; gap:3px; padding:9px 0; border-top:1px solid var(--bb-border); color:inherit; text-decoration:none; }
-  .pending-row:hover strong { color:var(--bb-tan-pale); }
+  .pending-awards {
+    --card-bg: color-mix(in srgb, var(--bb-warn) 6%, transparent);
+    --card-border: color-mix(in srgb, var(--bb-warn) 35%, transparent);
+    --card-pad: var(--bb-space-4);
+  }
+  .pending-row {
+    display: grid;
+    gap: var(--bb-space-1);
+    padding: var(--bb-space-2) 0;
+    border-top: 1px solid var(--bb-border);
+    color: inherit;
+    text-decoration: none;
+  }
+  .pending-row:hover .award {
+    color: var(--bb-tan-pale);
+  }
 </style>

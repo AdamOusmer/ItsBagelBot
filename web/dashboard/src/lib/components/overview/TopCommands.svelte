@@ -1,9 +1,12 @@
 <script lang="ts">
-  import { formatCounterValue } from '@bagel/kit/validation';
-  import { usesCount } from '@bagel/kit/uses';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { formatCounterValue } from '@bagel/kit/validation';
+  import { usesCount } from '@bagel/kit/uses';
   import Card from '@bagel/ui/svelte/Card.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { CommandView } from '@bagel/kit/types';
 
@@ -14,26 +17,26 @@
 
 <section class="ov-top" aria-labelledby="ov-top-h">
   <div class="ov-top__head">
-    <h2 id="ov-top-h" class="ov-section-h">{t('overview.topCommands')}</h2>
-    <a class="ov-more" href="/commands">{t('overview.allCommands')}</a>
+    <Heading level={6} as="h2" variant="title" id="ov-top-h">{t('overview.topCommands')}</Heading>
+    <TextLink href="/commands" label={t('overview.allCommands')} />
   </div>
   <Card>
-    <ul class="feed ov-feed">
+    <ul class="bb-feed bb-stagger">
       {#each top as c (c.name)}
-        <li class="feed-row">
-          <span class="ft">
-            <b class="mono">!{c.name}</b>
-            <span class="clip">{c.response}</span>
+        <li class="bb-feed__row">
+          <span class="bb-feed__body">
+            <span class="bb-feed__title bb-feed__title--mono">!{c.name}</span>
+            <span class="bb-feed__desc"><Text as="span" size="xs" tone="muted" truncate>{c.response}</Text></span>
           </span>
-          <span class="fw uses">{t('overview.usesN', { n: formatCounterValue(usesCount(c).toString()) })}</span>
+          <span class="bb-feed__trail">{t('overview.usesN', { n: formatCounterValue(usesCount(c).toString()) })}</span>
         </li>
       {/each}
-      <li class="feed-row">
-        <span class="ft">
-          <b>{t('overview.addAnother')}</b>
-          <span>{t('overview.addAnotherDesc')}</span>
+      <li class="bb-feed__row">
+        <span class="bb-feed__body">
+          <span class="bb-feed__title">{t('overview.addAnother')}</span>
+          <span class="bb-feed__desc">{t('overview.addAnotherDesc')}</span>
         </span>
-        <a class="fw ov-link" href="/commands">{t('common.open')}</a>
+        <span class="bb-feed__trail"><TextLink href="/commands" label={t('common.open')} /></span>
       </li>
     </ul>
   </Card>
@@ -49,46 +52,5 @@
     justify-content: space-between;
     gap: 12px;
     margin-bottom: 12px;
-  }
-  .ov-section-h {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0;
-  }
-  .ov-more,
-  .ov-link {
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 12.5px;
-    color: var(--bb-tan);
-    text-decoration: none;
-  }
-  .ov-more:hover,
-  .ov-link:hover {
-    color: var(--bb-tan-pale);
-  }
-  .ov-feed {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .mono {
-    font-family: var(--bb-font-mono);
-  }
-  .uses {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-    white-space: nowrap;
-  }
-  .clip {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: block;
-    max-width: 100%;
   }
 </style>

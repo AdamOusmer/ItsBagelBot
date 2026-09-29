@@ -1,12 +1,10 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { getI18n, type TimerDef, Field } from '@bagel/kit';
-  import { Checkbox } from '@bagel/kit';
+  import { Checkbox, Field, Input, Text, getI18n, type TimerDef } from '@bagel/kit';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
-
   import DurationField from '$lib/components/shared/DurationField.svelte';
 
   const MIN_INTERVAL_SECONDS = 60;
@@ -75,7 +73,7 @@
       placeholder={t('timers.fieldMessagePh')}
       onblur={() => (touched.message = true)}
     />
-    <small class="counter">{draft.message.length}/{MESSAGE_MAX}</small>
+    <span class="counter"><Text as="small" size="xs" tone="muted">{draft.message.length}/{MESSAGE_MAX}</Text></span>
   </Field>
   <ChatPreview kind="timer" response={draft.message} />
 
@@ -93,22 +91,19 @@
     </DurationField>
   </Field>
 
-  <Field label={t('timers.fieldMinChatLines')}>
-    <input class="bb-input num" type="number" min="0" max="100" bind:value={draft.minChatLines} />
-    <small class="help">{t('timers.fieldMinChatLinesHint')}</small>
+  <Field label={t('timers.fieldMinChatLines')} hint={t('timers.fieldMinChatLinesHint')}>
+    <span class="num"><Input type="number" min="0" max="100" bind:value={draft.minChatLines} /></span>
   </Field>
 
-  <Field label={t('timers.fieldMaxFires')}>
-    <input class="bb-input num" type="number" min="0" max="100" bind:value={draft.maxFiresPerStream} />
-    <small class="help">{t('timers.fieldMaxFiresHint')}</small>
+  <Field label={t('timers.fieldMaxFires')} hint={t('timers.fieldMaxFiresHint')}>
+    <span class="num"><Input type="number" min="0" max="100" bind:value={draft.maxFiresPerStream} /></span>
   </Field>
 
-  <Field label={t('timers.fieldEndsAt')}>
+  <Field label={t('timers.fieldEndsAt')} hint={t('timers.fieldEndsAtHint')}>
     <div class="ends-row">
-      <input class="bb-input" type="datetime-local" value={endsAtLocal} oninput={onEndsAtInput} />
-      {#if tzAbbr}<span class="tz" aria-hidden="true">{tzAbbr}</span>{/if}
+      <Input type="datetime-local" value={endsAtLocal} oninput={onEndsAtInput} />
+      {#if tzAbbr}<Text as="span" size="xs" mono tone="muted" aria-hidden="true">{tzAbbr}</Text>{/if}
     </div>
-    <small class="help">{t('timers.fieldEndsAtHint')}</small>
   </Field>
 
   <div class="check">
@@ -119,13 +114,10 @@
 <style>
   .editor { padding: 4px 2px 2px; }
 
-  .help { color: var(--bb-muted); opacity: 0.7; font-size: 11px; display: block; margin-top: 2px; }
-
-  .editor .num { width: 100px; flex: none; }
-  .counter { display: block; text-align: right; color: var(--bb-muted); opacity: 0.7; font-size: 11px; margin-top: 4px; }
+  .counter { display: block; text-align: right; margin-top: 4px; }
+  .num { display: block; width: 100px; flex: none; }
 
   .ends-row { display: flex; align-items: center; gap: 10px; }
-  .tz { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); white-space: nowrap; }
 
   .check { margin: 4px 0 6px; --bb-check-align: center; }
 </style>

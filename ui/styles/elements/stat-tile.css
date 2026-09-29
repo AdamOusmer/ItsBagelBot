@@ -7,11 +7,11 @@
     .bb-stat-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: calc(14px * var(--d, 1));
+        gap: calc(14px * var(--d));
     }
 
     .bb-stat {
-        padding: calc(20px * var(--d, 1)) calc(24px * var(--d, 1));
+        padding: calc(20px * var(--d)) calc(24px * var(--d));
         background: var(--bb-card-bg);
         border: 1px solid var(--bb-border);
         border-radius: var(--bb-radius-md);
@@ -20,7 +20,7 @@
                     transform var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
-    .bb-stat:hover {
+    .bb-stat:not(.bb-stat--static, .bb-stat--inline):hover {
         border-color: rgba(var(--bb-tan-rgb), 0.38);
         transform: translateY(-3px);
     }
@@ -79,16 +79,6 @@
         text-overflow: ellipsis;
     }
 
-    .bb-stat-grid .bb-stat {
-        animation: bb-rise-in 420ms var(--bb-ease-out-expo) both;
-    }
-
-    .bb-stat-grid .bb-stat:nth-child(1) { animation-delay: 30ms; }
-    .bb-stat-grid .bb-stat:nth-child(2) { animation-delay: 90ms; }
-    .bb-stat-grid .bb-stat:nth-child(3) { animation-delay: 150ms; }
-    .bb-stat-grid .bb-stat:nth-child(4) { animation-delay: 210ms; }
-    .bb-stat-grid .bb-stat:nth-child(n + 5) { animation-delay: 260ms; }
-
     @media (max-width: 1100px) {
         .bb-stat-grid { grid-template-columns: repeat(2, 1fr); }
     }
@@ -103,7 +93,42 @@
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
     }
 
-    @media (prefers-reduced-motion: reduce) {
-        .bb-stat-grid .bb-stat { animation: none; }
+    .bb-stat--inline {
+        display: flex;
+        flex-direction: column;
+        gap: var(--bb-space-1);
+        padding: 0;
+        background: none;
+        border: 0;
+        border-radius: 0;
+    }
+
+    .bb-stat--inline .bb-stat__head {
+        margin-bottom: 0;
+    }
+
+    .bb-stat--inline .bb-stat__label {
+        font-family: var(--bb-font-mono);
+        font-weight: 400;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+    }
+
+    .bb-stat--inline .bb-stat__value {
+        order: -1;
+        margin-top: 0;
+        font-size: 24px;
+        letter-spacing: -0.02em;
+        line-height: normal;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .bb-stat--positive .bb-stat__value {
+        color: var(--bb-green-glow);
+    }
+
+    .bb-stat--accent .bb-stat__value {
+        color: var(--bb-tan-light);
     }
 }

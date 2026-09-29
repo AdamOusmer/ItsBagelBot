@@ -5,6 +5,12 @@
 import '../styles/elements/error-scene.css';
 import LightField from './LightField.astro';
 
+type ErrorSceneAction = {
+    label: string;
+    href?: string;
+    [attribute: string]: unknown;
+};
+
 interface Props {
     status: number | string;
     eyebrow: string;
@@ -13,6 +19,8 @@ interface Props {
     aside?: string;
     class?: string;
     labelledBy?: string;
+    primary?: ErrorSceneAction;
+    secondary?: ErrorSceneAction;
     [key: string]: unknown;
 }
 
@@ -24,13 +32,19 @@ const {
     aside,
     class: className = '',
     labelledBy = 'bb-error-title',
+    primary,
+    secondary,
     ...rest
 } = Astro.props;
 
 const classes = ['bb-error-scene', className].filter(Boolean).join(' ');
-const hasActions = Astro.slots.has('actions');
+const controls = [
+    primary && { action: primary, tone: 'primary' },
+    secondary && { action: secondary, tone: 'quiet' },
+].filter((control): control is { action: ErrorSceneAction; tone: string } => Boolean(control));
+const hasActions = controls.length > 0 || Astro.slots.has('actions');
 ---
 
 <main class={classes} aria-labelledby={labelledBy} {...rest}><LightField /><div class="bb-error-scene__glow" aria-hidden="true"></div><div class="bb-error-scene__orbits" aria-hidden="true"><span class="bb-error-scene__orbit"></span><span class="bb-error-scene__orbit bb-error-scene__orbit--two"></span></div><div class="bb-error-scene__content"><p class="bb-error-scene__eyebrow"><span>{status}</span> · {eyebrow}</p><!-- The code is aria-hidden: it is an outline treatment
      (-webkit-text-stroke over transparent text) and it is already announced,
-     as a number rather than as decoration, in the eyebrow. --><p class="bb-error-scene__code" aria-hidden="true">{status}</p><h1 class="bb-error-scene__title" id={labelledBy}>{title}</h1><p class="bb-error-scene__desc">{description}</p>{hasActions && (<div class="bb-error-scene__actions"><slot name="actions" /></div>)}{aside && (<p class="bb-error-scene__aside">{aside}</p>)}</div></main>
+     as a number rather than as decoration, in the eyebrow. --><p class="bb-error-scene__code" aria-hidden="true">{status}</p><h1 class="bb-error-scene__title" id={labelledBy}>{title}</h1><p class="bb-error-scene__desc">{description}</p>{hasActions && (<div class="bb-error-scene__actions">{controls.map(({ action: { label, href, ...attributes }, tone }) => href ? (<a class={`bb-error-scene__action bb-error-scene__action--${tone}`} href={href} {...attributes}>{label}</a>) : (<button class={`bb-error-scene__action bb-error-scene__action--${tone}`} type="button" {...attributes}>{label}</button>))}<slot name="actions" /></div>)}{aside && (<p class="bb-error-scene__aside">{aside}</p>)}</div></main>

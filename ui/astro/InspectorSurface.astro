@@ -12,12 +12,14 @@ interface Props {
     controls?: string;
     closeLabel?: string;
     class?: string;
+    [key: string]: unknown;
 }
 
-const { open: _open = true, title, controls, closeLabel = 'Close', class: className = '', ...rest } = Astro.props;
-const classes = ['bb-surface', 'bb-card', 'bb-surface--docked', className]
+const { open = true, title, controls, closeLabel = 'Close', class: className = '', ...rest } = Astro.props;
+const idle = !open && Astro.slots.has('idle');
+const classes = ['bb-surface', 'bb-card', 'bb-surface--docked', idle ? 'bb-surface--idle' : null, className]
     .filter(Boolean)
     .join(' ');
 ---
 
-<aside class={classes} aria-label={title} {...rest}><div class="bb-surface__head"><span class="bb-surface__tag bb-tag bb-tag--bare">{title}</span><button class="bb-surface__close" type="button" aria-label={closeLabel}><Icon name="x" size={14} /></button></div><div class="bb-surface__body" id={controls}><slot /></div></aside>
+<aside class={classes} aria-label={title} {...rest}><div class="bb-surface__head"><span class="bb-surface__tag bb-tag bb-tag--bare">{title}</span><button class="bb-surface__close" type="button" aria-label={closeLabel}><Icon name="x" size={14} /></button></div><div class="bb-surface__body" id={controls}>{idle ? (<div class="bb-surface__idle"><slot name="idle" /></div>) : <slot />}</div></aside>

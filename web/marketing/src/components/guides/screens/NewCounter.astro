@@ -5,8 +5,8 @@
 import EditorFooter from '@bagel/ui/astro/EditorFooter.astro';
 import Field from '@bagel/ui/astro/Field.astro';
 import InspectorSurface from '@bagel/ui/astro/InspectorSurface.astro';
+import SegmentedControl from '@bagel/ui/astro/SegmentedControl.astro';
 import '@bagel/ui/styles/elements/field.css';
-import '@bagel/ui/styles/tags.css';
 
 interface Props {
     labels?: Record<string, string>;
@@ -38,12 +38,10 @@ const scopes = [L.chip1, L.chip2, L.chip3, L.chip4];
             <span class="bb-input gs-value">{L.nameValue}<i class="gs-mark" data-note="1"></i></span>
         </Field>
         <Field label={L.fieldCounts}>
-            <span class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label={L.fieldCounts}>
-                {scopes.map((scope, i) => (
-                    <span class={`bb-tab ${i === 0 ? 'is-active' : ''}`}>{scope}</span>
-                ))}
+            <div class="gs-choices" inert>
+                <SegmentedControl options={scopes} value={scopes[0]} label={L.fieldCounts} />
                 <i class="gs-mark" data-note="2"></i>
-            </span>
+            </div>
         </Field>
         <p class="gs-hint"><Fragment set:html={L.hint} /><i class="gs-mark" data-note="3"></i></p>
         <div class="gs-foot">

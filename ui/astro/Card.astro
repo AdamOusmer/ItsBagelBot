@@ -13,6 +13,9 @@ interface Props {
     stat?: boolean;
     glass?: boolean;
     hover?: boolean;
+    flush?: boolean;
+    dashed?: boolean;
+    tone?: 'accent' | 'danger';
     label?: string;
     class?: string;
     [key: string]: unknown;
@@ -26,6 +29,9 @@ const {
     stat = false,
     glass = false,
     hover = false,
+    flush = false,
+    dashed = false,
+    tone,
     label = '',
     class: cls = '',
     ...rest
@@ -40,6 +46,9 @@ const classes = [
     stat && 'bb-card--stat',
     sheen && 'bb-card--sheen',
     glass && 'bb-card--glass',
+    flush && 'bb-card--flush',
+    dashed && 'bb-card--dashed',
+    tone && `bb-card--${tone}`,
     cls,
 ]
     .filter(Boolean)

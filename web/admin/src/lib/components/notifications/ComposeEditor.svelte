@@ -1,15 +1,18 @@
 <script lang="ts">
+	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary. No license granted. See LICENSE.md.
   import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
-	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
-	// Proprietary. No license granted. See LICENSE.md.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
   import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import type { InspectorStatus } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import {
@@ -46,9 +49,9 @@
 
 <form class="editor" method="POST" action="?/send" use:enhance={onSubmit}>
   <Scroller fill padding="18px" smooth>
-    <div class="body">
+    <Stack gap={1}>
       <section class="block">
-        <h3 class="block-label">{t('admin.notifications.audienceLabel')}</h3>
+        <Heading level={3} variant="label">{t('admin.notifications.audienceLabel')}</Heading>
         <RadioGroup
           name="scope"
           options={scopeOptions}
@@ -125,8 +128,8 @@
           bind:value={draft.expiresAt}
         />
       </Field>
-      <p class="note">{t('admin.notifications.expiresHint')}</p>
-    </div>
+      <Text size="sm" tone="muted">{t('admin.notifications.expiresHint')}</Text>
+    </Stack>
   </Scroller>
 
   <EditorFooter
@@ -150,30 +153,10 @@
     min-height: 0;
     max-height: 100%;
   }
-  .body {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
   .block {
     display: flex;
     flex-direction: column;
-    gap: 9px;
+    gap: var(--bb-space-2);
     margin-bottom: 14px;
-  }
-  .block-label {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin: 0;
-  }
-  .note {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--bb-muted);
-    margin: 0;
   }
 </style>

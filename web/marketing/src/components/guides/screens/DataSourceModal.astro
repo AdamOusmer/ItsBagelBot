@@ -2,11 +2,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Tag from '@bagel/ui/astro/Tag.astro';
-
 import Button from '@bagel/ui/astro/Button.astro';
 import Field from '@bagel/ui/astro/Field.astro';
 import Modal from '@bagel/ui/astro/Modal.astro';
+import Tag from '@bagel/ui/astro/Tag.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
 import '@bagel/ui/styles/elements/field.css';
 
 interface Props {
@@ -64,7 +65,7 @@ const L = {
         </Field>
         <div class="gs-actions">
             <Button variant="ghost" size="sm">{L.fetchSample}</Button>
-            <span class="dsm__link">{L.pasteInstead}</span>
+            <Text as="span" size="xs"><TextLink variant="inline" href="#" tabindex="-1">{L.pasteInstead}</TextLink></Text>
             <i class="gs-mark" data-note="4"></i>
         </div>
         <p class="gs-hint">{L.pickPrompt}</p>
@@ -73,14 +74,14 @@ const L = {
             <div class="dsm__kids">
                 <span class="dsm__key">{L.treeBranch}</span>
                 <div class="dsm__kids">
-                    <span class="dsm__leaf is-picked"><b>{L.treeLeafKey}</b><em>{L.treeLeafValue}</em></span>
-                    <span class="dsm__leaf"><b>{L.treeLeaf2Key}</b><em>{L.treeLeaf2Value}</em></span>
+                    <span class="dsm__leaf is-picked"><b class="dsm__leaf-key">{L.treeLeafKey}</b><em>{L.treeLeafValue}</em></span>
+                    <span class="dsm__leaf"><b class="dsm__leaf-key">{L.treeLeaf2Key}</b><em>{L.treeLeaf2Value}</em></span>
                 </div>
             </div>
         </div>
         <div class="gs-actions">
             <Tag tone="live" mark="solid">{L.picked}</Tag>
-            <span class="dsm__link">{L.wholeResponse}</span>
+            <Text as="span" size="xs"><TextLink variant="inline" href="#" tabindex="-1">{L.wholeResponse}</TextLink></Text>
             <i class="gs-mark" data-note="5"></i>
         </div>
         <div class="bb-modal__actions">
@@ -91,23 +92,15 @@ const L = {
 </div>
 
 <style>
-    .dsm__url { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.72rem; word-break: break-all; }
-
-    .dsm__link {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.78rem;
-        color: var(--tan-light, #e0c49a);
-        text-decoration: underline;
-        text-underline-offset: 2px;
-    }
+    .dsm__url { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); word-break: break-all; }
 
     .dsm__tree {
         display: grid;
         gap: 3px;
         padding: 8px 9px;
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-sm);
-        background: rgba(10, 10, 10, 0.6);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-sm);
+        background: rgba(var(--bb-black-rgb), 0.6);
     }
 
     .dsm__kids {
@@ -115,23 +108,23 @@ const L = {
         gap: 3px;
         margin-left: 8px;
         padding-left: 8px;
-        border-left: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-left: 1px solid var(--bb-border);
     }
 
-    .dsm__key { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.74rem; color: var(--tan-light, #e0c49a); }
+    .dsm__key { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-tan-light); }
 
     .dsm__leaf {
         display: flex;
         justify-content: space-between;
         gap: 8px;
         padding: 3px 5px;
-        border-radius: var(--radius-sm);
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.74rem;
+        border-radius: var(--bb-radius-sm);
+        font-family: var(--bb-font-mono);
+        font-size: var(--bb-text-xs);
     }
 
-    .dsm__leaf b { font-weight: 400; color: rgba(240, 236, 228, 0.8); }
-    .dsm__leaf em { font-style: normal; color: var(--muted, #888077); }
-    .dsm__leaf.is-picked { background: rgba(82, 183, 136, 0.12); }
-    .dsm__leaf.is-picked b { color: var(--green-glow, #52b788); }
+    .dsm__leaf-key { font-weight: 400; color: rgba(var(--bb-white-rgb), 0.8); }
+    .dsm__leaf em { font-style: normal; color: var(--bb-muted); }
+    .dsm__leaf.is-picked { background: rgba(var(--bb-green-glow-rgb), 0.12); }
+    .dsm__leaf.is-picked .dsm__leaf-key { color: var(--bb-green-glow); }
 </style>

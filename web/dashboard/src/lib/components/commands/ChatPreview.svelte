@@ -10,6 +10,7 @@
     rehearseTimer,
     COMMAND_SAMPLES,
     normName,
+    Tag,
     getI18n,
     type RehearsedLine,
     type Seg
@@ -115,7 +116,7 @@
   onpointerenter={() => (hovered = true)}
   onpointerleave={() => (hovered = false)}
 >
-  <span class="bb-tag bb-tag--bare chat-tag">{tag ?? t('chatPreview.rehearsal')}</span>
+  <span class="chat-tag"><Tag tone="live" bare>{tag ?? t('chatPreview.rehearsal')}</Tag></span>
   {#if effectiveShowViewer}
     <div class="line viewer">
       <span class="who viewer-name">{viewerName}</span>
@@ -140,11 +141,11 @@
         class="line bot"
         class:special={v.mode !== 'chat'}
         class:me={v.mode === 'me'}
-        style="--reply-delay: {li * 140}ms"
+        style:--reply-delay="{li * 140}ms"
       >
         {@render botName()}
         {#if v.mode === 'announce'}
-          <div class="announce" style="--acc: {ACCENT[v.color ?? 'primary']}">
+          <div class="announce" style:--acc={ACCENT[v.color ?? 'primary']}>
             <span class="announce-head">
               <span class="via" title={t('chatPreview.runsVerb', { verb: v.verb ?? '' })}>Twitch {verbLabelOf(v)}</span>
               {t('chatPreview.announcement')}
@@ -159,7 +160,7 @@
           <div class="shoutout">
             <span class="via" title={t('chatPreview.runsVerb', { verb: '/shoutout' })}>Twitch /shoutout</span>
             {#if v.target}
-              <span class="msg reply">{t('chatPreview.shoutsOut')} <strong>@{v.target}</strong></span>
+              <span class="msg reply">{t('chatPreview.shoutsOut')} <strong class="target">@{v.target}</strong></span>
             {:else}
               <span class="msg empty">{t('chatPreview.nameChannel')}</span>
             {/if}
@@ -196,9 +197,9 @@
     position: relative;
     margin-top: 10px;
     padding: 14px 14px 12px;
-    border: 1px solid var(--rule, rgba(240, 236, 228, 0.1));
+    border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-md);
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(var(--bb-shadow-rgb), 0.3);
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -207,10 +208,9 @@
     position: absolute;
     top: -8px;
     left: 10px;
-    font-size: 10px;
-    color: var(--bb-green-glow);
-    background: var(--bb-bg-0, #0a0a0a);
-    padding: 0 6px;
+    display: flex;
+    padding: 0 4px;
+    background: var(--bb-bg-0);
   }
 
   .line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
@@ -251,21 +251,21 @@
   .line.viewer .msg { font-family: var(--bb-font-mono); color: var(--bb-tan-light); font-size: 12.5px; }
   .line.viewer .msg.plain { font-family: var(--bb-font-body); color: var(--bb-white); font-size: 13px; }
 
-  .reply { animation: reply-in 320ms var(--bb-ease-out-expo, ease-out) both; animation-delay: var(--reply-delay, 0ms); }
+  .reply { animation: reply-in var(--bb-dur-base) var(--bb-ease-out-expo) both; animation-delay: var(--reply-delay); }
   @keyframes reply-in {
     from { opacity: 0; transform: translateX(-8px); }
     to { opacity: 1; transform: none; }
   }
 
   .msg mark {
-    background: rgba(82, 183, 136, 0.14);
-    color: var(--bb-green-glow, #52b788);
+    background: rgba(var(--bb-green-glow-rgb), 0.14);
+    color: var(--bb-green-glow);
     border-radius: var(--bb-radius-xs);
     padding: 0 3px;
   }
   .msg mark.unknown {
-    background: rgba(176, 90, 70, 0.16);
-    color: #cf8a78;
+    background: rgba(var(--bb-status-error-border-rgb), 0.16);
+    color: var(--bb-status-error);
     font-family: var(--bb-font-mono);
     font-size: 12px;
   }
@@ -293,9 +293,9 @@
     gap: 5px;
     padding: 9px 11px;
     border-radius: var(--bb-radius-md);
-    background: color-mix(in srgb, var(--acc) 10%, rgba(0, 0, 0, 0.25));
-    animation: reply-in 320ms var(--bb-ease-out-expo, ease-out) both;
-    animation-delay: var(--reply-delay, 0ms);
+    background: color-mix(in srgb, var(--acc) 10%, rgba(var(--bb-shadow-rgb), 0.25));
+    animation: reply-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
+    animation-delay: var(--reply-delay);
   }
   .announce-head {
     display: inline-flex;
@@ -316,12 +316,12 @@
     flex-wrap: wrap;
     padding: 7px 11px;
     border-radius: var(--bb-radius-md);
-    border: 1px dashed rgba(82, 183, 136, 0.4);
-    background: rgba(82, 183, 136, 0.06);
-    animation: reply-in 320ms var(--bb-ease-out-expo, ease-out) both;
-    animation-delay: var(--reply-delay, 0ms);
+    border: 1px dashed rgba(var(--bb-green-glow-rgb), 0.4);
+    background: rgba(var(--bb-green-glow-rgb), 0.06);
+    animation: reply-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
+    animation-delay: var(--reply-delay);
   }
-  .shoutout .reply strong { color: var(--bb-green-glow); }
+  .target { color: var(--bb-green-glow); }
 
   .pin {
     width: 100%;
@@ -333,8 +333,8 @@
     border-radius: var(--bb-radius-sm);
     border: 1px solid rgba(199, 125, 255, 0.35);
     background: rgba(199, 125, 255, 0.07);
-    animation: reply-in 320ms var(--bb-ease-out-expo, ease-out) both;
-    animation-delay: var(--reply-delay, 0ms);
+    animation: reply-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
+    animation-delay: var(--reply-delay);
   }
   .pin-head {
     display: flex;

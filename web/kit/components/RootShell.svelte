@@ -11,7 +11,7 @@
   import Cursor from '@bagel/ui/svelte/Cursor.svelte';
   import BackgroundOrbs from '@bagel/ui/svelte/BackgroundOrbs.svelte';
   import { customCursor } from '../lib/cursor';
-  import { initLenis } from '../lib/actions';
+  import { initLenis, resetSmoothScroll } from '../lib/actions';
   import { getI18n, setI18n } from '../lib/i18n/context';
   import { DEFAULT_LOCALE, type Locale } from '../lib/i18n/messages';
 
@@ -66,10 +66,7 @@
     };
   });
 
-  afterNavigate(() => {
-    (window as unknown as { __lenis?: { scrollTo: (target: number, options?: object) => void } })
-      .__lenis?.scrollTo(0, { immediate: true });
-  });
+  afterNavigate(() => void resetSmoothScroll());
 </script>
 
 <NavProgress />

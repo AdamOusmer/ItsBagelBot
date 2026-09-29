@@ -7,6 +7,8 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '$lib/server/services';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
 
   let {
     entry,
@@ -29,18 +31,18 @@
       <StatusDot tone={entry.ok ? 'success' : 'error'} />
       <Bolota name={entry.actor_login} size={26} active={selected} />
       <span class="who">
-        <span class="line">
+        <Cluster as="span" gap={2} align="baseline">
           <span class="actor">@{entry.actor_login}</span>
-          <span class="action">{entry.action}</span>
-          {#if entry.target}<span class="target">{t('admin.audit.arrow')} {entry.target}</span>{/if}
-        </span>
+          <Text as="span" size="xs" mono tone="accent">{entry.action}</Text>
+          {#if entry.target}<Text as="span" size="xs" mono tone="muted" truncate>{t('admin.audit.arrow')} {entry.target}</Text>{/if}
+        </Cluster>
         {#if !entry.ok && entry.error}
-          <span class="err">{entry.error}</span>
+          <Text as="span" size="xs" mono tone="danger" truncate>{entry.error}</Text>
         {:else if entry.detail}
-          <span class="detail">{entry.detail}</span>
+          <Text as="span" size="xs" mono tone="muted" truncate>{entry.detail}</Text>
         {/if}
       </span>
-      <span class="when">{ago(entry.created_at)}</span>
+      <span class="when"><Text as="span" size="xs" mono tone="muted">{ago(entry.created_at)}</Text></span>
     </span>
   {/snippet}
 </ManagementRow>
@@ -59,49 +61,13 @@
     min-width: 0;
     flex: 1;
   }
-  .line {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    flex-wrap: wrap;
-    min-width: 0;
-  }
   .actor {
     font-family: var(--bb-font-body);
     font-weight: 600;
-    font-size: 13px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-white);
   }
-  .action {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-tan-light);
-  }
-  .target {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-  }
-  .detail,
-  .err {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .err {
-    color: var(--bb-status-error);
-  }
   .when {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    color: var(--bb-muted);
     white-space: nowrap;
     flex: none;
   }

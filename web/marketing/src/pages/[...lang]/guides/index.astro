@@ -4,10 +4,15 @@
 
 import Layout from '../../../layouts/Layout.astro';
 import PageHero from '@bagel/ui/astro/PageHero.astro';
+import Button from '@bagel/ui/astro/Button.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import GuideCard from '../../../components/guides/GuideCard.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
 import Text from '@bagel/ui/astro/Text.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Code from '@bagel/ui/astro/Code.astro';
+import Cluster from '@bagel/ui/astro/Cluster.astro';
+import Section from '@bagel/ui/astro/Section.astro';
 import { getLangFromUrl, localeStaticPaths, localizePath, useTranslations } from '../../../i18n/ui';
 import { getGuide, getHub, guideIndex, guidePath, guideSlugs } from '../../../lib/guides/registry';
 
@@ -27,7 +32,7 @@ const [first, ...rest] = guides;
 <Layout title={hub.meta.title} description={hub.meta.description} ogType="article">
     <PageHero eyebrow={hub.meta.eyebrow} title={hub.meta.heading} description={hub.meta.lead} />
 
-    <section class="ghub">
+    <Section size="flush" class="ghub">
         <Card atmo hover as="a" href={hub.tool.href} label={hub.tool.eyebrow} class="ghub__tool" data-cursor="quiet" data-reveal style="--reveal-i: 1">
             <span class="ghub__tool-demo" slot="band" aria-hidden="true">
                 <span class="ghub__tool-line" set:html={hub.tool.demoIn}></span>
@@ -35,23 +40,23 @@ const [first, ...rest] = guides;
             </span>
             <span class="ghub__tool-body">
                 <span class="ghub__tool-copy">
-                    <b class="ghub__tool-name">{hub.tool.name}</b>
-                    <span class="ghub__tool-desc">{hub.tool.description}</span>
+                    <Heading level={3} variant="card" as="span" class="ghub__tool-name">{hub.tool.name}</Heading>
+                    <Text as="span" tone="muted-light" class="ghub__tool-desc">{hub.tool.description}</Text>
                 </span>
-                <span class="bb-btn bb-btn--primary ghub__tool-btn" data-cursor>{hub.tool.cta}</span>
+                <Button as="span" class="ghub__tool-btn" data-cursor>{hub.tool.cta}</Button>
             </span>
         </Card>
 
         <Card atmo hover as="a" href={localizePath('/guides/variables', lang)} label={t('guide.variablesEyebrow')} class="ghub__variables" data-cursor="quiet" data-reveal style="--reveal-i: 2">
             <span class="ghub__variables-band" slot="band" aria-hidden="true">
-                <i>{'{user}'}</i><i>{'{counter:name}'}</i><i>{'{random}'}</i><i>{'{...}'}</i>
+                <Code tone="positive">{'{user}'}</Code><Code tone="positive">{'{counter:name}'}</Code><Code tone="positive">{'{random}'}</Code><Code tone="positive">{'{...}'}</Code>
             </span>
             <span class="ghub__variables-body">
-                <span>
-                    <b class="ghub__variables-name">{t('guide.variablesTitle')}</b>
-                    <span class="ghub__variables-desc">{t('guide.variablesDescription')}</span>
+                <span class="ghub__variables-copy">
+                    <Heading level={4} as="span" class="ghub__variables-name">{t('guide.variablesTitle')}</Heading>
+                    <Text as="span" tone="muted-light" class="ghub__variables-desc">{t('guide.variablesDescription')}</Text>
                 </span>
-                <span class="bb-btn bb-btn--quiet" data-cursor>{t('guide.variablesCta')}</span>
+                <Button as="span" variant="quiet" data-cursor>{t('guide.variablesCta')}</Button>
             </span>
         </Card>
 
@@ -66,21 +71,21 @@ const [first, ...rest] = guides;
         </div>
 
         <div class="ghub__help" data-reveal style="--reveal-i: 6">
-            <Text tone="muted" class="ghub__prompt">{hub.help.prompt}</Text>
-            <div>
+            <Text tone="muted">{hub.help.prompt}</Text>
+            <Cluster gap={5}>
                 {hub.help.links.map((link) => (
                     <TextLink href={link.href} label={link.label} external={link.external} />
                 ))}
-            </div>
+            </Cluster>
         </div>
-    </section>
+    </Section>
 </Layout>
 
 <style>
     .ghub {
-        width: min(var(--content-max, 1200px), calc(100% - 48px));
-        margin: 0 auto;
-        padding: 0 0 110px;
+        width: min(var(--bb-content-max), calc(100% - 48px));
+        margin-inline: auto;
+        padding-bottom: 110px;
     }
 
     .ghub__tool {
@@ -92,32 +97,19 @@ const [first, ...rest] = guides;
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        gap: 16px 40px;
+        gap: var(--bb-space-4) 40px;
     }
 
     .ghub__tool-copy { display: block; min-width: 0; }
 
     .ghub__tool-name {
         display: block;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: clamp(1.4rem, 3vw, 1.9rem);
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        color: var(--white, #f0ece4);
-        margin-bottom: 8px;
+        margin-bottom: var(--bb-space-2);
     }
 
     .ghub__tool-desc {
         display: block;
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.98rem;
-        line-height: 1.65;
-        color: #a39c92;
         max-width: 60ch;
-    }
-
-    .ghub__tool-btn {
-        white-space: nowrap;
     }
 
     .ghub__tool-demo {
@@ -127,25 +119,25 @@ const [first, ...rest] = guides;
         gap: 10px;
         height: 100%;
         padding-right: 140px;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.8rem;
+        font-family: var(--bb-font-mono);
+        font-size: var(--bb-text-sm);
         line-height: 1.6;
     }
 
-    .ghub__tool-line { color: rgba(240, 236, 228, 0.85); }
+    .ghub__tool-line { color: rgba(var(--bb-white-rgb), 0.85); }
 
     .ghub__tool-line :global(i) {
         font-style: normal;
-        color: var(--green-glow, #52b788);
-        background: rgba(82, 183, 136, 0.09);
-        border-radius: var(--radius-xs);
-        padding: 1px 4px;
+        color: var(--bb-green-glow);
+        background: rgba(var(--bb-green-glow-rgb), 0.09);
+        border-radius: var(--bb-radius-xs);
+        padding: 1px var(--bb-space-1);
     }
 
     .ghub__tool-line--out {
         position: relative;
         padding-top: 10px;
-        color: var(--green-glow, #52b788);
+        color: var(--bb-green-glow);
     }
 
     .ghub__tool-line--out::before {
@@ -155,31 +147,21 @@ const [first, ...rest] = guides;
         left: 0;
         width: 48px;
         height: 1px;
-        background: var(--tan, #c9a87c);
+        background: var(--bb-tan);
         opacity: 0.5;
     }
 
-    .ghub__tool-line--out :global(b) { font-weight: 700; }
-
-    @media (hover: hover) and (pointer: fine) {
-        .ghub__tool:hover .ghub__tool-btn {
-            background: var(--tan, #c9a87c);
-            color: var(--black, #0a0a0a);
-        }
-    }
-
     .ghub__tool:focus-visible {
-        outline: 2px solid var(--green-glow, #52b788);
+        outline: 2px solid var(--bb-green-glow);
         outline-offset: 3px;
     }
 
     .ghub__variables { --card-band-h: 78px; margin-bottom: 40px; }
-    .ghub__variables-band { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; height: 100%; padding-right: 48px; }
-    .ghub__variables-band i { font-style: normal; font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.76rem; color: var(--green-glow, #52b788); padding: 4px 8px; border: 1px solid rgba(82, 183, 136, 0.2); border-radius: var(--radius-xs); background: rgba(82, 183, 136, 0.06); }
-    .ghub__variables-body { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .ghub__variables-body > span:first-child { display: block; min-width: 0; }
-    .ghub__variables-name { display: block; margin-bottom: 6px; font-family: var(--font-display, "Syne", sans-serif); font-size: 1.3rem; color: var(--white, #f0ece4); }
-    .ghub__variables-desc { display: block; max-width: 62ch; color: #a39c92; font-size: 0.94rem; line-height: 1.55; }
+    .ghub__variables-band { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; height: 100%; padding-right: 48px; font-size: var(--bb-text-sm); }
+    .ghub__variables-body { display: flex; align-items: center; justify-content: space-between; gap: var(--bb-space-5); }
+    .ghub__variables-copy { display: block; min-width: 0; }
+    .ghub__variables-name { display: block; margin-bottom: 6px; }
+    .ghub__variables-desc { display: block; max-width: 62ch; }
 
     .ghub__start {
         --card-band-h: 92px;
@@ -201,12 +183,8 @@ const [first, ...rest] = guides;
         gap: 14px;
         margin-top: 44px;
         padding-top: 28px;
-        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-top: 1px solid var(--bb-border);
     }
-
-    :global(.ghub__prompt) { font-size: 0.95rem; }
-
-    .ghub__help div { display: flex; flex-wrap: wrap; gap: 20px; }
 
     @media (max-width: 860px) {
         .ghub__grid { grid-template-columns: 1fr; }

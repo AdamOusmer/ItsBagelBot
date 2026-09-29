@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
-  import { getI18n } from '@bagel/kit';
+  import { Text, getI18n } from '@bagel/kit';
 
   let {
     title,
@@ -35,7 +35,7 @@
   {#if limits.length}
     <p class="embed-counts">
       {#each limits as limit (limit.label)}
-        <span class:over={limit.n >= limit.max}>{limit.label} {t('discord.embedCount', { n: limit.n, max: limit.max })}</span>
+        <Text as="span" size="xs" mono tone={limit.n >= limit.max ? 'accent' : 'muted'}>{limit.label} {t('discord.embedCount', { n: limit.n, max: limit.max })}</Text>
       {/each}
     </p>
   {/if}
@@ -55,7 +55,7 @@
   .embed {
     border-left: 4px solid var(--bb-tan);
     border-radius: var(--bb-radius-sm);
-    background: rgba(240, 236, 228, 0.04);
+    background: rgba(var(--bb-white-rgb), 0.04);
     padding: 12px 14px;
     max-width: 440px;
   }
@@ -82,18 +82,14 @@
     flex-wrap: wrap;
     gap: 4px 16px;
     margin: 8px 0 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
   }
-  .embed-counts .over { color: var(--bb-tan-light); }
   .embed-actions { margin-top: 12px; }
   .embed-button {
     display: inline-block;
     padding: 7px 14px;
     border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--glass-border);
-    background: rgba(240, 236, 228, 0.08);
+    border: 1px solid var(--bb-glass-border);
+    background: rgba(var(--bb-white-rgb), 0.08);
     font-family: var(--bb-font-body);
     font-size: 12.5px;
     color: var(--bb-white);

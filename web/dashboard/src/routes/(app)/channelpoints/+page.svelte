@@ -20,6 +20,7 @@
     MasterToggle,
     PageToolbar,
     AlertBanner,
+    DeckLayout,
     DeckList,
     EmptyState,
     actionPayload,
@@ -225,10 +226,10 @@
     {/snippet}
   </PageToolbar>
 
-  <div class="deck {inspector.isOpen ? 'inspecting' : ''}">
+  <DeckLayout inspecting={inspector.isOpen}>
     <DeckList>
       {#if rows.length}
-        <ul class="bb-list reward-list" aria-label={t('channelpoints.listLabel')}>
+        <ul class="bb-list" aria-label={t('channelpoints.listLabel')}>
           {#each rows as r, i (r.id)}
             <RewardRow
               reward={r}
@@ -283,7 +284,7 @@
         </form>
       </InspectorSurface>
     {/if}
-  </div>
+  </DeckLayout>
 </section>
 
 <ConfirmDialog
@@ -313,17 +314,5 @@
 </form>
 
 <style>
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
-  }
-
-  .reward-list :global(li:last-child .row-shell) { border-bottom: none; }
-
   .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 </style>

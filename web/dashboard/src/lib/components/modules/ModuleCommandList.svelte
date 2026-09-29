@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { getI18n, type ModuleCommandInfo } from '@bagel/kit';
+  import { Heading, Text, getI18n, type ModuleCommandInfo } from '@bagel/kit';
   import ModuleCommandRow from './ModuleCommandRow.svelte';
 
   const { t } = getI18n();
@@ -20,11 +20,11 @@
 </script>
 
 {#if commands.length}
-  <div class="section-head cmd-head" id={sectionId} tabindex="-1">
-    <h2 id={headingId} class="section-title">{t('modules.commandsTitle')}</h2>
-    <span class="cmd-head-hint">{t('modules.commandsHint')}</span>
+  <div class="cmd-head" id={sectionId} tabindex="-1">
+    <Heading level={6} as="h2" variant="eyebrow" id={headingId}>{t('modules.commandsTitle')}</Heading>
+    <Text as="span" size="xs" tone="muted">{t('modules.commandsHint')}</Text>
   </div>
-  <ul class="bb-list cmd-list" aria-labelledby={headingId}>
+  <ul class="bb-list" aria-labelledby={headingId}>
     {#each commands as command, i (command.trigger)}
       <li><ModuleCommandRow {moduleId} {command} index={i + 1} /></li>
     {/each}
@@ -32,25 +32,14 @@
 {/if}
 
 <style>
-  .section-head {
+  .cmd-head {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
     padding: 12px 18px;
-    border-bottom: 1px solid var(--rule);
+    border-bottom: 1px solid var(--bb-border);
+    scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 56px);
   }
-  .section-title {
-    margin: 0;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
-  }
-  .cmd-head { scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 56px); }
   .cmd-head:focus { outline: none; }
-  .cmd-head { flex-direction: column; align-items: flex-start; gap: 2px; }
-  .cmd-head-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-
-  .cmd-list > li:last-child :global(.row-shell) { border-bottom: none; }
 </style>

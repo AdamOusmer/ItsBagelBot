@@ -20,18 +20,9 @@ const home = localizePath('/', lang);
         title={t('error.500.title')}
         description={t('error.500.desc')}
         aside={t('error.aside')}
-    >
-        <Fragment slot="actions">
-            <a class="bb-error-scene__action bb-error-scene__action--primary" href={home}
-                >{t('error.500.action')}</a
-            >
-            <button
-                class="bb-error-scene__action bb-error-scene__action--quiet"
-                type="button"
-                data-error-back={home}>{t('error.back')}</button
-            >
-        </Fragment>
-    </ErrorScene>
+        primary={{ label: t('error.500.action'), href: home }}
+        secondary={{ label: t('error.back'), 'data-error-back': home }}
+    />
 </Layout>
 
 <script>

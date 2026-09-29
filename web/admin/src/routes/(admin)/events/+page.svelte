@@ -12,6 +12,10 @@
   import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import type { StatusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
@@ -100,6 +104,11 @@
         : t('admin.events.reconnecting')
   );
   const statusLabel = $derived(paused ? t('admin.events.paused') : connLabel);
+  const pauseLabel = $derived(
+    paused && missedWhilePaused
+      ? t('admin.events.pauseLabelBuffered', { n: String(missedWhilePaused) })
+      : t('admin.events.pauseLabel')
+  );
   const statusTone: StatusTone = $derived(
     paused ? 'neutral' : conn === 'live' ? 'success' : 'warning'
   );
@@ -118,20 +127,10 @@
       <div class="toolbar-search">
         <SearchInput fill bind:value={search} placeholder={t('admin.events.searchPlaceholder')} />
       </div>
-      <span class="switch-field">
-        <span class="switch-label">
-          {paused && missedWhilePaused
-            ? t('admin.events.pauseLabelBuffered', { n: String(missedWhilePaused) })
-            : t('admin.events.pauseLabel')}
-        </span>
-        <Switch
-          checked={paused}
-          label={paused && missedWhilePaused
-            ? t('admin.events.pauseLabelBuffered', { n: String(missedWhilePaused) })
-            : t('admin.events.pauseLabel')}
-          onchange={setPaused}
-        />
-      </span>
+      <Cluster gap={2} nowrap>
+        <span class="pause-label"><Label mono as="span">{pauseLabel}</Label></span>
+        <Switch checked={paused} label={pauseLabel} onchange={setPaused} />
+      </Cluster>
       <Button variant="ghost" onclick={clearFeed} disabled={events.length === 0}>
         {t('admin.events.clear')}
       </Button>
@@ -141,14 +140,11 @@
   <Card>
     <CardHead title={t('admin.events.subject')}>
       {#snippet action()}
-        <span class="feed-meta">
-          <span class="count up">{t('admin.events.upCount', { n: String(upCount) })}</span>
-          <span class="count down">{t('admin.events.downCount', { n: String(downCount) })}</span>
-          <span class="conn">
-            <StatusDot tone={statusTone} />
-            {statusLabel}
-          </span>
-        </span>
+        <Cluster gap={3}>
+          <Tag tone="live">{t('admin.events.upCount', { n: String(upCount) })}</Tag>
+          <Tag tone="error">{t('admin.events.downCount', { n: String(downCount) })}</Tag>
+          <Tag><StatusDot tone={statusTone} />{statusLabel}</Tag>
+        </Cluster>
       {/snippet}
     </CardHead>
 
@@ -160,15 +156,15 @@
           <EmptyState title={t('admin.events.emptyMatch')} />
         {/if}
       {:else}
-        <ul class="bb-list" aria-label={t('admin.events.listLabel')}>
+        <ul class="bb-feed" aria-label={t('admin.events.listLabel')}>
           {#each rows as f, i (f.time + f.subject + i)}
-            <li class="feed-row" data-cursor="quiet">
-              <StatusDot tone={TONE_DOT[f.tone]} />
-              <span class="body">
-                <span class="label">{f.label}</span>
-                <span class="payload">{f.payload}</span>
+            <li class="bb-feed__row" data-cursor="quiet">
+              <span class="feed-dot"><StatusDot tone={TONE_DOT[f.tone]} /></span>
+              <span class="bb-feed__body">
+                <span class="bb-feed__title">{f.label}</span>
+                <span class="payload"><Text as="span" size="xs" tone="muted" mono>{f.payload}</Text></span>
               </span>
-              <span class="when">{f.time}</span>
+              <span class="bb-feed__trail">{f.time}</span>
             </li>
           {/each}
         </ul>
@@ -181,93 +177,24 @@
   .toolbar-search {
     width: 240px;
   }
-  
-
-  .switch-field {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-  }
-  .switch-label {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
+  .pause-label {
+    display: flex;
     white-space: nowrap;
   }
 
-  .feed-meta {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .count {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-  }
-  .count.up {
-    color: var(--bb-green-glow);
-  }
-  .count.down {
-    color: var(--bb-status-error);
-  }
-  .conn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-  }
-
-  .feed-row {
+  .feed-dot {
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 10px 4px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .feed-row:last-child {
-    border-bottom: none;
-  }
-  .feed-row :global(.dot) {
-    margin-top: 5px;
-  }
-  .body {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-    flex: 1;
-  }
-  .label {
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--bb-white);
+    padding-top: var(--bb-space-1);
   }
   .payload {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-muted);
+    display: block;
+    margin-top: 2px;
     word-break: break-word;
-  }
-  .when {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    color: var(--bb-muted);
-    white-space: nowrap;
-    margin-top: 3px;
   }
 
   @media (max-width: 760px) {
     .toolbar-search {
       width: 100%;
-    }
-    .feed-meta {
-      gap: 8px;
     }
   }
 </style>

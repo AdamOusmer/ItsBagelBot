@@ -7,6 +7,9 @@
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import StatusStrip from '$lib/components/deploys/StatusStrip.svelte';
   import RunHistory from '$lib/components/deploys/RunHistory.svelte';
@@ -36,50 +39,44 @@
     {/if}
   {/await}
 
-  <div class="stack">
-    <div class="start">
-      <div class="copy">
-        <Heading level={3} as="h2">{t('admin.deploys.start.title')}</Heading>
-        <Text size="sm" tone="muted" class="start-body">{data.active ? t('admin.deploys.runActive') : t('admin.deploys.start.body')}</Text>
+  <div class="runs">
+    <Stack gap={4}>
+      <div class="start">
+        <Card>
+          <Cluster justify="between" gap={4}>
+            <div class="copy">
+              <Stack gap={1}>
+                <Heading level={3} as="h2">{t('admin.deploys.start.title')}</Heading>
+                <Text size="sm" tone="muted">{data.active ? t('admin.deploys.runActive') : t('admin.deploys.start.body')}</Text>
+              </Stack>
+            </div>
+            {#if data.active}
+              <ButtonLink href="/deploys/{data.active.id}" variant="green" solid>{t('admin.deploys.openRun')}</ButtonLink>
+            {:else}
+              <ButtonLink href="/deploys/new" variant="green" solid>{t('admin.deploys.start.cta')}</ButtonLink>
+            {/if}
+          </Cluster>
+        </Card>
       </div>
-      {#if data.active}
-        <ButtonLink href="/deploys/{data.active.id}" variant="green" solid>{t('admin.deploys.openRun')}</ButtonLink>
-      {:else}
-        <ButtonLink href="/deploys/new" variant="green" solid>{t('admin.deploys.start.cta')}</ButtonLink>
-      {/if}
-    </div>
-    <RunHistory runs={data.runs} />
+      <RunHistory runs={data.runs} />
+    </Stack>
   </div>
 </section>
 
 <style>
-  .stack {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin-top: 16px;
+  .runs {
+    margin-top: var(--bb-space-4);
   }
   .start {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px 24px;
-    flex-wrap: wrap;
-    padding: clamp(18px, 3vw, 28px);
-    background:
+    --card-pad: clamp(18px, 3vw, 28px);
+    --card-radius: var(--bb-radius-lg);
+    --card-bg:
       radial-gradient(120% 90% at 0% 0%, rgba(var(--bb-green-glow-rgb), 0.08), transparent 60%),
       radial-gradient(90% 80% at 100% 100%, rgba(var(--bb-tan-rgb), 0.07), transparent 60%),
       var(--bb-card-bg);
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-lg);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
   .copy {
-    display: grid;
-    gap: 6px;
     min-width: 0;
-  }
-  .copy :global(.start-body) {
     max-width: 56ch;
   }
 </style>

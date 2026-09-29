@@ -1,12 +1,14 @@
 <script lang="ts">
-  import { copyText } from '@bagel/ui/lib/clipboard';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { copyText } from '@bagel/ui/lib/clipboard';
   import {
     Bolota,
     Button,
     ButtonLink,
     Card,
+    Code,
+    Eyebrow,
     Heading,
     PageHead,
     Text,
@@ -16,6 +18,7 @@
     toast,
     getI18n,
     toastFailure,
+    StatusDot,
     Tag,
     Switch,
     type Locale
@@ -61,11 +64,11 @@
         ? 'settings.boardTwitch'
         : 'settings.boardTwitchOff'
   );
-  const LEVEL_TAG: Record<string, string> = {
-    info: 'bb-tag--quiet',
-    success: 'bb-tag--live',
-    warning: 'bb-tag--pre',
-    critical: 'bb-tag--alpha'
+  const LEVEL_TONE: Record<string, 'quiet' | 'live' | 'pre' | 'error'> = {
+    info: 'quiet',
+    success: 'live',
+    warning: 'pre',
+    critical: 'error'
   };
 
   const createdGrant = $derived(form?.createdGrant as DelegationGrant | undefined);
@@ -290,40 +293,47 @@
   <div class="layout">
     <aside class="rail" data-lenis-prevent>
       <SectionNav label={t('settings.navSections')} items={navItems} />
-      <Card class="board">
-        <span class="board-title">{t('settings.boardState')}</span>
-        <span class="board-row"><i class="dot" class:live={twitchConnected === true} aria-hidden="true"></i>{t(boardTwitchKey)}</span>
-        <span class="board-row"><i class="dot tan" aria-hidden="true"></i>{t('settings.boardAccess', { n: inUse.length })}</span>
-        <span class="board-row"><i class="dot" aria-hidden="true"></i>{t('settings.boardShared', { n: received.length })}</span>
-      </Card>
+      <div class="board">
+        <Card flush>
+          <div class="board-body">
+            <Eyebrow>{t('settings.boardState')}</Eyebrow>
+            <span class="board-row"><StatusDot tone={twitchConnected === true ? 'success' : 'neutral'} /><Text as="span" size="xs" tone="muted">{t(boardTwitchKey)}</Text></span>
+            <span class="board-row"><StatusDot tone="warning" /><Text as="span" size="xs" tone="muted">{t('settings.boardAccess', { n: inUse.length })}</Text></span>
+            <span class="board-row"><StatusDot tone="neutral" /><Text as="span" size="xs" tone="muted">{t('settings.boardShared', { n: received.length })}</Text></span>
+          </div>
+        </Card>
+      </div>
     </aside>
 
     <div class="stack">
-  <Card as="section" id="account" class="settings-section" tabindex="-1" aria-labelledby="h-account">
-    <Heading level={2} class="sec-title" id="h-account">{t('settings.account')}</Heading>
-    <p class="hint">{t('settings.accountHint')}</p>
+  <section id="account" class="settings-section" tabindex="-1" aria-labelledby="h-account">
+  <Card>
+    <div class="sec-title"><Heading level={6} as="h2" id="h-account">{t('settings.account')}</Heading></div>
+    <div class="hint"><Text size="sm" tone="muted">{t('settings.accountHint')}</Text></div>
     <div class="identity">
       <span class="identity-face"><Bolota name={data.login ?? ''} size={44} active /></span>
       <div class="identity-main">
         <div class="identity-line">
-          <b>{data.displayName || data.login}</b>
+          <Text as="span"><b>{data.displayName || data.login}</b></Text>
           {#if twitchConnected === true}
             <Tag tone="live" mark="solid">{t('settings.connectedPill')}</Tag>
           {:else if twitchConnected === false}
             <Tag tone="alpha" mark="dash">{t('settings.notConnectedPill')}</Tag>
           {/if}
         </div>
-        <span class="identity-meta">{t('settings.reconnectTwitchHint')}</span>
+        <Text as="span" size="xs" tone="muted">{t('settings.reconnectTwitchHint')}</Text>
       </div>
       <ButtonLink href="/auth/login?reauth=1" variant="ghost">{t('common.reconnect')}</ButtonLink>
     </div>
   </Card>
+  </section>
 
-  <Card as="section" id="access" class="settings-section" tabindex="-1" aria-labelledby="h-access">
+  <section id="access" class="settings-section" tabindex="-1" aria-labelledby="h-access">
+  <Card>
     <div class="sec-head">
-      <div>
-        <Heading level={2} class="sec-title" id="h-access">{t('settings.sharedAccess')}</Heading>
-        <p class="hint">{t('settings.sharedAccessHint')}</p>
+      <div class="sec-intro">
+        <Heading level={6} as="h2" id="h-access">{t('settings.sharedAccess')}</Heading>
+        <Text size="sm" tone="muted">{t('settings.sharedAccessHint')}</Text>
       </div>
       <Button variant="primary" aria-expanded={creating} onclick={() => (creating = !creating)}>
         {t('settings.newShareLink')}
@@ -348,7 +358,7 @@
           };
         }}
       >
-        <p class="hint">{t('settings.newShareLinkHint')}</p>
+        <div class="hint"><Text size="sm" tone="muted">{t('settings.newShareLinkHint')}</Text></div>
         <SectionPicker
           legend={t('settings.sectionsLegend')}
           options={pickerOptions((sec) => sec === 'commands')}
@@ -367,13 +377,13 @@
     {/if}
 
     {#if inUse.length > 0}
-      <span class="group-label">{t('settings.inUseCount', { n: inUse.length })}</span>
+      <div class="group-label"><Eyebrow>{t('settings.inUseCount', { n: inUse.length })}</Eyebrow></div>
       <ul class="grants">
         {#each inUse as g (g.token)}
           <li class="grant consumed">
             <span class="face"><Bolota name={g.delegate_login} size={30} /></span>
             <div class="grant-main">
-              <b class="grant-name">{g.delegate_login}</b>
+              <Text as="span" size="sm"><b>{g.delegate_login}</b></Text>
               <div class="grant-sections">{@render sectionChips(g.sections)}</div>
             </div>
             <div class="actions">
@@ -387,12 +397,12 @@
     {/if}
 
     {#if pending.length > 0}
-      <span class="group-label">{t('settings.inviteLinks')}</span>
+      <div class="group-label"><Eyebrow>{t('settings.inviteLinks')}</Eyebrow></div>
       <ul class="grants">
         {#each pending as g (g.token)}
           <li class="grant pending">
             <Tag tone="alpha" mark="dash">{t('settings.stageWaiting')}</Tag>
-            <code class="grant-link">{linkFor(g.token)}</code>
+            <div class="grant-link"><Code>{linkFor(g.token)}</Code></div>
             <div class="actions">
               <Button
                 variant="ghost"
@@ -413,7 +423,7 @@
     {/if}
 
     <div class="sub-block">
-      <span class="group-label">{t('settings.sharedWithYou')}</span>
+      <div class="group-label"><Eyebrow>{t('settings.sharedWithYou')}</Eyebrow></div>
       {#if received.length === 0}
         <EmptyState title={t('settings.nothingShared')} body={t('settings.nothingSharedBody')} />
       {:else}
@@ -422,7 +432,7 @@
             <li class="grant consumed">
               <span class="face"><Bolota name={r.owner_login} size={30} /></span>
               <div class="grant-main">
-                <b class="grant-name">{r.owner_login}</b>
+                <Text as="span" size="sm"><b>{r.owner_login}</b></Text>
                 <div class="grant-sections">{@render sectionChips(r.sections)}</div>
               </div>
               <div class="actions">
@@ -441,10 +451,12 @@
       {/if}
     </div>
   </Card>
+  </section>
 
-  <Card as="section" id="notifications" class="settings-section" tabindex="-1" aria-labelledby="h-notifications">
+  <section id="notifications" class="settings-section" tabindex="-1" aria-labelledby="h-notifications">
+  <Card>
     <div class="sec-head">
-      <Heading level={2} class="sec-title" id="h-notifications">{t('settings.notifications')}</Heading>
+      <Heading level={6} as="h2" id="h-notifications">{t('settings.notifications')}</Heading>
       {#if unreadIds.length > 0}
         <form method="POST" action="?/markAllRead" use:enhance>
           <input type="hidden" name="ids" value={unreadIds.join(',')} />
@@ -453,16 +465,16 @@
       {/if}
     </div>
     {#if notifications.length === 0}
-      <p class="hint">{t('settings.notificationsEmpty')}</p>
+      <div class="hint"><Text size="sm" tone="muted">{t('settings.notificationsEmpty')}</Text></div>
     {:else}
       <ul class="notif-list">
         {#each shownNotifications as n (n.id)}
           <li class="notif-item" class:unread={!n.read}>
-            <span class="bb-tag {LEVEL_TAG[n.level] ?? 'bb-tag--quiet'} level {n.level}">{levelLabel(n.level)}</span>
+            <Tag tone={LEVEL_TONE[n.level] ?? 'quiet'}>{levelLabel(n.level)}</Tag>
             <div class="notif-text">
-              <b>{n.title}</b>
-              <Text size="sm" tone="muted" class="notif-body">{n.body}</Text>
-              <span class="notif-meta">{stampFormat.format(new Date(n.created_at))}</span>
+              <Text as="span" size="sm"><b>{n.title}</b></Text>
+              <Text size="sm" tone="muted">{n.body}</Text>
+              <Text as="span" size="xs" tone="muted">{stampFormat.format(new Date(n.created_at))}</Text>
             </div>
             {#if !n.read}
               <form method="POST" action="?/markRead" use:enhance>
@@ -474,39 +486,45 @@
         {/each}
       </ul>
       {#if hiddenNotificationCount > 0}
-        <Button variant="ghost" size="sm" class="notif-more" aria-expanded={showAllNotifications} onclick={() => (showAllNotifications = !showAllNotifications)}>
-          {showAllNotifications ? t('settings.showFewer') : t('settings.showOlder', { n: hiddenNotificationCount })}
-        </Button>
+        <div class="notif-more">
+          <Button variant="ghost" size="sm" aria-expanded={showAllNotifications} onclick={() => (showAllNotifications = !showAllNotifications)}>
+            {showAllNotifications ? t('settings.showFewer') : t('settings.showOlder', { n: hiddenNotificationCount })}
+          </Button>
+        </div>
       {/if}
     {/if}
   </Card>
+  </section>
 
-  <Card as="section" id="preferences" class="settings-section" tabindex="-1" aria-labelledby="h-preferences">
-    <Heading level={2} class="sec-title" id="h-preferences">{t('settings.preferences')}</Heading>
+  <section id="preferences" class="settings-section" tabindex="-1" aria-labelledby="h-preferences">
+  <Card>
+    <div class="sec-title"><Heading level={6} as="h2" id="h-preferences">{t('settings.preferences')}</Heading></div>
     <div class="row">
-      <div>
-        <span class="pref-label" id="lang-label">{t('settings.language')}</span>
-        <p class="hint">{t('settings.languageHint')}</p>
+      <div class="row-text">
+        <Text as="span" size="sm" id="lang-label">{t('settings.language')}</Text>
+        <Text size="sm" tone="muted">{t('settings.languageHint')}</Text>
       </div>
       <LangSwitch selected={savedLocale} />
     </div>
     <div class="row">
-      <div>
-        <span class="pref-label" id="cursor-label">{t('settings.customCursor')}</span>
-        <p class="hint" id="cursor-hint">{t('settings.customCursorHint')}</p>
+      <div class="row-text">
+        <Text as="span" size="sm" id="cursor-label">{t('settings.customCursor')}</Text>
+        <Text size="sm" tone="muted" id="cursor-hint">{t('settings.customCursorHint')}</Text>
       </div>
       <CursorSwitch describedby="cursor-hint" />
     </div>
   </Card>
+  </section>
 
-  <Card as="section" id="public-pages" class="settings-section" tabindex="-1" aria-labelledby="h-public-pages">
-    <Heading level={2} class="sec-title" id="h-public-pages">{t('settings.publicPages')}</Heading>
+  <section id="public-pages" class="settings-section" tabindex="-1" aria-labelledby="h-public-pages">
+  <Card>
+    <div class="sec-title"><Heading level={6} as="h2" id="h-public-pages">{t('settings.publicPages')}</Heading></div>
     <div class="row">
-      <div>
-        <span class="pref-label" id="commands-page-label">{t('settings.commandsPage')}</span>
-        <p class="hint" id="commands-page-hint">{t('settings.commandsPageHint', { url: commandsPageUrl })}</p>
+      <div class="row-text">
+        <Text as="span" size="sm" id="commands-page-label">{t('settings.commandsPage')}</Text>
+        <Text size="sm" tone="muted" id="commands-page-hint">{t('settings.commandsPageHint', { url: commandsPageUrl })}</Text>
         {#if commandsPageDelayed}
-          <p class="hint">{t('settings.commandsPageDelayed')}</p>
+          <Text size="sm" tone="muted">{t('settings.commandsPageDelayed')}</Text>
         {/if}
       </div>
       <form method="POST" action="?/setCommandsPage" use:enhance={commandsPageSubmit}>
@@ -515,10 +533,12 @@
       </form>
     </div>
   </Card>
+  </section>
 
-  <Card as="section" id="api-keys" class="settings-section" tabindex="-1" aria-labelledby="h-api-keys">
-    <Heading level={2} class="sec-title" id="h-api-keys">{t('fetches.keysTitle')}</Heading>
-    <p class="hint">{t('settings.keysHint')}</p>
+  <section id="api-keys" class="settings-section" tabindex="-1" aria-labelledby="h-api-keys">
+  <Card>
+    <div class="sec-title"><Heading level={6} as="h2" id="h-api-keys">{t('fetches.keysTitle')}</Heading></div>
+    <div class="hint"><Text size="sm" tone="muted">{t('settings.keysHint')}</Text></div>
     <FetchKeyManager
       keys={fetchKeys}
       references={data.fetchKeyRefs ?? {}}
@@ -527,35 +547,40 @@
       onDeleteKey={handleDeleteKey}
     />
   </Card>
+  </section>
 
-  <Card as="section" id="import" class="settings-section" tabindex="-1" aria-labelledby="h-import">
+  <section id="import" class="settings-section" tabindex="-1" aria-labelledby="h-import">
+  <Card>
     <div class="sec-head">
-      <div>
-        <Heading level={2} class="sec-title" id="h-import">{t('settings.importSetup')}</Heading>
-        <p class="hint">{t('settings.importSetupHint')}</p>
+      <div class="sec-intro">
+        <Heading level={6} as="h2" id="h-import">{t('settings.importSetup')}</Heading>
+        <Text size="sm" tone="muted">{t('settings.importSetupHint')}</Text>
       </div>
       <ButtonLink href="/settings/import" variant="secondary">{t('settings.importSetupCta')}</ButtonLink>
     </div>
   </Card>
+  </section>
 
-  <Card as="section" id="danger-zone" class="settings-section danger-section" tabindex="-1" aria-labelledby="h-danger">
-    <Heading level={2} class="sec-title" id="h-danger">{t('settings.dangerZone')}</Heading>
-    <p class="hint">{t('settings.dangerZoneHint')}</p>
+  <section id="danger-zone" class="settings-section danger-section" tabindex="-1" aria-labelledby="h-danger">
+  <Card tone="danger">
+    <div class="sec-title"><Heading level={6} as="h2" id="h-danger">{t('settings.dangerZone')}</Heading></div>
+    <div class="hint"><Text size="sm" tone="muted">{t('settings.dangerZoneHint')}</Text></div>
     <div class="row">
-      <div>
-        <b>{t('settings.signOutEverywhere')}</b>
-        <p class="hint">{t('settings.signOutEverywhereHint')}</p>
+      <div class="row-text">
+        <Text as="span" size="sm"><b>{t('settings.signOutEverywhere')}</b></Text>
+        <Text size="sm" tone="muted">{t('settings.signOutEverywhereHint')}</Text>
       </div>
       <Button variant="destructive" onclick={() => (signOutOpen = true)}>{t('settings.signOutEverywhere')}</Button>
     </div>
     <div class="row">
-      <div>
-        <b>{t('settings.deleteAccount')}</b>
-        <p class="hint">{t('settings.deleteAccountHint')}</p>
+      <div class="row-text">
+        <Text as="span" size="sm"><b>{t('settings.deleteAccount')}</b></Text>
+        <Text size="sm" tone="muted">{t('settings.deleteAccountHint')}</Text>
       </div>
       <Button variant="destructive" onclick={() => (deleteOpen = true)}>{t('settings.deleteAccount')}</Button>
     </div>
   </Card>
+  </section>
     </div>
   </div>
 </section>
@@ -650,15 +675,16 @@
 {/if}
 
 <style>
-  :global(.settings-section) {
+  .settings-section {
+    --btn-min-h: 44px;
     scroll-margin-top: calc(80px + env(safe-area-inset-top, 0px));
   }
-  :global(.settings-section:focus) { outline: none; }
+  .settings-section:focus { outline: none; }
 
   .layout {
     display: grid;
     gap: 18px 40px;
-    --bb-tabs-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 68px);
+    --bb-tabs-sticky-top: calc(var(--bb-topbar-height) + 68px);
   }
   @media (min-width: 761px) {
     .layout { grid-template-columns: 12rem minmax(0, 1fr); align-items: start; }
@@ -673,34 +699,24 @@
       --bb-tabs-position: static;
       --bb-tabs-max-height: none;
     }
-    .rail > :global(*) { flex: none; }
   }
-  .rail { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
-  .rail :global(.board) { display: none; }
+  .rail { display: grid; align-content: start; gap: 22px; min-width: 0; }
+  .board { display: none; }
   @media (min-width: 761px) {
-    .rail :global(.board) {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding: 14px 16px;
-    }
+    .board { display: block; }
   }
-  .board-title {
-    font-family: var(--bb-font-mono);
-    font-size: 9.5px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bb-tan);
+  .board-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
   }
-  .board-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--bb-muted); }
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bb-muted); flex: none; }
-  .dot.live { background: var(--bb-green-glow, #52b788); box-shadow: 0 0 8px var(--bb-green-glow, #52b788); }
-  .dot.tan { background: var(--bb-tan); }
+  .board-row { display: flex; align-items: center; gap: 8px; }
 
   .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 
-  :global(.sec-title) { margin-bottom: 6px; font-size: 16px; }
-  .hint { color: var(--bb-muted, #998f82); font-size: 13px; margin: 0 0 12px; }
+  .sec-title { margin-bottom: 6px; }
+  .hint { margin: 0 0 12px; }
 
   .sec-head {
     display: flex;
@@ -709,23 +725,14 @@
     gap: 16px;
     flex-wrap: wrap;
   }
-  .sec-head :global(.sec-title) { margin-bottom: 0; }
-  .sec-head .hint { margin: 4px 0 0; }
-  .sec-head + :global(*) { margin-top: 18px; }
+  .sec-head:not(:last-child) { margin-bottom: 18px; }
+  .sec-intro { display: grid; gap: 4px; }
 
-  .group-label {
-    display: block;
-    font-family: var(--bb-font-mono);
-    font-size: 9.5px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bb-tan);
-    margin: 22px 0 10px;
-  }
+  .group-label { margin: 22px 0 10px; }
   .sub-block {
     margin-top: 26px;
     padding-top: 18px;
-    border-top: 1px solid var(--bb-line, rgba(255, 255, 255, 0.06));
+    border-top: 1px solid var(--bb-border);
   }
   .sub-block .group-label { margin-top: 0; }
 
@@ -734,15 +741,13 @@
     align-items: center;
     gap: 18px;
     padding: 16px;
-    border: 1px solid rgba(82, 183, 136, 0.25);
+    border: 1px solid rgba(var(--bb-green-glow-rgb), 0.25);
     border-radius: var(--bb-radius-md);
-    background: rgba(82, 183, 136, 0.04);
+    background: rgba(var(--bb-green-glow-rgb), 0.04);
   }
   .identity-face { flex: none; display: flex; }
   .identity-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
   .identity-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .identity-line b { font-size: 15px; color: var(--bb-white); }
-  .identity-meta { font-size: 12.5px; color: var(--bb-muted); }
   .row {
     display: flex;
     align-items: center;
@@ -750,14 +755,13 @@
     gap: 16px;
     padding: 12px 0 0;
   }
-  .row b, .pref-label { font-size: 14px; color: var(--bb-white); font-family: var(--bb-font-body); }
-  .row .hint { margin: 4px 0 0; }
+  .row-text { display: grid; gap: 4px; }
   .create {
     margin-top: 18px;
     padding: 16px;
     border: 1px dashed var(--bb-border);
     border-radius: var(--bb-radius-md);
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(var(--bb-white-pure-rgb), 0.02);
   }
   .create-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
 
@@ -767,25 +771,22 @@
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 14px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--bb-glass-border);
     border-radius: var(--bb-radius-md);
     padding: 14px 16px;
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(var(--bb-white-pure-rgb), 0.02);
   }
-  .grant.pending { border-color: rgba(201, 168, 124, 0.3); }
-  .grant.consumed { border-color: rgba(82, 183, 136, 0.25); }
+  .grant.pending { border-color: rgba(var(--bb-tan-rgb), 0.3); }
+  .grant.consumed { border-color: rgba(var(--bb-green-glow-rgb), 0.25); }
 
   .face { flex: none; display: flex; }
   .grant-main { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
-  .grant-name { font-size: 14px; color: var(--bb-white); }
   .grant-link {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-muted);
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: var(--bb-text-xs);
   }
 
   .grant-sections { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -794,28 +795,18 @@
   .grant-edit-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
   .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  :global(.settings-section) { --btn-min-h: 44px; }
 
   .notif-list { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
   .notif-item {
     display: flex; align-items: flex-start; gap: 12px;
     border: 1px solid var(--bb-border); border-radius: var(--bb-radius-sm);
-    padding: 12px 14px; background: rgba(255, 255, 255, 0.02);
+    padding: 12px 14px; background: rgba(var(--bb-white-pure-rgb), 0.02);
   }
-  .notif-item.unread { border-color: rgba(201, 168, 124, 0.3); background: rgba(201, 168, 124, 0.05); }
-  .notif-text { flex: 1; min-width: 0; }
-  .notif-text b { font-size: 14px; color: var(--bb-white); }
-  :global(.notif-body) { margin: 4px 0; }
-  .notif-meta { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); opacity: 0.8; }
-  .level { font-size: 10px; letter-spacing: 0.1em; white-space: nowrap; align-self: flex-start; }
-  :global(.notif-more) { margin-top: 12px; }
-  .level.critical { color: #d98a8a; border-bottom-color: rgba(217, 138, 138, 0.45); }
+  .notif-item.unread { border-color: rgba(var(--bb-tan-rgb), 0.3); background: rgba(var(--bb-tan-rgb), 0.05); }
+  .notif-text { flex: 1; min-width: 0; display: grid; gap: 4px; }
+  .notif-more { margin-top: 12px; }
 
-  :global(.danger-section) {
-    margin-top: 28px;
-    border-color: var(--bb-status-error-border, rgba(176, 90, 70, 0.4));
-    background: var(--bb-status-error-bg, rgba(176, 90, 70, 0.06));
-  }
+  .danger-section { margin-top: 28px; }
 
   @media (max-width: 760px) {
     .row, .identity { flex-direction: column; align-items: stretch; }
@@ -825,8 +816,5 @@
     .grant-link { white-space: normal; word-break: break-all; }
     .notif-item { flex-wrap: wrap; }
     .notif-text { flex-basis: 100%; }
-  }
-  @media (max-width: 900px) {
-    .layout { --bb-tabs-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 68px); }
   }
 </style>

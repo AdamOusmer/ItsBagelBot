@@ -2,6 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import type { IconName } from '@bagel/ui/lib/icons';
+import type { ProfileMenuLink } from '@bagel/ui/svelte/ProfileMenu.svelte';
 import type { MessageKey } from './i18n/keys';
 import { SITE } from './site-links';
 
@@ -11,6 +12,10 @@ export interface SupportLine {
   href: string;
   icon: IconName;
   external: boolean;
+}
+
+export function supportMenuLinks(t: (key: MessageKey) => string): ProfileMenuLink[] {
+  return supportLines(t).map(({ title, ...line }) => ({ ...line, label: title }));
 }
 
 export function supportLines(t: (key: MessageKey) => string): readonly SupportLine[] {

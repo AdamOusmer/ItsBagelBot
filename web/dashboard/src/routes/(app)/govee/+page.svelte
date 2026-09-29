@@ -15,11 +15,15 @@
     InspectorSurface,
     MasterToggle,
     AlertBanner,
+    DeckLayout,
     DeckList,
     EmptyState,
     Button,
     ButtonLink,
     Heading,
+    Input,
+    Spinner,
+    Text,
     toast,
     getI18n,
     type GoveeDevice,
@@ -217,7 +221,7 @@
 
 {#snippet devicesError()}
   <div class="err-block" role="alert">
-    <p class="err-text">{t('govee.devicesError')}</p>
+    <Text size="sm" tone="danger">{t('govee.devicesError')}</Text>
     <Button variant="secondary" type="button" loading={refreshing} onclick={refreshLights}>{t('govee.devicesRetry')}</Button>
   </div>
 {/snippet}
@@ -254,104 +258,110 @@
   </PageToolbar>
 
   <Card>
-    <Heading level={6} as="h2" class="card-title">{keyPresent ? t('govee.keyCardTitle') : t('govee.keyTitle')}</Heading>
-    {#if keyPresent}
-      <div class="row">
-        <Tag tone="live" mark="solid">{t('govee.keyOnFile')}</Tag>
-        <Button variant="destructive" type="button" onclick={() => (keyRemovePending = true)}>{t('govee.keyRemove')}</Button>
-      </div>
-    {:else}
-      <p class="muted-text">
-        {t('govee.keyHelpPre')} <strong>{t('govee.keyPath')}</strong>. {t('govee.keyHelpPost')}
-      </p>
-      <form method="POST" action="?/saveKey" use:enhance={saveKeySubmit} class="row">
-        <input class="bb-input key-input" type="password" name="key" placeholder={t('govee.keyPlaceholder')} aria-label={t('govee.keyFieldLabel')} autocomplete="off" required />
-        <Button variant="primary" type="submit" loading={keySaving}>{t('govee.keySave')}</Button>
-      </form>
-    {/if}
+    <div class="key-card">
+      <Heading level={6} as="h2">{keyPresent ? t('govee.keyCardTitle') : t('govee.keyTitle')}</Heading>
+      {#if keyPresent}
+        <div class="row">
+          <Tag tone="live" mark="solid">{t('govee.keyOnFile')}</Tag>
+          <Button variant="destructive" type="button" onclick={() => (keyRemovePending = true)}>{t('govee.keyRemove')}</Button>
+        </div>
+      {:else}
+        <Text size="sm" tone="muted">
+          {t('govee.keyHelpPre')} <strong class="key-path">{t('govee.keyPath')}</strong>. {t('govee.keyHelpPost')}
+        </Text>
+        <form method="POST" action="?/saveKey" use:enhance={saveKeySubmit} class="row key-form">
+          <span class="key-input">
+            <Input fill type="password" name="key" placeholder={t('govee.keyPlaceholder')} aria-label={t('govee.keyFieldLabel')} autocomplete="off" required />
+          </span>
+          <Button variant="primary" type="submit" loading={keySaving}>{t('govee.keySave')}</Button>
+        </form>
+      {/if}
+    </div>
   </Card>
 
   {#if keyPresent}
-    <div class="deck" class:inspecting={inspector.isOpen}>
-      <div class="deck-lead">
-        <h2 class="lights-title">{t('govee.lightsTitle')}</h2>
-      </div>
+    <div class="lights">
+      <DeckLayout inspecting={inspector.isOpen} width="440px">
+        <div class="deck-lead">
+          <Heading level={6} as="h2">{t('govee.lightsTitle')}</Heading>
+        </div>
 
-      <DeckList>
-        {#await data.devices}
-          <p class="loading" role="status"><span class="spinner" aria-hidden="true"></span> {t('govee.loadingLights')}</p>
-        {:then dr}
-          {@const lights = colorDevices(dr.devices ?? [])}
-          {#if dr.error}
+        <DeckList>
+          {#await data.devices}
+            <div class="state" role="status"><Spinner /><Text as="span" size="sm" tone="muted">{t('govee.loadingLights')}</Text></div>
+          {:then dr}
+            {@const lights = colorDevices(dr.devices ?? [])}
+            {#if dr.error}
+              {@render devicesError()}
+            {:else if lights.length === 0}
+              <EmptyState title={t('govee.noLights')} body={t('govee.noLightsBody')}>
+                <Button variant="secondary" type="button" loading={refreshing} onclick={refreshLights}>{t('govee.noLightsCta')}</Button>
+              </EmptyState>
+            {:else}
+              <div>
+                {#each lights as d (d.device)}
+                  <GoveeLightRow
+                    device={d}
+                    binding={bindingFor(d.device)}
+                    expanded={selected?.device === d.device}
+                    onExpand={() => openLight(d)}
+                    onDelete={() => (deleteTarget = d)}
+                  />
+                {/each}
+              </div>
+            {/if}
+          {:catch}
             {@render devicesError()}
-          {:else if lights.length === 0}
-            <EmptyState title={t('govee.noLights')} body={t('govee.noLightsBody')}>
-              <Button variant="secondary" type="button" loading={refreshing} onclick={refreshLights}>{t('govee.noLightsCta')}</Button>
-            </EmptyState>
-          {:else}
-            <div class="list">
-              {#each lights as d (d.device)}
-                <GoveeLightRow
-                  device={d}
-                  binding={bindingFor(d.device)}
-                  expanded={selected?.device === d.device}
-                  onExpand={() => openLight(d)}
-                  onDelete={() => (deleteTarget = d)}
-                />
-              {/each}
-            </div>
-          {/if}
-        {:catch}
-          {@render devicesError()}
-        {/await}
-      </DeckList>
+          {/await}
+        </DeckList>
 
-      {#if selected && draft}
-        <InspectorSurface
-          open
-          title={selected.name || t('govee.thisLight')}
-          controls="govee-editor"
-          closeLabel={t('govee.closeEditor')}
-          onClose={closeInspector}
-        >
-          <form
-            method="POST"
-            action="?/saveReward"
-            novalidate
-            use:enhance={saveSubmit}
-            class="inspector-form"
-            bind:this={formEl}
+        {#if selected && draft}
+          <InspectorSurface
+            open
+            title={selected.name || t('govee.thisLight')}
+            controls="govee-editor"
+            closeLabel={t('govee.closeEditor')}
+            onClose={closeInspector}
           >
-            <input type="hidden" name="device" value={selected.device} />
-            <input type="hidden" name="sku" value={selected.sku} />
-            <input type="hidden" name="deviceName" value={selected.name} />
-            <Scroller fill padding="16px" smooth>
-              {#key selected.device}
-                <GoveeRewardEditor
-                  bind:draft
-                  colors={data.colors}
-                  canDelete={!!selectedBinding}
-                  {busy}
-                  attempted={validationAttempted}
-                  onRequestDelete={() => (deleteTarget = selected)}
-                />
-              {/key}
-            </Scroller>
-            <EditorFooter
-              status={inspector.status}
-              dirty={inspector.dirty}
-              canSave={canSave && !busy}
-              saveLabel={isNew ? t('govee.create') : t('govee.saveChanges')}
-              cancelLabel={t('common.cancel')}
-              savingLabel={t('govee.saving')}
-              savedLabel={t('govee.saved')}
-              errorLabel={t('govee.toastSaveFailed')}
-              dirtyLabel={t('govee.unsavedChanges')}
-              onCancel={closeInspector}
-            />
-          </form>
-        </InspectorSurface>
-      {/if}
+            <form
+              method="POST"
+              action="?/saveReward"
+              novalidate
+              use:enhance={saveSubmit}
+              class="inspector-form"
+              bind:this={formEl}
+            >
+              <input type="hidden" name="device" value={selected.device} />
+              <input type="hidden" name="sku" value={selected.sku} />
+              <input type="hidden" name="deviceName" value={selected.name} />
+              <Scroller fill padding="16px" smooth>
+                {#key selected.device}
+                  <GoveeRewardEditor
+                    bind:draft
+                    colors={data.colors}
+                    canDelete={!!selectedBinding}
+                    {busy}
+                    attempted={validationAttempted}
+                    onRequestDelete={() => (deleteTarget = selected)}
+                  />
+                {/key}
+              </Scroller>
+              <EditorFooter
+                status={inspector.status}
+                dirty={inspector.dirty}
+                canSave={canSave && !busy}
+                saveLabel={isNew ? t('govee.create') : t('govee.saveChanges')}
+                cancelLabel={t('common.cancel')}
+                savingLabel={t('govee.saving')}
+                savedLabel={t('govee.saved')}
+                errorLabel={t('govee.toastSaveFailed')}
+                dirtyLabel={t('govee.unsavedChanges')}
+                onCancel={closeInspector}
+              />
+            </form>
+          </InspectorSurface>
+        {/if}
+      </DeckLayout>
     </div>
   {/if}
 </section>
@@ -396,40 +406,18 @@
 <form method="POST" action="?/clearKey" use:enhance={clearKeySubmit} bind:this={keyRemoveForm} hidden></form>
 
 <style>
-  :global(.card-title) { margin-bottom: 6px; }
-  .muted-text { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; margin: 0 0 14px; }
-  .muted-text strong { color: var(--bb-tan-light); font-weight: 600; }
+  .key-card { display: grid; gap: 6px; }
+  .key-path { color: var(--bb-tan-light); font-weight: 600; }
 
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .key-form { margin-top: 8px; }
   .key-input { min-width: 13rem; flex: 1; max-width: 26rem; }
 
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-    margin-top: 16px;
-  }
-  .deck-lead { display: flex; align-items: center; gap: 10px; }
-  .lights-title { margin: 0; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
-  @media (min-width: 1080px) {
-    .deck.inspecting { grid-template-columns: minmax(0, 1fr) 440px; }
-    .deck.inspecting .deck-lead { grid-column: 1 / -1; }
-  }
-  .list :global(.row-shell:last-child) { border-bottom: none; }
+  .lights { margin-top: 16px; }
+  .deck-lead { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
 
-  .loading { display: flex; align-items: center; gap: 10px; padding: 16px; margin: 0; font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
+  .state { display: flex; align-items: center; gap: 10px; padding: 16px; }
   .err-block { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 16px; }
-  .err-text { margin: 0; font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-danger); }
 
   .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
-  .spinner {
-    width: 14px; height: 14px; border-radius: 50%;
-    border: 2px solid var(--rule-strong); border-top-color: var(--bb-tan-light);
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) {
-    .spinner { animation: none; }
-  }
 </style>

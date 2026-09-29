@@ -5,6 +5,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
@@ -101,23 +102,25 @@
 </div>
 
 <div class="bar">
-  {#each verbs as v (v.id)}
-    <form method="POST" action={v.action} use:enhance={submitVerb}>
-      {#each Object.entries(v.fields) as [name, value] (name)}
-        <input type="hidden" {name} {value} />
-      {/each}
-      <Button type="submit" variant={v.variant} size="sm" disabled={busy}>{v.label}</Button>
-    </form>
-  {/each}
-  {#if canRollback}
-    <form method="POST" action="/deploys?/start" use:enhance={submitRollback} bind:this={rollbackForm}>
-      <input type="hidden" name="kind" value="rollback" />
-      <input type="hidden" name="rollback_to" value={rollbackTo} />
-      <Button variant="destructive" size="sm" disabled={busy} onclick={() => (rollbackOpen = true)}>
-        {t('admin.deploys.act.rollback', { version: rollbackTo })}
-      </Button>
-    </form>
-  {/if}
+  <Cluster gap={2}>
+    {#each verbs as v (v.id)}
+      <form class="verb" method="POST" action={v.action} use:enhance={submitVerb}>
+        {#each Object.entries(v.fields) as [name, value] (name)}
+          <input type="hidden" {name} {value} />
+        {/each}
+        <Button type="submit" variant={v.variant} size="sm" disabled={busy}>{v.label}</Button>
+      </form>
+    {/each}
+    {#if canRollback}
+      <form class="verb" method="POST" action="/deploys?/start" use:enhance={submitRollback} bind:this={rollbackForm}>
+        <input type="hidden" name="kind" value="rollback" />
+        <input type="hidden" name="rollback_to" value={rollbackTo} />
+        <Button variant="destructive" size="sm" disabled={busy} onclick={() => (rollbackOpen = true)}>
+          {t('admin.deploys.act.rollback', { version: rollbackTo })}
+        </Button>
+      </form>
+    {/if}
+  </Cluster>
 </div>
 
 <ConfirmDialog
@@ -135,19 +138,15 @@
 
 <style>
   .slot {
-    margin-bottom: 8px;
+    margin-bottom: var(--bb-space-2);
   }
   .slot:empty {
     display: none;
   }
   .bar {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 8px;
     min-height: 36px;
   }
-  .bar form {
+  .verb {
     display: contents;
   }
 </style>

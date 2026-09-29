@@ -4,6 +4,8 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ShardSnapshot } from '@bagel/kit';
@@ -93,31 +95,31 @@
 
   <p class="summary">
     <StatusDot {tone} />
-    <span>
+    <Text as="span" size="sm">
       {t('admin.overview.fleetSummary', {
         connected: String(connected),
         total: String(total),
         nodes: String(view.nodes.length)
       })}
-    </span>
+    </Text>
     {#if view.conduit_manager}
-      <span class="conduit">
+      <Text as="span" size="xs" mono tone="muted">
         {t('admin.overview.fleetConduit', {
           state: view.conduit_manager.state,
           node: view.conduit_manager.node || '-'
         })}
-      </span>
+      </Text>
     {/if}
   </p>
 
   {#if view.shards.length}
-    <div class="node-list">
+    <div class="bb-node-list bb-stagger">
       {#each view.shards as s (s.shard_id)}
-        <div class="node-row">
+        <div class="bb-node-list__row">
           <StatusDot tone={statusTone(s.state === 'connected' ? 'online' : 'degraded')} />
-          <span class="nm">{t('admin.overview.fleetShard', { id: String(s.shard_id) })}</span>
-          <span class="sv">{s.state} · {s.host || '-'}</span>
-          <span class="pg">{t('admin.overview.fleetAttempts', { n: String(s.attempts ?? 0) })}</span>
+          <span class="bb-node-list__name">{t('admin.overview.fleetShard', { id: String(s.shard_id) })}</span>
+          <span class="bb-node-list__meta">{s.state} · {s.host || '-'}</span>
+          <span class="bb-node-list__trail">{t('admin.overview.fleetAttempts', { n: String(s.attempts ?? 0) })}</span>
         </div>
       {/each}
     </div>
@@ -127,24 +129,26 @@
 
   {#if showTrials}
     {#if trials === null}
-      <p class="trial-hint">{t('admin.shards.trialLoading')}</p>
+      <div class="trial-hint"><Text size="xs" tone="muted">{t('admin.shards.trialLoading')}</Text></div>
     {:else if !trials.ok}
-        <p class="trial-hint">{t('admin.shards.trialUnavailable')}</p>
+      <div class="trial-hint"><Text size="xs" tone="muted">{t('admin.shards.trialUnavailable')}</Text></div>
     {:else}
-        {@const activeTrials = trials.value.trials.filter((row) => row.state !== 'removed' && row.state !== 'promoted')}
-        {#if activeTrials.length}
-          <h3 class="trial-title">{t('admin.shards.trialConnections')}</h3>
-          <div class="node-list">
+      {@const activeTrials = trials.value.trials.filter((row) => row.state !== 'removed' && row.state !== 'promoted')}
+      {#if activeTrials.length}
+        <div class="trials">
+          <Heading level={6} as="h3">{t('admin.shards.trialConnections')}</Heading>
+          <div class="bb-node-list bb-stagger">
             {#each [...activeTrials].sort((a, b) => (a.display_name || a.broadcaster_id).localeCompare(b.display_name || b.broadcaster_id)) as trial (trial.broadcaster_id)}
-              <div class="node-row">
+              <div class="bb-node-list__row">
                 <StatusDot tone={statusTone(!trial.enabled ? 'unavailable' : trial.state === 'receiving' ? 'online' : 'degraded')} />
-                <span class="nm">{trial.display_name?.trim() || trial.broadcaster_id}</span>
-                <span class="sv">{trial.display_name?.trim() ? t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id }) : ''}</span>
-                <span class="pg">{trial.enabled ? t(`admin.trials.state.${trial.state}`) : t('admin.trials.off')}</span>
+                <span class="bb-node-list__name">{trial.display_name?.trim() || trial.broadcaster_id}</span>
+                <span class="bb-node-list__meta">{trial.display_name?.trim() ? t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id }) : ''}</span>
+                <span class="bb-node-list__trail">{trial.enabled ? t(`admin.trials.state.${trial.state}`) : t('admin.trials.off')}</span>
               </div>
             {/each}
           </div>
-        {/if}
+        </div>
+      {/if}
     {/if}
   {/if}
 </Card>
@@ -153,18 +157,17 @@
   .summary {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: var(--bb-space-2);
     flex-wrap: wrap;
     margin: 0 0 12px;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-white);
   }
-  .summary .conduit {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
+  .trials {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bb-space-2);
+    margin-top: 18px;
   }
-  .trial-title { margin: 18px 0 8px; font-size: 13px; }
-  .trial-hint { margin: 12px 0 0; color: var(--bb-muted); font-size: 12px; }
+  .trial-hint {
+    margin-top: 12px;
+  }
 </style>

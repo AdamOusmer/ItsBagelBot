@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Chip, EmptyState, getI18n, type MessageKey } from '@bagel/kit';
+  import { Button, Chip, EmptyState, Label, getI18n, type MessageKey } from '@bagel/kit';
   import { STARTER_IDS, type Starter, type StarterId } from './starters';
 
   const { t } = getI18n();
@@ -16,13 +16,13 @@
 </script>
 
 <EmptyState title={t('commands.noneYet')} body={t('commands.noneYetBody', { name: 'name' })}>
-  <button class="bb-btn bb-btn--primary" type="button" onclick={onNew}>{t('commands.newCommand')}</button>
+  <Button variant="primary" onclick={onNew}>{t('commands.newCommand')}</Button>
 </EmptyState>
 <div class="starters" role="group" aria-label={t('commands.startersTitle')}>
-  <span class="starters-title">{t('commands.startersTitle')}</span>
+  <Label mono as="span">{t('commands.startersTitle')}</Label>
   <div class="starters-row">
     {#each starters as s (s.name)}
-      <Chip tone="muted" class="starter" onclick={() => onPick(s)}>!{s.name}</Chip>
+      <span class="starter"><Chip tone="muted" onclick={() => onPick(s)}>!{s.name}</Chip></span>
     {/each}
   </div>
 </div>
@@ -35,15 +35,9 @@
     gap: 10px;
     padding: 0 16px 24px;
   }
-  .starters-title {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
   .starters-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .starter { display: inline-flex; }
   @media (pointer: coarse), (max-width: 760px) {
-    .starters-row :global(.starter) { min-height: 44px; }
+    .starter { min-height: 44px; }
   }
 </style>

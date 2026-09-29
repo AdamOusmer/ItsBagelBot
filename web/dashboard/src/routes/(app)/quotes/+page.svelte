@@ -7,6 +7,7 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
+  import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import {
     Button,
     createDiscardGuard,
@@ -24,6 +25,9 @@
     PageToolbar,
     AlertBanner,
     Card,
+    Heading,
+    Text,
+    DeckLayout,
     DeckList,
     EmptyState,
     moduleDef,
@@ -246,15 +250,8 @@
     };
   };
 
-  function isTyping(e: KeyboardEvent): boolean {
-    const el = e.target as HTMLElement | null;
-    return (
-      !!el &&
-      (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)
-    );
-  }
   function onKey(e: KeyboardEvent) {
-    if (isTyping(e) || e.ctrlKey || e.metaKey || !e.altKey) return;
+    if (!isShortcut(e, { alt: true })) return;
     if (e.key === '/') {
       e.preventDefault();
       document.getElementById('quotes-search')?.focus();
@@ -300,9 +297,9 @@
   </PageToolbar>
 
   <section class="block" aria-labelledby="quotes-perms-h">
-    <h2 id="quotes-perms-h" class="block-title">{t('quotes.permsTitle')}</h2>
+    <Heading level={6} as="h2" variant="title" id="quotes-perms-h">{t('quotes.permsTitle')}</Heading>
     <Card>
-      <p class="hint">{t('quotes.permsHint')}</p>
+      <Text size="xs" tone="muted">{t('quotes.permsHint')}</Text>
       <div class="perm-grid">
         <form method="POST" action="?/perm" use:enhance={addPermSubmit} bind:this={addPermForm}>
           <input type="hidden" name="kind" value="add" />
@@ -335,10 +332,10 @@
     {searching ? t('quotes.resultsCount', { n: rows.length }) : ''}
   </p>
 
-  <div class="deck" class:inspecting={inspector.isOpen}>
+  <DeckLayout inspecting={inspector.isOpen}>
     <DeckList>
       {#if rows.length}
-        <ul class="bb-list quote-list" aria-label={t('quotes.listLabel')}>
+        <ul class="bb-list" aria-label={t('quotes.listLabel')}>
           {#each rows as quote (quote.number)}
             <QuoteRow
               {quote}
@@ -398,7 +395,7 @@
         </form>
       </InspectorSurface>
     {/if}
-  </div>
+  </DeckLayout>
 
   {#if quoteCommands.length}
     <div class="cmd-block">
@@ -439,36 +436,17 @@
 <style>
   .toolbar-actions { display: flex; align-items: center; gap: 12px; }
 
-  .block { margin-bottom: 26px; }
-  .block-title {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0 0 12px;
-  }
-  .hint { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  .block { display: grid; gap: 12px; margin-bottom: 26px; }
   .perm-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
     gap: 16px;
+    margin-top: 14px;
   }
 
   .cmd-block { margin-top: 26px; }
 
   .toolbar-search { width: 220px; --input-w: 100%; }
-
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
-  }
-  .quote-list :global(.row-shell:last-child) { border-bottom: none; }
 
   .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 

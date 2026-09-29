@@ -80,6 +80,30 @@
         color: var(--bb-tan);
     }
 
+    .bb-h--title {
+        font-weight: 700;
+        font-size: 16px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+    }
+
+    .bb-h--label {
+        font-family: var(--bb-font-mono);
+        font-weight: 400;
+        font-size: var(--h-label-size, 10px);
+        line-height: 1.2;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--bb-muted);
+    }
+
+    .bb-h--upper {
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+
+    .bb-h:focus:not(:focus-visible) { outline: none; }
+
     .bb-text {
         font-family: var(--bb-font-body);
         font-weight: 400;
@@ -99,15 +123,27 @@
     .bb-text--default { color: var(--bb-white); }
     .bb-text--muted { color: var(--bb-muted); }
     .bb-text--accent { color: var(--bb-tan-light); }
-    .bb-text--danger { color: var(--bb-danger, #d98a8a); }
+    .bb-text--danger { color: var(--bb-danger); }
     .bb-text--pale { color: var(--bb-tan-pale); }
-    .bb-text--warn { color: #f2c879; }
+    .bb-text--warn { color: var(--bb-warn); }
+    .bb-text--muted-light { color: var(--bb-muted-light); }
+    .bb-text--muted-soft { color: var(--bb-muted-soft); }
+    .bb-text--soft { color: rgba(var(--bb-white-rgb), 0.75); }
+    .bb-text--positive { color: var(--bb-green-glow); }
+
+    .bb-text--truncate {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 
     .bb-text--mono {
         font-family: var(--bb-font-mono);
-        font-size: 0.92em;
         letter-spacing: 0;
     }
+    .bb-text--mono.bb-text--md { font-size: 0.92em; }
 
     .bb-lead {
         font-family: var(--bb-font-body);
@@ -131,6 +167,8 @@
         margin: 0;
     }
 
+    .bb-eyebrow--go { color: var(--bb-green-glow); }
+
     .bb-label {
         display: inline-block;
         font-family: var(--bb-font-body);
@@ -140,12 +178,22 @@
         color: var(--bb-muted);
     }
 
+    .bb-label--mono {
+        font-family: var(--bb-font-mono);
+        font-weight: 400;
+        font-size: var(--label-mono-size, 10px);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+
+    legend.bb-label { padding: 0; }
+
     .bb-code {
         font-family: var(--bb-font-mono);
         font-size: 0.92em;
         line-height: inherit;
         color: var(--bb-tan-light);
-        background: rgba(201, 168, 124, 0.08);
+        background: rgba(var(--bb-tan-rgb), 0.08);
         border: 1px solid var(--bb-border);
         border-radius: var(--bb-radius-xs);
         padding: 2px 5px 3px;
@@ -167,9 +215,15 @@
     }
 
     .bb-code--danger {
-        color: #cf8a78;
-        background: rgba(176, 90, 70, 0.12);
-        border-color: rgba(176, 90, 70, 0.30);
+        color: var(--bb-status-error);
+        background: rgba(var(--bb-status-error-border-rgb), 0.12);
+        border-color: rgba(var(--bb-status-error-border-rgb), 0.30);
+    }
+
+    .bb-code--positive {
+        color: var(--bb-green-glow);
+        background: rgba(var(--bb-green-glow-rgb), 0.08);
+        border-color: rgba(var(--bb-green-glow-rgb), 0.25);
     }
 
     .bb-code-block {
@@ -180,7 +234,7 @@
         background: var(--bb-card-bg);
         border: 1px solid var(--bb-border);
         border-radius: var(--bb-radius-md);
-        padding: var(--bb-space-4, 16px);
+        padding: var(--bb-space-4);
         margin: 0;
         overflow-x: auto;
         tab-size: 2;
@@ -196,18 +250,21 @@
         overflow-wrap: normal;
     }
 
+    .bb-code-block--wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .bb-code-block--wrap .bb-code { overflow-wrap: anywhere; }
+
     .bb-kbd {
         display: inline-block;
         font-family: var(--bb-font-mono);
         font-size: 0.85em;
         line-height: 1.4;
         color: var(--bb-white);
-        background: rgba(240, 236, 228, 0.06);
+        background: rgba(var(--bb-white-rgb), 0.06);
         border: 1px solid var(--bb-border-strong);
         border-radius: var(--bb-radius-xs);
         box-shadow:
-            inset 0 1px 0 rgba(240, 236, 228, 0.08),
-            0 1px 0 rgba(0, 0, 0, 0.4);
+            inset 0 1px 0 rgba(var(--bb-white-rgb), 0.08),
+            0 1px 0 rgba(var(--bb-shadow-rgb), 0.4);
         padding: 1px 5px 2px;
         min-width: 1.6em;
         text-align: center;

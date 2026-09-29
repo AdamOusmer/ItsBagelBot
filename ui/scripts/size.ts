@@ -121,8 +121,10 @@ const ENTRIES: {
              globalThis.x = dock;`,
   },
   {
+    // 3762 B gzip measured 2026-09-28 after 11 icons for audit call sites,
+    // +150 B platform delta and ~10% room.
     name: "icons",
-    budget: 3200,
+    budget: 4310,
     external: [],
     source: `import { icons } from "../../lib/icons";
              globalThis.x = icons;`,
@@ -148,22 +150,70 @@ const ENTRIES: {
     source: `import { pushOverlay, portal, trapFocus } from "../../lib/overlay-stack";
              globalThis.x = [pushOverlay, portal, trapFocus];`,
   },
+  {
+    // 358 B gzip measured 2026-09-28, +150 B platform delta and ~10% room.
+    name: "hotkeys",
+    budget: 560,
+    external: [],
+    source: `import * as m from "../../lib/hotkeys";
+             globalThis.x = m;`,
+  },
+  {
+    // 899 B gzip measured 2026-09-28, +150 B platform delta and ~10% room.
+    name: "parallax",
+    budget: 1160,
+    external: [],
+    source: `import * as m from "../../lib/parallax";
+             globalThis.x = m;`,
+  },
+  {
+    // 689 B gzip measured 2026-09-28, +150 B platform delta and ~10% room.
+    name: "tilt",
+    budget: 930,
+    external: [],
+    source: `import * as m from "../../lib/tilt";
+             globalThis.x = m;`,
+  },
+  {
+    // 532 B gzip measured 2026-09-28, +150 B platform delta and ~10% room.
+    name: "live-poll",
+    budget: 760,
+    external: [],
+    source: `import * as m from "../../lib/live-poll";
+             globalThis.x = m;`,
+  },
+  {
+    // 1444 B gzip measured 2026-09-28, +150 B platform delta and ~10% room.
+    name: "line-series",
+    budget: 1760,
+    external: [],
+    source: `import * as m from "../../lib/line-series";
+             globalThis.x = m;`,
+  },
+  {
+    // 763 B gzip measured 2026-09-28, +150 B platform delta and ~10% room.
+    name: "roving-focus",
+    budget: 1010,
+    external: [],
+    source: `import * as m from "../../lib/roving-focus";
+             globalThis.x = m;`,
+  },
 ];
 
 const CSS_ENTRIES: { name: string; budget: number }[] = [
-  { name: "elements/typography", budget: 1320 },
-  { name: "elements/layout", budget: 1210 },
+  { name: "elements/typography", budget: 1680 }, // 1370 B: text tones, truncate, heading title/label, code wrap (2026-09-29)
+  { name: "elements/layout", budget: 1310 }, // 1035 B: grid stackAt md (2026-09-29)
   { name: "elements/input", budget: 1230 },
   // Custom select styling: 811 B gzip, +150 B platform variance and ~10% room.
   { name: "elements/select", budget: 1060 },
   { name: "elements/tooltip", budget: 730 },
-  { name: "elements/table", budget: 700 },
-  { name: "tags", budget: 2020 },
+  { name: "elements/table", budget: 830 }, // 596 B: min width hook (2026-09-29)
+  { name: "tags", budget: 2830 }, // 2420 B: tier, status and toc tones, mark size hook (2026-09-29)
   { name: "reveal", budget: 520 },
   { name: "orbs", budget: 1000 },
   { name: "a11y", budget: 560 },
   { name: "elements/nav-link", budget: 1350 },
-  { name: "elements/button", budget: 1470 },
+  { name: "elements/button", budget: 1870 }, // 1547 B: brand variant, static span, icon danger (2026-09-29)
   { name: "elements/card", budget: 1460 },
   { name: "elements/icon", budget: 280 },
   { name: "elements/brand-mark", budget: 900 },
@@ -178,26 +228,26 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/skeleton", budget: 700 },
   { name: "elements/stat-tile", budget: 980 },
   { name: "elements/toggle", budget: 820 },
-  { name: "elements/alert", budget: 730 },
+  { name: "elements/alert", budget: 1100 }, // 847 B: tip/note callouts, exit action, phone stack and second row (2026-09-29)
   { name: "elements/area-series", budget: 390 },
   { name: "elements/aurora", budget: 450 },
   { name: "elements/bg-orbs", budget: 370 },
   { name: "elements/brackets", budget: 660 },
-  { name: "elements/deck-list", budget: 350 },
+  { name: "elements/deck-list", budget: 340 }, // 157 B: list reset (2026-09-29)
   { name: "elements/editor-footer", budget: 640 },
   { name: "elements/error-scene", budget: 1910 },
-  { name: "elements/management-row", budget: 600 },
-  { name: "elements/modal", budget: 910 },
+  { name: "elements/management-row", budget: 1040 }, // 788 B: link, static, title/meta, wrap and stacked actions (2026-09-29)
+  { name: "elements/modal", budget: 1690 }, // 1380 B: viewer variant and static preview
   { name: "elements/overview-grid", budget: 420 },
   { name: "elements/page-hero", budget: 1090 },
   { name: "elements/reading-progress", budget: 450 },
   { name: "elements/save-status", budget: 270 },
   { name: "elements/section-heading", budget: 560 },
   { name: "elements/surface", budget: 980 },
-  { name: "elements/text-link", budget: 1290 },
+  { name: "elements/text-link", budget: 1910 }, // 1583 B: arrow, inline and quiet variants
   { name: "elements/toast", budget: 960 },
-  { name: "elements/progress-bar", budget: 650 },
-  { name: "elements/step-list", budget: 850 },
+  { name: "elements/progress-bar", budget: 1000 }, // 760 B: target marker and segments (2026-09-29)
+  { name: "elements/step-list", budget: 2050 }, // 1712 B: navigable checklist form
   { name: "elements/log-tail", budget: 440 },
   // Stats contracts, macOS/arm64: measured gzip bytes +150 B platform variance and ~10% room.
   { name: "elements/ambient-sky", budget: 1130 }, // 869 B
@@ -205,6 +255,25 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/counter-card", budget: 1180 }, // 917 B
   { name: "elements/community-card", budget: 1020 }, // 773 B
   { name: "elements/ranking-card", budget: 1190 }, // 928 B
+  // Blocks added 2026-09-28, macOS/arm64: measured gzip +150 B platform variance and ~10% room.
+  { name: "elements/deck-layout", budget: 400 }, // 206 B
+  { name: "elements/fact-list", budget: 930 }, // 687 B
+  { name: "elements/pager", budget: 370 }, // 184 B
+  { name: "elements/disclosure", budget: 1260 }, // 989 B
+  { name: "elements/feed", budget: 740 }, // 516 B
+  { name: "elements/radio-group", budget: 1700 }, // 1395 B: fixed columns, rails and card height hook (2026-09-29)
+  { name: "elements/slider", budget: 380 }, // 191 B
+  { name: "elements/file-drop", budget: 740 }, // 514 B
+  { name: "elements/picker-panel", budget: 1360 }, // 1081 B
+  { name: "elements/stepper", budget: 1590 }, // 1287 B: compact narrow-screen label (2026-09-29)
+  { name: "elements/spinner", budget: 500 }, // 303 B
+  { name: "elements/line-series", budget: 940 }, // 704 B
+  { name: "elements/skip-link", budget: 480 }, // 283 B
+  { name: "elements/popover", budget: 1230 }, // 964 B: bottom placement, touch areas (2026-09-29)
+  { name: "elements/copy-surface", budget: 1620 }, // 1319 B
+  { name: "elements/profile-menu", budget: 2010 }, // 1675 B: menu height cap, coarse-pointer targets (2026-09-29)
+  { name: "elements/notifications", budget: 1410 }, // 1133 B: coarse-pointer touch area (2026-09-29)
+  { name: "elements/nav-progress", budget: 510 }, // 310 B: nav progress bar (2026-09-29)
 ];
 
 let failed = false;

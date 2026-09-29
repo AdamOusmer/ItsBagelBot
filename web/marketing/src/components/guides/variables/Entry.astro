@@ -2,7 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Button from '@bagel/ui/astro/Button.astro';
 import Code from '@bagel/ui/astro/Code.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import type { LocalizedVariableReference } from '../../../lib/variables';
 
 interface EntryCopy {
@@ -31,11 +33,11 @@ const extraForms = entry.syntaxes.slice(1).map((syntax, i) => ({
 <tr id={entry.id} data-vref-entry>
     <td>
         <span class="vref-td-variable">
-            <span class="vref-chip"><Code>{entry.syntax}</Code></span>
-            <button type="button" class="vref-copy" data-vref-copy={entry.example}>{copy.copy}</button>
+            <Code class="vref-syntax">{entry.syntax}</Code>
+            <Button variant="quiet" size="sm" data-vref-copy={entry.example}><span data-vref-copy-label>{copy.copy}</span></Button>
         </span>
     </td>
-    <td class="vref-td-means">{means}</td>
+    <td class="vref-td-means"><Text as="span" size="sm" tone="accent">{means}</Text></td>
     <td><Code>{entry.example}</Code></td>
     <td>{entry.output}</td>
 </tr>
@@ -44,6 +46,6 @@ const extraForms = entry.syntaxes.slice(1).map((syntax, i) => ({
         <td></td>
         <td></td>
         <td><Code>{form.syntax}</Code></td>
-        <td>{form.output}</td>
+        <td><Text as="span" size="sm" tone="muted">{form.output}</Text></td>
     </tr>
 ))}

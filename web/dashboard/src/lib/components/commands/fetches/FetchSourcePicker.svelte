@@ -10,11 +10,29 @@
 </script>
 
 <script lang="ts">
-  import { Select } from '@bagel/kit';
   import { deserialize } from '$app/forms';
-  import { Button, Code, Field, Input, Modal, getI18n, slugifyName, buildJsonPath, DEFS_PER_BROADCASTER } from '@bagel/kit';
-  import { PickerPanel } from '@bagel/kit';
-  import { focusFirstInvalid } from '@bagel/kit';
+  import {
+    Button,
+    Chip,
+    Code,
+    Field,
+    FieldError,
+    Heading,
+    Icon,
+    Input,
+    Modal,
+    PickerOption,
+    PickerPanel,
+    Select,
+    Tag,
+    Text,
+    Textarea,
+    getI18n,
+    slugifyName,
+    buildJsonPath,
+    focusFirstInvalid,
+    DEFS_PER_BROADCASTER
+  } from '@bagel/kit';
   import JsonTree from './JsonTree.svelte';
 
   const { t } = getI18n();
@@ -33,7 +51,7 @@
 
   let open = $state(false);
   let building = $state(false);
-  let btnEl = $state<HTMLButtonElement>();
+  let btnEl = $state<HTMLElement>();
   let panelErr = $state('');
 
   function toggle() {
@@ -41,6 +59,10 @@
     if (!open) return;
     armedDelete = '';
     panelErr = '';
+  }
+
+  function setAnchor(node: HTMLElement) {
+    btnEl = node;
   }
 
   function tokenFor(name: string): string {
@@ -209,21 +231,30 @@
       panelErr = t('fetches.toastDeleteFailed', { name });
     }
   }
+
+  function removeFor(name: string) {
+    const armed = armedDelete === name;
+    return {
+      label: armed ? t('fetches.deleteTitle', { name }) : t('fetches.deleteAria', { name }),
+      armed,
+      armedLabel: t('common.delete'),
+      onclick: () => remove(name)
+    };
+  }
 </script>
 
 <div class="fsp">
-  <button
-    type="button"
-    class="bb-chip bb-chip--muted"
+  <Chip
+    tone="muted"
     title={t('vars.urlfetch.hint')}
     aria-haspopup="dialog"
     aria-expanded={open}
     onclick={toggle}
-    bind:this={btnEl}
+    {@attach setAnchor}
   >
     {t('commandEditor.pickDataSource')}
-    <span class="caret" aria-hidden="true">▾</span>
-  </button>
+    <Icon name="chevron" />
+  </Chip>
 
   <PickerPanel
     {open}
@@ -234,37 +265,28 @@
     onClose={() => (open = false)}
   >
     {#snippet children()}
-      <p class="panel-title">{t('fetches.pickerExistingTitle')}</p>
+      <Heading level={6} as="p" variant="label">{t('fetches.pickerExistingTitle')}</Heading>
       {#if defs.length === 0}
-        <p class="mut">{t('fetches.builderNoneYet')}</p>
+        <Text size="xs" tone="muted">{t('fetches.builderNoneYet')}</Text>
       {:else}
         <ul class="opts">
           {#each defs.toSorted((a, b) => a.name.localeCompare(b.name)) as d (d.name)}
-            <li>
-              <button type="button" class="opt" onclick={() => pick(d.name)}>
-                <span class="opt-name">{tokenFor(d.name)}</span>
-                <span class="opt-path">{d.json_path.length ? buildJsonPath(d.json_path) : t('fetches.kindPlain')}</span>
-              </button>
-              <button
-                type="button"
-                class="opt-del"
-                class:armed={armedDelete === d.name}
-                aria-label={armedDelete === d.name
-                  ? t('fetches.deleteTitle', { name: d.name })
-                  : t('fetches.deleteAria', { name: d.name })}
-                onclick={() => remove(d.name)}>{armedDelete === d.name ? t('common.delete') : '×'}</button
-              >
-            </li>
+            <PickerOption
+              as="li"
+              layout="stacked"
+              label={tokenFor(d.name)}
+              description={d.json_path.length ? buildJsonPath(d.json_path) : t('fetches.kindPlain')}
+              onclick={() => pick(d.name)}
+              remove={removeFor(d.name)}
+            />
           {/each}
         </ul>
       {/if}
-      {#if panelErr}
-        <small class="err" role="alert">{panelErr}</small>
-      {/if}
+      <FieldError message={panelErr} />
       {#if atQuota}
-        <small class="err">{t('fetches.quotaReached', { max: String(DEFS_PER_BROADCASTER) })}</small>
+        <FieldError message={t('fetches.quotaReached', { max: String(DEFS_PER_BROADCASTER) })} />
       {:else}
-        <button type="button" class="new" onclick={openBuilder}>{t('fetches.builderNew')}</button>
+        <Button variant="add" onclick={openBuilder}>{t('fetches.builderNew')}</Button>
       {/if}
     {/snippet}
   </PickerPanel>
@@ -272,10 +294,10 @@
 
 <Modal open={building} title={t('fetches.builderTitle')} busy={creating} closeModal={() => (building = false)}>
   <div class="build" bind:this={buildEl}>
-    <p class="intro">{t('fetches.builderIntro')}</p>
+    <Text size="sm" tone="muted">{t('fetches.builderIntro')}</Text>
 
     <Field label={t('fetches.displayName')}>
-      <input class="in" placeholder={t('fetches.displayNamePh')} bind:value={displayName} oninput={onDisplayName} />
+      <Input fill placeholder={t('fetches.displayNamePh')} bind:value={displayName} oninput={onDisplayName} />
     </Field>
 
     <Field label={t('fetches.slug')} hint={t('fetches.slugHint')} error={nameError} errorId="fetch-name-err">
@@ -324,34 +346,35 @@
         {fetching ? t('fetches.builderFetching') : t('fetches.builderFetch')}
       </Button>
       {#if !showPaste && sample === ''}
-        <button type="button" class="link" onclick={() => (showPaste = true)}>{t('fetches.builderPasteInstead')}</button>
+        <Button variant="ghost" size="sm" onclick={() => (showPaste = true)}>{t('fetches.builderPasteInstead')}</Button>
       {/if}
     </div>
 
-    {#if notice}<small class="notice" role="status">{notice}</small>{/if}
-    {#if err}<small class="err" role="alert">{err}</small>{/if}
+    {#if notice}<Text as="small" size="xs" tone="accent" role="status">{notice}</Text>{/if}
+    <FieldError message={err} />
 
     {#if showPaste}
-      <textarea
-        class="in mono paste"
-        rows="4"
+      <Textarea
+        fill
+        mono
+        rows={4}
         spellcheck="false"
         placeholder={t('fetches.pickerPlaceholder')}
         aria-label={t('fetches.pickerSampleAria')}
         bind:value={sample}
-      ></textarea>
+      />
     {/if}
 
     {#if sample !== ''}
-      <p class="pick-prompt">{t('fetches.builderPickPrompt')}</p>
+      <Text size="xs" tone="accent">{t('fetches.builderPickPrompt')}</Text>
       <JsonTree json={sample} onPick={onPickPath} leafTitle={(segs) => `${tokenFor(slug || 'name')} → ${buildJsonPath(segs)}`} />
       <div class="chosen">
         {#if pathPicked && path.length > 0}
-          <span class="chosen-tag bb-tag bb-tag--bare">{t('fetches.builderPicked')}</span>
-          <Code class="chosen-path">{buildJsonPath(path)}</Code>
-          <button type="button" class="link" onclick={useWholeResponse}>{t('fetches.builderWholeResponse')}</button>
+          <Tag tone="bare">{t('fetches.builderPicked')}</Tag>
+          <Code tone="positive">{buildJsonPath(path)}</Code>
+          <Button variant="ghost" size="sm" onclick={useWholeResponse}>{t('fetches.builderWholeResponse')}</Button>
         {:else}
-          <span class="mut">{t('fetches.builderWholeSelected')}</span>
+          <Text as="span" size="xs" tone="muted">{t('fetches.builderWholeSelected')}</Text>
         {/if}
       </div>
     {/if}
@@ -366,120 +389,15 @@
 </Modal>
 
 <style>
-  .fsp { position: relative; display: inline-flex; }
-
-  .caret { font-size: 9px; opacity: 0.7; }
-
-
-  .panel-title {
-    margin: 0;
-    font-family: var(--bb-font-body);
-    font-size: 10.5px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-
-  .mut { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-  p.mut { margin: 0; font-style: italic; }
+  .fsp { display: inline-flex; }
 
   .opts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-  .opts li { display: flex; align-items: center; gap: 4px; }
-  .opt {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    padding: 5px 8px;
-    background: transparent;
-    border: none;
-    border-radius: var(--bb-radius-sm);
-    cursor: pointer;
-    text-align: left;
-  }
-  .opt:hover { background: var(--glass-fill-2); }
-  .opt-name { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-white); }
-  .opt-path {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    color: var(--bb-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .opt-del {
-    flex: none;
-    min-width: 22px;
-    height: 22px;
-    padding: 0 6px;
-    border: none;
-    border-radius: var(--bb-radius-sm);
-    background: transparent;
-    color: var(--bb-muted);
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-  }
-  .opt-del:hover { color: var(--bb-status-error, #cf8a78); background: rgba(207, 138, 120, 0.12); }
-  .opt-del.armed {
-    color: var(--bb-status-error, #cf8a78);
-    background: rgba(207, 138, 120, 0.16);
-    font-family: var(--bb-font-body);
-    font-size: 11px;
-  }
 
-  .new {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-green-glow, #52b788);
-    background: rgba(82, 183, 136, 0.06);
-    border: 1px dashed rgba(82, 183, 136, 0.4);
-    border-radius: var(--bb-radius-pill);
-    padding: 5px 12px;
-    cursor: pointer;
-  }
-  .new:hover { background: rgba(82, 183, 136, 0.14); }
-
-  .build { display: flex; flex-direction: column; gap: 12px; width: 100%; min-width: 0; }
-  .intro { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
-
-  .build { --field-gap: 5px; --field-mb: 0; }
-  .in {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 9px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-sm);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-  }
-  .in.mono { font-family: var(--bb-font-mono); font-size: 12px; }
-  .in:focus { outline: none; border-color: rgba(82, 183, 136, 0.5); }
-  .paste { resize: vertical; min-height: 74px; line-height: 1.5; }
+  .build { display: flex; flex-direction: column; gap: 12px; width: 100%; min-width: 0; --field-gap: 5px; --field-mb: 0; }
 
   .sample-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .link {
-    background: none;
-    border: none;
-    padding: 0;
-    font-family: var(--bb-font-body);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-    text-decoration: underline;
-    cursor: pointer;
-  }
-  .link:hover { color: var(--bb-white); }
 
-  .notice { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-tan-light); }
-  .err { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-status-error, #cf8a78); }
-
-  .pick-prompt { margin: 0; font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-tan-light); }
   .chosen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-  .chosen-tag { flex: none; }
-  :global(.chosen-path) { color: var(--bb-green-glow, #52b788); min-width: 0; }
 
   .foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
 </style>

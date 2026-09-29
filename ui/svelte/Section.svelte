@@ -14,7 +14,7 @@
     children,
     ...rest
   }: {
-    size?: 'default' | 'sm' | 'lg' | 'flush';
+    size?: 'default' | 'sm' | 'lg' | 'flush' | 'page';
     anchor?: boolean;
     reveal?: boolean;
     as?: string;

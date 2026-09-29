@@ -5,7 +5,11 @@
 import Card from '@bagel/ui/astro/Card.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Badge from '@bagel/ui/astro/Badge.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
 import Icon from '@bagel/ui/astro/Icon.astro';
+import Section from '@bagel/ui/astro/Section.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -14,7 +18,7 @@ const t = useTranslations(lang);
 const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
 ---
 
-<section class="qw" id="quiet-work" data-motion>
+<Section size="page" class="qw" id="quiet-work" data-motion>
     <SectionHeading eyebrow={t('qw.eyebrow')} title={t('qw.title')} />
 
     <div class="qw__grid">
@@ -33,34 +37,32 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                     <span class="qw-song__ack">{t('qw.songAck')}</span>
                 </span>
             </div>
-            <h3 class="qw__title">{t('qw.songTitle')}</h3>
-            <p class="qw__desc">{t('qw.songDesc')}</p>
-            <a class="bb-rail bb-rail--go qw__more" href={localizePath('/song-requests', lang)}>
-                {t('rail.learnMore')}<span class="bb-rail__arrow" aria-hidden="true">→</span>
-            </a>
+            <Heading level={5} as="h3" variant="title" class="qw__title">{t('qw.songTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('qw.songDesc')}</Text>
+            <TextLink variant="arrow" tone="go" class="qw__more" href={localizePath('/song-requests', lang)} label={t('rail.learnMore')} />
         </Card>
 
         <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 1">
             <div class="qw__demo qw__demo--govee" slot="band" aria-hidden="true">
-                <span class="qw-govee__glow bb-stack">
+                <span class="qw-govee__glow bb-layers">
                     {GOVEE_TONES.map((tone) => <i class={`qw-govee__tone qw-govee__tone--${tone}`}></i>)}
                 </span>
-                <span class="qw-govee__bulb bb-stack">
+                <span class="qw-govee__bulb bb-layers">
                     {GOVEE_TONES.map((tone) => (
                         <span class={`qw-govee__tone qw-govee__tone--${tone}`}>
-                            <Icon name="bulb" size={44} strokeWidth={1.6} />
+                            <Icon name="bulb" size={44} strokeWidth={1.6} class="qw-govee__icon" />
                         </span>
                     ))}
                 </span>
                 <span class="qw-govee__redeem">
-                    <span class="qw-govee__dot bb-stack">
+                    <span class="qw-govee__dot bb-layers">
                         {GOVEE_TONES.map((tone) => <i class={`qw-govee__tone qw-govee__tone--${tone}`}></i>)}
                     </span>
                     {t('qw.goveeReward')}
                 </span>
             </div>
-            <h3 class="qw__title">{t('qw.goveeTitle')}</h3>
-            <p class="qw__desc">{t('qw.goveeDesc')}</p>
+            <Heading level={5} as="h3" variant="title" class="qw__title">{t('qw.goveeTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('qw.goveeDesc')}</Text>
         </Card>
 
         <Card atmo hover class="qw__card qw__card--wide" data-reveal style="--reveal-i: 2">
@@ -68,20 +70,20 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                 <span class="qw-cmd__in">!welcome moth_lamp</span>
                 <span class="qw-cmd__out">{t('qw.cmdOut')}</span>
             </div>
-            <h3 class="qw__title">{t('qw.cmdTitle')}</h3>
-            <p class="qw__desc">{t('qw.cmdDesc')}</p>
+            <Heading level={5} as="h3" variant="title" class="qw__title">{t('qw.cmdTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('qw.cmdDesc')}</Text>
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 3">
-            <div class="qw__demo qw__demo--poll" slot="band" aria-hidden="true" data-qw-poll>
-                <span class="qw-poll__bar"><i style="--w: 68%"></i><b>68%</b></span>
-                <span class="qw-poll__bar"><i style="--w: 32%"></i><b>32%</b></span>
+            <div class="qw__demo qw__demo--poll" slot="band" aria-hidden="true">
+                <span class="qw-poll__bar"><i class="qw-poll__fill" style="--w: 68%"></i><b class="qw-poll__pct">68%</b></span>
+                <span class="qw-poll__bar"><i class="qw-poll__fill" style="--w: 32%"></i><b class="qw-poll__pct">32%</b></span>
             </div>
-            <h3 class="qw__title">
+            <Heading level={5} as="h3" variant="title" class="qw__title">
                 {t('qw.pollTitle')}
                 <Badge tone="incoming" mark="plus">{t('badge.incoming')}</Badge>
-            </h3>
-            <p class="qw__desc">{t('qw.pollDesc')}</p>
+            </Heading>
+            <Text size="sm" tone="muted">{t('qw.pollDesc')}</Text>
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 4">
@@ -89,8 +91,8 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                 <span class="qw-win__label">{t('qw.winLabel')}</span>
                 <span class="qw-win__name" data-qw-winner>night_owl_77</span>
             </div>
-            <h3 class="qw__title">{t('qw.winTitle')}</h3>
-            <p class="qw__desc">{t('qw.winDesc')}</p>
+            <Heading level={5} as="h3" variant="title" class="qw__title">{t('qw.winTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('qw.winDesc')}</Text>
         </Card>
 
         <Card atmo hover class="qw__card" data-reveal style="--reveal-i: 5">
@@ -104,17 +106,17 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
                     </span>
                 </span>
             </div>
-            <h3 class="qw__title">{t('qw.beatTitle')}</h3>
-            <p class="qw__desc">{t('qw.beatDesc')}</p>
+            <Heading level={5} as="h3" variant="title" class="qw__title">{t('qw.beatTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('qw.beatDesc')}</Text>
         </Card>
     </div>
-</section>
+</Section>
 
 <style>
     .qw {
         position: relative;
-        padding: var(--space-section, 96px) 24px;
-        max-width: var(--content-max, 1200px);
+        padding-inline: 24px;
+        max-width: var(--bb-content-max);
         margin: 0 auto;
         z-index: 3;
     }
@@ -143,23 +145,10 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         flex-direction: column;
         align-items: flex-start;
         gap: 8px;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1.06rem;
-        font-weight: 700;
-        letter-spacing: -0.01em;
-        color: var(--white, #f0ece4);
         margin: 0 0 8px;
     }
 
     .qw__more { margin-top: 14px; align-self: flex-start; }
-
-    .qw__desc {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.86rem;
-        line-height: 1.6;
-        color: var(--muted, #888077);
-        margin: 0;
-    }
 
     .qw__demo {
         display: flex;
@@ -168,7 +157,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         gap: 8px;
         height: 100%;
         overflow: hidden;
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.74rem;
     }
 
@@ -185,9 +174,9 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         place-items: center;
         width: 56px;
         height: 56px;
-        border-radius: var(--radius-md);
-        background: linear-gradient(145deg, rgba(82, 183, 136, 0.16), rgba(201, 168, 124, 0.1));
-        box-shadow: inset 0 0 0 1px rgba(240, 236, 228, 0.07);
+        border-radius: var(--bb-radius-md);
+        background: linear-gradient(145deg, rgba(var(--bb-green-glow-rgb), 0.16), rgba(var(--bb-tan-rgb), 0.1));
+        box-shadow: inset 0 0 0 1px rgba(var(--bb-white-rgb), 0.07);
     }
 
     .qw-song__eq {
@@ -200,8 +189,8 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     .qw-song__eq i {
         width: 3px;
         height: 100%;
-        border-radius: var(--radius-pill);
-        background: var(--green-glow, #52b788);
+        border-radius: var(--bb-radius-pill);
+        background: var(--bb-green-glow);
         transform-origin: bottom;
         transform: scaleY(0.25);
         animation: qwSongEq 1.15s ease-in-out infinite alternate;
@@ -230,11 +219,11 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         font-size: 0.62rem;
         letter-spacing: 0.2em;
         text-transform: uppercase;
-        color: var(--muted, #888077);
+        color: var(--bb-muted);
     }
 
     .qw-song__track {
-        color: var(--tan-light, #e0c49a);
+        color: var(--bb-tan-light);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -243,8 +232,8 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     .qw-song__scrub {
         display: block;
         height: 3px;
-        border-radius: var(--radius-xs);
-        background: rgba(240, 236, 228, 0.08);
+        border-radius: var(--bb-radius-xs);
+        background: rgba(var(--bb-white-rgb), 0.08);
         overflow: hidden;
     }
 
@@ -253,9 +242,9 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         height: 100%;
         transform: scaleX(0.06);
         transform-origin: left;
-        border-radius: var(--radius-xs);
-        background: linear-gradient(90deg, rgba(82, 183, 136, 0.5), var(--green-glow, #52b788));
-        animation: qwSongScrub 9s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) infinite;
+        border-radius: var(--bb-radius-xs);
+        background: linear-gradient(90deg, rgba(var(--bb-green-glow-rgb), 0.5), var(--bb-green-glow));
+        animation: qwSongScrub 9s var(--bb-ease-out-expo) infinite;
     }
 
     @keyframes qwSongScrub {
@@ -273,9 +262,9 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     }
 
     .qw-song__cmd {
-        color: var(--muted, #888077);
+        color: var(--bb-muted);
         opacity: 0;
-        animation: qwSongReq 9s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) infinite;
+        animation: qwSongReq 9s var(--bb-ease-out-expo) infinite;
     }
 
     .qw-song__ack {
@@ -283,9 +272,9 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         align-items: center;
         gap: 6px;
         font-size: 0.68rem;
-        color: var(--green-glow, #52b788);
+        color: var(--bb-green-glow);
         opacity: 0;
-        animation: qwSongAck 9s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) infinite;
+        animation: qwSongAck 9s var(--bb-ease-out-expo) infinite;
     }
 
     @keyframes qwSongReq {
@@ -334,14 +323,14 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 16px currentColor);
     }
 
-    .qw-govee__bulb :global(svg) { width: 44px; height: 44px; }
+    .qw-govee__icon { width: 44px; height: 44px; }
 
     .qw-govee__redeem {
         position: relative;
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        color: var(--muted, #888077);
+        color: var(--bb-muted);
         opacity: 0;
         animation: qwGoveeRedeem 9s ease-in-out infinite;
     }
@@ -365,10 +354,10 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         animation-iteration-count: infinite;
     }
 
-    .qw-govee__tone--off { color: #5c665f; opacity: 1; animation-name: qwGoveeOff; }
-    .qw-govee__tone--green { color: #52b788; animation-name: qwGoveeGreen; }
-    .qw-govee__tone--tan { color: #e0c49a; animation-name: qwGoveeTan; }
-    .qw-govee__tone--red { color: #d98a8a; animation-name: qwGoveeRed; }
+    .qw-govee__tone--off { color: var(--bb-gray-4-dark); opacity: 1; animation-name: qwGoveeOff; }
+    .qw-govee__tone--green { color: var(--bb-green-glow); animation-name: qwGoveeGreen; }
+    .qw-govee__tone--tan { color: var(--bb-tan-light); animation-name: qwGoveeTan; }
+    .qw-govee__tone--red { color: var(--bb-danger); animation-name: qwGoveeRed; }
 
     @keyframes qwGoveeOff {
         0%, 28% { opacity: 1; }
@@ -413,17 +402,17 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     }
 
     .qw-cmd__in {
-        color: var(--tan-light, #e0c49a);
+        color: var(--bb-tan-light);
         width: 18ch;
         max-width: 100%;
         white-space: nowrap;
         overflow: hidden;
-        border-right: 1px solid rgba(224, 196, 154, 0.6);
+        border-right: 1px solid color-mix(in srgb, var(--bb-tan-light) 60%, transparent);
         animation: qwType 5.4s steps(18) infinite;
     }
 
     .qw-cmd__out {
-        color: var(--green-glow, #52b788);
+        color: var(--bb-green-glow);
         opacity: 0;
         animation: qwCmdOut 5.4s ease-in-out infinite;
     }
@@ -449,27 +438,27 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         gap: 8px;
     }
 
-    .qw-poll__bar i {
+    .qw-poll__fill {
         display: block;
         height: 7px;
         width: 4%;
-        border-radius: var(--radius-xs);
-        background: linear-gradient(90deg, rgba(201, 168, 124, 0.5), var(--tan, #c9a87c));
-        transition: width 1200ms var(--ease-out-expo);
+        border-radius: var(--bb-radius-xs);
+        background: linear-gradient(90deg, rgba(var(--bb-tan-rgb), 0.5), var(--bb-tan));
+        transition: width calc(var(--bb-dur-slow) * 2) var(--bb-ease-out-expo);
     }
 
-    .qw-poll__bar:nth-child(2) i {
-        background: linear-gradient(90deg, rgba(82, 183, 136, 0.5), var(--green-glow, #52b788));
+    .qw-poll__bar:nth-child(2) .qw-poll__fill {
+        background: linear-gradient(90deg, rgba(var(--bb-green-glow-rgb), 0.5), var(--bb-green-glow));
         transition-delay: 140ms;
     }
 
-    .qw-poll__bar b {
+    .qw-poll__pct {
         font-weight: 500;
         font-size: 0.68rem;
-        color: var(--muted, #888077);
+        color: var(--bb-muted);
     }
 
-    .qw__demo--poll.is-live .qw-poll__bar i { width: var(--w, 50%); }
+    .qw__card.is-revealed .qw-poll__fill { width: var(--w); }
 
     .qw__demo--win { align-items: flex-start; gap: 4px; }
 
@@ -477,16 +466,16 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         font-size: 0.62rem;
         letter-spacing: 0.2em;
         text-transform: uppercase;
-        color: var(--muted, #888077);
+        color: var(--bb-muted);
     }
 
     .qw-win__name {
         font-size: 1rem;
-        color: var(--tan-light, #e0c49a);
-        text-shadow: 0 0 18px rgba(201, 168, 124, 0.35);
+        color: var(--bb-tan-light);
+        text-shadow: 0 0 18px rgba(var(--bb-tan-rgb), 0.35);
     }
 
-    .qw__demo--beat { color: var(--green-glow, #52b788); padding: 18px 12px; }
+    .qw__demo--beat { color: var(--bb-green-glow); padding: 18px 12px; }
 
     .qw-beat {
         display: block;
@@ -508,7 +497,7 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
     .qw-beat__wipe svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
     .qw-beat__path {
-        filter: drop-shadow(0 0 6px rgba(82, 183, 136, 0.55));
+        filter: drop-shadow(0 0 6px rgba(var(--bb-green-glow-rgb), 0.55));
     }
 
     @keyframes qwBeat {
@@ -534,45 +523,21 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         .qw-govee__redeem { opacity: 1; }
         .qw-cmd__in { width: 18ch; border-right: none; }
         .qw-cmd__out { opacity: 1; }
-        .qw-poll__bar i { transition: none; }
-        .qw__demo--poll .qw-poll__bar i { width: var(--w, 50%); }
+        .qw-poll__fill { width: var(--w); transition: none; }
     }
 
     @media (max-width: 640px) {
-        .qw { padding: var(--space-section-sm, 72px) 20px; }
+        .qw { padding-inline: 20px; }
     }
 </style>
 
 <script>
     import { bindOnce } from '../../script/bind';
+    import { decode } from '@bagel/ui/lib/decode';
     import { reduceMotion } from '@bagel/ui/lib/motion-query';
 
-    const pollsIn = new IntersectionObserver((entries, obs) => {
-        entries.forEach((entry) => {
-            if (!entry.isIntersecting) return;
-            entry.target.classList.add('is-live');
-            obs.unobserve(entry.target);
-        });
-    }, { threshold: 0.4 });
-
     const NAMES = ['night_owl_77', 'gg_beans', 'moth_lamp', 'soupdream', 'tiny_cactus', 'pixel_pal'];
-    const GLYPHS = 'abcdefghijklmnopqrstuvwxyz_0123456789';
-
-    function shuffleTo(el: HTMLElement, name: string) {
-        const start = performance.now();
-        const duration = 900;
-        function tick(now: number) {
-            const p = Math.min(1, (now - start) / duration);
-            const reveal = Math.floor(name.length * p);
-            el.textContent = name
-                .split('')
-                .map((ch, i) => (i < reveal ? ch : GLYPHS[Math.floor(Math.random() * GLYPHS.length)]))
-                .join('');
-            if (p < 1) requestAnimationFrame(tick);
-            else el.textContent = name;
-        }
-        requestAnimationFrame(tick);
-    }
+    const SCRAMBLE = { charset: 'abcdefghijklmnopqrstuvwxyz_0123456789', durationMs: 900 };
 
     function setupWinner(el: HTMLElement) {
         if (reduceMotion.matches) return;
@@ -580,11 +545,13 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         let visible = false;
         let i = 0;
         let timer = 0;
+        let stopDecode = () => {};
 
         function loop() {
             window.clearTimeout(timer);
             if (!visible || document.hidden) return;
-            shuffleTo(el, NAMES[i++ % NAMES.length]);
+            stopDecode();
+            stopDecode = decode(el, NAMES[i++ % NAMES.length], SCRAMBLE);
             timer = window.setTimeout(loop, 4200);
         }
 
@@ -596,6 +563,5 @@ const GOVEE_TONES = ['off', 'green', 'tan', 'red'];
         io.observe(el);
     }
 
-    bindOnce('[data-qw-poll]', (el) => pollsIn.observe(el));
     bindOnce('[data-qw-winner]', setupWinner);
 </script>

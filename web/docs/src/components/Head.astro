@@ -10,7 +10,6 @@ import { ClientRouter } from 'astro:transitions';
 import SmoothScroll from './SmoothScroll.astro';
 import SidebarState from './SidebarState.astro';
 import MermaidStyles from './MermaidStyles.astro';
-import MermaidInteractive from './MermaidInteractive.astro';
 
 const ogImage = new URL('/og-image.png', Astro.site).href;
 const { entry } = Astro.locals.starlightRoute ?? {};
@@ -75,4 +74,3 @@ const structuredData = {
 <SmoothScroll />
 <SidebarState />
 <MermaidStyles />
-<MermaidInteractive />

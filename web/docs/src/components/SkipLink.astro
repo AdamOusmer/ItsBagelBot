@@ -2,21 +2,23 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Default from '@astrojs/starlight/components/SkipLink.astro';
+import SkipLink from '@bagel/ui/astro/SkipLink.astro';
+import MermaidInteractive from './MermaidInteractive.astro';
 
 const { entry } = Astro.locals.starlightRoute;
 const isSplash = entry.data.template === 'splash';
 ---
 
-<Default><slot /></Default>
+<SkipLink href="#_top" label={Astro.locals.t('skipLink.label')} />
 
 {
-    /* Decoration is restricted to splash pages; doc pages stay clean. */
     isSplash && (
-        <div class="bb-decoration" aria-hidden="true" data-astro-transition-persist="bb-decoration">
-            <div class="bb-orb bb-orb--halo bb-orb--green bb-orb-1" />
-            <div class="bb-orb bb-orb--halo bb-orb--tan bb-orb-2" />
-            <div class="bb-noise" />
+        <div class="docs-decoration" aria-hidden="true" data-astro-transition-persist="docs-decoration">
+            <div class="bb-orb bb-orb--halo bb-orb--green docs-orb-1" />
+            <div class="bb-orb bb-orb--halo bb-orb--tan docs-orb-2" />
+            <div class="docs-noise" />
         </div>
     )
 }
+
+<MermaidInteractive />

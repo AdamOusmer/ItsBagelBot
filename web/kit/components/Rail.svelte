@@ -5,6 +5,7 @@
   import AccountFoot from './AccountFoot.svelte';
   import type { DashboardLink, NavGroupDef } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
+  import { groupsWithLockedHints } from '../lib/nav-core';
 
   const { t } = getI18n();
 
@@ -23,14 +24,7 @@
     delegateExitLabel?: string;
   } = $props();
 
-  const withHints = $derived(
-    groups.map((group) => ({
-      ...group,
-      items: group.items.map((item) =>
-        item.locked ? { ...item, lockedHint: t('nav.lockedBroadcaster') } : item
-      )
-    }))
-  );
+  const withHints = $derived(groupsWithLockedHints(groups, t));
 </script>
 
 <Rail

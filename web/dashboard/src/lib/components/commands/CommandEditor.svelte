@@ -2,13 +2,15 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
-  import { Select } from '@bagel/kit';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Field,
     Grid,
     FieldError,
+    Input,
+    Select,
+    Text,
     Scroller,
     EditorFooter,
     Switch,
@@ -94,6 +96,9 @@
   });
 
   let nameEl = $state<HTMLInputElement>();
+  function setNameEl(node: HTMLInputElement) {
+    nameEl = node;
+  }
   onMount(() => {
     let frames = 0;
     let raf = 0;
@@ -150,13 +155,12 @@
     error={errors.name}
     errorId="command-name-err"
   >
-    <input
-      class="bb-input"
-      bind:this={nameEl}
+    <Input
+      {@attach setNameEl}
       name="name"
       placeholder={t('commandEditor.namePlaceholder')}
       required
-      data-invalid={errors.name ? '' : undefined}
+      invalid={!!errors.name}
       aria-invalid={errors.name ? 'true' : undefined}
       aria-describedby={errors.name ? 'command-name-err' : undefined}
       bind:value={draft.name}
@@ -204,13 +208,12 @@
     </Field>
 
     <Field label={t('commandEditor.cooldownS')} error={errors.cooldown} errorId="command-cooldown-err">
-      <input
-        class="bb-input"
+      <Input
         type="number"
         name="cooldown"
         min="0"
         max={COOLDOWN_MAX}
-        data-invalid={errors.cooldown ? '' : undefined}
+        invalid={!!errors.cooldown}
         aria-invalid={errors.cooldown ? 'true' : undefined}
         aria-describedby={errors.cooldown ? 'command-cooldown-err' : undefined}
         bind:value={draft.cooldown}
@@ -224,12 +227,11 @@
     error={errors.allowed_user_id}
     errorId="command-user-err"
   >
-    <input
-      class="bb-input"
+    <Input
       name="allowed_user_id"
       inputmode="numeric"
       placeholder={t('commandEditor.restrictPlaceholder')}
-      data-invalid={errors.allowed_user_id ? '' : undefined}
+      invalid={!!errors.allowed_user_id}
       aria-invalid={errors.allowed_user_id ? 'true' : undefined}
       aria-describedby={errors.allowed_user_id ? 'command-user-err' : undefined}
       bind:value={draft.allowed_user_id}
@@ -240,7 +242,7 @@
     {#if draft.edit && onToggleActive}
       <input type="hidden" name="is_active" value={liveActive ? 'on' : ''} />
       <div class="live-active">
-        <span class="live-lbl">{t('commandEditor.active')}</span>
+        <Text as="span" size="sm">{t('commandEditor.active')}</Text>
         <Switch
           checked={liveActive}
           pending={busy}
@@ -264,12 +266,11 @@
     error={errors.bump_counter}
     errorId="command-bump-counter-err"
   >
-    <input
-      class="bb-input"
+    <Input
       name="bump_counter"
       maxlength="64"
       placeholder={t('commandEditor.bumpCounterPlaceholder')}
-      data-invalid={errors.bump_counter ? '' : undefined}
+      invalid={!!errors.bump_counter}
       aria-invalid={errors.bump_counter ? 'true' : undefined}
       aria-describedby={errors.bump_counter ? 'command-bump-counter-err' : undefined}
       bind:value={draft.bump_counter}
@@ -296,7 +297,6 @@
   .editor-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
   .editor { padding: 4px 2px 2px; }
 
-
   .name-wrap { position: relative; }
   .open-existing {
     position: absolute;
@@ -306,7 +306,7 @@
     border: none;
     background: none;
     font-family: var(--bb-font-body);
-    font-size: 12px;
+    font-size: var(--bb-text-xs);
     color: var(--bb-green-glow);
     text-decoration: underline;
     cursor: pointer;
@@ -321,10 +321,5 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-  }
-  .live-lbl {
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    color: var(--bb-white, var(--bb-text, #e8e0d6));
   }
 </style>

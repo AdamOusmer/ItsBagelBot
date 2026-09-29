@@ -5,35 +5,96 @@
 import '../styles/elements/management-row.css';
 
 interface Props {
+    as?: string;
+    href?: string;
+    selectable?: boolean;
     selected?: boolean;
     expanded?: boolean;
     controls?: string;
     disabled?: boolean;
     accent?: boolean;
+    wrap?: boolean;
+    stackActions?: boolean;
+    label?: string;
+    title?: string;
+    meta?: string;
     class?: string;
+    [key: string]: unknown;
 }
 
 const {
+    as = 'div',
+    href,
+    selectable = true,
     selected = false,
     expanded = false,
     controls,
     disabled = false,
     accent = false,
+    wrap = false,
+    stackActions = false,
+    label,
+    title,
+    meta,
     class: className = '',
     ...rest
 } = Astro.props;
+
+const isStatic = !href && !selectable;
 
 const classes = [
     'bb-row',
     'row-shell',
     accent ? 'bb-row--accent' : null,
+    isStatic ? 'bb-row--static' : null,
     selected ? 'is-selected' : null,
     disabled ? 'is-off' : null,
+    wrap ? 'bb-row--wrap' : null,
+    stackActions ? 'bb-row--stack-actions' : null,
     className || null,
 ]
     .filter(Boolean)
     .join(' ');
+
+function primaryElement() {
+    const current: 'true' | undefined = selected ? 'true' : undefined;
+    if (href) {
+        return { tag: 'a', attrs: { href, 'data-cursor': 'quiet', 'aria-current': current, 'aria-label': label } };
+    }
+    if (isStatic) return { tag: 'div', attrs: { 'data-cursor': 'quiet' } };
+    return {
+        tag: 'button',
+        attrs: {
+            type: 'button',
+            'data-cursor': 'quiet',
+            'aria-expanded': expanded,
+            'aria-controls': controls,
+            'aria-current': current,
+            'aria-label': label,
+        },
+    };
+}
+
+const Tag = as;
+const { tag: Primary, attrs: primaryAttrs } = primaryElement();
+const structured = title !== undefined;
+const hasLead = Astro.slots.has('lead');
+const hasBadge = Astro.slots.has('badge');
+const hasMarks = Astro.slots.has('marks');
 const hasActions = Astro.slots.has('actions');
 ---
 
-<div class={classes} {...rest}><button class="bb-row__primary" type="button" data-cursor="quiet" aria-expanded={expanded} aria-controls={controls} aria-current={selected ? 'true' : undefined}><slot /></button>{hasActions && <div class="bb-row__actions"><slot name="actions" /></div>}</div>
+<Tag class={classes} {...rest}>
+    <Primary class="bb-row__primary" {...primaryAttrs}>{structured ? (
+        <span class="bb-row__line">
+            {hasLead && <slot name="lead" />}
+            <span class="bb-row__text">
+                <span class="bb-row__title">{title}{hasBadge && <span class="bb-row__badge"><slot name="badge" /></span>}</span>
+                {meta && <span class="bb-row__meta">{meta}</span>}
+            </span>
+            <slot />
+            {hasMarks && <span class="bb-row__marks"><slot name="marks" /></span>}
+        </span>
+    ) : <slot />}</Primary>
+    {hasActions && <div class="bb-row__actions"><slot name="actions" /></div>}
+</Tag>

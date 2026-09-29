@@ -1,13 +1,19 @@
 <script lang="ts">
-  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import type { SubmitFunction } from '@sveltejs/kit';
   import { enhance } from '$app/forms';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Scroller from '@bagel/ui/svelte/Scroller.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import FactList from '@bagel/ui/svelte/FactList.svelte';
+  import Fact from '@bagel/ui/svelte/Fact.svelte';
   import { statusTone, type StatusTone } from '@bagel/kit/status-tone';
   import { ago, fmtDate } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -94,29 +100,29 @@
 
 <Scroller fill padding="18px" smooth>
   <div class="detail">
-    <div class="ident">
+    <Cluster gap={3} nowrap>
       <Bolota name={user.username} size={44} active />
       <div>
-        <div class="ident-name">{user.username}</div>
-        <div class="ident-meta">
+        <Heading level={5} as="div" variant="title">{user.username}</Heading>
+        <Text as="div" size="xs" mono tone="muted">
           {t('admin.users.identityMeta', {
             id: String(user.id),
             joined: fmtDate(user.created_at),
             updated: ago(user.updated_at)
           })}
-        </div>
+        </Text>
       </div>
       <span class="ident-mark">
         <StatePill tone={state}>{state}</StatePill>
       </span>
-    </div>
+    </Cluster>
 
     <section class="block">
-      <h3 class="block-label">{t('admin.users.tierTitle')}</h3>
-      <div class="tiers">
+      <Heading level={3} variant="label">{t('admin.users.tierTitle')}</Heading>
+      <Cluster gap={2}>
         {#each TIERS as tier (tier)}
           <Chip
-            class="tier-{tier}"
+            tone={tier}
             on={user.status === tier}
             disabled={locked || !can('users.grant')}
             onclick={() => onStatus(tier)}
@@ -124,35 +130,31 @@
             {tier}
           </Chip>
         {/each}
-      </div>
+      </Cluster>
       {#if hasPlanFacts}
-        <dl class="facts">
+        <FactList>
           {#if user.subscription_expires_at}
-            <div>
-              <dt>{t('admin.users.planUntil')}</dt>
-              <dd>{fmtDate(user.subscription_expires_at)}</dd>
-            </div>
+            <Fact term={t('admin.users.planUntil')} truncate>{fmtDate(user.subscription_expires_at)}</Fact>
           {/if}
           {#if user.subscription_source}
-            <div><dt>{t('admin.users.planSource')}</dt><dd>{user.subscription_source}</dd></div>
+            <Fact term={t('admin.users.planSource')} truncate>{user.subscription_source}</Fact>
           {/if}
           {#if user.subscription_ref}
-            <div><dt>{t('admin.users.planReference')}</dt><dd>{user.subscription_ref}</dd></div>
+            <Fact term={t('admin.users.planReference')} truncate>{user.subscription_ref}</Fact>
           {/if}
           {#if user.subscription_cancel_pending}
-            <div>
-              <dt>{t('admin.users.planRenewal')}</dt>
-              <dd class="warn">{t('admin.users.planCancelPending')}</dd>
-            </div>
+            <Fact term={t('admin.users.planRenewal')} tone="danger" truncate>
+              {t('admin.users.planCancelPending')}
+            </Fact>
           {/if}
-        </dl>
+        </FactList>
       {/if}
     </section>
 
     {#if can('users.test')}
       <section class="block">
-        <h3 class="block-label">{t('admin.users.testAccountTitle')}</h3>
-        <p class="note">{t('admin.users.testAccountHint')}</p>
+        <Heading level={3} variant="label">{t('admin.users.testAccountTitle')}</Heading>
+        <Text size="xs" tone="muted">{t('admin.users.testAccountHint')}</Text>
         <form class="inline" method="POST" action="?/setTestAccount" use:enhance>
           <input type="hidden" name="user_id" value={user.id} />
           <input type="hidden" name="active" value={user.test_account ? 'false' : 'true'} />
@@ -164,21 +166,24 @@
     {/if}
 
     <section class="block">
-      <h3 class="block-label">{t('admin.users.connectionTitle')}</h3>
-      <p class="probe"><StatusDot tone={servingTone} /><span>{servingLabel}</span></p>
-      <p class="probe">
+      <Heading level={3} variant="label">{t('admin.users.connectionTitle')}</Heading>
+      <Cluster gap={2} nowrap>
+        <StatusDot tone={servingTone} />
+        <Text as="span" size="sm">{servingLabel}</Text>
+      </Cluster>
+      <Cluster gap={2} nowrap>
         <StatusDot tone={tokenPresent === null ? statusTone('connecting') : statusTone(tokenPresent ? 'online' : 'auth_required')} />
-        <span>
+        <Text as="span" size="sm">
           {tokenPresent === null
             ? t('admin.users.tokenChecking')
             : tokenPresent
               ? t('admin.users.tokenPresent')
               : t('admin.users.tokenAbsent')}
-        </span>
-      </p>
-      <p class="probe">
+        </Text>
+      </Cluster>
+      <Cluster gap={2} nowrap>
         <StatusDot tone={subTone} />
-        <span>
+        <Text as="span" size="sm">
           {#if subState === null}
             {t('admin.users.eventsubChecking')}
           {:else}
@@ -187,12 +192,12 @@
               · {t('admin.users.eventsubChecked', { when: ago(subState.checkedAt) })}
             {/if}
           {/if}
-        </span>
-      </p>
+        </Text>
+      </Cluster>
       {#if subState?.error}
-        <p class="probe-err">{subState.error}</p>
+        <div class="wrap"><Text size="xs" mono tone="danger">{subState.error}</Text></div>
       {/if}
-      <div class="acts">
+      <Cluster gap={2}>
         {#each actionsFor('service', user, can) as def (def.id)}
           <Button
             variant={def.danger ? 'destructive' : 'ghost'}
@@ -203,12 +208,12 @@
             {t(actionLabel(def, user))}
           </Button>
         {/each}
-      </div>
+      </Cluster>
     </section>
 
     {#if can('users.grant')}
       <section class="block">
-        <h3 class="block-label">{t('admin.users.creatorTitle')}</h3>
+        <Heading level={3} variant="label">{t('admin.users.creatorTitle')}</Heading>
         <form class="inline" method="POST" action="?/setCreatorCode" use:enhance={creatorSubmit}>
           <input type="hidden" name="user_id" value={user.id} />
           <Input
@@ -228,8 +233,8 @@
     {/if}
 
     <section class="block">
-      <h3 class="block-label">{t('admin.users.viewAsTitle')}</h3>
-      <div class="acts">
+      <Heading level={3} variant="label">{t('admin.users.viewAsTitle')}</Heading>
+      <Cluster gap={2}>
         {#each actionsFor('support', user, can) as def (def.id)}
           <Button variant="ghost" disabled={locked} loading={busy === def.id} onclick={() => onAction(def)}>
             {t(def.label)}
@@ -240,7 +245,7 @@
             {t('admin.users.messageCta')}
           </Button>
         {/if}
-      </div>
+      </Cluster>
       {#if viewAsUrl}
         <div class="inline">
           <Input
@@ -251,47 +256,53 @@
             aria-label={t('admin.users.viewAsLinkLabel')}
           />
         </div>
-        <p class="note">{t('admin.users.viewAsNote')}</p>
+        <Text size="xs" tone="muted">{t('admin.users.viewAsNote')}</Text>
       {/if}
     </section>
 
     {#if canReadHistory}
       <section class="block">
-        <h3 class="block-label">{t('admin.users.historyTitle')}</h3>
+        <Heading level={3} variant="label">{t('admin.users.historyTitle')}</Heading>
         {#if history === null}
-          <p class="note">{t('admin.users.historyLoading')}</p>
+          <Text size="xs" tone="muted">{t('admin.users.historyLoading')}</Text>
         {:else if historyError}
-          <p class="probe-err">{historyError}</p>
+          <div class="wrap"><Text size="xs" mono tone="danger">{historyError}</Text></div>
         {:else if history.length === 0}
-          <p class="note">{t('admin.users.historyEmpty')}</p>
+          <Text size="xs" tone="muted">{t('admin.users.historyEmpty')}</Text>
         {:else}
           <ul class="bb-list hist">
             {#each history as e (e.id)}
               <li class="hist-row">
                 <StatusDot tone={statusTone(e.ok ? 'online' : 'degraded')} />
-                <span class="hist-act">{e.action} · @{e.actor_login}</span>
-                <span class="hist-when">{ago(e.created_at)}</span>
+                <span class="hist-act"><Text as="span" size="xs" mono truncate>{e.action} · @{e.actor_login}</Text></span>
+                <span class="hist-when"><Text as="span" size="xs" mono tone="muted">{ago(e.created_at)}</Text></span>
               </li>
             {/each}
           </ul>
-          <a class="note more" href={`/audit?q=${user.id}`}>{t('admin.users.historyMore')}</a>
+          <Text size="xs">
+            <TextLink variant="inline" href={`/audit?q=${user.id}`}>{t('admin.users.historyMore')}</TextLink>
+          </Text>
         {/if}
       </section>
     {/if}
 
     {#if can('giveaways.manage')}
       <section class="block">
-        <h3 class="block-label">{t('admin.users.prizeHistoryTitle')}</h3>
+        <Heading level={3} variant="label">{t('admin.users.prizeHistoryTitle')}</Heading>
         {#if prizeHistory === null}
-          <p class="note">{t('admin.users.prizeHistoryLoading')}</p>
+          <Text size="xs" tone="muted">{t('admin.users.prizeHistoryLoading')}</Text>
         {:else if prizeHistoryError}
-          <p class="probe-err">{prizeHistoryError}</p>
+          <div class="wrap"><Text size="xs" mono tone="danger">{prizeHistoryError}</Text></div>
         {:else if prizeHistory.length === 0}
-          <p class="note">{t('admin.users.prizeHistoryEmpty')}</p>
+          <Text size="xs" tone="muted">{t('admin.users.prizeHistoryEmpty')}</Text>
         {:else}
           <ul class="bb-list hist">
             {#each prizeHistory as award (award.id)}
-              <li class="hist-row"><StatusDot tone={statusTone(award.awardState === 'completed' ? 'online' : 'degraded')} /><span class="hist-act">{t('admin.users.prizeMonths', { n: award.prizeMonths })} · {award.awardState}</span><span class="hist-when">{award.startAt ? fmtDate(award.startAt) : t('admin.giveaways.noDate')}</span></li>
+              <li class="hist-row">
+                <StatusDot tone={statusTone(award.awardState === 'completed' ? 'online' : 'degraded')} />
+                <span class="hist-act"><Text as="span" size="xs" mono truncate>{t('admin.users.prizeMonths', { n: award.prizeMonths })} · {award.awardState}</Text></span>
+                <span class="hist-when"><Text as="span" size="xs" mono tone="muted">{award.startAt ? fmtDate(award.startAt) : t('admin.giveaways.noDate')}</Text></span>
+              </li>
             {/each}
           </ul>
         {/if}
@@ -300,8 +311,8 @@
 
     {#if actionsFor('danger', user, can).length}
       <section class="block danger">
-        <h3 class="block-label">{t('admin.users.dangerTitle')}</h3>
-        <div class="acts">
+        <Heading level={3} variant="label">{t('admin.users.dangerTitle')}</Heading>
+        <Cluster gap={2}>
           {#each actionsFor('danger', user, can) as def (def.id)}
             <Button
               variant={def.danger ? 'destructive' : 'ghost'}
@@ -312,7 +323,7 @@
               {t(def.label)}
             </Button>
           {/each}
-        </div>
+        </Cluster>
       </section>
     {/if}
   </div>
@@ -325,23 +336,6 @@
     gap: 20px;
   }
 
-  .ident {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .ident-name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    color: var(--bb-white);
-  }
-  .ident-meta {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-    margin-top: 2px;
-  }
   .ident-mark {
     margin-left: auto;
   }
@@ -349,134 +343,34 @@
   .block {
     display: flex;
     flex-direction: column;
-    gap: 9px;
-  }
-  .block-label {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    font-weight: 400;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin: 0;
-  }
-  .note {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-muted);
-    margin: 0;
-  }
-  .more {
-    text-decoration: none;
-    color: var(--bb-tan);
-  }
-  .more:hover {
-    color: var(--bb-tan-pale);
+    gap: var(--bb-space-2);
   }
 
-  .tiers {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .tiers :global(.tier-free.is-on) {
-    color: var(--bb-tier-free);
-    background: var(--bb-tier-free-bg);
-    border-color: var(--bb-tier-free-border);
-  }
-  .tiers :global(.tier-paid.is-on) {
-    color: var(--bb-tier-paid);
-    background: var(--bb-tier-paid-bg);
-    border-color: var(--bb-tier-paid-border);
-  }
-  .tiers :global(.tier-vip.is-on) {
-    color: var(--bb-tier-vip);
-    background: var(--bb-tier-vip-bg);
-    border-color: var(--bb-tier-vip-border);
-  }
-
-  .facts {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    margin: 2px 0 0;
-  }
-  .facts div {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: baseline;
-  }
-  .facts dt {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-muted);
-  }
-  .facts dd {
-    margin: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-tan-light);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .facts dd.warn {
-    color: var(--bb-status-error);
-  }
-
-  .probe {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    margin: 0;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-white);
-  }
-  .probe-err {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-status-error);
-    word-break: break-word;
-    margin: 0;
-  }
-
-  .acts {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+  .wrap {
+    overflow-wrap: anywhere;
   }
 
   .inline {
     display: flex;
-    gap: 8px;
+    gap: var(--bb-space-2);
   }
 
   .hist {
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: var(--bb-space-2);
   }
   .hist-row {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: var(--bb-space-2);
     min-width: 0;
   }
   .hist-act {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-white);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     flex: 1;
+    min-width: 0;
   }
   .hist-when {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    color: var(--bb-muted);
     white-space: nowrap;
   }
 

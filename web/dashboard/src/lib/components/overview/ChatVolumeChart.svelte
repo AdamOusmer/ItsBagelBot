@@ -3,6 +3,8 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { getI18n } from '@bagel/kit/i18n/context';
   import AreaSeries from '@bagel/ui/svelte/AreaSeries.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import type { ChatVolume } from '$lib/overview-live';
 
   const { t } = getI18n();
@@ -14,11 +16,9 @@
 
 <div class="ov-vol">
   <div class="ov-vol__head">
-    <span class="ov-vol__label">{t('overview.chatVolume')}</span>
+    <Label mono as="span">{t('overview.chatVolume')}</Label>
     {#if volume.ok}
-      <span class="ov-vol__rate"
-        >{t('overview.chatVolumeNowPeak', { now: volume.now, peak: volume.peak })}</span
-      >
+      <Label mono as="span">{t('overview.chatVolumeNowPeak', { now: volume.now, peak: volume.peak })}</Label>
     {/if}
   </div>
 
@@ -28,12 +28,12 @@
       ticks={volume.commandTicks}
       ariaLabel={t('overview.chatVolumeChartLabel')}
     />
-    <p class="ov-vol__legend">
+    <div class="ov-vol__legend">
       <span class="ov-vol__swatch" aria-hidden="true"></span>
-      {t('overview.chatVolumeLegend')}
-    </p>
+      <Label mono as="span">{t('overview.chatVolumeLegend')}</Label>
+    </div>
   {:else}
-    <p class="ov-vol__empty">{t('overview.chatVolumeUnavailable')}</p>
+    <div class="ov-vol__empty"><Text size="sm" tone="muted">{t('overview.chatVolumeUnavailable')}</Text></div>
   {/if}
 </div>
 
@@ -50,24 +50,11 @@
     gap: 12px;
     margin-bottom: 6px;
   }
-  .ov-vol__label,
-  .ov-vol__rate {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
   .ov-vol__legend {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 12px 0 0;
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
+    margin-top: 12px;
   }
   .ov-vol__swatch {
     width: 10px;
@@ -77,9 +64,6 @@
     flex: none;
   }
   .ov-vol__empty {
-    margin: 18px 0 0;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-muted);
+    margin-top: 18px;
   }
 </style>

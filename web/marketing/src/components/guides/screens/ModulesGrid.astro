@@ -2,13 +2,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Tag from '@bagel/ui/astro/Tag.astro';
-
 import Badge from '@bagel/ui/astro/Badge.astro';
 import DeckList from '@bagel/ui/astro/DeckList.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
 import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';
 import SearchInput from '@bagel/ui/astro/SearchInput.astro';
+import SectionNav from '@bagel/ui/astro/SectionNav.astro';
 import Switch from '@bagel/ui/astro/Switch.astro';
+import Tag from '@bagel/ui/astro/Tag.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import ScreenChrome from '../ScreenChrome.astro';
 
 interface Props {
@@ -81,15 +83,16 @@ const nav = {
     settings: L.navSettings,
 };
 
-const categories: { label: string; count: string }[] = [
-    { label: L.rail1, count: '3' },
-    { label: L.rail2, count: '5' },
-    { label: L.rail3, count: '4' },
-    { label: L.rail4, count: '4' },
-    { label: L.rail5, count: '3' },
-    { label: L.rail6, count: '2' },
-    { label: L.rail7, count: '3' },
+const categories: { label: string; count: number }[] = [
+    { label: L.rail1, count: 3 },
+    { label: L.rail2, count: 5 },
+    { label: L.rail3, count: 4 },
+    { label: L.rail4, count: 4 },
+    { label: L.rail5, count: 3 },
+    { label: L.rail6, count: 2 },
+    { label: L.rail7, count: 3 },
 ];
+const categoryTabs = categories.map((cat, i) => ({ href: '#', label: cat.label, count: cat.count, current: i === 0 }));
 ---
 
 <ScreenChrome
@@ -103,21 +106,15 @@ const categories: { label: string; count: string }[] = [
     titleHtml={L.titleHtml}
     description={L.sub}
 >
-    <div class="gs-find"><SearchInput placeholder={L.searchPlaceholder} readonly /></div>
+    <div class="gs-find"><SearchInput fill placeholder={L.searchPlaceholder} readonly /></div>
     <div class="gs-index">
-        <div class="bb-tabs-host">
-            <nav class="bb-tabs bb-tabs--auto" aria-label={L.railTitle}>
-                {categories.map((cat, i) => (
-                    <a class:list={['bb-tab', i === 0 && 'is-active']} href="#">
-                        {cat.label}<span class="bb-tab__count">{cat.count}</span>
-                    </a>
-                ))}
-            </nav>
+        <div class="gs-rail">
+            <SectionNav label={L.railTitle} items={categoryTabs} />
             {L.dot1 && <i class="gs-mark" data-note={L.dot1}></i>}
         </div>
         <div class="gs-stack">
             <div class="gs-family">
-                <header class="gs-family-head"><h2>{L.cat1}</h2><p>{L.cat1Hint}</p></header>
+                <header class="gs-family-head"><Heading level={5} as="h2" variant="title">{L.cat1}</Heading><Text size="xs" tone="muted">{L.cat1Hint}</Text></header>
                 <DeckList>
                     <ManagementRow>
                         <span class="gs-copy">
@@ -132,7 +129,7 @@ const categories: { label: string; count: string }[] = [
                 </DeckList>
             </div>
             <div class="gs-family">
-                <header class="gs-family-head"><h2>{L.cat2}</h2><p>{L.cat2Hint}</p></header>
+                <header class="gs-family-head"><Heading level={5} as="h2" variant="title">{L.cat2}</Heading><Text size="xs" tone="muted">{L.cat2Hint}</Text></header>
                 <DeckList>
                     <ManagementRow>
                         <span class="gs-copy">
@@ -157,7 +154,7 @@ const categories: { label: string; count: string }[] = [
                 </DeckList>
             </div>
             <div class="gs-family">
-                <header class="gs-family-head"><h2>{L.cat3}</h2><p>{L.cat3Hint}</p></header>
+                <header class="gs-family-head"><Heading level={5} as="h2" variant="title">{L.cat3}</Heading><Text size="xs" tone="muted">{L.cat3Hint}</Text></header>
                 <DeckList>
                     <ManagementRow>
                         <span class="gs-copy">
@@ -187,3 +184,7 @@ const categories: { label: string; count: string }[] = [
         </div>
     </div>
 </ScreenChrome>
+
+<style>
+    .gs-rail { min-width: 0; }
+</style>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { namespaceReplySamples, Button, Code, Field, getI18n } from '@bagel/kit';
+  import { namespaceReplySamples, Button, Code, Field, Text, getI18n } from '@bagel/kit';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
@@ -41,10 +41,10 @@
 </script>
 
 <div class="editor">
-  <p class="hint">
+  <Text size="sm" tone="muted">
     {t('spotify.editorInputHint')} <Code>Blinding Lights</Code>. {t('spotify.editorInputHintPair')}
     <Code>The Weeknd - Blinding Lights</Code>. {t('spotify.editorInputHintLink')}
-  </p>
+  </Text>
 
   <Field label={t('spotify.fieldTitle')} error={titleError} errorId="spotify-title-err">
     <Input
@@ -75,13 +75,14 @@
         />
       </Field>
     </div>
-    <label class="color-field">
-      <span class="color-label">{t('spotify.fieldColor')}</span>
-      <span class="color-row">
-        <input data-cursor class="color-in" type="color" bind:value={draft.color} />
-        <span class="color-hex">{draft.color}</span>
-      </span>
-    </label>
+    <div class="color-field">
+      <Field label={t('spotify.fieldColor')}>
+        <span class="color-row">
+          <span class="swatch"><Input data-cursor type="color" bind:value={draft.color} /></span>
+          <Text as="span" size="xs" mono tone="accent">{draft.color.toUpperCase()}</Text>
+        </span>
+      </Field>
+    </div>
   </div>
 
   <Field label={t('spotify.fieldCooldown')} tag={t('spotify.fieldCooldownTag')} error={cooldownError} errorId="spotify-cooldown-err">
@@ -121,25 +122,13 @@
 
 <style>
   .editor { --field-mb: 0; padding: 4px 2px 2px; display: grid; gap: 14px; }
-  .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
 
   .field-row { display: flex; gap: 12px; align-items: flex-start; }
   .field-grow { flex: 1; min-width: 0; }
 
-  .color-field { display: flex; flex-direction: column; gap: 6px; flex: none; width: 116px; }
-  .color-label { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
+  .color-field { flex: none; width: 116px; }
   .color-row { display: flex; align-items: center; gap: 8px; }
-  .color-in {
-    width: 44px;
-    height: 37px;
-    padding: 3px;
-    border: 1px solid var(--rule);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(240, 236, 228, 0.04);
-    cursor: pointer;
-    flex: none;
-  }
-  .color-hex { font-family: var(--bb-font-mono, monospace); font-size: 12px; color: var(--bb-tan-light); text-transform: uppercase; }
+  .swatch { display: block; flex: none; width: 44px; }
 
   .del-row { display: flex; }
 

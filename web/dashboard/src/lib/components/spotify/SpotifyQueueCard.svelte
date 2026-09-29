@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Card, EmptyState, getI18n } from '@bagel/kit';
+  import { Button, Card, EmptyState, Heading, Text, getI18n } from '@bagel/kit';
   import type { QueueView } from '$lib/server/songqueue-view';
 
   const TICK_MS = 1000;
@@ -83,14 +83,14 @@
 
 {#snippet track(row: { title: string; artists: string; requester: string })}
   <strong>{row.title}</strong>
-  {#if row.artists}<span class="muted"> · {row.artists}</span>{/if}
-  {#if row.requester}<span class="muted"> ({t('spotify.queueAskedBy')} {row.requester})</span>{/if}
+  {#if row.artists}<Text as="span" size="sm" tone="muted"> · {row.artists}</Text>{/if}
+  {#if row.requester}<Text as="span" size="sm" tone="muted"> ({t('spotify.queueAskedBy')} {row.requester})</Text>{/if}
 {/snippet}
 
 <Card>
   <div class="queue-head">
-    <h2 class="queue-title">{t('spotify.queueTitle')}</h2>
-    <span class="queue-stamp" role="status">{refreshing ? t('spotify.queueRefreshing') : updatedLabel}</span>
+    <Heading level={6} as="h2">{t('spotify.queueTitle')}</Heading>
+    <span class="queue-stamp" role="status"><Text as="span" size="xs" mono tone="muted">{refreshing ? t('spotify.queueRefreshing') : updatedLabel}</Text></span>
     <Button variant="ghost" type="button" loading={refreshing} onclick={onRefresh}>{t('spotify.queueRefresh')}</Button>
   </div>
   {#if queue?.current}
@@ -98,7 +98,7 @@
       <span class="queue-label">{t('spotify.queueNow')}</span>
       <span class="queue-track">{@render track(queue.current)}</span>
       {#if progressLabel}
-        <span class="queue-time" aria-label={progressLabel.aria}>{progressLabel.text}</span>
+        <span class="queue-time" aria-label={progressLabel.aria}><Text as="span" size="xs" mono tone="muted">{progressLabel.text}</Text></span>
       {/if}
       <Button variant="secondary" type="button" loading={skipping} onclick={onSkip}>{t('spotify.queueSkip')}</Button>
     </div>
@@ -120,12 +120,10 @@
 
 <style>
   .queue-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .queue-title { margin: 0; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
-  .queue-stamp { margin-left: auto; font-family: var(--bb-font-mono, monospace); font-size: 11.5px; color: var(--bb-muted); }
+  .queue-stamp { margin-left: auto; }
   .queue-now { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 10px; }
   .queue-label { font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
   .queue-track { flex: 1 1 200px; min-width: 0; }
-  .queue-time { min-width: 11ch; text-align: right; font-family: var(--bb-font-mono, monospace); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--bb-muted); }
+  .queue-time { min-width: 11ch; text-align: right; font-variant-numeric: tabular-nums; }
   .queue-list { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
-  .muted { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; }
 </style>

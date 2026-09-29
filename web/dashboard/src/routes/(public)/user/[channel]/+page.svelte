@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { copyFlash } from '@bagel/ui/lib/clipboard';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, Card, Code, LightField, SearchInput, Text } from '@bagel/kit';
+  import { AlertBanner, Card, Code, CopySurface, EmptyState, Eyebrow, Heading, Icon, Label, LightField, SearchInput, SegmentedControl, Tag, Text } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { commandsHref } from '@bagel/kit/site-links';
+  import Mark from '@bagel/ui/svelte/Mark.svelte';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import { page } from '$app/state';
   import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
@@ -38,8 +39,6 @@
   let query = $state('');
   let filter = $state<Filter>('all');
   let moduleId = $state<string | null>(null);
-  let copied = $state<string | null>(null);
-  let copiedTrigger = $state('');
 
   const creatorCode = $derived(String(data.creatorCode ?? '').trim());
 
@@ -87,6 +86,8 @@
 
   const countOf = (id: Filter) => all.filter((r) => id === 'all' || r.kind === id).length;
 
+  const filterOptions = $derived(FILTERS.map((f) => ({ value: f.id, label: f.label, count: countOf(f.id) })));
+
   const activeModule = $derived(data.modules.find((m) => m.id === moduleId) ?? null);
   const listHeading = $derived(
     `${activeModule ? activeModule.label : FILTERS.find((f) => f.id === filter)?.heading} · ${rows.length}`
@@ -104,8 +105,8 @@
       : t('public.commands.summaryThings', { count: all.length })
   }));
 
-  function pickFilter(id: Filter) {
-    filter = id;
+  function pickFilter(id: string) {
+    filter = id as Filter;
     moduleId = null;
   }
 
@@ -114,16 +115,7 @@
     filter = 'all';
   }
 
-  let copyGeneration = 0;
-  function copy(text: string, key: string) {
-    const generation = ++copyGeneration;
-    void copyFlash(text, (on) => {
-      if (generation !== copyGeneration) return;
-      copied = on ? key : null;
-      copiedTrigger = on ? text : '';
-    }, 1400);
-  }
-
+  const COPY_FLASH_MS = 1400;
 </script>
 
 <PublicHead
@@ -132,26 +124,26 @@
   url={commandsHref(page.params.channel ?? '')}
 />
 
-<p class="bb-sr-only" role="status" aria-live="polite">{copiedTrigger ? t('public.commands.copiedAnnounce', { trigger: copiedTrigger }) : ''}</p>
-
 <div class="starfield" aria-hidden="true"><LightField /></div>
 <div class="glow" aria-hidden="true"></div>
 
 <main class="page">
   <header class="hero">
     <div class="hero__text">
-      <span class="eyebrow">{t('public.commands.eyebrow')}</span>
-      <h1 class="title">{data.channelName}</h1>
-      <p class="summary">{summary}</p>
+      <span class="eyebrow"><Eyebrow tone="go">{t('public.commands.eyebrow')}</Eyebrow></span>
+      <Heading level={1}>{data.channelName}</Heading>
+      <Text tone="muted">{summary}</Text>
     </div>
     {#if creatorCode}
-      <button class="creator" type="button" title={t('public.commands.copyCreator')} onclick={() => copy(creatorCode, 'cc')}>
-        <span class="creator__label">{t('public.commands.copyCreator')}</span>
-        <span class="creator__row">
-          <strong>{creatorCode}</strong>
-          <span class="creator__hint bb-chip bb-chip--muted" class:is-done={copied === 'cc'} aria-hidden="true">{copied === 'cc' ? t('common.copied') : t('public.commands.clickToCopy')}</span>
-        </span>
-      </button>
+      <CopySurface
+        text={creatorCode}
+        label={t('public.commands.copyCreator')}
+        hint={t('public.commands.clickToCopy')}
+        copiedLabel={t('common.copied')}
+        flashMs={COPY_FLASH_MS}
+        title={t('public.commands.copyCreator')}
+        announce={t('public.commands.copiedAnnounce', { trigger: creatorCode })}
+      />
     {/if}
   </header>
 
@@ -165,122 +157,124 @@
     <div class="search">
       <SearchInput bind:value={query} placeholder={t('public.commands.searchPlaceholder')} />
     </div>
-    <div class="bb-tabs bb-tabs--wrap filters" role="group" aria-label={t('public.commands.sourceLabel')}>
-      {#each FILTERS as f (f.id)}
-        {@const on = !moduleId && filter === f.id}
-        <button class="bb-tab" class:is-active={on} type="button" aria-pressed={on} onclick={() => pickFilter(f.id)}
-          >{f.label}<span class="bb-tab__count">{countOf(f.id)}</span></button
-        >
-      {/each}
+    <div class="filters">
+      <SegmentedControl
+        options={filterOptions}
+        value={moduleId ? '' : filter}
+        label={t('public.commands.sourceLabel')}
+        onchange={pickFilter}
+      />
     </div>
   </div>
 
   <div class="columns">
     <section class="list-wrap" aria-label={t('public.commands.commandsLabel')}>
-      <Card atmo class="list">
+      <Card atmo flush>
         <div class="list__head">
-          <span>{listHeading}</span>
-          <span>{t('public.commands.clickRow')}</span>
+          <Label mono as="span">{listHeading}</Label>
+          <Label mono as="span">{t('public.commands.clickRow')}</Label>
         </div>
 
         {#if rows.length}
           <ul class="rows">
             {#each rows as row (row.key)}
               <li>
-                <button class="row" type="button" onclick={() => copy(row.trigger, row.key)}>
+                <CopySurface
+                  variant="row"
+                  text={row.trigger}
+                  copiedLabel={t('common.copied')}
+                  flashMs={COPY_FLASH_MS}
+                  announce={t('public.commands.copiedAnnounce', { trigger: row.trigger })}
+                >
                   <span class="row__trigger">
-                    <Code class="trigger-code">{row.trigger}</Code>
+                    <Code tone="positive">{row.trigger}</Code>
                     {#if row.aliases.length}
-                      <span class="row__aliases">{row.aliases.join(' ')}</span>
+                      <Text as="span" size="xs" tone="muted" mono>{row.aliases.join(' ')}</Text>
                     {/if}
                   </span>
-                  <span class="row__response">{row.response}</span>
+                  <span class="row__response"><Text as="span">{row.response}</Text></span>
                   <span class="row__tags">
-                    {#if copied === row.key}
-                      <span class="copied" aria-hidden="true">{t('common.copied')}</span>
-                    {/if}
-                    <span class="bb-tag bb-tag--alpha">{row.source}</span>
+                    <Tag tone="alpha">{row.source}</Tag>
                     {#if row.perm}
-                      <span class="bb-tag bb-tag--bare">{row.perm}</span>
+                      <Tag tone="bare">{row.perm}</Tag>
                     {/if}
                     {#if row.cooldown > 0}
-                      <span class="bb-tag bb-tag--bare" title={t('public.commands.cooldownSeconds', { n: row.cooldown })}>
-                        <svg aria-hidden="true" viewBox="0 0 24 24" width="11" height="11">
-                          <circle cx="12" cy="12" r="9"></circle>
-                          <path d="M12 7v5l3 2"></path>
-                        </svg>
+                      <Tag tone="bare" title={t('public.commands.cooldownSeconds', { n: row.cooldown })}>
+                        <Icon name="clock" size={11} />
                         <span aria-hidden="true">{row.cooldown}s</span>
-                        <span class="bb-sr-only">{t('public.commands.cooldownSeconds', { n: row.cooldown })}</span>
-                      </span>
+                        <VisuallyHidden>{t('public.commands.cooldownSeconds', { n: row.cooldown })}</VisuallyHidden>
+                      </Tag>
                     {/if}
                     {#if row.liveOnly}
-                      <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('public.commands.liveOnly')}<i class="bb-sweep" aria-hidden="true"></i></span>
+                      <Tag tone="live" mark="solid" sweep>{t('public.commands.liveOnly')}</Tag>
                     {/if}
                     {#if row.uses}
-                      <span class="uses">{t('public.commands.uses', { count: row.uses })}</span>
+                      <Label mono as="span">{t('public.commands.uses', { count: row.uses })}</Label>
                     {/if}
                   </span>
-                </button>
+                </CopySurface>
               </li>
             {/each}
           </ul>
         {:else if all.length === 0}
-          <div class="empty">{t('public.commands.noCommands')}</div>
+          <EmptyState title={t('public.commands.noCommands')} />
         {:else}
-          <div class="empty">{t('public.commands.noMatches', { query })}</div>
+          <EmptyState title={t('public.commands.noMatches', { query })} />
         {/if}
       </Card>
     </section>
 
     <aside class="side">
-      <Card atmo class="modules">
-        <div class="side__head">
-          <span>{t('public.commands.activeModules')}</span>
-          <span class="side__count">{data.modules.length}</span>
-        </div>
-        {#if data.modules.length}
-          <ul class="mods">
-            {#each data.modules as mod (mod.id)}
-              {@const n = mod.commands.length}
-              <li>
-                <button
-                  class="mod"
-                  class:on={moduleId === mod.id}
-                  type="button"
-                  disabled={n === 0}
-                  aria-pressed={moduleId === mod.id}
-                  onclick={() => pickModule(mod.id)}
-                >
-                  <i class="bb-mark mod__mark" aria-hidden="true"></i>
-                  <span class="mod__text">
-                    <span class="mod__label">{mod.label}</span>
-                    <span class="mod__tagline">{mod.tagline}</span>
-                  </span>
-                  <span class="mod__meta">{n ? (n === 1 ? t('public.commands.moduleCount', { count: n }) : t('public.commands.moduleCountMany', { count: n })) : t('public.commands.moduleAuto')}</span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {:else}
-          <p class="side__empty">{t('public.commands.noModules')}</p>
-        {/if}
-      </Card>
+      <div class="modules">
+        <Card atmo>
+          <div class="side__head">
+            <Label mono as="span">{t('public.commands.activeModules')}</Label>
+            <Label mono as="span">{data.modules.length}</Label>
+          </div>
+          {#if data.modules.length}
+            <ul class="mods">
+              {#each data.modules as mod (mod.id)}
+                {@const n = mod.commands.length}
+                <li>
+                  <button
+                    class="mod"
+                    class:on={moduleId === mod.id}
+                    type="button"
+                    disabled={n === 0}
+                    aria-pressed={moduleId === mod.id}
+                    onclick={() => pickModule(mod.id)}
+                  >
+                    <Mark class="mod__mark" />
+                    <span class="mod__text">
+                      <span class="mod__label">{mod.label}</span>
+                      <span class="mod__tagline">{mod.tagline}</span>
+                    </span>
+                    <span class="mod__meta">{n ? (n === 1 ? t('public.commands.moduleCount', { count: n }) : t('public.commands.moduleCountMany', { count: n })) : t('public.commands.moduleAuto')}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <Text size="sm" tone="muted">{t('public.commands.noModules')}</Text>
+          {/if}
+        </Card>
+      </div>
 
       <div class="legend">
-        <span class="side__head">{t('public.commands.legendTitle')}</span>
-        <Text size="sm" tone="muted">
-          {t('public.commands.legend')}
-        </Text>
+        <Card>
+          <div class="legend__body">
+            <Label mono as="span">{t('public.commands.legendTitle')}</Label>
+            <Text size="sm" tone="muted">
+              {t('public.commands.legend')}
+            </Text>
+          </div>
+        </Card>
       </div>
     </aside>
   </div>
 </main>
 
 <style>
-  h1, p { margin: 0; }
-
-
-
   .starfield {
     position: fixed;
     inset: 0;
@@ -298,19 +292,22 @@
     pointer-events: none;
     background: radial-gradient(
       50% 55% at 50% 45%,
-      rgba(201, 168, 124, 0.18) 0%,
-      rgba(82, 183, 136, 0.08) 40%,
+      rgba(var(--bb-tan-rgb), 0.18) 0%,
+      rgba(var(--bb-green-glow-rgb), 0.08) 40%,
       transparent 72%
     );
     filter: blur(18px);
   }
 
   .page {
+    --label-mono-size: var(--bb-text-xs);
+    --copy-label-size: var(--bb-text-xs);
+
     position: relative;
     z-index: 1;
     max-width: 1080px;
     margin: 0 auto;
-    padding: calc(var(--bb-nav-height, 76px) + env(safe-area-inset-top, 0px) + 72px) 24px 96px;
+    padding: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px) + 72px) 24px 96px;
     color: var(--bb-white);
   }
 
@@ -328,80 +325,19 @@
     flex-direction: column;
     gap: 16px;
     min-width: 0;
-  }
-
-  .eyebrow {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-    text-shadow: 0 0 16px rgba(82, 183, 136, 0.45);
-  }
-
-  .title {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: clamp(40px, 5.5vw, 64px);
-    line-height: 1;
-    letter-spacing: -0.03em;
-    color: var(--bb-white);
     overflow-wrap: anywhere;
   }
 
-  .summary {
-    font-family: var(--bb-font-body);
-    font-size: 15px;
-    line-height: 1.55;
-    color: var(--bb-muted);
+  .eyebrow {
+    text-shadow: 0 0 16px rgba(var(--bb-green-glow-rgb), 0.45);
   }
-
-  .creator {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-    padding: 14px 20px 14px 18px;
-    border: 1px solid rgba(201, 168, 124, 0.35);
-    border-radius: var(--bb-radius-md);
-    background: var(--bb-card-bg) radial-gradient(220px 120px at 100% 0%, rgba(201, 168, 124, 0.14), transparent 70%);
-    color: var(--bb-white);
-    cursor: pointer;
-    font: inherit;
-    text-align: left;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 8px 30px rgba(0, 0, 0, 0.35);
-    transition: box-shadow 180ms, border-color 180ms;
-  }
-  .creator:hover, .creator:focus-visible {
-    border-color: var(--bb-tan);
-    box-shadow: 0 0 0 1px rgba(201, 168, 124, 0.35), 0 0 24px rgba(201, 168, 124, 0.18);
-  }
-  .creator__label {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bb-tan);
-    white-space: nowrap;
-  }
-  .creator__row { display: flex; align-items: baseline; gap: 14px; }
-  .creator__row strong {
-    font-family: var(--bb-font-display);
-    font-size: 24px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    line-height: 1;
-    color: var(--bb-tan-pale);
-    text-shadow: 0 0 18px rgba(201, 168, 124, 0.25);
-  }
-  .creator__hint { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
 
   .notice { margin-bottom: 24px; }
 
   .toolbar {
     position: sticky;
-    top: calc(var(--bb-nav-height, 76px) + env(safe-area-inset-top, 0px));
-    z-index: 40;
+    top: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px));
+    z-index: var(--bb-z-sticky);
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -411,7 +347,6 @@
   }
 
   .search { flex: 1 1 260px; min-width: 0; }
-
 
   .columns {
     display: flex;
@@ -423,6 +358,8 @@
 
   .list-wrap { flex: 999 1 520px; min-width: 0; }
   .side {
+    --card-pad: 22px;
+
     flex: 1 1 260px;
     min-width: 0;
     display: flex;
@@ -430,49 +367,16 @@
     gap: 14px;
   }
 
-  .list-wrap { --card-pad: 0; }
-  .side { --card-pad: 22px; }
-  .list-wrap, .side { --card-radius: var(--bb-radius-md); }
-  :global(.list), :global(.modules) {
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 8px 30px rgba(0, 0, 0, 0.35);
-  }
-
   .list__head, .side__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
   }
   .list__head { padding: 16px 24px; border-bottom: 1px solid var(--bb-border); }
   .side__head { margin-bottom: 16px; }
-  .side__count { font-family: var(--bb-font-mono); font-size: 12px; letter-spacing: 0; text-transform: none; }
 
   .rows, .mods { list-style: none; margin: 0; padding: 0; }
-
-  .row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 8px 28px;
-    width: 100%;
-    padding: 18px 24px;
-    border: 0;
-    border-top: 1px solid rgba(201, 168, 124, 0.08);
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    transition: background 180ms;
-  }
-  .rows li:first-child .row { border-top: 0; }
-  .row:hover, .row:focus-visible { background: rgba(201, 168, 124, 0.045); }
-  .row:focus-visible { outline: 1px solid rgba(82, 183, 136, 0.6); outline-offset: -1px; }
 
   .row__trigger {
     flex: 0 0 168px;
@@ -480,24 +384,13 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-  :global(.trigger-code) { font-size: 14.5px; font-weight: 500; color: var(--bb-green-glow); }
-  .row__aliases {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-muted);
     overflow-wrap: anywhere;
   }
   .row__response {
     display: block;
     flex: 1 1 240px;
     min-width: 0;
-    font-family: var(--bb-font-body);
-    font-size: 14.5px;
-    line-height: 1.6;
-    color: var(--bb-white);
     overflow-wrap: anywhere;
-    text-wrap: pretty;
   }
   .row__tags {
     flex: 0 0 auto;
@@ -507,27 +400,6 @@
     justify-content: flex-end;
     gap: 6px;
     padding-top: 2px;
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-tan-light);
-  }
-
-  .row__tags svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .uses { color: var(--bb-muted); white-space: nowrap; padding-left: 4px; }
-  .copied { color: var(--bb-green-glow); animation: fadeIn 180ms ease-out; }
-
-  .empty {
-    padding: 40px 20px;
-    text-align: center;
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    color: var(--bb-muted);
-  }
-
-  .side :global(.modules) {
-    background-image: radial-gradient(240px 140px at 100% 0%, rgba(82, 183, 136, 0.08), transparent 70%);
   }
 
   .mods { display: flex; flex-direction: column; }
@@ -545,69 +417,53 @@
     font: inherit;
     text-align: left;
     cursor: pointer;
-    transition: background 180ms;
+    transition: background var(--bb-dur-fast);
   }
   .mod:disabled { cursor: default; }
-  .mod:not(:disabled):hover, .mod:focus-visible { background: rgba(201, 168, 124, 0.06); }
-  .mod.on { background: rgba(82, 183, 136, 0.12); }
-  .mod__mark { color: var(--bb-green-glow); }
+  .mod:not(:disabled):hover, .mod:focus-visible { background: rgba(var(--bb-tan-rgb), 0.06); }
+  .mod.on { background: rgba(var(--bb-green-glow-rgb), 0.12); }
+  .mod :global(.mod__mark) { color: var(--bb-green-glow); }
   .mod__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .mod__label { font-family: var(--bb-font-body); font-size: 14px; font-weight: 600; color: var(--bb-white); }
   .mod__tagline {
     font-family: var(--bb-font-body);
-    font-size: 12.5px;
+    font-size: var(--bb-text-xs);
     line-height: 1.4;
     color: var(--bb-muted);
     text-wrap: pretty;
   }
-  .mod__meta { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan); white-space: nowrap; }
+  .mod__meta { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-tan); white-space: nowrap; }
 
-  .side__empty { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
-
-  .legend {
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    padding: 20px 22px;
+  .legend__body {
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
-  .legend .side__head { margin-bottom: 0; }
-
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
   @media (max-width: 640px) {
     .page { padding-left: 16px; padding-right: 16px; }
     .toolbar { display: contents; }
     .search {
       position: sticky;
-      top: calc(var(--bb-nav-height, 76px) + env(safe-area-inset-top, 0px));
-      z-index: 40;
-      flex: 0 0 auto;
-      width: 100%;
+      top: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px));
+      z-index: var(--bb-z-sticky);
       padding: 12px 0;
       background: var(--bb-black);
     }
-    .filters { flex: 0 0 100%; width: 100%; margin-bottom: 16px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-    .filters > * { flex-shrink: 0; }
+    .filters { margin-bottom: 16px; }
     .columns { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 14px; margin-top: 0; }
     .list-wrap { flex: 0 0 auto; order: 3; }
     .side { display: contents; }
-    .legend { order: 4; padding: 14px 16px; }
-    .side :global(.modules) { order: 2; --card-pad: 14px; }
+    .modules { --card-pad: 14px; order: 2; }
+    .legend { --card-pad: 14px 16px; order: 4; }
     .mods { flex-direction: row; gap: 8px; overflow-x: auto; scrollbar-width: none; }
     .mods::-webkit-scrollbar { display: none; }
     .mods li { flex: 0 0 auto; }
     .mod { width: auto; margin: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--bb-border); }
     .mod__tagline { display: none; }
     .side__head { margin-bottom: 10px; }
-    .row { padding: 16px 18px; }
     .row__trigger { flex-basis: 100%; }
     .row__tags { justify-content: flex-start; }
     .list__head { padding: 14px 18px; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .copied { animation: none; }
   }
 </style>

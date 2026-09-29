@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { ManagementRow, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
+  import { ManagementRow, Tag, Text, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
   import { formatCounterValue } from '@bagel/kit/validation';
   import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
 
@@ -42,7 +42,7 @@
       {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
       <span class="name">
         <span class="c-name">{c.name}</span>
-        <span class="c-tag bb-tag bb-tag--bare">{scopeLabel}</span>
+        <Tag tone="bare" class="c-tag">{scopeLabel}</Tag>
       </span>
       <span class="meta">
         {#if isChannel}
@@ -50,7 +50,7 @@
             <span class="bb-sr-only">{t('counters.colValue')} </span>{formatCounterValue(c.value)}
           </span>
         {:else}
-          <span class="m-note">{perScopeNote}</span>
+          <Text as="span" size="xs" tone="muted">{perScopeNote}</Text>
         {/if}
       </span>
     </span>
@@ -67,30 +67,29 @@
     align-items: center;
     gap: 14px;
   }
-  .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
+  .idx { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-muted); opacity: 0.55; }
 
   .name { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
   .c-name {
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 14px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-white);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
   }
-  .c-tag { flex: none; }
+  .name :global(.c-tag) { flex: none; }
 
   .meta { display: inline-flex; align-items: center; justify-content: flex-end; }
   .m-val {
     font-family: var(--bb-font-mono);
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-tan-light);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  .m-note { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); white-space: nowrap; }
 
   @media (max-width: 760px) {
     .prow {

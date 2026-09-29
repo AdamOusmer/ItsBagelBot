@@ -10,7 +10,11 @@
   import { visibleEventSource } from '$lib/visible-stream';
   import AppShell from '@bagel/kit/components/AppShell.svelte';
   import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
   import NotificationBell from '@bagel/ui/svelte/NotificationBell.svelte';
+  import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { sectionForPath, dashboardNavItems, dashboardNavGroups } from '@bagel/kit/nav-dashboard';
   let { data, children } = $props();
@@ -129,13 +133,15 @@
   {/snippet}
   {#snippet topActions()}
     <span class="live-chip" class:live-chip--on={reconnecting} role="status" aria-live="polite">
-      <span class="live-dot" aria-hidden="true"></span>
-      <span class="live-text">{reconnecting ? t('topbar.reconnecting') : ''}</span>
+      <StatusDot tone="warning" flat />
+      <VisuallyHidden>{reconnecting ? t('topbar.reconnecting') : ''}</VisuallyHidden>
     </span>
-    <a href="https://status.itsbagelbot.com" class="status-link" target="_blank" rel="noopener noreferrer">
-      {t('nav.status')}<span class="sr-only"> {t('common.opensInNewTab')}</span>
-      <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9" /></svg>
-    </a>
+    <span class="status-link">
+      <TextLink variant="quiet" href="https://status.itsbagelbot.com" external>
+        {t('nav.status')}<VisuallyHidden> {t('common.opensInNewTab')}</VisuallyHidden>
+        <Icon name="arrowUpRight" size={11} strokeWidth={2} />
+      </TextLink>
+    </span>
     {#if !isDelegate}
       {#await data.bell}
         <span class="bell-slot" aria-hidden="true"></span>
@@ -158,14 +164,6 @@
 </AppShell>
 
 <style>
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
   .bell-slot {
     width: 36px;
     height: 36px;
@@ -175,101 +173,22 @@
   .live-chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
     flex: none;
-    font-family: var(--bb-font-body, inherit);
-    font-size: 12px;
-    color: var(--bb-muted, #a39b8b);
     visibility: hidden;
     opacity: 0;
-    transition: opacity 180ms var(--bb-ease-out-expo);
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
   .live-chip--on {
     visibility: visible;
     opacity: 1;
-  }
-  .live-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--bb-tan, #c9a87c);
-  }
-  .live-text {
-    display: none;
-    min-width: 76px;
-  }
-  .status-link svg {
-    margin-left: 4px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
   .status-link {
-    font-family: var(--bb-font-body, inherit);
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--bb-muted, #a39b8b);
-    text-decoration: none;
-    transition: color 180ms ease;
-    white-space: nowrap;
     flex: none;
     display: none;
+    white-space: nowrap;
   }
   @media (min-width: 761px) {
-    .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-  .bell-slot {
-    width: 36px;
-    height: 36px;
-    flex: none;
-    visibility: hidden;
-  }
-  .live-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    flex: none;
-    font-family: var(--bb-font-body, inherit);
-    font-size: 12px;
-    color: var(--bb-muted, #a39b8b);
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity 180ms var(--bb-ease-out-expo);
-  }
-  .live-chip--on {
-    visibility: visible;
-    opacity: 1;
-  }
-  .live-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--bb-tan, #c9a87c);
-  }
-  .live-text {
-    display: none;
-    min-width: 76px;
-  }
-  .status-link svg {
-    margin-left: 4px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .status-link { display: inline; }
-  }
-  .status-link:hover {
-    color: var(--bb-tan-pale, #eceae1);
+    .status-link { display: inline; }
   }
 </style>
 

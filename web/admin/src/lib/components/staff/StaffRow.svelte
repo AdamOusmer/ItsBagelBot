@@ -27,71 +27,43 @@
   const { t } = getI18n();
 </script>
 
-<ManagementRow {selected} expanded={selected} {controls} {onselect}>
-  {#snippet primary()}
-    <span class="row">
-      <Bolota name={member.display_name || member.login} size={28} active={selected} />
-      <span class="who">
-        <span class="name">
-          {member.display_name || member.login}
-          {#if isSelf}<Tag tone="quiet">{t('admin.staff.you')}</Tag>{/if}
-        </span>
-        <span class="meta">
-          {t('admin.staff.rowMeta', {
-            login: member.login,
-            id: String(member.id),
-            when: ago(member.created_at)
-          })}
-        </span>
-      </span>
-      <span class="marks">
-        <StatePill tone={member.role}>{t(ROLE_LABEL[member.role])}</StatePill>
-        <StatePill tone={member.active ? 'free' : 'inactive'}>
-          {member.active ? t('admin.staff.activeChip') : t('admin.staff.inactiveChip')}
-        </StatePill>
-      </span>
+{#snippet you()}
+  <Tag tone="quiet">{t('admin.staff.you')}</Tag>
+{/snippet}
+
+<ManagementRow
+  wrap
+  {selected}
+  expanded={selected}
+  {controls}
+  {onselect}
+  badge={isSelf ? you : undefined}
+  title={member.display_name || member.login}
+  meta={t('admin.staff.rowMeta', {
+    login: member.login,
+    id: String(member.id),
+    when: ago(member.created_at)
+  })}
+>
+  {#snippet lead()}
+    <Bolota name={member.display_name || member.login} size={28} active={selected} />
+  {/snippet}
+  {#snippet marks()}
+    <StatePill tone={member.role}>{t(ROLE_LABEL[member.role])}</StatePill>
+    <span class="access">
+      <StatePill tone={member.active ? 'free' : 'inactive'}>
+        {member.active ? t('admin.staff.activeChip') : t('admin.staff.inactiveChip')}
+      </StatePill>
     </span>
   {/snippet}
 </ManagementRow>
 
 <style>
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-  }
-  .who {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-  }
-  .name {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 13.5px;
-    color: var(--bb-white);
-  }
-  .meta {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .marks {
-    display: flex;
-    gap: 6px;
-    flex: none;
+  .access {
+    display: contents;
   }
   @media (max-width: 560px) {
-    .marks :global(.state-badge:last-child) {
+    .access {
       display: none;
     }
   }

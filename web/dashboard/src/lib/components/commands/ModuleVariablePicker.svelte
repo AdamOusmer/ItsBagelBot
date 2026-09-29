@@ -1,13 +1,13 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { getI18n, moduleDef, tModuleLabel, PickerPanel, Select } from '@bagel/kit';
+  import { Chip, Field, Icon, PickerOption, PickerPanel, Select, Text, TextLink, getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
   import { MODULE_VARIABLES } from '@bagel/kit/variables';
 
   const { t } = getI18n();
   let { onInsert }: { onInsert: (token: string) => void } = $props();
   let open = $state(false);
-  let anchor = $state<HTMLButtonElement>();
+  let anchor = $state<HTMLElement>();
   let moduleId = $state('valorant');
   const selected = $derived(MODULE_VARIABLES.find((v) => v.head === moduleId)!);
   const selectedName = $derived(t(`vars.${selected.id}.name`));
@@ -19,35 +19,35 @@
     onInsert(token);
     open = false;
   }
+
+  function setAnchor(node: HTMLElement) {
+    anchor = node;
+  }
 </script>
 
-<button type="button" class="bb-chip bb-chip--muted" aria-haspopup="dialog" aria-expanded={open} bind:this={anchor} onclick={() => (open = !open)}>
-  {t('commandEditor.pickModuleVariable')} <span aria-hidden="true">▾</span>
-</button>
+<Chip tone="muted" aria-haspopup="dialog" aria-expanded={open} onclick={() => (open = !open)} {@attach setAnchor}>
+  {t('commandEditor.pickModuleVariable')} <Icon name="chevron" />
+</Chip>
 
 <PickerPanel {open} {anchor} label={t('commandEditor.pickModuleVariable')} width={340} maxHeight={420} onClose={() => (open = false)}>
   {#snippet children()}
-    <label class="module-field">
-      <span>{t('commandEditor.variableModule')}</span>
-      <Select fill bind:value={moduleId} options={MODULE_VARIABLES.map((v) => ({ value: v.head, label: t(`vars.${v.id}.name`) }))} />
-    </label>
-    <p class="requirement">{t('commandEditor.moduleVariableRequires', { module: selectedName })} <a class="module-link" href={moduleLink}>{t('commandEditor.manageModules')}</a></p>
-    {#if parentModule}<p class="requirement">{t('commandEditor.moduleVariableParentRequires', { module: tModuleLabel(t, parentModule) })}</p>{/if}
-    <p class="context">{t('commandEditor.moduleVariableContext')}</p>
-    <ul class="variables">
-      {#each selected.forms as form (form.example)}
-        <li><button type="button" class="variable" title={form.output} onclick={() => insert(form.example)}><code class="variable-code">{form.example}</code></button></li>
-      {/each}
-    </ul>
+    <div class="body">
+      <Field label={t('commandEditor.variableModule')}>
+        <Select fill bind:value={moduleId} options={MODULE_VARIABLES.map((v) => ({ value: v.head, label: t(`vars.${v.id}.name`) }))} />
+      </Field>
+      <Text size="xs" tone="muted">{t('commandEditor.moduleVariableRequires', { module: selectedName })} <TextLink variant="inline" href={moduleLink}>{t('commandEditor.manageModules')}</TextLink></Text>
+      {#if parentModule}<Text size="xs" tone="muted">{t('commandEditor.moduleVariableParentRequires', { module: tModuleLabel(t, parentModule) })}</Text>{/if}
+      <Text size="xs" tone="muted">{t('commandEditor.moduleVariableContext')}</Text>
+      <ul class="variables">
+        {#each selected.forms as form (form.example)}
+          <PickerOption as="li" label={form.example} title={form.output} onclick={() => insert(form.example)} />
+        {/each}
+      </ul>
+    </div>
   {/snippet}
 </PickerPanel>
 
 <style>
-  .module-field { display: flex; flex-direction: column; gap: 5px; font: 11px var(--bb-font-body); color: var(--bb-muted); }
-  .requirement, .context { margin: 0; font: 12px/1.5 var(--bb-font-body); color: var(--bb-muted); }
-  .module-link { color: var(--bb-green-glow); }
+  .body { display: contents; --field-gap: 5px; --field-mb: 0; }
   .variables { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-  .variable { width: 100%; padding: 5px 8px; text-align: left; background: transparent; border: none; border-radius: var(--bb-radius-sm); color: var(--bb-white); cursor: pointer; }
-  .variable:hover { background: var(--glass-fill-2); }
-  .variable-code { font: 12px var(--bb-font-mono); overflow-wrap: anywhere; }
 </style>

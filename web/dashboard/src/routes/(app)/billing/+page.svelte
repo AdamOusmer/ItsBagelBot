@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, FieldError, AuroraBg, LightField, Tag, Heading, Text, portal, toast, getI18n, containsLink } from '@bagel/kit';
+  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+  import { Badge, Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, Eyebrow, Field, FieldError, AuroraBg, Input, Label, LightField, Spinner, Tag, Heading, Text, Textarea, portal, toast, getI18n, containsLink } from '@bagel/kit';
   import { fmtDateTime } from '@bagel/kit/format';
   import { page } from '$app/state';
   import { invalidateAll, replaceState } from '$app/navigation';
@@ -284,14 +284,11 @@
     return isPaid ? undefined : watchActivation();
   });
 
+  const celebratingPremium = $derived(celebrateOpen && celebrateKind === 'premium');
+  const activationBurstDue = $derived(isPaid && !celebratedActivation && !confettiPending);
+
   $effect(() => {
-    if (
-      celebrateOpen &&
-      celebrateKind === 'premium' &&
-      isPaid &&
-      !celebratedActivation &&
-      !confettiPending
-    ) {
+    if (celebratingPremium && activationBurstDue) {
       celebratedActivation = true;
       burst();
     }
@@ -350,23 +347,25 @@
   {/if}
 
   {#if prizes.length}
-    <section class="prize-card" aria-labelledby="prize-title">
-      <div class="prize-card-head">
-        <div><span class="premium-eyebrow">{t('billing.prizeTitle')}</span><Heading level={2} id="prize-title" class="prize-title">{t('billing.prizeTimeline')}</Heading></div>
-        <span class="prize-mark" aria-hidden="true">✦</span>
-      </div>
-      {#each prizes as prize (prize.id)}
-        <article class="prize-row">
-          <div><strong>{t('billing.prizeMonths', { n: prize.prizeMonths })}</strong><Text as="span" size="xs" tone="muted" class="prize-line">{prizeCopy(prize)}</Text></div>
-          <div class="prize-dates">
-            {#if prize.confirmedStart || prize.plannedStart}<Text as="span" size="xs" tone="pale" class="prize-line">{prizeDate(prize.confirmedStart ?? prize.plannedStart)}</Text>{/if}
-            {#if prize.confirmedEnd || prize.plannedEnd}<Text as="span" size="xs" tone="pale" class="prize-line">{prizeDate(prize.confirmedEnd ?? prize.plannedEnd)}</Text>{/if}
-            {#if prize.billingState === 'pending' || prize.billingState === 'uncertain'}<Text as="small" size="xs" tone="warn" class="prize-note">{t('billing.prizeBillingPending')}</Text>{/if}
-          </div>
-          {#if prize.emailState === 'missing_contact'}<Text as="small" size="xs" tone="warn" class="prize-note">{t('billing.prizeEmailMissing')}</Text>{/if}
-        </article>
-      {/each}
-    </section>
+    <div class="prize">
+      <Card as="section" tone="accent" aria-labelledby="prize-title">
+        <div class="prize-card-head">
+          <div class="prize-cell"><Eyebrow>{t('billing.prizeTitle')}</Eyebrow><Heading level={5} as="h2" id="prize-title">{t('billing.prizeTimeline')}</Heading></div>
+          <span class="prize-mark" aria-hidden="true">✦</span>
+        </div>
+        {#each prizes as prize (prize.id)}
+          <article class="prize-row">
+            <div class="prize-cell"><strong>{t('billing.prizeMonths', { n: prize.prizeMonths })}</strong><Text as="span" size="xs" tone="muted">{prizeCopy(prize)}</Text></div>
+            <div class="prize-cell">
+              {#if prize.confirmedStart || prize.plannedStart}<Text as="span" size="xs" tone="pale">{prizeDate(prize.confirmedStart ?? prize.plannedStart)}</Text>{/if}
+              {#if prize.confirmedEnd || prize.plannedEnd}<Text as="span" size="xs" tone="pale">{prizeDate(prize.confirmedEnd ?? prize.plannedEnd)}</Text>{/if}
+              {#if prize.billingState === 'pending' || prize.billingState === 'uncertain'}<Text as="small" size="xs" tone="warn">{t('billing.prizeBillingPending')}</Text>{/if}
+            </div>
+            {#if prize.emailState === 'missing_contact'}<Text as="small" size="xs" tone="warn">{t('billing.prizeEmailMissing')}</Text>{/if}
+          </article>
+        {/each}
+      </Card>
+    </div>
   {/if}
 
   {#if !isPaid}
@@ -378,75 +377,87 @@
 
     <h2 class="bb-sr-only">{t('billing.comparePlans')}</h2>
     <div class="plans">
-      <Card class="plan-card">
-        <span class="plan-eyebrow">{t('billing.currentPlan')}</span>
-        <h3 class="plan-headline">{t('billing.free')}</h3>
-        <p class="plan-price">
-          <span class="plan-amt">{t('billing.free')}</span>
-        </p>
-        <p class="plan-desc">{t('billing.freeDesc')}</p>
-        <ul class="plan-feats">
-          {#each freeFeatures as feature}
-            <li>{feature}</li>
-          {/each}
-        </ul>
-        <div class="plan-current">
-          <Tag tone="live">{t('billing.onThisPlan')}</Tag>
+      <Card>
+        <div class="plan">
+          <div class="plan-title">
+            <Label mono as="span">{t('billing.currentPlan')}</Label>
+            <Heading level={6} as="h3" variant="title" uppercase>{t('billing.free')}</Heading>
+          </div>
+          <p class="plan-price">
+            <span class="plan-amt">{t('billing.free')}</span>
+          </p>
+          <div class="plan-desc"><Text size="sm" tone="muted">{t('billing.freeDesc')}</Text></div>
+          <ul class="plan-feats">
+            {#each freeFeatures as feature}
+              <Text as="li" size="sm" tone="soft">{feature}</Text>
+            {/each}
+          </ul>
+          <div class="plan-current">
+            <Tag tone="live">{t('billing.onThisPlan')}</Tag>
+          </div>
         </div>
       </Card>
 
-      <Card class="plan-card plan-card--premium">
-        <span class="plan-badge">{t('billing.priorityLane')}</span>
-        <span class="plan-eyebrow">{t('billing.upgrade')}</span>
-        <h3 class="plan-headline">{t('billing.premium')}</h3>
-        <p class="plan-price">
-          <span class="plan-amt">{money}</span>
-          <span class="plan-per">{t('billing.perMonth')}</span>
-        </p>
-        <p class="plan-desc">{t('billing.premiumDesc')}</p>
-        <ul class="plan-feats">
-          {#each premiumFeatures as feature}
-            <li>{feature}</li>
-          {/each}
-        </ul>
-        <div class="plan-buttons">
-          <form method="POST" action="?/subscribe" bind:this={subscribeForm} onsubmit={() => onSubscribeSubmit('monthly')}>
-            <input type="hidden" name="plan" value="monthly" />
-            <Button
-              type="submit"
-              variant="primary"
-              loading={launching === 'monthly'}
-              disabled={launching === 'once' || awaitingActivation}
-              aria-describedby="premium-fine"
-            >
-              {t('billing.subscribeMonthly')}
-            </Button>
-          </form>
-          <form method="POST" action="?/subscribe" onsubmit={() => onSubscribeSubmit('once')}>
-            <input type="hidden" name="plan" value="once" />
-            <Button
-              type="submit"
-              variant="secondary"
-              loading={launching === 'once'}
-              disabled={launching === 'monthly' || awaitingActivation}
-              aria-describedby="premium-fine"
-            >
-              {t('billing.buyOneMonth')}
-            </Button>
-          </form>
+      <Card tone="accent">
+        <div class="plan">
+          <span class="plan-badge"><Badge shape="pill" tone="paid">{t('billing.priorityLane')}</Badge></span>
+          <div class="plan-title">
+            <Label mono as="span">{t('billing.upgrade')}</Label>
+            <Heading level={6} as="h3" variant="title" uppercase>{t('billing.premium')}</Heading>
+          </div>
+          <p class="plan-price">
+            <span class="plan-amt">{money}</span>
+            <Text as="span" size="sm" tone="muted">{t('billing.perMonth')}</Text>
+          </p>
+          <div class="plan-desc"><Text size="sm" tone="muted">{t('billing.premiumDesc')}</Text></div>
+          <ul class="plan-feats">
+            {#each premiumFeatures as feature}
+              <Text as="li" size="sm" tone="soft">{feature}</Text>
+            {/each}
+          </ul>
+          <div class="plan-buttons">
+            <form method="POST" action="?/subscribe" bind:this={subscribeForm} onsubmit={() => onSubscribeSubmit('monthly')}>
+              <input type="hidden" name="plan" value="monthly" />
+              <Button
+                type="submit"
+                variant="primary"
+                block
+                loading={launching === 'monthly'}
+                disabled={launching === 'once' || awaitingActivation}
+                aria-describedby="premium-fine"
+              >
+                {t('billing.subscribeMonthly')}
+              </Button>
+            </form>
+            <form method="POST" action="?/subscribe" onsubmit={() => onSubscribeSubmit('once')}>
+              <input type="hidden" name="plan" value="once" />
+              <Button
+                type="submit"
+                variant="secondary"
+                block
+                loading={launching === 'once'}
+                disabled={launching === 'monthly' || awaitingActivation}
+                aria-describedby="premium-fine"
+              >
+                {t('billing.buyOneMonth')}
+              </Button>
+            </form>
+          </div>
+          <div class="launch-note" role="status" class:is-on={launching !== null}>
+            <Text size="sm" tone="accent">{launching ? t('billing.takingToCheckout') : ''}</Text>
+          </div>
+          <div class="plan-fine"><Text size="xs" tone="muted" id="premium-fine">{t('billing.premiumFine')} &middot; {t('billing.tebexNote')}</Text></div>
         </div>
-        <p class="launch-note" role="status" class:is-on={launching !== null}>{launching ? t('billing.takingToCheckout') : ''}</p>
-        <p class="plan-fine" id="premium-fine">{t('billing.premiumFine')} &middot; {t('billing.tebexNote')}</p>
       </Card>
     </div>
 
     <p class="oath">{t('billing.oath')}</p>
 
     <div class="gift-link-row">
-      <button type="button" class="gift-link" onclick={openGift}>{t('billing.giftLink')}</button>
+      <Button variant="quiet" onclick={openGift}>{t('billing.giftLink')}</Button>
     </div>
     {#if form?.error && !form?.gift}
-      <p class="form-error center" role="alert">{form.error}</p>
+      <div class="form-error"><FieldError message={String(form.error)} /></div>
     {/if}
   {:else}
     {#if paymentFailed}
@@ -465,13 +476,13 @@
           <img src="/premium-logo.png" alt="" />
         </div>
         <div class="premium-hero-text" role="status">
-          <span class="premium-eyebrow">{t('billing.currentPlan')}</span>
+          <Eyebrow>{t('billing.currentPlan')}</Eyebrow>
           <h2 class="premium-title">{statusLabel}</h2>
 
           {#if tebexPaid}
-            <p class="premium-price">
+            <p class="plan-price premium-price">
               <span class="plan-amt">{money}</span>
-              <span class="plan-per">{t('billing.perMonth')}</span>
+              <Text as="span" size="sm" tone="muted">{t('billing.perMonth')}</Text>
               {#if cancelPending && paidUntil}
                 <Tag tone="alpha">{t('billing.endsOn', { date: fmtDate(paidUntil) })}</Tag>
               {/if}
@@ -521,33 +532,35 @@
           <p class="premium-tiny-hint">{t('billing.receiptsEmailed')}</p>
         {/if}
         {#if form?.error && !form?.gift}
-          <p class="form-error center" role="alert">{form.error}</p>
+          <div class="form-error"><FieldError message={String(form.error)} /></div>
         {/if}
       </div>
     </div>
 
     <section class="premium-includes">
-      <h3 class="includes-h">{t('billing.premiumIncludes')}</h3>
+      <div class="includes-h"><Heading level={6} as="h3" variant="label">{t('billing.premiumIncludes')}</Heading></div>
       <ul class="plan-feats plan-feats--flow">
         {#each premiumFeatures as feature}
-          <li>{feature}</li>
+          <Text as="li" size="sm" tone="soft">{feature}</Text>
         {/each}
       </ul>
     </section>
 
-    <Card class="billing-card premium-gift-card">
-      <div class="gift-cta">
-        <div>
-          <h2 class="gift-h">{t('billing.giftPremium')}</h2>
-          <p class="hint">
-            {t('billing.giftCtaHint')}
-          </p>
+    <div class="gift-card">
+      <Card>
+        <div class="gift-cta">
+          <div class="gift-copy">
+            <Heading level={6} as="h2" variant="title">{t('billing.giftPremium')}</Heading>
+            <Text size="sm" tone="muted">
+              {t('billing.giftCtaHint')}
+            </Text>
+          </div>
+          <Button variant="secondary" onclick={openGift}>
+            {t('billing.giftPremium')}
+          </Button>
         </div>
-        <Button variant="secondary" onclick={openGift} class="gift-cta-btn">
-          {t('billing.giftPremium')}
-        </Button>
-      </div>
-    </Card>
+      </Card>
+    </div>
   {/if}
 </section>
 
@@ -567,15 +580,12 @@
 <form method="POST" action="?/cancel" bind:this={cancelForm} hidden></form>
 
 <Modal open={giftModalOpen} title={t('billing.giftPremium')} closeModal={closeGift}>
-  <p class="modal-body">
+  <p class="bb-modal__body">
     {t('billing.giftModalBody')}
   </p>
   <form method="POST" action="?/gift" onsubmit={onGiftSubmit} class="gift-form">
-    <label class="fld">
-      <span class="fld-label">{t('billing.twitchUsername')}</span>
-      <input
-        class="fld-input"
-        type="text"
+    <Field label={t('billing.twitchUsername')}>
+      <Input
         name="recipient"
         data-cursor
         placeholder={t('billing.usernamePlaceholder')}
@@ -585,32 +595,35 @@
         bind:value={giftRecipient}
         readonly={giftLaunching}
       />
-    </label>
-    <label class="fld">
-      <span class="fld-label">{t('billing.messageLabel')} <em>{t('billing.optional')}</em></span>
-      <textarea
-        class="fld-input fld-textarea"
+    </Field>
+    <Field
+      label={t('billing.messageLabel')}
+      tag={t('billing.optional')}
+      error={giftMessageHasLink ? t('billing.giftNoteLink') : undefined}
+      errorId="gift-msg-error"
+    >
+      <Textarea
         name="message"
         data-cursor
         placeholder={t('billing.messagePlaceholder')}
         maxlength="280"
-        rows="3"
+        rows={3}
+        invalid={giftMessageHasLink}
         bind:value={giftMessage}
         aria-describedby="gift-msg-counter{giftMessageHasLink ? ' gift-msg-error' : ''}"
         readonly={giftLaunching}
-      ></textarea>
-      <span id="gift-msg-counter" class="counter" class:counter--full={giftMessage.length >= 280}>{giftMessage.length}/280</span>
-      {#if giftMessageHasLink}
-        <span id="gift-msg-error"><FieldError message={t('billing.giftNoteLink')} /></span>
-      {/if}
-    </label>
+      />
+      <span class="counter">
+        <Text as="span" size="xs" tone={giftMessage.length >= 280 ? 'accent' : 'muted'} mono id="gift-msg-counter">{giftMessage.length}/280</Text>
+      </span>
+    </Field>
     {#if form?.gift && form?.error}
-      <FieldError message={form.error} />
+      <FieldError message={String(form.error)} />
     {/if}
     {#if giftNeedsRecipient && !giftLaunching}
-      <p class="hint tiny" id="gift-need-recipient">{t('billing.giftNeedRecipient')}</p>
+      <Text size="xs" tone="muted" id="gift-need-recipient">{t('billing.giftNeedRecipient')}</Text>
     {/if}
-    <div class="modal-actions">
+    <div class="bb-modal__actions">
       <Button variant="ghost" onclick={closeGift} disabled={giftLaunching}>{t('common.cancel')}</Button>
       <Button
         type="submit"
@@ -641,33 +654,29 @@
     </div>
 
     {#if celebrateKind === 'gift'}
-      <h3 class="celebrate-title">{t('billing.giftSent')}</h3>
-      <p class="celebrate-body">
-        {#if celebrateRecipient}
-          {t('billing.giftSentNamedPre')}<strong>@{celebrateRecipient}</strong>{t('billing.giftSentNamedPost')}
-        {:else}
-          {t('billing.giftSentBody')}
-        {/if}
-      </p>
+      <div class="celebrate-title"><Heading level={3}>{t('billing.giftSent')}</Heading></div>
+      <div class="celebrate-body">
+        <Text size="sm" tone="muted">
+          {#if celebrateRecipient}
+            {t('billing.giftSentNamedPre')}<Text as="span" size="sm" tone="accent"><strong>@{celebrateRecipient}</strong></Text>{t('billing.giftSentNamedPost')}
+          {:else}
+            {t('billing.giftSentBody')}
+          {/if}
+        </Text>
+      </div>
     {:else if isPaid}
-      <h3 class="celebrate-title">{t('billing.premiumActivated')}</h3>
-      <p class="celebrate-body">
-        {t('billing.premiumActivatedBody')}
-      </p>
+      <div class="celebrate-title"><Heading level={3}>{t('billing.premiumActivated')}</Heading></div>
+      <div class="celebrate-body"><Text size="sm" tone="muted">{t('billing.premiumActivatedBody')}</Text></div>
     {:else if activationSlow}
-      <h3 class="celebrate-title">{t('billing.paymentReceived')}</h3>
-      <p class="celebrate-body">
-        {t('billing.paymentSlowBody')}
-      </p>
+      <div class="celebrate-title"><Heading level={3}>{t('billing.paymentReceived')}</Heading></div>
+      <div class="celebrate-body"><Text size="sm" tone="muted">{t('billing.paymentSlowBody')}</Text></div>
     {:else}
-      <h3 class="celebrate-title">{t('billing.paymentReceivedTitle')}</h3>
-      <p class="celebrate-body">
-        {t('billing.paymentReceivedBody')}
-      </p>
-      <div class="celebrate-spinner" aria-hidden="true"></div>
+      <div class="celebrate-title"><Heading level={3}>{t('billing.paymentReceivedTitle')}</Heading></div>
+      <div class="celebrate-body"><Text size="sm" tone="muted">{t('billing.paymentReceivedBody')}</Text></div>
+      <div class="celebrate-spinner"><Spinner size="md" /></div>
     {/if}
 
-    <div class="modal-actions celebrate-actions">
+    <div class="bb-modal__actions celebrate-actions">
       <Button variant="primary" onclick={closeCelebrate}>
         {celebrateKind === 'gift' ? t('common.done') : isPaid ? t('billing.explorePremium') : t('common.gotIt')}
       </Button>
@@ -699,37 +708,20 @@
     pointer-events: none;
   }
   .screen {
+    --label-mono-size: var(--bb-text-xs);
+    --h-label-size: var(--bb-text-xs);
+    --badge-pill-size: var(--bb-text-xs);
+
     position: relative;
     z-index: 1;
   }
 
-  :global(.billing-card) {
-    margin-top: 18px;
-  }
-  .prize-card { margin:18px 0 22px; padding:22px; border:1px solid rgba(201,168,124,.38); border-radius:18px; background:linear-gradient(135deg,rgba(201,168,124,.1),rgba(255,255,255,.025)); }
+  .prize { margin: 18px 0 22px; }
   .prize-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:14px; }
-  .prize-card-head :global(.prize-title) { margin-top:4px; font-size:18px; }
-  .premium-eyebrow { font-family:var(--bb-font-mono); font-size: 12px; letter-spacing:.12em; text-transform:uppercase; color:var(--bb-muted); }
+  .prize-cell { display:flex; flex-direction:column; gap:5px; }
   .prize-mark { color:var(--bb-tan-pale); font-size:24px; }
   .prize-row { display:grid; grid-template-columns:minmax(160px,1fr) minmax(180px,1fr) minmax(160px,1fr); gap:16px; padding:14px 0; border-top:1px solid var(--bb-border); }
-  .prize-row strong,.prize-row :global(.prize-note) { display:block; } .prize-row :global(.prize-line) { display:block; margin-top:5px; line-height:normal; }
   @media (max-width:700px) { .prize-row { grid-template-columns:1fr; gap:7px; } }
-  .gift-h {
-    margin: 0 0 6px;
-    font-size: 16px;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    color: var(--bb-white);
-  }
-  .hint {
-    color: var(--bb-muted, #998f82);
-    font-size: 13px;
-    margin: 6px 0 0;
-    max-width: 52ch;
-  }
-  .hint.tiny {
-    font-size: 12px;
-  }
 
   .plan-status {
     display: inline-flex;
@@ -750,52 +742,27 @@
     }
   }
 
-  :global(.plan-card) {
-    position: relative;
+  .plan {
     display: flex;
     flex-direction: column;
     height: 100%;
   }
-  :global(.plan-card--premium) {
-    border-color: rgba(201, 168, 124, 0.4) !important;
-    box-shadow: 0 0 44px rgba(201, 168, 124, 0.08);
-  }
-
   .plan-badge {
     position: absolute;
     top: 16px;
     right: 16px;
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    background: var(--bb-tan);
-    color: #0a0a0a;
-    padding: 4px 12px;
-    border-radius: var(--bb-radius-pill);
-    font-weight: 600;
   }
-  .plan-eyebrow {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: var(--bb-tracking-eyebrow, 0.14em);
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .plan-headline {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 15px;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: var(--bb-white);
-    margin: 6px 0 12px;
+  .plan-title {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
   }
   .plan-price {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 3px;
+    gap: 7px;
     margin: 0 0 12px;
   }
   .plan-amt {
@@ -803,21 +770,11 @@
     font-weight: 800;
     font-size: 3rem;
     line-height: 1;
-    letter-spacing: -0.03em;
+    letter-spacing: var(--bb-tracking-tight);
     color: var(--bb-white);
     font-variant-numeric: tabular-nums;
   }
-  .plan-per {
-    font-family: var(--bb-font-body);
-    font-size: 0.85rem;
-    color: var(--bb-muted);
-    margin-left: 4px;
-  }
   .plan-desc {
-    font-family: var(--bb-font-body);
-    font-size: 0.9rem;
-    line-height: 1.6;
-    color: var(--bb-muted);
     margin: 0 0 20px;
     max-width: 42ch;
   }
@@ -830,12 +787,6 @@
     padding: 20px 0 0;
     border-top: 1px solid var(--bb-border);
   }
-  .plan-feats li {
-    font-family: var(--bb-font-body);
-    font-size: 0.87rem;
-    line-height: 1.45;
-    color: rgba(240, 236, 228, 0.82);
-  }
   .plan-current {
     margin: auto 0 0;
   }
@@ -847,36 +798,28 @@
   .plan-buttons form {
     flex: 1;
   }
-  .plan-buttons { --btn-w: 100%; --btn-justify: center; }
   .launch-note {
-    min-height: 1.5em;
+    min-height: calc(var(--bb-text-sm) * 1.5);
     margin: 12px 0 0;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-tan-light);
     visibility: hidden;
     opacity: 0;
-    transition: opacity 200ms var(--bb-ease-out-expo);
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
   .launch-note.is-on {
     visibility: visible;
     opacity: 1;
   }
   .plan-fine {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-muted);
     margin: 4px 0 0;
-    line-height: 1.5;
   }
 
   .oath {
     font-family: var(--bb-font-mono);
-    font-size: 12px;
+    font-size: var(--bb-text-xs);
     letter-spacing: 0.05em;
     color: var(--bb-muted);
     text-align: center;
-    border: 1px dashed rgba(201, 168, 124, 0.22);
+    border: 1px dashed rgba(var(--bb-tan-rgb), 0.22);
     border-radius: var(--bb-radius-pill);
     padding: 11px 22px;
     margin: 18px auto 0;
@@ -884,38 +827,21 @@
   }
 
   .gift-link-row {
+    --btn-min-h: 44px;
     display: flex;
     justify-content: center;
     margin-top: 22px;
-  }
-  .gift-link {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    color: var(--bb-tan-light);
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    padding: 8px 4px;
-    transition: color var(--bb-dur-fast, 160ms) ease;
-  }
-  .gift-link:hover {
-    color: var(--bb-tan-pale, #e8d8c0);
-    text-decoration: underline;
-    text-underline-offset: 3px;
   }
 
   .premium-dashboard-hero {
     margin-top: 24px;
     padding: 32px;
     border-radius: var(--bb-radius-lg);
-    border: 1px solid rgba(201, 168, 124, 0.4);
-    background: radial-gradient(circle at 10% 0%, rgba(201, 168, 124, 0.12) 0%, rgba(10, 10, 10, 0) 60%),
-                linear-gradient(180deg, rgba(201, 168, 124, 0.05) 0%, rgba(10, 10, 10, 0) 100%),
-                var(--bb-card-bg, #111110);
-    box-shadow: 0 12px 64px rgba(201, 168, 124, 0.1);
+    border: 1px solid rgba(var(--bb-tan-rgb), 0.4);
+    background: radial-gradient(circle at 10% 0%, rgba(var(--bb-tan-rgb), 0.12) 0%, rgba(var(--bb-black-rgb), 0) 60%),
+                linear-gradient(180deg, rgba(var(--bb-tan-rgb), 0.05) 0%, rgba(var(--bb-black-rgb), 0) 100%),
+                var(--bb-card-bg);
+    box-shadow: 0 12px 64px rgba(var(--bb-tan-rgb), 0.1);
     display: flex;
     flex-direction: column;
     gap: 32px;
@@ -938,13 +864,13 @@
     width: 64px;
     height: 64px;
     border-radius: 50%;
-    background: rgba(201, 168, 124, 0.15);
-    border: 1px solid rgba(201, 168, 124, 0.5);
+    background: rgba(var(--bb-tan-rgb), 0.15);
+    border: 1px solid rgba(var(--bb-tan-rgb), 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    box-shadow: 0 0 24px rgba(201, 168, 124, 0.2);
+    box-shadow: 0 0 24px rgba(var(--bb-tan-rgb), 0.2);
   }
   .premium-hero-badge img {
     width: 36px;
@@ -955,42 +881,33 @@
   .premium-hero-text {
     display: flex;
     flex-direction: column;
-  }
-  .premium-eyebrow {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-tan, #c9a87c);
-    margin-bottom: 6px;
+    gap: 8px;
   }
   .premium-title {
     font-family: var(--bb-font-display);
     font-weight: 800;
     font-size: 28px;
-    letter-spacing: -0.02em;
+    letter-spacing: var(--bb-tracking-display);
     color: var(--bb-white);
-    margin: 0 0 8px;
+    margin: 0;
     background: linear-gradient(135deg, var(--bb-white) 0%, var(--bb-tan-pale) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
   .premium-price {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
     gap: 3px 8px;
-    margin: 0 0 10px;
+    margin: 0;
   }
   .premium-price .plan-amt {
     font-size: 1.6rem;
+    margin-right: 4px;
   }
   .premium-hint {
     font-family: var(--bb-font-body);
     font-size: 14.5px;
     line-height: 1.5;
-    color: rgba(240, 236, 228, 0.7);
+    color: rgba(var(--bb-white-rgb), 0.7);
     max-width: 46ch;
     margin: 0;
   }
@@ -1014,8 +931,8 @@
   }
 
   .premium-tiny-hint {
-    font-size: 12px;
-    color: rgba(240, 236, 228, 0.55);
+    font-size: var(--bb-text-xs);
+    color: rgba(var(--bb-white-rgb), 0.55);
     margin: 0;
     max-width: 40ch;
   }
@@ -1029,11 +946,6 @@
     margin-top: 22px;
   }
   .includes-h {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
     margin: 0 0 4px;
   }
   .plan-feats--flow {
@@ -1048,9 +960,8 @@
     }
   }
 
-  :global(.premium-gift-card) {
-    border-color: rgba(201, 168, 124, 0.2) !important;
-    background: linear-gradient(180deg, rgba(201, 168, 124, 0.02) 0%, rgba(10, 10, 10, 0) 100%), var(--bb-card-bg, #111110) !important;
+  .gift-card {
+    margin-top: 18px;
   }
   .gift-cta {
     display: flex;
@@ -1058,70 +969,27 @@
     justify-content: space-between;
     gap: 18px;
   }
-  :global(.gift-cta-btn) {
-    flex-shrink: 0;
+  .gift-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 52ch;
   }
 
   .form-error {
-    color: #e5484d;
-    font-size: 13px;
-  }
-  .form-error.center {
     text-align: center;
     margin-top: 14px;
   }
 
   .gift-form {
+    --field-mb: 0;
+
     display: flex;
     flex-direction: column;
     gap: 16px;
   }
-  .fld {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    position: relative;
-  }
-  .fld-label {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .fld-label em {
-    font-style: normal;
-    text-transform: none;
-    letter-spacing: 0;
-    opacity: 0.7;
-  }
-  .fld-input {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--bb-border, rgba(255, 255, 255, 0.1));
-    border-radius: var(--bb-radius-sm);
-    color: var(--bb-white, #f0ece4);
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    padding: 10px 14px;
-    width: 100%;
-  }
-  .fld-input:focus {
-    outline: none;
-    border-color: var(--bb-tan, #c9a87c);
-  }
-  .fld-textarea {
-    resize: vertical;
-    min-height: 68px;
-    line-height: 1.5;
-  }
   .counter {
     align-self: flex-end;
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-muted);
-  }
-  .counter--full {
-    color: var(--bb-tan-light);
   }
 
   .celebrate {
@@ -1137,46 +1005,28 @@
     justify-content: center;
     border-radius: 50%;
     color: var(--bb-tan-light);
-    background: radial-gradient(circle at 50% 40%, rgba(201, 168, 124, 0.28), rgba(201, 168, 124, 0.06));
-    border: 1px solid rgba(201, 168, 124, 0.4);
-    animation: pop 620ms var(--bb-ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+    background: radial-gradient(circle at 50% 40%, rgba(var(--bb-tan-rgb), 0.28), rgba(var(--bb-tan-rgb), 0.06));
+    border: 1px solid rgba(var(--bb-tan-rgb), 0.4);
+    animation: pop 620ms var(--bb-ease-out-back) both;
   }
   .celebrate-badge--gift {
-    color: var(--bb-green-light, #74c69d);
-    background: radial-gradient(circle at 50% 40%, rgba(82, 183, 136, 0.28), rgba(82, 183, 136, 0.06));
-    border-color: rgba(82, 183, 136, 0.4);
+    color: var(--bb-green-light);
+    background: radial-gradient(circle at 50% 40%, rgba(var(--bb-green-glow-rgb), 0.28), rgba(var(--bb-green-glow-rgb), 0.06));
+    border-color: rgba(var(--bb-green-glow-rgb), 0.4);
   }
   .celebrate-title {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: 24px;
-    color: var(--bb-white);
     margin: 0 0 10px;
-    letter-spacing: -0.01em;
-    animation: rise 500ms var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+    animation: rise 500ms var(--bb-ease-out-expo) both;
     animation-delay: 80ms;
   }
   .celebrate-body {
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    line-height: 1.6;
-    color: var(--bb-muted);
     margin: 0 auto;
     max-width: 42ch;
-    animation: rise 500ms var(--bb-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both;
+    animation: rise 500ms var(--bb-ease-out-expo) both;
     animation-delay: 140ms;
   }
-  .celebrate-body strong {
-    color: var(--bb-tan-light);
-  }
   .celebrate-spinner {
-    width: 22px;
-    height: 22px;
-    margin: 18px auto 0;
-    border: 2px solid var(--bb-border-strong, rgba(201, 168, 124, 0.3));
-    border-top-color: var(--bb-tan);
-    border-radius: 50%;
-    animation: spin 700ms linear infinite;
+    margin-top: 18px;
   }
   .celebrate-actions {
     justify-content: center;
@@ -1206,16 +1056,11 @@
       opacity: 1;
     }
   }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
 
   .confetti-layer {
     position: fixed;
     inset: 0;
-    z-index: 400;
+    z-index: calc(var(--bb-z-overlay) + 100);
     pointer-events: none;
     overflow: hidden;
   }
@@ -1255,7 +1100,6 @@
     .celebrate-badge,
     .celebrate-title,
     .celebrate-body,
-    .celebrate-spinner,
     .confetti-piece {
       animation: none;
     }
@@ -1269,9 +1113,11 @@
 
   @media (max-width: 760px) {
     .gift-cta {
+      --btn-w: 100%;
+      --btn-justify: center;
+
       flex-direction: column;
     }
-    .gift-cta { --btn-w: 100%; --btn-justify: center; }
     .plan-buttons {
       flex-direction: column;
     }

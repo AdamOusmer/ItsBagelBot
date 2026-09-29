@@ -5,7 +5,7 @@
 
 @layer bb.elements {
   .bb-editor-foot {
-    --editor-foot-rule: var(--rule, var(--bb-border));
+    --editor-foot-rule: var(--bb-border);
 
     position: sticky;
     bottom: 0;
@@ -15,7 +15,7 @@
     gap: 12px;
     padding: 12px 16px;
     border-top: 1px solid var(--editor-foot-rule);
-    background: var(--bb-bg-1, #111);
+    background: var(--bb-bg-1);
   }
 
   .bb-editor-foot__status {
@@ -36,7 +36,7 @@
   .bb-editor-foot__s--dirty { color: var(--bb-muted); }
   .bb-editor-foot__s--saving { color: var(--bb-tan-light); }
   .bb-editor-foot__s--saved { color: var(--bb-green-glow); }
-  .bb-editor-foot__s--error { color: #cf8a78; }
+  .bb-editor-foot__s--error { color: var(--bb-status-error); }
 
   .bb-editor-foot__s--saved svg {
     fill: none;
@@ -54,5 +54,9 @@
     .bb-editor-foot__acts .bb-btn {
       min-height: 44px;
     }
+  }
+
+  :is([data-static] .bb-editor-foot, .bb-editor-foot[data-static]) {
+    position: static;
   }
 }
