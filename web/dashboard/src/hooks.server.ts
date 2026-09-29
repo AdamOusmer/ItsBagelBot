@@ -5,6 +5,7 @@ import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit';
 import newrelic from 'newrelic';
 import { COOKIE, CURSOR_COOKIE, open } from '$lib/server/session';
 import { guardSession } from '$lib/server/guard';
+import { LOCALE_COOKIE } from '@bagel/kit/i18n';
 import { warm as warmValkey } from '@bagel/kit/server/valkey-store';
 import { initConsoleRuntime } from '@bagel/kit/server/boot';
 import {
@@ -64,28 +65,43 @@ async function enforceRateLimit(event: Parameters<Handle>[0]['event']): Promise<
   });
 }
 
-const EDGE_CACHE: Record<string, readonly [edgeTtlSec: number, swrSec: number]> = {
-  '/login': [600, 86_400],
+export const EDGE_CACHE: Record<string, readonly [edgeTtlSec: number, swrSec: number]> = {
+  '/(public)/login': [600, 86_400],
   '/(public)/stats': [30, 300],
-  '/(public)/[user]': [60, 300],
-  '/user/[channel]': [60, 300]
+  '/(public)/[user]': [300, 3600],
+  '/(public)/user/[channel]': [300, 3600]
 };
 
-function cacheableStatus(res: Response, event: Parameters<Handle>[0]['event']): boolean {
+type HookEvent = Parameters<Handle>[0]['event'];
+
+function cacheableStatus(res: Response, event: HookEvent): boolean {
   return res.status === 200 || (res.status === 404 && !!event.locals.edgeCache404);
 }
 
-// Cloudflare's cache key ignores cookies and Accept-Language: cache only anonymous default renders.
-export function edgeCacheControl(event: Parameters<Handle>[0]['event'], res: Response): string | null {
+function anonymousDefaultRender(event: HookEvent): boolean {
+  if (event.locals.session) return false;
+  if (event.cookies.get(LOCALE_COOKIE) || event.url.searchParams.has('lang')) return false;
+  return event.cookies.get(CURSOR_COOKIE) !== '0';
+}
+
+// Cloudflare keys the cache on normalized Accept-Language only: cache renders whose locale comes from that header alone.
+export function edgeCacheHeaders(event: HookEvent, res: Response): Record<string, string> | null {
   const ttl = EDGE_CACHE[event.route.id ?? ''];
   if (!ttl) return null;
   if (event.request.method !== 'GET' && event.request.method !== 'HEAD') return null;
   if (!cacheableStatus(res, event) || !res.headers.get('content-type')?.includes('text/html')) return null;
-  if (event.locals.session) return null;
-  if (event.locals.locale !== 'en') return null;
-  if (event.url.searchParams.has('lang')) return null;
-  if (event.cookies.get(CURSOR_COOKIE) === '0') return null;
-  return `public, max-age=0, s-maxage=${ttl[0]}, stale-while-revalidate=${ttl[1]}`;
+  if (!anonymousDefaultRender(event)) return null;
+  return {
+    'Cache-Control': 'public, max-age=0',
+    'CDN-Cache-Control': `max-age=${ttl[0]}, stale-while-revalidate=${ttl[1]}, stale-if-error=86400`
+  };
+}
+
+export function applyEdgeCache(event: HookEvent, res: Response): void {
+  const headers = edgeCacheHeaders(event, res);
+  if (!headers) return;
+  for (const [name, value] of Object.entries(headers)) res.headers.set(name, value);
+  res.headers.append('Vary', 'Accept-Language');
 }
 
 const PERMISSIONS_POLICY =
@@ -123,8 +139,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   });
 
   harden(res, PERMISSIONS_POLICY);
-  const cacheControl = edgeCacheControl(event, res);
-  if (cacheControl) res.headers.set('Cache-Control', cacheControl);
+  applyEdgeCache(event, res);
   return res;
 };
 

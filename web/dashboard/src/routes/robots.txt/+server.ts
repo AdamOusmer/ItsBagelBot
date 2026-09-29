@@ -43,8 +43,7 @@ const LEADERBOARD = `# ItsBagelBot Leaderboards: https://leaderboard.itsbagelbot
 User-agent: *
 Allow: /
 
-# Not documents: JSON and SSE endpoints. /stats/stream in particular holds a
-# connection open for as long as the client keeps reading, which a crawler will.
+# Not documents: JSON and SSE endpoints.
 Disallow: /stats/
 Disallow: /events
 

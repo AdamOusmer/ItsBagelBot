@@ -7,6 +7,7 @@ import { POLICY } from '@bagel/kit/server/cache-keys';
 import * as valkey from '@bagel/kit/server/valkey-store';
 import type { CommandView, Perm } from '@bagel/kit';
 import { SUB, fabric, invalidate } from './services';
+import { schedulePurgeChannel } from './edge-purge';
 
 const READ_TIMEOUT_MS = 2000;
 
@@ -74,6 +75,7 @@ async function replaceProjected<R>(kind: section, userId: string, rows: unknown[
 
 export async function replaceProjectedModules(userId: string, modules: ModuleView[]): Promise<boolean> {
   const projected = await replaceProjected<{ modules: ModuleView[] }>('modules', userId, modules);
+  schedulePurgeChannel(userId);
   // These are committed SQL rows; keep them briefly if projection is unavailable.
   commitOptimistic(cacheKey('modules', userId), projected ? projected.reply.modules : modules, projected !== null);
   return projected !== null;
@@ -187,6 +189,7 @@ export async function upsertCommand(
     upsertRequest(userId, cmd, originalName, canRestore)
   );
   const restored = canRestore && reply?.restored === true;
+  schedulePurgeChannel(userId);
   try {
     const current = await listCommands(userId);
     const previous = current.find((c) => c.name === (originalName ?? cmd.name));
@@ -205,6 +208,7 @@ export async function deleteCommand(
   name: string
 ): Promise<{ commands: CommandView[] }> {
   await rpc(`${SUB.commands}.delete`, { user_id: userId, name });
+  schedulePurgeChannel(userId);
   try {
     const current = await listCommands(userId);
     const commands = current.filter((c) => c.name !== name);

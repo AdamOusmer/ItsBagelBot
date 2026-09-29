@@ -18,18 +18,29 @@ const shutdownTimeoutSeconds = Number(process.env.SHUTDOWN_TIMEOUT || 30);
 
 const immutable = '/_app/immutable/';
 
+const revalidated = new Set(['/service-worker.js', '/offline.html']);
+
+// SWR only works when the edge TTL is CDN-Cache-Control: any s-maxage makes Cloudflare drop stale-while-revalidate.
+function setStaticHeaders(res, pathname) {
+  if (pathname.includes(immutable)) {
+    res.setHeader('cache-control', 'public,max-age=31536000,immutable');
+  } else if (pathname === '/_app/version.json') {
+    // Deploy-detection poll target: browsers must revalidate or stale tabs never notice a deploy.
+    res.setHeader('cache-control', 'no-cache');
+    res.setHeader('cdn-cache-control', 'max-age=30, stale-while-revalidate=30');
+  } else if (revalidated.has(pathname)) {
+    res.setHeader('cache-control', 'no-cache');
+  } else if (!pathname.startsWith('/_app/')) {
+    res.setHeader('cache-control', 'public, max-age=86400');
+    res.setHeader('cdn-cache-control', 'max-age=604800, stale-while-revalidate=86400, stale-if-error=86400');
+  }
+}
+
 const client = sirv(path.join(build, 'client'), {
   etag: true,
   gzip: true,
   brotli: true,
-  setHeaders: (res, pathname) => {
-    if (pathname.includes(immutable)) {
-      res.setHeader('cache-control', 'public,max-age=31536000,immutable');
-    } else if (pathname === '/_app/version.json') {
-      // Deploy-detection poll target: if cached, stale tabs never notice a deploy.
-      res.setHeader('cache-control', 'no-store');
-    }
-  }
+  setHeaders: setStaticHeaders
 });
 
 // no-store: the CF edge would replay a cached mid-deploy miss to every client.
