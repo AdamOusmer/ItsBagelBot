@@ -5,6 +5,10 @@ package spotify
 
 import (
 	"context"
+	"errors"
+	"net/http"
+
+	"ItsBagelBot/app/gossip/internal/core"
 
 	"ItsBagelBot/pkg/monitor"
 
@@ -33,4 +37,27 @@ func (p *api) persistRotation(ctx context.Context, broadcaster, prev, next strin
 	}
 	log.Info("spotify refresh-token rotation persisted to custody",
 		zap.String("broadcaster", broadcaster))
+}
+
+type keyDeadMarker interface {
+	MarkDead(ctx context.Context, broadcasterID, token string) error
+}
+
+func revokedGrant(err error) bool {
+	var ue *core.UpstreamError
+	return errors.As(err, &ue) && ue.Status == http.StatusBadRequest && ue.Message == "invalid_grant"
+}
+
+func (p *api) reportRefreshFailure(ctx context.Context, broadcaster, token string, err error) {
+	if !revokedGrant(err) {
+		return
+	}
+	m, ok := p.keys.(keyDeadMarker)
+	if !ok {
+		return
+	}
+	if markErr := m.MarkDead(ctx, broadcaster, token); markErr != nil {
+		monitor.TxnLogger(ctx, p.log).Warn("spotify grant is revoked; could not record it in custody",
+			zap.String("broadcaster", broadcaster), zap.Error(markErr))
+	}
 }

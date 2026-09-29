@@ -47,7 +47,7 @@
   import PublicPageChip from '$lib/components/commands/PublicPageChip.svelte';
   import StarterCommands from '$lib/components/commands/StarterCommands.svelte';
   import { rovingList } from '$lib/components/commands/roving';
-  import { STATE_FILTERS, listCommands, stateCounts, type PermFilter, type SortKey, type StateFilter } from '$lib/components/commands/list-model';
+  import { STATE_FILTERS, hasCreatedAt, listCommands, stateCounts, type PermFilter, type SortKey, type StateFilter } from '$lib/components/commands/list-model';
   import { saveFailureErrors, isUnavailable, type SaveFailure } from '$lib/components/commands/save-errors';
   import type { Starter } from '$lib/components/commands/starters';
   import BuiltinInspector from '$lib/components/commands/BuiltinInspector.svelte';
@@ -89,6 +89,7 @@
     original?: string;
     silent?: boolean;
     error?: string;
+    restored?: boolean;
     commands?: CommandView[];
     op?: 'enable' | 'disable' | 'delete';
     results?: { name: string; ok: boolean }[];
@@ -174,7 +175,8 @@
   };
   const sortOptions = $derived([
     { value: 'uses', label: t('commands.sortUses') },
-    { value: 'name', label: t('commands.sortName') }
+    { value: 'name', label: t('commands.sortName') },
+    ...(hasCreatedAt(items) ? [{ value: 'recent', label: t('commands.sortRecent') }] : [])
   ]);
   const permOptions = $derived([
     { value: 'all', label: t('commands.permAll') },
@@ -182,7 +184,7 @@
   ]);
 
   const rows = $derived(
-    listCommands(items, { state: stateFilter, perm: permFilter as PermFilter, sort: sortKey as SortKey, search, keep: lingering })
+    listCommands(items, { state: stateFilter, perm: permFilter as PermFilter, sort: (sortKey === 'recent' && !hasCreatedAt(items) ? 'uses' : sortKey) as SortKey, search, keep: lingering })
   );
 
   const groups = $derived(
@@ -496,7 +498,8 @@
       cooldown: Math.floor(Number(d.cooldown) || 0),
       allowed_user_id: d.allowed_user_id.replace(/\D/g, ''),
       bump_counter: d.bump_counter,
-      uses: live?.uses
+      uses: live?.uses,
+      created_at: live?.created_at
     };
     items = [...items.filter((c) => c.name !== key && c.name !== orig), optimistic];
     busy = true;
@@ -647,11 +650,14 @@
   async function restore(snapshot: CommandView) {
     items = [...items.filter((x) => x.name !== snapshot.name), snapshot];
     setStatus(snapshot.name, 'saving');
-    const payload = await postAction('save', formDataFor(snapshot));
+    const body = formDataFor(snapshot);
+    if (usesCount(snapshot) > 0n) body.set('restore_uses', String(usesCount(snapshot)));
+    const payload = await postAction('save', body);
     if (payload?.ok) {
       applyResult({ ...payload, silent: true });
       ackSaved(snapshot.name);
-      toast('ok', t('commands.toastRestored', { name: snapshot.name }));
+      const lostUses = usesCount(snapshot) > 0n && payload.restored !== true;
+      toast('ok', t(lostUses ? 'commands.toastRestoredResets' : 'commands.toastRestored', { name: snapshot.name }));
     } else {
       flagError(snapshot.name);
       toast('err', t('commands.toastCouldNotRestore', { name: snapshot.name }));
@@ -668,8 +674,7 @@
     draftVersion++;
 
     let undone = false;
-    const message = usesCount(c) > 0n ? 'commands.toastDeletedResets' : 'commands.toastDeletedShort';
-    toast('ok', t(message, { name: c.name }), {
+    toast('ok', t('commands.toastDeletedShort', { name: c.name }), {
       ttlMs: UNDO_TTL_MS,
       undoLabel: t('commands.undo'),
       onUndo: () => {

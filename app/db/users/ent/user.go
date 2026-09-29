@@ -49,6 +49,8 @@ type User struct {
 	SubscriptionRef *string `json:"subscription_ref,omitempty"`
 	// SubscriptionCancelPending holds the value of the "subscription_cancel_pending" field.
 	SubscriptionCancelPending bool `json:"subscription_cancel_pending,omitempty"`
+	// SubscriptionPaymentFailed holds the value of the "subscription_payment_failed" field.
+	SubscriptionPaymentFailed bool `json:"subscription_payment_failed,omitempty"`
 	// BillingEventAt holds the value of the "billing_event_at" field.
 	BillingEventAt *time.Time `json:"billing_event_at,omitempty"`
 	// BillingEventID holds the value of the "billing_event_id" field.
@@ -105,7 +107,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldEmailEnc:
 			values[i] = new([]byte)
-		case user.FieldIsActive, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldSubscriptionCancelPending, user.FieldOnboarded, user.FieldTestAccount:
+		case user.FieldIsActive, user.FieldBanned, user.FieldCustomCursor, user.FieldCommandsPageHidden, user.FieldSubscriptionCancelPending, user.FieldSubscriptionPaymentFailed, user.FieldOnboarded, user.FieldTestAccount:
 			values[i] = new(sql.NullBool)
 		case user.FieldID, user.FieldStateRevision, user.FieldGiftsSent:
 			values[i] = new(sql.NullInt64)
@@ -232,6 +234,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field subscription_cancel_pending", values[i])
 			} else if value.Valid {
 				_m.SubscriptionCancelPending = value.Bool
+			}
+		case user.FieldSubscriptionPaymentFailed:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field subscription_payment_failed", values[i])
+			} else if value.Valid {
+				_m.SubscriptionPaymentFailed = value.Bool
 			}
 		case user.FieldBillingEventAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -374,6 +382,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("subscription_cancel_pending=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SubscriptionCancelPending))
+	builder.WriteString(", ")
+	builder.WriteString("subscription_payment_failed=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SubscriptionPaymentFailed))
 	builder.WriteString(", ")
 	if v := _m.BillingEventAt; v != nil {
 		builder.WriteString("billing_event_at=")

@@ -74,6 +74,8 @@
   // svelte-ignore state_referenced_locally
   let scopeGap = $state<string[]>(data.scopeGap ?? []);
   // svelte-ignore state_referenced_locally
+  let grantRevoked = $state<boolean>(data.needsReconnect ?? false);
+  // svelte-ignore state_referenced_locally
   let sr = $state<SpotifySrConfig>(data.sr ?? blankSpotifySr());
   // svelte-ignore state_referenced_locally
   let redeem = $state<SpotifyRedeemConfig>(data.redeem ?? blankSpotifyRedeem());
@@ -100,6 +102,7 @@
     enabled = data.enabled ?? false;
     connected = data.connected ?? false;
     scopeGap = data.scopeGap ?? [];
+    grantRevoked = data.needsReconnect ?? false;
     app = data.app ?? { present: false, clientId: '' };
     sr = data.sr ?? blankSpotifySr();
     redeem = data.redeem ?? blankSpotifyRedeem();
@@ -167,6 +170,36 @@
       queueRefreshing = false;
     }
   }
+
+  const SKIP_ERROR_KEYS: Record<string, string> = {
+    no_device: 'spotify.skipNoDevice',
+    premium: 'spotify.skipPremium',
+    reauth: 'spotify.skipReauth'
+  };
+  const SKIP_REFRESH_MS = 1200;
+
+  let skipping = $state(false);
+  let skipForm = $state<HTMLFormElement | null>(null);
+
+  const skipSubmit: SubmitFunction = ({ cancel }) => {
+    if (skipping) {
+      cancel();
+      return;
+    }
+    skipping = true;
+    return async ({ result }) => {
+      skipping = false;
+      const payload = actionPayload<SongQueueActionOk & { code?: string }>(result);
+      if (isOk(result, payload)) {
+        toast('ok', t('spotify.skipped'));
+        setTimeout(() => void refreshQueue(false), SKIP_REFRESH_MS);
+        return;
+      }
+      const key = payload?.code ? SKIP_ERROR_KEYS[payload.code] : undefined;
+      if (key) toast('err', t(key));
+      else reportFailure(payload, 'spotify.skipFailed');
+    };
+  };
 
   onMount(() => {
     const poll = setInterval(() => {
@@ -410,6 +443,7 @@
     <SpotifyConnectionCard
       {app}
       {scopeGap}
+      {grantRevoked}
       redirectUri={data.redirectUri ?? ''}
       onRemoveApp={() => (connectionAction = 'clearApp')}
       onDisconnect={() => (connectionAction = 'disconnect')}
@@ -419,9 +453,11 @@
       {queue}
       updatedAt={queueAt}
       refreshing={queueRefreshing}
+      {skipping}
       srEnabled={sr.enabled}
       redeemEnabled={redeem.enabled}
       onRefresh={() => refreshQueue(true)}
+      onSkip={() => skipForm?.requestSubmit()}
       onEnableSr={enableSr}
     />
 
@@ -588,6 +624,7 @@
   onCancel={() => (connectionAction = null)}
   onConfirm={() => connectionForm?.requestSubmit()}
 />
+<form method="POST" action="?/skip" use:enhance={skipSubmit} bind:this={skipForm} hidden></form>
 <form method="POST" action={connectionAction === 'clearApp' ? '?/clearApp' : '?/disconnect'} use:enhance={connectionSubmit} bind:this={connectionForm} hidden></form>
 
 <ConfirmDialog

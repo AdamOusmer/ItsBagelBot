@@ -4,23 +4,27 @@
   import { Button, Card, EmptyState, getI18n } from '@bagel/kit';
   import type { QueueView } from '$lib/server/songqueue-view';
 
-  const TICK_MS = 5000;
+  const TICK_MS = 1000;
 
   let {
     queue,
     updatedAt,
     refreshing = false,
+    skipping = false,
     srEnabled,
     redeemEnabled,
     onRefresh,
+    onSkip,
     onEnableSr
   }: {
     queue: QueueView | null;
     updatedAt: number;
     refreshing?: boolean;
+    skipping?: boolean;
     srEnabled: boolean;
     redeemEnabled: boolean;
     onRefresh: () => void;
+    onSkip: () => void;
     onEnableSr: () => void;
   } = $props();
 
@@ -40,6 +44,20 @@
         ? rtf.format(-Math.floor(seconds / 5) * 5, 'second')
         : rtf.format(-Math.floor(seconds / 60), 'minute');
     return t('spotify.queueUpdated', { when });
+  });
+
+  const secondsFormat = $derived(new Intl.NumberFormat(locale, { minimumIntegerDigits: 2, useGrouping: false }));
+  const clock = (ms: number) => {
+    const total = Math.floor(ms / 1000);
+    return `${Math.floor(total / 60)}:${secondsFormat.format(total % 60)}`;
+  };
+  const progressLabel = $derived.by(() => {
+    const progress = queue?.progress;
+    if (!progress) return null;
+    const drift = progress.playing ? Math.max(0, now - updatedAt) : 0;
+    const elapsed = clock(Math.min(progress.positionMs + drift, progress.durationMs));
+    const duration = clock(progress.durationMs);
+    return { text: `${elapsed} / ${duration}`, aria: t('spotify.queueProgressLabel', { elapsed, duration }) };
   });
 
   const upRows = $derived.by(() => {
@@ -76,10 +94,14 @@
     <Button variant="ghost" type="button" loading={refreshing} onclick={onRefresh}>{t('spotify.queueRefresh')}</Button>
   </div>
   {#if queue?.current}
-    <p class="queue-now">
+    <div class="queue-now">
       <span class="queue-label">{t('spotify.queueNow')}</span>
-      {@render track(queue.current)}
-    </p>
+      <span class="queue-track">{@render track(queue.current)}</span>
+      {#if progressLabel}
+        <span class="queue-time" aria-label={progressLabel.aria}>{progressLabel.text}</span>
+      {/if}
+      <Button variant="secondary" type="button" loading={skipping} onclick={onSkip}>{t('spotify.queueSkip')}</Button>
+    </div>
   {/if}
   {#if upRows.length}
     <ol class="queue-list">
@@ -100,8 +122,10 @@
   .queue-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .queue-title { margin: 0; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
   .queue-stamp { margin-left: auto; font-family: var(--bb-font-mono, monospace); font-size: 11.5px; color: var(--bb-muted); }
-  .queue-now { margin: 6px 0 10px; }
-  .queue-label { font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; margin-right: 8px; }
+  .queue-now { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 10px; }
+  .queue-label { font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
+  .queue-track { flex: 1 1 200px; min-width: 0; }
+  .queue-time { min-width: 11ch; text-align: right; font-family: var(--bb-font-mono, monospace); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--bb-muted); }
   .queue-list { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
   .muted { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; }
 </style>

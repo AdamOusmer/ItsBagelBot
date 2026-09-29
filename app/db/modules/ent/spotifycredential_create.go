@@ -68,6 +68,20 @@ func (_c *SpotifyCredentialCreate) SetNillableScopes(v *string) *SpotifyCredenti
 	return _c
 }
 
+// SetRefreshFailedAt sets the "refresh_failed_at" field.
+func (_c *SpotifyCredentialCreate) SetRefreshFailedAt(v time.Time) *SpotifyCredentialCreate {
+	_c.mutation.SetRefreshFailedAt(v)
+	return _c
+}
+
+// SetNillableRefreshFailedAt sets the "refresh_failed_at" field if the given value is not nil.
+func (_c *SpotifyCredentialCreate) SetNillableRefreshFailedAt(v *time.Time) *SpotifyCredentialCreate {
+	if v != nil {
+		_c.SetRefreshFailedAt(*v)
+	}
+	return _c
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_c *SpotifyCredentialCreate) SetUpdatedAt(v time.Time) *SpotifyCredentialCreate {
 	_c.mutation.SetUpdatedAt(v)
@@ -185,6 +199,10 @@ func (_c *SpotifyCredentialCreate) createSpec() (*SpotifyCredential, *sqlgraph.C
 	if value, ok := _c.mutation.Scopes(); ok {
 		_spec.SetField(spotifycredential.FieldScopes, field.TypeString, value)
 		_node.Scopes = value
+	}
+	if value, ok := _c.mutation.RefreshFailedAt(); ok {
+		_spec.SetField(spotifycredential.FieldRefreshFailedAt, field.TypeTime, value)
+		_node.RefreshFailedAt = &value
 	}
 	if value, ok := _c.mutation.UpdatedAt(); ok {
 		_spec.SetField(spotifycredential.FieldUpdatedAt, field.TypeTime, value)
@@ -311,6 +329,24 @@ func (u *SpotifyCredentialUpsert) UpdateScopes() *SpotifyCredentialUpsert {
 // ClearScopes clears the value of the "scopes" field.
 func (u *SpotifyCredentialUpsert) ClearScopes() *SpotifyCredentialUpsert {
 	u.SetNull(spotifycredential.FieldScopes)
+	return u
+}
+
+// SetRefreshFailedAt sets the "refresh_failed_at" field.
+func (u *SpotifyCredentialUpsert) SetRefreshFailedAt(v time.Time) *SpotifyCredentialUpsert {
+	u.Set(spotifycredential.FieldRefreshFailedAt, v)
+	return u
+}
+
+// UpdateRefreshFailedAt sets the "refresh_failed_at" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsert) UpdateRefreshFailedAt() *SpotifyCredentialUpsert {
+	u.SetExcluded(spotifycredential.FieldRefreshFailedAt)
+	return u
+}
+
+// ClearRefreshFailedAt clears the value of the "refresh_failed_at" field.
+func (u *SpotifyCredentialUpsert) ClearRefreshFailedAt() *SpotifyCredentialUpsert {
+	u.SetNull(spotifycredential.FieldRefreshFailedAt)
 	return u
 }
 
@@ -452,6 +488,27 @@ func (u *SpotifyCredentialUpsertOne) UpdateScopes() *SpotifyCredentialUpsertOne 
 func (u *SpotifyCredentialUpsertOne) ClearScopes() *SpotifyCredentialUpsertOne {
 	return u.Update(func(s *SpotifyCredentialUpsert) {
 		s.ClearScopes()
+	})
+}
+
+// SetRefreshFailedAt sets the "refresh_failed_at" field.
+func (u *SpotifyCredentialUpsertOne) SetRefreshFailedAt(v time.Time) *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.SetRefreshFailedAt(v)
+	})
+}
+
+// UpdateRefreshFailedAt sets the "refresh_failed_at" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsertOne) UpdateRefreshFailedAt() *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.UpdateRefreshFailedAt()
+	})
+}
+
+// ClearRefreshFailedAt clears the value of the "refresh_failed_at" field.
+func (u *SpotifyCredentialUpsertOne) ClearRefreshFailedAt() *SpotifyCredentialUpsertOne {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.ClearRefreshFailedAt()
 	})
 }
 
@@ -761,6 +818,27 @@ func (u *SpotifyCredentialUpsertBulk) UpdateScopes() *SpotifyCredentialUpsertBul
 func (u *SpotifyCredentialUpsertBulk) ClearScopes() *SpotifyCredentialUpsertBulk {
 	return u.Update(func(s *SpotifyCredentialUpsert) {
 		s.ClearScopes()
+	})
+}
+
+// SetRefreshFailedAt sets the "refresh_failed_at" field.
+func (u *SpotifyCredentialUpsertBulk) SetRefreshFailedAt(v time.Time) *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.SetRefreshFailedAt(v)
+	})
+}
+
+// UpdateRefreshFailedAt sets the "refresh_failed_at" field to the value that was provided on create.
+func (u *SpotifyCredentialUpsertBulk) UpdateRefreshFailedAt() *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.UpdateRefreshFailedAt()
+	})
+}
+
+// ClearRefreshFailedAt clears the value of the "refresh_failed_at" field.
+func (u *SpotifyCredentialUpsertBulk) ClearRefreshFailedAt() *SpotifyCredentialUpsertBulk {
+	return u.Update(func(s *SpotifyCredentialUpsert) {
+		s.ClearRefreshFailedAt()
 	})
 }
 

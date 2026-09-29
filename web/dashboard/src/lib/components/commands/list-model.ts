@@ -6,7 +6,7 @@ import { compareUses } from '../../../../../kit/lib/uses';
 
 export const STATE_FILTERS = ['all', 'active', 'disabled', 'builtin', 'custom'] as const;
 export type StateFilter = (typeof STATE_FILTERS)[number];
-export type SortKey = 'uses' | 'name';
+export type SortKey = 'uses' | 'name' | 'recent';
 export type PermFilter = Perm | 'all';
 
 export interface ListQuery {
@@ -45,8 +45,11 @@ export function stateCounts(items: CommandView[], q: Pick<ListQuery, 'perm' | 's
 
 const SORTERS: Record<SortKey, (a: CommandView, b: CommandView) => number> = {
   uses: (a, b) => compareUses(b, a) || a.name.localeCompare(b.name),
-  name: (a, b) => a.name.localeCompare(b.name)
+  name: (a, b) => a.name.localeCompare(b.name),
+  recent: (a, b) => (b.created_at ?? 0) - (a.created_at ?? 0) || a.name.localeCompare(b.name)
 };
+
+export const hasCreatedAt = (items: CommandView[]) => items.some((c) => c.created_at !== undefined);
 
 export function listCommands(items: CommandView[], q: ListQuery): CommandView[] {
   return items

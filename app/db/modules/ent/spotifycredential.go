@@ -27,6 +27,8 @@ type SpotifyCredential struct {
 	ClientSecretEnc []byte `json:"-"`
 	// Scopes holds the value of the "scopes" field.
 	Scopes string `json:"scopes,omitempty"`
+	// RefreshFailedAt holds the value of the "refresh_failed_at" field.
+	RefreshFailedAt *time.Time `json:"refresh_failed_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
 	UpdatedAt    time.Time `json:"updated_at,omitempty"`
 	selectValues sql.SelectValues
@@ -43,7 +45,7 @@ func (*SpotifyCredential) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case spotifycredential.FieldClientID, spotifycredential.FieldScopes:
 			values[i] = new(sql.NullString)
-		case spotifycredential.FieldUpdatedAt:
+		case spotifycredential.FieldRefreshFailedAt, spotifycredential.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -95,6 +97,13 @@ func (_m *SpotifyCredential) assignValues(columns []string, values []any) error 
 				return fmt.Errorf("unexpected type %T for field scopes", values[i])
 			} else if value.Valid {
 				_m.Scopes = value.String
+			}
+		case spotifycredential.FieldRefreshFailedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field refresh_failed_at", values[i])
+			} else if value.Valid {
+				_m.RefreshFailedAt = new(time.Time)
+				*_m.RefreshFailedAt = value.Time
 			}
 		case spotifycredential.FieldUpdatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -150,6 +159,11 @@ func (_m *SpotifyCredential) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("scopes=")
 	builder.WriteString(_m.Scopes)
+	builder.WriteString(", ")
+	if v := _m.RefreshFailedAt; v != nil {
+		builder.WriteString("refresh_failed_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("updated_at=")
 	builder.WriteString(_m.UpdatedAt.Format(time.ANSIC))

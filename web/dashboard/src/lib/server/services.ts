@@ -447,6 +447,7 @@ export type BillingState = {
   source: BillingGrantSource;
   subscriptionRef: string | null;
   cancelPending: boolean;
+  paymentFailed?: boolean;
 };
 
 export type ResolvedChannel = { userId: string; username: string; displayName: string };
@@ -478,13 +479,15 @@ export const billingState = defineRead({
     source?: string;
     subscription_ref?: string;
     subscription_cancel_pending?: boolean;
+    subscription_payment_failed?: boolean;
   }): BillingState => ({
     active: !!r.active,
     status: normalizeStatus(r.status),
     expiresAt: r.expires_at ?? null,
     source: (r.source as BillingGrantSource) ?? '',
     subscriptionRef: r.subscription_ref ?? null,
-    cancelPending: !!r.subscription_cancel_pending
+    cancelPending: !!r.subscription_cancel_pending,
+    paymentFailed: !!r.subscription_payment_failed
   }),
   timeoutMs: READ_TIMEOUT_MS,
   cache: {

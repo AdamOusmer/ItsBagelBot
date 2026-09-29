@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import type { PreviewResponse } from '@bagel/kit';
+import type { ImportFailedItem, PreviewResponse } from '@bagel/kit';
 import {
+  buildRetryManifest,
   buildSelectedManifest,
   buildSelection,
   capSkipped,
@@ -8,7 +9,8 @@ import {
   countPicked,
   countRows,
   isChecked,
-  itemDiags
+  itemDiags,
+  mergeRetry
 } from './helpers';
 
 const preview: PreviewResponse = {
@@ -72,5 +74,40 @@ describe('selection helpers', () => {
     expect(capped.shown).toHaveLength(8);
     expect(capped.more).toBe(3);
     expect(capSkipped(undefined)).toEqual({ shown: [], more: 0 });
+  });
+});
+
+describe('retry manifest', () => {
+  const sent = JSON.stringify({
+    commands: [{ name: '!Hello' }, { name: 'bye' }],
+    timers: [{ message: ' tick ', interval_seconds: 300 }],
+    triggers: [{ phrase: 'hi', response: 'yo' }],
+    quotes: [{ text: 'q1' }],
+    automod: { block: ['x'] }
+  });
+
+  const cases: [string, ImportFailedItem[] | undefined, Record<string, unknown>][] = [
+    ['nothing failed', undefined, {}],
+    ['keeps only failed commands', [{ kind: 'command', name: 'hello', reason: 'rejected' }], { commands: [{ name: '!Hello' }] }],
+    ['module failures across kinds', [
+      { kind: 'timer', name: 'tick', reason: 'module' },
+      { kind: 'automod', name: 'automod', reason: 'module' }
+    ], { timers: [{ message: ' tick ', interval_seconds: 300 }], automod: { block: ['x'] } }],
+    ['invalid items are not retried', [{ kind: 'trigger', name: 'hi', reason: 'invalid' }], {}],
+    ['unknown names match nothing', [{ kind: 'quote', name: 'zzz', reason: 'rejected' }], {}]
+  ];
+
+  test.each(cases)('%s', (_, failed, want) => {
+    const got = buildRetryManifest(sent, failed);
+    expect(got === '{}' ? {} : JSON.parse(got)).toEqual(want);
+  });
+
+  test('mergeRetry sums applied and replaces failures', () => {
+    const prev = { applied: { commands: 2, timers: 0, triggers: 0, quotes: 1 }, skipped: [{ kind: 'command', name: 'a' }], failed: [{ kind: 'command' as const, name: 'b', reason: 'rejected' as const }] };
+    const next = { applied: { commands: 1, timers: 0, triggers: 0, quotes: 0 }, failed: undefined };
+    const merged = mergeRetry(prev, next);
+    expect(merged.applied).toEqual({ commands: 3, timers: 0, triggers: 0, quotes: 1 });
+    expect(merged.skipped).toEqual(prev.skipped);
+    expect(merged.failed).toBeUndefined();
   });
 });

@@ -34,6 +34,7 @@ func wireSpotify(w bus.RPCWiring, creds *repository.SpotifyCreds) error {
 		bus.ServeForUser[spotifyrpc.AppStatusRequest, spotifyrpc.AppStatusReply](custody, dash+".app.status", s.handleAppStatus),
 		bus.ServeForUser[spotifyrpc.RefreshTokenGetRequest, spotifyrpc.RefreshTokenGetReply](custody, internal+".get", s.handleGet),
 		bus.ServeForUser[spotifyrpc.RefreshTokenRotateRequest, spotifyrpc.RefreshTokenMutateReply](custody, internal+".rotate", s.handleRotate),
+		bus.ServeForUser[spotifyrpc.RefreshTokenDeadRequest, spotifyrpc.RefreshTokenMutateReply](custody, internal+".dead", s.handleDead),
 	); err != nil {
 		return err
 	}
@@ -47,27 +48,35 @@ type spotifyRPC struct {
 }
 
 func (s *spotifyRPC) handleSet(ctx context.Context, req spotifyrpc.RefreshTokenSetRequest, id uint64) (spotifyrpc.RefreshTokenMutateReply, error) {
-	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.SetToken(ctx, id, repository.SpotifyGrant{
+	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.SetToken(ctx, repository.SpotifyUserID(id), repository.SpotifyGrant{
 		RefreshToken: req.RefreshToken,
 		Scopes:       req.Scopes,
 	})
 }
 
 func (s *spotifyRPC) handleClear(ctx context.Context, _ spotifyrpc.RefreshTokenClearRequest, id uint64) (spotifyrpc.RefreshTokenMutateReply, error) {
-	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.ClearToken(ctx, id)
+	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.ClearToken(ctx, repository.SpotifyUserID(id))
 }
 
 func (s *spotifyRPC) handleStatus(ctx context.Context, _ spotifyrpc.RefreshTokenStatusRequest, id uint64) (spotifyrpc.RefreshTokenStatusReply, error) {
-	status, err := s.creds.TokenStatus(ctx, id)
-	return spotifyrpc.RefreshTokenStatusReply{Present: status.Present, Scopes: status.Scopes}, err
+	status, err := s.creds.TokenStatus(ctx, repository.SpotifyUserID(id))
+	return spotifyrpc.RefreshTokenStatusReply{
+		Present:        status.Present,
+		Scopes:         status.Scopes,
+		NeedsReconnect: status.NeedsReconnect,
+	}, err
 }
 
 func (s *spotifyRPC) handleRotate(ctx context.Context, req spotifyrpc.RefreshTokenRotateRequest, id uint64) (spotifyrpc.RefreshTokenMutateReply, error) {
-	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.RotateToken(ctx, id, req.PrevToken, req.NewToken)
+	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.RotateToken(ctx, repository.SpotifyUserID(id), req.PrevToken, req.NewToken)
+}
+
+func (s *spotifyRPC) handleDead(ctx context.Context, req spotifyrpc.RefreshTokenDeadRequest, id uint64) (spotifyrpc.RefreshTokenMutateReply, error) {
+	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.MarkTokenDead(ctx, repository.SpotifyUserID(id), req.Token)
 }
 
 func (s *spotifyRPC) handleGet(ctx context.Context, _ spotifyrpc.RefreshTokenGetRequest, id uint64) (spotifyrpc.RefreshTokenGetReply, error) {
-	setup, err := s.creds.Credentials(ctx, id)
+	setup, err := s.creds.Credentials(ctx, repository.SpotifyUserID(id))
 	if errors.Is(err, repository.ErrNoSpotifyApp) || errors.Is(err, repository.ErrNoSpotifyToken) {
 		return spotifyrpc.RefreshTokenGetReply{}, nil
 	}
@@ -79,17 +88,17 @@ func (s *spotifyRPC) handleGet(ctx context.Context, _ spotifyrpc.RefreshTokenGet
 }
 
 func (s *spotifyRPC) handleAppSet(ctx context.Context, req spotifyrpc.AppSetRequest, id uint64) (spotifyrpc.RefreshTokenMutateReply, error) {
-	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.SetApp(ctx, id, repository.SpotifyApp{
+	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.SetApp(ctx, repository.SpotifyUserID(id), repository.SpotifyApp{
 		ClientID:     req.ClientID,
 		ClientSecret: req.ClientSecret,
 	})
 }
 
 func (s *spotifyRPC) handleAppClear(ctx context.Context, _ spotifyrpc.AppClearRequest, id uint64) (spotifyrpc.RefreshTokenMutateReply, error) {
-	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.ClearApp(ctx, id)
+	return spotifyrpc.RefreshTokenMutateReply{}, s.creds.ClearApp(ctx, repository.SpotifyUserID(id))
 }
 
 func (s *spotifyRPC) handleAppStatus(ctx context.Context, _ spotifyrpc.AppStatusRequest, id uint64) (spotifyrpc.AppStatusReply, error) {
-	clientID, err := s.creds.AppClientID(ctx, id)
+	clientID, err := s.creds.AppClientID(ctx, repository.SpotifyUserID(id))
 	return spotifyrpc.AppStatusReply{Present: clientID != "", ClientID: clientID}, err
 }

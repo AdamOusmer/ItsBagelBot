@@ -28,12 +28,14 @@ type Worker struct {
 	discord discordGuildAPI
 	store   discordstore.Store
 	log     *zap.Logger
+	botID   string
 }
 
 type Config struct {
 	Discord discordGuildAPI
 	Store   discordstore.Store
 	Log     *zap.Logger
+	BotID   string
 }
 
 func New(cfg Config) *Worker {
@@ -41,7 +43,7 @@ func New(cfg Config) *Worker {
 	if log == nil {
 		log = zap.NewNop()
 	}
-	return &Worker{discord: cfg.Discord, store: cfg.Store, log: log}
+	return &Worker{discord: cfg.Discord, store: cfg.Store, log: log, botID: cfg.BotID}
 }
 
 func (w *Worker) PostDiscord(ctx context.Context, channelID, content string) error {

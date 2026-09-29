@@ -14,6 +14,7 @@ import type { CommitResponse, ImportDiagnostic, ImportSource, PreviewResponse } 
 import { localizeImporterError } from '$lib/importer-errors';
 import { failureKey, type ImportFailure } from './errors';
 import {
+  buildRetryManifest,
   buildSelectedManifest,
   buildSelection,
   countFatal,
@@ -21,6 +22,8 @@ import {
   countRows,
   isChecked,
   itemDiags,
+  mergeRetry,
+  retryable,
   type RowKind,
   type Selection
 } from './helpers';
@@ -105,6 +108,8 @@ export class ImportSession {
     if (a.quotes) out.push({ n: a.quotes, label: this.t('import.hQuotes') });
     return out;
   });
+
+  retryCount = $derived(retryable(this.commitResult?.failed).length);
 
   hasProgress = $derived(!!this.previewResult || !!this.commitResult);
 
@@ -255,7 +260,26 @@ export class ImportSession {
     }
   }
 
-  private async commitFlow(manifestJson: string): Promise<RunResult> {
+  async runRetry(): Promise<RunResult> {
+    if (this.submitting || !this.commitResult) return 'idle';
+    this.commitError = '';
+    const manifestJson = buildRetryManifest(
+      buildSelectedManifest(this.previewResult, this.selected),
+      this.commitResult.failed
+    );
+    if (manifestJson === '{}') {
+      this.commitError = this.t('import.errNothingSelected');
+      return 'failed';
+    }
+    this.submitting = true;
+    try {
+      return await this.commitFlow(manifestJson, this.commitResult);
+    } finally {
+      this.submitting = false;
+    }
+  }
+
+  private async commitFlow(manifestJson: string, previous?: CommitResponse): Promise<RunResult> {
     const body = new FormData();
     body.set('manifest', manifestJson);
     body.set('source', this.source);
@@ -267,8 +291,8 @@ export class ImportSession {
       this.commitError = this.outcomeMessage(outcome);
       return 'failed';
     }
-    this.commitResult = commit;
-    toast('ok', this.t('import.toastApplied'));
+    this.commitResult = previous ? mergeRetry(previous, commit) : commit;
+    toast('ok', this.t(previous ? 'import.toastRetried' : 'import.toastApplied'));
     return 'ok';
   }
 

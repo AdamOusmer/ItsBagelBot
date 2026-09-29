@@ -92,7 +92,14 @@ export type DiscordGuildConfig = {
   found: boolean;
 };
 
-export type DiscordEntry = { id: string; name: string; type: number };
+export type DiscordEntry = {
+  id: string;
+  name: string;
+  type: number;
+  parentName?: string;
+  botCanSend?: boolean;
+  botCanEmbed?: boolean;
+};
 
 export type DiscordGuildInfo = { id: string; name: string; iconUrl: string; memberCount: number };
 
@@ -363,7 +370,14 @@ export async function persistSetup(
   return saveGuildConfig({ userId: target.userId, guildId: target.guildId, config, expectedVersion: fresh.version });
 }
 
-type WireEntry = { id?: string; name?: string; type?: number };
+type WireEntry = {
+  id?: string;
+  name?: string;
+  type?: number;
+  parent_name?: string;
+  bot_can_send?: boolean;
+  bot_can_embed?: boolean;
+};
 type WireGuild = { id?: string; name?: string; icon_url?: string; member_count?: number };
 
 type LayoutReply = CodedReply & {
@@ -380,7 +394,15 @@ type LayoutReply = CodedReply & {
 function entries(list: WireEntry[] | undefined): DiscordEntry[] {
   return (list ?? [])
     .filter((e) => typeof e.id === 'string' && e.id !== '')
-    .map((e) => ({ id: String(e.id), name: e.name ?? '', type: e.type ?? 0 }));
+    .map(entry);
+}
+
+function entry(e: WireEntry): DiscordEntry {
+  const out: DiscordEntry = { id: String(e.id), name: e.name ?? '', type: e.type ?? 0 };
+  if (e.parent_name) out.parentName = e.parent_name;
+  if (typeof e.bot_can_send === 'boolean') out.botCanSend = e.bot_can_send;
+  if (typeof e.bot_can_embed === 'boolean') out.botCanEmbed = e.bot_can_embed;
+  return out;
 }
 
 function guildInfo(g: WireGuild | undefined): DiscordGuildInfo {

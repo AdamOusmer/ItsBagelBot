@@ -130,6 +130,11 @@ func SubscriptionCancelPending(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldSubscriptionCancelPending, v))
 }
 
+// SubscriptionPaymentFailed applies equality check predicate on the "subscription_payment_failed" field. It's identical to SubscriptionPaymentFailedEQ.
+func SubscriptionPaymentFailed(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSubscriptionPaymentFailed, v))
+}
+
 // BillingEventAt applies equality check predicate on the "billing_event_at" field. It's identical to BillingEventAtEQ.
 func BillingEventAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldBillingEventAt, v))
@@ -848,6 +853,16 @@ func SubscriptionCancelPendingEQ(v bool) predicate.User {
 // SubscriptionCancelPendingNEQ applies the NEQ predicate on the "subscription_cancel_pending" field.
 func SubscriptionCancelPendingNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldSubscriptionCancelPending, v))
+}
+
+// SubscriptionPaymentFailedEQ applies the EQ predicate on the "subscription_payment_failed" field.
+func SubscriptionPaymentFailedEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldSubscriptionPaymentFailed, v))
+}
+
+// SubscriptionPaymentFailedNEQ applies the NEQ predicate on the "subscription_payment_failed" field.
+func SubscriptionPaymentFailedNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldSubscriptionPaymentFailed, v))
 }
 
 // BillingEventAtEQ applies the EQ predicate on the "billing_event_at" field.

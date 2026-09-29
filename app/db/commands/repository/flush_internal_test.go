@@ -97,3 +97,35 @@ func TestRecordUsePreservesProducerBatchIncrements(t *testing.T) {
 	}
 	assert.Equal(t, map[string]int64{"a": 11, "b": 11, "c": 13}, got)
 }
+
+func TestRestoreAppliesUsesOnlyWhenCreating(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing int64
+		seeded   bool
+		want     int64
+		created  bool
+	}{
+		{name: "missing row takes restored uses", want: 30, created: true},
+		{name: "live row keeps its counter", seeded: true, existing: 7, want: 7},
+	}
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := enttest.Open(t, testdb.Driver, testdb.MemDSN(testdb.Name("commandsrestore"+string(rune('a'+i)))))
+			t.Cleanup(func() { _ = client.Close() })
+			r := NewCommands(client, bustest.NewPublisher(), nil, zap.NewNop())
+			ctx := context.Background()
+			if tc.seeded {
+				client.Commands.Create().SetUserID(1001).SetName("hello").SetResponse("old").SetUses(tc.existing).SaveX(ctx)
+			}
+
+			created, err := r.Restore(ctx, 1001, CommandSpec{Name: "hello", Response: "back", IsActive: true, Perm: "everyone"}, 30)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.created, created)
+			row := client.Commands.Query().OnlyX(ctx)
+			assert.Equal(t, tc.want, row.Uses)
+			assert.False(t, row.CreatedAt.IsZero())
+		})
+	}
+}

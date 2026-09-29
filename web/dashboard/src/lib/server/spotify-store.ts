@@ -37,19 +37,25 @@ export interface SpotifyView {
 export interface SpotifyGrant {
   connected: boolean;
   scopes: string[];
+  needsReconnect: boolean;
 }
 
 export interface SpotifyPlayerQueue {
   current?: { id: string } | null;
   up_next?: { id: string }[];
+  progress_ms?: number;
+  duration_ms?: number;
+  playing?: boolean;
   error?: string;
 }
+
+const PLAYBACK_SCOPE = 'user-modify-playback-state';
 
 export async function readSpotifyPlayerQueue(userId: string): Promise<SpotifyPlayerQueue | null> {
   try {
     const reply = await rpcReply<SpotifyPlayerQueue>(
       `${SUB.gossip}.spotify.playerqueue`,
-      { channel_id: userId },
+      { channel_id: userId, progress: true },
       8000
     );
     return reply.error ? null : reply;
@@ -67,7 +73,7 @@ export interface RewardDraft {
   replyMessage: string;
 }
 
-export type SpotifyResult = { ok: true } | { ok: false; missingScope?: boolean; error?: string };
+export type SpotifyResult = { ok: true } | { ok: false; missingScope?: boolean; error?: string; code?: string };
 
 function coercePerm(v: unknown): SpotifySrPerm {
   return v === 'sub' || v === 'vip' || v === 'mod' || v === 'broadcaster' ? v : 'everyone';
@@ -206,6 +212,7 @@ export interface SpotifyStore {
   saveReward(draft: RewardDraft): Promise<SpotifyResult>;
   deleteReward(): Promise<SpotifyResult>;
   disconnect(): Promise<SpotifyResult>;
+  skip(): Promise<SpotifyResult>;
 }
 
 export function spotifyStore(userId: string): SpotifyStore {
@@ -223,14 +230,18 @@ export function spotifyStore(userId: string): SpotifyStore {
 
   async function grant(): Promise<SpotifyGrant> {
     try {
-      const r = await rpc<{ present?: boolean; scopes?: string[] }>(
+      const r = await rpc<{ present?: boolean; scopes?: string[]; needs_reconnect?: boolean }>(
         `${SUB.spotifyKey}.status`,
         { user_id: userId },
         3000
       );
-      return { connected: !!r.present, scopes: Array.isArray(r.scopes) ? r.scopes : [] };
+      return {
+        connected: !!r.present,
+        scopes: Array.isArray(r.scopes) ? r.scopes : [],
+        needsReconnect: r.needs_reconnect === true
+      };
     } catch {
-      return { connected: false, scopes: [] };
+      return { connected: false, scopes: [], needsReconnect: false };
     }
   }
 
@@ -354,6 +365,18 @@ export function spotifyStore(userId: string): SpotifyStore {
     return { ok: true };
   }
 
+  async function skip(): Promise<SpotifyResult> {
+    const g = await grant();
+    if (g.scopes.length > 0 && !g.scopes.includes(PLAYBACK_SCOPE)) return { ok: false, missingScope: true };
+    const r = await rpcReply<{ error?: string; code?: string }>(
+      `${SUB.gossip}.spotify.next`,
+      { channel_id: userId },
+      8000
+    );
+    if (!r.error) return { ok: true };
+    return { ok: false, missingScope: r.code === 'scope', code: r.code ?? 'failed' };
+  }
+
   return {
     read,
     grant,
@@ -366,6 +389,7 @@ export function spotifyStore(userId: string): SpotifyStore {
     setRedeemPath,
     saveReward,
     deleteReward,
-    disconnect
+    disconnect,
+    skip
   };
 }

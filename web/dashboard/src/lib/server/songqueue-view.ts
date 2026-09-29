@@ -1,9 +1,16 @@
 import type { SongQueueDoc, SongQueueEntry } from '@bagel/kit/server/songqueue-store';
 import type { SpotifyPlayerQueue } from './spotify-store';
 
+export interface QueueProgress {
+  positionMs: number;
+  durationMs: number;
+  playing: boolean;
+}
+
 export interface QueueView {
   current: QueueRow | null;
   up: QueueRow[];
+  progress?: QueueProgress;
 }
 
 export interface QueueRow {
@@ -26,7 +33,21 @@ export function shapeQueue(doc: SongQueueDoc, live: SpotifyPlayerQueue | null, n
   const initial = { current: doc.current ?? null, up: [...(doc.up ?? [])] };
   const player = playerItems(live);
   const visible = player ? reconcileView(initial, player.currentId, player.upcoming, now) : initial;
-  return renderQueue(visible);
+  const view = renderQueue(visible);
+  const progress = player ? progressOf(live, view, player.currentId) : null;
+  return progress ? { ...view, progress } : view;
+}
+
+function isCurrentTrackLive(live: SpotifyPlayerQueue | null, view: QueueView, currentId: string): live is SpotifyPlayerQueue {
+  return !!live && view.current?.tid === currentId;
+}
+
+function progressOf(live: SpotifyPlayerQueue | null, view: QueueView, currentId: string): QueueProgress | null {
+  if (!isCurrentTrackLive(live, view, currentId)) return null;
+  const durationMs = live.duration_ms ?? 0;
+  if (!(durationMs > 0)) return null;
+  const positionMs = Math.min(Math.max(live.progress_ms ?? 0, 0), durationMs);
+  return { positionMs, durationMs, playing: live.playing === true };
 }
 
 function playerItems(live: SpotifyPlayerQueue | null) {

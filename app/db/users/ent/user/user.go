@@ -48,6 +48,8 @@ const (
 	FieldSubscriptionRef = "subscription_ref"
 	// FieldSubscriptionCancelPending holds the string denoting the subscription_cancel_pending field in the database.
 	FieldSubscriptionCancelPending = "subscription_cancel_pending"
+	// FieldSubscriptionPaymentFailed holds the string denoting the subscription_payment_failed field in the database.
+	FieldSubscriptionPaymentFailed = "subscription_payment_failed"
 	// FieldBillingEventAt holds the string denoting the billing_event_at field in the database.
 	FieldBillingEventAt = "billing_event_at"
 	// FieldBillingEventID holds the string denoting the billing_event_id field in the database.
@@ -103,6 +105,7 @@ var Columns = []string{
 	FieldSubscriptionExpiresAt,
 	FieldSubscriptionRef,
 	FieldSubscriptionCancelPending,
+	FieldSubscriptionPaymentFailed,
 	FieldBillingEventAt,
 	FieldBillingEventID,
 	FieldGiftsSent,
@@ -159,6 +162,8 @@ var (
 	DefaultSubscriptionSource string
 	// DefaultSubscriptionCancelPending holds the default value on creation for the "subscription_cancel_pending" field.
 	DefaultSubscriptionCancelPending bool
+	// DefaultSubscriptionPaymentFailed holds the default value on creation for the "subscription_payment_failed" field.
+	DefaultSubscriptionPaymentFailed bool
 	// DefaultGiftsSent holds the default value on creation for the "gifts_sent" field.
 	DefaultGiftsSent uint32
 	// DefaultOnboarded holds the default value on creation for the "onboarded" field.
@@ -281,6 +286,11 @@ func BySubscriptionRef(opts ...sql.OrderTermOption) OrderOption {
 // BySubscriptionCancelPending orders the results by the subscription_cancel_pending field.
 func BySubscriptionCancelPending(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSubscriptionCancelPending, opts...).ToFunc()
+}
+
+// BySubscriptionPaymentFailed orders the results by the subscription_payment_failed field.
+func BySubscriptionPaymentFailed(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSubscriptionPaymentFailed, opts...).ToFunc()
 }
 
 // ByBillingEventAt orders the results by the billing_event_at field.

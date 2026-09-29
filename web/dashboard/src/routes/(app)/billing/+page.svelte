@@ -34,6 +34,7 @@
   const paidUntil = $derived(account.expiresAt);
   const canSubscribe = $derived(!isPaid);
   const canManage = $derived(tebexPaid);
+  const paymentFailed = $derived(tebexPaid && account.paymentFailed === true);
   const statusLabel = $derived(isVip ? 'VIP' : isPaid ? t('billing.premium') : t('billing.free'));
 
   const freeFeatures = $derived([
@@ -448,6 +449,16 @@
       <p class="form-error center" role="alert">{form.error}</p>
     {/if}
   {:else}
+    {#if paymentFailed}
+      <AlertBanner variant="warn">
+        {t('billing.paymentFailed')}
+        {#snippet action()}
+          <form method="POST" action="?/cancel" onsubmit={() => (managing = true)}>
+            <Button type="submit" variant="primary" loading={managing}>{t('billing.updatePayment')}</Button>
+          </form>
+        {/snippet}
+      </AlertBanner>
+    {/if}
     <div class="premium-dashboard-hero">
       <div class="premium-hero-content">
         <div class="premium-hero-badge">
@@ -507,6 +518,7 @@
             {/if}
           </div>
           <p class="premium-tiny-hint" id="manage-note">{t('billing.manageTiny')}</p>
+          <p class="premium-tiny-hint">{t('billing.receiptsEmailed')}</p>
         {/if}
         {#if form?.error && !form?.gift}
           <p class="form-error center" role="alert">{form.error}</p>

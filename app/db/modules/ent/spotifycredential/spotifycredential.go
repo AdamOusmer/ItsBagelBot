@@ -23,6 +23,8 @@ const (
 	FieldClientSecretEnc = "client_secret_enc"
 	// FieldScopes holds the string denoting the scopes field in the database.
 	FieldScopes = "scopes"
+	// FieldRefreshFailedAt holds the string denoting the refresh_failed_at field in the database.
+	FieldRefreshFailedAt = "refresh_failed_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
 	FieldUpdatedAt = "updated_at"
 	// Table holds the table name of the spotifycredential in the database.
@@ -37,6 +39,7 @@ var Columns = []string{
 	FieldClientID,
 	FieldClientSecretEnc,
 	FieldScopes,
+	FieldRefreshFailedAt,
 	FieldUpdatedAt,
 }
 
@@ -82,6 +85,11 @@ func ByClientID(opts ...sql.OrderTermOption) OrderOption {
 // ByScopes orders the results by the scopes field.
 func ByScopes(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldScopes, opts...).ToFunc()
+}
+
+// ByRefreshFailedAt orders the results by the refresh_failed_at field.
+func ByRefreshFailedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRefreshFailedAt, opts...).ToFunc()
 }
 
 // ByUpdatedAt orders the results by the updated_at field.

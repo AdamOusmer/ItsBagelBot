@@ -92,6 +92,26 @@ func (_u *SpotifyCredentialUpdate) ClearScopes() *SpotifyCredentialUpdate {
 	return _u
 }
 
+// SetRefreshFailedAt sets the "refresh_failed_at" field.
+func (_u *SpotifyCredentialUpdate) SetRefreshFailedAt(v time.Time) *SpotifyCredentialUpdate {
+	_u.mutation.SetRefreshFailedAt(v)
+	return _u
+}
+
+// SetNillableRefreshFailedAt sets the "refresh_failed_at" field if the given value is not nil.
+func (_u *SpotifyCredentialUpdate) SetNillableRefreshFailedAt(v *time.Time) *SpotifyCredentialUpdate {
+	if v != nil {
+		_u.SetRefreshFailedAt(*v)
+	}
+	return _u
+}
+
+// ClearRefreshFailedAt clears the value of the "refresh_failed_at" field.
+func (_u *SpotifyCredentialUpdate) ClearRefreshFailedAt() *SpotifyCredentialUpdate {
+	_u.mutation.ClearRefreshFailedAt()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *SpotifyCredentialUpdate) SetUpdatedAt(v time.Time) *SpotifyCredentialUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -171,6 +191,12 @@ func (_u *SpotifyCredentialUpdate) sqlSave(ctx context.Context) (_node int, err 
 	}
 	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(spotifycredential.FieldScopes, field.TypeString)
+	}
+	if value, ok := _u.mutation.RefreshFailedAt(); ok {
+		_spec.SetField(spotifycredential.FieldRefreshFailedAt, field.TypeTime, value)
+	}
+	if _u.mutation.RefreshFailedAtCleared() {
+		_spec.ClearField(spotifycredential.FieldRefreshFailedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(spotifycredential.FieldUpdatedAt, field.TypeTime, value)
@@ -256,6 +282,26 @@ func (_u *SpotifyCredentialUpdateOne) SetNillableScopes(v *string) *SpotifyCrede
 // ClearScopes clears the value of the "scopes" field.
 func (_u *SpotifyCredentialUpdateOne) ClearScopes() *SpotifyCredentialUpdateOne {
 	_u.mutation.ClearScopes()
+	return _u
+}
+
+// SetRefreshFailedAt sets the "refresh_failed_at" field.
+func (_u *SpotifyCredentialUpdateOne) SetRefreshFailedAt(v time.Time) *SpotifyCredentialUpdateOne {
+	_u.mutation.SetRefreshFailedAt(v)
+	return _u
+}
+
+// SetNillableRefreshFailedAt sets the "refresh_failed_at" field if the given value is not nil.
+func (_u *SpotifyCredentialUpdateOne) SetNillableRefreshFailedAt(v *time.Time) *SpotifyCredentialUpdateOne {
+	if v != nil {
+		_u.SetRefreshFailedAt(*v)
+	}
+	return _u
+}
+
+// ClearRefreshFailedAt clears the value of the "refresh_failed_at" field.
+func (_u *SpotifyCredentialUpdateOne) ClearRefreshFailedAt() *SpotifyCredentialUpdateOne {
+	_u.mutation.ClearRefreshFailedAt()
 	return _u
 }
 
@@ -368,6 +414,12 @@ func (_u *SpotifyCredentialUpdateOne) sqlSave(ctx context.Context) (_node *Spoti
 	}
 	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(spotifycredential.FieldScopes, field.TypeString)
+	}
+	if value, ok := _u.mutation.RefreshFailedAt(); ok {
+		_spec.SetField(spotifycredential.FieldRefreshFailedAt, field.TypeTime, value)
+	}
+	if _u.mutation.RefreshFailedAtCleared() {
+		_spec.ClearField(spotifycredential.FieldRefreshFailedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(spotifycredential.FieldUpdatedAt, field.TypeTime, value)

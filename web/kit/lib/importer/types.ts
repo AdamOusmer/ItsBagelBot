@@ -103,9 +103,20 @@ export interface PreviewResponse {
   error?: string;
 }
 
+export type ImportFailedKind = 'command' | 'timer' | 'trigger' | 'quote' | 'automod';
+
+export type ImportFailedReason = 'rejected' | 'invalid' | 'module';
+
+export interface ImportFailedItem {
+  kind: ImportFailedKind;
+  name: string;
+  reason: ImportFailedReason;
+}
+
 export interface CommitResponse {
   applied: ImportStats;
   skipped?: CollisionRef[];
+  failed?: ImportFailedItem[];
   audit_id?: number;
   diagnostics?: ImportDiagnostic[];
   error?: string;
