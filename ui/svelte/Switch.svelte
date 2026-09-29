@@ -1,7 +1,19 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/toggle.css';
+
+  type Own = {
+    checked?: boolean;
+    label: string;
+    describedby?: string;
+    disabled?: boolean;
+    pending?: boolean;
+    type?: 'button' | 'submit';
+    onchange?: (v: boolean) => void;
+    class?: string;
+  };
 
   let {
     checked = $bindable(false),
@@ -11,17 +23,9 @@
     pending = false,
     type = 'button',
     onchange,
+    class: className,
     ...rest
-  }: {
-    checked?: boolean;
-    label: string;
-    describedby?: string;
-    disabled?: boolean;
-    pending?: boolean;
-    type?: 'button' | 'submit';
-    onchange?: (v: boolean) => void;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['button'], keyof Own> = $props();
 
   function flip() {
     if (disabled || pending) return;
@@ -33,7 +37,7 @@
 
 <button
   {type}
-  class="bb-switch"
+  class={['bb-switch', className]}
   role="switch"
   aria-checked={checked ? 'true' : 'false'}
   aria-label={label}

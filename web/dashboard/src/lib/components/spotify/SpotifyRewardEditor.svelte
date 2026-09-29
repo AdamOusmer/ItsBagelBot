@@ -52,7 +52,7 @@
       fill
       invalid={!!titleError}
       type="text"
-      maxlength="45"
+      maxlength={45}
       bind:value={draft.title}
       aria-invalid={titleError ? 'true' : undefined}
       aria-describedby={titleError ? 'spotify-title-err' : undefined}
@@ -67,8 +67,8 @@
           fill
           invalid={!!costError}
           type="number"
-          min="1"
-          max="10000000"
+          min={1}
+          max={10000000}
           bind:value={draft.cost}
           aria-invalid={costError ? 'true' : undefined}
           aria-describedby={costError ? 'spotify-cost-err' : undefined}

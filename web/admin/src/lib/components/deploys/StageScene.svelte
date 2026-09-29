@@ -41,7 +41,7 @@
 <article class="scene" class:center>
   <div class="kicker" in:arrive={{ i: 0 }} out:depart={{ i: 0 }}><Eyebrow as="p">{@render kicker()}</Eyebrow></div>
   <div class="title" in:arrive={{ i: 1 }} out:depart={{ i: 1 }}>
-    <Heading level={2} as="h1" id={headingId} tabindex="-1" bind:element={() => heading, setHeading}><span class="sheen">{title}</span></Heading>
+    <Heading level={2} as="h1" id={headingId} tabindex={-1} bind:element={() => heading, setHeading}><span class="sheen">{title}</span></Heading>
   </div>
   <div in:arrive={{ i: 2 }} out:depart={{ i: 2 }}><Lead>{body}</Lead></div>
   <div class="note" in:arrive={{ i: 3 }} out:depart={{ i: 3 }}>{@render note?.()}</div>

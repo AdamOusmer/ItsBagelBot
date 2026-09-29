@@ -1,17 +1,17 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/tags.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'nav'>, 'label' | 'items' | 'orientation' | 'class'> {
     label: string;
     items: { href: string; label: string; count?: number; current?: boolean; attrs?: Record<string, string> }[];
     orientation?: 'auto' | 'horizontal' | 'vertical';
     variant?: 'tabs' | 'toc';
     index?: boolean;
     class?: string;
-    [key: string]: unknown;
 }
 
 const MODIFIER = {

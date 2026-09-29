@@ -1,10 +1,23 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/stat-tile.css';
   import type { Snippet } from 'svelte';
   import { countUp } from '../lib/count-up';
-  import '../styles/elements/stat-tile.css';
+
+  type Own = {
+    label: string;
+    value: string;
+    unit?: string;
+    delta?: string;
+    flat?: boolean;
+    static?: boolean;
+    inline?: boolean;
+    tone?: 'positive' | 'accent';
+    class?: string;
+    trail?: Snippet;
+  };
 
   let {
     label,
@@ -18,19 +31,7 @@
     class: className = '',
     trail = undefined as Snippet | undefined,
     ...rest
-  }: {
-    label: string;
-    value: string;
-    unit?: string;
-    delta?: string;
-    flat?: boolean;
-    static?: boolean;
-    inline?: boolean;
-    tone?: 'positive' | 'accent';
-    class?: string;
-    trail?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(
     [

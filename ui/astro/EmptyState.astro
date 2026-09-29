@@ -1,12 +1,19 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/empty-state.css';
-const { title, body, ...rest } = Astro.props;
+interface Props extends Omit<HTMLAttributes<'div'>, 'title' | 'body' | 'class'> {
+    title: string;
+    body?: string;
+    class?: string;
+}
+
+const { title, body, class: className, ...rest } = Astro.props;
 const hasCta = Astro.slots.has('default');
 ---
 
-<div class="bb-empty" {...rest}>
+<div class:list={['bb-empty', className]} {...rest}>
   <p class="bb-empty__title">{title}</p>
   {body && <p class="bb-empty__body">{body}</p>}
   {hasCta && <div class="bb-empty__cta"><slot /></div>}

@@ -1,12 +1,23 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/shell.css';
   import Brand from './Brand.svelte';
   import { mountClock } from '../lib/clock';
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiCrumb } from '../lib/nav-types';
+
+  type Own = {
+    brand: UiBrand;
+    crumbs?: UiCrumb[];
+    crumbAriaLabel?: string;
+    clock?: boolean;
+    railed?: boolean;
+    actions?: Snippet;
+    account?: Snippet;
+    class?: string;
+  };
 
   let {
     brand,
@@ -18,17 +29,7 @@
     account,
     class: className = '',
     ...rest
-  }: {
-    brand: UiBrand;
-    crumbs?: UiCrumb[];
-    crumbAriaLabel?: string;
-    clock?: boolean;
-    railed?: boolean;
-    actions?: Snippet;
-    account?: Snippet;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['header'], keyof Own> = $props();
 
   const classes = $derived(['bb-topbar', className || null].filter(Boolean).join(' '));
 

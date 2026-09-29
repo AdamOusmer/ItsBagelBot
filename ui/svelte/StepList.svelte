@@ -1,6 +1,7 @@
 <script module lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { HTMLAttributes } from 'svelte/elements';
 
   export type StepState =
     | 'pending'
@@ -31,6 +32,16 @@
   import '../styles/tags.css';
   import '../styles/elements/step-list.css';
 
+  type Own = {
+    steps: StepItem[];
+    detail?: Snippet<[StepItem]>;
+    stateLabels?: Partial<Record<StepState, string>>;
+    selected?: string;
+    onselect?: (id: string) => void;
+    label?: string;
+    class?: string;
+  };
+
   let {
     steps,
     detail,
@@ -40,16 +51,7 @@
     label,
     class: className = '',
     ...rest
-  }: {
-    steps: StepItem[];
-    detail?: Snippet<[StepItem]>;
-    stateLabels?: Partial<Record<StepState, string>>;
-    selected?: string;
-    onselect?: (id: string) => void;
-    label?: string;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const i18n = getUiI18n();
   const DEFAULT_LABELS: Record<StepState, string> = {

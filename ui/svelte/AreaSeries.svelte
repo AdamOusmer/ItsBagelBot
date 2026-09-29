@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/area-series.css';
   import {
     areaGeometry,
@@ -12,6 +12,15 @@
     AREA_TICK_BOTTOM,
   } from '../lib/area-series';
 
+  type Own = {
+    values: readonly number[];
+    ticks?: readonly number[];
+    ariaLabel: string;
+    height?: number;
+    uid?: string;
+    class?: string;
+  };
+
   let {
     values,
     ticks = [],
@@ -20,15 +29,7 @@
     uid,
     class: className = '',
     ...rest
-  }: {
-    values: readonly number[];
-    ticks?: readonly number[];
-    ariaLabel: string;
-    height?: number;
-    uid?: string;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['svg'], keyof Own> = $props();
 
   const fallbackId = $props.id();
   const gradientId = $derived(`bb-area-fill-${uid ?? fallbackId}`);

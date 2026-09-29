@@ -1,8 +1,19 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/brand-mark.css';
+
+  type Own = {
+    title: string;
+    sub?: string;
+    href?: string;
+    logoSrc?: string;
+    logoAlt?: string;
+    size?: 'sm' | 'md' | 'lg';
+    logoShape?: 'square' | 'circle';
+    class?: string;
+  };
 
   let {
     title,
@@ -14,17 +25,7 @@
     logoShape = 'square',
     class: className = '',
     ...rest
-  }: {
-    title: string;
-    sub?: string;
-    href?: string;
-    logoSrc?: string;
-    logoAlt?: string;
-    size?: 'sm' | 'md' | 'lg';
-    logoShape?: 'square' | 'circle';
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(
     ['bb-brand', `bb-brand--${size}`, className || null].filter(Boolean).join(' '),

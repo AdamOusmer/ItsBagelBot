@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { HTMLAttributes } from 'svelte/elements';
   import { getUiI18n } from './i18n';
 
   import '../styles/elements/card.css';
@@ -19,6 +20,17 @@
   } from '../lib/overlay-stack';
 
   const i18n = getUiI18n();
+  type Own = {
+    open?: boolean;
+    title: string;
+    controls?: string;
+    closeLabel?: string;
+    class?: string;
+    onClose: () => void;
+    children?: Snippet;
+    idle?: Snippet;
+  };
+
   let {
     open = false,
     title,
@@ -29,17 +41,7 @@
     children,
     idle,
     ...rest
-  }: {
-    open?: boolean;
-    title: string;
-    controls?: string;
-    closeLabel?: string;
-    class?: string;
-    onClose: () => void;
-    children?: Snippet;
-    idle?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const SHEET_QUERY = '(max-width: 1079px)';
   const sheetQuery = mediaQuery(SHEET_QUERY);

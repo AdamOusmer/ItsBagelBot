@@ -1,9 +1,22 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import type { Snippet } from 'svelte';
   import '../styles/tags.css';
   import '../styles/elements/badge.css';
+
+  type Own = {
+    shape?: 'tag' | 'pill';
+    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'neutral' | 'positive' | 'warning' | 'danger';
+    mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
+    sweep?: boolean;
+    dashed?: boolean;
+    literal?: boolean;
+    status?: boolean;
+    children: Snippet;
+    class?: string;
+  };
 
   let {
     tone = undefined,
@@ -16,18 +29,7 @@
     children,
     class: className = '',
     ...rest
-  }: {
-    shape?: 'tag' | 'pill';
-    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'neutral' | 'positive' | 'warning' | 'danger';
-    mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
-    sweep?: boolean;
-    dashed?: boolean;
-    literal?: boolean;
-    status?: boolean;
-    children: Snippet;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['span'], keyof Own> = $props();
 
   const classes = $derived(
     [

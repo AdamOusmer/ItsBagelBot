@@ -31,7 +31,7 @@ const { path = '/', notes = [], caption } = Astro.props;
     {notes.length > 0 && (
         <ul class="dframe__legend">
             {notes.map((note) => (
-                <Text as="li" tone="muted-soft" class="dframe__note" data-note-for={note.n} tabindex="0">
+                <Text as="li" tone="muted-soft" class="dframe__note" data-note-for={note.n} tabindex={0}>
                     <i class="dframe__idx" aria-hidden="true">{String(note.n).padStart(2, '0')}</i>
                     <span>{note.text}</span>
                 </Text>

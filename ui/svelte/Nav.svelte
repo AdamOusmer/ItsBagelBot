@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import { getUiI18n } from './i18n';
 
   import '../styles/elements/nav.css';
@@ -14,6 +15,23 @@
   import type { UiBrand, UiLocaleOption, UiNavLink } from '../lib/nav-types';
 
   const i18n = getUiI18n();
+  type Own = {
+    brand: UiBrand;
+    links: UiNavLink[];
+    cta?: UiNavLink;
+    locales?: UiLocaleOption[];
+    localeLabel?: string;
+    ariaLabel: string;
+    menuLabels: { open: string; close: string; panel: string };
+    menuMeta?: string;
+    menuId?: string;
+    variant?: 'pill' | 'bar';
+    menu?: boolean;
+    actions?: Snippet;
+    mobileFooter?: Snippet;
+    class?: string;
+  };
+
   let {
     brand,
     links,
@@ -30,23 +48,7 @@
     mobileFooter,
     class: className = '',
     ...rest
-  }: {
-    brand: UiBrand;
-    links: UiNavLink[];
-    cta?: UiNavLink;
-    locales?: UiLocaleOption[];
-    localeLabel?: string;
-    ariaLabel: string;
-    menuLabels: { open: string; close: string; panel: string };
-    menuMeta?: string;
-    menuId?: string;
-    variant?: 'pill' | 'bar';
-    menu?: boolean;
-    actions?: Snippet;
-    mobileFooter?: Snippet;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['nav'], keyof Own> = $props();
 
   const classes = $derived(['bb-nav', className || null].filter(Boolean).join(' '));
 

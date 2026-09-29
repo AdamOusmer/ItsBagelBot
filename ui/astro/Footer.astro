@@ -1,13 +1,14 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/footer.css';
 import Brand from './Brand.astro';
 import NavLink from './NavLink.astro';
 import type { UiBrand, UiFooterColumn, UiNavLink } from '../lib/nav-types';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'footer'>, 'brand' | 'signoff' | 'columns' | 'legal' | 'copyright' | 'note' | 'class'> {
   brand: UiBrand;
   signoff?: { line: string; sub?: string };
   columns?: UiFooterColumn[];
@@ -15,7 +16,6 @@ interface Props {
   copyright: string;
   note?: string;
   class?: string;
-  [key: string]: unknown;
 }
 
 const {

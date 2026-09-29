@@ -136,7 +136,7 @@ describe('AppShell stacked', () => {
 
 describe('AlertBanner second row', () => {
   test('adds the row modifier only when asked, in both adapters', async () => {
-    const props = { tone: 'warm', placement: 'top', row: 2, role: 'status' };
+    const props = { tone: 'warm', placement: 'top', row: 2, role: 'status' } as const;
     const expected = '<div class="bb-alert bb-alert--warm bb-alert--top bb-alert--row-2" role="status"><span class="bb-alert__msg"></span></div>';
     expect(normalise(render(SvelteAlertBanner, { props }).body)).toBe(expected);
     expect(await astro(AstroAlertBanner, props)).toBe(expected);

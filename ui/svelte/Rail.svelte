@@ -1,13 +1,21 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/shell.css';
   import Brand from './Brand.svelte';
   import RailItem from './RailItem.svelte';
   import { mountGlide } from '../lib/rail-glide';
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiNavGroup, UiNavLink } from '../lib/nav-types';
+
+  type Own = {
+    brand: UiBrand;
+    groups: UiNavGroup[];
+    foot?: Snippet;
+    ariaLabel?: string;
+    class?: string;
+  };
 
   let {
     brand,
@@ -16,14 +24,7 @@
     ariaLabel,
     class: className = '',
     ...rest
-  }: {
-    brand: UiBrand;
-    groups: UiNavGroup[];
-    foot?: Snippet;
-    ariaLabel?: string;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['aside'], keyof Own> = $props();
 
   const classes = $derived(['bb-rail', className || null].filter(Boolean).join(' '));
 

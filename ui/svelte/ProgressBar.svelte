@@ -1,8 +1,21 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/progress-bar.css';
+
+  type Own = {
+    value: number | null;
+    tone?: 'neutral' | 'success' | 'warning' | 'error';
+    label: string;
+    size?: 'sm' | 'md';
+    gradient?: boolean;
+    ramp?: 1 | 2 | 3;
+    target?: number;
+    segments?: readonly ('neutral' | 'success' | 'warning' | 'error' | null)[];
+    current?: number;
+    class?: string;
+  };
 
   let {
     value,
@@ -16,19 +29,7 @@
     current,
     class: className = '',
     ...rest
-  }: {
-    value: number | null;
-    tone?: 'neutral' | 'success' | 'warning' | 'error';
-    label: string;
-    size?: 'sm' | 'md';
-    gradient?: boolean;
-    ramp?: 1 | 2 | 3;
-    target?: number;
-    segments?: readonly ('neutral' | 'success' | 'warning' | 'error' | null)[];
-    current?: number;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const clamp = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
 

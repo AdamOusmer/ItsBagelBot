@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 import { uiI18n } from './i18n';
 
 import '../styles/elements/nav.css';
@@ -11,7 +12,7 @@ import MobileMenu from './MobileMenu.astro';
 import LanguageSwitcher from './LanguageSwitcher.astro';
 import type { UiBrand, UiLocaleOption, UiNavLink } from '../lib/nav-types';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'nav'>, 'brand' | 'links' | 'cta' | 'locales' | 'localeLabel' | 'ariaLabel' | 'menuLabels' | 'menuMeta' | 'menuId' | 'variant' | 'menu' | 'class'> {
   brand: UiBrand;
   links: UiNavLink[];
   cta?: UiNavLink;
@@ -24,7 +25,6 @@ interface Props {
   variant?: 'pill' | 'bar';
   menu?: boolean;
   class?: string;
-  [key: string]: unknown;
 }
 
 const { t } = uiI18n(Astro);

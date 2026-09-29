@@ -220,7 +220,7 @@
             fill mono
             type="text"
             name="creator_code"
-            maxlength="64"
+            maxlength={64}
             placeholder={t('admin.users.creatorPlaceholder')}
             aria-label={t('admin.users.creatorTitle')}
             value={user.creator_code ?? ''}

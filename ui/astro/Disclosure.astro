@@ -1,16 +1,16 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/disclosure.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'details'>, 'summary' | 'open' | 'index' | 'size' | 'class'> {
     summary: string;
     open?: boolean;
     index?: string;
     size?: 'md' | 'sm';
     class?: string;
-    [key: string]: unknown;
 }
 
 const { summary, open = false, index, size = 'md', class: className = '', ...rest } = Astro.props;

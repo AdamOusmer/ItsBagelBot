@@ -1,12 +1,24 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 import '../styles/tags.css';
 import '../styles/elements/field.css';
-const { label, tag, hint, error, hintId, errorId, for: htmlFor, ...rest } = Astro.props;
+interface Props extends Omit<HTMLAttributes<'label'>, 'label' | 'tag' | 'hint' | 'error' | 'hintId' | 'errorId' | 'for' | 'class'> {
+    label: string;
+    tag?: string;
+    hint?: string;
+    error?: string;
+    hintId?: string;
+    errorId?: string;
+    for?: string;
+    class?: string;
+}
+
+const { label, tag, hint, error, hintId, errorId, for: htmlFor, class: className, ...rest } = Astro.props;
 ---
 
-<label class="bb-field" for={htmlFor} data-invalid={error ? '' : undefined} {...rest}>
+<label class:list={['bb-field', className]} for={htmlFor} data-invalid={error ? '' : undefined} {...rest}>
   <span class="bb-field__label">{label}{tag && <small class="bb-tag bb-tag--quiet bb-field__tag">{tag}</small>}</span>
   <slot />
   {hint && <small class="bb-field__hint" id={hintId}>{hint}</small>}

@@ -153,7 +153,7 @@
       <div class="new-head"><Label mono as="span">{t('counters.pickerNew')}</Label></div>
       <Input
         placeholder={t('counters.fieldNamePh')}
-        maxlength="64"
+        maxlength={64}
         bind:value={newName}
         onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && (e.preventDefault(), create())}
       />

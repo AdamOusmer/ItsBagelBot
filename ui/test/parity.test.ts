@@ -803,7 +803,7 @@ for (const testCase of REMAINING) {
 
 test('Modal: a title mints an id and points aria-labelledby at it', () => {
   const { body } = render(SvelteModal, {
-    props: { open: true, title: 'Delete timer' },
+    props: { open: true, title: 'Delete timer', closeModal: () => {} },
   });
   const html = normalise(body);
   const id = /<h3 class="bb-modal__title" id="([^"]+)">/.exec(html)?.[1];
@@ -813,7 +813,7 @@ test('Modal: a title mints an id and points aria-labelledby at it', () => {
 });
 
 test('Modal: closed renders nothing at all', () => {
-  const { body } = render(SvelteModal, { props: { open: false } });
+  const { body } = render(SvelteModal, { props: { open: false, closeModal: () => {} } });
   expect(normalise(body)).toBe('');
 });
 

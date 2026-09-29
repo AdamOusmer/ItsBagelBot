@@ -1,13 +1,13 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/input.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'input'>, 'checked' | 'class'> {
     checked?: boolean;
     class?: string;
-    [key: string]: unknown;
 }
 
 const { checked = false, class: className = '', ...rest } = Astro.props;

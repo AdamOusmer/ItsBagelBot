@@ -1,9 +1,19 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/table.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    label: string;
+    zebra?: boolean;
+    compact?: boolean;
+    roomy?: boolean;
+    minWidth?: string;
+    class?: string;
+    children: Snippet;
+  };
 
   let {
     label,
@@ -14,16 +24,7 @@
     class: className = '',
     children,
     ...rest
-  }: {
-    label: string;
-    zebra?: boolean;
-    compact?: boolean;
-    roomy?: boolean;
-    minWidth?: string;
-    class?: string;
-    children: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['table'], keyof Own> = $props();
 
   const classes = $derived(
     [

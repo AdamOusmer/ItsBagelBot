@@ -495,7 +495,7 @@
       invalid={!!renameError}
       aria-invalid={renameError ? 'true' : undefined}
       aria-describedby={renameError ? 'counter-rename-err' : undefined}
-      maxlength="64"
+      maxlength={64}
       bind:value={renameValue}
     />
     <Button variant="ghost" loading={renaming} onclick={() => renameForm?.requestSubmit()}>
@@ -580,7 +580,7 @@
                   id="counter-name"
                   name="name"
                   placeholder={t('counters.fieldNamePh')}
-                  maxlength="64"
+                  maxlength={64}
                   bind:value={draft.name}
                   invalid={!!nameError}
                   aria-invalid={nameError ? 'true' : undefined}
@@ -738,7 +738,7 @@
                       <Input
                         name="username"
                         placeholder={t('counters.addUserPh')}
-                        maxlength="32"
+                        maxlength={32}
                         required
                         invalid={!!addUserError}
                         aria-invalid={addUserError ? 'true' : undefined}
@@ -752,7 +752,7 @@
                       <Input
                         name="command"
                         placeholder={t('counters.addCommandPh')}
-                        maxlength="64"
+                        maxlength={64}
                         required
                         invalid={!!addCommandError}
                         aria-invalid={addCommandError ? 'true' : undefined}

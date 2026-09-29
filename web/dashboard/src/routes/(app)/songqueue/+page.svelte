@@ -515,8 +515,8 @@
                   fill
                   name={`quota_${tier}`}
                   type="number"
-                  min="1"
-                  step="1"
+                  min={1}
+                  step={1}
                   placeholder={t('spotify.quota.unlimited')}
                   bind:value={quotaDraft[tier]}
                 />

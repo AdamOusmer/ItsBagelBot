@@ -1,10 +1,17 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/nav.css';
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
+
+  type Own = {
+    items: readonly { label: string; href: string; icon: IconName }[];
+    ariaLabel: string;
+    size?: number;
+    class?: string;
+  };
 
   let {
     items,
@@ -12,13 +19,7 @@
     size = 17,
     class: className = '',
     ...rest
-  }: {
-    items: { label: string; href: string; icon: IconName }[];
-    ariaLabel: string;
-    size?: number;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['aside'], keyof Own> = $props();
 
   const classes = $derived(['bb-social-rail', className || null].filter(Boolean).join(' '));
 </script>

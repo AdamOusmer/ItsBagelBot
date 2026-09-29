@@ -1,10 +1,22 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/field.css';
   import '../styles/elements/input.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    value?: string | number | null;
+    type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'search' | 'date' | 'datetime-local' | 'month' | 'time' | 'week' | 'color';
+    invalid?: boolean;
+    fill?: boolean;
+    mono?: boolean;
+    align?: 'start' | 'end';
+    class?: string;
+    icon?: Snippet;
+    trail?: Snippet;
+  };
 
   let {
     value = $bindable(''),
@@ -17,18 +29,7 @@
     icon,
     trail,
     ...rest
-  }: {
-    value?: string | number | null;
-    type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'search' | 'date' | 'datetime-local' | 'month' | 'time' | 'week' | 'color';
-    invalid?: boolean;
-    fill?: boolean;
-    mono?: boolean;
-    align?: 'start' | 'end';
-    class?: string;
-    icon?: Snippet;
-    trail?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['input'], keyof Own> = $props();
 
   const classes = $derived(
     [

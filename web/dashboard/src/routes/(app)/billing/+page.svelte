@@ -593,7 +593,7 @@
         placeholder={t('billing.usernamePlaceholder')}
         autocomplete="off"
         spellcheck="false"
-        maxlength="26"
+        maxlength={26}
         bind:value={giftRecipient}
         readonly={giftLaunching}
       />
@@ -608,7 +608,7 @@
         name="message"
         data-cursor
         placeholder={t('billing.messagePlaceholder')}
-        maxlength="280"
+        maxlength={280}
         rows={3}
         invalid={giftMessageHasLink}
         bind:value={giftMessage}

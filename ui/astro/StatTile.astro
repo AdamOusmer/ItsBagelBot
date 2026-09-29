@@ -1,11 +1,10 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/stat-tile.css';
 
-import '../styles/elements/stat-tile.css';
-
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'value' | 'unit' | 'delta' | 'flat' | 'static' | 'inline' | 'tone' | 'class'> {
     label: string;
     value: string;
     unit?: string;
@@ -15,7 +14,6 @@ interface Props {
     inline?: boolean;
     tone?: 'positive' | 'accent';
     class?: string;
-    [key: string]: unknown;
 }
 
 const {

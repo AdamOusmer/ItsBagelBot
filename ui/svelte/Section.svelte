@@ -1,9 +1,18 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/layout.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    size?: 'default' | 'sm' | 'lg' | 'flush' | 'page';
+    anchor?: boolean;
+    reveal?: boolean;
+    as?: string;
+    class?: string;
+    children: Snippet;
+  };
 
   let {
     size = 'default',
@@ -13,15 +22,7 @@
     class: className = '',
     children,
     ...rest
-  }: {
-    size?: 'default' | 'sm' | 'lg' | 'flush' | 'page';
-    anchor?: boolean;
-    reveal?: boolean;
-    as?: string;
-    class?: string;
-    children: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(
     [

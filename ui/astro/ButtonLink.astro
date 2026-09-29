@@ -1,10 +1,11 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import Button from './Button.astro';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'a'>, 'href' | 'variant' | 'solid' | 'block' | 'size' | 'done' | 'class'> {
     href: string;
     variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
     solid?: boolean;
@@ -13,7 +14,6 @@ interface Props {
     done?: boolean;
     disabled?: boolean;
     class?: string;
-    [key: string]: unknown;
 }
 
 const props = Astro.props;

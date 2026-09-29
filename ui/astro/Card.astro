@@ -1,11 +1,12 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import CardAtmosphere from './CardAtmosphere.astro';
 import '../styles/elements/card.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'as' | 'href' | 'atmo' | 'sheen' | 'stat' | 'glass' | 'hover' | 'label' | 'class'> {
     as?: string;
     href?: string;
     atmo?: boolean;
@@ -18,11 +19,10 @@ interface Props {
     tone?: 'accent' | 'danger';
     label?: string;
     class?: string;
-    [key: string]: unknown;
 }
 
 const {
-    as = 'div',
+    as,
     href,
     atmo = false,
     sheen = false,
@@ -37,7 +37,7 @@ const {
     ...rest
 } = Astro.props;
 
-const Tag = as;
+const Tag = as ?? (href ? 'a' : 'div');
 const banded = Astro.slots.has('band');
 
 const classes = [

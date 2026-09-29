@@ -41,15 +41,15 @@ const L = {
         <div class="rh__grid">
             <label class="rh__field rh__field--wide">
                 <Label mono as="span">{L.responseLabel}</Label>
-                <Textarea fill rows={2} maxlength="500" data-rh-response value={L.responseDefault} />
+                <Textarea fill rows={2} maxlength={500} data-rh-response value={L.responseDefault} />
             </label>
             <label class="rh__field">
                 <Label mono as="span">{L.whoLabel}</Label>
-                <Input fill data-rh-who value={L.whoDefault} maxlength="25" />
+                <Input fill data-rh-who value={L.whoDefault} maxlength={25} />
             </label>
             <label class="rh__field">
                 <Label mono as="span">{L.argsLabel}</Label>
-                <Input fill data-rh-args value={L.argsDefault} maxlength="80" />
+                <Input fill data-rh-args value={L.argsDefault} maxlength={80} />
             </label>
         </div>
         <div class="rh__out">

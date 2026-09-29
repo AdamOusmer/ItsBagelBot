@@ -93,11 +93,11 @@
   </Field>
 
   <Field label={t('timers.fieldMinChatLines')} hint={t('timers.fieldMinChatLinesHint')}>
-    <span class="num"><Input type="number" min="0" max="100" bind:value={draft.minChatLines} /></span>
+    <span class="num"><Input type="number" min={0} max={100} bind:value={draft.minChatLines} /></span>
   </Field>
 
   <Field label={t('timers.fieldMaxFires')} hint={t('timers.fieldMaxFiresHint')}>
-    <span class="num"><Input type="number" min="0" max="100" bind:value={draft.maxFiresPerStream} /></span>
+    <span class="num"><Input type="number" min={0} max={100} bind:value={draft.maxFiresPerStream} /></span>
   </Field>
 
   <Field label={t('timers.fieldEndsAt')} hint={t('timers.fieldEndsAtHint')}>

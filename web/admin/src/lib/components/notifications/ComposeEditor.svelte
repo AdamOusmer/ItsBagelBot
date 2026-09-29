@@ -92,7 +92,7 @@
           fill mono
           type="text"
           name="title"
-          maxlength="120"
+          maxlength={120}
           required
           placeholder={t('admin.notifications.fieldTitlePlaceholder')}
           bind:value={draft.title}
@@ -103,7 +103,7 @@
         <Textarea
           fill
           name="body"
-          maxlength="2000"
+          maxlength={2000}
           rows={4}
           required
           placeholder={t('admin.notifications.fieldBodyPlaceholder')}

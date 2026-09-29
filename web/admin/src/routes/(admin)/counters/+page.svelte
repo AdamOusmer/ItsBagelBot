@@ -248,7 +248,7 @@
                     <Input
                       fill mono
                       type="text"
-                      maxlength="64"
+                      maxlength={64}
                       placeholder={t('admin.counters.fieldNamePlaceholder')}
                       bind:value={draft.name}
                     />

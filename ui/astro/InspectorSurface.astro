@@ -1,19 +1,19 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 import { uiI18n } from './i18n';
 
 import '../styles/elements/card.css';
 import '../styles/elements/surface.css';
 import Icon from './Icon.astro';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'aside'>, 'open' | 'title' | 'controls' | 'closeLabel' | 'class'> {
     open?: boolean;
     title: string;
     controls?: string;
     closeLabel?: string;
     class?: string;
-    [key: string]: unknown;
 }
 
 const { t } = uiI18n(Astro);

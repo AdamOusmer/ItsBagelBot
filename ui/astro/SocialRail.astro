@@ -1,17 +1,17 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/nav.css';
 import Icon from './Icon.astro';
 import type { IconName } from '../lib/icons';
 
-interface Props {
-  items: { label: string; href: string; icon: IconName }[];
+interface Props extends Omit<HTMLAttributes<'aside'>, 'items' | 'ariaLabel' | 'size' | 'class'> {
+  items: readonly { label: string; href: string; icon: IconName }[];
   ariaLabel: string;
   size?: number;
   class?: string;
-  [key: string]: unknown;
 }
 
 const { items, ariaLabel, size = 17, class: className = '', ...rest } = Astro.props;

@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/shell.css';
 import Icon from './Icon.astro';
@@ -15,14 +16,13 @@ import {
 import type { IconName } from '../lib/icons';
 import type { UiNavGroup, UiNavLink } from '../lib/nav-types';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'nav'>, 'items' | 'groups' | 'ariaLabel' | 'homeHref' | 'fallbackIcon' | 'class'> {
   items?: UiNavLink[];
   groups?: UiNavGroup[];
   ariaLabel?: string;
   homeHref?: string;
   fallbackIcon?: IconName;
   class?: string;
-  [key: string]: unknown;
 }
 
 const {

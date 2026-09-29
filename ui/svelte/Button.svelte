@@ -1,9 +1,25 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import type { Snippet } from 'svelte';
   import '../styles/elements/button.css';
+
+  type Own = {
+    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
+    as?: 'button' | 'span';
+    solid?: boolean;
+    danger?: boolean;
+    block?: boolean;
+    size?: 'md' | 'sm';
+    type?: 'button' | 'submit' | 'reset';
+    onclick?: (e: MouseEvent) => void;
+    loading?: boolean;
+    done?: boolean;
+    disabled?: boolean;
+    class?: string;
+    children?: Snippet;
+  };
 
   let {
     variant = 'primary',
@@ -20,22 +36,7 @@
     class: cls = '',
     children,
     ...rest
-  }: {
-    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
-    as?: 'button' | 'span';
-    solid?: boolean;
-    danger?: boolean;
-    block?: boolean;
-    size?: 'md' | 'sm';
-    type?: 'button' | 'submit' | 'reset';
-    onclick?: (e: MouseEvent) => void;
-    loading?: boolean;
-    done?: boolean;
-    disabled?: boolean;
-    class?: string;
-    children?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   $effect(() => {
     if (variant === 'icon' && !rest['aria-label'] && !rest['aria-labelledby']) {

@@ -113,10 +113,10 @@
             </Field>
             <Grid cols={2} gap={3}>
               <Field label={t('admin.giveaways.fieldWinners')}>
-                <Input type="number" name="winner_count" min="1" max={preview?.eligible.eligible ?? undefined} step="1" bind:value={winnerCount} required />
+                <Input type="number" name="winner_count" min={1} max={preview?.eligible.eligible ?? undefined} step={1} bind:value={winnerCount} required />
               </Field>
               <Field label={t('admin.giveaways.fieldMonths')}>
-                <Input type="number" name="prize_months" min="1" max={MAX_PRIZE_MONTHS} step="1" bind:value={prizeMonths} required />
+                <Input type="number" name="prize_months" min={1} max={MAX_PRIZE_MONTHS} step={1} bind:value={prizeMonths} required />
               </Field>
             </Grid>
             <Text size="sm" tone="muted">{t('admin.giveaways.monthsHint')}</Text>

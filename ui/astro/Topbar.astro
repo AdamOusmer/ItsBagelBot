@@ -1,12 +1,13 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/shell.css';
 import Brand from './Brand.astro';
 import type { UiBrand, UiCrumb } from '../lib/nav-types';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'header'>, 'brand' | 'crumbs' | 'crumbAriaLabel' | 'clock' | 'clockText' | 'railed' | 'class'> {
   brand: UiBrand;
   crumbs?: UiCrumb[];
   crumbAriaLabel?: string;
@@ -14,7 +15,6 @@ interface Props {
   clockText?: string;
   railed?: boolean;
   class?: string;
-  [key: string]: unknown;
 }
 
 const {

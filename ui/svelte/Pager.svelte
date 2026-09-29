@@ -1,9 +1,20 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/pager.css';
   import ButtonLink from './ButtonLink.svelte';
+
+  type Own = {
+    label: string;
+    prevHref: string;
+    nextHref: string;
+    hasPrev?: boolean;
+    hasNext?: boolean;
+    prevLabel?: string;
+    nextLabel?: string;
+    class?: string;
+  };
 
   let {
     label,
@@ -15,17 +26,7 @@
     nextLabel = 'Next',
     class: className = '',
     ...rest
-  }: {
-    label: string;
-    prevHref: string;
-    nextHref: string;
-    hasPrev?: boolean;
-    hasNext?: boolean;
-    prevLabel?: string;
-    nextLabel?: string;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(['bb-pager', className || null].filter(Boolean).join(' '));
 </script>

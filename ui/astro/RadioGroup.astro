@@ -1,13 +1,14 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 import { uiI18n } from './i18n';
 
 import '../styles/tags.css';
 import '../styles/elements/radio-group.css';
 import Icon from './Icon.astro';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'name' | 'options' | 'value' | 'label' | 'variant' | 'min' | 'cols' | 'rail' | 'maxHeight' | 'class'> {
     name: string;
     options: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[];
     value?: string;
@@ -18,7 +19,6 @@ interface Props {
     rail?: 'sm' | 'md';
     maxHeight?: string;
     class?: string;
-    [key: string]: unknown;
 }
 
 const { t } = uiI18n(Astro);

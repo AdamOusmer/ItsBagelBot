@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import { getUiI18n } from './i18n';
 
   import '../styles/elements/modal.css';
@@ -15,6 +16,21 @@
   } from '../lib/overlay-stack';
 
   const i18n = getUiI18n();
+  type Own = {
+    open: boolean;
+    title?: string;
+    closeModal: () => void;
+    busy?: boolean;
+    closeLabel?: string;
+    ariaLabel?: string;
+    variant?: 'dialog' | 'viewer';
+    toolbarLabel?: string;
+    class?: string;
+    children?: Snippet;
+    toolbar?: Snippet;
+    hint?: Snippet;
+  };
+
   let {
     open = false,
     title,
@@ -29,21 +45,7 @@
     toolbar,
     hint,
     ...rest
-  }: {
-    open: boolean;
-    title?: string;
-    closeModal: () => void;
-    busy?: boolean;
-    closeLabel?: string;
-    ariaLabel?: string;
-    variant?: 'dialog' | 'viewer';
-    toolbarLabel?: string;
-    class?: string;
-    children?: Snippet;
-    toolbar?: Snippet;
-    hint?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const uid = $props.id();
   const titleId = `bb-modal-title-${uid}`;

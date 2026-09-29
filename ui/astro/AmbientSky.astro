@@ -1,13 +1,14 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 // Astro twin of the onboarding atmosphere in AmbientSky.svelte.
 import LightField from './LightField.astro';
 import '../styles/orbs.css';
 import '../styles/elements/ambient-sky.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'shift' | 'turn' | 'px' | 'py' | 'progress' | 'leaving' | 'position' | 'warmth' | 'uid' | 'class'> {
     shift?: number;
     turn?: number;
     px?: number;
@@ -18,7 +19,6 @@ interface Props {
     warmth?: number;
     uid?: string;
     class?: string;
-    [key: string]: unknown;
 }
 const {
     shift = 0, turn = 0, px = 0, py = 0, progress = 0, leaving = false,

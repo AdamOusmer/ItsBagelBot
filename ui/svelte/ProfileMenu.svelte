@@ -1,6 +1,7 @@
 <script module lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { HTMLAttributes } from 'svelte/elements';
 
   import type { IconName } from '../lib/icons';
 
@@ -30,6 +31,30 @@
   import Scroller from './Scroller.svelte';
   import VisuallyHidden from './VisuallyHidden.svelte';
 
+  type Own = {
+    variant?: 'topbar' | 'rail';
+    name: string;
+    caption: string;
+    open?: boolean;
+    helpOpen?: boolean;
+    links?: ProfileMenuLink[];
+    linksLabel?: string;
+    exit?: ProfileMenuLink;
+    logoutLabel: string;
+    logoutAction?: string;
+    onlogout?: () => void;
+    help?: ProfileMenuLink[];
+    helpLabel?: string;
+    helpTitle?: string;
+    more?: ProfileMenuLink[];
+    newTabLabel?: string;
+    feedback?: ProfileMenuLink;
+    menuLabel?: string;
+    triggerLabel?: string;
+    avatar: Snippet<[ProfileAvatar]>;
+    class?: string;
+  };
+
   let {
     variant = 'topbar',
     name,
@@ -53,30 +78,7 @@
     avatar,
     class: className = '',
     ...rest
-  }: {
-    variant?: 'topbar' | 'rail';
-    name: string;
-    caption: string;
-    open?: boolean;
-    helpOpen?: boolean;
-    links?: ProfileMenuLink[];
-    linksLabel?: string;
-    exit?: ProfileMenuLink;
-    logoutLabel: string;
-    logoutAction?: string;
-    onlogout?: () => void;
-    help?: ProfileMenuLink[];
-    helpLabel?: string;
-    helpTitle?: string;
-    more?: ProfileMenuLink[];
-    newTabLabel?: string;
-    feedback?: ProfileMenuLink;
-    menuLabel?: string;
-    triggerLabel?: string;
-    avatar: Snippet<[ProfileAvatar]>;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   let hovered = $state(false);
   let topTrigger = $state<HTMLButtonElement | null>(null);

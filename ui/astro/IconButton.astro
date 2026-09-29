@@ -1,11 +1,12 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/button.css';
 import '../styles/elements/tooltip.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'button'>, 'label' | 'tooltip' | 'size' | 'type' | 'disabled' | 'class'> {
     label: string;
     tooltip?: boolean;
     size?: 'md' | 'sm';
@@ -13,7 +14,6 @@ interface Props {
     type?: 'button' | 'submit' | 'reset';
     disabled?: boolean;
     class?: string;
-    [key: string]: unknown;
 }
 
 const {

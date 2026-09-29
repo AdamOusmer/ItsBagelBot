@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import ProgressBar from './ProgressBar.astro';
 import '../styles/tags.css';
@@ -17,11 +18,10 @@ type StepItem = {
     href?: string;
 };
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'ol'>, 'steps' | 'stateLabels' | 'class'> {
     steps: StepItem[];
     stateLabels?: Partial<Record<StepState, string>>;
     class?: string;
-    [key: string]: unknown;
 }
 
 const { steps, stateLabels = {}, class: className = '', ...rest } = Astro.props;

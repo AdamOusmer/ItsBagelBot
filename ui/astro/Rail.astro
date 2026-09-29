@@ -1,18 +1,18 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/shell.css';
 import Brand from './Brand.astro';
 import RailItem from './RailItem.astro';
 import type { UiBrand, UiNavGroup } from '../lib/nav-types';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'aside'>, 'brand' | 'groups' | 'ariaLabel' | 'class'> {
   brand: UiBrand;
   groups: UiNavGroup[];
   ariaLabel?: string;
   class?: string;
-  [key: string]: unknown;
 }
 
 const { brand, groups, ariaLabel, class: className = '', ...rest } = Astro.props;

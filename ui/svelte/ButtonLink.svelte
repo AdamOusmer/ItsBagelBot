@@ -1,9 +1,21 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import type { Snippet } from 'svelte';
   import '../styles/elements/button.css';
+
+  type Own = {
+    href: string;
+    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
+    solid?: boolean;
+    block?: boolean;
+    size?: 'md' | 'sm';
+    done?: boolean;
+    disabled?: boolean;
+    class?: string;
+    children?: Snippet;
+  };
 
   let {
     href,
@@ -16,18 +28,7 @@
     class: cls = '',
     children,
     ...rest
-  }: {
-    href: string;
-    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
-    solid?: boolean;
-    block?: boolean;
-    size?: 'md' | 'sm';
-    done?: boolean;
-    disabled?: boolean;
-    class?: string;
-    children?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['a'], keyof Own> = $props();
 
   $effect(() => {
     if (variant === 'icon' && !rest['aria-label'] && !rest['aria-labelledby']) {

@@ -1,6 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import type { Snippet } from 'svelte';
   import { getUiI18n } from './i18n';
   import '../styles/tags.css';
@@ -10,6 +11,22 @@
   type RadioOption = { value: string; label: string; description?: string; meta?: string; disabled?: boolean };
 
   const i18n = getUiI18n();
+  type Own = {
+    name: string;
+    options: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[];
+    value: string;
+    label?: string;
+    variant?: 'tabs' | 'cards' | 'rows';
+    min?: string;
+    cols?: number;
+    rail?: 'sm' | 'md';
+    maxHeight?: string;
+    onchange?: (value: string) => void;
+    onpick?: (value: string) => void;
+    lead?: Snippet<[RadioOption, boolean]>;
+    class?: string;
+  };
+
   let {
     name,
     options,
@@ -25,22 +42,7 @@
     lead,
     class: className = '',
     ...rest
-  }: {
-    name: string;
-    options: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[];
-    value: string;
-    label?: string;
-    variant?: 'tabs' | 'cards' | 'rows';
-    min?: string;
-    cols?: number;
-    rail?: 'sm' | 'md';
-    maxHeight?: string;
-    onchange?: (value: string) => void;
-    onpick?: (value: string) => void;
-    lead?: Snippet<[RadioOption, boolean]>;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const tabsClass = $derived(['bb-tabs bb-tabs--wrap', className || null].filter(Boolean).join(' '));
   const choicesClass = $derived(

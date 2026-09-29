@@ -104,7 +104,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
                                 <Select id="cb-perm" name="perm" fill options={data.perms} label={ui.permLabel} data-perm />
                             </Field>
                             <Field label={ui.cooldownLabel} for="cb-cooldown" hint={ui.cooldownHint} hintId="cb-cd-hint">
-                                <Input id="cb-cooldown" type="number" value="0" fill min="0" max={LIMITS.cooldownMax} data-cooldown aria-describedby="cb-cd-hint" />
+                                <Input id="cb-cooldown" type="number" value="0" fill min={0} max={LIMITS.cooldownMax} data-cooldown aria-describedby="cb-cd-hint" />
                             </Field>
                             <div class="span2">
                                 <Field label={ui.styleLabel} for="cb-style">

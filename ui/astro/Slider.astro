@@ -1,16 +1,16 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/slider.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'input'>, 'value' | 'min' | 'max' | 'step' | 'class'> {
     value?: number;
     min?: number;
     max?: number;
     step?: number;
     class?: string;
-    [key: string]: unknown;
 }
 
 const { value = 0, min = 0, max = 100, step = 1, class: className = '', ...rest } = Astro.props;

@@ -1,10 +1,22 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/button.css';
   import '../styles/elements/tooltip.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    label: string;
+    tooltip?: boolean;
+    size?: 'md' | 'sm';
+    danger?: boolean;
+    type?: 'button' | 'submit' | 'reset';
+    onclick?: (e: MouseEvent) => void;
+    disabled?: boolean;
+    class?: string;
+    children: Snippet;
+  };
 
   let {
     label,
@@ -17,18 +29,7 @@
     class: className = '',
     children,
     ...rest
-  }: {
-    label: string;
-    tooltip?: boolean;
-    size?: 'md' | 'sm';
-    danger?: boolean;
-    type?: 'button' | 'submit' | 'reset';
-    onclick?: (e: MouseEvent) => void;
-    disabled?: boolean;
-    class?: string;
-    children: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['button'], keyof Own> = $props();
 
   const classes = $derived(
     [

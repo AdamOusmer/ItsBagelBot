@@ -1,8 +1,15 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/layout.css';
+
+  type Own = {
+    vertical?: boolean;
+    flush?: boolean;
+    fade?: boolean;
+    class?: string;
+  };
 
   let {
     vertical = false,
@@ -10,13 +17,7 @@
     fade = false,
     class: className = '',
     ...rest
-  }: {
-    vertical?: boolean;
-    flush?: boolean;
-    fade?: boolean;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(
     [

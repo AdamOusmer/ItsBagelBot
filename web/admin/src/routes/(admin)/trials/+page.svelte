@@ -129,7 +129,7 @@
           type="text"
           inputmode="numeric"
           pattern="[1-9][0-9]*"
-          maxlength="20"
+          maxlength={20}
           autocomplete="off"
           required
           bind:value={broadcasterId}

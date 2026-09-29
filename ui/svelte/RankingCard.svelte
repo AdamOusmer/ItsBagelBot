@@ -14,6 +14,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { getUiI18n } from './i18n';
   import type { Snippet } from 'svelte';
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/ranking-card.css';
 
   const i18n = getUiI18n();
@@ -29,8 +30,7 @@
     leading?: Snippet<[RankingItem, number]>;
     emptyLabel?: string;
     class?: string;
-    [key: string]: unknown;
-  } = $props();
+  } & Omit<SvelteHTMLElements['section'], 'title' | 'class'> = $props();
   const maximum = $derived(items.reduce((max, item) =>
     Number.isFinite(item.value) ? Math.max(max, item.value) : max, 0) || 1);
   function proportion(value: number): string {

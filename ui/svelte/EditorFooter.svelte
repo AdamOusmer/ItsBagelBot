@@ -1,12 +1,27 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import { getUiI18n } from './i18n';
 
   import '../styles/elements/editor-footer.css';
   import Button from './Button.svelte';
 
   const i18n = getUiI18n();
+  type Own = {
+    status?: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
+    dirty?: boolean;
+    canSave?: boolean;
+    saveLabel?: string;
+    cancelLabel?: string;
+    savingLabel?: string;
+    savedLabel?: string;
+    errorLabel?: string;
+    dirtyLabel?: string;
+    class?: string;
+    onCancel: () => void;
+  };
+
   let {
     status = 'idle',
     dirty = false,
@@ -20,20 +35,7 @@
     class: className = '',
     onCancel,
     ...rest
-  }: {
-    status?: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
-    dirty?: boolean;
-    canSave?: boolean;
-    saveLabel?: string;
-    cancelLabel?: string;
-    savingLabel?: string;
-    savedLabel?: string;
-    errorLabel?: string;
-    dirtyLabel?: string;
-    class?: string;
-    onCancel: () => void;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(['bb-editor-foot', className || null].filter(Boolean).join(' '));
 </script>

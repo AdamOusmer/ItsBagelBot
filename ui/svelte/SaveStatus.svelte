@@ -7,6 +7,7 @@
 </script>
 
 <script lang="ts">
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/save-status.css';
 
   const i18n = getUiI18n();
@@ -27,8 +28,7 @@
     liveLabel?: string;
     errorLabel?: string;
     class?: string;
-    [key: string]: unknown;
-  } = $props();
+  } & Omit<SvelteHTMLElements['span'], 'class'> = $props();
 
   const TONE: Record<SaveState, string> = {
     idle: '',

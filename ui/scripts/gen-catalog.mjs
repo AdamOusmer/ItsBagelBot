@@ -55,7 +55,28 @@ const ADAPTER_NOTE = {
 
 const PROP_RE = /^\s*(?:\/\*\*.*\*\/\s*)?([A-Za-z_$][\w$]*)(\??)\s*:\s*(.+);\s*$/;
 
+function objectLiteralAt(source, open) {
+  let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}' && --depth === 0) return source.slice(open + 1, i);
+  }
+  return null;
+}
+
+function propsFromTypeAlias(source) {
+  const alias = /\btype (?:Own|Props) = /.exec(source);
+  if (!alias) return null;
+  const open = /(?:^|[=&]\s*)\{/.exec(source.slice(alias.index + alias[0].length - 2));
+  if (!open) return null;
+  const at = alias.index + alias[0].length - 2 + open.index + open[0].length - 1;
+  const body = objectLiteralAt(source, at);
+  return body === null ? null : parseProps(body);
+}
+
 function propsFromSvelte(source, file) {
+  const aliased = propsFromTypeAlias(source);
+  if (aliased) return aliased;
   const start = source.indexOf('}: {');
   if (start === -1) return null;
   const end = source.indexOf('= $props()', start);

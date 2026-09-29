@@ -1,8 +1,15 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/nav.css';
+
+  type Own = {
+    label: string;
+    closeLabel?: string;
+    controls?: string;
+    class?: string;
+  };
 
   let {
     label,
@@ -10,13 +17,7 @@
     controls = 'bb-mobile-menu',
     class: className = '',
     ...rest
-  }: {
-    label: string;
-    closeLabel?: string;
-    controls?: string;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['button'], keyof Own> = $props();
 
   const classes = $derived(['bb-hamburger', className || null].filter(Boolean).join(' '));
 </script>

@@ -74,7 +74,7 @@
         inputmode="numeric"
         min={min / UNIT_SECONDS[unit]}
         max={max / UNIT_SECONDS[unit]}
-        step="1"
+        step={1}
         {disabled}
         {invalid}
         aria-label={label}
