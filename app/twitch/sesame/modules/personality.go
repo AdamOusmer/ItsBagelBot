@@ -5,9 +5,7 @@ package modules
 
 import (
 	"context"
-	"fmt"
 	"math/rand/v2"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,13 +14,27 @@ import (
 	"ItsBagelBot/internal/domain/outgress"
 )
 
+// personalityGoldenOdds is the 1-in-N chance that any triggered reaction is
+// replaced by the golden-bagel line.
 const personalityGoldenOdds = 200
 
+// pickIndex and goldenRoll are the module's randomness, hoisted to vars so
+// tests can pin them. pickIndex draws pack lines, toast levels, mood rolls and
+// the 1-in-N chance gates; goldenRoll decides the golden-bagel override.
 var (
 	pickIndex  = rand.IntN
 	goldenRoll = func() bool { return rand.IntN(personalityGoldenOdds) == 0 }
 )
 
+// Personality is the bot's built-in voice: a fixed set of phrase reactions on
+// the non-command chat path (praise, insults, pets, feeds, flips, a per-stream
+// mood) plus a rotating bagel fun fact whenever chat @-mentions the bot.
+// It is enabled by default and can be switched off for channels that only
+// want a focused feature such as song requests. Its script lives in the shared
+// i18n catalogs.
+//
+// It deliberately does not touch the special-user greeting in Core; that path
+// is personal and stays untouched.
 func Personality(d engine.Deps) module.Module {
 	m := module.NewModule("personality", module.KindDefault)
 	m.On("channel.chat.message", personalityOnChat(d))
@@ -33,8 +45,12 @@ func Personality(d engine.Deps) module.Module {
 	return m.Build()
 }
 
-type personalityReply func(ctx context.Context, d engine.Deps, c *module.Context) string
-
+// reaction is one row of the personality table: the phrases that trip it, the
+// per-channel cooldown that keeps it charming instead of spammy, an optional
+// 1-in-N chance gate for ambient reactions, and the reply renderer. matchRaw
+// rows match against the raw lowercased message instead of the normalized one
+// (needed for the 🥯 emoji and the "@" of a mention, both of which
+// normalization would strip).
 type reaction struct {
 	name     string
 	phrases  []string
@@ -44,10 +60,19 @@ type reaction struct {
 	reply    personalityReply
 }
 
+// botNames are every way chat addresses the bot, bare "bagel" included; a
+// directed reaction ("good {name}", "feed the {name}") accepts any of them.
 var botNames = []string{"bagel", "bagelbot", "bagel bot", "itsbagelbot", "its bagel bot"}
 
+// botMention is the literal Twitch @-mention of the bot, and the only thing
+// that serves a fun fact. Written out in chat ("bagelbot", "bagel fact") it is
+// just a word about a breakfast food; the "@" is the part that means someone is
+// talking to the bot, so the fact row matches the raw text to keep it.
 const botMention = "@itsbagelbot"
 
+// withNames expands "{name}" in each pattern across the given name list, so a
+// reaction declares its shape once ("feed the {name}") and every way of
+// addressing the bot comes along naturally.
 func withNames(names []string, patterns ...string) []string {
 	out := make([]string, 0, len(patterns)*len(names))
 	for _, p := range patterns {
@@ -58,21 +83,38 @@ func withNames(names []string, patterns ...string) []string {
 	return out
 }
 
+// personalityReactions is scanned in order and the first match wins, so the
+// specific interactions sit above the generic mention→fact row: "good night
+// @itsbagelbot" lands on the goodnight, "good bagel bot" on praise, and only a
+// bare "@itsbagelbot" falls through to a fun fact. gn sits above good so an
+// explicit goodnight always beats a praise phrase sharing the line. Phrases
+// are lowercase; matching is word-boundary via containsWord on normalized
+// text (see normalizeChat), except the raw-text emoji and fact rows.
+//
+// Order is load-bearing and cannot be traded for speed. The obvious speedup, a
+// single Aho-Corasick pass over every phrase (internal/moderation has one), was
+// rejected: its automaton reports whichever pattern ends earliest in the text,
+// so "good bagel, gn bagel" would answer praise where this table answers
+// goodnight, and it reports a pattern index without the byte offsets
+// containsWord needs to check word edges. personalityGate below is the cheap
+// screen used instead.
 var personalityReactions = []reaction{
-	{name: "gn", phrases: withNames(botNames, "gn {name}", "goodnight {name}", "good night {name}", "night {name}", "bonne nuit {name}"), cooldown: 60 * time.Second, reply: packReply(personalityGnPack)},
-	{name: "good", phrases: append(withNames(botNames, "good {name}"), "good bot"), cooldown: 15 * time.Second, reply: packReply(personalityGoodPack)},
-	{name: "bad", phrases: append(withNames(botNames, "bad {name}"), "bad bot"), cooldown: 15 * time.Second, reply: packReply(personalityBadPack)},
-	{name: "thanks", phrases: withNames(botNames, "thank you {name}", "thanks {name}", "ty {name}", "merci {name}"), cooldown: 15 * time.Second, reply: packReply(personalityThanksPack)},
-	{name: "toast", phrases: withNames(botNames, "toast the {name}", "toast {name}"), cooldown: 30 * time.Second, reply: toastReply},
-	{name: "pet", phrases: withNames(botNames, "pet the {name}", "pet {name}", "pets the {name}", "hug the {name}", "hug {name}", "hugs the {name}", "{name} hug"), cooldown: 30 * time.Second, reply: packReply(personalityAffectionPack)},
-	{name: "feed", phrases: withNames(botNames, "feed the {name}", "feed {name}", "feeds the {name}"), cooldown: 30 * time.Second, reply: feedReply},
-	{name: "boop", phrases: withNames(botNames, "boop the {name}", "boop {name}", "boops the {name}"), cooldown: 30 * time.Second, reply: packReply(personalityBoopPack)},
-	{name: "mood", phrases: withNames(botNames, "{name} mood", "mood of the {name}"), cooldown: 60 * time.Second, reply: moodReply},
-	{name: "give", phrases: []string{"give me a bagel", "i want a bagel", "gimme bagel", "gimme a bagel"}, cooldown: 30 * time.Second, reply: packReply(personalityGiveBagel)},
-	{name: "emoji", phrases: []string{"🥯"}, cooldown: 90 * time.Second, oneIn: 12, matchRaw: true, reply: packReply(personalityEmojiPack)},
+	{name: "gn", phrases: withNames(botNames, "gn {name}", "goodnight {name}", "good night {name}", "night {name}", "bonne nuit {name}"), cooldown: 60 * time.Second, reply: packReply("gn", personalityGnPack)},
+	{name: "good", phrases: append(withNames(botNames, "good {name}", "bon {name}", "bravo {name}"), "good bot", "bon bot"), cooldown: 15 * time.Second, reply: packReply("good", personalityGoodPack)},
+	{name: "bad", phrases: append(withNames(botNames, "bad {name}", "mauvais {name}"), "bad bot", "mauvais bot"), cooldown: 15 * time.Second, reply: packReply("bad", personalityBadPack)},
+	{name: "thanks", phrases: withNames(botNames, "thank you {name}", "thanks {name}", "ty {name}", "merci {name}"), cooldown: 15 * time.Second, reply: packReply("thanks", personalityThanksPack)},
+	{name: "toast", phrases: withNames(botNames, "toast the {name}", "toast {name}", "grille le {name}", "grille {name}"), cooldown: 30 * time.Second, reply: toastReply},
+	{name: "pet", phrases: withNames(botNames, "pet the {name}", "pet {name}", "pets the {name}", "hug the {name}", "hug {name}", "hugs the {name}", "{name} hug", "caresse le {name}", "câlin {name}"), cooldown: 30 * time.Second, reply: packReply("affection", personalityAffectionPack)},
+	{name: "feed", phrases: withNames(botNames, "feed the {name}", "feed {name}", "feeds the {name}", "nourris le {name}", "nourris {name}"), cooldown: 30 * time.Second, reply: feedReply},
+	{name: "boop", phrases: withNames(botNames, "boop the {name}", "boop {name}", "boops the {name}"), cooldown: 30 * time.Second, reply: packReply("boop", personalityBoopPack)},
+	{name: "mood", phrases: withNames(botNames, "{name} mood", "mood of the {name}", "humeur du {name}", "humeur {name}"), cooldown: 60 * time.Second, reply: moodReply},
+	{name: "give", phrases: []string{"give me a bagel", "i want a bagel", "gimme bagel", "gimme a bagel", "donne moi un bagel", "je veux un bagel"}, cooldown: 30 * time.Second, reply: packReply("give", personalityGiveBagel)},
+	{name: "emoji", phrases: []string{"🥯"}, cooldown: 90 * time.Second, oneIn: 12, matchRaw: true, reply: packReply("emoji", personalityEmojiPack)},
 	{name: "fact", phrases: []string{botMention}, cooldown: 10 * time.Second, matchRaw: true, reply: factReply},
 }
 
+// personalityOnChat is the chat handler: screen the line, find the first
+// matching reaction, pass the chance and cooldown gates, and emit one reply.
 func personalityOnChat(d engine.Deps) module.EventHandler {
 	return func(ctx context.Context, c *module.Context, emit module.Emit) error {
 		text, ok := triggerCandidate(c)
@@ -95,191 +137,4 @@ func personalityOnChat(d engine.Deps) module.EventHandler {
 		})
 		return nil
 	}
-}
-
-func matchReaction(raw string) (reaction, bool) {
-	if !personalityGate.screens(raw) {
-		return reaction{}, false
-	}
-	norm := normalizeChat(raw)
-	for _, r := range personalityReactions {
-		text := norm
-		if r.matchRaw {
-			text = raw
-		}
-		if matchesAny(text, r.phrases) {
-			return r, true
-		}
-	}
-	return reaction{}, false
-}
-
-type anchor string
-
-func (a anchor) in(s string) bool { return strings.Contains(s, string(a)) }
-
-type phraseGate []anchor
-
-func (g phraseGate) screens(s string) bool {
-	for _, a := range g {
-		if a.in(s) {
-			return true
-		}
-	}
-	return false
-}
-
-var personalityGate = allPhrases(personalityReactions).buildGate()
-
-type phraseSet []string
-
-func allPhrases(rs []reaction) phraseSet {
-	var out phraseSet
-	for _, r := range rs {
-		out = append(out, r.phrases...)
-	}
-	return out
-}
-
-func (ps phraseSet) buildGate() phraseGate {
-	var g phraseGate
-	for _, p := range ps {
-		if g.screens(p) {
-			continue
-		}
-		g = append(g, ps.bestAnchor(p))
-	}
-	return g
-}
-
-func (ps phraseSet) bestAnchor(p string) anchor {
-	var best anchor
-	bestN := -1
-	for _, a := range phraseAnchors(p) {
-		if n := ps.countCovered(a); n > bestN {
-			best, bestN = a, n
-		}
-	}
-	return best
-}
-
-func (ps phraseSet) countCovered(a anchor) int {
-	n := 0
-	for _, p := range ps {
-		if a.in(p) {
-			n++
-		}
-	}
-	return n
-}
-
-func phraseAnchors(p string) []anchor {
-	words := strings.FieldsFunc(p, func(r rune) bool { return !isWordRune(r) })
-	if len(words) == 0 {
-		return []anchor{anchor(p)}
-	}
-	out := make([]anchor, len(words))
-	for i, w := range words {
-		out[i] = anchor(w)
-	}
-	return out
-}
-
-func matchesAny(text string, phrases []string) bool {
-	for _, p := range phrases {
-		if containsWord(text, p) {
-			return true
-		}
-	}
-	return false
-}
-
-func normalizeChat(s string) string {
-	mapped := strings.Map(func(r rune) rune {
-		if isWordRune(r) {
-			return r
-		}
-		return ' '
-	}, s)
-	return strings.Join(strings.Fields(mapped), " ")
-}
-
-func personalityAllowed(ctx context.Context, d engine.Deps, c *module.Context, r reaction) bool {
-	if r.oneIn > 1 && pickIndex(r.oneIn) != 0 {
-		return false
-	}
-	if c.Env.Origin == "trial" {
-		return true
-	}
-	if d.Cooldown == nil {
-		return true
-	}
-	key := "personality:cd:" + r.name + ":" + strconv.FormatUint(c.BroadcasterID, 10)
-	ok, err := d.Cooldown.Allow(ctx, key, r.cooldown)
-	return err == nil && ok
-}
-
-func personalityLine(ctx context.Context, d engine.Deps, c *module.Context, r reaction) string {
-	if goldenRoll() {
-		return expandUser(personalityGoldenLine, c)
-	}
-	return r.reply(ctx, d, c)
-}
-
-func packReply(pack []string) personalityReply {
-	return func(_ context.Context, _ engine.Deps, c *module.Context) string {
-		return expandUser(pickLine(pack), c)
-	}
-}
-
-func factReply(ctx context.Context, d engine.Deps, c *module.Context) string {
-	idx := pickIndex(len(personalityFacts))
-	if d.Personality != nil && c.Env.Origin != "trial" {
-		if cur, err := d.Personality.FactCursor(ctx, c.BroadcasterID); err == nil {
-			idx = int((cur - 1) % int64(len(personalityFacts)))
-		}
-	}
-	return personalityFacts[idx]
-}
-
-func feedReply(ctx context.Context, d engine.Deps, c *module.Context) string {
-	if c.Env.Origin == "trial" {
-		return ""
-	}
-	if d.Personality == nil {
-		return ""
-	}
-	eventID := c.Env.MsgID
-	if eventID == "" {
-		eventID = c.Env.ChatMessageID
-	}
-	if eventID == "" {
-		eventID = c.Env.EventID
-	}
-	counts, err := d.Personality.Feed(ctx, c.BroadcasterID, c.Env.BroadcasterName(), eventID)
-	if err != nil {
-		return ""
-	}
-	return fmt.Sprintf(pickLine(personalityFeedCountPack), counts.Today, counts.Total)
-}
-
-func moodReply(ctx context.Context, d engine.Deps, c *module.Context) string {
-	mood := pickLine(personalityMoodPack)
-	if d.Personality != nil && c.Env.Origin != "trial" {
-		if m, err := d.Personality.Mood(ctx, c.BroadcasterID, mood); err == nil {
-			mood = m
-		}
-	}
-	return "current mood: " + mood
-}
-
-func toastReply(_ context.Context, _ engine.Deps, _ *module.Context) string {
-	level := pickIndex(len(personalityToastLines))
-	return fmt.Sprintf(personalityToastLines[level], level)
-}
-
-func pickLine(pack []string) string { return pack[pickIndex(len(pack))] }
-
-func expandUser(line string, c *module.Context) string {
-	return c.Palette("personality", "user", strings.TrimPrefix(c.Env.ChatterName(), "@")).ExpandString(line)
 }

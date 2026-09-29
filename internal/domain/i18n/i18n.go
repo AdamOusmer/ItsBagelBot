@@ -7,6 +7,7 @@ import (
 	"ItsBagelBot/pkg/codec"
 	"embed"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -141,4 +142,38 @@ func T(locale, key string) string {
 		return s
 	}
 	return key
+}
+
+// DefaultSeries returns an ordered set of English templates named prefix.0,
+// prefix.1, and so on. The English catalog defines both the copy and the size
+// of the set; a gap is a broken source catalog and fails at startup.
+func DefaultSeries(prefix string) []string {
+	count := defaultSeriesCount(prefix)
+	if count == 0 {
+		panic("i18n: missing default series " + prefix)
+	}
+	series := make([]string, count)
+	for index := range series {
+		value, ok := catalog[DefaultLocale][prefix+"."+strconv.Itoa(index)]
+		if !ok {
+			panic("i18n: gap in default series " + prefix + " at " + strconv.Itoa(index))
+		}
+		series[index] = value
+	}
+	return series
+}
+
+func defaultSeriesCount(prefix string) int {
+	count := 0
+	for key := range catalog[DefaultLocale] {
+		suffix, ok := strings.CutPrefix(key, prefix+".")
+		if !ok {
+			continue
+		}
+		index, err := strconv.Atoi(suffix)
+		if err == nil && index >= 0 {
+			count++
+		}
+	}
+	return count
 }

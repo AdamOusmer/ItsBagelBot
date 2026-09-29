@@ -20,7 +20,8 @@ import {
   type FetchDefErrors
 } from '@bagel/kit';
 import { ValkeyRateLimiter } from '@bagel/kit/server/rate-limit';
-import { listCommands, upsertCommand, deleteCommand, listModules, upsertModule, type ModuleView } from '$lib/server/commands-store';
+import { listCommands, upsertCommand, deleteCommand, listModules, listModulesForEditing, patchModule, type ModuleView } from '$lib/server/commands-store';
+import { moduleEditState } from '$lib/server/module-edit-state';
 import { saveConflict, conflictField } from '$lib/server/command-conflict';
 import { isBulkRequest, runBulk } from '$lib/server/commands-bulk';
 import { listFetches, upsertFetchDef, deleteFetchDef } from '$lib/server/fetches-store';
@@ -45,22 +46,21 @@ function configString(configs: unknown, key: string): string {
   return '';
 }
 
-function builtinViews(modules: ModuleView[]): CommandView[] {
-  const byName = new Map(modules.map((m) => [m.name, m]));
-  return BUILTIN_COMMANDS.map((def) => {
-    const row = byName.get(def.id);
-    const savedReply = def.editable && def.replyKey ? configString(row?.configs, def.replyKey) : '';
-    return {
-      name: def.id,
-      aliases: def.aliases,
-      response: def.editable ? savedReply || def.preview : def.summary,
-      is_active: row ? row.is_enabled : def.defaultActive,
-      perm: def.defaultPerm,
-      cooldown: def.defaultCooldown,
-      stream_online_only: def.liveOnly,
-      builtin: true
-    } satisfies CommandView;
-  });
+function builtinView(def: (typeof BUILTIN_COMMANDS)[number], row?: ModuleView): CommandView {
+  const savedReply = def.editable && def.replyKey ? configString(row?.configs, def.replyKey) : '';
+  const savedPerm = configString(row?.configs, 'permission');
+  return {
+    name: def.id,
+    aliases: def.aliases,
+    // Editable built-ins carry the saved template (or the default) so the
+    // inspector's editor and rehearsal start from the real value.
+    response: def.editable ? savedReply || def.preview : def.summary,
+    is_active: row ? row.is_enabled : def.defaultActive,
+    perm: (PERMS as readonly string[]).includes(savedPerm) ? savedPerm as Perm : def.defaultPerm,
+    cooldown: def.defaultCooldown,
+    stream_online_only: def.liveOnly,
+    builtin: true
+  } satisfies CommandView;
 }
 
 async function publicPageState(session: App.Locals['session'], uid: string) {
@@ -69,6 +69,13 @@ async function publicPageState(session: App.Locals['session'], uid: string) {
   return { on, url: login ? commandsHref(login.toLowerCase()) : '' };
 }
 
+function builtinViews(modules: ModuleView[]): CommandView[] {
+  const byName = new Map(modules.map((m) => [m.name, m]));
+  return BUILTIN_COMMANDS.map((def) => builtinView(def, byName.get(def.id)));
+}
+
+// mergeCommands lists built-ins first, then the user's custom commands with any
+// name colliding with a built-in dropped (built-ins reserve their trigger).
 function mergeCommands(custom: CommandView[], modules: ModuleView[]): CommandView[] {
   const builtins = builtinViews(modules);
   const customs = custom.filter((c) => !BUILTIN_NAMES.has(c.name));
@@ -165,19 +172,39 @@ async function tryRpc<T>(action: string, call: () => Promise<T>): Promise<{ ok: 
   }
 }
 
-function builtinRow(def: NonNullable<ReturnType<typeof builtinDef>>, response: string, isActive: boolean): CommandView {
-  return {
-    name: def.id,
-    aliases: def.aliases,
-    response,
-    is_active: isActive,
-    perm: def.defaultPerm,
-    cooldown: def.defaultCooldown,
-    stream_online_only: def.liveOnly,
-    builtin: true
-  };
+function builtinPermFromForm(f: FormData, defaultPerm: Perm): Perm {
+  const value = String(f.get('perm') ?? '');
+  return (PERMS as readonly string[]).includes(value) ? value as Perm : defaultPerm;
 }
 
+function builtinRow(def: NonNullable<ReturnType<typeof builtinDef>>, response: string, isActive: boolean, perm: Perm = def.defaultPerm): CommandView {
+  return { ...builtinView(def), response, is_active: isActive, perm };
+}
+
+// Patch only the requested setting against the owning service's latest
+// revision. Toggle, reply and access edits can then coexist without replacing
+// each other's config, including when two dashboard tabs save at once.
+async function patchBuiltin(
+  uid: string,
+  def: NonNullable<ReturnType<typeof builtinDef>>,
+  change: (row?: ModuleView) => { isEnabled: boolean; partial: Record<string, string> }
+): Promise<CommandView> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const row = (await listModulesForEditing(uid)).find((m) => m.name === def.id);
+    const { config, revision } = moduleEditState(row);
+    const { isEnabled, partial } = change(row);
+    const result = await patchModule({ userId: uid, name: def.id, isEnabled, partial, expectedRev: revision });
+    if (!result.conflict) {
+      return builtinView(def, { name: def.id, is_enabled: isEnabled, configs: { ...config, ...partial }, revision: result.rev });
+    }
+  }
+  throw new Error(`Built-in command ${def.id} changed during save`);
+}
+
+// parseSaveForm reads the editor's submission: the shared command fields plus
+// the edit/rename bookkeeping. A rename passes original_name so the commands
+// service updates the row's name field in place (single write) instead of
+// delete-old + create-new.
 function parseSaveForm(f: FormData) {
   const cmd = parseCommand(f);
   const isEdit = f.get('edit') === '1';
@@ -335,19 +362,24 @@ export const actions: Actions = {
     const def = builtinDef(name);
     if (!def) return fail(400, { ok: false, error: actionError(ctx.locale, 'Unknown built-in command.') });
     const isActive = f.get('is_active') === 'on';
-    const view = builtinRow(def, def.summary, isActive);
+    const perm = builtinPermFromForm(f, def.defaultPerm);
+    const view = builtinRow(def, String(f.get('response') ?? def.summary), isActive, perm);
 
     if (DEMO) {
       return { ok: true, action: 'updated', name, commands: [view], silent: true };
     }
 
-    const res = await tryRpc('toggleBuiltin', () => upsertModule(uid, def.id, isActive));
+    const res = await tryRpc('toggleBuiltin', () => patchBuiltin(uid, def, () => ({ isEnabled: isActive, partial: {} })));
     if (!res.ok) return fail(400, { ok: false });
 
     auditDashboardImpersonation(ctx.session, 'command:builtin_toggle', `${name}=${isActive}`);
-    return { ok: true, action: 'updated', name, commands: [view], silent: true };
+    return { ok: true, action: 'updated', name, commands: [res.value], silent: true };
   },
 
+  // Save an editable built-in's custom reply template. Like the toggle, the
+  // value lives in the modules service (under the built-in id, config key
+  // def.replyKey), so this writes there, not the commands service. An empty
+  // reply clears the override, so the bot falls back to the default template.
   saveBuiltinReply: async (event) => {
     const ctx = await actionContext(event);
     if (!ctx) return notSignedIn(event.locals.locale);
@@ -363,19 +395,42 @@ export const actions: Actions = {
       return fail(400, { ok: false, error: actionError(ctx.locale, `Reply is too long (max ${RESPONSE_MAX}).`) });
     }
     const isActive = f.get('is_active') === 'on';
-    const view = builtinRow(def, reply || def.preview, isActive);
+    const perm = builtinPermFromForm(f, def.defaultPerm);
+    const view = builtinRow(def, reply || def.preview, isActive, perm);
 
     if (DEMO) {
       return { ok: true, action: 'updated', name, commands: [view], silent: true };
     }
 
     const res = await tryRpc('saveBuiltinReply', () =>
-      upsertModule(uid, def.id, isActive, reply ? { [def.replyKey!]: reply } : undefined)
+      patchBuiltin(uid, def, (row) => ({ isEnabled: row?.is_enabled ?? def.defaultActive, partial: { [def.replyKey!]: reply } }))
     );
     if (!res.ok) return fail(400, { ok: false });
 
     auditDashboardImpersonation(ctx.session, 'command:builtin_reply', name);
-    return { ok: true, action: 'updated', name, commands: [view], silent: true };
+    return { ok: true, action: 'updated', name, commands: [res.value], silent: true };
+  },
+
+  saveBuiltinAccess: async (event) => {
+    const ctx = await actionContext(event);
+    if (!ctx) return notSignedIn(event.locals.locale);
+    const { uid, form: f } = ctx;
+    const name = normName(String(f.get('name') ?? ''));
+    const def = builtinDef(name);
+    const perm = String(f.get('perm') ?? '');
+    if (!def || !(PERMS as readonly string[]).includes(perm)) {
+      return fail(400, { ok: false, error: actionError(ctx.locale, 'Invalid built-in command or access level.') });
+    }
+    const view = builtinRow(def, String(f.get('response') ?? def.summary), f.get('is_active') === 'on', perm as Perm);
+    if (DEMO) return { ok: true, action: 'updated', name, commands: [view], silent: true };
+
+    const res = await tryRpc('saveBuiltinAccess', () =>
+      patchBuiltin(uid, def, (row) => ({ isEnabled: row?.is_enabled ?? def.defaultActive, partial: { permission: perm } }))
+    );
+    if (!res.ok) return fail(400, { ok: false });
+
+    auditDashboardImpersonation(ctx.session, 'command:builtin_access', `${name}=${perm}`);
+    return { ok: true, action: 'updated', name, commands: [res.value], silent: true };
   }
 };
 

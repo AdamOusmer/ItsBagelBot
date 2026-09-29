@@ -8,6 +8,8 @@
     Code,
     Field,
     Switch,
+    Select,
+    PERMS,
     getI18n,
     tPerm,
     type CommandView,
@@ -22,12 +24,14 @@
     def,
     toggleSubmit,
     replySubmit,
+    accessSubmit,
     busy = false
   }: {
     command: CommandView;
     def: BuiltinCommandDef;
     toggleSubmit: SubmitFunction;
     replySubmit?: SubmitFunction;
+    accessSubmit: SubmitFunction;
     busy?: boolean;
   } = $props();
 
@@ -35,11 +39,20 @@
   const c = $derived(command);
 
   let message = $state('');
+  let access = $state<Perm>('everyone');
   let seededFor = $state<string | null>(null);
+  let savedAccess = $state<Perm | null>(null);
   $effect(() => {
+    const currentAccess = (command.perm ?? def.defaultPerm) as Perm;
     if (command.name !== seededFor) {
       seededFor = command.name;
       message = namespaceReplyTemplate(def.id, def, command.response);
+      access = currentAccess;
+      savedAccess = currentAccess;
+    } else if (currentAccess !== savedAccess) {
+      // Follow a fresh server value unless the viewer is editing this field.
+      if (access === savedAccess) access = currentAccess;
+      savedAccess = currentAccess;
     }
   });
 
@@ -60,6 +73,8 @@
     </div>
     <form method="POST" action="?/toggleBuiltin" use:enhance={toggleSubmit}>
       <input type="hidden" name="name" value={c.name} />
+      <input type="hidden" name="perm" value={c.perm ?? def.defaultPerm} />
+      <input type="hidden" name="response" value={c.response} />
       <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
       <Switch type="submit" checked={c.is_active} label={t('commandRow.toggleAria', { name: c.name })} />
     </form>
@@ -77,6 +92,7 @@
     <form class="reply-form" method="POST" action="?/saveBuiltinReply" use:enhance={saveReply}>
       <input type="hidden" name="name" value={c.name} />
       <input type="hidden" name="is_active" value={c.is_active ? 'on' : ''} />
+      <input type="hidden" name="perm" value={c.perm ?? def.defaultPerm} />
       <Field label={t('builtinInspector.replyMessage')} hint={t('builtinInspector.replyHint')}>
         <ResponseEditor name="reply" bind:value={message} surface={{ builtin: def.id }} placeholder={def.preview} />
       </Field>
@@ -101,10 +117,22 @@
   {/if}
 
   <div class="field-row">
-    <div class="field">
-      <span>{t('builtinInspector.access')}</span>
-      <div class="ro">{tPerm(t, (c.perm ?? def.defaultPerm) as Perm)}</div>
-    </div>
+    <form class="field access-form" method="POST" action="?/saveBuiltinAccess" use:enhance={accessSubmit}>
+      <input type="hidden" name="name" value={c.name} />
+      <input type="hidden" name="response" value={c.response} />
+      <input type="hidden" name="is_active" value={c.is_active ? 'on' : ''} />
+      <Field label={t('builtinInspector.access')}>
+        <Select
+          fill
+          name="perm"
+          bind:value={access}
+          options={PERMS.map((p) => ({ value: p, label: tPerm(t, p) }))}
+        />
+      </Field>
+      <button class="bb-btn bb-btn--primary access-save" type="submit" disabled={busy || access === (c.perm ?? def.defaultPerm)}>
+        {t('builtinInspector.saveAccess')}
+      </button>
+    </form>
     <div class="field">
       <span>{t('builtinInspector.cooldown')}</span>
       <div class="ro">{c.cooldown ?? def.defaultCooldown}s</div>
@@ -167,6 +195,8 @@
     flex: 1;
     min-width: 0;
   }
+  .access-form { display: flex; flex-direction: column; gap: 10px; }
+  .access-save { align-self: flex-end; }
 
   .usage {
     list-style: none;
