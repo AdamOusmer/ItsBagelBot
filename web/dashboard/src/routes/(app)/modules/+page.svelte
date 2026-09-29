@@ -68,15 +68,7 @@
       [tModuleLabel(t, def), tModuleTagline(t, def), tModuleDescription(t, def)].join('\n')
     ).filter((m) => statusFilter === 'all' || seededOn.has(m.def.id))
   );
-  const groups = $derived(
-    groupModulesByCategory(filtered).map((group) => ({
-      ...group,
-      modules: [
-        ...group.modules.filter((m) => seededOn.has(m.def.id)),
-        ...group.modules.filter((m) => !seededOn.has(m.def.id))
-      ]
-    }))
-  );
+  const groups = $derived(groupModulesByCategory(filtered));
 
   function catLabel(name: string): string {
     const keys = MODULE_CATEGORY_I18N[name];
