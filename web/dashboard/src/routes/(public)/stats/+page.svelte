@@ -24,7 +24,6 @@
   const { t, locale } = getI18n();
 
   const POLL_MS = 2000;
-  const INTRO_MS = 900;
   const TAU_MS = 200;
   const RATE_TAU_MS = 300;
   const MAX_DT_MS = 250;
@@ -61,7 +60,6 @@
   type Frame = typeof display;
 
   let snapAt = 0;
-  let introAt = 0;
   let lastFrame = 0;
   let raf = 0;
   let reduced = false;
@@ -83,13 +81,6 @@
     return from + (to - from) * eased;
   }
 
-  function closingFraction(now: number, dt: number): number {
-    const p = (now - introAt) / INTRO_MS;
-    if (p >= 1) return 1 - Math.exp(-dt / TAU_MS);
-    const before = Math.max(0, (now - dt - introAt) / INTRO_MS);
-    return 1 - Math.pow((1 - p) / (1 - before), 4);
-  }
-
   function advance(cur: number, target: number, rate: number, dt: number, k: number): number {
     return exactDisplay(Math.max(lerp(cur, target, k), cur + rate * (dt / 1000) * MIN_CRAWL));
   }
@@ -102,7 +93,7 @@
       return;
     }
     const target = targetFrame(now);
-    const k = closingFraction(now, dt);
+    const k = 1 - Math.exp(-dt / TAU_MS);
     const rateK = 1 - Math.exp(-dt / RATE_TAU_MS);
     display = {
       messages: advance(display.messages, target.messages, target.msgRate, dt, k),
@@ -129,7 +120,7 @@
     const prev = live;
     live = next;
     snapAt = performance.now();
-    if (reduced) {
+    if (reduced || prev.degraded) {
       snap(snapAt);
       return;
     }
@@ -162,14 +153,8 @@
     reduced = prefersReducedMotion();
     const now = performance.now();
     snapAt = now;
-    introAt = now;
-    lastFrame = now;
-    if (reduced) {
-      snap(now);
-    } else {
-      display = { messages: 0, events: 0, msgRate: 0, eventRate: 0 };
-      raf = requestAnimationFrame(tick);
-    }
+    snap(now);
+    if (!reduced) raf = requestAnimationFrame(tick);
 
     void poll(false);
     const timer = setInterval(() => void poll(false), POLL_MS);
