@@ -366,6 +366,28 @@ describe('CopySurface', () => {
       '</span></span><span class="bb-copy__status" role="status"></span></button>',
   });
 
+  contract({
+    name: 'announce text rides on the surface for the status region',
+    svelte: SvelteCopySurface,
+    astro: AstroCopySurface,
+    props: { text: '!hi', variant: 'row', copiedLabel: 'Copied', announce: 'Copied !hi' },
+    html:
+      '<button class="bb-copy bb-copy--row" type="button" data-copy="!hi" data-copy-announce="Copied !hi">' +
+      '<span class="bb-copy__row"><span class="bb-copy__value">!hi</span><span class="bb-copy__hint" aria-hidden="true">' +
+      '<span class="bb-copy__idle"></span><span class="bb-copy__done">Copied</span></span></span>' +
+      '<span class="bb-copy__status" role="status"></span></button>',
+  });
+
+  test('small print sizes are hooks with the old defaults', async () => {
+    const read = (path: string) => Bun.file(new URL(`../styles/${path}`, import.meta.url)).text();
+    expect(await read('elements/copy-surface.css')).toContain('font-size: var(--copy-label-size, 10.5px);');
+    expect(await read('elements/table.css')).toContain('font-size: var(--tbl-head-size, 11px);');
+    expect(await read('elements/typography.css')).toContain('font-size: var(--label-mono-size, 10px);');
+    expect(await read('elements/typography.css')).toContain('font-size: var(--h-label-size, 10px);');
+    expect(await read('elements/badge.css')).toContain('font-size: var(--badge-pill-size, 10px);');
+    expect(await read('tags.css')).toContain('.bb-tabs--wrap > .bb-tab { flex-shrink: 0; }');
+  });
+
   test('row children receive the copied state', () => {
     const children = createRawSnippet((copied: () => boolean) => ({ render: () => `<span>${copied()}</span>` }));
     const html = normalise(
@@ -465,6 +487,20 @@ describe('Popover', () => {
     expect(html).toContain('<button class="bb-popover__x" type="button" aria-label="Dismiss">');
     expect(html).toContain('<div class="bb-popover__sheet" role="dialog" aria-modal="false"');
     expect(html).toContain('<ol></ol></div></div>');
+  });
+
+  test('bottom placement is an opt-in modifier class', () => {
+    const html = normalise(render(SveltePopover, { props: { ...base, placement: 'bottom' } }).body);
+    expect(html).toContain('<div class="bb-popover bb-popover--bottom">');
+  });
+
+  test('bottom placement anchors above the pill with touch areas on the controls', async () => {
+    const css = await Bun.file(new URL('../styles/elements/popover.css', import.meta.url)).text();
+    expect(css).toContain('.bb-popover--bottom {');
+    expect(css).toContain('flex-direction: column-reverse');
+    expect(css).toContain('bottom: calc(env(safe-area-inset-bottom, 0px) + 108px)');
+    expect(css).toContain('inset: -7px 0');
+    expect(css).toContain('.bb-popover--bottom :is(.bb-popover__cta, .bb-popover__x, .bb-popover__close)::after');
   });
 
   test('a pill that does not expand carries no popup state', () => {

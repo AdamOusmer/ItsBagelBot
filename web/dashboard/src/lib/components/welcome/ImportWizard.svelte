@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { onMount } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { fly } from 'svelte/transition';
   import { page } from '$app/state';
   import { translate, translateList, type Locale } from '@bagel/kit/i18n';
@@ -9,7 +9,20 @@
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import Brand from '@bagel/ui/svelte/Brand.svelte';
   import Sky from '@bagel/ui/svelte/Sky.svelte';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import Completion from '$lib/components/welcome/Completion.svelte';
+  import ImportAlert from '$lib/import/ImportAlert.svelte';
+  import ImportFailed from '$lib/import/ImportFailed.svelte';
+  import ImportSkipped from '$lib/import/ImportSkipped.svelte';
+  import { ImportSession } from '$lib/import/session.svelte';
+  import {
+    clearSnapshot,
+    loadSnapshot,
+    retainedSnapshot,
+    retainSnapshot,
+    saveSelection,
+    saveSnapshot
+  } from '$lib/import/persist';
   import { deserialize } from '$app/forms';
   import {
     AlertBanner,
@@ -19,6 +32,7 @@
     ButtonLink,
     Card,
     Checkbox,
+    ConfirmDialog,
     Eyebrow,
     FileDrop,
     Heading,
@@ -32,31 +46,16 @@
     Text,
     TextLink,
     Textarea,
-    parallax,
-    toast
+    parallax
   } from '@bagel/kit';
-  import { applyImportCaps } from '@bagel/kit/importer/caps';
   import {
     CHIP_LABEL_KEYS,
     IMPORT_STRATEGIES,
     isImportSource,
-    type FileInputSpec,
     type ImportSourceStrategy,
-    type InputSpec,
-    type OAuthInputSpec,
-    type TextInputSpec
+    type InputSpec
   } from '@bagel/kit/importer/strategy';
-  import {
-    IMPORT_SOURCES,
-    type CommitResponse,
-    type ImportDiagnostic,
-    type ImportSource,
-    type ManifestCommand,
-    type ManifestQuote,
-    type ManifestTimer,
-    type ManifestTrigger,
-    type PreviewResponse
-  } from '@bagel/kit';
+  import { IMPORT_SOURCES, type ImportSource } from '@bagel/kit';
 
   let { onback, onexit, consentAccepted, locale }: { onback: (welcomeStep: number) => void; onexit: (to: string) => void; consentAccepted: boolean; locale: Locale } = $props();
   const t = (key: string, params?: Record<string, string | number>) => translate(locale, key, params);
@@ -78,10 +77,15 @@
   ]);
 
   type Step = 'pick' | 'instructions' | 'commands' | 'extras' | 'review' | 'done';
-  // svelte-ignore state_referenced_locally
-  let source = $state<ImportSource | ''>(deepLinkSource());
-  // svelte-ignore state_referenced_locally
-  let step = $state<Step>(source ? 'instructions' : 'pick');
+  const ORDER: Step[] = ['pick', 'instructions', 'commands', 'extras', 'review', 'done'];
+
+  const session = new ImportSession();
+  session.configure({ t, isConnected: () => sourceConnected, onPosting: () => play('entrance') });
+  const resumed = retainedSnapshot();
+  if (resumed) session.restore(resumed);
+  applyDeepLink();
+
+  const step = $derived(session.stage as Step);
 
   function deepLinkSource(): ImportSource | '' {
     const q = page.url.searchParams.get('source') ?? '';
@@ -89,35 +93,72 @@
     return IMPORT_STRATEGIES[q].available ? q : '';
   }
 
+  function applyDeepLink() {
+    const linked = deepLinkSource();
+    if (!linked) return;
+    if (session.source !== linked) {
+      session.reset();
+      session.choose(linked);
+      session.stage = 'instructions';
+    }
+    session.previewError = deepLinkError();
+  }
+
+  function deepLinkError(): string {
+    const e = page.url.searchParams.get('e');
+    const spec = session.source ? IMPORT_STRATEGIES[session.source].input : null;
+    if (!e || spec?.kind !== 'oauth') return '';
+    const key = spec.errorParams[e];
+    return key ? t(key) : '';
+  }
+
+  const source = $derived(session.source);
   const strategy = $derived<ImportSourceStrategy | null>(source ? IMPORT_STRATEGIES[source] : null);
   const inputSpec = $derived<InputSpec | null>(strategy?.input ?? null);
 
   const connected = $derived((page.data.connected ?? {}) as Partial<Record<ImportSource, boolean>>);
   const sourceConnected = $derived(source ? connected[source] === true : false);
-  let credential = $state('');
-  let uploadFile = $state<File | null>(null);
-  let submitting = $state(false);
-
-  let previewResult = $state<PreviewResponse | null>(null);
-  let commitResult = $state<CommitResponse | null>(null);
   let finishError = $state('');
   let finishing = $state(false);
 
-  const ORDER: Step[] = ['pick', 'instructions', 'commands', 'extras', 'review', 'done'];
+  const previewResult = $derived(session.previewResult);
+  const commitResult = $derived(session.commitResult);
+  const submitting = $derived(session.submitting);
+  const previewError = $derived(session.previewError);
+  const commitError = $derived(session.commitError);
+  const uploadFile = $derived(session.uploadFile);
 
   const unnumbered = (s: string) => s.replace(/^\s*\d+\s*·\s*/, '');
   const stepIndex = $derived(ORDER.indexOf(step));
   const journeyStep = $derived(BEFORE_IMPORT.length + stepIndex);
   const journeySteps = $derived([...BEFORE_IMPORT, ...STAGES].map((label) => ({ label })));
   const maxRailStep = $derived(stepIndex);
+  const stepAnnouncement = $derived(
+    t('onboarding.stepAnnounce', {
+      n: journeyStep + 1,
+      total: journeySteps.length,
+      label: journeySteps[journeyStep]?.label ?? ''
+    })
+  );
+
+  let leaveTarget = $state<number | null>(null);
+  const hasDraft = $derived(session.hasProgress || !!session.credential || !!session.uploadFile);
+
   function selectRail(i: number) {
     if (i < BEFORE_IMPORT.length) {
-      onback(i + 1);
+      if (hasDraft) leaveTarget = i;
+      else onback(i + 1);
       return;
     }
     const importIndex = i - BEFORE_IMPORT.length;
     const target = ORDER[importIndex];
     if (importIndex <= maxRailStep && (importIndex < 2 || previewResult || target === 'done' && commitResult)) goStep(target);
+  }
+
+  function confirmLeave() {
+    const target = leaveTarget;
+    leaveTarget = null;
+    if (target !== null) onback(target + 1);
   }
 
   const expo = bezier(0.16, 1, 0.3, 1);
@@ -159,16 +200,58 @@
 
   function goStep(target: Step) {
     if (target === step) return;
-    const forward = ORDER.indexOf(target) > stepIndex;
-    dir = forward ? 1 : -1;
+    dir = ORDER.indexOf(target) > stepIndex ? 1 : -1;
     hover = null;
-    step = target;
+    session.stage = target;
     play('entrance');
   }
 
+  let flowEl = $state<HTMLElement | null>(null);
+  let focusedStep: Step | null = null;
+  let hydrated = false;
+  let finished = false;
+
+  function focusHeading(target: Step) {
+    const heading = flowEl?.querySelector<HTMLElement>(`.scene[data-step="${target}"] h2`);
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+  }
+
+  $effect(() => {
+    const current = step;
+    if (focusedStep === null || current === focusedStep) {
+      focusedStep = current;
+      return;
+    }
+    focusedStep = current;
+    tick().then(() => focusHeading(current));
+  });
+
+  $effect(() => {
+    session.stage;
+    session.source;
+    session.previewResult;
+    session.commitResult;
+    if (hydrated) untrack(() => saveSnapshot(session.snapshot()));
+  });
+
+  $effect(() => {
+    const snap = { selected: session.selected, overwrite: session.overwrite };
+    if (hydrated) saveSelection(snap);
+  });
+
   onMount(() => {
+    if (!resumed) {
+      const saved = loadSnapshot(ORDER);
+      if (saved) session.restore(saved);
+      applyDeepLink();
+    }
+    focusedStep = session.stage as Step;
+    hydrated = true;
     return () => {
       if (reactionTimer) clearTimeout(reactionTimer);
+      if (!finished) retainSnapshot(session.snapshot());
     };
   });
 
@@ -199,189 +282,34 @@
 
   function choose(value: string) {
     if (!isImportSource(value)) return;
-    source = value;
-    uploadFile = null;
-    credential = '';
+    session.choose(value);
     react('excited', 1400);
     goStep('instructions');
   }
 
   function reset() {
     goStep('pick');
-    source = '';
-    uploadFile = null;
-    credential = '';
-    overwrite = false;
-    previewResult = null;
-    commitResult = null;
-    previewError = '';
-    commitError = '';
+    session.reset();
   }
-
-  type RowKind = 'commands' | 'timers' | 'triggers' | 'quotes';
-
-  let selected = $state<Record<string, boolean>>({});
-  let overwrite = $state(false);
-
-  const CODE_PREFIX: Record<RowKind, string> = {
-    commands: 'command',
-    timers: 'timer',
-    triggers: 'trigger',
-    quotes: 'quote'
-  };
-
-  function itemDiags(kind: RowKind, i: number): ImportDiagnostic[] {
-    return (previewResult?.diagnostics ?? []).filter(
-      (d) => d.item_index === i && d.code.startsWith(CODE_PREFIX[kind])
-    );
-  }
-
-  const fatalCount = $derived.by(() => {
-    const m = previewResult?.manifest;
-    if (!m) return 0;
-    let n = 0;
-    for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
-      const rows = (m[kind] as unknown[] | undefined) ?? [];
-      for (let i = 0; i < rows.length; i++)
-        if (itemDiags(kind, i).some((d) => d.severity === 'error')) n++;
-    }
-    return n;
-  });
-
-  function initializeSelection() {
-    const m = previewResult?.manifest;
-    if (!m) return;
-    const next: Record<string, boolean> = {};
-    for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
-      const rows = (m[kind] as unknown[] | undefined) ?? [];
-      for (let i = 0; i < rows.length; i++) {
-        next[`${kind}:${i}`] = !itemDiags(kind, i).some((d) => d.severity === 'error');
-      }
-    }
-    selected = next;
-  }
-
-  function isChecked(kind: RowKind, i: number): boolean {
-    return selected[`${kind}:${i}`] !== false;
-  }
-
-  function toggle(kind: RowKind, i: number, checked: boolean) {
-    selected = { ...selected, [`${kind}:${i}`]: checked };
-  }
-
-  function normalizeName(n: string): string {
-    return n.trim().replace(/^!/, '').trim().toLowerCase();
-  }
-  const collidedCommands = $derived(
-    new Set(
-      (previewResult?.collisions ?? [])
-        .filter((c) => c.kind === 'command')
-        .map((c) => c.name)
-    )
-  );
-  const anyCollisions = $derived((previewResult?.collisions ?? []).length > 0);
-
-  const statChips = $derived.by(() => {
-    const s = previewResult?.stats;
-    if (!s) return [] as string[];
-    const parts: string[] = [];
-    if (s.commands) parts.push(t('import.statCommands', { n: s.commands }));
-    if (s.timers) parts.push(t('import.statTimers', { n: s.timers }));
-    if (s.triggers) parts.push(t('import.statTriggers', { n: s.triggers }));
-    if (s.quotes) parts.push(t('import.statQuotes', { n: s.quotes }));
-    return parts;
-  });
-
-  const statsLine = $derived(statChips.join(' · ') || t('import.statsNone'));
-
-  function setAll(v: boolean) {
-    const m = previewResult?.manifest;
-    if (!m) return;
-    const next: Record<string, boolean> = {};
-    for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
-      const rows = (m[kind] as unknown[] | undefined) ?? [];
-      for (let i = 0; i < rows.length; i++) {
-        next[`${kind}:${i}`] = v && !itemDiags(kind, i).some((d) => d.severity === 'error');
-      }
-    }
-    selected = next;
-  }
-
-  const rowTotal = $derived.by(() => {
-    const m = previewResult?.manifest;
-    if (!m) return 0;
-    return (Object.keys(CODE_PREFIX) as RowKind[]).reduce(
-      (n, kind) => n + ((m[kind] as unknown[] | undefined) ?? []).length,
-      0
-    );
-  });
-  const rowPicked = $derived.by(() => {
-    const m = previewResult?.manifest;
-    if (!m) return 0;
-    let n = 0;
-    for (const kind of Object.keys(CODE_PREFIX) as RowKind[]) {
-      const rows = (m[kind] as unknown[] | undefined) ?? [];
-      for (let i = 0; i < rows.length; i++) if (isChecked(kind, i)) n++;
-    }
-    return n;
-  });
-  const selectionLine = $derived(t('import.selectionLine', { n: rowPicked, total: rowTotal }));
 
   const railDetail = $derived.by(() => [
     strategy ? strategy.label : t('import.railPickPending'),
-    inputDetail(),
+    session.inputDetail(inputSpec),
     previewResult ? t('onboardingImport.commandsCount', { n: previewResult.manifest?.commands?.length ?? 0 }) : '',
-    previewResult ? statsLine : '',
-    previewResult ? selectionLine : '',
+    previewResult ? session.statsLine : '',
+    previewResult ? session.selectionLine : '',
     commitResult ? t('import.railDone') : ''
   ]);
 
-  function inputDetail(): string {
-    if (inputSpec?.kind === 'text') return textInputDetail(inputSpec);
-    return uploadFile ? uploadFile.name : t('import.railFilePending');
-  }
-
-  function textInputDetail(spec: TextInputSpec): string {
-    if (spec.secret) return credential ? t('import.railTokenSet') : t('import.railTokenPending');
-    return credential ? t('import.railHandleSet') : t('import.railHandlePending');
-  }
-
-  const appliedTiles = $derived.by(() => {
-    const a = commitResult?.applied;
-    if (!a) return [] as { n: number; label: string }[];
-    const out: { n: number; label: string }[] = [];
-    if (a.commands) out.push({ n: a.commands, label: t('import.hCommands') });
-    if (a.timers) out.push({ n: a.timers, label: t('import.hTimers') });
-    if (a.triggers) out.push({ n: a.triggers, label: t('import.hTriggers') });
-    if (a.quotes) out.push({ n: a.quotes, label: t('import.hQuotes') });
-    return out;
-  });
-
   const reviewHint = $derived.by(() => {
     if (!strategy) return '';
-    let s = t('import.reviewHint', { source: strategy.label, stats: statsLine });
-    if (fatalCount > 0) s += ' ' + t('import.fatalSuffix', { n: fatalCount });
+    let s = t('import.reviewHint', { source: strategy.label, stats: session.statsLine });
+    if (session.fatalCount > 0) s += ' ' + t('import.fatalSuffix', { n: session.fatalCount });
     return s;
   });
 
-  const manifestLevelDiags = $derived(
-    (previewResult?.diagnostics ?? []).filter((d) => d.item_index < 0)
-  );
-
-  function buildSelectedManifest(): string {
-    const m = previewResult?.manifest;
-    if (!m) return '{}';
-    const out: Record<string, unknown> = {};
-    const keep = (rows: unknown[] | undefined, kind: RowKind): unknown[] | undefined => {
-      const picked = (rows ?? []).filter((_, i) => isChecked(kind, i));
-      return picked.length ? picked : undefined;
-    };
-    out.commands = keep(m.commands as ManifestCommand[] | undefined, 'commands');
-    out.timers = keep(m.timers as ManifestTimer[] | undefined, 'timers');
-    out.triggers = keep(m.triggers as ManifestTrigger[] | undefined, 'triggers');
-    out.quotes = keep(m.quotes as ManifestQuote[] | undefined, 'quotes');
-    if (m.automod && rowPicked > 0) out.automod = m.automod;
-    return JSON.stringify(out);
+  function normalizeName(n: string): string {
+    return n.trim().replace(/^!/, '').trim().toLowerCase();
   }
 
   const instrSteps = $derived.by(() => {
@@ -389,133 +317,31 @@
     return key ? tl(key) : [];
   });
 
-  // svelte-ignore state_referenced_locally
-  let previewError = $state(deepLinkError());
-
-  function deepLinkError(): string {
-    const e = page.url.searchParams.get('e');
-    const spec = source ? IMPORT_STRATEGIES[source].input : null;
-    if (!e || spec?.kind !== 'oauth') return '';
-    const key = spec.errorParams[e];
-    return key ? t(key) : '';
-  }
-
-  let commitError = $state('');
-
   async function runPreview() {
-    if (!source || submitting) return;
-    previewError = '';
-
-    const body = new FormData();
-    body.set('source', source);
-
-    submitting = true;
-    const prepared = await prepareInput(IMPORT_STRATEGIES[source].input, body);
-    if ('error' in prepared) {
-      previewError = prepared.error;
-      react('attentive', 2400);
-      submitting = false;
-      return;
-    }
-    play('entrance');
-
-    const r = await postPreview(body);
-    if (r.ok && r.preview) {
-      r.preview.diagnostics = [...prepared.diags, ...(r.preview.diagnostics ?? [])];
-      previewResult = r.preview;
-      initializeSelection();
-      react('proud', 1800);
-      goStep(r.preview.manifest?.commands?.length ? 'commands' : 'extras');
-    } else {
-      previewError = r.error || t('import.errGeneric');
-      react('attentive', 2400);
-    }
-    submitting = false;
+    const result = await session.runPreview();
+    if (result === 'failed') react('attentive', 2400);
+    if (result !== 'ok') return;
+    react('proud', 1800);
+    goStep(previewResult?.manifest?.commands?.length ? 'commands' : 'extras');
   }
 
-  type PreparedInput = { error: string } | { diags: ImportDiagnostic[] };
-
-  function prepareInput(spec: InputSpec, body: FormData): Promise<PreparedInput> | PreparedInput {
-    if (spec.kind === 'text') return prepareText(spec, body);
-    if (spec.kind === 'oauth') return prepareOauth(spec);
-    return prepareFile(spec, body);
-  }
-
-  function prepareText(spec: TextInputSpec, body: FormData): PreparedInput {
-    const value = credential.trim();
-    if (value === '') return { error: t(spec.i18n.errMissing) };
-    if (!acceptableText(spec, value)) return { error: t(spec.i18n.errShape) };
-    body.set('credential', value);
-    return { diags: [] };
-  }
-
-  function acceptableText(spec: TextInputSpec, value: string): boolean {
-    return value.length <= spec.maxLen && spec.shape.test(value);
-  }
-
-  function prepareOauth(spec: OAuthInputSpec): PreparedInput {
-    if (!sourceConnected) return { error: t(spec.i18n.errNotConnected) };
-    return { diags: [] };
-  }
-
-  async function prepareFile(spec: FileInputSpec, body: FormData): Promise<PreparedInput> {
-    const file = uploadFile;
-    if (!file || file.size === 0) return { error: t('import.errFileMissing') };
-    if (file.size > spec.maxBytes)
-      return { error: t('import.errTooLarge', { limit: Math.round(spec.maxBytes / (1024 * 1024)) }) };
-    if (!spec.parseInBrowser) {
-      body.set('file', file);
-      return { diags: [] };
-    }
-    return parseInPage(spec.parseInBrowser, file, body);
-  }
-
-  async function parseInPage(
-    parse: NonNullable<FileInputSpec['parseInBrowser']>,
-    file: File,
-    body: FormData
-  ): Promise<PreparedInput> {
-    try {
-      const parsed = parse(new Uint8Array(await file.arrayBuffer()));
-      const capped = applyImportCaps(parsed.manifest);
-      body.set('manifest', JSON.stringify(capped.manifest));
-      return { diags: [...capped.diagnostics] };
-    } catch (err) {
-      return { error: parseErrorMessage(err) };
-    }
-  }
-
-  function parseErrorMessage(err: unknown): string {
-    const message = err instanceof Error ? err.message : '';
-    const parserRefusal = /^importer\/[a-z-]+:\s*([\s\S]*)$/.exec(message);
-    if (!parserRefusal) return t('import.errGeneric');
-    return t('import.errParseFailed', { m: parserRefusal[1] });
-  }
-
-  async function postPreview(body: FormData): Promise<{ ok: boolean; preview?: PreviewResponse; error?: string }> {
-    try {
-      const res = await fetch('/settings/import?/preview', { method: 'POST', body });
-      const r = deserialize(await res.text());
-      if (r.type === 'failure') {
-        const d = r.data as { error?: string } | undefined;
-        return { ok: false, error: d?.error };
-      }
-      if (r.type === 'success') {
-        const d = r.data as { ok?: boolean; preview?: PreviewResponse } | undefined;
-        if (d?.ok && d.preview?.manifest) return { ok: true, preview: d.preview };
-      }
-      return { ok: false };
-    } catch {
-      return { ok: false };
-    }
+  async function runCommit() {
+    const result = await session.runCommit();
+    if (result === 'failed') react('attentive', 2400);
+    if (result !== 'ok') return;
+    react('love', 2200);
+    goStep('done');
+    play('burst');
   }
 
   let showCompletion = $state(false);
   let finishSaved: Promise<boolean> = Promise.resolve(false);
+  let finishDestination = '/';
 
-  function finishOnboarding() {
+  function finishOnboarding(to: string) {
     if (finishing) return;
     finishing = true;
+    finishDestination = to;
     finishError = '';
     react('proud', 4000);
     play('burst');
@@ -530,14 +356,9 @@
       const res = await fetch('/welcome?/finishImport', { method: 'POST', body });
       const result = deserialize(await res.text());
       if (result.type === 'success' && (result.data as { ok?: boolean } | undefined)?.ok) return true;
-      finishFailed(
-        result.type === 'failure'
-          ? (result.data as { error?: string } | undefined)?.error || t('onboardingImport.saveFailed')
-          : t('onboardingImport.saveFailed')
-      );
     } catch {
-      finishFailed(t('onboardingImport.saveFailed'));
     }
+    finishFailed(t('onboardingImport.saveFailed'));
     return false;
   }
 
@@ -549,71 +370,16 @@
   }
 
   async function afterCompletion() {
-    if (await finishSaved) onexit('/');
-  }
-
-  async function runCommit() {
-    if (submitting) return;
-    commitError = '';
-    const manifestJson = buildSelectedManifest();
-    if (manifestJson === '{}') {
-      commitError = t('import.errNothingSelected');
-      return;
-    }
-
-    submitting = true;
-    const body = new FormData();
-    body.set('manifest', manifestJson);
-    body.set('source', source);
-    if (overwrite) body.set('overwrite', 'on');
-
-    try {
-      const res = await fetch('/settings/import?/commit', { method: 'POST', body });
-      const r = deserialize(await res.text());
-      if (r.type === 'failure') {
-        const d = r.data as { error?: string } | undefined;
-        commitError = d?.error || t('import.errGeneric');
-      } else if (r.type === 'success') {
-        const d = r.data as { ok?: boolean; commit?: CommitResponse } | undefined;
-        if (d?.ok && d.commit) {
-          commitResult = d.commit;
-          react('love', 2200);
-          goStep('done');
-          play('burst');
-          toast('ok', t('import.toastApplied'));
-        } else {
-          commitError = t('import.errGeneric');
-        }
-      } else {
-        commitError = t('import.errGeneric');
-      }
-    } catch {
-      commitError = t('import.errGeneric');
-    }
-    submitting = false;
+    if (!(await finishSaved)) return;
+    finished = true;
+    clearSnapshot();
+    onexit(finishDestination);
   }
 
   function pickFile(f: File | null | undefined) {
-    previewError = '';
-    if (!f) {
-      uploadFile = null;
-      return;
-    }
-    const want = wantedExtension();
-    if (want && !f.name.toLowerCase().endsWith(want)) {
-      previewError = t('import.errWrongType', { want });
-      uploadFile = null;
-      react('attentive', 2400);
-      return;
-    }
-    uploadFile = f;
-    react('happy', 1600);
-  }
-
-  function wantedExtension(): string {
-    if (inputSpec?.kind !== 'file') return '';
-    const first = inputSpec.accept.split(',')[0];
-    return first.startsWith('.') ? first : '';
+    const result = session.pickFile(f, inputSpec);
+    if (result === 'rejected') react('attentive', 2400);
+    if (result === 'picked') react('happy', 1600);
   }
 </script>
 
@@ -629,7 +395,7 @@
 <div class="welcome-import" class:leaving={showCompletion} data-orbs="off" use:parallax={{ scope: 'viewport', onmove: follow }}>
   <header class="top">
     <Brand title="ItsBagelBot" sub={t('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />
-    <Stepper steps={journeySteps} current={journeyStep} maxStep={journeyStep} label={t('onboarding.stepOf', { n: journeyStep + 1, total: journeySteps.length })} onselect={selectRail} />
+    <Stepper compact steps={journeySteps} current={journeyStep} maxStep={journeyStep} label={t('onboarding.stepOf', { n: journeyStep + 1, total: journeySteps.length })} onselect={selectRail} />
   </header>
 <section class="screen active">
   <div class="intro">
@@ -663,9 +429,9 @@
   </div>
 
   <div class="wizard">
-    <div class="flow">
+    <div class="flow" bind:this={flowEl}>
   {#key step}
-  <div class="scene" in:sceneIn out:sceneOut>
+  <div class="scene" data-step={step} in:sceneIn out:sceneOut>
 
   {#if step === 'pick'}
     <Card glass>
@@ -725,7 +491,7 @@
               fill
               mono
               placeholder={spec.placeholder}
-              bind:value={credential}
+              bind:value={session.credential}
               spellcheck="false"
               autocomplete="off"
               autocapitalize="off"
@@ -736,7 +502,7 @@
               fill
               mono
               placeholder={spec.placeholder}
-              bind:value={credential}
+              bind:value={session.credential}
               maxlength={spec.maxLen}
               spellcheck="false"
               autocomplete="off"
@@ -779,8 +545,8 @@
         }}
       >
         <div class="actions-row">
-          <Button variant="ghost" type="button" onclick={() => goStep('pick')} disabled={submitting}
-            >{t('import.back')}</Button
+          <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : goStep('pick'))}
+            >{submitting ? t('common.cancel') : t('import.back')}</Button
           >
           <Button type="submit" variant="primary" loading={submitting}>
             {t('import.continueCta')}
@@ -795,10 +561,10 @@
       <div class="hint"><Text size="sm" tone="muted">{reviewHint}</Text></div>
 
       <div class="review-bar">
-        {#each statChips as c (c)}<Tag tone="quiet">{c}</Tag>{/each}
+        {#each session.statChips as c (c)}<Tag tone="quiet">{c}</Tag>{/each}
         <span class="review-spacer"></span>
-        <Button type="button" variant="ghost" size="sm" onclick={() => setAll(true)}>{t('import.selectAll')}</Button>
-        <Button type="button" variant="ghost" size="sm" onclick={() => setAll(false)}>{t('import.selectNone')}</Button>
+        <Button type="button" variant="ghost" size="sm" onclick={() => session.setAll(true)}>{t('import.selectAll')}</Button>
+        <Button type="button" variant="ghost" size="sm" onclick={() => session.setAll(false)}>{t('import.selectNone')}</Button>
       </div>
     </Card>
     {:else}
@@ -812,16 +578,16 @@
       {/if}
     {/if}
 
-      {#each manifestLevelDiags as d (d.code + d.message)}
+      {#each session.manifestLevelDiags as d (d.code + d.message)}
         <AlertBanner variant="warn" role="status">{d.message}</AlertBanner>
       {/each}
 
-      {#if anyCollisions}
+      {#if session.anyCollisions}
         <AlertBanner variant="danger" role="note" stack>
           <span class="conflict-lines">{@html t('import.conflictsNote', { n: previewResult.collisions?.length ?? 0 })}</span>
           {#snippet action()}
             <span class="overwrite-toggle">
-              <Checkbox bind:checked={overwrite} name="overwrite" value="on">{t('import.overwriteToggle')}</Checkbox>
+              <Checkbox bind:checked={session.overwrite} name="overwrite" value="on">{t('import.overwriteToggle')}</Checkbox>
             </span>
           {/snippet}
         </AlertBanner>
@@ -835,10 +601,10 @@
           </div>
           <ul class="rows">
             {#each previewResult.manifest.commands as c, i (c.name)}
-              {@const diags = itemDiags('commands', i)}
-              <li class="row-item" class:collision={collidedCommands.has(normalizeName(c.name))}>
+              {@const diags = session.diagsFor('commands', i)}
+              <li class="row-item" class:collision={session.collidedCommands.has(normalizeName(c.name))}>
                 <span class="pick">
-                  <Checkbox bind:checked={() => isChecked('commands', i), (on) => toggle('commands', i, on)}><Text as="span" size="sm" mono>!{c.name}</Text></Checkbox>
+                  <Checkbox bind:checked={() => session.isPicked('commands', i), (on) => session.toggle('commands', i, on)}><Text as="span" size="sm" mono>!{c.name}</Text></Checkbox>
                 </span>
                 <div class="row-body">
                   <Text as="span" size="sm" tone="muted">{c.responses?.join(' / ')}</Text>
@@ -852,7 +618,7 @@
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
                       <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
-                    {#if collidedCommands.has(normalizeName(c.name))}
+                    {#if session.collidedCommands.has(normalizeName(c.name))}
                       <Tag tone="error">{t('import.alreadyExists')}</Tag>
                     {/if}
                   </span>
@@ -871,10 +637,10 @@
           </div>
           <ul class="rows">
             {#each previewResult.manifest.timers as tm, i (tm.message)}
-              {@const diags = itemDiags('timers', i)}
+              {@const diags = session.diagsFor('timers', i)}
               <li class="row-item">
                 <span class="pick">
-                  <Checkbox bind:checked={() => isChecked('timers', i), (on) => toggle('timers', i, on)} aria-label={tm.message} />
+                  <Checkbox bind:checked={() => session.isPicked('timers', i), (on) => session.toggle('timers', i, on)} aria-label={tm.message} />
                 </span>
                 <div class="row-body">
                   <Text as="span" size="sm" tone="muted">{tm.message}</Text>
@@ -902,10 +668,10 @@
           </div>
           <ul class="rows">
             {#each previewResult.manifest.triggers as tg, i (tg.phrase)}
-              {@const diags = itemDiags('triggers', i)}
+              {@const diags = session.diagsFor('triggers', i)}
               <li class="row-item">
                 <span class="pick">
-                  <Checkbox bind:checked={() => isChecked('triggers', i), (on) => toggle('triggers', i, on)}><Text as="span" size="sm" mono>{tg.phrase}</Text></Checkbox>
+                  <Checkbox bind:checked={() => session.isPicked('triggers', i), (on) => session.toggle('triggers', i, on)}><Text as="span" size="sm" mono>{tg.phrase}</Text></Checkbox>
                 </span>
                 <div class="row-body">
                   <Text as="span" size="sm" tone="muted">{tg.response}</Text>
@@ -934,7 +700,7 @@
         </Card>
       {/if}
 
-      {#if commitError}<AlertBanner>{commitError}</AlertBanner>{/if}
+      {#if commitError}<ImportAlert message={commitError} />{/if}
 
       {#if step === 'review'}
       <form
@@ -944,10 +710,10 @@
           runCommit();
         }}
       >
-        <Label mono as="span">{selectionLine}</Label>
+        <Label mono as="span">{session.selectionLine}</Label>
         <div class="actions-row">
-          <Button variant="ghost" type="button" onclick={reset} disabled={submitting}
-            >{t('import.startOver')}</Button
+          <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : reset())}
+            >{submitting ? t('common.cancel') : t('import.startOver')}</Button
           >
           <Button type="submit" variant="primary" loading={submitting}>
             {t('import.importNow')}
@@ -973,17 +739,20 @@
               tg: commitResult.applied.triggers,
               q: commitResult.applied.quotes
             })}
-            {#if commitResult.skipped?.length}
-              {t('import.skippedLine', {
-                n: commitResult.skipped.length,
-                names: commitResult.skipped.map((c) => c.name).join(', ')
-              })}
-            {/if}
           </Text>
         </div>
-        {#if appliedTiles.length}
+        <ImportSkipped skipped={commitResult.skipped} {t} />
+        <ImportFailed
+          failed={commitResult.failed}
+          retryCount={session.retryCount}
+          submitting={session.submitting}
+          onRetry={() => session.runRetry()}
+          {t}
+        />
+        {#if commitError}<ImportAlert message={commitError} />{/if}
+        {#if session.appliedTiles.length}
           <div class="applied bb-stagger">
-            {#each appliedTiles as a (a.label)}
+            {#each session.appliedTiles as a (a.label)}
               <div class="applied-tile"><StatTile inline static label={a.label} value={String(a.n)} /></div>
             {/each}
           </div>
@@ -994,10 +763,12 @@
       {:else}
         <div class="hint"><Text size="sm" tone="muted">{t('import.nothingApplied')}</Text></div>
       {/if}
-      <div class="actions">
-        <Button variant="primary" onclick={finishOnboarding} loading={finishing}>{t('onboardingImport.dashboard')}</Button>
+      <div class="actions actions-row done-actions">
+        <Button variant="green" solid onclick={() => finishOnboarding('/')} loading={finishing}>{t('onboardingImport.dashboard')}</Button>
+        <Button variant="ghost" onclick={() => finishOnboarding('/commands')} disabled={finishing}>{t('import.reviewCommands')}</Button>
+        <Button variant="ghost" onclick={reset} disabled={finishing}>{t('import.importAnother')}</Button>
       </div>
-      {#if finishError}<AlertBanner>{finishError}</AlertBanner>{/if}
+      {#if finishError}<ImportAlert message={finishError} />{/if}
       {#if commitResult?.audit_id}
         <div class="audit"><Text size="xs" mono tone="muted">{t('import.auditFoot', { n: commitResult.audit_id })}</Text></div>
       {/if}
@@ -1009,6 +780,16 @@
   </div>
 </section>
 </div>
+<VisuallyHidden as="p" role="status">{stepAnnouncement}</VisuallyHidden>
+<ConfirmDialog
+  open={leaveTarget !== null}
+  title={t('import.leaveTitle')}
+  body={t('import.leaveBody')}
+  confirmLabel={t('common.leave')}
+  cancelLabel={t('import.leaveStay')}
+  onCancel={() => (leaveTarget = null)}
+  onConfirm={confirmLeave}
+/>
 {#if showCompletion}<Completion label={t('onboardingImport.stageDone')} oncomplete={afterCompletion} />{/if}
 
 <style>
@@ -1223,6 +1004,7 @@
     margin-bottom: 6px;
   }
 
+  .done-actions { flex-wrap: wrap; min-height: 44px; }
   .actions {
     margin-top: 20px;
   }

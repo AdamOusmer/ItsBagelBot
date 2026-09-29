@@ -54,6 +54,7 @@ func (User) Fields() []ent.Field {
 		field.Time("subscription_expires_at").Optional().Nillable(),
 		field.String("subscription_ref").Optional().Nillable(),
 		field.Bool("subscription_cancel_pending").Default(false),
+		field.Bool("subscription_payment_failed").Default(false),
 		field.Time("billing_event_at").Optional().Nillable(),
 		field.String("billing_event_id").Optional().Nillable(),
 

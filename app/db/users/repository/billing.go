@@ -15,75 +15,153 @@ import (
 	"ItsBagelBot/pkg/db"
 )
 
+type billingOutcome int
+
+const (
+	billingProceed billingOutcome = iota
+	billingSkip
+	billingReplay
+)
+
 func (r *Users) ApplyBilling(ctx context.Context, req billingrpc.ApplyRequest) (bool, error) {
-	if err := validate.UserID(req.UserID); err != nil {
+	if err := validateApply(req); err != nil {
 		return false, err
 	}
-	if req.EventID == "" || req.OccurredAt.IsZero() {
-		return false, errors.New("billing event id and timestamp are required")
-	}
-
-	u, err := db.WithQuery(ctx, func(ctx context.Context) (*ent.User, error) {
-		return r.client.User.Query().Where(user.IDEQ(req.UserID)).Only(ctx)
-	})
+	u, err := r.loadBillingUser(ctx, req.UserID)
 	if err != nil {
 		return false, err
 	}
-	if u.BillingEventAt != nil && req.OccurredAt.Before(*u.BillingEventAt) {
+	switch billingOutcomeFor(u, req) {
+	case billingSkip:
 		return false, nil
-	}
-	if u.BillingEventAt != nil && req.OccurredAt.Equal(*u.BillingEventAt) &&
-		u.BillingEventID != nil && *u.BillingEventID == req.EventID {
+	case billingReplay:
 		return true, r.publishChanged(ctx, req.UserID)
 	}
-	if u.Status == user.StatusVip {
-		return false, nil
+	updated, err := r.saveBilling(ctx, u, req)
+	if err != nil || updated == 0 {
+		return false, err
 	}
-	if req.Action == billingrpc.ActionRevoke && u.SubscriptionSource != "tebex" {
-		return false, nil
-	}
-	if req.Action == billingrpc.ActionRevoke && req.RecurringReference != "" &&
-		u.SubscriptionRef != nil && *u.SubscriptionRef != req.RecurringReference {
-		return false, nil
-	}
+	return true, r.finishBilling(ctx, req)
+}
 
-	updated, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+func validateApply(req billingrpc.ApplyRequest) error {
+	if err := validate.UserID(req.UserID); err != nil {
+		return err
+	}
+	if req.EventID == "" || req.OccurredAt.IsZero() {
+		return errors.New("billing event id and timestamp are required")
+	}
+	return nil
+}
+
+func (r *Users) loadBillingUser(ctx context.Context, id uint64) (*ent.User, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) (*ent.User, error) {
+		return r.client.User.Query().Where(user.IDEQ(id)).Only(ctx)
+	})
+}
+
+func billingOutcomeFor(u *ent.User, req billingrpc.ApplyRequest) billingOutcome {
+	switch {
+	case isStaleBilling(u, req):
+		return billingSkip
+	case isReplayedBilling(u, req):
+		return billingReplay
+	case u.Status == user.StatusVip || ignoresTebexScoped(u, req):
+		return billingSkip
+	}
+	return billingProceed
+}
+
+func isStaleBilling(u *ent.User, req billingrpc.ApplyRequest) bool {
+	return u.BillingEventAt != nil && req.OccurredAt.Before(*u.BillingEventAt)
+}
+
+func isReplayedBilling(u *ent.User, req billingrpc.ApplyRequest) bool {
+	if u.BillingEventAt == nil || !req.OccurredAt.Equal(*u.BillingEventAt) {
+		return false
+	}
+	return u.BillingEventID != nil && *u.BillingEventID == req.EventID
+}
+
+func (r *Users) saveBilling(ctx context.Context, u *ent.User, req billingrpc.ApplyRequest) (int, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) (int, error) {
 		q := r.client.User.Update().Where(
 			user.IDEQ(req.UserID),
 			user.Or(user.BillingEventAtIsNil(), user.BillingEventAtLTE(req.OccurredAt)),
 		)
-		switch req.Action {
-		case billingrpc.ActionActivate, billingrpc.ActionCancelAborted:
-			applyPaidUpdate(q, req, false, u.SubscriptionExpiresAt)
-
-		case billingrpc.ActionCancelRequested:
-			applyPaidUpdate(q, req, true, u.SubscriptionExpiresAt)
-
-		case billingrpc.ActionRevoke:
-			q.SetStatus(user.StatusFree).
-				SetSubscriptionSource("").
-				SetSubscriptionCancelPending(false).
-				ClearSubscriptionExpiresAt().
-				ClearSubscriptionRef().
-				SetBillingEventAt(req.OccurredAt).
-				SetBillingEventID(req.EventID)
-
-		default:
-			return 0, errors.New("invalid billing action")
+		if err := applyBillingAction(q, u, req); err != nil {
+			return 0, err
 		}
 		return q.Save(ctx)
 	})
-	if err != nil || updated == 0 {
-		return false, err
-	}
+}
+
+func (r *Users) finishBilling(ctx context.Context, req billingrpc.ApplyRequest) error {
 	r.countGiftForGifter(ctx, req)
 	if err := r.projectAccess(ctx, req.UserID, time.Now().UTC()); err != nil {
-		return false, err
+		return err
 	}
-	if err := r.publishChanged(ctx, req.UserID); err != nil {
-		return false, err
+	return r.publishChanged(ctx, req.UserID)
+}
+
+type billingHandler func(q *ent.UserUpdate, u *ent.User, req billingrpc.ApplyRequest)
+
+var billingHandlers = map[billingrpc.Action]billingHandler{
+	billingrpc.ActionActivate: func(q *ent.UserUpdate, u *ent.User, req billingrpc.ApplyRequest) {
+		applyPaidUpdate(q, req, false, u.SubscriptionExpiresAt)
+		q.SetSubscriptionPaymentFailed(false)
+	},
+	billingrpc.ActionCancelAborted: func(q *ent.UserUpdate, u *ent.User, req billingrpc.ApplyRequest) {
+		applyPaidUpdate(q, req, false, u.SubscriptionExpiresAt)
+	},
+	billingrpc.ActionCancelRequested: func(q *ent.UserUpdate, u *ent.User, req billingrpc.ApplyRequest) {
+		applyPaidUpdate(q, req, true, u.SubscriptionExpiresAt)
+	},
+	billingrpc.ActionPaymentFailed: func(q *ent.UserUpdate, _ *ent.User, req billingrpc.ApplyRequest) {
+		q.SetSubscriptionPaymentFailed(true).
+			SetBillingEventAt(req.OccurredAt).
+			SetBillingEventID(req.EventID)
+	},
+	billingrpc.ActionRevoke: func(q *ent.UserUpdate, _ *ent.User, req billingrpc.ApplyRequest) {
+		clearSubscription(q)
+		q.SetBillingEventAt(req.OccurredAt).SetBillingEventID(req.EventID)
+	},
+}
+
+func clearSubscription(q *ent.UserUpdate) {
+	q.SetStatus(user.StatusFree).
+		SetSubscriptionSource("").
+		SetSubscriptionCancelPending(false).
+		SetSubscriptionPaymentFailed(false).
+		ClearSubscriptionExpiresAt().
+		ClearSubscriptionRef()
+}
+
+func applyBillingAction(q *ent.UserUpdate, u *ent.User, req billingrpc.ApplyRequest) error {
+	handler, ok := billingHandlers[req.Action]
+	if !ok {
+		return errors.New("invalid billing action")
 	}
-	return true, nil
+	handler(q, u, req)
+	return nil
+}
+
+func tebexScoped(action billingrpc.Action) bool {
+	return action == billingrpc.ActionRevoke || action == billingrpc.ActionPaymentFailed
+}
+
+func ignoresTebexScoped(u *ent.User, req billingrpc.ApplyRequest) bool {
+	if !tebexScoped(req.Action) {
+		return false
+	}
+	return u.SubscriptionSource != "tebex" || refMismatch(u, req)
+}
+
+func refMismatch(u *ent.User, req billingrpc.ApplyRequest) bool {
+	if req.RecurringReference == "" || u.SubscriptionRef == nil {
+		return false
+	}
+	return *u.SubscriptionRef != req.RecurringReference
 }
 
 // Best effort: failing here makes Tebex retry and re-apply the entitlement.
@@ -114,29 +192,36 @@ func applyPaidUpdate(q *ent.UserUpdate, req billingrpc.ApplyRequest, cancelPendi
 	}
 }
 
+func validateAdminStatus(status user.Status, expiresAt *time.Time) error {
+	if err := validate.Status(string(status)); err != nil {
+		return err
+	}
+	if status == user.StatusPaid && !isFuture(expiresAt) {
+		return errors.New("paid status requires a future expiry")
+	}
+	return nil
+}
+
+func isFuture(t *time.Time) bool {
+	return t != nil && t.After(time.Now())
+}
+
 func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Status, expiresAt *time.Time) error {
 	if err := validate.UserID(id); err != nil {
 		return err
 	}
-	if err := validate.Status(string(status)); err != nil {
+	if err := validateAdminStatus(status, expiresAt); err != nil {
 		return err
 	}
-	if status == user.StatusPaid && (expiresAt == nil || !expiresAt.After(time.Now())) {
-		return errors.New("paid status requires a future expiry")
-	}
-
 	err := db.WithExec(ctx, func(ctx context.Context) error {
 		q := r.client.User.UpdateOneID(id).
 			SetStatus(status).
 			SetSubscriptionCancelPending(false).
+			SetSubscriptionPaymentFailed(false).
 			ClearSubscriptionRef().
 			SetBillingEventAt(time.Now()).
 			ClearBillingEventID()
-		if status == user.StatusPaid {
-			q.SetSubscriptionSource("admin").SetSubscriptionExpiresAt(*expiresAt)
-		} else {
-			q.SetSubscriptionSource("").ClearSubscriptionExpiresAt()
-		}
+		applyAdminSource(q, status, expiresAt)
 		return q.Exec(ctx)
 	})
 	if err != nil {
@@ -148,8 +233,16 @@ func (r *Users) SetAdminStatus(ctx context.Context, id uint64, status user.Statu
 	return r.publishChanged(ctx, id)
 }
 
-func (r *Users) ExpireSubscriptions(ctx context.Context, now time.Time, tebexGrace time.Duration) (int, error) {
-	expired, err := db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
+func applyAdminSource(q *ent.UserUpdateOne, status user.Status, expiresAt *time.Time) {
+	if status == user.StatusPaid {
+		q.SetSubscriptionSource("admin").SetSubscriptionExpiresAt(*expiresAt)
+		return
+	}
+	q.SetSubscriptionSource("").ClearSubscriptionExpiresAt()
+}
+
+func (r *Users) expiredCandidates(ctx context.Context, now time.Time, tebexGrace time.Duration) ([]*ent.User, error) {
+	return db.WithQuery(ctx, func(ctx context.Context) ([]*ent.User, error) {
 		return r.client.User.Query().Where(
 			user.StatusEQ(user.StatusPaid),
 			user.SubscriptionExpiresAtNotNil(),
@@ -165,41 +258,44 @@ func (r *Users) ExpireSubscriptions(ctx context.Context, now time.Time, tebexGra
 			),
 		).Select(user.FieldSubscriptionSource).All(ctx)
 	})
+}
+
+func (r *Users) expireOne(ctx context.Context, candidate *ent.User, now time.Time, tebexGrace time.Duration) (bool, error) {
+	cutoff := now
+	if candidate.SubscriptionSource == "tebex" {
+		cutoff = now.Add(-tebexGrace)
+	}
+	updated, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
+		q := r.client.User.Update().Where(
+			user.IDEQ(candidate.ID),
+			user.StatusEQ(user.StatusPaid),
+			user.SubscriptionSourceEQ(candidate.SubscriptionSource),
+			user.SubscriptionExpiresAtLTE(cutoff),
+		)
+		clearSubscription(q)
+		return q.Save(ctx)
+	})
+	if err != nil || updated == 0 {
+		return false, err
+	}
+	if err := r.projectAccess(ctx, candidate.ID, now); err != nil {
+		return true, err
+	}
+	return true, r.publishChanged(ctx, candidate.ID)
+}
+
+func (r *Users) ExpireSubscriptions(ctx context.Context, now time.Time, tebexGrace time.Duration) (int, error) {
+	expired, err := r.expiredCandidates(ctx, now, tebexGrace)
 	if err != nil {
 		return 0, err
 	}
-
 	count := 0
 	for _, candidate := range expired {
-		cutoff := now
-		if candidate.SubscriptionSource == "tebex" {
-			cutoff = now.Add(-tebexGrace)
+		done, err := r.expireOne(ctx, candidate, now, tebexGrace)
+		if done {
+			count++
 		}
-		updated, err := db.WithQuery(ctx, func(ctx context.Context) (int, error) {
-			return r.client.User.Update().Where(
-				user.IDEQ(candidate.ID),
-				user.StatusEQ(user.StatusPaid),
-				user.SubscriptionSourceEQ(candidate.SubscriptionSource),
-				user.SubscriptionExpiresAtLTE(cutoff),
-			).
-				SetStatus(user.StatusFree).
-				SetSubscriptionSource("").
-				SetSubscriptionCancelPending(false).
-				ClearSubscriptionExpiresAt().
-				ClearSubscriptionRef().
-				Save(ctx)
-		})
 		if err != nil {
-			return count, err
-		}
-		if updated == 0 {
-			continue
-		}
-		count++
-		if err := r.projectAccess(ctx, candidate.ID, now); err != nil {
-			return count, err
-		}
-		if err := r.publishChanged(ctx, candidate.ID); err != nil {
 			return count, err
 		}
 	}

@@ -6,8 +6,6 @@
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();
-
-  let { needsAttention = false }: { needsAttention?: boolean } = $props();
 </script>
 
 <section class="ov-quick" aria-labelledby="ov-quick-h">
@@ -16,9 +14,6 @@
     <ButtonLink href="/commands" variant="primary">{t('overview.quickNewCommand')}</ButtonLink>
     <ButtonLink href="/modules" variant="ghost">{t('overview.quickModules')}</ButtonLink>
     <ButtonLink href="/songqueue" variant="ghost">{t('nav.songqueue')}</ButtonLink>
-    {#if needsAttention}
-      <ButtonLink href="/settings" variant="ghost">{t('overview.quickSettings')}</ButtonLink>
-    {/if}
   </div>
 </section>
 

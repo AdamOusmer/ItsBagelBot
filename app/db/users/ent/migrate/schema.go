@@ -188,6 +188,7 @@ var (
 		{Name: "subscription_expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "subscription_ref", Type: field.TypeString, Nullable: true},
 		{Name: "subscription_cancel_pending", Type: field.TypeBool, Default: false},
+		{Name: "subscription_payment_failed", Type: field.TypeBool, Default: false},
 		{Name: "billing_event_at", Type: field.TypeTime, Nullable: true},
 		{Name: "billing_event_id", Type: field.TypeString, Nullable: true},
 		{Name: "gifts_sent", Type: field.TypeUint32, Default: 0},

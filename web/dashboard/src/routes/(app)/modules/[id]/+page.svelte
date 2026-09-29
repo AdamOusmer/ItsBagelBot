@@ -3,8 +3,8 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { Select, namespaceReplyTemplate } from '@bagel/kit';
   import { deserialize } from '$app/forms';
-  import { invalidateAll } from '$app/navigation';
-  import { Card, PageHead, Scroller, SaveStatus, Switch, SwitchRow, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckLayout, DeckList, EmptyState, Heading, Input, Tag, Text, Textarea, TextLink, toast, getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
+  import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
+  import { Card, PageHead, Scroller, SectionNav, SearchInput, SaveStatus, Switch, SwitchRow, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckLayout, DeckList, EmptyState, Heading, Input, Tag, Text, Textarea, TextLink, toast, getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
@@ -33,6 +33,7 @@
   // svelte-ignore state_referenced_locally
   let rules = $state<Rule[]>(parseRules(data.config.rules ?? ''));
   const hasInspector = $derived(isTriggers || hasReplies);
+  const locked = $derived(data.locked === true);
   const hasDeck = $derived(hasInspector || (def.commands?.length ?? 0) > 0);
 
   // svelte-ignore state_referenced_locally
@@ -196,6 +197,7 @@
   }
 
   function openReply(reply: ModuleReply) {
+    if (locked) return;
     if (expanded === reply.key) {
       closeInspector();
       return;
@@ -208,6 +210,15 @@
   function closeInspector() {
     discard.guard(doClose);
   }
+  beforeNavigate((nav) => {
+    if (!inspectorDirty || !nav.to) return;
+    nav.cancel();
+    const href = nav.to.url.href;
+    discard.guard(() => {
+      doClose();
+      void goto(href);
+    });
+  });
 
   async function saveReply() {
     const r = selectedReply;
@@ -306,9 +317,9 @@
   const ruleRows: ModuleReply[] = $derived(
     rules.map((r, i) => ({
       key: `rule:${i}`,
-      label: r.phrase || 'New rule',
+      label: r.phrase || t('modules.newRule'),
       tagline: MODE_LABEL[r.match],
-      event: `on "${r.phrase || '…'}"`,
+      event: t('modules.ruleEvent', { phrase: r.phrase || '…' }),
       messageKey: `rule:${i}`,
       enableKey: `rule:${i}`,
       defaultMessage: r.response
@@ -327,6 +338,7 @@
   }
 
   function openRule(i: number) {
+    if (locked) return;
     if (expanded === `rule:${i}`) return closeInspector();
     discard.guard(() => {
       const r = rules[i];
@@ -338,6 +350,7 @@
     });
   }
   function addRule() {
+    if (locked) return;
     discard.guard(() => {
       ruleIndex = -1;
       draftPhrase = '';
@@ -375,10 +388,24 @@
     }
   }
 
+  let deleteIndex = $state<number | null>(null);
+  const deletePhrase = $derived(deleteIndex === null ? '' : (rules[deleteIndex]?.phrase ?? ''));
+  function askDeleteRule() {
+    if (ruleIndex !== null && ruleIndex >= 0) deleteIndex = ruleIndex;
+    else closeInspector();
+  }
+  function confirmDeleteRule() {
+    const i = deleteIndex;
+    deleteIndex = null;
+    if (i !== null) void deleteRule(i);
+  }
+
   async function deleteRule(i: number) {
     const next = rules.filter((_, idx) => idx !== i);
+    busy = true;
     setStatus(`rule:${i}`, 'saving');
     const outcome = await persistRules(next);
+    busy = false;
     if (outcome === 'saved') {
       rules = next;
       if (expanded === `rule:${i}`) doClose();
@@ -431,6 +458,25 @@
     isTriggers ? (ruleIndex === -1 ? t('modules.newTrigger') : t('modules.editTrigger')) : selectedReply ? tModuleReplyPart(t, def.id, selectedReply, 'label') : t('modules.inspector')
   );
 
+  let replyQuery = $state('');
+  const showReplyFilter = $derived(!isTriggers && def.replies.length > 6);
+  const visibleReplies = $derived.by(() => {
+    const q = replyQuery.trim().toLowerCase();
+    const all = def.replies.map((reply, i) => ({ reply, i }));
+    if (!q || !showReplyFilter) return all;
+    return all.filter(({ reply }) =>
+      `${tModuleReplyPart(t, def.id, reply, 'label')}\n${config[reply.messageKey] ?? ''}`.toLowerCase().includes(q)
+    );
+  });
+
+  const hasSettings = $derived((def.settings ?? []).some((s) => !s.hidden));
+  const hasCommands = $derived((def.commands?.length ?? 0) > 0);
+  const navItems = $derived([
+    ...(hasSettings ? [{ href: '#mod-settings', label: t('modules.settingsTitle') }] : []),
+    ...(isTriggers || hasReplies ? [{ href: '#mod-replies', label: isTriggers ? t('modules.triggerRulesTitle') : t('modules.repliesLabel') }] : []),
+    ...(hasCommands ? [{ href: '#mod-commands', label: t('modules.commandsTitle') }] : [])
+  ]);
+
   function fieldCopy(field: ModuleField, part: 'label' | 'help' | 'placeholder'): string {
     return tModuleFieldPart(t, def.id, field, part);
   }
@@ -474,6 +520,10 @@
     </AlertBanner>
   {/if}
 
+  {#if navItems.length > 1}
+    <SectionNav label={t('modules.sectionNav')} items={navItems} />
+  {/if}
+
   {#if !def.parent}
   <div class="settings-card">
     <Card flush>
@@ -505,10 +555,15 @@
   {/if}
 
   {#if (def.settings ?? []).length}
-    <div class="settings-card">
+    <div id="mod-settings" class="settings-card anchor" tabindex="-1">
       <Card flush>
         <div class="section-head">
           <Heading level={6} as="h2" variant="eyebrow">{t('modules.settingsTitle')}</Heading>
+          {#if locked}
+            <span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>
+          {:else}
+            <span class="autosave"><Text as="span" size="xs" tone="muted">{t('modules.autoSaveNote')}</Text></span>
+          {/if}
         </div>
         {#each (def.settings ?? []).filter((s) => !s.hidden) as field (field.key)}
           {#if field.type === 'toggle'}
@@ -520,6 +575,8 @@
                 hintId="sh-{field.key}"
                 checked={settingToggleOn(field)}
                 pending={modStatus[`setting:${field.key}`] === 'saving'}
+                disabled={locked}
+                title={locked ? t('modules.lockedHint') : undefined}
                 onchange={(v) => saveSetting(field, v ? 'on' : 'off')}
               >
                 {#snippet status()}<SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />{/snippet}
@@ -532,14 +589,14 @@
                 {#if fieldCopy(field, 'help')}<Text as="span" size="xs" tone="muted">{fieldCopy(field, 'help')}</Text>{/if}
               </label>
               <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
-              <TimezonePicker id="mod-setting-{field.key}" value={config[field.key] ?? ''} zones={tzZones} onPick={(tz) => saveSetting(field, tz)} />
+              <TimezonePicker id="mod-setting-{field.key}" value={config[field.key] ?? ''} zones={tzZones} disabled={locked} onPick={(tz) => saveSetting(field, tz)} />
             </div>
             {#if browserZone && (config[field.key] ?? '') !== browserZone}
               <div class="tz-suggest">
                 <AlertBanner variant="positive" role="status" stack>
                   {t('modules.tzSuggested', { tz: browserZone })}
                   {#snippet action()}
-                    <Button variant="green" size="sm" onclick={() => saveSetting(field, browserZone)}>{t('modules.tzApply', { tz: browserZone })}</Button>
+                    <Button variant="green" size="sm" disabled={locked} onclick={() => saveSetting(field, browserZone)}>{t('modules.tzApply', { tz: browserZone })}</Button>
                   {/snippet}
                 </AlertBanner>
               </div>
@@ -555,6 +612,7 @@
                 <div class="setting-picker">
                   <Select
                     fill
+                    disabled={locked}
                     id="mod-setting-{field.key}"
                     value={config[field.key] || field.placeholder || field.options?.[0]?.value || ''}
                     onchange={(e) => saveSetting(field, e.currentTarget.value)}
@@ -568,12 +626,14 @@
                   rows={6}
                   placeholder={fieldCopy(field, 'placeholder')}
                   value={config[field.key] ?? ''}
+                  disabled={locked}
                   onchange={(e: Event & { currentTarget: HTMLTextAreaElement }) => saveSetting(field, e.currentTarget.value)}
                 />
               {:else}
                 <Input
                   id="mod-setting-{field.key}"
                   type={field.type === 'number' ? 'number' : 'text'}
+                  disabled={locked}
                   placeholder={fieldCopy(field, 'placeholder')}
                   value={config[field.key] ?? ''}
                   onchange={(e: Event & { currentTarget: HTMLInputElement }) => saveSetting(field, e.currentTarget.value)}
@@ -591,12 +651,13 @@
     <DeckLayout inspecting={editing && hasInspector}>
       <DeckList>
         {#if isTriggers}
-          <div class="section-head rules-head">
+          <div class="section-head rules-head anchor" id="mod-replies" tabindex="-1">
             <div class="rh-text">
               <Heading level={6} as="h2" variant="eyebrow">{t('modules.triggerRulesTitle')}</Heading>
               <Text as="span" size="xs" tone="muted">{t('modules.triggerRulesHint')}</Text>
             </div>
-            <Button variant="ghost" onclick={addRule}>{t('modules.addTrigger')}</Button>
+            {#if locked}<span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>{/if}
+            <Button variant="ghost" onclick={addRule} disabled={locked}>{t('modules.addTrigger')}</Button>
           </div>
           {#if ruleRows.length}
             <ul class="list" aria-label={t('modules.triggerRulesTitle')}>
@@ -610,6 +671,7 @@
                     status={modStatus[reply.key] ?? 'idle'}
                     expanded={expanded === reply.key}
                     enabled={rules[i].enabled}
+                    disabled={locked}
                     onExpand={() => openRule(i)}
                     onToggle={() => toggleRule(i)}
                   />
@@ -620,8 +682,17 @@
             <EmptyState title={t('modules.noTriggersTitle')} body={t('modules.noTriggersBody')} />
           {/if}
         {:else if hasReplies}
+          <div class="section-head rules-head anchor" id="mod-replies" tabindex="-1">
+            <div class="rh-text"><Heading level={6} as="h2" variant="eyebrow">{t('modules.repliesLabel')}</Heading></div>
+            {#if locked}<span class="lock-hint"><Tag tone="quiet">{t('modules.betaPremium')}</Tag></span>{/if}
+            {#if showReplyFilter}
+              <div class="reply-filter">
+                <SearchInput bind:value={replyQuery} placeholder={t('modules.replyFilterPh')} aria-label={t('modules.replyFilterLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" fill />
+              </div>
+            {/if}
+          </div>
           <ul class="list" aria-label={t('modules.repliesLabel')}>
-            {#each def.replies as reply, i (reply.key)}
+            {#each visibleReplies as { reply, i } (reply.key)}
               <li>
                 <ReplyRow
                   moduleId={def.id}
@@ -631,15 +702,19 @@
                   status={modStatus[reply.key] ?? 'idle'}
                   expanded={expanded === reply.key}
                   enabled={reply.enableKey ? replyOn(reply) : undefined}
+                  disabled={locked}
                   onExpand={() => openReply(reply)}
                   onToggle={() => toggleReply(reply)}
                 />
               </li>
             {/each}
           </ul>
+          {#if visibleReplies.length === 0}
+            <div class="reply-none"><Text size="sm" tone="muted">{t('modules.replyFilterNone')}</Text></div>
+          {/if}
         {/if}
 
-        <ModuleCommandList moduleId={def.id} commands={def.commands ?? []} />
+        <ModuleCommandList sectionId="mod-commands" moduleId={def.id} commands={def.commands ?? []} />
       </DeckList>
 
       {#if hasInspector && editing}
@@ -661,7 +736,7 @@
                   isNew={ruleIndex === -1}
                   onSave={saveRule}
                   onCancel={closeInspector}
-                  onDelete={() => (ruleIndex !== null && ruleIndex >= 0 ? deleteRule(ruleIndex) : closeInspector())}
+                  onDelete={askDeleteRule}
                 />
               {/key}
             </Scroller>
@@ -677,6 +752,17 @@
     </DeckLayout>
   {/if}
 </section>
+
+<ConfirmDialog
+  open={deleteIndex !== null}
+  title={t('modules.deleteRuleTitle')}
+  body={t('modules.deleteRuleBody', { phrase: deletePhrase })}
+  confirmLabel={t('common.delete')}
+  cancelLabel={t('common.cancel')}
+  danger
+  onCancel={() => (deleteIndex = null)}
+  onConfirm={confirmDeleteRule}
+/>
 
 <ConfirmDialog
   open={discard.open}
@@ -743,5 +829,11 @@
 
   .list { list-style: none; margin: 0; padding: 0; }
 
+  .anchor { scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 56px); }
+  .anchor:focus { outline: none; }
+  .lock-hint { flex: none; }
+  .autosave { margin-left: auto; }
+  .reply-filter { width: min(260px, 44vw); flex: none; }
+  .reply-none { padding: 16px 18px; }
   .rh-text { display: flex; flex-direction: column; gap: 2px; margin-right: auto; min-width: 0; }
 </style>

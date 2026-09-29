@@ -109,9 +109,33 @@ export function minutesSince(iso: string | null, now: number): number {
   return Math.max(0, Math.floor((now - then) / 60_000));
 }
 
-export function clockFace(iso: string | null): string {
+export function clockFace(iso: string | null, locale?: string): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(d);
+}
+
+export type LiveSnapshot = {
+  stream: StreamMeta;
+  counters: StreamCounters;
+  volume: ChatVolume;
+  feed: ActivityFeed;
+  answered: AnsweredTonight;
+};
+
+export type LiveLanes = Partial<LiveSnapshot>;
+
+export const LIVE_STALE_MS = 15_000;
+
+export function mergeLive(prev: LiveLanes, next: LiveSnapshot): LiveLanes {
+  const merged: Record<string, unknown> = { ...prev };
+  for (const [lane, value] of Object.entries(next)) {
+    if (value.ok) merged[lane] = value;
+  }
+  return merged as LiveLanes;
+}
+
+export function isFreshChannel(meta: StreamMeta, commands: { ok: boolean; top: unknown[] }): boolean {
+  return meta.ok && !meta.known && commands.ok && commands.top.length === 0;
 }

@@ -3,11 +3,13 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
+  import { untrack } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     PageHead,
     Scroller,
     ConfirmDialog,
+    EditorFooter,
     InspectorSurface,
     Button,
     ButtonLink,
@@ -22,11 +24,14 @@
     DeckList,
     EmptyState,
     actionPayload,
+    focusFirstInvalid,
+    createDiscardGuard,
     type ActionOk,
   } from '@bagel/kit';
-  import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
+  import { createInspector } from '@bagel/ui/svelte/inspector';
   import RewardRow from '$lib/components/channelpoints/RewardRow.svelte';
   import RewardEditor from '$lib/components/channelpoints/RewardEditor.svelte';
+  import { namespaceRewardMessage, rewardDraftFrom, rewardErrors } from '$lib/components/channelpoints/reward-draft';
 
   let { data } = $props();
   const { t } = getI18n();
@@ -50,40 +55,45 @@
   let missingScope = $state(false);
 
   const NEW = '__new__';
-  let expanded = $state<string | null>(null);
-  let editorDraft = $state<ChannelPointReward | null>(null);
+  const inspector = createInspector<ChannelPointReward>();
+  let draft = $state<ChannelPointReward | null>(null);
+  let counterOn = $state(false);
   let busy = $state(false);
+  let validationAttempted = $state(false);
+  let formEl = $state<HTMLFormElement | null>(null);
 
-  const committed = $derived.by<ChannelPointReward | null>(() => {
-    if (!editorDraft) return null;
-    if (expanded === NEW) return blankReward();
-    return rewards.find((r) => r.id === expanded) ?? null;
+  $effect(() => {
+    const snap = draft ? { ...draft } : null;
+    if (snap) untrack(() => inspector.edit(snap));
   });
-  const isDirty = $derived(
-    !!editorDraft && committed !== null ? JSON.stringify(editorDraft) !== JSON.stringify(committed) : false
-  );
 
-  const discard = createDiscardGuard(() => isDirty);
+  const creating = $derived(inspector.selectedId === NEW);
+  const canSave = $derived(creating || inspector.dirty);
+
   function doClose() {
-    expanded = null;
-    editorDraft = null;
+    validationAttempted = false;
+    inspector.reset();
+    draft = null;
   }
 
+  const discard = createDiscardGuard(() => inspector.dirty, doClose);
+
+  function openDraft(id: string, reward: ChannelPointReward) {
+    validationAttempted = false;
+    const base = rewardDraftFrom(reward);
+    counterOn = !!base.counter.trim();
+    inspector.open(id, base);
+    draft = { ...base };
+  }
   function openNew() {
-    discard.guard(() => {
-      editorDraft = blankReward();
-      expanded = NEW;
-    });
+    discard.guard(() => openDraft(NEW, blankReward()));
   }
   function openEdit(r: ChannelPointReward) {
-    if (expanded === r.id) {
+    if (inspector.selectedId === r.id) {
       closeEditor();
       return;
     }
-    discard.guard(() => {
-      editorDraft = { ...r };
-      expanded = r.id;
-    });
+    discard.guard(() => openDraft(r.id, r));
   }
   function closeEditor() {
     discard.guard(doClose);
@@ -104,21 +114,37 @@
     toast('err', payload?.error ?? t(fallbackKey));
   }
 
-  const saveSubmit: SubmitFunction = () => {
-    const d = editorDraft;
-    if (!d) return;
-    const creating = expanded === NEW;
+  const saveSubmit: SubmitFunction = (input) => {
+    if (!draft) {
+      input.cancel();
+      return;
+    }
+    if (Object.keys(rewardErrors(draft, counterOn)).length) {
+      validationAttempted = true;
+      input.cancel();
+      void focusFirstInvalid(formEl);
+      return;
+    }
+    const message = namespaceRewardMessage(draft.message);
+    const payload = { ...draft, message };
+    input.formData.set('reward', JSON.stringify(payload));
+    input.formData.set('counter_enabled', counterOn ? 'true' : 'false');
+    const started = inspector.beginSave();
+    const requestId = started?.requestId;
+    const wasCreating = creating;
     busy = true;
     return async ({ result }) => {
       busy = false;
-      const payload = actionPayload<RewardActionOk>(result);
-      if (result.type === 'success' && payload?.ok) {
-        toast('ok', t(creating ? 'channelpoints.toastCreated' : 'channelpoints.toastSaved', { name: d.title }));
-        if (creating) doClose();
-        await invalidateAll();
+      const reply = actionPayload<RewardActionOk>(result);
+      const ok = result.type === 'success' && reply?.ok === true;
+      const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
+      if (!ok) {
+        failed(reply, 'channelpoints.toastSaveFailed');
         return;
       }
-      failed(payload, 'channelpoints.toastSaveFailed');
+      toast('ok', t(wasCreating ? 'channelpoints.toastCreated' : 'channelpoints.toastSaved', { name: payload.title }));
+      if (wasCreating && applied) doClose();
+      await invalidateAll();
     };
   };
 
@@ -149,7 +175,7 @@
       if (result.type === 'success' && payload?.ok) {
         if (target) {
           rewards = rewards.filter((x) => x.id !== target.id);
-          if (expanded === target.id) doClose();
+          if (inspector.selectedId === target.id) doClose();
           toast('ok', t('channelpoints.toastDeleted', { name: target.title }));
         }
         await invalidateAll();
@@ -159,7 +185,9 @@
     };
   };
 
-  const selected = $derived(expanded && expanded !== NEW ? rewards.find((r) => r.id === expanded) : undefined);
+  const selected = $derived(
+    inspector.selectedId && !creating ? rewards.find((r) => r.id === inspector.selectedId) : undefined
+  );
 </script>
 
 <section class="screen active">
@@ -192,13 +220,13 @@
       />
     {/snippet}
     {#snippet trail()}
-      <Button variant="primary" onclick={openNew} disabled={expanded === NEW}>
+      <Button variant="primary" onclick={openNew} disabled={creating}>
         {t('channelpoints.newReward')}
       </Button>
     {/snippet}
   </PageToolbar>
 
-  <DeckLayout inspecting={!!editorDraft}>
+  <DeckLayout inspecting={inspector.isOpen}>
     <DeckList>
       {#if rows.length}
         <ul class="bb-list" aria-label={t('channelpoints.listLabel')}>
@@ -206,7 +234,7 @@
             <RewardRow
               reward={r}
               index={i + 1}
-              expanded={expanded === r.id}
+              expanded={inspector.selectedId === r.id}
               onExpand={() => openEdit(r)}
               onDelete={() => (deleteTarget = r)}
               toggleSubmit={toggleSubmit(r)}
@@ -220,19 +248,40 @@
       {/if}
     </DeckList>
 
-    {#if editorDraft}
+    {#if inspector.isOpen && draft}
       <InspectorSurface
         open
-        title={expanded === NEW ? t('channelpoints.newReward') : t('channelpoints.editing', { name: selected?.title ?? '' })}
+        title={creating ? t('channelpoints.newReward') : t('channelpoints.editing', { name: selected?.title ?? '' })}
         controls="reward-editor"
         closeLabel={t('common.cancel')}
         onClose={closeEditor}
       >
-        <Scroller fill padding="16px" smooth>
-          {#key expanded}
-            <RewardEditor bind:draft={editorDraft} isNew={expanded === NEW} {busy} onCancel={closeEditor} onSubmit={saveSubmit} />
-          {/key}
-        </Scroller>
+        <form
+          method="POST"
+          action={creating ? '?/create' : '?/update'}
+          novalidate
+          use:enhance={saveSubmit}
+          class="inspector-form"
+          bind:this={formEl}
+        >
+          <Scroller fill padding="16px" smooth>
+            {#key inspector.selectedId}
+              <RewardEditor bind:draft bind:counterOn attempted={validationAttempted} />
+            {/key}
+          </Scroller>
+          <EditorFooter
+            status={inspector.status}
+            dirty={inspector.dirty}
+            canSave={canSave && !busy}
+            saveLabel={creating ? t('channelpoints.create') : t('channelpoints.saveChanges')}
+            cancelLabel={t('common.cancel')}
+            savingLabel={t('channelpoints.saving')}
+            savedLabel={t('channelpoints.saved')}
+            errorLabel={t('channelpoints.toastSaveFailed')}
+            dirtyLabel={t('channelpoints.unsavedChanges')}
+            onCancel={closeEditor}
+          />
+        </form>
       </InspectorSurface>
     {/if}
   </DeckLayout>
@@ -263,3 +312,7 @@
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="id" value={deleteTarget?.id ?? ''} />
 </form>
+
+<style>
+  .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+</style>

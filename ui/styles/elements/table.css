@@ -27,7 +27,7 @@
 
     .bb-tbl th[scope="col"] {
         font-family: var(--bb-font-mono);
-        font-size: 11px;
+        font-size: var(--tbl-head-size, 11px);
         letter-spacing: 0.04em;
         text-transform: uppercase;
         color: var(--bb-muted);

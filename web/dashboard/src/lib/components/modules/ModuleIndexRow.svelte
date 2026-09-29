@@ -43,8 +43,7 @@
 
 <ManagementRow as="article" {href} label="{t('modules.openSettings')}: {tModuleLabel(t, def)}">
   {#snippet primary()}
-    <span class="main" class:on={module.enabled && !locked}>
-      <span class="bar" aria-hidden="true"></span>
+    <span class="main">
       <span class="copy">
         <Heading level={6} as="span">
           {tModuleLabel(t, def)}
@@ -100,17 +99,6 @@
     justify-content: space-between;
     gap: 16px;
     min-width: 0;
-  }
-  .bar {
-    flex: none;
-    align-self: stretch;
-    width: 3px;
-    border-radius: var(--bb-radius-xs);
-    background: var(--bb-border);
-  }
-  .on .bar {
-    background: var(--bb-green-glow);
-    box-shadow: 0 0 8px var(--bb-green-glow);
   }
   .open-action {
     display: inline-flex;

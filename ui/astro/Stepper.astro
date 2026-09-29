@@ -10,14 +10,15 @@ interface Props {
     current: number;
     label: string;
     orientation?: 'horizontal' | 'vertical';
+    compact?: boolean;
     class?: string;
     [key: string]: unknown;
 }
 
-const { steps, current, label, orientation = 'horizontal', class: className = '', ...rest } = Astro.props;
+const { steps, current, label, orientation = 'horizontal', compact = false, class: className = '', ...rest } = Astro.props;
 
 const vertical = orientation === 'vertical';
-const classes = ['bb-stepper', vertical ? 'bb-stepper--vertical' : null, className || null].filter(Boolean).join(' ');
+const classes = ['bb-stepper', vertical ? 'bb-stepper--vertical' : null, compact ? 'bb-stepper--compact' : null, className || null].filter(Boolean).join(' ');
 const style = `--stepper-i: ${Math.max(current, 0)}; --stepper-n: ${Math.max(steps.length, 1)};`;
 
 function itemClass(index: number): string {
@@ -55,5 +56,6 @@ const currentOf = (index: number) => (index === current ? 'step' : undefined);
             ))}
         </ol>
         <span class={current < 0 ? 'bb-stepper__glide bb-stepper__glide--hidden' : 'bb-stepper__glide'} aria-hidden="true"></span>
+        {compact && <span class="bb-stepper__compact" aria-hidden="true">{steps[current]?.label ?? ''}</span>}
     </nav>
 )}

@@ -26,6 +26,8 @@ func (SpotifyCredential) Fields() []ent.Field {
 
 		field.String("scopes").Optional().Default(""),
 
+		field.Time("refresh_failed_at").Optional().Nillable(),
+
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}
 }

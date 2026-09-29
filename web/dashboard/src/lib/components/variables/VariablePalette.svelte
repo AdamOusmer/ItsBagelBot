@@ -45,6 +45,10 @@
   let searchValue = $state('');
   let query = $state('');
   let focusedId = $state<string | null>(null);
+  const uid = $props.id();
+  const descId = `${uid}-desc`;
+  let hoverChip = $state<VariableChip | null>(null);
+  let focusChip = $state<VariableChip | null>(null);
 
   $effect(() => {
     if (!open) return;
@@ -99,6 +103,9 @@
     }))
   );
 
+  const described = $derived(hoverChip ?? focusChip);
+  const descriptionText = $derived(described ? (rowHint(described) ?? described.token) : '');
+
   const fullReferenceHref = $derived(`${webHref(locale, '/guides/variables')}${focusedId ? `#${focusedId}` : ''}`);
 </script>
 
@@ -125,7 +132,15 @@
   <div class="vp-row" role="group" aria-label={t('commandEditor.insertVariable')}>
     <div class="vp-tokens">
       {#each pinnedChips as c (c.token)}
-        <Chip tone="muted" title={rowHint(c) ?? c.token} onclick={() => insert(c.token)}>
+        <Chip
+          tone="muted"
+          aria-describedby={descId}
+          onclick={() => insert(c.token)}
+          onmouseenter={() => (hoverChip = c)}
+          onmouseleave={() => (hoverChip = null)}
+          onfocus={() => (focusChip = c)}
+          onblur={() => (focusChip = null)}
+        >
           <span class="vp-token">{c.token}</span>
         </Chip>
       {/each}
@@ -146,6 +161,7 @@
         {/if}
       </div>
     {/if}
+    <div class="vp-desc"><Text size="xs" tone="muted" id={descId}>{descriptionText}</Text></div>
   </div>
 
   <PickerPanel {open} anchor={btnEl} label={t('commandEditor.allVariables')} width={380} maxHeight={480} onClose={closeSheet}>
@@ -211,6 +227,8 @@
     min-width: 0;
     gap: 6px;
   }
+
+  .vp-desc { min-height: 18px; }
 
   .vp-token { min-width: 0; overflow-wrap: anywhere; text-align: left; }
 

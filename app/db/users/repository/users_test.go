@@ -6,6 +6,7 @@ package repository_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -603,4 +604,43 @@ func TestIDByUsernameTakesFreshestRowOnCollision(t *testing.T) {
 	id, err := repo.IDByUsername(ctx, "shared")
 	require.NoError(t, err)
 	assert.Equal(t, uint64(4004), id)
+}
+
+func TestApplyBillingPaymentFailedLifecycle(t *testing.T) {
+	steps := []struct {
+		name       string
+		action     billingrpc.Action
+		reference  string
+		wantFailed bool
+		wantStatus string
+	}{
+		{"failure flags paid user", billingrpc.ActionPaymentFailed, "tbx-r-7", true, "paid"},
+		{"other agreement failure ignored", billingrpc.ActionPaymentFailed, "tbx-r-other", true, "paid"},
+		{"cancel request keeps flag", billingrpc.ActionCancelRequested, "tbx-r-7", true, "paid"},
+		{"renewal clears flag", billingrpc.ActionActivate, "tbx-r-7", false, "paid"},
+		{"failure again", billingrpc.ActionPaymentFailed, "tbx-r-7", true, "paid"},
+		{"end clears flag", billingrpc.ActionRevoke, "tbx-r-7", false, "free"},
+		{"failure on free user ignored", billingrpc.ActionPaymentFailed, "tbx-r-7", false, "free"},
+	}
+	_, _, repo := setup(t)
+	ctx := context.Background()
+	require.NoError(t, repo.Register(ctx, 7007, "Bagel", "Bagel", "bagel@example.com"))
+
+	at := time.Now().Add(-time.Hour)
+	_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+		UserID: 7007, EventID: "evt-start", Action: billingrpc.ActionActivate, OccurredAt: at, RecurringReference: "tbx-r-7",
+	})
+	require.NoError(t, err)
+
+	for i, step := range steps {
+		at = at.Add(time.Minute)
+		_, err := repo.ApplyBilling(ctx, billingrpc.ApplyRequest{
+			UserID: 7007, EventID: fmt.Sprintf("evt-%d", i), Action: step.action, OccurredAt: at, RecurringReference: step.reference,
+		})
+		require.NoError(t, err, step.name)
+		view, err := repo.Get(ctx, 7007)
+		require.NoError(t, err, step.name)
+		assert.Equal(t, step.wantFailed, view.SubscriptionPaymentFailed, step.name)
+		assert.Equal(t, step.wantStatus, view.Status, step.name)
+	}
 }

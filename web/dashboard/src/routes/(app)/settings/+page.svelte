@@ -29,19 +29,41 @@
   import LangSwitch from '$lib/components/LangSwitch.svelte';
   import CursorSwitch from '$lib/components/CursorSwitch.svelte';
   import SectionPicker from '$lib/components/settings/SectionPicker.svelte';
+  import DeleteAccountDialog from '$lib/components/settings/DeleteAccountDialog.svelte';
+  import { busyEnhance } from '$lib/components/settings/busy-enhance';
+  import type { SubmitFunction } from '@sveltejs/kit';
   import { commandsHref } from '@bagel/kit/site-links';
   import type { DelegationGrant, NotificationWire } from '$lib/server/services';
 
   let { data, form } = $props();
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
   const failed = toastFailure(toast, t);
 
   const notifications = $derived((data.notifications ?? []) as NotificationWire[]);
   const savedLocale = $derived((data.savedLocale ?? 'en') as Locale);
   const commandsPageUrl = $derived(commandsHref((data.login ?? '').toLowerCase()));
   const commandsPageDelayed = $derived(form?.action === 'commands_page' && !!form?.edgeDelayed);
-  const levelLabel = (l: string) => l.charAt(0).toUpperCase() + l.slice(1);
+  const LEVEL_LABEL = {
+    info: 'settings.level.info',
+    success: 'settings.level.success',
+    warning: 'settings.level.warning',
+    critical: 'settings.level.critical'
+  } as const;
+  const levelLabel = (l: string) => t(LEVEL_LABEL[l as keyof typeof LEVEL_LABEL] ?? LEVEL_LABEL.info);
+  const stampFormat = $derived(new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }));
+  const NOTIFICATION_PAGE = 20;
+  let showAllNotifications = $state(false);
+  const shownNotifications = $derived(showAllNotifications ? notifications : notifications.slice(0, NOTIFICATION_PAGE));
+  const hiddenNotificationCount = $derived(Math.max(0, notifications.length - NOTIFICATION_PAGE));
+  const twitchConnected = $derived((data.twitchConnected ?? null) as boolean | null);
+  const boardTwitchKey = $derived(
+    twitchConnected === null
+      ? 'settings.boardTwitchUnknown'
+      : twitchConnected
+        ? 'settings.boardTwitch'
+        : 'settings.boardTwitchOff'
+  );
   const LEVEL_TONE: Record<string, 'quiet' | 'live' | 'pre' | 'error'> = {
     info: 'quiet',
     success: 'live',
@@ -196,11 +218,28 @@
     if (message) toast('ok', message());
   });
 
+  let commandsPageBusy = $state(false);
+  const commandsPageSubmit: SubmitFunction = ({ formData }) => {
+    commandsPageBusy = true;
+    const enabling = formData.get('enabled') === 'on';
+    return async ({ result, update }) => {
+      await update();
+      commandsPageBusy = false;
+      if (result.type === 'success') {
+        toast('ok', t(enabling ? 'settings.toastCommandsPageOn' : 'settings.toastCommandsPageOff'));
+      } else if (result.type === 'error') {
+        toast('err', t('serverErrors.updateRetry'));
+      }
+    };
+  };
+
   let revokeTarget = $state<DelegationGrant | null>(null);
   let revokeForm = $state<HTMLFormElement | null>(null);
+  let revoking = $state(false);
 
   let leaveTarget = $state<{ owner_user_id: string; owner_login: string } | null>(null);
   let leaveForm = $state<HTMLFormElement | null>(null);
+  let leaving = $state(false);
 
   let deleteOpen = $state(false);
   let deleting = $state(false);
@@ -258,7 +297,7 @@
         <Card flush>
           <div class="board-body">
             <Eyebrow>{t('settings.boardState')}</Eyebrow>
-            <span class="board-row"><StatusDot tone="success" /><Text as="span" size="xs" tone="muted">{t('settings.boardTwitch')}</Text></span>
+            <span class="board-row"><StatusDot tone={twitchConnected === true ? 'success' : 'neutral'} /><Text as="span" size="xs" tone="muted">{t(boardTwitchKey)}</Text></span>
             <span class="board-row"><StatusDot tone="warning" /><Text as="span" size="xs" tone="muted">{t('settings.boardAccess', { n: inUse.length })}</Text></span>
             <span class="board-row"><StatusDot tone="neutral" /><Text as="span" size="xs" tone="muted">{t('settings.boardShared', { n: received.length })}</Text></span>
           </div>
@@ -276,7 +315,11 @@
       <div class="identity-main">
         <div class="identity-line">
           <Text as="span"><b>{data.displayName || data.login}</b></Text>
-          <Tag tone="live" mark="solid">{t('settings.connectedPill')}</Tag>
+          {#if twitchConnected === true}
+            <Tag tone="live" mark="solid">{t('settings.connectedPill')}</Tag>
+          {:else if twitchConnected === false}
+            <Tag tone="alpha" mark="dash">{t('settings.notConnectedPill')}</Tag>
+          {/if}
         </div>
         <Text as="span" size="xs" tone="muted">{t('settings.reconnectTwitchHint')}</Text>
       </div>
@@ -425,13 +468,13 @@
       <div class="hint"><Text size="sm" tone="muted">{t('settings.notificationsEmpty')}</Text></div>
     {:else}
       <ul class="notif-list">
-        {#each notifications as n (n.id)}
+        {#each shownNotifications as n (n.id)}
           <li class="notif-item" class:unread={!n.read}>
             <Tag tone={LEVEL_TONE[n.level] ?? 'quiet'}>{levelLabel(n.level)}</Tag>
             <div class="notif-text">
               <Text as="span" size="sm"><b>{n.title}</b></Text>
               <Text size="sm" tone="muted">{n.body}</Text>
-              <Text as="span" size="xs" tone="muted">{new Date(n.created_at).toLocaleString()}</Text>
+              <Text as="span" size="xs" tone="muted">{stampFormat.format(new Date(n.created_at))}</Text>
             </div>
             {#if !n.read}
               <form method="POST" action="?/markRead" use:enhance>
@@ -442,6 +485,13 @@
           </li>
         {/each}
       </ul>
+      {#if hiddenNotificationCount > 0}
+        <div class="notif-more">
+          <Button variant="ghost" size="sm" aria-expanded={showAllNotifications} onclick={() => (showAllNotifications = !showAllNotifications)}>
+            {showAllNotifications ? t('settings.showFewer') : t('settings.showOlder', { n: hiddenNotificationCount })}
+          </Button>
+        </div>
+      {/if}
     {/if}
   </Card>
   </section>
@@ -477,9 +527,9 @@
           <Text size="sm" tone="muted">{t('settings.commandsPageDelayed')}</Text>
         {/if}
       </div>
-      <form method="POST" action="?/setCommandsPage" use:enhance>
+      <form method="POST" action="?/setCommandsPage" use:enhance={commandsPageSubmit}>
         <input type="hidden" name="enabled" value={data.commandsPage ? '' : 'on'} />
-        <Switch type="submit" checked={!!data.commandsPage} label={t('settings.commandsPage')} describedby="commands-page-hint" />
+        <Switch type="submit" checked={!!data.commandsPage} pending={commandsPageBusy} label={t('settings.commandsPage')} describedby="commands-page-hint" />
       </form>
     </div>
   </Card>
@@ -543,15 +593,20 @@
     : t('settings.revokeBodyPending')}
   confirmLabel={t('common.revoke')}
   cancelLabel={t('common.cancel')}
+  busyLabel={t('settings.working')}
   danger
+  busy={revoking}
   onCancel={() => (revokeTarget = null)}
-  onConfirm={() => {
-    revokeForm?.requestSubmit();
-    revokeTarget = null;
-  }}
+  onConfirm={() => revokeForm?.requestSubmit()}
 />
 {#if revokeTarget}
-  <form method="POST" action="?/revoke" use:enhance bind:this={revokeForm} hidden>
+  <form
+    method="POST"
+    action="?/revoke"
+    use:enhance={busyEnhance((b) => (revoking = b), (type) => type === 'success' && (revokeTarget = null))}
+    bind:this={revokeForm}
+    hidden
+  >
     <input type="hidden" name="token" value={revokeTarget.token} />
   </form>
 {/if}
@@ -562,15 +617,20 @@
   body={t('settings.leaveBody')}
   confirmLabel={t('common.leave')}
   cancelLabel={t('common.cancel')}
+  busyLabel={t('settings.working')}
   danger
+  busy={leaving}
   onCancel={() => (leaveTarget = null)}
-  onConfirm={() => {
-    leaveForm?.requestSubmit();
-    leaveTarget = null;
-  }}
+  onConfirm={() => leaveForm?.requestSubmit()}
 />
 {#if leaveTarget}
-  <form method="POST" action="?/optOut" use:enhance bind:this={leaveForm} hidden>
+  <form
+    method="POST"
+    action="?/optOut"
+    use:enhance={busyEnhance((b) => (leaving = b), (type) => type === 'success' && (leaveTarget = null))}
+    bind:this={leaveForm}
+    hidden
+  >
     <input type="hidden" name="owner_user_id" value={leaveTarget.owner_user_id} />
   </form>
 {/if}
@@ -581,34 +641,37 @@
   body={t('settings.signOutEverywhereBody')}
   confirmLabel={t('settings.signOutEverywhere')}
   cancelLabel={t('common.cancel')}
+  busyLabel={t('settings.working')}
   danger
   busy={signingOut}
   onCancel={() => (signOutOpen = false)}
-  onConfirm={() => {
-    signingOut = true;
-    signOutForm?.requestSubmit();
-  }}
+  onConfirm={() => signOutForm?.requestSubmit()}
 />
 {#if signOutOpen}
-  <form method="POST" action="?/signOutEverywhere" use:enhance bind:this={signOutForm} hidden></form>
+  <form
+    method="POST"
+    action="?/signOutEverywhere"
+    use:enhance={busyEnhance((b) => (signingOut = b), () => {})}
+    bind:this={signOutForm}
+    hidden
+  ></form>
 {/if}
 
-<ConfirmDialog
+<DeleteAccountDialog
   open={deleteOpen}
-  title={t('settings.deleteTitle')}
-  body={t('settings.deleteBody')}
-  confirmLabel={t('settings.deleteAccount')}
-  cancelLabel={t('common.cancel')}
-  danger
+  login={data.login ?? ''}
   busy={deleting}
   onCancel={() => (deleteOpen = false)}
-  onConfirm={() => {
-    deleting = true;
-    deleteForm?.requestSubmit();
-  }}
+  onConfirm={() => deleteForm?.requestSubmit()}
 />
 {#if deleteOpen}
-  <form method="POST" action="?/delete" use:enhance bind:this={deleteForm} hidden></form>
+  <form
+    method="POST"
+    action="?/delete"
+    use:enhance={busyEnhance((b) => (deleting = b), () => {})}
+    bind:this={deleteForm}
+    hidden
+  ></form>
 {/if}
 
 <style>
@@ -741,6 +804,7 @@
   }
   .notif-item.unread { border-color: rgba(var(--bb-tan-rgb), 0.3); background: rgba(var(--bb-tan-rgb), 0.05); }
   .notif-text { flex: 1; min-width: 0; display: grid; gap: 4px; }
+  .notif-more { margin-top: 12px; }
 
   .danger-section { margin-top: 28px; }
 

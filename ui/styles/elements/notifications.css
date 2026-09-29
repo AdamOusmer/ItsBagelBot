@@ -21,6 +21,10 @@
     color: var(--bb-tan); pointer-events: none;
   }
 
+  @media (pointer: coarse) {
+    .bb-notifications__icon-btn::after { content: ''; position: absolute; inset: -4px; }
+  }
+
   .bb-notifications__scrim { position: fixed; inset: 0; z-index: calc(var(--bb-z-popover) - 1); }
 
   .bb-notifications__dropdown {

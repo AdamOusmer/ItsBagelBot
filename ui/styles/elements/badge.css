@@ -12,7 +12,7 @@
     .bb-badge--pill {
         display: inline;
         padding: 2px 8px;
-        font-size: 10px;
+        font-size: var(--badge-pill-size, 10px);
         letter-spacing: 0.08em;
         line-height: inherit;
         border: 1px solid var(--badge-tone-rule, var(--tone-rule, transparent));

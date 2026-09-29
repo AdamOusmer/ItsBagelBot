@@ -3,23 +3,66 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
   import { AuroraBg, ButtonLink, Eyebrow, Heading, Lead, getI18n } from '@bagel/kit';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
 
   const { t } = getI18n();
 
   const HOME = 'https://itsbagelbot.com';
-  const DELAY_MS = 5000;
+  const DELAY_MS = 10000;
+  const EXIT_MS = 700;
 
   let leaving = $state(false);
+  let paused = $state(false);
+  let mainEl = $state<HTMLElement | null>(null);
 
   onMount(() => {
     localStorage.removeItem('bb-onboarded');
-    let exit: ReturnType<typeof setTimeout>;
-    const t = setTimeout(() => {
+    const holds = { hover: false, focus: false, hidden: document.hidden };
+    let remaining = DELAY_MS;
+    let startedAt = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let exit: ReturnType<typeof setTimeout> | undefined;
+
+    const leave = () => {
+      timer = undefined;
       leaving = true;
-      exit = setTimeout(() => (window.location.href = HOME), 700);
-    }, DELAY_MS);
+      exit = setTimeout(() => (window.location.href = HOME), EXIT_MS);
+    };
+    const sync = () => {
+      paused = holds.hover || holds.focus || holds.hidden;
+      if (paused && timer) {
+        clearTimeout(timer);
+        timer = undefined;
+        remaining -= performance.now() - startedAt;
+      } else if (!paused && !timer && !leaving) {
+        startedAt = performance.now();
+        timer = setTimeout(leave, Math.max(remaining, 0));
+      }
+    };
+    const hold = (key: keyof typeof holds, on: boolean) => () => {
+      holds[key] = on;
+      sync();
+    };
+    const onVisibility = () => {
+      holds.hidden = document.hidden;
+      sync();
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      holds.focus = !!mainEl?.contains(e.relatedTarget as Node | null);
+      sync();
+    };
+    const bindings: [EventTarget | null, string, EventListener][] = [
+      [mainEl, 'pointerenter', hold('hover', true)],
+      [mainEl, 'pointerleave', hold('hover', false)],
+      [mainEl, 'focusin', hold('focus', true)],
+      [mainEl, 'focusout', onFocusOut as EventListener],
+      [document, 'visibilitychange', onVisibility]
+    ];
+    for (const [target, type, fn] of bindings) target?.addEventListener(type, fn);
+    sync();
     return () => {
-      clearTimeout(t);
+      for (const [target, type, fn] of bindings) target?.removeEventListener(type, fn);
+      clearTimeout(timer);
       clearTimeout(exit);
     };
   });
@@ -27,12 +70,12 @@
 
 <svelte:head>
   <title>{t('goodbye.title')}</title>
-  <noscript><meta http-equiv="refresh" content="5;url=https://itsbagelbot.com" /></noscript>
+  <noscript><meta http-equiv="refresh" content="10;url=https://itsbagelbot.com" /></noscript>
 </svelte:head>
 
 <AuroraBg />
 
-<main class="onboard" class:leaving>
+<main class="onboard" class:leaving bind:this={mainEl}>
   <div class="logo pop">
     <img src="/logo.png" alt="ItsBagelBot" />
     <span class="halo"></span>
@@ -52,7 +95,8 @@
     <ButtonLink href={HOME} variant="green" solid>{t('goodbye.cta')}</ButtonLink>
   </div>
 
-  <span class="bar reveal" aria-hidden="true"><i></i></span>
+  <span class="bar reveal" aria-hidden="true"><i class:paused></i></span>
+  <VisuallyHidden as="p" role="status">{paused ? t('goodbye.paused') : t('goodbye.redirecting')}</VisuallyHidden>
 </main>
 
 <style>
@@ -90,7 +134,8 @@
   .cta { --i: 10.5; }
 
   .bar { --i: 12.5; margin-top: 8px; width: 180px; height: 3px; border-radius: var(--bb-radius-pill); background: rgba(var(--bb-white-pure-rgb), 0.06); border: 1px solid var(--bb-border); overflow: hidden; }
-  .bar i { display: block; height: 100%; width: 100%; background: var(--bb-green); transform-origin: left; animation: drain 5s linear forwards; }
+  .bar i { display: block; height: 100%; width: 100%; background: var(--bb-green); transform-origin: left; animation: drain 10s linear forwards; }
+  .bar i.paused { animation-play-state: paused; }
 
   @keyframes float { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-10px) rotate(1deg); } }
   @keyframes pulse { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 0.9; transform: scale(1.12); } }

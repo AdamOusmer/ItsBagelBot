@@ -154,7 +154,7 @@ describe('Heading variants', () => {
     const rule = source.slice(start, source.indexOf('}', start));
     for (const line of [
       'font-family: var(--bb-font-mono);',
-      'font-size: 10px;',
+      'font-size: var(--h-label-size, 10px);',
       'letter-spacing: 0.12em;',
       'text-transform: uppercase;',
       'color: var(--bb-muted);',

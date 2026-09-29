@@ -7,7 +7,10 @@
   import {
     PageHead,
     MasterToggle,
+    PageToolbar,
+    Switch,
     SwitchRow,
+    focusFirstInvalid,
     AlertBanner,
     Card,
     ButtonLink,
@@ -24,6 +27,7 @@
     getI18n,
     LOYALTY_DEFAULTS,
     formatPointValue,
+    type MessageKey,
     moduleDef,
     catalogChildren,
     type LoyaltyConfig
@@ -48,6 +52,20 @@
   }
   // svelte-ignore state_referenced_locally
   let games = $state(seedGames(data));
+
+  const RATE_MAX = 1_000_000;
+  const RATE_KEYS = ['subPoints', 'resubPoints', 'giftSubPoints', 'cheerPointsPer100', 'watchPointsPerTick'] as const;
+  type RateKey = (typeof RATE_KEYS)[number];
+  type RateState = { on: boolean; amount: number | null; touched: boolean };
+  function seedRates(cfg: LoyaltyConfig): Record<RateKey, RateState> {
+    return Object.fromEntries(
+      RATE_KEYS.map((k) => [k, { on: cfg[k] >= 0, amount: cfg[k] > 0 ? cfg[k] : LOYALTY_DEFAULTS[k], touched: false }])
+    ) as Record<RateKey, RateState>;
+  }
+  // svelte-ignore state_referenced_locally
+  let rates = $state(seedRates(data.config));
+  let attempted = $state(false);
+  let formEl = $state<HTMLFormElement | null>(null);
   let busy = $state(false);
   // svelte-ignore state_referenced_locally
   let seed = data;
@@ -56,6 +74,7 @@
       seed = data;
       enabled = data.enabled ?? false;
       config = { ...data.config };
+      rates = seedRates(data.config);
       games = seedGames(data);
     }
   });
@@ -68,7 +87,25 @@
     prevOn = enabled;
   });
 
-  const payload = $derived(JSON.stringify(config));
+  function encodeRate(key: RateKey): number {
+    const r = rates[key];
+    if (!r.on) return -1;
+    return r.amount === LOYALTY_DEFAULTS[key] ? 0 : (r.amount ?? 0);
+  }
+  const numberFmt = $derived(new Intl.NumberFormat(locale));
+  const payload = $derived(
+    JSON.stringify({ ...config, ...Object.fromEntries(RATE_KEYS.map((k) => [k, encodeRate(k)])) })
+  );
+
+  function rateInvalid(key: RateKey): boolean {
+    const r = rates[key];
+    return r.on && !(r.amount !== null && Number.isInteger(r.amount) && r.amount >= 1 && r.amount <= RATE_MAX);
+  }
+  function rateError(key: RateKey): string | undefined {
+    return (attempted || rates[key].touched) && rateInvalid(key)
+      ? t('loyalty.errRate', { max: numberFmt.format(RATE_MAX) })
+      : undefined;
+  }
 
   let saveState = $state<SaveState>('idle');
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -78,7 +115,13 @@
     if (resetAfter) saveTimer = setTimeout(() => (saveState = 'idle'), resetAfter);
   }
 
-  const saveSubmit: SubmitFunction = () => {
+  const saveSubmit: SubmitFunction = (input) => {
+    if (RATE_KEYS.some(rateInvalid)) {
+      attempted = true;
+      input.cancel();
+      void focusFirstInvalid(formEl);
+      return;
+    }
     busy = true;
     markSave('saving');
     return async ({ result }) => {
@@ -94,13 +137,22 @@
     };
   };
 
-  const rateFields = $derived([
-    { key: 'subPoints', label: t('loyalty.fieldSub'), dflt: LOYALTY_DEFAULTS.subPoints },
-    { key: 'resubPoints', label: t('loyalty.fieldResub'), dflt: LOYALTY_DEFAULTS.resubPoints },
-    { key: 'giftSubPoints', label: t('loyalty.fieldGift'), dflt: LOYALTY_DEFAULTS.giftSubPoints },
-    { key: 'cheerPointsPer100', label: t('loyalty.fieldCheer'), dflt: LOYALTY_DEFAULTS.cheerPointsPer100 },
-    { key: 'watchPointsPerTick', label: t('loyalty.fieldWatch'), dflt: LOYALTY_DEFAULTS.watchPointsPerTick }
-  ] as const);
+  const pointsLabel = $derived(config.pointsName.trim() || t('loyalty.fieldNamePh'));
+  const RATE_COPY: Record<RateKey, { label: MessageKey; unit: MessageKey }> = {
+    subPoints: { label: 'loyalty.fieldSub', unit: 'loyalty.unitSub' },
+    resubPoints: { label: 'loyalty.fieldResub', unit: 'loyalty.unitResub' },
+    giftSubPoints: { label: 'loyalty.fieldGift', unit: 'loyalty.unitGift' },
+    cheerPointsPer100: { label: 'loyalty.fieldCheer', unit: 'loyalty.unitCheer' },
+    watchPointsPerTick: { label: 'loyalty.fieldWatch', unit: 'loyalty.unitWatch' }
+  };
+  const rateFields = $derived(
+    RATE_KEYS.map((key) => ({
+      key,
+      label: t(RATE_COPY[key].label),
+      unit: t(RATE_COPY[key].unit, { name: pointsLabel }),
+      dflt: LOYALTY_DEFAULTS[key]
+    }))
+  );
 
   const permToggles = $derived([
     { key: 'modSetPoints', label: t('loyalty.permSet'), hint: t('loyalty.permSetHint') },
@@ -108,12 +160,9 @@
     { key: 'viewerTransfers', label: t('loyalty.permTransfers'), hint: t('loyalty.permTransfersHint') }
   ] as const);
 
-  function rateValue(value: string | number | null): number {
-    return value === null || value === '' ? 0 : Number(value);
-  }
-
   function hours(seconds: number): string {
-    return t('loyalty.hoursShort', { n: (seconds / 3600).toFixed(1) });
+    const n = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    return t('loyalty.hoursShort', { n: n.format(seconds / 3600) });
   }
 
   const top = $derived(data.top ?? []);
@@ -128,22 +177,21 @@
     <AlertBanner>{t('loyalty.degraded')}</AlertBanner>
   {/if}
 
-  <section class="block" aria-labelledby="loy-status-h">
-    <Heading level={6} as="h2" variant="title" id="loy-status-h">{t('loyalty.statusTitle')}</Heading>
-    <Card>
-      <div class="status-row">
-        <MasterToggle
-          action="?/toggle"
-          bind:enabled
-          label={t('loyalty.botOn')}
-          hint={t('loyalty.botOnHint')}
-          ariaLabel={t('loyalty.botOn')}
-          failMessage={t('loyalty.toastToggleFailed')}
-        />
-        <ButtonLink href="/counters" variant="ghost">{t('loyalty.countersLink')}</ButtonLink>
-      </div>
-    </Card>
-  </section>
+  <PageToolbar>
+    {#snippet lead()}
+      <MasterToggle
+        action="?/toggle"
+        bind:enabled
+        label={t('loyalty.botOn')}
+        hint={t('loyalty.botOnHint')}
+        ariaLabel={t('loyalty.botOn')}
+        failMessage={t('loyalty.toastToggleFailed')}
+      />
+    {/snippet}
+    {#snippet trail()}
+      <ButtonLink href="/counters" variant="ghost">{t('loyalty.countersLink')}</ButtonLink>
+    {/snippet}
+  </PageToolbar>
 
   {#if games.length}
     <section class="block" aria-labelledby="loy-games-h">
@@ -162,7 +210,7 @@
     <Card>
       <div class="hint"><Text size="xs" tone="muted">{t('loyalty.ratesHint')}</Text></div>
 
-      <form method="POST" action="?/save" use:enhance={saveSubmit} class="rates" novalidate>
+      <form method="POST" action="?/save" use:enhance={saveSubmit} class="rates" novalidate bind:this={formEl}>
         <input type="hidden" name="config" value={payload} />
 
         <Field label={t('loyalty.fieldName')} tag={t('common.optional')}>
@@ -170,18 +218,42 @@
         </Field>
 
         {#each rateFields as rf (rf.key)}
-          <Field label={rf.label} tag={t('loyalty.defaultTag', { n: String(rf.dflt) })}>
-            <!-- Keep 0 in the payload as the default sentinel; an empty field shows the effective rate. -->
-            <div class="num">
-              <Input
-                type="number"
-                min="-1"
-                max="1000000"
-                placeholder={String(rf.dflt)}
-                bind:value={() => config[rf.key] === 0 ? null : config[rf.key], (value) => (config[rf.key] = rateValue(value))}
+          {@const err = rateError(rf.key)}
+          <div class="rate">
+            <Field
+              label={rf.label}
+              tag={t('loyalty.defaultTag', { n: numberFmt.format(rf.dflt) })}
+              error={err}
+              errorId="rate-err-{rf.key}"
+            >
+              <span class="rate-input">
+                <span class="num">
+                  <Input
+                    fill
+                    type="number"
+                    inputmode="numeric"
+                    min="1"
+                    max={RATE_MAX}
+                    step="1"
+                    disabled={!rates[rf.key].on}
+                    invalid={!!err}
+                    aria-invalid={err ? 'true' : undefined}
+                    aria-describedby={err ? `rate-err-${rf.key}` : undefined}
+                    bind:value={rates[rf.key].amount}
+                    onblur={() => (rates[rf.key].touched = true)}
+                  />
+                </span>
+                <Text as="span" size="sm" tone="muted">{rf.unit}</Text>
+              </span>
+            </Field>
+            <span class="rate-switch">
+              <Switch
+                label={t('loyalty.rateToggleAria', { name: rf.label })}
+                checked={rates[rf.key].on}
+                onchange={(v) => (rates[rf.key].on = v)}
               />
-            </div>
-          </Field>
+            </span>
+          </div>
         {/each}
 
         <div class="perm">
@@ -225,7 +297,9 @@
     <Heading level={6} as="h2" variant="title" id="loy-top-h">{t('loyalty.topTitle')}</Heading>
     <Card>
       {#if top.length === 0}
-        <EmptyState title={t('loyalty.topEmpty')} />
+        <EmptyState title={t('loyalty.topEmpty')}>
+          <ButtonLink href="#loy-rates-h" variant="ghost">{t('loyalty.topEmptyCta')}</ButtonLink>
+        </EmptyState>
       {:else}
         <Table label={t('loyalty.topCaption')}>
           <caption class="bb-sr-only">{t('loyalty.topCaption')}</caption>
@@ -264,14 +338,6 @@
 <style>
   .block { display: grid; gap: 12px; margin-bottom: 26px; }
 
-  .status-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 14px;
-  }
-
   .hint { margin-bottom: 14px; }
 
   .perm-title { margin: 18px 0 6px; }
@@ -280,7 +346,10 @@
     border-bottom: 1px solid rgba(var(--bb-white-rgb), 0.05);
   }
 
-  .num { max-width: 160px; }
+  .rate { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
+  .rate-switch { padding-top: 26px; min-height: 44px; display: inline-flex; align-items: flex-start; }
+  .rate-input { display: flex; align-items: center; gap: 10px; }
+  .num { width: 100%; max-width: 160px; }
 
   .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 4px; }
 

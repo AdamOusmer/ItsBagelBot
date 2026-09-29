@@ -9,16 +9,18 @@
   let {
     commands,
     moduleId,
-    headingId = 'module-cmds-h'
+    headingId = 'module-cmds-h',
+    sectionId = undefined as string | undefined
   }: {
     commands: readonly ModuleCommandInfo[];
     moduleId: string;
     headingId?: string;
+    sectionId?: string;
   } = $props();
 </script>
 
 {#if commands.length}
-  <div class="cmd-head">
+  <div class="cmd-head" id={sectionId} tabindex="-1">
     <Heading level={6} as="h2" variant="eyebrow" id={headingId}>{t('modules.commandsTitle')}</Heading>
     <Text as="span" size="xs" tone="muted">{t('modules.commandsHint')}</Text>
   </div>
@@ -37,5 +39,7 @@
     gap: 2px;
     padding: 12px 18px;
     border-bottom: 1px solid var(--bb-border);
+    scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 56px);
   }
+  .cmd-head:focus { outline: none; }
 </style>

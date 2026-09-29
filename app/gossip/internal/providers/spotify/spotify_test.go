@@ -271,6 +271,56 @@ func TestPlayerQueueReadsFreshCurrentAndUpcomingTracks(t *testing.T) {
 	assert.Equal(t, "later", reply.UpNext[1].ID)
 }
 
+func TestPlayerQueueAttachesProgressOnRequest(t *testing.T) {
+	mint, _ := newMintServer(t, "tok-1")
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/me/player/currently-playing" {
+			_, _ = io.WriteString(w, `{"is_playing":true,"progress_ms":42000,"item":{"id":"current"}}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"currently_playing":{"id":"current","name":"Playing","duration_ms":180000},"queue":[]}`)
+	})
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
+	queue := endpoint(t, p, "playerqueue")
+
+	cases := []struct {
+		name     string
+		req      gossiprpc.Request
+		progress int64
+		duration int64
+		playing  bool
+	}{
+		{"absent unless asked", gossiprpc.Request{ChannelID: "2"}, 0, 0, false},
+		{"attached when asked", gossiprpc.Request{ChannelID: "2", Progress: true}, 42000, 180000, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := asReply[gossiprpc.SpotifyQueueReply](t, queue(context.Background(), tc.req))
+			assert.Empty(t, reply.Error)
+			assert.Equal(t, tc.progress, reply.ProgressMS)
+			assert.Equal(t, tc.duration, reply.DurationMS)
+			assert.Equal(t, tc.playing, reply.Playing)
+		})
+	}
+}
+
+func TestPlayerQueueIgnoresProgressOfAnotherTrack(t *testing.T) {
+	mint, _ := newMintServer(t, "tok-1")
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/me/player/currently-playing" {
+			_, _ = io.WriteString(w, `{"is_playing":true,"progress_ms":42000,"item":{"id":"other"}}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"currently_playing":{"id":"current","duration_ms":180000},"queue":[]}`)
+	})
+	p := newTestProvider(t, fakeKeys{key: "rt-1"}, api, mint)
+
+	reply := asReply[gossiprpc.SpotifyQueueReply](t,
+		endpoint(t, p, "playerqueue")(context.Background(), gossiprpc.Request{ChannelID: "2", Progress: true}))
+	assert.Zero(t, reply.ProgressMS)
+	assert.False(t, reply.Playing)
+}
+
 func TestSearchMissingQuery(t *testing.T) {
 	mint, _ := newMintServer(t, "unused")
 	api := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("must not dial Spotify with no query") })
@@ -495,5 +545,30 @@ func TestSpotifyFriendlyError(t *testing.T) {
 		msg, pin := spotifyFriendlyError(tt.err)
 		assert.Equal(t, tt.wantMsg, msg)
 		assert.Equal(t, tt.wantPin, pin)
+	}
+}
+
+func TestNextRefusalCarriesCode(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		code   string
+	}{
+		{"no device", http.StatusNotFound, `{"error":{"status":404,"message":"NO_ACTIVE_DEVICE"}}`, gossiprpc.SpotifyCodeNoDevice},
+		{"premium", http.StatusForbidden, `{"error":{"status":403,"message":"PREMIUM_REQUIRED"}}`, gossiprpc.SpotifyCodePremium},
+		{"scope", http.StatusForbidden, `{"error":{"status":403,"message":"Insufficient client scope"}}`, gossiprpc.SpotifyCodeScope},
+		{"reauth", http.StatusUnauthorized, `{"error":{"status":401,"message":"expired"}}`, gossiprpc.SpotifyCodeReauth},
+		{"unrecognized", http.StatusForbidden, `{"error":{"status":403,"message":"nope"}}`, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reply := runNext(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			assert.NotEmpty(t, reply.Error)
+			assert.Equal(t, tc.code, reply.Code)
+		})
 	}
 }

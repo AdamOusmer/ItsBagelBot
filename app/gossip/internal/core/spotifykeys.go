@@ -20,6 +20,7 @@ type SpotifyCredentials struct {
 type SpotifyKeyClient struct {
 	get    *KeyClient[spotifyrpc.RefreshTokenGetRequest, spotifyrpc.RefreshTokenGetReply]
 	rotate *KeyClient[spotifyrpc.RefreshTokenRotateRequest, spotifyrpc.RefreshTokenMutateReply]
+	dead   *KeyClient[spotifyrpc.RefreshTokenDeadRequest, spotifyrpc.RefreshTokenMutateReply]
 }
 
 func NewSpotifyKeyClient(nc *nats.Conn, prefix string) *SpotifyKeyClient {
@@ -34,6 +35,12 @@ func NewSpotifyKeyClient(nc *nats.Conn, prefix string) *SpotifyKeyClient {
 			NC:       nc,
 			Subject:  prefix + ".rotate",
 			Label:    "spotify key rotate",
+			ReplyErr: func(r spotifyrpc.RefreshTokenMutateReply) string { return r.Error },
+		}),
+		dead: newKeyClient[spotifyrpc.RefreshTokenDeadRequest](keyClientConfig[spotifyrpc.RefreshTokenMutateReply]{
+			NC:       nc,
+			Subject:  prefix + ".dead",
+			Label:    "spotify key dead",
 			ReplyErr: func(r spotifyrpc.RefreshTokenMutateReply) string { return r.Error },
 		}),
 	}
@@ -57,5 +64,10 @@ func (c *SpotifyKeyClient) Rotate(ctx context.Context, broadcasterID, prevToken,
 		PrevToken: prevToken,
 		NewToken:  newToken,
 	})
+	return err
+}
+
+func (c *SpotifyKeyClient) MarkDead(ctx context.Context, broadcasterID, token string) error {
+	_, err := c.dead.Call(ctx, spotifyrpc.RefreshTokenDeadRequest{UserID: broadcasterID, Token: token})
 	return err
 }

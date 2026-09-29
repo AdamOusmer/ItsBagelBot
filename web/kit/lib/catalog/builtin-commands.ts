@@ -90,7 +90,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = ([
     aliases: ['settitle'],
     summary: 'Built-in · show or set the stream title.',
     description:
-      'Lead moderators read the current title with !title, or set a new one with !title <title> / !settitle <title>. Empty !settitle prints usage instead of reading. Max 140 characters.',
+      'Show the current title with !title, or set a new one with !title <title> / !settitle <title>. Empty !settitle prints usage instead of reading. Max 140 characters.',
     usage: ['!title', '!title <title>', '!settitle <title>'],
     preview: '@{user} updated the title to: {title}',
     previewArgs: 'Ranked grind',
@@ -106,7 +106,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = ([
     aliases: ['setgame'],
     summary: 'Built-in · show or set the stream category.',
     description:
-      'Lead moderators read the current category with !game, or set it with !game <name> / !setgame <name>. The bot searches Twitch categories and applies the first match. Empty !setgame prints usage.',
+      'Show the current category with !game, or set it with !game <name> / !setgame <name>. The bot searches Twitch categories and applies the first match. Empty !setgame prints usage.',
     usage: ['!game', '!game <name>', '!setgame <name>'],
     preview: '@{user} updated the game to: {game}',
     previewArgs: 'Fortnite',
@@ -122,7 +122,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = ([
     aliases: ['settags'],
     summary: 'Built-in · show or set stream tags.',
     description:
-      'Lead moderators read the current tags with !tags, or replace them with a comma-separated list (!tags just chatting, english). At most 10 tags, 25 characters each. Empty !settags prints usage.',
+      'Show the current tags with !tags, or replace them with a comma-separated list (!tags just chatting, english). At most 10 tags, 25 characters each. Empty !settags prints usage.',
     usage: ['!tags', '!tags <tag1, tag2>', '!settags <tag1, tag2>'],
     preview: '@{user} updated tags to: {tags}',
     previewArgs: 'English, family friendly',
@@ -138,7 +138,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = ([
     aliases: ['ad'],
     summary: 'Built-in · run a mid-roll commercial on the live stream.',
     description:
-      'Lead moderators start a Twitch mid-roll while you are live. Bare !commercial runs 30 seconds; otherwise pick 30, 60, 90, 120, 150 or 180. Needs the channel:edit:commercial grant.',
+      'Start a Twitch mid-roll while you are live. Bare !commercial runs 30 seconds; otherwise pick 30, 60, 90, 120, 150 or 180. Needs the channel:edit:commercial grant.',
     usage: ['!commercial', '!commercial 60', '!ad 90'],
     preview: '@{user} started a {length}s commercial.',
     previewArgs: '60',
@@ -153,7 +153,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommandDef[] = ([
     label: 'Marker',
     summary: 'Built-in · drop a stream marker on the live broadcast.',
     description:
-      'Lead moderators drop a Twitch stream marker while you are live, with an optional description (max 140 characters). Needs the channel:manage:broadcast grant.',
+      'Drop a Twitch stream marker while you are live, with an optional description (max 140 characters). Needs the channel:manage:broadcast grant.',
     usage: ['!marker', '!marker <description>'],
     preview: '@{user} dropped a stream marker.',
     previewArgs: 'Boss fight',

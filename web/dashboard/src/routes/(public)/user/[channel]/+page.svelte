@@ -3,7 +3,11 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { AlertBanner, Card, Code, CopySurface, EmptyState, Eyebrow, Heading, Icon, Label, LightField, SearchInput, SegmentedControl, Tag, Text } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
+  import { commandsHref } from '@bagel/kit/site-links';
   import Mark from '@bagel/ui/svelte/Mark.svelte';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
+  import { page } from '$app/state';
+  import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -96,7 +100,9 @@
     modules: data.modules.length === 1
       ? t('public.commands.summaryOneModule', { count: data.modules.length })
       : t('public.commands.summaryManyModules', { count: data.modules.length }),
-    total: all.length
+    total: all.length === 1
+      ? t('public.commands.summaryOneThing', { count: 1 })
+      : t('public.commands.summaryThings', { count: all.length })
   }));
 
   function pickFilter(id: string) {
@@ -108,15 +114,15 @@
     moduleId = moduleId === id ? null : id;
     filter = 'all';
   }
+
+  const COPY_FLASH_MS = 1400;
 </script>
 
-<svelte:head>
-  <title>{t('public.commands.pageTitle', { channel: data.channelName })}</title>
-  <meta
-    name="description"
-    content={t('public.commands.pageDescription', { channel: data.channelName })}
-  />
-</svelte:head>
+<PublicHead
+  title={t('public.commands.pageTitle', { channel: data.channelName })}
+  description={t('public.commands.pageDescription', { channel: data.channelName })}
+  url={commandsHref(page.params.channel ?? '')}
+/>
 
 <div class="starfield" aria-hidden="true"><LightField /></div>
 <div class="glow" aria-hidden="true"></div>
@@ -134,8 +140,9 @@
         label={t('public.commands.copyCreator')}
         hint={t('public.commands.clickToCopy')}
         copiedLabel={t('common.copied')}
-        flashMs={1400}
+        flashMs={COPY_FLASH_MS}
         title={t('public.commands.copyCreator')}
+        announce={t('public.commands.copiedAnnounce', { trigger: creatorCode })}
       />
     {/if}
   </header>
@@ -150,12 +157,14 @@
     <div class="search">
       <SearchInput bind:value={query} placeholder={t('public.commands.searchPlaceholder')} />
     </div>
-    <SegmentedControl
-      options={filterOptions}
-      value={moduleId ? '' : filter}
-      label={t('public.commands.sourceLabel')}
-      onchange={pickFilter}
-    />
+    <div class="filters">
+      <SegmentedControl
+        options={filterOptions}
+        value={moduleId ? '' : filter}
+        label={t('public.commands.sourceLabel')}
+        onchange={pickFilter}
+      />
+    </div>
   </div>
 
   <div class="columns">
@@ -170,7 +179,13 @@
           <ul class="rows">
             {#each rows as row (row.key)}
               <li>
-                <CopySurface variant="row" text={row.trigger} copiedLabel={t('common.copied')} flashMs={1400}>
+                <CopySurface
+                  variant="row"
+                  text={row.trigger}
+                  copiedLabel={t('common.copied')}
+                  flashMs={COPY_FLASH_MS}
+                  announce={t('public.commands.copiedAnnounce', { trigger: row.trigger })}
+                >
                   <span class="row__trigger">
                     <Code tone="positive">{row.trigger}</Code>
                     {#if row.aliases.length}
@@ -184,9 +199,10 @@
                       <Tag tone="bare">{row.perm}</Tag>
                     {/if}
                     {#if row.cooldown > 0}
-                      <Tag tone="bare" title={t('public.commands.cooldown')}>
+                      <Tag tone="bare" title={t('public.commands.cooldownSeconds', { n: row.cooldown })}>
                         <Icon name="clock" size={11} />
-                        {row.cooldown}s
+                        <span aria-hidden="true">{row.cooldown}s</span>
+                        <VisuallyHidden>{t('public.commands.cooldownSeconds', { n: row.cooldown })}</VisuallyHidden>
                       </Tag>
                     {/if}
                     {#if row.liveOnly}
@@ -209,47 +225,51 @@
     </section>
 
     <aside class="side">
-      <Card atmo>
-        <div class="side__head">
-          <Label mono as="span">{t('public.commands.activeModules')}</Label>
-          <Label mono as="span">{data.modules.length}</Label>
-        </div>
-        {#if data.modules.length}
-          <ul class="mods">
-            {#each data.modules as mod (mod.id)}
-              {@const n = mod.commands.length}
-              <li>
-                <button
-                  class="mod"
-                  class:on={moduleId === mod.id}
-                  type="button"
-                  disabled={n === 0}
-                  aria-pressed={moduleId === mod.id}
-                  onclick={() => pickModule(mod.id)}
-                >
-                  <Mark class="mod__mark" />
-                  <span class="mod__text">
-                    <span class="mod__label">{mod.label}</span>
-                    <span class="mod__tagline">{mod.tagline}</span>
-                  </span>
-                  <span class="mod__meta">{n ? (n === 1 ? t('public.commands.moduleCount', { count: n }) : t('public.commands.moduleCountMany', { count: n })) : t('public.commands.moduleAuto')}</span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {:else}
-          <Text size="sm" tone="muted">{t('public.commands.noModules')}</Text>
-        {/if}
-      </Card>
+      <div class="modules">
+        <Card atmo>
+          <div class="side__head">
+            <Label mono as="span">{t('public.commands.activeModules')}</Label>
+            <Label mono as="span">{data.modules.length}</Label>
+          </div>
+          {#if data.modules.length}
+            <ul class="mods">
+              {#each data.modules as mod (mod.id)}
+                {@const n = mod.commands.length}
+                <li>
+                  <button
+                    class="mod"
+                    class:on={moduleId === mod.id}
+                    type="button"
+                    disabled={n === 0}
+                    aria-pressed={moduleId === mod.id}
+                    onclick={() => pickModule(mod.id)}
+                  >
+                    <Mark class="mod__mark" />
+                    <span class="mod__text">
+                      <span class="mod__label">{mod.label}</span>
+                      <span class="mod__tagline">{mod.tagline}</span>
+                    </span>
+                    <span class="mod__meta">{n ? (n === 1 ? t('public.commands.moduleCount', { count: n }) : t('public.commands.moduleCountMany', { count: n })) : t('public.commands.moduleAuto')}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <Text size="sm" tone="muted">{t('public.commands.noModules')}</Text>
+          {/if}
+        </Card>
+      </div>
 
-      <Card>
-        <div class="legend">
-          <Label mono as="span">{t('public.commands.legendTitle')}</Label>
-          <Text size="sm" tone="muted">
-            {t('public.commands.legend')}
-          </Text>
-        </div>
-      </Card>
+      <div class="legend">
+        <Card>
+          <div class="legend__body">
+            <Label mono as="span">{t('public.commands.legendTitle')}</Label>
+            <Text size="sm" tone="muted">
+              {t('public.commands.legend')}
+            </Text>
+          </div>
+        </Card>
+      </div>
     </aside>
   </div>
 </main>
@@ -280,6 +300,9 @@
   }
 
   .page {
+    --label-mono-size: var(--bb-text-xs);
+    --copy-label-size: var(--bb-text-xs);
+
     position: relative;
     z-index: 1;
     max-width: 1080px;
@@ -364,6 +387,7 @@
     overflow-wrap: anywhere;
   }
   .row__response {
+    display: block;
     flex: 1 1 240px;
     min-width: 0;
     overflow-wrap: anywhere;
@@ -408,9 +432,9 @@
     color: var(--bb-muted);
     text-wrap: pretty;
   }
-  .mod__meta { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-tan); white-space: nowrap; }
+  .mod__meta { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-tan); white-space: nowrap; }
 
-  .legend {
+  .legend__body {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -418,6 +442,26 @@
 
   @media (max-width: 640px) {
     .page { padding-left: 16px; padding-right: 16px; }
+    .toolbar { display: contents; }
+    .search {
+      position: sticky;
+      top: calc(var(--bb-nav-height) + env(safe-area-inset-top, 0px));
+      z-index: var(--bb-z-sticky);
+      padding: 12px 0;
+      background: var(--bb-black);
+    }
+    .filters { margin-bottom: 16px; }
+    .columns { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 14px; margin-top: 0; }
+    .list-wrap { flex: 0 0 auto; order: 3; }
+    .side { display: contents; }
+    .modules { --card-pad: 14px; order: 2; }
+    .legend { --card-pad: 14px 16px; order: 4; }
+    .mods { flex-direction: row; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+    .mods::-webkit-scrollbar { display: none; }
+    .mods li { flex: 0 0 auto; }
+    .mod { width: auto; margin: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--bb-border); }
+    .mod__tagline { display: none; }
+    .side__head { margin-bottom: 10px; }
     .row__trigger { flex-basis: 100%; }
     .row__tags { justify-content: flex-start; }
     .list__head { padding: 14px 18px; }

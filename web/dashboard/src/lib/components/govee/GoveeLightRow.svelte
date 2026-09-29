@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, IconButton, ManagementRow, Tag, Text, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
+  import { Icon, ManagementRow, Tag, Text, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
+  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();
 
@@ -51,7 +52,7 @@
   {/snippet}
   {#snippet actions()}
     {#if binding}
-      <IconButton size="sm" label={t('govee.removeAria', { name: lightName })} onclick={onDelete}><Icon name="trash" size={15} /></IconButton>
+      <RowDeleteButton label={t('govee.removeAria', { name: lightName })} onclick={onDelete} />
     {/if}
   {/snippet}
 </ManagementRow>

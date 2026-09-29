@@ -90,7 +90,7 @@
     .bb-h--label {
         font-family: var(--bb-font-mono);
         font-weight: 400;
-        font-size: 10px;
+        font-size: var(--h-label-size, 10px);
         line-height: 1.2;
         letter-spacing: 0.12em;
         text-transform: uppercase;
@@ -181,7 +181,7 @@
     .bb-label--mono {
         font-family: var(--bb-font-mono);
         font-weight: 400;
-        font-size: 10px;
+        font-size: var(--label-mono-size, 10px);
         letter-spacing: 0.12em;
         text-transform: uppercase;
     }

@@ -4,11 +4,11 @@
 
 # @bagel/ui — block catalog
 
-Every block the library ships, by family. **110** blocks;
-**100** ship both adapters.
+Every block the library ships, by family. **111** blocks;
+**101** ship both adapters.
 
 A `*` after a prop name means it is required. `class` and `children` are
-omitted: nearly every block takes both, and listing them 110 times
+omitted: nearly every block takes both, and listing them 111 times
 would bury the props that differ. Every block also forwards unknown attributes
 to its outermost element.
 
@@ -34,7 +34,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
-| **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`rail`: boolean<br>`offset`: boolean<br>`skipLabel*`: string<br>`crumbAriaLabel`: string<br>`dockAriaLabel`: string<br>`railAriaLabel`: string<br>`clock`: boolean<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railFoot`: Snippet | svelte + astro | `styles/elements/shell.css` |
+| **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel*`: string<br>`crumbAriaLabel`: string<br>`dockAriaLabel`: string<br>`railAriaLabel`: string<br>`clock`: boolean<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railFoot`: Snippet | svelte + astro | `styles/elements/shell.css` |
 | **Cluster** | `gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`justify`: 'start' \| 'center' \| 'end' \| 'between'<br>`align`: 'baseline' \| 'stretch'<br>`nowrap`: boolean<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
 | **Container** | `width`: 'default' \| 'narrow' \| 'text'<br>`flush`: boolean<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
 | **DeckLayout** | `inspecting`: boolean<br>`width`: string | svelte + astro | `styles/elements/deck-layout.css` |
@@ -57,7 +57,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Button** | `variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go' \| 'add' \| 'brand'<br>`as`: 'button' \| 'span'<br>`solid`: boolean<br>`danger`: boolean<br>`block`: boolean<br>`size`: 'md' \| 'sm'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`loading`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css` |
 | **ButtonLink** | `href*`: string<br>`variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go' \| 'add' \| 'brand'<br>`solid`: boolean<br>`block`: boolean<br>`size`: 'md' \| 'sm'<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css` |
 | **Checkbox** | `checked`: boolean | svelte + astro | `styles/elements/input.css` |
-| **CopySurface** | `text*`: string<br>`copiedLabel*`: string<br>`variant`: 'card' \| 'row' \| 'well'<br>`label`: string<br>`hint`: string<br>`flashMs`: number<br>`legacyFallback`: boolean<br>`oncopy`: (copied: boolean) => void | svelte + astro | `styles/elements/copy-surface.css` |
+| **CopySurface** | `text*`: string<br>`copiedLabel*`: string<br>`announce`: string<br>`variant`: 'card' \| 'row' \| 'well'<br>`label`: string<br>`hint`: string<br>`flashMs`: number<br>`legacyFallback`: boolean<br>`oncopy`: (copied: boolean) => void | svelte + astro | `styles/elements/copy-surface.css` |
 | **Field** | `label*`: string<br>`tag`: string<br>`hint`: string<br>`error`: string<br>`hintId`: string<br>`errorId`: string<br>`for`: string | svelte + astro | — |
 | **FieldError** | — | svelte<br>*Svelte only: it renders only when a form action has returned an error, which a static page has not.* | — |
 | **FileDrop** | `label*`: string<br>`file`: File \| null<br>`accept`: string<br>`onfile`: (file: File \| undefined) => void<br>`ondragchange`: (over: boolean) => void | svelte + astro | `styles/elements/file-drop.css` |
@@ -78,7 +78,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
-| **AlertBanner** | `variant`: 'danger' \| 'warn' \| 'impersonation' \| 'tip' \| 'note' \| 'positive'<br>`role`: 'alert' \| 'status' \| 'note'<br>`callout`: boolean<br>`flush`: boolean<br>`stack`: boolean<br>`exit`: { label: string; href?: string; action?: string }<br>`action`: Snippet | svelte + astro | `styles/elements/alert.css` |
+| **AlertBanner** | `variant`: 'danger' \| 'warn' \| 'impersonation' \| 'tip' \| 'note' \| 'positive'<br>`role`: 'alert' \| 'status' \| 'note'<br>`callout`: boolean<br>`flush`: boolean<br>`stack`: boolean<br>`second`: boolean<br>`exit`: { label: string; href?: string; action?: string }<br>`action`: Snippet | svelte + astro | `styles/elements/alert.css` |
 | **Badge** | `shape`: 'tag' \| 'pill'<br>`tone`: 'quiet' \| 'live' \| 'alpha' \| 'pre' \| 'incoming' \| 'bare' \| 'free' \| 'paid' \| 'vip' \| 'banned' \| 'inactive' \| 'neutral' \| 'positive' \| 'warning' \| 'danger'<br>`mark`: 'solid' \| 'hollow' \| 'dash' \| 'up' \| 'plus'<br>`sweep`: boolean<br>`dashed`: boolean<br>`literal`: boolean<br>`status`: boolean | svelte + astro | `styles/elements/badge.css, styles/tags.css` |
 | **Chip** | `on`: boolean<br>`onclick`: () => void<br>`type`: 'button' \| 'submit' \| 'reset'<br>`tone`: 'muted' \| 'danger' \| 'eyebrow' \| 'free' \| 'paid' \| 'vip' \| 'banned' \| 'inactive'<br>`as`: 'button' \| 'span' | svelte + astro | `styles/elements/chip.css, styles/tags.css` |
 | **ConfirmDialog** | `open*`: boolean<br>`title*`: string<br>`body`: string<br>`confirmLabel`: string<br>`cancelLabel`: string<br>`busyLabel`: string<br>`danger`: boolean<br>`busy`: boolean<br>`onConfirm*`: () => void<br>`onCancel*`: () => void | svelte<br>*Svelte only: a composition of Modal + Button with no CSS of its own, and its two callbacks are the element.* | `styles/elements/modal.css` |
@@ -87,7 +87,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **Mark** | `variant`: 'solid' \| 'hollow' \| 'dash' \| 'up' \| 'plus'<br>`size`: string<br>`style`: string | svelte + astro | `styles/tags.css` |
 | **Modal** | `open*`: boolean<br>`title`: string<br>`closeModal*`: () => void<br>`busy`: boolean<br>`closeLabel`: string<br>`ariaLabel`: string<br>`variant`: 'dialog' \| 'viewer'<br>`toolbarLabel`: string<br>`toolbar`: Snippet<br>`hint`: Snippet | svelte + astro | `styles/elements/modal.css` |
 | **NotificationBell** | `notifications*`: BellNotification[]<br>`unreadCount`: number<br>`viewAllHref*`: string<br>`onMarkRead`: (id: number) => void<br>`onOpen`: () => void<br>`emptyLabel`: string<br>`title`: string<br>`viewAllLabel`: string<br>`readLabel`: string | svelte<br>*Svelte only: interactive notification popover with caller-owned callbacks.* | `styles/elements/notifications.css` |
-| **Popover** | `open`: boolean<br>`label*`: string<br>`title*`: string<br>`closeLabel*`: string<br>`expands`: boolean<br>`onactivate`: () => void<br>`dismissLabel`: string<br>`ondismiss`: () => void<br>`pill*`: Snippet | svelte<br>*Svelte only: a non-modal floating sheet with open state and outside dismissal that only a client has.* | `styles/elements/popover.css` |
+| **Popover** | `open`: boolean<br>`label*`: string<br>`title*`: string<br>`closeLabel*`: string<br>`expands`: boolean<br>`placement`: 'top' \| 'bottom'<br>`onactivate`: () => void<br>`dismissLabel`: string<br>`ondismiss`: () => void<br>`pill*`: Snippet | svelte<br>*Svelte only: a non-modal floating sheet with open state and outside dismissal that only a client has.* | `styles/elements/popover.css` |
 | **ProgressBar** | `value*`: number \| null<br>`tone`: 'neutral' \| 'success' \| 'warning' \| 'error'<br>`label*`: string<br>`size`: 'sm' \| 'md'<br>`gradient`: boolean<br>`ramp`: 1 \| 2 \| 3<br>`target`: number<br>`segments`: readonly ('neutral' \| 'success' \| 'warning' \| 'error' \| null)[]<br>`current`: number | svelte + astro | `styles/elements/progress-bar.css` |
 | **SaveStatus** | `state`: SaveState<br>`compact`: boolean<br>`savingLabel`: string<br>`savedLabel`: string<br>`liveLabel`: string<br>`errorLabel`: string | svelte + astro | `styles/elements/save-status.css` |
 | **Skeleton** | `variant`: 'text' \| 'pill' \| 'block'<br>`width`: string<br>`height`: string<br>`lines`: number | svelte + astro | `styles/elements/skeleton.css` |
@@ -116,13 +116,13 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **PageHead** | `eyebrow`: string<br>`title`: string<br>`description`: string<br>`trail`: Snippet<br>`compact`: boolean | svelte + astro | `styles/elements/shell.css` |
 | **PageToolbar** | `lead`: Snippet<br>`trail`: Snippet | svelte + astro | `styles/elements/shell.css` |
 | **Pager** | `label*`: string<br>`prevHref*`: string<br>`nextHref*`: string<br>`hasPrev`: boolean<br>`hasNext`: boolean<br>`prevLabel`: string<br>`nextLabel`: string | svelte + astro | `styles/elements/pager.css` |
-| **ProfileMenu** | `variant`: 'topbar' \| 'rail'<br>`name*`: string<br>`caption*`: string<br>`open`: boolean<br>`helpOpen`: boolean<br>`links`: ProfileMenuLink[]<br>`linksLabel`: string<br>`exit`: ProfileMenuLink<br>`logoutLabel*`: string<br>`logoutAction`: string<br>`onlogout`: () => void<br>`help`: ProfileMenuLink[]<br>`helpLabel`: string<br>`feedback`: ProfileMenuLink<br>`menuLabel`: string<br>`triggerLabel`: string<br>`avatar*`: Snippet<[ProfileAvatar]> | svelte<br>*Svelte only: an account menu with open state, scrim and Escape handling that only a client has.* | `styles/elements/profile-menu.css` |
+| **ProfileMenu** | `variant`: 'topbar' \| 'rail'<br>`name*`: string<br>`caption*`: string<br>`open`: boolean<br>`helpOpen`: boolean<br>`links`: ProfileMenuLink[]<br>`linksLabel`: string<br>`exit`: ProfileMenuLink<br>`logoutLabel*`: string<br>`logoutAction`: string<br>`onlogout`: () => void<br>`help`: ProfileMenuLink[]<br>`helpLabel`: string<br>`helpTitle`: string<br>`more`: ProfileMenuLink[]<br>`newTabLabel`: string<br>`feedback`: ProfileMenuLink<br>`menuLabel`: string<br>`triggerLabel`: string<br>`avatar*`: Snippet<[ProfileAvatar]> | svelte<br>*Svelte only: an account menu with open state, scrim and Escape handling that only a client has.* | `styles/elements/profile-menu.css` |
 | **Rail** | `brand*`: UiBrand<br>`groups*`: UiNavGroup[]<br>`foot`: Snippet<br>`ariaLabel`: string | svelte + astro | `styles/elements/shell.css` |
 | **RailItem** | `href`: string<br>`icon`: IconName<br>`label*`: string<br>`active`: boolean<br>`locked`: boolean<br>`lockedHint`: string<br>`count`: string \| number | svelte + astro | `styles/elements/shell.css` |
 | **SectionNav** | `label*`: string<br>`items*`: { href: string; label: string; count?: number; current?: boolean; attrs?: Record<string, string> }[]<br>`orientation`: 'auto' \| 'horizontal' \| 'vertical'<br>`variant`: 'tabs' \| 'toc'<br>`index`: boolean | svelte + astro | `styles/tags.css` |
 | **SkipLink** | `href*`: string<br>`label*`: string | svelte + astro | `styles/elements/skip-link.css` |
 | **SocialRail** | `items*`: { label: string; href: string; icon: IconName }[]<br>`ariaLabel*`: string<br>`size`: number | svelte + astro | `styles/elements/nav.css` |
-| **Stepper** | `steps*`: readonly StepperStep[]<br>`current*`: number<br>`label*`: string<br>`orientation`: 'horizontal' \| 'vertical'<br>`maxStep`: number<br>`onselect`: (index: number) => void | svelte + astro<br>*Clickable steps (`onselect`) are Svelte only; Astro renders the static rail.* | `styles/elements/stepper.css` |
+| **Stepper** | `steps*`: readonly StepperStep[]<br>`current*`: number<br>`label*`: string<br>`orientation`: 'horizontal' \| 'vertical'<br>`maxStep`: number<br>`compact`: boolean<br>`onselect`: (index: number) => void | svelte + astro<br>*Clickable steps (`onselect`) are Svelte only; Astro renders the static rail.* | `styles/elements/stepper.css` |
 | **Topbar** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`crumbAriaLabel`: string<br>`clock`: boolean<br>`railed`: boolean<br>`actions`: Snippet<br>`account`: Snippet | svelte + astro | `styles/elements/shell.css` |
 
 ## Data
@@ -157,5 +157,6 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | **CardAtmosphere** | — | svelte + astro | `styles/elements/card.css` |
 | **Cursor** | — | svelte + astro | `styles/elements/cursor.css` |
 | **LightField** | — | svelte + astro | `styles/elements/light-field.css` |
+| **NavProgress** | — | svelte + astro | `styles/elements/nav-progress.css` |
 | **ReadingProgress** | — | svelte + astro | `styles/elements/reading-progress.css` |
 | **Sky** | `shift`: number<br>`turn`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean | svelte<br>*Svelte only: it follows the pointer and a flow's progress from client state; a static page has neither.* | — |

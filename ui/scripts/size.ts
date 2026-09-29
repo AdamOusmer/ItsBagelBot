@@ -228,7 +228,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/skeleton", budget: 700 },
   { name: "elements/stat-tile", budget: 980 },
   { name: "elements/toggle", budget: 820 },
-  { name: "elements/alert", budget: 1090 }, // 835 B: tip/note callouts, exit action and phone stack (2026-09-29)
+  { name: "elements/alert", budget: 1100 }, // 847 B: tip/note callouts, exit action, phone stack and second row (2026-09-29)
   { name: "elements/area-series", budget: 390 },
   { name: "elements/aurora", budget: 450 },
   { name: "elements/bg-orbs", budget: 370 },
@@ -265,14 +265,15 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/slider", budget: 380 }, // 191 B
   { name: "elements/file-drop", budget: 740 }, // 514 B
   { name: "elements/picker-panel", budget: 1360 }, // 1081 B
-  { name: "elements/stepper", budget: 1510 }, // 1220 B
+  { name: "elements/stepper", budget: 1590 }, // 1287 B: compact narrow-screen label (2026-09-29)
   { name: "elements/spinner", budget: 500 }, // 303 B
   { name: "elements/line-series", budget: 940 }, // 704 B
   { name: "elements/skip-link", budget: 480 }, // 283 B
-  { name: "elements/popover", budget: 1090 }, // 832 B
+  { name: "elements/popover", budget: 1230 }, // 964 B: bottom placement, touch areas (2026-09-29)
   { name: "elements/copy-surface", budget: 1620 }, // 1319 B
-  { name: "elements/profile-menu", budget: 1920 }, // 1594 B
-  { name: "elements/notifications", budget: 1380 }, // 1104 B
+  { name: "elements/profile-menu", budget: 2010 }, // 1675 B: menu height cap, coarse-pointer targets (2026-09-29)
+  { name: "elements/notifications", budget: 1410 }, // 1133 B: coarse-pointer touch area (2026-09-29)
+  { name: "elements/nav-progress", budget: 510 }, // 310 B: nav progress bar (2026-09-29)
 ];
 
 let failed = false;

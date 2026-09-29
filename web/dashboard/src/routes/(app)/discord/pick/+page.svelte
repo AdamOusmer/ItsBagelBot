@@ -10,6 +10,7 @@
     Icon,
     ManagementRow,
     PageHead,
+    SearchInput,
     Text,
     getI18n
   } from '@bagel/kit';
@@ -19,7 +20,15 @@
   let { data } = $props();
   const { t } = getI18n();
 
-  const choices = $derived(data.choices ?? []);
+  const BADGE_RANK = { mine: 0, addable: 1, elsewhere: 2 } as const;
+  let query = $state('');
+  const choices = $derived.by(() => {
+    const q = query.trim().toLowerCase();
+    return [...(data.choices ?? [])]
+      .filter((c) => !q || c.name.toLowerCase().includes(q))
+      .sort((a, b) => BADGE_RANK[a.badge] - BADGE_RANK[b.badge] || a.name.localeCompare(b.name));
+  });
+  const total = $derived((data.choices ?? []).length);
 </script>
 
 <section class="screen active">
@@ -30,13 +39,14 @@
   <section class="block reveal" style="--i:0" aria-labelledby="dc-pick-h">
     <Heading level={6} as="h2" variant="title" id="dc-pick-h">{t('discord.pickTitle')}</Heading>
     <Card>
-      {#if choices.length === 0}
+      {#if total === 0}
         <EmptyState title={t('discord.pickEmptyTitle')} body={t('discord.pickEmptyBody')}>
           <ButtonLink variant="secondary" href="/discord">{t('discord.pickBack')}</ButtonLink>
         </EmptyState>
       {:else}
         <div class="pick">
           <Text size="sm" tone="muted">{t('discord.pickHelp')}</Text>
+          <SearchInput bind:value={query} placeholder={t('discord.pickSearchPh')} aria-label={t('discord.pickSearchLabel')} clearLabel={t('modules.searchClear')} autocomplete="off" fill />
           <ul class="servers">
             {#each choices as c (c.guildId)}
               <ManagementRow
@@ -53,7 +63,7 @@
                       {t('discord.openCta')}
                     </ButtonLink>
                   {:else if c.badge === 'elsewhere'}
-                    <Chip disabled aria-disabled="true">{t('discord.pickElsewhereChip')}</Chip>
+                    <Chip disabled aria-disabled="true" title={t('discord.pickElsewhere')}>{t('discord.pickElsewhereChip')}</Chip>
                   {:else}
                     <ButtonLink variant="primary" href={c.installURL} data-sveltekit-reload>
                       {t('discord.pickCta')}
@@ -63,6 +73,10 @@
               </ManagementRow>
             {/each}
           </ul>
+          {#if choices.length === 0}
+            <Text size="sm" tone="muted">{t('discord.pickNoMatch')}</Text>
+          {/if}
+          <Text size="sm" tone="muted">{t('discord.pickMissingHint')}</Text>
           <div class="note">
             <Icon name="lock" size={13} />
             <Text as="span" size="xs" tone="muted">{t('discord.pickPrivacy')}</Text>

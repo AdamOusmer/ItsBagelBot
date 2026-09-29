@@ -277,6 +277,20 @@ func (_u *UserUpdate) SetNillableSubscriptionCancelPending(v *bool) *UserUpdate 
 	return _u
 }
 
+// SetSubscriptionPaymentFailed sets the "subscription_payment_failed" field.
+func (_u *UserUpdate) SetSubscriptionPaymentFailed(v bool) *UserUpdate {
+	_u.mutation.SetSubscriptionPaymentFailed(v)
+	return _u
+}
+
+// SetNillableSubscriptionPaymentFailed sets the "subscription_payment_failed" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableSubscriptionPaymentFailed(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetSubscriptionPaymentFailed(*v)
+	}
+	return _u
+}
+
 // SetBillingEventAt sets the "billing_event_at" field.
 func (_u *UserUpdate) SetBillingEventAt(v time.Time) *UserUpdate {
 	_u.mutation.SetBillingEventAt(v)
@@ -619,6 +633,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.SubscriptionCancelPending(); ok {
 		_spec.SetField(user.FieldSubscriptionCancelPending, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SubscriptionPaymentFailed(); ok {
+		_spec.SetField(user.FieldSubscriptionPaymentFailed, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.BillingEventAt(); ok {
 		_spec.SetField(user.FieldBillingEventAt, field.TypeTime, value)
@@ -1007,6 +1024,20 @@ func (_u *UserUpdateOne) SetNillableSubscriptionCancelPending(v *bool) *UserUpda
 	return _u
 }
 
+// SetSubscriptionPaymentFailed sets the "subscription_payment_failed" field.
+func (_u *UserUpdateOne) SetSubscriptionPaymentFailed(v bool) *UserUpdateOne {
+	_u.mutation.SetSubscriptionPaymentFailed(v)
+	return _u
+}
+
+// SetNillableSubscriptionPaymentFailed sets the "subscription_payment_failed" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableSubscriptionPaymentFailed(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetSubscriptionPaymentFailed(*v)
+	}
+	return _u
+}
+
 // SetBillingEventAt sets the "billing_event_at" field.
 func (_u *UserUpdateOne) SetBillingEventAt(v time.Time) *UserUpdateOne {
 	_u.mutation.SetBillingEventAt(v)
@@ -1379,6 +1410,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.SubscriptionCancelPending(); ok {
 		_spec.SetField(user.FieldSubscriptionCancelPending, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SubscriptionPaymentFailed(); ok {
+		_spec.SetField(user.FieldSubscriptionPaymentFailed, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.BillingEventAt(); ok {
 		_spec.SetField(user.FieldBillingEventAt, field.TypeTime, value)

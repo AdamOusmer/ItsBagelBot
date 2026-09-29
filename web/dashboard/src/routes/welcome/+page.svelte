@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import { onMount, tick } from 'svelte';
   import { fly } from 'svelte/transition';
+  import { MediaQuery } from 'svelte/reactivity';
   import { page } from '$app/state';
   import { goto, onNavigate, pushState, replaceState } from '$app/navigation';
   import { enhance } from '$app/forms';
@@ -17,7 +18,6 @@
   import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import type { IconName } from '@bagel/ui/lib/icons';
-  import Label from '@bagel/ui/svelte/Label.svelte';
   import LanguageSwitcher from '@bagel/ui/svelte/LanguageSwitcher.svelte';
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import Stepper from '@bagel/ui/svelte/Stepper.svelte';
@@ -80,6 +80,8 @@
   const langOptions = $derived(LOCALES.map((l) => ({ code: l, label: l.toUpperCase(), current: l === locale })));
   const choiceIndex = $derived(Math.max(0, CHOICES.findIndex((c) => c.id === (hoveredChoice ?? setup))));
   const choicePosition = $derived(['12.5%', '37.5%', '62.5%', '87.5%'][choiceIndex]);
+  const choicePositionCompact = $derived(['25%', '75%', '25%', '75%'][choiceIndex]);
+  const compactChoices = new MediaQuery('max-width: 560px');
   function pickSetup(id: string) {
     const choice = choiceOf(id);
     if (setup === choice.id) return;
@@ -156,12 +158,13 @@
   const expo = bezier(0.16, 1, 0.3, 1);
   const TRAVEL = 72;
   const sideOf = (i: number) => (i % 2 === 0 ? 1 : -1);
+  let instant = false;
   const arrive = (node: Element, { i = 0 }: { i?: number } = {}) =>
-    prefersReducedMotion()
+    prefersReducedMotion() || instant
       ? { duration: 0 }
       : fly(node, { x: dir * TRAVEL * sideOf(i), duration: 760, delay: 160 + i * 70, easing: expo, opacity: 0 });
   const depart = (node: Element, { i = 0 }: { i?: number } = {}) =>
-    prefersReducedMotion() || departed
+    prefersReducedMotion() || departed || instant
       ? { duration: 0 }
       : fly(node, { x: -dir * 56 * sideOf(i), duration: 380, delay: i * 35, easing: expo, opacity: 0 });
 
@@ -225,6 +228,62 @@
   const goTo = (i: number) => go(i + 1);
 
   const CONSENT_KEY = 'bb-welcome-consent';
+  const TOUR_KEY = 'bb-welcome-tour';
+  const SETUPS: readonly Setup[] = CHOICES.map((c) => c.id);
+  let tourReady = false;
+  let tourDone = false;
+
+  type SavedTour = { step: number; furthest: number; setup: Setup; locale: Locale };
+
+  function readTour(): SavedTour | null {
+    try {
+      const v = JSON.parse(sessionStorage.getItem(TOUR_KEY) ?? 'null') as Partial<SavedTour> | null;
+      if (!v || !SETUPS.includes(v.setup as Setup) || !LOCALES.includes(v.locale as Locale)) return null;
+      if (!Number.isInteger(v.step) || !Number.isInteger(v.furthest)) return null;
+      return v as SavedTour;
+    } catch {
+      return null;
+    }
+  }
+
+  function restoreTour(saved: SavedTour) {
+    setup = saved.setup;
+    const top = INTRO.length + (saved.setup === 'start-new' ? NEW_STREAMER.length : 0);
+    const cap = consentAccepted ? top : Math.min(consentStep, top);
+    step = Math.max(0, Math.min(saved.step, cap));
+    furthest = Math.max(step, Math.min(saved.furthest, cap));
+    if (saved.locale !== locale) void applyLocale(saved.locale);
+  }
+
+  async function applyLocale(l: Locale) {
+    await ensureCatalog(l);
+    locale = l;
+    document.documentElement.lang = l;
+  }
+
+  function saveTour() {
+    try {
+      sessionStorage.setItem(TOUR_KEY, JSON.stringify({ step, furthest, setup, locale }));
+    } catch {
+    }
+  }
+
+  function clearTour() {
+    tourDone = true;
+    try {
+      sessionStorage.removeItem(TOUR_KEY);
+    } catch {
+    }
+  }
+
+  $effect(() => {
+    step;
+    furthest;
+    setup;
+    locale;
+    if (tourReady && !tourDone) saveTour();
+  });
+
   onMount(() => {
     try {
       consentAccepted = sessionStorage.getItem(CONSENT_KEY) === '1';
@@ -232,9 +291,17 @@
         importLink = false;
         replaceState('/welcome', {});
         step = consentStep;
+      } else if (!importRequested) {
+        const saved = readTour();
+        if (saved) {
+          instant = true;
+          restoreTour(saved);
+          requestAnimationFrame(() => requestAnimationFrame(() => (instant = false)));
+        }
       }
     } catch {
     }
+    tourReady = true;
   });
 
   function startImport() {
@@ -255,9 +322,7 @@
 
   async function setLang(l: Locale) {
     if (l === locale) return;
-    await ensureCatalog(l);
-    locale = l;
-    document.documentElement.lang = l;
+    await applyLocale(l);
     react('happy', 1400);
     const body = new FormData();
     body.set('to', l);
@@ -296,6 +361,7 @@
   const VEIL_MS = 420;
   let veiled = $state(false);
   function exitTo(to: string) {
+    clearTour();
     if (locale === bootLocale) {
       goto(to);
       return;
@@ -315,6 +381,7 @@
 
   const submit: SubmitFunction = () => async ({ result }) => {
     if (result.type === 'redirect') {
+      clearTour();
       destination = result.location;
       showCompletion = true;
       return;
@@ -324,8 +391,16 @@
     react('attentive', 2400);
   };
 
-  const steersChoice = (target: EventTarget | null) => target instanceof HTMLInputElement && target.type === 'radio';
-  const keysPaused = (e: KeyboardEvent) => leaving || importActive || steersChoice(e.target);
+  const ARROW_BLOCKERS =
+    'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="group"]:not([data-arrows-ok]), [role="radiogroup"], [role="tablist"]';
+  const MODIFIER_KEYS = ['metaKey', 'ctrlKey', 'altKey', 'shiftKey'] as const;
+
+  function arrowsBlocked(e: KeyboardEvent): boolean {
+    if (MODIFIER_KEYS.some((key) => e[key])) return true;
+    return e.target instanceof Element && e.target.closest(ARROW_BLOCKERS) !== null;
+  }
+
+  const keysPaused = (e: KeyboardEvent) => leaving || importActive || arrowsBlocked(e);
   function onKeydown(e: KeyboardEvent) {
     if (keysPaused(e)) return;
     if (e.key === 'ArrowRight' && canAdvance) {
@@ -362,6 +437,7 @@
   <header class="top">
     <Brand title="ItsBagelBot" sub={tr('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />
     <Stepper
+      compact
       steps={railSteps}
       current={step - 1}
       maxStep={maxStep - 1}
@@ -371,7 +447,7 @@
   </header>
 
   <main class="stage">
-    <div class="pair" class:choice-stage={current.kind === 'choice'} class:clearing style="--choice-position: {choicePosition}; --dir: {dir};">
+    <div class="pair" class:choice-stage={current.kind === 'choice'} class:clearing style="--choice-position: {choicePosition}; --choice-position-compact: {choicePositionCompact}; --dir: {dir};">
       <div class="blob-col" class:right={blobRight} class:hero={step === 0}>
         <div class="scale">
           <div class="float">
@@ -416,18 +492,20 @@
                 <Toggle bind:on={consentAccepted} onchange={onConsent} />
                 <Text as="span" size="sm" tone="muted" class="bb-prose">{@html tr('onboarding.consentLabel')}</Text>
               </div>
+              <div class="consent-hint" class:shown={consentBlocked}>
+                <Text size="xs" tone="muted" id="wlc-consent-hint">{tr('onboarding.consentHint')}</Text>
+              </div>
             {:else if current.kind === 'choice'}
               <div class="control role-choices" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
                 <RadioGroup
                   variant="cards"
-                  cols={4}
-                  rail="sm"
-                  min="150px"
+                  cols={compactChoices.current ? 2 : 4}
                   name="setup"
                   label={tr('onboarding.choiceTitle')}
                   value={setup}
                   options={choiceOptions}
                   onchange={pickSetup}
+                  aria-describedby="wlc-preview-{setup}"
                   onpointerover={(e: PointerEvent) => previewChoice(e.target)}
                   onfocusin={(e: FocusEvent) => previewChoice(e.target)}
                   onpointerleave={clearChoice}
@@ -437,6 +515,13 @@
                     <span class="role-glyph" class:on aria-hidden="true"><Icon name={choiceOf(option.value).icon} size={15} /></span>
                   {/snippet}
                 </RadioGroup>
+                <div class="role-previews">
+                  {#each CHOICES as choice (choice.id)}
+                    <div class="role-preview" class:shown={setup === choice.id}>
+                      <Text size="sm" tone="muted" id="wlc-preview-{choice.id}">{tr(`onboarding.choice${choice.key}Preview`)}</Text>
+                    </div>
+                  {/each}
+                </div>
               </div>
             {:else if current.kind === 'lang'}
               <div class="control prefs" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
@@ -481,6 +566,7 @@
             <div
               class="actions"
               role="group"
+              data-arrows-ok
               in:arrive={{ i: 4 }}
               out:depart={{ i: 4 }}
               onpointerover={(e) => (hover = reactionFor(e.target))}
@@ -491,12 +577,17 @@
               {:else}
                 {#if last}
                   {#if setup === 'import'}
-                    <Button data-react="excited" onclick={startImport}>{tr('onboarding.choiceImportCta')}</Button>
+                    <Button variant="green" solid data-react="excited" onclick={startImport}>{tr('onboarding.choiceImportCta')}</Button>
                   {:else}
-                    <Button data-react="excited" onclick={finish}>{tr('onboarding.finishCta')}</Button>
+                    <Button variant="green" solid data-react="excited" onclick={finish}>{tr('onboarding.finishCta')}</Button>
                   {/if}
                 {:else}
-                  <Button data-react="excited" onclick={goNext} disabled={nextDisabled}>{tr('onboarding.next')}</Button>
+                  <Button
+                    data-react="excited"
+                    onclick={goNext}
+                    disabled={nextDisabled}
+                    aria-describedby={current.kind === 'consent' ? 'wlc-consent-hint' : undefined}
+                  >{tr('onboarding.next')}</Button>
                 {/if}
                 <Button variant="ghost" onclick={goBack}>{tr('onboarding.back')}</Button>
               {/if}
@@ -515,9 +606,7 @@
       <span class="fill"></span>
       <span class="bead-track"><span class="bead"></span></span>
     </div>
-    <div class="meta">
-      <Label mono as="span">{step === 0 ? '' : tr('onboarding.stepOf', { n: step, total: journeyTotal })}</Label>
-    </div>
+    <div class="meta"></div>
   </footer>
 </div>
 
@@ -693,6 +782,20 @@
   .control { margin-top: 24px; }
 
   .role-choices { --choice-min-h: 132px; width: 100%; }
+  .role-previews { display: grid; margin-top: 14px; }
+  .role-preview {
+    grid-area: 1 / 1;
+    max-width: 62ch;
+    justify-self: center;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo), visibility 0s linear var(--bb-dur-base);
+  }
+  .role-preview.shown {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
   .role-glyph {
     display: inline-grid;
     place-items: center;
@@ -717,6 +820,15 @@
     align-items: center;
     gap: 14px;
   }
+
+  .consent-hint {
+    margin-top: 8px;
+    min-height: 20px;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+  .consent-hint.shown { visibility: visible; opacity: 1; }
 
   .lang-row { display: flex; }
 
@@ -858,6 +970,12 @@
     .actions { justify-content: center; }
     .mod-well { display: flex; justify-content: center; }
     .role-choices, .rehearsal-example { margin-inline: auto; }
+    .role-previews { text-align: left; }
+  }
+
+  @media (max-width: 560px) {
+    .role-choices { --choice-min-h: 148px; }
+    .choice-stage .blob-col .scale { left: calc(var(--choice-position-compact) - 120px); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -867,6 +985,8 @@
     .step,
     .scale,
     .fill,
+    .role-preview,
+    .consent-hint,
     .role-glyph,
     .choice-stage .blob-col .scale,
     .bead-track { transition: none; }

@@ -11,6 +11,7 @@
     callout = false,
     flush = false,
     stack = false,
+    second = false,
     exit,
     class: className = '',
     children,
@@ -22,6 +23,7 @@
     callout?: boolean;
     flush?: boolean;
     stack?: boolean;
+    second?: boolean;
     exit?: { label: string; href?: string; action?: string };
     class?: string;
     children?: Snippet;
@@ -36,6 +38,7 @@
       callout ? 'bb-alert--callout' : null,
       flush ? 'bb-alert--flush' : null,
       stack ? 'bb-alert--stack' : null,
+      second ? 'bb-alert--row-2' : null,
       className || null,
     ]
       .filter(Boolean)

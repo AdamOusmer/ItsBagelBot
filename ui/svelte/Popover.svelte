@@ -14,6 +14,7 @@
     title,
     closeLabel,
     expands = true,
+    placement = 'top',
     onactivate,
     dismissLabel = '',
     ondismiss,
@@ -27,6 +28,7 @@
     title: string;
     closeLabel: string;
     expands?: boolean;
+    placement?: 'top' | 'bottom';
     onactivate?: () => void;
     dismissLabel?: string;
     ondismiss?: () => void;
@@ -38,10 +40,18 @@
 
   const uid = $props.id();
   const titleId = `bb-popover-title-${uid}`;
-  const classes = $derived(['bb-popover', className || null].filter(Boolean).join(' '));
+  const classes = $derived(['bb-popover', placement === 'bottom' ? 'bb-popover--bottom' : null, className || null].filter(Boolean).join(' '));
 
   let root = $state<HTMLDivElement>();
   let closeButton = $state<HTMLButtonElement>();
+  let cta = $state<HTMLButtonElement>();
+  let wasOpen = false;
+
+  $effect.pre(() => {
+    const closing = wasOpen && !open;
+    wasOpen = open;
+    if (closing && root?.contains(document.activeElement)) cta?.focus();
+  });
 
   $effect(() => {
     if (open) closeButton?.focus();
@@ -74,6 +84,7 @@
   <div class="bb-popover__pill">
     <button
       class="bb-popover__cta"
+      bind:this={cta}
       type="button"
       aria-label={label}
       aria-haspopup={expands ? 'dialog' : undefined}

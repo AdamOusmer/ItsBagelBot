@@ -18,9 +18,10 @@ type RefreshTokenStatusRequest struct {
 }
 
 type RefreshTokenStatusReply struct {
-	Present bool     `json:"present"`
-	Scopes  []string `json:"scopes,omitempty"`
-	Error   string   `json:"error,omitempty"`
+	Present        bool     `json:"present"`
+	Scopes         []string `json:"scopes,omitempty"`
+	NeedsReconnect bool     `json:"needs_reconnect,omitempty"`
+	Error          string   `json:"error,omitempty"`
 }
 
 type RefreshTokenMutateReply struct {
@@ -31,6 +32,11 @@ type RefreshTokenRotateRequest struct {
 	UserID    string `json:"user_id"`
 	PrevToken string `json:"prev_token"`
 	NewToken  string `json:"new_token"`
+}
+
+type RefreshTokenDeadRequest struct {
+	UserID string `json:"user_id"`
+	Token  string `json:"token"`
 }
 
 type RefreshTokenGetRequest struct {

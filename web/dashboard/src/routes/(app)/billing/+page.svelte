@@ -5,7 +5,7 @@
   import { Badge, Bolota, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, Eyebrow, Field, FieldError, AuroraBg, Input, Label, LightField, Spinner, Tag, Heading, Text, Textarea, portal, toast, getI18n, containsLink } from '@bagel/kit';
   import { fmtDateTime } from '@bagel/kit/format';
   import { page } from '$app/state';
-  import { replaceState } from '$app/navigation';
+  import { invalidateAll, replaceState } from '$app/navigation';
   import { onMount } from 'svelte';
   import type { BillingState } from '$lib/server/services';
   import type { PrizeAward } from '$lib/server/giveaways';
@@ -18,15 +18,23 @@
   const account = $derived(data.account as BillingState);
   const prizes = $derived((data.prizes ?? []) as PrizeAward[]);
 
-  let optimisticPaid = $state(false);
+  const ACTIVATION_POLL_MS = 3000;
+  const ACTIVATION_WINDOW_MS = 30000;
+
+  let awaitingActivation = $state(false);
 
   const isVip = $derived(account.status === 'vip');
-  const isPaid = $derived(account.status === 'paid' || isVip || optimisticPaid);
+  const isPaid = $derived(account.status === 'paid' || isVip);
   const staffGrant = $derived(account.status === 'paid' && account.source === 'admin');
-  const tebexPaid = $derived((account.status === 'paid' && account.source === 'tebex') || optimisticPaid);
+  const tebexPaid = $derived(account.status === 'paid' && account.source === 'tebex');
+  const cancelPending = $derived(tebexPaid && account.cancelPending);
+  const money = $derived(
+    new Intl.NumberFormat(i18n.locale, { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(7)
+  );
   const paidUntil = $derived(account.expiresAt);
   const canSubscribe = $derived(!isPaid);
   const canManage = $derived(tebexPaid);
+  const paymentFailed = $derived(tebexPaid && account.paymentFailed === true);
   const statusLabel = $derived(isVip ? 'VIP' : isPaid ? t('billing.premium') : t('billing.free'));
 
   const freeFeatures = $derived([
@@ -42,10 +50,11 @@
     t('billing.premiumFeat5')
   ]);
 
-  let launching = $state(false);
+  let launching = $state<'monthly' | 'once' | null>(null);
   let subscribeForm = $state<HTMLFormElement | null>(null);
 
   let managing = $state(false);
+  let resuming = $state(false);
   let cancelDialogOpen = $state(false);
   let cancelling = $state(false);
   let cancelForm = $state<HTMLFormElement | null>(null);
@@ -185,8 +194,8 @@
     if (giftLaunching) return;
     giftModalOpen = false;
   }
-  function onSubscribeSubmit() {
-    launching = true;
+  function onSubscribeSubmit(plan: 'monthly' | 'once') {
+    launching = plan;
     stashIntent('premium');
   }
   function onGiftSubmit(e: SubmitEvent) {
@@ -236,6 +245,26 @@
     if (canSubscribe && !launching) subscribeForm?.requestSubmit();
   });
 
+  function watchActivation(): () => void {
+    awaitingActivation = true;
+    const startedAt = Date.now();
+    const timer = setInterval(async () => {
+      await invalidateAll();
+      if (isPaid) {
+        clearInterval(timer);
+        return;
+      }
+      if (Date.now() - startedAt < ACTIVATION_WINDOW_MS) return;
+      clearInterval(timer);
+      activationSlow = true;
+    }, ACTIVATION_POLL_MS);
+    return () => clearInterval(timer);
+  }
+
+  $effect(() => {
+    if (isPaid) awaitingActivation = false;
+  });
+
   onMount(() => {
     if (page.url.searchParams.get('checkout') !== 'complete') return;
 
@@ -252,7 +281,7 @@
     }
 
     toast('ok', t('billing.toastPaymentReceived'));
-    optimisticPaid = true;
+    return isPaid ? undefined : watchActivation();
   });
 
   const celebratingPremium = $derived(celebrateOpen && celebrateKind === 'premium');
@@ -284,9 +313,10 @@
     if (form === lastForm) return;
     lastForm = form;
     if (!form) return;
-    launching = false;
+    launching = null;
     giftLaunching = false;
     managing = false;
+    resuming = false;
     cancelling = false;
     cancelDialogOpen = false;
     if (form.error) toast('err', String(form.error));
@@ -342,7 +372,7 @@
 
     <p class="plan-status">
       <Tag tone="quiet">{t('billing.currentPlan')}</Tag>
-      <Tag tone="live" status>{statusLabel}</Tag>
+      <Tag tone="live" status>{awaitingActivation ? t('billing.activating') : statusLabel}</Tag>
     </p>
 
     <h2 class="bb-sr-only">{t('billing.comparePlans')}</h2>
@@ -354,8 +384,7 @@
             <Heading level={6} as="h3" variant="title" uppercase>{t('billing.free')}</Heading>
           </div>
           <p class="plan-price">
-            <span class="plan-amt">$0</span>
-            <Text as="span" size="sm" tone="muted">{t('billing.priceForever')}</Text>
+            <span class="plan-amt">{t('billing.free')}</span>
           </p>
           <div class="plan-desc"><Text size="sm" tone="muted">{t('billing.freeDesc')}</Text></div>
           <ul class="plan-feats">
@@ -377,7 +406,7 @@
             <Heading level={6} as="h3" variant="title" uppercase>{t('billing.premium')}</Heading>
           </div>
           <p class="plan-price">
-            <span class="plan-amt">$7</span>
+            <span class="plan-amt">{money}</span>
             <Text as="span" size="sm" tone="muted">{t('billing.perMonth')}</Text>
           </p>
           <div class="plan-desc"><Text size="sm" tone="muted">{t('billing.premiumDesc')}</Text></div>
@@ -387,24 +416,35 @@
             {/each}
           </ul>
           <div class="plan-buttons">
-            <form method="POST" action="?/subscribe" bind:this={subscribeForm} onsubmit={onSubscribeSubmit}>
+            <form method="POST" action="?/subscribe" bind:this={subscribeForm} onsubmit={() => onSubscribeSubmit('monthly')}>
               <input type="hidden" name="plan" value="monthly" />
               <Button
                 type="submit"
                 variant="primary"
                 block
-                loading={launching}
+                loading={launching === 'monthly'}
+                disabled={launching === 'once' || awaitingActivation}
                 aria-describedby="premium-fine"
               >
                 {t('billing.subscribeMonthly')}
               </Button>
             </form>
-            <form method="POST" action="?/subscribe" onsubmit={onSubscribeSubmit}>
+            <form method="POST" action="?/subscribe" onsubmit={() => onSubscribeSubmit('once')}>
               <input type="hidden" name="plan" value="once" />
-              <Button type="submit" variant="secondary" block loading={launching} aria-describedby="premium-fine">
+              <Button
+                type="submit"
+                variant="secondary"
+                block
+                loading={launching === 'once'}
+                disabled={launching === 'monthly' || awaitingActivation}
+                aria-describedby="premium-fine"
+              >
                 {t('billing.buyOneMonth')}
               </Button>
             </form>
+          </div>
+          <div class="launch-note" role="status" class:is-on={launching !== null}>
+            <Text size="sm" tone="accent">{launching ? t('billing.takingToCheckout') : ''}</Text>
           </div>
           <div class="plan-fine"><Text size="xs" tone="muted" id="premium-fine">{t('billing.premiumFine')} &middot; {t('billing.tebexNote')}</Text></div>
         </div>
@@ -420,6 +460,16 @@
       <div class="form-error"><FieldError message={String(form.error)} /></div>
     {/if}
   {:else}
+    {#if paymentFailed}
+      <AlertBanner variant="warn">
+        {t('billing.paymentFailed')}
+        {#snippet action()}
+          <form method="POST" action="?/cancel" onsubmit={() => (managing = true)}>
+            <Button type="submit" variant="primary" loading={managing}>{t('billing.updatePayment')}</Button>
+          </form>
+        {/snippet}
+      </AlertBanner>
+    {/if}
     <div class="premium-dashboard-hero">
       <div class="premium-hero-content">
         <div class="premium-hero-badge">
@@ -431,8 +481,11 @@
 
           {#if tebexPaid}
             <p class="plan-price premium-price">
-              <span class="plan-amt">$7</span>
+              <span class="plan-amt">{money}</span>
               <Text as="span" size="sm" tone="muted">{t('billing.perMonth')}</Text>
+              {#if cancelPending && paidUntil}
+                <Tag tone="alpha">{t('billing.endsOn', { date: fmtDate(paidUntil) })}</Tag>
+              {/if}
             </p>
           {/if}
 
@@ -463,11 +516,20 @@
                 {t('billing.manageSubscription')}
               </Button>
             </form>
-            <Button variant="destructive" onclick={openCancel}>
-              {t('billing.cancelSubscription')}
-            </Button>
+            {#if cancelPending}
+              <form method="POST" action="?/cancel" onsubmit={() => (resuming = true)}>
+                <Button type="submit" variant="secondary" loading={resuming} aria-describedby="manage-note">
+                  {t('billing.resumeSubscription')}
+                </Button>
+              </form>
+            {:else}
+              <Button variant="destructive" onclick={openCancel}>
+                {t('billing.cancelSubscription')}
+              </Button>
+            {/if}
           </div>
           <p class="premium-tiny-hint" id="manage-note">{t('billing.manageTiny')}</p>
+          <p class="premium-tiny-hint">{t('billing.receiptsEmailed')}</p>
         {/if}
         {#if form?.error && !form?.gift}
           <div class="form-error"><FieldError message={String(form.error)} /></div>
@@ -646,6 +708,10 @@
     pointer-events: none;
   }
   .screen {
+    --label-mono-size: var(--bb-text-xs);
+    --h-label-size: var(--bb-text-xs);
+    --badge-pill-size: var(--bb-text-xs);
+
     position: relative;
     z-index: 1;
   }
@@ -694,6 +760,7 @@
   }
   .plan-price {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     gap: 7px;
     margin: 0 0 12px;
@@ -731,13 +798,24 @@
   .plan-buttons form {
     flex: 1;
   }
-  .plan-fine {
+  .launch-note {
+    min-height: calc(var(--bb-text-sm) * 1.5);
     margin: 12px 0 0;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+  .launch-note.is-on {
+    visibility: visible;
+    opacity: 1;
+  }
+  .plan-fine {
+    margin: 4px 0 0;
   }
 
   .oath {
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: var(--bb-text-xs);
     letter-spacing: 0.05em;
     color: var(--bb-muted);
     text-align: center;
@@ -818,10 +896,12 @@
     -webkit-text-fill-color: transparent;
   }
   .premium-price {
+    gap: 3px 8px;
     margin: 0;
   }
   .premium-price .plan-amt {
     font-size: 1.6rem;
+    margin-right: 4px;
   }
   .premium-hint {
     font-family: var(--bb-font-body);

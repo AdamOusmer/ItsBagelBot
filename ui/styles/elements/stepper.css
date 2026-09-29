@@ -136,6 +136,17 @@
     opacity: 0;
   }
 
+  .bb-stepper__compact {
+    display: none;
+    align-items: center;
+    min-height: 44px;
+    color: var(--bb-tan-pale);
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
   .bb-stepper--vertical {
     flex-direction: column;
     gap: 2px;
@@ -227,6 +238,14 @@
   @media (max-width: 760px) {
     .bb-stepper {
       --stepper-cell: clamp(25px, 8vw, 34px);
+    }
+
+    .bb-stepper--compact :is(.bb-stepper__list, .bb-stepper__track, .bb-stepper__glide) {
+      display: none;
+    }
+
+    .bb-stepper__compact {
+      display: flex;
     }
   }
 

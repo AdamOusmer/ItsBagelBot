@@ -2,12 +2,18 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { Select } from '@bagel/kit';
+  import { untrack } from 'svelte';
+  import { createInspector } from '@bagel/ui/svelte/inspector';
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import {
     Button,
+    createDiscardGuard,
+    EditorFooter,
+    InspectorSurface,
+    focusFirstInvalid,
     SearchInput,
     Field,
     PageHead,
@@ -19,11 +25,7 @@
     PageToolbar,
     AlertBanner,
     Card,
-    Eyebrow,
-    Fact,
-    FactList,
     Heading,
-    InspectorSurface,
     Text,
     DeckLayout,
     DeckList,
@@ -58,6 +60,7 @@
       enabled = data.enabled ?? false;
       addPerm = data.addPerm ?? 'mod';
       editPerm = data.editPerm ?? 'mod';
+      savedPerm = { add: addPerm, edit: editPerm };
     }
   });
 
@@ -98,125 +101,120 @@
     return `${year}-${month}-${day}`;
   }
 
-  function formatDate(iso: string): string {
-    const parts = iso.slice(0, 10).split('-').map(Number);
-    if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return '';
-    return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  }
-
   function snippet(text: string): string {
     const clean = text.trim();
     return clean.length > 48 ? `${clean.slice(0, 48).trimEnd()}…` : clean;
   }
 
   const NEW = '__new__';
-  let expanded = $state<string | null>(null);
-  let quoteDraft = $state<QuoteDraft | null>(null);
-  let editTarget = $state<number | null>(null);
-  let adding = $state(false);
+  const inspector = createInspector<QuoteDraft>();
+  let draft = $state<QuoteDraft | null>(null);
+  let busy = $state(false);
+  let validationAttempted = $state(false);
+  let formEl = $state<HTMLFormElement | null>(null);
+
+  $effect(() => {
+    const snap = draft ? { ...draft } : null;
+    if (snap) untrack(() => inspector.edit(snap));
+  });
+
+  const creating = $derived(inspector.selectedId === NEW);
+  const canSave = $derived(creating || inspector.dirty);
   const selectedQuote = $derived(
-    expanded && expanded !== NEW ? (quotes.find((quote) => String(quote.number) === expanded) ?? null) : null
+    inspector.selectedId && !creating
+      ? (quotes.find((quote) => String(quote.number) === inspector.selectedId) ?? null)
+      : null
   );
-  const inspectorOpen = $derived(quoteDraft !== null || selectedQuote !== null);
-  const editing = $derived(expanded === NEW || editTarget !== null);
-  function inspectorTitleKey(): string {
-    if (expanded === NEW) return 'quotes.newQuote';
-    if (editTarget !== null) return 'quotes.editQuote';
-    return selectedQuote ? 'quotes.quoteDetails' : 'quotes.inspector';
-  }
-  const inspectorTitle = $derived(t(inspectorTitleKey()));
 
+  const discard = createDiscardGuard(() => inspector.dirty, () => {
+    inspector.reset();
+    draft = null;
+  });
+  const guarded = discard.guard;
+
+  function present(id: string, next: QuoteDraft) {
+    validationAttempted = false;
+    inspector.open(id, { ...next });
+    draft = { ...next };
+  }
   function openNew() {
-    editTarget = null;
-    quoteDraft = { text: '', quoteDate: todayInput() };
-    expanded = NEW;
+    guarded(() => present(NEW, { text: '', quoteDate: todayInput() }));
   }
-
   function openQuote(quote: QuoteView) {
-    if (expanded === String(quote.number)) {
+    if (inspector.selectedId === String(quote.number)) {
       closeInspector();
       return;
     }
-    quoteDraft = null;
-    editTarget = null;
-    expanded = String(quote.number);
+    guarded(() => present(String(quote.number), { text: quote.text, quoteDate: quote.created_at.slice(0, 10) }));
   }
-
-  function openEdit(quote: QuoteView) {
-    editTarget = quote.number;
-    quoteDraft = { text: quote.text, quoteDate: quote.created_at.slice(0, 10) };
-  }
-
-  function closeEditor() {
-    quoteDraft = null;
-    editTarget = null;
-  }
-
   function closeInspector() {
-    expanded = null;
-    quoteDraft = null;
-    editTarget = null;
+    guarded(() => {
+      validationAttempted = false;
+      inspector.reset();
+      draft = null;
+    });
+  }
+  function clearSearch() {
+    search = '';
   }
 
-  const addSubmit: SubmitFunction = () => {
-    if (!quoteDraft?.text.trim() || !quoteDraft.quoteDate) return;
-    adding = true;
+  function invalidDraft(d: QuoteDraft | null): boolean {
+    return !d || !d.text.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(d.quoteDate);
+  }
+
+  const saveSubmit: SubmitFunction = (input) => {
+    if (invalidDraft(draft)) {
+      validationAttempted = true;
+      input.cancel();
+      void focusFirstInvalid(formEl);
+      return;
+    }
+    const requestId = inspector.beginSave()?.requestId;
+    const wasCreating = creating;
+    busy = true;
     return async ({ result }) => {
-      adding = false;
+      busy = false;
       const payload = actionPayload<QuoteActionOk>(result);
-      if (result.type === 'success' && payload?.ok) {
-        closeInspector();
-        toast('ok', t('quotes.toastAdded'));
-        await invalidateAll();
+      const ok = result.type === 'success' && payload?.ok === true;
+      const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
+      if (!ok) {
+        failed(payload, wasCreating ? 'quotes.toastAddFailed' : 'quotes.toastEditFailed');
         return;
       }
-      failed(payload, 'quotes.toastAddFailed');
-    };
-  };
-
-  const editSubmit: SubmitFunction = () => {
-    if (!quoteDraft?.text.trim()) return;
-    adding = true;
-    return async ({ result }) => {
-      adding = false;
-      const payload = actionPayload<QuoteActionOk>(result);
-      if (result.type === 'success' && payload?.ok && payload.quote) {
+      toast('ok', t(wasCreating ? 'quotes.toastAdded' : 'quotes.toastEdited'));
+      if (wasCreating && applied) {
+        inspector.reset();
+        draft = null;
+      } else if (payload?.quote) {
         const updated = payload.quote;
         quotes = quotes.map((quote) => (quote.number === updated.number ? updated : quote));
-        closeEditor();
-        toast('ok', t('quotes.toastEdited'));
-        await invalidateAll();
-        return;
       }
-      failed(payload, 'quotes.toastEditFailed');
+      await invalidateAll();
     };
   };
 
-  function permSubmitFor(get: () => string, set: (value: string) => void): SubmitFunction {
+  let permPending = $state<'add' | 'edit' | null>(null);
+  // svelte-ignore state_referenced_locally
+  let savedPerm = { add: data.addPerm ?? 'mod', edit: data.editPerm ?? 'mod' };
+  function permSubmitFor(kind: 'add' | 'edit', set: (value: string) => void): SubmitFunction {
     return () => {
-      const was = get();
+      permPending = kind;
       return async ({ result }) => {
+        permPending = null;
         const payload = actionPayload<QuoteActionOk>(result);
-        if (result.type === 'success' && payload?.ok) return;
-        set(was);
+        if (result.type === 'success' && payload?.ok) {
+          savedPerm[kind] = kind === 'add' ? addPerm : editPerm;
+          return;
+        }
+        set(savedPerm[kind]);
         failed(payload, 'quotes.toastPermFailed');
       };
     };
   }
   let addPermForm = $state<HTMLFormElement | null>(null);
   let editPermForm = $state<HTMLFormElement | null>(null);
-  const addPermSubmit = permSubmitFor(
-    () => addPerm,
-    (value) => (addPerm = value)
-  );
-  const editPermSubmit = permSubmitFor(
-    () => editPerm,
-    (value) => (editPerm = value)
-  );
+  const addPermSubmit = permSubmitFor('add', (value) => (addPerm = value));
+  const editPermSubmit = permSubmitFor('edit', (value) => (editPerm = value));
   function onAddPermChange(e: Event) {
     addPerm = (e.currentTarget as HTMLSelectElement).value;
     addPermForm?.requestSubmit();
@@ -239,7 +237,10 @@
       if (result.type === 'success' && payload?.ok) {
         if (target) {
           quotes = quotes.filter((quote) => quote.number !== target.number);
-          if (expanded === String(target.number)) closeInspector();
+          if (inspector.selectedId === String(target.number)) {
+            inspector.reset();
+            draft = null;
+          }
           toast('ok', t('quotes.toastDeleted'));
         }
         await invalidateAll();
@@ -288,7 +289,7 @@
             placeholder={t('quotes.searchLabel')} clearLabel={t('quotes.searchClear')} bind:value={search} fill />
         </div>
 
-        <Button variant="primary" onclick={openNew} disabled={expanded === NEW}>
+        <Button variant="primary" onclick={openNew} disabled={creating}>
           {t('quotes.newQuote')}
         </Button>
       </div>
@@ -305,7 +306,8 @@
           <Field label={t('quotes.permLabel')}>
             <Select
               fill
-              name="perm" value={addPerm} onchange={onAddPermChange}
+              name="perm" value={addPerm} onchange={onAddPermChange} disabled={permPending !== null}
+              aria-busy={permPending === 'add'}
               options={permOptions}
             />
           </Field>
@@ -316,7 +318,8 @@
           <Field label={t('quotes.permEditLabel')}>
             <Select
               fill
-              name="perm" value={editPerm} onchange={onEditPermChange}
+              name="perm" value={editPerm} onchange={onEditPermChange} disabled={permPending !== null}
+              aria-busy={permPending === 'edit'}
               options={permOptions}
             />
           </Field>
@@ -329,14 +332,14 @@
     {searching ? t('quotes.resultsCount', { n: rows.length }) : ''}
   </p>
 
-  <DeckLayout inspecting width={editing ? '420px' : '300px'}>
+  <DeckLayout inspecting={inspector.isOpen}>
     <DeckList>
       {#if rows.length}
         <ul class="bb-list" aria-label={t('quotes.listLabel')}>
           {#each rows as quote (quote.number)}
             <QuoteRow
               {quote}
-              expanded={expanded === String(quote.number)}
+              expanded={inspector.selectedId === String(quote.number)}
               onExpand={() => openQuote(quote)}
               onDelete={() => (deleteTarget = quote)}
             />
@@ -347,54 +350,51 @@
           <Button variant="primary" onclick={openNew}>{t('quotes.newQuote')}</Button>
         </EmptyState>
       {:else}
-        <EmptyState title={t('quotes.noneMatch')} />
+        <EmptyState title={t('quotes.noneMatch')}>
+          <Button variant="secondary" onclick={clearSearch}>{t('quotes.searchClear')}</Button>
+        </EmptyState>
       {/if}
     </DeckList>
 
-    <InspectorSurface
-      open={inspectorOpen}
-      title={inspectorTitle}
-      controls="quote-inspector"
-      closeLabel={t('common.cancel')}
-      onClose={closeInspector}
-    >
-      {#if quoteDraft}
-        <Scroller fill padding="16px" smooth>
-          <QuoteEditor
-            bind:draft={quoteDraft}
-            number={editTarget}
-            busy={adding}
-            onCancel={editTarget !== null ? closeEditor : closeInspector}
-            onSubmit={editTarget !== null ? editSubmit : addSubmit}
+    {#if inspector.isOpen && draft}
+      <InspectorSurface
+        open
+        title={creating ? t('quotes.newQuote') : t('quotes.editQuote')}
+        controls="quote-inspector"
+        closeLabel={t('common.cancel')}
+        onClose={closeInspector}
+      >
+        <form
+          method="POST"
+          action={creating ? '?/add' : '?/edit'}
+          novalidate
+          use:enhance={saveSubmit}
+          class="inspector-form"
+          bind:this={formEl}
+        >
+          {#if selectedQuote}
+            <input type="hidden" name="number" value={selectedQuote.number} />
+          {/if}
+          <Scroller fill padding="16px" smooth>
+            {#key inspector.selectedId}
+              <QuoteEditor bind:draft attempted={validationAttempted} addedBy={selectedQuote?.added_by ?? ''} />
+            {/key}
+          </Scroller>
+          <EditorFooter
+            status={inspector.status}
+            dirty={inspector.dirty}
+            {canSave}
+            saveLabel={creating ? t('quotes.addBtn') : t('quotes.editBtn')}
+            cancelLabel={t('common.cancel')}
+            savingLabel={t('quotes.saving')}
+            savedLabel={t('quotes.saved')}
+            errorLabel={t(creating ? 'quotes.toastAddFailed' : 'quotes.toastEditFailed')}
+            dirtyLabel={t('quotes.unsavedChanges')}
+            onCancel={closeInspector}
           />
-        </Scroller>
-      {:else if selectedQuote}
-        <Scroller fill padding="18px" smooth>
-          <div class="quote-detail">
-            <Eyebrow as="div">#{selectedQuote.number}</Eyebrow>
-            <blockquote class="quote-body"><Text>{selectedQuote.text}</Text></blockquote>
-            <FactList>
-              <Fact term={t('quotes.fieldDay')}>{formatDate(selectedQuote.created_at)}</Fact>
-              {#if selectedQuote.added_by}
-                <Fact term={t('quotes.addedBy')}>@{selectedQuote.added_by}</Fact>
-              {/if}
-            </FactList>
-            <div class="detail-actions">
-              <Button variant="primary" onclick={() => selectedQuote && openEdit(selectedQuote)}>
-                {t('quotes.editBtnShort')}
-              </Button>
-              <Button variant="destructive" onclick={() => (deleteTarget = selectedQuote)}>
-                {t('quotes.del')}
-              </Button>
-            </div>
-          </div>
-        </Scroller>
-      {/if}
-      {#snippet idle()}
-        <Text size="sm" tone="muted">{t('quotes.inspectorIdle')}</Text>
-        <Button variant="ghost" onclick={openNew}>{t('quotes.newQuote')}</Button>
-      {/snippet}
-    </InspectorSurface>
+        </form>
+      </InspectorSurface>
+    {/if}
   </DeckLayout>
 
   {#if quoteCommands.length}
@@ -408,6 +408,16 @@
 
 <svelte:window onkeydown={onKey} />
 
+<ConfirmDialog
+  open={discard.open}
+  title={t('quotes.discardTitle')}
+  body={t('quotes.discardBody')}
+  confirmLabel={t('quotes.discard')}
+  cancelLabel={t('quotes.keepEditing')}
+  danger
+  onCancel={discard.cancel}
+  onConfirm={discard.confirm}
+/>
 <ConfirmDialog
   open={deleteTarget !== null}
   title={t('quotes.deleteTitle')}
@@ -438,14 +448,7 @@
 
   .toolbar-search { width: 220px; --input-w: 100%; }
 
-  .quote-detail { display: flex; flex-direction: column; gap: 18px; }
-  .quote-body {
-    margin: 0;
-    padding: 0 0 0 14px;
-    border-left: 2px solid var(--bb-tan);
-    overflow-wrap: anywhere;
-  }
-  .detail-actions { display: flex; gap: 10px; align-self: flex-start; margin-top: 4px; }
+  .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 
   @media (max-width: 680px) {
     .toolbar-actions { width: 100%; flex-wrap: wrap; }

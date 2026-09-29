@@ -16,7 +16,7 @@
     hint,
     name = 'is_enabled',
     ariaLabel,
-    failMessage = t('serverErrors.updateFailed')
+    failMessage = t('serverErrors.updateRetry')
   }: {
     action: string;
     enabled: boolean;

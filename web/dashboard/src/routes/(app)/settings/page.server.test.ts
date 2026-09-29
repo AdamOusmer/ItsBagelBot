@@ -36,6 +36,7 @@ mock.module('$lib/server/fetches-store', () => ({
   setFetchKey: async () => 'abcd'
 }));
 mock.module('$lib/server/edge-purge', () => ({
+  channelPageUrls: (login: string) => [`https://commands.itsbagelbot.com/user/${login}`, `https://leaderboard.itsbagelbot.com/${login}`],
   purgeEdge: async (urls: string[]) => {
     purgeUrls.push(urls);
     return purgeReply;
@@ -54,6 +55,7 @@ mock.module('$lib/server/services', () => ({
   notificationsForUser: async () => ({ notifications: [] }),
   notificationMarkRead: async () => {},
   notificationMarkPeeked: async () => {},
+  hasGrant: async () => true,
   userLocale: async () => 'en',
   userCommandsPage: async () => true,
   setCommandsPage: async (userId: string, hidden: boolean) => {
@@ -125,7 +127,9 @@ describe('setCommandsPage action', () => {
     const result = await actions.setCommandsPage(event({ user_id: '7' }, { enabled: 'on' }));
 
     expect(setCommandsPageCalls).toEqual([['7', false]]);
-    expect(purgeUrls).toEqual([['https://commands.itsbagelbot.com/user/streamerlogin']]);
+    expect(purgeUrls).toEqual([
+      ['https://commands.itsbagelbot.com/user/streamerlogin', 'https://leaderboard.itsbagelbot.com/streamerlogin']
+    ]);
     expect(result).toEqual({ ok: true, action: 'commands_page', edgeDelayed: false });
   });
 

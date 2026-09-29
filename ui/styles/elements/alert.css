@@ -103,6 +103,10 @@
     border-radius: 0;
   }
 
+  .bb-alert--row-2 {
+    top: 44px;
+  }
+
   .bb-alert--impersonation .bb-alert__msg {
     flex: 0 1 auto;
   }

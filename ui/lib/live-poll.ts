@@ -66,8 +66,10 @@ export function livePoll(
     timer = setTimeout(run, nextDelay(opts, elapsed));
   };
 
+  const canRefresh = () => live && !inFlight && !pageHidden();
+
   const refresh = () => {
-    if (!live || inFlight || pageHidden()) return;
+    if (!canRefresh()) return;
     clearTimer();
     void run();
   };

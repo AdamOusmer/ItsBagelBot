@@ -19,18 +19,22 @@
     type ChatVolume
   } from '$lib/overview-live';
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
   let {
     meta,
     counters,
     volume,
-    now
+    now,
+    stale = false,
+    slim = false
   }: {
     meta: StreamMeta;
     counters: StreamCounters;
     volume: ChatVolume;
     now: number;
+    stale?: boolean;
+    slim?: boolean;
   } = $props();
 
   const elapsed = $derived(formatDuration(minutesSince(meta.startedAt, now)));
@@ -41,25 +45,25 @@
   const stats = $derived.by<Stat[]>(() => [
     {
       id: 'messages',
-      value: formatCounterValue(counters.messages),
+      value: formatCounterValue(counters.messages, locale),
       label: t('overview.statMessagesSeen')
     },
     {
       id: 'answered',
-      value: formatCounterValue(counters.answered),
+      value: formatCounterValue(counters.answered, locale),
       label: t('overview.statAnswered'),
       tone: 'positive'
     },
     {
       id: 'mod',
-      value: formatCounterValue(counters.modActions),
+      value: formatCounterValue(counters.modActions, locale),
       label: t('overview.statModActions'),
       tone: 'accent'
     }
   ]);
 </script>
 
-<section class="ov-stream" aria-labelledby="ov-stream-h">
+<section class="ov-stream" class:ov-stream--slim={slim} class:ov-stream--stale={stale} aria-labelledby="ov-stream-h">
   <Card flush>
     <div class="ov-stream__glow" aria-hidden="true"></div>
     <div class="ov-stream__grid">
@@ -73,14 +77,18 @@
         {:else if !meta.known}
           <div class="ov-stream__notice"><Text size="sm" tone="muted">{t('overview.streamNeverSeen')}</Text></div>
         {:else if meta.live}
-          <Tag tone="live" mark="solid" sweep>{t('overview.streamLive')}</Tag>
+          {#if stale}
+            <Tag tone="quiet" mark="hollow">{t('overview.feedReconnecting')}</Tag>
+          {:else}
+            <Tag tone="live" mark="solid" sweep>{t('overview.streamLive')}</Tag>
+          {/if}
           <div class="ov-stream__big">{elapsed}</div>
           {#if meta.title}<p class="ov-stream__title">{meta.title}</p>{/if}
           <div class="ov-stream__meta">
             <Label mono as="span">
               {t('overview.streamStartedAt', {
-                time: clockFace(meta.startedAt),
-                n: meta.viewers.toLocaleString()
+                time: clockFace(meta.startedAt, locale),
+                n: meta.viewers.toLocaleString(locale)
               })}
             </Label>
           </div>
@@ -93,8 +101,8 @@
           <div class="ov-stream__meta">
             <Label mono as="span">
               {t('overview.streamEndedAt', {
-                time: clockFace(meta.endedAt),
-                n: meta.peakViewers.toLocaleString()
+                time: clockFace(meta.endedAt, locale),
+                n: meta.peakViewers.toLocaleString(locale)
               })}
             </Label>
           </div>
@@ -102,22 +110,24 @@
 
         <div class="ov-stream__spacer"></div>
 
-        {#if counters.ok}
+        {#if !slim && counters.ok}
           <div class="ov-stream__stats">
             {#each stats as s (s.id)}
               <StatTile inline static tone={s.tone} label={s.label} value={s.value} />
             {/each}
           </div>
-        {:else}
+        {:else if !slim}
           <div class="ov-stream__notice ov-stream__notice--foot">
             <Text size="sm" tone="muted">{t('overview.countersUnavailable')}</Text>
           </div>
         {/if}
       </div>
 
-      <div class="ov-stream__side">
-        <ChatVolumeChart {volume} />
-      </div>
+      {#if !slim}
+        <div class="ov-stream__side">
+          <ChatVolumeChart {volume} />
+        </div>
+      {/if}
     </div>
   </Card>
 </section>
@@ -188,6 +198,23 @@
     margin: 22px 0 0;
     padding-top: 18px;
     border-top: 1px solid var(--bb-border);
+  }
+
+  .ov-stream--slim .ov-stream__grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 16px 24px;
+  }
+  .ov-stream--slim .ov-stream__eyebrow {
+    margin-bottom: 8px;
+  }
+  .ov-stream--stale .ov-stream__big,
+  .ov-stream--stale .ov-stream__stats {
+    opacity: 0.55;
+  }
+  .ov-stream__big,
+  .ov-stream__stats {
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
 
   @media (max-width: 900px) {

@@ -195,7 +195,7 @@ func (r *Modules) sweepSpotify(ctx context.Context, userID uint64) {
 	if r.spotify == nil {
 		return
 	}
-	if err := r.spotify.ClearToken(ctx, userID); err != nil {
+	if err := r.spotify.ClearToken(ctx, SpotifyUserID(userID)); err != nil {
 		r.log.Warn("modules: failed to clear spotify token on user delete", zap.Uint64("user_id", userID), zap.Error(err))
 	}
 }

@@ -10,6 +10,7 @@
   let {
     text,
     copiedLabel,
+    announce,
     variant = 'card',
     label,
     hint = '',
@@ -22,6 +23,7 @@
   }: {
     text: string;
     copiedLabel: string;
+    announce?: string;
     variant?: 'card' | 'row' | 'well';
     label?: string;
     hint?: string;
@@ -59,6 +61,7 @@
   class={classes}
   type="button"
   data-copy={text}
+  data-copy-announce={announce}
   data-copy-ms={flashMs}
   data-copy-legacy={legacyFallback ? '' : undefined}
   data-copied={copied ? '' : undefined}
@@ -71,5 +74,5 @@
       ><span class="bb-copy__done">{#if glyphs}<Icon name="check" size={12} />{/if}{copiedLabel}</span
       ></span
     ></span
-  ><span class="bb-copy__status" role="status">{copied ? copiedLabel : ''}</span></button
+  ><span class="bb-copy__status" role="status">{copied ? (announce ?? copiedLabel) : ''}</span></button
 >

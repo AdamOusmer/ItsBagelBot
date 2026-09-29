@@ -102,7 +102,7 @@ type rpcDeps struct {
 }
 
 func subscribeRPCs(deps rpcDeps) {
-	setupWorker := setup.New(setup.Config{Discord: deps.Rest, Store: deps.Store, Log: deps.Log.Named("setup")})
+	setupWorker := setup.New(setup.Config{Discord: deps.Rest, Store: deps.Store, Log: deps.Log.Named("setup"), BotID: deps.ApplicationID})
 	setupWiring := rpc.SetupWiring{
 		Wiring: rpc.Wiring{
 			NC: deps.NC, Prefix: deps.Cfg.RPCPrefix, Queue: deps.Cfg.RPCQueue,

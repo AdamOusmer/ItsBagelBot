@@ -135,6 +135,15 @@
   }
   .end { margin-left: auto; }
 
+  @media (max-width: 1079px) {
+    .actions {
+      position: sticky;
+      bottom: 0;
+      padding: 12px 0;
+      background: var(--bb-bg-1);
+      border-top: 1px solid var(--bb-border);
+    }
+  }
   @media (max-width: 480px) {
     .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
     .end { width: 100%; margin-left: 0; }

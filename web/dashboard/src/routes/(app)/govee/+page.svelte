@@ -3,6 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
+  import { untrack } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Card,
@@ -10,6 +11,7 @@
     PageToolbar,
     Scroller,
     ConfirmDialog,
+    EditorFooter,
     InspectorSurface,
     MasterToggle,
     AlertBanner,
@@ -22,21 +24,22 @@
     Input,
     Spinner,
     Text,
-    TextLink,
     toast,
     getI18n,
     type GoveeDevice,
     actionPayload,
-    toastFailure,
+    focusFirstInvalid,
+    createDiscardGuard,
     type ActionOk,
     Tag,
   } from '@bagel/kit';
+  import { createInspector } from '@bagel/ui/svelte/inspector';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
   import GoveeRewardEditor from '$lib/components/govee/GoveeRewardEditor.svelte';
+  import { goveeDraftFor, goveeErrors, goveeFormFields, type GoveeDraft } from '$lib/components/govee/govee-draft';
 
   let { data } = $props();
   const { t } = getI18n();
-  const failed = toastFailure(toast, t);
 
   // svelte-ignore state_referenced_locally
   let enabled = $state<boolean>(data.enabled ?? false);
@@ -59,51 +62,136 @@
 
   let missingScope = $state(false);
 
-  type GoveeActionOk = ActionOk & { missingScope?: boolean };
+  type GoveeActionOk = ActionOk & { missingScope?: boolean; code?: string };
 
-  function formResult(okMsg: string, failMsg: string, onOk?: () => void): SubmitFunction {
-    return () =>
-      async ({ result }) => {
-        const payload = actionPayload<GoveeActionOk>(result);
-        if (result.type === 'success' && payload?.ok !== false) {
-          onOk?.();
-          toast('ok', okMsg);
-          await invalidateAll();
-          return;
-        }
-        if (payload?.missingScope) {
-          missingScope = true;
-          return;
-        }
-        toast('err', payload?.error ?? failMsg);
-      };
+  function failed(payload: GoveeActionOk | undefined, fallbackKey: string) {
+    if (payload?.missingScope) {
+      missingScope = true;
+      return;
+    }
+    if (payload?.code === 'key_invalid') {
+      toast('err', t('govee.keyInvalid'));
+      return;
+    }
+    toast('err', payload?.error ?? t(fallbackKey));
   }
 
+  const isOk = (result: { type: string }, payload: GoveeActionOk | undefined) =>
+    result.type === 'success' && payload?.ok !== false;
+
+  let keySaving = $state(false);
+  const saveKeySubmit: SubmitFunction = () => {
+    keySaving = true;
+    return async ({ result }) => {
+      keySaving = false;
+      const payload = actionPayload<GoveeActionOk>(result);
+      if (!isOk(result, payload)) {
+        failed(payload, 'govee.keySaveFailed');
+        return;
+      }
+      toast('ok', t('govee.keySaved'));
+      await invalidateAll();
+    };
+  };
+
+  let keyRemovePending = $state(false);
+  let keyRemoving = $state(false);
+  let keyRemoveForm = $state<HTMLFormElement | null>(null);
+  const clearKeySubmit: SubmitFunction = () => {
+    keyRemoving = true;
+    return async ({ result }) => {
+      keyRemoving = false;
+      keyRemovePending = false;
+      const payload = actionPayload<GoveeActionOk>(result);
+      if (!isOk(result, payload)) {
+        failed(payload, 'govee.keyRemoveFailed');
+        return;
+      }
+      keyPresent = false;
+      doClose();
+      toast('ok', t('govee.keyRemoved'));
+      await invalidateAll();
+    };
+  };
+
+  let refreshing = $state(false);
+  async function refreshLights() {
+    refreshing = true;
+    try {
+      await invalidateAll();
+    } finally {
+      refreshing = false;
+    }
+  }
+
+  const inspector = createInspector<GoveeDraft>();
   let selected = $state<GoveeDevice | null>(null);
+  let draft = $state<GoveeDraft | null>(null);
   let busy = $state(false);
+  let validationAttempted = $state(false);
+  let formEl = $state<HTMLFormElement | null>(null);
+
+  $effect(() => {
+    const snap = draft ? { ...draft } : null;
+    if (snap) untrack(() => inspector.edit(snap));
+  });
+
+  const selectedBinding = $derived(selected ? bindingFor(selected.device) : null);
+  const isNew = $derived(!selectedBinding?.rewardId);
+  const canSave = $derived(isNew || inspector.dirty);
+
+  function doClose() {
+    validationAttempted = false;
+    selected = null;
+    inspector.reset();
+    draft = null;
+  }
+  const discard = createDiscardGuard(() => inspector.dirty, doClose);
 
   function openLight(d: GoveeDevice) {
-    selected = selected?.device === d.device ? null : d;
+    if (selected?.device === d.device) {
+      closeInspector();
+      return;
+    }
+    discard.guard(() => {
+      validationAttempted = false;
+      const base = goveeDraftFor(d, bindingFor(d.device), (name) =>
+        t('govee.defaultTitle', { name: name || t('govee.theLights') })
+      );
+      selected = d;
+      inspector.open(d.device, base);
+      draft = { ...base };
+    });
   }
   function closeInspector() {
-    selected = null;
+    discard.guard(doClose);
   }
 
-  const saveSubmit: SubmitFunction = () => {
+  const saveSubmit: SubmitFunction = (input) => {
+    if (!draft) {
+      input.cancel();
+      return;
+    }
+    if (Object.keys(goveeErrors(draft)).length) {
+      validationAttempted = true;
+      input.cancel();
+      void focusFirstInvalid(formEl);
+      return;
+    }
+    for (const [name, value] of Object.entries(goveeFormFields(draft))) input.formData.set(name, value);
+    const requestId = inspector.beginSave()?.requestId;
     busy = true;
     return async ({ result }) => {
       busy = false;
       const payload = actionPayload<GoveeActionOk>(result);
-      if (result.type === 'success' && payload?.ok !== false) {
-        toast('ok', t('govee.toastSaved'));
-        await invalidateAll();
+      const ok = isOk(result, payload);
+      if (requestId) inspector.resolved(requestId, { type: ok ? 'success' : 'error' });
+      if (!ok) {
+        failed(payload, 'govee.toastSaveFailed');
         return;
       }
-      if (payload?.missingScope) {
-        missingScope = true;
-        return;
-      }
-      failed(payload, 'govee.toastSaveFailed');
+      toast('ok', t('govee.toastSaved'));
+      await invalidateAll();
     };
   };
 
@@ -118,25 +206,27 @@
       const target = deleteTarget;
       deleteTarget = null;
       const payload = actionPayload<GoveeActionOk>(result);
-      if (result.type === 'success' && payload?.ok !== false) {
-        if (target && selected?.device === target.device) closeInspector();
-        toast('ok', t('govee.toastDeleted'));
-        await invalidateAll();
+      if (!isOk(result, payload)) {
+        failed(payload, 'govee.toastDeleteFailed');
         return;
       }
-      if (payload?.missingScope) {
-        missingScope = true;
-        return;
-      }
-      failed(payload, 'govee.toastDeleteFailed');
+      if (target && selected?.device === target.device) doClose();
+      toast('ok', t('govee.toastDeleted'));
+      await invalidateAll();
     };
   };
 
   const colorDevices = (devices: GoveeDevice[]) => devices.filter((d) => d.color);
 </script>
 
+{#snippet devicesError()}
+  <div class="err-block" role="alert">
+    <Text size="sm" tone="danger">{t('govee.devicesError')}</Text>
+    <Button variant="secondary" type="button" loading={refreshing} onclick={refreshLights}>{t('govee.devicesRetry')}</Button>
+  </div>
+{/snippet}
+
 <section class="screen active">
-  <div class="back"><TextLink variant="quiet" icon="arrowLeft" href="/modules" label={t('govee.back')} /></div>
   <PageHead eyebrow={t('govee.eyebrow')} description={t('govee.description')}>
     {t('govee.titlePre')} <em>{t('govee.titleEm')}</em>
   </PageHead>
@@ -168,35 +258,31 @@
   </PageToolbar>
 
   <Card>
-    <div class="step">
-      <span class="step-index" aria-hidden="true">1</span>
-      <div class="step-body">
-        <Heading level={6} as="h2">{t('govee.keyTitle')}</Heading>
+    <div class="key-card">
+      <Heading level={6} as="h2">{keyPresent ? t('govee.keyCardTitle') : t('govee.keyTitle')}</Heading>
+      {#if keyPresent}
+        <div class="row">
+          <Tag tone="live" mark="solid">{t('govee.keyOnFile')}</Tag>
+          <Button variant="destructive" type="button" onclick={() => (keyRemovePending = true)}>{t('govee.keyRemove')}</Button>
+        </div>
+      {:else}
         <Text size="sm" tone="muted">
           {t('govee.keyHelpPre')} <strong class="key-path">{t('govee.keyPath')}</strong>. {t('govee.keyHelpPost')}
         </Text>
-        {#if keyPresent}
-          <div class="row">
-            <Tag tone="live" mark="solid">{t('govee.keyOnFile')}</Tag>
-            <form method="POST" action="?/clearKey" use:enhance={formResult(t('govee.keyRemoved'), t('govee.keyRemoveFailed'), () => (keyPresent = false))}>
-              <Button variant="destructive" type="submit">{t('govee.keyRemove')}</Button>
-            </form>
-          </div>
-        {:else}
-          <form method="POST" action="?/saveKey" use:enhance={formResult(t('govee.keySaved'), t('govee.keySaveFailed'), () => (keyPresent = true))} class="row">
-            <Input type="password" name="key" placeholder={t('govee.keyPlaceholder')} aria-label={t('govee.keyFieldLabel')} autocomplete="off" required />
-            <Button variant="primary" type="submit">{t('govee.keySave')}</Button>
-          </form>
-        {/if}
-      </div>
+        <form method="POST" action="?/saveKey" use:enhance={saveKeySubmit} class="row key-form">
+          <span class="key-input">
+            <Input fill type="password" name="key" placeholder={t('govee.keyPlaceholder')} aria-label={t('govee.keyFieldLabel')} autocomplete="off" required />
+          </span>
+          <Button variant="primary" type="submit" loading={keySaving}>{t('govee.keySave')}</Button>
+        </form>
+      {/if}
     </div>
   </Card>
 
   {#if keyPresent}
     <div class="lights">
-      <DeckLayout inspecting={!!selected} width="440px">
+      <DeckLayout inspecting={inspector.isOpen} width="440px">
         <div class="deck-lead">
-          <span class="step-index sm" aria-hidden="true">2</span>
           <Heading level={6} as="h2">{t('govee.lightsTitle')}</Heading>
         </div>
 
@@ -206,10 +292,11 @@
           {:then dr}
             {@const lights = colorDevices(dr.devices ?? [])}
             {#if dr.error}
-              <!-- Never surface the raw provider error: it may carry the key. -->
-              <div class="state"><Text size="sm" tone="danger" role="alert">{t('govee.devicesError')}</Text></div>
+              {@render devicesError()}
             {:else if lights.length === 0}
-              <EmptyState title={t('govee.noLights')} />
+              <EmptyState title={t('govee.noLights')} body={t('govee.noLightsBody')}>
+                <Button variant="secondary" type="button" loading={refreshing} onclick={refreshLights}>{t('govee.noLightsCta')}</Button>
+              </EmptyState>
             {:else}
               <div>
                 {#each lights as d (d.device)}
@@ -223,10 +310,12 @@
                 {/each}
               </div>
             {/if}
+          {:catch}
+            {@render devicesError()}
           {/await}
         </DeckList>
 
-        {#if selected}
+        {#if selected && draft}
           <InspectorSurface
             open
             title={selected.name || t('govee.thisLight')}
@@ -234,25 +323,59 @@
             closeLabel={t('govee.closeEditor')}
             onClose={closeInspector}
           >
-            <Scroller fill padding="16px" smooth>
-              {#key selected.device}
-                <GoveeRewardEditor
-                  device={selected}
-                  binding={bindingFor(selected.device)}
-                  colors={data.colors}
-                  {busy}
-                  onSubmit={saveSubmit}
-                  onCancel={closeInspector}
-                  onRequestDelete={() => (deleteTarget = selected)}
-                />
-              {/key}
-            </Scroller>
+            <form
+              method="POST"
+              action="?/saveReward"
+              novalidate
+              use:enhance={saveSubmit}
+              class="inspector-form"
+              bind:this={formEl}
+            >
+              <input type="hidden" name="device" value={selected.device} />
+              <input type="hidden" name="sku" value={selected.sku} />
+              <input type="hidden" name="deviceName" value={selected.name} />
+              <Scroller fill padding="16px" smooth>
+                {#key selected.device}
+                  <GoveeRewardEditor
+                    bind:draft
+                    colors={data.colors}
+                    canDelete={!!selectedBinding}
+                    {busy}
+                    attempted={validationAttempted}
+                    onRequestDelete={() => (deleteTarget = selected)}
+                  />
+                {/key}
+              </Scroller>
+              <EditorFooter
+                status={inspector.status}
+                dirty={inspector.dirty}
+                canSave={canSave && !busy}
+                saveLabel={isNew ? t('govee.create') : t('govee.saveChanges')}
+                cancelLabel={t('common.cancel')}
+                savingLabel={t('govee.saving')}
+                savedLabel={t('govee.saved')}
+                errorLabel={t('govee.toastSaveFailed')}
+                dirtyLabel={t('govee.unsavedChanges')}
+                onCancel={closeInspector}
+              />
+            </form>
           </InspectorSurface>
         {/if}
       </DeckLayout>
     </div>
   {/if}
 </section>
+
+<ConfirmDialog
+  open={discard.open}
+  title={t('govee.discardTitle')}
+  body={t('govee.discardBody')}
+  confirmLabel={t('govee.discard')}
+  cancelLabel={t('govee.keepEditing')}
+  danger
+  onCancel={discard.cancel}
+  onConfirm={discard.confirm}
+/>
 
 <ConfirmDialog
   open={deleteTarget !== null}
@@ -269,32 +392,32 @@
   <input type="hidden" name="device" value={deleteTarget?.device ?? ''} />
 </form>
 
-<style>
-  .back { margin-bottom: 10px; }
+<ConfirmDialog
+  open={keyRemovePending}
+  title={t('govee.keyRemoveTitle')}
+  body={t('govee.keyRemoveBody')}
+  confirmLabel={t('govee.keyRemove')}
+  cancelLabel={t('govee.deleteCancel')}
+  danger
+  busy={keyRemoving}
+  onCancel={() => (keyRemovePending = false)}
+  onConfirm={() => keyRemoveForm?.requestSubmit()}
+/>
+<form method="POST" action="?/clearKey" use:enhance={clearKeySubmit} bind:this={keyRemoveForm} hidden></form>
 
-  .step { display: flex; gap: 14px; align-items: flex-start; }
-  .step-index {
-    flex: none;
-    width: 34px;
-    height: 34px;
-    border-radius: var(--bb-radius-sm);
-    display: grid;
-    place-items: center;
-    background: rgba(var(--bb-tan-rgb), 0.12);
-    border: 1px solid var(--bb-glass-border);
-    color: var(--bb-tan-light);
-    font-family: var(--bb-font-mono);
-    font-weight: 600;
-    font-size: var(--bb-text-sm);
-  }
-  .step-index.sm { width: 26px; height: 26px; font-size: var(--bb-text-xs); border-radius: var(--bb-radius-xs); }
-  .step-body { flex: 1; min-width: 0; display: grid; gap: 6px; }
+<style>
+  .key-card { display: grid; gap: 6px; }
   .key-path { color: var(--bb-tan-light); font-weight: 600; }
 
-  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .key-form { margin-top: 8px; }
+  .key-input { min-width: 13rem; flex: 1; max-width: 26rem; }
 
   .lights { margin-top: 16px; }
   .deck-lead { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
 
   .state { display: flex; align-items: center; gap: 10px; padding: 16px; }
+  .err-block { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 16px; }
+
+  .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 </style>

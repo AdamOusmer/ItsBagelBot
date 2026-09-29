@@ -3,8 +3,9 @@
 
 import { error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
+import type { Locale } from '@bagel/kit/i18n';
 import type { PageServerLoad } from './$types';
-import { resolveLogin } from '$lib/server/services';
+import { resolveLogin, userCommandsPage } from '$lib/server/services';
 import { readLoyalty, topStandings } from '$lib/server/loyalty-store';
 import { listCommands, listModules } from '$lib/server/commands-store';
 import { channelLabel, publicCommands, publicModules, type PublicCommand, type PublicModule } from '$lib/server/public-directory';
@@ -45,19 +46,24 @@ async function standings(userId: string): Promise<{
 	}
 }
 
+async function directory(userId: string, locale: Locale): Promise<{ commands: PublicCommand[]; modules: PublicModule[] }> {
+	if (!(await userCommandsPage(userId).catch(() => true))) return { commands: [], modules: [] };
+	try {
+		const [rows, mods] = await Promise.all([listCommands(userId), listModules(userId)]);
+		return { commands: publicCommands(rows, locale), modules: publicModules(mods, locale) };
+	} catch {
+		return { commands: [], modules: [] };
+	}
+}
+
 export const load: PageServerLoad = async ({ params, url, locals }) => {
 	requireLeaderboardHost(url);
 
 	const channel = await requireChannel(requireLogin(params.user ?? ''));
-	let commands: PublicCommand[] = [];
-	let modules: PublicModule[] = [];
-	try {
-		const [rows, mods] = await Promise.all([listCommands(channel.userId), listModules(channel.userId)]);
-    commands = publicCommands(rows, locals.locale);
-    modules = publicModules(mods, locals.locale);
-	} catch {
-	}
-	const board = await standings(channel.userId);
+	const [{ commands, modules }, board] = await Promise.all([
+		directory(channel.userId, locals.locale),
+		standings(channel.userId)
+	]);
 
 	return {
 		login: channel.login,

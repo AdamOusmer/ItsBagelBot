@@ -7,6 +7,7 @@ func (r RefreshTokenSetRequest) Requested() string    { return r.UserID }
 func (r RefreshTokenClearRequest) Requested() string  { return r.UserID }
 func (r RefreshTokenStatusRequest) Requested() string { return r.UserID }
 func (r RefreshTokenRotateRequest) Requested() string { return r.UserID }
+func (r RefreshTokenDeadRequest) Requested() string   { return r.UserID }
 func (r RefreshTokenGetRequest) Requested() string    { return r.UserID }
 func (r AppSetRequest) Requested() string             { return r.UserID }
 func (r AppClearRequest) Requested() string           { return r.UserID }

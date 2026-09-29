@@ -88,6 +88,7 @@ const TOKEN_FALLBACK = /var\((--bb-[\w-]+)\s*,/g;
 
 type Rule = { selector: string; line: number; body: string };
 type Hit = { rel: string; line: number; selector: string; parts: string[] };
+type SourceFile = { rel: string; source: string };
 
 const stripComments = (css: string) =>
   css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
@@ -136,7 +137,7 @@ export function offendingParts(selector: string, body: string): string[] {
   return [...hits];
 }
 
-function styleBlocks(rel: string, source: string): { css: string; before: number }[] {
+function styleBlocks({ rel, source }: SourceFile): { css: string; before: number }[] {
   if (rel.endsWith('.css')) return [{ css: source, before: 0 }];
   return [...source.matchAll(STYLE_BLOCK)].map((block) => ({
     css: block[1],
@@ -144,9 +145,10 @@ function styleBlocks(rel: string, source: string): { css: string; before: number
   }));
 }
 
-export function offendersIn(rel: string, source: string): Hit[] {
+export function offendersIn(file: SourceFile): Hit[] {
+  const { rel } = file;
   const hits: Hit[] = [];
-  for (const { css, before } of styleBlocks(rel, source)) {
+  for (const { css, before } of styleBlocks(file)) {
     for (const { selector, line, body } of rules(css)) {
       const parts = offendingParts(selector, body);
       if (parts.length) hits.push({ rel, line: before + line, selector: selector.replace(/\s+/g, ' '), parts });
@@ -176,7 +178,7 @@ async function scan(): Promise<Map<string, Hit[]>> {
     for await (const file of components(join(webRoot, surface))) {
       const rel = relative(webRoot, file);
       if (ALLOWLIST.has(rel)) continue;
-      const hits = offendersIn(rel, await readFile(file, 'utf8'));
+      const hits = offendersIn({ rel, source: await readFile(file, 'utf8') });
       if (hits.length) byFile.set(rel, hits);
     }
   }
@@ -205,7 +207,7 @@ describe('offendingParts', () => {
   });
 
   test('scans a standalone stylesheet from its first line', () => {
-    expect(offendersIn('x.css', '.ok { display: grid; }\n.cell td { font-size: 12px; }\n')).toEqual([
+    expect(offendersIn({ rel: 'x.css', source: '.ok { display: grid; }\n.cell td { font-size: 12px; }\n' })).toEqual([
       { rel: 'x.css', line: 2, selector: '.cell td', parts: ['td'] },
     ]);
   });
@@ -216,7 +218,7 @@ describe('offendingParts', () => {
 
   test('reports the line of each offending rule in a component', () => {
     const source = '<div></div>\n<style>\n  .ok { display: grid; }\n  .title h2 { font-weight: 700; }\n</style>\n';
-    expect(offendersIn('x.svelte', source)).toEqual([
+    expect(offendersIn({ rel: 'x.svelte', source })).toEqual([
       { rel: 'x.svelte', line: 4, selector: '.title h2', parts: ['h2'] },
     ]);
   });

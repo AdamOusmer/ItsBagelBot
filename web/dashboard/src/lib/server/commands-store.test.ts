@@ -16,6 +16,7 @@ mock.module('./services', () => ({
   SUB: { modules: 'modules', projector: 'projector' },
   fabric: { cache }, invalidate: (key: string) => cache.invalidate(key)
 }));
+mock.module('./edge-purge', () => ({ schedulePurgeChannel: () => {} }));
 mock.module('@bagel/kit/server/nats', () => ({
   rpc: async (subject: string, body: any) => {
     calls.push({ subject, body });

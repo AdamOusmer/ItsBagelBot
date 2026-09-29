@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, IconButton, ManagementRow, Tag, Text, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
+  import { ManagementRow, Tag, Text, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
   import { formatCounterValue } from '@bagel/kit/validation';
+  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();
 
@@ -55,9 +56,7 @@
     </span>
   {/snippet}
   {#snippet actions()}
-    <span class="del">
-      <IconButton size="sm" danger label={t('counters.deleteAria', { name: c.name })} onclick={onDelete}><Icon name="trash" size={15} /></IconButton>
-    </span>
+    <RowDeleteButton label={t('counters.deleteAria', { name: c.name })} onclick={onDelete} />
   {/snippet}
 </ManagementRow>
 
@@ -92,8 +91,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .del { display: inline-flex; --btn-icon-min-size: 32px; }
-
   @media (max-width: 760px) {
     .prow {
       grid-template-columns: minmax(0, 1fr);
@@ -105,6 +102,5 @@
     .idx { display: none; }
     .name { grid-area: name; }
     .meta { grid-area: meta; justify-content: flex-start; }
-    .del { --btn-icon-min-size: 44px; }
   }
 </style>

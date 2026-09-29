@@ -9,7 +9,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AnsweredTonight } from '$lib/overview-live';
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
   let { answered }: { answered: AnsweredTonight } = $props();
 
@@ -46,7 +46,7 @@
         <li class="ov-ans__row">
           <div class="ov-ans__line">
             <Text as="span" size="sm" mono>{bar.name}</Text>
-            <Text as="span" size="xs" mono tone="muted">{bar.count.toLocaleString()}</Text>
+            <Text as="span" size="xs" mono tone="muted">{bar.count.toLocaleString(locale)}</Text>
           </div>
           <ProgressBar value={bar.share} tone="success" ramp={bar.ramp} label={bar.name} aria-hidden="true" />
         </li>

@@ -15,6 +15,7 @@
     label,
     orientation = 'horizontal',
     maxStep = Number.POSITIVE_INFINITY,
+    compact = false,
     onselect,
     class: className = '',
     ...rest
@@ -24,13 +25,19 @@
     label: string;
     orientation?: 'horizontal' | 'vertical';
     maxStep?: number;
+    compact?: boolean;
     onselect?: (index: number) => void;
     class?: string;
     [key: string]: unknown;
   } = $props();
 
   const classes = $derived(
-    ['bb-stepper', orientation === 'vertical' ? 'bb-stepper--vertical' : null, className || null].filter(Boolean).join(' '),
+    [
+      'bb-stepper',
+      orientation === 'vertical' ? 'bb-stepper--vertical' : null,
+      compact ? 'bb-stepper--compact' : null,
+      className || null,
+    ].filter(Boolean).join(' '),
   );
 
   function itemClass(index: number): string {
@@ -89,5 +96,6 @@
       {/each}
     </ol>
     <span class={current < 0 ? 'bb-stepper__glide bb-stepper__glide--hidden' : 'bb-stepper__glide'} aria-hidden="true"></span>
+    {#if compact}<span class="bb-stepper__compact" aria-hidden="true">{steps[current]?.label ?? ''}</span>{/if}
   </nav>
 {/if}

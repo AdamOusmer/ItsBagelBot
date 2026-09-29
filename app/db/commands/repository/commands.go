@@ -5,6 +5,8 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -135,6 +137,7 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 					AllowedUserID:    formatAllowed(row.AllowedUserID),
 					Uses:             row.Uses,
 					BumpCounter:      row.BumpCounter,
+					CreatedAt:        row.CreatedAt.Unix(),
 				}
 			}
 
@@ -210,6 +213,43 @@ func (r *Commands) Upsert(userID uint64, spec CommandSpec) error {
 	r.batcher.Add(commandKey{userID: userID, name: spec.Name}, spec.dto(userID))
 
 	return nil
+}
+
+func (r *Commands) Restore(ctx context.Context, userID uint64, spec CommandSpec, uses int64) (bool, error) {
+
+	spec.normalize()
+
+	if err := validate.UserID(userID); err != nil {
+		return false, err
+	}
+	if err := spec.validate(); err != nil {
+		return false, err
+	}
+
+	b := r.client.Commands.Create().
+		SetUserID(userID).
+		SetName(spec.Name).
+		SetUses(uses)
+	applyEdit(b.Mutation(), spec.dto(userID))
+
+	err := db.WithExec(ctx, func(ctx context.Context) error {
+		return b.OnConflict(entsql.ConflictColumns(commands.FieldUserID, commands.FieldName)).DoNothing().Exec(ctx)
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	r.Invalidate(userID)
+
+	key := commandKey{userID: userID, name: spec.Name}
+	states, serr := r.rowStates(ctx, []commandKey{key})
+	if serr != nil {
+		return true, nil
+	}
+	return true, bus.PublishJSON(ctx, r.pub, data.SubjectCommandChanged, states[key])
 }
 
 func (r *Commands) Rename(ctx context.Context, userID uint64, oldName string, spec CommandSpec) error {
@@ -393,6 +433,7 @@ func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[comman
 			AllowedUserID:    row.AllowedUserID,
 			Uses:             row.Uses,
 			BumpCounter:      row.BumpCounter,
+			CreatedAt:        row.CreatedAt.Unix(),
 		}
 	}
 	return out, nil

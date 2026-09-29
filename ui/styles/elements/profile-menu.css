@@ -115,7 +115,7 @@
 
   .bb-profile-topbar__operator {
     display: flex; align-items: center; gap: 9px;
-    background: none; border: none; padding: 3px; border-radius: var(--bb-radius-pill);
+    position: relative; background: none; border: none; padding: 3px; border-radius: var(--bb-radius-pill);
     cursor: pointer;
     transition: background var(--bb-dur-fast) ease;
   }
@@ -136,6 +136,8 @@
     right: 0;
     z-index: var(--bb-z-popover);
     min-width: 260px;
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
     padding: 8px;
     background: var(--bb-card-bg);
     border: 1px solid var(--bb-border-strong);
@@ -164,6 +166,11 @@
 
   @media (min-width: 761px) {
     .bb-profile-topbar__op-id { display: flex; }
+  }
+  @media (pointer: coarse) {
+    .bb-profile-topbar__op-menu .bb-profile__link,
+    .bb-profile-topbar__op-menu .bb-profile-topbar__op-menu-item { min-height: 44px; }
+    .bb-profile-topbar__operator::after { content: ''; position: absolute; inset: -4px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .bb-profile-topbar__op-menu { animation: none; }

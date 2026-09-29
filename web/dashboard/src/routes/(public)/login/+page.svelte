@@ -5,9 +5,10 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { AlertBanner, Eyebrow, Icon, LightField, Text, TextLink, getI18n, Tag } from '@bagel/kit';
-  import { SITE } from '@bagel/kit/site-links';
+  import { SITE, webHref } from '@bagel/kit/site-links';
+  import PublicHead from '$lib/components/public/PublicHead.svelte';
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
   const lines = $derived([
     { text: t('login.title1'), cls: 'tan' },
@@ -122,6 +123,8 @@
   });
 </script>
 
+<PublicHead title={t('login.metaTitle')} description={t('login.metaDescription')} url="https://dashboard.itsbagelbot.com/login" />
+
 <div class="starfield" aria-hidden="true"><LightField /></div>
 
 <header data-orbs="off">
@@ -189,6 +192,10 @@
           {#each facts as fact (fact)}
             <span>{fact}</span>
           {/each}
+        </div>
+
+        <div class="scopes reveal">
+          <Text size="xs"><TextLink variant="inline" href={webHref(locale, '/privacy')} external>{t('login.scopesLink')}</TextLink></Text>
         </div>
 
         <div class="cta reveal">
@@ -376,7 +383,7 @@
     align-items: center;
     margin-top: 26px;
     font-family: var(--bb-font-mono);
-    font-size: 0.68rem;
+    font-size: var(--bb-text-xs);
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: rgba(var(--bb-tan-rgb), 0.66);
@@ -413,6 +420,12 @@
   .cta-link:hover {
     background: var(--bb-tan-light);
     box-shadow: 0 8px 32px rgba(var(--bb-tan-rgb), 0.25);
+  }
+
+  .scopes {
+    --i: 9;
+
+    margin-top: 14px;
   }
 
   .consent {
@@ -482,7 +495,6 @@
 
     .facts {
       margin-top: 18px;
-      font-size: 0.6rem;
       letter-spacing: 0.11em;
     }
     .facts span:not(:last-child)::after { margin: 0 11px; }
@@ -509,7 +521,7 @@
       margin-bottom: 16px;
     }
     .lede { margin-bottom: 16px; }
-    .facts { margin-top: 14px; font-size: 0.56rem; }
+    .facts { margin-top: 14px; }
     .facts span:not(:last-child)::after { margin: 0 8px; }
     .migrate { margin-top: 12px; }
   }

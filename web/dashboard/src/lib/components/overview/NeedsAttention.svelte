@@ -38,8 +38,8 @@
       out.push({
         id: 'pending-invites',
         text: t('overview.invitesPending', { n: pendingShares }),
-        cta: t('overview.manageInSettings'),
-        href: '/settings'
+        cta: t('overview.invitesPendingCta'),
+        href: '/settings#access'
       });
     }
     return out;

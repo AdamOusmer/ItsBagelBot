@@ -21,6 +21,8 @@ import {
   type PreviewResponse
 } from '@bagel/kit';
 
+const IMPORTER_DOWN = 'The importer service did not answer. Try again in a moment.';
+
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 const MAX_MANIFEST_JSON_BYTES = 8 * 1024 * 1024;
@@ -34,13 +36,18 @@ async function importAllowed(s: Session): Promise<boolean> {
 
 const DEMO = dev && process.env.DEMO === '1';
 
-type GateVerdict = { ok: true; session: Session } | { ok: false; status: number; error: string };
+type GateVerdict = { ok: true; session: Session } | { ok: false; status: number; error: string; code?: string };
 
 async function importGate(locals: App.Locals): Promise<GateVerdict> {
   const s = await requireOwner(locals);
   if (!s) return { ok: false, status: 403, error: actionError(locals.locale, 'Not allowed.') };
   if (!(await importAllowed(s)))
-    return { ok: false, status: 429, error: actionError(locals.locale, 'Too many import attempts. Wait a minute and try again.') };
+    return {
+      ok: false,
+      status: 429,
+      code: 'rate_limited',
+      error: actionError(locals.locale, 'Too many import attempts. Wait a minute and try again.')
+    };
   return { ok: true, session: s };
 }
 
@@ -145,9 +152,9 @@ function resolveCredential(source: ImportSource, input: SourceInput, cookies: Co
 }
 
 export const actions: Actions = {
-preview: async ({ request, locals, cookies }) => {
+  preview: async ({ request, locals, cookies }) => {
     const gate = await importGate(locals);
-    if (!gate.ok) return fail(gate.status, { error: gate.error, step: 'preview' });
+    if (!gate.ok) return fail(gate.status, { error: gate.error, code: gate.code, step: 'preview' });
 
     const form = await request.formData();
     const source = usableSource(String(form.get('source') ?? ''), locals.locale);
@@ -177,7 +184,7 @@ preview: async ({ request, locals, cookies }) => {
         manifest: read.input.preManifest
       });
     } catch {
-      return fail(502, { error: actionError(locals.locale, 'The importer service did not answer. Try again in a moment.'), step: 'preview' });
+      return fail(502, { error: actionError(locals.locale, IMPORTER_DOWN), code: 'unavailable', step: 'preview' });
     }
 
     if (!preview.manifest)
@@ -191,7 +198,7 @@ preview: async ({ request, locals, cookies }) => {
 
   commit: async ({ request, locals, cookies }) => {
     const gate = await importGate(locals);
-    if (!gate.ok) return fail(gate.status, { error: gate.error, step: 'commit' });
+    if (!gate.ok) return fail(gate.status, { error: gate.error, code: gate.code, step: 'commit' });
 
     const form = await request.formData();
     const source = String(form.get('source') ?? '');
@@ -219,11 +226,11 @@ preview: async ({ request, locals, cookies }) => {
         overwrite
       });
     } catch {
-      return fail(502, { error: actionError(locals.locale, 'The importer service did not answer. Try again in a moment.'), step: 'commit' });
+      return fail(502, { error: actionError(locals.locale, IMPORTER_DOWN), code: 'unavailable', step: 'commit' });
     }
 
     if (commit.error)
-      return fail(502, { error: commit.error, step: 'commit' });
+      return fail(422, { error: actionError(locals.locale, commit.error), step: 'commit' });
 
     if (isImportSource(source)) SERVER_STRATEGIES[source].afterCommit?.(cookies);
 

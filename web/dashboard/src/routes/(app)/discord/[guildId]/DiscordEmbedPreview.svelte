@@ -2,13 +2,25 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
+  import { Text, getI18n } from '@bagel/kit';
+
   let {
     title,
     body,
     button,
     color,
-    caption
-  }: { title: string; body: string; button: string; color: string; caption: string } = $props();
+    caption,
+    limits = []
+  }: {
+    title: string;
+    body: string;
+    button: string;
+    color: string;
+    caption: string;
+    limits?: { label: string; n: number; max: number }[];
+  } = $props();
+
+  const { t } = getI18n();
 </script>
 
 <figure class="embed-figure">
@@ -20,6 +32,13 @@
       <span class="embed-button">{button}</span>
     </div>
   </div>
+  {#if limits.length}
+    <p class="embed-counts">
+      {#each limits as limit (limit.label)}
+        <Text as="span" size="xs" mono tone={limit.n >= limit.max ? 'accent' : 'muted'}>{limit.label} {t('discord.embedCount', { n: limit.n, max: limit.max })}</Text>
+      {/each}
+    </p>
+  {/if}
 </figure>
 
 <style>
@@ -35,7 +54,7 @@
 
   .embed {
     border-left: 4px solid var(--bb-tan);
-    border-radius: var(--bb-radius-xs);
+    border-radius: var(--bb-radius-sm);
     background: rgba(var(--bb-white-rgb), 0.04);
     padding: 12px 14px;
     max-width: 440px;
@@ -58,11 +77,17 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
+  .embed-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 8px 0 0;
+  }
   .embed-actions { margin-top: 12px; }
   .embed-button {
     display: inline-block;
     padding: 7px 14px;
-    border-radius: var(--bb-radius-xs);
+    border-radius: var(--bb-radius-sm);
     border: 1px solid var(--bb-glass-border);
     background: rgba(var(--bb-white-rgb), 0.08);
     font-family: var(--bb-font-body);

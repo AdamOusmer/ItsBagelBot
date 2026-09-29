@@ -53,7 +53,7 @@
     },
     {
       id: 'shares',
-      href: '/settings',
+      href: '/settings#access',
       label: !sharesOk
         ? t('overview.manageInSettings')
         : people > 1

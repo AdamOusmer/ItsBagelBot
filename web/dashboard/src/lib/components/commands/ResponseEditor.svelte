@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { untrack } from 'svelte';
   import { page } from '$app/state';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import { Button, Icon, IconButton, RESPONSE_MAX, Text, TextLink, Textarea, getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
   import { requiredModuleVariables } from '@bagel/kit/variables';
   import type { VariableSurface } from '@bagel/kit/variables';
@@ -9,6 +11,10 @@
   import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
 
   const i18n = getI18n();
+  const uid = $props.id();
+  const WARN_RATIO = 0.9;
+  const capId = `${uid}-cap`;
+  const countId = (i: number) => `${uid}-count-${i}`;
 
   let {
     value = $bindable(''),
@@ -54,6 +60,33 @@
     value = fields.join('\n');
   });
 
+  type Level = 'ok' | 'warn' | 'over';
+  const levelOf = (len: number): Level => (len > RESPONSE_MAX ? 'over' : len >= RESPONSE_MAX * WARN_RATIO ? 'warn' : 'ok');
+  const COUNT_TONE = { ok: 'muted', warn: 'accent', over: 'danger' } as const;
+  const capped = $derived(fields.length >= maxLines);
+  const cappedLabel = $derived(i18n.t('commandEditor.linesCapped', { n: String(fields.length), max: String(maxLines) }));
+
+  let announcement = $state('');
+  let levels: Level[] = [];
+
+  function announce(message: string) {
+    announcement = '';
+    setTimeout(() => (announcement = message), 60);
+  }
+
+  $effect(() => {
+    const next = fields.map((f) => levelOf(f.length));
+    untrack(() => {
+      const crossed = next.findIndex((l, i) => l !== 'ok' && l !== (levels[i] ?? 'ok'));
+      levels = next;
+      if (crossed < 0) return;
+      const key = next[crossed] === 'over' ? 'commandEditor.lineOver' : 'commandEditor.lineNear';
+      announce(i18n.t(key, { n: String(crossed + 1), len: String(fields[crossed].length), max: String(RESPONSE_MAX) }));
+    });
+  });
+
+  const describedFor = (i: number) => [describedby, countId(i)].filter(Boolean).join(' ');
+
   function insert(token: string) {
     const i = Math.min(focused, fields.length - 1);
     const el = areas[i];
@@ -66,6 +99,7 @@
       const pos = start + token.length;
       el?.setSelectionRange(pos, pos);
     });
+    announce(i18n.t('commandEditor.inserted', { token }));
   }
 
   function focusField(i: number) {
@@ -77,8 +111,15 @@
     focused = i;
   }
 
+  function announceCapped() {
+    if (maxLines > 1) announce(cappedLabel);
+  }
+
   function addLine(after: number = fields.length - 1) {
-    if (fields.length >= maxLines) return;
+    if (capped) {
+      announceCapped();
+      return;
+    }
     fields.splice(after + 1, 0, '');
     focused = after + 1;
     focusField(focused);
@@ -113,8 +154,6 @@
     focused = Math.min(i + keep.length - 1, fields.length - 1);
   }
 
-  const countTone = (line: string) => (line.length > RESPONSE_MAX ? 'danger' : 'muted');
-
   const fieldPlaceholder = (i: number) =>
     i === 0 ? (placeholder ?? i18n.t('commandEditor.responsePlaceholder')) : i18n.t('commandEditor.linePlaceholder');
 </script>
@@ -131,7 +170,7 @@
             {invalid}
             placeholder={fieldPlaceholder(i)}
             aria-invalid={invalid ? 'true' : undefined}
-            aria-describedby={describedby}
+            aria-describedby={describedFor(i)}
             {required}
             bind:value={fields[i]}
             {maxlength}
@@ -140,7 +179,7 @@
             oninput={() => onInput(i)}
             {onblur}
           />
-          <Text as="span" size="xs" mono tone={countTone(fields[i])}>{fields[i].length}/{RESPONSE_MAX}</Text>
+          <Text as="span" size="xs" mono tone={COUNT_TONE[levelOf(fields[i].length)]} id={countId(i)}>{fields[i].length}/{RESPONSE_MAX}</Text>
         </div>
         {#if fields.length > 1}
           <span class="line-remove">
@@ -158,10 +197,11 @@
   </div>
   <input type="hidden" {name} {value} />
   <div class="lines-foot">
-    <Button variant="add" disabled={fields.length >= maxLines} onclick={() => addLine()}>
+    <Button variant="add" aria-disabled={capped ? 'true' : undefined} aria-describedby={capId} onclick={() => addLine()}>
       + {i18n.t('commandEditor.addLine')}
     </Button>
     <Text as="small" size="xs" tone="muted">{i18n.t('commandEditor.linesHint', { max: String(maxLines) })}</Text>
+    <span class="lines-cap" class:on={capped}><Text as="small" size="xs" tone="accent" id={capId}>{cappedLabel}</Text></span>
   </div>
 {:else}
   <div class="resp-wrap">
@@ -172,7 +212,7 @@
       {invalid}
       placeholder={fieldPlaceholder(0)}
       aria-invalid={invalid ? 'true' : undefined}
-      aria-describedby={describedby}
+      aria-describedby={describedFor(0)}
       {required}
       bind:value={fields[0]}
       {maxlength}
@@ -181,9 +221,11 @@
       oninput={() => onInput(0)}
       {onblur}
     />
-    <Text as="span" size="xs" mono tone={countTone(fields[0])}>{fields[0].length}/{RESPONSE_MAX}</Text>
+    <Text as="span" size="xs" mono tone={COUNT_TONE[levelOf(fields[0].length)]} id={countId(0)}>{fields[0].length}/{RESPONSE_MAX}</Text>
   </div>
 {/if}
+
+<VisuallyHidden role="status" aria-live="polite">{announcement}</VisuallyHidden>
 
 <div role="toolbar" aria-label={i18n.t('commandEditor.insertVariable')}>
   <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} />
@@ -231,4 +273,12 @@
     margin-top: 8px;
     flex-wrap: wrap;
   }
+
+  .lines-cap {
+    flex-basis: 100%;
+    min-height: 16px;
+    visibility: hidden;
+    opacity: 0;
+  }
+  .lines-cap.on { visibility: visible; opacity: 1; }
 </style>

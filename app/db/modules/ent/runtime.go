@@ -187,7 +187,7 @@ func init() {
 	// spotifycredential.DefaultScopes holds the default value on creation for the scopes field.
 	spotifycredential.DefaultScopes = spotifycredentialDescScopes.Default.(string)
 	// spotifycredentialDescUpdatedAt is the schema descriptor for updated_at field.
-	spotifycredentialDescUpdatedAt := spotifycredentialFields[5].Descriptor()
+	spotifycredentialDescUpdatedAt := spotifycredentialFields[6].Descriptor()
 	// spotifycredential.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	spotifycredential.DefaultUpdatedAt = spotifycredentialDescUpdatedAt.Default.(func() time.Time)
 	// spotifycredential.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

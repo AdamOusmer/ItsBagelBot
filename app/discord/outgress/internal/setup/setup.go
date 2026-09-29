@@ -25,6 +25,8 @@ const (
 	permViewChannel  int64 = 1024
 	permSendMessages int64 = 2048
 
+	channelAnnouncement = 5
+
 	maxCreateRetries = 3
 )
 
@@ -42,9 +44,12 @@ type GuildSetupResult struct {
 }
 
 type GuildEntry struct {
-	ID   string
-	Name string
-	Type int
+	ID       string
+	Name     string
+	Type     int
+	ParentID string
+	CanSend  *bool
+	CanEmbed *bool
 }
 
 type GuildLayout struct {
@@ -108,7 +113,45 @@ func (w *Worker) GuildLayout(ctx context.Context, req GuildSetupRequest) (GuildL
 	if err != nil {
 		return GuildLayout{}, err
 	}
-	return GuildLayout{Channels: entries(channels), Roles: entries(roles)}, nil
+	out := GuildLayout{Channels: entries(channels), Roles: entries(roles)}
+	if member, ok := w.botMember(ctx, req.guild()); ok {
+		annotateBotAccess(out.Channels, channels, member, roles)
+	}
+	return out, nil
+}
+
+type botMemberReader interface {
+	GetGuildMember(ctx context.Context, m discapi.GuildMember) (discapi.GuildMemberInfo, error)
+}
+
+func (w *Worker) botMember(ctx context.Context, guild discapi.Guild) (discapi.MemberPermissions, bool) {
+	reader, ok := w.discord.(botMemberReader)
+	if !ok || w.botID == "" {
+		return discapi.MemberPermissions{}, false
+	}
+	info, err := reader.GetGuildMember(ctx, discapi.GuildMember{GuildID: guild.ID, UserID: w.botID})
+	if err != nil {
+		w.log.Warn("bot member lookup failed; layout carries no send flags", zap.String("guild_id", guild.ID), zap.Error(err))
+		return discapi.MemberPermissions{}, false
+	}
+	return discapi.MemberPermissions{GuildID: guild.ID, UserID: w.botID, Roles: info.Roles}, true
+}
+
+func annotateBotAccess(out []GuildEntry, channels []discapi.Snowflake, member discapi.MemberPermissions, roles []discapi.Snowflake) {
+	base := discapi.BasePermissions(member, roles)
+	for i, ch := range channels {
+		if !postableType(ch.Type) {
+			continue
+		}
+		perms := discapi.ChannelPermissions(member, base, ch.PermissionOverwrites)
+		canSend := discapi.HasPermissions(perms, discapi.PermViewChannel|discapi.PermSendMessages)
+		canEmbed := canSend && discapi.HasPermissions(perms, discapi.PermEmbedLinks)
+		out[i].CanSend, out[i].CanEmbed = &canSend, &canEmbed
+	}
+}
+
+func postableType(t int) bool {
+	return t == ddiscord.ChannelText || t == channelAnnouncement
 }
 
 func (w *Worker) GuildInfo(ctx context.Context, req GuildSetupRequest) (discapi.GuildInfo, error) {
@@ -145,7 +188,7 @@ func (w *Worker) UnbindGuild(ctx context.Context, req GuildSetupRequest) error {
 func entries(in []discapi.Snowflake) []GuildEntry {
 	out := make([]GuildEntry, 0, len(in))
 	for _, s := range in {
-		out = append(out, GuildEntry{ID: s.ID, Name: s.Name, Type: s.Type})
+		out = append(out, GuildEntry{ID: s.ID, Name: s.Name, Type: s.Type, ParentID: s.ParentID})
 	}
 	return out
 }

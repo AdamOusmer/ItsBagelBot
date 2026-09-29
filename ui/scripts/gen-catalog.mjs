@@ -33,7 +33,7 @@ const FAMILY = {
   LogTail: 'Data', CounterCard: 'Data', CommunityCard: 'Data', RankingCard: 'Data',
   FactList: 'Data', Fact: 'Data', DeckLayout: 'Layout', Disclosure: 'Layout', Pager: 'Navigation',
   LightField: 'Motion', BackgroundOrbs: 'Motion', AuroraBg: 'Motion', Cursor: 'Motion',
-  ReadingProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion', AmbientSky: 'Motion',
+  ReadingProgress: 'Motion', NavProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion', AmbientSky: 'Motion',
   Stepper: 'Navigation', Spinner: 'Feedback', LineSeries: 'Data', Mark: 'Feedback',
   ProfileMenu: 'Navigation', SkipLink: 'Navigation', Popover: 'Feedback', CopySurface: 'Controls',
 };

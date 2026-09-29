@@ -5,6 +5,7 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import RetryButton from './RetryButton.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import Chip from '@bagel/ui/svelte/Chip.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
@@ -13,6 +14,7 @@
   import Mark from '@bagel/ui/svelte/Mark.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { ConnUi } from '@bagel/kit/connection-state';
   import { statusTone } from '@bagel/kit/status-tone';
@@ -49,7 +51,7 @@
   const tone = $derived(statusTone(kind));
   const live = $derived(kind === 'online');
 
-  const strip = $derived(!loading && kind === 'online');
+  const strip = $derived(kind === 'online');
 
   const title = $derived.by(() => {
     switch (kind) {
@@ -96,7 +98,29 @@
   });
 </script>
 
-{#if strip}
+<VisuallyHidden role="status" aria-live="polite">{loading ? '' : title}</VisuallyHidden>
+
+{#if loading}
+  <div class="ov-status-wrap">
+    <Card as="section" sheen aria-busy="true" aria-label={t('overview.statusHeading')}>
+      <div class="ov-strip">
+        <VisuallyHidden>{checkingText}</VisuallyHidden>
+        <span aria-hidden="true"><Skeleton variant="text" width="18ch" /></span>
+        <div class="ov-strip__spacer"></div>
+        <span class="ov-strip__ghost" aria-hidden="true">
+          <Chip as="span" tone="muted">
+            <Icon name="bolt" />
+            {t('overview.restart')}
+          </Chip>
+          <Chip as="span" tone="muted">
+            <Icon name="power" />
+            {t('overview.disconnect')}
+          </Chip>
+        </span>
+      </div>
+    </Card>
+  </div>
+{:else if strip}
   <div class="ov-status-wrap">
     <Card as="section" sheen aria-label={t('overview.statusHeading')}>
       <div class="ov-strip">
@@ -130,28 +154,20 @@
             <Heading level={6} as="h2" variant="label" id="ov-status-h">{t('overview.statusHeading')}</Heading>
           </div>
 
-          {#if loading}
-            <p class="ov-status__state" aria-busy="true">
-              <span class="bb-sr-only">{checkingText}</span>
-              <span aria-hidden="true"><Skeleton variant="text" width="14ch" /></span>
-            </p>
-            <p class="ov-status__detail" aria-hidden="true"><Skeleton variant="text" lines={2} width="90%" /></p>
-          {:else}
-            <p class="ov-status__state tone-{tone}">
-              <span class="dot"><Mark variant={live ? 'solid' : 'hollow'} size="8px" /></span>
-              <span class="state-text">{title}</span>
-            </p>
-            {#if detail}<p class="ov-status__detail">{detail}</p>{/if}
+          <p class="ov-status__state tone-{tone}">
+            <span class="dot"><Mark variant={live ? 'solid' : 'hollow'} size="8px" /></span>
+            <span class="state-text">{title}</span>
+          </p>
+          {#if detail}<p class="ov-status__detail">{detail}</p>{/if}
 
-            {#if planLabel}
-              <div class="ov-status__meta">
-                <Tag tone={isPremium ? 'pre' : 'quiet'}>{planLabel}</Tag>
-              </div>
-            {/if}
+          {#if planLabel}
+            <div class="ov-status__meta">
+              <Tag tone={isPremium ? 'pre' : 'quiet'}>{planLabel}</Tag>
+            </div>
           {/if}
         </div>
 
-        {#if !loading && ui}
+        {#if ui}
           <div class="ov-status__actions">
             {#if isDelegate}
               <p class="ov-status__note">{t('overview.statusDelegateDetail')}</p>
@@ -168,10 +184,10 @@
                 <Button variant="primary" type="submit" loading={busy}>{t('overview.enable')}</Button>
               </form>
             {:else if ui.showConnect}
-              <ButtonLink href="/settings" variant="primary"
+              <ButtonLink href="/settings#account" variant="primary"
                 >{kind === 'reauth_required' ? t('common.reconnect') : t('overview.issueNoAuthCta')}</ButtonLink>
             {:else if ui.canRetry}
-              <ButtonLink href="/" variant="ghost">{t('overview.retry')}</ButtonLink>
+              <RetryButton />
             {/if}
           </div>
         {/if}
@@ -200,6 +216,10 @@
   .strip-dot {
     display: contents;
     color: var(--bb-status-success);
+  }
+  .ov-strip__ghost {
+    display: contents;
+    visibility: hidden;
   }
   .ov-strip__spacer {
     flex: 1 1 auto;

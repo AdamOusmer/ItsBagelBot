@@ -15,6 +15,7 @@ import {
   listUserGuilds,
   putDiscordState,
   requireDiscordActor,
+  returnIfDeclined,
   type DiscordUserGuild
 } from '$lib/server/discord-oauth';
 import { listGuilds } from '$lib/server/discord-store';
@@ -80,6 +81,7 @@ async function manageableGuilds(code: string): Promise<DiscordUserGuild[]> {
 }
 
 function takePickCode(cookies: Cookies, url: URL, uid: string): string {
+  returnIfDeclined(url);
   if (!discordStateOK({ cookies, url, leg: DISCORD_PICK_LEG, uid })) discordFail('state');
   const code = (url.searchParams.get('code') ?? '').trim();
   if (!code) discordFail('oauth');

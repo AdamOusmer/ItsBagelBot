@@ -14,6 +14,7 @@ const (
 	ActionCancelRequested Action = "cancel_requested"
 	ActionCancelAborted   Action = "cancel_aborted"
 	ActionRevoke          Action = "revoke"
+	ActionPaymentFailed   Action = "payment_failed"
 )
 
 type ApplyRequest struct {

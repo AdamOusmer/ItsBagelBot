@@ -86,6 +86,7 @@ export { default as CardAtmosphere } from './CardAtmosphere.astro';
 export { default as Cursor } from './Cursor.astro';
 export { default as LightField } from './LightField.astro';
 export { default as ReadingProgress } from './ReadingProgress.astro';
+export { default as NavProgress } from './NavProgress.astro';
 
 export { default as StatusDot } from './StatusDot.astro';
 

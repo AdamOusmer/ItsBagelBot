@@ -72,6 +72,11 @@ type DiscordLayoutEntry struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Type int    `json:"type,omitempty"`
+
+	ParentID    string `json:"parent_id,omitempty"`
+	ParentName  string `json:"parent_name,omitempty"`
+	BotCanSend  *bool  `json:"bot_can_send,omitempty"`
+	BotCanEmbed *bool  `json:"bot_can_embed,omitempty"`
 }
 
 type DiscordGuildInfo struct {

@@ -234,6 +234,7 @@ func (d *dashboardRPC) handleStateGet(ctx context.Context, msg *nats.Msg) {
 			"source":                      view.SubscriptionSource,
 			"subscription_ref":            view.SubscriptionRef,
 			"subscription_cancel_pending": view.SubscriptionCancelPending,
+			"subscription_payment_failed": view.SubscriptionPaymentFailed,
 		}
 	})
 }

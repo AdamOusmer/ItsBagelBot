@@ -329,7 +329,7 @@ spec:
     sourceCriterion:
       requestHeaderName: CF-Connecting-IP
 ---
-# text/event-stream must stay excluded: compression buffers and breaks /events and /stats/stream.
+# text/event-stream must stay excluded: compression buffers and breaks /events and /overview/stream.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:

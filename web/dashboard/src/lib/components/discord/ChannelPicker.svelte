@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { untrack } from 'svelte';
   import { Select, Text, getI18n, type DiscordConfig, type RefusedFields } from '@bagel/kit';
   import type { DiscordEntry } from '$lib/server/discord-store';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
@@ -26,8 +27,14 @@
 
   const { t } = getI18n();
 
+  const blocked = (opt: DiscordEntry | undefined): boolean => opt?.botCanSend === false;
+  const savedBlocked = untrack(() => blocked(options.find((opt) => opt.id === String(draft.config[field] ?? ''))));
+  const currentBlocked = $derived(blocked(options.find((opt) => opt.id === String(draft.config[field] ?? ''))));
+
   function optionLabel(opt: DiscordEntry): string {
-    return opt.type === 5 ? `${opt.name} ${t('discord.announcementTag')}` : opt.name;
+    const name = opt.type === 5 ? `${opt.name} ${t('discord.announcementTag')}` : opt.name;
+    const inCategory = opt.parentName ? `${name} · ${opt.parentName}` : name;
+    return blocked(opt) ? `${inCategory} · ${t('discord.botCannotPost')}` : inCategory;
   }
 </script>
 
@@ -49,8 +56,12 @@
       disabled={options.length === 0}
       value={String(draft.config[field] ?? '')}
       onchange={(e) => draft.set(field, e.currentTarget.value)}
-      options={[{ value: '', label: t('discord.notSet') }, ...options.map((opt) => ({ value: opt.id, label: `${prefix}${optionLabel(opt)}` }))]}
+      options={[{ value: '', label: t('discord.notSet') }, ...options.map((opt) => ({ value: opt.id, label: `${prefix}${optionLabel(opt)}`, disabled: blocked(opt) }))]}
     />
   </div>
-  <FieldNote {invalid} {field} />
+  {#if savedBlocked}
+    <FieldNote {invalid} {field} warning={t('discord.savedChannelBlocked')} quiet={!currentBlocked} />
+  {:else}
+    <FieldNote {invalid} {field} />
+  {/if}
 </div>

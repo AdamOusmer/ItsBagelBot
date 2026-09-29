@@ -3,9 +3,11 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, IconButton, ManagementRow, Switch, Tag, getI18n, fmtDate, type TimerDef } from '@bagel/kit';
+  import { ManagementRow, Switch, Tag, getI18n, fmtDate, type TimerDef } from '@bagel/kit';
+  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
+  import { formatDuration } from '$lib/components/shared/duration';
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
   let {
     timer,
@@ -27,11 +29,7 @@
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
   const togglePayload = $derived(JSON.stringify({ ...r, enabled: !r.enabled }));
 
-  const schedule = $derived.by(() => {
-    const s = r.intervalSeconds;
-    if (s > 0 && s % 3600 === 0) return `${s / 3600} h`;
-    return `${Math.max(1, Math.round(s / 60))} min`;
-  });
+  const schedule = $derived(formatDuration(r.intervalSeconds, t, locale));
 
   const ended = $derived.by(() => {
     if (!r.endsAt) return false;
@@ -60,19 +58,19 @@
           <span class="bb-sr-only">{t('timers.fieldInterval')} </span>
           <span class="sched-val">{schedule}</span>
         </span>
-        <Tag tone={r.enabled ? 'live' : 'quiet'} mark={r.enabled ? 'solid' : 'hollow'}>
+        <Tag class="m-state" tone={r.enabled ? 'live' : 'quiet'} mark={r.enabled ? 'solid' : 'hollow'}>
           {r.enabled ? t('timers.active') : t('timers.hiddenTag')}
         </Tag>
         {#if r.minChatLines > 0}
-          <Tag tone="bare">{t('timers.pillMinLines', { n: r.minChatLines })}</Tag>
+          <Tag class="m-pill" tone="bare">{t('timers.pillMinLines', { n: r.minChatLines })}</Tag>
         {/if}
         {#if r.maxFiresPerStream > 0}
-          <Tag tone="bare">{t('timers.pillMaxFires', { n: r.maxFiresPerStream })}</Tag>
+          <Tag class="m-pill" tone="bare">{t('timers.pillMaxFires', { n: r.maxFiresPerStream })}</Tag>
         {/if}
         {#if ended}
-          <Tag tone="bare">{t('timers.pillEnded')}</Tag>
+          <Tag class="m-pill" tone="bare">{t('timers.pillEnded')}</Tag>
         {:else if untilLabel}
-          <Tag tone="bare">{t('timers.pillUntil', { date: untilLabel })}</Tag>
+          <Tag class="m-pill" tone="bare">{t('timers.pillUntil', { date: untilLabel })}</Tag>
         {/if}
       </span>
     </span>
@@ -82,9 +80,7 @@
       <input type="hidden" name="timer" value={togglePayload} />
       <Switch type="submit" checked={r.enabled} label={t('timers.toggleAria', { name: r.message })} />
     </form>
-    <span class="del">
-      <IconButton size="sm" danger label={t('timers.deleteAria', { name: r.message })} onclick={onDelete}><Icon name="trash" size={15} /></IconButton>
-    </span>
+    <RowDeleteButton label={t('timers.deleteAria', { name: r.message })} onclick={onDelete} />
   {/snippet}
 </ManagementRow>
 
@@ -118,7 +114,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .del { display: inline-flex; --btn-icon-min-size: 32px; }
+  .meta :global(.m-state), .meta :global(.m-pill) { flex: none; }
 
   @media (max-width: 760px) {
     .prow {
@@ -131,6 +127,5 @@
     .idx { display: none; }
     .msg { grid-area: msg; }
     .meta { grid-area: meta; justify-content: flex-start; flex-wrap: wrap; gap: 8px 12px; }
-    .del { --btn-icon-min-size: 44px; }
   }
 </style>

@@ -125,6 +125,7 @@ var (
 		{Name: "client_id", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "client_secret_enc", Type: field.TypeBytes, Nullable: true},
 		{Name: "scopes", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "refresh_failed_at", Type: field.TypeTime, Nullable: true},
 		{Name: "updated_at", Type: field.TypeTime},
 	}
 	// SpotifyCredentialsTable holds the schema information for the "spotify_credentials" table.

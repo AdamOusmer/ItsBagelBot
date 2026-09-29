@@ -214,14 +214,32 @@ func notCategory(e setup.GuildEntry) bool { return e.Type != ddiscord.ChannelCat
 func everything(setup.GuildEntry) bool    { return true }
 
 func layoutEntries(in []setup.GuildEntry, keep func(setup.GuildEntry) bool) []outgressrpc.DiscordLayoutEntry {
+	names := categoryNames(in)
 	out := make([]outgressrpc.DiscordLayoutEntry, 0, len(in))
 	for _, e := range in {
-		if !keep(e) {
-			continue
+		if keep(e) {
+			out = append(out, layoutEntry(e, names))
 		}
-		out = append(out, outgressrpc.DiscordLayoutEntry{ID: e.ID, Name: e.Name, Type: e.Type})
 	}
 	return out
+}
+
+func categoryNames(in []setup.GuildEntry) map[string]string {
+	names := make(map[string]string, len(in))
+	for _, e := range in {
+		if isCategory(e) {
+			names[e.ID] = e.Name
+		}
+	}
+	return names
+}
+
+func layoutEntry(e setup.GuildEntry, names map[string]string) outgressrpc.DiscordLayoutEntry {
+	return outgressrpc.DiscordLayoutEntry{
+		ID: e.ID, Name: e.Name, Type: e.Type,
+		ParentID: e.ParentID, ParentName: names[e.ParentID],
+		BotCanSend: e.CanSend, BotCanEmbed: e.CanEmbed,
+	}
 }
 
 func (d *discordRPC) fillBotFields(ctx context.Context, reply *outgressrpc.DiscordLayoutReply) {

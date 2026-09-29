@@ -2,11 +2,13 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { afterNavigate } from '$app/navigation';
-  import ProfileMenu, { type ProfileMenuLink } from '@bagel/ui/svelte/ProfileMenu.svelte';
+  import ProfileMenu from '@bagel/ui/svelte/ProfileMenu.svelte';
   import Bolota from './Bolota.svelte';
   import type { DashboardLink } from '../lib/types';
   import { getI18n } from '../lib/i18n/context';
+  import { clearOnboarding } from '../lib/onboarding';
   import { SITE } from '../lib/site-links';
+  import { supportMenuLinks } from '../lib/support-lines';
 
   const { t } = getI18n();
 
@@ -31,18 +33,14 @@
 
   const links = $derived(dashboards.map((d) => ({ href: d.href, label: d.name })));
   const exit = $derived(isDelegate ? { href: delegateExitHref, label: delegateExitLabel } : undefined);
+  const help = $derived(supportMenuLinks(t));
 
-  const supportLines: ProfileMenuLink[] = [
-    { label: 'Discord', hint: t('topbar.supportDiscordHint'), href: SITE.discord, icon: 'discord', external: true },
-    { label: t('topbar.support'), hint: SITE.supportEmail, href: `mailto:${SITE.supportEmail}`, icon: 'link' },
-    { label: t('topbar.supportEnterprise'), hint: SITE.enterpriseEmail, href: `mailto:${SITE.enterpriseEmail}`, icon: 'server' },
-    { label: 'GitHub', hint: t('topbar.supportGithubHint'), href: SITE.github, icon: 'github', external: true }
-  ];
-
-  afterNavigate(() => {
+  function closeMenus() {
     open = false;
     helpOpen = false;
-  });
+  }
+
+  afterNavigate(closeMenus);
 </script>
 
 <ProfileMenu
@@ -55,10 +53,11 @@
   linksLabel={t('topbar.dashboards')}
   {exit}
   logoutLabel={t('topbar.logout')}
-  onlogout={() => localStorage.removeItem('bb-onboarded')}
-  help={supportLines}
+  onlogout={clearOnboarding}
+  {help}
   helpLabel={t('topbar.support')}
   feedback={{ href: SITE.newIssue, label: t('topbar.feedback'), external: true }}
+  menuLabel={name}
 >
   {#snippet avatar(a)}<Bolota name={a.name} size={a.size} active={a.active} gate={a.item} />{/snippet}
 </ProfileMenu>

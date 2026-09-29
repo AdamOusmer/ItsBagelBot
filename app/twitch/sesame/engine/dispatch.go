@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/internal/utils"
+	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/tmpl"
 
 	"go.uber.org/zap"
@@ -54,7 +56,11 @@ func trialReadOnlyCommand(name string) bool {
 }
 
 func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.Command, num, args string, emit module.Emit) error {
-	pass, err := p.gate(ctx, c, gateRule{cmd.Name, cmd.AllowedUserID, cmd.Perm, cmd.LiveOnly, cmd.Cooldown})
+	perm, err := p.builtinPermission(ctx, c.BroadcasterID, cmd)
+	if err != nil {
+		return err
+	}
+	pass, err := p.gate(ctx, c, gateRule{cmd.Name, cmd.AllowedUserID, perm, cmd.LiveOnly, cmd.Cooldown})
 	if err != nil || !pass {
 		return err
 	}
@@ -72,6 +78,48 @@ func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.C
 		return err
 	}
 	return emitErr
+}
+
+// The built-ins on the commands page store their access override alongside
+// their toggle and reply in the module row. Resolve it before the common gate,
+// including for aliases, so a restricted command never claims a cooldown or
+// reaches its handler for an unauthorized chatter.
+func (p *Pipeline) builtinPermission(ctx context.Context, broadcasterID uint64, cmd module.Command) (module.Role, error) {
+	if !configurableBuiltin(cmd.Name) || p.proj == nil {
+		return cmd.Perm, nil
+	}
+	view, found, err := p.proj.Module(ctx, broadcasterID, cmd.Name)
+	if err != nil {
+		return cmd.Perm, err
+	}
+	if !found || len(view.Configs) == 0 {
+		return cmd.Perm, nil
+	}
+	var config struct {
+		Permission string `json:"permission"`
+	}
+	if err := codec.Unmarshal(view.Configs, &config); err != nil {
+		return cmd.Perm, err
+	}
+	if config.Permission == "" {
+		return cmd.Perm, nil
+	}
+	switch config.Permission {
+	case "everyone", "sub", "vip", "mod", "lead_mod", "broadcaster":
+		return module.ParsePerm(config.Permission), nil
+	default:
+		// A corrupt override must not quietly become the Everyone tier.
+		return cmd.Perm, fmt.Errorf("invalid built-in permission for %s", cmd.Name)
+	}
+}
+
+func configurableBuiltin(name string) bool {
+	switch name {
+	case "accountage", "followage", "uptime", "clip", "title", "game", "tags", "commercial", "marker":
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args string, emit module.Emit) error {

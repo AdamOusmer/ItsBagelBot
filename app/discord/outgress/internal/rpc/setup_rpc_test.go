@@ -551,3 +551,73 @@ func TestHandleGuildsListCarriesTheIconURL(t *testing.T) {
 	wantReplyField(t, "icon url", got.Guilds[0].IconURL, "https://cdn.discordapp.com/icons/g1/abc.png")
 	wantReplyField(t, "member count", got.Guilds[0].MemberCount, 9)
 }
+
+type fakeMemberREST struct {
+	fakeSetupREST
+	roles  []discapi.Snowflake
+	member discapi.GuildMemberInfo
+}
+
+func (f *fakeMemberREST) ListGuildRoles(context.Context, discapi.Guild) ([]discapi.Snowflake, error) {
+	return f.roles, nil
+}
+
+func (f *fakeMemberREST) GetGuildMember(context.Context, discapi.GuildMember) (discapi.GuildMemberInfo, error) {
+	return f.member, nil
+}
+
+func TestHandleLayoutCarriesParentAndBotAccess(t *testing.T) {
+	const view, send, embed = 1 << 10, 1 << 11, 1 << 14
+	rest := &fakeMemberREST{
+		fakeSetupREST: fakeSetupREST{channels: []discapi.Snowflake{
+			{ID: "cat-1", Name: "Community", Type: ddiscord.ChannelCategory},
+			{ID: "open", Name: "general", Type: ddiscord.ChannelText, ParentID: "cat-1"},
+			{ID: "locked", Name: "general", Type: ddiscord.ChannelText, ParentID: "cat-1",
+				PermissionOverwrites: []discapi.PermissionOverwrite{{ID: "g1", Type: 0, Deny: "2048"}}},
+			{ID: "noembed", Name: "news", Type: 5,
+				PermissionOverwrites: []discapi.PermissionOverwrite{{ID: "g1", Type: 0, Deny: "16384"}}},
+		}},
+		roles:  []discapi.Snowflake{{ID: "g1", Permissions: strconv.Itoa(view | send | embed)}},
+		member: discapi.GuildMemberInfo{},
+	}
+	store := discordstore.NewMem()
+	if err := store.BindGuild(context.Background(), discordstore.Binding{
+		Guild: discordstore.Guild{ID: "g1"}, Broadcaster: discordstore.Broadcaster{ID: "b1"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	d := &discordRPC{w: setup.New(setup.Config{Discord: rest, Store: store, BotID: "bot"})}
+
+	got := d.handleLayout(context.Background(), outgressrpc.DiscordLayoutRequest{UserID: "b1", GuildID: "g1"})
+
+	want := map[string]layoutWant{
+		"open":    {"Community", true, true},
+		"locked":  {"Community", false, false},
+		"noembed": {"", true, false},
+	}
+	for _, ch := range got.Channels {
+		w := want[ch.ID]
+		if !w.matches(ch) {
+			t.Fatalf("%s = %+v, want %+v", ch.ID, ch, w)
+		}
+	}
+	if got.Categories[0].BotCanSend != nil {
+		t.Fatalf("category carries a send flag: %+v", got.Categories[0])
+	}
+}
+
+type layoutWant struct {
+	parent string
+	send   bool
+	embed  bool
+}
+
+func (w layoutWant) matches(ch outgressrpc.DiscordLayoutEntry) bool {
+	return ch.ParentName == w.parent && w.flagsMatch(ch)
+}
+
+func (w layoutWant) flagsMatch(ch outgressrpc.DiscordLayoutEntry) bool {
+	return sameFlag(ch.BotCanSend, w.send) && sameFlag(ch.BotCanEmbed, w.embed)
+}
+
+func sameFlag(got *bool, want bool) bool { return got != nil && *got == want }

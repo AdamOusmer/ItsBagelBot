@@ -2,14 +2,13 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { formatCounterValue } from '@bagel/kit/validation';
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { deserialize } from '$app/forms';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import {
-    Button,
     DeckLayout,
     Eyebrow,
     Kbd,
@@ -20,7 +19,8 @@
     Scroller,
     PageToolbar,
     AlertBanner,
-    ButtonLink,
+    Button,
+    Select,
     DeckList,
     EmptyState,
     InspectorSurface,
@@ -37,7 +37,6 @@
     overlayLiveActive,
     commandContentSnapshot,
     usesCount,
-    compareUses,
     PERMS,
     COMMAND_NAME_MAX,
     COOLDOWN_MAX,
@@ -50,13 +49,20 @@
   import CommandRow from '$lib/components/commands/CommandRow.svelte';
   import CommandEditor from '$lib/components/commands/CommandEditor.svelte';
   import type { SourceDef } from '$lib/components/commands/fetches/FetchSourcePicker.svelte';
+  import BulkBar from '$lib/components/commands/BulkBar.svelte';
+  import PublicPageChip from '$lib/components/commands/PublicPageChip.svelte';
+  import StarterCommands from '$lib/components/commands/StarterCommands.svelte';
+  import { rovingList } from '$lib/components/commands/roving';
+  import { STATE_FILTERS, hasCreatedAt, listCommands, stateCounts, type PermFilter, type SortKey, type StateFilter } from '$lib/components/commands/list-model';
+  import { saveFailureErrors, isUnavailable, type SaveFailure } from '$lib/components/commands/save-errors';
+  import type { Starter } from '$lib/components/commands/starters';
   import BuiltinInspector from '$lib/components/commands/BuiltinInspector.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { loadDraft, clearDraft, hasDraft, discardLegacyDrafts, draftRef, type CommandDraft } from '$lib/components/commands/drafts';
 
   let { data } = $props();
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
   const failed = toastFailure(toast, t);
 
   // svelte-ignore state_referenced_locally
@@ -82,15 +88,17 @@
     }
   });
 
-  type ActionResult = {
+  type ActionResult = SaveFailure & {
     ok: boolean;
     action?: 'created' | 'updated' | 'deleted';
     name?: string;
     original?: string;
     silent?: boolean;
     error?: string;
-    errors?: CommandErrors;
+    restored?: boolean;
     commands?: CommandView[];
+    op?: 'enable' | 'disable' | 'delete';
+    results?: { name: string; ok: boolean }[];
   };
 
   function applyResult(d: ActionResult) {
@@ -141,47 +149,48 @@
     statusTimers.set(name, [setTimeout(() => (rowStatus = { ...rowStatus, [name]: 'idle' }), 4000)]);
   }
 
-  const filters = ['All', 'Active', 'Disabled', 'Built-in', 'Custom'] as const;
-  const filterLabel = (f: (typeof filters)[number]) =>
-    f === 'Active'
-      ? t('commands.filterActive')
-      : f === 'Disabled'
-        ? t('commands.filterDisabled')
-        : f === 'Built-in'
-          ? t('commands.filterBuiltin')
-          : f === 'Custom'
-            ? t('commands.filterCustom')
-            : t('commands.filterAll');
-  const filterOptions = $derived(filters.map(filterLabel));
-  let activeLabel = $state(filterLabel('All'));
-  const active = $derived(filters.find((f) => filterLabel(f) === activeLabel) ?? 'All');
+  const STATE_LABEL_KEYS = {
+    all: 'commands.filterAll',
+    active: 'commands.filterActive',
+    disabled: 'commands.filterDisabled',
+    builtin: 'commands.filterBuiltin',
+    custom: 'commands.filterCustom'
+  } as const;
+
+  let stateFilter = $state<StateFilter>('all');
+  let permFilter = $state<string>('all');
+  let sortKey = $state<string>('uses');
   let search = $state('');
+  let lingering = $state<ReadonlySet<string>>(new Set());
+
+  $effect(() => {
+    void [stateFilter, permFilter, search];
+    lingering = new Set();
+  });
+
+  const numberFormat = $derived(new Intl.NumberFormat(locale));
+  const counts = $derived(stateCounts(items, { perm: permFilter as PermFilter, search }));
+  const stateOptions = $derived(
+    STATE_FILTERS.map((f) =>
+      t('commands.filterWithCount', { label: t(STATE_LABEL_KEYS[f]), count: numberFormat.format(counts[f]) })
+    )
+  );
+  const stateValue = {
+    get: () => stateOptions[STATE_FILTERS.indexOf(stateFilter)],
+    set: (label: string) => (stateFilter = STATE_FILTERS[stateOptions.indexOf(label)] ?? 'all')
+  };
+  const sortOptions = $derived([
+    { value: 'uses', label: t('commands.sortUses') },
+    { value: 'name', label: t('commands.sortName') },
+    ...(hasCreatedAt(items) ? [{ value: 'recent', label: t('commands.sortRecent') }] : [])
+  ]);
+  const permOptions = $derived([
+    { value: 'all', label: t('commands.permAll') },
+    ...PERMS.map((p) => ({ value: p, label: tPerm(t, p) }))
+  ]);
 
   const rows = $derived(
-    items
-      .filter((c) => {
-        switch (active) {
-          case 'Active':
-            return c.is_active;
-          case 'Disabled':
-            return !c.is_active;
-          case 'Built-in':
-            return !!c.builtin;
-          case 'Custom':
-            return !c.builtin;
-          default:
-            return true;
-        }
-      })
-      .filter((c) => {
-        const q = search.toLowerCase();
-        return (
-          c.name.toLowerCase().includes(q) ||
-          (c.aliases ?? []).some((a) => a.toLowerCase().includes(q)) ||
-          c.response.toLowerCase().includes(q)
-        );
-      })
-      .toSorted((a, b) => compareUses(b, a) || a.name.localeCompare(b.name))
+    listCommands(items, { state: stateFilter, perm: permFilter as PermFilter, sort: (sortKey === 'recent' && !hasCreatedAt(items) ? 'uses' : sortKey) as SortKey, search, keep: lingering })
   );
 
   const groups = $derived(
@@ -199,6 +208,14 @@
         rows: rows.filter((c) => c.builtin)
       }
     ].filter((g) => g.rows.length > 0)
+  );
+
+  const showStarters = $derived(
+    !data.degraded &&
+      !items.some((c) => !c.builtin) &&
+      (stateFilter === 'all' || stateFilter === 'custom') &&
+      permFilter === 'all' &&
+      search === ''
   );
 
   const usesMax = $derived(rows.reduce((max, c) => usesCount(c) > max ? usesCount(c) : max, 1n));
@@ -276,15 +293,20 @@
     }
   );
 
-  function doOpenNew(name = '') {
+  let openerKey = NEW;
+  const NEW_BUTTON_ID = 'commands-new';
+
+  function doOpenNew(seed: Partial<CommandDraft> = {}) {
     serverErrors = null;
     const draft = loadDraft({ board: data.board, name: '', edit: false }) ?? blankDraft();
-    editorDraft = name ? { ...draft, name } : draft;
+    editorDraft = { ...draft, ...seed };
     expanded = NEW;
+    openerKey = NEW;
     editorGen++;
   }
   function doOpenEdit(c: CommandView) {
     serverErrors = null;
+    openerKey = c.name;
     if (c.builtin) {
       editorDraft = { ...blankDraft(), edit: true, name: c.name, originalName: c.name, is_active: c.is_active, builtin: true };
       expanded = c.name;
@@ -305,11 +327,22 @@
       editorDraft = overlayLiveActive(d, live.is_active);
     });
   });
+  function restoreFocus(key: string) {
+    void tick().then(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body) return;
+      const row = document.querySelector<HTMLElement>(`[data-row-name="${CSS.escape(key)}"] .bb-row__primary`);
+      (row ?? document.getElementById(NEW_BUTTON_ID))?.focus();
+    });
+  }
+
   function doCloseEditor() {
+    const key = openerKey;
     expanded = null;
     editorDraft = null;
     serverErrors = null;
     draftVersion++;
+    restoreFocus(key);
   }
 
   function openNew() {
@@ -325,7 +358,17 @@
   );
   function createTyped() {
     const name = typedName;
-    discard.guard(() => doOpenNew(name));
+    discard.guard(() => doOpenNew({ name }));
+  }
+
+  function openStarter(starter: Starter) {
+    discard.guard(() => doOpenNew({ name: normName(starter.name), response: starter.response }));
+  }
+
+  const customNames = $derived(items.filter((c) => !c.builtin).map((c) => c.name));
+  function openExisting(name: string) {
+    const c = items.find((x) => !x.builtin && x.name === name);
+    if (c) discard.guard(() => doOpenEdit(c));
   }
 
   const COMMAND_ALIASES_MAX = 25;
@@ -417,11 +460,11 @@
       return;
     }
     flagError(d.name);
-    serverErrors = payload?.errors ?? null;
+    serverErrors = saveFailureErrors(payload, t);
     editorDraft = d;
     expanded = NEW;
     editorGen++;
-    if (!payload?.errors) failed(payload, 'commands.toastSaveFailed');
+    if (!serverErrors) failed(payload, 'commands.toastSaveFailed');
   }
   function openEdit(c: CommandView) {
     if (expanded === c.name) {
@@ -461,7 +504,8 @@
       cooldown: Math.floor(Number(d.cooldown) || 0),
       allowed_user_id: d.allowed_user_id.replace(/\D/g, ''),
       bump_counter: d.bump_counter,
-      uses: live?.uses
+      uses: live?.uses,
+      created_at: live?.created_at
     };
     items = [...items.filter((c) => c.name !== key && c.name !== orig), optimistic];
     busy = true;
@@ -485,6 +529,7 @@
           if (saved) {
             editorDraft = fromView(saved);
             expanded = key;
+            openerKey = key;
             serverErrors = null;
             editorGen++;
           } else {
@@ -496,10 +541,20 @@
 
       items = [...items.filter((c) => c.name !== key && c.name !== orig), ...prevRows];
       flagError(orig ?? key);
-      if (stillOpen) serverErrors = payload?.errors ?? null;
-      if (!payload?.errors) failed(payload, 'commands.toastSaveFailed');
+      reportSaveFailure(payload, stillOpen);
     };
   };
+
+  function reportSaveFailure(payload: ActionResult | undefined, stillOpen: boolean) {
+    const errs = saveFailureErrors(payload, t);
+    if (stillOpen) serverErrors = errs;
+    if (errs && stillOpen) return;
+    failed(payload, isUnavailable(payload) ? 'commands.errUnavailable' : 'commands.toastSaveFailed');
+  }
+
+  function linger(names: string[]) {
+    lingering = new Set([...lingering, ...names]);
+  }
 
   function settleToggle(name: string, before: CommandView, payload: ActionResult | null | undefined, ok: boolean) {
     if (ok && payload?.ok) {
@@ -517,6 +572,7 @@
     () => {
       const before = { ...c };
       items = items.map((x) => (x.name === c.name ? { ...x, is_active: !x.is_active } : x));
+      linger([c.name]);
       setStatus(c.name, 'saving');
       return async ({ result }) => {
         const payload =
@@ -539,6 +595,28 @@
           result.type === 'success' || result.type === 'failure'
             ? (result.data as ActionResult | undefined)
             : undefined;
+        if (result.type === 'success' && payload?.ok) {
+          applyResult(payload);
+          ackSaved(c.name);
+        } else {
+          items = items.map((x) => (x.name === c.name ? before : x));
+          flagError(c.name);
+          toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+        }
+      };
+    };
+
+  const accessSubmit =
+    (c: CommandView): SubmitFunction =>
+    ({ formData }) => {
+      const perm = String(formData.get('perm') ?? '') as Perm;
+      const before = { ...c };
+      items = items.map((x) => (x.name === c.name ? { ...x, perm } : x));
+      setStatus(c.name, 'saving');
+      return async ({ result }) => {
+        const payload = result.type === 'success' || result.type === 'failure'
+          ? (result.data as ActionResult | undefined)
+          : undefined;
         if (result.type === 'success' && payload?.ok) {
           applyResult(payload);
           ackSaved(c.name);
@@ -578,16 +656,21 @@
   async function restore(snapshot: CommandView) {
     items = [...items.filter((x) => x.name !== snapshot.name), snapshot];
     setStatus(snapshot.name, 'saving');
-    const payload = await postAction('save', formDataFor(snapshot));
+    const body = formDataFor(snapshot);
+    if (usesCount(snapshot) > 0n) body.set('restore_uses', String(usesCount(snapshot)));
+    const payload = await postAction('save', body);
     if (payload?.ok) {
       applyResult({ ...payload, silent: true });
       ackSaved(snapshot.name);
-      toast('ok', t('commands.toastRestored', { name: snapshot.name }));
+      const lostUses = usesCount(snapshot) > 0n && payload.restored !== true;
+      toast('ok', t(lostUses ? 'commands.toastRestoredResets' : 'commands.toastRestored', { name: snapshot.name }));
     } else {
       flagError(snapshot.name);
       toast('err', t('commands.toastCouldNotRestore', { name: snapshot.name }));
     }
   }
+
+  const UNDO_TTL_MS = 10_000;
 
   async function requestDelete(c: CommandView) {
     const snapshot = { ...c, aliases: [...(c.aliases ?? [])] };
@@ -598,6 +681,7 @@
 
     let undone = false;
     toast('ok', t('commands.toastDeletedShort', { name: c.name }), {
+      ttlMs: UNDO_TTL_MS,
       undoLabel: t('commands.undo'),
       onUndo: () => {
         undone = true;
@@ -614,6 +698,100 @@
     }
   }
 
+  let selecting = $state(false);
+  let selected = $state<ReadonlySet<string>>(new Set());
+  let bulkBusy = $state(false);
+  let bulkDeleteOpen = $state(false);
+
+  const selectedCustom = $derived([...selected].filter((n) => items.some((c) => c.name === n && !c.builtin)));
+
+  function toggleSelect(name: string) {
+    const next = new Set(selected);
+    if (!next.delete(name)) next.add(name);
+    selected = next;
+  }
+  function selectAllShown() {
+    selected = new Set(rows.map((c) => c.name));
+  }
+  function exitSelect() {
+    selecting = false;
+    selected = new Set();
+  }
+  function enterSelect() {
+    discard.guard(() => {
+      if (editorDraft) doCloseEditor();
+      selecting = true;
+    });
+  }
+  const toggleSelecting = () => (selecting ? exitSelect() : enterSelect());
+  const onRowActivate = (c: CommandView) => (selecting ? toggleSelect(c.name) : openEdit(c));
+
+  type BulkOp = 'enable' | 'disable' | 'delete';
+  const BULK_DONE_KEYS = {
+    enable: 'commands.bulkEnabled',
+    disable: 'commands.bulkDisabled',
+    delete: 'commands.bulkDeleted'
+  } as const;
+
+  function applyBulk(op: BulkOp, names: string[]) {
+    const set = new Set(names);
+    items =
+      op === 'delete'
+        ? items.filter((c) => !set.has(c.name))
+        : items.map((c) => (set.has(c.name) ? { ...c, is_active: op === 'enable' } : c));
+    if (op !== 'delete') linger(names);
+    for (const n of names) setStatus(n, 'saving');
+  }
+
+  function revertBulk(before: CommandView[], failedNames: Set<string>) {
+    const back = before.filter((c) => failedNames.has(c.name));
+    items = [...items.filter((c) => !failedNames.has(c.name)), ...back];
+  }
+
+  function settleBulk(op: BulkOp, before: CommandView[], payload: ActionResult | null) {
+    const results = payload?.ok && payload.results ? payload.results : before.map((c) => ({ name: c.name, ok: false }));
+    const failedNames = new Set(results.filter((r) => !r.ok).map((r) => r.name));
+    const doneCount = results.length - failedNames.size;
+    revertBulk(before, failedNames);
+    for (const r of results) (r.ok ? ackSaved : flagError)(r.name);
+    selected = failedNames;
+    if (!payload?.ok) toast('err', t('commands.bulkFailed'));
+    else if (doneCount > 0) toast('ok', t(BULK_DONE_KEYS[op], { count: numberFormat.format(doneCount) }));
+    if (payload?.ok && failedNames.size > 0) toast('err', t('commands.bulkPartial', { failed: numberFormat.format(failedNames.size) }));
+  }
+
+  async function runBulk(op: BulkOp) {
+    const names = op === 'delete' ? selectedCustom : [...selected];
+    if (names.length === 0 || bulkBusy) return;
+    bulkBusy = true;
+    const before = items.filter((c) => names.includes(c.name));
+    if (expanded && names.includes(expanded)) doCloseEditor();
+    applyBulk(op, names);
+    const body = new FormData();
+    body.set('op', op);
+    for (const n of names) body.append('name', n);
+    const payload = await postAction('bulk', body);
+    settleBulk(op, before, payload);
+    bulkBusy = false;
+  }
+
+  function confirmBulkDelete() {
+    bulkDeleteOpen = false;
+    void runBulk('delete');
+  }
+
+  const rovingHandlers = {
+    onSpace(name: string) {
+      if (selecting) return toggleSelect(name);
+      if (rowStatus[name] === 'saving') return;
+      document.querySelector<HTMLFormElement>(`[data-row-name="${CSS.escape(name)}"] form`)?.requestSubmit();
+    },
+    onDelete(name: string) {
+      const c = items.find((x) => x.name === name);
+      if (c && !c.builtin && !selecting) void requestDelete(c);
+    }
+  };
+
   const activeCount = $derived(items.filter((c) => c.is_active).length);
 
   const selectedCmd = $derived(
@@ -625,6 +803,7 @@
     if (!c || c.builtin || c.is_active === next) return;
     const before = { ...c };
     items = items.map((x) => (x.name === c.name ? { ...x, is_active: next } : x));
+    linger([c.name]);
     setStatus(c.name, 'saving');
     void postAction('toggle', formDataFor({ ...c, is_active: next })).then((payload) => {
       settleToggle(c.name, before, payload, payload?.ok === true);
@@ -640,10 +819,24 @@
 
   let searchInput = $state<HTMLInputElement | undefined>(undefined);
 
+  function onSearchKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (search) search = '';
+      else searchInput?.blur();
+    } else if (e.key === 'Enter' && canCreateTyped && rows.length === 0) {
+      e.preventDefault();
+      createTyped();
+    }
+  }
+
   function onKey(e: KeyboardEvent) {
-    if (composeDraft !== null || discard.open) return;
+    if (composeDraft !== null || discard.open || bulkDeleteOpen) return;
     if (!isShortcut(e)) return;
-    if (e.key === '/') {
+    if (e.key === 'Escape' && selecting && !editorDraft) {
+      exitSelect();
+    } else if (e.key === '/') {
       e.preventDefault();
       searchInput?.focus();
     } else if (e.key === 'n' || e.key === 'N') {
@@ -673,6 +866,9 @@
           <dd><Text as="span" mono tone="accent">{busiest ? `!${busiest.name}` : t('commands.statNone')}</Text></dd>
         </div>
       </dl>
+      {#if data.publicPage}
+        <div class="public-page"><PublicPageChip on={data.publicPage.on} url={data.publicPage.url} /></div>
+      {/if}
     {/snippet}
   </PageHead>
 
@@ -682,74 +878,95 @@
 
   <PageToolbar>
     {#snippet lead()}
-      <SegmentedControl
-        options={filterOptions}
-        bind:value={activeLabel}
-        label={t('commands.filterLabel')}
-      />
+      <div class="tb-lead">
+        <SegmentedControl options={stateOptions} bind:value={stateValue.get, stateValue.set} label={t('commands.filterLabel')} />
+        <div class="tb-select">
+          <Select fill bind:value={permFilter} options={permOptions} label={t('commands.permLabel')} aria-label={t('commands.permLabel')} />
+        </div>
+        <div class="tb-select">
+          <Select fill bind:value={sortKey} options={sortOptions} label={t('commands.sortLabel')} aria-label={t('commands.sortLabel')} />
+        </div>
+      </div>
     {/snippet}
     {#snippet trail()}
-      <span class="keys" aria-hidden="true"><Kbd>/</Kbd> {t('commands.keysSearch')} <Kbd>N</Kbd> {t('commands.keysNew')}</span>
+      <span class="keys" aria-hidden="true"><Kbd>/</Kbd> {t('commands.keysSearch')} <Kbd>N</Kbd> {t('commands.keysNew')} <Kbd>Esc</Kbd> {t('commands.keysClear')}</span>
       <div class="toolbar-search">
         <SearchInput placeholder={t('commands.searchPlaceholder')} clearLabel={t('quotes.searchClear')}
-          aria-label={t('commands.searchPlaceholder')} bind:value={search} bind:element={searchInput} fill />
+          aria-label={t('commands.searchPlaceholder')} bind:value={search} bind:element={searchInput} onkeydown={onSearchKey} fill />
       </div>
-      <Button variant="primary" onclick={openNew} disabled={expanded === NEW}>
+      <Button variant="secondary" aria-pressed={selecting} onclick={toggleSelecting}>
+        {selecting ? t('commands.selectDone') : t('commands.selectMode')}
+      </Button>
+      <Button variant="primary" id={NEW_BUTTON_ID} onclick={openNew} disabled={expanded === NEW}>
         {t('commands.newCommand')}
       </Button>
     {/snippet}
   </PageToolbar>
 
-  {#if canCreateTyped}
-    <div class="create-hint">
-      <Button variant="add" onclick={createTyped} aria-label={t('commands.createHintAria', { name: typedName })}>
-        <span class="ch-name">!{typedName}</span>
-        <Text as="span" size="sm" tone="muted">{t('commands.createHint')}</Text>
-        {t('commands.createHintCta')}
-      </Button>
-    </div>
-  {/if}
-
   <DeckLayout inspecting={!!editorDraft}>
-    <DeckList>
-      <div class="list">
-        {#each groups as g (g.key)}
-          <div class="group">
-            <div class="group-head">
-              <Eyebrow>{g.label}</Eyebrow>
-              <Text as="span" size="xs" mono tone="muted">{g.rows.length}</Text>
-              <span class="g-rule" aria-hidden="true"></span>
-              <Label mono as="span">{g.note}</Label>
+    <div class="main-col">
+      <DeckList>
+        <div class="list" use:rovingList={rovingHandlers}>
+          {#if showStarters}
+            <div class="group">
+              <div class="group-head">
+                <Eyebrow>{t('commands.groupYours')}</Eyebrow>
+                <span class="g-rule" aria-hidden="true"></span>
+                <Label mono as="span">{t('commands.groupYoursNote')}</Label>
+              </div>
+              <StarterCommands onNew={openNew} onPick={openStarter} />
             </div>
-            {#each g.rows as c, i (c.name)}
-              <CommandRow
-                command={c}
-                index={i + 1}
-                {usesMax}
-                status={rowStatus[c.name] ?? 'idle'}
-                unsaved={rowHasDraft(c.name) && expanded !== c.name}
-                expanded={expanded === c.name}
-                onExpand={() => openEdit(c)}
-                onDelete={() => requestDelete(c)}
-                toggleSubmit={toggleSubmit(c)}
-              />
-            {/each}
-          </div>
-        {/each}
-        {#if rows.length === 0}
-          {#if items.length === 0}
-            <EmptyState
-              title={t('commands.noneYet')}
-              body={`${t('commands.noneYetSub')} !name ${t('commands.inChat')}`}
-            >
-              <Button variant="primary" onclick={openNew}>{t('commands.newCommand')}</Button>
-            </EmptyState>
-          {:else}
+          {/if}
+          {#each groups as g (g.key)}
+            <div class="group">
+              <div class="group-head">
+                <Eyebrow>{g.label}</Eyebrow>
+                <Text as="span" size="xs" mono tone="muted">{g.rows.length}</Text>
+                <span class="g-rule" aria-hidden="true"></span>
+                <Label mono as="span">{g.note}</Label>
+              </div>
+              {#each g.rows as c, i (c.name)}
+                <CommandRow
+                  command={c}
+                  index={i + 1}
+                  {usesMax}
+                  status={rowStatus[c.name] ?? 'idle'}
+                  unsaved={rowHasDraft(c.name) && expanded !== c.name}
+                  expanded={!selecting && expanded === c.name}
+                  {selecting}
+                  checked={selected.has(c.name)}
+                  onExpand={() => onRowActivate(c)}
+                  onDelete={() => requestDelete(c)}
+                  toggleSubmit={toggleSubmit(c)}
+                />
+              {/each}
+            </div>
+          {/each}
+          {#if rows.length === 0 && !showStarters}
             <EmptyState title={t('commands.noneMatch')} body={t('commands.noneMatchSub')} />
           {/if}
-        {/if}
-      </div>
-    </DeckList>
+          <div class="create-hint" class:on={canCreateTyped}>
+            <Button variant="add" onclick={createTyped} aria-label={t('commands.createHintAria', { name: typedName })}>
+              <span class="ch-name">!{typedName}</span>
+              <Text as="span" size="sm" tone="muted">{t('commands.createHint')}</Text>
+              {t('commands.createHintCta')}
+            </Button>
+          </div>
+        </div>
+      </DeckList>
+      {#if selecting}
+        <BulkBar
+          count={selected.size}
+          deletable={selectedCustom.length}
+          busy={bulkBusy}
+          onEnable={() => runBulk('enable')}
+          onDisable={() => runBulk('disable')}
+          onDelete={() => (bulkDeleteOpen = true)}
+          onAll={selectAllShown}
+          onDone={exitSelect}
+        />
+      {/if}
+    </div>
 
     {#if editorDraft}
       <InspectorSurface
@@ -772,6 +989,7 @@
                 {def}
                 toggleSubmit={toggleSubmit(selectedCmd)}
                 replySubmit={replySubmit(selectedCmd)}
+                accessSubmit={accessSubmit(selectedCmd)}
                 {busy}
               />
             </Scroller>
@@ -792,6 +1010,8 @@
               onSubmit={saveSubmit}
               liveActive={selectedCmd?.is_active ?? editorDraft.is_active}
               onToggleActive={setSelectedActive}
+              {customNames}
+              onOpenExisting={openExisting}
             />
           {/key}
         {/if}
@@ -821,6 +1041,17 @@
     <ChatPreview name={composeDraft.name} response={composeDraft.response} />
   {/if}
 </ConfirmDialog>
+
+<ConfirmDialog
+  open={bulkDeleteOpen}
+  title={t('commands.bulkDeleteTitle')}
+  body={t('commands.bulkDeleteBody', { count: numberFormat.format(selectedCustom.length) })}
+  confirmLabel={t('commands.bulkDeleteConfirm', { count: numberFormat.format(selectedCustom.length) })}
+  cancelLabel={t('common.cancel')}
+  danger
+  onCancel={() => (bulkDeleteOpen = false)}
+  onConfirm={confirmBulkDelete}
+/>
 
 <ConfirmDialog
   open={discard.open}
@@ -865,7 +1096,21 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .create-hint { --btn-w: 100%; --btn-min-h: 44px; margin-bottom: 14px; }
+  .list { container-type: inline-size; }
+  .main-col { min-width: 0; }
+
+  .tb-lead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .tb-select { width: 168px; }
+  .public-page { margin-top: 10px; }
+
+  .create-hint {
+    --btn-w: 100%;
+    --btn-min-h: 52px;
+    margin: 14px;
+    visibility: hidden;
+    opacity: 0;
+  }
+  .create-hint.on { visibility: visible; opacity: 1; }
   .ch-name { font-family: var(--bb-font-mono); }
 
   .group + .group { margin-top: 26px; }
@@ -877,7 +1122,7 @@
   }
   .g-rule { flex: 1; height: 1px; background: var(--bb-border); }
 
-  .toolbar-search { width: 220px; }
+  .toolbar-search { width: 220px; flex-shrink: 0; }
 
   .keys {
     display: none;
@@ -889,7 +1134,7 @@
     gap: 6px;
     white-space: nowrap;
   }
-  @media (min-width: 1080px) and (pointer: fine) {
+  @media (hover: hover) and (pointer: fine) and (min-width: 1440px) {
     .keys { display: inline-flex; }
   }
 
@@ -897,5 +1142,6 @@
     .deck-stats { gap: 16px; }
     .deck-stats .big { font-size: 20px; }
     .toolbar-search { width: 100%; order: 3; }
+    .tb-select { flex: 1; min-width: 140px; }
   }
 </style>

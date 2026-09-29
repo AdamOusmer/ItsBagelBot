@@ -12,7 +12,15 @@ function setEnv(next: Record<string, string | undefined>): void {
 mock.module('$app/environment', () => ({ dev: false }));
 mock.module('$env/dynamic/private', () => ({ env: envVars }));
 
-const { purgeEdge } = await import('./edge-purge');
+let username: string | null = 'Foo';
+mock.module('./services', () => ({
+  accountState: async () => {
+    if (username === null) throw new Error('state unavailable');
+    return { username };
+  }
+}));
+
+const { purgeEdge, schedulePurgeChannel, channelPageUrls } = await import('./edge-purge');
 
 const originalFetch = global.fetch;
 
@@ -56,4 +64,79 @@ describe('purgeEdge', () => {
 
     expect(await purgeEdge(['https://commands.itsbagelbot.com/user/foo'])).toBe(false);
   }, 6000);
+});
+
+describe('schedulePurgeChannel', () => {
+  const originalSetTimeout = global.setTimeout;
+  let timers: Array<() => void>;
+  let bodies: Array<{ files: string[] }>;
+
+  beforeEach(() => {
+    setEnv({ CF_ZONE_ID: 'zone1', CF_CACHE_PURGE_TOKEN: 'token1' });
+    username = 'Foo';
+    timers = [];
+    bodies = [];
+    global.setTimeout = ((fn: () => void) => {
+      timers.push(fn);
+      return { unref: () => {} };
+    }) as unknown as typeof setTimeout;
+    global.fetch = mock((_url: string, opts: { body: string }) => {
+      bodies.push(JSON.parse(opts.body));
+      return Promise.resolve(new Response(null, { status: 200 }));
+    }) as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    global.setTimeout = originalSetTimeout;
+    global.fetch = originalFetch;
+  });
+
+  const flush = async () => {
+    for (const fire of timers.splice(0)) fire();
+    await new Promise((resolve) => originalSetTimeout(resolve, 0));
+  };
+
+  test('burst of writes coalesces into one purge of every channel page variant', async () => {
+    schedulePurgeChannel('1');
+    schedulePurgeChannel('1');
+    schedulePurgeChannel('1');
+    expect(timers).toHaveLength(1);
+
+    await flush();
+    expect(bodies).toEqual([{ files: channelPageUrls('foo') }]);
+    expect(bodies[0].files).toEqual([
+      'https://commands.itsbagelbot.com/user/foo',
+      'https://commands.itsbagelbot.com/user/@foo',
+      'https://leaderboard.itsbagelbot.com/foo',
+      'https://leaderboard.itsbagelbot.com/@foo'
+    ]);
+  });
+
+  test('a write after the purge fired schedules a fresh purge', async () => {
+    schedulePurgeChannel('2');
+    await flush();
+    schedulePurgeChannel('2');
+    await flush();
+    expect(bodies).toHaveLength(2);
+  });
+
+  test('separate users do not coalesce', async () => {
+    schedulePurgeChannel('3');
+    schedulePurgeChannel('4');
+    expect(timers).toHaveLength(2);
+    await flush();
+  });
+
+  test('unknown or malformed login skips the network call', async () => {
+    username = '';
+    schedulePurgeChannel('5');
+    await flush();
+    username = 'bad/login';
+    schedulePurgeChannel('6');
+    await flush();
+    username = null;
+    schedulePurgeChannel('7');
+    await flush();
+    expect(bodies).toHaveLength(0);
+  });
 });

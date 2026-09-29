@@ -41,6 +41,7 @@ export const icons = {
   bulb: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5c1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5c.7.7 1.3 1.5 1.5 2.5m0 4h6m-5 4h4"/>', // lucide:lightbulb
   copy: '<g><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></g>', // lucide:copy
   arrowLeft: '<path d="m12 19l-7-7l7-7m7 7H5"/>', // lucide:arrow-left
+  arrowUpRight: '<path d="M7 7h10v10M7 17L17 7"/>', // lucide:arrow-up-right
   clock: '<g><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></g>', // lucide:clock
   bolt: '<path d="M15.914 4a1.5 1.5 0 0 0-2.474-1.561l-9 9A1.5 1.5 0 0 0 5.5 14h4.002a.5.5 0 0 1 .471.666L8.086 20a1.5 1.5 0 0 0 2.475 1.56l9-9A1.5 1.5 0 0 0 18.5 10h-3.997a.5.5 0 0 1-.472-.667z"/>', // lucide:zap
   share: '<path d="M12 2v13m4-9l-4-4l-4 4m-4 6v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>', // lucide:share

@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, IconButton, ManagementRow, Tag, Text, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
+  import { Icon, ManagementRow, Tag, Text, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
+  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
 
   const { t } = getI18n();
 
@@ -49,7 +50,7 @@
   {/snippet}
   {#snippet actions()}
     {#if bound}
-      <IconButton size="sm" label={t('spotify.removeAria')} onclick={onDelete}><Icon name="trash" size={15} /></IconButton>
+      <RowDeleteButton label={t('spotify.removeAria', { name: reward?.title || t('spotify.thisReward') })} onclick={onDelete} />
     {/if}
   {/snippet}
 </ManagementRow>

@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { AuroraBg, Chip, Code, EmptyState, Eyebrow, Heading, Lead, LightField, AlertBanner, Card, Table, Tag, Text, TextLink, formatPointValue, getI18n } from '@bagel/kit';
+  import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
 
@@ -32,16 +33,11 @@
   const channelHref = $derived(commandsHref(data.login));
 </script>
 
-<svelte:head>
-  <title>{t('leaderboard.title', { channel: data.channelName })}</title>
-  <meta name="description" content={t('leaderboard.metaDescription', { channel: data.channelName })} />
-  <link rel="canonical" href="https://leaderboard.itsbagelbot.com/{data.login}" />
-  <meta property="og:url" content="https://leaderboard.itsbagelbot.com/{data.login}" />
-  <meta property="og:title" content={t('leaderboard.title', { channel: data.channelName })} />
-  <meta property="og:description" content={t('leaderboard.metaDescription', { channel: data.channelName })} />
-  <meta name="twitter:title" content={t('leaderboard.title', { channel: data.channelName })} />
-  <meta name="twitter:description" content={t('leaderboard.metaDescription', { channel: data.channelName })} />
-</svelte:head>
+<PublicHead
+  title={t('leaderboard.title', { channel: data.channelName })}
+  description={t('leaderboard.metaDescription', { channel: data.channelName })}
+  url="https://leaderboard.itsbagelbot.com/{data.login}"
+/>
 
 <AuroraBg />
 <div class="starfield" aria-hidden="true"><LightField /></div>
@@ -199,6 +195,8 @@
   }
 
   .lb-page {
+    --tbl-head-size: var(--bb-text-xs);
+
     position: relative;
     z-index: 1;
     min-height: calc(100vh - var(--bb-nav-height));
@@ -359,7 +357,7 @@
   .place-1 .points .num { font-size: clamp(32px, 4vw, 50px); color: var(--bb-tan-light); }
   .points .currency {
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: var(--bb-text-xs);
     letter-spacing: var(--bb-tracking-eyebrow);
     text-transform: uppercase;
     color: var(--bb-muted);
@@ -370,7 +368,7 @@
     align-items: center;
     gap: 6px;
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: var(--bb-text-xs);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--bb-muted);
@@ -406,7 +404,7 @@
     border-radius: 50%;
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 11px;
+    font-size: var(--bb-text-xs);
     text-transform: uppercase;
     color: var(--bb-green-glow);
     background: rgba(var(--bb-green-glow-rgb), 0.1);

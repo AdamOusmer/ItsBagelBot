@@ -19,11 +19,16 @@
   }
 
   const DISMISS_KEY = 'bagel:install-dismissed';
+  const REOFFER_MS = 30 * 24 * 60 * 60 * 1000;
+  const SHOW_DELAY_MS = 4000;
 
   let promptEvent: BeforeInstallPromptEvent | null = null;
   let mode = $state<'chromium' | 'ios' | null>(null);
   let visible = $state(false);
+  let ready = $state(false);
   let iosOpen = $state(false);
+
+  const inApp = $derived(page.route.id?.startsWith('/(app)') ?? false);
 
   function isStandalone(): boolean {
     const nav = window.navigator as Navigator & { standalone?: boolean };
@@ -38,7 +43,8 @@
 
   function isDismissed(): boolean {
     try {
-      return localStorage.getItem(DISMISS_KEY) === '1';
+      const dismissedAt = Number(localStorage.getItem(DISMISS_KEY));
+      return Date.now() - dismissedAt < REOFFER_MS;
     } catch {
       return false;
     }
@@ -50,7 +56,7 @@
 
   function persistDismissed(): void {
     try {
-      localStorage.setItem(DISMISS_KEY, '1');
+      localStorage.setItem(DISMISS_KEY, String(Date.now()));
     } catch {
     }
   }
@@ -99,16 +105,25 @@
 
     if (isIos()) show('ios');
 
+    const arm = () => (ready = true);
+    const timer = setTimeout(arm, forceShow() ? 0 : SHOW_DELAY_MS);
+    window.addEventListener('pointerdown', arm, { once: true });
+    window.addEventListener('keydown', arm, { once: true });
+
     return () => {
+      clearTimeout(timer);
+      window.removeEventListener('pointerdown', arm);
+      window.removeEventListener('keydown', arm);
       window.removeEventListener('beforeinstallprompt', onBeforeInstall);
       window.removeEventListener('appinstalled', onInstalled);
     };
   });
 </script>
 
-{#if browser && visible}
+{#if browser && visible && ready && inApp}
   <Popover
     bind:open={iosOpen}
+    placement="bottom"
     expands={mode === 'ios'}
     onactivate={runInstall}
     label={t('install.ariaLabel')}

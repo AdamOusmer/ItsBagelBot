@@ -7,10 +7,10 @@
 
   const { t } = getI18n();
 
-  let { exitHref, exitForm = false, exitLabel = t('banner.exit'), children }:
-    { exitHref?: string; exitForm?: boolean; exitLabel?: string; children: Snippet } = $props();
+  let { exitHref, exitForm = false, exitLabel = t('banner.exit'), second = false, children }:
+    { exitHref?: string; exitForm?: boolean; exitLabel?: string; second?: boolean; children: Snippet } = $props();
 
   const exit = $derived(exitForm ? { label: exitLabel, action: '/auth/logout' } : { label: exitLabel, href: exitHref });
 </script>
 
-<AlertBanner variant="impersonation" role="status" {exit}>{@render children()}</AlertBanner>
+<AlertBanner variant="impersonation" role="status" {second} {exit}>{@render children()}</AlertBanner>

@@ -154,6 +154,7 @@
         }
 
         .bb-tabs--wrap::-webkit-scrollbar { display: none; }
+        .bb-tabs--wrap > .bb-tab { flex-shrink: 0; }
     }
 
     .bb-tab {
@@ -169,7 +170,7 @@
         border-radius: 0;
         cursor: pointer;
         font-family: var(--bb-font-mono);
-        font-size: 11px;
+        font-size: 12px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
         color: var(--bb-muted);

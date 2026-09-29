@@ -1,0 +1,14 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/elements/nav-progress.css';
+
+interface Props {
+  active?: boolean;
+}
+
+const { active = false } = Astro.props;
+---
+
+<div class={active ? 'bb-nav-progress bb-nav-progress--active' : 'bb-nav-progress'} role="presentation" aria-hidden="true"></div>

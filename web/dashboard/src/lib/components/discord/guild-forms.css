@@ -90,6 +90,10 @@
   grid-column: 1 / -1;
 }
 
+.dc .field-note[data-quiet] {
+  visibility: hidden;
+}
+
 .dc .chips {
   display: flex;
   flex-wrap: wrap;
@@ -100,6 +104,23 @@
 .dc .chip-x {
   margin-left: 6px;
   opacity: 0.7;
+}
+.dc .chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+@media (pointer: coarse) {
+  .dc .chip-remove {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 .dc .adder {
   display: flex;

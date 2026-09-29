@@ -57,6 +57,14 @@
     top: calc(54px + env(safe-area-inset-top, 0px));
   }
 
+  .bb-shell--stacked {
+    padding-top: 88px;
+  }
+
+  .bb-shell--stacked .bb-topbar {
+    top: calc(98px + env(safe-area-inset-top, 0px));
+  }
+
   .bb-shell__skip {
     position: fixed;
     top: 0;

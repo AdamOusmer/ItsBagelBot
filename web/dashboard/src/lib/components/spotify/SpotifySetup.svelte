@@ -134,7 +134,7 @@
   <AmbientSky position="contained" shift={blobRight ? 1 : -1} turn={step * 24} {px} {py} progress={done ? 1 : step / 3} leaving={done} />
   <header class="top">
     <TextLink variant="quiet" icon="arrowLeft" href="/modules" label={t('spotify.back')} />
-    <Stepper steps={railSteps} current={step} {maxStep} label={t('onboarding.stepOf', { n: step + 1, total: 4 })} onselect={go} />
+    <Stepper compact steps={railSteps} current={step} {maxStep} label={t('onboarding.stepOf', { n: step + 1, total: 4 })} onselect={go} />
   </header>
   <div class="stage">
     <div class="pair">
@@ -164,7 +164,7 @@
                 <div class="actions"><Button onclick={() => go(1)} onpointerenter={() => hover = true} onpointerleave={() => hover = false}>{t('spotifySetup.start')} →</Button></div>
               {:else if step === 1}
                 <ButtonLink href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" variant="secondary">{t('spotifySetup.developer')} ↗</ButtonLink>
-                <div class="redirect-block"><Label mono as="span">Redirect URI</Label>
+                <div class="redirect-block"><Label mono as="span">{t('spotifySetup.redirectLabel')}</Label>
                   {#if redirectUri}<div class="redirect"><span class="redirect-value"><Text as="span" size="xs" mono tone="pale">{redirectUri}</Text></span><Button variant="ghost" size="sm" onclick={copyRedirect}>{copied ? t('spotify.redirectCopied') : t('spotify.redirectCopy')}</Button></div>
                   {:else}<Text size="sm" tone="muted">{t('spotifySetup.redirectMissing')}</Text>{/if}
                 </div>

@@ -3,7 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import '../styles/elements/status-dot.css';
 
-  let { tone }: { tone: 'success' | 'warning' | 'error' | 'neutral' } = $props();
+  let { tone, flat = false }: { tone: 'success' | 'warning' | 'error' | 'neutral'; flat?: boolean } = $props();
 </script>
 
-<span class="bb-status-dot {tone}" aria-hidden="true"></span>
+<span class="bb-status-dot {tone}" class:flat aria-hidden="true"></span>

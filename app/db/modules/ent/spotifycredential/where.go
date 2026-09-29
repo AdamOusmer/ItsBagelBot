@@ -79,6 +79,11 @@ func Scopes(v string) predicate.SpotifyCredential {
 	return predicate.SpotifyCredential(sql.FieldEQ(FieldScopes, v))
 }
 
+// RefreshFailedAt applies equality check predicate on the "refresh_failed_at" field. It's identical to RefreshFailedAtEQ.
+func RefreshFailedAt(v time.Time) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldEQ(FieldRefreshFailedAt, v))
+}
+
 // UpdatedAt applies equality check predicate on the "updated_at" field. It's identical to UpdatedAtEQ.
 func UpdatedAt(v time.Time) predicate.SpotifyCredential {
 	return predicate.SpotifyCredential(sql.FieldEQ(FieldUpdatedAt, v))
@@ -372,6 +377,56 @@ func ScopesEqualFold(v string) predicate.SpotifyCredential {
 // ScopesContainsFold applies the ContainsFold predicate on the "scopes" field.
 func ScopesContainsFold(v string) predicate.SpotifyCredential {
 	return predicate.SpotifyCredential(sql.FieldContainsFold(FieldScopes, v))
+}
+
+// RefreshFailedAtEQ applies the EQ predicate on the "refresh_failed_at" field.
+func RefreshFailedAtEQ(v time.Time) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldEQ(FieldRefreshFailedAt, v))
+}
+
+// RefreshFailedAtNEQ applies the NEQ predicate on the "refresh_failed_at" field.
+func RefreshFailedAtNEQ(v time.Time) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNEQ(FieldRefreshFailedAt, v))
+}
+
+// RefreshFailedAtIn applies the In predicate on the "refresh_failed_at" field.
+func RefreshFailedAtIn(vs ...time.Time) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldIn(FieldRefreshFailedAt, vs...))
+}
+
+// RefreshFailedAtNotIn applies the NotIn predicate on the "refresh_failed_at" field.
+func RefreshFailedAtNotIn(vs ...time.Time) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNotIn(FieldRefreshFailedAt, vs...))
+}
+
+// RefreshFailedAtGT applies the GT predicate on the "refresh_failed_at" field.
+func RefreshFailedAtGT(v time.Time) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldGT(FieldRefreshFailedAt, v))
+}
+
+// RefreshFailedAtGTE applies the GTE predicate on the "refresh_failed_at" field.
+func RefreshFailedAtGTE(v time.Time) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldGTE(FieldRefreshFailedAt, v))
+}
+
+// RefreshFailedAtLT applies the LT predicate on the "refresh_failed_at" field.
+func RefreshFailedAtLT(v time.Time) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldLT(FieldRefreshFailedAt, v))
+}
+
+// RefreshFailedAtLTE applies the LTE predicate on the "refresh_failed_at" field.
+func RefreshFailedAtLTE(v time.Time) predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldLTE(FieldRefreshFailedAt, v))
+}
+
+// RefreshFailedAtIsNil applies the IsNil predicate on the "refresh_failed_at" field.
+func RefreshFailedAtIsNil() predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldIsNull(FieldRefreshFailedAt))
+}
+
+// RefreshFailedAtNotNil applies the NotNil predicate on the "refresh_failed_at" field.
+func RefreshFailedAtNotNil() predicate.SpotifyCredential {
+	return predicate.SpotifyCredential(sql.FieldNotNull(FieldRefreshFailedAt))
 }
 
 // UpdatedAtEQ applies the EQ predicate on the "updated_at" field.

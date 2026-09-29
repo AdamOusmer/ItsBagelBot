@@ -18,6 +18,7 @@
     DeckList,
     Heading,
     SearchInput,
+    SegmentedControl,
     Text,
     EmptyState,
     toast,
@@ -62,22 +63,20 @@
   );
 
   let searchQuery = $state(initial.q);
+  let statusFilter = $state<'all' | 'on'>(initial.status === 'on' ? 'on' : 'all');
+  const statusOptions = $derived([
+    { value: 'all', label: t('modules.filterAll') },
+    { value: 'on', label: t('modules.filterOn') }
+  ]);
+  const seededOn = $derived(new Set((data.modules ?? []).filter((m) => m.enabled).map((m) => m.def.id)));
 
   const activeCount = $derived(items.filter((m) => m.enabled).length);
   const filtered = $derived(
     filterModuleIndex(items, { q: searchQuery, category: '', status: 'all' }, (def) =>
       [tModuleLabel(t, def), tModuleTagline(t, def), tModuleDescription(t, def)].join('\n')
-    )
+    ).filter((m) => statusFilter === 'all' || seededOn.has(m.def.id))
   );
-  const groups = $derived(
-    groupModulesByCategory(filtered).map((group) => ({
-      ...group,
-      modules: [
-        ...group.modules.filter((m) => m.enabled),
-        ...group.modules.filter((m) => !m.enabled)
-      ]
-    }))
-  );
+  const groups = $derived(groupModulesByCategory(filtered));
 
   function catLabel(name: string): string {
     const keys = MODULE_CATEGORY_I18N[name];
@@ -107,6 +106,7 @@
 
   function clearSearch() {
     searchQuery = '';
+    statusFilter = 'all';
   }
 
   let urlReady = $state(false);
@@ -116,7 +116,7 @@
   $effect(() => {
     if (!urlReady) return;
     const url = new URL(page.url);
-    writeModuleIndexQuery(url, { q: searchQuery, category: '', status: 'all' });
+    writeModuleIndexQuery(url, { q: searchQuery, category: '', status: statusFilter });
     const next = url.pathname + url.search;
     if (next !== page.url.pathname + page.url.search) replaceState(url, {});
   });
@@ -192,10 +192,19 @@
 
   <div class="deck">
     <Label htmlFor="module-search">{t('modules.searchLabel')}</Label>
-    <div class="find">
-      <SearchInput id="module-search" bind:value={searchQuery} bind:element={searchInput} placeholder={t('modules.searchPlaceholder')}
-        aria-label={t('modules.searchLabel')} aria-describedby="module-search-hint" clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
-      {#if !searchQuery}<span class="keys" aria-hidden="true"><Kbd>/</Kbd></span>{/if}
+    <div class="find-row">
+      <div class="find">
+        <SearchInput id="module-search" bind:value={searchQuery} bind:element={searchInput} placeholder={t('modules.searchPlaceholder')}
+          aria-label={t('modules.searchLabel')} aria-describedby="module-search-hint" clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
+        {#if !searchQuery}<span class="keys" aria-hidden="true"><Kbd>/</Kbd></span>{/if}
+      </div>
+      <div class="status-filter">
+        <SegmentedControl
+          options={statusOptions}
+          label={t('modules.statusFilterLabel')}
+          bind:value={() => statusFilter, (v) => (statusFilter = v === 'on' ? 'on' : 'all')}
+        />
+      </div>
     </div>
   </div>
 
@@ -276,7 +285,9 @@
     background: var(--bb-bg-0);
     border-bottom: 1px solid var(--bb-border);
   }
-  .find { width: 100%; min-width: 0; margin-top: 8px; position: relative; }
+  .find-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+  .find { flex: 1; min-width: 0; position: relative; }
+  .status-filter { flex: none; }
   .find .keys { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
 
   .index {

@@ -95,6 +95,7 @@ export { default as Cursor } from './Cursor.svelte';
 export { default as LightField } from './LightField.svelte';
 export { default as Sky } from './Sky.svelte';
 export { default as ReadingProgress } from './ReadingProgress.svelte';
+export { default as NavProgress } from './NavProgress.svelte';
 
 export { toast, toasts, dismissToast, type ToastItem } from './toast.svelte';
 export * from './inspector.svelte';

@@ -20,11 +20,11 @@ import {
   userCommandsPage,
   setCommandsPage,
   accountState,
+  hasGrant,
   type NotificationWire
 } from '$lib/server/services';
 import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
-import { purgeEdge } from '$lib/server/edge-purge';
-import { commandsHref } from '@bagel/kit/site-links';
+import { channelPageUrls, purgeEdge } from '$lib/server/edge-purge';
 import { KEY_VALUE_MAX, slugifyName, translate, type Locale } from '@bagel/kit';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revocation';
@@ -47,7 +47,7 @@ function ownerSession(s: Session | null): s is Session {
 async function purgeCommandsPage(userId: string): Promise<boolean> {
   const account = await accountState(userId).catch(() => null);
   if (!account?.username) return false;
-  return purgeEdge([commandsHref(account.username.toLowerCase())]);
+  return purgeEdge(channelPageUrls(account.username.toLowerCase()));
 }
 
 function ownerAction<R>(
@@ -90,6 +90,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       notifications: d.demoNotifications,
       savedLocale: d.demoSavedLocale,
       commandsPage: true,
+      twitchConnected: true as boolean | null,
       degraded: false,
       fetchKeys: d.demoFetches().keys,
       fetchKeyRefs: { weather_api: ['weather'] }
@@ -100,13 +101,14 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (!s || s.delegate_of) throw redirect(302, '/');
 
   const self = s.user_id;
-  const [givenResult, receivedResult, notifResult, localeResult, commandsPageResult, fetchKeyResult] = await Promise.allSettled([
+  const [givenResult, receivedResult, notifResult, localeResult, commandsPageResult, fetchKeyResult, grantResult] = await Promise.allSettled([
     delegationList(self),
     delegationAccess(self),
     notificationsForUser(self),
     userLocale(self),
     userCommandsPage(self),
-    listFetches(self)
+    listFetches(self),
+    hasGrant(self)
   ]);
 
   const notifications: NotificationWire[] = settledOr(notifResult, { notifications: [], unreadCount: 0 }).notifications;
@@ -118,6 +120,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     notifications,
     savedLocale: savedLocaleOf(localeResult),
     commandsPage: settledOr(commandsPageResult, true),
+    twitchConnected: grantResult.status === 'fulfilled' ? grantResult.value === true : (null as boolean | null),
     degraded: [givenResult, receivedResult, localeResult, commandsPageResult].some(rejected),
     ...readFetchKeys(fetchKeyResult)
   };

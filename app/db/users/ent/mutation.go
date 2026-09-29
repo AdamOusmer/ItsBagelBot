@@ -3994,6 +3994,7 @@ type UserMutation struct {
 	subscription_expires_at     *time.Time
 	subscription_ref            *string
 	subscription_cancel_pending *bool
+	subscription_payment_failed *bool
 	billing_event_at            *time.Time
 	billing_event_id            *string
 	gifts_sent                  *uint32
@@ -4766,6 +4767,42 @@ func (m *UserMutation) ResetSubscriptionCancelPending() {
 	m.subscription_cancel_pending = nil
 }
 
+// SetSubscriptionPaymentFailed sets the "subscription_payment_failed" field.
+func (m *UserMutation) SetSubscriptionPaymentFailed(b bool) {
+	m.subscription_payment_failed = &b
+}
+
+// SubscriptionPaymentFailed returns the value of the "subscription_payment_failed" field in the mutation.
+func (m *UserMutation) SubscriptionPaymentFailed() (r bool, exists bool) {
+	v := m.subscription_payment_failed
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubscriptionPaymentFailed returns the old "subscription_payment_failed" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldSubscriptionPaymentFailed(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubscriptionPaymentFailed is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubscriptionPaymentFailed requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubscriptionPaymentFailed: %w", err)
+	}
+	return oldValue.SubscriptionPaymentFailed, nil
+}
+
+// ResetSubscriptionPaymentFailed resets all changes to the "subscription_payment_failed" field.
+func (m *UserMutation) ResetSubscriptionPaymentFailed() {
+	m.subscription_payment_failed = nil
+}
+
 // SetBillingEventAt sets the "billing_event_at" field.
 func (m *UserMutation) SetBillingEventAt(t time.Time) {
 	m.billing_event_at = &t
@@ -5206,7 +5243,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 23)
+	fields := make([]string, 0, 24)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -5254,6 +5291,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.subscription_cancel_pending != nil {
 		fields = append(fields, user.FieldSubscriptionCancelPending)
+	}
+	if m.subscription_payment_failed != nil {
+		fields = append(fields, user.FieldSubscriptionPaymentFailed)
 	}
 	if m.billing_event_at != nil {
 		fields = append(fields, user.FieldBillingEventAt)
@@ -5316,6 +5356,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.SubscriptionRef()
 	case user.FieldSubscriptionCancelPending:
 		return m.SubscriptionCancelPending()
+	case user.FieldSubscriptionPaymentFailed:
+		return m.SubscriptionPaymentFailed()
 	case user.FieldBillingEventAt:
 		return m.BillingEventAt()
 	case user.FieldBillingEventID:
@@ -5371,6 +5413,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldSubscriptionRef(ctx)
 	case user.FieldSubscriptionCancelPending:
 		return m.OldSubscriptionCancelPending(ctx)
+	case user.FieldSubscriptionPaymentFailed:
+		return m.OldSubscriptionPaymentFailed(ctx)
 	case user.FieldBillingEventAt:
 		return m.OldBillingEventAt(ctx)
 	case user.FieldBillingEventID:
@@ -5505,6 +5549,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSubscriptionCancelPending(v)
+		return nil
+	case user.FieldSubscriptionPaymentFailed:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubscriptionPaymentFailed(v)
 		return nil
 	case user.FieldBillingEventAt:
 		v, ok := value.(time.Time)
@@ -5717,6 +5768,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldSubscriptionCancelPending:
 		m.ResetSubscriptionCancelPending()
+		return nil
+	case user.FieldSubscriptionPaymentFailed:
+		m.ResetSubscriptionPaymentFailed()
 		return nil
 	case user.FieldBillingEventAt:
 		m.ResetBillingEventAt()

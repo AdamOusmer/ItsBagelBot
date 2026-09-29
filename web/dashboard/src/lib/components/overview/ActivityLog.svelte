@@ -10,9 +10,9 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import { clockFace, type ActivityFeed, type ActivityKind } from '$lib/overview-live';
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
-  let { feed }: { feed: ActivityFeed } = $props();
+  let { feed, stale = false }: { feed: ActivityFeed; stale?: boolean } = $props();
 
   const KIND_LABEL: Record<ActivityKind, string> = {
     command: 'overview.kindCommand',
@@ -52,7 +52,11 @@
   <div class="ov-log__head">
     <Heading level={6} as="h2" variant="title" id="ov-log-h">{t('overview.botJustDid')}</Heading>
     {#if feed.ok && feed.rows.length}
-      <Tag tone="incoming" mark="plus" sweep>{t('overview.feedLive')}</Tag>
+      {#if stale}
+        <Tag tone="quiet" mark="hollow">{t('overview.feedReconnecting')}</Tag>
+      {:else}
+        <Tag tone="incoming" mark="plus" sweep>{t('overview.feedLive')}</Tag>
+      {/if}
     {/if}
   </div>
 
@@ -61,10 +65,10 @@
   {:else if !feed.rows.length}
     <div class="ov-log__empty"><Text size="sm" tone="muted">{t('overview.feedEmpty')}</Text></div>
   {:else}
-    <ul class="ov-log__list">
+    <ul class="ov-log__list" class:ov-log__list--stale={stale}>
       {#each feed.rows as row (row.id)}
         <li class="ov-log__row">
-          <span class="ov-log__time"><Text as="span" size="xs" mono tone="muted">{clockFace(row.at)}</Text></span>
+          <span class="ov-log__time"><Text as="span" size="xs" mono tone="muted">{clockFace(row.at, locale)}</Text></span>
           <span class="ov-log__kind"><Tag tone={KIND_TONE[row.kind]} bare>{t(KIND_LABEL[row.kind])}</Tag></span>
           <span class="ov-log__text"><Text as="span" size="sm" truncate>{row.text}</Text></span>
           <span class="ov-log__meta"><Text as="span" size="xs" mono tone="muted">{row.meta}</Text></span>
@@ -91,6 +95,10 @@
     list-style: none;
     margin: 0;
     padding: 0;
+    transition: opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+  .ov-log__list--stale {
+    opacity: 0.55;
   }
   .ov-log__row {
     display: flex;
@@ -102,7 +110,9 @@
   }
   .ov-log__time {
     flex: none;
-    width: 46px;
+    width: 4.75rem;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
   .ov-log__kind {
     flex: none;

@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, IconButton, ManagementRow, getI18n } from '@bagel/kit';
+  import { ManagementRow, getI18n } from '@bagel/kit';
+  import RowDeleteButton from '$lib/components/shared/RowDeleteButton.svelte';
   import type { QuoteView } from '$lib/server/quotes-store';
 
   let {
@@ -16,12 +17,12 @@
     onDelete: () => void;
   } = $props();
 
-  const { t } = getI18n();
+  const { t, locale } = getI18n();
 
   function formatDate(iso: string): string {
     const parts = iso.slice(0, 10).split('-').map(Number);
     if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return '';
-    return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString();
+    return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString(locale);
   }
 </script>
 
@@ -34,9 +35,7 @@
     </span>
   {/snippet}
   {#snippet actions()}
-    <span class="row-act">
-      <IconButton size="sm" label={`${t('quotes.deleteAria')}: #${quote.number}`} onclick={onDelete}><Icon name="trash" size={15} /></IconButton>
-    </span>
+    <RowDeleteButton label={t('quotes.deleteAriaNamed', { n: quote.number })} onclick={onDelete} />
   {/snippet}
 </ManagementRow>
 
@@ -78,7 +77,6 @@
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  .row-act { display: inline-flex; align-items: center; }
 
   @media (max-width: 700px) {
     .prow {
@@ -89,6 +87,5 @@
       row-gap: 4px;
     }
     .date { justify-self: end; }
-    .row-act { --btn-icon-min-size: 44px; }
   }
 </style>

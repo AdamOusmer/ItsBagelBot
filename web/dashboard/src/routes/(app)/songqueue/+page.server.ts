@@ -9,10 +9,11 @@ import type {
   SpotifyStore,
   SpotifySrPerm
 } from '$lib/server/spotify-store';
-import { spotifyStore, readSpotifyPlayerQueue } from '$lib/server/spotify-store';
+import { spotifyStore } from '$lib/server/spotify-store';
 import { spotifyRedirectURI, spotifyScopeGap, spotifyConfigured } from '$lib/server/oauth';
-import { getSongQueue, type SongQueueDoc } from '@bagel/kit/server/songqueue-store';
-import { shapeQueue, type QueueView } from '$lib/server/songqueue-view';
+import { getSongQueue } from '@bagel/kit/server/songqueue-store';
+import type { QueueView } from '$lib/server/songqueue-view';
+import { queueView } from '$lib/server/songqueue-live';
 import { moduleLoad } from '$lib/server/module-page';
 import { moduleAction } from '$lib/server/module-action';
 import type { MutationRefusal } from '@bagel/kit/server/form-action';
@@ -21,17 +22,6 @@ import { env } from '$env/dynamic/private';
 import { fail } from '@sveltejs/kit';
 
 const DEMO = dev && env.DEMO === '1';
-
-async function queueView(uid: string, connected: boolean, queue: SongQueueDoc): Promise<QueueView> {
-  if (!connected) return shapeQueue(queue, null);
-  if (!hasStoredSongs(queue)) return shapeQueue(queue, null);
-  return shapeQueue(queue, await readSpotifyPlayerQueue(uid));
-}
-
-function hasStoredSongs(queue: SongQueueDoc): boolean {
-  if (queue.current) return true;
-  return (queue.up?.length ?? 0) > 0;
-}
 
 export const load: PageServerLoad = ({ locals, url }) => {
   const justConnected = url.searchParams.get('connected') === '1';
@@ -49,15 +39,16 @@ export const load: PageServerLoad = ({ locals, url }) => {
             ...demoSpotifyView(),
             quotas: blankSpotifyQuotas(),
             queue: {
-              current: { title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice' },
+              current: { tid: 'demo-1', title: 'Mr. Brightside', artists: 'The Killers', requester: 'alice' },
               up: [
-                { title: 'Human', artists: 'The Killers', requester: 'bob' },
-                { title: 'Somebody Told Me', artists: 'The Killers', requester: 'carol' }
+                { tid: 'demo-2', title: 'Human', artists: 'The Killers', requester: 'bob' },
+                { tid: 'demo-3', title: 'Somebody Told Me', artists: 'The Killers', requester: 'carol' }
               ]
             } as QueueView,
             setupPreview,
             connected: !setupPreview,
             scopeGap: [] as string[],
+            needsReconnect: false,
             app: { present: !setupPreview, clientId: setupPreview ? '' : 'demo-client-id' },
             redirectUri: 'https://console.example/spotify/callback',
             justConnected: false,
@@ -79,6 +70,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
         queue: await queueView(uid, grant.connected, queue),
         connected: grant.connected,
         scopeGap: grant.connected ? spotifyScopeGap(grant.scopes) : [],
+        needsReconnect: grant.connected && grant.needsReconnect,
         app,
         redirectUri,
         justConnected,
@@ -93,6 +85,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
       queue: { current: null, up: [] } as QueueView,
       connected: false,
       scopeGap: [] as string[],
+      needsReconnect: false,
       app: { present: false, clientId: '' },
       redirectUri: '',
       justConnected: false,
@@ -103,6 +96,7 @@ export const load: PageServerLoad = ({ locals, url }) => {
 
 function resultFail(r: Extract<SpotifyResult, { ok: false }>) {
   if (r.missingScope) return fail(403, { ok: false, missingScope: true });
+  if (r.code) return fail(400, { ok: false, code: r.code });
   return fail(400, { ok: false, error: r.error ?? 'failed' });
 }
 
@@ -238,5 +232,7 @@ export const actions: Actions = {
 
   deleteReward: mutate('reward_delete', 'Invalid request.', async (store) => done(await store.deleteReward(), '')),
 
-  disconnect: mutate('disconnect', 'Invalid request.', async (store) => done(await store.disconnect(), ''))
+  disconnect: mutate('disconnect', 'Invalid request.', async (store) => done(await store.disconnect(), '')),
+
+  skip: mutate('skip', 'Invalid request.', async (store) => done(await store.skip(), ''))
 };

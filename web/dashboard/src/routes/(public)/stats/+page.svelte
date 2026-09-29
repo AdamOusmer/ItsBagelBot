@@ -16,9 +16,9 @@
   import StatsPageLayout from '@bagel/ui/svelte/StatsPageLayout.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
-  import { visibleEventSource } from '$lib/visible-stream';
   import { exactDisplay, formatStatTotal, validBoards, validStats } from '$lib/stats-values';
   import { formatCounterValue } from '@bagel/kit/validation';
 
@@ -26,8 +26,7 @@
 
   const { t, locale } = getI18n();
 
-  const POLL_MS = 5000;
-  const INTRO_MS = 900;
+  const POLL_MS = 2000;
   const TAU_MS = 200;
   const RATE_TAU_MS = 300;
   const MAX_DT_MS = 250;
@@ -47,11 +46,13 @@
   let live = $state(seed);
   let degraded = $state(seed.degraded);
 
-  let boards = $state(untrack(() => validBoards(data.boards) ?? {
+  const emptyBoards = () => ({
     channels: [],
     feed: { total: '0', ranked: '0', entries: [] },
     degraded: true
-  }));
+  });
+
+  let boards = $state(untrack(() => validBoards(data.boards) ?? emptyBoards()));
 
   let display = $state({
     messages: exactDisplay(Number(seed.messages_total)),
@@ -63,10 +64,9 @@
   type Frame = typeof display;
 
   let snapAt = 0;
-  let introAt = 0;
   let lastFrame = 0;
   let reduced = false;
-  let streamDown = false;
+  let missedWhileHidden = false;
 
   function targetFrame(now: number): Frame {
     const secs = Math.min(Math.max(0, now - snapAt) / 1000, MAX_PROJECT_S);
@@ -84,13 +84,6 @@
     return from + (to - from) * eased;
   }
 
-  function closingFraction(now: number, dt: number): number {
-    const p = (now - introAt) / INTRO_MS;
-    if (p >= 1) return 1 - Math.exp(-dt / TAU_MS);
-    const before = Math.max(0, (now - dt - introAt) / INTRO_MS);
-    return 1 - Math.pow((1 - p) / (1 - before), 4);
-  }
-
   function advance(cur: number, target: number, rate: number, dt: number, k: number): number {
     return exactDisplay(Math.max(lerp(cur, target, k), cur + rate * (dt / 1000) * MIN_CRAWL));
   }
@@ -104,7 +97,7 @@
     lastFrame = now;
     if (degraded) return true;
     const target = targetFrame(now);
-    const k = closingFraction(now, dt);
+    const k = 1 - Math.exp(-dt / TAU_MS);
     const rateK = 1 - Math.exp(-dt / RATE_TAU_MS);
     display = {
       messages: advance(display.messages, target.messages, target.msgRate, dt, k),
@@ -131,7 +124,7 @@
     const prev = live;
     live = next;
     snapAt = performance.now();
-    if (reduced) {
+    if (reduced || prev.degraded) {
       snap(snapAt);
       return;
     }
@@ -139,84 +132,45 @@
     if (BigInt(next.events_total) < BigInt(prev.events_total)) display.events = exactDisplay(Number(next.events_total));
   }
 
-  async function refresh(): Promise<void> {
-    if (document.hidden) return;
-    try {
-      const res = await fetch('/stats/data', { headers: { accept: 'application/json' } });
-      if (!res.ok) return;
-      applySnapshot(await res.json());
-    } catch {
+  async function fetchJson(path: string): Promise<unknown> {
+    const res = await fetch(path, { headers: { accept: 'application/json' } });
+    if (!res.ok) throw new Error(`${path} ${res.status}`);
+    return res.json();
+  }
+
+  function applyStats(result: PromiseSettledResult<unknown>, resync: boolean): void {
+    if (result.status !== 'fulfilled') return;
+    applySnapshot(result.value);
+    if (resync) snap(performance.now());
+  }
+
+  async function poll(): Promise<boolean> {
+    if (document.hidden) {
+      missedWhileHidden = true;
+      return false;
     }
-  }
-
-  async function refreshBoards(): Promise<void> {
-    if (document.hidden) return;
-    try {
-      const res = await fetch('/stats/boards', { headers: { accept: 'application/json' } });
-      if (!res.ok) return;
-      boards = validBoards(await res.json()) ?? {
-        channels: [], feed: { total: '0', ranked: '0', entries: [] }, degraded: true
-      };
-    } catch {
-    }
-  }
-
-  function attachStream(es: EventSource, reopened: boolean): void {
-    let resync = reopened;
-    es.onopen = () => (streamDown = false);
-    es.onerror = () => (streamDown = true);
-    es.onmessage = (ev) => {
-      try {
-        applySnapshot(JSON.parse(ev.data));
-      } catch {
-        return;
-      }
-      if (!resync) return;
-      resync = false;
-      snap(performance.now());
-    };
-    es.addEventListener('boards', (ev) => {
-      try {
-        boards = validBoards(JSON.parse((ev as MessageEvent<string>).data)) ?? {
-          channels: [], feed: { total: '0', ranked: '0', entries: [] }, degraded: true
-        };
-      } catch {
-      }
-    });
-  }
-
-  async function pollWhileStreamDown(): Promise<boolean> {
-    if (streamDown) await Promise.all([refresh(), refreshBoards()]);
+    const resync = missedWhileHidden;
+    missedWhileHidden = false;
+    const [stats, next] = await Promise.allSettled([fetchJson('/stats/data'), fetchJson('/stats/boards')]);
+    applyStats(stats, resync);
+    if (next.status === 'fulfilled') boards = validBoards(next.value) ?? emptyBoards();
     return false;
-  }
-
-  function startOdometer(now: number): () => void {
-    if (reduced) {
-      snap(now);
-      return () => {};
-    }
-    display = { messages: 0, events: 0, msgRate: 0, eventRate: 0 };
-    return subscribe(tick);
   }
 
   onMount(() => {
     reduced = prefersReducedMotion();
     const now = performance.now();
     snapAt = now;
-    introAt = now;
-    lastFrame = now;
-    const stopOdometer = startOdometer(now);
-
-    const stop = visibleEventSource('/stats/stream', attachStream);
-    const stopPoll = livePoll(pollWhileStreamDown, {
-      firstDelayMs: POLL_MS,
+    snap(now);
+    const stopOdometer = reduced ? () => {} : subscribe(tick);
+    const stopPoll = livePoll(poll, {
+      firstDelayMs: 0,
       delayMs: () => POLL_MS,
       timeoutMs: Infinity,
       refreshOnVisible: true
     });
 
     return () => {
-      stop();
       stopPoll();
       stopOdometer();
     };
@@ -227,7 +181,7 @@
     notation: 'compact',
     maximumFractionDigits: 2
   });
-  const PENDING = '-';
+  const PENDING = t('stats.rateNa');
 
   // Keep the locale's compact suffix separate for the larger counter type.
   // The exact odometer reading remains printed below it, so compact rounding
@@ -315,16 +269,7 @@
   ];
 </script>
 
-<svelte:head>
-  <title>{t('stats.title')}</title>
-  <meta name="description" content={t('stats.metaDescription')} />
-  <link rel="canonical" href="https://stats.itsbagelbot.com/" />
-  <meta property="og:url" content="https://stats.itsbagelbot.com/" />
-  <meta property="og:title" content={t('stats.title')} />
-  <meta property="og:description" content={t('stats.metaDescription')} />
-  <meta name="twitter:title" content={t('stats.title')} />
-  <meta name="twitter:description" content={t('stats.metaDescription')} />
-</svelte:head>
+<PublicHead title={t('stats.title')} description={t('stats.metaDescription')} url="https://stats.itsbagelbot.com/" />
 
 <main class="stats-page">
   <StatsPageLayout

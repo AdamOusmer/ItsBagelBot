@@ -10,18 +10,20 @@ interface Props {
     callout?: boolean;
     flush?: boolean;
     stack?: boolean;
+    second?: boolean;
     exit?: { label: string; href?: string; action?: string };
     class?: string;
     [key: string]: unknown;
 }
 
-const { variant = 'danger', role = 'alert', callout = false, flush = false, stack = false, exit, class: className = '', ...rest } = Astro.props;
+const { variant = 'danger', role = 'alert', callout = false, flush = false, stack = false, second = false, exit, class: className = '', ...rest } = Astro.props;
 const classes = [
     'bb-alert',
     `bb-alert--${variant}`,
     callout ? 'bb-alert--callout' : null,
     flush ? 'bb-alert--flush' : null,
     stack ? 'bb-alert--stack' : null,
+    second ? 'bb-alert--row-2' : null,
     className,
 ]
     .filter(Boolean)

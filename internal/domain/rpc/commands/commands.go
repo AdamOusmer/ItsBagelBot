@@ -19,9 +19,11 @@ type DashboardRequest struct {
 	AllowedUserID    string   `json:"allowed_user_id"`
 	BumpCounter      string   `json:"bump_counter"`
 	OriginalName     string   `json:"original_name"`
+	RestoreUses      int64    `json:"restore_uses,omitempty"`
 }
 
 type DashboardReply struct {
 	Commands []projection.CommandView `json:"commands"`
+	Restored bool                     `json:"restored,omitempty"`
 	rpc.Refusal
 }

@@ -72,6 +72,39 @@ describe('Stepper', () => {
     );
     expect(await astro(AstroStepper, props)).toBe(html);
   });
+
+  test('compact adds the modifier and the current label after the glide, hidden from assistive tech', () => {
+    const html = svelte(SvelteStepper, { steps: WIZARD, current: 1, maxStep: 1, label: 'Step 2 of 3', compact: true, onselect: () => {} });
+    expect(html.startsWith('<nav class="bb-stepper bb-stepper--compact" aria-label="Step 2 of 3"')).toBe(true);
+    expect(html.endsWith('<span class="bb-stepper__glide" aria-hidden="true"></span><span class="bb-stepper__compact" aria-hidden="true">App</span></nav>')).toBe(true);
+  });
+
+  test('compact is opt-in: false renders exactly the default rail', () => {
+    const props = { steps: WIZARD, current: 1, label: 'Step 2 of 3', onselect: () => {} };
+    const html = svelte(SvelteStepper, { ...props, compact: false });
+    expect(html).toBe(svelte(SvelteStepper, props));
+    expect(html).not.toContain('compact');
+  });
+
+  test('compact renders the same in both adapters, with an empty label before the first step', async () => {
+    for (const current of [2, -1]) {
+      const props = { steps: WIZARD, current, label: 'Steps', compact: true };
+      expect(await astro(AstroStepper, props)).toBe(svelte(SvelteStepper, props));
+    }
+    expect(svelte(SvelteStepper, { steps: WIZARD, current: -1, label: 'Steps', compact: true })).toContain(
+      '<span class="bb-stepper__compact" aria-hidden="true"></span>',
+    );
+  });
+
+  test('compact CSS: the label reserves 44px in pale tan mono caps and replaces the cells at 760px', async () => {
+    const css = await Bun.file(new URL('../styles/elements/stepper.css', import.meta.url)).text();
+    expect(css).toMatch(
+      /\.bb-stepper__compact \{\s*display: none;\s*align-items: center;\s*min-height: 44px;\s*color: var\(--bb-tan-pale\);\s*font-family: var\(--bb-font-mono\);\s*font-size: 11px;\s*letter-spacing: 0\.1em;\s*text-transform: uppercase;\s*\}/,
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 760px\) \{[^@]*\.bb-stepper--compact :is\(\.bb-stepper__list, \.bb-stepper__track, \.bb-stepper__glide\) \{\s*display: none;\s*\}\s*\.bb-stepper__compact \{\s*display: flex;\s*\}/,
+    );
+  });
 });
 
 const CHECKLIST = [
