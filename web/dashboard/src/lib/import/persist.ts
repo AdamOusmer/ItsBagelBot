@@ -21,21 +21,29 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+const objectOr = <T>(v: unknown, fallback: T): T => (isObject(v) ? (v as unknown as T) : fallback);
+
+const sourceOf = (v: unknown): ImportSnapshot['source'] => (typeof v === 'string' && isImportSource(v) ? v : '');
+
+const stageOf = (v: unknown, stages: readonly string[]): string =>
+  typeof v === 'string' && stages.includes(v) ? v : 'pick';
+
+function snapshotFrom(v: Record<string, unknown>, stages: readonly string[]): ImportSnapshot {
+  return {
+    source: sourceOf(v.source),
+    stage: stageOf(v.stage, stages),
+    overwrite: v.overwrite === true,
+    previewResult: objectOr<ImportSnapshot['previewResult']>(v.previewResult, null),
+    commitResult: objectOr<ImportSnapshot['commitResult']>(v.commitResult, null),
+    selected: objectOr<ImportSnapshot['selected']>(v.selected, {})
+  };
+}
+
 export function parseSnapshot(raw: string | null, stages: readonly string[]): ImportSnapshot | null {
   if (!raw) return null;
   try {
     const v: unknown = JSON.parse(raw);
-    if (!isObject(v)) return null;
-    const source = typeof v.source === 'string' && isImportSource(v.source) ? v.source : '';
-    const stage = typeof v.stage === 'string' && stages.includes(v.stage) ? v.stage : 'pick';
-    return {
-      source,
-      stage,
-      overwrite: v.overwrite === true,
-      previewResult: isObject(v.previewResult) ? (v.previewResult as unknown as ImportSnapshot['previewResult']) : null,
-      commitResult: isObject(v.commitResult) ? (v.commitResult as unknown as ImportSnapshot['commitResult']) : null,
-      selected: isObject(v.selected) ? (v.selected as ImportSnapshot['selected']) : {}
-    };
+    return isObject(v) ? snapshotFrom(v, stages) : null;
   } catch {
     return null;
   }
