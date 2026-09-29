@@ -24,8 +24,7 @@ import {
   type NotificationWire
 } from '$lib/server/services';
 import { deleteFetchKey, listFetches, setFetchKey, type FetchKeyView } from '$lib/server/fetches-store';
-import { purgeEdge } from '$lib/server/edge-purge';
-import { commandsHref } from '@bagel/kit/site-links';
+import { channelPageUrls, purgeEdge } from '$lib/server/edge-purge';
 import { KEY_VALUE_MAX, slugifyName, translate, type Locale } from '@bagel/kit';
 import { ACCOUNT_DELETED_COOKIE, COOKIE, SESSION_TTL_SECONDS, type Session } from '$lib/server/session';
 import { revokeAllForUser, revokeSession } from '@bagel/kit/server/session-revocation';
@@ -48,7 +47,7 @@ function ownerSession(s: Session | null): s is Session {
 async function purgeCommandsPage(userId: string): Promise<boolean> {
   const account = await accountState(userId).catch(() => null);
   if (!account?.username) return false;
-  return purgeEdge([commandsHref(account.username.toLowerCase())]);
+  return purgeEdge(channelPageUrls(account.username.toLowerCase()));
 }
 
 function ownerAction<R>(

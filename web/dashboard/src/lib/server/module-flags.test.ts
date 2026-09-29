@@ -4,6 +4,7 @@
 import { describe, expect, mock, test } from 'bun:test';
 
 mock.module('$app/environment', () => ({ dev: false }));
+mock.module('./edge-purge', () => ({ schedulePurgeChannel: () => {} }));
 
 const { DEFAULT_MODULE_FLAGS, DEMO_MODULE_FLAGS, flagsFromRows } = await import('./module-flags');
 
