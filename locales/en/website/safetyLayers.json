@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Moderation, built in layers",
+  "title": "What happens before a message reaches chat.",
+  "juryTitle": "Several classifiers have to agree.",
+  "juryDesc": "Independent classifiers each score the message for spam and hate signals. It is only removed when they agree.",
+  "juryVerdict": "consensus",
+  "spam": "spam",
+  "hate": "hate",
+  "gatesTitle": "Static gates handle the obvious.",
+  "gatesDesc": "Rate, shape and link checks run first. They are fast and predictable, and they catch floods and known-bad links before anything heavier runs.",
+  "gateRate": "rate",
+  "gateShape": "shape",
+  "gateLink": "link",
+  "gatesPassed": "3 gates passed",
+  "networkTitle": "One raid warns every protected channel.",
+  "networkDesc": "A raid pattern seen in one channel is flagged for every enrolled channel, so the second target is already covered.",
+  "networkAlert": "raid signature",
+  "networkStatus": "network protected"
+}

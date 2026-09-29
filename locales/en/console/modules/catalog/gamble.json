@@ -1,0 +1,43 @@
+{
+  "label": "Gamble",
+  "tagline": "Let viewers wager their points on a roll with !gamble.",
+  "description": "Give your loyalty points a game: viewers type !gamble <amount> (or half/all of their standing) and the bot rolls 1-100. Landing inside your win chance pays the stake back plus its match; anything else takes it. Set the win odds, bet limits and per-viewer cooldown below, and customize the win/lose lines. Every payout and debit moves real loyalty points through the same ledger as !points. Turned on from the Loyalty page. It cannot run while the currency is off, and it uses the same currency name.",
+  "settings": {
+    "winPercent": {
+      "label": "Win chance %",
+      "help": "A roll of this number or lower wins. 50 is a fair coin; 1-99 allowed.",
+      "placeholder": "50"
+    },
+    "minBet": {
+      "label": "Minimum bet",
+      "placeholder": "1"
+    },
+    "maxBet": {
+      "label": "Maximum bet",
+      "placeholder": "1000"
+    },
+    "cooldownSeconds": {
+      "label": "Cooldown (seconds)",
+      "help": "Per viewer. One chatter gambling never blocks another.",
+      "placeholder": "10"
+    }
+  },
+  "replies": {
+    "won": {
+      "label": "Win line",
+      "tagline": "When a roll lands inside the win chance.",
+      "event": "!gamble 100",
+      "defaultMessage": "@{user} rolled {roll} (needed {chance} or less) and won {amount} {points}, now at {balance}!"
+    },
+    "lost": {
+      "label": "Loss line",
+      "tagline": "When a roll misses the win chance.",
+      "event": "!gamble 100",
+      "defaultMessage": "@{user} rolled {roll} (needed {chance} or less) and lost {amount} {points}. Now at {balance}."
+    }
+  },
+  "commands": {
+    "gamble_amount": "Wager that many points on a roll.",
+    "gamble_half_all": "Wager half of / the whole standing."
+  }
+}

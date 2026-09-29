@@ -1,0 +1,11 @@
+{
+  "noApp": "Add your Spotify app before connecting your account.",
+  "noToken": "Spotify reused your consent, so no fresh token was issued. Revoke this app in your Spotify account page, then connect again.",
+  "oauth": "Spotify refused the sign-in. Try connecting again.",
+  "state": "The sign-in link expired or was replayed. Start the connect again.",
+  "store": "The token could not be stored. Try again in a moment.",
+  "titleRequired": "Give the reward a title.",
+  "unconfigured": "Song requests are not configured on this deployment yet: the Spotify callback URL is missing. Ask the operator to set SPOTIFY_REDIRECT_URI.",
+  "cost": "Enter a whole number of points, at least 1.",
+  "cooldown": "Enter a cooldown between 0 seconds and 7 days."
+}

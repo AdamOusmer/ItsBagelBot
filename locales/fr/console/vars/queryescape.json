@@ -1,0 +1,5 @@
+{
+  "name": "Encoder du texte pour une URL",
+  "hint": "encode pour une URL le texte placé après les deux-points",
+  "desc": "Encode votre propre texte pour la partie requête d’une URL. Remplacez les mots."
+}

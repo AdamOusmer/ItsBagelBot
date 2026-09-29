@@ -1,0 +1,39 @@
+{
+  "reply": {
+    "user": {
+      "name": "Échangeur",
+      "hint": "Qui a échangé la récompense",
+      "desc": "Qui a échangé la récompense."
+    },
+    "input": {
+      "name": "Texte du spectateur",
+      "hint": "texte du spectateur",
+      "desc": "Le texte saisi avec l'échange (si la récompense en demande un)."
+    },
+    "reward": {
+      "name": "Titre de la récompense",
+      "hint": "Le nom de la récompense échangée",
+      "desc": "Le nom de la récompense échangée."
+    },
+    "cost": {
+      "name": "Coût en points",
+      "hint": "Le coût de la récompense",
+      "desc": "Le coût de la récompense."
+    },
+    "channel": {
+      "name": "Chaîne",
+      "hint": "Le nom de votre chaîne",
+      "desc": "Le nom de votre chaîne."
+    },
+    "counter": {
+      "name": "Compteur lié",
+      "hint": "La nouvelle valeur du compteur lié",
+      "desc": "La nouvelle valeur du compteur lié, si la récompense en a un. Choisissez la portée «par commande» pour un total unique partagé par tous les échanges de cette récompense."
+    },
+    "points": {
+      "name": "Points de fidélité",
+      "hint": "Les points de fidélité accordés (si positifs)",
+      "desc": "Les points de fidélité accordés (si positifs)."
+    }
+  }
+}

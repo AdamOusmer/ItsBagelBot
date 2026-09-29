@@ -1,0 +1,5 @@
+{
+  "name": "Everything typed after",
+  "hint": "everything typed after the command",
+  "desc": "All text after the command, as one string."
+}

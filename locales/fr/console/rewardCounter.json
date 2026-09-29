@@ -1,0 +1,21 @@
+{
+  "enable": "Tenir un compteur",
+  "nameLabel": "Nom du compteur",
+  "nameHint": "Tapez un nouveau nom pour le créer ici, ou un compteur existant pour l’incrémenter.",
+  "errNameRequired": "Saisissez un nom de compteur ou désactivez Tenir un compteur.",
+  "scopeLabel": "Ce que compte chaque échange",
+  "scopeViewerReward": "Par viewer, par récompense",
+  "scopeViewerRewardDesc": "Chaque viewer a son propre décompte pour cette récompense. Idéal dans la plupart des cas.",
+  "scopeReward": "Par récompense, tous viewers",
+  "scopeRewardDesc": "Tout le monde alimente un total commun pour cette récompense. Idéal pour un objectif communautaire.",
+  "scopeViewer": "Par viewer",
+  "scopeViewerDesc": "Chaque viewer a un décompte, partagé entre toutes les récompenses liées à ce compteur.",
+  "scopeChannel": "Toute la chaîne",
+  "scopeChannelDesc": "Un total unique pour toute la chaîne.",
+  "tokenNote": "Utilisez {counter} dans la réponse pour afficher le nouveau total.",
+  "pointsEnable": "Donner des points de fidélité",
+  "pointsLabel": "Points par échange",
+  "pointsHint": "Utilisez {points} dans la réponse pour afficher le montant.",
+  "liveOnly": "Seulement quand je suis en live",
+  "liveOnlyHint": "Les échanges hors ligne répondent dans le chat, mais ne comptent pas et n’accordent pas de points."
+}

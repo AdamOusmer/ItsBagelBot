@@ -1,0 +1,19 @@
+{
+  "close4004": "Discord rejected the bot token. It has to be replaced before the bot can come back.",
+  "close4011": "This bot now needs more than one shard. Nothing you can do from here; we are on it.",
+  "close4013": "Discord refused the gateway intents. Nothing you can do from here; we are on it.",
+  "close4014": "Discord has not approved the privileged intents this bot needs. Nothing you can do from here; we are on it.",
+  "sinceDays": "{n} d",
+  "sinceHours": "{n} h",
+  "sinceMinutes": "{n} min",
+  "members": "{n} members",
+  "noMembers": "Member count unavailable",
+  "offline": "Offline",
+  "online": "Online",
+  "reauth": "Reauthorize",
+  "reconnecting": "The gateway dropped and is reconnecting on its own. Nothing to do.",
+  "resumes": "Session resumes",
+  "since": "Online for",
+  "title": "Server and bot",
+  "unknown": "Unknown"
+}

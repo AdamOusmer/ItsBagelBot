@@ -57,6 +57,8 @@
     "./uses": "./lib/uses.ts",
     "./i18n": "./lib/i18n/messages.ts",
     "./i18n/static": "./lib/i18n/static.ts",
+    "./i18n/flat": "./lib/i18n/flat.ts",
+    "./i18n/fs": "./lib/i18n/tree-fs.ts",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/console.css": "./styles/console.css",
     "./components/*": "./components/*",

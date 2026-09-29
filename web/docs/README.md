@@ -73,7 +73,8 @@ and diagram identifiers unchanged unless the translated page needs a localized
 explanation around them.
 
 Shared navigation, sidebar, metadata, and diagram-control labels live in
-`src/i18n/locales/<code>.json`. Locale configuration is discovered from these
-catalogs. Run `python3 scripts/translations.py check --strict fr` from the
-repository root to verify French catalog and page coverage. Read
+`locales/<code>/docs/` at the repository root. Locale configuration is discovered
+from the locale folders that contain a `docs/` directory. Run
+`python3 scripts/translations.py check --strict fr` from the repository root to
+verify French catalog and page coverage. Read
 [the contribution guide](../../TRANSLATIONS.md) for editing steps and new languages.

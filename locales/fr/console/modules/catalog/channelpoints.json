@@ -1,0 +1,13 @@
+{
+  "label": "Points de chaîne",
+  "tagline": "Transformez les échanges de points de chaîne en actions du bot.",
+  "description": "Créez les récompenses personnalisées que les viewers échangent avec des points de chaîne (créées sous le bot sur Twitch, au style natif) et liez chacune à une action du bot, comme poster une ligne dans le chat. Choisissez si chaque échange est validé, remboursé, ou laissé à un modo. Gérez les récompenses sur cette page.",
+  "replies": {
+    "reply": {
+      "label": "Réponse de la récompense",
+      "tagline": "Ce que le bot poste quand une récompense liée est échangée.",
+      "event": "à l'échange",
+      "defaultMessage": "{user} a échangé {reward} !"
+    }
+  }
+}

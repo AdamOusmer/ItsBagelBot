@@ -1,0 +1,20 @@
+{
+  "addable": "Bagel is not in this server yet.",
+  "back": "Back to my servers",
+  "cta": "Add Bagel here",
+  "description": "These are the servers you own or can manage. Pick one and Discord will ask you to confirm before Bagel joins.",
+  "elsewhere": "This server is linked to another Twitch channel. Ask that channel's owner to unlink it first.",
+  "elsewhereChip": "Linked to another channel",
+  "emptyBody": "Bagel can only be added to a server you own, or one where you have Manage Server. Ask its owner, or create your own server first.",
+  "emptyTitle": "No server we can add Bagel to",
+  "help": "Picking a server sends you to Discord's own confirm screen. Nothing changes until you accept it there.",
+  "mine": "Bagel is already in this server.",
+  "privacy": "We asked Discord for your server list to build this page. That list is used once, here, and is never stored.",
+  "title": "Servers you manage",
+  "titleEm": "server",
+  "titlePre": "Pick a",
+  "searchLabel": "Find a server",
+  "searchPh": "Search your servers",
+  "noMatch": "No server matches that search.",
+  "missingHint": "Server missing? You need the Manage Server permission on it."
+}

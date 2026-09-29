@@ -1,0 +1,42 @@
+{
+  "player": {
+    "name": "Player",
+    "hint": "The resolved player",
+    "desc": "The resolved player."
+  },
+  "elo": {
+    "name": "Elo",
+    "hint": "Current rating",
+    "desc": "Current rating."
+  },
+  "rank": {
+    "name": "Rank",
+    "hint": "Leaderboard rank",
+    "desc": "Leaderboard rank."
+  },
+  "wins": {
+    "name": "Wins",
+    "hint": "Season wins",
+    "desc": "Season wins."
+  },
+  "losses": {
+    "name": "Losses",
+    "hint": "Season losses",
+    "desc": "Season losses."
+  },
+  "draws": {
+    "name": "Draws",
+    "hint": "Season matches that ended with no winner",
+    "desc": "Season matches that ended with no winner."
+  },
+  "matches": {
+    "name": "Matches",
+    "hint": "Season matches",
+    "desc": "Season matches."
+  },
+  "country": {
+    "name": "Country",
+    "hint": "Country code",
+    "desc": "Country code."
+  }
+}

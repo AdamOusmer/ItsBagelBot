@@ -68,7 +68,7 @@ No match at any step is an unknown place (D4).
 
 The `{place}` token is scoped to this reply's own token palette (`ModuleReply.tokens`/`previewSamples`, per [module-def.ts](../../web/kit/lib/catalog/module-def.ts)); it is not part of the shared custom-command Variable manifest at [web/kit/lib/variables](../../web/kit/lib/variables), since module reply surfaces are wired into that manifest in a later phase (see `web/kit/lib/variables/surfaces.ts`).
 
-Copy: [web/kit/lib/i18n/locales/en.json](../../web/kit/lib/i18n/locales/en.json) and [fr.json](../../web/kit/lib/i18n/locales/fr.json), `modules.catalog.time.description` and `modules.catalog.time.replies.lookup.tagline`.
+Copy: [locales/en/console/modules/catalog/time.json](../../locales/en/console/modules/catalog/time.json) and [fr](../../locales/fr/console/modules/catalog/time.json), `modules.catalog.time.description` and `modules.catalog.time.replies.lookup.tagline`.
 
 ## 7. Code layout
 
@@ -86,9 +86,9 @@ Copy: [web/kit/lib/i18n/locales/en.json](../../web/kit/lib/i18n/locales/en.json)
 | [pkg/tzname/internal/zonelist](../../pkg/tzname/internal/zonelist/zonelist.go) | Shared zone-list types between the generator and the package. |
 | [app/twitch/sesame/engine/time_config.go](../../app/twitch/sesame/engine/time_config.go) | `LookupMessage`, `Zone` read via `tzname.Load`. |
 | [app/twitch/sesame/modules/timeofday.go](../../app/twitch/sesame/modules/timeofday.go) | `!time` handler: home time and place lookup. |
-| [internal/domain/i18n/locales/en.json](../../internal/domain/i18n/locales/en.json), [fr.json](../../internal/domain/i18n/locales/fr.json) | `time.unset`, `time.unavailable`, `time.unknown` (D13). |
+| [locales/en/chat/time.json](../../locales/en/chat/time.json), [fr](../../locales/fr/chat/time.json) | `time.unset`, `time.unavailable`, `time.unknown` (D13). |
 | [web/kit/lib/catalog/time.ts](../../web/kit/lib/catalog/time.ts) | Dashboard module definition, second reply. |
-| [web/kit/lib/i18n/locales/en.json](../../web/kit/lib/i18n/locales/en.json), [fr.json](../../web/kit/lib/i18n/locales/fr.json) | Dashboard copy. |
+| [locales/en/console/modules/catalog/time.json](../../locales/en/console/modules/catalog/time.json), [fr](../../locales/fr/console/modules/catalog/time.json) | Dashboard copy. |
 
 ## 8. Tests
 

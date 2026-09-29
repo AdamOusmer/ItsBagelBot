@@ -1,0 +1,13 @@
+{
+  "label": "Citations",
+  "tagline": "Gardez les meilleures phrases du stream et rejouez-les dans le chat.",
+  "description": "Tenez un carnet de citations de chaîne. Quelqu'un enregistre une phrase avec !addquote le texte (ou !quote « le texte ») et le bot la numérote et tamponne la date. N'importe qui en rejoue une avec !quote pour un tirage au sort, !quote 12 pour un numéro précis, ou !quote ferret pour une citation au hasard contenant ce mot. Le bot répond « Quote #12: le texte (2026-07-11) ». Choisissez qui a le droit d'enregistrer et qui peut en réécrire une (!quote edit 12 le texte corrigé) ci-dessous ; les deux par défaut aux modérateurs. Les modos retirent une erreur avec !quote remove 12 ; les numéros ne sont jamais réutilisés, donc un ancien numéro continue de pointer vers la même citation. Les réponses sont du texte système fixe (localisé dans la langue de votre console).",
+  "commands": {
+    "quote": "Poster une citation enregistrée au hasard (aussi !quotes).",
+    "quote_number": "Poster cette citation exacte.",
+    "quote_word": "Poster une citation au hasard contenant ce mot.",
+    "addquote_text": "Enregistrer une nouvelle citation (aussi !quoteadd ou !quote « texte » ; qui peut enregistrer se règle ci-dessus) ; la date est conservée.",
+    "quote_edit_number_text": "Réécrire une citation sur place (qui peut éditer se règle ci-dessus) ; son numéro et sa date restent.",
+    "quote_remove_number": "Supprimer une citation ; son numéro est retiré."
+  }
+}

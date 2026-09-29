@@ -4,10 +4,15 @@
 package i18n
 
 import (
+	"ItsBagelBot/locales"
+	"io/fs"
+	"os"
+	"path"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func sortedKeys(m map[string][]string) []string {
@@ -147,5 +152,107 @@ func TestFallbackChain(t *testing.T) {
 	}
 	if got := T(DefaultLocale, "nope.not.a.key"); got != "nope.not.a.key" {
 		t.Errorf("unknown key should return itself, got %q", got)
+	}
+}
+
+func jsonFile(body string) *fstest.MapFile {
+	return &fstest.MapFile{Data: []byte(body)}
+}
+
+func requirePanic(t *testing.T, want string, load func()) {
+	t.Helper()
+	defer func() {
+		got, _ := recover().(string)
+		if !strings.Contains(got, want) {
+			t.Errorf("panic = %q, want it to contain %q", got, want)
+		}
+	}()
+	load()
+}
+
+func TestKeyPrefix(t *testing.T) {
+	cases := map[string]string{
+		"loyalty.json":      "loyalty.",
+		"bagels_ready.json": "bagels_ready.",
+		"index.json":        "",
+	}
+	for file, want := range cases {
+		if got := keyPrefix(file); got != want {
+			t.Errorf("keyPrefix(%q) = %q, want %q", file, got, want)
+		}
+	}
+}
+
+func TestLoadCatalogsPrefixesKeysByFile(t *testing.T) {
+	got := mustLoadCatalogs(fstest.MapFS{
+		"manifest.json":         jsonFile(`["en"]`),
+		"en/chat/loyalty.json":  jsonFile(`{"points.balance":"Balance","points":"Points"}`),
+		"en/chat/index.json":    jsonFile(`{"ping":"Pong","uptime":"Live for {dashboard_url}"}`),
+		"en/chat/uptime.json":   jsonFile(`{"offline":"Offline"}`),
+		"en/console/index.json": jsonFile(`{"title":"Console"}`),
+		"de/console/index.json": jsonFile(`{"title":"Konsole"}`),
+	})
+	want := map[string]map[string]string{"en": {
+		"loyalty.points.balance": "Balance",
+		"loyalty.points":         "Points",
+		"ping":                   "Pong",
+		"uptime":                 "Live for " + DashboardURL,
+		"uptime.offline":         "Offline",
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("mustLoadCatalogs = %v, want %v", got, want)
+	}
+}
+
+func TestLoadCatalogsPanicsOnDuplicateKey(t *testing.T) {
+	requirePanic(t, "duplicate key loyalty.points", func() {
+		mustLoadCatalogs(fstest.MapFS{
+			"en/chat/index.json":   jsonFile(`{"loyalty.points":"Points"}`),
+			"en/chat/loyalty.json": jsonFile(`{"points":"Points"}`),
+		})
+	})
+}
+
+func TestLoadCatalogsRequiresDefaultLocale(t *testing.T) {
+	requirePanic(t, "missing required catalog en/chat", func() {
+		mustLoadCatalogs(fstest.MapFS{
+			"fr/chat/index.json": jsonFile(`{"ping":"Pong"}`),
+			"en/console/x.json":  jsonFile(`{"title":"Console"}`),
+		})
+	})
+}
+
+func TestLoadCatalogsPanicsOnMalformedJSON(t *testing.T) {
+	requirePanic(t, "malformed en/chat/loyalty.json", func() {
+		mustLoadCatalogs(fstest.MapFS{
+			"en/chat/loyalty.json": jsonFile(`{"points":`),
+		})
+	})
+}
+
+func isChatCatalogFile(name string) bool {
+	segments := strings.Split(name, "/")
+	return len(segments) >= 3 && segments[1] == chatDir && path.Ext(name) == ".json"
+}
+
+func TestEmbedCoversChatTree(t *testing.T) {
+	err := fs.WalkDir(os.DirFS("../../../locales"), ".", func(name string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !isChatCatalogFile(name) {
+			return err
+		}
+		if _, statErr := fs.Stat(locales.FS, name); statErr != nil {
+			t.Errorf("locales/%s is not embedded; widen the go:embed pattern in locales/embed.go", name)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLoadManifestSorts(t *testing.T) {
+	got := mustLoadManifest(fstest.MapFS{"manifest.json": jsonFile(`["fr","en"]`)})
+	if want := []string{"en", "fr"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("mustLoadManifest = %v, want %v", got, want)
 	}
 }

@@ -1,0 +1,34 @@
+{
+  "stageOf": "Étape {n} sur {total}",
+  "follow": "Suivre en direct",
+  "about": {
+    "preflight": "Vérifie que le cluster répond, que les manifestes passent le lint, que les vérifications requises passent sur la cible et que chaque charge est stable.",
+    "merge_prs": "Fusionne chaque pull request cochée une fois ses vérifications passées, en mettant d’abord à jour les branches en retard.",
+    "changelog": "Ouvre et fusionne une pull request qui ajoute le fichier de journal de cette version à main.",
+    "tag": "Crée l’étiquette de version sur le commit du journal. Tout ce qui n’est pas sur main est refusé.",
+    "release": "Publie la version GitHub de l’étiquette, avec les points forts du journal comme notes.",
+    "build": "Attend la fin du workflow d’images sur GitHub et suit les jobs de chaque image.",
+    "digests": "Récupère chaque image construite et vérifie ses deux architectures, son commit et sa provenance.",
+    "pin_pr": "Ouvre et fusionne une pull request qui épingle les manifestes de main sur les nouveaux digests.",
+    "acl": "Applique la configuration NATS et attend que chaque serveur NATS l’ait rechargée et soit stable.",
+    "rollout": "Applique la configuration partagée, puis redéploie un service à la fois en attendant ses pods avant le suivant.",
+    "verify": "Vérifie que chaque pod exécute son image épinglée et que les pages de statut répondent. Un écart propose un retour arrière."
+  },
+  "state": {
+    "pending": "Démarre une fois les étapes précédentes terminées.",
+    "running": "En cours.",
+    "waiting": "En pause jusqu’à ce qu’un élément extérieur soit prêt.",
+    "succeeded": "Terminé.",
+    "failed": "Arrêté ici. Rien après ne s’est exécuté.",
+    "skipped": "Inutile pour ce run.",
+    "cancelled": "Annulé avant la fin."
+  },
+  "nowBuilding": "Construction",
+  "nowRolling": "Déploiement",
+  "nowOf": "{n} sur {total}",
+  "nowAllBuilt": "Les {total} images sont construites",
+  "nowAllRolled": "Les {total} services sont déployés",
+  "pods": "{done} pods prêts sur {total}",
+  "jobs": "{done} jobs terminés sur {total}",
+  "openJob": "Ouvrir le job"
+}

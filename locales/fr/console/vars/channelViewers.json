@@ -1,0 +1,5 @@
+{
+  "name": "Spectateurs",
+  "hint": "combien de personnes regardent en ce moment, 0 hors ligne",
+  "desc": "Combien de personnes regardent en ce moment, directement depuis Twitch. Une chaîne hors ligne renvoie 0. {channel} seul reste le nom de votre chaîne."
+}

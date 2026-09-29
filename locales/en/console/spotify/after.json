@@ -1,0 +1,6 @@
+{
+  "cancel": "Cancel: refund the points, skip the queue",
+  "fulfill": "Fulfil: the song queues (default)",
+  "leave": "Leave pending for mods to resolve manually",
+  "title": "After redemption"
+}

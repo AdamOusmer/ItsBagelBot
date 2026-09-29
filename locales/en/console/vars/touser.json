@@ -1,0 +1,5 @@
+{
+  "name": "Named person",
+  "hint": "first argument, e.g. a mentioned user",
+  "desc": "The first word typed after the command (\"@\" removed); the viewer themself when blank. {target} works too."
+}

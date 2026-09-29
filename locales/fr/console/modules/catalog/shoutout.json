@@ -1,0 +1,19 @@
+{
+  "label": "Shoutout auto",
+  "tagline": "Accueillez les raids entrants avec un shoutout automatique.",
+  "description": "Quand une autre chaîne raid, le bot poste un shoutout qui pointe votre chat vers le raider. Activez le module et personnalisez la ligne de shoutout.",
+  "settings": {
+    "native_shoutout": {
+      "label": "Envoyer aussi le shoutout Twitch",
+      "help": "Lance le /shoutout natif de Twitch sur le raider en plus de la ligne de chat, ce qui affiche sa catégorie actuelle et sa carte de profil. Désactivé par défaut."
+    }
+  },
+  "replies": {
+    "shoutout": {
+      "label": "Shoutout de raid",
+      "tagline": "Shoutout automatique dans le chat lors d'un raid",
+      "event": "au raid",
+      "defaultMessage": "Un grand merci à {raider} pour le raid avec {viewers} spectateurs ! Retrouvez sa chaîne sur twitch.tv/{raider.login}"
+    }
+  }
+}

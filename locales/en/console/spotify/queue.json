@@ -1,0 +1,21 @@
+{
+  "askedBy": "asked by",
+  "empty": "Nothing queued right now.",
+  "now": "Now playing",
+  "refresh": "Refresh",
+  "title": "Queue",
+  "updated": "Updated {when}",
+  "refreshing": "Refreshing…",
+  "emptySr": "Viewers add songs by typing !sr in chat.",
+  "emptyRedeem": "Viewers add songs by redeeming your channel-points reward.",
+  "emptyBoth": "Viewers add songs with !sr in chat or by redeeming your channel-points reward.",
+  "emptyOff": "Both request paths are off. Turn one on so viewers can add songs.",
+  "enableSr": "Turn on !sr",
+  "skip": "Skip",
+  "progressLabel": "{elapsed} elapsed of {duration}",
+  "skipped": "Skipped the current track.",
+  "skipFailed": "Could not skip the track. Try again in a moment.",
+  "skipNoDevice": "No active Spotify device. Start playing something first.",
+  "skipPremium": "Skipping needs Spotify Premium.",
+  "skipReauth": "Spotify no longer accepts this connection. Reconnect it and try again."
+}

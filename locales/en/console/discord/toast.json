@@ -1,0 +1,11 @@
+{
+  "disconnectFailed": "Could not disconnect Discord.",
+  "disconnected": "Discord disconnected.",
+  "refused": "This server already has a layout. Connect existing is the right path.",
+  "repostFailed": "Could not repost the ticket panel.",
+  "reposted": "Ticket panel reposted.",
+  "saveFailed": "Could not save Discord settings.",
+  "saved": "Discord settings saved.",
+  "setup": "Server set up.",
+  "setupFailed": "Could not set up this server."
+}

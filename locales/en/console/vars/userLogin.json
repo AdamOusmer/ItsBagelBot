@@ -1,0 +1,5 @@
+{
+  "name": "Viewer login",
+  "hint": "their lowercase login, not their display name",
+  "desc": "Their lowercase login, which can differ from the display name {user} shows."
+}

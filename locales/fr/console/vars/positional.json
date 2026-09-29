@@ -1,0 +1,8 @@
+{
+  "name": "Numéro de mot",
+  "hint": "le mot 1 tapé après la commande; {2} est le suivant, jusqu’à {30}; {2:4} prend une plage",
+  "desc": "Le mot 1 tapé après la commande. {2} est le suivant, et ainsi de suite jusqu’à {30}. Vide si ce mot n’a pas été tapé. {2:} reprend d’un mot jusqu’à la fin, en une seule chaîne; changez le numéro pour commencer ailleurs, {1:} reprend tout. {2:4} reprend les mots 2 à 4 de la même façon, et {:2} est la même plage à partir du mot 1 (les deux premiers mots). Demander une fin au-delà du dernier mot tapé s’arrête simplement à ce dernier mot; demander une fin avant le début, comme {4:2}, reste écrit tel quel.",
+  "restHint": "du mot 2 jusqu’à la fin, en une seule chaîne",
+  "leadingHint": "les 2 premiers mots, en une seule chaîne",
+  "boundedHint": "les mots 2 à 4, en une seule chaîne"
+}

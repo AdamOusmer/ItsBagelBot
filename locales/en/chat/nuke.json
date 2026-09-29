@@ -1,0 +1,7 @@
+{
+  "usage": "Usage: !nuke <phrase> [seconds]. Sweeps the last 10m of chat for messages containing phrase",
+  "none": "No recent messages matched. Nothing nuked.",
+  "actioned": "🚯 nuked {count} user(s) with {seconds}s timeouts",
+  "shielded": ", over budget, Shield Mode activated",
+  "capped": ", cap reached, {count} more left for Shield Mode"
+}

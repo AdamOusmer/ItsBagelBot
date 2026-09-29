@@ -53,7 +53,7 @@
         return;
       }
       flipped = null;
-      toast('err', refusalTextOf(t, p, t('discord.toastSaveFailed')));
+      toast('err', refusalTextOf(t, p, t('discord.toast.saveFailed')));
     };
   };
 

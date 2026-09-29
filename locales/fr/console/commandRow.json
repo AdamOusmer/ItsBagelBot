@@ -1,0 +1,17 @@
+{
+  "lockedTo": "Verrouillé sur l'utilisateur {id}",
+  "liveOnly": "Ne s'exécute que pendant le direct",
+  "unsaved": "Non enregistré",
+  "unsavedTitle": "Vous avez des modifications non enregistrées pour cette commande",
+  "also": "Aussi : {aliases}",
+  "cooldown": "Délai",
+  "uses": "Utilisations",
+  "toggleAria": "Basculer !{name}",
+  "deleteAria": "Supprimer !{name}",
+  "builtin": "Intégrée",
+  "builtinTitle": "Commande intégrée : activation seulement, pas de réponse modifiable",
+  "failed": "Échec",
+  "moreAliases": "{count} autres noms alternatifs : {aliases}",
+  "selected": "Sélectionnée",
+  "notSelected": "Non sélectionnée"
+}

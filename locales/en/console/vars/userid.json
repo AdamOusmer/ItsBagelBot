@@ -1,0 +1,5 @@
+{
+  "name": "Viewer ID",
+  "hint": "the Twitch user ID of whoever ran the command",
+  "desc": "The viewer's Twitch user ID. It never changes, even after a rename."
+}

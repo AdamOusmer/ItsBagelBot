@@ -1,11 +1,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import en from './locales/en.json';
-import fr from './locales/fr.json';
+import { readConsoleTree } from './tree-fs';
 import type { MessageTree } from './types';
 
-const catalogs: Record<'en' | 'fr', MessageTree> = { en, fr };
+const catalogs: Record<'en' | 'fr', MessageTree> = { en: readConsoleTree('en'), fr: readConsoleTree('fr') };
 
 type Node = string | string[] | MessageTree | undefined;
 

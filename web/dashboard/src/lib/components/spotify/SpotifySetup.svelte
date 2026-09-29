@@ -80,7 +80,7 @@
     py = point.py;
   }
   async function copyRedirect() {
-    if (!(await copyFlash(redirectUri, (on) => copied = on, 2200))) saveError = t('spotify.redirectCopyFailed');
+    if (!(await copyFlash(redirectUri, (on) => copied = on, 2200))) saveError = t('spotify.app.redirectCopyFailed');
   }
   function startReplace() {
     clientId = app.clientId || clientId;
@@ -104,7 +104,7 @@
       saving = false;
       const payload = actionPayload<ActionOk>(result);
       if (result.type !== 'success' || payload?.ok !== true) {
-        saveError = payload?.error ?? t('spotify.appSaveFailed');
+        saveError = payload?.error ?? t('spotify.app.saveFailed');
         return;
       }
       clientSecret = '';
@@ -130,7 +130,7 @@
   }
 </script>
 
-<div class="spotify-setup" role="region" aria-label={t('spotify.connectTitle')} data-orbs="off" data-canvas="fill" use:parallax={{ onmove: follow }}>
+<div class="spotify-setup" role="region" aria-label={t('spotify.connection.connectTitle')} data-orbs="off" data-canvas="fill" use:parallax={{ onmove: follow }}>
   <AmbientSky position="contained" shift={blobRight ? 1 : -1} turn={step * 24} {px} {py} progress={done ? 1 : step / 3} leaving={done} />
   <header class="top">
     <TextLink variant="quiet" icon="arrowLeft" href="/modules" label={t('spotify.back')} />
@@ -165,7 +165,7 @@
               {:else if step === 1}
                 <ButtonLink href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" variant="secondary">{t('spotifySetup.developer')} ↗</ButtonLink>
                 <div class="redirect-block"><Label mono as="span">{t('spotifySetup.redirectLabel')}</Label>
-                  {#if redirectUri}<div class="redirect"><span class="redirect-value"><Text as="span" size="xs" mono tone="pale">{redirectUri}</Text></span><Button variant="ghost" size="sm" onclick={copyRedirect}>{copied ? t('spotify.redirectCopied') : t('spotify.redirectCopy')}</Button></div>
+                  {#if redirectUri}<div class="redirect"><span class="redirect-value"><Text as="span" size="xs" mono tone="pale">{redirectUri}</Text></span><Button variant="ghost" size="sm" onclick={copyRedirect}>{copied ? t('spotify.app.redirectCopied') : t('spotify.app.redirectCopy')}</Button></div>
                   {:else}<Text size="sm" tone="muted">{t('spotifySetup.redirectMissing')}</Text>{/if}
                 </div>
                 <div class="actions"><Button variant="ghost" onclick={() => go(0)}>{t('onboarding.back')}</Button><Button onclick={() => go(2)} disabled={!redirectUri}>{t('spotifySetup.appCreated')} →</Button></div>
@@ -174,17 +174,17 @@
                   <div class="saved"><Tag tone="live" mark="solid">{t('spotifySetup.saved')}</Tag></div><Text as="span" size="xs" mono tone="pale">{app.clientId || clientId}</Text>
                   <div class="actions">
                     <Button variant="ghost" onclick={() => go(1)}>{t('onboarding.back')}</Button>
-                    <Button variant="secondary" onclick={startReplace}>{t('spotify.appReplace')}</Button>
-                    {#if app.present}<Button variant="destructive" onclick={removeApp}>{t('spotify.appRemove')}</Button>{/if}
+                    <Button variant="secondary" onclick={startReplace}>{t('spotify.app.replace')}</Button>
+                    {#if app.present}<Button variant="destructive" onclick={removeApp}>{t('spotify.app.remove')}</Button>{/if}
                     <Button onclick={() => go(3)}>{t('onboardingImport.continue')} →</Button>
                   </div>
                 {:else}
                   <form method="POST" action="?/saveApp" use:enhance={submit}>
-                    <Field label={t('spotify.appClientIdLabel')}><Input fill mono name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required /></Field>
-                    <Field label={t('spotify.appClientSecretLabel')}><Input fill mono name="client_secret" type="password" bind:value={clientSecret} autocomplete="off" spellcheck="false" required /></Field>
-                    <Text size="xs" tone="muted">{t('spotify.appClientSecretHint')}</Text>
+                    <Field label={t('spotify.app.clientIdLabel')}><Input fill mono name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required /></Field>
+                    <Field label={t('spotify.app.clientSecretLabel')}><Input fill mono name="client_secret" type="password" bind:value={clientSecret} autocomplete="off" spellcheck="false" required /></Field>
+                    <Text size="xs" tone="muted">{t('spotify.app.clientSecretHint')}</Text>
                     <div class="actions">
-                      {#if replacing}<Button variant="ghost" onclick={cancelReplace} disabled={saving}>{t('spotify.appCancel')}</Button>
+                      {#if replacing}<Button variant="ghost" onclick={cancelReplace} disabled={saving}>{t('spotify.app.cancel')}</Button>
                       {:else}<Button variant="ghost" onclick={() => go(1)} disabled={saving}>{t('onboarding.back')}</Button>{/if}
                       <Button type="submit" loading={saving}>{t('spotifySetup.saveContinue')} →</Button>
                     </div>
@@ -195,7 +195,7 @@
                 <div class="saved"><Tag tone="live" mark="solid">{t('spotifySetup.saved')}</Tag></div>
                 <div class="actions"><Button variant="ghost" onclick={() => go(2)}>{t('onboarding.back')}</Button>
                   {#if dev && preview}<Button onclick={previewConnect}>{t('spotifySetup.previewConnect')} →</Button>
-                  {:else}<ButtonLink href="/spotify/connect" data-sveltekit-reload>{t('spotify.connectCta')} →</ButtonLink>{/if}
+                  {:else}<ButtonLink href="/spotify/connect" data-sveltekit-reload>{t('spotify.connection.connectCta')} →</ButtonLink>{/if}
                 </div>
                 {#if dev && preview}<div class="preview-hint"><Text size="xs" tone="muted">{t('spotifySetup.previewHint')}</Text></div>{/if}
               {/if}

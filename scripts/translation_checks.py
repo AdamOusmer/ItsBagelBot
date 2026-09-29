@@ -1,32 +1,49 @@
 """Small, dependency-free building blocks for the translation CLI."""
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 
 NAMED = re.compile(r'\{([A-Za-z_][A-Za-z_0-9.]*)\}')
 PRINTF = re.compile(r'%(?:\[[0-9]+\])?[+#0 -]*(?:[0-9]+|\*)?(?:\.(?:[0-9]+|\*))?[vTtbcdoOqxXUeEfFgGsp]')
 LOCALE = re.compile(r'[a-z]{2,3}(?:-[a-z0-9]{2,4})?')
+NAME = re.compile(r'[a-z][a-zA-Z0-9_]*')
+NAME_RULE = 'names start with a lowercase letter and use only letters, digits and _, like timers or channel_points'
+TREE = 'locales'
+MANIFEST = f'{TREE}/manifest.json'
+ROOT_FILES = frozenset({'manifest.json', 'embed.go'})
+IGNORED = frozenset({'.DS_Store'})
+MAX_LEAVES = 150
+ARRAY_SURFACES = frozenset({'console'})
+PRINTF_SURFACES = frozenset({'chat'})
+FLAT_SURFACES = frozenset({'chat'})
+NESTED_SURFACES = frozenset({'console'})
 
 
 @dataclass(frozen=True)
 class CheckConfig:
     root: object
-    catalogs: dict
-    manifest: str
     strict: tuple = ()
     show_missing: bool = False
     coverage: object = None
-    codes: tuple = ()
 
 
-@dataclass(frozen=True)
-class LocaleConfig:
-    config: CheckConfig
-    folder: object
-    directory: str
-    source: dict
-    code: str
-    surface: str
+@dataclass
+class Catalog:
+    label: str
+    keys: dict = field(default_factory=dict)
+    files: list = field(default_factory=list)
+    errors: list = field(default_factory=list)
+
+    def path(self, relative):
+        return f'{self.label}/{relative}'
+
+
+@dataclass
+class Comparison:
+    matched: set = field(default_factory=set)
+    unknown: int = 0
+    errors: list = field(default_factory=list)
 
 
 def _string_list(value):
@@ -76,6 +93,13 @@ def flatten(tree, prefix=''):
     return _flatten_entries(tree, prefix)
 
 
+def key_prefix(relative):
+    parts = list(PurePosixPath(relative).with_suffix('').parts)
+    if parts[-1] == 'index':
+        parts.pop()
+    return '.'.join(parts)
+
+
 def _placeholder_errors(source, target, printf):
     errors = []
     if source.strip() and not target.strip():
@@ -104,7 +128,7 @@ def _valid_locale_list(codes):
     )
 
 
-def locale_codes(root, manifest):
+def locale_codes(root, manifest=MANIFEST):
     codes = read_json(root / manifest)
     if not _valid_locale_list(codes):
         raise ValueError(f'{manifest}: expected lowercase locale codes (maximum 8 characters)')
@@ -113,77 +137,193 @@ def locale_codes(root, manifest):
     return codes
 
 
-def _catalog_errors(config, directory, surface):
-    folder = config.root / directory
-    source, source_error = _read_source(folder, directory)
-    if source_error:
-        return [source_error]
-    found = {path.stem for path in folder.glob('*.json')}
-    errors = _unregistered_errors(directory, found, config.codes)
-    for code in sorted(set(config.codes) | found):
-        item = LocaleConfig(config, folder, directory, source, code, surface)
-        errors.extend(_locale_errors(item))
-    return errors
+def english_surfaces(root):
+    folder = root / TREE / 'en'
+    if not folder.is_dir():
+        raise ValueError(f'{TREE}/en: the English reference folder is missing')
+    surfaces = sorted(path.name for path in folder.iterdir() if path.is_dir() and NAME.fullmatch(path.name))
+    if not surfaces:
+        raise ValueError(f'{TREE}/en: add at least one surface folder, such as chat or console')
+    return surfaces
 
 
-def _read_source(folder, directory):
+def read_catalog(root, code, surface):
+    catalog = Catalog(f'{TREE}/{code}/{surface}')
+    folder = root / catalog.label
+    if folder.is_dir():
+        for relative in _catalog_files(folder, catalog, surface):
+            _add_file(catalog, folder / relative, relative, surface)
+    if surface in NESTED_SURFACES:
+        catalog.errors.extend(_branch_errors(catalog))
+    return catalog
+
+
+def _branch_errors(catalog):
+    return [f'{catalog.path(relative)}: key {key} needs {parent} to be a group, but '
+            f'{catalog.path(catalog.keys[parent][1])} defines {parent} as text; rename one of them'
+            for key, (_, relative) in catalog.keys.items()
+            for parent in _parent_keys(key) if parent in catalog.keys]
+
+
+def _parent_keys(key):
+    parts = key.split('.')
+    return ['.'.join(parts[:end]) for end in range(1, len(parts))]
+
+
+def _catalog_files(folder, catalog, surface):
+    files = []
+    for path in sorted(folder.rglob('*')):
+        if path.name in IGNORED:
+            continue
+        relative = path.relative_to(folder).as_posix()
+        error = _entry_error(path, surface)
+        if error:
+            catalog.errors.append(f'{catalog.path(relative)}: {error}')
+        elif path.is_file() and _readable_parents(relative, surface):
+            files.append(relative)
+    return files
+
+
+def _entry_error(path, surface):
+    if path.is_dir():
+        return _folder_error(path.name, surface)
+    if path.suffix != '.json':
+        return 'only .json files belong in the locales tree'
+    return None if NAME.fullmatch(path.stem) else f'rename the file; {NAME_RULE}'
+
+
+def _folder_error(name, surface):
+    if surface in FLAT_SURFACES:
+        return f'{surface} files cannot live in subfolders; keep them directly in {surface}/ and use dotted keys'
+    return None if NAME.fullmatch(name) else f'rename the folder; {NAME_RULE}'
+
+
+def _readable_parents(relative, surface):
+    parents = PurePosixPath(relative).parent.parts
+    if surface in FLAT_SURFACES:
+        return not parents
+    return all(NAME.fullmatch(part) for part in parents)
+
+
+def _add_file(catalog, path, relative, surface):
+    name = catalog.path(relative)
+    catalog.files.append(relative)
     try:
-        source = flatten(read_json(folder / 'en.json'))
-    except ValueError as exc:
-        return None, str(exc)
-    if not source:
-        return None, f'{directory}/en.json: English catalog must not be empty'
-    return source, None
+        tree = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique_object)
+        leaves = flatten(tree, key_prefix(relative))
+    except (OSError, ValueError) as exc:
+        catalog.errors.append(f'{name}: {exc}')
+        return
+    catalog.errors.extend(f'{name}: {error}' for error in _file_errors(tree, leaves, surface))
+    _merge(catalog, leaves, relative)
 
 
-def _unregistered_errors(directory, found, codes):
-    return [f'{directory}/{code}.json: locale absent from manifest'
-            for code in sorted(found - set(codes))]
-
-
-def _locale_errors(item):
+def _file_errors(tree, leaves, surface):
     errors = []
-    path = item.folder / f'{item.code}.json'
-    try:
-        target = flatten(read_json(path)) if path.exists() else {}
-    except ValueError as exc:
-        return [str(exc)]
-    errors.extend(_locale_shape_errors(item, target))
-    errors.extend(_locale_value_errors(item, target))
+    if len(leaves) > MAX_LEAVES:
+        errors.append(f'{len(leaves)} keys, over the limit of {MAX_LEAVES} per file; '
+                      'split it into a folder with index.json plus one file per group')
+    if surface not in ARRAY_SURFACES:
+        errors.extend(f'{key}: use a string; lists are only allowed in console files'
+                      for key, value in leaves.items() if isinstance(value, list))
+    if surface in FLAT_SURFACES:
+        errors.extend(f'{key}: {surface} files hold flat "key": "text" pairs; write nested keys with dots'
+                      for key, value in tree.items() if isinstance(value, dict))
     return errors
 
 
-def _locale_shape_errors(item, target):
-    missing = sorted(item.source.keys() - target.keys())
-    extra = sorted(target.keys() - item.source.keys())
-    matched = item.source.keys() & target.keys()
-    print(f'{item.surface:8} {item.code:8} {len(matched)}/{len(item.source)} keys; {len(missing)} missing; {len(extra)} unknown')
-    if item.config.show_missing:
-        for key in missing:
-            print(f'  MISSING {item.directory}/{item.code}.json: {key}')
-    errors = []
-    if missing and item.code in item.config.strict:
-        errors.append(f'{item.directory}/{item.code}.json: {len(missing)} missing keys (complete locale required)')
-    errors.extend(f'{item.directory}/{item.code}.json: unknown key {key}' for key in extra)
-    return errors
+def _merge(catalog, leaves, relative):
+    for key, value in leaves.items():
+        owner = catalog.keys.get(key)
+        if owner:
+            catalog.errors.append(f'{catalog.path(relative)}: key {key} is also defined in '
+                                  f'{catalog.path(owner[1])}; keep each key in one file')
+        else:
+            catalog.keys[key] = (value, relative)
 
 
-def _locale_value_errors(item, target):
-    matched = item.source.keys() & target.keys()
-    return [f'{item.directory}/{item.code}.json: {key}: {error}'
-            for key in sorted(matched)
-            for error in translation_errors(item.source[key], target[key], item.surface == 'chat')]
+def compare(english, target, surface):
+    result = Comparison()
+    orphans = set(target.files) - set(english.files)
+    result.errors.extend(f'{target.path(relative)}: no English file at {english.path(relative)}; '
+                         'use the same file paths as the English folder' for relative in sorted(orphans))
+    printf = surface in PRINTF_SURFACES
+    for key, (value, relative) in target.keys.items():
+        placed, errors = _placement(english, target, key, relative, orphans)
+        result.errors.extend(errors)
+        if not placed:
+            result.unknown += 1
+            continue
+        result.matched.add(key)
+        result.errors.extend(f'{target.path(relative)}: {key}: {problem}'
+                             for problem in translation_errors(english.keys[key][0], value, printf))
+    return result
+
+
+def _placement(english, target, key, relative, orphans):
+    if relative in orphans:
+        return False, []
+    owner = english.keys.get(key)
+    if owner is None:
+        return False, [f'{target.path(relative)}: unknown key {key}; {english.path(relative)} has no such key']
+    if owner[1] != relative:
+        return False, [f'{target.path(relative)}: {key} belongs in {target.path(owner[1])}, '
+                       f'matching {english.path(owner[1])}']
+    return True, []
+
+
+def missing_by_file(english, matched):
+    groups = {}
+    for key, (_, relative) in english.keys.items():
+        if key not in matched:
+            groups.setdefault(relative, []).append(key)
+    return groups
+
+
+def layout_errors(root, codes, surfaces):
+    return [error for path in sorted((root / TREE).iterdir())
+            for error in _top_level_errors(path, codes, surfaces)]
+
+
+def _top_level_errors(path, codes, surfaces):
+    label = f'{TREE}/{path.name}'
+    if _expected_top_level_file(path):
+        return []
+    if not path.is_dir():
+        return [f'{label}: only locale folders, manifest.json and embed.go belong directly in {TREE}/']
+    if path.name not in codes:
+        return [f'{label}: locale absent from manifest; register it in {MANIFEST} or remove the folder']
+    return [f'{label}/{entry.name}: {_locale_entry_error(entry, surfaces)}'
+            for entry in sorted(path.iterdir()) if not _expected_locale_entry(entry, surfaces)]
+
+
+def _expected_top_level_file(path):
+    return path.name in IGNORED or (path.is_file() and path.name in ROOT_FILES)
+
+
+def _expected_locale_entry(entry, surfaces):
+    return entry.name in IGNORED or (entry.is_dir() and entry.name in surfaces)
+
+
+def _locale_entry_error(entry, surfaces):
+    if entry.is_file():
+        return f'files belong inside a surface folder ({", ".join(surfaces)})'
+    if entry.parent.name == 'en':
+        return f'rename the surface folder; {NAME_RULE}'
+    return f'no English counterpart at {TREE}/en/{entry.name}; surfaces are {", ".join(surfaces)}'
 
 
 def check(config):
     try:
-        codes = locale_codes(config.root, config.manifest)
+        codes = locale_codes(config.root)
+        surfaces = english_surfaces(config.root)
     except ValueError as exc:
         print(f'ERROR {exc}')
         return 1
-    config = CheckConfig(config.root, config.catalogs, config.manifest, config.strict, config.show_missing, config.coverage, tuple(codes))
     errors = _unknown_strict_errors(config.strict, codes)
-    errors.extend(_catalog_checks(config))
+    errors.extend(layout_errors(config.root, codes, surfaces))
+    for surface in surfaces:
+        errors.extend(_surface_checks(config, codes, surface))
     errors.extend(_coverage_checks(config, codes))
     for error in errors:
         print(f'ERROR {error}')
@@ -195,15 +335,71 @@ def _unknown_strict_errors(strict, codes):
     return [f'unknown strict locale: {code}' for code in strict if code not in codes]
 
 
-def _catalog_checks(config):
-    return [error for surface, directory in config.catalogs.items()
-            for error in _catalog_errors(config, directory, surface)]
+def _surface_checks(config, codes, surface):
+    english = read_catalog(config.root, 'en', surface)
+    errors = list(english.errors)
+    if not english.keys:
+        return errors + [f'{english.label}: English catalog must not be empty']
+    print(f'{surface:8} {"en":8} {len(english.keys)} keys in {_plural(len(english.files), "file")} (reference)')
+    for code in codes:
+        if code != 'en':
+            errors.extend(_locale_checks(config, english, code, surface))
+    return errors
+
+
+def _locale_checks(config, english, code, surface):
+    target = read_catalog(config.root, code, surface)
+    result = compare(english, target, surface)
+    missing = missing_by_file(english, result.matched)
+    count = sum(len(keys) for keys in missing.values())
+    print(f'{surface:8} {code:8} {len(result.matched)}/{len(english.keys)} keys; {count} missing; {result.unknown} unknown')
+    if config.show_missing:
+        _print_missing(target, missing)
+    errors = target.errors + result.errors
+    if code in config.strict:
+        errors.extend(f'{target.path(relative)}: {len(keys)} missing (complete locale required)'
+                      for relative, keys in missing.items())
+    return errors
+
+
+def _plural(count, noun):
+    return f'{count} {noun}' if count == 1 else f'{count} {noun}s'
+
+
+def _print_missing(target, missing):
+    for relative, keys in missing.items():
+        for key in keys:
+            print(f'  MISSING {target.path(relative)}: {key}')
 
 
 def _coverage_checks(config, codes):
     if config.coverage:
         return config.coverage(config.root, codes, config.strict, config.show_missing)
     return []
+
+
+def status(root, code, show_keys=False):
+    if code not in locale_codes(root):
+        raise ValueError(f'{code} is not registered in {MANIFEST}')
+    problems = [problem for surface in english_surfaces(root)
+                for problem in _surface_status(root, code, surface, show_keys)]
+    for problem in problems:
+        print(f'ERROR {problem}')
+    return int(bool(problems))
+
+
+def _surface_status(root, code, surface, show_keys):
+    english = read_catalog(root, 'en', surface)
+    target = read_catalog(root, code, surface) if code != 'en' else english
+    result = compare(english, target, surface)
+    missing = missing_by_file(english, result.matched)
+    print(f'{surface}: {len(result.matched)}/{len(english.keys)} keys translated')
+    for relative, keys in missing.items():
+        note = '' if relative in target.files else ' (new file)'
+        print(f'  {target.path(relative)}: {len(keys)} missing{note}')
+        for key in keys if show_keys else ():
+            print(f'    {key}')
+    return target.errors + result.errors
 
 
 @dataclass(frozen=True)

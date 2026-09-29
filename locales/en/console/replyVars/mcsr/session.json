@@ -1,0 +1,37 @@
+{
+  "player": {
+    "name": "Player",
+    "hint": "The linked player",
+    "desc": "The linked player."
+  },
+  "elo": {
+    "name": "Current Elo",
+    "hint": "Rating right now",
+    "desc": "Rating right now."
+  },
+  "elochange": {
+    "name": "Elo change",
+    "hint": "Change since the stream started",
+    "desc": "Change since the stream started."
+  },
+  "wins": {
+    "name": "Wins",
+    "hint": "Wins this stream",
+    "desc": "Wins this stream."
+  },
+  "losses": {
+    "name": "Losses",
+    "hint": "Losses this stream",
+    "desc": "Losses this stream."
+  },
+  "draws": {
+    "name": "Draws",
+    "hint": "Matches this stream that ended with no winner",
+    "desc": "Matches this stream that ended with no winner."
+  },
+  "matches": {
+    "name": "Matches",
+    "hint": "Matches this stream",
+    "desc": "Matches this stream."
+  }
+}

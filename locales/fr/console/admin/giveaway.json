@@ -1,0 +1,18 @@
+{
+  "titleRequired": "titre requis",
+  "reasonRequired": "raison interne requise",
+  "winnerCountPositive": "le nombre de gagnants doit être un entier positif",
+  "prizeMonthsRange": "la durée du prix doit être un entier de 1 à 12",
+  "idRequired": "identifiant du giveaway requis",
+  "operationRequired": "version de l'instantané et clé d'opération requises",
+  "poolDigestRequired": "empreinte du pool requise",
+  "awardIdRequired": "identifiant du prix requis",
+  "draftCreatedDemo": "Brouillon du giveaway créé (démo).",
+  "draftCreated": "Brouillon du giveaway créé.",
+  "drawCommittedDemo": "Tirage enregistré (démo).",
+  "drawCommitted": "Tirage enregistré.",
+  "snapshotFrozenDemo": "Instantané d'éligibilité figé (démo).",
+  "snapshotFrozen": "Instantané d'éligibilité figé.",
+  "retryQueuedDemo": "Nouvel essai d'attribution mis en file (démo).",
+  "retryQueued": "Nouvel essai d'attribution mis en file."
+}

@@ -28,22 +28,22 @@ const chips = [
 ];
 
 const playStrings = {
-    replyBagel: t('play.replyBagel'),
-    replySong: t('play.replySong'),
-    replyLurk: t('play.replyLurk'),
-    replyHelp: t('play.replyHelp'),
-    pollUp: t('play.pollUp'),
-    pollQ: t('play.pollQ'),
-    pollYes: t('play.pollYes'),
-    pollAlways: t('play.pollAlways'),
-    spamRemoved: t('play.spamRemoved'),
-    quiet: t('play.quiet'),
-    unknown: t('play.unknown'),
-    seedTry: t('play.seedTry'),
-    seed1: t('play.amb6'),
+    replyBagel: t('playground.replyBagel'),
+    replySong: t('playground.replySong'),
+    replyLurk: t('playground.replyLurk'),
+    replyHelp: t('playground.replyHelp'),
+    pollUp: t('playground.pollUp'),
+    pollQ: t('playground.pollQ'),
+    pollYes: t('playground.pollYes'),
+    pollAlways: t('playground.pollAlways'),
+    spamRemoved: t('playground.spamRemoved'),
+    quiet: t('playground.quiet'),
+    unknown: t('playground.unknown'),
+    seedTry: t('playground.seedTry'),
+    seed1: t('playground.amb6'),
     ambient: [
-        t('play.amb1'), t('play.amb2'), t('play.amb3'), t('play.amb4'), t('play.amb5'),
-        t('play.amb6'), t('play.amb7'), '🥯🥯🥯', t('play.amb8'), t('play.amb9'),
+        t('playground.amb1'), t('playground.amb2'), t('playground.amb3'), t('playground.amb4'), t('playground.amb5'),
+        t('playground.amb6'), t('playground.amb7'), '🥯🥯🥯', t('playground.amb8'), t('playground.amb9'),
     ],
 };
 ---
@@ -51,10 +51,10 @@ const playStrings = {
 <Section size="page" class="play" id="playground">
     <script type="application/json" data-play-i18n set:html={JSON.stringify(playStrings)}></script>
     <div class="play__copy">
-        <Eyebrow tone="go" class="play__eyebrow" data-reveal>{t('play.eyebrow')}</Eyebrow>
-        <Heading level={2} class="play__title" data-reveal>{t('play.title')}</Heading>
+        <Eyebrow tone="go" class="play__eyebrow" data-reveal>{t('playground.eyebrow')}</Eyebrow>
+        <Heading level={2} class="play__title" data-reveal>{t('playground.title')}</Heading>
         <Lead class="play__sub" data-reveal>
-            {t('play.sub')}
+            {t('playground.sub')}
         </Lead>
 
         <div class="play__chips" data-reveal>
@@ -62,12 +62,12 @@ const playStrings = {
                 <Chip data-play-cmd={chip.cmd}>{chip.label}</Chip>
             ))}
             <Chip tone="danger" data-play-spam>
-                {t('play.sendSpam')}<span aria-hidden="true"> ☠</span>
+                {t('playground.sendSpam')}<span aria-hidden="true"> ☠</span>
             </Chip>
         </div>
 
         <Text size="xs" mono tone="muted" class="play__hint" data-reveal>
-            {t('play.hint')}
+            {t('playground.hint')}
         </Text>
     </div>
 
@@ -75,10 +75,10 @@ const playStrings = {
         <Card flush class="play__window">
             <div class="play__bar">
                 <span class="play__channel">#your_channel</span>
-                <Tag tone="live" class="play__live" mark="solid" sweep>{t('play.live')}</Tag>
+                <Tag tone="live" class="play__live" mark="solid" sweep>{t('playground.live')}</Tag>
             </div>
 
-            <div class="play__feed" data-play-feed role="log" aria-label={t('play.feedAria')}></div>
+            <div class="play__feed" data-play-feed role="log" aria-label={t('playground.feedAria')}></div>
 
             <form class="play__composer" data-play-form>
                 <Input
@@ -88,12 +88,12 @@ const playStrings = {
                     name="message"
                     data-play-input
                     maxlength="80"
-                    placeholder={t('play.inputPlaceholder')}
-                    aria-label={t('play.inputAria')}
+                    placeholder={t('playground.inputPlaceholder')}
+                    aria-label={t('playground.inputAria')}
                     autocomplete="off"
                     spellcheck="false"
                 />
-                <IconButton type="submit" label={t('play.sendAria')} class="play__send">↵</IconButton>
+                <IconButton type="submit" label={t('playground.sendAria')} class="play__send">↵</IconButton>
             </form>
         </Card>
         <template data-play-poll-row>

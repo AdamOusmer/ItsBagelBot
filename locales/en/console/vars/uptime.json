@@ -1,0 +1,5 @@
+{
+  "name": "Stream uptime",
+  "hint": "how long you have been live, empty when you are offline (!uptime toggle)",
+  "desc": "How long the stream has been live, worded the way !uptime words it. Offline comes back empty, so give it a default. {uptime:someone} does the same for another channel. Follows the !uptime toggle."
+}

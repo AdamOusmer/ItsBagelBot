@@ -1,0 +1,42 @@
+{
+  "label": "Ship steps",
+  "stepOf": "Step {n} of {total}",
+  "next": "Next",
+  "back": "Back",
+  "rail": {
+    "kind": "Kind",
+    "build": "Build",
+    "rollback": "Release",
+    "prs": "Pull requests",
+    "changelog": "Changelog",
+    "review": "Review"
+  },
+  "title": {
+    "kind": "What are we shipping?",
+    "build": "Version and commit",
+    "rollback": "Pick the release",
+    "prs": "Merge pull requests first",
+    "changelog": "Write the changelog",
+    "review": "Review and ship"
+  },
+  "body": {
+    "kind": "Each kind runs a fixed set of stages in order and stops at the first failure.",
+    "build": "The commit on main this run builds from. Releases and hotfixes also write the version tag.",
+    "rollback": "The cluster pins that release’s images and rolls every service whose pin changes. No build.",
+    "prs": "Ticked pull requests merge before anything builds. Only PRs with passing or running checks can be ticked.",
+    "changelog": "Goes out with the release notes. English is required. French falls back to English when left empty.",
+    "review": "Check what this run does, then start it. Nothing rolls back on its own."
+  },
+  "stagesCount": "{n} stages",
+  "picked": "{n} PRs picked",
+  "pickedOne": "1 PR picked",
+  "pickedNone": "No PR picked. Nothing merges.",
+  "releasesEmpty": "No earlier release to roll back to.",
+  "reviewKind": "Kind",
+  "reviewPrs": "Merges first",
+  "reviewPrsNone": "Nothing",
+  "reviewChangelog": "Changelog title",
+  "eyebrow": "New deploy",
+  "close": "Cancel",
+  "pending": "Not reached yet"
+}

@@ -1,0 +1,43 @@
+{
+  "label": "Stats Fortnite",
+  "tagline": "Stats Fortnite BR et boutique du jour dans le chat.",
+  "description": "Une commande, quatre regards : !fn montre les victoires, matchs, kills, K/D et taux de victoire à vie d'un joueur, avec un détail solo/duo/squad ; !fn season montre la même chose pour la saison en cours (le bot suit les changements de saison tout seul) ; !fn session montre victoires, kills et K/D depuis le début du stream, en photographiant votre standing dès que vous passez en live ; !fn store liste le contenu de la boutique du jour. Les formes compactes !fnstats, !fnseason, !fnsession et !fnstore marchent aussi. Liez votre nom affiché Epic ci-dessous. Les viewers peuvent aussi nommer n'importe quel joueur, ex. « !fn Ninja » ; !fn session suit toujours votre compte lié. Les recherches de noms PlayStation et Xbox ne sont pas encore prises en charge.",
+  "settings": {
+    "account": {
+      "label": "Nom de compte lié",
+      "help": "Joueur par défaut des commandes de stats. Laissez vide pour utiliser votre pseudo Twitch.",
+      "placeholder": "Votre nom affiché Epic"
+    },
+    "accountType": {
+      "label": "Plateforme du compte",
+      "help": "Seuls les noms affichés Epic se résolvent pour l'instant ; les recherches PlayStation et Xbox viendront plus tard. Joueurs console : votre nom affiché Epic fonctionne.",
+      "placeholder": "epic",
+      "options": {
+        "epic": "Epic Games",
+        "psn": "PlayStation (bientôt)",
+        "xbl": "Xbox Live (bientôt)"
+      }
+    }
+  },
+  "replies": {
+    "stats": {
+      "tagline": "Stats Battle Royale à vie : !fn, !fn stats ou !fnstats.",
+      "defaultMessage": "{player} au total : {wins} victoires en {matches} matchs · {winrate}% de victoires · {kills} éliminations · {kd} K/D · {solowins} victoires en solo / {duowins} en duo / {squadwins} en section"
+    },
+    "season": {
+      "tagline": "Stats de la saison en cours (aussi !fnseason) ; les changements de saison sont suivis automatiquement.",
+      "event": "!fn season",
+      "defaultMessage": "{player} cette saison : {wins} victoires en {matches} matchs · {winrate}% de victoires · {kills} éliminations · {kd} K/D · {solowins} victoires en solo / {duowins} en duo / {squadwins} en section"
+    },
+    "session": {
+      "tagline": "Victoires, kills et K/D depuis le début du stream (aussi !fnsession).",
+      "event": "!fn session",
+      "defaultMessage": "{player} pendant ce direct : {wins} victoires en {matches} matchs · {winrate}% de victoires · {kills} éliminations · {kd} K/D"
+    },
+    "store": {
+      "tagline": "Rotation de la boutique du jour (aussi !fnstore).",
+      "event": "!fn store",
+      "defaultMessage": "Boutique {date}: {items}"
+    }
+  }
+}

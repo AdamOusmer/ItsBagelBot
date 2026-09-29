@@ -11,8 +11,9 @@ import {
   adminSectionLabelKey
 } from './nav-admin';
 import type { StaffRole } from './staff-role';
-import en from './i18n/locales/en.json';
+import { readConsoleTree } from './i18n/tree-fs';
 
+const en = readConsoleTree('en');
 const ROLES: StaffRole[] = ['moderator', 'admin', 'owner'];
 
 function leaf(key: string): unknown {

@@ -1,0 +1,12 @@
+{
+  "everyone": "Tout le monde",
+  "sub": "Abonnés",
+  "vip": "VIP",
+  "mod": "Modérateurs",
+  "help": "Combien de musiques un spectateur peut avoir en attente dans la file. Laissez un palier vide pour aucune limite. Vous n'êtes jamais limité.",
+  "save": "Enregistrer les limites",
+  "saveFailed": "Impossible d'enregistrer les limites.",
+  "saved": "Limites enregistrées.",
+  "title": "Limites par spectateur",
+  "unlimited": "Aucune limite"
+}

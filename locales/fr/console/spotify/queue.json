@@ -1,0 +1,21 @@
+{
+  "askedBy": "demandé par",
+  "empty": "Rien dans la file pour le moment.",
+  "now": "En cours",
+  "refresh": "Actualiser",
+  "title": "File d'attente",
+  "updated": "Mis à jour {when}",
+  "refreshing": "Actualisation…",
+  "emptySr": "Les spectateurs ajoutent des morceaux en tapant !sr dans le chat.",
+  "emptyRedeem": "Les spectateurs ajoutent des morceaux en échangeant votre récompense de points de chaîne.",
+  "emptyBoth": "Les spectateurs ajoutent des morceaux avec !sr dans le chat ou en échangeant votre récompense de points de chaîne.",
+  "emptyOff": "Les deux modes de demande sont désactivés. Activez-en un pour que les spectateurs puissent ajouter des morceaux.",
+  "enableSr": "Activer !sr",
+  "skip": "Passer",
+  "progressLabel": "{elapsed} écoulées sur {duration}",
+  "skipped": "Piste actuelle passée.",
+  "skipFailed": "Impossible de passer la piste. Réessayez dans un instant.",
+  "skipNoDevice": "Aucun appareil Spotify actif. Lancez d'abord une lecture.",
+  "skipPremium": "Passer une piste nécessite Spotify Premium.",
+  "skipReauth": "Spotify n'accepte plus cette connexion. Reconnectez-la puis réessayez."
+}

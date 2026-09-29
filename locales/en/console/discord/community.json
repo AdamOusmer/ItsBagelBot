@@ -1,0 +1,19 @@
+{
+  "help": "Welcomes, join-to-create voice, tickets, staff logs, and crumb ranks run on the Discord gateway.",
+  "title": "Community ops",
+  "goodbyeHelp": "Off by default. A short line when someone leaves.",
+  "goodbyeLabel": "Goodbye",
+  "levelsHelp": "Chat XP (15 crumbs, 60s cooldown). Rank and daily are embed cards with a Claim daily button.",
+  "levelsLabel": "Crumbs and ranks",
+  "linkGuardHelp": "Off by default. Deletes links from members with no role yet.",
+  "linkGuardLabel": "Link guard",
+  "logsHelp": "Joins, leaves, edits, deletes, and moderation land in #logs.",
+  "logsLabel": "Staff logs",
+  "subscribersHelp": "Creates a Subscriber role and a private subscriber area during setup. Turn it off if you do not use it: an empty locked category helps nobody. Subscribers are not synced automatically, see the note under Roles.",
+  "subscribersLabel": "Subscriber tier",
+  "tierRolesHelp": "Bagel creates these roles and their private channels, but it never assigns them and never syncs them from Twitch. Your Twitch mods, VIPs and subscribers do not become Discord Mods, VIP or Subscriber on their own: give those roles out yourself. The one exception you can add is Discord's own Twitch integration, under Server Settings, Integrations, which syncs subscribers only and needs a Twitch Affiliate or Partner account. Discord gives no way to switch that on from here.",
+  "voiceHelp": "Joining “+ Create voice” clones a personal room with Lock and Unlock buttons. Empty clones are deleted.",
+  "voiceLabel": "Join-to-create voice",
+  "welcomeHelp": "One embed in #welcome. Bagel never DMs joiners.",
+  "welcomeLabel": "Welcome new members"
+}

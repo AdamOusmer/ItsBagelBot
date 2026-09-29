@@ -15,37 +15,37 @@ const t = useTranslations(lang);
 const importHref = dashboardHref('/settings/import', lang === defaultLang ? '' : `?lang=${lang}`);
 ---
 
-<Layout title={t('imp.metaTitle')} description={t('imp.metaDesc')}>
+<Layout title={t('importer.metaTitle')} description={t('importer.metaDesc')}>
     <FeatureLanding
-        eyebrow={t('imp.eyebrow')}
-        title={t('imp.title')}
-        lead={t('imp.lead')}
-        howEyebrow={t('imp.howEyebrow')}
-        howTitle={t('imp.howTitle')}
+        eyebrow={t('importer.eyebrow')}
+        title={t('importer.title')}
+        lead={t('importer.lead')}
+        howEyebrow={t('importer.howEyebrow')}
+        howTitle={t('importer.howTitle')}
         steps={[
-            { title: t('imp.step1Title'), desc: t('imp.step1Desc') },
-            { title: t('imp.step2Title'), desc: t('imp.step2Desc') },
-            { title: t('imp.step3Title'), desc: t('imp.step3Desc') },
+            { title: t('importer.step1Title'), desc: t('importer.step1Desc') },
+            { title: t('importer.step2Title'), desc: t('importer.step2Desc') },
+            { title: t('importer.step3Title'), desc: t('importer.step3Desc') },
         ]}
-        listEyebrow={t('imp.srcEyebrow')}
-        listTitle={t('imp.srcTitle')}
+        listEyebrow={t('importer.srcEyebrow')}
+        listTitle={t('importer.srcTitle')}
         listItems={[
-            { name: t('imp.src1Name'), desc: t('imp.src1Desc') },
-            { name: t('imp.src2Name'), desc: t('imp.src2Desc') },
-            { name: t('imp.src3Name'), desc: t('imp.src3Desc') },
-            { name: t('imp.src4Name'), desc: t('imp.src4Desc') },
+            { name: t('importer.src1Name'), desc: t('importer.src1Desc') },
+            { name: t('importer.src2Name'), desc: t('importer.src2Desc') },
+            { name: t('importer.src3Name'), desc: t('importer.src3Desc') },
+            { name: t('importer.src4Name'), desc: t('importer.src4Desc') },
         ]}
-        listNote={t('imp.limitsNote')}
-        faqEyebrow={t('imp.faqEyebrow')}
-        faqTitle={t('imp.faqTitle')}
+        listNote={t('importer.limitsNote')}
+        faqEyebrow={t('importer.faqEyebrow')}
+        faqTitle={t('importer.faqTitle')}
         faqItems={[
-            { question: t('imp.faqQ1'), answer: t('imp.faqA1') },
-            { question: t('imp.faqQ2'), answer: t('imp.faqA2') },
-            { question: t('imp.faqQ3'), answer: t('imp.faqA3') },
-            { question: t('imp.faqQ4'), answer: t('imp.faqA4') },
+            { question: t('importer.faqQ1'), answer: t('importer.faqA1') },
+            { question: t('importer.faqQ2'), answer: t('importer.faqA2') },
+            { question: t('importer.faqQ3'), answer: t('importer.faqA3') },
+            { question: t('importer.faqQ4'), answer: t('importer.faqA4') },
         ]}
-        ctaTitle={t('imp.ctaTitle')}
-        ctaPrimary={{ href: importHref, label: t('imp.ctaStart') }}
-        ctaSecondary={{ href: '/vs/nightbot/', label: t('imp.ctaCompare') }}
+        ctaTitle={t('importer.ctaTitle')}
+        ctaPrimary={{ href: importHref, label: t('importer.ctaStart') }}
+        ctaSecondary={{ href: '/vs/nightbot/', label: t('importer.ctaCompare') }}
     />
 </Layout>

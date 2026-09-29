@@ -1,0 +1,20 @@
+{
+  "boundElsewhere": "That Discord server is already linked to another Twitch channel.",
+  "conflict": "Someone else saved this server first. Reload and try again.",
+  "forbidden": "Discord refused that. Bagel is missing a permission in this server.",
+  "invalid": "Some settings were not valid, so they were left as they were.",
+  "invalidFields": "Saved, but these were left as they were: {fields}.",
+  "locked": "Discord is in beta and open to Premium channels only.",
+  "noGuilds": "Discord did not list a server you can add a bot to. You need to own the server, or have Manage Server on it.",
+  "notBound": "No Discord server is connected yet.",
+  "oauth": "Discord did not return a server. Try adding Bagel again.",
+  "rateLimited": "Discord is rate limiting us. Try again in a minute.",
+  "setup": "Could not save the connected server. Try again.",
+  "state": "That Discord link expired. Start from Add Bagel again.",
+  "ticketsOff": "Turn the ticket desk on and save before reposting the panel.",
+  "unavailable": "Discord did not answer. Try again in a moment.",
+  "timeout": "This took too long. Some of it may be missing; reload to see the rest.",
+  "notFound": "That channel or role is gone from the server. Pick another one.",
+  "unknown": "Something went wrong on our side. Try again, and tell support if it keeps happening.",
+  "unconfigured": "Discord is not configured on this deployment (missing client id or redirect)."
+}

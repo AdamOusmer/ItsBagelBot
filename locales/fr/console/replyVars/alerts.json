@@ -1,0 +1,45 @@
+{
+  "follow": {
+    "user": {
+      "name": "Nouveau follower",
+      "hint": "La personne qui vient de suivre la chaîne",
+      "desc": "La personne qui vient de suivre la chaîne."
+    }
+  },
+  "sub": {
+    "user": {
+      "name": "Abonné",
+      "hint": "La personne qui vient de s’abonner",
+      "desc": "La personne qui vient de s’abonner."
+    },
+    "tier": {
+      "name": "Palier",
+      "hint": "Le palier de l'abonnement",
+      "desc": "Le palier de l'abonnement."
+    }
+  },
+  "cheer": {
+    "user": {
+      "name": "Donateur",
+      "hint": "La personne qui a envoyé des bits",
+      "desc": "La personne qui a envoyé des bits."
+    },
+    "bits": {
+      "name": "Nombre de bits",
+      "hint": "Le nombre de bits envoyés",
+      "desc": "Le nombre de bits envoyés."
+    }
+  },
+  "raid": {
+    "user": {
+      "name": "Raider",
+      "hint": "Le nom d'affichage de la chaîne qui raid",
+      "desc": "Le nom d'affichage de la chaîne qui raid."
+    },
+    "viewers": {
+      "name": "Taille du raid",
+      "hint": "Le nombre de spectateurs arrivés",
+      "desc": "Le nombre de spectateurs arrivés."
+    }
+  }
+}

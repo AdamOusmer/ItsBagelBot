@@ -116,25 +116,25 @@
   });
 
   const PERM_LABEL_KEYS: Record<SpotifySrPerm, string> = {
-    everyone: 'spotify.permEveryone',
-    sub: 'spotify.permSub',
-    vip: 'spotify.permVip',
-    mod: 'spotify.permMod',
-    broadcaster: 'spotify.permBroadcaster'
+    everyone: 'spotify.perm.everyone',
+    sub: 'spotify.perm.sub',
+    vip: 'spotify.perm.vip',
+    mod: 'spotify.perm.mod',
+    broadcaster: 'spotify.perm.broadcaster'
   };
   const ERROR_SLUG_KEYS: Record<string, string> = {
-    state: 'spotify.errState',
-    oauth: 'spotify.errOauth',
-    notoken: 'spotify.errNoToken',
-    noapp: 'spotify.errNoApp',
-    unconfigured: 'spotify.errUnconfigured',
-    store: 'spotify.errStore'
+    state: 'spotify.errors.state',
+    oauth: 'spotify.errors.oauth',
+    notoken: 'spotify.errors.noToken',
+    noapp: 'spotify.errors.noApp',
+    unconfigured: 'spotify.errors.unconfigured',
+    store: 'spotify.errors.store'
   };
   const QUOTA_LABEL_KEYS: Record<(typeof SPOTIFY_QUOTA_TIERS)[number], string> = {
-    everyone: 'spotify.quotaEveryone',
-    sub: 'spotify.quotaSub',
-    vip: 'spotify.quotaVip',
-    mod: 'spotify.quotaMod'
+    everyone: 'spotify.quota.everyone',
+    sub: 'spotify.quota.sub',
+    vip: 'spotify.quota.vip',
+    mod: 'spotify.quota.mod'
   };
 
   type SongQueueActionOk = ActionOk & { missingScope?: boolean };
@@ -146,7 +146,7 @@
   function reportFailure(payload: SongQueueActionOk | undefined, fallbackKey: string) {
     if (payload?.missingScope) {
       missingScope = true;
-      toast('err', t('spotify.reconnect'));
+      toast('err', t('spotify.connection.reconnect'));
       return;
     }
     failed(payload, fallbackKey);
@@ -175,9 +175,9 @@
   }
 
   const SKIP_ERROR_KEYS: Record<string, string> = {
-    no_device: 'spotify.skipNoDevice',
-    premium: 'spotify.skipPremium',
-    reauth: 'spotify.skipReauth'
+    no_device: 'spotify.queue.skipNoDevice',
+    premium: 'spotify.queue.skipPremium',
+    reauth: 'spotify.queue.skipReauth'
   };
   const SKIP_REFRESH_MS = 1200;
 
@@ -194,13 +194,13 @@
       skipping = false;
       const payload = actionPayload<SongQueueActionOk & { code?: string }>(result);
       if (isOk(result, payload)) {
-        toast('ok', t('spotify.skipped'));
+        toast('ok', t('spotify.queue.skipped'));
         setTimeout(() => void refreshQueue(false), SKIP_REFRESH_MS);
         return;
       }
       const key = payload?.code ? SKIP_ERROR_KEYS[payload.code] : undefined;
       if (key) toast('err', t(key));
-      else reportFailure(payload, 'spotify.skipFailed');
+      else reportFailure(payload, 'spotify.queue.skipFailed');
     };
   };
 
@@ -208,7 +208,7 @@
     const poll = setInterval(() => {
       if (!document.hidden) void refreshQueue(false);
     }, QUEUE_POLL_MS);
-    if (data.justConnected) toast('ok', t('spotify.connectedToast'));
+    if (data.justConnected) toast('ok', t('spotify.connection.connectedToast'));
     return () => clearInterval(poll);
   });
 
@@ -225,12 +225,12 @@
       connectionAction = null;
       const payload = actionPayload<SongQueueActionOk>(result);
       if (!isOk(result, payload)) {
-        reportFailure(payload, action === 'clearApp' ? 'spotify.appRemoveFailed' : 'spotify.disconnectFailed');
+        reportFailure(payload, action === 'clearApp' ? 'spotify.app.removeFailed' : 'spotify.connection.disconnectFailed');
         return;
       }
       if (action === 'clearApp') app = { present: false, clientId: '' };
       connected = false;
-      toast('ok', t(action === 'clearApp' ? 'spotify.appRemoved' : 'spotify.disconnectedToast'));
+      toast('ok', t(action === 'clearApp' ? 'spotify.app.removed' : 'spotify.connection.disconnectedToast'));
       await invalidateAll();
     };
   };
@@ -262,8 +262,8 @@
       sr_allow_offline: sr.allowOffline ? 'on' : '',
       perm: sr.perm
     }),
-    failKey: 'spotify.srSaveFailed',
-    okKey: 'spotify.srSaved',
+    failKey: 'spotify.sr.saveFailed',
+    okKey: 'spotify.sr.saved',
     revert: () => (sr = data.sr ?? blankSpotifySr())
   });
 
@@ -283,10 +283,10 @@
       quotaSaving = false;
       const payload = actionPayload<SongQueueActionOk>(result);
       if (!isOk(result, payload)) {
-        reportFailure(payload, 'spotify.quotaSaveFailed');
+        reportFailure(payload, 'spotify.quota.saveFailed');
         return;
       }
-      toast('ok', t('spotify.quotaSaved'));
+      toast('ok', t('spotify.quota.saved'));
       await invalidateAll();
     };
   };
@@ -327,7 +327,7 @@
       return;
     }
     validationAttempted = false;
-    const base = spotifyDraftFor(redeem, t('spotify.defaultTitle'));
+    const base = spotifyDraftFor(redeem, t('spotify.reward.defaultTitle'));
     inspector.open('reward', base);
     draft = { ...base };
   }
@@ -353,10 +353,10 @@
       const ok = isOk(result, payload);
       if (requestId) inspector.resolved(requestId, { type: ok ? 'success' : 'error' });
       if (!ok) {
-        reportFailure(payload, 'spotify.toastSaveFailed');
+        reportFailure(payload, 'spotify.toast.saveFailed');
         return;
       }
-      toast('ok', t('spotify.toastSaved'));
+      toast('ok', t('spotify.toast.saved'));
       await invalidateAll();
     };
   };
@@ -372,11 +372,11 @@
       deletePending = false;
       const payload = actionPayload<SongQueueActionOk>(result);
       if (!isOk(result, payload)) {
-        reportFailure(payload, 'spotify.toastDeleteFailed');
+        reportFailure(payload, 'spotify.toast.deleteFailed');
         return;
       }
       doClose();
-      toast('ok', t('spotify.toastDeleted'));
+      toast('ok', t('spotify.toast.deleted'));
       await invalidateAll();
     };
   };
@@ -413,7 +413,7 @@
     app={app}
     redirectUri={data.redirectUri ?? ''}
     preview={'setupPreview' in data && data.setupPreview === true}
-    error={data.errorSlug ? t(ERROR_SLUG_KEYS[data.errorSlug] ?? 'spotify.errOauth') : ''}
+    error={data.errorSlug ? t(ERROR_SLUG_KEYS[data.errorSlug] ?? 'spotify.errors.oauth') : ''}
     onRemoveApp={() => (connectionAction = 'clearApp')}
   />
 {:else}
@@ -426,9 +426,9 @@
 
   {#if missingScope}
     <AlertBanner variant="warn">
-      {t('spotify.reconnect')}
+      {t('spotify.connection.reconnect')}
       {#snippet action()}
-        <ButtonLink variant="primary" href="/login?next=/songqueue" data-sveltekit-reload>{t('spotify.reconnectCta')}</ButtonLink>
+        <ButtonLink variant="primary" href="/login?next=/songqueue" data-sveltekit-reload>{t('spotify.connection.reconnectCta')}</ButtonLink>
       {/snippet}
     </AlertBanner>
   {/if}
@@ -471,25 +471,25 @@
     <div class="paths" class:inspecting={inspector.isOpen}>
       <Card>
         <div class="path-head">
-          <Heading level={6} as="h2">{t('spotify.srTitle')}</Heading>
-          <Text size="sm" tone="muted">{t('spotify.srHelp')}</Text>
+          <Heading level={6} as="h2">{t('spotify.sr.title')}</Heading>
+          <Text size="sm" tone="muted">{t('spotify.sr.help')}</Text>
         </div>
         <form method="POST" action="?/sr" use:enhance={srSubmit} bind:this={srForm}>
           {@render enableRow({
-            label: t('spotify.srEnableLabel'),
-            desc: sr.enabled ? t('spotify.srEnableOn') : t('spotify.srEnableOff'),
+            label: t('spotify.sr.enableLabel'),
+            desc: sr.enabled ? t('spotify.sr.enableOn') : t('spotify.sr.enableOff'),
             descId: 'spotify-sr-desc',
             checked: sr.enabled,
             onchange: (on) => { sr.enabled = on; srChanged(); }
           })}
           {@render enableRow({
             label: t('spotify.liveOnlyLabel'),
-            desc: sr.allowOffline ? t('spotify.srLiveOnlyOff') : t('spotify.srLiveOnlyOn'),
+            desc: sr.allowOffline ? t('spotify.sr.liveOnlyOff') : t('spotify.sr.liveOnlyOn'),
             descId: 'spotify-sr-live-desc',
             checked: !sr.allowOffline,
             onchange: (liveOnly) => { sr.allowOffline = !liveOnly; srChanged(); }
           })}
-          <Field label={t('spotify.srPermLabel')}>
+          <Field label={t('spotify.sr.permLabel')}>
             <Select
               fill
               disabled={!sr.enabled}
@@ -498,13 +498,13 @@
               onchange={srChanged}
             />
           </Field>
-          <div class="reserved-hint" class:hidden={sr.enabled}><Text size="xs" tone="muted">{t('spotify.srPermOffHint')}</Text></div>
+          <div class="reserved-hint" class:hidden={sr.enabled}><Text size="xs" tone="muted">{t('spotify.sr.permOffHint')}</Text></div>
         </form>
 
         <form method="POST" action="?/quotas" use:enhance={quotasSubmit}>
           <div class="path-head quota-head">
-            <Heading level={6} as="h3">{t('spotify.quotaTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('spotify.quotaHelp')}</Text>
+            <Heading level={6} as="h3">{t('spotify.quota.title')}</Heading>
+            <Text size="sm" tone="muted">{t('spotify.quota.help')}</Text>
           </div>
           <div class="quota-grid">
             {#each SPOTIFY_QUOTA_TIERS as tier (tier)}
@@ -515,26 +515,26 @@
                   type="number"
                   min="1"
                   step="1"
-                  placeholder={t('spotify.quotaUnlimited')}
+                  placeholder={t('spotify.quota.unlimited')}
                   bind:value={quotaDraft[tier]}
                 />
               </Field>
             {/each}
           </div>
-          <Button variant="secondary" type="submit" loading={quotaSaving} disabled={!quotaDirty}>{t('spotify.quotaSave')}</Button>
+          <Button variant="secondary" type="submit" loading={quotaSaving} disabled={!quotaDirty}>{t('spotify.quota.save')}</Button>
         </form>
       </Card>
 
       <DeckLayout inspecting={inspector.isOpen} width="440px">
         <Card>
           <div class="path-head">
-            <Heading level={6} as="h2">{t('spotify.redeemTitle')}</Heading>
-            <Text size="sm" tone="muted">{t('spotify.redeemHelp')}</Text>
+            <Heading level={6} as="h2">{t('spotify.redeem.title')}</Heading>
+            <Text size="sm" tone="muted">{t('spotify.redeem.help')}</Text>
           </div>
           <form method="POST" action="?/redeemToggle" use:enhance={redeemToggleSubmit} bind:this={redeemForm}>
             {@render enableRow({
-              label: t('spotify.redeemEnableLabel'),
-              desc: redeem.enabled ? t('spotify.redeemEnableOn') : t('spotify.redeemEnableOff'),
+              label: t('spotify.redeem.enableLabel'),
+              desc: redeem.enabled ? t('spotify.redeem.enableOn') : t('spotify.redeem.enableOff'),
               descId: 'spotify-redeem-desc',
               checked: redeem.enabled,
               onchange: (on) => { redeem.enabled = on; redeemToggled(); }
@@ -542,8 +542,8 @@
             {@render enableRow({
               label: t('spotify.liveOnlyLabel'),
               desc: !redeem.enabled
-                ? t('spotify.redeemLiveOnlyDisabled')
-                : redeem.allowOffline ? t('spotify.redeemLiveOnlyOff') : t('spotify.redeemLiveOnlyOn'),
+                ? t('spotify.redeem.liveOnlyDisabled')
+                : redeem.allowOffline ? t('spotify.redeem.liveOnlyOff') : t('spotify.redeem.liveOnlyOn'),
               descId: 'spotify-redeem-live-desc',
               checked: !redeem.allowOffline,
               disabled: !redeem.enabled,
@@ -563,9 +563,9 @@
         {#if inspector.isOpen && draft}
           <InspectorSurface
             open
-            title={redeem.reward?.title || t('spotify.thisReward')}
+            title={redeem.reward?.title || t('spotify.reward.thisReward')}
             controls="spotify-editor"
-            closeLabel={t('spotify.closeEditor')}
+            closeLabel={t('spotify.reward.closeEditor')}
             onClose={closeInspector}
           >
             <form
@@ -589,11 +589,11 @@
                 status={inspector.status}
                 dirty={inspector.dirty}
                 canSave={canSave && !busy}
-                saveLabel={isNew ? t('spotify.create') : t('spotify.saveChanges')}
+                saveLabel={isNew ? t('spotify.reward.create') : t('spotify.saveChanges')}
                 cancelLabel={t('common.cancel')}
                 savingLabel={t('spotify.saving')}
                 savedLabel={t('spotify.saved')}
-                errorLabel={t('spotify.toastSaveFailed')}
+                errorLabel={t('spotify.toast.saveFailed')}
                 dirtyLabel={t('spotify.unsavedChanges')}
                 onCancel={closeInspector}
               />
@@ -627,10 +627,10 @@
 
 <ConfirmDialog
   open={connectionAction !== null}
-  title={t(connectionAction === 'clearApp' ? 'spotify.appRemoveTitle' : 'spotify.disconnectTitle')}
-  body={t(connectionAction === 'clearApp' ? 'spotify.appRemoveWarning' : 'spotify.disconnectBody')}
-  confirmLabel={t(connectionAction === 'clearApp' ? 'spotify.appRemove' : 'spotify.disconnect')}
-  cancelLabel={t('spotify.appCancel')}
+  title={t(connectionAction === 'clearApp' ? 'spotify.app.removeTitle' : 'spotify.connection.disconnectTitle')}
+  body={t(connectionAction === 'clearApp' ? 'spotify.app.removeWarning' : 'spotify.connection.disconnectBody')}
+  confirmLabel={t(connectionAction === 'clearApp' ? 'spotify.app.remove' : 'spotify.connection.disconnect')}
+  cancelLabel={t('spotify.app.cancel')}
   busyLabel={t('spotify.saving')}
   danger
   busy={connectionBusy}
@@ -642,10 +642,10 @@
 
 <ConfirmDialog
   open={deletePending}
-  title={t('spotify.deleteTitle')}
-  body={t('spotify.deleteBody', { name: redeem.reward?.title || t('spotify.thisReward') })}
-  confirmLabel={t('spotify.deleteConfirm')}
-  cancelLabel={t('spotify.deleteCancel')}
+  title={t('spotify.delete.title')}
+  body={t('spotify.delete.body', { name: redeem.reward?.title || t('spotify.reward.thisReward') })}
+  confirmLabel={t('spotify.delete.confirm')}
+  cancelLabel={t('spotify.delete.cancel')}
   danger
   busy={deleting}
   onCancel={() => (deletePending = false)}

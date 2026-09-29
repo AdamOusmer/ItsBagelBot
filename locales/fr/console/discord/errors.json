@@ -1,0 +1,20 @@
+{
+  "boundElsewhere": "Ce serveur Discord est déjà lié à une autre chaîne Twitch.",
+  "conflict": "Quelqu’un d’autre a enregistré ce serveur avant vous. Rechargez et réessayez.",
+  "forbidden": "Discord a refusé. Il manque une permission à Bagel sur ce serveur.",
+  "invalid": "Certains réglages n’étaient pas valides, ils ont été laissés tels quels.",
+  "invalidFields": "Enregistré, mais ces réglages ont été laissés tels quels : {fields}.",
+  "locked": "Discord est en bêta et réservé aux chaînes Premium.",
+  "noGuilds": "Discord n’a listé aucun serveur où vous pouvez ajouter un bot. Il faut en être propriétaire, ou y avoir Gérer le serveur.",
+  "notBound": "Aucun serveur Discord n’est connecté pour l’instant.",
+  "oauth": "Discord n’a pas renvoyé de serveur. Réessayez d’ajouter Bagel.",
+  "rateLimited": "Discord nous limite. Réessayez dans une minute.",
+  "setup": "Impossible d’enregistrer le serveur connecté. Réessayez.",
+  "state": "Ce lien Discord a expiré. Repartez de Ajouter Bagel.",
+  "ticketsOff": "Activez le guichet de tickets et enregistrez avant de republier le panneau.",
+  "unavailable": "Discord n’a pas répondu. Réessayez dans un instant.",
+  "timeout": "L’opération a été trop longue. Il en manque peut-être une partie : rechargez pour voir le reste.",
+  "notFound": "Ce salon ou ce rôle n’existe plus sur le serveur. Choisissez-en un autre.",
+  "unknown": "Un problème est survenu de notre côté. Réessayez, et prévenez le support si cela persiste.",
+  "unconfigured": "Discord n’est pas configuré sur ce déploiement (identifiant client ou redirection manquant)."
+}

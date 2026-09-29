@@ -1,0 +1,27 @@
+{
+  "playera": {
+    "name": "Joueur A",
+    "hint": "Le premier joueur tapé (ou vous",
+    "desc": "Le premier joueur tapé (ou vous, si un seul nom est tapé)."
+  },
+  "playerb": {
+    "name": "Joueur B",
+    "hint": "Le second joueur tapé",
+    "desc": "Le second joueur tapé."
+  },
+  "winsa": {
+    "name": "Victoires A",
+    "hint": "Victoires du joueur A contre le joueur B",
+    "desc": "Victoires du joueur A contre le joueur B."
+  },
+  "winsb": {
+    "name": "Victoires B",
+    "hint": "Victoires du joueur B contre le joueur A",
+    "desc": "Victoires du joueur B contre le joueur A."
+  },
+  "played": {
+    "name": "Joués",
+    "hint": "Total des matchs entre les deux",
+    "desc": "Total des matchs entre les deux."
+  }
+}

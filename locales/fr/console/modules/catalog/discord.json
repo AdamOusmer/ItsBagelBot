@@ -1,0 +1,5 @@
+{
+  "label": "Discord",
+  "tagline": "Un seul bot sur Twitch et Discord. Go-live, clips, bienvenues, tickets et vocal.",
+  "description": "Connectez un serveur Discord existant ou créez-en un depuis le modèle de Bagel. Les go-live et les clips partent d'outgress directement. Ils n'attendent jamais sesame. Les raids, gift bombs et subs jalons se copient dans #announcements quand vous les activez. La passerelle Discord (dingress) gère les bienvenues, le vocal join-to-create, les tickets de support, les logs staff, la modération slash, et les rangs crumb."
+}

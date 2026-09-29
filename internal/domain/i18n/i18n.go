@@ -4,8 +4,10 @@
 package i18n
 
 import (
+	"ItsBagelBot/locales"
 	"ItsBagelBot/pkg/codec"
-	"embed"
+	"io/fs"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,60 +32,96 @@ const (
 	KeyBotBannedBody  = "bot.banned.body"
 )
 
-//go:embed locales.json locales/*.json
-var i18nFS embed.FS
+const (
+	manifestFile  = "manifest.json"
+	chatDir       = "chat"
+	rootNamespace = "index"
+)
 
-var supported = mustLoadManifest()
+var supported = mustLoadManifest(locales.FS)
 
-var catalog = mustLoadCatalogs()
+var catalog = mustLoadCatalogs(locales.FS)
 
-func mustLoadManifest() []string {
-	const name = "locales.json"
-	b, err := i18nFS.ReadFile(name)
+func mustLoadManifest(fsys fs.FS) []string {
+	b, err := fs.ReadFile(fsys, manifestFile)
 	if err != nil {
-		panic("i18n: cannot read " + name + ": " + err.Error())
+		panic("i18n: cannot read " + manifestFile + ": " + err.Error())
 	}
 	var codes []string
 	if err := codec.Unmarshal(b, &codes); err != nil {
-		panic("i18n: malformed " + name + ": " + err.Error())
+		panic("i18n: malformed " + manifestFile + ": " + err.Error())
 	}
 	sort.Strings(codes)
 	return codes
 }
 
-func mustLoadCatalogs() map[string]map[string]string {
-	entries, err := i18nFS.ReadDir("locales")
+func mustLoadCatalogs(fsys fs.FS) map[string]map[string]string {
+	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
-		panic("i18n: cannot read locales dir: " + err.Error())
+		panic("i18n: cannot read locales root: " + err.Error())
 	}
 	out := make(map[string]map[string]string, len(entries))
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
+		if e.IsDir() && hasChatCatalog(fsys, e.Name()) {
+			out[e.Name()] = mustLoadCatalog(fsys, e.Name())
 		}
-		locale := strings.TrimSuffix(e.Name(), ".json")
-		out[locale] = mustLoadCatalog(locale)
 	}
 	if _, ok := out[DefaultLocale]; !ok {
-		panic("i18n: missing required catalog locales/" + DefaultLocale + ".json")
+		panic("i18n: missing required catalog " + path.Join(DefaultLocale, chatDir))
 	}
 	return out
 }
 
-func mustLoadCatalog(locale string) map[string]string {
-	name := "locales/" + locale + ".json"
-	b, err := i18nFS.ReadFile(name)
+func hasChatCatalog(fsys fs.FS, locale string) bool {
+	info, err := fs.Stat(fsys, path.Join(locale, chatDir))
+	return err == nil && info.IsDir()
+}
+
+func mustLoadCatalog(fsys fs.FS, locale string) map[string]string {
+	dir := path.Join(locale, chatDir)
+	files, err := fs.ReadDir(fsys, dir)
+	if err != nil {
+		panic("i18n: cannot read " + dir + ": " + err.Error())
+	}
+	table := make(map[string]string)
+	for _, f := range files {
+		if f.IsDir() || path.Ext(f.Name()) != ".json" {
+			continue
+		}
+		name := path.Join(dir, f.Name())
+		mergeNamespace(table, name, keyPrefix(f.Name()), mustReadNamespace(fsys, name))
+	}
+	return table
+}
+
+func mustReadNamespace(fsys fs.FS, name string) map[string]string {
+	b, err := fs.ReadFile(fsys, name)
 	if err != nil {
 		panic("i18n: cannot read " + name + ": " + err.Error())
 	}
-	var table map[string]string
-	if err := codec.Unmarshal(b, &table); err != nil {
+	var entries map[string]string
+	if err := codec.Unmarshal(b, &entries); err != nil {
 		panic("i18n: malformed " + name + ": " + err.Error())
 	}
-	for key, tmpl := range table {
-		table[key] = strings.ReplaceAll(tmpl, dashboardToken, DashboardURL)
+	return entries
+}
+
+func keyPrefix(file string) string {
+	namespace := strings.TrimSuffix(file, ".json")
+	if namespace == rootNamespace {
+		return ""
 	}
-	return table
+	return namespace + "."
+}
+
+func mergeNamespace(table map[string]string, name, prefix string, entries map[string]string) {
+	for key, tmpl := range entries {
+		full := prefix + key
+		if _, dup := table[full]; dup {
+			panic("i18n: duplicate key " + full + " in " + name)
+		}
+		table[full] = strings.ReplaceAll(tmpl, dashboardToken, DashboardURL)
+	}
 }
 
 func Supported(code string) bool {

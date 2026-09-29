@@ -1,0 +1,21 @@
+{
+  "eyebrow": "Cycle de vie de l’ingestion",
+  "titlePre": "Flux du cycle de vie des ",
+  "titleEm": "shards",
+  "description": "Une vue en direct, non persistée, des connexions de shards, des liaisons Conduit et des motifs de déconnexion. Seules les transitions survenues après l’ouverture de cette page y figurent ; les charges utiles du chat et d’EventSub, non.",
+  "subject": "twitch.ingress.status.>",
+  "toneFilter": "Tonalité de l’événement",
+  "searchPlaceholder": "Filtrer les messages du cycle de vie…",
+  "pauseLabel": "Mettre le flux en pause",
+  "pauseLabelBuffered": "Reprendre le flux ({n} en attente)",
+  "clear": "Vider",
+  "streaming": "En diffusion",
+  "connecting": "Connexion…",
+  "reconnecting": "Reconnexion…",
+  "paused": "En pause",
+  "upCount": "{n} rétablis",
+  "downCount": "{n} tombés",
+  "listLabel": "Événements du cycle de vie",
+  "idleBody": "Une flotte saine en régime établi est silencieuse. Les transitions de shard rétabli, lié et tombé apparaissent ici ; ce n’est pas un historique conservé.",
+  "emptyMatch": "Aucun événement ne correspond au filtre"
+}

@@ -1,0 +1,11 @@
+{
+  "p1Eyebrow": "Encrypted in transit and at rest",
+  "p1Title": "Your chat data is encrypted.",
+  "p1Desc": "Traffic between every internal service runs over TLS, and everything stored on disk is encrypted.",
+  "p2Eyebrow": "Spread out on purpose",
+  "p2Title": "Runs on several machines.",
+  "p2Desc": "If one drops out, the others keep your chat covered.",
+  "p3Eyebrow": "Source available",
+  "p3Title": "You can read the code.",
+  "p3Desc": "The source is on GitHub under a source-available licence. Audit it, file issues, see exactly what runs in your chat."
+}

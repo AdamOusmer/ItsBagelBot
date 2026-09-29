@@ -1,0 +1,5 @@
+{
+  "name": "Catégorie du direct",
+  "hint": "la catégorie que vous diffusez, ou {game:quelquun} pour une autre chaîne (interrupteur !game)",
+  "desc": "La catégorie diffusée, celle qu’affiche !game. Fonctionne aussi hors ligne. {game:quelquun} donne celle d’une autre chaîne, ce que veut une commande de shoutout. Suit l’interrupteur !game."
+}

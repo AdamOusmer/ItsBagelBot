@@ -1,0 +1,5 @@
+{
+  "name": "Repeat a phrase",
+  "hint": "repeats a phrase n times (up to 20, one chat line)",
+  "desc": "Repeats your phrase, space separated. Up to 20 times, and it has to fit one chat line."
+}

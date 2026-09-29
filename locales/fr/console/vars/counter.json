@@ -1,0 +1,6 @@
+{
+  "name": "Compteur",
+  "hint": "affiche la valeur actuelle d’un compteur; {count:…} est la même lecture (Fidélité)",
+  "desc": "Affiche la valeur actuelle d’un compteur sans la modifier. Pour incrémenter un compteur, activez « Incrémenter un compteur » sur la commande elle-même; ceci ne fait que lire ce que cette option (ou !counter) a produit. {counter:target:nom} lit le compteur propre au spectateur mentionné plutôt que celui de la chaîne. Nécessite le module Points de fidélité.",
+  "targetHint": "le compteur propre au spectateur mentionné, pas celui de la chaîne"
+}

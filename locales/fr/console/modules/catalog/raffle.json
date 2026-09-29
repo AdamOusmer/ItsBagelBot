@@ -1,0 +1,47 @@
+{
+  "label": "Tirage",
+  "tagline": "Tirages au sort chronométrés auxquels le chat s'inscrit avec !join.",
+  "description": "Ouvrez un tirage et les viewers tapent !join pour s'inscrire. Pendant qu'il tourne, le bot poste un rappel du temps restant toutes les quelques minutes (le rythme est à vous), et à la fin du temps il tire automatiquement. Les gagnants sont tirés uniformément au hasard parmi tous les inscrits, chaque inscription compte une fois, et le tirage laisse un reçu vérifiable. Les gagnants confirment avec !claim dans une fenêtre de 15 minutes. Vous (et vos modos) contrôlez aussi tout depuis le chat : !raffle open en lance un, !raffle draw clôt plus tôt et annonce, !raffle cancel l'annule sans tirer. Quand celui-ci et la File d'attente sont tous les deux actifs, !join appartient au tirage et la file se rejoint via !queue join.",
+  "replies": {
+    "joined": {
+      "label": "Confirmation d'inscription",
+      "tagline": "Quand un viewer rejoint le tirage.",
+      "defaultMessage": "@{user} c’est bon, tu participes ! {count} inscrits pour l’instant. Bonne chance !"
+    },
+    "already": {
+      "label": "Déjà inscrit",
+      "tagline": "Quand un viewer déjà inscrit retape !join.",
+      "defaultMessage": "@{user} tu participes déjà à cette loterie ({count} inscrits)."
+    },
+    "noRaffle": {
+      "label": "Aucun tirage en cours",
+      "tagline": "Quand quelqu'un rejoint alors qu'aucun tirage n'est ouvert.",
+      "defaultMessage": "@{user} aucune loterie en cours pour le moment."
+    },
+    "opened": {
+      "label": "Tirage ouvert",
+      "tagline": "Quand un tirage démarre et que les inscriptions s'ouvrent.",
+      "event": "!raffle open",
+      "defaultMessage": "La loterie est LANCÉE ! Tape !join pour participer. Tirage dans {mins} min !"
+    },
+    "won": {
+      "label": "Gagnants annoncés",
+      "tagline": "Quand un tirage nomme ses gagnants (manuel ou chronométré).",
+      "event": "!raffle draw",
+      "defaultMessage": "{targets}, félicitations ! Vous avez gagné la loterie ({count} gagnant(s) parmi {entrants}) ! Tapez !claim dans les {claim} min pour confirmer votre lot !"
+    },
+    "claimOk": {
+      "label": "Prix confirmé",
+      "tagline": "Quand un gagnant confirme avec !claim.",
+      "defaultMessage": "@{user} ton lot est confirmé. Profite bien !"
+    }
+  },
+  "commands": {
+    "winner": "Rappeler les gagnants du dernier tirage et combien ont confirmé.",
+    "raffle": "Voir si un tirage tourne, les inscriptions et le temps restant.",
+    "raffle_open_minutes_winners_remind": "Lancer un tirage (défauts 10 min, 1 gagnant, rappels toutes les 5 min ; remind 0 coupe les rappels).",
+    "raffle_draw_winners": "Clore maintenant et annoncer les gagnants.",
+    "raffle_close": "Identique à draw avec le nombre de gagnants configuré.",
+    "raffle_cancel": "Annuler sans tirer."
+  }
+}

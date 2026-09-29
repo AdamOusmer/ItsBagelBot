@@ -1,0 +1,5 @@
+{
+  "name": "Personne nommée",
+  "hint": "premier argument, ex. un utilisateur mentionné",
+  "desc": "Le premier mot tapé après la commande (sans «@»); le spectateur lui-même si vide. {target} fonctionne aussi."
+}

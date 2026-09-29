@@ -2,12 +2,8 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { readdirSync, readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { consoleLocales, LOCALES_DIR, readConsoleTree } from '../lib/i18n/tree-fs.ts';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const DIR = join(here, '../lib/i18n/locales');
 const DEFAULT_LOCALE = 'en';
 
 function fail(msg) {
@@ -37,16 +33,16 @@ function collectLeaves(tree, prefix, out, file) {
   return out;
 }
 
-function parse(file) {
+function parse(locale) {
   try {
-    return JSON.parse(readFileSync(join(DIR, file), 'utf8'));
+    return readConsoleTree(locale);
   } catch (err) {
-    return fail(`${file}: invalid JSON: ${err.message}`);
+    return fail(`${locale}: ${err.message}`);
   }
 }
 
-function leavesOf(file) {
-  return collectLeaves(parse(file), '', new Set(), file);
+function leavesOf(locale) {
+  return collectLeaves(parse(locale), '', new Set(), locale);
 }
 
 function difference(a, b) {
@@ -55,29 +51,28 @@ function difference(a, b) {
 
 function report(locale, missing, extra) {
   if (missing.length) {
-    console.warn(`check-i18n: ${locale}.json is missing ${missing.length} key(s): ${missing.join(', ')}`);
+    console.warn(`check-i18n: ${locale} console catalog is missing ${missing.length} key(s): ${missing.join(', ')}`);
   }
   if (extra.length) {
-    console.warn(`check-i18n: ${locale}.json has ${extra.length} extra key(s) absent from ${DEFAULT_LOCALE}.json: ${extra.join(', ')}`);
+    console.warn(`check-i18n: ${locale} console catalog has ${extra.length} extra key(s) absent from ${DEFAULT_LOCALE}: ${extra.join(', ')}`);
   }
   if (!missing.length && !extra.length) {
-    console.log(`check-i18n: ${locale}.json is in full parity with ${DEFAULT_LOCALE}.json`);
+    console.log(`check-i18n: ${locale} console catalog is in full parity with ${DEFAULT_LOCALE}`);
   }
 }
 
 function main() {
-  const files = readdirSync(DIR).filter((f) => f.endsWith('.json')).sort();
-  if (!files.includes(`${DEFAULT_LOCALE}.json`)) {
-    fail(`missing ${DEFAULT_LOCALE}.json in ${DIR}`);
+  const locales = consoleLocales();
+  if (!locales.includes(DEFAULT_LOCALE)) {
+    fail(`missing ${DEFAULT_LOCALE}/console in ${LOCALES_DIR}`);
   }
-  const enLeaves = leavesOf(`${DEFAULT_LOCALE}.json`);
-  for (const file of files) {
-    const locale = file.slice(0, -'.json'.length);
+  const enLeaves = leavesOf(DEFAULT_LOCALE);
+  for (const locale of locales) {
     if (locale === DEFAULT_LOCALE) continue;
-    const leaves = leavesOf(file);
+    const leaves = leavesOf(locale);
     report(locale, difference(enLeaves, leaves), difference(leaves, enLeaves));
   }
-  console.log(`check-i18n: validated ${files.length} locale file(s); ${enLeaves.size} keys in ${DEFAULT_LOCALE}.json`);
+  console.log(`check-i18n: validated ${locales.length} console catalog(s); ${enLeaves.size} keys in ${DEFAULT_LOCALE}`);
 }
 
 main();

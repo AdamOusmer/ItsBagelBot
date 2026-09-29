@@ -1,0 +1,18 @@
+{
+  "allowLabel": "Annoncer seulement ces catégories",
+  "allowPlaceholder": "Minecraft",
+  "allowTag": "Vide signifie que toutes les catégories sont annoncées.",
+  "chipAdd": "Ajouter",
+  "chipEmpty": "Aucune pour l’instant.",
+  "chipRemove": "Retirer {name}",
+  "clipsHelp": "Archive !clip (et les clips EventSub) dans #clips.",
+  "clipsLabel": "Clips",
+  "denyLabel": "Ne jamais annoncer ces catégories",
+  "denyPlaceholder": "Just Chatting",
+  "denyTag": "Une catégorie refusée l’emporte sur la liste autorisée.",
+  "liveHelp": "Publie dans #now-live au lancement. Modifié en « Stream ended. » à la fin.",
+  "liveLabel": "Passage en direct",
+  "postsHelp": "Le live et les clips partent directement d’outgress.",
+  "postsTitle": "Publications de stream",
+  "chipRemoved": "{name} retiré"
+}

@@ -1,0 +1,30 @@
+{
+  "label": "Heure locale",
+  "tagline": "Les viewers demandent quelle heure il est chez vous avec !time.",
+  "description": "Les viewers tapent !time et le bot répond avec votre heure locale actuelle. Ils peuvent aussi demander l'heure ailleurs : !time Tokyo, !time EST, !time UTC+2. Choisissez votre fuseau ci-dessous. La page propose celui que votre navigateur indique, calculé uniquement sur votre appareil (rien n'est lu ni enregistré tant que vous ne sauvegardez pas). Choisissez une horloge 12 ou 24 heures et personnalisez les deux réponses.",
+  "settings": {
+    "timezone": {
+      "label": "Fuseau horaire",
+      "help": "Nom de fuseau IANA utilisé pour afficher {time} et {date}. La suggestion vient de votre navigateur et n'est jamais enregistrée tant que vous ne sauvegardez pas.",
+      "placeholder": "America/Toronto"
+    },
+    "format": {
+      "label": "Format d'horloge",
+      "placeholder": "12",
+      "options": {
+        "12": "12 heures (2:30 PM)",
+        "24": "24 heures (14:30)"
+      }
+    }
+  },
+  "replies": {
+    "lookup": {
+      "tagline": "L'heure ailleurs.",
+      "defaultMessage": "Il est actuellement {time} à {place}."
+    },
+    "time": {
+      "tagline": "Votre heure locale actuelle.",
+      "defaultMessage": "Il est actuellement {time} pour le streamer."
+    }
+  }
+}

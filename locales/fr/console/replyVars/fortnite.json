@@ -1,0 +1,101 @@
+{
+  "stats": {
+    "player": {
+      "name": "Joueur",
+      "hint": "Le compte lié",
+      "desc": "Le compte lié."
+    },
+    "window": {
+      "name": "Période",
+      "hint": "La période des stats: à vie ou saison",
+      "desc": "La période des stats: à vie ou saison."
+    },
+    "wins": {
+      "name": "Victoires",
+      "hint": "Total de victoires",
+      "desc": "Total de victoires."
+    },
+    "matches": {
+      "name": "Matchs",
+      "hint": "Matchs joués",
+      "desc": "Matchs joués."
+    },
+    "kills": {
+      "name": "Éliminations",
+      "hint": "Total d’éliminations",
+      "desc": "Total d’éliminations."
+    },
+    "kd": {
+      "name": "K/D",
+      "hint": "Ratio éliminations/morts",
+      "desc": "Ratio éliminations/morts."
+    },
+    "winrate": {
+      "name": "Taux de victoire %",
+      "hint": "Victoires par centaine de matchs",
+      "desc": "Victoires par centaine de matchs."
+    },
+    "solowins": {
+      "name": "Victoires solo",
+      "hint": "Victoires en solo",
+      "desc": "Victoires en solo."
+    },
+    "solomatches": {
+      "name": "Matchs solo",
+      "hint": "Matchs joués en solo",
+      "desc": "Matchs joués en solo."
+    },
+    "solokd": {
+      "name": "K/D solo",
+      "hint": "Ratio éliminations/morts en solo",
+      "desc": "Ratio éliminations/morts en solo."
+    },
+    "duowins": {
+      "name": "Victoires duo",
+      "hint": "Victoires en duo",
+      "desc": "Victoires en duo."
+    },
+    "duomatches": {
+      "name": "Matchs duo",
+      "hint": "Matchs joués en duo",
+      "desc": "Matchs joués en duo."
+    },
+    "duokd": {
+      "name": "K/D duo",
+      "hint": "Ratio éliminations/morts en duo",
+      "desc": "Ratio éliminations/morts en duo."
+    },
+    "squadwins": {
+      "name": "Victoires squad",
+      "hint": "Victoires en squad",
+      "desc": "Victoires en squad."
+    },
+    "squadmatches": {
+      "name": "Matchs squad",
+      "hint": "Matchs joués en squad",
+      "desc": "Matchs joués en squad."
+    },
+    "squadkd": {
+      "name": "K/D squad",
+      "hint": "Ratio éliminations/morts en squad",
+      "desc": "Ratio éliminations/morts en squad."
+    }
+  },
+  "store": {
+    "date": {
+      "name": "Date de la boutique",
+      "hint": "La date de la boutique du jour",
+      "desc": "La date de la boutique du jour."
+    },
+    "count": {
+      "name": "Nombre d'objets",
+      "hint": "Combien d'objets sont en boutique",
+      "desc": "Combien d'objets sont en boutique."
+    },
+    "items": {
+      "name": "Liste des objets",
+      "hint": "Les objets en vedette",
+      "desc": "Les objets en vedette."
+    }
+  }
+}

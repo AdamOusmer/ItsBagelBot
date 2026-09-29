@@ -1,0 +1,5 @@
+{
+  "name": "ID du spectateur",
+  "hint": "l’ID utilisateur Twitch de qui a lancé la commande",
+  "desc": "L’ID utilisateur Twitch du spectateur. Il ne change jamais, même après un changement de nom."
+}

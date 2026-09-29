@@ -1,0 +1,19 @@
+{
+  "clip": {
+    "clip": {
+      "name": "Clip link",
+      "hint": "The freshly created clip link",
+      "desc": "The freshly created clip link."
+    },
+    "user": {
+      "name": "Clipper",
+      "hint": "The viewer who used !clip",
+      "desc": "The viewer who used !clip."
+    },
+    "target": {
+      "name": "Clip title",
+      "hint": "The title typed after !clip",
+      "desc": "The title typed after !clip."
+    }
+  }
+}

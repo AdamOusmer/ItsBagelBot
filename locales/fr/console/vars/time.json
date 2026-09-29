@@ -1,0 +1,6 @@
+{
+  "name": "Votre heure locale",
+  "hint": "votre heure locale, sur le format d’horloge que vous avez choisi (module Heure locale) ; {time:Paris} pour ailleurs, sans module",
+  "desc": "L’heure chez vous, selon le fuseau et le format d’horloge choisis dans le module Heure locale. Nécessite ce module, avec un fuseau enregistré. {time:Paris} consulte plutôt un autre lieu (une ville, un pays, une abréviation comme EST, ou un décalage UTC), et fonctionne même sans le module : il n’a besoin d’aucun fuseau propre, seulement du format d’horloge choisi si vous en avez un. Un lieu inconnu renvoie du vide.",
+  "placeHint": "l’heure à un lieu que vous nommez, sans module"
+}

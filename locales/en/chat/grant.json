@@ -1,0 +1,5 @@
+{
+  "dead.body": "Some connections for your channel have expired. Just head to settings and reconnect your account to fix the problem.",
+  "dead.chat": "Some connections for your channel have expired. Just log in to the dashboard to fix the problem: {dashboard_url}",
+  "dead.title": "Reconnect your Twitch account"
+}

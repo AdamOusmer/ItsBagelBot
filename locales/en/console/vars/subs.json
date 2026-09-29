@@ -1,0 +1,5 @@
+{
+  "name": "Subscriber count",
+  "hint": "your current subscriber count",
+  "desc": "Your current subscriber count, straight from Twitch. Takes no payload; it always counts your own channel."
+}

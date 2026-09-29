@@ -1,0 +1,17 @@
+{
+  "songqueue": "Demandes de chansons",
+  "lockedBroadcaster": "Réservé au diffuseur",
+  "ariaMain": "Navigation principale",
+  "manage": "Gérer",
+  "overview": "Aperçu",
+  "commands": "Commandes",
+  "modules": "Modules",
+  "discord": "Discord",
+  "counters": "Compteurs",
+  "channelpoints": "Points de chaîne",
+  "timers": "Minuteries",
+  "billing": "Facturation",
+  "stats": "Stats",
+  "status": "Statut",
+  "settings": "Paramètres"
+}

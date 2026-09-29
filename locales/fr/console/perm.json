@@ -1,0 +1,16 @@
+{
+  "everyone": "Tout le monde",
+  "sub": "Abonnés",
+  "vip": "VIP",
+  "mod": "Modérateurs",
+  "lead_mod": "Modérateurs principaux",
+  "broadcaster": "Diffuseur",
+  "badge": {
+    "everyone": "Tous",
+    "sub": "Abos",
+    "vip": "VIP",
+    "mod": "Modos",
+    "lead_mod": "Lead modos",
+    "broadcaster": "Diffuseur"
+  }
+}

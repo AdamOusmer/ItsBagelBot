@@ -1,0 +1,6 @@
+{
+  "old": "ancien",
+  "new": "nouveau",
+  "pending": "en attente",
+  "failing": "en échec"
+}

@@ -1,0 +1,22 @@
+{
+  "connectCta": "Connect Spotify",
+  "connectHelp": "Connect the Spotify account whose playback viewers will queue onto. It authorizes against your app above. The refresh token is stored encrypted and never shown back.",
+  "connectNeedsApp": "Add your Spotify app above first.",
+  "connectTitle": "Connect Spotify",
+  "connectedHelp": "Your Spotify account is connected. The token lives encrypted server-side and is never shown back here.",
+  "connectedPill": "Connected",
+  "connectedToast": "Spotify connected.",
+  "disconnect": "Disconnect",
+  "disconnectTitle": "Disconnect Spotify?",
+  "disconnectBody": "Bagel will stop accessing your Spotify account. Song requests will be unavailable until you reconnect.",
+  "disconnectFailed": "Could not disconnect Spotify.",
+  "disconnectedToast": "Spotify disconnected.",
+  "reconnect": "Your Spotify grant is missing a permission song requests needs.",
+  "reconnectCta": "Reconnect Spotify",
+  "reconnectSpotify": "Reconnect Spotify",
+  "scopeGap": "Your Spotify connection is missing a permission song requests needs. Reconnect to grant it.",
+  "title": "Connection",
+  "accountLabel": "Account",
+  "needsReconnectPill": "Reconnect needed",
+  "grantRevoked": "Spotify no longer accepts this connection, so song requests are paused. Reconnect to resume them."
+}

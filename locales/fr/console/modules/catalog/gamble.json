@@ -1,0 +1,43 @@
+{
+  "label": "Gamble",
+  "tagline": "Laissez les viewers miser leurs points sur un lancer avec !gamble.",
+  "description": "Donnez un jeu à vos points de fidélité : les viewers tapent !gamble <montant> (ou half/all de leur solde) et le bot lance 1-100. Tomber dans votre chance de gain rembourse la mise plus son égal ; le reste la prend. Réglez les cotes, les limites de mise et le cooldown par viewer ci-dessous, et personnalisez les lignes de gain/perte. Chaque paiement et débit déplace de vrais points de fidélité via le même registre que !points. Activé depuis la page Fidélité. Il ne tourne pas tant que la monnaie est éteinte, et il utilise le même nom de monnaie.",
+  "settings": {
+    "winPercent": {
+      "label": "Chance de gain %",
+      "help": "Un lancer inférieur ou égal à ce nombre gagne. 50 est une pièce équitable ; 1-99 autorisés.",
+      "placeholder": "50"
+    },
+    "minBet": {
+      "label": "Mise minimum",
+      "placeholder": "1"
+    },
+    "maxBet": {
+      "label": "Mise maximum",
+      "placeholder": "1000"
+    },
+    "cooldownSeconds": {
+      "label": "Cooldown (secondes)",
+      "help": "Par viewer. Un chatter qui mise n'en bloque jamais un autre.",
+      "placeholder": "10"
+    }
+  },
+  "replies": {
+    "won": {
+      "label": "Ligne de gain",
+      "tagline": "Quand le lancer tombe dans la chance de gain.",
+      "event": "!gamble 100",
+      "defaultMessage": "@{user} a tiré {roll} (il fallait {chance} ou moins) et gagne {amount} {points} ; il lui reste {balance} !"
+    },
+    "lost": {
+      "label": "Ligne de perte",
+      "tagline": "Quand le lancer rate la chance de gain.",
+      "event": "!gamble 100",
+      "defaultMessage": "@{user} a tiré {roll} (il fallait {chance} ou moins) et perd {amount} {points}. Il lui reste {balance}."
+    }
+  },
+  "commands": {
+    "gamble_amount": "Miser ce nombre de points sur un lancer.",
+    "gamble_half_all": "Miser la moitié / la totalité du solde."
+  }
+}

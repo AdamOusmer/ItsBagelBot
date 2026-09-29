@@ -1,0 +1,51 @@
+{
+  "label": "File d'attente",
+  "tagline": "Laissez les viewers se mettre en file pour jouer avec vous, premier arrivé premier servi.",
+  "description": "Les viewers tapent !join pour entrer dans la file et !list pour voir qui est suivant (les 10 premiers). Vous (et vos modos) gérez la file depuis le chat : !queue open et !queue close acceptent ou stoppent les nouvelles entrées, !queue next fait monter le joueur suivant, !queue remove <utilisateur> en retire quelqu'un, et !queue clear la vide. Les viewers peuvent sortir à tout moment avec !leave. Activez le module pour débloquer les commandes ; la file survit à la fermeture pour que vous puissiez jouer avec ceux déjà en attente.",
+  "replies": {
+    "join": {
+      "label": "Confirmation d'entrée",
+      "tagline": "Quand un viewer rejoint la file.",
+      "defaultMessage": "@{user} vous avez rejoint la file en position n°{pos}."
+    },
+    "already": {
+      "label": "Déjà dans la file",
+      "tagline": "Quand un viewer déjà en file retape !join.",
+      "defaultMessage": "@{user} vous êtes déjà dans la file en position n°{pos}."
+    },
+    "leave": {
+      "label": "Confirmation de sortie",
+      "tagline": "Quand un viewer sort de la file.",
+      "defaultMessage": "@{user} vous avez quitté la file."
+    },
+    "next": {
+      "label": "Joueur suivant",
+      "tagline": "Quand vous faites monter le joueur suivant.",
+      "event": "!queue next",
+      "defaultMessage": "@{target} c'est à vous ! ({count} encore en attente)"
+    },
+    "opened": {
+      "label": "File ouverte",
+      "tagline": "Annoncé quand vous ouvrez la file.",
+      "event": "!queue open",
+      "defaultMessage": "La file est maintenant ouverte ! Tapez !join pour vous inscrire."
+    },
+    "closed": {
+      "label": "File fermée",
+      "tagline": "Annoncé quand vous fermez la file.",
+      "event": "!queue close",
+      "defaultMessage": "La file est maintenant fermée aux nouvelles inscriptions."
+    }
+  },
+  "commands": {
+    "join": "Entrer dans la file pour jouer (aussi !queue join).",
+    "leave": "Sortir de la file (aussi !queue leave).",
+    "list": "Afficher les 10 prochains joueurs en attente (aussi !queue list).",
+    "queue": "Voir si la file est ouverte et combien de personnes attendent.",
+    "queue_open": "Commencer à accepter les entrées.",
+    "queue_close": "Arrêter d'accepter les entrées ; la file est conservée.",
+    "queue_next": "Faire monter le joueur suivant et l'annoncer.",
+    "queue_remove_user": "Retirer quelqu'un de la file.",
+    "queue_clear": "Vider la file."
+  }
+}

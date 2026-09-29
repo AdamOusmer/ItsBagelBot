@@ -1,0 +1,24 @@
+{
+  "redeem": {
+    "user": {
+      "name": "Échangeur",
+      "hint": "Qui a échangé la récompense",
+      "desc": "Qui a échangé la récompense."
+    },
+    "track": {
+      "name": "Titre du morceau",
+      "hint": "Le titre du morceau mis en file",
+      "desc": "Le titre du morceau mis en file."
+    },
+    "input": {
+      "name": "Texte du spectateur",
+      "hint": "Le texte de recherche saisi par le spectateur",
+      "desc": "Le nom de chanson, «artiste - titre», ou le lien saisi par le spectateur lors de l'échange."
+    },
+    "pos": {
+      "name": "Position dans la file",
+      "hint": "La position du morceau dans la file",
+      "desc": "La position du morceau dans la file."
+    }
+  }
+}

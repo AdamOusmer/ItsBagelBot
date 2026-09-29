@@ -1,0 +1,15 @@
+{
+  "forbidden": "accès interdit",
+  "numericUserIdRequired": "l'identifiant utilisateur doit être numérique",
+  "loginRequired": "identifiant requis",
+  "invalidRole": "rôle invalide",
+  "cannotRemoveMember": "impossible de retirer ce membre",
+  "userIdRequired": "user_id requis",
+  "queryRequired": "requête requise",
+  "queryTooLong": "requête trop longue",
+  "idRequired": "identifiant requis",
+  "cannotGrantRole": "impossible d'accorder le rôle {role}",
+  "countPositive": "le nombre doit être un entier positif",
+  "laneDemoDisabled": "mode démo : les mutations de voie sont désactivées",
+  "laneFailed": "{verb} a échoué : {error}"
+}

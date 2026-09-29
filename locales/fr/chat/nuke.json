@@ -1,0 +1,7 @@
+{
+  "usage": "Utilisation : !nuke <phrase> [secondes]. Parcourt les 10 dernières minutes du chat pour trouver la phrase",
+  "none": "Aucun message récent ne correspond. Aucun bannissement.",
+  "actioned": "🚯 {count} utilisateur(s) banni(s) pendant {seconds}s",
+  "shielded": ", limite dépassée, le mode Bouclier est activé",
+  "capped": ", limite atteinte, {count} autre(s) laissé(s) pour le mode Bouclier"
+}

@@ -1,0 +1,6 @@
+{
+  "linkedOnly": {
+    "label": "Ne chercher que mon compte lié",
+    "help": "Une fois activé, les viewers ne peuvent pas nommer un autre joueur : chaque commande affiche votre compte lié (ou votre pseudo Twitch si aucun n'est lié) et tout nom saisi est ignoré, sans réponse dans le chat. Désactivé par défaut."
+  }
+}

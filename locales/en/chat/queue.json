@@ -1,0 +1,21 @@
+{
+  "cleared": "The queue has been cleared.",
+  "closed": "The queue is now closed to new joins.",
+  "err.usage": "Usage: !queue <open|close|next|list|remove|clear>; or !join / !leave / !list",
+  "join.already": "@{queue:user} you are already in the queue at position #{queue:pos}.",
+  "join.closed": "@{queue:user} the queue is closed right now.",
+  "join.ok": "@{queue:user} you joined the queue at position #{queue:pos}.",
+  "leave.not_in": "@{queue:user} you are not in the queue.",
+  "leave.ok": "@{queue:user} you left the queue.",
+  "list": "Next up: {queue:list}",
+  "list.empty": "The queue is empty.",
+  "list.more": "Next up: {queue:list} (+{queue:count} more)",
+  "next": "@{queue:target} you are up next! ({queue:count} still waiting)",
+  "next.empty": "The queue is empty.",
+  "opened": "The queue is now open! Type !join to get in line.",
+  "remove.not_found": "@{queue:target} was not in the queue.",
+  "remove.ok": "@{queue:target} was removed from the queue.",
+  "remove.usage": "Usage: !queue remove <user>",
+  "status.closed": "The queue is closed. {queue:count} still waiting to play.",
+  "status.open": "The queue is open with {queue:count} waiting. Type !join to get in line."
+}

@@ -1,0 +1,7 @@
+{
+  "user": {
+    "name": "Chatter",
+    "hint": "The person whose message matched the rule",
+    "desc": "The person whose message matched the rule."
+  }
+}

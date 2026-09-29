@@ -63,27 +63,27 @@
     {t('discord.overview.notSetUp')}
     {#snippet action()}
       <ButtonLink variant="secondary" href="/discord/{data.guildId}/settings">
-        {t('discord.setupCta')}
+        {t('discord.settings.setupCta')}
       </ButtonLink>
     {/snippet}
   </AlertBanner>
 {/if}
 
 <section class="block reveal" style="--i:1" aria-labelledby="dc-status-h">
-  <Heading level={6} as="h2" variant="title" id="dc-status-h" class="block-title">{t('discord.statusTitle')}</Heading>
+  <Heading level={6} as="h2" variant="title" id="dc-status-h" class="block-title">{t('discord.status.title')}</Heading>
   <Card>
     <FactList layout="inline">
       <Fact term={t('discord.overview.botState')}>
         <DiscordStateTag state={pillState} />
       </Fact>
-      <Fact term={t('discord.statusResumes')}>{data.status?.sessionResumes ?? 0}</Fact>
+      <Fact term={t('discord.status.resumes')}>{data.status?.sessionResumes ?? 0}</Fact>
       <Fact term={t('discord.overview.modulesOn')}>{tiles.filter((tile) => tile.on).length} / {tiles.length}</Fact>
     </FactList>
 
     {#if !botOnline && closeKey}
       <Text size="sm" tone="muted" class="hint state">{t(closeKey)}</Text>
     {:else if !botOnline}
-      <Text size="sm" tone="muted" class="hint state">{t('discord.statusReconnecting')}</Text>
+      <Text size="sm" tone="muted" class="hint state">{t('discord.status.reconnecting')}</Text>
     {/if}
 
     {#if layoutDown}

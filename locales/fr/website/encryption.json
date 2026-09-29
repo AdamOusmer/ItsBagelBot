@@ -1,0 +1,11 @@
+{
+  "p1Eyebrow": "Chiffré en transit et au repos",
+  "p1Title": "Vos données de chat sont chiffrées.",
+  "p1Desc": "Le trafic entre chaque service interne passe en TLS, et tout ce qui est stocké sur disque est chiffré.",
+  "p2Eyebrow": "Réparti volontairement",
+  "p2Title": "Réparti sur plusieurs machines.",
+  "p2Desc": "Si l'une tombe, les autres gardent votre chat couvert.",
+  "p3Eyebrow": "Source disponible",
+  "p3Title": "Vous pouvez lire le code.",
+  "p3Desc": "Le code est sur GitHub sous une licence à source disponible. Auditez-le, signalez des problèmes, voyez exactement ce qui tourne dans votre chat."
+}

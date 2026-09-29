@@ -1,0 +1,5 @@
+{
+  "name": "Random choice",
+  "hint": "picks one of the comma-separated options at random",
+  "desc": "Picks one of your comma-separated options. Replace the words."
+}

@@ -1,0 +1,18 @@
+{
+  "operate": "Operate",
+  "accounts": "Accounts",
+  "access": "Access",
+  "overview": "Overview",
+  "shards": "Shards",
+  "lanes": "Lanes",
+  "events": "Ingress feed",
+  "users": "Users",
+  "notifications": "Notifications",
+  "giveaways": "Giveaways",
+  "staff": "Staff",
+  "audit": "Audit",
+  "secrets": "Secrets",
+  "counters": "Bot counters",
+  "trials": "Trial channels",
+  "deploys": "Deploys"
+}

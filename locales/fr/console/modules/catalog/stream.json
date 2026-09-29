@@ -1,0 +1,13 @@
+{
+  "label": "Gestion du direct",
+  "tagline": "Changez le titre, la catégorie et les tags, lancez des pubs et posez des marqueurs depuis le chat.",
+  "description": "Les lead modos éditent le direct depuis le chat comme avec Nightbot et StreamElements : !title / !settitle, !game / !setgame, !tags, !commercial / !ad, et !marker. Chaque commande se bascule sur cette page. Elles arrivent activées. Il faut un nouveau consentement Twitch pour channel:manage:broadcast et channel:edit:commercial si vous vous êtes inscrit avant ces autorisations.",
+  "commands": {
+    "title": "Affiche ou change le titre du direct.",
+    "game": "Affiche ou change la catégorie du direct.",
+    "tags": "Affiche ou change les tags du direct.",
+    "commercial": "Lance une pause publicitaire (en direct seulement).",
+    "marker": "Pose un marqueur de stream (en direct seulement).",
+    "cmd": "Liste les commandes, ou ajoute/modifie/supprime les commandes perso."
+  }
+}

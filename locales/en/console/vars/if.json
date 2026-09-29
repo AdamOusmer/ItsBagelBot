@@ -1,0 +1,5 @@
+{
+  "name": "Say one thing or another",
+  "hint": "one text or another: {if:name:when it has something:when it does not}, or {if:name=value:…:…} for an exact match. Variables do not work inside the two texts",
+  "desc": "Picks the first text when the variable you name has something in it, the second when it does not. Name it without braces, and write {if:game=Chess:…:…} to test an exact value instead. Variables do not work inside the two texts. Leave the second one out and a false test says nothing at all, if that empties the whole line, the bot skips that line rather than sending a blank message."
+}

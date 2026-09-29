@@ -1,0 +1,10 @@
+{
+  "enableLabel": "Accepter les échanges de récompense",
+  "enableOff": "Les échanges sont remboursés et rien ne se met en file.",
+  "enableOn": "Les échanges mettent les chansons en file.",
+  "help": "Une récompense personnalisée dont le texte tapé sert de recherche. L'échanger met la chanson en file.",
+  "liveOnlyOff": "La récompense fonctionne même hors live.",
+  "liveOnlyOn": "La récompense ne fonctionne que lorsque vous êtes en live.",
+  "title": "Points de chaîne",
+  "liveOnlyDisabled": "Activez les échanges pour modifier ceci."
+}

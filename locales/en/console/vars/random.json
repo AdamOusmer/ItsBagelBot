@@ -1,0 +1,6 @@
+{
+  "name": "Random 1-100",
+  "hint": "a random number from 1 to 100, or {random:min-max}",
+  "desc": "A whole number from 1 to 100, new every time. {random:1-6} picks your own range; both ends included.",
+  "rangeHint": "a random number in your own range"
+}

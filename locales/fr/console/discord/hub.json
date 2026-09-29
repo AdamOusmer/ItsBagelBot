@@ -1,0 +1,13 @@
+{
+  "eyebrow": "Bot Discord",
+  "titlePre": "Bagel pour",
+  "titleEm": "Discord",
+  "statsTitle": "Discord en un coup d’œil",
+  "statServers": "Serveurs liés",
+  "statServersNote": "Connectés à cette chaîne",
+  "statOnline": "Bots en ligne",
+  "statOnlineNote": "Passerelle connectée et autorisée",
+  "statMembers": "Membres touchés",
+  "statMembersNote": "Sur l’ensemble des serveurs liés",
+  "linkedFor": "Lié depuis {since}"
+}

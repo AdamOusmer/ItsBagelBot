@@ -1,0 +1,42 @@
+{
+  "label": "Étapes de livraison",
+  "stepOf": "Étape {n} sur {total}",
+  "next": "Suivant",
+  "back": "Retour",
+  "rail": {
+    "kind": "Type",
+    "build": "Build",
+    "rollback": "Version",
+    "prs": "Pull requests",
+    "changelog": "Journal",
+    "review": "Vérification"
+  },
+  "title": {
+    "kind": "Que livre-t-on ?",
+    "build": "Version et commit",
+    "rollback": "Choisir la version",
+    "prs": "Fusionner les pull requests d’abord",
+    "changelog": "Rédiger le journal des modifications",
+    "review": "Vérifier et livrer"
+  },
+  "body": {
+    "kind": "Chaque type exécute un ensemble fixe d’étapes dans l’ordre et s’arrête au premier échec.",
+    "build": "Le commit de main à partir duquel ce run construit. Les versions et correctifs écrivent aussi l’étiquette de version.",
+    "rollback": "Le cluster épingle les images de cette version et redéploie chaque service dont l’épinglage change, sans reconstruction.",
+    "prs": "Les pull requests cochées sont fusionnées avant toute construction. Seules les PR dont les vérifications passent ou sont en cours peuvent être cochées.",
+    "changelog": "Publié avec les notes de version. L’anglais est obligatoire. Laissé vide, le français reprend l’anglais.",
+    "review": "Vérifiez ce que fait ce run, puis lancez-le. Rien n’est annulé automatiquement."
+  },
+  "stagesCount": "{n} étapes",
+  "picked": "{n} PR cochées",
+  "pickedOne": "1 PR cochée",
+  "pickedNone": "Aucune PR cochée. Rien n’est fusionné.",
+  "releasesEmpty": "Aucune version antérieure vers laquelle revenir.",
+  "reviewKind": "Type",
+  "reviewPrs": "Fusionne d’abord",
+  "reviewPrsNone": "Rien",
+  "reviewChangelog": "Titre du journal",
+  "eyebrow": "Nouveau déploiement",
+  "close": "Annuler",
+  "pending": "Pas encore atteint"
+}

@@ -1,0 +1,5 @@
+{
+  "bagels_ready": "/me I brought the bagels! 🥯",
+  "ping": "Pong! ItsBagelBot has been up for %s",
+  "uptime": "The stream has been live for %s."
+}

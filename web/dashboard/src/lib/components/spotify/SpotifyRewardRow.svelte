@@ -33,16 +33,16 @@
       <span class="light">
         <span class="swatch" style="--sw: {reward?.color || '#1db954'}" aria-hidden="true"></span>
         <span class="light-text">
-          <span class="light-name" class:unset={!bound}>{t('spotify.rewardRowLabel')}</span>
-          <Text as="span" size="xs" mono tone="muted">{t('spotify.rewardRowHint')}</Text>
+          <span class="light-name" class:unset={!bound}>{t('spotify.reward.rowLabel')}</span>
+          <Text as="span" size="xs" mono tone="muted">{t('spotify.reward.rowHint')}</Text>
         </span>
       </span>
       <span class="status">
         {#if bound && reward}
-          <Text as="span" size="sm" truncate>{reward.title || t('spotify.thisReward')}</Text>
-          <Text as="span" size="xs" mono tone="accent">{t('spotify.costPts', { n: reward.cost.toLocaleString() })}</Text>
+          <Text as="span" size="sm" truncate>{reward.title || t('spotify.reward.thisReward')}</Text>
+          <Text as="span" size="xs" mono tone="accent">{t('spotify.reward.costPts', { n: reward.cost.toLocaleString() })}</Text>
         {:else}
-          <span class="unset-tag"><Tag tone="quiet" mark="hollow">{t('spotify.notSetUp')}</Tag></span>
+          <span class="unset-tag"><Tag tone="quiet" mark="hollow">{t('spotify.reward.notSetUp')}</Tag></span>
         {/if}
       </span>
       <span class="chev" class:open={expanded} aria-hidden="true"><Icon name="chevron" size={13} /></span>
@@ -50,7 +50,7 @@
   {/snippet}
   {#snippet actions()}
     {#if bound}
-      <RowDeleteButton label={t('spotify.removeAria', { name: reward?.title || t('spotify.thisReward') })} onclick={onDelete} />
+      <RowDeleteButton label={t('spotify.reward.removeAria', { name: reward?.title || t('spotify.reward.thisReward') })} onclick={onDelete} />
     {/if}
   {/snippet}
 </ManagementRow>

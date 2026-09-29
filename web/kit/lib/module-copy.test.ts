@@ -2,8 +2,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, test } from 'bun:test';
-import en from './i18n/locales/en.json';
-import fr from './i18n/locales/fr.json';
+import { readConsoleTree } from './i18n/tree-fs';
 import { MODULE_CATALOG, moduleDef, PERM_LABELS, PERMS } from './types';
 import type { ModuleCommandInfo, ModuleDef, ModuleField, ModuleReply } from './catalog/module-def';
 import {
@@ -23,6 +22,8 @@ import {
 } from './module-copy';
 
 type Tree = Record<string, unknown>;
+const en = readConsoleTree('en');
+const fr = readConsoleTree('fr');
 const FIELD_PARTS = ['label', 'help', 'placeholder'] as const;
 const REPLY_PARTS = ['label', 'tagline', 'event'] as const;
 

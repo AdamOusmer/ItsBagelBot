@@ -1,0 +1,77 @@
+{
+  "accountage": {
+    "label": "Âge du compte",
+    "summary": "Affiche depuis combien de temps un compte Twitch existe.",
+    "usage": [
+      "!accountage <utilisateur>",
+      "!accountage"
+    ]
+  },
+  "followage": {
+    "label": "Ancienneté du suivi",
+    "summary": "Affiche depuis combien de temps un viewer suit la chaîne.",
+    "usage": [
+      "!followage",
+      "!followage <utilisateur>"
+    ]
+  },
+  "uptime": {
+    "label": "Durée du direct",
+    "summary": "Affiche depuis combien de temps le direct est en cours.",
+    "usage": [
+      "!uptime"
+    ]
+  },
+  "clip": {
+    "label": "Clip",
+    "summary": "Crée un clip des derniers instants et publie le lien.",
+    "usage": [
+      "!clip",
+      "!clip <titre>"
+    ]
+  },
+  "title": {
+    "label": "Titre",
+    "summary": "Affiche ou modifie le titre du direct.",
+    "usage": [
+      "!title",
+      "!title <titre>",
+      "!settitle <titre>"
+    ]
+  },
+  "game": {
+    "label": "Catégorie",
+    "summary": "Affiche ou modifie la catégorie du direct.",
+    "usage": [
+      "!game",
+      "!game <nom>",
+      "!setgame <nom>"
+    ]
+  },
+  "tags": {
+    "label": "Tags",
+    "summary": "Affiche ou modifie les tags du direct.",
+    "usage": [
+      "!tags",
+      "!tags <tag1, tag2>",
+      "!settags <tag1, tag2>"
+    ]
+  },
+  "commercial": {
+    "label": "Publicité",
+    "summary": "Lance une publicité pendant le direct.",
+    "usage": [
+      "!commercial",
+      "!commercial 60",
+      "!ad 90"
+    ]
+  },
+  "marker": {
+    "label": "Marqueur",
+    "summary": "Ajoute un marqueur au direct.",
+    "usage": [
+      "!marker",
+      "!marker <description>"
+    ]
+  }
+}

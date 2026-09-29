@@ -1,0 +1,24 @@
+{
+  "redeem": {
+    "user": {
+      "name": "Redeemer",
+      "hint": "Who redeemed the reward",
+      "desc": "Who redeemed the reward."
+    },
+    "track": {
+      "name": "Track title",
+      "hint": "The queued track's title",
+      "desc": "The queued track's title."
+    },
+    "input": {
+      "name": "Viewer input",
+      "hint": "The song text the viewer typed",
+      "desc": "The song name, \"artist - song\", or link the viewer typed with the redemption."
+    },
+    "pos": {
+      "name": "Queue position",
+      "hint": "The track's position in the queue",
+      "desc": "The track's position in the queue."
+    }
+  }
+}

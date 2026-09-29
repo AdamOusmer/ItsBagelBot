@@ -1,0 +1,19 @@
+{
+  "clip": {
+    "clip": {
+      "name": "Lien du clip",
+      "hint": "Le lien du clip fraîchement créé",
+      "desc": "Le lien du clip fraîchement créé."
+    },
+    "user": {
+      "name": "Créateur du clip",
+      "hint": "La personne qui a utilisé !clip",
+      "desc": "La personne qui a utilisé !clip."
+    },
+    "target": {
+      "name": "Titre du clip",
+      "hint": "Le titre tapé après !clip",
+      "desc": "Le titre tapé après !clip."
+    }
+  }
+}
