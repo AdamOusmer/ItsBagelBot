@@ -5,12 +5,61 @@
 import '../styles/tags.css';
 
 interface Props {
-    options: readonly string[];
+    options: readonly (string | { value: string; label: string; count?: number | string; attrs?: Record<string, string> })[];
     value?: string;
     label?: string;
+    class?: string;
+    [key: string]: unknown;
 }
 
-const { options, value = '', label = 'Filter' } = Astro.props;
+const { options, value = '', label = 'Filter', class: className = '', ...rest } = Astro.props;
+const items = options.map((opt) => (typeof opt === 'string' ? { value: opt, label: opt, count: undefined, attrs: undefined } : opt));
+const classes = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
 ---
 
-<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label={label}>{options.map((opt) => (<button type="button" class={`bb-tab ${value === opt ? 'is-active' : ''}`} role="radio" aria-checked={value === opt}>{opt}</button>))}</div>
+<div class={classes} role="radiogroup" aria-label={label} {...rest}>{items.map((opt) => (<button type="button" class={`bb-tab ${value === opt.value ? 'is-active' : ''}`} role="radio" aria-checked={value === opt.value} value={opt.value} {...opt.attrs}>{opt.label}{opt.count !== undefined && <span class="bb-tab__count">{opt.count}</span>}</button>))}</div>
+
+<script>
+    import { rovingTarget } from '../lib/roving-focus';
+
+    const RADIO = 'button[role="radio"]';
+    const RADIOS = { selector: RADIO, orientation: 'both', wrap: true } as const;
+
+    function select(buttons: HTMLButtonElement[], chosen: HTMLButtonElement) {
+        for (const button of buttons) {
+            const on = button === chosen;
+            button.setAttribute('aria-checked', String(on));
+            button.classList.toggle('is-active', on);
+        }
+    }
+
+    function radios(group: HTMLElement): HTMLButtonElement[] {
+        return Array.from(group.querySelectorAll<HTMLButtonElement>(RADIO));
+    }
+
+    function onClick(event: MouseEvent) {
+        const group = event.currentTarget as HTMLElement;
+        const chosen = (event.target as Element).closest<HTMLButtonElement>(RADIO);
+        if (chosen) select(radios(group), chosen);
+    }
+
+    function onKeydown(event: KeyboardEvent) {
+        const next = rovingTarget(event.currentTarget as HTMLElement, event, RADIOS);
+        if (!next) return;
+        event.preventDefault();
+        next.focus();
+        next.click();
+    }
+
+    function bindSegmented() {
+        document.querySelectorAll<HTMLElement>('.bb-tabs[role="radiogroup"]:not([data-bb-segmented])').forEach((group) => {
+            if (radios(group).length === 0) return;
+            group.dataset.bbSegmented = '';
+            group.addEventListener('click', onClick);
+            group.addEventListener('keydown', onKeydown);
+        });
+    }
+
+    bindSegmented();
+    document.addEventListener('astro:page-load', bindSegmented);
+</script>

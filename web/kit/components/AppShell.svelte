@@ -6,6 +6,7 @@
   import AccountFoot from './AccountFoot.svelte';
   import OperatorMenu from './OperatorMenu.svelte';
   import { getI18n } from '../lib/i18n/context';
+  import { groupsWithLockedHints } from '../lib/nav-core';
   import type { NavGroupDef, NavLink, DashboardLink } from '../lib/types';
 
   const { t } = getI18n();
@@ -22,14 +23,7 @@
     isDelegate?: boolean; delegateExitHref?: string; delegateExitLabel?: string;
   } = $props();
 
-  const withHints = $derived(
-    groups.map((group) => ({
-      ...group,
-      items: group.items.map((item) =>
-        item.locked ? { ...item, lockedHint: t('nav.lockedBroadcaster') } : item
-      )
-    }))
-  );
+  const withHints = $derived(groupsWithLockedHints(groups, t));
 </script>
 
 <AppShell

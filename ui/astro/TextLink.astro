@@ -3,29 +3,63 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import '../styles/elements/text-link.css';
+import type { IconName } from '../lib/icons';
+import Icon from './Icon.astro';
 
 interface Props {
     href: string;
-    label: string;
+    label?: string;
+    variant?: 'roll' | 'arrow' | 'inline' | 'quiet';
+    tone?: 'go' | 'lead';
+    prose?: boolean;
+    icon?: IconName;
     active?: boolean;
     external?: boolean;
     size?: string;
+    touch?: boolean;
     class?: string;
+    [key: string]: unknown;
 }
+
+const ROOT = {
+    roll: 'bb-text-link',
+    arrow: 'bb-link bb-link--arrow',
+    inline: 'bb-link bb-link--inline',
+    quiet: 'bb-link bb-link--quiet',
+} as const;
 
 const {
     href,
-    label,
+    label = '',
+    variant = 'roll',
+    tone,
+    prose = false,
+    icon,
     active = false,
     external = false,
     size,
+    touch = false,
     class: className = '',
     ...rest
 } = Astro.props;
+const arrow = variant === 'arrow';
 const glyphs = Array.from(label);
-const classes = ['bb-text-link', className, active ? 'is-active' : null]
+const classes = [
+    ROOT[variant],
+    arrow && tone ? `bb-link--${tone}` : null,
+    arrow && prose ? 'bb-link--prose' : null,
+    touch && variant === 'quiet' ? 'bb-link--touch' : null,
+    className,
+    active ? 'is-active' : null,
+]
     .filter(Boolean)
     .join(' ');
+const hasChildren = Astro.slots.has('default');
+const quietIcon = variant === 'quiet' ? icon : undefined;
 ---
 
-<a class={classes} href={href} aria-label={label} aria-current={active ? 'page' : undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined} style={size ? `--text-link-size: ${size};` : undefined} {...rest}><span class="bb-text-link__mask" aria-hidden="true"><span class="bb-text-link__row bb-text-link__row--rest">{glyphs.map((glyph, index) => (<span class="bb-text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>))}</span><span class="bb-text-link__row bb-text-link__row--over">{glyphs.map((glyph, index) => (<span class="bb-text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>))}</span></span></a>
+{variant === 'roll' ? (
+<a class={classes} href={href} aria-label={label} aria-current={active ? 'page' : undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined} style={size ? `--text-link-size: ${size};` : undefined} {...rest}>{icon && <Icon name={icon} size={14} class="bb-text-link__icon" />}<span class="bb-text-link__mask" aria-hidden="true"><span class="bb-text-link__row bb-text-link__row--rest">{glyphs.map((glyph, index) => (<span class="bb-text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>))}</span><span class="bb-text-link__row bb-text-link__row--over">{glyphs.map((glyph, index) => (<span class="bb-text-link__glyph" style={`--gi: ${index};`}>{glyph}</span>))}</span></span></a>
+) : (
+<a class={classes} href={href} aria-current={active ? 'page' : undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined} {...rest}>{quietIcon && <Icon name={quietIcon} size={14} class="bb-link__icon" />}{hasChildren ? <slot /> : label}{arrow && <span class="bb-link__arrow" aria-hidden="true">→</span>}</a>
+)}

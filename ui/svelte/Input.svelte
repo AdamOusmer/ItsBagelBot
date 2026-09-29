@@ -12,16 +12,18 @@
     invalid = false,
     fill = false,
     mono = false,
+    align = 'start',
     class: className = '',
     icon,
     trail,
     ...rest
   }: {
     value?: string | number | null;
-    type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'search' | 'date' | 'datetime-local' | 'month' | 'time' | 'week';
+    type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'search' | 'date' | 'datetime-local' | 'month' | 'time' | 'week' | 'color';
     invalid?: boolean;
     fill?: boolean;
     mono?: boolean;
+    align?: 'start' | 'end';
     class?: string;
     icon?: Snippet;
     trail?: Snippet;
@@ -29,7 +31,14 @@
   } = $props();
 
   const classes = $derived(
-    ['bb-input', fill ? 'bb-input--fill' : null, mono ? 'bb-input--mono' : null, className || null]
+    [
+      'bb-input',
+      type === 'color' ? 'bb-input--color' : null,
+      fill ? 'bb-input--fill' : null,
+      mono ? 'bb-input--mono' : null,
+      align === 'end' ? 'bb-input--end' : null,
+      className || null,
+    ]
       .filter(Boolean)
       .join(' '),
   );

@@ -12,10 +12,18 @@
     ButtonLink,
     Card,
     Checkbox,
+    Eyebrow,
+    FileDrop,
     Heading,
-    Icon,
+    Input,
+    Label,
     PageHead,
+    RadioGroup,
+    StatTile,
+    Stepper,
     Tag,
+    Text,
+    TextLink,
     Textarea,
     toast,
     getI18n
@@ -72,7 +80,6 @@
   const sourceConnected = $derived(source ? connected[source] === true : false);
   let credential = $state('');
   let uploadFile = $state<File | null>(null);
-  let dragKind = $state<'' | ImportSource>('');
   let submitting = $state(false);
 
   let previewResult = $state<PreviewResponse | null>(null);
@@ -82,8 +89,22 @@
     step === 'pick' ? 0 : step === 'instructions' ? 1 : step === 'review' ? 2 : 3
   );
 
-  function choose(s: ImportSource) {
-    source = s;
+  const sourceOptions = $derived(
+    IMPORT_SOURCES.map((id) => {
+      const s = IMPORT_STRATEGIES[id];
+      return {
+        value: id,
+        label: s.label,
+        description: t(s.i18n.desc),
+        meta: s.available ? t('import.tileCta') : undefined,
+        disabled: !s.available
+      };
+    })
+  );
+
+  function choose(value: string) {
+    if (!isImportSource(value)) return;
+    source = value;
     uploadFile = null;
     credential = '';
     step = 'instructions';
@@ -249,6 +270,7 @@
     previewResult ? selectionLine : t('import.railReviewPending'),
     commitResult ? t('import.railDone') : ''
   ]);
+  const railSteps = $derived(STAGES.map((key, i) => ({ label: t(key), detail: railDetail[i] })));
 
   function inputDetail(): string {
     if (inputSpec?.kind === 'text') return textInputDetail(inputSpec);
@@ -486,70 +508,37 @@
   </PageHead>
 
   <div class="wizard">
-    <Card as="aside" class="rail" aria-label={t('import.stagesLabel')}>
-      <p class="rail-head">{t('import.railProgress')}</p>
-      <ol class="rail-list">
-        {#each STAGES as key, i (key)}
-          <li
-            class="rail-item"
-            class:done={i < stepIndex}
-            class:current={i === stepIndex}
-            aria-current={i === stepIndex ? 'step' : undefined}
-          >
-            <span class="rail-gutter" aria-hidden="true">
-              <span class="rail-dot">
-                {#if i < stepIndex}<Icon name="check" size={11} />{:else}{i + 1}{/if}
-              </span>
-              {#if i < STAGES.length - 1}<span class="rail-bar"></span>{/if}
-            </span>
-            <span class="rail-text">
-              <span class="rail-title">{t(key)}</span>
-              {#if railDetail[i]}<span class="rail-detail">{railDetail[i]}</span>{/if}
-            </span>
-          </li>
-        {/each}
-      </ol>
-      <p class="rail-foot">{t('import.railAudit')}</p>
-    </Card>
+    <aside class="rail">
+      <Card>
+        <div class="rail-head"><Label mono as="span">{t('import.railProgress')}</Label></div>
+        <Stepper orientation="vertical" steps={railSteps} current={stepIndex} label={t('import.stagesLabel')} />
+        <div class="rail-foot"><Text size="xs" tone="muted">{t('import.railAudit')}</Text></div>
+      </Card>
+    </aside>
 
     <div class="flow">
 
   {#if step === 'pick'}
     <Card>
-      <Heading level={2} class="step-title">{t('import.stepPick')}</Heading>
-      <p class="hint">{t('import.pickHint')}</p>
+      <div class="step-title"><Heading level={6} as="h2">{t('import.stepPick')}</Heading></div>
+      <div class="hint"><Text size="sm" tone="muted">{t('import.pickHint')}</Text></div>
 
       <div class="tiles">
-        {#each IMPORT_SOURCES as id (id)}
-          {@const s = IMPORT_STRATEGIES[id]}
-          {#if s.available}
-            <label class="tile" class:picked={source === id} data-cursor>
-              <input
-                type="radio"
-                name="source-pick"
-                value={id}
-                checked={source === id}
-                onchange={() => choose(id)}
-              />
-              <span class="tile-top">
-                <span class="glyph" aria-hidden="true">{s.initials}</span>
-                <span class="tile-name">{s.label}</span>
-                <Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>
-              </span>
-              <span class="tile-desc">{t(s.i18n.desc)}</span>
-              <span class="tile-cta">{t('import.tileCta')}</span>
-            </label>
-          {:else}
-            <div class="tile disabled" aria-disabled="true">
-              <span class="tile-top">
-                <span class="glyph" aria-hidden="true">{s.initials}</span>
-                <span class="tile-name">{s.label}</span>
-                <Tag tone="quiet">{t('import.chipSoon')}</Tag>
-              </span>
-              <span class="tile-desc">{t(s.i18n.desc)}</span>
-            </div>
-          {/if}
-        {/each}
+        <RadioGroup
+          variant="cards"
+          min="250px"
+          name="source-pick"
+          label={t('import.stepPick')}
+          value={source}
+          options={sourceOptions}
+          onchange={choose}
+        >
+          {#snippet lead(option, on)}
+            {@const s = IMPORT_STRATEGIES[option.value as ImportSource]}
+            <span class="glyph" class:picked={on} aria-hidden="true">{s.initials}</span>
+            {#if s.available}<Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>{:else}<Tag tone="quiet">{t('import.chipSoon')}</Tag>{/if}
+          {/snippet}
+        </RadioGroup>
       </div>
     </Card>
   {:else if step === 'instructions' && source}
@@ -558,21 +547,21 @@
     <Card>
       <div class="instr-head">
         <span class="glyph" aria-hidden="true">{st.initials}</span>
-        <Heading level={2} class="step-title">{t('import.stepInstructions', { source: st.label })}</Heading>
+        <Heading level={6} as="h2">{t('import.stepInstructions', { source: st.label })}</Heading>
       </div>
-      <p class="hint">{t('import.instrHint', { source: st.label })}</p>
+      <div class="hint"><Text size="sm" tone="muted">{t('import.instrHint', { source: st.label })}</Text></div>
 
       {#if instrSteps.length}
         <ol class="steps">
-          {#each instrSteps as s, i (i)}<li>{s}</li>{/each}
+          {#each instrSteps as s, i (i)}<Text as="li" size="sm">{s}</Text>{/each}
         </ol>
       {/if}
 
       {#if spec.kind === 'text'}
         {#if spec.linkHref && spec.linkLabel}
-          <p class="instr-link bb-prose">
-            <a href={spec.linkHref} target="_blank" rel="noopener noreferrer">{t(spec.linkLabel)}</a>
-          </p>
+          <div class="instr-link">
+            <Text size="sm"><TextLink variant="inline" href={spec.linkHref} external>{t(spec.linkLabel)}</TextLink></Text>
+          </div>
         {/if}
         <div class="cred">
           {#if spec.secret}
@@ -588,9 +577,9 @@
               aria-label={t(spec.i18n.field)}
             />
           {:else}
-            <input
-              class="bb-input bb-input--fill cred-mono"
-              type="text"
+            <Input
+              fill
+              mono
               placeholder={spec.placeholder}
               bind:value={credential}
               maxlength={spec.maxLen}
@@ -601,47 +590,22 @@
             />
           {/if}
           {#if spec.i18n.hint}
-            <p class="hint">
-              {@html t(spec.i18n.hint)}
-            </p>
+            <div class="hint"><Text size="sm" tone="muted">{@html t(spec.i18n.hint)}</Text></div>
           {/if}
         </div>
       {:else if spec.kind === 'oauth'}
         <div class="cred">
           {#if sourceConnected}
-            <p class="nb-connected" role="status">
-              {t(spec.i18n.connected)}
-            </p>
+            <Tag tone="live" mark="solid" role="status">{t(spec.i18n.connected)}</Tag>
           {:else}
-            <ButtonLink href={spec.connectPath} variant="primary" class="cred-cta">
+            <ButtonLink href={spec.connectPath} variant="primary">
               {t(spec.i18n.cta)}
             </ButtonLink>
           {/if}
-          <p class="hint">{t(spec.i18n.scopeHint)}</p>
+          <div class="hint"><Text size="sm" tone="muted">{t(spec.i18n.scopeHint)}</Text></div>
         </div>
       {:else}
-        <span
-          class="drop"
-          class:over={dragKind === source}
-          class:has-file={!!uploadFile}
-        >
-          <input
-            type="file"
-            accept={spec.accept}
-            onchange={(e) => pickFile(e.currentTarget.files?.[0])}
-            ondragover={(e) => {
-              e.preventDefault();
-              dragKind = source;
-            }}
-            ondragleave={() => (dragKind = '')}
-            ondrop={(e) => {
-              e.preventDefault();
-              dragKind = '';
-              pickFile(e.dataTransfer?.files?.[0]);
-            }}
-          />
-          {uploadFile ? uploadFile.name : t('import.dropHint')}
-        </span>
+        <FileDrop label={t('import.dropHint')} accept={spec.accept} file={uploadFile} onfile={pickFile} />
       {/if}
 
       {#if previewError}<AlertBanner>{previewError}</AlertBanner>{/if}
@@ -664,9 +628,9 @@
       </form>
     </Card>
   {:else if step === 'review' && previewResult?.manifest}
-    <Card class="review-head">
-      <Heading level={2} class="step-title">{t('import.reviewTitle')}</Heading>
-      <p class="hint">{reviewHint}</p>
+    <Card>
+      <div class="step-title"><Heading level={6} as="h2">{t('import.reviewTitle')}</Heading></div>
+      <div class="hint"><Text size="sm" tone="muted">{reviewHint}</Text></div>
 
       <div class="review-bar">
         {#each statChips as c (c)}<Tag tone="quiet">{c}</Tag>{/each}
@@ -677,42 +641,44 @@
     </Card>
 
       {#each manifestLevelDiags as d (d.code + d.message)}
-        <p class="manifest-warn" role="status">{d.message}</p>
+        <AlertBanner variant="warn" role="status">{d.message}</AlertBanner>
       {/each}
 
       {#if anyCollisions}
-        <div class="collision-note">
-          {@html t('import.conflictsNote', { n: previewResult.collisions?.length ?? 0 })}
-          <span class="overwrite-toggle">
-            <Checkbox bind:checked={overwrite} name="overwrite" value="on">{t('import.overwriteToggle')}</Checkbox>
-          </span>
-        </div>
+        <AlertBanner variant="danger" role="note" stack>
+          <span class="conflict-lines">{@html t('import.conflictsNote', { n: previewResult.collisions?.length ?? 0 })}</span>
+          {#snippet action()}
+            <span class="overwrite-toggle">
+              <Checkbox bind:checked={overwrite} name="overwrite" value="on">{t('import.overwriteToggle')}</Checkbox>
+            </span>
+          {/snippet}
+        </AlertBanner>
       {/if}
 
       {#if previewResult.manifest.commands?.length}
-        <Card class="group">
+        <Card flush>
           <div class="group-head">
-            <span class="group-title">{t('import.hCommands')}</span>
-            <span class="group-count">{previewResult.manifest.commands.length}</span>
+            <Eyebrow>{t('import.hCommands')}</Eyebrow>
+            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.commands.length}</Text>
           </div>
           <ul class="rows">
             {#each previewResult.manifest.commands as c, i (c.name)}
               {@const diags = itemDiags('commands', i)}
               <li class="row-item" class:collision={collidedCommands.has(normalizeName(c.name))}>
                 <span class="pick">
-                  <Checkbox bind:checked={() => isChecked('commands', i), (on) => toggle('commands', i, on)}><span class="row-name">!{c.name}</span></Checkbox>
+                  <Checkbox bind:checked={() => isChecked('commands', i), (on) => toggle('commands', i, on)}><Text as="span" size="sm" mono>!{c.name}</Text></Checkbox>
                 </span>
                 <div class="row-body">
-                  <span class="row-response row-response--source">{sourceLine(c)}</span>
-                  <span class="row-response">
+                  <span class="row-source"><Text as="span" size="sm" tone="muted" truncate>{sourceLine(c)}</Text></span>
+                  <Text as="span" size="sm" tone="muted" truncate>
                     {#each segmentResponse(c.responses?.join(' / ') ?? '') as seg, si (si)}
-                      {#if seg.flagged}<Tag tone="alpha" class="bb-tag--literal">{seg.text}</Tag>{:else}{seg.text}{/if}
+                      {#if seg.flagged}<Tag tone="alpha" literal>{seg.text}</Tag>{:else}{seg.text}{/if}
                     {/each}
-                  </span>
+                  </Text>
                   <span class="chips">
                     {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
                     {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
-                    {#each c.aliases ?? [] as a (a)}<Tag tone="bare" class="bb-tag--literal">!{a}</Tag>{/each}
+                    {#each c.aliases ?? [] as a (a)}<Tag tone="bare" literal>!{a}</Tag>{/each}
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
@@ -731,10 +697,10 @@
       {/if}
 
       {#if previewResult.manifest.timers?.length}
-        <Card class="group">
+        <Card flush>
           <div class="group-head">
-            <span class="group-title">{t('import.hTimers')}</span>
-            <span class="group-count">{previewResult.manifest.timers.length}</span>
+            <Eyebrow>{t('import.hTimers')}</Eyebrow>
+            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.timers.length}</Text>
           </div>
           <ul class="rows">
             {#each previewResult.manifest.timers as tm, i (tm.message)}
@@ -744,7 +710,7 @@
                   <Checkbox bind:checked={() => isChecked('timers', i), (on) => toggle('timers', i, on)} aria-label={tm.message} />
                 </span>
                 <div class="row-body">
-                  <span class="row-response">{tm.message}</span>
+                  <Text as="span" size="sm" tone="muted" truncate>{tm.message}</Text>
                   <span class="chips">
                     <Tag tone="bare">{t('import.everySeconds', { n: tm.interval_seconds })}</Tag>
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
@@ -762,20 +728,20 @@
       {/if}
 
       {#if previewResult.manifest.triggers?.length}
-        <Card class="group">
+        <Card flush>
           <div class="group-head">
-            <span class="group-title">{t('import.hTriggers')}</span>
-            <span class="group-count">{previewResult.manifest.triggers.length}</span>
+            <Eyebrow>{t('import.hTriggers')}</Eyebrow>
+            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.triggers.length}</Text>
           </div>
           <ul class="rows">
             {#each previewResult.manifest.triggers as tg, i (tg.phrase)}
               {@const diags = itemDiags('triggers', i)}
               <li class="row-item">
                 <span class="pick">
-                  <Checkbox bind:checked={() => isChecked('triggers', i), (on) => toggle('triggers', i, on)}><span class="row-name">{tg.phrase}</span></Checkbox>
+                  <Checkbox bind:checked={() => isChecked('triggers', i), (on) => toggle('triggers', i, on)}><Text as="span" size="sm" mono>{tg.phrase}</Text></Checkbox>
                 </span>
                 <div class="row-body">
-                  <span class="row-response">{tg.response}</span>
+                  <Text as="span" size="sm" tone="muted" truncate>{tg.response}</Text>
                   <span class="chips">
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
@@ -792,12 +758,12 @@
       {/if}
 
       {#if previewResult.manifest.quotes?.length}
-        <Card class="group">
+        <Card flush>
           <div class="group-head">
-            <span class="group-title">{t('import.hQuotes')}</span>
-            <span class="group-count">{previewResult.manifest.quotes.length}</span>
+            <Eyebrow>{t('import.hQuotes')}</Eyebrow>
+            <Text as="span" size="xs" mono tone="muted">{previewResult.manifest.quotes.length}</Text>
           </div>
-          <p class="hint">{t('import.quotesAll', { n: previewResult.manifest.quotes.length })}</p>
+          <div class="group-note"><Text size="sm" tone="muted">{t('import.quotesAll', { n: previewResult.manifest.quotes.length })}</Text></div>
         </Card>
       {/if}
 
@@ -810,7 +776,7 @@
           runCommit();
         }}
       >
-        <span class="commit-line">{selectionLine}</span>
+        <Label mono as="span">{selectionLine}</Label>
         <div class="actions-row">
           <Button variant="ghost" type="button" onclick={reset} disabled={submitting}
             >{t('import.startOver')}</Button
@@ -821,7 +787,7 @@
         </div>
       </form>
   {:else if step === 'done'}
-    <Card class="done-panel">
+    <Card>
       <span class="done-blob">
         <Bolota
           name={page.data.displayName ?? page.data.login ?? 'ItsBagelBot'}
@@ -832,45 +798,42 @@
           sequenceKey={commitResult?.audit_id ?? 'done'}
         />
       </span>
-      <Heading level={2} class="step-title">{t('import.doneTitle')}</Heading>
+      <div class="step-title"><Heading level={6} as="h2">{t('import.doneTitle')}</Heading></div>
       {#if commitResult}
-        <p class="hint">
-          {t('import.doneLine', {
-            c: commitResult.applied.commands,
-            tm: commitResult.applied.timers,
-            tg: commitResult.applied.triggers,
-            q: commitResult.applied.quotes
-          })}
-          {#if commitResult.skipped?.length}
-            {t('import.skippedLine', {
-              n: commitResult.skipped.length,
-              names: commitResult.skipped.map((c) => c.name).join(', ')
+        <div class="hint">
+          <Text size="sm" tone="muted">
+            {t('import.doneLine', {
+              c: commitResult.applied.commands,
+              tm: commitResult.applied.timers,
+              tg: commitResult.applied.triggers,
+              q: commitResult.applied.quotes
             })}
-          {/if}
-        </p>
+            {#if commitResult.skipped?.length}
+              {t('import.skippedLine', {
+                n: commitResult.skipped.length,
+                names: commitResult.skipped.map((c) => c.name).join(', ')
+              })}
+            {/if}
+          </Text>
+        </div>
         {#if appliedTiles.length}
           <div class="applied">
             {#each appliedTiles as a (a.label)}
-              <div class="applied-tile">
-                <span class="applied-n">{a.n}</span>
-                <span class="applied-label">{a.label}</span>
-              </div>
+              <div class="applied-tile"><StatTile inline static label={a.label} value={String(a.n)} /></div>
             {/each}
           </div>
         {/if}
         {#each commitResult.diagnostics ?? [] as d (d.code + d.message)}
-          <p class:manifest-warn={d.severity === 'warn'} class:form-error={d.severity === 'error'} role="status">
-            {d.message}
-          </p>
+          <AlertBanner variant={d.severity === 'error' ? 'danger' : 'warn'} role="status">{d.message}</AlertBanner>
         {/each}
       {:else}
-        <p class="hint">{t('import.nothingApplied')}</p>
+        <div class="hint"><Text size="sm" tone="muted">{t('import.nothingApplied')}</Text></div>
       {/if}
       <div class="actions">
         <Button variant="primary" onclick={reset}>{t('import.backToSources')}</Button>
       </div>
       {#if commitResult?.audit_id}
-        <p class="audit">{t('import.auditFoot', { n: commitResult.audit_id })}</p>
+        <div class="audit"><Text size="xs" mono tone="muted">{t('import.auditFoot', { n: commitResult.audit_id })}</Text></div>
       {/if}
     </Card>
   {/if}
@@ -879,12 +842,8 @@
 </section>
 
 <style>
-  :global(.step-title) { margin-bottom: 6px; font-size: 16px; }
-  .hint {
-    color: var(--bb-muted, #888077);
-    font-size: 13px;
-    margin: 0 0 12px;
-  }
+  .step-title { margin-bottom: 6px; }
+  .hint { margin: 0 0 12px; }
 
   .wizard {
     display: grid;
@@ -898,167 +857,34 @@
     flex-direction: column;
     gap: 20px;
   }
-  :global(.rail) {
+  .rail {
     position: sticky;
     top: 32px;
-    padding: 22px 20px;
   }
-  .rail-head {
-    margin: 0 0 18px;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .rail-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .rail-item {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-  }
-  .rail-gutter {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: none;
-    width: 26px;
-  }
-  .rail-dot {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    border: 1px solid var(--glass-border);
-    background: var(--glass-fill);
-    color: var(--bb-muted);
-    transition:
-      border-color var(--bb-dur-fast, 140ms) ease,
-      color var(--bb-dur-fast, 140ms) ease;
-  }
-  .rail-bar {
-    width: 1px;
-    flex: 1;
-    min-height: 26px;
-    background: var(--bb-border);
-  }
-  .rail-text {
-    padding-bottom: 18px;
-    min-width: 0;
-  }
-  .rail-title {
-    display: block;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .rail-detail {
-    display: block;
-    margin-top: 5px;
-    font-size: 12.5px;
-    line-height: 1.45;
-    color: #5f5a53;
-    overflow-wrap: anywhere;
-  }
-  .rail-item.current .rail-title {
-    color: var(--bb-white);
-  }
-  .rail-item.current .rail-dot {
-    border-color: rgba(201, 168, 124, 0.6);
-    color: var(--bb-tan-light);
-    box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.12);
-  }
-  .rail-item.done .rail-title {
-    color: var(--bb-green-glow, #52b788);
-  }
-  .rail-item.done .rail-dot {
-    border-color: rgba(82, 183, 136, 0.5);
-    color: var(--bb-green-glow, #52b788);
-  }
+  .rail-head { margin-bottom: 18px; }
   .rail-foot {
-    margin: 6px 0 0;
+    margin-top: 6px;
     padding-top: 18px;
     border-top: 1px solid var(--bb-border);
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--bb-muted);
   }
 
   @media (max-width: 900px) {
     .wizard {
       grid-template-columns: minmax(0, 1fr);
     }
-    :global(.rail) {
+    .rail {
       position: static;
     }
   }
 
-  .tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 12px;
-    margin: 16px 0 4px;
-  }
-  .tile {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-md);
-    padding: 16px 18px;
-    background: var(--glass-fill);
-    cursor: pointer;
-    transition:
-      border-color 200ms ease,
-      background 200ms ease,
-      box-shadow 200ms ease;
-  }
-  .tile.picked {
-    border-color: rgba(201, 168, 124, 0.65);
-    background: rgba(201, 168, 124, 0.05);
-    box-shadow:
-      0 0 0 1px rgba(201, 168, 124, 0.35),
-      0 10px 26px rgba(0, 0, 0, 0.22);
-  }
-  .tile.disabled {
-    cursor: default;
-    opacity: 0.55;
-  }
-  .tile input[type='radio'] {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-  .tile:has(input[type='radio']:focus-visible) {
-    outline: 2px solid var(--bb-green-glow, #52b788);
-    outline-offset: 2px;
-  }
-  .tile-top {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+  .tiles { margin: 16px 0 4px; }
   .glyph {
     flex: none;
     width: 34px;
     height: 34px;
     border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--bb-glass-border);
+    background: rgba(var(--bb-white-pure-rgb), 0.04);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1068,25 +894,12 @@
     letter-spacing: 0.02em;
     color: var(--bb-tan-light);
     transition:
-      border-color 200ms ease,
-      color 200ms ease;
+      border-color var(--bb-dur-fast) ease,
+      color var(--bb-dur-fast) ease;
   }
-  .tile.picked .glyph {
-    border-color: rgba(201, 168, 124, 0.55);
+  .glyph.picked {
+    border-color: rgba(var(--bb-tan-rgb), 0.55);
     color: var(--bb-tan);
-  }
-  .tile-name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 14.5px;
-    color: var(--bb-white);
-    flex: 1;
-    min-width: 0;
-  }
-  .tile-desc {
-    color: var(--bb-muted);
-    font-size: 13px;
-    line-height: 1.5;
   }
 
   .steps {
@@ -1095,80 +908,15 @@
     display: flex;
     flex-direction: column;
     gap: 9px;
-  }
-  .steps li {
-    font-size: 13.5px;
-    line-height: 1.55;
-    color: var(--bb-white);
     overflow-wrap: anywhere;
   }
-  .instr-link {
-    margin: 0 0 14px;
-    font-size: 13.5px;
-  }
-  .instr-link a { text-decoration: underline; text-underline-offset: 2px; }
+  .instr-link { margin: 0 0 14px; }
   .cred {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 8px;
     margin-bottom: 6px;
-  }
-  :global(.cred-cta) {
-    align-self: flex-start;
-  }
-  .nb-connected {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0;
-    color: var(--bb-green, #7dc98f);
-    font-size: 13px;
-  }
-  .cred-mono { font-family: var(--bb-font-mono); }
-  .drop {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 64px;
-    padding: 10px 34px;
-    border: 1px dashed var(--glass-border);
-    border-radius: var(--bb-radius-md);
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--bb-muted);
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    letter-spacing: 0.04em;
-    text-align: center;
-    overflow-wrap: anywhere;
-    transition:
-      border-color 160ms ease,
-      background 160ms ease,
-      color 160ms ease;
-  }
-  .drop:hover {
-    border-color: var(--bb-tan);
-    color: var(--bb-tan-pale);
-  }
-  .drop.over {
-    border-color: var(--bb-tan);
-    background: rgba(201, 168, 124, 0.08);
-    color: var(--bb-white);
-  }
-  .drop.has-file {
-    color: var(--bb-white);
-  }
-  .drop input[type='file'] {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-  }
-  .drop:focus-within {
-    outline: 2px solid var(--bb-green-glow, #52b788);
-    outline-offset: 2px;
   }
 
   .actions {
@@ -1178,16 +926,6 @@
     display: flex;
     gap: 10px;
     justify-content: flex-end;
-  }
-  .form-error {
-    color: #e5484d;
-    font-size: 13px;
-    margin: 10px 0 0;
-  }
-  .manifest-warn {
-    color: var(--bb-tan-light);
-    font-size: 13px;
-    margin: 8px 0 0;
   }
 
   .rows {
@@ -1202,13 +940,13 @@
     display: flex;
     align-items: baseline;
     gap: 14px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--bb-glass-border);
     border-radius: var(--bb-radius-sm);
-    padding: 12px 14px;
-    background: var(--glass-fill);
+    padding: 16px 22px;
+    background: var(--bb-glass-fill);
   }
   .row-item.collision {
-    border-color: rgba(229, 72, 77, 0.55);
+    border-color: rgba(var(--bb-status-error-border-rgb), 0.55);
   }
   .pick {
     display: inline-flex;
@@ -1217,27 +955,14 @@
     white-space: nowrap;
     --bb-check-align: center;
   }
-  .row-name {
-    font-family: var(--bb-font-mono);
-    font-size: 13px;
-    color: var(--bb-white);
-  }
   .row-body {
     display: flex;
     flex-direction: column;
     gap: 6px;
     min-width: 0;
   }
-  .row-response {
-    color: var(--bb-muted);
-    font-size: 13px;
-    line-height: 1.5;
-    height: calc(13px * 1.5);
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  .row-response--source {
+  .row-source {
+    min-width: 0;
     opacity: 0.6;
     font-style: italic;
   }
@@ -1248,45 +973,13 @@
     align-items: center;
   }
 
-  .collision-note {
-    border: 1px solid rgba(229, 72, 77, 0.35);
-    background: rgba(229, 72, 77, 0.06);
-    border-radius: var(--bb-radius-md);
-    padding: 12px 14px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--bb-white);
-    margin: 0 0 14px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-  }
+  .conflict-lines { display: grid; gap: 10px; }
   .overwrite-toggle {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    margin-left: auto;
     --bb-check-align: center;
-    font-size: 13px;
     white-space: nowrap;
-  }
-
-  @media (max-width: 560px) {
-    .collision-note {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    .overwrite-toggle {
-      margin-left: 0;
-    }
-  }
-  .tile-cta {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow, #52b788);
   }
 
   .instr-head {
@@ -1294,9 +987,6 @@
     align-items: center;
     gap: 12px;
     margin-bottom: 14px;
-  }
-  .instr-head :global(.step-title) {
-    margin-bottom: 0;
   }
 
   .review-bar {
@@ -1309,10 +999,6 @@
     flex: 1;
   }
 
-  :global(.group) {
-    padding: 0;
-    overflow: hidden;
-  }
   .group-head {
     display: flex;
     align-items: center;
@@ -1320,26 +1006,7 @@
     padding: 16px 22px;
     border-bottom: 1px solid var(--bb-border);
   }
-  .group-title {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bb-tan, #c9a87c);
-  }
-  .group-count {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: #5f5a53;
-  }
-  :global(.group) .rows {
-    margin: 0;
-  }
-  :global(.group) .hint {
-    margin: 0;
-    padding: 16px 22px;
-  }
-  :global(.group) .row-item {
+  .group-note {
     padding: 16px 22px;
   }
 
@@ -1353,17 +1020,10 @@
     justify-content: space-between;
     border: 1px solid var(--bb-border-strong);
     border-radius: var(--bb-radius-pill);
-    background: rgba(17, 17, 16, 0.92);
+    background: rgba(var(--bb-card-bg-rgb), 0.92);
     backdrop-filter: blur(18px);
     padding: 14px 16px 14px 24px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
-  }
-  .commit-line {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
+    box-shadow: 0 8px 30px rgba(var(--bb-shadow-rgb), 0.35);
   }
 
   .done-blob {
@@ -1373,7 +1033,7 @@
     width: 76px;
     height: 76px;
     border-radius: var(--bb-radius-lg);
-    background: rgba(82, 183, 136, 0.12);
+    background: rgba(var(--bb-green-glow-rgb), 0.12);
     border: 1px solid var(--bb-border-strong);
     margin-bottom: 14px;
   }
@@ -1384,34 +1044,12 @@
     margin: 22px 0 26px;
   }
   .applied-tile {
+    padding: 16px 18px;
     border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-md);
-    padding: 16px 18px;
-    background: var(--glass-fill);
+    background: var(--bb-glass-fill);
   }
-  .applied-n {
-    display: block;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 26px;
-    color: var(--bb-white);
-  }
-  .applied-label {
-    display: block;
-    margin-top: 6px;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .audit {
-    margin: 24px 0 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    color: #5f5a53;
-  }
+  .audit { margin-top: 24px; }
 
   @media (max-width: 560px) {
     .commit-bar {

@@ -4,12 +4,17 @@
   import { tick, untrack } from 'svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import StepList, { type StepItem } from '@bagel/ui/svelte/StepList.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { RunState, StageId } from '$lib/deploys/types';
   import StatePill from '$lib/components/StatePill.svelte';
   import { RunStream, type StreamConn } from '$lib/components/deploys/run-stream.svelte';
   import DeployScreen from '$lib/components/deploys/DeployScreen.svelte';
-  import StepChecklist, { type ChecklistItem } from '$lib/components/deploys/StepChecklist.svelte';
   import StageScene from '$lib/components/deploys/StageScene.svelte';
   import Mascot from '$lib/components/deploys/Mascot.svelte';
   import NowPanel from '$lib/components/deploys/NowPanel.svelte';
@@ -88,7 +93,7 @@
     t('admin.deploys.run.stageOf', { n: String(focusIndex + 1), total: String(run.stages.length) })
   );
 
-  const checklist = $derived<ChecklistItem[]>(
+  const checklist = $derived<StepItem[]>(
     run.stages.map((s) => {
       const meta = stageMeta(s, t);
       return {
@@ -151,13 +156,16 @@
 >
   {#snippet status()}
     <StatePill tone={runPill(run.state)}>{t(RUN_STATE_KEY[run.state])}</StatePill>
-    <span class="fact">{t('admin.deploys.elapsed', { time: formatElapsed(runElapsed(run, now)) })}</span>
-    <span class="fact conn"><StatusDot tone={CONN[stream.conn].tone} />{t(CONN[stream.conn].key)}</span>
+    <Text as="span" size="xs" mono>{t('admin.deploys.elapsed', { time: formatElapsed(runElapsed(run, now)) })}</Text>
+    <Cluster as="span" gap={2} nowrap>
+      <StatusDot tone={CONN[stream.conn].tone} />
+      <Text as="span" size="xs" mono>{t(CONN[stream.conn].key)}</Text>
+    </Cluster>
   {/snippet}
 
   {#snippet side()}
-    <StepChecklist items={checklist} focus={focusId} label={t('admin.deploys.stages')} onselect={select} />
-    <p class="by">{t('admin.deploys.startedBy', { login: run.actor.login })}</p>
+    <StepList steps={checklist} selected={focusId} label={t('admin.deploys.stages')} onselect={select} />
+    <div class="by"><Text size="xs" tone="muted" mono>{t('admin.deploys.startedBy', { login: run.actor.login })}</Text></div>
   {/snippet}
 
   <div class="stage-row">
@@ -177,21 +185,23 @@
               <span class="state {stage.state}">{t(STEP_STATE_KEY[stage.state])}</span>
             {/snippet}
             {#snippet note()}
-              <p class="now-line">
-                <span>{t(STAGE_STATE_BODY_KEY[stage.state])}</span>
-                {#if stageMeta(stage, t)}<span class="meta">{stageMeta(stage, t)}</span>{/if}
-              </p>
-              {#if stage.progress.total > 0}
-                <ProgressBar
-                  value={stageValue(stage) ?? 0}
-                  tone={stageTone(stage.state)}
-                  label={t(STAGE_KEY[stage.id])}
-                />
-              {/if}
+              <Stack gap={3}>
+                <Cluster align="baseline" gap={3}>
+                  <Text as="span" size="sm">{t(STAGE_STATE_BODY_KEY[stage.state])}</Text>
+                  {#if stageMeta(stage, t)}<Text as="span" size="xs" tone="pale" mono>{stageMeta(stage, t)}</Text>{/if}
+                </Cluster>
+                {#if stage.progress.total > 0}
+                  <ProgressBar
+                    value={stageValue(stage) ?? 0}
+                    tone={stageTone(stage.state)}
+                    label={t(STAGE_KEY[stage.id])}
+                  />
+                {/if}
+              </Stack>
             {/snippet}
             {#snippet children()}
               {#if hasDetail}
-                <div class="panel"><StageDetail {stage} /></div>
+                <div class="detail"><Card glass><StageDetail {stage} /></Card></div>
               {/if}
             {/snippet}
           </StageScene>
@@ -200,43 +210,30 @@
     </div>
 
     <div class="aside">
-      <Mascot expression={FACE[run.state]} {sequence} {sequenceKey} />
+      <div class="mascot-slot"><Mascot expression={FACE[run.state]} {sequence} {sequenceKey} /></div>
       {#if showNow && stage}<NowPanel {stage} />{/if}
     </div>
   </div>
 
   <div class="acts">
-    <button
-      type="button"
-      class="follow"
-      class:gone={pinned === null}
-      tabindex={pinned === null ? -1 : undefined}
-      aria-hidden={pinned === null}
-      onclick={() => select(live)}
-    >
-      <StatusDot tone="success" />{t('admin.deploys.run.follow')}
-    </button>
+    <span class="follow" class:gone={pinned === null}>
+      <Button
+        variant="green"
+        size="sm"
+        tabindex={pinned === null ? -1 : undefined}
+        aria-hidden={pinned === null}
+        onclick={() => select(live)}
+      >
+        {t('admin.deploys.run.follow')}
+      </Button>
+    </span>
     <div class="verbs"><RunActions {run} onrun={(next) => stream.accept(next)} /></div>
   </div>
 </DeployScreen>
 
 <style>
-  .fact {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.72);
-    font-variant-numeric: tabular-nums;
-  }
-  .conn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-  }
   .by {
-    margin: 10px 12px 4px;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.6);
+    margin: var(--bb-space-2) var(--bb-space-3) var(--bb-space-1);
   }
 
   .stage-row {
@@ -251,49 +248,27 @@
   }
   .aside {
     display: grid;
-    gap: 16px;
+    gap: var(--bb-space-4);
     min-width: 0;
   }
 
   .dot {
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(var(--bb-white-pure-rgb), 0.5);
   }
   .state.running,
   .state.waiting {
     color: var(--bb-green-glow);
   }
   .state.failed {
-    color: var(--bb-status-error, #e5484d);
+    color: var(--bb-status-error);
   }
   .state.pending,
   .state.skipped,
   .state.cancelled {
-    color: rgba(255, 255, 255, 0.6);
+    color: rgba(var(--bb-white-pure-rgb), 0.6);
   }
-  .now-line {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 6px 14px;
-    margin: 0 0 12px;
-    font-size: 14.5px;
-    color: var(--bb-white);
-  }
-  .meta {
-    font-family: var(--bb-font-mono);
-    font-size: 12.5px;
-    color: var(--bb-tan-pale);
-    font-variant-numeric: tabular-nums;
-  }
-  .panel {
-    padding: 14px 16px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.32));
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 18px 40px rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
+  .detail {
+    --card-pad: var(--bb-space-3) var(--bb-space-4);
   }
 
   .acts {
@@ -302,10 +277,10 @@
     z-index: 2;
     display: flex;
     align-items: flex-start;
-    gap: 16px;
+    gap: var(--bb-space-4);
     flex-wrap: wrap;
     margin-top: auto;
-    padding: 10px 0 4px;
+    padding: var(--bb-space-2) 0 var(--bb-space-1);
     background: linear-gradient(180deg, transparent, rgba(var(--bb-black-rgb), 0.78) 40%);
     backdrop-filter: blur(6px);
   }
@@ -315,47 +290,19 @@
   }
   .follow {
     display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    height: 36px;
-    padding: 0 14px;
-    border: 1px solid rgba(var(--bb-green-glow-rgb), 0.5);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(var(--bb-green-glow-rgb), 0.1);
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--bb-white);
-    cursor: pointer;
-    transition:
-      opacity var(--bb-dur-base) var(--bb-ease-out-expo),
-      transform var(--bb-dur-base) var(--bb-ease-out-expo);
-  }
-  .follow:hover {
-    transform: translateX(3px);
-  }
-  .follow:focus-visible {
-    outline: 2px solid var(--bb-tan);
-    outline-offset: 2px;
+    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
   }
   .follow.gone {
     visibility: hidden;
     opacity: 0;
   }
 
-
   @media (max-width: 1180px) {
     .stage-row {
       grid-template-columns: minmax(0, 1fr);
     }
-    .aside :global(.mascot) {
+    .mascot-slot {
       display: none;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .follow {
-      transition: none;
     }
   }
 </style>

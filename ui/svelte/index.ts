@@ -47,6 +47,7 @@ export { default as Chip } from './Chip.svelte';
 export { default as ConfirmDialog } from './ConfirmDialog.svelte';
 export { default as EmptyState } from './EmptyState.svelte';
 export { default as ErrorScene } from './ErrorScene.svelte';
+export { default as Mark } from './Mark.svelte';
 export { default as Modal } from './Modal.svelte';
 export { default as ProgressBar } from './ProgressBar.svelte';
 export { default as SaveStatus } from './SaveStatus.svelte';
@@ -115,3 +116,26 @@ export { default as CounterCard } from './CounterCard.svelte';
 export { default as CommunityCard } from './CommunityCard.svelte';
 
 export { default as RankingCard } from './RankingCard.svelte';
+
+export { default as DeckLayout } from './DeckLayout.svelte';
+export { default as Disclosure } from './Disclosure.svelte';
+export { default as Fact } from './Fact.svelte';
+export { default as FactList } from './FactList.svelte';
+export { default as Pager } from './Pager.svelte';
+
+export { default as Stepper } from './Stepper.svelte';
+export { default as Spinner } from './Spinner.svelte';
+export { default as LineSeries } from './LineSeries.svelte';
+export type { LinePoint, LineSeriesSpec } from '../lib/line-series';
+export { parallax } from './actions';
+
+export { default as SwitchRow } from './SwitchRow.svelte';
+export { default as Slider } from './Slider.svelte';
+export { default as FileDrop } from './FileDrop.svelte';
+export { default as PickerOption } from './PickerOption.svelte';
+export { rovingFocus } from './actions';
+
+export { default as ProfileMenu } from './ProfileMenu.svelte';
+export { default as SkipLink } from './SkipLink.svelte';
+export { default as Popover } from './Popover.svelte';
+export { default as CopySurface } from './CopySurface.svelte';

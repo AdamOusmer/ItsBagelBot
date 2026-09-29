@@ -9,6 +9,7 @@
     cols = 1,
     gap = 4,
     min,
+    stackAt = 'sm',
     as: tag = 'div',
     class: className = '',
     children,
@@ -17,6 +18,7 @@
     cols?: 1 | 2 | 3 | 4 | 5 | 6;
     gap?: 1 | 2 | 3 | 4 | 5 | 6;
     min?: string;
+    stackAt?: 'sm' | 'md';
     as?: string;
     class?: string;
     children: Snippet;
@@ -28,6 +30,7 @@
       'bb-grid',
       min ? 'bb-grid--auto' : `bb-grid--${cols}`,
       `bb-grid--gap-${gap}`,
+      stackAt === 'md' ? 'bb-grid--stack-md' : null,
       className || null,
     ]
       .filter(Boolean)

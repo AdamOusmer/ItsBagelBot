@@ -10,6 +10,7 @@
     PageHead,
     PageToolbar,
     AlertBanner,
+    DeckLayout,
     DeckList,
     EmptyState,
     InspectorSurface,
@@ -19,7 +20,13 @@
     Field,
     FieldError,
     ConfirmDialog,
-    MiniButton,
+    Icon,
+    IconButton,
+    Input,
+    Label,
+    Table,
+    Tag,
+    Text,
     toast,
     getI18n,
     COUNTER_SCOPES,
@@ -95,9 +102,10 @@
       .catch(() => null);
   }
 
-  function focusSelect(node: HTMLInputElement) {
-    node.focus();
-    node.select();
+  function focusSelect(node: HTMLElement) {
+    const input = node.querySelector('input');
+    input?.focus();
+    input?.select();
   }
 
   const NEW = '__new__';
@@ -383,16 +391,20 @@
   };
 </script>
 
+{#snippet secHead(label: string)}
+  <div class="sec-head"><Label mono as="span">{label}</Label></div>
+{/snippet}
+
 {#snippet renameBlock()}
-<div class="rename-row">
-    <input
-      class="bb-input rename-input"
+  <div class="rename-row">
+    <Input
+      fill
       name="new_name"
       form="counter-rename-form"
       placeholder={t('counters.renamePh')}
       aria-label={t('counters.rename')}
       required
-      data-invalid={renameError ? '' : undefined}
+      invalid={!!renameError}
       aria-invalid={renameError ? 'true' : undefined}
       aria-describedby={renameError ? 'counter-rename-err' : undefined}
       maxlength="64"
@@ -424,7 +436,7 @@
     {/snippet}
     {#snippet trail()}
       <div class="toolbar-search">
-        <SearchInput placeholder={t('counters.searchPlaceholder')} bind:value={search} debounceMs={200} />
+        <SearchInput fill placeholder={t('counters.searchPlaceholder')} bind:value={search} debounceMs={200} />
       </div>
       <Button variant="primary" onclick={openNew} disabled={expanded === NEW}>
         {t('counters.create')}
@@ -432,10 +444,10 @@
     {/snippet}
   </PageToolbar>
 
-  <div class="deck {expanded !== null ? 'inspecting' : ''}">
+  <DeckLayout inspecting={expanded !== null}>
     <DeckList>
       {#if rows.length}
-        <div class="list" role="list" aria-label={t('counters.listTitle')}>
+        <div role="list" aria-label={t('counters.listTitle')}>
           {#each rows as c, i (c.name)}
             <CounterRow
               counter={c}
@@ -466,22 +478,19 @@
         {#if expanded === NEW}
           <form method="POST" action="?/create" class="ins-form" novalidate use:enhance={createSubmit}>
             <Scroller fill padding="16px" smooth>
-              <Field label={t('counters.fieldName')}>
-                <input
+              <Field label={t('counters.fieldName')} error={nameError} errorId="counter-name-err">
+                <Input
                   id="counter-name"
-                  class="bb-input"
                   name="name"
                   placeholder={t('counters.fieldNamePh')}
                   maxlength="64"
                   bind:value={newName}
+                  invalid={!!nameError}
                   aria-invalid={nameError ? 'true' : undefined}
                   aria-describedby={nameError ? 'counter-name-err' : undefined}
                   required
                 />
               </Field>
-              {#if nameError}
-                <small id="counter-name-err" class="field-err" role="alert">{nameError}</small>
-              {/if}
 
               <Field label={t('counters.fieldScope')}>
                 <Select
@@ -491,8 +500,8 @@
                 />
               </Field>
               <div class="hints">
-                <p class="hint">{t('counters.scopeHint')}</p>
-                <p class="hint">{t('counters.scopeLocked')}</p>
+                <Text size="xs" tone="muted">{t('counters.scopeHint')}</Text>
+                <Text size="xs" tone="muted">{t('counters.scopeLocked')}</Text>
               </div>
             </Scroller>
             <div class="ins-foot">
@@ -506,16 +515,18 @@
           <form method="POST" action="?/set" class="ins-form" novalidate use:enhance={setSubmit}>
             <input type="hidden" name="name" value={selected.name} />
             <Scroller fill padding="16px" smooth>
-              <p class="ins-sub">{scopeLabel[selected.scope]}</p>
+              <div class="ins-sub"><Text size="xs" tone="muted">{scopeLabel[selected.scope]}</Text></div>
 
               <div class="sec">
                 <Field label={t('counters.colValue')}>
-                  <input class="bb-input num big-num" type="text" inputmode="numeric" name="value" bind:value={setValue} use:focusSelect />
+                  <span class="big-num" use:focusSelect>
+                    <Input type="text" inputmode="numeric" name="value" bind:value={setValue} />
+                  </span>
                 </Field>
               </div>
 
               <div class="sec sec-util">
-                <span class="sec-head">{t('counters.rename')}</span>
+                {@render secHead(t('counters.rename'))}
                 {@render renameBlock()}
               </div>
             </Scroller>
@@ -531,83 +542,81 @@
           {@const showSource = selected.scope !== 'viewer'}
           <div class="ins-form">
             <Scroller fill padding="16px" smooth>
-              <p class="ins-sub">{scopeLabel[selected.scope]}</p>
+              <div class="ins-sub"><Text size="xs" tone="muted">{scopeLabel[selected.scope]}</Text></div>
 
               <div class="sec">
-                <div class="sec-head-row">
-                  <span class="sec-head">{t('counters.valuesTitle')}</span>
+                <div class="sec-head">
+                  <Label mono as="span">{t('counters.valuesTitle')}</Label>
                   {#if entriesReady && (data.entries ?? []).length}
-                    <span class="sec-count bb-tag bb-tag--bare">{(data.entries ?? []).length}</span>
+                    <span class="sec-count"><Tag tone="bare">{(data.entries ?? []).length}</Tag></span>
                   {/if}
                 </div>
                 {#if !entriesReady}
-                  <p class="hint" role="status">{t('common.loading')}</p>
+                  <Text size="xs" tone="muted" role="status">{t('common.loading')}</Text>
                 {:else if (data.entries ?? []).length === 0}
-                  <p class="hint">{t('counters.entriesEmpty')}</p>
+                  <Text size="xs" tone="muted">{t('counters.entriesEmpty')}</Text>
                 {:else}
-                  <div class="bb-tbl-wrap">
-                    <table class="bb-tbl entries">
-                      <caption class="bb-sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
-                      <thead>
+                  <Table label={t('counters.entriesTitle', { name: selected.name })}>
+                    <caption class="bb-sr-only">{t('counters.entriesTitle', { name: selected.name })}</caption>
+                    <thead>
+                      <tr>
+                        {#if showViewer}<th scope="col">{t('counters.colViewer')}</th>{/if}
+                        {#if showSource}<th scope="col">{t('counters.colSource')}</th>{/if}
+                        <th scope="col" class="r val-col">{t('counters.colValue')}</th>
+                        <th scope="col" class="act-col"><span class="bb-sr-only">{t('counters.colActions')}</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each data.entries ?? [] as e (e.viewerId + ':' + e.command)}
                         <tr>
-                          {#if showViewer}<th scope="col">{t('counters.colViewer')}</th>{/if}
-                          {#if showSource}<th scope="col">{t('counters.colSource')}</th>{/if}
-                          <th scope="col" class="r">{t('counters.colValue')}</th>
-                          <th scope="col" class="act"><span class="bb-sr-only">{t('counters.colActions')}</span></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {#each data.entries ?? [] as e (e.viewerId + ':' + e.command)}
-                          <tr>
-                            {#if showViewer}<th scope="row">{e.viewerName || e.viewerLogin || e.viewerId}</th>{/if}
-                            {#if showSource}<td class="mut">{e.command || '·'}</td>{/if}
-                            <td class="r">
-                              <span class="entry-edit">
-                                {#if entryEditable(selected.scope, e)}
-                                  <input
-                                    class="bb-input num entry-num"
-                                    type="text"
-                                    inputmode="numeric"
-                                    aria-label={t('counters.colValue')}
-                                    value={entryEdits[entryKey(e)] ?? e.value}
-                                    oninput={(ev) => (entryEdits[entryKey(e)] = ev.currentTarget.value)}
-                                    onkeydown={(ev) => {
-                                      if (ev.key === 'Enter') void saveEntry(selected, e);
-                                    }}
-                                  />
-                                  <MiniButton
-                                    icon="check"
-                                    class={entryDirty(e) ? 'entry-check' : 'entry-check is-off'}
-                                    aria-label={t('counters.set')}
+                          {#if showViewer}<th scope="row">{e.viewerName || e.viewerLogin || e.viewerId}</th>{/if}
+                          {#if showSource}<td class="mut">{e.command || '·'}</td>{/if}
+                          <td class="r val-col">
+                            <span class="entry-edit">
+                              {#if entryEditable(selected.scope, e)}
+                                <Input
+                                  align="end"
+                                  inputmode="numeric"
+                                  aria-label={t('counters.colValue')}
+                                  value={entryEdits[entryKey(e)] ?? e.value}
+                                  oninput={(ev: Event & { currentTarget: HTMLInputElement }) => (entryEdits[entryKey(e)] = ev.currentTarget.value)}
+                                  onkeydown={(ev: KeyboardEvent) => {
+                                    if (ev.key === 'Enter') void saveEntry(selected, e);
+                                  }}
+                                />
+                                <span class="entry-check" class:off={!entryDirty(e)}>
+                                  <IconButton
+                                    size="sm"
+                                    label={t('counters.set')}
                                     disabled={!entryDirty(e) || entrySaving !== null}
                                     onclick={() => saveEntry(selected, e)}
-                                  />
-                                {:else}
-                                  <span class="entry-ro">{formatCounterValue(e.value)}</span>
-                                  <span class="entry-slot" aria-hidden="true"></span>
-                                {/if}
-                              </span>
-                            </td>
-                            <td class="act">
-                              {#if entryEditable(selected.scope, e)}
-                                <MiniButton
-                                  icon="trash"
-                                  class="entry-del"
-                                  aria-label={t('counters.entryDeleteAria', { name: entryLabel(e) })}
-                                  onclick={() => (entryDeleteTarget = e)}
-                                />
+                                  ><Icon name="check" size={15} /></IconButton>
+                                </span>
+                              {:else}
+                                <span class="entry-ro">{formatCounterValue(e.value)}</span>
+                                <span class="entry-slot" aria-hidden="true"></span>
                               {/if}
-                            </td>
-                          </tr>
-                        {/each}
-                      </tbody>
-                    </table>
-                  </div>
+                            </span>
+                          </td>
+                          <td class="act-col">
+                            {#if entryEditable(selected.scope, e)}
+                              <IconButton
+                                size="sm"
+                                danger
+                                label={t('counters.entryDeleteAria', { name: entryLabel(e) })}
+                                onclick={() => (entryDeleteTarget = e)}
+                              ><Icon name="trash" size={15} /></IconButton>
+                            {/if}
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </Table>
                 {/if}
               </div>
 
               <div class="sec">
-                <span class="sec-head">{t('counters.addTitle')}</span>
+                {@render secHead(t('counters.addTitle'))}
                 <form
                   method="POST"
                   action="?/addEntry"
@@ -619,13 +628,12 @@
                   <input type="hidden" name="name" value={selected.name} />
                   {#if showViewer}
                     <Field label={t('counters.addUser')} error={addUserError} errorId="counter-add-user-err">
-                      <input
-                        class="bb-input"
+                      <Input
                         name="username"
                         placeholder={t('counters.addUserPh')}
                         maxlength="32"
                         required
-                        data-invalid={addUserError ? '' : undefined}
+                        invalid={!!addUserError}
                         aria-invalid={addUserError ? 'true' : undefined}
                         aria-describedby={addUserError ? 'counter-add-user-err' : undefined}
                         bind:value={addUser}
@@ -634,13 +642,12 @@
                   {/if}
                   {#if showSource}
                     <Field label={t('counters.addCommand')} error={addCommandError} errorId="counter-add-command-err">
-                      <input
-                        class="bb-input"
+                      <Input
                         name="command"
                         placeholder={t('counters.addCommandPh')}
                         maxlength="64"
                         required
-                        data-invalid={addCommandError ? '' : undefined}
+                        invalid={!!addCommandError}
                         aria-invalid={addCommandError ? 'true' : undefined}
                         aria-describedby={addCommandError ? 'counter-add-command-err' : undefined}
                         bind:value={addCommand}
@@ -650,10 +657,10 @@
                   <div class="add-foot">
                     <div class="add-val">
                       <Field label={t('counters.colValue')}>
-                        <input class="bb-input num" type="text" inputmode="numeric" name="value" bind:value={addValue} />
+                        <Input type="text" inputmode="numeric" name="value" bind:value={addValue} />
                       </Field>
                     </div>
-                    <Button variant="secondary" type="submit" loading={adding} class="add-btn">
+                    <Button variant="secondary" type="submit" loading={adding}>
                       {t('counters.add')}
                     </Button>
                   </div>
@@ -661,7 +668,7 @@
               </div>
 
               <div class="sec sec-util">
-                <span class="sec-head">{t('counters.rename')}</span>
+                {@render secHead(t('counters.rename'))}
                 {@render renameBlock()}
               </div>
             </Scroller>
@@ -675,7 +682,7 @@
         {/if}
       </InspectorSurface>
     {/if}
-  </div>
+  </DeckLayout>
 </section>
 
 <ConfirmDialog
@@ -743,93 +750,45 @@
 
 <style>
   .toolbar-search { width: 220px; max-width: 100%; }
-  .toolbar-search :global(.si) { width: 100%; }
 
   .rename-row { display: flex; align-items: center; gap: 8px; }
-  .rename-input { flex: 1; min-width: 0; }
-
-  .deck { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
-  @media (min-width: 1080px) {
-    .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
-  }
-
-  .list { margin: 0; padding: 0; }
-  .list :global(.row-shell:last-child) { border-bottom: none; }
 
   .ins-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
-  .ins-form :global(.num) { max-width: 200px; }
   .ins-foot {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 10px;
     padding: 12px 16px;
-    border-top: 1px solid var(--rule);
-    background: var(--bb-bg-1, #111);
+    border-top: 1px solid var(--bb-border);
+    background: var(--bb-bg-1);
     flex: none;
   }
 
-  .field-err {
-    display: block;
-    margin: -8px 0 12px;
-    font-family: var(--bb-font-body);
-    font-size: 11.5px;
-    color: #cf8a78;
-  }
-
-  .ins-sub {
-    margin: 0 0 16px;
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-muted);
-  }
+  .ins-sub { margin: 0 0 16px; }
 
   .sec { padding: 0 0 16px; }
-  .sec + .sec { padding-top: 16px; border-top: 1px solid var(--rule, rgba(240, 236, 228, 0.08)); }
-  .sec-util { --input-fs: 12.5px; }
+  .sec + .sec { padding-top: 16px; border-top: 1px solid var(--bb-border); }
+  .sec-util { --input-fs: var(--bb-text-xs); }
 
-  .sec-head {
-    display: block;
-    margin: 0 0 10px;
-    font-family: var(--bb-font-body);
-    font-size: 10.5px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    font-weight: 600;
-  }
-  .sec-head-row { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
-  .sec-head-row .sec-head { margin: 0; }
-  .sec-count { font-variant-numeric: tabular-nums; }
+  .sec-head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+  .sec-count { display: inline-flex; font-variant-numeric: tabular-nums; }
 
-  .big-num :global(.num),
-  .ins-form :global(.big-num) { font-size: 16px; max-width: 160px; }
+  .big-num { display: block; max-width: 160px; --input-fs: var(--bb-text-md); }
 
-  .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
   .hints { display: flex; flex-direction: column; gap: 8px; }
 
-  .entries th.r,
-  .entries td.r { width: 128px; }
-  .entries th.act,
-  .entries td.act { width: 32px; padding-left: 4px; padding-right: 0; text-align: right; }
-  .entries :global(.entry-del:hover) { color: #cf8a78; }
+  .val-col { width: 128px; }
+  .act-col { width: 32px; padding-left: 4px; padding-right: 0; text-align: right; }
 
   .entry-edit {
+    --input-w: 90px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 28px;
     align-items: center;
     gap: 6px;
     justify-items: end;
   }
-  .entries :global(.entry-num) {
-    width: 90px;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    appearance: textfield;
-    -moz-appearance: textfield;
-  }
-  .entries :global(.entry-num)::-webkit-outer-spin-button,
-  .entries :global(.entry-num)::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .entry-ro {
     width: 90px;
     text-align: right;
@@ -837,13 +796,12 @@
     color: var(--bb-white);
   }
   .entry-slot { width: 28px; height: 28px; }
-  .entries :global(.entry-check.is-off) { visibility: hidden; }
+  .entry-check { display: inline-flex; }
+  .entry-check.off { visibility: hidden; }
 
-  .add :global(.field) { margin-bottom: 12px; }
+  .add { --field-mb: 12px; }
   .add-foot { display: flex; align-items: flex-end; gap: 10px; }
-  .add-val { flex: none; }
-  .add-val :global(.num) { width: 96px; }
-  :global(.add-btn) { margin-bottom: 2px; }
+  .add-val { flex: none; width: 96px; --field-mb: 0; }
 
   @media (max-width: 760px) {
     .toolbar-search { width: 100%; }

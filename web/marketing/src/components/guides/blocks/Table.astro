@@ -2,6 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Card from '@bagel/ui/astro/Card.astro';
+import Table from '@bagel/ui/astro/Table.astro';
+
 interface Props {
     head: string[];
     rows: string[][];
@@ -12,14 +15,18 @@ interface Props {
 const { head, rows, caption, id } = Astro.props;
 ---
 
-<div class="gtable-wrap">
-    <table id={id}>
+<Card flush class="gtable">
+    <Table roomy label={caption ?? head.join(' · ')} id={id}>
         {caption && <caption>{caption}</caption>}
-        <thead><tr>{head.map((cell) => <th set:html={cell} />)}</tr></thead>
+        <thead><tr>{head.map((cell) => <th scope="col" set:html={cell} />)}</tr></thead>
         <tbody>
             {rows.map((row) => (
                 <tr>{row.map((cell) => <td set:html={cell} />)}</tr>
             ))}
         </tbody>
-    </table>
-</div>
+    </Table>
+</Card>
+
+<style>
+    .gtable { margin: 18px 0 22px; }
+</style>

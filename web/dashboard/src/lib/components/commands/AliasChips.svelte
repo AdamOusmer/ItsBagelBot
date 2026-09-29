@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Chip, Icon, getI18n } from '@bagel/kit';
+  import { Chip, Icon, Input, getI18n } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -39,8 +39,8 @@
   }
 </script>
 
-<input
-  class="bb-input bb-input--fill"
+<Input
+  fill
   placeholder={t('commandEditor.aliasPlaceholder')}
   bind:value={draft}
   onkeydown={onKey}
@@ -49,7 +49,7 @@
 {#if aliases.length}
   <div class="aliases">
     {#each aliases as a (a)}
-      <Chip tone="muted" class="alias" onclick={() => remove(a)} aria-label={t('commandEditor.removeAlias', { name: a })}>
+      <Chip tone="muted" onclick={() => remove(a)} aria-label={t('commandEditor.removeAlias', { name: a })}>
         <span>{a}</span>
         <Icon name="x" size={11} />
       </Chip>
@@ -59,22 +59,4 @@
 
 <style>
   .aliases { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .aliases :global(.alias) { padding: 5px 10px; }
-  .aliases :global(.alias svg) {
-    width: 0;
-    opacity: 0;
-    transition: width var(--bb-dur-fast, 140ms) ease, opacity var(--bb-dur-fast, 140ms) ease;
-  }
-  .aliases :global(.alias:hover),
-  .aliases :global(.alias:focus-visible) {
-    color: #cf8a78;
-    background: rgba(176, 90, 70, 0.16);
-    border-color: rgba(176, 90, 70, 0.45);
-    outline: none;
-  }
-  .aliases :global(.alias:hover svg),
-  .aliases :global(.alias:focus-visible svg) {
-    width: 11px;
-    opacity: 1;
-  }
 </style>

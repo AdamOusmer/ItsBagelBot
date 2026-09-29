@@ -13,11 +13,16 @@
     InspectorSurface,
     MasterToggle,
     AlertBanner,
+    DeckLayout,
     DeckList,
     EmptyState,
     Button,
     ButtonLink,
     Heading,
+    Input,
+    Spinner,
+    Text,
+    TextLink,
     toast,
     getI18n,
     type GoveeDevice,
@@ -131,7 +136,7 @@
 </script>
 
 <section class="screen active">
-  <a class="back" href="/modules">{t('govee.back')}</a>
+  <div class="back"><TextLink variant="quiet" icon="arrowLeft" href="/modules" label={t('govee.back')} /></div>
   <PageHead eyebrow={t('govee.eyebrow')} description={t('govee.description')}>
     {t('govee.titlePre')} <em>{t('govee.titleEm')}</em>
   </PageHead>
@@ -166,10 +171,10 @@
     <div class="step">
       <span class="step-index" aria-hidden="true">1</span>
       <div class="step-body">
-        <Heading level={6} as="h2" class="step-title">{t('govee.keyTitle')}</Heading>
-        <p class="muted-text">
-          {t('govee.keyHelpPre')} <strong>{t('govee.keyPath')}</strong>. {t('govee.keyHelpPost')}
-        </p>
+        <Heading level={6} as="h2">{t('govee.keyTitle')}</Heading>
+        <Text size="sm" tone="muted">
+          {t('govee.keyHelpPre')} <strong class="key-path">{t('govee.keyPath')}</strong>. {t('govee.keyHelpPost')}
+        </Text>
         {#if keyPresent}
           <div class="row">
             <Tag tone="live" mark="solid">{t('govee.keyOnFile')}</Tag>
@@ -179,7 +184,7 @@
           </div>
         {:else}
           <form method="POST" action="?/saveKey" use:enhance={formResult(t('govee.keySaved'), t('govee.keySaveFailed'), () => (keyPresent = true))} class="row">
-            <input class="input" type="password" name="key" placeholder={t('govee.keyPlaceholder')} aria-label={t('govee.keyFieldLabel')} autocomplete="off" required />
+            <Input type="password" name="key" placeholder={t('govee.keyPlaceholder')} aria-label={t('govee.keyFieldLabel')} autocomplete="off" required />
             <Button variant="primary" type="submit">{t('govee.keySave')}</Button>
           </form>
         {/if}
@@ -188,61 +193,63 @@
   </Card>
 
   {#if keyPresent}
-    <div class="deck" class:inspecting={!!selected}>
-      <div class="deck-lead">
-        <span class="step-index sm" aria-hidden="true">2</span>
-        <h2 class="lights-title">{t('govee.lightsTitle')}</h2>
-      </div>
+    <div class="lights">
+      <DeckLayout inspecting={!!selected} width="440px">
+        <div class="deck-lead">
+          <span class="step-index sm" aria-hidden="true">2</span>
+          <Heading level={6} as="h2">{t('govee.lightsTitle')}</Heading>
+        </div>
 
-      <DeckList>
-        {#await data.devices}
-          <p class="loading" role="status"><span class="spinner" aria-hidden="true"></span> {t('govee.loadingLights')}</p>
-        {:then dr}
-          {@const lights = colorDevices(dr.devices ?? [])}
-          {#if dr.error}
-            <!-- Never surface the raw provider error: it may carry the key. -->
-            <p class="err-text" role="alert">{t('govee.devicesError')}</p>
-          {:else if lights.length === 0}
-            <EmptyState title={t('govee.noLights')} />
-          {:else}
-            <div class="list">
-              {#each lights as d (d.device)}
-                <GoveeLightRow
-                  device={d}
-                  binding={bindingFor(d.device)}
-                  expanded={selected?.device === d.device}
-                  onExpand={() => openLight(d)}
-                  onDelete={() => (deleteTarget = d)}
+        <DeckList>
+          {#await data.devices}
+            <div class="state" role="status"><Spinner /><Text as="span" size="sm" tone="muted">{t('govee.loadingLights')}</Text></div>
+          {:then dr}
+            {@const lights = colorDevices(dr.devices ?? [])}
+            {#if dr.error}
+              <!-- Never surface the raw provider error: it may carry the key. -->
+              <div class="state"><Text size="sm" tone="danger" role="alert">{t('govee.devicesError')}</Text></div>
+            {:else if lights.length === 0}
+              <EmptyState title={t('govee.noLights')} />
+            {:else}
+              <div>
+                {#each lights as d (d.device)}
+                  <GoveeLightRow
+                    device={d}
+                    binding={bindingFor(d.device)}
+                    expanded={selected?.device === d.device}
+                    onExpand={() => openLight(d)}
+                    onDelete={() => (deleteTarget = d)}
+                  />
+                {/each}
+              </div>
+            {/if}
+          {/await}
+        </DeckList>
+
+        {#if selected}
+          <InspectorSurface
+            open
+            title={selected.name || t('govee.thisLight')}
+            controls="govee-editor"
+            closeLabel={t('govee.closeEditor')}
+            onClose={closeInspector}
+          >
+            <Scroller fill padding="16px" smooth>
+              {#key selected.device}
+                <GoveeRewardEditor
+                  device={selected}
+                  binding={bindingFor(selected.device)}
+                  colors={data.colors}
+                  {busy}
+                  onSubmit={saveSubmit}
+                  onCancel={closeInspector}
+                  onRequestDelete={() => (deleteTarget = selected)}
                 />
-              {/each}
-            </div>
-          {/if}
-        {/await}
-      </DeckList>
-
-      {#if selected}
-        <InspectorSurface
-          open
-          title={selected.name || t('govee.thisLight')}
-          controls="govee-editor"
-          closeLabel={t('govee.closeEditor')}
-          onClose={closeInspector}
-        >
-          <Scroller fill padding="16px" smooth>
-            {#key selected.device}
-              <GoveeRewardEditor
-                device={selected}
-                binding={bindingFor(selected.device)}
-                colors={data.colors}
-                {busy}
-                onSubmit={saveSubmit}
-                onCancel={closeInspector}
-                onRequestDelete={() => (deleteTarget = selected)}
-              />
-            {/key}
-          </Scroller>
-        </InspectorSurface>
-      {/if}
+              {/key}
+            </Scroller>
+          </InspectorSurface>
+        {/if}
+      </DeckLayout>
     </div>
   {/if}
 </section>
@@ -263,18 +270,7 @@
 </form>
 
 <style>
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    text-decoration: none;
-    margin-bottom: 10px;
-  }
-  .back:hover { color: var(--bb-white); }
-  .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: var(--bb-radius-xs); }
+  .back { margin-bottom: 10px; }
 
   .step { display: flex; gap: 14px; align-items: flex-start; }
   .step-index {
@@ -284,58 +280,21 @@
     border-radius: var(--bb-radius-sm);
     display: grid;
     place-items: center;
-    background: rgba(201, 168, 124, 0.12);
-    border: 1px solid var(--glass-border);
+    background: rgba(var(--bb-tan-rgb), 0.12);
+    border: 1px solid var(--bb-glass-border);
     color: var(--bb-tan-light);
-    font-family: var(--bb-font-mono, "DM Mono", monospace);
+    font-family: var(--bb-font-mono);
     font-weight: 600;
-    font-size: 14px;
+    font-size: var(--bb-text-sm);
   }
-  .step-index.sm { width: 26px; height: 26px; font-size: 12px; border-radius: var(--bb-radius-xs); }
-  .step-body { flex: 1; min-width: 0; }
-  :global(.step-title) { margin-bottom: 6px; }
-  .muted-text { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; margin: 0 0 14px; }
-  .muted-text strong { color: var(--bb-tan-light); font-weight: 600; }
+  .step-index.sm { width: 26px; height: 26px; font-size: var(--bb-text-xs); border-radius: var(--bb-radius-xs); }
+  .step-body { flex: 1; min-width: 0; display: grid; gap: 6px; }
+  .key-path { color: var(--bb-tan-light); font-weight: 600; }
 
-  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .input {
-    padding: 8px 12px;
-    border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--rule);
-    background: rgba(240, 236, 228, 0.04);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    min-width: 13rem;
-  }
-  .input:focus { outline: none; border-color: var(--bb-tan, #c9a87c); }
-  .input::placeholder { color: var(--bb-muted); opacity: 0.7; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-    margin-top: 16px;
-  }
-  .deck-lead { display: flex; align-items: center; gap: 10px; }
-  .lights-title { margin: 0; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
-  @media (min-width: 1080px) {
-    .deck.inspecting { grid-template-columns: minmax(0, 1fr) 440px; }
-    .deck.inspecting .deck-lead { grid-column: 1 / -1; }
-  }
-  .list :global(.row-shell:last-child) { border-bottom: none; }
+  .lights { margin-top: 16px; }
+  .deck-lead { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
 
-  .loading, .err-text { display: flex; align-items: center; gap: 10px; padding: 16px; margin: 0; font-family: var(--bb-font-body); font-size: 13px; }
-  .loading { color: var(--bb-muted); }
-  .err-text { color: #cf8a78; gap: 6px; }
-  .spinner {
-    width: 14px; height: 14px; border-radius: 50%;
-    border: 2px solid var(--rule-strong); border-top-color: var(--bb-tan-light);
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) {
-    .spinner { animation: none; }
-  }
+  .state { display: flex; align-items: center; gap: 10px; padding: 16px; }
 </style>

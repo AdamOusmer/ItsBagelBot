@@ -30,6 +30,11 @@ import {
 } from '@bagel/kit/site-links'
 import Brackets from '@bagel/ui/astro/Brackets.astro'
 import ReadingProgress from '@bagel/ui/astro/ReadingProgress.astro'
+import SkipLink from '@bagel/ui/astro/SkipLink.astro'
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro'
+import Cluster from '@bagel/ui/astro/Cluster.astro'
+import Text from '@bagel/ui/astro/Text.astro'
+import TextLink from '@bagel/ui/astro/TextLink.astro'
 import { OWNER_IGN, OWNER_PROFILE_URL } from '../owner';
 import { getLangFromUrl, LOCALIZED_PATHS, locales, defaultLang, splitLocale, localizePath, useTranslations, dashLoginHref, localeOptions } from '../i18n/ui';
 
@@ -258,7 +263,7 @@ const contentSecurityPolicy = [
 </head>
 
 <body>
-    <a class="skip-link" href="#main-content">{t('skip.toContent')}</a>
+    <SkipLink href="#main-content" label={t('skip.toContent')} />
     <main id="main-content">
         <slot/>
     </main>
@@ -273,8 +278,8 @@ const contentSecurityPolicy = [
         menuMeta={t('menu.meta')}
     >
         <Fragment slot="mobileFooter">
-            <a class="mobile-menu__app" href={getAppHref}>{t('nav.getApp')}</a>
-            <div class="mobile-menu__lang"><LanguageSwitcher options={navLocales} ariaLabel="Language" /></div>
+            <ButtonLink variant="ghost" block href={getAppHref}>{t('nav.getApp')}</ButtonLink>
+            <Cluster justify="center"><LanguageSwitcher options={navLocales} ariaLabel="Language" /></Cluster>
         </Fragment>
     </Nav>
     <SocialRail items={SOCIAL_LINKS} ariaLabel={t('nav.social')}/>
@@ -290,18 +295,8 @@ const contentSecurityPolicy = [
     >
         {isHome && <section class="colophon" slot="colophon">
             <div class="colophon__owner" id="about">
-                <p class="colophon__line">{ownerBefore}<a
-                    class="colophon__ign"
-                    href={OWNER_PROFILE_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >{OWNER_IGN}</a>{ownerAfter}</p>
-                <p>{keyBefore}<a
-                    class="colophon__ign"
-                    href={OWNER_PROFILE_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >{OWNER_IGN}</a>{keyAfter}</p>
+                <Text size="xs" class="colophon__line">{ownerBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{ownerAfter}</Text>
+                <Text>{keyBefore}<TextLink variant="inline" href={OWNER_PROFILE_URL} external>{OWNER_IGN}</TextLink>{keyAfter}</Text>
             </div>
         </section>}
     </Footer>
@@ -321,59 +316,17 @@ const contentSecurityPolicy = [
 </html>
 
 <style>
-    .skip-link {
-        position: absolute;
-        left: 12px;
-        top: 12px;
-        transform: translateY(-72px);
-        z-index: 200;
-        padding: 10px 16px;
-        border-radius: var(--radius-sm);
-        background: var(--card-bg, #111110);
-        border: 1px solid var(--tan, #c9a87c);
-        color: var(--tan-light, #e0c49a);
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.8rem;
-        text-decoration: none;
-        transition: transform 200ms ease;
-    }
-
-    .skip-link:focus {
-        transform: translateY(0);
-    }
-
     main {
         display: contents;
     }
 
-    .mobile-menu__app {
-        display: block;
-        text-align: center;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.78rem;
-        letter-spacing: 0;
-        text-transform: uppercase;
-        color: var(--tan-light, #e0c49a);
-        text-decoration: underline;
-        text-decoration-color: rgba(201, 168, 124, 0.4);
-        text-underline-offset: 4px;
-        transition: color 200ms ease;
-    }
-
-    .mobile-menu__app:active { color: var(--green-glow, #52b788); }
-
-    .mobile-menu__lang {
-        display: flex;
-        justify-content: center;
-    }
-
     .colophon {
         position: relative;
-        padding: 28px 24px;
-        border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+        max-width: var(--bb-content-max);
+        margin: 0 auto;
+        padding: 28px var(--bb-space-5);
+        border-top: 1px solid var(--bb-border);
         text-align: center;
-        font-family: var(--font-mono);
-        color: var(--muted);
     }
 
     .colophon__owner {
@@ -382,22 +335,6 @@ const contentSecurityPolicy = [
     }
 
     .colophon__line {
-        margin: 0 0 8px;
-        font-size: 0.72rem;
-        letter-spacing: 0.05em;
-        line-height: 1.8;
-    }
-
-    .colophon__ign {
-        color: var(--tan-light);
-        text-decoration: underline;
-        text-decoration-color: rgba(224, 196, 154, 0.4);
-        text-underline-offset: 3px;
-        transition: color 180ms ease, text-decoration-color 180ms ease;
-    }
-
-    .colophon__ign:is(:hover, :focus-visible) {
-        color: var(--white);
-        text-decoration-color: rgba(240, 236, 228, 0.7);
+        margin: 0 0 var(--bb-space-2);
     }
 </style>

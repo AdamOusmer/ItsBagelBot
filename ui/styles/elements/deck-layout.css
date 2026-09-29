@@ -1,0 +1,21 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+  .bb-deck-layout {
+    --deck-aside: 420px;
+
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--bb-space-4);
+    align-items: start;
+  }
+
+  @media (min-width: 1080px) {
+    .bb-deck-layout.is-inspecting {
+      grid-template-columns: minmax(0, 1fr) var(--deck-aside);
+    }
+  }
+}

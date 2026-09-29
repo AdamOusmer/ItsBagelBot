@@ -26,66 +26,33 @@
   const state = $derived(stateOf(user));
 </script>
 
-<ManagementRow {selected} expanded={selected} {controls} {onselect}>
-  {#snippet primary()}
-    <span class="row">
-      <Bolota name={user.username} size={28} gate active={selected} />
-      <span class="who">
-        <span class="login">{user.username}</span>
-        <span class="meta">
-          {t('admin.users.rowMeta', { id: String(user.id), joined: ago(user.created_at) })}
-        </span>
-      </span>
-      <span class="marks">
-        <StatePill shape="tag" tone={user.status as 'free' | 'paid' | 'vip'}>{user.status}</StatePill>
-        {#if state === 'banned' || state === 'inactive'}
-          <StatePill shape="tag" tone={state}>{state}</StatePill>
-        {/if}
-        {#if user.creator_code}
-          <StatePill shape="tag" tone="neutral">{t('admin.users.rowCode')}</StatePill>
-        {/if}
-      </span>
+<ManagementRow
+  {selected}
+  expanded={selected}
+  {controls}
+  {onselect}
+  title={user.username}
+  meta={t('admin.users.rowMeta', { id: String(user.id), joined: ago(user.created_at) })}
+>
+  {#snippet lead()}
+    <Bolota name={user.username} size={28} gate active={selected} />
+  {/snippet}
+  {#snippet marks()}
+    <span class="marks">
+      <StatePill tone={user.status as 'free' | 'paid' | 'vip'}>{user.status}</StatePill>
+      {#if state === 'banned' || state === 'inactive'}
+        <StatePill tone={state}>{state}</StatePill>
+      {/if}
+      {#if user.creator_code}
+        <StatePill tone="neutral">{t('admin.users.rowCode')}</StatePill>
+      {/if}
     </span>
   {/snippet}
 </ManagementRow>
 
 <style>
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-  }
-  .who {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-  }
-  .login {
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 13.5px;
-    color: var(--bb-white);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .meta {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   .marks {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    flex: none;
+    display: contents;
   }
   @media (max-width: 560px) {
     .marks {

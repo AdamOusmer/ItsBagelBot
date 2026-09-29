@@ -6,6 +6,11 @@
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import Mark from '@bagel/ui/svelte/Mark.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -92,123 +97,109 @@
 </script>
 
 {#if strip}
-  <Card as="section" sheen class="ov-status ov-status--strip" aria-label={t('overview.statusHeading')}>
-    <i class="bb-mark ov-strip__dot" class:bb-mark--hollow={!live} aria-hidden="true"></i>
-    <span class="ov-strip__title">{title}</span>
-    {#if planLabel}<span class="ov-strip__meta">{planLabel}</span>{/if}
-    <div class="ov-strip__spacer"></div>
-    {#if isDelegate}
-      <p class="ov-status__note">{t('overview.statusDelegateDetail')}</p>
-    {:else if ui?.canManage}
-      <button type="button" class="bb-chip bb-chip--muted" disabled={busy} onclick={() => onRestart?.()}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-        </svg>
-        {t('overview.restart')}
-      </button>
-      <button type="button" class="bb-chip bb-chip--muted" disabled={busy} onclick={() => onDisconnect?.()}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M18.4 5.6a9 9 0 1 1-12.8 0" />
-          <line x1="12" y1="2" x2="12" y2="12" />
-        </svg>
-        {t('overview.disconnect')}
-      </button>
-    {/if}
-  </Card>
-{:else}
-  <Card as="section" sheen class="ov-status {isPremium ? 'ov-status--premium' : ''}" aria-labelledby="ov-status-h">
-    <div class="ov-status__mark"><img src={logoSrc} alt="" /></div>
-
-    <div class="ov-status__body">
-      <h2 id="ov-status-h" class="ov-status__heading">{t('overview.statusHeading')}</h2>
-
-      {#if loading}
-        <p class="ov-status__state" aria-busy="true">
-          <span class="bb-sr-only">{checkingText}</span>
-          <span aria-hidden="true"><Skeleton variant="text" width="14ch" /></span>
-        </p>
-        <p class="ov-status__detail" aria-hidden="true"><Skeleton variant="text" lines={2} width="90%" /></p>
-      {:else}
-        <p class="ov-status__state tone-{tone}">
-          <i class="bb-mark dot" class:bb-mark--hollow={!live} aria-hidden="true"></i>
-          <span class="state-text">{title}</span>
-        </p>
-        {#if detail}<p class="ov-status__detail">{detail}</p>{/if}
-
-        {#if planLabel}
-          <div class="ov-status__meta">
-            <Tag tone={isPremium ? 'pre' : 'quiet'}>{planLabel}</Tag>
-          </div>
-        {/if}
-      {/if}
-    </div>
-
-    {#if !loading && ui}
-      <div class="ov-status__actions">
+  <div class="ov-status-wrap">
+    <Card as="section" sheen aria-label={t('overview.statusHeading')}>
+      <div class="ov-strip">
+        <span class="strip-dot"><Mark variant={live ? 'solid' : 'hollow'} size="7px" /></span>
+        <Heading level={6} as="span" variant="title">{title}</Heading>
+        {#if planLabel}<Label mono as="span">{planLabel}</Label>{/if}
+        <div class="ov-strip__spacer"></div>
         {#if isDelegate}
           <p class="ov-status__note">{t('overview.statusDelegateDetail')}</p>
-        {:else if ui.canManage}
-          <Button
-            variant={kind === 'degraded' ? 'primary' : 'ghost'}
-            type="button"
-            class="ov-cta"
-            disabled={busy}
-            onclick={() => onRestart?.()}
-          >{kind === 'degraded' ? t('common.reconnect') : t('overview.restart')}</Button>
-          <Button variant="ghost" type="button" class="ov-cta" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
-        {:else if ui.showEnable}
-          <form method="POST" action="?/enable" use:enhance={enableSubmit}>
-            <Button variant="primary" type="submit" class="ov-cta" loading={busy}>{t('overview.enable')}</Button>
-          </form>
-        {:else if ui.showConnect}
-          <ButtonLink href="/settings" variant="primary" class="ov-cta"
-            >{kind === 'reauth_required' ? t('common.reconnect') : t('overview.issueNoAuthCta')}</ButtonLink>
-        {:else if ui.canRetry}
-          <ButtonLink href="/" variant="ghost" class="ov-cta">{t('overview.retry')}</ButtonLink>
+        {:else if ui?.canManage}
+          <Chip tone="muted" disabled={busy} onclick={() => onRestart?.()}>
+            <Icon name="bolt" />
+            {t('overview.restart')}
+          </Chip>
+          <Chip tone="muted" disabled={busy} onclick={() => onDisconnect?.()}>
+            <Icon name="power" />
+            {t('overview.disconnect')}
+          </Chip>
         {/if}
       </div>
-    {/if}
-  </Card>
+    </Card>
+  </div>
+{:else}
+  <div class="ov-status-wrap">
+    <Card as="section" sheen tone={isPremium ? 'accent' : undefined} aria-labelledby="ov-status-h">
+      <div class="ov-status" class:premium={isPremium}>
+        <div class="ov-status__mark"><img src={logoSrc} alt="" /></div>
+
+        <div class="ov-status__body">
+          <div class="ov-status__heading">
+            <Heading level={6} as="h2" variant="label" id="ov-status-h">{t('overview.statusHeading')}</Heading>
+          </div>
+
+          {#if loading}
+            <p class="ov-status__state" aria-busy="true">
+              <span class="bb-sr-only">{checkingText}</span>
+              <span aria-hidden="true"><Skeleton variant="text" width="14ch" /></span>
+            </p>
+            <p class="ov-status__detail" aria-hidden="true"><Skeleton variant="text" lines={2} width="90%" /></p>
+          {:else}
+            <p class="ov-status__state tone-{tone}">
+              <span class="dot"><Mark variant={live ? 'solid' : 'hollow'} size="8px" /></span>
+              <span class="state-text">{title}</span>
+            </p>
+            {#if detail}<p class="ov-status__detail">{detail}</p>{/if}
+
+            {#if planLabel}
+              <div class="ov-status__meta">
+                <Tag tone={isPremium ? 'pre' : 'quiet'}>{planLabel}</Tag>
+              </div>
+            {/if}
+          {/if}
+        </div>
+
+        {#if !loading && ui}
+          <div class="ov-status__actions">
+            {#if isDelegate}
+              <p class="ov-status__note">{t('overview.statusDelegateDetail')}</p>
+            {:else if ui.canManage}
+              <Button
+                variant={kind === 'degraded' ? 'primary' : 'ghost'}
+                type="button"
+                disabled={busy}
+                onclick={() => onRestart?.()}
+              >{kind === 'degraded' ? t('common.reconnect') : t('overview.restart')}</Button>
+              <Button variant="ghost" type="button" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
+            {:else if ui.showEnable}
+              <form method="POST" action="?/enable" use:enhance={enableSubmit}>
+                <Button variant="primary" type="submit" loading={busy}>{t('overview.enable')}</Button>
+              </form>
+            {:else if ui.showConnect}
+              <ButtonLink href="/settings" variant="primary"
+                >{kind === 'reauth_required' ? t('common.reconnect') : t('overview.issueNoAuthCta')}</ButtonLink>
+            {:else if ui.canRetry}
+              <ButtonLink href="/" variant="ghost">{t('overview.retry')}</ButtonLink>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </Card>
+  </div>
 {/if}
 
 <style>
-  :global(.ov-status) {
+  .ov-status-wrap {
     margin-bottom: var(--row-gap);
   }
-  :global(.ov-status:not(.ov-status--strip)) {
+  .ov-status {
     display: grid;
     grid-template-columns: auto 1fr auto;
     gap: 22px;
     align-items: center;
   }
-  :global(.ov-status--premium) {
-    border-color: rgba(201, 168, 124, 0.4);
-  }
 
-  :global(.ov-status--strip) {
+  .ov-strip {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 12px;
   }
-  .ov-strip__dot {
-    width: 7px;
-    height: 7px;
+  .strip-dot {
+    display: contents;
     color: var(--bb-status-success);
-  }
-  .ov-strip__title {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-  }
-  .ov-strip__meta {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
   }
   .ov-strip__spacer {
     flex: 1 1 auto;
@@ -219,16 +210,16 @@
     width: 58px;
     height: 58px;
     border-radius: 50%;
-    background: rgba(82, 183, 136, 0.07);
-    border: 1px solid rgba(82, 183, 136, 0.3);
+    background: rgba(var(--bb-green-glow-rgb), 0.07);
+    border: 1px solid rgba(var(--bb-green-glow-rgb), 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
     flex: none;
   }
-  :global(.ov-status--premium) .ov-status__mark {
-    border-color: rgba(201, 168, 124, 0.4);
-    background: rgba(201, 168, 124, 0.05);
+  .premium .ov-status__mark {
+    border-color: rgba(var(--bb-tan-rgb), 0.4);
+    background: rgba(var(--bb-tan-rgb), 0.05);
   }
   .ov-status__mark img {
     width: 38px;
@@ -240,13 +231,7 @@
     min-width: 0;
   }
   .ov-status__heading {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin: 0 0 8px;
+    margin-bottom: 8px;
   }
   .ov-status__state {
     display: flex;
@@ -260,18 +245,8 @@
     line-height: 1.1;
     color: var(--bb-white);
   }
-  .tone-success .state-text {
-    color: var(--bb-white);
-  }
-  .tone-error .state-text {
-    color: var(--bb-status-error-fg);
-  }
-  .tone-warning .state-text {
-    color: var(--bb-status-warning-fg);
-  }
   .dot {
-    width: 8px;
-    height: 8px;
+    display: contents;
     color: var(--bb-muted);
   }
   .tone-success .dot {
@@ -282,6 +257,15 @@
   }
   .tone-warning .dot {
     color: var(--bb-status-warning);
+  }
+  .tone-success .state-text {
+    color: var(--bb-white);
+  }
+  .tone-error .state-text {
+    color: var(--bb-status-error-fg);
+  }
+  .tone-warning .state-text {
+    color: var(--bb-status-warning-fg);
   }
 
   .ov-status__detail {
@@ -299,13 +283,11 @@
     flex-wrap: wrap;
   }
   .ov-status__actions {
+    --btn-min-h: 44px;
     display: flex;
     gap: 10px;
     align-items: center;
     flex: none;
-  }
-  .ov-status__actions :global(.ov-cta) {
-    min-height: 44px;
   }
   .ov-status__note {
     margin: 0;
@@ -318,20 +300,17 @@
   }
 
   @media (max-width: 760px) {
-    :global(.ov-status:not(.ov-status--strip)) {
+    .ov-status {
       grid-template-columns: auto 1fr;
       gap: 16px;
     }
     .ov-status__actions {
+      --btn-w: 100%;
       grid-column: 1 / -1;
       flex-direction: column;
       align-items: stretch;
     }
-    .ov-status__actions :global(.ov-cta),
     .ov-status__actions form {
-      width: 100%;
-    }
-    .ov-status__actions form :global(.ov-cta) {
       width: 100%;
     }
     .ov-status__note {

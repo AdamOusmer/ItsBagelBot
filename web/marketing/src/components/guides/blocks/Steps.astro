@@ -2,6 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Card from '@bagel/ui/astro/Card.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+
 interface Props {
     items: { title: string; html: string }[];
 }
@@ -11,10 +14,12 @@ const { items } = Astro.props;
 
 <ol class="gsteps">
     {items.map((item) => (
-        <li class="gsteps__item">
-            <b class="gsteps__title">{item.title}</b>
-            <div class="gsteps__body" set:html={item.html}></div>
-        </li>
+        <Card as="li" flush>
+            <div class="gsteps__item">
+                <Heading level={6} as="div" class="gsteps__title">{item.title}</Heading>
+                <div class="gsteps__body" set:html={item.html}></div>
+            </div>
+        </Card>
     ))}
 </ol>
 
@@ -32,9 +37,6 @@ const { items } = Astro.props;
         counter-increment: gstep;
         position: relative;
         padding: 14px 16px 14px 46px;
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-md);
-        background: rgba(17, 17, 16, 0.6);
     }
 
     .gsteps__item::before {
@@ -42,18 +44,12 @@ const { items } = Astro.props;
         position: absolute;
         top: 15px;
         left: 16px;
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.7rem;
-        color: var(--tan, #c9a87c);
+        color: var(--bb-tan);
     }
 
-    .gsteps__title {
-        display: block;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 0.95rem;
-        color: var(--white, #f0ece4);
-        margin-bottom: 4px;
-    }
+    .gsteps__title { margin-bottom: 4px; }
 
     .gsteps__body :global(p) { margin: 0; }
 

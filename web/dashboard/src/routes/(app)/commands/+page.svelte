@@ -1,15 +1,21 @@
 <script lang="ts">
-  import { formatCounterValue } from '@bagel/kit/validation';
-  import { Kbd, SearchInput } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { formatCounterValue } from '@bagel/kit/validation';
   import { onMount, untrack } from 'svelte';
   import { deserialize } from '$app/forms';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
+  import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import {
-    Icon,
+    Button,
+    DeckLayout,
+    Eyebrow,
+    Kbd,
+    Label,
+    SearchInput,
+    Text,
     PageHead,
     Scroller,
     PageToolbar,
@@ -634,14 +640,9 @@
 
   let searchInput = $state<HTMLInputElement | undefined>(undefined);
 
-  function isTyping(e: KeyboardEvent): boolean {
-    const t = e.target as HTMLElement | null;
-    return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
-  }
-
   function onKey(e: KeyboardEvent) {
     if (composeDraft !== null || discard.open) return;
-    if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!isShortcut(e)) return;
     if (e.key === '/') {
       e.preventDefault();
       searchInput?.focus();
@@ -658,18 +659,18 @@
     {#snippet trail()}
       <dl class="deck-stats">
         <div class="ds-cell">
-          <dt>{t('commands.statActive')}</dt>
-          <dd><span class="big">{activeCount}</span><span class="of">/{items.length}</span></dd>
+          <dt><Label mono as="span">{t('commands.statActive')}</Label></dt>
+          <dd><span class="big">{activeCount}</span><Text as="span" size="xs" mono tone="muted">/{items.length}</Text></dd>
         </div>
         <div class="ds-rule" aria-hidden="true"></div>
         <div class="ds-cell">
-          <dt>{t('commands.statFires')}</dt>
+          <dt><Label mono as="span">{t('commands.statFires')}</Label></dt>
           <dd><span class="big">{formatCounterValue(fires.toString())}</span></dd>
         </div>
         <div class="ds-rule" aria-hidden="true"></div>
         <div class="ds-cell">
-          <dt>{t('commands.statBusiest')}</dt>
-          <dd><span class="mono">{busiest ? `!${busiest.name}` : t('commands.statNone')}</span></dd>
+          <dt><Label mono as="span">{t('commands.statBusiest')}</Label></dt>
+          <dd><Text as="span" mono tone="accent">{busiest ? `!${busiest.name}` : t('commands.statNone')}</Text></dd>
         </div>
       </dl>
     {/snippet}
@@ -693,31 +694,32 @@
         <SearchInput placeholder={t('commands.searchPlaceholder')} clearLabel={t('quotes.searchClear')}
           aria-label={t('commands.searchPlaceholder')} bind:value={search} bind:element={searchInput} fill />
       </div>
-      <button class="bb-btn bb-btn--primary" onclick={openNew} disabled={expanded === NEW}>
+      <Button variant="primary" onclick={openNew} disabled={expanded === NEW}>
         {t('commands.newCommand')}
-      </button>
+      </Button>
     {/snippet}
   </PageToolbar>
 
   {#if canCreateTyped}
-    <button class="create-hint" type="button" onclick={createTyped} aria-label={t('commands.createHintAria', { name: typedName })}>
-      <span class="ch-name">!{typedName}</span>
-      <span class="ch-body">{t('commands.createHint')}</span>
-      <span class="ch-grow"></span>
-      <span class="ch-cta">{t('commands.createHintCta')}</span>
-    </button>
+    <div class="create-hint">
+      <Button variant="add" onclick={createTyped} aria-label={t('commands.createHintAria', { name: typedName })}>
+        <span class="ch-name">!{typedName}</span>
+        <Text as="span" size="sm" tone="muted">{t('commands.createHint')}</Text>
+        {t('commands.createHintCta')}
+      </Button>
+    </div>
   {/if}
 
-  <div class="deck {editorDraft ? 'inspecting' : ''}">
+  <DeckLayout inspecting={!!editorDraft}>
     <DeckList>
       <div class="list">
         {#each groups as g (g.key)}
           <div class="group">
             <div class="group-head">
-              <span class="g-label">{g.label}</span>
-              <span class="g-count">{g.rows.length}</span>
+              <Eyebrow>{g.label}</Eyebrow>
+              <Text as="span" size="xs" mono tone="muted">{g.rows.length}</Text>
               <span class="g-rule" aria-hidden="true"></span>
-              <span class="g-note">{g.note}</span>
+              <Label mono as="span">{g.note}</Label>
             </div>
             {#each g.rows as c, i (c.name)}
               <CommandRow
@@ -740,7 +742,7 @@
               title={t('commands.noneYet')}
               body={`${t('commands.noneYetSub')} !name ${t('commands.inChat')}`}
             >
-              <button class="bb-btn bb-btn--primary" onclick={openNew}>{t('commands.newCommand')}</button>
+              <Button variant="primary" onclick={openNew}>{t('commands.newCommand')}</Button>
             </EmptyState>
           {:else}
             <EmptyState title={t('commands.noneMatch')} body={t('commands.noneMatchSub')} />
@@ -795,7 +797,7 @@
         {/if}
       </InspectorSurface>
     {/if}
-  </div>
+  </DeckLayout>
 </section>
 
 <ConfirmDialog
@@ -810,10 +812,10 @@
 >
   {#if composeDraft}
     <div class="compose-meta">
-      <span>{tPerm(t, composeDraft.perm)}</span>
-      <span>{t('commandRow.cooldown')} {composeDraft.cooldown}s</span>
+      <Text as="span" size="xs" mono tone="muted">{tPerm(t, composeDraft.perm)}</Text>
+      <Text as="span" size="xs" mono tone="muted">{t('commandRow.cooldown')} {composeDraft.cooldown}s</Text>
       {#if composeDraft.aliases.length}
-        <span>{t('commandRow.also', { aliases: composeDraft.aliases.map((a) => '!' + a).join(' ') })}</span>
+        <Text as="span" size="xs" mono tone="muted">{t('commandRow.also', { aliases: composeDraft.aliases.map((a) => '!' + a).join(' ') })}</Text>
       {/if}
     </div>
     <ChatPreview name={composeDraft.name} response={composeDraft.response} />
@@ -839,10 +841,6 @@
     flex-wrap: wrap;
     gap: 6px 14px;
     margin-bottom: 4px;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    color: var(--bb-muted);
   }
 
   .deck-stats {
@@ -855,14 +853,7 @@
   }
   .ds-cell { white-space: nowrap; }
   .ds-rule { width: 1px; align-self: stretch; background: var(--bb-border); }
-  .deck-stats dt {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin-bottom: 6px;
-  }
+  .deck-stats dt { margin-bottom: 6px; }
   .deck-stats dd { margin: 0; display: flex; align-items: baseline; gap: 4px; }
   .deck-stats .big {
     font-family: var(--bb-font-display);
@@ -873,35 +864,9 @@
     color: var(--bb-white);
     font-variant-numeric: tabular-nums;
   }
-  .deck-stats .of { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-muted); }
-  .deck-stats .mono { font-family: var(--bb-font-mono); font-size: 15px; color: var(--bb-tan-light); line-height: 1.7; }
 
-  .create-hint {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    padding: 14px 16px;
-    margin-bottom: 14px;
-    border: 1px dashed rgba(82, 183, 136, 0.4);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(82, 183, 136, 0.06);
-    cursor: pointer;
-    text-align: left;
-  }
-  .create-hint:hover { border-color: var(--bb-green-glow); background: rgba(82, 183, 136, 0.1); }
-  .create-hint:focus-visible { outline: 2px solid var(--bb-green-glow); outline-offset: 2px; }
-  .ch-name { font-family: var(--bb-font-mono); font-size: 13.5px; color: var(--bb-green-glow); }
-  .ch-body { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
-  .ch-grow { flex: 1; }
-  .ch-cta {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-  }
+  .create-hint { --btn-w: 100%; --btn-min-h: 44px; margin-bottom: 14px; }
+  .ch-name { font-family: var(--bb-font-mono); }
 
   .group + .group { margin-top: 26px; }
   .group-head {
@@ -910,22 +875,7 @@
     gap: 12px;
     padding: 0 14px 9px;
   }
-  .g-label {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--bb-tan);
-  }
-  .g-count { font-family: var(--bb-font-mono); font-size: 10.5px; color: var(--bb-muted); }
   .g-rule { flex: 1; height: 1px; background: var(--bb-border); }
-  .g-note {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
 
   .toolbar-search { width: 220px; }
 
@@ -942,18 +892,6 @@
   @media (min-width: 1080px) and (pointer: fine) {
     .keys { display: inline-flex; }
   }
-
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
-  }
-
-  .group:last-child :global(.row-wrap:last-child .row-shell) { border-bottom: none; }
 
   @media (max-width: 760px) {
     .deck-stats { gap: 16px; }

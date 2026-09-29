@@ -3,8 +3,17 @@
 // Proprietary. No license granted. See LICENSE.md.
 import '../styles/tags.css';
 import '../styles/elements/badge.css';
-const { tone, shape = 'tag', mark, sweep = false, dashed = false, status = false, class: className = '', ...rest } = Astro.props;
-const cls = `bb-tag bb-badge${shape === 'pill' ? ' bb-badge--pill' : ''}${tone ? ` bb-tag--${tone}` : ''}${dashed ? ' bb-badge--dashed' : ''}${className ? ` ${className}` : ''}`;
+const { tone, shape = 'tag', mark, sweep = false, dashed = false, literal = false, status = false, class: className = '', ...rest } = Astro.props;
+const cls = [
+    'bb-tag bb-badge',
+    shape === 'pill' ? 'bb-badge--pill' : null,
+    tone ? `bb-tag--${tone}` : null,
+    dashed ? 'bb-badge--dashed' : null,
+    literal ? 'bb-tag--literal' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
 ---
 
 <span class={cls} role={status ? 'status' : undefined} {...rest}>{mark && <i class={`bb-mark${mark === 'solid' ? '' : ` bb-mark--${mark}`}`} aria-hidden="true"></i>}<slot />{sweep && <i class="bb-sweep" aria-hidden="true"></i>}</span>

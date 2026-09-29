@@ -2,6 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import '../app.css';
+  import { page } from '$app/state';
   import RootShell from '@bagel/kit/components/RootShell.svelte';
   import InstallAppPrompt from '$lib/components/InstallAppPrompt.svelte';
   let { data, children } = $props();
@@ -20,7 +21,7 @@
   <meta name="twitter:description" content={DEFAULT_DESC} />
 </svelte:head>
 
-<RootShell locale={data.locale} cursorEnabled={data.cursorEnabled}>
+<RootShell locale={data.locale} cursorEnabled={data.cursorEnabled} orbs={page.route.id !== '/(public)/login'}>
   {@render children()}
   <InstallAppPrompt />
 </RootShell>

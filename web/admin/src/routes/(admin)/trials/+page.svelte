@@ -6,10 +6,18 @@
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
-  import type { TrialSnapshot } from '$lib/server/services';
+  import { livePoll } from '@bagel/ui/lib/live-poll';
+  import type { TrialChannel, TrialSnapshot } from '$lib/server/services';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { TrialsBundle } from './+page.server';
   import { durationLabel } from '$lib/duration';
@@ -33,35 +41,76 @@
     return () => { alive = false; };
   });
 
-  onMount(() => {
-    let running = false;
-    let hiddenTicks = 0;
-    const refresh = async () => {
-      if (running) return;
-      if (document.hidden && hiddenTicks++ % 3 !== 0) return;
-      running = true;
-      try {
-        const response = await fetch('/trials/snapshot');
-        if (!response.ok) throw new Error('unavailable');
-        const body = (await response.json()) as { snapshot: TrialSnapshot };
-        snapshot = body.snapshot;
-        degraded = false;
-      } catch {
-        degraded = true;
-      } finally {
-        running = false;
-      }
-    };
-    const interval = setInterval(refresh, 5000);
-    document.addEventListener('visibilitychange', refresh);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', refresh);
-    };
-  });
+  const POLL_MS = 5000;
+  const HIDDEN_POLL_MS = 15_000;
+
+  async function refresh(): Promise<boolean> {
+    try {
+      const response = await fetch('/trials/snapshot');
+      if (!response.ok) throw new Error('unavailable');
+      const body = (await response.json()) as { snapshot: TrialSnapshot };
+      snapshot = body.snapshot;
+      degraded = false;
+    } catch {
+      degraded = true;
+    }
+    return false;
+  }
+
+  onMount(() =>
+    livePoll(refresh, {
+      firstDelayMs: POLL_MS,
+      delayMs: () => POLL_MS,
+      timeoutMs: Number.POSITIVE_INFINITY,
+      hiddenDelayMs: HIDDEN_POLL_MS,
+      refreshOnVisible: true
+    })
+  );
+
+  const STATE_TONE: Partial<Record<TrialChannel['state'], 'positive' | 'danger'>> = {
+    receiving: 'positive',
+    failed: 'danger'
+  };
+
+  const byId = (a: TrialChannel, b: TrialChannel) => a.broadcaster_id.localeCompare(b.broadcaster_id);
+  const sortedActive = $derived([...active].sort(byId));
+  const sortedHistory = $derived([...history].sort(byId));
+
+  const count = (value?: number) => String(value ?? 0);
+
+  function trialName(trial: TrialChannel): string {
+    return trial.display_name?.trim() || trial.broadcaster_id;
+  }
+
+  function trialStats(trial: TrialChannel, withFailures: boolean): string {
+    const failures = withFailures
+      ? [
+          t('admin.trials.failed', { count: count(trial.failed) }),
+          t('admin.trials.retried', { count: count(trial.retried) })
+        ]
+      : [];
+    return [
+      t('admin.trials.received', { count: count(trial.received) }),
+      t('admin.trials.decoded', { count: count(trial.decoded) }),
+      t('admin.trials.processed', { count: count(trial.processed) }),
+      ...failures,
+      t('admin.trials.blocked', { count: count(trial.blocked_actions) }),
+      t('admin.trials.latency', { duration: durationLabel(trial.average_processing_latency_ns ?? 0) })
+    ].join(' · ');
+  }
 </script>
 
-<section class="screen active">
+{#snippet trialSummary(trial: TrialChannel, withFailures: boolean)}
+  <Stack gap={1} align="start">
+    <Heading level={6} as="h3">{trialName(trial)}</Heading>
+    {#if trial.display_name?.trim()}<Text as="span" size="xs" tone="muted">{t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id })}</Text>{/if}
+    <Tag tone={STATE_TONE[trial.state] ?? 'neutral'}>{t(`admin.trials.state.${trial.state}`)}</Tag>
+    {#if trial.error}<Text as="span" tone="danger">{trial.error}</Text>{/if}
+    <Text as="small" size="sm" tone="muted">{trialStats(trial, withFailures)}</Text>
+  </Stack>
+{/snippet}
+
+<section class="screen active trials">
   <PageHead
     eyebrow={t('admin.trials.eyebrow')}
     title={t('admin.trials.title')}
@@ -72,106 +121,81 @@
   {#if form?.error}<AlertBanner>{form.error}</AlertBanner>{/if}
   {#if form?.notice}<AlertBanner variant="warn" role="status">{form.notice}</AlertBanner>{/if}
 
-  <form method="POST" action="?/add" class="trial-add">
-    <label for="trial-broadcaster-id">{t('admin.trials.idLabel')}</label>
-    <Input
-      id="trial-broadcaster-id"
-      name="broadcaster_id"
-      type="text"
-      inputmode="numeric"
-      pattern="[1-9][0-9]*"
-      maxlength="20"
-      autocomplete="off"
-      required
-      bind:value={broadcasterId}
-    />
-    <Button type="submit" disabled={degraded || activeCount >= maxChannels}>{t('admin.trials.add')}</Button>
-  </form>
-  <p class="trial-note">{t('admin.trials.note', { max: String(maxChannels) })}</p>
+  <Stack gap={4}>
+    <form method="POST" action="?/add" class="trial-add">
+      <Field label={t('admin.trials.idLabel')}>
+        <Input
+          name="broadcaster_id"
+          type="text"
+          inputmode="numeric"
+          pattern="[1-9][0-9]*"
+          maxlength="20"
+          autocomplete="off"
+          required
+          bind:value={broadcasterId}
+        />
+      </Field>
+      <Button type="submit" disabled={degraded || activeCount >= maxChannels}>{t('admin.trials.add')}</Button>
+    </form>
+    <Text tone="muted">{t('admin.trials.note', { max: String(maxChannels) })}</Text>
 
-  {#if snapshot === null}
-    <SkeletonStack rows={2} height="96px" />
-  {:else}
-    <p class="trial-count">{t('admin.trials.count', { count: String(activeCount), max: String(maxChannels) })}</p>
-    {#if active.length === 0}
-      <p>{t('admin.trials.empty')}</p>
+    {#if snapshot === null}
+      <SkeletonStack rows={2} height="96px" />
     {:else}
-      <ul class="trial-list">
-        {#each [...active].sort((a, b) => a.broadcaster_id.localeCompare(b.broadcaster_id)) as trial (trial.broadcaster_id)}
-          <li>
-            <div class="trial-main">
-              <strong>{trial.display_name?.trim() || trial.broadcaster_id}</strong>
-              {#if trial.display_name?.trim()}<span class="trial-id">{t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id })}</span>{/if}
-              <span class="trial-state" data-state={trial.state}>{t(`admin.trials.state.${trial.state}`)}</span>
-              {#if trial.error}<span class="trial-error">{trial.error}</span>{/if}
-              <small>
-                {t('admin.trials.received', { count: String(trial.received ?? 0) })} ·
-                {t('admin.trials.decoded', { count: String(trial.decoded ?? 0) })} ·
-                {t('admin.trials.processed', { count: String(trial.processed ?? 0) })} ·
-                {t('admin.trials.failed', { count: String(trial.failed ?? 0) })} ·
-                {t('admin.trials.retried', { count: String(trial.retried ?? 0) })} ·
-                {t('admin.trials.blocked', { count: String(trial.blocked_actions ?? 0) })} ·
-                {t('admin.trials.latency', { duration: durationLabel(trial.average_processing_latency_ns ?? 0) })}
-              </small>
-            </div>
-            <div class="trial-controls">
-              <form method="POST" action="?/set_enabled" class="trial-switch">
-                <Text as="span" size="sm" aria-hidden="true">{trial.enabled ? t('admin.trials.on') : t('admin.trials.off')}</Text>
-                <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
-                <input type="hidden" name="enabled" value={trial.enabled ? 'false' : 'true'} />
-                <Switch
-                  type="submit"
-                  checked={trial.enabled}
-                  label={t('admin.trials.toggleLabel', { name: trial.display_name?.trim() || trial.broadcaster_id })}
-                  disabled={degraded || trial.state === 'stopping'}
-                />
-              </form>
-              {#if trial.state !== 'stopping'}
-                <form method="POST" action="?/remove">
-                  <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
-                  <Button type="submit" variant="destructive">{t('admin.trials.remove')}</Button>
-                </form>
-              {/if}
-            </div>
-          </li>
-        {/each}
-      </ul>
+      <Text tone="muted">{t('admin.trials.count', { count: String(activeCount), max: String(maxChannels) })}</Text>
+      {#if active.length === 0}
+        <EmptyState title={t('admin.trials.empty')} />
+      {:else}
+        <Stack as="ul" gap={3} class="bb-list">
+          {#each sortedActive as trial (trial.broadcaster_id)}
+            <Card as="li">
+              <Cluster justify="between" gap={4}>
+                {@render trialSummary(trial, true)}
+                <Cluster gap={3}>
+                  <Cluster as="form" gap={3} method="POST" action="?/set_enabled">
+                    <Text as="span" size="sm" aria-hidden="true">{trial.enabled ? t('admin.trials.on') : t('admin.trials.off')}</Text>
+                    <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
+                    <input type="hidden" name="enabled" value={trial.enabled ? 'false' : 'true'} />
+                    <Switch
+                      type="submit"
+                      checked={trial.enabled}
+                      label={t('admin.trials.toggleLabel', { name: trialName(trial) })}
+                      disabled={degraded || trial.state === 'stopping'}
+                    />
+                  </Cluster>
+                  {#if trial.state !== 'stopping'}
+                    <form method="POST" action="?/remove">
+                      <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
+                      <Button type="submit" variant="destructive">{t('admin.trials.remove')}</Button>
+                    </form>
+                  {/if}
+                </Cluster>
+              </Cluster>
+            </Card>
+          {/each}
+        </Stack>
+      {/if}
+      {#if history.length > 0}
+        <Heading level={3} as="h2">{t('admin.trials.history')}</Heading>
+        <Stack as="ul" gap={3} class="bb-list">
+          {#each sortedHistory as trial (trial.broadcaster_id)}
+            <Card as="li">{@render trialSummary(trial, false)}</Card>
+          {/each}
+        </Stack>
+      {/if}
     {/if}
-    {#if history.length > 0}
-      <h2>{t('admin.trials.history')}</h2>
-      <ul class="trial-list">
-        {#each [...history].sort((a, b) => a.broadcaster_id.localeCompare(b.broadcaster_id)) as trial (trial.broadcaster_id)}
-          <li>
-            <div class="trial-main">
-              <strong>{trial.display_name?.trim() || trial.broadcaster_id}</strong>
-              {#if trial.display_name?.trim()}<span class="trial-id">{t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id })}</span>{/if}
-              <span class="trial-state">{t(`admin.trials.state.${trial.state}`)}</span>
-              <small>
-                {t('admin.trials.received', { count: String(trial.received ?? 0) })} ·
-                {t('admin.trials.decoded', { count: String(trial.decoded ?? 0) })} ·
-                {t('admin.trials.processed', { count: String(trial.processed ?? 0) })} ·
-                {t('admin.trials.blocked', { count: String(trial.blocked_actions ?? 0) })} ·
-                {t('admin.trials.latency', { duration: durationLabel(trial.average_processing_latency_ns ?? 0) })}
-              </small>
-            </div>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-  {/if}
+  </Stack>
 </section>
 
 <style>
-  .trial-add { display: flex; align-items: end; gap: .75rem; flex-wrap: wrap; margin: 1.5rem 0 .5rem; }
-  .trial-add label { width: 100%; font-weight: 600; }
-  .trial-note, .trial-count { opacity: .75; }
-  .trial-list { list-style: none; margin: 1.25rem 0; padding: 0; display: grid; gap: .75rem; }
-  .trial-list li { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 1rem; border: 1px solid var(--line, #777); border-radius: .6rem; }
-  .trial-main { display: grid; gap: .35rem; }
-  .trial-state { text-transform: capitalize; }
-  .trial-state[data-state='receiving'] { color: #43865b; }
-  .trial-state[data-state='failed'], .trial-error { color: #c84949; }
-  .trial-main small { opacity: .75; }
-  .trial-id { opacity: .7; font-size: .75rem; }
-  .trial-controls, .trial-switch { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
+  .trials {
+    --card-pad: var(--bb-space-4);
+  }
+  .trial-add {
+    --field-mb: 0;
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: var(--bb-space-3);
+  }
 </style>

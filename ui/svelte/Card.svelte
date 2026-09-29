@@ -14,6 +14,9 @@
     stat = false,
     glass = false,
     hover = false,
+    flush = false,
+    dashed = false,
+    tone,
     label = '',
     band,
     class: cls = '',
@@ -27,6 +30,9 @@
     stat?: boolean;
     glass?: boolean;
     hover?: boolean;
+    flush?: boolean;
+    dashed?: boolean;
+    tone?: 'accent' | 'danger';
     label?: string;
     band?: Snippet;
     class?: string;
@@ -41,6 +47,9 @@
       stat && 'bb-card--stat',
       sheen && 'bb-card--sheen',
       glass && 'bb-card--glass',
+      flush && 'bb-card--flush',
+      dashed && 'bb-card--dashed',
+      tone && `bb-card--${tone}`,
       cls,
     ]
       .filter(Boolean)

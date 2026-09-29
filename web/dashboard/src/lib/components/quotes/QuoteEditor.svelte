@@ -3,7 +3,7 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Field, Button, getI18n } from '@bagel/kit';
+  import { Button, Field, Input, Text, Textarea, getI18n } from '@bagel/kit';
   import { focusFirstInvalid } from '@bagel/kit';
 
   let {
@@ -55,33 +55,36 @@
   {/if}
 
   <Field label={t('quotes.fieldQuote')} error={textError} errorId="quote-text-err">
-    <textarea
-      class="bb-input quote-area"
+    <Textarea
       name="text"
       placeholder={t('quotes.addPlaceholder')}
       maxlength={MAX}
       required
-      data-invalid={textError ? '' : undefined}
+      invalid={!!textError}
       aria-invalid={textError ? 'true' : undefined}
       aria-describedby={textError ? 'quote-text-err' : undefined}
-      rows="4"
+      rows={4}
       bind:value={draft.text}
-    ></textarea>
-    <small class="counter">{draft.text.length}/{MAX}</small>
+    />
+    <span class="counter"><Text as="small" size="xs" tone="muted">{draft.text.length}/{MAX}</Text></span>
   </Field>
 
-  <Field label={t('quotes.fieldDay')} error={dayError} errorId="quote-day-err">
-    <input
-      class="bb-input date-input"
+  <Field
+    label={t('quotes.fieldDay')}
+    hint={t('quotes.fieldDayHint')}
+    hintId="quote-day-hint"
+    error={dayError}
+    errorId="quote-day-err"
+  >
+    <Input
       type="date"
       name="quote_date"
       required
-      data-invalid={dayError ? '' : undefined}
+      invalid={!!dayError}
       aria-invalid={dayError ? 'true' : undefined}
       aria-describedby={dayError ? 'quote-day-hint quote-day-err' : 'quote-day-hint'}
       bind:value={draft.quoteDate}
     />
-    <small id="quote-day-hint" class="hint">{t('quotes.fieldDayHint')}</small>
   </Field>
 
   <div class="actions">
@@ -94,21 +97,7 @@
 
 <style>
   .editor { padding: 4px 2px 2px; }
-  .counter { display: block; text-align: right; color: var(--bb-muted); opacity: 0.7; font-size: 11px; margin-top: 4px; }
-  .hint { display: block; color: var(--bb-muted); opacity: 0.7; font-size: 11px; margin-top: 4px; }
-
-  .quote-area,
-  .date-input {
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    padding: 9px 11px;
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(0, 0, 0, 0.35);
-    color: var(--bb-white);
-  }
-  .quote-area { resize: vertical; min-height: 92px; line-height: 1.5; }
-  .date-input { color-scheme: dark; }
+  .counter { display: block; text-align: right; margin-top: 4px; }
 
   .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
   @media (max-width: 480px) {

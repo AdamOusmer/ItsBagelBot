@@ -4,6 +4,8 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import FactList from '@bagel/ui/svelte/FactList.svelte';
+  import Fact from '@bagel/ui/svelte/Fact.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DbCredentialStatus } from '$lib/server/secrets';
   import StatePill from '../StatePill.svelte';
@@ -26,6 +28,8 @@
 
   const scoped = $derived(service.tokenSource === 'scoped');
 
+  const dbUserMissing = $derived(service.canReadDoppler && !service.dbUser);
+
   const dbUserLabel = $derived(
     !service.canReadDoppler
       ? t('admin.secrets.userUnreadable')
@@ -42,24 +46,18 @@
     {/snippet}
   </CardHead>
 
-  <dl class="facts">
-    <div>
-      <dt>{t('admin.secrets.factDoppler')}</dt>
-      <dd>{service.project}/{service.config}</dd>
-    </div>
-    <div>
-      <dt>{t('admin.secrets.factSchema')}</dt>
-      <dd>{service.schema}</dd>
-    </div>
-    <div>
-      <dt>{t('admin.secrets.factDbUser')}</dt>
-      <dd class:missing={service.canReadDoppler && !service.dbUser}>{dbUserLabel}</dd>
-    </div>
-    <div>
-      <dt>{t('admin.secrets.factAutoMigrate')}</dt>
-      <dd title={t('admin.secrets.autoMigrateNote')}>{service.autoMigrate || '-'}</dd>
-    </div>
-  </dl>
+  <div class="facts">
+    <FactList>
+      <Fact term={t('admin.secrets.factDoppler')} truncate>{service.project}/{service.config}</Fact>
+      <Fact term={t('admin.secrets.factSchema')} truncate>{service.schema}</Fact>
+      <Fact term={t('admin.secrets.factDbUser')} tone={dbUserMissing ? 'danger' : undefined} truncate>
+        {dbUserLabel}
+      </Fact>
+      <Fact term={t('admin.secrets.factAutoMigrate')} title={t('admin.secrets.autoMigrateNote')} truncate>
+        {service.autoMigrate || '-'}
+      </Fact>
+    </FactList>
+  </div>
 
   {#if canManage}
     <div class="actions">
@@ -72,40 +70,11 @@
 
 <style>
   .facts {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin: 0 0 14px;
+    margin-bottom: 14px;
   }
-  .facts div {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: baseline;
-  }
-  .facts dt {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-muted);
-    flex: none;
-  }
-  .facts dd {
-    margin: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-tan-light);
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .facts dd.missing {
-    color: var(--bb-status-error);
-  }
-
   .actions {
     display: flex;
-    gap: 8px;
+    gap: var(--bb-space-2);
     flex-wrap: wrap;
   }
 </style>

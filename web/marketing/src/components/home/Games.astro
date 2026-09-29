@@ -4,8 +4,14 @@
 
 import { SITE } from '@bagel/kit/site-links';
 
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Card from '@bagel/ui/astro/Card.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Icon from '@bagel/ui/astro/Icon.astro';
+import Section from '@bagel/ui/astro/Section.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -14,7 +20,7 @@ const t = useTranslations(lang);
 const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{terms}');
 ---
 
-<section class="games" id="integrations" data-motion>
+<Section size="page" class="games" id="integrations" data-motion>
     <SectionHeading eyebrow={t('games.eyebrow')} title={t('games.title')} />
 
     <div class="games__grid">
@@ -23,23 +29,21 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                 <div class="games-mc__group games-mc__group--bw">
                     <span class="games-mc__line games-mc__line--bw">!bwstats player123</span>
                     <div class="games-mc__stats games-mc__stats--bw">
-                        <span class="games-mc__stat"><b>Level</b> 402</span>
-                        <span class="games-mc__stat"><b>Wins</b> 2,541</span>
-                        <span class="games-mc__stat"><b>FKDR</b> 4.82</span>
+                        <span class="games-mc__stat"><b class="games-stat__key">Level</b> 402</span>
+                        <span class="games-mc__stat"><b class="games-stat__key">Wins</b> 2,541</span>
+                        <span class="games-mc__stat"><b class="games-stat__key">FKDR</b> 4.82</span>
                     </div>
                 </div>
                 <div class="games-mc__group games-mc__group--mcsr">
                     <span class="games-mc__line games-mc__line--mcsr">!mcsr ranked</span>
                     <div class="games-mc__stats games-mc__stats--mcsr">
-                        <span class="games-mc__stat"><b>Elo</b> 1520</span>
-                        <span class="games-mc__stat"><b>W/L</b> 142/98</span>
+                        <span class="games-mc__stat"><b class="games-stat__key">Elo</b> 1520</span>
+                        <span class="games-mc__stat"><b class="games-stat__key">W/L</b> 142/98</span>
                     </div>
                 </div>
             </div>
-            <h3 class="games__title">
-                {t('games.mcTitle')}
-            </h3>
-            <p class="games__desc">{t('games.mcDesc')}</p>
+            <Heading level={5} as="h3" variant="title" class="games__title">{t('games.mcTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('games.mcDesc')}</Text>
         </Card>
 
         <Card atmo hover class="games__card" label={t('games.fnCh')} data-reveal style="--reveal-i: 1">
@@ -69,70 +73,60 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
                     </span>
                 </div>
             </div>
-            <h3 class="games__title">
-                {t('games.fnTitle')}
-            </h3>
-            <p class="games__desc">{t('games.fnDesc')}</p>
+            <Heading level={5} as="h3" variant="title" class="games__title">{t('games.fnTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('games.fnDesc')}</Text>
         </Card>
 
         <Card atmo hover class="games__card" label={t('games.valCh')} data-reveal style="--reveal-i: 2">
             <div class="games__demo games__demo--val" slot="band" aria-hidden="true">
                 <span class="games-val__line">!valrank Frosty#EUW1</span>
                 <div class="games-val__stats">
-                    <span class="games-val__stat"><b>Tier</b> Immortal 2</span>
-                    <span class="games-val__stat"><b>RR</b> 67</span>
-                    <span class="games-val__stat"><b>Peak</b> Immortal 1</span>
+                    <span class="games-val__stat"><b class="games-stat__key">Tier</b> Immortal 2</span>
+                    <span class="games-val__stat"><b class="games-stat__key">RR</b> 67</span>
+                    <span class="games-val__stat"><b class="games-stat__key">Peak</b> Immortal 1</span>
                 </div>
             </div>
-            <h3 class="games__title">
-                {t('games.valTitle')}
-            </h3>
-            <p class="games__desc">{t('games.valDesc')}</p>
-            <a class="bb-rail bb-rail--go games__more" href={localizePath('/valorant-stats', lang)}>
-                {t('rail.learnMore')}<span class="bb-rail__arrow" aria-hidden="true">→</span>
-            </a>
+            <Heading level={5} as="h3" variant="title" class="games__title">{t('games.valTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('games.valDesc')}</Text>
+            <TextLink variant="arrow" tone="go" class="games__more" href={localizePath('/valorant-stats', lang)} label={t('rail.learnMore')} />
         </Card>
 
         <Card atmo hover class="games__card" label={t('games.crCh')} data-reveal style="--reveal-i: 3">
             <div class="games__demo games__demo--cr" slot="band" aria-hidden="true">
                 <span class="games-cr__line">!cr #P2LQ0GR</span>
                 <div class="games-cr__stats">
-                    <span class="games-cr__stat"><b>Level</b> 62</span>
-                    <span class="games-cr__stat"><b>W/L</b> 600/300</span>
-                    <span class="games-cr__stat"><b>WR</b> 60%</span>
+                    <span class="games-cr__stat"><b class="games-stat__key">Level</b> 62</span>
+                    <span class="games-cr__stat"><b class="games-stat__key">W/L</b> 600/300</span>
+                    <span class="games-cr__stat"><b class="games-stat__key">WR</b> 60%</span>
                 </div>
             </div>
-            <h3 class="games__title">
-                {t('games.crTitle')}
-            </h3>
-            <p class="games__desc">{t('games.crDesc')}</p>
+            <Heading level={5} as="h3" variant="title" class="games__title">{t('games.crTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('games.crDesc')}</Text>
         </Card>
 
         <Card atmo hover class="games__card games__card--req" label={t('games.reqCh')} data-reveal style="--reveal-i: 4">
             <div class="games__demo games__demo--req" slot="band" aria-hidden="true">
-                <a href={`${SITE.github}/issues/new`} target="_blank" rel="noopener noreferrer" class="games-req__btn">
-                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
-                    </svg>
+                <ButtonLink variant="tan" href={`${SITE.github}/issues/new`} target="_blank" rel="noopener noreferrer">
+                    <Icon name="githubLine" />
                     New Issue
-                </a>
+                </ButtonLink>
             </div>
-            <h3 class="games__title">{t('games.reqTitle')}</h3>
-            <p class="games__desc">{t('games.reqDesc')}</p>
+            <Heading level={5} as="h3" variant="title" class="games__title">{t('games.reqTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('games.reqDesc')}</Text>
         </Card>
     </div>
 
-    <p class="games__legal">{legalShortBefore}<a
-        class="games__legal-link"
+    <Text size="xs" mono tone="muted" class="games__legal">{legalShortBefore}<TextLink
+        variant="inline"
         href={localizePath('/terms', lang)}
-    >{t('games.legalTermsLabel')}</a>{legalShortAfter}</p>
-</section>
+    >{t('games.legalTermsLabel')}</TextLink>{legalShortAfter}</Text>
+</Section>
 
 <style>
     .games {
         position: relative;
-        padding: var(--space-section, 96px) 24px;
-        max-width: var(--content-max, 1200px);
+        padding-inline: 24px;
+        max-width: var(--bb-content-max);
         margin: 0 auto;
         z-index: 3;
     }
@@ -150,27 +144,10 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     }
 
     .games__title {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1.06rem;
-        font-weight: 700;
-        letter-spacing: -0.01em;
-        color: var(--white, #f0ece4);
         margin: 0 0 8px;
     }
 
     .games__more { margin-top: 14px; align-self: flex-start; }
-
-    .games__desc {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.86rem;
-        line-height: 1.6;
-        color: var(--muted, #888077);
-        margin: 0;
-    }
 
     .games__demo {
         display: flex;
@@ -179,7 +156,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         gap: 12px;
         height: 100%;
         overflow: hidden;
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.74rem;
     }
 
@@ -198,10 +175,10 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     }
 
     .games-mc__line {
-        color: var(--tan-light, #e0c49a);
+        color: var(--bb-tan-light);
         font-weight: 500;
         width: max-content;
-        border-right: 1px solid rgba(224, 196, 154, 0.6);
+        border-right: 1px solid color-mix(in srgb, var(--bb-tan-light) 60%, transparent);
         white-space: nowrap;
         overflow: hidden;
     }
@@ -218,7 +195,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     .games-mc__stats {
         display: flex;
         gap: 12px;
-        color: var(--green-glow, #52b788);
+        color: var(--bb-green-glow);
         opacity: 0;
         transform: translateY(4px);
     }
@@ -231,8 +208,8 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         animation: gamesFadeMcMcsr 12s ease-in-out infinite;
     }
 
-    .games-mc__stat b {
-        color: var(--muted, #888077);
+    .games-stat__key {
+        color: var(--bb-muted);
         font-weight: 400;
         margin-right: 4px;
     }
@@ -246,8 +223,8 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     .games-fn__scar {
         width: 158px;
         height: auto;
-        color: var(--tan-light, #e0c49a);
-        filter: drop-shadow(0 0 10px rgba(224, 196, 154, 0.22));
+        color: var(--bb-tan-light);
+        filter: drop-shadow(0 0 10px color-mix(in srgb, var(--bb-tan-light) 22%, transparent));
         animation: gamesFnFloat 4.5s ease-in-out infinite;
     }
 
@@ -258,7 +235,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     }
 
     .games-fn__rarity {
-        color: var(--green-glow, #52b788);
+        color: var(--bb-green-glow);
         font-size: 0.66rem;
         letter-spacing: 0.14em;
         text-transform: uppercase;
@@ -268,16 +245,16 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         display: inline-flex;
         align-items: center;
         gap: 5px;
-        color: var(--muted, #888077);
+        color: var(--bb-muted);
         font-size: 0.7rem;
     }
 
     .games-val__line,
     .games-cr__line {
-        color: var(--tan-light, #e0c49a);
+        color: var(--bb-tan-light);
         font-weight: 500;
         width: max-content;
-        border-right: 1px solid rgba(224, 196, 154, 0.6);
+        border-right: 1px solid color-mix(in srgb, var(--bb-tan-light) 60%, transparent);
         white-space: nowrap;
         overflow: hidden;
     }
@@ -286,16 +263,9 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     .games-cr__stats {
         display: flex;
         gap: 12px;
-        color: var(--green-glow, #52b788);
+        color: var(--bb-green-glow);
         opacity: 0;
         transform: translateY(4px);
-    }
-
-    .games-val__stat b,
-    .games-cr__stat b {
-        color: var(--muted, #888077);
-        font-weight: 400;
-        margin-right: 4px;
     }
 
     .games-val__line { animation: gamesTypeVal 12s steps(20) infinite; }
@@ -305,33 +275,6 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
 
     .games__demo--req {
         align-items: center;
-    }
-
-    .games-req__btn {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--tan-light, #e0c49a);
-        background: rgba(201, 168, 124, 0.1);
-        border: 1px solid rgba(201, 168, 124, 0.2);
-        padding: 8px 16px;
-        border-radius: var(--radius-sm);
-        text-decoration: none;
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-weight: 500;
-        font-size: 0.9rem;
-        transition:
-            background 0.2s ease,
-            border-color 0.2s ease,
-            color 0.2s ease,
-            transform 0.2s ease;
-    }
-
-    .games-req__btn:hover {
-        background: rgba(201, 168, 124, 0.2);
-        border-color: rgba(201, 168, 124, 0.4);
-        transform: translateY(-1px);
-        color: var(--white, #f0ece4);
     }
 
     @keyframes gamesTypeMcBw {
@@ -392,23 +335,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
         margin: 28px auto 0;
         max-width: 720px;
         text-align: center;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.62rem;
-        letter-spacing: 0.02em;
-        line-height: 1.7;
-        color: var(--muted, #888077);
         opacity: 0.75;
-    }
-
-    .games__legal-link {
-        color: inherit;
-        text-decoration: underline;
-        text-underline-offset: 3px;
-        transition: color 0.2s ease;
-    }
-
-    .games__legal-link:is(:hover, :focus-visible) {
-        color: var(--white, #f0ece4);
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -440,7 +367,7 @@ const [legalShortBefore, legalShortAfter = ''] = t('games.legalShort').split('{t
     }
 
     @media (max-width: 640px) {
-        .games { padding: var(--space-section-sm, 72px) 20px; }
+        .games { padding-inline: 20px; }
         .games-mc__stats { flex-wrap: wrap; gap: 8px; }
     }
 </style>

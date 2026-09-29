@@ -3,6 +3,8 @@
   // Proprietary. No license granted. See LICENSE.md.
   import type { Snippet } from 'svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DeployItem } from '$lib/deploys/types';
   import CheckDot from './CheckDot.svelte';
@@ -18,16 +20,14 @@
 
 <li class="item">
   <CheckDot tone={stageTone(item.state)} label={t(STEP_STATE_KEY[item.state])} />
-  {#if item.url}
-    <a class="label" href={item.url} target="_blank" rel="noopener noreferrer">{item.label}</a>
-  {:else}
-    <span class="label">{item.label}</span>
-  {/if}
+  <Text as="span" size="xs" mono truncate>
+    {#if item.url}<TextLink variant="inline" href={item.url} external>{item.label}</TextLink>{:else}{item.label}{/if}
+  </Text>
   <span class="bar">
     {#if hasBar}<ProgressBar {value} tone={stageTone(item.state)} label={item.label} size="sm" />{/if}
   </span>
   <span class="extra">{#if extra}{@render extra()}{/if}</span>
-  <span class="detail" title={item.detail}>{item.detail ?? ''}</span>
+  <span class="detail"><Text as="span" size="xs" tone="muted" truncate title={item.detail}>{item.detail ?? ''}</Text></span>
 </li>
 
 <style>
@@ -35,36 +35,19 @@
     display: grid;
     grid-template-columns: 12px minmax(120px, 200px) 120px minmax(0, auto) minmax(0, 1fr);
     align-items: center;
-    gap: 12px;
+    gap: var(--bb-space-3);
     height: 32px;
-    border-bottom: 1px solid var(--rule);
+    border-bottom: 1px solid var(--bb-border);
   }
   .item:last-child {
     border-bottom: none;
-  }
-  .label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-white);
-  }
-  a.label {
-    text-decoration: underline;
-    text-decoration-color: var(--rule);
-    text-underline-offset: 3px;
   }
   .extra {
     display: inline-flex;
     min-width: 0;
   }
   .detail {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 12px;
-    color: var(--bb-muted);
+    min-width: 0;
   }
   @media (max-width: 760px) {
     .item {

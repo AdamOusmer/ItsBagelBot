@@ -14,7 +14,12 @@
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
-  import { livePoll } from '@bagel/kit/live-poll';
+  import Grid from '@bagel/ui/svelte/Grid.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import { livePoll } from '@bagel/ui/lib/live-poll';
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import type { ShardSnapshot } from '@bagel/kit';
@@ -126,22 +131,17 @@
   onMount(() => {
     const options = {
       firstDelayMs: 1500,
-      delayMs: () => (document.hidden ? HIDDEN_MS : Date.now() < fastUntil ? FAST_MS : SLOW_MS),
-      timeoutMs: Number.POSITIVE_INFINITY
+      delayMs: () => (Date.now() < fastUntil ? FAST_MS : SLOW_MS),
+      timeoutMs: Number.POSITIVE_INFINITY,
+      hiddenDelayMs: HIDDEN_MS,
+      refreshOnVisible: true
     };
     const stopFleet = livePoll(pollSnapshot, options);
     const stopTrials = data.canViewTrials ? livePoll(pollTrials, options) : () => {};
-    const onVis = () => {
-      if (document.hidden) return;
-      pollSnapshot();
-      if (data.canViewTrials) pollTrials();
-    };
-    document.addEventListener('visibilitychange', onVis);
     return () => {
       pollingActive = false;
       stopFleet();
       stopTrials();
-      document.removeEventListener('visibilitychange', onVis);
     };
   });
 
@@ -176,6 +176,7 @@
     capacity ? utilizationPct(aggregateEps, capacity.effective_rated_eps) : 0
   );
   const conduit = $derived(snap?.conduit_manager);
+  const conduitReady = $derived(conduit?.state === 'ready' || conduit?.state === 'leader');
 
   const scaleBase = $derived(snap?.desired_count ?? snap?.shard_count ?? 1);
   let scaleOffset = $state(0);
@@ -270,45 +271,49 @@
     <SkeletonStack rows={3} height="96px" />
   {:else}
     <div class="tiles">
-      <StatTile
-        label={t('admin.shards.tileShards')}
-        value={`${connected}/${snap.shard_count || shards.length}`}
-        delta={t('admin.shards.tileShardsDelta', { nodes: String(snap.nodes.length) })}
-      />
-      <StatTile
-        label={t('admin.shards.tileThroughput')}
-        value={rateLabel(aggregateEps)}
-        unit={t('admin.shards.eps')}
-        delta={t('admin.shards.tileThroughputDeltaBurst', {
-          now: rateLabel(aggregateBurst),
-          pct: pctLabel(aggregateUtilization)
-        })}
-      />
-      <StatTile
-        label={t('admin.shards.tileAutoscale')}
-        value={autoscaleOn ? t('admin.shards.on') : t('admin.shards.off')}
-        delta={t('admin.shards.tileAutoscaleDelta', {
-          min: String(minShards),
-          max: String(maxShards)
-        })}
-      />
+      <Grid min="200px" gap={3}>
+        <StatTile
+          label={t('admin.shards.tileShards')}
+          value={`${connected}/${snap.shard_count || shards.length}`}
+          delta={t('admin.shards.tileShardsDelta', { nodes: String(snap.nodes.length) })}
+        />
+        <StatTile
+          label={t('admin.shards.tileThroughput')}
+          value={rateLabel(aggregateEps)}
+          unit={t('admin.shards.eps')}
+          delta={t('admin.shards.tileThroughputDeltaBurst', {
+            now: rateLabel(aggregateBurst),
+            pct: pctLabel(aggregateUtilization)
+          })}
+        />
+        <StatTile
+          label={t('admin.shards.tileAutoscale')}
+          value={autoscaleOn ? t('admin.shards.on') : t('admin.shards.off')}
+          delta={t('admin.shards.tileAutoscaleDelta', {
+            min: String(minShards),
+            max: String(maxShards)
+          })}
+        />
+      </Grid>
     </div>
 
     <PageToolbar>
       {#snippet lead()}
-        <span class="conduit">
-          <StatusDot tone={conduit?.state === 'ready' || conduit?.state === 'leader' ? 'success' : 'warning'} />
-          {t('admin.shards.conduit', {
-            state: conduit?.state ?? t('admin.shards.unknownState'),
-            node: conduit?.node ?? '-'
-          })}
-          {#if live}<span class="live">{t('admin.shards.live')}</span>{/if}
-        </span>
+        <Cluster gap={2}>
+          <StatusDot tone={conduitReady ? 'success' : 'warning'} />
+          <Text as="span" size="xs" tone="muted" mono>
+            {t('admin.shards.conduit', {
+              state: conduit?.state ?? t('admin.shards.unknownState'),
+              node: conduit?.node ?? '-'
+            })}
+          </Text>
+          {#if live}<Tag tone="live">{t('admin.shards.live')}</Tag>{/if}
+        </Cluster>
       {/snippet}
       {#snippet trail()}
         {#if canScale}
-          <span class="switch-field">
-            <span class="switch-label">{t('admin.shards.autoscaleLabel')}</span>
+          <Cluster gap={2} nowrap>
+            <Label mono as="span">{t('admin.shards.autoscaleLabel')}</Label>
             <Switch
               checked={autoscaleOn}
               label={t('admin.shards.autoscaleLabel')}
@@ -316,7 +321,7 @@
               pending={busy}
               onchange={() => autoscaleForm?.requestSubmit()}
             />
-          </span>
+          </Cluster>
           <span class="stepper" class:dim={autoscaleOn}>
             <IconButton
               size="sm"
@@ -350,9 +355,9 @@
     </PageToolbar>
 
     {#if canScale}
-      <p class="hint" id="shards-autoscale-hint">
+      <Text size="sm" tone="muted" id="shards-autoscale-hint">
         {autoscaleOn ? t('admin.shards.autoscaleOnHint') : t('admin.shards.autoscaleOffHint')}
-      </p>
+      </Text>
     {/if}
 
     <ThroughputChart points={throughputPoints} showTrials={data.canViewTrials} />
@@ -392,53 +397,15 @@
 
 <style>
   .tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 14px;
-    margin-bottom: 18px;
-  }
-
-  .conduit {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-  }
-  .live {
-    color: var(--bb-green-glow);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-size: 10px;
-  }
-
-  .hint {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    margin: 0 0 14px;
-  }
-
-  .switch-field {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-  }
-  .switch-label {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
+    margin-bottom: var(--bb-space-4);
   }
 
   .stepper {
     --input-w: 76px;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    transition: opacity 0.15s;
+    gap: var(--bb-space-1);
+    transition: opacity var(--bb-dur-fast) ease;
   }
   .stepper.dim {
     opacity: 0.45;

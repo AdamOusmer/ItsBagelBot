@@ -2,8 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
-  import { moduleDef, tModuleLabel } from '@bagel/kit';
-  import { RESPONSE_MAX, getI18n, Textarea } from '@bagel/kit';
+  import { Button, Icon, IconButton, RESPONSE_MAX, Text, TextLink, Textarea, getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
   import { requiredModuleVariables } from '@bagel/kit/variables';
   import type { VariableSurface } from '@bagel/kit/variables';
   import VariablePalette from '$lib/components/variables/VariablePalette.svelte';
@@ -114,6 +113,8 @@
     focused = Math.min(i + keep.length - 1, fields.length - 1);
   }
 
+  const countTone = (line: string) => (line.length > RESPONSE_MAX ? 'danger' : 'muted');
+
   const fieldPlaceholder = (i: number) =>
     i === 0 ? (placeholder ?? i18n.t('commandEditor.responsePlaceholder')) : i18n.t('commandEditor.linePlaceholder');
 </script>
@@ -123,9 +124,8 @@
     {#each fields as _, i (i)}
       <div class="line-field">
         <span class="line-idx" aria-hidden="true">{i + 1}</span>
-        <div class="resp-wrap slim">
+        <div class="resp-wrap">
           <Textarea
-            class="resp-area slim"
             rows={2}
             fill
             {invalid}
@@ -140,31 +140,32 @@
             oninput={() => onInput(i)}
             {onblur}
           />
-          <span class="resp-count" class:over={fields[i].length > RESPONSE_MAX}>{fields[i].length}/{RESPONSE_MAX}</span>
+          <Text as="span" size="xs" mono tone={countTone(fields[i])}>{fields[i].length}/{RESPONSE_MAX}</Text>
         </div>
         {#if fields.length > 1}
-          <button
-            type="button"
-            class="line-remove"
-            title={i18n.t('commandEditor.removeLine', { n: String(i + 1) })}
-            aria-label={i18n.t('commandEditor.removeLine', { n: String(i + 1) })}
-            onclick={() => removeLine(i)}
-          >×</button>
+          <span class="line-remove">
+            <IconButton
+              size="sm"
+              danger
+              title={i18n.t('commandEditor.removeLine', { n: String(i + 1) })}
+              label={i18n.t('commandEditor.removeLine', { n: String(i + 1) })}
+              onclick={() => removeLine(i)}
+            ><Icon name="x" /></IconButton>
+          </span>
         {/if}
       </div>
     {/each}
   </div>
   <input type="hidden" {name} {value} />
   <div class="lines-foot">
-    <button type="button" class="add-line" disabled={fields.length >= maxLines} onclick={() => addLine()}>
+    <Button variant="add" disabled={fields.length >= maxLines} onclick={() => addLine()}>
       + {i18n.t('commandEditor.addLine')}
-    </button>
-    <small class="lines-hint">{i18n.t('commandEditor.linesHint', { max: String(maxLines) })}</small>
+    </Button>
+    <Text as="small" size="xs" tone="muted">{i18n.t('commandEditor.linesHint', { max: String(maxLines) })}</Text>
   </div>
 {:else}
   <div class="resp-wrap">
     <Textarea
-      class="resp-area"
       {name}
       rows={4}
       fill
@@ -180,7 +181,7 @@
       oninput={() => onInput(0)}
       {onblur}
     />
-    <span class="resp-count" class:over={fields[0].length > RESPONSE_MAX}>{fields[0].length}/{RESPONSE_MAX}</span>
+    <Text as="span" size="xs" mono tone={countTone(fields[0])}>{fields[0].length}/{RESPONSE_MAX}</Text>
   </div>
 {/if}
 
@@ -188,31 +189,20 @@
   <VariablePalette {surface} {moduleFlags} {insert} {fetchDefs} {fetchKeys} {onFetchDefsChanged} />
 </div>
 
-{#each requiredModules as mod (mod.id)}
-  <p class="module-requirement">{i18n.t('commandEditor.moduleVariableRequires', { module: i18n.t(`vars.${mod.id}.name`) })} <a href={moduleLink(mod.head)}>{i18n.t('commandEditor.manageModules')}</a></p>
-  {@const parent = parentModule(mod.head)}
-  {#if parent}<p class="module-requirement">{i18n.t('commandEditor.moduleVariableParentRequires', { module: tModuleLabel(i18n.t, parent) })}</p>{/if}
-{/each}
+{#if requiredModules.length}
+  <div class="module-requirements">
+    {#each requiredModules as mod (mod.id)}
+      <Text size="xs" tone="muted">{i18n.t('commandEditor.moduleVariableRequires', { module: i18n.t(`vars.${mod.id}.name`) })} <TextLink variant="inline" href={moduleLink(mod.head)}>{i18n.t('commandEditor.manageModules')}</TextLink></Text>
+      {@const parent = parentModule(mod.head)}
+      {#if parent}<Text size="xs" tone="muted">{i18n.t('commandEditor.moduleVariableParentRequires', { module: tModuleLabel(i18n.t, parent) })}</Text>{/if}
+    {/each}
+  </div>
+{/if}
 
 <style>
-  .module-requirement { margin: 6px 0 0; font-size: 0.78rem; line-height: 1.4; color: var(--bb-muted); }
+  .module-requirements { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 
-  .resp-wrap { position: relative; flex: 1; min-width: 0; }
-
-  :global(.resp-area textarea) { min-height: 96px; padding-bottom: 16px; }
-  :global(.resp-area.slim textarea) { min-height: 54px; padding-bottom: 12px; }
-
-  .resp-count {
-    position: absolute;
-    right: 10px;
-    bottom: 8px;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    color: var(--bb-muted);
-    pointer-events: none;
-    opacity: 0.7;
-  }
-  .resp-count.over { color: #cf8a78; opacity: 1; }
+  .resp-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 
   .lines { display: flex; flex-direction: column; gap: 8px; }
   .line-field { display: flex; align-items: flex-start; gap: 8px; }
@@ -228,28 +218,11 @@
     font-family: var(--bb-font-mono);
     font-size: 10px;
     color: var(--bb-muted);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--bb-glass-border);
     border-radius: var(--bb-radius-pill);
   }
 
-  .line-remove {
-    flex: none;
-    margin-top: 7px;
-    width: 22px;
-    height: 22px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    line-height: 1;
-    color: var(--bb-muted);
-    background: transparent;
-    border: 1px solid var(--glass-border);
-    border-radius: var(--bb-radius-pill);
-    cursor: pointer;
-    transition: all var(--bb-dur-fast, 140ms) ease;
-  }
-  .line-remove:hover { color: #cf8a78; border-color: rgba(176, 90, 70, 0.5); }
+  .line-remove { flex: none; margin-top: 4px; }
 
   .lines-foot {
     display: flex;
@@ -258,24 +231,4 @@
     margin-top: 8px;
     flex-wrap: wrap;
   }
-  .add-line {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-green-glow, #52b788);
-    background: rgba(82, 183, 136, 0.06);
-    border: 1px dashed rgba(82, 183, 136, 0.4);
-    border-radius: var(--bb-radius-pill);
-    padding: 4px 12px;
-    cursor: pointer;
-    transition: all var(--bb-dur-fast, 140ms) ease;
-  }
-  .add-line:hover:not(:disabled) { background: rgba(82, 183, 136, 0.14); }
-  .add-line:disabled { opacity: 0.45; cursor: default; }
-
-  .lines-hint {
-    font-size: 11px;
-    color: var(--bb-muted);
-    opacity: 0.7;
-  }
-
 </style>

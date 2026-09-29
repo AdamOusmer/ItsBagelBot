@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
 
   const { t } = getI18n();
@@ -46,12 +48,16 @@
 
 {#if issues.length}
   <section class="ov-attention" aria-labelledby="ov-attention-h">
-    <h2 id="ov-attention-h" class="ov-section-h">{t('overview.attentionHeading')}</h2>
+    <Heading level={6} as="h2" variant="title" id="ov-attention-h">{t('overview.attentionHeading')}</Heading>
     <ul class="ov-attention__list">
       {#each issues as issue (issue.id)}
-        <li class="ov-attention__row">
-          <span class="ov-attention__text">{issue.text}</span>
-          <ButtonLink href={issue.href} variant="ghost" class="ov-attention__cta">{issue.cta}</ButtonLink>
+        <li>
+          <AlertBanner variant="warn" flush role="note" stack>
+            {issue.text}
+            {#snippet action()}
+              <ButtonLink href={issue.href} variant="ghost">{issue.cta}</ButtonLink>
+            {/snippet}
+          </AlertBanner>
         </li>
       {/each}
     </ul>
@@ -60,56 +66,17 @@
 
 <style>
   .ov-attention {
+    display: grid;
+    gap: 12px;
     margin-bottom: var(--row-gap);
   }
-  .ov-section-h {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0 0 12px;
-  }
   .ov-attention__list {
+    --btn-min-h: 44px;
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
-  }
-  .ov-attention__row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: var(--bb-status-warning-bg);
-    border: 1px solid var(--bb-status-warning-border);
-    border-radius: var(--bb-radius-sm);
-  }
-  .ov-attention__text {
-    flex: 1;
-    min-width: 0;
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    line-height: 1.45;
-    color: var(--bb-white);
-  }
-  .ov-attention__row :global(.ov-attention__cta) {
-    flex: none;
-    min-height: 44px;
-  }
-
-  @media (max-width: 560px) {
-    .ov-attention__row {
-      flex-wrap: wrap;
-    }
-    .ov-attention__text {
-      flex-basis: 100%;
-      order: 2;
-    }
-    .ov-attention__row :global(.ov-attention__cta) {
-      order: 3;
-    }
   }
 </style>

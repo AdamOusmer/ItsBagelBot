@@ -1,0 +1,21 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/elements/deck-layout.css';
+
+interface Props {
+    inspecting?: boolean;
+    width?: string;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { inspecting = false, width, class: className = '', ...rest } = Astro.props;
+
+const classes = ['bb-deck-layout', inspecting ? 'is-inspecting' : null, className || null]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<div class={classes} style={width ? `--deck-aside: ${width};` : undefined} {...rest}><slot /></div>

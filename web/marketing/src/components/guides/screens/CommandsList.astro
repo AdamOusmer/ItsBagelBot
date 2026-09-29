@@ -14,6 +14,7 @@ import InspectorSurface from '@bagel/ui/astro/InspectorSurface.astro';
 import ManagementRow from '@bagel/ui/astro/ManagementRow.astro';
 import SearchInput from '@bagel/ui/astro/SearchInput.astro';
 import Switch from '@bagel/ui/astro/Switch.astro';
+import Code from '@bagel/ui/astro/Code.astro';
 import ChatRehearsal from '../ChatRehearsal.astro';
 import ScreenChrome from '../ScreenChrome.astro';
 import '@bagel/ui/styles/elements/shell.css';
@@ -100,7 +101,7 @@ const nav = {
             <ManagementRow>
                 <span class="gs-row">
                     <span class="gs-num">01</span>
-                    <code>{L.row1Name}</code>
+                    <Code>{L.row1Name}</Code>
                     <Tag tone="quiet">{L.builtIn}</Tag>
                     <span class="gs-grow"></span>
                     <span class="gs-meta">{L.row1Meta}</span>
@@ -110,7 +111,7 @@ const nav = {
             <ManagementRow selected>
                 <span class="gs-row">
                     <span class="gs-num">02</span>
-                    <code>{L.row2Name}</code>
+                    <Code>{L.row2Name}</Code>
                     <span class="gs-grow">{L.row2Text}</span>
                     <span class="gs-meta">{L.row2Meta}</span>
                 </span>

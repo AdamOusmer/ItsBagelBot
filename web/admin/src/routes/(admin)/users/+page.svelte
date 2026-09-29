@@ -1,8 +1,8 @@
 <script lang="ts">
-  import Field from '@bagel/ui/svelte/Field.svelte';
-  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
   import { enhance } from '$app/forms';
   import { goto } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
@@ -10,6 +10,7 @@
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -18,7 +19,9 @@
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Skeleton from '@bagel/ui/svelte/Skeleton.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
-  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Pager from '@bagel/ui/svelte/Pager.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import { toast } from '@bagel/ui/svelte/toast';
   import { actionPayload, adminToastFailure } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -317,13 +320,13 @@
   <PageToolbar>
     {#snippet lead()}
       {#if dir}
-        <span class="stats">
+        <Text as="span" size="sm" tone="muted">
           {t('admin.users.stats', {
             total: dir.stats.total_users.toLocaleString(),
             active: dir.stats.active_users.toLocaleString(),
             premium: dir.stats.premium_users.toLocaleString()
           })}
-        </span>
+        </Text>
       {:else}
         <Skeleton variant="pill" width="220px" />
       {/if}
@@ -336,8 +339,10 @@
           submitSearch();
         }}
       >
-        <SearchInput fill bind:value={search} placeholder={t('admin.users.searchPlaceholder')} />
-        <Button variant="ghost" type="submit">{t('admin.overview.quickLookupCta')}</Button>
+        <Cluster gap={2} nowrap>
+          <SearchInput fill bind:value={search} placeholder={t('admin.users.searchPlaceholder')} />
+          <Button variant="ghost" type="submit">{t('admin.overview.quickLookupCta')}</Button>
+        </Cluster>
       </form>
       <Button variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>
         {t('admin.users.exportCsv')}
@@ -357,7 +362,7 @@
     <AlertBanner>{t('admin.users.degraded')}</AlertBanner>
   {/if}
 
-  <div class="deck" class:inspecting={selected !== null}>
+  <DeckLayout inspecting={selected !== null} width="380px">
     <DeckList>
       {#if dir === null}
         <SkeletonStack rows={6} height="56px" />
@@ -383,25 +388,15 @@
       {/if}
 
       {#if dir && (dir.page > 1 || dir.hasMore)}
-        <div class="pager">
-          <ButtonLink
-            variant="ghost"
-            href={href({ q: data.search, state: data.state, page: dir.page - 1 })}
-            aria-disabled={dir.page <= 1}
-          >
-            {t('admin.users.pagerPrev')}
-          </ButtonLink>
-          <span class="pager-label">
-            {t('admin.users.pagerLabel', { page: String(dir.page), max: String(dir.maxPages) })}
-          </span>
-          <ButtonLink
-            variant="ghost"
-            href={href({ q: data.search, state: data.state, page: dir.page + 1 })}
-            aria-disabled={!dir.hasMore}
-          >
-            {t('admin.users.pagerNext')}
-          </ButtonLink>
-        </div>
+        <Pager
+          label={t('admin.users.pagerLabel', { page: String(dir.page), max: String(dir.maxPages) })}
+          prevHref={href({ q: data.search, state: data.state, page: dir.page - 1 })}
+          nextHref={href({ q: data.search, state: data.state, page: dir.page + 1 })}
+          hasPrev={dir.page > 1}
+          hasNext={dir.hasMore}
+          prevLabel={t('admin.users.pagerPrev')}
+          nextLabel={t('admin.users.pagerNext')}
+        />
       {/if}
     </DeckList>
 
@@ -432,7 +427,7 @@
         />
       </InspectorSurface>
     {/if}
-  </div>
+  </DeckLayout>
 </section>
 
 <form method="POST" action="?/lookup" use:enhance={lookupSubmit} bind:this={lookupForm} hidden>
@@ -513,49 +508,13 @@
 {/if}
 
 <style>
-  .stats {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-  }
-  .searchbar {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
   .filters {
-    margin-bottom: 14px;
+    margin-bottom: var(--bb-space-3);
   }
-
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting {
-      grid-template-columns: minmax(0, 1fr) 380px;
-    }
-  }
-
-  .pager {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    padding: 14px;
-  }
-  .pager-label {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-  }
-
 
   @media (max-width: 680px) {
     .searchbar {
       width: 100%;
     }
-    }
+  }
 </style>

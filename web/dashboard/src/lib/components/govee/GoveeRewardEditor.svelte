@@ -5,7 +5,7 @@
   import { namespaceReplyTemplate, namespaceReplySamples, moduleDef } from '@bagel/kit';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Button, Code, Field, EditorFooter, Switch, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
+  import { Button, Code, Field, EditorFooter, Input, SwitchRow, Text, getI18n, type GoveeDevice, type GoveeBinding } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { focusFirstInvalid } from '@bagel/kit';
@@ -78,13 +78,14 @@
   <input type="hidden" name="sku" value={device.sku} />
   <input type="hidden" name="deviceName" value={device.name} />
 
-  <p class="hint">
+  <Text size="sm" tone="muted">
     {t('govee.editorHintNames')} <Code>{colors.join(', ')}</Code>. {t('govee.editorHintHex')} <Code>#00ccff</Code>.
-  </p>
+  </Text>
 
-  <Field label={t('govee.fieldTitle')}>
-    <input
-      class="input"
+  <Field label={t('govee.fieldTitle')} error={titleError} errorId={TITLE_ERR_ID}>
+    <Input
+      fill
+      invalid={!!titleError}
       type="text"
       name="title"
       maxlength="45"
@@ -93,24 +94,26 @@
       aria-describedby={titleError ? TITLE_ERR_ID : undefined}
       required
     />
-    {#if titleError}<small id={TITLE_ERR_ID} class="field-error" role="alert">{titleError}</small>{/if}
   </Field>
 
   <div class="field-row">
-    <Field label={t('govee.fieldCost')}>
-      <input class="input" type="number" name="cost" min="1" max="10000000" bind:value={cost} required />
-    </Field>
-    <label class="color-field">
-      <span class="color-label">{t('govee.fieldColor')}</span>
-      <span class="color-row">
-        <input class="color-in" type="color" name="color" bind:value={color} />
-        <span class="color-hex">{color}</span>
-      </span>
-    </label>
+    <div class="field-grow">
+      <Field label={t('govee.fieldCost')}>
+        <Input fill type="number" name="cost" min="1" max="10000000" bind:value={cost} required />
+      </Field>
+    </div>
+    <div class="color-field">
+      <Field label={t('govee.fieldColor')}>
+        <span class="color-row">
+          <span class="swatch"><Input type="color" name="color" bind:value={color} /></span>
+          <Text as="span" size="xs" mono tone="accent">{color.toUpperCase()}</Text>
+        </span>
+      </Field>
+    </div>
   </div>
 
   <Field label={t('govee.fieldCooldown')} tag={t('govee.fieldCooldownTag')}>
-    <input class="input" type="number" name="cooldown" min="0" max="604800" bind:value={cooldown} />
+    <Input fill type="number" name="cooldown" min="0" max="604800" bind:value={cooldown} />
   </Field>
 
   <Field label={t('govee.fieldReply')} tag={t('common.optional')}>
@@ -126,21 +129,26 @@
     />
   </Field>
 
-  <div class="setrow {allowOff ? 'on' : ''}">
-    <div class="setrow-text">
-      <span class="setrow-label">{t('govee.allowOffLabel')}</span>
-      <span class="muted-text" id="govee-allowoff-desc">{t('govee.allowOffHint')}</span>
-    </div>
-    <Switch bind:checked={allowOff} label={t('govee.allowOffLabel')} describedby="govee-allowoff-desc" />
+  <div class="setrow" class:on={allowOff}>
+    <SwitchRow
+      control="end"
+      bind:checked={allowOff}
+      label={t('govee.allowOffLabel')}
+      hint={t('govee.allowOffHint')}
+      hintId="govee-allowoff-desc"
+    />
   </div>
   <input type="hidden" name="allow_off" value={allowOff ? 'on' : ''} />
 
-  <div class="setrow {liveOnly ? '' : 'warn'}">
-    <div class="setrow-text">
-      <span class="setrow-label">{t('govee.liveOnlyLabel')}</span>
-      <span class="muted-text" id="govee-liveonly-desc">{liveOnly ? t('govee.liveOnlyOn') : t('govee.liveOnlyOff')}</span>
-    </div>
-    <Switch bind:checked={liveOnly} label={t('govee.liveOnlyLabel')} describedby="govee-liveonly-desc" />
+  <div class="setrow">
+    <SwitchRow
+      control="end"
+      bind:checked={liveOnly}
+      tone={liveOnly ? undefined : 'warn'}
+      label={t('govee.liveOnlyLabel')}
+      hint={liveOnly ? t('govee.liveOnlyOn') : t('govee.liveOnlyOff')}
+      hintId="govee-liveonly-desc"
+    />
   </div>
   <input type="hidden" name="allow_offline" value={liveOnly ? '' : 'on'} />
 
@@ -161,57 +169,21 @@
 </form>
 
 <style>
-  .editor { padding: 4px 2px 2px; display: grid; gap: 14px; }
-  .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
-
-  .editor :global(.field) { margin-bottom: 0; }
-  .input {
-    padding: 8px 12px;
-    border-radius: var(--bb-radius-sm);
-    border: 1px solid var(--rule);
-    background: rgba(240, 236, 228, 0.04);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    width: 100%;
-    box-sizing: border-box;
-    transition: border-color var(--bb-dur-fast, 140ms) ease;
-  }
-  .input:focus { outline: none; border-color: var(--bb-tan, #c9a87c); }
-
-  .field-error { display: block; margin-top: 4px; font-family: var(--bb-font-body); font-size: 11.5px; color: #cf8a78; }
+  .editor { --field-mb: 0; padding: 4px 2px 2px; display: grid; gap: 14px; }
 
   .field-row { display: flex; gap: 12px; align-items: flex-start; }
-  .field-row :global(.field) { flex: 1; min-width: 0; }
+  .field-grow { flex: 1; min-width: 0; }
 
-  .color-field { display: flex; flex-direction: column; gap: 6px; flex: none; width: 116px; }
-  .color-label { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
+  .color-field { flex: none; width: 116px; }
   .color-row { display: flex; align-items: center; gap: 8px; }
-  .color-in {
-    width: 44px;
-    height: 37px;
-    padding: 3px;
-    border: 1px solid var(--rule);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(240, 236, 228, 0.04);
-    cursor: pointer;
-    flex: none;
-  }
-  .color-hex { font-family: var(--bb-font-mono, monospace); font-size: 12px; color: var(--bb-tan-light); text-transform: uppercase; }
+  .swatch { display: block; flex: none; width: 44px; }
 
   .setrow {
-    display: flex;
-    align-items: center;
-    gap: 12px;
     padding: 11px 12px;
-    border: 1px solid var(--rule);
+    border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-sm);
   }
-  .setrow.on { border-color: var(--rule-tan); background: rgba(201, 168, 124, 0.06); }
-  .setrow-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
-  .setrow-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
-  .setrow.warn .setrow-label { color: #d9a441; }
-  .muted-text { margin: 0; font-family: var(--bb-font-body); font-size: 12px; line-height: 1.5; color: var(--bb-muted); }
+  .setrow.on { border-color: rgba(var(--bb-tan-rgb), 0.45); background: rgba(var(--bb-tan-rgb), 0.06); }
 
   .del-row { display: flex; }
 

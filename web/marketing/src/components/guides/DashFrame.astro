@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Text from '@bagel/ui/astro/Text.astro';
 import '../../styles/guide-screen.css';
 
 interface Note {
@@ -21,34 +22,34 @@ const { path = '/', notes = [], caption } = Astro.props;
 <figure class="dframe" data-reveal>
     <div class="dframe__win" role="img" aria-label={caption ?? `dashboard.itsbagelbot.com${path}`}>
         <div class="dframe__bar">
-            <span class="dframe__url">dashboard.itsbagelbot.com<b>{path}</b></span>
+            <span class="dframe__url">dashboard.itsbagelbot.com<b class="dframe__path">{path}</b></span>
         </div>
-        <div class="dframe__body">
+        <div class="dframe__body" data-static>
             <slot />
         </div>
     </div>
     {notes.length > 0 && (
         <ul class="dframe__legend">
             {notes.map((note) => (
-                <li data-note-for={note.n} tabindex="0">
+                <Text as="li" tone="muted-soft" class="dframe__note" data-note-for={note.n} tabindex="0">
                     <i class="dframe__idx" aria-hidden="true">{String(note.n).padStart(2, '0')}</i>
                     <span>{note.text}</span>
-                </li>
+                </Text>
             ))}
         </ul>
     )}
-    {caption && <figcaption>{caption}</figcaption>}
+    {caption && <figcaption class="dframe__caption"><Text as="span" size="xs" mono tone="muted">{caption}</Text></figcaption>}
 </figure>
 
 <style>
     .dframe { margin: 20px 0 28px; }
 
     .dframe__win {
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-md);
-        background: #0d0d0c;
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-md);
+        background: var(--bb-inset-bg);
         overflow: hidden;
-        box-shadow: 0 24px 55px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 24px 55px rgba(var(--bb-shadow-rgb), 0.4);
     }
 
     .dframe__bar {
@@ -56,29 +57,26 @@ const { path = '/', notes = [], caption } = Astro.props;
         align-items: center;
         gap: 14px;
         padding: 10px 14px;
-        border-bottom: 1px solid rgba(201, 168, 124, 0.1);
-        background: rgba(17, 17, 16, 0.92);
+        border-bottom: 1px solid rgba(var(--bb-tan-rgb), 0.1);
+        background: rgba(var(--bb-card-bg-rgb), 0.92);
     }
-
-
-
 
     .dframe__url {
         flex: 1;
         max-width: 340px;
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.64rem;
-        color: var(--muted, #888077);
-        background: rgba(240, 236, 228, 0.04);
-        border: 1px solid rgba(201, 168, 124, 0.1);
-        border-radius: var(--radius-pill);
+        color: var(--bb-muted);
+        background: rgba(var(--bb-white-rgb), 0.04);
+        border: 1px solid rgba(var(--bb-tan-rgb), 0.1);
+        border-radius: var(--bb-radius-pill);
         padding: 5px 12px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
 
-    .dframe__url b { color: var(--tan-light, #e0c49a); font-weight: 400; }
+    .dframe__path { color: var(--bb-tan-light); font-weight: 400; }
 
     .dframe__body { position: relative; padding: 18px; }
 
@@ -89,45 +87,37 @@ const { path = '/', notes = [], caption } = Astro.props;
         padding-left: 2px;
     }
 
-    .dframe__legend li {
+    .dframe__note {
         display: flex;
         gap: 12px;
         align-items: baseline;
         padding: 2px 6px;
         margin: 0 -6px;
-        border-radius: var(--radius-sm);
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.92rem;
-        line-height: 1.6;
-        color: #b6afa5;
+        border-radius: var(--bb-radius-sm);
         cursor: default;
-        transition: background 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+        transition: background var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
-    .dframe__legend li:hover,
-    .dframe__legend li:focus-visible {
-        background: rgba(201, 168, 124, 0.06);
+    .dframe__note:hover,
+    .dframe__note:focus-visible {
+        background: rgba(var(--bb-tan-rgb), 0.06);
         outline: none;
     }
 
     .dframe__idx {
         flex: none;
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-style: normal;
         font-size: 0.62rem;
         letter-spacing: 0.12em;
-        color: var(--tan, #c9a87c);
+        color: var(--bb-tan);
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .dframe__legend li { transition: none; }
+        .dframe__note { transition: none; }
     }
 
-    figcaption {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.72rem;
-        letter-spacing: 0.05em;
-        color: var(--muted, #888077);
+    .dframe__caption {
         margin-top: 12px;
         padding-left: 2px;
     }

@@ -5,7 +5,8 @@
 import '../styles/elements/button.css';
 
 interface Props {
-    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go';
+    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
+    as?: 'button' | 'span';
     solid?: boolean;
     danger?: boolean;
     block?: boolean;
@@ -21,6 +22,7 @@ interface Props {
 
 const {
     variant = 'primary',
+    as = 'button',
     solid = false,
     danger = false,
     block = false,
@@ -38,9 +40,12 @@ if (variant === 'icon' && !rest['aria-label'] && !rest['aria-labelledby']) {
     throw new Error('<Button variant="icon"> needs an aria-label (icon-only button has no text).');
 }
 
+const isStatic = !href && as === 'span';
+
 const classes = [
     'bb-btn',
     `bb-btn--${variant}`,
+    isStatic && 'bb-btn--static',
     solid && 'bb-btn--solid',
     danger && 'bb-btn--danger-hover',
     block && 'bb-btn--block',
@@ -53,14 +58,15 @@ const classes = [
     .join(' ');
 
 const isDisabled = disabled || loading;
-const Tag = href ? 'a' : 'button';
-const elementProps = href
-    ? { href }
-    : { type, disabled: isDisabled, 'aria-busy': loading ? 'true' : undefined };
+const marked = variant !== 'icon' && variant !== 'add';
+const Tag = href ? 'a' : as;
+const linkProps = disabled ? { role: 'link', 'aria-disabled': 'true' } : { href };
+const buttonProps = { type, disabled: isDisabled, 'aria-busy': loading ? 'true' : undefined };
+const elementProps = href ? linkProps : isStatic ? {} : buttonProps;
 ---
 
 <Tag class={classes} {...elementProps} data-mark="" {...rest}>
-    {variant !== 'icon' && <i class="bb-btn__mark" aria-hidden="true" />}
+    {marked && <i class="bb-btn__mark" aria-hidden="true" />}
     <span class="bb-btn__content"><slot /></span>
     {loading && <span class="bb-btn__spinner" aria-hidden="true" />}
 </Tag>

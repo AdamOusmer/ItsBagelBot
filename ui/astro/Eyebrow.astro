@@ -5,12 +5,13 @@
 import '../styles/elements/typography.css';
 
 interface Props {
+    tone?: 'default' | 'go';
     as?: 'span' | 'p' | 'div';
     class?: string;
 }
 
-const { as: Tag = 'span', class: className = '', ...rest } = Astro.props;
-const classes = ['bb-eyebrow', className].filter(Boolean).join(' ');
+const { tone = 'default', as: Tag = 'span', class: className = '', ...rest } = Astro.props;
+const classes = ['bb-eyebrow', tone === 'default' ? null : `bb-eyebrow--${tone}`, className].filter(Boolean).join(' ');
 ---
 
 <Tag class={classes} {...rest}><slot /></Tag>

@@ -6,11 +6,14 @@ import '../styles/elements/typography.css';
 
 interface Props {
     htmlFor?: string;
+    mono?: boolean;
+    as?: 'label' | 'span' | 'legend';
     class?: string;
+    [key: string]: unknown;
 }
 
-const { htmlFor, class: className = '', ...rest } = Astro.props;
-const classes = ['bb-label', className].filter(Boolean).join(' ');
+const { htmlFor, mono = false, as: Tag = 'label', class: className = '', ...rest } = Astro.props;
+const classes = ['bb-label', mono ? 'bb-label--mono' : null, className].filter(Boolean).join(' ');
 ---
 
-<label class={classes} for={htmlFor} {...rest}><slot /></label>
+<Tag class={classes} for={Tag === 'label' ? htmlFor : undefined} {...rest}><slot /></Tag>

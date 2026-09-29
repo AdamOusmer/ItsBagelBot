@@ -62,3 +62,17 @@ export function navItems<D extends SectionDef>(opts: {
 export function navGroups(label: string, items: readonly NavLink[]): NavGroupDef[] {
   return [{ label, items: [...items] }];
 }
+
+export type HintedNavLink = NavLink & { lockedHint?: string };
+
+export function withLockedHints(items: readonly NavLink[], t: (key: MessageKey) => string): HintedNavLink[] {
+  const lockedHint = t('nav.lockedBroadcaster');
+  return items.map((item) => (item.locked ? { ...item, lockedHint } : item));
+}
+
+export function groupsWithLockedHints(
+  groups: readonly NavGroupDef[],
+  t: (key: MessageKey) => string
+): { label?: string; items: HintedNavLink[] }[] {
+  return groups.map((group) => ({ ...group, items: withLockedHints(group.items, t) }));
+}

@@ -16,62 +16,6 @@
 /* Restated: an adapter's element CSS may load first, and the first @layer declaration fixes the order. */
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
-@layer bb.tokens {
-  :root {
-    --bb-fg-1: var(--bb-white);
-    --bb-fg-2: var(--bb-muted);
-    --bb-bg-0: var(--bb-black);
-    --bb-bg-1: var(--bb-card-bg);
-    --bb-accent: var(--bb-green);
-    --bb-accent-glow: var(--bb-green-glow);
-    --bb-warm: var(--bb-tan);
-
-    --bb-status-success: #52b788;
-    --bb-status-success-fg: #8fe0b4;
-    --bb-status-success-bg: #0f2118;
-    --bb-status-success-border: #2f7355;
-
-    --bb-status-warning: #e0c49a;
-    --bb-status-warning-fg: #eccfa3;
-    --bb-status-warning-bg: #241c10;
-    --bb-status-warning-border: #8a6f43;
-
-    --bb-status-error: #cf8a78;
-    --bb-status-error-fg: #f0b0a4;
-    --bb-status-error-bg: #2a1310;
-    --bb-status-error-border: #b05a46;
-
-    --bb-status-info: #7bb5d9;
-    --bb-status-info-fg: #a9d0e8;
-    --bb-status-info-bg: #0f1e28;
-    --bb-status-info-border: #3f6d86;
-
-    --bb-tier-free: var(--bb-green-glow);
-    --bb-tier-free-bg: rgba(82, 183, 136, 0.12);
-    --bb-tier-free-border: rgba(82, 183, 136, 0.35);
-
-    --bb-tier-paid: var(--bb-tan-light);
-    --bb-tier-paid-bg: rgba(201, 168, 124, 0.12);
-    --bb-tier-paid-border: rgba(201, 168, 124, 0.40);
-
-    --bb-tier-vip: #dfe4e9;
-    --bb-tier-vip-bg: rgba(217, 222, 228, 0.12);
-    --bb-tier-vip-border: rgba(217, 222, 228, 0.34);
-
-    --bb-tier-banned: var(--bb-status-error);
-    --bb-tier-banned-bg: var(--bb-status-error-bg);
-    --bb-tier-banned-border: var(--bb-status-error-border);
-
-    --bb-tier-inactive: var(--bb-fg-2);
-    --bb-tier-inactive-bg: rgba(255, 255, 255, 0.04);
-    --bb-tier-inactive-border: rgba(201, 168, 124, 0.20);
-
-    --bb-shadow-soft: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 30px rgba(0,0,0,0.35);
-    --bb-shadow-glow: 0 0 0 1px rgba(82,183,136,0.35), 0 0 24px rgba(82,183,136,0.25);
-    --bb-shadow-tan-glow: 0 0 0 1px rgba(201,168,124,0.35), 0 0 24px rgba(201,168,124,0.18);
-  }
-}
-
 @layer bb.base {
   * , *::before, *::after { box-sizing: border-box; }
 }

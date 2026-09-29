@@ -1,6 +1,11 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { clockFace, type ActivityFeed, type ActivityKind } from '$lib/overview-live';
@@ -19,6 +24,18 @@
     queue: 'overview.kindQueue'
   };
 
+  type KindTone = 'positive' | 'danger' | 'warning' | 'info' | 'neutral';
+
+  const KIND_TONE: Record<ActivityKind, KindTone> = {
+    command: 'positive',
+    timer: 'warning',
+    automod: 'danger',
+    reward: 'warning',
+    loyalty: 'neutral',
+    event: 'info',
+    queue: 'neutral'
+  };
+
   const footer = $derived.by(() => {
     const parts: string[] = [];
     if (feed.medianMs !== null) parts.push(t('overview.feedMedian', { ms: feed.medianMs }));
@@ -31,47 +48,37 @@
   });
 </script>
 
-<section class="ov-log" aria-labelledby="ov-log-h">
+<Card as="section" flush aria-labelledby="ov-log-h">
   <div class="ov-log__head">
-    <h2 id="ov-log-h" class="ov-log__h">{t('overview.botJustDid')}</h2>
+    <Heading level={6} as="h2" variant="title" id="ov-log-h">{t('overview.botJustDid')}</Heading>
     {#if feed.ok && feed.rows.length}
-      <span class="bb-tag bb-tag--incoming">
-        <i class="bb-mark bb-mark--plus" aria-hidden="true"></i>
-        {t('overview.feedLive')}
-        <i class="bb-sweep" aria-hidden="true"></i>
-      </span>
+      <Tag tone="incoming" mark="plus" sweep>{t('overview.feedLive')}</Tag>
     {/if}
   </div>
 
   {#if !feed.ok}
-    <p class="ov-log__empty">{t('overview.feedUnavailable')}</p>
+    <div class="ov-log__empty"><Text size="sm" tone="muted">{t('overview.feedUnavailable')}</Text></div>
   {:else if !feed.rows.length}
-    <p class="ov-log__empty">{t('overview.feedEmpty')}</p>
+    <div class="ov-log__empty"><Text size="sm" tone="muted">{t('overview.feedEmpty')}</Text></div>
   {:else}
     <ul class="ov-log__list">
       {#each feed.rows as row (row.id)}
         <li class="ov-log__row">
-          <span class="ov-log__time">{clockFace(row.at)}</span>
-          <span class="bb-tag bb-tag--bare ov-log__chip ov-log__chip--{row.kind}">{t(KIND_LABEL[row.kind])}</span>
-          <span class="ov-log__text">{row.text}</span>
-          <span class="ov-log__meta">{row.meta}</span>
+          <span class="ov-log__time"><Text as="span" size="xs" mono tone="muted">{clockFace(row.at)}</Text></span>
+          <span class="ov-log__kind"><Tag tone={KIND_TONE[row.kind]} bare>{t(KIND_LABEL[row.kind])}</Tag></span>
+          <span class="ov-log__text"><Text as="span" size="sm" truncate>{row.text}</Text></span>
+          <span class="ov-log__meta"><Text as="span" size="xs" mono tone="muted">{row.meta}</Text></span>
         </li>
       {/each}
     </ul>
     <div class="ov-log__foot">
-      <span>{footer}</span>
+      <Label mono as="span">{footer}</Label>
       <TextLink href="/commands" label={`${t('overview.fullLog')} →`} />
     </div>
   {/if}
-</section>
+</Card>
 
 <style>
-  .ov-log {
-    background: var(--bb-card-bg);
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    overflow: hidden;
-  }
   .ov-log__head {
     display: flex;
     align-items: center;
@@ -79,14 +86,6 @@
     gap: 12px;
     padding: 17px 20px 14px;
     border-bottom: 1px solid var(--bb-border);
-  }
-  .ov-log__h {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0;
   }
   .ov-log__list {
     list-style: none;
@@ -98,54 +97,25 @@
     align-items: center;
     gap: 13px;
     padding: 11px 20px;
-    border-bottom: 1px solid rgba(201, 168, 124, 0.09);
-    animation: ov-feed-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    border-bottom: 1px solid rgba(var(--bb-tan-rgb), 0.09);
+    animation: ov-feed-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
   }
   .ov-log__time {
     flex: none;
     width: 46px;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-    font-variant-numeric: tabular-nums;
   }
-  .ov-log__chip {
+  .ov-log__kind {
     flex: none;
-    min-width: 78px;
+    display: flex;
     justify-content: center;
-    font-size: 9.5px;
-    letter-spacing: 0.12em;
-    color: var(--bb-muted);
-  }
-  .ov-log__chip--command {
-    color: var(--bb-status-success-fg);
-  }
-  .ov-log__chip--automod {
-    color: var(--bb-status-error-fg);
-  }
-  .ov-log__chip--timer,
-  .ov-log__chip--reward {
-    color: var(--bb-status-warning-fg);
-  }
-  .ov-log__chip--event {
-    color: var(--bb-status-info-fg);
+    min-width: 78px;
   }
   .ov-log__text {
     flex: 1;
     min-width: 0;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-white);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .ov-log__meta {
     flex: none;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    color: var(--bb-muted);
-    font-variant-numeric: tabular-nums;
   }
   .ov-log__foot {
     display: flex;
@@ -153,30 +123,16 @@
     justify-content: space-between;
     gap: 12px;
     padding: 13px 20px;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .ov-log__foot {
-    --text-link-rest: var(--bb-tan);
-    --text-link-lit: var(--bb-tan-pale);
-    --text-link-size: 10.5px;
   }
   .ov-log__empty {
-    margin: 0;
     padding: 18px 20px 20px;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-muted);
   }
 
   @media (max-width: 640px) {
     .ov-log__meta {
       display: none;
     }
-    .ov-log__chip {
+    .ov-log__kind {
       min-width: 0;
     }
   }

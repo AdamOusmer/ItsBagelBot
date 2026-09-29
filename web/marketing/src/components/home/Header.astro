@@ -3,9 +3,13 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { SITE } from '@bagel/kit/site-links';
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
+import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import Tag from '@bagel/ui/astro/Tag.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
 
-import { getLangFromUrl, useTranslations, defaultLang, dashLoginHref, localizePath } from '../../i18n/ui';
+import { getLangFromUrl, useTranslations, dashLoginHref, localizePath } from '../../i18n/ui';
 import ScrollCue from './ScrollCue.astro';
 import LightField from '@bagel/ui/astro/LightField.astro';
 
@@ -50,7 +54,7 @@ const t = useTranslations(lang);
             <Tag tone="live" mark="solid" sweep>
                 {t('hero.devBadge')}
             </Tag>
-            <span class="eyebrow__text">{t('hero.topText')}</span>
+            <Eyebrow tone="go" class="eyebrow__text">{t('hero.topText')}</Eyebrow>
         </a>
 
         <div class="split">
@@ -69,9 +73,9 @@ const t = useTranslations(lang);
             </h1>
 
             <div class="aside">
-                <p>
+                <Text tone="muted-soft" class="lede">
                     {t('hero.lede')}
-                </p>
+                </Text>
 
                 <div class="facts">
                     <span>{t('hero.badge1')}</span>
@@ -81,11 +85,9 @@ const t = useTranslations(lang);
                 </div>
 
                 <div class="hero-actions">
-                    <a class="bb-btn bb-btn--go-solid hero-cta" href={dashLoginHref(lang)}>{t('nav.cta')}</a>
+                    <ButtonLink variant="green" solid class="hero-cta" href={dashLoginHref(lang)}>{t('nav.cta')}</ButtonLink>
 
-                    <a class="bb-rail bb-rail--prose bb-rail--go migrate" href={localizePath('/import', lang)}>
-                        {t('hero.migrateText')}<span class="bb-rail__arrow" aria-hidden="true">→</span>
-                    </a>
+                    <TextLink variant="arrow" tone="go" prose class="migrate" href={localizePath('/import', lang)} label={t('hero.migrateText')} />
                 </div>
             </div>
         </div>
@@ -194,7 +196,6 @@ const t = useTranslations(lang);
     .eyebrow,
     .migrate,
     .hero-cta,
-    .actions a,
     header button {
         pointer-events: var(--hero-ui-pointer-events, auto);
     }
@@ -288,36 +289,20 @@ const t = useTranslations(lang);
         margin-bottom: 24px;
         text-decoration: none;
         opacity: 0;
-        animation: fadeUp 800ms 200ms var(--ease-out-expo) forwards;
-    }
-
-    .eyebrow .bb-tag {
-        flex-shrink: 0;
-    }
-
-    .eyebrow .bb-sweep {
-        animation-play-state: var(--hero-animation-state, running);
+        animation: fadeUp 800ms 200ms var(--bb-ease-out-expo) forwards;
     }
 
     .eyebrow__text {
-        font-family: var(--font-mono);
         font-size: 0.9rem;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: var(--green-glow);
-        transition: color 0.2s;
-    }
-
-    .eyebrow:hover .bb-tag--live {
-        border-bottom-color: rgba(82, 183, 136, 0.70);
+        transition: color var(--bb-dur-fast);
     }
 
     .eyebrow:hover .eyebrow__text {
-        color: var(--white);
+        color: var(--bb-white);
     }
 
     h1 {
-        font-family: var(--font-display);
+        font-family: var(--bb-font-display);
         font-size: clamp(3rem, min(9vw, 15vh), 8rem);
         font-weight: 800;
         line-height: 0.9;
@@ -335,11 +320,11 @@ const t = useTranslations(lang);
     }
 
     h1 .line.tan {
-        color: var(--tan);
+        color: var(--bb-tan);
     }
 
     h1 .line.green {
-        color: var(--green-glow);
+        color: var(--bb-green-glow);
     }
 
     h1 .glyph {
@@ -354,19 +339,12 @@ const t = useTranslations(lang);
         }
     }
 
-    .actions {
-        display: flex;
-        gap: 40px;
-    }
-
-    p {
+    .lede {
         max-width: 550px;
-        font-size: 1.05rem;
         line-height: 1.75;
-        color: #b0a898;
         margin-bottom: 24px;
         opacity: 0;
-        animation: fadeUp 0.9s 0.5s var(--ease-out-expo) forwards;
+        animation: fadeUp 0.9s 0.5s var(--bb-ease-out-expo) forwards;
         position: relative;
     }
 
@@ -376,20 +354,20 @@ const t = useTranslations(lang);
         justify-content: center;
         align-items: center;
         margin-top: 26px;
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.68rem;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: rgba(201, 168, 124, 0.66);
+        color: rgba(var(--bb-tan-rgb), 0.66);
         opacity: 0;
-        animation: fadeUp 0.9s 0.65s var(--ease-out-expo) forwards;
+        animation: fadeUp 0.9s 0.65s var(--bb-ease-out-expo) forwards;
         position: relative;
     }
 
     .facts span:not(:last-child)::after {
         content: "·";
         margin: 0 16px;
-        color: rgba(201, 168, 124, 0.4);
+        color: rgba(var(--bb-tan-rgb), 0.4);
     }
 
     .hero-actions {
@@ -401,13 +379,13 @@ const t = useTranslations(lang);
     .hero-cta {
         margin-top: 26px;
         opacity: 0;
-        animation: fadeUp 0.9s 0.7s var(--ease-out-expo) forwards;
+        animation: fadeUp 0.9s 0.7s var(--bb-ease-out-expo) forwards;
     }
 
     .migrate {
         margin-top: 14px;
         opacity: 0;
-        animation: fadeUp 0.9s 0.9s var(--ease-out-expo) forwards;
+        animation: fadeUp 0.9s 0.9s var(--bb-ease-out-expo) forwards;
     }
 
     @keyframes fadeUp {
@@ -472,14 +450,10 @@ const t = useTranslations(lang);
 
         .eyebrow__text {
             text-align: center;
-        }
-
-        .eyebrow__text {
             font-size: 0.78rem;
-            letter-spacing: 0.16em;
         }
 
-        .aside > p {
+        .lede {
             max-width: min(520px, 100%);
             font-size: 0.98rem;
             line-height: 1.58;
@@ -503,11 +477,6 @@ const t = useTranslations(lang);
         .migrate {
             margin-top: 14px;
         }
-
-        .actions {
-            flex-direction: column;
-            gap: 20px;
-        }
     }
 
     @media (max-width: 480px) {
@@ -528,7 +497,6 @@ const t = useTranslations(lang);
 
         .eyebrow__text {
             font-size: 0.68rem;
-            letter-spacing: 0.14em;
         }
 
         h1 {
@@ -536,7 +504,7 @@ const t = useTranslations(lang);
             margin-bottom: 16px;
         }
 
-        .aside > p {
+        .lede {
             font-size: 0.92rem;
             line-height: 1.52;
             margin-bottom: 16px;
@@ -607,7 +575,7 @@ const t = useTranslations(lang);
             padding-bottom: 10px;
         }
 
-        .aside p {
+        .lede {
             max-width: 380px;
             margin-bottom: 24px;
         }

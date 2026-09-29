@@ -1,6 +1,12 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import StatTile from '@bagel/ui/svelte/StatTile.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { formatCounterValue } from '@bagel/kit/validation';
   import ChatVolumeChart from './ChatVolumeChart.svelte';
@@ -30,107 +36,101 @@
   const elapsed = $derived(formatDuration(minutesSince(meta.startedAt, now)));
   const sinceEnd = $derived(formatDuration(minutesSince(meta.endedAt, now)));
 
-  type Stat = { id: string; value: string; label: string; tone: 'plain' | 'green' | 'tan' };
+  type Stat = { id: string; value: string; label: string; tone?: 'positive' | 'accent' };
 
   const stats = $derived.by<Stat[]>(() => [
     {
       id: 'messages',
       value: formatCounterValue(counters.messages),
-      label: t('overview.statMessagesSeen'),
-      tone: 'plain'
+      label: t('overview.statMessagesSeen')
     },
     {
       id: 'answered',
       value: formatCounterValue(counters.answered),
       label: t('overview.statAnswered'),
-      tone: 'green'
+      tone: 'positive'
     },
     {
       id: 'mod',
       value: formatCounterValue(counters.modActions),
       label: t('overview.statModActions'),
-      tone: 'tan'
+      tone: 'accent'
     }
   ]);
 </script>
 
 <section class="ov-stream" aria-labelledby="ov-stream-h">
-  <div class="ov-stream__glow" aria-hidden="true"></div>
-  <div class="ov-stream__grid">
-    <div class="ov-stream__main">
-      <h2 id="ov-stream-h" class="ov-stream__eyebrow">{t('overview.thisStream')}</h2>
+  <Card flush>
+    <div class="ov-stream__glow" aria-hidden="true"></div>
+    <div class="ov-stream__grid">
+      <div class="ov-stream__main">
+        <div class="ov-stream__eyebrow">
+          <Heading level={6} as="h2" variant="label" id="ov-stream-h">{t('overview.thisStream')}</Heading>
+        </div>
 
-      {#if !meta.ok}
-        <p class="ov-stream__notice">{t('overview.streamUnavailable')}</p>
-      {:else if !meta.known}
-        <p class="ov-stream__notice">{t('overview.streamNeverSeen')}</p>
-      {:else if meta.live}
-        <span class="bb-tag bb-tag--live">
-          <i class="bb-mark" aria-hidden="true"></i>
-          {t('overview.streamLive')}
-          <i class="bb-sweep" aria-hidden="true"></i>
-        </span>
-        <div class="ov-stream__big">{elapsed}</div>
-        {#if meta.title}<p class="ov-stream__title">{meta.title}</p>{/if}
-        <p class="ov-stream__meta">
-          {t('overview.streamStartedAt', {
-            time: clockFace(meta.startedAt),
-            n: meta.viewers.toLocaleString()
-          })}
-        </p>
-      {:else}
-        <span class="bb-tag bb-tag--quiet">
-          <i class="bb-mark bb-mark--hollow" aria-hidden="true"></i>
-          {t('overview.streamOffline')}
-        </span>
-        <div class="ov-stream__big">{sinceEnd}</div>
-        <p class="ov-stream__title">
-          {t('overview.streamLastRan', { d: formatDuration(meta.lastDurationMin) })}
-        </p>
-        <p class="ov-stream__meta">
-          {t('overview.streamEndedAt', {
-            time: clockFace(meta.endedAt),
-            n: meta.peakViewers.toLocaleString()
-          })}
-        </p>
-      {/if}
+        {#if !meta.ok}
+          <div class="ov-stream__notice"><Text size="sm" tone="muted">{t('overview.streamUnavailable')}</Text></div>
+        {:else if !meta.known}
+          <div class="ov-stream__notice"><Text size="sm" tone="muted">{t('overview.streamNeverSeen')}</Text></div>
+        {:else if meta.live}
+          <Tag tone="live" mark="solid" sweep>{t('overview.streamLive')}</Tag>
+          <div class="ov-stream__big">{elapsed}</div>
+          {#if meta.title}<p class="ov-stream__title">{meta.title}</p>{/if}
+          <div class="ov-stream__meta">
+            <Label mono as="span">
+              {t('overview.streamStartedAt', {
+                time: clockFace(meta.startedAt),
+                n: meta.viewers.toLocaleString()
+              })}
+            </Label>
+          </div>
+        {:else}
+          <Tag tone="quiet" mark="hollow">{t('overview.streamOffline')}</Tag>
+          <div class="ov-stream__big">{sinceEnd}</div>
+          <p class="ov-stream__title">
+            {t('overview.streamLastRan', { d: formatDuration(meta.lastDurationMin) })}
+          </p>
+          <div class="ov-stream__meta">
+            <Label mono as="span">
+              {t('overview.streamEndedAt', {
+                time: clockFace(meta.endedAt),
+                n: meta.peakViewers.toLocaleString()
+              })}
+            </Label>
+          </div>
+        {/if}
 
-      <div class="ov-stream__spacer"></div>
+        <div class="ov-stream__spacer"></div>
 
-      {#if counters.ok}
-        <dl class="ov-stream__stats">
-          {#each stats as s (s.id)}
-            <div class="ov-stat">
-              <dt class="ov-stat__value ov-stat--{s.tone}">{s.value}</dt>
-              <dd class="ov-stat__label">{s.label}</dd>
-            </div>
-          {/each}
-        </dl>
-      {:else}
-        <p class="ov-stream__notice ov-stream__notice--foot">{t('overview.countersUnavailable')}</p>
-      {/if}
+        {#if counters.ok}
+          <div class="ov-stream__stats">
+            {#each stats as s (s.id)}
+              <StatTile inline static tone={s.tone} label={s.label} value={s.value} />
+            {/each}
+          </div>
+        {:else}
+          <div class="ov-stream__notice ov-stream__notice--foot">
+            <Text size="sm" tone="muted">{t('overview.countersUnavailable')}</Text>
+          </div>
+        {/if}
+      </div>
+
+      <div class="ov-stream__side">
+        <ChatVolumeChart {volume} />
+      </div>
     </div>
-
-    <div class="ov-stream__side">
-      <ChatVolumeChart {volume} />
-    </div>
-  </div>
+  </Card>
 </section>
 
 <style>
   .ov-stream {
-    position: relative;
-    overflow: hidden;
-    background: var(--bb-card-bg);
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
     margin-bottom: var(--row-gap);
   }
   .ov-stream__glow {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: radial-gradient(circle at 92% 0%, rgba(82, 183, 136, 0.14), transparent 55%);
+    background: radial-gradient(circle at 92% 0%, rgba(var(--bb-green-glow-rgb), 0.14), transparent 55%);
   }
   .ov-stream__grid {
     position: relative;
@@ -146,13 +146,7 @@
     flex-direction: column;
   }
   .ov-stream__eyebrow {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin: 0 0 14px;
+    margin-bottom: 14px;
   }
   .ov-stream__big {
     font-family: var(--bb-font-display);
@@ -175,19 +169,9 @@
     text-wrap: pretty;
   }
   .ov-stream__meta {
-    margin: 6px 0 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
+    margin-top: 6px;
   }
   .ov-stream__notice {
-    margin: 0;
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    line-height: 1.5;
-    color: var(--bb-muted);
     max-width: 40ch;
   }
   .ov-stream__notice--foot {
@@ -204,34 +188,6 @@
     margin: 22px 0 0;
     padding-top: 18px;
     border-top: 1px solid var(--bb-border);
-  }
-  .ov-stat {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .ov-stat__value {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: 24px;
-    letter-spacing: -0.02em;
-    color: var(--bb-white);
-    font-variant-numeric: tabular-nums;
-    margin: 0;
-  }
-  .ov-stat--green {
-    color: var(--bb-green-glow);
-  }
-  .ov-stat--tan {
-    color: var(--bb-tan-light);
-  }
-  .ov-stat__label {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin: 0;
   }
 
   @media (max-width: 900px) {

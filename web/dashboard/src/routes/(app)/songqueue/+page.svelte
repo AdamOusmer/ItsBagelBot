@@ -15,11 +15,15 @@
     InspectorSurface,
     MasterToggle,
     AlertBanner,
+    DeckLayout,
     DeckList,
     Button,
     ButtonLink,
     Field,
-    Switch,
+    Heading,
+    SwitchRow,
+    Text,
+    TextLink,
     toast,
     getI18n,
     moduleDef,
@@ -299,7 +303,7 @@
 </script>
 
 {#snippet head()}
-  <a class="back" href="/modules">{t('spotify.back')}</a>
+  <div class="back"><TextLink variant="quiet" icon="arrowLeft" href="/modules" label={t('spotify.back')} /></div>
   <PageHead eyebrow={t('spotify.eyebrow')} description={t('spotify.description')}>
     {t('spotify.titlePre')} <em>{t('spotify.titleEm')}</em>
   </PageHead>
@@ -351,44 +355,44 @@
 
   <div class="setup">
     <Card>
-      <h2 class="path-title">{t('spotify.appTitle')}</h2>
-      <p class="muted-text">{app.present ? t('spotify.appSetHelp') : t('spotify.appHelp')}</p>
+      <div class="path-head">
+        <Heading level={6} as="h2">{t('spotify.appTitle')}</Heading>
+        <Text size="sm" tone="muted">{app.present ? t('spotify.appSetHelp') : t('spotify.appHelp')}</Text>
+      </div>
 
-      <ol class="steps bb-prose">
-        <li>
+      <ol class="steps">
+        <Text as="li" size="sm" tone="muted">
           {t('spotify.appStepCreate')}
-          <a class="ext" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer">
+          <TextLink variant="inline" external href="https://developer.spotify.com/dashboard">
             developer.spotify.com/dashboard
-          </a>
-        </li>
-        <li>
+          </TextLink>
+        </Text>
+        <Text as="li" size="sm" tone="muted">
           {t('spotify.appStepRedirect')}
           <span class="redirect">
-            <Code class="setup-code">{data.redirectUri}</Code>
+            <Code>{data.redirectUri}</Code>
             <Button variant="ghost" type="button" onclick={copyRedirect}>{t('spotify.redirectCopy')}</Button>
           </span>
-        </li>
-        <li>{t('spotify.appStepPaste')}</li>
+        </Text>
+        <Text as="li" size="sm" tone="muted">{t('spotify.appStepPaste')}</Text>
       </ol>
 
       {#if app.present && !editingApp}
         <div class="row">
           <Tag tone="live" mark="solid">{t('spotify.appPill')}</Tag>
-          <Code class="setup-code">{app.clientId}</Code>
+          <Code>{app.clientId}</Code>
           <Button variant="secondary" type="button" onclick={() => (editingApp = true)}>{t('spotify.appReplace')}</Button>
           <Button variant="destructive" type="button" onclick={() => (connectionAction = 'clearApp')}>{t('spotify.appRemove')}</Button>
         </div>
-        <p class="muted-text small">{t('spotify.appRemoveWarning')}</p>
+        <div class="note"><Text size="xs" tone="muted">{t('spotify.appRemoveWarning')}</Text></div>
       {:else}
         <form method="POST" action="?/saveApp" use:enhance={appSubmit}>
-          <Field label={t('spotify.appClientIdLabel')}>
+          <Field label={t('spotify.appClientIdLabel')} hint={t('spotify.appClientIdHint')}>
             <Input fill name="client_id" bind:value={clientId} autocomplete="off" spellcheck="false" required />
           </Field>
-          <p class="muted-text small field-hint">{t('spotify.appClientIdHint')}</p>
-          <Field label={t('spotify.appClientSecretLabel')}>
+          <Field label={t('spotify.appClientSecretLabel')} hint={t('spotify.appClientSecretHint')}>
             <Input fill name="client_secret" type="password" bind:value={clientSecret} autocomplete="off" spellcheck="false" required />
           </Field>
-          <p class="muted-text small field-hint">{t('spotify.appClientSecretHint')}</p>
           <div class="row">
             <Button variant="primary" type="submit">{t('spotify.appSave')}</Button>
             {#if app.present}
@@ -400,8 +404,10 @@
     </Card>
 
     <Card>
-      <h2 class="path-title">{t('spotify.connectTitle')}</h2>
-      <p class="muted-text">{connected ? t('spotify.connectedHelp') : t('spotify.connectHelp')}</p>
+      <div class="path-head">
+        <Heading level={6} as="h2">{t('spotify.connectTitle')}</Heading>
+        <Text size="sm" tone="muted">{connected ? t('spotify.connectedHelp') : t('spotify.connectHelp')}</Text>
+      </div>
       {#if connected}
         <div class="row">
           <Tag tone="live" mark="solid">{t('spotify.connectedPill')}</Tag>
@@ -419,7 +425,7 @@
       {:else if app.present}
         <ButtonLink variant="primary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connectCta')}</ButtonLink>
       {:else}
-        <p class="muted-text">{t('spotify.connectNeedsApp')}</p>
+        <div class="para"><Text size="sm" tone="muted">{t('spotify.connectNeedsApp')}</Text></div>
         <Button variant="primary" disabled type="button">{t('spotify.connectCta')}</Button>
       {/if}
     </Card>
@@ -427,15 +433,15 @@
     {#if connected}
       <Card>
         <div class="queue-head">
-          <h2 class="path-title">{t('spotify.queueTitle')}</h2>
+          <Heading level={6} as="h2">{t('spotify.queueTitle')}</Heading>
           <Button variant="ghost" type="button" onclick={() => invalidateAll()}>{t('spotify.queueRefresh')}</Button>
         </div>
         {#if data.queue?.current}
           <p class="queue-now">
             <span class="queue-label">{t('spotify.queueNow')}</span>
             <strong>{data.queue.current.title}</strong>
-            {#if data.queue.current.artists}<span class="muted-text"> · {data.queue.current.artists}</span>{/if}
-            {#if data.queue.current.requester}<span class="muted-text"> ({t('spotify.queueAskedBy')} {data.queue.current.requester})</span>{/if}
+            {#if data.queue.current.artists}<Text as="span" size="sm" tone="muted"> · {data.queue.current.artists}</Text>{/if}
+            {#if data.queue.current.requester}<Text as="span" size="sm" tone="muted"> ({t('spotify.queueAskedBy')} {data.queue.current.requester})</Text>{/if}
           </p>
         {/if}
         {#if data.queue?.up?.length}
@@ -443,39 +449,42 @@
             {#each data.queue.up as row, i (i)}
               <li>
                 <strong>{row.title}</strong>
-                {#if row.artists}<span class="muted-text"> · {row.artists}</span>{/if}
-                {#if row.requester}<span class="muted-text"> ({t('spotify.queueAskedBy')} {row.requester})</span>{/if}
+                {#if row.artists}<Text as="span" size="sm" tone="muted"> · {row.artists}</Text>{/if}
+                {#if row.requester}<Text as="span" size="sm" tone="muted"> ({t('spotify.queueAskedBy')} {row.requester})</Text>{/if}
               </li>
             {/each}
           </ol>
         {:else if !data.queue?.current}
-          <p class="muted-text">{t('spotify.queueEmpty')}</p>
+          <div class="para"><Text size="sm" tone="muted">{t('spotify.queueEmpty')}</Text></div>
         {/if}
       </Card>
 
       <div class="paths" class:inspecting>
         <Card>
-          <h2 class="path-title">{t('spotify.srTitle')}</h2>
-          <p class="muted-text">{t('spotify.srHelp')}</p>
+          <div class="path-head">
+            <Heading level={6} as="h2">{t('spotify.srTitle')}</Heading>
+            <Text size="sm" tone="muted">{t('spotify.srHelp')}</Text>
+          </div>
           <form method="POST" action="?/sr" use:enhance={srSubmit} bind:this={srForm}>
             <div class="enable-row">
-              <div class="enable-text">
-                <span class="enable-label">{t('spotify.srEnableLabel')}</span>
-                <span class="muted-text" id="spotify-sr-desc">{sr.enabled ? t('spotify.srEnableOn') : t('spotify.srEnableOff')}</span>
-              </div>
-              <Switch bind:checked={sr.enabled} onchange={srChanged} label={t('spotify.srEnableLabel')} describedby="spotify-sr-desc" />
+              <SwitchRow
+                control="end"
+                bind:checked={sr.enabled}
+                onchange={srChanged}
+                label={t('spotify.srEnableLabel')}
+                hint={sr.enabled ? t('spotify.srEnableOn') : t('spotify.srEnableOff')}
+                hintId="spotify-sr-desc"
+              />
             </div>
             <input type="hidden" name="sr_enabled" value={sr.enabled ? 'on' : ''} />
             <div class="enable-row">
-              <div class="enable-text">
-                <span class="enable-label">{t('spotify.liveOnlyLabel')}</span>
-                <span class="muted-text" id="spotify-sr-live-desc">{sr.allowOffline ? t('spotify.srLiveOnlyOff') : t('spotify.srLiveOnlyOn')}</span>
-              </div>
-              <Switch
+              <SwitchRow
+                control="end"
                 checked={!sr.allowOffline}
                 onchange={(liveOnly: boolean) => { sr.allowOffline = !liveOnly; srChanged(); }}
                 label={t('spotify.liveOnlyLabel')}
-                describedby="spotify-sr-live-desc"
+                hint={sr.allowOffline ? t('spotify.srLiveOnlyOff') : t('spotify.srLiveOnlyOn')}
+                hintId="spotify-sr-live-desc"
               />
             </div>
             <input type="hidden" name="sr_allow_offline" value={sr.allowOffline ? 'on' : ''} />
@@ -495,8 +504,10 @@
           </form>
 
           <form method="POST" action="?/quotas" use:enhance={quotasSubmit}>
-            <h3 class="path-title quota-title">{t('spotify.quotaTitle')}</h3>
-            <p class="muted-text">{t('spotify.quotaHelp')}</p>
+            <div class="path-head quota-head">
+              <Heading level={6} as="h3">{t('spotify.quotaTitle')}</Heading>
+              <Text size="sm" tone="muted">{t('spotify.quotaHelp')}</Text>
+            </div>
             <div class="quota-grid">
               {#each SPOTIFY_QUOTA_TIERS as tier (tier)}
                 <Field label={t(QUOTA_LABEL_KEYS[tier])}>
@@ -516,30 +527,33 @@
           </form>
         </Card>
 
-        <div class="redeem-col">
+        <DeckLayout {inspecting} width="440px">
           <Card>
-            <h2 class="path-title">{t('spotify.redeemTitle')}</h2>
-            <p class="muted-text">{t('spotify.redeemHelp')}</p>
+            <div class="path-head">
+              <Heading level={6} as="h2">{t('spotify.redeemTitle')}</Heading>
+              <Text size="sm" tone="muted">{t('spotify.redeemHelp')}</Text>
+            </div>
             <form method="POST" action="?/redeemToggle" use:enhance={redeemToggleSubmit} bind:this={redeemForm}>
               <div class="enable-row">
-                <div class="enable-text">
-                  <span class="enable-label">{t('spotify.redeemEnableLabel')}</span>
-                  <span class="muted-text" id="spotify-redeem-desc">{redeem.enabled ? t('spotify.redeemEnableOn') : t('spotify.redeemEnableOff')}</span>
-                </div>
-                <Switch bind:checked={redeem.enabled} onchange={redeemToggled} label={t('spotify.redeemEnableLabel')} describedby="spotify-redeem-desc" />
+                <SwitchRow
+                  control="end"
+                  bind:checked={redeem.enabled}
+                  onchange={redeemToggled}
+                  label={t('spotify.redeemEnableLabel')}
+                  hint={redeem.enabled ? t('spotify.redeemEnableOn') : t('spotify.redeemEnableOff')}
+                  hintId="spotify-redeem-desc"
+                />
               </div>
               <input type="hidden" name="redeem_enabled" value={redeem.enabled ? 'on' : ''} />
               {#if redeem.enabled}
                 <div class="enable-row">
-                  <div class="enable-text">
-                    <span class="enable-label">{t('spotify.liveOnlyLabel')}</span>
-                    <span class="muted-text" id="spotify-redeem-live-desc">{redeem.allowOffline ? t('spotify.redeemLiveOnlyOff') : t('spotify.redeemLiveOnlyOn')}</span>
-                  </div>
-                  <Switch
+                  <SwitchRow
+                    control="end"
                     checked={!redeem.allowOffline}
                     onchange={(liveOnly: boolean) => { redeem.allowOffline = !liveOnly; redeemToggled(); }}
                     label={t('spotify.liveOnlyLabel')}
-                    describedby="spotify-redeem-live-desc"
+                    hint={redeem.allowOffline ? t('spotify.redeemLiveOnlyOff') : t('spotify.redeemLiveOnlyOn')}
+                    hintId="spotify-redeem-live-desc"
                   />
                 </div>
               {/if}
@@ -576,7 +590,7 @@
               </Scroller>
             </InspectorSurface>
           {/if}
-        </div>
+        </DeckLayout>
       </div>
     {/if}
   </div>
@@ -642,7 +656,7 @@
     gap: 6px;
   }
 
-  .quota-title {
+  .quota-head {
     margin-top: 18px;
   }
   .quota-grid {
@@ -652,59 +666,35 @@
     margin-bottom: 10px;
   }
 
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-    text-decoration: none;
-    margin-bottom: 10px;
-  }
-  .back:hover { color: var(--bb-white); }
-  .back:focus-visible { outline: 2px solid var(--bb-focus, var(--bb-tan)); outline-offset: 2px; border-radius: var(--bb-radius-xs); }
+  .back { margin-bottom: 10px; }
 
   .setup { display: grid; gap: 16px; }
 
-  .path-title { margin: 0 0 6px; font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; color: var(--bb-white); }
-  .muted-text { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; margin: 0 0 14px; }
-  .enable-text .muted-text { margin: 0; font-size: 12px; }
+  .path-head { display: grid; gap: 6px; margin: 0 0 14px; }
+  .para { margin: 0 0 14px; }
+  .note { margin: 10px 0 0; }
 
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
-  .steps { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 8px; color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; line-height: 1.55; }
-  .steps .ext { color: var(--bb-green-glow); display: inline-flex; align-items: center; gap: 4px; }
+  .steps { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 8px; }
   .redirect { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
-  :global(.setup-code) { color: var(--bb-white); word-break: break-all; }
-  .muted-text.small { font-size: 12px; margin: 10px 0 0; }
-  .field-hint { margin: -8px 0 14px; }
 
-  .enable-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 14px;
-  }
-  .enable-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
-  .enable-label { font-family: var(--bb-font-display); font-weight: 700; font-size: 13px; color: var(--bb-white); }
+  .enable-row { margin-bottom: 14px; }
 
   .paths {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     align-items: start;
   }
-  .redeem-col { display: grid; gap: 16px; min-width: 0; }
   .reward-slot {
     margin: 0 -4px;
-    border-top: 1px solid var(--rule);
+    border-top: 1px solid var(--bb-border);
     padding-top: 4px;
   }
   @media (min-width: 1080px) {
-    .paths { grid-template-columns: 1fr 1fr; }
-    .paths.inspecting { grid-template-columns: 1fr; }
-    .paths.inspecting .redeem-col { grid-template-columns: minmax(0, 1fr) 440px; }
+    .paths { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .paths.inspecting { grid-template-columns: minmax(0, 1fr); }
   }
 
   .cmd-block { margin-top: 32px; }

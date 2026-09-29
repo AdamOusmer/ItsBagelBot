@@ -5,13 +5,27 @@
 import '../styles/elements/alert.css';
 
 interface Props {
-    variant?: 'danger' | 'warn' | 'impersonation';
-    role?: 'alert' | 'status';
+    variant?: 'danger' | 'warn' | 'impersonation' | 'tip' | 'note' | 'positive';
+    role?: 'alert' | 'status' | 'note';
+    callout?: boolean;
+    flush?: boolean;
+    stack?: boolean;
+    exit?: { label: string; href?: string; action?: string };
     class?: string;
+    [key: string]: unknown;
 }
 
-const { variant = 'danger', role = 'alert', class: className = '', ...rest } = Astro.props;
-const classes = ['bb-alert', `bb-alert--${variant}`, className].filter(Boolean).join(' ');
+const { variant = 'danger', role = 'alert', callout = false, flush = false, stack = false, exit, class: className = '', ...rest } = Astro.props;
+const classes = [
+    'bb-alert',
+    `bb-alert--${variant}`,
+    callout ? 'bb-alert--callout' : null,
+    flush ? 'bb-alert--flush' : null,
+    stack ? 'bb-alert--stack' : null,
+    className,
+]
+    .filter(Boolean)
+    .join(' ');
 ---
 
-<div class={classes} role={role} {...rest}><span class="bb-alert__msg"><slot /></span><slot name="action" /></div>
+<div class={classes} role={role} {...rest}><span class="bb-alert__msg"><slot /></span><slot name="action" />{exit?.action ? (<form method="POST" action={exit.action}><button type="submit" class="bb-alert__exit">{exit.label}</button></form>) : exit && (<a class="bb-alert__exit" href={exit.href}>{exit.label}</a>)}</div>

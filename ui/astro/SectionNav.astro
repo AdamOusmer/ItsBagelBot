@@ -6,8 +6,10 @@ import '../styles/tags.css';
 
 interface Props {
     label: string;
-    items: { href: string; label: string; count?: number }[];
+    items: { href: string; label: string; count?: number; current?: boolean; attrs?: Record<string, string> }[];
     orientation?: 'auto' | 'horizontal' | 'vertical';
+    variant?: 'tabs' | 'toc';
+    index?: boolean;
     class?: string;
     [key: string]: unknown;
 }
@@ -18,8 +20,19 @@ const MODIFIER = {
     vertical: 'bb-tabs--vertical',
 } as const;
 
-const { label, items, orientation = 'auto', class: className = '', ...rest } = Astro.props;
-const classes = ['bb-tabs', MODIFIER[orientation], className].filter(Boolean).join(' ');
+const {
+    label,
+    items,
+    orientation = 'auto',
+    variant = 'tabs',
+    index = false,
+    class: className = '',
+    ...rest
+} = Astro.props;
+const classes = ['bb-tabs', variant === 'toc' ? 'bb-tabs--toc' : MODIFIER[orientation], className]
+    .filter(Boolean)
+    .join(' ');
+const ordinal = (position: number) => String(position + 1).padStart(2, '0');
 ---
 
-<div class="bb-tabs-host"><nav class={classes} aria-label={label} data-lenis-prevent="" {...rest}>{items.map((item) => (<a class="bb-tab" href={item.href}>{item.label}{item.count != null && (<span class="bb-tab__count">{item.count}</span>)}</a>))}</nav></div>
+<div class="bb-tabs-host"><nav class={classes} aria-label={label} data-lenis-prevent="" {...rest}>{items.map((item, position) => (<a class={item.current ? 'bb-tab is-active' : 'bb-tab'} href={item.href} aria-current={item.current ? 'page' : undefined} {...item.attrs}>{index && <i class="bb-tab__index">{ordinal(position)}</i>}{item.label}{item.count != null && (<span class="bb-tab__count">{item.count}</span>)}</a>))}</nav></div>

@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, ManagementRow, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
+  import { Icon, IconButton, ManagementRow, Tag, Text, getI18n, type CounterDef, type CounterScope } from '@bagel/kit';
   import { formatCounterValue } from '@bagel/kit/validation';
 
   const { t } = getI18n();
@@ -42,7 +41,7 @@
       {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
       <span class="name">
         <span class="c-name">{c.name}</span>
-        <span class="c-tag bb-tag bb-tag--bare">{scopeLabel}</span>
+        <Tag tone="bare" class="c-tag">{scopeLabel}</Tag>
       </span>
       <span class="meta">
         {#if isChannel}
@@ -50,13 +49,15 @@
             <span class="bb-sr-only">{t('counters.colValue')} </span>{formatCounterValue(c.value)}
           </span>
         {:else}
-          <span class="m-note">{perScopeNote}</span>
+          <Text as="span" size="xs" tone="muted">{perScopeNote}</Text>
         {/if}
       </span>
     </span>
   {/snippet}
   {#snippet actions()}
-    <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('counters.deleteAria', { name: c.name })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
+    <span class="del">
+      <IconButton size="sm" danger label={t('counters.deleteAria', { name: c.name })} onclick={onDelete}><Icon name="trash" size={15} /></IconButton>
+    </span>
   {/snippet}
 </ManagementRow>
 
@@ -67,32 +68,31 @@
     align-items: center;
     gap: 14px;
   }
-  .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
+  .idx { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-muted); opacity: 0.55; }
 
   .name { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
   .c-name {
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 14px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-white);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
   }
-  .c-tag { flex: none; }
+  .name :global(.c-tag) { flex: none; }
 
   .meta { display: inline-flex; align-items: center; justify-content: flex-end; }
   .m-val {
     font-family: var(--bb-font-mono);
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-tan-light);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  .m-note { font-family: var(--bb-font-body); font-size: 11px; color: var(--bb-muted); white-space: nowrap; }
 
-  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
+  .del { display: inline-flex; --btn-icon-min-size: 32px; }
 
   @media (max-width: 760px) {
     .prow {
@@ -105,6 +105,6 @@
     .idx { display: none; }
     .name { grid-area: name; }
     .meta { grid-area: meta; justify-content: flex-start; }
-    :global(.delete-action) { min-width: 44px; min-height: 44px; }
+    .del { --btn-icon-min-size: 44px; }
   }
 </style>

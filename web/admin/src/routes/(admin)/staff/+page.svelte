@@ -6,7 +6,9 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
@@ -215,11 +217,11 @@
   <PageToolbar>
     {#snippet lead()}
       {#if loaded}
-        <span class="count">
+        <Text as="span" size="xs" tone="muted" mono>
           {roster.length === 1
             ? t('admin.staff.countOne')
             : t('admin.staff.count', { n: String(roster.length) })}
-        </span>
+        </Text>
       {:else}
         <Skeleton variant="pill" width="110px" />
       {/if}
@@ -229,7 +231,7 @@
     {/snippet}
   </PageToolbar>
 
-  <div class="deck" class:inspecting={inspector.isOpen}>
+  <DeckLayout inspecting={inspector.isOpen} width="380px">
     <DeckList>
       {#if !loaded}
         <SkeletonStack rows={3} height="60px" />
@@ -283,7 +285,7 @@
         {/key}
       </InspectorSurface>
     {/if}
-  </div>
+  </DeckLayout>
 </section>
 
 <ConfirmDialog
@@ -319,23 +321,3 @@
   onConfirm={discard.confirm}
   onCancel={discard.cancel}
 />
-
-<style>
-  .count {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-  }
-
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting {
-      grid-template-columns: minmax(0, 1fr) 380px;
-    }
-  }
-</style>

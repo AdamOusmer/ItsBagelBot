@@ -5,6 +5,10 @@
 import { dashboardHref } from '@bagel/kit/site-links';
 
 import Card from '@bagel/ui/astro/Card.astro';
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
+import Badge from '@bagel/ui/astro/Badge.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 import { Image } from 'astro:assets';
 import premiumLogo from '../../assets/premium-logo.png';
 import { getLangFromUrl, useTranslations, defaultLang, dashLoginHref } from '../../i18n/ui';
@@ -28,29 +32,24 @@ const enterpriseFeatures = [
 
 <section class="tiers">
     <div class="tier-glow" data-reveal>
-    <Card atmo hover class="tier tier--free">
+    <Card atmo hover tone="accent">
         <div class="tier-free__layout">
             <div class="tier-free__head">
-                <span class="tier__name">{t('tier.free')}</span>
+                <Heading level={5} as="h3" variant="title" uppercase class="tier__name">{t('tier.free')}</Heading>
                 <div class="tier__price">
-                    <span class="tier__amount">$0</span>
-                    <span class="tier__suffix">{t('tier.freeSuffix')}</span>
+                    <Heading level={2} as="span">$0</Heading>
+                    <Text as="span" size="sm" tone="muted" class="tier__suffix">{t('tier.freeSuffix')}</Text>
                 </div>
-                <p class="tier__desc">
+                <Text size="sm" tone="muted" class="tier__desc">
                     {t('tier.freeDesc')}
-                </p>
-                <a
-                    class="bb-btn bb-btn--primary tier__btn tier__btn--main"
-                    href={dashLoginHref(lang)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >{t('tier.getStarted')}</a>
+                </Text>
+                <ButtonLink href={dashLoginHref(lang)} target="_blank" rel="noopener noreferrer">{t('tier.getStarted')}</ButtonLink>
             </div>
 
             <ul class="tier__features tier-free__features">
                 {freeFeatures.map((feature, fi) => (
-                    <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
-                        <span>{feature}</span>
+                    <li data-reveal style={`--reveal-i: ${fi + 1}`}>
+                        <Text as="span" size="sm" tone="soft">{feature}</Text>
                     </li>
                 ))}
             </ul>
@@ -59,84 +58,92 @@ const enterpriseFeatures = [
     </div>
 
     <div class="tiers__pair">
-        <Card atmo hover class="tier tier--premium" data-reveal style="--reveal-i: 1">
+        <Card atmo hover class="tier--premium" data-reveal>
             <div class="tier__demo" slot="band" aria-hidden="true">
-                <span class="tier__premium-float bb-stack">
+                <span class="tier__premium-float bb-layers">
                     <Image src={premiumLogo} alt="Premium" class="tier__premium-logo" width={160} height={160} loading="lazy" />
                     <Image src={premiumLogo} alt="" class="tier__premium-logo tier__premium-logo--lit" width={160} height={160} loading="lazy" />
                 </span>
             </div>
-            <span class="tier__badge">{t('tier.premiumBadge')}</span>
-            <span class="tier__name">{t('tier.premium')}</span>
+            <Badge shape="pill" class="tier__badge">{t('tier.premiumBadge')}</Badge>
+            <Heading level={5} as="h3" variant="title" uppercase class="tier__name">{t('tier.premium')}</Heading>
             <div class="tier__price">
-                <span class="tier__amount" data-count-up data-target="7" data-suffix="$">0$</span>
-                <span class="tier__suffix">{t('tier.premiumSuffix')}</span>
+                <Heading level={2} as="span" data-tier-count>7$</Heading>
+                <Text as="span" size="sm" tone="muted" class="tier__suffix">{t('tier.premiumSuffix')}</Text>
             </div>
-            <p class="tier__desc">
+            <Text size="sm" tone="muted" class="tier__desc">
                 {t('tier.premiumDesc')}
-            </p>
+            </Text>
             <ul class="tier__features">
                 {premiumFeatures.map((feature, fi) => (
-                    <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
-                        <span>{feature}</span>
+                    <li data-reveal style={`--reveal-i: ${fi + 1}`}>
+                        <Text as="span" size="sm" tone="muted">{feature}</Text>
                     </li>
                 ))}
             </ul>
-            <a
-                class="bb-btn bb-btn--quiet tier__btn tier__btn--outline"
+            <ButtonLink
+                variant="quiet"
+                block
+                class="tier__cta"
                 href={dashboardHref('/billing?subscribe=1', lang === defaultLang ? '' : `?lang=${lang}`)}
                 target="_blank"
                 rel="noopener noreferrer"
-            >{t('tier.chipIn')}</a>
-            <p class="tier__tebex-note">{t('tier.tebexNote')}</p>
+            >{t('tier.chipIn')}</ButtonLink>
+            <Text size="xs" mono tone="muted" class="tier__tebex-note">{t('tier.tebexNote')}</Text>
         </Card>
 
-        <Card atmo hover class="tier tier--enterprise" data-reveal style="--reveal-i: 2">
+        <Card atmo hover class="tier--enterprise" data-reveal>
             <div class="tier__demo" slot="band" aria-hidden="true">
                 <div class="tier__demo-ent">
                     <div class="ent-server">
                         <i class="bb-mark ent-server__light" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true"></i>
                     </div>
                     <div class="ent-server">
-                        <i class="bb-mark ent-server__light" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true" style="animation-delay: 0.5s"></i>
+                        <i class="bb-mark ent-server__light" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep ent-sweep--2" aria-hidden="true"></i>
                     </div>
                     <div class="ent-server">
-                        <i class="bb-mark ent-server__light" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep" aria-hidden="true" style="animation-delay: 1s"></i>
+                        <i class="bb-mark ent-server__light" aria-hidden="true"></i><span class="ent-line"></span><i class="bb-sweep ent-sweep--3" aria-hidden="true"></i>
                     </div>
                 </div>
             </div>
-            <span class="tier__name">{t('tier.enterprise')}</span>
+            <Heading level={5} as="h3" variant="title" uppercase class="tier__name">{t('tier.enterprise')}</Heading>
             <div class="tier__price">
-                <span class="tier__amount tier__amount--static">{t('tier.enterpriseAmount')}</span>
+                <Heading level={2} as="span">{t('tier.enterpriseAmount')}</Heading>
             </div>
-            <p class="tier__desc">
+            <Text size="sm" tone="muted" class="tier__desc">
                 {t('tier.enterpriseDesc')}
-            </p>
+            </Text>
             <ul class="tier__features">
                 {enterpriseFeatures.map((feature, fi) => (
-                    <li class="tier__feature" data-reveal style={`--reveal-i: ${fi + 1}`}>
-                        <span>{feature}</span>
+                    <li data-reveal style={`--reveal-i: ${fi + 1}`}>
+                        <Text as="span" size="sm" tone="muted">{feature}</Text>
                     </li>
                 ))}
             </ul>
-            <a class="bb-btn bb-btn--quiet tier__btn tier__btn--outline" href="mailto:enterprise@itsbagelbot.com">{t('tier.contactSales')}</a>
+            <ButtonLink variant="quiet" block class="tier__cta" href="mailto:enterprise@itsbagelbot.com">{t('tier.contactSales')}</ButtonLink>
         </Card>
     </div>
 
-    <p class="tiers__oath" data-reveal>
+    <Text size="xs" mono tone="muted" class="tiers__oath" data-reveal>
         {t('tier.oath')}
-    </p>
+    </Text>
 </section>
 
 <style>
     .tiers {
-        padding: 0 24px var(--space-section, 96px);
-        max-width: var(--content-max, 1200px);
+        --card-body-display: flex;
+        --card-body-dir: column;
+        --card-body-h: 100%;
+        padding: 0 24px var(--bb-space-section);
+        max-width: var(--bb-content-max);
         margin: 0 auto;
         display: flex;
         flex-direction: column;
         gap: 24px;
     }
+
+    .tier--premium { --reveal-i: 1; }
+    .tier--enterprise { --reveal-i: 2; }
 
     .tiers__pair {
         display: grid;
@@ -149,21 +156,6 @@ const enterpriseFeatures = [
         .tiers__pair { grid-template-columns: repeat(2, 1fr); }
     }
 
-    :global(.tier) { flex: 1; }
-
-    .tiers {
-        --card-body-display: flex;
-        --card-body-dir: column;
-        --card-body-h: 100%;
-    }
-
-    .tier--free {
-        display: flex;
-        flex-direction: column;
-        border-color: rgba(201, 168, 124, 0.35) !important;
-        box-shadow: 0 0 32px rgba(201, 168, 124, 0.08);
-    }
-
     .tier-glow {
         position: relative;
         display: flex;
@@ -174,8 +166,8 @@ const enterpriseFeatures = [
         content: "";
         position: absolute;
         inset: 0;
-        border-radius: var(--radius-md);
-        box-shadow: 0 0 56px rgba(201, 168, 124, 0.22), 0 0 100px rgba(201, 168, 124, 0.07);
+        border-radius: var(--bb-radius-md);
+        box-shadow: 0 0 56px rgba(var(--bb-tan-rgb), 0.22), 0 0 100px rgba(var(--bb-tan-rgb), 0.07);
         opacity: 0;
         pointer-events: none;
         animation: freeGlow 5s ease-in-out infinite;
@@ -206,30 +198,18 @@ const enterpriseFeatures = [
     }
 
     .tier__tebex-note {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.75rem;
-        color: var(--muted, #888077);
         text-align: center;
         margin-top: 12px;
-        margin-bottom: 0;
-        letter-spacing: 0.02em;
     }
 
     .tier__badge {
+        --badge-tone: var(--bb-black);
+        --badge-bg: var(--bb-tan);
+        --badge-tone-rule: var(--bb-tan);
         position: absolute;
         top: 0;
         left: 50%;
         transform: translate(-50%, -50%);
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.62rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        background: var(--tan, #c9a87c);
-        color: var(--black, #0a0a0a);
-        padding: 4px 14px;
-        border-radius: var(--radius-pill);
-        white-space: nowrap;
-        font-weight: 600;
         z-index: 1;
     }
 
@@ -252,11 +232,11 @@ const enterpriseFeatures = [
         max-width: 100%;
         max-height: 80px;
         object-fit: contain;
-        filter: drop-shadow(0 4px 12px rgba(201, 168, 124, 0.15));
+        filter: drop-shadow(0 4px 12px rgba(var(--bb-tan-rgb), 0.15));
     }
 
     .tier__premium-logo--lit {
-        filter: drop-shadow(0 8px 20px rgba(201, 168, 124, 0.35));
+        filter: drop-shadow(0 8px 20px rgba(var(--bb-tan-rgb), 0.35));
         opacity: 0;
         animation: premiumGlow 5s ease-in-out infinite;
     }
@@ -284,21 +264,24 @@ const enterpriseFeatures = [
         align-items: center;
         gap: 8px;
         padding: 4px 8px;
-        border: 1px solid rgba(224, 196, 154, 0.15);
-        border-radius: var(--radius-xs);
+        border: 1px solid rgba(var(--bb-tan-rgb), 0.15);
+        border-radius: var(--bb-radius-xs);
         background: rgba(0, 0, 0, 0.3);
         overflow: hidden;
     }
 
     .ent-server__light {
-        color: var(--green-glow, #52b788);
+        color: var(--bb-green-glow);
     }
+
+    .ent-sweep--2 { animation-delay: 0.5s; }
+    .ent-sweep--3 { animation-delay: 1s; }
 
     .ent-line {
         flex: 1;
         height: 2px;
-        background: rgba(224, 196, 154, 0.2);
-        border-radius: var(--radius-pill);
+        background: rgba(var(--bb-tan-rgb), 0.2);
+        border-radius: var(--bb-radius-pill);
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -307,13 +290,6 @@ const enterpriseFeatures = [
     }
 
     .tier__name {
-        display: block;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-weight: 700;
-        font-size: 1.05rem;
-        letter-spacing: 0.02em;
-        text-transform: uppercase;
-        color: var(--white, #f0ece4);
         margin-bottom: 18px;
     }
 
@@ -324,51 +300,20 @@ const enterpriseFeatures = [
         margin-bottom: 14px;
     }
 
-    .tier__prefix {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-weight: 800;
-        font-size: 1.7rem;
-        line-height: 1;
-        color: var(--tan-light, #e0c49a);
-        align-self: flex-start;
-        margin-top: 5px;
-    }
-
-    .tier__amount {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-weight: 800;
-        font-size: 3.2rem;
-        line-height: 1;
-        letter-spacing: -0.03em;
-        color: var(--white, #f0ece4);
-        font-variant-numeric: tabular-nums;
-    }
-
-    .tier__amount--static { font-size: 2.2rem; }
-
     .tier__suffix {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.85rem;
-        color: var(--muted, #888077);
         margin-left: 6px;
     }
 
     .tier__desc {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.9rem;
-        line-height: 1.65;
-        color: var(--muted, #888077);
         margin: 0 0 22px;
         max-width: 40ch;
     }
 
     .tier__features {
-        list-style: none;
         display: flex;
         flex-direction: column;
         gap: 11px;
         margin: 0 0 26px;
-        padding: 0;
     }
 
     .tier-free__features {
@@ -377,7 +322,7 @@ const enterpriseFeatures = [
         gap: 12px;
         margin: 0;
         padding: 20px 0 0;
-        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        border-top: 1px solid var(--bb-border);
     }
 
     @media (min-width: 560px) {
@@ -385,37 +330,17 @@ const enterpriseFeatures = [
     }
 
     @media (min-width: 860px) {
-        .tier-free__features { border-top: none; border-left: 1px solid var(--border, rgba(201, 168, 124, 0.15)); padding: 0 0 0 40px; }
+        .tier-free__features { border-top: none; border-left: 1px solid var(--bb-border); padding: 0 0 0 40px; }
     }
 
-    .tier__feature {
-        display: block;
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.87rem;
-        line-height: 1.45;
-        color: var(--muted, #888077);
-    }
-
-    .tier--free .tier__feature { color: rgba(240, 236, 228, 0.75); }
-
-    .tier__btn {
+    .tier__cta {
         margin-top: auto;
-        justify-content: center;
-        text-align: center;
-    }
-
-    .tier__btn--main {
-        align-self: flex-start;
     }
 
     .tiers__oath {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.72rem;
-        letter-spacing: 0.06em;
-        color: var(--muted, #888077);
         text-align: center;
-        border: 1px dashed rgba(201, 168, 124, 0.22);
-        border-radius: var(--radius-pill);
+        border: 1px dashed rgba(var(--bb-tan-rgb), 0.22);
+        border-radius: var(--bb-radius-pill);
         padding: 12px 24px;
         margin: 12px auto 0;
         max-width: fit-content;
@@ -424,33 +349,21 @@ const enterpriseFeatures = [
 
 <script>
     import { bindOnce } from '../../script/bind';
-    import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+    import { countUp } from '@bagel/ui/lib/count-up';
 
-    function runCountUp(el: HTMLElement) {
-        const target = parseInt(el.dataset.target ?? '0', 10);
-        const suffix = el.dataset.suffix ?? '';
-        if (target === 0 || prefersReducedMotion()) {
-            el.textContent = `${target}${suffix}`;
+    function countWhenRevealed(amount: HTMLElement) {
+        const scene = amount.closest<HTMLElement>('[data-reveal]');
+        if (!scene || scene.classList.contains('is-revealed')) {
+            countUp(amount);
             return;
         }
-        const duration = 900;
-        const startTime = performance.now();
-        function tick(now: number) {
-            const progress = Math.min((now - startTime) / duration, 1);
-            const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
-            el.textContent = `${Math.round(eased * target)}${suffix}`;
-            if (progress < 1) requestAnimationFrame(tick);
-        }
-        requestAnimationFrame(tick);
+        const watcher = new MutationObserver(() => {
+            if (!scene.classList.contains('is-revealed')) return;
+            watcher.disconnect();
+            countUp(amount);
+        });
+        watcher.observe(scene, { attributes: true, attributeFilter: ['class'] });
     }
 
-    const inView = new IntersectionObserver((entries, obs) => {
-        entries.forEach((entry) => {
-            if (!entry.isIntersecting) return;
-            obs.unobserve(entry.target);
-            runCountUp(entry.target as HTMLElement);
-        });
-    }, { threshold: 0.2 });
-
-    bindOnce('[data-count-up]', (el) => inView.observe(el));
+    bindOnce('[data-tier-count]', countWhenRevealed);
 </script>

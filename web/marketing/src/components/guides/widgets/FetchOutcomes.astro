@@ -2,6 +2,10 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Card from '@bagel/ui/astro/Card.astro';
+import SegmentedControl from '@bagel/ui/astro/SegmentedControl.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+
 interface Outcome {
     id: string;
     label: string;
@@ -24,68 +28,53 @@ const L = {
     ...labels,
 };
 const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcome[];
+const options = outcomes.map((outcome) => ({
+    value: outcome.id,
+    label: outcome.label,
+    attrs: {
+        'data-go-tab': outcome.id,
+        'data-go-bot': outcome.bot,
+        'aria-controls': `gout-why-${outcome.id}`,
+    },
+}));
 ---
 
-<div class="gout" data-fetchoutcomes>
-    <div class="gout__tabs" role="tablist" aria-label={L.legend}>
-        {outcomes.map((outcome, i) => (
-            <button
-                type="button"
-                role="tab"
-                class="gout__tab"
-                id={`gout-tab-${outcome.id}`}
-                aria-controls={`gout-why-${outcome.id}`}
-                aria-selected={i === 0 ? 'true' : 'false'}
-                data-go-tab={outcome.id}
-                data-go-bot={outcome.bot}
-            >
-                {outcome.label}
-            </button>
-        ))}
-    </div>
-    <div class="gout__win">
-        <div class="gout__bar"><span>{L.title}</span></div>
-        <div class="gout__feed">
-            <p class="gout__msg"><b class="gout__viewer">{L.viewer}</b><span class="gout__line">{L.viewerText}</span></p>
-            <p class="gout__msg"><b class="gout__bot">{L.botName}</b><span class="gout__line" data-go-line>{outcomes[0]?.bot}</span></p>
+<Card flush class="gout-card">
+    <div class="gout" data-fetchoutcomes>
+        <SegmentedControl options={options} value={outcomes[0]?.id} label={L.legend} data-go-tabs />
+        <div class="gout__win">
+            <div class="gout__bar"><span>{L.title}</span></div>
+            <div class="gout__feed">
+                <p class="gout__msg"><b class="gout__viewer">{L.viewer}</b><span class="gout__line">{L.viewerText}</span></p>
+                <p class="gout__msg"><b class="gout__bot">{L.botName}</b><span class="gout__line" data-go-line>{outcomes[0]?.bot}</span></p>
+            </div>
+        </div>
+        <div aria-live="polite">
+            {outcomes.map((outcome, i) => (
+                <Text size="sm" tone="muted-light" id={`gout-why-${outcome.id}`} data-go-why={outcome.id} data-go-bot={outcome.bot} hidden={i !== 0}>
+                    {outcome.why}
+                </Text>
+            ))}
         </div>
     </div>
-    {outcomes.map((outcome, i) => (
-        <p
-            class="gout__why"
-            role="tabpanel"
-            id={`gout-why-${outcome.id}`}
-            aria-labelledby={`gout-tab-${outcome.id}`}
-            data-go-why={outcome.id}
-            hidden={i !== 0}
-        >
-            {outcome.why}
-        </p>
-    ))}
-</div>
+</Card>
 
 <style>
-    .gout { display: grid; gap: 12px; margin: 22px 0; padding: 15px 16px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-lg); background: rgba(17, 17, 16, 0.6); }
-    .gout__tabs { display: flex; flex-wrap: wrap; gap: 6px; }
-    .gout__tab { padding: 6px 12px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-pill); background: rgba(240, 236, 228, 0.03); color: var(--tan-light, #e0c49a); font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.78rem; cursor: pointer; transition: border-color 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)), background 300ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
-    .gout__tab:hover { border-color: var(--tan, #c9a87c); }
-    .gout__tab:focus-visible { outline: 2px solid var(--green-glow, #52b788); outline-offset: 2px; }
-    .gout__tab[aria-selected="true"] { background: var(--tan, #c9a87c); border-color: var(--tan, #c9a87c); color: var(--black, #0a0a0a); }
-    .gout__win { border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm); background: rgba(10, 10, 10, 0.7); overflow: hidden; }
-    .gout__bar { padding: 7px 11px; border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15)); font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.62rem; color: var(--muted, #888077); }
+    .gout-card { margin: 22px 0; }
+    .gout { display: grid; gap: 12px; padding: 15px 16px; }
+    .gout__win { border: 1px solid var(--bb-border); border-radius: var(--bb-radius-sm); background: rgba(var(--bb-black-rgb), 0.7); overflow: hidden; }
+    .gout__bar { padding: 7px 11px; border-bottom: 1px solid var(--bb-border); font-family: var(--bb-font-mono); font-size: 0.62rem; color: var(--bb-muted); }
     .gout__feed { display: grid; gap: 7px; padding: 11px; }
-    .gout__msg { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.86rem; line-height: 1.5; color: rgba(240, 236, 228, 0.85); }
-    .gout__msg b { font-weight: 600; }
-    .gout__viewer { color: var(--tan-light, #e0c49a); }
-    .gout__bot { color: var(--green-glow, #52b788); }
-    .gout__line { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.8rem; }
-    .gout__line.is-new { animation: gout-slide 240ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
-    .gout__why { margin: 0; font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.88rem; line-height: 1.65; color: #a39c92; }
+    .gout__msg { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; font-family: var(--bb-font-body); font-size: 0.86rem; line-height: 1.5; color: rgba(var(--bb-white-rgb), 0.85); }
+    .gout__viewer, .gout__bot { font-weight: 600; }
+    .gout__viewer { color: var(--bb-tan-light); }
+    .gout__bot { color: var(--bb-green-glow); }
+    .gout__line { font-family: var(--bb-font-mono); font-size: var(--bb-text-sm); }
+    .gout__line.is-new { animation: gout-slide var(--bb-dur-fast) var(--bb-ease-out-expo); }
 
     @keyframes gout-slide { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 
     @media (prefers-reduced-motion: reduce) {
-        .gout__tab { transition: none; }
         .gout__line.is-new { animation: none; }
     }
 </style>
@@ -93,31 +82,27 @@ const outcomes = (Array.isArray(props.outcomes) ? props.outcomes : []) as Outcom
 <script>
     import { bindOnce } from '../../../script/bind';
 
+    function replay(line: HTMLElement) {
+        line.classList.remove('is-new');
+        void line.offsetWidth;
+        line.classList.add('is-new');
+    }
+
     function setupFetchOutcomes(root: HTMLElement) {
-        const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-go-tab]'));
+        const group = root.querySelector<HTMLElement>('[data-go-tabs]')!;
+        const buttons = Array.from(group.querySelectorAll<HTMLButtonElement>('button[role="radio"]'));
         const line = root.querySelector<HTMLElement>('[data-go-line]')!;
         const whys = Array.from(root.querySelectorAll<HTMLElement>('[data-go-why]'));
 
-        function select(id: string) {
-            tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.goTab === id)));
-            whys.forEach((why) => { why.hidden = why.dataset.goWhy !== id; });
-            const chosen = tabs.find((tab) => tab.dataset.goTab === id);
-            line.textContent = chosen?.dataset.goBot ?? line.textContent;
-            line.classList.remove('is-new');
-            void line.offsetWidth;
-            line.classList.add('is-new');
+        function select(index: number) {
+            whys.forEach((why, i) => { why.hidden = i !== index; });
+            line.textContent = whys[index]?.dataset.goBot ?? line.textContent;
+            replay(line);
         }
 
-        tabs.forEach((tab, i) => {
-            tab.addEventListener('click', () => select(tab.dataset.goTab ?? ''));
-            tab.addEventListener('keydown', (event) => {
-                const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-                if (step === 0) return;
-                event.preventDefault();
-                const next = tabs[(i + step + tabs.length) % tabs.length];
-                next.focus();
-                select(next.dataset.goTab ?? '');
-            });
+        group.addEventListener('click', (event) => {
+            const chosen = (event.target as Element).closest<HTMLButtonElement>('button[role="radio"]');
+            if (chosen) select(buttons.indexOf(chosen));
         });
     }
 

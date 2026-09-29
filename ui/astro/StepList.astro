@@ -1,0 +1,89 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import ProgressBar from './ProgressBar.astro';
+import '../styles/tags.css';
+import '../styles/elements/step-list.css';
+
+type StepState = 'pending' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'skipped' | 'cancelled';
+
+type StepItem = {
+    id: string;
+    label: string;
+    state: StepState;
+    value?: number | null;
+    meta?: string;
+    href?: string;
+};
+
+interface Props {
+    steps: StepItem[];
+    stateLabels?: Partial<Record<StepState, string>>;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { steps, stateLabels = {}, class: className = '', ...rest } = Astro.props;
+
+const DEFAULT_LABELS: Record<StepState, string> = {
+    pending: 'Pending',
+    running: 'Running',
+    waiting: 'Waiting',
+    succeeded: 'Succeeded',
+    failed: 'Failed',
+    skipped: 'Skipped',
+    cancelled: 'Cancelled',
+};
+
+const TONE: Record<StepState, 'neutral' | 'success' | 'warning' | 'error'> = {
+    pending: 'neutral',
+    running: 'neutral',
+    waiting: 'warning',
+    succeeded: 'success',
+    failed: 'error',
+    skipped: 'neutral',
+    cancelled: 'neutral',
+};
+
+const MARK: Record<StepState, string> = {
+    pending: 'bb-mark bb-mark--hollow',
+    running: 'bb-mark',
+    waiting: 'bb-mark bb-mark--dash',
+    succeeded: 'bb-mark',
+    failed: 'bb-mark',
+    skipped: 'bb-mark bb-mark--dash',
+    cancelled: 'bb-mark bb-mark--hollow',
+};
+
+const labels = { ...DEFAULT_LABELS, ...stateLabels };
+const classes = ['bb-steps', className || null].filter(Boolean).join(' ');
+const hasDetail = Astro.slots.has('default');
+
+const rows = await Promise.all(
+    steps.map(async (step) => ({
+        step,
+        detail: hasDetail ? await Astro.slots.render('default', [step]) : null,
+    })),
+);
+---
+
+<ol class={classes} {...rest}>
+    {rows.map(({ step, detail }) => (
+        <li class={`bb-step bb-step--${step.state}`} aria-current={step.state === 'running' ? 'step' : undefined}>
+            <div class="bb-step__row">
+                <i class={MARK[step.state]} aria-hidden="true"></i>
+                <span class="bb-step__text">
+                    {step.href ? <a class="bb-step__label" href={step.href}>{step.label}</a> : <span class="bb-step__label">{step.label}</span>}
+                    {step.meta && <span class="bb-step__meta">{step.meta}</span>}
+                </span>
+                <div class="bb-step__bar">
+                    {step.value !== undefined && <ProgressBar value={step.value} tone={TONE[step.state]} label={step.label} size="sm" />}
+                </div>
+                <span class="bb-step__state">{labels[step.state]}</span>
+                {step.state === 'running' && <i class="bb-sweep" aria-hidden="true"></i>}
+            </div>
+            {detail !== null && <div class="bb-step__detail" set:html={detail}></div>}
+        </li>
+    ))}
+</ol>

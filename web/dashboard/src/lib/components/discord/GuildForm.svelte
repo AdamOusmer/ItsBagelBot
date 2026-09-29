@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
-  import { AlertBanner, Button, Card, ConfirmDialog, SaveStatus, getI18n } from '@bagel/kit';
+  import { AlertBanner, Button, Card, ConfirmDialog, Heading, SaveStatus, Text, getI18n } from '@bagel/kit';
   import type { Snippet } from 'svelte';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
 
@@ -41,12 +41,12 @@
 {/if}
 
 <section class="block reveal" style="--i:{index}" aria-labelledby={id}>
-  <h2 {id} class="block-title">{title}</h2>
+  <Heading level={6} as="h2" variant="title" {id} class="block-title">{title}</Heading>
   <Card>
     <form method="POST" action="?/save" use:enhance={draft.saveSubmit} novalidate>
       <input type="hidden" name="config" value={draft.payload} />
       <input type="hidden" name="version" value={draft.version} />
-      {#if hint}<p class="hint">{hint}</p>{/if}
+      {#if hint}<Text size="sm" tone="muted" class="hint">{hint}</Text>{/if}
 
       {@render children()}
 

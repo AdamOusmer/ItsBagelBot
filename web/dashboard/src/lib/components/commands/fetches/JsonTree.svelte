@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { JSON_PATH_MAX_DEPTH, buildJsonPath, getI18n, parseJsonPath } from '@bagel/kit';
+  import { FieldError, JSON_PATH_MAX_DEPTH, PickerOption, Text, buildJsonPath, getI18n, parseJsonPath } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -72,7 +72,7 @@
 </script>
 
 {#if parsed.error}
-  <small class="err" role="alert">{parsed.error}</small>
+  <FieldError message={parsed.error} />
 {:else if parsed.tree.length > 0}
   <div class="tree">
     {#each parsed.tree as root (root.segs.join('.'))}
@@ -83,19 +83,16 @@
 
 {#snippet node(n: TreeNode)}
   {#if n.children === null}
-    <button
-      type="button"
-      class="leaf"
+    <PickerOption
+      label={n.label === '' ? '/' : n.label}
+      description={n.preview}
       disabled={!canPick(n.segs)}
       title={canPick(n.segs) ? (leafTitle?.(n.segs) ?? buildJsonPath(n.segs)) : t('fetches.pickerTooDeep')}
       onclick={() => onPick(n.segs)}
-    >
-      <span class="leaf-key">{n.label === '' ? '/' : n.label}</span>
-      <span class="leaf-val">{n.preview}</span>
-    </button>
+    />
   {:else}
     <div class="branch">
-      <span class="key">{n.label === '' ? t('fetches.pickerRoot') : n.label}</span>
+      <Text as="span" size="xs" mono tone="accent">{n.label === '' ? t('fetches.pickerRoot') : n.label}</Text>
       <div class="kids">
         {#each n.children as child (child.segs.join('.'))}
           {@render node(child)}
@@ -106,8 +103,6 @@
 {/snippet}
 
 <style>
-  .err { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-status-error, #cf8a78); }
-
   .tree {
     display: flex;
     flex-direction: column;
@@ -115,42 +110,15 @@
     max-height: 260px;
     overflow-y: auto;
     padding-top: 8px;
-    border-top: 1px solid var(--rule, var(--bb-border));
+    border-top: 1px solid var(--bb-border);
   }
 
-  .key { font-family: var(--bb-font-mono); font-size: 11px; color: var(--bb-tan-light); }
   .branch .kids {
     margin-left: 10px;
     padding-left: 8px;
-    border-left: 1px solid var(--rule, var(--bb-border));
+    border-left: 1px solid var(--bb-border);
     display: flex;
     flex-direction: column;
     gap: 2px;
-  }
-
-  .leaf {
-    width: 100%;
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 4px 6px;
-    background: transparent;
-    border: none;
-    border-radius: var(--bb-radius-sm);
-    cursor: pointer;
-    text-align: left;
-  }
-  .leaf:hover:not(:disabled) { background: var(--glass-fill-2); }
-  .leaf:focus-visible { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: -2px; }
-  .leaf:disabled { cursor: default; opacity: 0.4; }
-  .leaf-key { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-white); white-space: nowrap; }
-  .leaf-val {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    color: var(--bb-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 </style>

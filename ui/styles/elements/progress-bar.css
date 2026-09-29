@@ -20,16 +20,31 @@
     height: 4px;
   }
 
-  .bb-progress--success {
+  .bb-progress__seg--neutral {
+    --progress-fill: var(--bb-white);
+  }
+
+  .bb-progress--success,
+  .bb-progress__seg--success {
     --progress-fill: var(--bb-green-glow);
   }
 
-  .bb-progress--warning {
+  .bb-progress--warning,
+  .bb-progress__seg--warning {
     --progress-fill: var(--bb-tan);
   }
 
-  .bb-progress--error {
-    --progress-fill: var(--bb-status-error, #cf8a78);
+  .bb-progress--error,
+  .bb-progress__seg--error {
+    --progress-fill: var(--bb-status-error);
+  }
+
+  .bb-progress--success.bb-progress--ramp-2 {
+    --progress-fill: var(--bb-green-light);
+  }
+
+  .bb-progress--success.bb-progress--ramp-3 {
+    --progress-fill: var(--bb-green);
   }
 
   .bb-progress__fill {
@@ -40,12 +55,61 @@
     background: var(--progress-fill);
     transform: scaleX(var(--progress, 0));
     transform-origin: left;
-    transition: transform var(--bb-dur-base) var(--bb-ease-out-expo);
+    transition: transform var(--progress-duration, var(--bb-dur-base)) var(--bb-ease-out-expo);
+  }
+
+  .bb-progress--gradient .bb-progress__fill {
+    background: linear-gradient(
+      90deg,
+      var(--progress-from, color-mix(in srgb, var(--progress-fill) 50%, transparent)),
+      var(--progress-fill)
+    );
   }
 
   .bb-progress--indeterminate .bb-progress__fill {
     width: 30%;
     animation: bb-progress-travel 1.6s var(--bb-ease-out-expo) infinite;
+  }
+
+  .bb-progress--target {
+    overflow: visible;
+  }
+
+  .bb-progress__target {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    left: calc(var(--target) * 100%);
+    width: 1px;
+    background: var(--bb-muted);
+  }
+
+  .bb-progress--segmented {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--bb-space-1);
+    overflow: visible;
+    background: none;
+  }
+
+  .bb-progress__seg {
+    border-radius: inherit;
+    background: var(--bb-border);
+    transition: background var(--bb-dur-base) var(--bb-ease-out-expo);
+  }
+
+  .bb-progress__seg:is(
+    .bb-progress__seg--neutral,
+    .bb-progress__seg--success,
+    .bb-progress__seg--warning,
+    .bb-progress__seg--error
+  ) {
+    background: var(--progress-fill);
+  }
+
+  .bb-progress__seg.is-current {
+    box-shadow: 0 0 10px rgba(var(--bb-green-glow-rgb), 0.6);
   }
 
   @keyframes bb-progress-travel {
@@ -57,6 +121,10 @@
     .bb-progress--indeterminate .bb-progress__fill {
       animation: none;
       transform: translateX(117%);
+    }
+
+    .bb-progress__seg {
+      transition: none;
     }
   }
 }

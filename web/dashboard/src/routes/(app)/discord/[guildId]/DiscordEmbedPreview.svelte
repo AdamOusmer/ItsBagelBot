@@ -35,8 +35,8 @@
 
   .embed {
     border-left: 4px solid var(--bb-tan);
-    border-radius: 6px;
-    background: rgba(240, 236, 228, 0.04);
+    border-radius: var(--bb-radius-xs);
+    background: rgba(var(--bb-white-rgb), 0.04);
     padding: 12px 14px;
     max-width: 440px;
   }
@@ -62,9 +62,9 @@
   .embed-button {
     display: inline-block;
     padding: 7px 14px;
-    border-radius: 6px;
-    border: 1px solid var(--glass-border);
-    background: rgba(240, 236, 228, 0.08);
+    border-radius: var(--bb-radius-xs);
+    border: 1px solid var(--bb-glass-border);
+    background: rgba(var(--bb-white-rgb), 0.08);
     font-family: var(--bb-font-body);
     font-size: 12.5px;
     color: var(--bb-white);

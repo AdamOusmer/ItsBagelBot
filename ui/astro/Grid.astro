@@ -8,15 +8,17 @@ interface Props {
     cols?: 1 | 2 | 3 | 4 | 5 | 6;
     gap?: 1 | 2 | 3 | 4 | 5 | 6;
     min?: string;
+    stackAt?: 'sm' | 'md';
     as?: string;
     class?: string;
 }
 
-const { cols = 1, gap = 4, min, as: Tag = 'div', class: className = '', ...rest } = Astro.props;
+const { cols = 1, gap = 4, min, stackAt = 'sm', as: Tag = 'div', class: className = '', ...rest } = Astro.props;
 const classes = [
     'bb-grid',
     min ? 'bb-grid--auto' : `bb-grid--${cols}`,
     `bb-grid--gap-${gap}`,
+    stackAt === 'md' ? 'bb-grid--stack-md' : null,
     className,
 ]
     .filter(Boolean)

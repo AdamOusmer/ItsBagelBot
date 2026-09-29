@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, ManagementRow, MiniButton, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
+  import { Icon, IconButton, ManagementRow, Tag, Text, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -21,44 +21,40 @@
   const bound = $derived(!!redeem.rewardId);
 </script>
 
-<div class="row-wrap" class:unset={!bound}>
-  <ManagementRow
-    selected={expanded}
-    {expanded}
-    controls="spotify-editor"
-    onselect={onExpand}
-  >
-    {#snippet primary()}
-      <span class="prow">
-        <span class="light">
-          <span class="swatch" style="--sw: {reward?.color || '#1db954'}" aria-hidden="true"></span>
-          <span class="light-text">
-            <span class="light-name">{t('spotify.rewardRowLabel')}</span>
-            <span class="light-sku">{t('spotify.rewardRowHint')}</span>
-          </span>
+<ManagementRow
+  selected={expanded}
+  {expanded}
+  controls="spotify-editor"
+  onselect={onExpand}
+>
+  {#snippet primary()}
+    <span class="prow">
+      <span class="light">
+        <span class="swatch" style="--sw: {reward?.color || '#1db954'}" aria-hidden="true"></span>
+        <span class="light-text">
+          <span class="light-name" class:unset={!bound}>{t('spotify.rewardRowLabel')}</span>
+          <Text as="span" size="xs" mono tone="muted">{t('spotify.rewardRowHint')}</Text>
         </span>
-        <span class="status">
-          {#if bound && reward}
-            <span class="reward-title">{reward.title || t('spotify.thisReward')}</span>
-            <span class="reward-cost">{t('spotify.costPts', { n: reward.cost.toLocaleString() })}</span>
-          {:else}
-            <span class="unset-tag bb-tag bb-tag--quiet"><i class="bb-mark bb-mark--hollow" aria-hidden="true"></i>{t('spotify.notSetUp')}</span>
-          {/if}
-        </span>
-        <span class="chev" class:open={expanded} aria-hidden="true"><Icon name="chevron" size={13} /></span>
       </span>
-    {/snippet}
-    {#snippet actions()}
-      {#if bound}
-        <MiniButton icon="trash" class="row-del" aria-label={t('spotify.removeAria')} onclick={onDelete} />
-      {/if}
-    {/snippet}
-  </ManagementRow>
-</div>
+      <span class="status">
+        {#if bound && reward}
+          <Text as="span" size="sm" truncate>{reward.title || t('spotify.thisReward')}</Text>
+          <Text as="span" size="xs" mono tone="accent">{t('spotify.costPts', { n: reward.cost.toLocaleString() })}</Text>
+        {:else}
+          <span class="unset-tag"><Tag tone="quiet" mark="hollow">{t('spotify.notSetUp')}</Tag></span>
+        {/if}
+      </span>
+      <span class="chev" class:open={expanded} aria-hidden="true"><Icon name="chevron" size={13} /></span>
+    </span>
+  {/snippet}
+  {#snippet actions()}
+    {#if bound}
+      <IconButton size="sm" label={t('spotify.removeAria')} onclick={onDelete}><Icon name="trash" size={15} /></IconButton>
+    {/if}
+  {/snippet}
+</ManagementRow>
 
 <style>
-  .row-wrap.unset .light-name { color: var(--bb-muted); }
-
   .prow {
     display: grid;
     grid-template-columns: minmax(150px, 1.2fr) minmax(0, 1fr) auto;
@@ -82,36 +78,23 @@
   .light-name {
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-white);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .light-sku { font-family: var(--bb-font-mono, monospace); font-size: 11px; color: var(--bb-muted); }
+  .light-name.unset { color: var(--bb-muted); }
 
   .status { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .reward-title {
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-white);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .reward-cost { font-family: var(--bb-font-mono, monospace); font-size: 11.5px; color: var(--bb-tan-light); }
   .unset-tag { align-self: flex-start; }
 
   .chev {
     display: inline-flex;
     color: var(--bb-muted);
-    transition: color var(--bb-dur-fast, 140ms) ease, transform var(--bb-dur-fast, 140ms) ease;
+    transition: color var(--bb-dur-fast) ease, transform var(--bb-dur-fast) ease;
   }
   .chev.open { color: var(--bb-tan); transform: rotate(180deg); }
-
-  :global(.mini.row-del) { width: 44px; height: 44px; border-radius: var(--bb-radius-sm); }
-  :global(.mini.row-del:hover) { color: #cf8a78; }
-  :global(.mini.row-del:focus-visible) { outline: 2px solid var(--bb-green-glow, #52b788); outline-offset: 2px; }
 
   @media (max-width: 620px) {
     .prow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'light chev' 'status chev'; row-gap: 4px; }

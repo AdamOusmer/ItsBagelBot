@@ -1,12 +1,16 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
   import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DeployStage } from '$lib/deploys/types';
   import { flight } from './flight';
-  import { POD_PHASE_KEY, currentItem, groupNodes, ratio, stageTone } from './view';
+  import { POD_PHASE_KEY, currentItem, groupNodes, queueTone, ratio, stageTone } from './view';
 
   let { stage }: { stage: DeployStage } = $props();
 
@@ -19,6 +23,8 @@
   const at = $derived(current ? items.indexOf(current) : -1);
   const finished = $derived(stage.state === 'succeeded');
   const nodes = $derived(groupNodes(current?.nodes));
+  const queue = $derived(items.map((item) => queueTone(item.state)));
+  const shipped = $derived(items.filter((item) => item.state === 'succeeded').length / Math.max(items.length, 1));
 
   function heading(): string {
     const total = String(items.length);
@@ -38,119 +44,69 @@
 </script>
 
 {#if current}
-  <section class="now" aria-label={heading()}>
-    <p class="kicker" class:done={finished}>{heading()}</p>
+  <Card as="section" glass flush aria-label={heading()}>
+    <div class="now">
+      <Eyebrow as="p" tone={finished ? 'default' : 'go'}>{heading()}</Eyebrow>
 
-    <ol class="queue" aria-hidden="true">
-      {#each items as item, i (item.key)}
-        <li class="seg {item.state}" class:at={i === at}></li>
-      {/each}
-    </ol>
+      <ProgressBar value={shipped} size="sm" segments={queue} current={at} label={heading()} aria-hidden="true" />
 
-    <div class="stagebox">
-      {#key current.key}
-        <div class="current" in:arrive={{ i: 0 }} out:depart={{ i: 0 }}>
-          <h3 class="name">{current.label}</h3>
+      <div class="stagebox">
+        {#key current.key}
+          <div class="current" in:arrive={{ i: 0 }} out:depart={{ i: 0 }}>
+            <Heading level={3}><span class="name">{current.label}</span></Heading>
 
-          {#if rolling}
-            <div class="lanes">
-              {#each nodes as n (n.node)}
-                {@const live = n.pods.some((p) => p.phase === 'pending')}
-                <div class="lane" class:live>
-                  <span class="node">{n.node}</span>
-                  <span class="pods">
-                    {#each n.pods as p (p.pod)}
-                      <span class="pod {p.phase}" title={podLabel(p.pod, p.phase)}></span>
-                    {/each}
-                  </span>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <div class="jobs" aria-hidden="true">
-              {#each Array.from({ length: current.progress.total }, (_, j) => j) as j (j)}
-                <span
-                  class="job"
-                  class:done={j < current.progress.done}
-                  class:live={j === current.progress.done && current.state === 'running'}
-                ></span>
-              {/each}
-            </div>
-          {/if}
-
-          <ProgressBar
-            value={current.state === 'succeeded' ? 1 : (ratio(current.progress) ?? null)}
-            tone={stageTone(current.state)}
-            label={current.label}
-            size="sm"
-          />
-          <p class="caption">
-            <span>{caption()}</span>
-            {#if current.url}
-              <TextLink href={current.url} label={t('admin.deploys.run.openJob')} external size="11.5px" />
+            {#if rolling}
+              <div class="lanes">
+                {#each nodes as n (n.node)}
+                  {@const live = n.pods.some((p) => p.phase === 'pending')}
+                  <div class="lane" class:live>
+                    <Text as="span" size="xs" mono tone="soft" truncate>{n.node}</Text>
+                    <span class="pods">
+                      {#each n.pods as p (p.pod)}
+                        <span class="pod {p.phase}" title={podLabel(p.pod, p.phase)}></span>
+                      {/each}
+                    </span>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <div class="jobs" aria-hidden="true">
+                {#each Array.from({ length: current.progress.total }, (_, j) => j) as j (j)}
+                  <span
+                    class="job"
+                    class:done={j < current.progress.done}
+                    class:live={j === current.progress.done && current.state === 'running'}
+                  ></span>
+                {/each}
+              </div>
             {/if}
-          </p>
-          {#if current.detail}<p class="detail">{current.detail}</p>{/if}
-        </div>
-      {/key}
+
+            <ProgressBar
+              value={current.state === 'succeeded' ? 1 : (ratio(current.progress) ?? null)}
+              tone={stageTone(current.state)}
+              label={current.label}
+              size="sm"
+            />
+            <div class="caption">
+              <Text as="span" size="xs" mono tone="soft">{caption()}</Text>
+              {#if current.url}
+                <TextLink href={current.url} label={t('admin.deploys.run.openJob')} external />
+              {/if}
+            </div>
+            {#if current.detail}<Text size="xs" tone="muted">{current.detail}</Text>{/if}
+          </div>
+        {/key}
+      </div>
     </div>
-  </section>
+  </Card>
 {/if}
 
 <style>
   .now {
     display: grid;
-    gap: 12px;
-    padding: 14px 16px 16px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.32));
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 18px 40px rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
+    gap: var(--bb-space-3);
+    padding: var(--bb-space-3) var(--bb-space-4) var(--bb-space-4);
   }
-  .kicker {
-    margin: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-  }
-  .kicker.done {
-    color: var(--bb-tan);
-  }
-
-  .queue {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-    gap: 4px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .seg {
-    height: 4px;
-    border-radius: var(--bb-radius-pill);
-    background: rgba(255, 255, 255, 0.1);
-    transition: background 400ms var(--bb-ease-out-expo);
-  }
-  .seg.succeeded {
-    background: var(--bb-tan);
-  }
-  .seg.running,
-  .seg.waiting {
-    background: var(--bb-green-glow);
-  }
-  .seg.failed {
-    background: var(--bb-status-error, #e5484d);
-  }
-  .seg.at {
-    box-shadow: 0 0 10px rgba(var(--bb-green-glow-rgb), 0.6);
-  }
-
   .stagebox {
     display: grid;
     overflow: hidden;
@@ -158,35 +114,32 @@
   .current {
     grid-area: 1 / 1;
     display: grid;
-    gap: 12px;
+    gap: var(--bb-space-3);
     min-width: 0;
   }
   .name {
-    margin: 2px 0 0;
+    display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font: 700 22px/1.15 var(--bb-font-display);
-    letter-spacing: -0.02em;
-    color: var(--bb-white);
   }
 
   .lanes {
     display: grid;
-    gap: 8px;
+    gap: var(--bb-space-2);
   }
   .lane {
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 10px;
+    gap: var(--bb-space-2);
     height: 30px;
-    padding: 0 10px;
+    padding: 0 var(--bb-space-2);
     overflow: hidden;
     border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-sm);
-    background: rgba(0, 0, 0, 0.18);
+    background: rgba(var(--bb-shadow-rgb), 0.18);
   }
   .lane.live {
     border-color: rgba(var(--bb-green-glow-rgb), 0.45);
@@ -197,20 +150,12 @@
     inset: 0;
     background: linear-gradient(90deg, transparent, rgba(var(--bb-green-glow-rgb), 0.16), transparent);
     transform: translateX(-100%);
-    animation: sweep 1.8s var(--bb-ease-out-expo) infinite;
+    animation: sweep calc(var(--bb-dur-slow) * 3) var(--bb-ease-out-expo) infinite;
     pointer-events: none;
-  }
-  .node {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: rgba(255, 255, 255, 0.75);
   }
   .pods {
     display: inline-flex;
-    gap: 5px;
+    gap: var(--bb-space-1);
   }
   .pod {
     width: 22px;
@@ -218,28 +163,28 @@
     border-radius: var(--bb-radius-pill);
     border: 1px solid var(--bb-border-strong);
     transition:
-      background 500ms var(--bb-ease-out-expo),
-      border-color 500ms var(--bb-ease-out-expo);
+      background var(--bb-dur-slow) var(--bb-ease-out-expo),
+      border-color var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .pod.new {
     background: var(--bb-green-glow);
     border-color: var(--bb-green-glow);
-    animation: land 700ms var(--bb-ease-out-expo);
+    animation: land var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .pod.pending {
     border-color: var(--bb-green-glow);
-    animation: pulse 1.2s ease-in-out infinite;
+    animation: pulse calc(var(--bb-dur-slow) * 2) ease-in-out infinite;
   }
   .pod.failing {
-    background: var(--bb-status-error, #e5484d);
-    border-color: var(--bb-status-error, #e5484d);
+    background: var(--bb-status-error);
+    border-color: var(--bb-status-error);
   }
 
   .jobs {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
-    gap: 6px;
+    gap: var(--bb-space-2);
   }
   .job {
     position: relative;
@@ -248,13 +193,13 @@
     border: 1px solid var(--bb-border-strong);
     border-radius: var(--bb-radius-sm);
     transition:
-      background 500ms var(--bb-ease-out-expo),
-      border-color 500ms var(--bb-ease-out-expo);
+      background var(--bb-dur-slow) var(--bb-ease-out-expo),
+      border-color var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .job.done {
     background: linear-gradient(100deg, var(--bb-tan), rgba(var(--bb-green-glow-rgb), 0.8));
     border-color: transparent;
-    animation: land 700ms var(--bb-ease-out-expo);
+    animation: land var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .job.live {
     border-color: var(--bb-green-glow);
@@ -265,25 +210,16 @@
     inset: 0;
     background: linear-gradient(90deg, transparent, rgba(var(--bb-green-glow-rgb), 0.35), transparent);
     transform: translateX(-100%);
-    animation: sweep 1.4s var(--bb-ease-out-expo) infinite;
+    animation: sweep calc(var(--bb-dur-slow) * 2.5) var(--bb-ease-out-expo) infinite;
   }
 
   .caption {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    min-height: 1.75em;
-    margin: 0;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: rgba(255, 255, 255, 0.75);
+    gap: var(--bb-space-2);
+    min-height: calc(var(--bb-text-xs) * 1.75);
     font-variant-numeric: tabular-nums;
-  }
-  .detail {
-    margin: 0;
-    font-size: 12.5px;
-    color: var(--bb-muted);
   }
 
   @keyframes sweep {
@@ -314,9 +250,7 @@
     }
   }
 
-
   @media (prefers-reduced-motion: reduce) {
-    .seg,
     .pod,
     .job {
       transition: none;

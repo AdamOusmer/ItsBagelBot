@@ -7,21 +7,27 @@
   import { goto, onNavigate, pushState, replaceState } from '$app/navigation';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { copyText } from '@bagel/ui/lib/clipboard';
   import { bezier } from '@bagel/ui/lib/tween';
-  import { hasFinePointer, prefersReducedMotion } from '@bagel/ui/lib/motion-query';
-  import { decode } from '@bagel/ui/svelte/actions';
+  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+  import { decode, parallax } from '@bagel/ui/svelte/actions';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import Brand from '@bagel/ui/svelte/Brand.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import CopySurface from '@bagel/ui/svelte/CopySurface.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
   import Icon from '@bagel/ui/svelte/Icon.svelte';
   import type { IconName } from '@bagel/ui/lib/icons';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import LanguageSwitcher from '@bagel/ui/svelte/LanguageSwitcher.svelte';
+  import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
+  import Stepper from '@bagel/ui/svelte/Stepper.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import Toggle from '@bagel/ui/svelte/Toggle.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { LOCALES, ensureCatalog, translate, type Locale } from '@bagel/kit/i18n';
-  import '@bagel/ui/styles/elements/nav.css';
   import CursorSwitch from '$lib/components/CursorSwitch.svelte';
   import Sky from '@bagel/ui/svelte/Sky.svelte';
-  import StepRail from '$lib/components/welcome/StepRail.svelte';
   import Completion from '$lib/components/welcome/Completion.svelte';
   import ImportWizard from '$lib/components/welcome/ImportWizard.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
@@ -63,13 +69,33 @@
     { id: 'quiet', key: 'Quiet', icon: 'quiet', face: 'sleepy' },
     { id: 'import', key: 'Import', icon: 'importFile', face: 'curious' }
   ] as const satisfies readonly { id: Setup; key: string; icon: IconName; face: string }[];
-  const choiceOf = (id: Setup) => CHOICES.find((c) => c.id === id) ?? CHOICES[0];
+  const choiceOf = (id: string) => CHOICES.find((c) => c.id === id) ?? CHOICES[0];
+  const choiceOptions = $derived(
+    CHOICES.map((c) => ({
+      value: c.id,
+      label: tr(`onboarding.choice${c.key}Title`),
+      description: tr(`onboarding.choice${c.key}Body`)
+    }))
+  );
+  const langOptions = $derived(LOCALES.map((l) => ({ code: l, label: l.toUpperCase(), current: l === locale })));
   const choiceIndex = $derived(Math.max(0, CHOICES.findIndex((c) => c.id === (hoveredChoice ?? setup))));
   const choicePosition = $derived(['12.5%', '37.5%', '62.5%', '87.5%'][choiceIndex]);
-  function pickSetup(id: Setup) {
-    if (setup === id) return;
-    setup = id;
-    react(choiceOf(id).face, 1400);
+  function pickSetup(id: string) {
+    const choice = choiceOf(id);
+    if (setup === choice.id) return;
+    setup = choice.id;
+    react(choice.face, 1400);
+  }
+  function previewChoice(target: EventTarget | null) {
+    const input = target instanceof Element ? target.closest('label')?.querySelector('input') : null;
+    const choice = CHOICES.find((c) => c.id === input?.value);
+    if (!choice) return;
+    hover = choice.face;
+    hoveredChoice = choice.id;
+  }
+  function clearChoice() {
+    hover = null;
+    hoveredChoice = null;
   }
 
   const tour = $derived<Beat[]>(
@@ -88,11 +114,11 @@
     'onboardingImport.stageReview',
     'onboardingImport.stageDone'
   ] as const;
-  const railLabels = $derived([
-    ...tour.map((s) => s.title),
-    ...(setup === 'import' ? importStageKeys.map((key) => tr(key)) : [])
+  const railSteps = $derived([
+    ...tour.map((s) => ({ label: s.title })),
+    ...(setup === 'import' ? importStageKeys.map((key) => ({ label: tr(key) })) : [])
   ]);
-  const journeyTotal = $derived(railLabels.length);
+  const journeyTotal = $derived(railSteps.length);
   const steps = $derived<Beat[]>([
     {
       kind: 'hero',
@@ -113,7 +139,6 @@
   let leaving = $state(false);
   let showCompletion = $state(false);
   let saveError = $state(false);
-  let copied = $state(false);
 
   const current = $derived(steps[step]);
   const last = $derived(step === steps.length - 1);
@@ -163,21 +188,16 @@
     reactionTimer = setTimeout(() => (reaction = null), ms);
   }
   function reactionFor(target: EventTarget | null): string | null {
-    const el = target instanceof Element ? target.closest('button, a') : null;
+    const el = target instanceof Element ? target.closest<HTMLElement>('button, a') : null;
     if (!el || el.hasAttribute('disabled')) return null;
-    return el.matches('.bb-btn--primary, .bb-btn--solid') ? 'excited' : 'curious';
+    return el.dataset.react ?? 'curious';
   }
 
   let px = $state(0);
   let py = $state(0);
-  let pointerFrame = 0;
-  function onPointerMove(e: PointerEvent) {
-    if (!hasFinePointer() || pointerFrame) return;
-    pointerFrame = requestAnimationFrame(() => {
-      pointerFrame = 0;
-      px = (e.clientX / window.innerWidth - 0.5) * 2;
-      py = (e.clientY / window.innerHeight - 0.5) * 2;
-    });
+  function follow(point: { px: number; py: number }) {
+    px = point.px;
+    py = point.py;
   }
 
   function go(i: number) {
@@ -254,13 +274,10 @@
     if (on) react('excited', 1600);
   }
 
-  async function copyMod() {
-    const ok = await copyText(MOD_COMMAND, { legacyFallback: true });
+  function celebrateCopy(ok: boolean) {
     if (!ok) return;
-    copied = true;
     react('proud', 2200);
     play('entrance');
-    setTimeout(() => (copied = false), 2000);
   }
 
   let form = $state<HTMLFormElement | null>(null);
@@ -307,8 +324,10 @@
     react('attentive', 2400);
   };
 
+  const steersChoice = (target: EventTarget | null) => target instanceof HTMLInputElement && target.type === 'radio';
+  const keysPaused = (e: KeyboardEvent) => leaving || importActive || steersChoice(e.target);
   function onKeydown(e: KeyboardEvent) {
-    if (leaving || importActive) return;
+    if (keysPaused(e)) return;
     if (e.key === 'ArrowRight' && canAdvance) {
       e.preventDefault();
       goNext();
@@ -332,18 +351,18 @@
   <meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
-<svelte:window onkeydown={onKeydown} onpointermove={onPointerMove} />
+<svelte:window onkeydown={onKeydown} />
 
 {#if importActive}
   <ImportWizard onback={returnFromImport} onexit={exitTo} {consentAccepted} {locale} />
 {:else}
 <Sky shift={blobRight ? 1 : -1} turn={step * 24} {px} {py} {progress} {leaving} />
 
-<div class="welcome" class:leaving data-orbs="off">
+<div class="welcome" class:leaving data-orbs="off" use:parallax={{ scope: 'viewport', onmove: follow }}>
   <header class="top">
     <Brand title="ItsBagelBot" sub={tr('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />
-    <StepRail
-      labels={railLabels}
+    <Stepper
+      steps={railSteps}
       current={step - 1}
       maxStep={maxStep - 1}
       label={tr('onboarding.stepOf', { n: Math.max(step, 1), total: journeyTotal })}
@@ -376,9 +395,9 @@
       <div class="copy-col" class:left={blobRight}>
         {#key step}
           <section class="step" aria-labelledby="wlc-title">
-            <p class="kicker" in:arrive={{ i: 0 }} out:depart={{ i: 0 }}>
-              {step === 0 ? tr('onboarding.title') : tr('onboarding.stepOf', { n: step, total: journeyTotal })}
-            </p>
+            <div class="kicker" in:arrive={{ i: 0 }} out:depart={{ i: 0 }}>
+              <Eyebrow as="p">{step === 0 ? tr('onboarding.title') : tr('onboarding.stepOf', { n: step, total: journeyTotal })}</Eyebrow>
+            </div>
             <h1
               id="wlc-title"
               class="title"
@@ -390,92 +409,72 @@
             >
               {current.title}
             </h1>
-            <p class="body" in:arrive={{ i: 2 }} out:depart={{ i: 2 }}>{current.body}</p>
+            <div class="body" in:arrive={{ i: 2 }} out:depart={{ i: 2 }}><Text size="lg" tone="muted">{current.body}</Text></div>
 
             {#if current.kind === 'consent'}
               <div class="control consent" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
                 <Toggle bind:on={consentAccepted} onchange={onConsent} />
-                <span class="bb-prose">{@html tr('onboarding.consentLabel')}</span>
+                <Text as="span" size="sm" tone="muted" class="bb-prose">{@html tr('onboarding.consentLabel')}</Text>
               </div>
             {:else if current.kind === 'choice'}
-              <div
-                class="control role-choices"
-                role="group"
-                aria-label={tr('onboarding.choiceTitle')}
-                in:arrive|global={{ i: 3 }}
-                out:depart|global={{ i: 3 }}
-                onpointerleave={() => { hover = null; hoveredChoice = null; }}
-              >
-                {#each CHOICES as choice, ci (choice.id)}
-                  <button
-                    type="button"
-                    class="role-choice"
-                    class:selected={setup === choice.id}
-                    aria-pressed={setup === choice.id}
-                    style="--side: {ci % 2 ? 1 : -1};"
-                    onclick={() => pickSetup(choice.id)}
-                    onpointerenter={() => { hover = choice.face; hoveredChoice = choice.id; }}
-                    onfocus={() => { hover = choice.face; hoveredChoice = choice.id; }}
-                    onblur={() => { hover = null; hoveredChoice = null; }}
-                  >
-                    <span class="role-top">
-                      <span class="role-glyph" aria-hidden="true"><Icon name={choice.icon} size={15} /></span>
-                      <span class="role-title">{tr(`onboarding.choice${choice.key}Title`)}</span>
-                      <span class="role-indicator" aria-hidden="true"><Icon name="check" size={12} /></span>
-                    </span>
-                    <span class="role-detail">{tr(`onboarding.choice${choice.key}Body`)}</span>
-                  </button>
-                {/each}
+              <div class="control role-choices" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
+                <RadioGroup
+                  variant="cards"
+                  cols={4}
+                  rail="sm"
+                  min="150px"
+                  name="setup"
+                  label={tr('onboarding.choiceTitle')}
+                  value={setup}
+                  options={choiceOptions}
+                  onchange={pickSetup}
+                  onpointerover={(e: PointerEvent) => previewChoice(e.target)}
+                  onfocusin={(e: FocusEvent) => previewChoice(e.target)}
+                  onpointerleave={clearChoice}
+                  onfocusout={clearChoice}
+                >
+                  {#snippet lead(option, on)}
+                    <span class="role-glyph" class:on aria-hidden="true"><Icon name={choiceOf(option.value).icon} size={15} /></span>
+                  {/snippet}
+                </RadioGroup>
               </div>
             {:else if current.kind === 'lang'}
               <div class="control prefs" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
                 <div class="lang-row">
-                  <div class="bb-lang-switch" role="group" aria-label={tr('lang.switchAria')}>
-                    {#each LOCALES as l (l)}
-                      <button
-                        type="button"
-                        class="bb-lang-switch__opt"
-                        class:is-active={l === locale}
-                        aria-pressed={l === locale}
-                        onclick={() => setLang(l)}
-                      >{l.toUpperCase()}</button>
-                    {/each}
-                  </div>
+                  <LanguageSwitcher ariaLabel={tr('lang.switchAria')} options={langOptions} onselect={(code) => setLang(code as Locale)} />
                 </div>
                 <div class="pref-row">
-                  <div>
-                    <span class="pref-name">{tr('settings.customCursor')}</span>
-                    <p class="pref-hint" id="wlc-cursor-hint">{tr('settings.customCursorHint')}</p>
+                  <div class="pref-text">
+                    <Text as="span" size="sm"><strong>{tr('settings.customCursor')}</strong></Text>
+                    <Text size="xs" tone="muted" id="wlc-cursor-hint">{tr('settings.customCursorHint')}</Text>
                   </div>
                   <CursorSwitch describedby="wlc-cursor-hint" />
                 </div>
               </div>
             {:else if current.kind === 'mod'}
-              <button
-                type="button"
-                class="control well"
-                class:copied
-                onclick={copyMod}
-                title={tr('common.copy')}
-                use:decode
-                in:arrive|global={{ i: 3 }}
-                out:depart|global={{ i: 3 }}
-              >
-                <code class="cmd" data-decode={MOD_COMMAND}>{MOD_COMMAND}</code>
-                <span class="hint">
-                  <Icon name={copied ? 'check' : 'copy'} size={12} />
-                  {copied ? tr('common.copied') : tr('common.copy')}
-                </span>
-              </button>
+              <div class="control mod-well" use:decode in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
+                <CopySurface
+                  variant="well"
+                  text={MOD_COMMAND}
+                  hint={tr('common.copy')}
+                  copiedLabel={tr('common.copied')}
+                  flashMs={2000}
+                  legacyFallback
+                  title={tr('common.copy')}
+                  oncopy={celebrateCopy}
+                >
+                  {#snippet children()}<span data-decode={MOD_COMMAND}>{MOD_COMMAND}</span>{/snippet}
+                </CopySurface>
+              </div>
             {:else if current.kind === 'commands'}
               <div class="control rehearsal-example" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
                 <ChatPreview name="hello" response={tr('onboarding.exampleReply')} tag={tr('onboarding.exampleLabel')} broadcasterName={data.name} {locale} samples={{ user: tr('onboarding.exampleViewer') }} />
-                <p class="example-note">{tr('onboarding.newCommandsHint')}</p>
+                <Text size="xs" tone="muted">{tr('onboarding.newCommandsHint')}</Text>
               </div>
             {:else if current.kind === 'modules'}
               <div class="control rehearsal-example" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
                 <ChatPreview kind="reply" name="welcome" viewerText={tr('onboarding.moduleExampleViewer')} response={tr('onboarding.moduleExampleReply')} tag={tr('onboarding.moduleExampleLabel')} broadcasterName={data.name} {locale} samples={{ user: tr('onboarding.exampleViewer') }} />
-                <p class="example-note">{tr('onboarding.newModulesHint')}</p>
+                <Text size="xs" tone="muted">{tr('onboarding.newModulesHint')}</Text>
               </div>
             {/if}
 
@@ -488,26 +487,22 @@
               onpointerout={() => (hover = null)}
             >
               {#if current.kind === 'hero'}
-                <button type="button" class="bb-btn bb-btn--primary" onclick={goNext}>
-                  {tr('onboarding.heroCta')}
-                </button>
+                <Button data-react="excited" onclick={goNext}>{tr('onboarding.heroCta')}</Button>
               {:else}
                 {#if last}
                   {#if setup === 'import'}
-                    <button type="button" class="bb-btn bb-btn--primary" onclick={startImport}>{tr('onboarding.choiceImportCta')}</button>
+                    <Button data-react="excited" onclick={startImport}>{tr('onboarding.choiceImportCta')}</Button>
                   {:else}
-                    <button type="button" class="bb-btn bb-btn--primary" onclick={finish}>{tr('onboarding.finishCta')}</button>
+                    <Button data-react="excited" onclick={finish}>{tr('onboarding.finishCta')}</Button>
                   {/if}
                 {:else}
-                  <button type="button" class="bb-btn bb-btn--primary" onclick={goNext} disabled={nextDisabled}>
-                    {tr('onboarding.next')}
-                  </button>
+                  <Button data-react="excited" onclick={goNext} disabled={nextDisabled}>{tr('onboarding.next')}</Button>
                 {/if}
-                <button type="button" class="quiet" onclick={goBack}>{tr('onboarding.back')}</button>
+                <Button variant="ghost" onclick={goBack}>{tr('onboarding.back')}</Button>
               {/if}
             </div>
             {#if saveError}
-              <p class="error" role="alert">{tr('onboarding.saveError')}</p>
+              <div class="save-error"><AlertBanner variant="danger">{tr('onboarding.saveError')}</AlertBanner></div>
             {/if}
           </section>
         {/key}
@@ -521,7 +516,7 @@
       <span class="bead-track"><span class="bead"></span></span>
     </div>
     <div class="meta">
-      <span class="count">{step === 0 ? '' : tr('onboarding.stepOf', { n: step, total: journeyTotal })}</span>
+      <Label mono as="span">{step === 0 ? '' : tr('onboarding.stepOf', { n: step, total: journeyTotal })}</Label>
     </div>
   </footer>
 </div>
@@ -557,7 +552,7 @@
     gap: 12px 24px;
     flex-wrap: wrap;
     padding: 22px var(--gutter) 0;
-    animation: settle 900ms var(--bb-ease-out-expo) backwards;
+    animation: settle calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) backwards;
   }
 
   .stage {
@@ -574,15 +569,15 @@
     width: min(100%, 1120px);
     min-height: clamp(440px, 64svh, 720px);
     transition:
-      transform 640ms var(--bb-ease-out-expo),
-      opacity 520ms var(--bb-ease-out-expo);
+      transform var(--bb-dur-slow) var(--bb-ease-out-expo),
+      opacity var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
 
   .blob-col,
   .copy-col {
     transition:
-      transform 1000ms var(--bb-ease-out-expo),
-      opacity 480ms var(--bb-ease-out-expo);
+      transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo),
+      opacity var(--bb-dur-slow) var(--bb-ease-out-expo);
     will-change: transform;
   }
   .blob-col.right { transform: translateX(calc(100% + var(--gap))); }
@@ -590,10 +585,10 @@
 
   .step {
     transition:
-      transform 300ms var(--bb-ease-out-expo),
-      opacity 240ms var(--bb-ease-out-expo);
+      transform var(--bb-dur-base) var(--bb-ease-out-expo),
+      opacity var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
-  .clearing .blob-col { opacity: 0; transition-duration: 1000ms, 240ms; }
+  .clearing .blob-col { opacity: 0; transition-duration: calc(var(--bb-dur-slow) * 1.5), var(--bb-dur-fast); }
   .clearing .step {
     opacity: 0;
     transform: translateX(calc(var(--dir) * -56px));
@@ -609,12 +604,12 @@
 
   .scale {
     transform: scale(var(--blob-scale));
-    transition: transform 1000ms var(--bb-ease-out-expo);
+    transition: transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo);
   }
 
   .float {
     position: relative;
-    filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.42));
+    filter: drop-shadow(0 18px 34px rgba(var(--bb-shadow-rgb), 0.42));
     animation: float 9s ease-in-out infinite;
   }
 
@@ -657,7 +652,7 @@
     position: absolute;
     top: -50px;
     left: calc(var(--choice-position) - 120px);
-    transition: left 680ms var(--bb-ease-out-expo), transform 1000ms var(--bb-ease-out-expo);
+    transition: left var(--bb-dur-slow) var(--bb-ease-out-expo), transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo);
   }
   .choice-stage .copy-col,
   .choice-stage .copy-col.left {
@@ -672,14 +667,7 @@
   .choice-stage .body { max-width: none; margin-inline: auto; }
   .choice-stage .actions { justify-content: center; }
 
-  .kicker {
-    margin: 0 0 14px;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--bb-tan);
-  }
+  .kicker { margin-bottom: 14px; }
 
   .title {
     margin: 0 0 18px;
@@ -700,53 +688,11 @@
   }
   .title.hero { font-size: clamp(2.6rem, 6.2vw, 4.6rem); }
 
-  .body {
-    margin: 0;
-    max-width: 46ch;
-    font-family: var(--bb-font-body);
-    font-size: clamp(1rem, 1.35vw, 1.125rem);
-    line-height: 1.6;
-    color: var(--bb-muted);
-  }
+  .body { max-width: 46ch; }
 
   .control { margin-top: 24px; }
 
-  .role-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
-  .role-choice {
-    position: relative;
-    display: grid;
-    align-content: start;
-    gap: 8px;
-    width: 100%;
-    min-height: 132px;
-    padding: 13px;
-    overflow: hidden;
-    text-align: left;
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--bb-white);
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-sm);
-    cursor: pointer;
-    transition:
-      border-color 240ms ease,
-      background 240ms ease,
-      box-shadow 420ms var(--bb-ease-out-expo);
-  }
-  .role-choice::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background: linear-gradient(100deg, rgba(var(--bb-tan-rgb), 0.16), rgba(var(--bb-green-glow-rgb), 0.08));
-    transform: translateX(calc(var(--side) * 101%));
-    transition: transform 620ms var(--bb-ease-out-expo);
-  }
-  .role-choice { isolation: isolate; }
-  .role-choice.selected::before { transform: none; }
-  .role-choice:hover, .role-choice.selected { border-color: var(--bb-tan); }
-  .role-choice.selected { box-shadow: 0 0 0 1px rgba(var(--bb-tan-rgb), 0.35), 0 14px 32px rgba(0, 0, 0, 0.22); }
-  .role-choice:focus-visible { outline: 2px solid var(--bb-tan); outline-offset: 2px; }
-  .role-top { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 8px; }
+  .role-choices { --choice-min-h: 132px; width: 100%; }
   .role-glyph {
     display: inline-grid;
     place-items: center;
@@ -757,49 +703,19 @@
     border: 1px solid var(--bb-border-strong);
     color: var(--bb-tan-pale);
     transition:
-      transform 520ms var(--bb-ease-out-expo),
-      color 240ms ease,
-      border-color 240ms ease;
+      color var(--bb-dur-fast) ease,
+      border-color var(--bb-dur-fast) ease;
   }
-  .role-choice:hover .role-glyph { transform: translateX(3px); }
-  .role-choice.selected .role-glyph {
+  .role-glyph.on {
     color: var(--bb-green-glow);
     border-color: rgba(var(--bb-green-glow-rgb), 0.5);
   }
-  .role-title { grid-column: 1 / -1; min-width: 0; font: 700 13px/1.2 var(--bb-font-display); }
-  .role-indicator {
-    display: inline-grid;
-    place-items: center;
-    flex: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    border: 1px solid var(--bb-border-strong);
-    color: var(--bb-bg-0, #101611);
-    transition:
-      background 240ms ease,
-      border-color 240ms ease;
-  }
-  .role-indicator :global(svg) {
-    transform: scale(0);
-    transition: transform 420ms var(--bb-ease-out-expo);
-  }
-  .role-choice.selected .role-indicator {
-    background: var(--bb-green-glow);
-    border-color: var(--bb-green-glow);
-  }
-  .role-choice.selected .role-indicator :global(svg) { transform: scale(1); }
-  .role-detail { font: 11px/1.35 var(--bb-font-body); color: var(--bb-muted); }
-  .rehearsal-example { width: min(100%, 480px); text-align: left; }
-  .example-note { margin: 12px 0 0; color: var(--bb-muted); font: 12px/1.5 var(--bb-font-body); }
+  .rehearsal-example { display: grid; gap: 12px; width: min(100%, 480px); text-align: left; }
 
   .consent {
     display: flex;
     align-items: center;
     gap: 14px;
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    color: var(--bb-muted);
   }
 
   .lang-row { display: flex; }
@@ -813,62 +729,7 @@
     padding-top: 16px;
     border-top: 1px solid var(--bb-border);
   }
-  .pref-name {
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--bb-white);
-  }
-  .pref-hint {
-    margin: 4px 0 0;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--bb-muted);
-  }
-
-  .well {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    width: min(100%, 440px);
-    padding: 15px 16px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.32));
-    border: 1px solid var(--bb-border-strong);
-    border-radius: var(--bb-radius-sm);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 18px 40px rgba(0, 0, 0, 0.35);
-    cursor: pointer;
-    transition:
-      border-color var(--bb-dur-base) var(--bb-ease-out-expo),
-      transform var(--bb-dur-base) var(--bb-ease-out-expo);
-  }
-  .well:hover {
-    border-color: var(--bb-tan);
-    transform: translateX(6px);
-  }
-  .cmd {
-    font-family: var(--bb-font-mono);
-    font-size: 15px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan-pale);
-  }
-  .hint {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--bb-font-body);
-    font-weight: 600;
-    font-size: 12px;
-    color: var(--bb-muted);
-    transition: color var(--bb-dur-base) var(--bb-ease-out-expo);
-  }
-  .well:hover .hint { color: var(--bb-tan-pale); }
-  .well.copied { border-color: var(--bb-green-glow); }
-  .well.copied .hint { color: var(--bb-green-glow); }
-  .well:focus-visible { outline: 2px solid var(--bb-tan); outline-offset: 2px; }
+  .pref-text { display: grid; gap: 4px; }
 
   .actions {
     display: flex;
@@ -878,35 +739,13 @@
     margin-top: 28px;
   }
 
-  .quiet {
-    padding: 8px 4px;
-    border: 0;
-    background: none;
-    font-family: var(--bb-font-body);
-    font-size: 13.5px;
-    color: var(--bb-muted);
-    cursor: pointer;
-    transition:
-      color var(--bb-dur-base) var(--bb-ease-out-expo),
-      transform var(--bb-dur-base) var(--bb-ease-out-expo);
-  }
-  .quiet:hover {
-    color: var(--bb-tan-pale);
-    transform: translateX(3px);
-  }
-
-  .error {
-    margin: 12px 0 0;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-status-error, #e5484d);
-  }
+  .save-error { margin-top: 12px; }
 
   .foot {
     display: grid;
     gap: 10px;
     padding: 0 var(--gutter) 18px;
-    animation: settle 900ms var(--bb-ease-out-expo) 120ms backwards;
+    animation: settle calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) 120ms backwards;
   }
   .meta {
     display: flex;
@@ -925,13 +764,13 @@
     transform-origin: left;
     transform: scaleX(var(--p));
     background: linear-gradient(90deg, var(--bb-tan), var(--bb-green-glow));
-    transition: transform 900ms var(--bb-ease-out-expo);
+    transition: transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo);
   }
   .bead-track {
     position: absolute;
     inset: 0;
     transform: translateX(calc(var(--p) * 100%));
-    transition: transform 900ms var(--bb-ease-out-expo);
+    transition: transform calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo);
   }
   .bead {
     position: absolute;
@@ -944,13 +783,6 @@
     box-shadow: 0 0 0 3px rgba(var(--bb-green-glow-rgb), .16), 0 0 14px rgba(var(--bb-green-glow-rgb), .7);
     animation: breathe 3s ease-in-out infinite;
   }
-  .count {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
 
   .leaving .pair {
     transform: translateX(-6vw);
@@ -959,20 +791,20 @@
   .leaving .top,
   .leaving .foot {
     opacity: 0;
-    transition: opacity 400ms var(--bb-ease-out-expo);
+    transition: opacity var(--bb-dur-base) var(--bb-ease-out-expo);
   }
   .veil {
     position: fixed;
     inset: 0;
-    z-index: 200;
-    background: var(--bb-bg-0, #101611);
-    animation: veil-in 420ms var(--bb-ease-out-expo) both;
+    z-index: var(--bb-z-overlay);
+    background: var(--bb-bg-0);
+    animation: veil-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
   }
   @keyframes veil-in { from { opacity: 0; } }
   :global(::view-transition-old(root)),
   :global(::view-transition-new(root)) {
-    animation-duration: 720ms;
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    animation-duration: var(--bb-dur-slow);
+    animation-timing-function: var(--bb-ease-out-expo);
   }
 
   @keyframes settle {
@@ -991,13 +823,6 @@
   @keyframes sheen {
     from { background-position: 120% 0; }
     to { background-position: -40% 0; }
-  }
-  :global(:root[data-theme="light"]) .float { filter: drop-shadow(0 14px 28px rgba(20, 17, 12, 0.16)); }
-  :global(:root[data-theme="light"]) .well {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(20, 17, 12, 0.05));
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      0 14px 30px rgba(20, 17, 12, 0.12);
   }
 
   @media (max-width: 760px) {
@@ -1031,19 +856,8 @@
     .consent { text-align: left; }
     .pref-row { text-align: left; }
     .actions { justify-content: center; }
-    .well { margin-inline: auto; }
+    .mod-well { display: flex; justify-content: center; }
     .role-choices, .rehearsal-example { margin-inline: auto; }
-    .role-choices { text-align: left; }
-  }
-
-  @media (max-width: 560px) {
-    .role-choices {
-      grid-template-columns: repeat(4, minmax(150px, 1fr));
-      overflow-x: auto;
-      scroll-snap-type: x mandatory;
-      padding-bottom: 8px;
-    }
-    .role-choice { scroll-snap-align: start; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1053,14 +867,9 @@
     .step,
     .scale,
     .fill,
-    .well,
-    .role-choice,
-    .role-choice::before,
     .role-glyph,
-    .role-indicator :global(svg),
     .choice-stage .blob-col .scale,
-    .bead-track,
-    .quiet { transition: none; }
+    .bead-track { transition: none; }
     .top,
     .foot,
     .float,

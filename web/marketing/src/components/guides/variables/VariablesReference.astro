@@ -3,6 +3,10 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Lead from '@bagel/ui/astro/Lead.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+import TextLink from '@bagel/ui/astro/TextLink.astro';
 import Group from './Group.astro';
 import './reference.css';
 import { getLangFromUrl, useTranslations, localizePath, type Lang, type UIKey } from '../../../i18n/ui';
@@ -51,24 +55,24 @@ const timerNote = t('guides.variables.timerNote').replace('{groups}', timerGroup
 <section class="vref" data-vref-root>
     <div class="vref__head" data-reveal style="--reveal-i: 0">
         <Eyebrow>{t('guides.variables.eyebrow')}</Eyebrow>
-        <h1>{t('guides.variables.title')}</h1>
-        <p class="vref__lead">{t('guides.variables.lead')}</p>
-        <p class="vref__note">{t('guides.variables.note')}</p>
+        <Heading level={1} class="vref__title">{t('guides.variables.title')}</Heading>
+        <Lead>{t('guides.variables.lead')}</Lead>
+        <Text size="sm" tone="muted" class="vref__note">{t('guides.variables.note')}</Text>
     </div>
 
     <div class="vref__main">
         {groups.map((group, index) => (
             <Group group={group.id} label={group.label} entries={group.entries} copy={groupCopy} revealIndex={Math.min(index + 1, 6)}>
-                {group.id === 'stream' && <p class="vref__timer-note">{timerNote}</p>}
+                {group.id === 'stream' && <Text size="sm" tone="muted" class="vref__timer-note">{timerNote}</Text>}
             </Group>
         ))}
     </div>
 
-    <p class="vref__back">
-        <a href={localizePath('/guides', lang)}>&larr; {t('guides.variables.backToGuides')}</a>
+    <div class="vref__back">
+        <TextLink href={localizePath('/guides', lang)} icon="arrowLeft" label={t('guides.variables.backToGuides')} size="0.72rem" />
         <span aria-hidden="true">&middot;</span>
-        <a href={localizePath('/command-builder', lang)}>{t('guides.variables.openBuilder')} &rarr;</a>
-    </p>
+        <TextLink href={localizePath('/command-builder', lang)} label={t('guides.variables.openBuilder')} size="0.72rem" />
+    </div>
 
     <script is:inline type="application/json" data-vref-copy-text set:html={JSON.stringify(clientCopy)} />
 </section>

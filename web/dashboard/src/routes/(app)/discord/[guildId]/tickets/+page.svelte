@@ -6,8 +6,10 @@
     AlertBanner,
     Button,
     Checkbox,
+    Input,
     SegmentedControl,
-    Switch,
+    Text,
+    Textarea,
     alertOn,
     encodeIdList,
     getI18n,
@@ -24,6 +26,7 @@
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import ChannelPicker from '$lib/components/discord/ChannelPicker.svelte';
   import FieldNote from '$lib/components/discord/FieldNote.svelte';
+  import SwitchRow from '$lib/components/discord/SwitchRow.svelte';
   import { createGuildDraft } from '$lib/discord/guild-draft.svelte';
   import { TICKET_FIELDS } from '$lib/discord/guild-fields';
   import { categoriesOf, layoutDownOf, rolesOf, textChannelsOf } from '$lib/discord/guild-view';
@@ -60,19 +63,14 @@
 {/if}
 
 <GuildForm {draft} id="dc-tickets-h" title={t('discord.ticketsTitle')} hint={t('discord.ticketsSectionHelp')}>
-  <div class="setting-row">
-    <span class="tr-text">
-      <span class="tr-label">{t('discord.ticketsLabel')}</span>
-      <span class="tr-help" id="dcs-tickets">{t('discord.ticketsHelp')}</span>
-    </span>
-    <Switch
-      label={t('discord.ticketsLabel')}
-      describedby="dcs-tickets"
-      checked={ticketsOn}
-      onchange={(v) => draft.setFlag('ticketsEnabled', v)}
-    />
-    <FieldNote invalid={draft.invalid} field="ticketsEnabled" />
-  </div>
+  <SwitchRow
+    {draft}
+    invalid={draft.invalid}
+    field="ticketsEnabled"
+    label={t('discord.ticketsLabel')}
+    help={t('discord.ticketsHelp')}
+    defaultOn
+  />
 
   <ChannelPicker
     {draft}
@@ -110,10 +108,10 @@
   />
 
   <fieldset class="setting-row stacked staff">
-    <legend class="tr-label">{t('discord.staffRolesLabel')}</legend>
-    <span class="tr-help" id="dch-staff">{t('discord.staffRolesHelp')}</span>
+    <legend><Text as="span" size="sm">{t('discord.staffRolesLabel')}</Text></legend>
+    <Text as="span" size="xs" tone="muted" id="dch-staff">{t('discord.staffRolesHelp')}</Text>
     {#if roles.length === 0}
-      <span class="tr-help">{t('discord.staffRolesEmpty')}</span>
+      <Text as="span" size="xs" tone="muted">{t('discord.staffRolesEmpty')}</Text>
     {:else}
       <div class="checks">
         {#each roles as role (role.id)}
@@ -121,7 +119,7 @@
             class="check"
             aria-describedby="dch-staff"
             bind:checked={() => staffSelected.includes(role.id), (on) => toggleStaffRole(role.id, on)}
-          >@{role.name}</Checkbox>
+          ><Text as="span" size="sm" truncate>@{role.name}</Text></Checkbox>
         {/each}
       </div>
     {/if}
@@ -130,8 +128,8 @@
 
   <div class="setting-row">
     <span class="tr-text">
-      <span class="tr-label">{t('discord.openLimitLabel')}</span>
-      <span class="tr-help">{t('discord.openLimitHelp')}</span>
+      <Text as="span" size="sm">{t('discord.openLimitLabel')}</Text>
+      <Text as="span" size="xs" tone="muted">{t('discord.openLimitHelp')}</Text>
     </span>
     <SegmentedControl
       options={LIMIT_OPTIONS}
@@ -141,75 +139,68 @@
     <FieldNote invalid={draft.invalid} field="ticketOpenLimit" />
   </div>
 
-  <div class="setting-row">
-    <span class="tr-text">
-      <span class="tr-label">{t('discord.transcriptLabel')}</span>
-      <span class="tr-help" id="dcs-transcript">{t('discord.transcriptHelp')}</span>
-    </span>
-    <Switch
-      label={t('discord.transcriptLabel')}
-      describedby="dcs-transcript"
-      checked={alertOn(draft.config.ticketTranscriptEnabled)}
-      onchange={(v) => draft.setFlag('ticketTranscriptEnabled', v)}
-    />
-    <FieldNote invalid={draft.invalid} field="ticketTranscriptEnabled" />
-  </div>
+  <SwitchRow
+    {draft}
+    invalid={draft.invalid}
+    field="ticketTranscriptEnabled"
+    label={t('discord.transcriptLabel')}
+    help={t('discord.transcriptHelp')}
+    defaultOn
+  />
 
   <h3 class="group">{t('discord.panelTitle')}</h3>
-  <p class="hint">{t('discord.panelHelp')}</p>
+  <Text size="sm" tone="muted" class="hint">{t('discord.panelHelp')}</Text>
 
   <div class="setting-row">
     <label class="tr-text" for="dc-panel-title">
-      <span class="tr-label">{t('discord.panelTitleLabel')}</span>
-      <span class="tr-help">{TICKET_PANEL_DEFAULTS.title}</span>
+      <Text as="span" size="sm">{t('discord.panelTitleLabel')}</Text>
+      <Text as="span" size="xs" tone="muted">{TICKET_PANEL_DEFAULTS.title}</Text>
     </label>
-    <input
+    <Input
       id="dc-panel-title"
-      class="setting-input"
       maxlength={TICKET_PANEL_TITLE_MAX}
       placeholder={TICKET_PANEL_DEFAULTS.title}
       value={draft.config.ticketPanelTitle}
-      oninput={(e) => draft.set('ticketPanelTitle', e.currentTarget.value)}
+      oninput={(e: Event & { currentTarget: HTMLInputElement }) => draft.set('ticketPanelTitle', e.currentTarget.value)}
     />
     <FieldNote invalid={draft.invalid} field="ticketPanelTitle" />
   </div>
 
   <div class="setting-row stacked">
     <label class="tr-text" for="dc-panel-body">
-      <span class="tr-label">{t('discord.panelBodyLabel')}</span>
-      <span class="tr-help">{TICKET_PANEL_DEFAULTS.body}</span>
+      <Text as="span" size="sm">{t('discord.panelBodyLabel')}</Text>
+      <Text as="span" size="xs" tone="muted">{TICKET_PANEL_DEFAULTS.body}</Text>
     </label>
-    <textarea
+    <Textarea
       id="dc-panel-body"
-      class="setting-input setting-textarea"
+      rows={4}
       maxlength={TICKET_PANEL_BODY_MAX}
       placeholder={TICKET_PANEL_DEFAULTS.body}
       value={draft.config.ticketPanelBody}
-      oninput={(e) => draft.set('ticketPanelBody', e.currentTarget.value)}
-    ></textarea>
+      oninput={(e: Event & { currentTarget: HTMLTextAreaElement }) => draft.set('ticketPanelBody', e.currentTarget.value)}
+    />
     <FieldNote invalid={draft.invalid} field="ticketPanelBody" />
   </div>
 
   <div class="setting-row">
     <label class="tr-text" for="dc-panel-button">
-      <span class="tr-label">{t('discord.panelButtonLabel')}</span>
-      <span class="tr-help">{TICKET_PANEL_DEFAULTS.button}</span>
+      <Text as="span" size="sm">{t('discord.panelButtonLabel')}</Text>
+      <Text as="span" size="xs" tone="muted">{TICKET_PANEL_DEFAULTS.button}</Text>
     </label>
-    <input
+    <Input
       id="dc-panel-button"
-      class="setting-input"
       maxlength={TICKET_PANEL_BUTTON_MAX}
       placeholder={TICKET_PANEL_DEFAULTS.button}
       value={draft.config.ticketPanelButton}
-      oninput={(e) => draft.set('ticketPanelButton', e.currentTarget.value)}
+      oninput={(e: Event & { currentTarget: HTMLInputElement }) => draft.set('ticketPanelButton', e.currentTarget.value)}
     />
     <FieldNote invalid={draft.invalid} field="ticketPanelButton" />
   </div>
 
   <div class="setting-row">
     <label class="tr-text" for="dc-panel-color">
-      <span class="tr-label">{t('discord.panelColorLabel')}</span>
-      <span class="tr-help">{t('discord.panelColorHelp')}</span>
+      <Text as="span" size="sm">{t('discord.panelColorLabel')}</Text>
+      <Text as="span" size="xs" tone="muted">{t('discord.panelColorHelp')}</Text>
     </label>
     <span class="colors">
       {#each SWATCHES as swatch (swatch)}
@@ -222,12 +213,11 @@
           onclick={() => draft.set('ticketPanelColor', swatch)}
         ></button>
       {/each}
-      <input
+      <Input
         id="dc-panel-color"
         type="color"
-        class="color-input"
         value={panelColor}
-        oninput={(e) => draft.set('ticketPanelColor', normalizeHex(e.currentTarget.value))}
+        oninput={(e: Event & { currentTarget: HTMLInputElement }) => draft.set('ticketPanelColor', normalizeHex(e.currentTarget.value))}
       />
     </span>
     <FieldNote invalid={draft.invalid} field="ticketPanelColor" />
@@ -243,7 +233,7 @@
 
   {#snippet after()}
     <div class="repost">
-      <p class="hint">{t('discord.repostHelp')}</p>
+      <Text size="sm" tone="muted" class="hint">{t('discord.repostHelp')}</Text>
       <form method="POST" action="?/repost" use:enhance={repostSubmit}>
         <Button variant="secondary" type="submit" loading={draft.busy} disabled={!ticketsOn}>
           {t('discord.repostCta')}

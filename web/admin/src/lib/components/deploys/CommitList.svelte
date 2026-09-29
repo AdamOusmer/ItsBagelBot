@@ -1,6 +1,10 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import Disclosure from '@bagel/ui/svelte/Disclosure.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DeployCommit } from '$lib/deploys/types';
   import { shortSha } from './view';
@@ -17,66 +21,38 @@
   );
 </script>
 
-<details class="commits" {open}>
-  <summary>{summary}</summary>
+<Disclosure size="sm" {summary} {open}>
   {#if commits.length > 0}
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-    <div class="scroll" role="region" aria-label={summary} tabindex="0">
-    <ul>
-      {#each commits as c (c.sha)}
-        <li>
-          {#if c.url}
-            <a class="sha" href={c.url} target="_blank" rel="noopener noreferrer">{shortSha(c.sha)}</a>
-          {:else}
-            <span class="sha">{shortSha(c.sha)}</span>
-          {/if}
-          <span class="title">{c.title}</span>
-          <span class="author">{c.author}</span>
-        </li>
-      {/each}
-    </ul>
-    </div>
+    <Scroller maxHeight="240px" role="region" aria-label={summary} tabindex={0}>
+      <ul class="commits">
+        {#each commits as c (c.sha)}
+          <li class="commit">
+            <Text as="span" size="xs" mono tone="muted">
+              {#if c.url}<TextLink variant="inline" href={c.url} external>{shortSha(c.sha)}</TextLink>{:else}{shortSha(c.sha)}{/if}
+            </Text>
+            <span class="title"><Text as="span" size="sm" truncate>{c.title}</Text></span>
+            <Text as="span" size="xs" mono tone="muted">{c.author}</Text>
+          </li>
+        {/each}
+      </ul>
+    </Scroller>
   {/if}
-</details>
+</Disclosure>
 
 <style>
-  .commits summary {
-    cursor: pointer;
-    height: 32px;
-    line-height: 32px;
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    letter-spacing: 0.04em;
-    color: var(--bb-muted);
-  }
-  .scroll {
-    max-height: 240px;
-    overflow-y: auto;
-  }
-  ul {
+  .commits {
     list-style: none;
     margin: 0;
     padding: 0;
   }
-  li {
+  .commit {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--bb-space-2);
     height: 28px;
-    font-size: 12.5px;
-  }
-  .sha,
-  .author {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-    flex-shrink: 0;
   }
   .title {
     flex: 1;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 </style>

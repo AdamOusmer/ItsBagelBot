@@ -2,6 +2,14 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Card from '@bagel/ui/astro/Card.astro';
+import Fact from '@bagel/ui/astro/Fact.astro';
+import FactList from '@bagel/ui/astro/FactList.astro';
+import Label from '@bagel/ui/astro/Label.astro';
+import SegmentedControl from '@bagel/ui/astro/SegmentedControl.astro';
+import Slider from '@bagel/ui/astro/Slider.astro';
+import Text from '@bagel/ui/astro/Text.astro';
+
 interface Props {
     labels?: Record<string, string>;
     props?: Record<string, unknown>;
@@ -25,63 +33,41 @@ const sources = 1;
 const perDefinition = Math.min(runs, 2);
 const wanted = perDefinition * sources;
 const made = Math.min(wanted, 6);
+const sourceOptions = ['1', '2', '3', '4'];
 ---
 
-<div class="gbudget" data-fetchbudget>
-    <div class="gbudget__controls">
-        <label class="gbudget__field">
-            <span class="gbudget__label">{L.runsLabel}</span>
-            <input type="range" min="1" max="60" value={runs} data-fb-runs />
-            <output class="gbudget__out" data-fb-runs-out>{runs} {L.runsUnit}</output>
-        </label>
-        <fieldset class="gbudget__field">
-            <legend class="gbudget__label">{L.sourcesLabel}</legend>
-            <div class="gbudget__radios">
-                {[1, 2, 3, 4].map((n) => (
-                    <label class="gbudget__radio">
-                        <input type="radio" name="fb-sources" value={String(n)} checked={n === sources} data-fb-sources />
-                        <span>{n}</span>
-                    </label>
-                ))}
-            </div>
-        </fieldset>
+<Card flush class="gbudget-card">
+    <div class="gbudget" data-fetchbudget>
+        <div class="gbudget__controls">
+            <label class="gbudget__field">
+                <Label mono as="span">{L.runsLabel}</Label>
+                <Slider min={1} max={60} value={runs} data-fb-runs />
+                <output><Text as="span" size="sm" data-fb-runs-out>{`${runs} ${L.runsUnit}`}</Text></output>
+            </label>
+            <fieldset class="gbudget__field">
+                <Label mono as="legend">{L.sourcesLabel}</Label>
+                <SegmentedControl options={sourceOptions} value={String(sources)} label={L.sourcesLabel} data-fb-sources />
+            </fieldset>
+        </div>
+        <div class="gbudget__readout" aria-live="polite">
+            <FactList>
+                <Fact term={L.fetchesLabel}><span data-fb-made>{made}</span> {L.fetchesUnit}</Fact>
+                <Fact term={L.cachedLabel}><span data-fb-cached>{runs * sources - wanted}</span> {L.fetchesUnit}</Fact>
+                <Fact term={L.blockedLabel}><span data-fb-blocked>{wanted - made}</span> {L.fetchesUnit}</Fact>
+            </FactList>
+        </div>
+        <Text size="sm" tone="muted-light" data-fb-blocked-line hidden={wanted <= 6}>{L.blockedLine}</Text>
+        <Text size="sm" tone="muted-light">{L.why}</Text>
     </div>
-    <dl class="gbudget__readout" aria-live="polite">
-        <div>
-            <dt>{L.fetchesLabel}</dt>
-            <dd><b data-fb-made>{made}</b> <i>{L.fetchesUnit}</i></dd>
-        </div>
-        <div>
-            <dt>{L.cachedLabel}</dt>
-            <dd><b data-fb-cached>{runs * sources - wanted}</b> <i>{L.fetchesUnit}</i></dd>
-        </div>
-        <div data-fb-blocked-row hidden={wanted <= 6}>
-            <dt>{L.blockedLabel}</dt>
-            <dd><b data-fb-blocked>{wanted - made}</b> <i>{L.fetchesUnit}</i></dd>
-        </div>
-    </dl>
-    <p class="gbudget__note" data-fb-blocked-line hidden={wanted <= 6}>{L.blockedLine}</p>
-    <p class="gbudget__note">{L.why}</p>
-</div>
+</Card>
 
 <style>
-    .gbudget { display: grid; gap: 14px; margin: 22px 0; padding: 15px 16px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-lg); background: rgba(17, 17, 16, 0.6); }
+    .gbudget-card { margin: 22px 0; }
+    .gbudget { display: grid; gap: 14px; padding: 15px 16px; }
     .gbudget__controls { display: grid; gap: 14px; }
     @media (min-width: 720px) { .gbudget__controls { grid-template-columns: 1.4fr 1fr; align-items: start; } }
-    .gbudget__field { display: grid; gap: 7px; margin: 0; padding: 0; border: 0; }
-    .gbudget__label { font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted, #888077); padding: 0; }
-    .gbudget__field input[type="range"] { width: 100%; accent-color: var(--tan, #c9a87c); }
-    .gbudget__out { font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.82rem; color: var(--white, #f0ece4); }
-    .gbudget__radios { display: flex; gap: 6px; }
-    .gbudget__radio { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-pill); font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.72rem; color: var(--tan-light, #e0c49a); cursor: pointer; }
-    .gbudget__radio input { accent-color: var(--green-glow, #52b788); }
-    .gbudget__readout { display: grid; gap: 9px; margin: 0; padding: 11px 12px; border: 1px solid var(--border, rgba(201, 168, 124, 0.15)); border-radius: var(--radius-sm); background: rgba(10, 10, 10, 0.5); }
-    .gbudget__readout > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px; }
-    .gbudget__readout dt { font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.82rem; color: var(--muted, #888077); }
-    .gbudget__readout dd { margin: 0; display: flex; align-items: baseline; gap: 6px; }
-    .gbudget__readout b { font-family: var(--font-display, "Syne", sans-serif); font-size: 1.5rem; color: var(--tan-light, #e0c49a); }
-    .gbudget__readout i { font-style: normal; font-family: var(--font-mono, "DM Mono", monospace); font-size: 0.62rem; color: var(--muted, #888077); }
-    .gbudget__note { margin: 0; font-family: var(--font-body, "DM Sans", sans-serif); font-size: 0.86rem; line-height: 1.6; color: #a39c92; }
+    .gbudget__field { display: grid; gap: 7px; margin: 0; padding: 0; border: 0; min-width: 0; }
+    .gbudget__readout { padding: 11px 12px; border: 1px solid var(--bb-border); border-radius: var(--bb-radius-sm); background: var(--bb-inset-bg); }
 </style>
 
 <script>
@@ -90,32 +76,41 @@ const made = Math.min(wanted, 6);
     const CACHE_CEILING = 2;
     const CHANNEL_CAP = 6;
 
+    function chosenSources(group: HTMLElement): number {
+        return Number(group.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.value || 1);
+    }
+
     function setupFetchBudget(root: HTMLElement) {
         const runsInput = root.querySelector<HTMLInputElement>('[data-fb-runs]')!;
-        const runsOut = root.querySelector<HTMLOutputElement>('[data-fb-runs-out]')!;
+        const runsOut = root.querySelector<HTMLElement>('[data-fb-runs-out]')!;
         const unit = runsOut.textContent!.replace(/^\s*\d+\s*/, '');
-        const sourceInputs = Array.from(root.querySelectorAll<HTMLInputElement>('[data-fb-sources]'));
+        const sourceGroup = root.querySelector<HTMLElement>('[data-fb-sources]')!;
         const made = root.querySelector<HTMLElement>('[data-fb-made]')!;
         const cached = root.querySelector<HTMLElement>('[data-fb-cached]')!;
         const blocked = root.querySelector<HTMLElement>('[data-fb-blocked]')!;
-        const blockedRow = root.querySelector<HTMLElement>('[data-fb-blocked-row]')!;
         const blockedLine = root.querySelector<HTMLElement>('[data-fb-blocked-line]')!;
+        let sources = chosenSources(sourceGroup);
 
         function update() {
             const runs = Number(runsInput.value);
-            const sources = Number(sourceInputs.find((i) => i.checked)?.value ?? 1);
             const wanted = Math.min(runs, CACHE_CEILING) * sources;
             const actual = Math.min(wanted, CHANNEL_CAP);
             runsOut.textContent = `${runs} ${unit}`;
             made.textContent = String(actual);
             cached.textContent = String(runs * sources - wanted);
             blocked.textContent = String(wanted - actual);
-            blockedRow.hidden = wanted <= CHANNEL_CAP;
             blockedLine.hidden = wanted <= CHANNEL_CAP;
         }
 
+        function pickSources(event: MouseEvent) {
+            const chosen = (event.target as Element).closest<HTMLButtonElement>('button[role="radio"]');
+            if (!chosen) return;
+            sources = Number(chosen.value || 1);
+            update();
+        }
+
         runsInput.addEventListener('input', update);
-        sourceInputs.forEach((input) => input.addEventListener('change', update));
+        sourceGroup.addEventListener('click', pickSources);
         update();
     }
 

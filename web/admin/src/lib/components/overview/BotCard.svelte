@@ -1,12 +1,16 @@
 <script lang="ts">
-  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount } from 'svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { statusTone } from '@bagel/kit/status-tone';
   import { copyFlash } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -29,25 +33,27 @@
   <CardHead title={t('admin.overview.botTitle')} />
 
   <div class="row">
-    <div class="mark"><img src="/logo.png" alt="" /></div>
-    <div class="who">
-      <div class="live">
+    <div class="mark"><img class="logo" src="/logo.png" alt="" /></div>
+    <Stack gap={1}>
+      <Cluster gap={2} nowrap>
         <StatusDot tone={statusTone(present ? 'online' : 'auth_required')} />
-        {present ? t('admin.overview.botStored') : t('admin.overview.botMissing')}
-      </div>
-      <div class="meta">
+        <Eyebrow>{present ? t('admin.overview.botStored') : t('admin.overview.botMissing')}</Eyebrow>
+      </Cluster>
+      <Text size="sm" tone="muted">
         {present ? t('admin.overview.botStoredMeta') : t('admin.overview.botMissingMeta')}
-      </div>
-    </div>
-    <ButtonLink variant="ghost" href="/auth/bot/login" class="bot-cta">
-      {present ? t('admin.overview.botReauthorize') : t('admin.overview.botAuthorize')}
-    </ButtonLink>
+      </Text>
+    </Stack>
+    <span class="cta">
+      <ButtonLink variant="ghost" href="/auth/bot/login">
+        {present ? t('admin.overview.botReauthorize') : t('admin.overview.botAuthorize')}
+      </ButtonLink>
+    </span>
   </div>
 
   {#if botLink}
     <div class="link">
-      <p class="hint">{t('admin.overview.botHint')}</p>
-      <div class="link-row">
+      <Text size="sm" tone="muted">{t('admin.overview.botHint')}</Text>
+      <Cluster gap={2} nowrap>
         <Input
           fill mono
           type="text"
@@ -58,7 +64,7 @@
         <Button variant="ghost" type="button" onclick={copy}>
           {copied ? t('common.copied') : t('common.copy')}
         </Button>
-      </div>
+      </Cluster>
     </div>
   {/if}
 </Card>
@@ -74,58 +80,38 @@
     height: 44px;
     border-radius: 50%;
     flex: none;
-    background: rgba(82, 183, 136, 0.07);
-    border: 1px solid rgba(82, 183, 136, 0.3);
+    background: rgba(var(--bb-green-glow-rgb), 0.07);
+    border: 1px solid rgba(var(--bb-green-glow-rgb), 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
   }
-  .mark img {
+  .logo {
     width: 30px;
     height: 30px;
     border-radius: 50%;
   }
-  .live {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-white);
-    margin-bottom: 4px;
-  }
-  .meta {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-  }
-  :global(.bot-cta) {
+  .cta {
     margin-left: auto;
     white-space: nowrap;
   }
 
   .link {
-    margin-top: 14px;
-  }
-  .hint {
-    margin: 0 0 6px;
-    font-size: 0.8rem;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-  }
-  .link-row {
     display: flex;
-    gap: 8px;
-    align-items: center;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 14px;
   }
 
   @media (max-width: 760px) {
     .row {
       flex-wrap: wrap;
     }
-    .row { --btn-w: 100%; --btn-justify: center; }
-    :global(.bot-cta) { margin-left: 0; }
+    .cta {
+      --btn-w: 100%;
+      --btn-justify: center;
+      width: 100%;
+      margin-left: 0;
+    }
   }
 </style>

@@ -2,7 +2,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import SectionNav from '@bagel/ui/astro/SectionNav.astro';
+import AlertBanner from '@bagel/ui/astro/AlertBanner.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Label from '@bagel/ui/astro/Label.astro';
 import Tag from '@bagel/ui/astro/Tag.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 
@@ -23,33 +28,29 @@ import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 const { updated, sections } = Astro.props;
 const t = useTranslations(getLangFromUrl(Astro.url));
 const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('legal.plain') };
+const tocItems = sections.map((section) => ({
+    href: `#${section.id}`,
+    label: section.heading,
+    attrs: { 'data-legal-link': section.id },
+}));
 ---
 
-<div class="lshell" data-legal>
+<div class="lshell">
     <div class="lshell__grid">
-        <nav class="lshell__toc" aria-label={labels.toc}>
-            <span class="lshell__toc-label">{labels.toc}</span>
-            <ul>
-                {sections.map((section) => (
-                    <li>
-                        <a href={`#${section.id}`} data-legal-link={section.id}>{section.heading}</a>
-                    </li>
-                ))}
-            </ul>
-        </nav>
+        <div class="lshell__toc">
+            <Label mono as="span" class="lshell__toc-label">{labels.toc}</Label>
+            <SectionNav variant="toc" label={labels.toc} items={tocItems} data-legal-toc />
+        </div>
 
         <article class="lshell__content">
-            <p class="lshell__updated" data-reveal>{labels.updated} {updated}</p>
+            <Text size="xs" mono tone="positive" class="lshell__updated" data-reveal>{`${labels.updated} ${updated}`}</Text>
 
             {sections.map((section, i) => {
                 const Content = section.Content;
                 return (
-                    <div class="lshell__block" id={section.id} data-legal-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
-                        <h2>{section.heading}</h2>
-                        <p class="lshell__plain">
-                            <Tag tone="bare" class="lshell__plain-tag">{labels.plain}</Tag>
-                            {section.plain}
-                        </p>
+                    <div class="lshell__block" id={section.id} data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
+                        <Heading level={4} as="h2" class="lshell__heading">{section.heading}</Heading>
+                        <AlertBanner variant="positive" callout role="note" class="lshell__plain"><Tag tone="live" bare class="lshell__plain-tag">{labels.plain}</Tag>{section.plain}</AlertBanner>
                         <Content />
                     </div>
                 );
@@ -60,7 +61,7 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
 
 <style>
     .lshell {
-        max-width: var(--content-max, 1200px);
+        max-width: var(--bb-content-max);
         margin: 0 auto;
         padding: 0 24px 96px;
     }
@@ -84,106 +85,35 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
         .lshell__toc {
             display: block;
             position: sticky;
-            top: calc(var(--nav-offset, 76px) + 32px);
+            top: calc(var(--nav-offset) + 32px);
             align-self: start;
         }
     }
 
-    .lshell__toc-label {
-        display: block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.64rem;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: var(--muted, #888077);
-        margin-bottom: 16px;
-    }
+    .lshell__toc-label { margin-bottom: 16px; }
 
-    .lshell__toc ul {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        border-left: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-    }
-
-    .lshell__toc a {
-        position: relative;
-        display: block;
-        padding: 7px 0 7px 16px;
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.82rem;
-        color: var(--muted, #888077);
-        transition: color 200ms ease, padding-left 300ms var(--ease-out-expo);
-    }
-
-    .lshell__toc a::before {
-        content: "";
-        position: absolute;
-        left: -1px;
-        top: 20%;
-        bottom: 20%;
-        width: 1px;
-        background: var(--tan, #c9a87c);
-        transform: scaleY(0);
-        transition: transform 300ms var(--ease-out-expo);
-    }
-
-    @media (hover: hover) and (pointer: fine) {
-        .lshell__toc a:hover { color: var(--tan-light, #e0c49a); }
-    }
-
-    .lshell__toc a.is-current {
-        color: var(--tan-light, #e0c49a);
-        padding-left: 20px;
-    }
-
-    .lshell__toc a.is-current::before { transform: scaleY(1); }
-
-    .lshell__content { max-width: var(--content-text, 68ch); }
+    .lshell__content { max-width: var(--bb-content-text); }
 
     .lshell__updated {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.78rem;
-        color: var(--green-glow, #52b788);
-        letter-spacing: 0.08em;
         margin-bottom: 48px;
+        letter-spacing: 0.08em;
     }
 
-    .lshell__block { scroll-margin-top: calc(var(--nav-offset, 76px) + 24px); }
+    .lshell__block { scroll-margin-top: calc(var(--nav-offset) + 24px); }
 
-    .lshell__block h2 {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: var(--white, #f0ece4);
-        letter-spacing: -0.01em;
-        margin: 52px 0 12px;
-    }
+    .lshell__heading { margin: 52px 0 12px; }
 
-    .lshell__block:first-of-type h2 { margin-top: 0; }
+    .lshell__plain { margin: 0 0 16px; }
 
-    .lshell__plain {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.85rem;
-        line-height: 1.6;
-        color: rgba(240, 236, 228, 0.75);
-        background: rgba(82, 183, 136, 0.05);
-        border: 1px solid rgba(82, 183, 136, 0.16);
-        border-radius: var(--radius-md);
-        padding: 10px 14px;
-        margin: 0 0 16px;
-    }
+    .lshell__plain-tag { margin-right: 8px; }
 
-    .lshell__plain-tag {
-        color: var(--green-glow, #52b788);
-        margin-right: 8px;
-    }
+    .lshell__block:first-of-type .lshell__heading { margin-top: 0; }
 
     .lshell__block :global(p),
     .lshell__block :global(ul) {
-        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-family: var(--bb-font-body);
         font-size: 0.94rem;
-        color: var(--muted, #888077);
+        color: var(--bb-muted);
         line-height: 1.8;
         margin-bottom: 14px;
     }
@@ -194,31 +124,44 @@ const labels = { toc: t('legal.toc'), updated: t('legal.updated'), plain: t('leg
     }
 
     .lshell__block :global(ul li) { margin-bottom: 7px; }
-    .lshell__block :global(ul li::marker) { color: var(--green-glow, #52b788); }
+    .lshell__block :global(ul li::marker) { color: var(--bb-green-glow); }
 
     .lshell__block :global(a) {
-        color: var(--tan, #c9a87c);
+        color: var(--bb-tan);
         border-bottom: 1px solid transparent;
-        transition: color 180ms ease, border-color 180ms ease;
+        transition: color var(--bb-dur-fast) ease, border-color var(--bb-dur-fast) ease;
     }
 
     .lshell__block :global(a:hover) {
-        color: var(--tan-light, #e0c49a);
-        border-bottom-color: var(--tan-light, #e0c49a);
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .lshell__toc a, .lshell__toc a::before { transition: none; }
+        color: var(--bb-tan-light);
+        border-bottom-color: var(--bb-tan-light);
     }
 
     @media (max-width: 480px) {
         .lshell { padding: 0 16px 72px; }
-        .lshell__block h2 { font-size: 1.1rem; margin-top: 40px; }
+        .lshell__heading { margin-top: 40px; }
     }
 </style>
 
 <script>
-    import { scrollspy } from '../../script/scrollspy';
+    import { mountSectionNav } from '@bagel/ui/lib/scroll-spy';
 
-    scrollspy('legal');
+    let dispose: (() => void) | undefined;
+
+    function unmountToc() {
+        dispose?.();
+        dispose = undefined;
+    }
+
+    function mountToc() {
+        unmountToc();
+        const toc = document.querySelector<HTMLElement>('[data-legal-toc]');
+        if (toc) dispose = mountSectionNav(toc);
+    }
+
+    mountToc();
+    document.addEventListener('astro:page-load', mountToc);
+    document.addEventListener('astro:before-swap', unmountToc);
+    window.addEventListener('pagehide', unmountToc);
+    window.addEventListener('pageshow', (event) => { if (event.persisted) mountToc(); });
 </script>

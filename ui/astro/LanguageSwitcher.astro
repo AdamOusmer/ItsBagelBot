@@ -3,22 +3,38 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import '../styles/elements/nav.css';
-import type { UiLocaleOption } from '../lib/nav-types';
 
 interface Props {
-  options: UiLocaleOption[];
+  options: { code: string; label: string; href?: string; current?: boolean; title?: string }[];
   ariaLabel: string;
+  action?: string;
+  name?: string;
+  fields?: Record<string, string>;
   class?: string;
   [key: string]: unknown;
 }
 
-const { options, ariaLabel, class: className = '', ...rest } = Astro.props;
+const { options, ariaLabel, action, name = 'locale', fields = {}, class: className = '', ...rest } = Astro.props;
 
 const classes = ['bb-lang-switch', className || null]
   .filter(Boolean)
   .join(' ');
 ---
 
+{action ? (
+<form method="POST" action={action} class={classes} role="group" aria-label={ariaLabel} {...rest}>{Object.entries(fields).map(([field, fieldValue]) => (
+  <input type="hidden" name={field} value={fieldValue} />
+))}{options.map((option) => (
+  <button
+    type="submit"
+    name={name}
+    value={option.code}
+    class={`bb-lang-switch__opt ${option.current ? 'is-active' : ''}`}
+    aria-pressed={option.current ? 'true' : 'false'}
+    title={option.title}
+  >{option.label}</button>
+))}</form>
+) : (
 <div class={classes} role="group" aria-label={ariaLabel} {...rest}>{options.map((option) => (
   <a
     class={`bb-lang-switch__opt ${option.current ? 'is-active' : ''}`}
@@ -27,3 +43,4 @@ const classes = ['bb-lang-switch', className || null]
     aria-current={option.current ? 'true' : undefined}
   >{option.label}</a>
 ))}</div>
+)}

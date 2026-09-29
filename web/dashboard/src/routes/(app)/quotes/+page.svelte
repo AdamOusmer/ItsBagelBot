@@ -5,8 +5,8 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
+  import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import {
-    Icon,
     Button,
     SearchInput,
     Field,
@@ -19,7 +19,13 @@
     PageToolbar,
     AlertBanner,
     Card,
+    Eyebrow,
+    Fact,
+    FactList,
+    Heading,
+    InspectorSurface,
     Text,
+    DeckLayout,
     DeckList,
     EmptyState,
     moduleDef,
@@ -115,6 +121,14 @@
   const selectedQuote = $derived(
     expanded && expanded !== NEW ? (quotes.find((quote) => String(quote.number) === expanded) ?? null) : null
   );
+  const inspectorOpen = $derived(quoteDraft !== null || selectedQuote !== null);
+  const editing = $derived(expanded === NEW || editTarget !== null);
+  function inspectorTitleKey(): string {
+    if (expanded === NEW) return 'quotes.newQuote';
+    if (editTarget !== null) return 'quotes.editQuote';
+    return selectedQuote ? 'quotes.quoteDetails' : 'quotes.inspector';
+  }
+  const inspectorTitle = $derived(t(inspectorTitleKey()));
 
   function openNew() {
     editTarget = null;
@@ -235,20 +249,8 @@
     };
   };
 
-  function isTyping(e: KeyboardEvent): boolean {
-    const el = e.target as HTMLElement | null;
-    return (
-      !!el &&
-      (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)
-    );
-  }
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && expanded) {
-      if (editTarget !== null) closeEditor();
-      else closeInspector();
-      return;
-    }
-    if (isTyping(e) || e.ctrlKey || e.metaKey || !e.altKey) return;
+    if (!isShortcut(e, { alt: true })) return;
     if (e.key === '/') {
       e.preventDefault();
       document.getElementById('quotes-search')?.focus();
@@ -294,9 +296,9 @@
   </PageToolbar>
 
   <section class="block" aria-labelledby="quotes-perms-h">
-    <h2 id="quotes-perms-h" class="block-title">{t('quotes.permsTitle')}</h2>
+    <Heading level={6} as="h2" variant="title" id="quotes-perms-h">{t('quotes.permsTitle')}</Heading>
     <Card>
-      <p class="hint">{t('quotes.permsHint')}</p>
+      <Text size="xs" tone="muted">{t('quotes.permsHint')}</Text>
       <div class="perm-grid">
         <form method="POST" action="?/perm" use:enhance={addPermSubmit} bind:this={addPermForm}>
           <input type="hidden" name="kind" value="add" />
@@ -327,10 +329,10 @@
     {searching ? t('quotes.resultsCount', { n: rows.length }) : ''}
   </p>
 
-  <div class="deck" class:inspecting={expanded === NEW || editTarget !== null}>
+  <DeckLayout inspecting width={editing ? '420px' : '300px'}>
     <DeckList>
       {#if rows.length}
-        <ul class="bb-list quote-list" aria-label={t('quotes.listLabel')}>
+        <ul class="bb-list" aria-label={t('quotes.listLabel')}>
           {#each rows as quote (quote.number)}
             <QuoteRow
               {quote}
@@ -349,32 +351,13 @@
       {/if}
     </DeckList>
 
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="inspector-backdrop"
-      class:open={expanded !== null}
-      role="presentation"
-      onclick={closeInspector}
-      onkeydown={(e) => {
-        if (e.key === 'Enter') closeInspector();
-      }}
-    ></div>
-    <aside id="quote-inspector" class="inspector" class:open={expanded !== null} aria-label={t('quotes.inspector')}>
-      <div class="inspector-head">
-        <span class="inspector-tag">
-          {expanded === NEW
-            ? t('quotes.newQuote')
-            : editTarget !== null
-              ? t('quotes.editQuote')
-              : selectedQuote
-                ? t('quotes.quoteDetails')
-                : t('quotes.inspector')}
-        </span>
-        {#if expanded}
-          <Button variant="icon" size="sm" type="button" aria-label={t('common.cancel')} onclick={closeInspector} ><Icon name="x" size={15} /></Button>
-        {/if}
-      </div>
-
+    <InspectorSurface
+      open={inspectorOpen}
+      title={inspectorTitle}
+      controls="quote-inspector"
+      closeLabel={t('common.cancel')}
+      onClose={closeInspector}
+    >
       {#if quoteDraft}
         <Scroller fill padding="16px" smooth>
           <QuoteEditor
@@ -388,20 +371,14 @@
       {:else if selectedQuote}
         <Scroller fill padding="18px" smooth>
           <div class="quote-detail">
-            <div class="quote-number">#{selectedQuote.number}</div>
-            <blockquote>{selectedQuote.text}</blockquote>
-            <dl>
-              <div>
-                <dt>{t('quotes.fieldDay')}</dt>
-                <dd>{formatDate(selectedQuote.created_at)}</dd>
-              </div>
+            <Eyebrow as="div">#{selectedQuote.number}</Eyebrow>
+            <blockquote class="quote-body"><Text>{selectedQuote.text}</Text></blockquote>
+            <FactList>
+              <Fact term={t('quotes.fieldDay')}>{formatDate(selectedQuote.created_at)}</Fact>
               {#if selectedQuote.added_by}
-                <div>
-                  <dt>{t('quotes.addedBy')}</dt>
-                  <dd>@{selectedQuote.added_by}</dd>
-                </div>
+                <Fact term={t('quotes.addedBy')}>@{selectedQuote.added_by}</Fact>
               {/if}
-            </dl>
+            </FactList>
             <div class="detail-actions">
               <Button variant="primary" onclick={() => selectedQuote && openEdit(selectedQuote)}>
                 {t('quotes.editBtnShort')}
@@ -412,14 +389,13 @@
             </div>
           </div>
         </Scroller>
-      {:else}
-        <div class="inspector-idle">
-          <Text size="sm" tone="muted" class="inspector-idle-note">{t('quotes.inspectorIdle')}</Text>
-          <Button variant="ghost" onclick={openNew}>{t('quotes.newQuote')}</Button>
-        </div>
       {/if}
-    </aside>
-  </div>
+      {#snippet idle()}
+        <Text size="sm" tone="muted">{t('quotes.inspectorIdle')}</Text>
+        <Button variant="ghost" onclick={openNew}>{t('quotes.newQuote')}</Button>
+      {/snippet}
+    </InspectorSurface>
+  </DeckLayout>
 
   {#if quoteCommands.length}
     <div class="cmd-block">
@@ -450,128 +426,26 @@
 <style>
   .toolbar-actions { display: flex; align-items: center; gap: 12px; }
 
-  .block { margin-bottom: 26px; }
-  .block-title {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0 0 12px;
-  }
-  .hint { margin: 0 0 14px; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  .block { display: grid; gap: 12px; margin-bottom: 26px; }
   .perm-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
     gap: 16px;
+    margin-top: 14px;
   }
 
   .cmd-block { margin-top: 26px; }
 
   .toolbar-search { width: 220px; --input-w: 100%; }
 
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck { grid-template-columns: minmax(0, 1fr) 300px; }
-    .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
-  }
-  .quote-list :global(.row-shell:last-child) { border-bottom: none; }
-
-  .inspector {
-    position: sticky;
-    top: 62px;
-    border: 1px solid var(--rule);
-    border-top-color: var(--rule-strong);
-    border-radius: var(--bb-radius-md);
-    background: linear-gradient(180deg, rgba(240, 236, 228, 0.03), rgba(240, 236, 228, 0.012));
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 62px - 108px);
-  }
-  .inspector-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .inspector-tag {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .inspector-idle {
-    padding: 34px 20px;
-    text-align: center;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-  :global(.inspector-idle-note) { max-width: 26ch; }
-
   .quote-detail { display: flex; flex-direction: column; gap: 18px; }
-  .quote-number {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    color: var(--bb-tan);
-  }
-  blockquote {
+  .quote-body {
     margin: 0;
     padding: 0 0 0 14px;
     border-left: 2px solid var(--bb-tan);
-    font-family: var(--bb-font-body);
-    font-size: 15px;
-    line-height: 1.6;
-    color: var(--bb-white);
     overflow-wrap: anywhere;
   }
-  dl { display: flex; flex-direction: column; gap: 12px; margin: 0; }
-  dl div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
-  dt { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-  dd { margin: 0; font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light); text-align: right; }
   .detail-actions { display: flex; gap: 10px; align-self: flex-start; margin-top: 4px; }
-  .inspector-backdrop { display: none; }
-
-  @media (max-width: 1079px) {
-    .inspector { display: none; }
-    .inspector.open {
-      display: flex;
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      top: auto;
-      z-index: 220;
-      max-height: 88vh;
-      border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
-      background: var(--bb-bg-1, #111);
-      animation: sheet-in var(--bb-dur-base, 320ms) var(--bb-ease-out-expo, cubic-bezier(.16,1,.3,1)) both;
-    }
-    .inspector-backdrop.open {
-      display: block;
-      position: fixed;
-      inset: 0;
-      z-index: 219;
-      background: rgba(0, 0, 0, 0.55);
-    }
-    @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  }
 
   @media (max-width: 680px) {
     .toolbar-actions { width: 100%; flex-wrap: wrap; }

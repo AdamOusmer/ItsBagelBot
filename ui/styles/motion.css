@@ -27,12 +27,12 @@
 @layer bb.elements {
     /* State stack. A colour or glow that changes over time becomes static
        copies in one grid cell, each copy fading in with opacity. */
-    .bb-stack {
+    .bb-layers {
         display: grid;
         grid-template: minmax(0, 1fr) / minmax(0, 1fr);
     }
 
-    .bb-stack > * {
+    .bb-layers > * {
         grid-area: 1 / 1;
     }
 

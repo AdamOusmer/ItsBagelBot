@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import Text from '@bagel/ui/astro/Text.astro';
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
 
 const lang = getLangFromUrl(Astro.url);
@@ -10,22 +11,22 @@ const t = useTranslations(lang);
 
 <section class="letter" id="letter">
     <div class="letter__paper" data-reveal>
-        <div class="letter__meta">
+        <Text as="div" size="xs" mono tone="muted" class="letter__meta">
             <span>notes.txt</span>
             <span>{t('letter.meta2')}</span>
-        </div>
+        </Text>
 
-        <p class="letter__line">
+        <Text class="letter__line">
             {t('letter.line1')}
-        </p>
+        </Text>
 
-        <p class="letter__line">
+        <Text class="letter__line">
             {t('letter.line2')}
-        </p>
+        </Text>
 
-        <p class="letter__line">
+        <Text class="letter__line">
             {t('letter.line3')}
-        </p>
+        </Text>
 
         <div class="letter__sign">
             <span class="letter__signature">{t('letter.signature')}</span>
@@ -34,14 +35,14 @@ const t = useTranslations(lang);
             </button>
         </div>
 
-        <span class="letter__ps">{t('letter.ps')}</span>
+        <Text as="span" size="xs" mono tone="muted" class="letter__ps">{t('letter.ps')}</Text>
     </div>
 </section>
 
 <style>
     .letter {
         position: relative;
-        padding: var(--space-section, 96px) 24px;
+        padding: var(--bb-space-section) 24px;
         max-width: none;
         margin: 0;
         z-index: 3;
@@ -61,7 +62,7 @@ const t = useTranslations(lang);
         pointer-events: none;
         background: radial-gradient(
             50% 55% at 50% 50%,
-            rgba(201, 168, 124, 0.1) 0%,
+            rgba(var(--bb-tan-rgb), 0.1) 0%,
             transparent 70%
         );
         filter: blur(14px);
@@ -70,44 +71,38 @@ const t = useTranslations(lang);
     .letter__paper {
         position: relative;
         width: min(560px, 100%);
-        background: linear-gradient(160deg, #141412, #101010);
-        border: 1px solid rgba(201, 168, 124, 0.2);
-        border-radius: var(--radius-md);
+        background: linear-gradient(160deg, rgba(var(--bb-white-rgb), 0.014), transparent), var(--bb-card-bg);
+        border: 1px solid rgba(var(--bb-tan-rgb), 0.2);
+        border-radius: var(--bb-radius-md);
         padding: clamp(28px, 5vw, 48px);
         rotate: -0.6deg;
         box-shadow:
-            0 30px 80px rgba(0, 0, 0, 0.55),
-            inset 0 1px 0 rgba(240, 236, 228, 0.04);
-        transition: rotate 480ms var(--ease-out-expo), box-shadow 480ms var(--ease-out-expo);
+            0 30px 80px rgba(var(--bb-shadow-rgb), 0.55),
+            inset 0 1px 0 rgba(var(--bb-white-rgb), 0.04);
+        transition: rotate var(--bb-dur-slow) var(--bb-ease-out-expo), box-shadow var(--bb-dur-slow) var(--bb-ease-out-expo);
     }
 
     @media (hover: hover) and (pointer: fine) {
         .letter__paper:hover {
             rotate: 0deg;
             box-shadow:
-                0 36px 90px rgba(0, 0, 0, 0.6),
-                0 0 60px rgba(201, 168, 124, 0.07),
-                inset 0 1px 0 rgba(240, 236, 228, 0.05);
+                0 36px 90px rgba(var(--bb-shadow-rgb), 0.6),
+                0 0 60px rgba(var(--bb-tan-rgb), 0.07),
+                inset 0 1px 0 rgba(var(--bb-white-rgb), 0.05);
         }
     }
 
     .letter__meta {
         display: flex;
         justify-content: space-between;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.68rem;
-        letter-spacing: 0.08em;
-        color: var(--muted, #888077);
-        border-bottom: 1px dashed rgba(201, 168, 124, 0.18);
+        border-bottom: 1px dashed rgba(var(--bb-tan-rgb), 0.18);
         padding-bottom: 14px;
         margin-bottom: 26px;
     }
 
     .letter__line {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: clamp(0.95rem, 1.6vw, 1.05rem);
         line-height: 1.8;
-        color: rgba(240, 236, 228, 0.82);
+        color: rgba(var(--bb-white-rgb), 0.82);
         margin: 0 0 20px;
     }
 
@@ -121,10 +116,10 @@ const t = useTranslations(lang);
 
     .letter__signature {
         position: relative;
-        font-family: var(--font-hand, "Caveat", cursive);
+        font-family: var(--bb-font-hand);
         font-size: clamp(1.5rem, 3.4vw, 1.9rem);
         font-weight: 600;
-        color: var(--tan-light, #e0c49a);
+        color: var(--bb-tan-light);
         line-height: 1;
     }
 
@@ -135,11 +130,11 @@ const t = useTranslations(lang);
         bottom: -8px;
         width: 100%;
         height: 2px;
-        border-radius: var(--radius-pill);
-        background: linear-gradient(90deg, rgba(201, 168, 124, 0.7), rgba(82, 183, 136, 0.5));
+        border-radius: var(--bb-radius-pill);
+        background: linear-gradient(90deg, rgba(var(--bb-tan-rgb), 0.7), rgba(var(--bb-green-glow-rgb), 0.5));
         transform: scaleX(0);
         transform-origin: left;
-        transition: transform 900ms var(--ease-out-expo) 600ms;
+        transition: transform 900ms var(--bb-ease-out-expo) 600ms;
     }
 
     .letter__paper.is-revealed .letter__signature::after {
@@ -154,26 +149,26 @@ const t = useTranslations(lang);
         height: 58px;
         font-size: 1.5rem;
         border-radius: 50%;
-        border: 1.5px dashed rgba(201, 168, 124, 0.4);
+        border: 1.5px dashed rgba(var(--bb-tan-rgb), 0.4);
         rotate: 8deg;
         cursor: pointer;
-        transition: rotate 380ms var(--ease-out-back, cubic-bezier(0.34, 1.56, 0.64, 1)),
-                    border-color 240ms ease,
-                    background 240ms ease;
+        transition: rotate var(--bb-dur-base) var(--bb-ease-out-back),
+                    border-color var(--bb-dur-fast) ease,
+                    background var(--bb-dur-fast) ease;
     }
 
     @media (hover: hover) and (pointer: fine) {
         .letter__stamp:hover {
             rotate: -6deg;
-            border-color: rgba(201, 168, 124, 0.7);
-            background: rgba(201, 168, 124, 0.06);
+            border-color: rgba(var(--bb-tan-rgb), 0.7);
+            background: rgba(var(--bb-tan-rgb), 0.06);
         }
     }
 
     .letter__stamp:active { rotate: 14deg; }
 
     .letter__stamp.is-stamped {
-        animation: stampPress 420ms var(--ease-out-back);
+        animation: stampPress var(--bb-dur-base) var(--bb-ease-out-back);
     }
 
     @keyframes stampPress {
@@ -185,10 +180,6 @@ const t = useTranslations(lang);
     .letter__ps {
         display: block;
         margin-top: 26px;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.68rem;
-        letter-spacing: 0.06em;
-        color: var(--muted, #888077);
         opacity: 0.7;
     }
 

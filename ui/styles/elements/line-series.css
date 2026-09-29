@@ -1,0 +1,149 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+  .bb-line-series {
+    --line-tone: var(--bb-green-glow);
+    display: block;
+  }
+
+  .bb-line-series__key--green,
+  .bb-line-series__line--green,
+  .bb-line-series__point--green,
+  .bb-line-series__value--green {
+    --line-tone: var(--bb-green-glow);
+  }
+
+  .bb-line-series__key--tan,
+  .bb-line-series__line--tan,
+  .bb-line-series__point--tan,
+  .bb-line-series__value--tan {
+    --line-tone: var(--bb-tan);
+  }
+
+  .bb-line-series__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 28px;
+    margin: 20px 0 18px;
+  }
+
+  .bb-line-series__key {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--bb-muted);
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+  }
+
+  .bb-line-series__key strong {
+    margin-left: 5px;
+    color: var(--bb-white);
+    font-size: var(--bb-text-xs);
+    font-weight: 500;
+  }
+
+  .bb-line-series__swatch {
+    width: 22px;
+    border-top: 2px solid var(--line-tone);
+  }
+
+  .bb-line-series__key--dashed .bb-line-series__swatch {
+    border-top-style: dashed;
+  }
+
+  .bb-line-series__plot {
+    position: relative;
+    width: 100%;
+  }
+
+  .bb-line-series__plot > svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .bb-line-series__plot text {
+    fill: var(--bb-muted);
+    font-family: var(--bb-font-mono);
+    font-size: 10px;
+  }
+
+  .bb-line-series__grid {
+    stroke: var(--bb-border);
+    stroke-dasharray: 3 5;
+  }
+
+  .bb-line-series__tick {
+    stroke: var(--bb-border);
+  }
+
+  .bb-line-series__line {
+    fill: none;
+    stroke: var(--line-tone);
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .bb-line-series__line--dashed {
+    stroke-dasharray: 6 4;
+  }
+
+  .bb-line-series__point {
+    fill: var(--line-tone);
+  }
+
+  .bb-line-series__point--active {
+    stroke: var(--bb-card-bg);
+    stroke-width: 2;
+  }
+
+  .bb-line-series__crosshair {
+    stroke: var(--bb-muted);
+    stroke-dasharray: 2 4;
+    opacity: 0.6;
+  }
+
+  .bb-line-series__tooltip {
+    pointer-events: none;
+  }
+
+  .bb-line-series__tooltip rect {
+    fill: var(--bb-black);
+    stroke: var(--bb-border-strong);
+  }
+
+  .bb-line-series__tooltip .bb-line-series__value {
+    fill: var(--line-tone);
+  }
+
+  .bb-line-series__empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 25px 60px;
+    color: var(--bb-muted);
+    font-family: var(--bb-font-mono);
+    font-size: 11px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  @media (max-width: 600px) {
+    .bb-line-series__legend {
+      gap: 12px;
+    }
+
+    .bb-line-series__key {
+      font-size: 10px;
+    }
+  }
+}

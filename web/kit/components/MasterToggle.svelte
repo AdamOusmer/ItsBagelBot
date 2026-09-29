@@ -4,8 +4,10 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { toast } from '@bagel/ui/svelte/toast';
-  import Switch from '@bagel/ui/svelte/Switch.svelte';
-  import '@bagel/ui/styles/elements/toggle.css';
+  import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
+  import { getI18n } from '../lib/i18n/context';
+
+  const { t } = getI18n();
 
   let {
     action,
@@ -14,7 +16,7 @@
     hint,
     name = 'is_enabled',
     ariaLabel,
-    failMessage
+    failMessage = t('serverErrors.updateFailed')
   }: {
     action: string;
     enabled: boolean;
@@ -34,17 +36,13 @@
     return async ({ result }) => {
       if (result.type !== 'success') {
         enabled = was;
-        toast('err', failMessage ?? 'Could not update.');
+        toast('err', failMessage);
       }
     };
   };
 </script>
 
-<form method="POST" {action} use:enhance={submit} class="bb-switch-row">
+<form method="POST" {action} use:enhance={submit}>
   <input type="hidden" {name} value={enabled ? '' : 'on'} />
-  <Switch type="submit" checked={enabled} label={ariaLabel ?? label} describedby={hint ? hintId : undefined} />
-  <span class="bb-switch-row__text">
-    <span class="bb-switch-row__label">{label}</span>
-    {#if hint}<span class="bb-switch-row__hint" id={hintId}>{hint}</span>{/if}
-  </span>
+  <SwitchRow type="submit" checked={enabled} {label} {hint} {hintId} switchLabel={ariaLabel ?? label} />
 </form>

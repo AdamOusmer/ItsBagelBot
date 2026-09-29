@@ -1,0 +1,20 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/elements/fact-list.css';
+
+interface Props {
+    layout?: 'rows' | 'tiles' | 'inline';
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { layout = 'rows', class: className = '', ...rest } = Astro.props;
+
+const classes = ['bb-facts', layout === 'rows' ? null : `bb-facts--${layout}`, className || null]
+    .filter(Boolean)
+    .join(' ');
+---
+
+<dl class={classes} {...rest}><slot /></dl>

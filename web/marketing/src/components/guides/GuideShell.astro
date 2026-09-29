@@ -2,8 +2,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import AlertBanner from '@bagel/ui/astro/AlertBanner.astro';
+import Card from '@bagel/ui/astro/Card.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Label from '@bagel/ui/astro/Label.astro';
+import SectionNav from '@bagel/ui/astro/SectionNav.astro';
 import Tag from '@bagel/ui/astro/Tag.astro';
-
+import Text from '@bagel/ui/astro/Text.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
 import GuideBody from './GuideBody.astro';
 import { getLangFromUrl, useTranslations, localizePath } from '../../i18n/ui';
@@ -39,39 +44,33 @@ const labels = {
     next: t('guide.nextLabel'),
 };
 const hubHref = localizePath('/guides', lang);
+const tocItems = sections.map((section) => ({
+    href: `#${section.id}`,
+    label: section.heading,
+    attrs: { 'data-guide-link': section.id },
+}));
+const ordinal = (position: number) => String(position + 1).padStart(2, '0');
 ---
 
-<div class="gshell" data-guide>
+<div class="gshell">
     <div class="gshell__grid">
-        <nav class="gshell__toc" aria-label={labels.toc}>
+        <div class="gshell__toc">
             <TextLink class="gshell__hub" href={hubHref} label={labels.hub} size="0.7rem" />
-            <span class="gshell__toc-label">{labels.toc}</span>
-            <ul>
-                {sections.map((section, i) => (
-                    <li>
-                        <a href={`#${section.id}`} data-guide-link={section.id}>
-                            <i>{String(i + 1).padStart(2, '0')}</i>
-                            {section.heading}
-                        </a>
-                    </li>
-                ))}
-            </ul>
-        </nav>
+            <Label mono as="span" class="gshell__toc-label">{labels.toc}</Label>
+            <SectionNav variant="toc" index label={labels.toc} items={tocItems} data-guide-toc />
+        </div>
 
         <article class="gshell__content">
             <div class="gshell__meta" data-reveal>
                 <TextLink class="gshell__hub gshell__hub--inline" href={hubHref} label={labels.hub} size="0.7rem" />
-                {minutes && <span class="gshell__minutes">{minutes}</span>}
+                {minutes && <Text as="span" size="xs" mono tone="positive" class="gshell__minutes">{minutes}</Text>}
             </div>
 
             {sections.map((section, i) => (
                 <section class="gshell__block" id={section.id} data-guide-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
-                    <h2><i>{String(i + 1).padStart(2, '0')}</i>{section.heading}</h2>
+                    <Heading level={3} as="h2" class="gshell__heading"><Text as="span" size="xs" mono tone="positive" class="gshell__num">{ordinal(i)}</Text>{section.heading}</Heading>
                     {section.note && (
-                        <p class="gshell__glance">
-                            <Tag tone="bare" class="gshell__glance-tag">{labels.glance}</Tag>
-                            {section.note}
-                        </p>
+                        <AlertBanner variant="positive" callout role="note" class="gshell__glance"><Tag tone="live" bare class="gshell__glance-tag">{labels.glance}</Tag>{section.note}</AlertBanner>
                     )}
                     <GuideBody blocks={section.blocks} />
                 </section>
@@ -80,16 +79,20 @@ const hubHref = localizePath('/guides', lang);
             {(prev || next) && (
                 <nav class="gshell__pager" aria-label={labels.next}>
                     {prev ? (
-                        <a class="gshell__pager-card" href={prev.href}>
-                            <span>{labels.prev}</span>
-                            <b>{prev.label}</b>
-                        </a>
+                        <Card as="a" href={prev.href} hover flush class="gshell__pager-card">
+                            <span class="gshell__pager-body">
+                                <Label mono as="span">{labels.prev}</Label>
+                                <Heading level={5} as="span">{prev.label}</Heading>
+                            </span>
+                        </Card>
                     ) : <span />}
                     {next && (
-                        <a class="gshell__pager-card gshell__pager-card--next" href={next.href}>
-                            <span>{labels.next}</span>
-                            <b>{next.label}</b>
-                        </a>
+                        <Card as="a" href={next.href} hover flush class="gshell__pager-card gshell__pager-card--next">
+                            <span class="gshell__pager-body">
+                                <Label mono as="span">{labels.next}</Label>
+                                <Heading level={5} as="span">{next.label}</Heading>
+                            </span>
+                        </Card>
                     )}
                 </nav>
             )}
@@ -99,7 +102,7 @@ const hubHref = localizePath('/guides', lang);
 
 <style>
     .gshell {
-        max-width: var(--content-max, 1200px);
+        max-width: var(--bb-content-max);
         margin: 0 auto;
         padding: 0 24px 96px;
     }
@@ -121,73 +124,17 @@ const hubHref = localizePath('/guides', lang);
 
     @media (min-width: 980px) {
         .gshell__toc {
-            display: block;
+            display: flex;
+            flex-direction: column;
             position: sticky;
-            top: calc(var(--nav-offset, 76px) + 32px);
+            top: calc(var(--nav-offset) + 32px);
             align-self: start;
         }
     }
 
     .gshell__hub { margin-bottom: 26px; }
 
-    .gshell__toc-label {
-        display: block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.64rem;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: var(--muted, #888077);
-        margin-bottom: 16px;
-    }
-
-    .gshell__toc ul {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        border-left: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-    }
-
-    .gshell__toc ul a {
-        position: relative;
-        display: block;
-        padding: 7px 0 7px 16px;
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.88rem;
-        color: var(--muted, #888077);
-        transition: color 200ms ease, padding-left 300ms var(--ease-out-expo);
-    }
-
-    .gshell__toc ul a i {
-        font-style: normal;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.62rem;
-        color: var(--green-glow, #52b788);
-        margin-right: 8px;
-        opacity: 0.85;
-    }
-
-    .gshell__toc ul a::before {
-        content: "";
-        position: absolute;
-        left: -1px;
-        top: 20%;
-        bottom: 20%;
-        width: 1px;
-        background: var(--tan, #c9a87c);
-        transform: scaleY(0);
-        transition: transform 300ms var(--ease-out-expo);
-    }
-
-    @media (hover: hover) and (pointer: fine) {
-        .gshell__toc ul a:hover { color: var(--tan-light, #e0c49a); }
-    }
-
-    .gshell__toc ul a.is-current {
-        color: var(--tan-light, #e0c49a);
-        padding-left: 20px;
-    }
-
-    .gshell__toc ul a.is-current::before { transform: scaleY(1); }
+    .gshell__toc-label { margin-bottom: 16px; }
 
     .gshell__content { max-width: 780px; min-width: 0; }
 
@@ -205,61 +152,34 @@ const hubHref = localizePath('/guides', lang);
         .gshell__hub--inline { display: none; }
     }
 
-    .gshell__minutes {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.72rem;
-        letter-spacing: 0.08em;
-        color: var(--green-glow, #52b788);
+    .gshell__minutes { letter-spacing: 0.08em; }
+
+    .gshell__block {
+        max-width: var(--bb-content-max);
+        margin: 0 auto;
+        padding: 100px 48px;
+        scroll-margin-top: calc(var(--nav-offset) + 24px);
     }
 
-    .gshell__block { scroll-margin-top: calc(var(--nav-offset, 76px) + 24px); }
+    .gshell__heading { margin: 60px 0 14px; }
 
-    .gshell__block h2 {
-        display: flex;
-        align-items: baseline;
-        gap: 12px;
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--white, #f0ece4);
-        letter-spacing: -0.01em;
-        margin: 60px 0 14px;
-    }
+    .gshell__block:first-of-type .gshell__heading { margin-top: 0; }
 
-    .gshell__block h2 i {
-        font-style: normal;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-weight: 400;
-        font-size: 0.72rem;
-        color: var(--green-glow, #52b788);
+    .gshell__num {
+        margin-right: 12px;
         letter-spacing: 0.1em;
     }
 
-    .gshell__block:first-of-type h2 { margin-top: 0; }
+    .gshell__glance { margin: 0 0 18px; }
 
-    .gshell__glance {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.94rem;
-        line-height: 1.6;
-        color: rgba(240, 236, 228, 0.75);
-        background: rgba(82, 183, 136, 0.05);
-        border: 1px solid rgba(82, 183, 136, 0.16);
-        border-radius: var(--radius-md);
-        padding: 10px 14px;
-        margin: 0 0 18px;
-    }
-
-    .gshell__glance-tag {
-        color: var(--green-glow, #52b788);
-        margin-right: 8px;
-    }
+    .gshell__glance-tag { margin-right: 8px; }
 
     .gshell__block :global(p:not([class])),
     .gshell__block :global(ul:not([class])),
     .gshell__block :global(ol:not([class])) {
-        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-family: var(--bb-font-body);
         font-size: 1.05rem;
-        color: #b6afa5;
+        color: var(--bb-muted-soft);
         line-height: 1.85;
         margin-bottom: 16px;
     }
@@ -270,120 +190,45 @@ const hubHref = localizePath('/guides', lang);
     .gshell__block :global(ul:not([class]) li),
     .gshell__block :global(ol:not([class]) li) { margin-bottom: 7px; }
     .gshell__block :global(ul:not([class]) li::marker),
-    .gshell__block :global(ol:not([class]) li::marker) { color: var(--green-glow, #52b788); }
+    .gshell__block :global(ol:not([class]) li::marker) { color: var(--bb-green-glow); }
 
-    .gshell__block :global(h3) {
-        font-family: var(--font-display, "Syne", sans-serif);
+    .gshell__block :global(h3:not([class])) {
+        font-family: var(--bb-font-display);
         font-size: 1.12rem;
         font-weight: 700;
-        color: var(--white, #f0ece4);
+        color: var(--bb-white);
         margin: 30px 0 10px;
     }
 
-    .gshell__block :global(a) {
-        color: var(--tan, #c9a87c);
+    .gshell__block :global(a:not([class])) {
+        color: var(--bb-tan);
         background-image: linear-gradient(
             90deg,
-            rgba(201, 168, 124, 0.75),
-            rgba(82, 183, 136, 0.55)
+            rgba(var(--bb-tan-rgb), 0.75),
+            rgba(var(--bb-green-glow-rgb), 0.55)
         );
         background-repeat: no-repeat;
         background-position: 0 100%;
         background-size: 0% 1px;
         padding-bottom: 1px;
-        transition: color 180ms ease, background-size 460ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+        transition: color var(--bb-dur-fast) ease, background-size var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
-    .gshell__block :global(a:hover) {
-        color: var(--tan-light, #e0c49a);
+    .gshell__block :global(a:not([class]):hover) {
+        color: var(--bb-tan-light);
         background-size: 100% 1px;
     }
 
-    .gshell__block :global(code) {
-        font-family: var(--font-mono, "DM Mono", monospace);
+    .gshell__block :global(code:not([class])) {
+        font-family: var(--bb-font-mono);
         font-size: 0.82em;
-        color: var(--tan-light, #e0c49a);
-        background: rgba(201, 168, 124, 0.08);
-        border: 1px solid rgba(201, 168, 124, 0.14);
-        border-radius: var(--radius-xs);
+        color: var(--bb-tan-light);
+        background: rgba(var(--bb-tan-rgb), 0.08);
+        border: 1px solid rgba(var(--bb-tan-rgb), 0.14);
+        border-radius: var(--bb-radius-xs);
         padding: 2px 6px;
         white-space: nowrap;
     }
-
-    .gshell__block :global(.gtable-wrap) {
-        overflow-x: auto;
-        margin: 18px 0 22px;
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-md);
-        background: rgba(17, 17, 16, 0.85);
-    }
-
-    .gshell__block :global(table) {
-        width: 100%;
-        border-collapse: collapse;
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.94rem;
-    }
-
-    .gshell__block :global(th) {
-        text-align: left;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-weight: 500;
-        font-size: 0.68rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--muted, #888077);
-        padding: 13px 16px;
-        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        white-space: nowrap;
-    }
-
-    .gshell__block :global(td) {
-        vertical-align: top;
-        color: #b6afa5;
-        line-height: 1.6;
-        padding: 12px 16px;
-        border-bottom: 1px solid rgba(201, 168, 124, 0.07);
-    }
-
-    .gshell__block :global(tr:last-child td) { border-bottom: 0; }
-    .gshell__block :global(td:first-child) { white-space: nowrap; }
-
-    .gshell__block :global(.gtip),
-    .gshell__block :global(.gwarn) {
-        display: block;
-        font-size: 0.96rem;
-        line-height: 1.7;
-        border-radius: var(--radius-md);
-        padding: 12px 16px;
-        margin: 18px 0;
-    }
-
-    .gshell__block :global(.gtip) {
-        color: rgba(240, 236, 228, 0.78);
-        background: rgba(201, 168, 124, 0.06);
-        border: 1px solid rgba(201, 168, 124, 0.18);
-    }
-
-    .gshell__block :global(.gwarn) {
-        color: rgba(240, 236, 228, 0.78);
-        background: rgba(217, 138, 138, 0.06);
-        border: 1px solid rgba(217, 138, 138, 0.24);
-    }
-
-    .gshell__block :global(.gtip b),
-    .gshell__block :global(.gwarn b) {
-        display: block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-weight: 500;
-        font-size: 0.62rem;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        margin-bottom: 5px;
-    }
-
-    .gshell__block :global(.gtip b) { color: var(--tan, #c9a87c); }
-    .gshell__block :global(.gwarn b) { color: #d98a8a; }
 
     .gshell__pager {
         display: grid;
@@ -392,55 +237,46 @@ const hubHref = localizePath('/guides', lang);
         margin-top: 72px;
     }
 
-    .gshell__pager-card {
+    .gshell__pager-body {
         display: flex;
         flex-direction: column;
         gap: 7px;
         padding: 18px 20px;
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-md);
-        background: rgba(17, 17, 16, 0.85);
-        transition: border-color 200ms ease, transform 200ms var(--ease-out-expo), background 200ms ease;
     }
 
     .gshell__pager-card--next { text-align: right; }
 
-    .gshell__pager-card:hover {
-        border-color: rgba(201, 168, 124, 0.4);
-        background: rgba(201, 168, 124, 0.05);
-        transform: translateY(-2px);
-    }
-
-    .gshell__pager-card span {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.62rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--muted, #888077);
-    }
-
-    .gshell__pager-card b {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: 1.05rem;
-        font-weight: 700;
-        color: var(--white, #f0ece4);
-    }
-
     @media (prefers-reduced-motion: reduce) {
-        .gshell__toc ul a, .gshell__toc ul a::before, .gshell__pager-card,
-        .gshell__block :global(a) { transition: none; }
+        .gshell__block :global(a:not([class])) { transition: none; }
     }
 
     @media (max-width: 640px) {
         .gshell { padding: 0 16px 72px; }
-        .gshell__block h2 { font-size: 1.28rem; margin-top: 44px; }
+        .gshell__heading { margin-top: 44px; }
         .gshell__pager { grid-template-columns: 1fr; }
         .gshell__pager-card--next { text-align: left; }
     }
 </style>
 
 <script>
-    import { scrollspy } from '../../script/scrollspy';
+    import { mountSectionNav } from '@bagel/ui/lib/scroll-spy';
 
-    scrollspy('guide');
+    let dispose: (() => void) | undefined;
+
+    function unmountToc() {
+        dispose?.();
+        dispose = undefined;
+    }
+
+    function mountToc() {
+        unmountToc();
+        const toc = document.querySelector<HTMLElement>('[data-guide-toc]');
+        if (toc) dispose = mountSectionNav(toc);
+    }
+
+    mountToc();
+    document.addEventListener('astro:page-load', mountToc);
+    document.addEventListener('astro:before-swap', unmountToc);
+    window.addEventListener('pagehide', unmountToc);
+    window.addEventListener('pageshow', (event) => { if (event.persisted) mountToc(); });
 </script>

@@ -8,13 +8,21 @@
   let {
     variant = 'danger',
     role = 'alert',
+    callout = false,
+    flush = false,
+    stack = false,
+    exit,
     class: className = '',
     children,
     action,
     ...rest
   }: {
-    variant?: 'danger' | 'warn' | 'impersonation';
-    role?: 'alert' | 'status';
+    variant?: 'danger' | 'warn' | 'impersonation' | 'tip' | 'note' | 'positive';
+    role?: 'alert' | 'status' | 'note';
+    callout?: boolean;
+    flush?: boolean;
+    stack?: boolean;
+    exit?: { label: string; href?: string; action?: string };
     class?: string;
     children?: Snippet;
     action?: Snippet;
@@ -22,10 +30,21 @@
   } = $props();
 
   const classes = $derived(
-    ['bb-alert', `bb-alert--${variant}`, className || null].filter(Boolean).join(' '),
+    [
+      'bb-alert',
+      `bb-alert--${variant}`,
+      callout ? 'bb-alert--callout' : null,
+      flush ? 'bb-alert--flush' : null,
+      stack ? 'bb-alert--stack' : null,
+      className || null,
+    ]
+      .filter(Boolean)
+      .join(' '),
   );
 </script>
 
 <div class={classes} {role} {...rest}><span class="bb-alert__msg"
     >{#if children}{@render children()}{/if}</span
-  >{#if action}{@render action()}{/if}</div>
+  >{#if action}{@render action()}{/if}{#if exit?.action}<form method="POST" action={exit.action}
+      ><button type="submit" class="bb-alert__exit">{exit.label}</button></form
+    >{:else if exit}<a class="bb-alert__exit" href={exit.href}>{exit.label}</a>{/if}</div>

@@ -2,8 +2,17 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Tag from '@bagel/ui/astro/Tag.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
+import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import IconButton from '@bagel/ui/astro/IconButton.astro';
+import Input from '@bagel/ui/astro/Input.astro';
+import Lead from '@bagel/ui/astro/Lead.astro';
+import ProgressBar from '@bagel/ui/astro/ProgressBar.astro';
+import Section from '@bagel/ui/astro/Section.astro';
+import Tag from '@bagel/ui/astro/Tag.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 
 // DOM + textContent only: never innerHTML for anything user-typed.
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
@@ -39,16 +48,16 @@ const playStrings = {
 };
 ---
 
-<section class="play" id="playground">
+<Section size="page" class="play" id="playground">
     <script type="application/json" data-play-i18n set:html={JSON.stringify(playStrings)}></script>
     <div class="play__copy">
-        <span class="play__eyebrow" data-reveal>{t('play.eyebrow')}</span>
-        <h2 class="play__title" data-reveal style="--reveal-i: 1">{t('play.title')}</h2>
-        <p class="play__sub" data-reveal style="--reveal-i: 2">
+        <Eyebrow tone="go" class="play__eyebrow" data-reveal>{t('play.eyebrow')}</Eyebrow>
+        <Heading level={2} class="play__title" data-reveal>{t('play.title')}</Heading>
+        <Lead class="play__sub" data-reveal>
             {t('play.sub')}
-        </p>
+        </Lead>
 
-        <div class="play__chips" data-reveal style="--reveal-i: 3">
+        <div class="play__chips" data-reveal>
             {chips.map((chip) => (
                 <Chip data-play-cmd={chip.cmd}>{chip.label}</Chip>
             ))}
@@ -57,13 +66,13 @@ const playStrings = {
             </Chip>
         </div>
 
-        <p class="play__hint" data-reveal style="--reveal-i: 4">
+        <Text size="xs" mono tone="muted" class="play__hint" data-reveal>
             {t('play.hint')}
-        </p>
+        </Text>
     </div>
 
-    <div class="play__stage" data-reveal style="--reveal-i: 2" data-playground>
-        <div class="play__window">
+    <div class="play__stage" data-reveal data-playground>
+        <Card flush class="play__window">
             <div class="play__bar">
                 <span class="play__channel">#your_channel</span>
                 <Tag tone="live" class="play__live" mark="solid" sweep>{t('play.live')}</Tag>
@@ -72,23 +81,26 @@ const playStrings = {
             <div class="play__feed" data-play-feed role="log" aria-label={t('play.feedAria')}></div>
 
             <form class="play__composer" data-play-form>
-                <input
+                <Input
+                    mono
+                    fill
                     id="play-input"
                     name="message"
-                    class="play__input"
                     data-play-input
-                    type="text"
                     maxlength="80"
                     placeholder={t('play.inputPlaceholder')}
                     aria-label={t('play.inputAria')}
                     autocomplete="off"
                     spellcheck="false"
                 />
-                <button class="bb-btn bb-btn--primary play__send" type="submit" aria-label={t('play.sendAria')}>↵</button>
+                <IconButton type="submit" label={t('play.sendAria')} class="play__send">↵</IconButton>
             </form>
-        </div>
+        </Card>
+        <template data-play-poll-row>
+            <span class="ppoll__row"><ProgressBar value={0} tone="success" gradient label="" /><span data-play-poll-label></span></span>
+        </template>
     </div>
-</section>
+</Section>
 
 <style>
     .play {
@@ -97,8 +109,8 @@ const playStrings = {
         grid-template-columns: 1fr;
         gap: 48px;
         align-items: center;
-        padding: var(--space-section, 96px) 24px;
-        max-width: var(--content-max, 1200px);
+        padding-inline: 24px;
+        max-width: var(--bb-content-max);
         margin: 0 auto;
         z-index: 3;
     }
@@ -113,34 +125,25 @@ const playStrings = {
 
     .play__eyebrow {
         display: block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: clamp(0.64rem, 1.4vw, 0.74rem);
-        letter-spacing: 0.24em;
-        text-transform: uppercase;
-        color: var(--green-glow, #52b788);
         margin-bottom: 18px;
     }
 
     .play__title {
-        font-family: var(--font-display, "Syne", sans-serif);
+        --reveal-i: 1;
         font-weight: 800;
         font-size: clamp(2rem, 5vw, 3.2rem);
-        line-height: 1.05;
-        letter-spacing: -0.03em;
-        color: var(--white, #f0ece4);
+        letter-spacing: var(--bb-tracking-tight);
         margin: 0 0 18px;
     }
 
     .play__sub {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: clamp(0.95rem, 1.5vw, 1.08rem);
-        line-height: 1.65;
-        color: var(--muted, #888077);
+        --reveal-i: 2;
         max-width: 42ch;
         margin: 0 0 28px;
     }
 
     .play__chips {
+        --reveal-i: 3;
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
@@ -148,23 +151,20 @@ const playStrings = {
     }
 
     .play__hint {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.72rem;
-        letter-spacing: 0.06em;
-        color: var(--muted, #888077);
+        --reveal-i: 4;
         opacity: 0.75;
-        margin: 0;
+    }
+
+    .play__stage {
+        --reveal-i: 2;
     }
 
     .play__window {
+        --card-radius: var(--bb-radius-lg);
         display: flex;
         flex-direction: column;
         height: clamp(420px, 56vh, 520px);
-        background: var(--card-bg, #111110);
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-lg);
-        overflow: hidden;
-        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 24px 80px rgba(var(--bb-shadow-rgb), 0.5);
     }
 
     .play__bar {
@@ -172,14 +172,14 @@ const playStrings = {
         align-items: center;
         gap: 10px;
         padding: 14px 18px;
-        border-bottom: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        background: rgba(255, 255, 255, 0.015);
+        border-bottom: 1px solid var(--bb-border);
+        background: rgba(var(--bb-white-pure-rgb), 0.015);
     }
 
     .play__channel {
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.78rem;
-        color: var(--white, #f0ece4);
+        color: var(--bb-white);
         letter-spacing: 0.04em;
     }
 
@@ -204,10 +204,10 @@ const playStrings = {
         align-items: baseline;
         gap: 8px;
         padding: 5px 8px;
-        border-radius: var(--radius-md);
+        border-radius: var(--bb-radius-md);
         font-size: 0.85rem;
         line-height: 1.5;
-        animation: pmsgIn 420ms var(--ease-out-expo) both;
+        animation: pmsgIn var(--bb-dur-base) var(--bb-ease-out-expo) both;
     }
 
     @keyframes pmsgIn {
@@ -216,29 +216,29 @@ const playStrings = {
     }
 
     .play__feed :global(.pmsg__name) {
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.78rem;
         flex-shrink: 0;
-        color: var(--hue, var(--tan, #c9a87c));
+        color: var(--hue, var(--bb-tan));
     }
 
     .play__feed :global(.pmsg__text) {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        color: rgba(240, 236, 228, 0.82);
+        font-family: var(--bb-font-body);
+        color: rgba(var(--bb-white-rgb), 0.82);
         min-width: 0;
         overflow-wrap: anywhere;
     }
 
     .play__feed :global(.pmsg--you) {
-        background: rgba(201, 168, 124, 0.06);
+        background: rgba(var(--bb-tan-rgb), 0.06);
     }
 
     .play__feed :global(.pmsg--bot) {
-        background: rgba(82, 183, 136, 0.05);
+        background: rgba(var(--bb-green-glow-rgb), 0.05);
     }
 
     .play__feed :global(.pmsg--bot .pmsg__name) {
-        color: var(--green-glow, #52b788);
+        color: var(--bb-green-glow);
     }
 
     .play__feed :global(.pmsg--bot .pmsg__name::after) {
@@ -255,11 +255,11 @@ const playStrings = {
     }
 
     .play__feed :global(.pmsg--spam .pmsg__text) {
-        color: rgba(217, 138, 138, 0.9);
+        color: rgba(var(--bb-danger-rgb), 0.9);
     }
 
     .play__feed :global(.pmsg--spam.is-caught) {
-        transition: opacity 320ms ease, filter 320ms ease;
+        transition: opacity var(--bb-dur-base) ease, filter var(--bb-dur-base) ease;
         opacity: 0.5;
         filter: blur(1.5px);
     }
@@ -269,115 +269,59 @@ const playStrings = {
     }
 
     .play__feed :global(.pmsg--caught) {
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.7rem;
         letter-spacing: 0.06em;
-        color: var(--green-glow, #52b788);
-        background: rgba(82, 183, 136, 0.07);
-        border: 1px dashed rgba(82, 183, 136, 0.3);
-        border-radius: var(--radius-md);
+        color: var(--bb-green-glow);
+        background: rgba(var(--bb-green-glow-rgb), 0.07);
+        border: 1px dashed rgba(var(--bb-green-glow-rgb), 0.3);
+        border-radius: var(--bb-radius-md);
         padding: 6px 10px;
     }
 
     .play__feed :global(.pmsg--poll) {
         display: block;
-        background: rgba(82, 183, 136, 0.05);
+        background: rgba(var(--bb-green-glow-rgb), 0.05);
         padding: 8px 10px;
     }
 
     .play__feed :global(.ppoll__q) {
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.74rem;
-        color: var(--green-glow, #52b788);
+        color: var(--bb-green-glow);
         margin-bottom: 7px;
         display: block;
     }
 
-    .play__feed :global(.ppoll__row) {
+    .ppoll__row {
+        --progress-from: var(--bb-green);
+        --progress-duration: 1100ms;
         display: grid;
         grid-template-columns: 1fr auto;
         align-items: center;
         gap: 8px;
         margin-top: 5px;
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.7rem;
-        color: rgba(240, 236, 228, 0.8);
+        color: rgba(var(--bb-white-rgb), 0.8);
     }
 
-    .play__feed :global(.ppoll__track) {
-        position: relative;
-        height: 6px;
-        border-radius: var(--radius-xs);
-        background: rgba(240, 236, 228, 0.07);
-        overflow: hidden;
-    }
-
-    .play__feed :global(.ppoll__fill) {
-        position: absolute;
-        inset: 0 auto 0 0;
-        width: 0;
-        border-radius: var(--radius-xs);
-        background: linear-gradient(90deg, var(--green, #2d6a4f), var(--green-glow, #52b788));
-        transition: width 1100ms var(--ease-out-expo);
-    }
-
-    .play__feed :global(.ppoll__label) {
-        display: block;
-        margin-bottom: 3px;
-    }
 
     .play__composer {
         display: flex;
         gap: 10px;
         padding: 12px 14px;
-        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        background: rgba(255, 255, 255, 0.015);
-    }
-
-    .play__input {
-        flex: 1;
-        min-width: 0;
-        background: rgba(10, 10, 10, 0.6);
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-sm);
-        padding: 11px 14px;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.8rem;
-        color: var(--white, #f0ece4);
-        outline: none;
-        transition: border-color 240ms ease, box-shadow 240ms ease;
-    }
-
-    .play__input::placeholder {
-        color: var(--muted, #888077);
-        opacity: 0.6;
-    }
-
-    .play__input:focus {
-        border-color: rgba(201, 168, 124, 0.45);
-        box-shadow: 0 0 0 3px rgba(201, 168, 124, 0.08);
-    }
-
-    .play__send {
-        flex-shrink: 0;
-        width: 42px;
-        padding: 0;
-        justify-content: center;
-        font-size: 0.9rem;
-    }
-
-    .play__send::before {
-        content: none;
+        border-top: 1px solid var(--bb-border);
+        background: rgba(var(--bb-white-pure-rgb), 0.015);
     }
 
     @media (prefers-reduced-motion: reduce) {
         .play__feed :global(.pmsg) { animation: none; }
-        .play__feed :global(.ppoll__fill) { transition: none; }
-        .play__send { transition: none; }
+        .ppoll__row { --progress-duration: 0s; }
     }
 
     @media (max-width: 640px) {
-        .play { padding: var(--space-section-sm, 72px) 20px; }
+        .play { padding-inline: 20px; }
         .play__window { height: 420px; }
     }
 </style>
@@ -419,15 +363,32 @@ const playStrings = {
     };
 
 
+    type PlayParts = {
+        feed: HTMLElement;
+        form: HTMLFormElement;
+        input: HTMLInputElement;
+        pollRow: HTMLTemplateElement;
+        section: HTMLElement;
+    };
+
+    function findParts(root: HTMLElement): PlayParts | null {
+        const parts = {
+            feed: root.querySelector<HTMLElement>('[data-play-feed]'),
+            form: root.querySelector<HTMLFormElement>('[data-play-form]'),
+            input: root.querySelector<HTMLInputElement>('[data-play-input]'),
+            pollRow: root.querySelector<HTMLTemplateElement>('[data-play-poll-row]'),
+            section: root.closest('section'),
+        };
+        return Object.values(parts).every(Boolean) ? (parts as PlayParts) : null;
+    }
+
     function setupPlayground(root: HTMLElement) {
         if (root.dataset.playReady === 'true') return;
         root.dataset.playReady = 'true';
 
-        const feed = root.querySelector<HTMLElement>('[data-play-feed]');
-        const form = root.querySelector<HTMLFormElement>('[data-play-form]');
-        const input = root.querySelector<HTMLInputElement>('[data-play-input]');
-        const section = root.closest('section');
-        if (!feed || !form || !input || !section) return;
+        const parts = findParts(root);
+        if (!parts) return;
+        const { feed, form, input, pollRow, section } = parts;
 
         let visible = false;
         let ambientTimer = 0;
@@ -490,27 +451,22 @@ const playStrings = {
                 bubble.appendChild(q);
 
                 const rows: Array<[string, number]> = [[S.pollYes, 68], [S.pollAlways, 32]];
-                const fills: HTMLElement[] = [];
-                for (const [label, pct] of rows) {
-                    const row = document.createElement('span');
-                    row.className = 'ppoll__row';
-                    const track = document.createElement('span');
-                    track.className = 'ppoll__track';
-                    const fill = document.createElement('span');
-                    fill.className = 'ppoll__fill';
-                    track.appendChild(fill);
-                    const tag = document.createElement('span');
-                    tag.textContent = `${label} ${pct}%`;
-                    row.append(track, tag);
+                const bars = rows.map(([label, pct]) => {
+                    const row = pollRow.content.firstElementChild!.cloneNode(true) as HTMLElement;
+                    const bar = row.querySelector<HTMLElement>('[role="progressbar"]')!;
+                    bar.setAttribute('aria-label', label);
+                    row.querySelector('[data-play-poll-label]')!.textContent = `${label} ${pct}%`;
                     bubble.appendChild(row);
-                    fills.push(fill);
-                    fill.dataset.pct = String(pct);
-                }
+                    return { bar, pct };
+                });
                 feed!.appendChild(bubble);
                 trim();
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
-                        fills.forEach((f) => { f.style.width = `${f.dataset.pct}%`; });
+                        bars.forEach(({ bar, pct }) => {
+                            bar.style.setProperty('--progress', String(pct / 100));
+                            bar.setAttribute('aria-valuenow', String(pct));
+                        });
                     });
                 });
             }, reduceMotion.matches ? 120 : 900);

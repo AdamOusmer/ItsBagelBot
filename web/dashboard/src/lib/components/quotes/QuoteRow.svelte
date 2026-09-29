@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { MiniButton, getI18n } from '@bagel/kit';
+  import { Icon, IconButton, ManagementRow, getI18n } from '@bagel/kit';
   import type { QuoteView } from '$lib/server/quotes-store';
 
   let {
@@ -25,78 +25,55 @@
   }
 </script>
 
-<li class="row-shell reveal {expanded ? 'selected' : ''}">
-  <button
-    class="disclosure"
-    type="button"
-    aria-expanded={expanded}
-    aria-controls="quote-inspector"
-    onclick={onExpand}
-  >
-    <span class="num">#{quote.number}</span>
-    <span class="quote">
+<ManagementRow as="li" class="reveal" selected={expanded} {expanded} controls="quote-inspector" onselect={onExpand}>
+  {#snippet primary()}
+    <span class="prow">
+      <span class="num" class:on={expanded}>#{quote.number}</span>
       <span class="quote-text">{quote.text}</span>
+      <span class="date">{formatDate(quote.created_at)}</span>
     </span>
-    <span class="date">{formatDate(quote.created_at)}</span>
-  </button>
-
-  <div class="row-act">
-    <MiniButton icon="trash" aria-label={`${t('quotes.deleteAria')}: #${quote.number}`} onclick={onDelete} />
-  </div>
-</li>
+  {/snippet}
+  {#snippet actions()}
+    <span class="row-act">
+      <IconButton size="sm" label={`${t('quotes.deleteAria')}: #${quote.number}`} onclick={onDelete}><Icon name="trash" size={15} /></IconButton>
+    </span>
+  {/snippet}
+</ManagementRow>
 
 <style>
-  .row-shell {
-    list-style: none;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    padding: 0 14px 0 0;
-    border-bottom: 1px solid var(--rule, rgba(240, 236, 228, 0.08));
-    transition: background var(--bb-dur-fast, 140ms) ease;
-  }
-  .row-shell.selected { background: rgba(201, 168, 124, 0.05); }
-
-  .disclosure {
+  .prow {
     display: grid;
     grid-template-columns: 48px minmax(0, 1fr) auto;
+    grid-template-areas: 'num quote date';
     align-items: center;
     gap: 14px;
-    padding: 12px 0 12px 14px;
-    min-width: 0;
-    min-height: 44px;
-    text-align: left;
-    background: none;
-    border: 0;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-    user-select: none;
+    min-height: 20px;
   }
-  .disclosure:hover { background: rgba(201, 168, 124, 0.045); }
-  .disclosure:focus-visible { outline: 1px solid var(--bb-tan, #c9a87c); outline-offset: -1px; }
 
   .num {
+    grid-area: num;
     font-family: var(--bb-font-mono);
-    font-size: 11px;
+    font-size: var(--bb-text-xs);
     color: var(--bb-muted);
     font-variant-numeric: tabular-nums;
   }
-  .row-shell.selected .num { color: var(--bb-tan); }
+  .num.on { color: var(--bb-tan); }
 
-  .quote { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
   .quote-text {
+    grid-area: quote;
+    min-width: 0;
     font-family: var(--bb-font-body);
     font-weight: 600;
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-white);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .date {
+    grid-area: date;
     font-family: var(--bb-font-mono);
-    font-size: 12px;
+    font-size: var(--bb-text-xs);
     color: var(--bb-tan-light);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
@@ -104,17 +81,14 @@
   .row-act { display: inline-flex; align-items: center; }
 
   @media (max-width: 700px) {
-    .disclosure {
+    .prow {
       grid-template-columns: 48px minmax(0, 1fr);
       grid-template-areas:
         'quote quote'
         'num date';
       row-gap: 4px;
-      padding: 8px 0 8px 12px;
     }
-    .num { grid-area: num; }
-    .quote { grid-area: quote; }
-    .date { grid-area: date; justify-self: end; }
+    .date { justify-self: end; }
     .row-act { --btn-icon-min-size: 44px; }
   }
 </style>

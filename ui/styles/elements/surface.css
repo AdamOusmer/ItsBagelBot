@@ -5,8 +5,8 @@
 
 @layer bb.elements {
   .bb-surface {
-    --surface-rule: var(--rule, var(--bb-border));
-    --surface-rule-strong: var(--rule-strong, var(--bb-border-strong));
+    --surface-rule: var(--bb-border);
+    --surface-rule-strong: var(--bb-border-strong);
 
     display: flex;
     flex-direction: column;
@@ -20,6 +20,11 @@
     top: calc(74px + env(safe-area-inset-top, 0px));
     max-height: calc(100dvh - 74px - env(safe-area-inset-top, 0px) - var(--bb-dock-clearance, 108px));
     overflow-anchor: none;
+  }
+
+  :is([data-static] .bb-surface--docked, .bb-surface--docked[data-static]) {
+    position: static;
+    max-height: none;
   }
 
   .bb-surface__head {
@@ -58,7 +63,7 @@
   .bb-surface__close:hover {
     color: var(--bb-white);
     border-color: var(--bb-border-strong);
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(var(--bb-white-pure-rgb), 0.04);
   }
 
   .bb-surface__close:focus-visible {
@@ -73,6 +78,29 @@
     flex: 1;
   }
 
+  .bb-surface--idle .bb-surface__close {
+    visibility: hidden;
+  }
+
+  .bb-surface__idle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--bb-space-3);
+    padding: var(--bb-space-6) var(--bb-space-5);
+    text-align: center;
+  }
+
+  .bb-surface__idle > p {
+    max-width: 26ch;
+  }
+
+  @media (max-width: 1079px) {
+    .bb-surface.bb-surface--idle {
+      display: none;
+    }
+  }
+
   .bb-sheet-shell {
     position: fixed;
     inset: 0;
@@ -83,7 +111,7 @@
     inset: 0;
     border: 0;
     padding: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(var(--bb-shadow-rgb), 0.55);
   }
 
   .bb-surface--sheet {
@@ -96,7 +124,7 @@
     border: 1px solid var(--surface-rule);
     border-top-color: var(--surface-rule-strong);
     border-radius: var(--bb-radius-md) var(--bb-radius-md) 0 0;
-    background: var(--bb-bg-1, #111);
+    background: var(--bb-bg-1);
     padding-bottom: env(safe-area-inset-bottom, 0);
     animation: bb-sheet-in var(--bb-dur-base) var(--bb-ease-out-expo) both;
   }

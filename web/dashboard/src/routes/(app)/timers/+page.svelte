@@ -19,6 +19,7 @@
     MasterToggle,
     PageToolbar,
     AlertBanner,
+    DeckLayout,
     DeckList,
     EmptyState,
     actionPayload,
@@ -210,9 +211,9 @@
     {/snippet}
   </PageToolbar>
 
-  <div class="deck {inspector.isOpen ? 'inspecting' : ''}">
+  <DeckLayout inspecting={inspector.isOpen}>
     <DeckList>
-      <div class="list">
+      <div>
         {#each rows as tmr, i (tmr.id)}
           <TimerRow
             timer={tmr}
@@ -268,7 +269,7 @@
         </form>
       </InspectorSurface>
     {/if}
-  </div>
+  </DeckLayout>
 </section>
 
 <ConfirmDialog
@@ -283,17 +284,5 @@
 />
 
 <style>
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
-  }
-
-  .list :global(.row-shell:last-child) { border-bottom: none; }
-
   .inspector-form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 </style>

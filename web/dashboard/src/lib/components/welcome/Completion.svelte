@@ -55,12 +55,12 @@
   .completion {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    z-index: var(--bb-z-overlay);
     display: grid;
     place-items: center;
     overflow: hidden;
     isolation: isolate;
-    transition: opacity 520ms var(--bb-ease-out-expo, cubic-bezier(.16, 1, .3, 1));
+    transition: opacity var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
 
   .completion.leaving { opacity: 0; }
@@ -70,10 +70,10 @@
     width: min(88vw, 700px);
     aspect-ratio: 1;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(var(--bb-green-glow-rgb, 64, 145, 108), .16), rgba(var(--bb-tan-rgb, 201, 168, 124), .07) 42%, transparent 70%);
+    background: radial-gradient(circle, rgba(var(--bb-green-glow-rgb), .16), rgba(var(--bb-tan-rgb), .07) 42%, transparent 70%);
     transform: scale(.72);
     opacity: 0;
-    animation: arrive-aura 1100ms var(--bb-ease-out-expo, cubic-bezier(.16, 1, .3, 1)) both;
+    animation: arrive-aura calc(var(--bb-dur-slow) * 2) var(--bb-ease-out-expo) both;
   }
 
   .moment {
@@ -82,7 +82,7 @@
     place-items: center;
     width: 180px;
     height: 180px;
-    transition: transform 520ms var(--bb-ease-out-expo, cubic-bezier(.16, 1, .3, 1));
+    transition: transform var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
 
   .leaving .moment { transform: scale(1.06); }
@@ -91,10 +91,10 @@
     position: absolute;
     inset: 13px;
     border-radius: 50%;
-    border: 1px solid var(--bb-tan-pale, #dcc6a4);
+    border: 1px solid var(--bb-tan-pale);
     opacity: 0;
   }
-  .done .ripple { animation: ripple 1100ms var(--bb-ease-out-expo, cubic-bezier(.16, 1, .3, 1)) both; }
+  .done .ripple { animation: ripple calc(var(--bb-dur-slow) * 2) var(--bb-ease-out-expo) both; }
 
   .spark {
     position: absolute;
@@ -104,13 +104,13 @@
     height: 5px;
     margin: -2.5px 0 0 -2.5px;
     border-radius: 50%;
-    background: var(--bb-green-glow, #40916c);
-    box-shadow: 0 0 10px rgba(var(--bb-green-glow-rgb, 64, 145, 108), .8);
+    background: var(--bb-green-glow);
+    box-shadow: 0 0 10px rgba(var(--bb-green-glow-rgb), .8);
     opacity: 0;
     transform: rotate(var(--a)) translateX(70px) scale(.4);
   }
-  .spark:nth-of-type(odd) { background: var(--bb-tan-pale, #dcc6a4); }
-  .done .spark { animation: spark 900ms var(--bb-ease-out-expo, cubic-bezier(.16, 1, .3, 1)) 80ms both; }
+  .spark:nth-of-type(odd) { background: var(--bb-tan-pale); }
+  .done .spark { animation: spark calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) 80ms both; }
 
   .seal,
   .circle {
@@ -130,18 +130,18 @@
     vector-effect: non-scaling-stroke;
   }
 
-  .track { stroke: var(--bb-border-strong, rgba(255,255,255,.14)); stroke-width: 1; }
+  .track { stroke: var(--bb-border-strong); stroke-width: 1; }
 
   .progress {
-    stroke: var(--bb-tan-pale, #dcc6a4);
+    stroke: var(--bb-tan-pale);
     stroke-width: 3;
     stroke-dasharray: 100;
     stroke-dashoffset: 100;
-    animation: draw-circle 880ms var(--bb-ease-out-expo, cubic-bezier(.16, 1, .3, 1)) forwards;
+    animation: draw-circle calc(var(--bb-dur-slow) * 1.5) var(--bb-ease-out-expo) forwards;
   }
 
   .check {
-    stroke: var(--bb-green-glow, #40916c);
+    stroke: var(--bb-green-glow);
     stroke-width: 4;
     stroke-dasharray: 70;
     stroke-dashoffset: 70;
@@ -153,16 +153,16 @@
   .done .check,
   .leaving .check {
     opacity: 1;
-    animation: draw-check 480ms var(--bb-ease-out-expo, cubic-bezier(.16, 1, .3, 1)) forwards;
+    animation: draw-check var(--bb-dur-slow) var(--bb-ease-out-expo) forwards;
   }
 
   .inner-glow {
     position: absolute;
     inset: 24px;
     border-radius: 50%;
-    box-shadow: 0 0 55px rgba(var(--bb-green-glow-rgb, 64, 145, 108), .16);
+    box-shadow: 0 0 55px rgba(var(--bb-green-glow-rgb), .16);
     opacity: 0;
-    transition: opacity 550ms ease;
+    transition: opacity var(--bb-dur-slow) ease;
   }
   .done .inner-glow,
   .leaving .inner-glow { opacity: 1; }
@@ -173,16 +173,16 @@
     max-width: 120px;
     text-align: center;
     overflow-wrap: anywhere;
-    font: 600 clamp(18px, 3vw, 25px)/1.15 var(--bb-font-display, sans-serif);
-    color: var(--bb-white, #fff);
+    font: 600 clamp(18px, 3vw, 25px)/1.15 var(--bb-font-display);
+    color: var(--bb-white);
     opacity: 0;
     letter-spacing: .12em;
     filter: blur(4px);
     transform: translateY(25px);
     transition:
-      opacity 440ms ease,
-      letter-spacing 700ms var(--bb-ease-out-expo, cubic-bezier(.16, 1, .3, 1)),
-      filter 440ms ease;
+      opacity var(--bb-dur-base) ease,
+      letter-spacing var(--bb-dur-slow) var(--bb-ease-out-expo),
+      filter var(--bb-dur-base) ease;
   }
   .done .label,
   .leaving .label { opacity: 1; letter-spacing: 0; filter: none; }

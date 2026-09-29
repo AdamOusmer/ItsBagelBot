@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, ManagementRow, Switch, getI18n, type ChannelPointReward } from '@bagel/kit';
+  import { Icon, IconButton, ManagementRow, Switch, Tag, getI18n, type ChannelPointReward } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -29,66 +28,63 @@
   const togglePayload = $derived(JSON.stringify({ ...r, isEnabled: !r.isEnabled }));
 </script>
 
-<li class="row-wrap">
-  <ManagementRow selected={expanded} {expanded} controls="reward-editor" onselect={onExpand}>
-    {#snippet primary()}
-      <span class="prow">
-        {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
-        <span class="reward">
-          <span class="reward-name">
-            <span class="swatch" style="--sw: {r.backgroundColor || '#9147ff'}" aria-hidden="true"></span>
-            <span class="title-text">{r.title}</span>
-          </span>
-          <span class="tags">
-            {#if r.maxPerStreamEnabled && r.maxPerStream === 1}
-              <span class="bb-tag bb-tag--bare">{t('channelpoints.chipOnce')}</span>
-            {:else if r.maxPerStreamEnabled}
-              <span class="bb-tag bb-tag--bare">{t('channelpoints.chipPerStream', { n: r.maxPerStream })}</span>
-            {/if}
-            {#if r.maxPerUserPerStreamEnabled}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipPerUser', { n: r.maxPerUserPerStream })}</span>{/if}
-            {#if r.globalCooldownEnabled}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipCooldown', { n: r.globalCooldownSeconds })}</span>{/if}
-            {#if r.isUserInputRequired}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipInput')}</span>{/if}
-            {#if r.onRedeem === 'cancel'}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipRefund')}</span>{/if}
-            {#if r.counter}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipCounterName', { name: r.counter })}</span>{/if}
-            {#if r.points > 0}<span class="bb-tag bb-tag--bare">{t('channelpoints.chipPointsAward', { n: r.points })}</span>{/if}
-          </span>
+<ManagementRow as="li" selected={expanded} {expanded} controls="reward-editor" onselect={onExpand}>
+  {#snippet primary()}
+    <span class="prow">
+      {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}
+      <span class="reward">
+        <span class="reward-name">
+          <span class="swatch" style="--sw: {r.backgroundColor || '#9147ff'}" aria-hidden="true"></span>
+          <span class="title-text">{r.title}</span>
         </span>
-        <span class="resp">
-          {#if r.action === 'chat'}
-            {r.message || '{user} redeemed {reward}!'}
-          {:else}
-            <span class="silent">{t('channelpoints.chipSilent')}</span>
+        <span class="tags">
+          {#if r.maxPerStreamEnabled && r.maxPerStream === 1}
+            <Tag tone="bare">{t('channelpoints.chipOnce')}</Tag>
+          {:else if r.maxPerStreamEnabled}
+            <Tag tone="bare">{t('channelpoints.chipPerStream', { n: r.maxPerStream })}</Tag>
           {/if}
-        </span>
-        <span class="meta">
-          <span class="cost"><span class="bb-sr-only">{t('channelpoints.fieldCost')}: </span>{r.cost.toLocaleString()}</span>
-          <span class="bb-tag {r.isEnabled ? 'bb-tag--live' : 'bb-tag--quiet'}">
-            <i class="bb-mark {r.isEnabled ? '' : 'bb-mark--hollow'}" aria-hidden="true"></i>
-            {r.isEnabled ? t('channelpoints.stateVisible') : t('channelpoints.stateHidden')}
-          </span>
+          {#if r.maxPerUserPerStreamEnabled}<Tag tone="bare">{t('channelpoints.chipPerUser', { n: r.maxPerUserPerStream })}</Tag>{/if}
+          {#if r.globalCooldownEnabled}<Tag tone="bare">{t('channelpoints.chipCooldown', { n: r.globalCooldownSeconds })}</Tag>{/if}
+          {#if r.isUserInputRequired}<Tag tone="bare">{t('channelpoints.chipInput')}</Tag>{/if}
+          {#if r.onRedeem === 'cancel'}<Tag tone="bare">{t('channelpoints.chipRefund')}</Tag>{/if}
+          {#if r.counter}<Tag tone="bare">{t('channelpoints.chipCounterName', { name: r.counter })}</Tag>{/if}
+          {#if r.points > 0}<Tag tone="bare">{t('channelpoints.chipPointsAward', { n: r.points })}</Tag>{/if}
         </span>
       </span>
-    {/snippet}
-    {#snippet actions()}
-      <form method="POST" action="?/update" use:enhance={toggleSubmit}>
-        <input type="hidden" name="reward" value={togglePayload} />
-        <Switch type="submit" checked={r.isEnabled} label={t('channelpoints.toggleAria', { name: r.title })} />
-      </form>
-      <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('channelpoints.deleteAria', { name: r.title })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
-    {/snippet}
-  </ManagementRow>
-</li>
+      <span class="resp">
+        {#if r.action === 'chat'}
+          {r.message || '{user} redeemed {reward}!'}
+        {:else}
+          <span class="silent">{t('channelpoints.chipSilent')}</span>
+        {/if}
+      </span>
+      <span class="meta">
+        <span class="cost"><span class="bb-sr-only">{t('channelpoints.fieldCost')}: </span>{r.cost.toLocaleString()}</span>
+        <Tag tone={r.isEnabled ? 'live' : 'quiet'} mark={r.isEnabled ? 'solid' : 'hollow'}>
+          {r.isEnabled ? t('channelpoints.stateVisible') : t('channelpoints.stateHidden')}
+        </Tag>
+      </span>
+    </span>
+  {/snippet}
+  {#snippet actions()}
+    <form method="POST" action="?/update" use:enhance={toggleSubmit}>
+      <input type="hidden" name="reward" value={togglePayload} />
+      <Switch type="submit" checked={r.isEnabled} label={t('channelpoints.toggleAria', { name: r.title })} />
+    </form>
+    <span class="del">
+      <IconButton size="sm" danger label={t('channelpoints.deleteAria', { name: r.title })} onclick={onDelete}><Icon name="trash" size={15} /></IconButton>
+    </span>
+  {/snippet}
+</ManagementRow>
 
 <style>
-  .row-wrap { list-style: none; }
-
   .prow {
     display: grid;
     grid-template-columns: 28px minmax(150px, 1fr) minmax(0, 1.6fr) auto;
     align-items: center;
     gap: 14px;
   }
-  .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
+  .idx { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-muted); opacity: 0.55; }
 
   .reward { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .reward-name {
@@ -97,7 +93,7 @@
     gap: 8px;
     font-family: var(--bb-font-display);
     font-weight: 700;
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-white);
     min-width: 0;
   }
@@ -117,7 +113,7 @@
   .tags { display: flex; flex-wrap: wrap; gap: 4px 14px; }
   .resp {
     font-family: var(--bb-font-body);
-    font-size: 13px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -129,12 +125,12 @@
   .meta { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; }
   .cost {
     font-family: var(--bb-font-mono);
-    font-size: 12px;
+    font-size: var(--bb-text-xs);
     color: var(--bb-tan-light);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
-  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
+  .del { display: inline-flex; --btn-icon-min-size: 32px; }
 
   @media (max-width: 760px) {
     .prow {
@@ -156,6 +152,6 @@
       -webkit-box-orient: vertical;
     }
     .meta { grid-area: meta; flex-direction: row; align-items: center; gap: 12px; }
-    :global(.delete-action) { min-width: 44px; min-height: 44px; }
+    .del { --btn-icon-min-size: 44px; }
   }
 </style>

@@ -1,8 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Checkbox } from '@bagel/kit';
-  import { FieldError } from '@bagel/kit';
+  import { Checkbox, FieldError, Label } from '@bagel/kit';
 
   let {
     legend,
@@ -26,7 +25,7 @@
   class:compact
   aria-describedby={invalid ? errorId : undefined}
 >
-  <legend>{legend}</legend>
+  <Label as="legend">{legend}</Label>
   <div class="picks">
     {#each options as opt (opt.value)}
       <Checkbox name={opt.value} checked={opt.checked}>{opt.label}</Checkbox>
@@ -42,14 +41,8 @@
     padding: 0;
     min-width: 0;
   }
-  .section-picker legend {
-    padding: 0;
-    margin-bottom: 10px;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
-  }
   .picks {
+    margin-top: 10px;
     display: flex;
     flex-direction: column;
     gap: 10px;

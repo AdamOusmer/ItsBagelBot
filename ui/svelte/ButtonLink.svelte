@@ -12,16 +12,18 @@
     block = false,
     size = 'md',
     done = false,
+    disabled = false,
     class: cls = '',
     children,
     ...rest
   }: {
     href: string;
-    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go';
+    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
     solid?: boolean;
     block?: boolean;
     size?: 'md' | 'sm';
     done?: boolean;
+    disabled?: boolean;
     class?: string;
     children?: Snippet;
     [key: string]: unknown;
@@ -48,7 +50,14 @@
   );
 </script>
 
-<a class={classes} {href} data-mark="" {...rest}>
-  {#if variant !== 'icon'}<i class="bb-btn__mark" aria-hidden="true"></i>{/if}
+<a
+  class={classes}
+  href={disabled ? undefined : href}
+  role={disabled ? 'link' : undefined}
+  aria-disabled={disabled ? 'true' : undefined}
+  data-mark=""
+  {...rest}
+>
+  {#if variant !== 'icon' && variant !== 'add'}<i class="bb-btn__mark" aria-hidden="true"></i>{/if}
   <span class="bb-btn__content">{#if children}{@render children()}{/if}</span>
 </a>

@@ -21,7 +21,7 @@ const { tag, lines, note } = Astro.props;
 ---
 
 <div class="chat">
-    <Tag tone="bare" class="chat-tag">{tag}</Tag>
+    <Tag tone="live" bare class="chat-tag">{tag}</Tag>
     {lines.map((line) => (
         <p class:list={['line', line.who]}>
             {line.name && <span class:list={['who', `${line.who}-name`]}>{line.name}</span>}
@@ -36,9 +36,9 @@ const { tag, lines, note } = Astro.props;
         position: relative;
         margin-top: 10px;
         padding: 14px 14px 12px;
-        border: 1px solid var(--border, rgba(240, 236, 228, 0.1));
-        border-radius: var(--radius-md);
-        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-md);
+        background: rgba(var(--bb-shadow-rgb), 0.3);
         display: flex;
         flex-direction: column;
         gap: 8px;
@@ -49,8 +49,7 @@ const { tag, lines, note } = Astro.props;
         top: -8px;
         left: 10px;
         font-size: 10px;
-        color: var(--green-glow, #52b788);
-        background: #0d0d0c;
+        background: var(--bb-inset-bg);
         padding: 0 6px;
     }
 
@@ -63,38 +62,38 @@ const { tag, lines, note } = Astro.props;
     }
 
     .who {
-        font-family: var(--font-body, "DM Sans", sans-serif);
+        font-family: var(--bb-font-body);
         font-weight: 700;
-        font-size: 12.5px;
+        font-size: var(--bb-text-sm);
         flex: none;
     }
 
-    .viewer-name { color: var(--tan-light, #e0c49a); }
-    .bot-name { color: var(--green-glow, #52b788); }
+    .viewer-name { color: var(--bb-tan-light); }
+    .bot-name { color: var(--bb-green-glow); }
     .viewer-name::after,
-    .bot-name::after { content: ":"; color: var(--muted, #888077); font-weight: 400; }
+    .bot-name::after { content: ":"; color: var(--bb-muted); font-weight: 400; }
 
     .msg {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 13px;
+        font-family: var(--bb-font-body);
+        font-size: var(--bb-text-sm);
         line-height: 1.5;
-        color: var(--white, #f0ece4);
+        color: var(--bb-white);
         min-width: 0;
         overflow-wrap: anywhere;
     }
 
     .line.viewer .msg {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 12.5px;
-        color: var(--tan-light, #e0c49a);
+        font-family: var(--bb-font-mono);
+        font-size: var(--bb-text-sm);
+        color: var(--bb-tan-light);
     }
 
-    .line.system .msg { color: var(--muted, #888077); font-style: italic; }
+    .line.system .msg { color: var(--bb-muted); font-style: italic; }
 
     .msg :global(mark) {
-        background: rgba(82, 183, 136, 0.14);
-        color: var(--green-glow, #52b788);
-        border-radius: 4px;
+        background: rgba(var(--bb-green-glow-rgb), 0.14);
+        color: var(--bb-green-glow);
+        border-radius: var(--bb-radius-xs);
         padding: 0 3px;
     }
 </style>

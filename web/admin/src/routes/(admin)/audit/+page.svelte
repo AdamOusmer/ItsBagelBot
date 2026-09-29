@@ -6,12 +6,15 @@
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
   import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import SkeletonStack from '@bagel/ui/svelte/SkeletonStack.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Cluster from '@bagel/ui/svelte/Cluster.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AuditEntry } from '$lib/server/services';
   import AuditRow from '$lib/components/audit/AuditRow.svelte';
@@ -120,12 +123,12 @@
   <PageToolbar>
     {#snippet lead()}
       {#if entries}
-        <span class="stats">
+        <Text as="span" size="xs" tone="muted" mono>
           {t('admin.audit.stats', {
             loaded: String(loaded.length),
             failed: String(failCount)
           })}
-        </span>
+        </Text>
       {/if}
     {/snippet}
     {#snippet trail()}
@@ -155,7 +158,7 @@
     <AlertBanner>{t('admin.audit.unreachable', { error: fetchError })}</AlertBanner>
   {/if}
 
-  <div class="deck" class:inspecting={selected !== null}>
+  <DeckLayout inspecting={selected !== null} width="380px">
     <DeckList>
       {#if entries === null}
         <SkeletonStack rows={6} height="52px" />
@@ -182,16 +185,20 @@
 
       {#if entries && hasMore}
         <div class="more">
-          <Button
-            variant="ghost"
-            loading={loadingMore}
-            onclick={() => fetchPage(page + 1, search.trim(), true)}
-          >
-            {t('admin.audit.loadMore')}
-          </Button>
+          <Cluster justify="center">
+            <Button
+              variant="ghost"
+              loading={loadingMore}
+              onclick={() => fetchPage(page + 1, search.trim(), true)}
+            >
+              {t('admin.audit.loadMore')}
+            </Button>
+          </Cluster>
         </div>
       {:else if entries && page >= data.maxPages}
-        <p class="cap">{t('admin.audit.pageCap', { max: String(data.maxPages) })}</p>
+        <div class="cap">
+          <Text size="xs" tone="muted" mono>{t('admin.audit.pageCap', { max: String(data.maxPages) })}</Text>
+        </div>
       {/if}
     </DeckList>
 
@@ -206,49 +213,24 @@
         <AuditDetail entry={selected} />
       </InspectorSurface>
     {/if}
-  </div>
+  </DeckLayout>
 </section>
 
 <style>
-  .stats {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-  }
-
   .toolbar-search {
     width: 260px;
   }
-  
 
   .filters {
-    margin: 0 0 14px;
-  }
-
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting {
-      grid-template-columns: minmax(0, 1fr) 380px;
-    }
+    margin-bottom: var(--bb-space-3);
   }
 
   .more {
-    display: flex;
-    justify-content: center;
-    padding: 14px;
+    padding: var(--bb-space-3);
   }
   .cap {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
+    padding: var(--bb-space-3);
     text-align: center;
-    margin: 0;
-    padding: 14px;
   }
 
   @media (max-width: 680px) {

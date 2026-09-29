@@ -15,10 +15,11 @@
         font-size: 10px;
         letter-spacing: 0.08em;
         line-height: inherit;
-        border: 1px solid var(--badge-tone-rule, transparent);
+        border: 1px solid var(--badge-tone-rule, var(--tone-rule, transparent));
         border-radius: var(--bb-radius-pill);
-        background: var(--badge-bg, transparent);
+        background: var(--badge-bg, var(--tone-bg, transparent));
     }
 
     .bb-badge--dashed { border-bottom-style: dashed; }
+    .bb-badge--pill.bb-badge--dashed { border-style: dashed; }
 }

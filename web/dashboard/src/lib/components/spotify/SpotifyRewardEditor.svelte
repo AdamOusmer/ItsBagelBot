@@ -1,9 +1,10 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import { namespaceReplyTemplate, namespaceReplySamples, moduleDef } from '@bagel/kit';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Button, Code, Field, EditorFooter, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
+  import { Button, Code, Field, EditorFooter, Text, getI18n, type SpotifyRedeemConfig } from '@bagel/kit';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
@@ -69,12 +70,12 @@
 </script>
 
 <form method="POST" action="?/saveReward" class="editor" novalidate use:enhance={submit} bind:this={formEl}>
-  <p class="hint">
+  <Text size="sm" tone="muted">
     {t('spotify.editorInputHint')} <Code>Blinding Lights</Code>. {t('spotify.editorInputHintPair')}
     <Code>The Weeknd - Blinding Lights</Code>. {t('spotify.editorInputHintLink')}
-  </p>
+  </Text>
 
-  <Field label={t('spotify.fieldTitle')}>
+  <Field label={t('spotify.fieldTitle')} error={titleError} errorId={TITLE_ERR_ID}>
     <Input
       fill
       invalid={!!titleError}
@@ -86,7 +87,6 @@
       aria-describedby={titleError ? TITLE_ERR_ID : undefined}
       required
     />
-    {#if titleError}<small id={TITLE_ERR_ID} class="field-error" role="alert">{titleError}</small>{/if}
   </Field>
 
   <div class="field-row">
@@ -95,13 +95,14 @@
         <Input fill type="number" name="cost" min="1" max="10000000" bind:value={cost} required />
       </Field>
     </div>
-    <label class="color-field">
-      <span class="color-label">{t('spotify.fieldColor')}</span>
-      <span class="color-row">
-        <input data-cursor class="color-in" type="color" name="color" bind:value={color} />
-        <span class="color-hex">{color}</span>
-      </span>
-    </label>
+    <div class="color-field">
+      <Field label={t('spotify.fieldColor')}>
+        <span class="color-row">
+          <span class="swatch"><Input data-cursor type="color" name="color" bind:value={color} /></span>
+          <Text as="span" size="xs" mono tone="accent">{color.toUpperCase()}</Text>
+        </span>
+      </Field>
+    </div>
   </div>
 
   <Field label={t('spotify.fieldCooldown')} tag={t('spotify.fieldCooldownTag')}>
@@ -144,27 +145,13 @@
 
 <style>
   .editor { --field-mb: 0; padding: 4px 2px 2px; display: grid; gap: 14px; }
-  .hint { margin: 0; font-family: var(--bb-font-body); font-size: 12.5px; line-height: 1.55; color: var(--bb-muted); }
-
-  .field-error { display: block; margin-top: 4px; font-family: var(--bb-font-body); font-size: 11.5px; color: #cf8a78; }
 
   .field-row { display: flex; gap: 12px; align-items: flex-start; }
   .field-grow { flex: 1; min-width: 0; }
 
-  .color-field { display: flex; flex-direction: column; gap: 6px; flex: none; width: 116px; }
-  .color-label { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); }
+  .color-field { flex: none; width: 116px; }
   .color-row { display: flex; align-items: center; gap: 8px; }
-  .color-in {
-    width: 44px;
-    height: 37px;
-    padding: 3px;
-    border: 1px solid var(--rule);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(240, 236, 228, 0.04);
-    cursor: pointer;
-    flex: none;
-  }
-  .color-hex { font-family: var(--bb-font-mono, monospace); font-size: 12px; color: var(--bb-tan-light); text-transform: uppercase; }
+  .swatch { display: block; flex: none; width: 44px; }
 
   .del-row { display: flex; }
 

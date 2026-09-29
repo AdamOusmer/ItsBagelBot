@@ -6,5 +6,11 @@
 @layer bb.elements {
   .bb-deck-list {
     --card-pad: 6px 0 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .bb-deck-list .bb-row:last-child:not(.bb-deck-list :not(:last-child) .bb-row) {
+    border-bottom: 0;
   }
 }

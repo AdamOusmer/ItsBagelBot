@@ -1,8 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { getI18n, type TimerDef, Field } from '@bagel/kit';
-  import { Checkbox } from '@bagel/kit';
+  import { Checkbox, Field, Input, Text, getI18n, type TimerDef } from '@bagel/kit';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
@@ -79,40 +78,43 @@
   </Field>
   <ChatPreview kind="timer" response={draft.message} />
 
-  <Field label={t('timers.fieldInterval')} error={intervalError} errorId="timer-int-err">
+  <Field
+    label={t('timers.fieldInterval')}
+    hint={t('timers.fieldIntervalHint')}
+    hintId="timer-int-help"
+    error={intervalError}
+    errorId="timer-int-err"
+  >
     <div class="interval-row">
-      <input
-        class="bb-input num"
-        type="number"
-        min={MIN_INTERVAL_MINUTES}
-        max={MAX_INTERVAL_MINUTES}
-        data-invalid={intervalError ? '' : undefined}
-        aria-invalid={intervalError ? 'true' : undefined}
-        aria-describedby={intervalError ? 'timer-int-help timer-int-err' : 'timer-int-help'}
-        bind:value={minutes}
-        onblur={() => (touched.interval = true)}
-      />
-      <span class="unit">{t('timers.unitMinutes')}</span>
+      <span class="num">
+        <Input
+          type="number"
+          min={MIN_INTERVAL_MINUTES}
+          max={MAX_INTERVAL_MINUTES}
+          invalid={!!intervalError}
+          aria-invalid={intervalError ? 'true' : undefined}
+          aria-describedby={intervalError ? 'timer-int-help timer-int-err' : 'timer-int-help'}
+          bind:value={minutes}
+          onblur={() => (touched.interval = true)}
+        />
+      </span>
+      <Text as="span" size="sm" tone="muted">{t('timers.unitMinutes')}</Text>
     </div>
-    <small id="timer-int-help" class="help">{t('timers.fieldIntervalHint')}</small>
   </Field>
 
-  <Field label={t('timers.fieldMinChatLines')}>
-    <input class="bb-input num" type="number" min="0" max="100" bind:value={draft.minChatLines} />
-    <small class="help">{t('timers.fieldMinChatLinesHint')}</small>
+  <Field label={t('timers.fieldMinChatLines')} hint={t('timers.fieldMinChatLinesHint')}>
+    <span class="num"><Input type="number" min="0" max="100" bind:value={draft.minChatLines} /></span>
   </Field>
 
-  <Field label={t('timers.fieldMaxFires')}>
-    <input class="bb-input num" type="number" min="0" max="100" bind:value={draft.maxFiresPerStream} />
-    <small class="help">{t('timers.fieldMaxFiresHint')}</small>
+  <Field label={t('timers.fieldMaxFires')} hint={t('timers.fieldMaxFiresHint')}>
+    <span class="num"><Input type="number" min="0" max="100" bind:value={draft.maxFiresPerStream} /></span>
   </Field>
 
-  <Field label={t('timers.fieldEndsAt')}>
+  <Field label={t('timers.fieldEndsAt')} hint={t('timers.fieldEndsAtHint')}>
     <div class="ends-row">
-      <input class="bb-input" type="datetime-local" value={endsAtLocal} oninput={onEndsAtInput} />
-      {#if tzAbbr}<span class="tz" aria-hidden="true">{tzAbbr}</span>{/if}
+      <Input type="datetime-local" value={endsAtLocal} oninput={onEndsAtInput} />
+      {#if tzAbbr}<Text as="span" size="xs" mono tone="muted" aria-hidden="true">{tzAbbr}</Text>{/if}
     </div>
-    <small class="help">{t('timers.fieldEndsAtHint')}</small>
   </Field>
 
   <div class="check">
@@ -123,15 +125,10 @@
 <style>
   .editor { padding: 4px 2px 2px; }
 
-  .help { color: var(--bb-muted); opacity: 0.7; font-size: 11px; display: block; margin-top: 2px; }
-
   .interval-row { display: flex; align-items: center; gap: 10px; }
-  .editor .interval-row .num { width: 100px; flex: none; }
-  .editor .num { width: 100px; flex: none; }
-  .unit { font-family: var(--bb-font-body); font-size: 13px; color: var(--bb-muted); }
+  .num { display: block; width: 100px; flex: none; }
 
   .ends-row { display: flex; align-items: center; gap: 10px; }
-  .tz { font-family: var(--bb-font-mono); font-size: 11.5px; color: var(--bb-muted); white-space: nowrap; }
 
   .check { margin: 4px 0 6px; --bb-check-align: center; }
 </style>

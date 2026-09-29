@@ -20,8 +20,12 @@
     busy = false,
     closeLabel = 'Close',
     ariaLabel,
+    variant = 'dialog',
+    toolbarLabel,
     class: className = '',
     children,
+    toolbar,
+    hint,
     ...rest
   }: {
     open: boolean;
@@ -30,8 +34,12 @@
     busy?: boolean;
     closeLabel?: string;
     ariaLabel?: string;
+    variant?: 'dialog' | 'viewer';
+    toolbarLabel?: string;
     class?: string;
     children?: Snippet;
+    toolbar?: Snippet;
+    hint?: Snippet;
     [key: string]: unknown;
   } = $props();
 
@@ -52,7 +60,10 @@
     if (!busy) closeModal();
   }
 
-  const classes = $derived(['bb-modal', className || null].filter(Boolean).join(' '));
+  const viewer = $derived(variant === 'viewer');
+  const classes = $derived(
+    ['bb-modal', viewer ? 'bb-modal--viewer' : null, className || null].filter(Boolean).join(' '),
+  );
 </script>
 
 <svelte:window
@@ -80,6 +91,10 @@
       aria-label={title ? undefined : ariaLabel}
       data-lenis-prevent
       use:trapFocus
-    >{#if title}<h3 class="bb-modal__title" id={titleId}>{title}</h3>{/if}{#if children}{@render children()}{/if}</div
+    >{#if title}<h3 class="bb-modal__title" id={titleId}>{title}</h3>{/if}{#if viewer}<div class="bb-modal__stage"
+          >{#if children}{@render children()}{/if}</div
+        >{#if toolbar}<div class="bb-modal__toolbar" role="toolbar" aria-label={toolbarLabel}
+            >{@render toolbar()}</div
+          >{/if}{#if hint}<div class="bb-modal__hint" aria-hidden="true">{@render hint()}</div>{/if}{:else if children}{@render children()}{/if}</div
     ></div>
 {/if}

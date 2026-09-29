@@ -6,14 +6,18 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
   import Field from '@bagel/ui/svelte/Field.svelte';
+  import Grid from '@bagel/ui/svelte/Grid.svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Button from '@bagel/ui/svelte/Button.svelte';
   import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import StepList, { type StepItem } from '@bagel/ui/svelte/StepList.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { DeployPlan, RunKind } from '$lib/deploys/types';
   import DeployScreen from './DeployScreen.svelte';
-  import StepChecklist, { type ChecklistItem } from './StepChecklist.svelte';
   import StageScene from './StageScene.svelte';
   import Mascot from './Mascot.svelte';
   import KindPicker from './KindPicker.svelte';
@@ -149,7 +153,7 @@
     review: () => t(shipKey(kind), { version: shipVersion(ship) })
   };
 
-  const checklist = $derived<ChecklistItem[]>(
+  const checklist = $derived<StepItem[]>(
     steps.map((s, i) => ({
       id: s,
       label: t(STEP_RAIL_KEY[s]),
@@ -277,7 +281,7 @@
   {leaving}
 >
   {#snippet side()}
-    <StepChecklist items={checklist} focus={current} label={t('admin.deploys.flow.label')} onselect={selectStep} />
+    <StepList steps={checklist} selected={current} label={t('admin.deploys.flow.label')} onselect={selectStep} />
   {/snippet}
 
   <form method="POST" action="/deploys?/start" use:enhance={submitStart} bind:this={form} hidden>
@@ -311,23 +315,27 @@
             {#if current === 'kind'}
               <KindPicker {kind} onpick={pickKind} />
             {:else if current === 'build'}
-              <div class="build">
+              <Stack gap={4}>
                 <div class="build-fields">
-                  {#if uses.version}
-                    <Field label={t('admin.deploys.version')} for="ship-version">
-                      <Input id="ship-version" mono fill bind:value={version} />
+                  <Grid cols={2} gap={3}>
+                    {#if uses.version}
+                      <Field label={t('admin.deploys.version')} for="ship-version">
+                        <Input id="ship-version" mono fill bind:value={version} />
+                      </Field>
+                    {/if}
+                    <Field label={t('admin.deploys.target')}>
+                      <span class="target"><Text as="span" mono tone="pale">{ship.targetSha ? shortSha(ship.targetSha) : '-'}</Text></span>
                     </Field>
-                  {/if}
-                  <Field label={t('admin.deploys.target')}>
-                    <span class="sha">{ship.targetSha ? shortSha(ship.targetSha) : '-'}</span>
-                  </Field>
+                  </Grid>
                 </div>
-                <div class="well"><CommitList commits={shown?.commits ?? []} since={shown?.last_tag ?? '-'} open /></div>
-              </div>
+                <Card glass flush>
+                  <div class="well"><CommitList commits={shown?.commits ?? []} since={shown?.last_tag ?? '-'} open /></div>
+                </Card>
+              </Stack>
             {:else if current === 'rollback'}
               <ReleasePicker {releases} bind:value={rollbackTo} />
             {:else if current === 'prs'}
-              <div class="well"><PRPicker {prs} bind:picked /></div>
+              <PRPicker {prs} bind:picked />
             {:else if current === 'changelog'}
               <ChangelogDraft bind:draft />
             {:else}
@@ -348,16 +356,16 @@
             {:else}
               <Button disabled={blockKey !== null} onclick={goNext}>{t('admin.deploys.flow.next')}</Button>
             {/if}
-            <button
-              type="button"
-              class="quiet"
-              class:gone={step === 0}
-              tabindex={step === 0 ? -1 : undefined}
-              aria-hidden={step === 0}
-              onclick={goBack}
-            >
-              {t('admin.deploys.flow.back')}
-            </button>
+            <span class="back" class:gone={step === 0}>
+              <Button
+                variant="ghost"
+                tabindex={step === 0 ? -1 : undefined}
+                aria-hidden={step === 0}
+                onclick={goBack}
+              >
+                {t('admin.deploys.flow.back')}
+              </Button>
+            </span>
           {/snippet}
         </StageScene>
       {/key}
@@ -368,7 +376,9 @@
     </div>
   </div>
 
-  <p class="slot" class:center={current === 'kind'} role="status" aria-live="polite">{slotMessage()}</p>
+  <div class="slot" class:center={current === 'kind'}>
+    <Text size="sm" tone="pale" role="status" aria-live="polite">{slotMessage()}</Text>
+  </div>
 </DeployScreen>
 
 <ConfirmDialog
@@ -390,8 +400,8 @@
     gap: var(--gap);
     align-items: start;
     transition:
-      transform 640ms var(--bb-ease-out-expo),
-      opacity 520ms var(--bb-ease-out-expo);
+      transform var(--bb-dur-slow) var(--bb-ease-out-expo),
+      opacity var(--bb-dur-slow) var(--bb-ease-out-expo);
   }
   .stage-row.wide {
     grid-template-columns: minmax(0, 1fr);
@@ -408,69 +418,28 @@
     display: none;
   }
 
-  .build {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
   .build-fields {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
     max-width: 560px;
   }
-  .sha {
+  .target {
     display: flex;
     align-items: center;
     height: 38px;
-    font-family: var(--bb-font-mono);
-    font-size: 14px;
-    color: var(--bb-tan-pale);
   }
   .well {
-    padding: 6px 14px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.32));
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
-    backdrop-filter: blur(10px);
+    padding: var(--bb-space-2) var(--bb-space-4);
   }
 
-  .quiet {
-    padding: 8px 4px;
-    border: 0;
-    background: none;
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.72);
-    cursor: pointer;
-    transition:
-      color var(--bb-dur-base) var(--bb-ease-out-expo),
-      transform var(--bb-dur-base) var(--bb-ease-out-expo);
-  }
-  .quiet:hover {
-    color: var(--bb-tan-pale);
-    transform: translateX(3px);
-  }
-  .quiet:focus-visible {
-    outline: 2px solid var(--bb-tan);
-    outline-offset: 2px;
-    border-radius: var(--bb-radius-xs);
-  }
-  .quiet.gone {
+  .back.gone {
     visibility: hidden;
   }
 
   .slot {
-    margin: 0;
-    min-height: 1.5em;
-    font-size: 13.5px;
-    color: var(--bb-tan-pale);
+    min-height: calc(var(--bb-text-sm) * 1.5);
   }
   .slot.center {
     text-align: center;
   }
-
 
   @media (max-width: 1180px) {
     .stage-row {
@@ -480,14 +449,8 @@
       display: none;
     }
   }
-  @media (max-width: 560px) {
-    .build-fields {
-      grid-template-columns: 1fr;
-    }
-  }
   @media (prefers-reduced-motion: reduce) {
-    .stage-row,
-    .quiet {
+    .stage-row {
       transition: none;
     }
   }

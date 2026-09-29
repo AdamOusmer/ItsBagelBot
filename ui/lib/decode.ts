@@ -10,33 +10,42 @@ const BASE_DURATION_MS = 380;
 const PER_CHAR_MS = 26;
 const MAX_DURATION_MS = 1000;
 const SCRAMBLE_ROLLS = 22;
+const DEFAULT_THRESHOLD = 0.45;
 
-export type DecodeOptions = {
+export type ScrambleOptions = {
+    charset?: string;
+    durationMs?: number;
+};
+
+export type DecodeOptions = ScrambleOptions & {
     threshold?: number;
 };
 
-const DEFAULTS: Required<DecodeOptions> = { threshold: 0.45 };
+const lengthDuration = (length: number): number =>
+    Math.min(MAX_DURATION_MS, BASE_DURATION_MS + length * PER_CHAR_MS);
 
-function runDecode(el: HTMLElement, text: string): () => void {
+const keepsShape = (char: string): boolean => char === ' ' || /\W/.test(char);
+
+export function decode(el: HTMLElement, text: string, options: ScrambleOptions = {}): () => void {
     if (prefersReducedMotion()) {
         el.textContent = text;
         return () => {};
     }
 
     const chars = Array.from(text);
-    const duration = Math.min(MAX_DURATION_MS, BASE_DURATION_MS + chars.length * PER_CHAR_MS);
+    const glyphs = Array.from(options.charset ?? SCRAMBLE);
+    const duration = options.durationMs ?? lengthDuration(chars.length);
     const start = performance.now();
 
     return subscribe((now) => {
-        const progress = Math.min(1, (now - start) / duration);
+        const progress = Math.min(1, Math.max(0, (now - start) / duration));
         const revealCount = Math.floor(chars.length * progress);
-        const t = Math.floor(progress * SCRAMBLE_ROLLS);
+        const roll = Math.floor(progress * SCRAMBLE_ROLLS);
 
         el.textContent = chars
             .map((char, i) => {
-                if (char === ' ' || /\W/.test(char)) return char;
-                if (i < revealCount) return char;
-                return SCRAMBLE[(i * 19 + t * 7) % SCRAMBLE.length];
+                if (keepsShape(char) || i < revealCount) return char;
+                return glyphs[(i * 19 + roll * 7) % glyphs.length];
             })
             .join('');
 
@@ -47,7 +56,7 @@ function runDecode(el: HTMLElement, text: string): () => void {
 }
 
 export function observeDecode(root: ParentNode, options: DecodeOptions = {}): () => void {
-    const { threshold } = { ...DEFAULTS, ...options };
+    const { threshold = DEFAULT_THRESHOLD, ...scramble } = options;
     const self =
         root instanceof Element && root.matches(SELECTOR) ? [root as HTMLElement] : [];
     const targets = [...self, ...Array.from(root.querySelectorAll<HTMLElement>(SELECTOR))];
@@ -73,7 +82,7 @@ export function observeDecode(root: ParentNode, options: DecodeOptions = {}): ()
                 if (!entry.isIntersecting) continue;
                 const el = entry.target as HTMLElement;
                 observer.unobserve(el);
-                const stop = runDecode(el, source.get(el) ?? '');
+                const stop = decode(el, source.get(el) ?? '', scramble);
                 running.add(stop);
             }
         },

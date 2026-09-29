@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
+  import { subscribe } from '@bagel/ui/lib/raf-loop';
+  import { livePoll } from '@bagel/ui/lib/live-poll';
   import { onMount, untrack } from 'svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -13,6 +15,7 @@
   import RankingCard from '@bagel/ui/svelte/RankingCard.svelte';
   import StatsPageLayout from '@bagel/ui/svelte/StatsPageLayout.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
   import { visibleEventSource } from '$lib/visible-stream';
@@ -28,6 +31,7 @@
   const TAU_MS = 200;
   const RATE_TAU_MS = 300;
   const MAX_DT_MS = 250;
+  const RESUME_GAP_MS = 1000;
   const MAX_PROJECT_S = 10;
   const MIN_CRAWL = 0.25;
 
@@ -61,7 +65,6 @@
   let snapAt = 0;
   let introAt = 0;
   let lastFrame = 0;
-  let raf = 0;
   let reduced = false;
   let streamDown = false;
 
@@ -92,13 +95,14 @@
     return exactDisplay(Math.max(lerp(cur, target, k), cur + rate * (dt / 1000) * MIN_CRAWL));
   }
 
-  function tick(now: number): void {
+  function tick(now: number): boolean {
+    if (now - lastFrame > RESUME_GAP_MS) {
+      snap(now);
+      return true;
+    }
     const dt = Math.min(now - lastFrame, MAX_DT_MS);
     lastFrame = now;
-    if (degraded) {
-      raf = requestAnimationFrame(tick);
-      return;
-    }
+    if (degraded) return true;
     const target = targetFrame(now);
     const k = closingFraction(now, dt);
     const rateK = 1 - Math.exp(-dt / RATE_TAU_MS);
@@ -108,7 +112,7 @@
       msgRate: lerp(display.msgRate, target.msgRate, rateK),
       eventRate: lerp(display.eventRate, target.eventRate, rateK)
     };
-    raf = requestAnimationFrame(tick);
+    return true;
   }
 
   function snap(now: number): void {
@@ -181,44 +185,40 @@
     });
   }
 
+  async function pollWhileStreamDown(): Promise<boolean> {
+    if (streamDown) await Promise.all([refresh(), refreshBoards()]);
+    return false;
+  }
+
+  function startOdometer(now: number): () => void {
+    if (reduced) {
+      snap(now);
+      return () => {};
+    }
+    display = { messages: 0, events: 0, msgRate: 0, eventRate: 0 };
+    return subscribe(tick);
+  }
+
   onMount(() => {
     reduced = prefersReducedMotion();
     const now = performance.now();
     snapAt = now;
     introAt = now;
     lastFrame = now;
-    if (reduced) {
-      snap(now);
-    } else {
-      display = { messages: 0, events: 0, msgRate: 0, eventRate: 0 };
-      raf = requestAnimationFrame(tick);
-    }
+    const stopOdometer = startOdometer(now);
 
     const stop = visibleEventSource('/stats/stream', attachStream);
-    const timer = setInterval(() => {
-      if (!streamDown) return;
-      void refresh();
-      void refreshBoards();
-    }, POLL_MS);
-
-    const onVisible = () => {
-      if (document.hidden) return;
-      snap(performance.now());
-      if (!reduced) {
-        cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(tick);
-      }
-      if (!streamDown) return;
-      void refresh();
-      void refreshBoards();
-    };
-    document.addEventListener('visibilitychange', onVisible);
+    const stopPoll = livePoll(pollWhileStreamDown, {
+      firstDelayMs: POLL_MS,
+      delayMs: () => POLL_MS,
+      timeoutMs: Infinity,
+      refreshOnVisible: true
+    });
 
     return () => {
       stop();
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-      cancelAnimationFrame(raf);
+      stopPoll();
+      stopOdometer();
     };
   });
 
@@ -333,7 +333,7 @@
   >
     {#snippet heading()}
       <div class="stats-heading">
-        <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('stats.liveNote')}<i class="bb-sweep" aria-hidden="true"></i></span>
+        <Tag tone="live" mark="solid" sweep>{t('stats.liveNote')}</Tag>
         <Heading level={1}>{t('stats.pageHeadline')}<span class="ink-tan" aria-hidden="true">.</span></Heading>
         <Text size="sm" tone="muted">{t('stats.pageTagline')}</Text>
       </div>
@@ -413,25 +413,25 @@
         {/snippet}
         <div class="feed-heading"><Text size="sm">{t('stats.topFeeders')}</Text><Text size="xs" tone="muted">{t('stats.feedings')}</Text></div>
         {#if feed.entries.length === 0}
-          <p class="empty">{t('stats.feedBoardEmpty')}</p>
+          <div class="feed-foot"><Text size="xs" tone="muted">{t('stats.feedBoardEmpty')}</Text></div>
         {:else}
           <ol class="feed-list">
             {#each feed.entries as row, i (row.id)}
               <li>
-                <span class="feed-rank">{i + 1}</span>
+                <Text as="span" size="xs" tone="muted" mono>{i + 1}</Text>
                 <span aria-hidden="true"><Bolota name={row.name || row.id} size={38} /></span>
                 <span class="feed-channel">
                   {#if row.name}
                     <a class="feed-link" href={channelHref(row)}>{row.name}</a>
                   {:else}
-                    <span class="unnamed">{t('stats.unknownChannel')}</span>
+                    <Text as="span" size="sm" tone="muted">{t('stats.unknownChannel')}</Text>
                   {/if}
                 </span>
-                <span class="feed-count">{formatCounterValue(row.count, locale)}</span>
+                <Text as="span" size="xs" tone="accent" mono>{formatCounterValue(row.count, locale)}</Text>
               </li>
             {/each}
           </ol>
-          <p class="feed-note">{t('stats.feedRankedNote', { count: formatCounterValue(feed.ranked, locale) })}</p>
+          <div class="feed-foot"><Text size="xs" tone="muted">{t('stats.feedRankedNote', { count: formatCounterValue(feed.ranked, locale) })}</Text></div>
         {/if}
       </CommunityCard>
     {/snippet}
@@ -446,18 +446,14 @@
   .feeding-friends :global(svg + svg) { margin-left: -5px; }
   .feed-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
   .feed-list { list-style: none; margin: 0; padding: 0; }
-  .feed-list li { display: grid; grid-template-columns: 16px 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 11px 0; border-bottom: 1px solid var(--bb-border); }
-  .feed-rank { color: var(--bb-muted); font-family: var(--bb-font-mono); font-size: 11px; }
-  .feed-channel { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+  .feed-list li { display: grid; grid-template-columns: 16px 38px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 11px 0; border-bottom: 1px solid var(--bb-border); font-variant-numeric: tabular-nums; }
+  .feed-channel { min-width: 0; overflow-wrap: anywhere; font-size: var(--bb-text-sm); }
   .feed-link { color: var(--bb-white); text-decoration: none; }
   .feed-link:hover { color: var(--bb-tan-light); }
-  .feed-link:focus-visible { outline: 2px solid var(--bb-green-glow); outline-offset: 4px; }
-  .feed-count { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-tan-light); font-variant-numeric: tabular-nums; }
-  .feed-note, .empty { color: var(--bb-muted); margin: 14px 0 0; font-size: 12px; line-height: 1.5; }
-  .unnamed { color: var(--bb-muted); }
+  .feed-link:focus-visible { outline: 2px solid var(--bb-focus); outline-offset: 4px; }
+  .feed-foot { margin-top: 14px; }
   @media (max-width: 420px) {
     .feed-list li { grid-template-columns: 12px 30px minmax(0, 1fr) auto; gap: 6px; }
     .feed-list li :global(svg) { width: 30px; height: 30px; }
-    .feed-count { font-size: 11px; }
   }
 </style>

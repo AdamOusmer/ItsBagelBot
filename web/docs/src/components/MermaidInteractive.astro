@@ -1,79 +1,81 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+
+import Modal from '@bagel/ui/astro/Modal.astro';
+import IconButton from '@bagel/ui/astro/IconButton.astro';
+import Button from '@bagel/ui/astro/Button.astro';
+import Icon from '@bagel/ui/astro/Icon.astro';
+import { docsI18n } from '../i18n/ui';
+
+const { t } = docsI18n(Astro.locals.starlightRoute?.locale);
+const controls = [
+  { action: 'zoom-out', label: t('diagram.zoomOut'), icon: 'minus' },
+  { action: 'reset', label: t('diagram.reset'), icon: 'expand' },
+  { action: 'zoom-in', label: t('diagram.zoomIn'), icon: 'plus' },
+  { action: 'close', label: t('diagram.close'), icon: 'x' },
+] as const;
 ---
 
+<Modal
+  variant="viewer"
+  open={false}
+  ariaLabel={t('diagram.viewer')}
+  toolbarLabel={t('diagram.controls')}
+  closeLabel={t('diagram.close')}
+  data-mermaid-viewer
+>
+  <Fragment slot="toolbar">
+    {controls.map(({ action, label, icon }) => (
+      <IconButton label={label} title={label} data-action={action}><Icon name={icon} /></IconButton>
+    ))}
+  </Fragment>
+  <Fragment slot="hint">{t('diagram.hint')}</Fragment>
+</Modal>
+
+<template data-mermaid-expand>
+  <span class="mermaid-expand">
+    <Button variant="quiet" size="sm" aria-label={t('diagram.open')} title={t('diagram.fullscreen')}><Icon name="expand" size={14} />{t('diagram.expand')}</Button>
+  </span>
+</template>
+
 <script>
-  import { docsI18n } from '../i18n/ui';
   import { pushOverlay, removeOverlay, isTopmost, trapFocus } from '@bagel/ui/lib/overlay-stack';
   import panzoom, { type PanZoom } from 'panzoom';
 
   const READY = 'mermaid-interactive-ready';
-  const MODAL_OPEN = 'mermaid-modal--open';
+  const ZOOM_STEP = 1.4;
 
-  let modal: HTMLDivElement | null = null;
-  let stage: HTMLDivElement | null = null;
-  let target: HTMLElement | null = null;
+  let viewer: HTMLElement | null = null;
+  let stage: HTMLElement | null = null;
   let instance: PanZoom | null = null;
   let observer: MutationObserver | null = null;
   let overlayId: number | null = null;
   let focusTrap: ReturnType<typeof trapFocus> | null = null;
 
-  function buildModal(): HTMLDivElement {
-    const root = document.createElement('div');
-    root.className = 'mermaid-modal';
-    root.setAttribute('data-overlay', '');
-    root.tabIndex = -1;
-    root.setAttribute('role', 'dialog');
-    root.setAttribute('aria-modal', 'true');
-    const { t } = docsI18n(document.documentElement.lang);
-    root.setAttribute('aria-label', t('diagram.viewer'));
-    root.innerHTML = `
-      <div class="mermaid-modal__backdrop" data-action="close"></div>
-      <div class="mermaid-modal__stage" aria-live="polite"></div>
-      <div class="mermaid-modal__toolbar" role="toolbar" aria-label="">
-        <button type="button" data-action="zoom-out" aria-label="" title="">−</button>
-        <button type="button" data-action="reset"    aria-label="" title="">⤢</button>
-        <button type="button" data-action="zoom-in"  aria-label="" title="">+</button>
-        <button type="button" data-action="close"    aria-label="" title="">✕</button>
-      </div>
-      <div class="mermaid-modal__hint" aria-hidden="true">
+  const actions: Record<string, () => void> = {
+    close: closeModal,
+    'zoom-in': () => zoomBy(ZOOM_STEP),
+    'zoom-out': () => zoomBy(1 / ZOOM_STEP),
+    reset: resetView,
+  };
 
-      </div>
-    `;
-    root.querySelector('.mermaid-modal__toolbar')?.setAttribute('aria-label', t('diagram.controls'));
-    const controls = { 'zoom-out': 'diagram.zoomOut', reset: 'diagram.reset', 'zoom-in': 'diagram.zoomIn', close: 'diagram.close' } as const;
-    for (const [action, key] of Object.entries(controls)) {
-      const button = root.querySelector<HTMLButtonElement>(`button[data-action="${action}"]`);
-      if (button) {
-        button.setAttribute('aria-label', t(key));
-        button.title = t(key);
-      }
+  function onViewerClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (target.closest('.bb-modal__backdrop')) {
+      closeModal();
+      return;
     }
-    const hint = root.querySelector('.mermaid-modal__hint');
-    if (hint) hint.textContent = t('diagram.hint');
-    document.body.appendChild(root);
-
-    stage = root.querySelector<HTMLDivElement>('.mermaid-modal__stage');
-
-    root.addEventListener('click', (ev) => {
-      const action = (ev.target as HTMLElement)
-        .closest('[data-action]')
-        ?.getAttribute('data-action');
-      if (!action) return;
-      if (action === 'close') closeModal();
-      else if (action === 'zoom-in') zoomBy(1.4);
-      else if (action === 'zoom-out') zoomBy(1 / 1.4);
-      else if (action === 'reset') resetView();
-    });
-
-    return root;
+    const action = target.closest('[data-action]')?.getAttribute('data-action');
+    if (action) actions[action]?.();
   }
 
-  function ensureModal(): HTMLDivElement {
-    if (modal && document.body.contains(modal)) return modal;
-    modal = buildModal();
-    return modal;
+  function mountViewer() {
+    const found = document.querySelector<HTMLElement>('[data-mermaid-viewer]');
+    if (!found || found === viewer) return;
+    viewer = found;
+    stage = found.querySelector<HTMLElement>('.bb-modal__stage');
+    found.addEventListener('click', onViewerClick);
   }
 
   function zoomBy(factor: number) {
@@ -88,44 +90,35 @@
     instance.zoomAbs(0, 0, 1);
   }
 
-  function openModal(panel: HTMLElement) {
-    if (modal?.classList.contains(MODAL_OPEN)) return;
+  function fittedClone(source: SVGElement): SVGElement {
+    const clone = source.cloneNode(true) as SVGElement;
+    const rect = source.getBoundingClientRect();
+    const fit = Math.min((window.innerWidth * 0.92) / rect.width, (window.innerHeight * 0.88) / rect.height, 1);
+    const w = Math.round(rect.width * fit);
+    const h = Math.round(rect.height * fit);
+    clone.setAttribute('width', String(w));
+    clone.setAttribute('height', String(h));
+    Object.assign(clone.style, { width: `${w}px`, height: `${h}px`, maxWidth: 'none', maxHeight: 'none', display: 'block' });
+    return clone;
+  }
 
-    const sourceSvg = panel.querySelector('svg');
-    if (!sourceSvg) return;
-    const m = ensureModal();
-    if (!stage) return;
-
-    stage.innerHTML = '';
-
+  function diagramHost(source: SVGElement): HTMLElement {
     const host = document.createElement('pre');
     host.className = 'mermaid mermaid-modal-host';
     host.setAttribute('data-processed', 'true');
+    host.appendChild(fittedClone(source));
+    return host;
+  }
 
-    const clone = sourceSvg.cloneNode(true) as SVGElement;
+  function openModal(panel: HTMLElement) {
+    const source = panel.querySelector('svg');
+    if (!source || !viewer?.hidden || !stage) return;
 
-    const srcRect = sourceSvg.getBoundingClientRect();
-    const maxW = window.innerWidth  * 0.92;
-    const maxH = window.innerHeight * 0.88;
-    const fit = Math.min(maxW / srcRect.width, maxH / srcRect.height, 1);
-    const w = Math.round(srcRect.width  * fit);
-    const h = Math.round(srcRect.height * fit);
-
-    clone.setAttribute('width',  String(w));
-    clone.setAttribute('height', String(h));
-    clone.style.width  = `${w}px`;
-    clone.style.height = `${h}px`;
-    clone.style.maxWidth  = 'none';
-    clone.style.maxHeight = 'none';
-    clone.style.display = 'block';
-
-    host.appendChild(clone);
-    stage.appendChild(host);
-    target = host;
-
-    m.classList.add(MODAL_OPEN);
+    const host = diagramHost(source);
+    stage.replaceChildren(host);
+    viewer.hidden = false;
     overlayId = pushOverlay();
-    focusTrap = trapFocus(m);
+    focusTrap = trapFocus(viewer.querySelector<HTMLElement>('.bb-modal__card') ?? viewer);
 
     instance?.dispose();
     instance = panzoom(host, {
@@ -139,47 +132,38 @@
   }
 
   function closeModal() {
-    if (!modal) return;
-    modal.classList.remove(MODAL_OPEN);
+    if (!viewer) return;
+    viewer.hidden = true;
     if (overlayId !== null) removeOverlay(overlayId);
     overlayId = null;
     focusTrap?.destroy();
     focusTrap = null;
     instance?.dispose();
     instance = null;
-    target = null;
-    if (stage) stage.innerHTML = '';
+    stage?.replaceChildren();
+  }
+
+  function expandButton(): HTMLElement | null {
+    const template = document.querySelector<HTMLTemplateElement>('template[data-mermaid-expand]');
+    const button = template?.content.firstElementChild?.cloneNode(true);
+    return button instanceof HTMLElement ? button : null;
   }
 
   function enhance(panel: HTMLElement) {
-    if (panel.classList.contains(READY)) return;
-    if (!panel.querySelector('svg')) return;
+    if (panel.classList.contains(READY) || !panel.querySelector('svg')) return;
     panel.classList.add(READY);
 
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'mermaid-fullscreen-btn';
-    const { t } = docsI18n(document.documentElement.lang);
-    btn.setAttribute('aria-label', t('diagram.open'));
-    btn.title = t('diagram.fullscreen');
-    btn.innerHTML = `
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
-              fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <span></span>
-    `;
-    btn.querySelector('span')!.textContent = t('diagram.expand');
-    panel.appendChild(btn);
-
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openModal(panel);
-    });
+    const button = expandButton();
+    if (button) {
+      button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openModal(panel);
+      });
+      panel.appendChild(button);
+    }
 
     panel.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('.mermaid-fullscreen-btn')) return;
+      if ((e.target as HTMLElement).closest('.mermaid-expand')) return;
       if (window.getSelection()?.toString()) return;
       openModal(panel);
     });
@@ -187,11 +171,12 @@
 
   function scan() {
     document
-      .querySelectorAll<HTMLElement>('pre.mermaid[data-processed]')
+      .querySelectorAll<HTMLElement>('pre.mermaid[data-processed]:not(.mermaid-modal-host)')
       .forEach(enhance);
   }
 
   function init() {
+    mountViewer();
     scan();
 
     observer?.disconnect();

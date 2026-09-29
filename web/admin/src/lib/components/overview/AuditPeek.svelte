@@ -10,6 +10,7 @@
   import type { AuditEntry } from '$lib/server/services';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
 
   let { entries }: { entries: AuditEntry[] } = $props();
 
@@ -28,18 +29,18 @@
   </CardHead>
 
   {#if entries.length}
-    <div class="node-list">
+    <div class="bb-node-list bb-stagger">
       {#each entries as e (e.id)}
-        <div class="node-row">
+        <div class="bb-node-list__row">
           <StatusDot tone={statusTone(e.ok ? 'online' : 'degraded')} />
-          <span class="nm">@{e.actor_login}</span>
-          <span class="sv mono">{line(e)}</span>
+          <span class="bb-node-list__name">@{e.actor_login}</span>
+          <span class="bb-node-list__meta"><Text as="span" size="xs" mono tone="muted" truncate>{line(e)}</Text></span>
           {#if !e.ok}
             <span class="err">
               <Tag tone="error">{e.error || t('admin.overview.auditFailed')}</Tag>
             </span>
           {/if}
-          <span class="pg">{ago(e.created_at)}</span>
+          <span class="bb-node-list__trail">{ago(e.created_at)}</span>
         </div>
       {/each}
     </div>
@@ -49,13 +50,6 @@
 </Card>
 
 <style>
-  .node-row .sv.mono {
-    font-family: var(--bb-font-mono);
-    font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   .err {
     max-width: 180px;
     min-width: 0;

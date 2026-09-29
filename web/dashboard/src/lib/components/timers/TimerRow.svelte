@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { Button } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, ManagementRow, Switch, getI18n, fmtDate, type TimerDef } from '@bagel/kit';
+  import { Icon, IconButton, ManagementRow, Switch, Tag, getI18n, fmtDate, type TimerDef } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -61,20 +60,19 @@
           <span class="bb-sr-only">{t('timers.fieldInterval')} </span>
           <span class="sched-val">{schedule}</span>
         </span>
-        <span class="m-state bb-tag {r.enabled ? 'bb-tag--live' : 'bb-tag--quiet'}">
-          <i class="bb-mark {r.enabled ? '' : 'bb-mark--hollow'}" aria-hidden="true"></i>
+        <Tag tone={r.enabled ? 'live' : 'quiet'} mark={r.enabled ? 'solid' : 'hollow'}>
           {r.enabled ? t('timers.active') : t('timers.hiddenTag')}
-        </span>
+        </Tag>
         {#if r.minChatLines > 0}
-          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillMinLines', { n: r.minChatLines })}</span>
+          <Tag tone="bare">{t('timers.pillMinLines', { n: r.minChatLines })}</Tag>
         {/if}
         {#if r.maxFiresPerStream > 0}
-          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillMaxFires', { n: r.maxFiresPerStream })}</span>
+          <Tag tone="bare">{t('timers.pillMaxFires', { n: r.maxFiresPerStream })}</Tag>
         {/if}
         {#if ended}
-          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillEnded')}</span>
+          <Tag tone="bare">{t('timers.pillEnded')}</Tag>
         {:else if untilLabel}
-          <span class="m-pill bb-tag bb-tag--bare">{t('timers.pillUntil', { date: untilLabel })}</span>
+          <Tag tone="bare">{t('timers.pillUntil', { date: untilLabel })}</Tag>
         {/if}
       </span>
     </span>
@@ -84,7 +82,9 @@
       <input type="hidden" name="timer" value={togglePayload} />
       <Switch type="submit" checked={r.enabled} label={t('timers.toggleAria', { name: r.message })} />
     </form>
-    <Button variant="icon" size="sm" class="delete-action" danger type="button" aria-label={t('timers.deleteAria', { name: r.message })} onclick={onDelete} ><Icon name="trash" size={15} /></Button>
+    <span class="del">
+      <IconButton size="sm" danger label={t('timers.deleteAria', { name: r.message })} onclick={onDelete}><Icon name="trash" size={15} /></IconButton>
+    </span>
   {/snippet}
 </ManagementRow>
 
@@ -95,13 +95,13 @@
     align-items: center;
     gap: 14px;
   }
-  .idx { font-family: var(--bb-font-mono); font-size: 10px; color: var(--bb-muted); opacity: 0.55; }
+  .idx { font-family: var(--bb-font-mono); font-size: var(--bb-text-xs); color: var(--bb-muted); opacity: 0.55; }
 
   .msg { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
   .msg-text {
     font-family: var(--bb-font-body);
     font-weight: 600;
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-white);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -112,15 +112,13 @@
   .meta { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 12px; }
   .sched-val {
     font-family: var(--bb-font-mono);
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-tan-light);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
 
-  .m-state, .m-pill { flex: none; }
-
-  :global(.delete-action) { width: 32px; height: 32px; min-height: 32px; }
+  .del { display: inline-flex; --btn-icon-min-size: 32px; }
 
   @media (max-width: 760px) {
     .prow {
@@ -133,6 +131,6 @@
     .idx { display: none; }
     .msg { grid-area: msg; }
     .meta { grid-area: meta; justify-content: flex-start; flex-wrap: wrap; gap: 8px 12px; }
-    :global(.delete-action) { min-width: 44px; min-height: 44px; }
+    .del { --btn-icon-min-size: 44px; }
   }
 </style>

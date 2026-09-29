@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Switch, alertOff, alertOn, type DiscordConfig, type RefusedFields } from '@bagel/kit';
+  import { alertOff, alertOn, type DiscordConfig, type RefusedFields } from '@bagel/kit';
+  import UiSwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
   import FieldNote from './FieldNote.svelte';
 
@@ -24,11 +25,15 @@
   const on = $derived(defaultOn ? alertOn(draft.config[field]) : alertOff(draft.config[field]));
 </script>
 
-<div class="setting-row">
-  <span class="tr-text">
-    <span class="tr-label">{label}</span>
-    <span class="tr-help" id="dcs-{field}">{help}</span>
-  </span>
-  <Switch {label} describedby="dcs-{field}" checked={on} onchange={(v) => draft.setFlag(field, v)} />
-  <FieldNote {invalid} {field} />
+<div class="setting-switch">
+  <UiSwitchRow
+    control="end"
+    {label}
+    hint={help}
+    hintId="dcs-{field}"
+    checked={on}
+    onchange={(v) => draft.setFlag(field, v)}
+  >
+    {#snippet note()}<FieldNote {invalid} {field} />{/snippet}
+  </UiSwitchRow>
 </div>

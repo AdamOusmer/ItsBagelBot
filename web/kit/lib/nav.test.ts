@@ -16,6 +16,7 @@ import {
 import { MODULE_CATALOG } from './types';
 import { MODULE_CATEGORY_ORDER } from './module-index';
 import { dashboardNavItems as clientNavItems } from './nav-dashboard';
+import { groupsWithLockedHints } from './nav-core';
 
 describe('nav registry', () => {
   test('every bespoke page prefix resolves to its owning section', () => {
@@ -202,5 +203,16 @@ describe('moduleSubpathAllowed', () => {
     ['timers', 'billing', false]
   ] as [string, string, boolean][])('module %s under a %s grant -> %p', (id, section, want) => {
     expect(moduleSubpathAllowed(id, [section])).toBe(want);
+  });
+});
+
+describe('groupsWithLockedHints', () => {
+  test('only locked items carry the broadcaster hint', () => {
+    const open = { href: '/a', label: 'A' };
+    const locked = { href: '/b', label: 'B', locked: true };
+    const [group] = groupsWithLockedHints([{ label: 'G', items: [open, locked] }], (key) => `t:${key}`);
+    expect(group.label).toBe('G');
+    expect(group.items[0]).toBe(open);
+    expect(group.items[1]).toEqual({ ...locked, lockedHint: 't:nav.lockedBroadcaster' });
   });
 });

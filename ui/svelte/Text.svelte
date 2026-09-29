@@ -9,14 +9,16 @@
     size = 'md',
     tone = 'default',
     mono = false,
+    truncate = false,
     as: tag = 'p',
     class: className = '',
     children,
     ...rest
   }: {
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-    tone?: 'default' | 'muted' | 'accent' | 'danger' | 'pale' | 'warn';
+    tone?: 'default' | 'muted' | 'muted-light' | 'muted-soft' | 'soft' | 'accent' | 'positive' | 'danger' | 'pale' | 'warn';
     mono?: boolean;
+    truncate?: boolean;
     as?: 'p' | 'span' | 'small' | 'div' | 'li' | 'dd' | 'dt';
     class?: string;
     children: Snippet;
@@ -29,6 +31,7 @@
       `bb-text--${size}`,
       tone === 'default' ? null : `bb-text--${tone}`,
       mono ? 'bb-text--mono' : null,
+      truncate ? 'bb-text--truncate' : null,
       className || null,
     ]
       .filter(Boolean)

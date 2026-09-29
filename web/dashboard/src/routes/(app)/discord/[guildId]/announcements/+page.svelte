@@ -1,7 +1,17 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Chip, getI18n, encodeNameList, parseNameList, CATEGORY_NAME_MAX, type DiscordConfig } from '@bagel/kit';
+  import {
+    Button,
+    Chip,
+    Input,
+    Text,
+    getI18n,
+    encodeNameList,
+    parseNameList,
+    CATEGORY_NAME_MAX,
+    type DiscordConfig
+  } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import FieldNote from '$lib/components/discord/FieldNote.svelte';
   import SwitchRow from '$lib/components/discord/SwitchRow.svelte';
@@ -58,7 +68,7 @@
       </Chip>
     {/each}
     {#if names.length === 0}
-      <span class="tr-help">{t('discord.chipEmpty')}</span>
+      <Text as="span" size="xs" tone="muted">{t('discord.chipEmpty')}</Text>
     {/if}
   </div>
 {/snippet}
@@ -70,19 +80,19 @@
 
   <div class="setting-row stacked">
     <span class="tr-text">
-      <span class="tr-label">{t('discord.allowLabel')}</span>
-      <span class="tr-help" id="dch-allow">{t('discord.allowTag')}</span>
+      <Text as="span" size="sm">{t('discord.allowLabel')}</Text>
+      <Text as="span" size="xs" tone="muted" id="dch-allow">{t('discord.allowTag')}</Text>
     </span>
     {@render chipList('categoryAllow', allowList)}
     <span class="adder">
-      <input
-        class="setting-input"
+      <Input
+        fill
         aria-describedby="dch-allow"
         aria-label={t('discord.allowLabel')}
         maxlength={CATEGORY_NAME_MAX}
         placeholder={t('discord.allowPlaceholder')}
         bind:value={allowDraft}
-        onkeydown={(e) => addOnEnter(e, commitAllow)}
+        onkeydown={(e: KeyboardEvent) => addOnEnter(e, commitAllow)}
       />
       <Button variant="secondary" onclick={commitAllow}>{t('discord.chipAdd')}</Button>
     </span>
@@ -91,19 +101,19 @@
 
   <div class="setting-row stacked">
     <span class="tr-text">
-      <span class="tr-label">{t('discord.denyLabel')}</span>
-      <span class="tr-help" id="dch-deny">{t('discord.denyTag')}</span>
+      <Text as="span" size="sm">{t('discord.denyLabel')}</Text>
+      <Text as="span" size="xs" tone="muted" id="dch-deny">{t('discord.denyTag')}</Text>
     </span>
     {@render chipList('categoryDeny', denyList)}
     <span class="adder">
-      <input
-        class="setting-input"
+      <Input
+        fill
         aria-describedby="dch-deny"
         aria-label={t('discord.denyLabel')}
         maxlength={CATEGORY_NAME_MAX}
         placeholder={t('discord.denyPlaceholder')}
         bind:value={denyDraft}
-        onkeydown={(e) => addOnEnter(e, commitDeny)}
+        onkeydown={(e: KeyboardEvent) => addOnEnter(e, commitDeny)}
       />
       <Button variant="secondary" onclick={commitDeny}>{t('discord.chipAdd')}</Button>
     </span>

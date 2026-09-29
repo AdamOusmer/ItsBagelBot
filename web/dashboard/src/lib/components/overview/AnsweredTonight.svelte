@@ -1,6 +1,11 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { AnsweredTonight } from '$lib/overview-live';
 
@@ -8,7 +13,9 @@
 
   let { answered }: { answered: AnsweredTonight } = $props();
 
-  type Bar = { name: string; count: number; pct: number; tone: 'a' | 'b' | 'c' };
+  type Bar = { name: string; count: number; share: number; ramp: 1 | 2 | 3 };
+
+  const rankShade = (i: number): Bar['ramp'] => (i === 0 ? 1 : i < 3 ? 2 : 3);
 
   const bars = $derived.by<Bar[]>(() => {
     const rows = answered.commands;
@@ -17,46 +24,38 @@
     return rows.map((r, i) => ({
       name: r.name,
       count: r.count,
-      pct: Math.max(4, Math.round((r.count / top) * 100)),
-      tone: i === 0 ? 'a' : i < 3 ? 'b' : 'c'
+      share: Math.max(4, Math.round((r.count / top) * 100)) / 100,
+      ramp: rankShade(i)
     }));
   });
 </script>
 
-<section class="ov-ans" aria-labelledby="ov-ans-h">
+<Card as="section" flush aria-labelledby="ov-ans-h">
   <div class="ov-ans__head">
-    <h2 id="ov-ans-h" class="ov-ans__h">{t('overview.answeredTonight')}</h2>
-    <a class="ov-ans__all" href="/commands">{t('overview.answeredAll')} →</a>
+    <Heading level={6} as="h2" variant="title" id="ov-ans-h">{t('overview.answeredTonight')}</Heading>
+    <TextLink href="/commands" label={`${t('overview.answeredAll')} →`} />
   </div>
 
   {#if !answered.ok}
-    <p class="ov-ans__empty">{t('overview.answeredUnavailable')}</p>
+    <div class="ov-ans__empty"><Text size="sm" tone="muted">{t('overview.answeredUnavailable')}</Text></div>
   {:else if !bars.length}
-    <p class="ov-ans__empty">{t('overview.answeredEmpty')}</p>
+    <div class="ov-ans__empty"><Text size="sm" tone="muted">{t('overview.answeredEmpty')}</Text></div>
   {:else}
     <ul class="ov-ans__list">
       {#each bars as bar (bar.name)}
         <li class="ov-ans__row">
           <div class="ov-ans__line">
-            <b class="ov-ans__name">{bar.name}</b>
-            <span class="ov-ans__count">{bar.count.toLocaleString()}</span>
+            <Text as="span" size="sm" mono>{bar.name}</Text>
+            <Text as="span" size="xs" mono tone="muted">{bar.count.toLocaleString()}</Text>
           </div>
-          <span class="ov-ans__track">
-            <span class="ov-ans__fill ov-ans__fill--{bar.tone}" style:width="{bar.pct}%"></span>
-          </span>
+          <ProgressBar value={bar.share} tone="success" ramp={bar.ramp} label={bar.name} aria-hidden="true" />
         </li>
       {/each}
     </ul>
   {/if}
-</section>
+</Card>
 
 <style>
-  .ov-ans {
-    background: var(--bb-card-bg);
-    border: 1px solid var(--bb-border);
-    border-radius: var(--bb-radius-md);
-    overflow: hidden;
-  }
   .ov-ans__head {
     display: flex;
     align-items: center;
@@ -64,25 +63,6 @@
     gap: 12px;
     padding: 17px 20px 14px;
     border-bottom: 1px solid var(--bb-border);
-  }
-  .ov-ans__h {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0;
-  }
-  .ov-ans__all {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-tan);
-    text-decoration: none;
-  }
-  .ov-ans__all:hover {
-    color: var(--bb-tan-pale);
   }
   .ov-ans__list {
     list-style: none;
@@ -103,42 +83,7 @@
     justify-content: space-between;
     gap: 10px;
   }
-  .ov-ans__name {
-    font-family: var(--bb-font-mono);
-    font-weight: 500;
-    font-size: 12.5px;
-    color: var(--bb-white);
-  }
-  .ov-ans__count {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .ov-ans__track {
-    height: 5px;
-    border-radius: var(--bb-radius-pill);
-    background: rgba(201, 168, 124, 0.1);
-    display: block;
-    overflow: hidden;
-  }
-  .ov-ans__fill {
-    display: block;
-    height: 5px;
-    border-radius: var(--bb-radius-pill);
-    background: var(--bb-green-glow);
-  }
-  .ov-ans__fill--b {
-    background: var(--bb-green-light);
-  }
-  .ov-ans__fill--c {
-    background: var(--bb-green);
-  }
   .ov-ans__empty {
-    margin: 0;
     padding: 16px 20px 20px;
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    color: var(--bb-muted);
   }
 </style>

@@ -3975,6 +3975,7 @@
     "support": "Support",
     "supportDiscordHint": "usually minutes",
     "supportGithubHint": "source available",
+    "supportEnterprise": "Enterprise",
     "feedback": "Bug or idea"
   },
   "perm": {

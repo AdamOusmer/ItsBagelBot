@@ -7,10 +7,11 @@ import '../styles/elements/input.css';
 
 interface Props {
     value?: string | number | null;
-    type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'search' | 'date' | 'datetime-local' | 'month' | 'time' | 'week';
+    type?: 'text' | 'email' | 'url' | 'tel' | 'number' | 'password' | 'search' | 'date' | 'datetime-local' | 'month' | 'time' | 'week' | 'color';
     invalid?: boolean;
     fill?: boolean;
     mono?: boolean;
+    align?: 'start' | 'end';
     class?: string;
     [key: string]: unknown;
 }
@@ -21,10 +22,18 @@ const {
     invalid = false,
     fill = false,
     mono = false,
+    align = 'start',
     class: className = '',
     ...rest
 } = Astro.props;
-const classes = ['bb-input', fill ? 'bb-input--fill' : null, mono ? 'bb-input--mono' : null, className]
+const classes = [
+    'bb-input',
+    type === 'color' ? 'bb-input--color' : null,
+    fill ? 'bb-input--fill' : null,
+    mono ? 'bb-input--mono' : null,
+    align === 'end' ? 'bb-input--end' : null,
+    className,
+]
     .filter(Boolean)
     .join(' ');
 ---

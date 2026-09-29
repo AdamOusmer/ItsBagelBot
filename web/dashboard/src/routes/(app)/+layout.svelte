@@ -9,6 +9,7 @@
   import AppShell from '@bagel/kit/components/AppShell.svelte';
   import ImpersonationBanner from '@bagel/kit/components/ImpersonationBanner.svelte';
   import NotificationBell from '@bagel/ui/svelte/NotificationBell.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import ToastHost from '@bagel/ui/svelte/ToastHost.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { sectionForPath, dashboardNavItems, dashboardNavGroups } from '@bagel/kit/nav-dashboard';
@@ -118,7 +119,9 @@
     {/if}
   {/snippet}
   {#snippet topActions()}
-    <a href="https://status.itsbagelbot.com" class="status-link" target="_blank" rel="noopener noreferrer">{t('nav.status')}</a>
+    <span class="status-link">
+      <TextLink variant="quiet" href="https://status.itsbagelbot.com" external label={t('nav.status')} />
+    </span>
     {#if !isDelegate}
       {#await data.bell then bell}
         <NotificationBell
@@ -140,21 +143,12 @@
 
 <style>
   .status-link {
-    font-family: var(--bb-font-body, inherit);
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--bb-muted, #a39b8b);
-    text-decoration: none;
-    transition: color 180ms ease;
-    white-space: nowrap;
     flex: none;
     display: none;
+    white-space: nowrap;
   }
   @media (min-width: 761px) {
     .status-link { display: inline; }
-  }
-  .status-link:hover {
-    color: var(--bb-tan-pale, #eceae1);
   }
 </style>
 

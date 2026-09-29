@@ -4,6 +4,8 @@
   import Card from '@bagel/ui/svelte/Card.svelte';
   import CardHead from '@bagel/ui/svelte/CardHead.svelte';
   import Table from '@bagel/ui/svelte/Table.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
   import { ago } from '@bagel/kit';
   import { getI18n } from '@bagel/kit/i18n/context';
@@ -35,12 +37,12 @@
       <tbody>
         {#each runs as run (run.id)}
           <tr>
-            <td><a class="run" href="/deploys/{run.id}">{runName(run) || run.id}</a></td>
+            <td><Text as="span" mono><TextLink variant="inline" href="/deploys/{run.id}">{runName(run) || run.id}</TextLink></Text></td>
             <td>{t(KIND_KEY[run.kind])}</td>
             <td><StatePill tone={runPill(run.state)}>{t(RUN_STATE_KEY[run.state])}</StatePill></td>
             <td>{run.current_stage ? t(STAGE_KEY[run.current_stage]) : '-'}</td>
-            <td class="mono">{run.actor.login}</td>
-            <td class="mono" title={run.created_at}>{ago(run.created_at)}</td>
+            <td><Text as="span" mono tone="muted">{run.actor.login}</Text></td>
+            <td title={run.created_at}><Text as="span" mono tone="muted">{ago(run.created_at)}</Text></td>
           </tr>
         {/each}
       </tbody>
@@ -48,19 +50,3 @@
   {/if}
 </Card>
 
-<style>
-  .run {
-    font-family: var(--bb-font-mono);
-    font-size: 12.5px;
-    color: var(--bb-white);
-    text-decoration: underline;
-    text-decoration-color: var(--rule);
-    text-underline-offset: 3px;
-  }
-  .mono {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-    white-space: nowrap;
-  }
-</style>

@@ -1,19 +1,23 @@
 <script lang="ts">
-  import { Kbd } from '@bagel/kit';
-  import { SearchInput } from '@bagel/kit';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { onMount, untrack } from 'svelte';
+  import { isShortcut } from '@bagel/ui/lib/hotkeys';
   import { reconcileModuleToggles } from '$lib/module-toggle';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     Icon,
+    Kbd,
+    Label,
     PageHead,
     AlertBanner,
-    Card,
+    Button,
+    ButtonLink,
+    DeckList,
     Heading,
+    SearchInput,
     Text,
     EmptyState,
     toast,
@@ -160,17 +164,13 @@
     };
 
   let searchInput = $state<HTMLInputElement | undefined>(undefined);
-  function isTyping(e: KeyboardEvent): boolean {
-    const el = e.target as HTMLElement | null;
-    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
-  }
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape' && document.activeElement === searchInput && searchQuery) {
       e.preventDefault();
       searchQuery = '';
       return;
     }
-    if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!isShortcut(e)) return;
     if (e.key === '/') {
       e.preventDefault();
       searchInput?.focus();
@@ -191,7 +191,7 @@
   {/if}
 
   <div class="deck">
-    <label class="find-label" for="module-search">{t('modules.searchLabel')}</label>
+    <Label htmlFor="module-search">{t('modules.searchLabel')}</Label>
     <div class="find">
       <SearchInput id="module-search" bind:value={searchQuery} bind:element={searchInput} placeholder={t('modules.searchPlaceholder')}
         aria-label={t('modules.searchLabel')} aria-describedby="module-search-hint" clearLabel={t('modules.searchClear')} autocomplete="off" enterkeyhint="search" fill />
@@ -200,26 +200,26 @@
   </div>
 
   <div class="find-help">
-    <p id="module-search-hint">{t('modules.openHint')}</p>
-    <p class="result-count" aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</p>
+    <Text size="sm" tone="muted" id="module-search-hint">{t('modules.openHint')}</Text>
+    <Text size="sm" tone="muted" aria-live="polite">{t('modules.resultCount', { shown: filtered.length, total: items.length })}</Text>
   </div>
 
   {#if shortcuts.length}
     <nav class="shortcuts" class:concealed={!!searchQuery.trim()} aria-label={t('modules.quickAccess')}>
-      <span class="shortcut-label">{t('modules.quickAccess')}</span>
+      <span class="shortcut-label"><Text as="span" size="xs" tone="muted">{t('modules.quickAccess')}</Text></span>
       {#each shortcuts as module (module.def.id)}
-        <a class="bb-btn bb-btn--ghost" href={moduleHref(module.def)}>
+        <ButtonLink variant="ghost" href={moduleHref(module.def)}>
           {#if module.def.id === 'songqueue'}<Icon name="music" size={16} />{/if}
           {tModuleLabel(t, module.def)}
-          <Icon name="chevron" size={12} class="shortcut-chevron" />
-        </a>
+          <span class="chev"><Icon name="chevron" size={12} /></span>
+        </ButtonLink>
       {/each}
     </nav>
   {/if}
 
   {#if groups.length === 0}
     <EmptyState title={t('modules.noMatch')} body={t('modules.noMatchBody')}>
-      <button type="button" class="bb-btn bb-btn--ghost" onclick={clearSearch}>{t('modules.searchClear')}</button>
+      <Button variant="ghost" onclick={clearSearch}>{t('modules.searchClear')}</Button>
     </EmptyState>
   {:else}
     <div class="index">
@@ -233,18 +233,18 @@
             aria-labelledby="family-{categoryAnchorId(group.name)}"
           >
             <header class="family-head">
-              <Heading level={2} class="family-title" id="family-{categoryAnchorId(group.name)}"
+              <Heading level={5} as="h2" class="family-title" id="family-{categoryAnchorId(group.name)}"
                 >{catLabel(group.name)}</Heading
               >
               {#if catHint(group.name)}
-                <Text size="sm" tone="muted" class="family-hint">{catHint(group.name)}</Text>
+                <div class="family-hint"><Text size="sm" tone="muted">{catHint(group.name)}</Text></div>
               {/if}
             </header>
-            <Card style="padding:0">
+            <DeckList>
               {#each group.modules as m (m.def.id)}
                 <ModuleIndexRow module={m} status={modStatus[m.def.id] ?? 'idle'} toggleSubmit={toggleSubmit(m)} />
               {/each}
-            </Card>
+            </DeckList>
           </section>
         {/each}
       </div>
@@ -253,13 +253,8 @@
 </section>
 
 <style>
-  .find-label {
-    display: block;
-    margin-bottom: 8px;
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 14px;
-    font-weight: 600;
+  .screen {
+    --find-clear: 98px;
   }
   .find-help {
     display: flex;
@@ -267,40 +262,27 @@
     justify-content: space-between;
     gap: 6px 20px;
     margin-bottom: 16px;
-    color: var(--bb-muted);
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.5;
   }
-  .find-help p { margin: 0; }
-  .result-count { flex: none; }
   .shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 22px; }
-  .shortcut-label { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 12px; margin-right: 4px; }
-  .shortcuts :global(.shortcut-chevron) { transform: rotate(-90deg); }
+  .shortcut-label { margin-right: 4px; }
+  .chev { display: inline-flex; transform: rotate(-90deg); }
   .shortcuts.concealed { visibility: hidden; }
   .deck {
     position: sticky;
-    top: calc(58px + env(safe-area-inset-top, 0px));
+    top: var(--bb-topbar-height);
     z-index: 5;
     padding: 10px 0 14px;
     margin: 0 0 10px;
     background: var(--bb-bg-0);
-    border-bottom: 1px solid var(--rule);
+    border-bottom: 1px solid var(--bb-border);
   }
-  .find { width: 100%; min-width: 0; position: relative; }
+  .find { width: 100%; min-width: 0; margin-top: 8px; position: relative; }
   .find .keys { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
-  .keys {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-  }
 
   .index {
     display: grid;
     gap: 18px 32px;
-    --bb-tabs-sticky-top: calc(58px + env(safe-area-inset-top, 0px) + 98px);
+    --bb-tabs-sticky-top: calc(var(--bb-topbar-height) + var(--find-clear));
   }
   @media (min-width: 761px) {
     .index {
@@ -309,23 +291,13 @@
   }
   .families { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
   .family {
-    scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px) + 102px);
+    scroll-margin-top: calc(var(--bb-topbar-height) + var(--find-clear) + 4px);
   }
   .family:focus { outline: none; }
-  .family:target :global(.family-title) { color: var(--bb-tan-pale, var(--bb-tan-light)); }
-  .family-head { margin-bottom: 10px; }
-  :global(.family-title) { font-size: 1.15rem; letter-spacing: -0.02em; }
-  :global(.family-hint) { margin-top: 4px; max-width: 52ch; }
+  .family:target :global(.family-title) { color: var(--bb-tan-pale); }
+  .family-head { display: grid; gap: 4px; margin-bottom: 10px; }
+  .family-hint { max-width: 52ch; }
   @media (max-width: 760px) {
-    .deck {
-      top: calc(52px + env(safe-area-inset-top, 0px));
-    }
-    .index {
-      --bb-tabs-sticky-top: calc(52px + env(safe-area-inset-top, 0px) + 98px);
-    }
-    .family {
-      scroll-margin-top: calc(52px + env(safe-area-inset-top, 0px) + 102px);
-    }
     .keys { display: none; }
   }
 </style>

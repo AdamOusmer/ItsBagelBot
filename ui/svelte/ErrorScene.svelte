@@ -6,6 +6,13 @@
   import type { Snippet } from 'svelte';
   import LightField from './LightField.svelte';
 
+  type ErrorSceneAction = {
+    label: string;
+    href?: string;
+    onclick?: (event: MouseEvent) => void;
+    [attribute: string]: unknown;
+  };
+
   let {
     status,
     eyebrow,
@@ -14,6 +21,8 @@
     aside,
     class: className = '',
     labelledBy = 'bb-error-title',
+    primary,
+    secondary,
     actions,
     ...rest
   }: {
@@ -24,12 +33,23 @@
     aside?: string;
     class?: string;
     labelledBy?: string;
+    primary?: ErrorSceneAction;
+    secondary?: ErrorSceneAction;
     actions?: Snippet;
     [key: string]: unknown;
   } = $props();
 
   const classes = $derived(['bb-error-scene', className || null].filter(Boolean).join(' '));
+  const hasActions = $derived(Boolean(primary || secondary || actions));
 </script>
+
+{#snippet control(action: ErrorSceneAction, tone: 'primary' | 'quiet')}
+  {@const { label, href, ...attributes } = action}
+  {#if href}<a class="bb-error-scene__action bb-error-scene__action--{tone}" {href} {...attributes}>{label}</a
+    >{:else}<button class="bb-error-scene__action bb-error-scene__action--{tone}" type="button" {...attributes}
+      >{label}</button
+    >{/if}
+{/snippet}
 
 <main class={classes} aria-labelledby={labelledBy} {...rest}>
   <LightField />
@@ -46,8 +66,13 @@
     <h1 class="bb-error-scene__title" id={labelledBy}>{title}</h1>
     <p class="bb-error-scene__desc">{description}</p>
 
-    {#if actions}
-      <div class="bb-error-scene__actions">{@render actions()}</div>
+    {#if hasActions}
+      <div class="bb-error-scene__actions"
+        >{#if primary}{@render control(primary, 'primary')}{/if}{#if secondary}{@render control(
+            secondary,
+            'quiet',
+          )}{/if}{#if actions}{@render actions()}{/if}</div
+      >
     {/if}
 
     {#if aside}

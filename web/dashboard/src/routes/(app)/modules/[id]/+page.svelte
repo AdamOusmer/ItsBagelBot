@@ -1,11 +1,10 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/kit';
-  import { namespaceReplyTemplate } from '@bagel/kit';
+  import { Select, namespaceReplyTemplate } from '@bagel/kit';
   import { deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { Card, PageHead, Scroller, SaveStatus, Switch, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckList, EmptyState, toast, getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
+  import { Card, PageHead, Scroller, SaveStatus, Switch, SwitchRow, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckLayout, DeckList, EmptyState, Heading, Input, Tag, Text, Textarea, TextLink, toast, getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
@@ -436,33 +435,18 @@
     return tModuleFieldPart(t, def.id, field, part);
   }
 
+  function blurOnEnter(e: KeyboardEvent & { currentTarget: HTMLInputElement }) {
+    if (e.key === 'Enter') e.currentTarget.blur();
+  }
+
 </script>
 
 <section class="screen active">
   <nav class="crumbs" aria-label={t('modules.breadcrumbLabel')}>
     <ol>
-      <li>
-        <a class="crumb-back" href="/modules">
-          <svg
-            class="crumb-arrow"
-            viewBox="0 0 24 24"
-            width="14"
-            height="14"
-            aria-hidden="true"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <line x1="19" y1="12" x2="5" y2="12" />
-            <polyline points="12 19 5 12 12 5" />
-          </svg>
-          {t('modules.allModules')}
-        </a>
-      </li>
-      <li class="crumb-sep" aria-hidden="true">/</li>
-      <li><span aria-current="page">{modLabel}</span></li>
+      <li><TextLink variant="quiet" touch icon="arrowLeft" href="/modules" label={t('modules.allModules')} /></li>
+      <li class="crumb-sep" aria-hidden="true"><Text as="span" size="sm" tone="muted">/</Text></li>
+      <li><Text as="span" size="sm" tone="accent" aria-current="page">{modLabel}</Text></li>
     </ol>
   </nav>
 
@@ -491,120 +475,126 @@
   {/if}
 
   {#if !def.parent}
-  <Card style="padding:0" class="settings-card">
-    <div class="master-row">
-      <div class="tr-text">
-        <h2 class="tr-label">{t('modules.moduleStatus')}</h2>
-        <span class="tr-help">{t('modules.enabledHelp')}</span>
+  <div class="settings-card">
+    <Card flush>
+      <div class="master-row">
+        <div class="tr-text">
+          <Heading level={6} as="h2">{t('modules.moduleStatus')}</Heading>
+          <Text as="span" size="xs" tone="muted">{t('modules.enabledHelp')}</Text>
+        </div>
+        {#if data.locked}
+          <Tag tone="quiet" mark="hollow">{t('modules.betaLocked')}</Tag>
+        {:else}
+          <Tag tone={enabled ? 'live' : 'quiet'} mark={enabled ? 'solid' : 'hollow'}>
+            {enabled ? t('modules.statusOn') : t('modules.statusOff')}
+          </Tag>
+          <SaveStatus state={modStatus['module'] ?? 'idle'} />
+          <Switch
+            checked={enabled}
+            label={t('modules.toggleAria', { label: modLabel })}
+            pending={modStatus['module'] === 'saving'}
+            onchange={toggleModule}
+          />
+        {/if}
       </div>
-      {#if data.locked}
-        <span class="status-text bb-tag bb-tag--quiet"><i class="bb-mark bb-mark--hollow" aria-hidden="true"></i>{t('modules.betaLocked')}</span>
-      {:else}
-        <span class="status-text bb-tag {enabled ? 'bb-tag--live' : 'bb-tag--quiet'}">
-          <i class="bb-mark {enabled ? '' : 'bb-mark--hollow'}" aria-hidden="true"></i>
-          {enabled ? t('modules.statusOn') : t('modules.statusOff')}
-        </span>
-        <SaveStatus state={modStatus['module'] ?? 'idle'} />
-        <Switch
-          checked={enabled}
-          label={t('modules.toggleAria', { label: modLabel })}
-          pending={modStatus['module'] === 'saving'}
-          onchange={toggleModule}
-        />
+      {#if !enabled}
+        <div class="disabled-note"><Text size="sm" tone="muted">{t('modules.disabledNote')}</Text></div>
       {/if}
-    </div>
-    {#if !enabled}
-      <p class="disabled-note">{t('modules.disabledNote')}</p>
-    {/if}
-  </Card>
+    </Card>
+  </div>
   {/if}
 
   {#if (def.settings ?? []).length}
-    <Card style="padding:0" class="settings-card">
-      <div class="section-head">
-        <h2 class="section-title">{t('modules.settingsTitle')}</h2>
-      </div>
-      {#each (def.settings ?? []).filter((s) => !s.hidden) as field (field.key)}
-        {#if field.type === 'toggle'}
-          <div class="setting-row">
-            <div class="tr-text">
-              <span class="tr-label" id="sl-{field.key}">{fieldCopy(field, 'label')}</span>
-              {#if fieldCopy(field, 'help')}<span class="tr-help" id="sh-{field.key}">{fieldCopy(field, 'help')}</span>{/if}
+    <div class="settings-card">
+      <Card flush>
+        <div class="section-head">
+          <Heading level={6} as="h2" variant="eyebrow">{t('modules.settingsTitle')}</Heading>
+        </div>
+        {#each (def.settings ?? []).filter((s) => !s.hidden) as field (field.key)}
+          {#if field.type === 'toggle'}
+            <div class="setting-row toggle">
+              <SwitchRow
+                control="end"
+                label={fieldCopy(field, 'label')}
+                hint={fieldCopy(field, 'help') || undefined}
+                hintId="sh-{field.key}"
+                checked={settingToggleOn(field)}
+                pending={modStatus[`setting:${field.key}`] === 'saving'}
+                onchange={(v) => saveSetting(field, v ? 'on' : 'off')}
+              >
+                {#snippet status()}<SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />{/snippet}
+              </SwitchRow>
             </div>
-            <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
-            <Switch
-              checked={settingToggleOn(field)}
-              label={fieldCopy(field, 'label')}
-              describedby={fieldCopy(field, 'help') ? `sh-${field.key}` : undefined}
-              pending={modStatus[`setting:${field.key}`] === 'saving'}
-              onchange={(v) => saveSetting(field, v ? 'on' : 'off')}
-            />
-          </div>
-        {:else if field.type === 'timezone'}
-          <div class="setting-row">
-            <label class="tr-text" for="mod-setting-{field.key}">
-              <span class="tr-label">{fieldCopy(field, 'label')}</span>
-              {#if fieldCopy(field, 'help')}<span class="tr-help">{fieldCopy(field, 'help')}</span>{/if}
-            </label>
-            <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
-            <TimezonePicker id="mod-setting-{field.key}" value={config[field.key] ?? ''} zones={tzZones} onPick={(tz) => saveSetting(field, tz)} />
-          </div>
-          {#if browserZone && (config[field.key] ?? '') !== browserZone}
-            <div class="tz-suggest">
-              <span class="tz-suggest-text">{t('modules.tzSuggested', { tz: browserZone })}</span>
-              <Button variant="green" size="sm" onclick={() => saveSetting(field, browserZone)}>{t('modules.tzApply', { tz: browserZone })}</Button>
+          {:else if field.type === 'timezone'}
+            <div class="setting-row">
+              <label class="tr-text" for="mod-setting-{field.key}">
+                <Text as="span" size="sm">{fieldCopy(field, 'label')}</Text>
+                {#if fieldCopy(field, 'help')}<Text as="span" size="xs" tone="muted">{fieldCopy(field, 'help')}</Text>{/if}
+              </label>
+              <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
+              <TimezonePicker id="mod-setting-{field.key}" value={config[field.key] ?? ''} zones={tzZones} onPick={(tz) => saveSetting(field, tz)} />
+            </div>
+            {#if browserZone && (config[field.key] ?? '') !== browserZone}
+              <div class="tz-suggest">
+                <AlertBanner variant="positive" role="status" stack>
+                  {t('modules.tzSuggested', { tz: browserZone })}
+                  {#snippet action()}
+                    <Button variant="green" size="sm" onclick={() => saveSetting(field, browserZone)}>{t('modules.tzApply', { tz: browserZone })}</Button>
+                  {/snippet}
+                </AlertBanner>
+              </div>
+            {/if}
+          {:else}
+            <div class="setting-row {field.type === 'textarea' ? 'stacked' : ''}">
+              <label class="tr-text" for="mod-setting-{field.key}">
+                <Text as="span" size="sm">{fieldCopy(field, 'label')}</Text>
+                {#if fieldCopy(field, 'help')}<Text as="span" size="xs" tone="muted">{fieldCopy(field, 'help')}</Text>{/if}
+              </label>
+              <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
+              {#if field.type === 'select'}
+                <div class="setting-picker">
+                  <Select
+                    fill
+                    id="mod-setting-{field.key}"
+                    value={config[field.key] || field.placeholder || field.options?.[0]?.value || ''}
+                    onchange={(e) => saveSetting(field, e.currentTarget.value)}
+                    options={(field.options ?? []).map((opt) => ({ value: opt.value, label: tModuleFieldOption(t, def.id, field.key, opt) }))}
+                  />
+                </div>
+              {:else if field.type === 'textarea'}
+                <Textarea
+                  id="mod-setting-{field.key}"
+                  fill
+                  rows={6}
+                  placeholder={fieldCopy(field, 'placeholder')}
+                  value={config[field.key] ?? ''}
+                  onchange={(e: Event & { currentTarget: HTMLTextAreaElement }) => saveSetting(field, e.currentTarget.value)}
+                />
+              {:else}
+                <Input
+                  id="mod-setting-{field.key}"
+                  type={field.type === 'number' ? 'number' : 'text'}
+                  placeholder={fieldCopy(field, 'placeholder')}
+                  value={config[field.key] ?? ''}
+                  onchange={(e: Event & { currentTarget: HTMLInputElement }) => saveSetting(field, e.currentTarget.value)}
+                  onkeydown={blurOnEnter}
+                />
+              {/if}
             </div>
           {/if}
-        {:else}
-          <div class="setting-row {field.type === 'textarea' ? 'stacked' : ''}">
-            <label class="tr-text" for="mod-setting-{field.key}">
-              <span class="tr-label">{fieldCopy(field, 'label')}</span>
-              {#if fieldCopy(field, 'help')}<span class="tr-help">{fieldCopy(field, 'help')}</span>{/if}
-            </label>
-            <SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />
-            {#if field.type === 'select'}
-              <div class="setting-picker">
-                <Select
-                  fill
-                  id="mod-setting-{field.key}"
-                  value={config[field.key] || field.placeholder || field.options?.[0]?.value || ''}
-                  onchange={(e) => saveSetting(field, e.currentTarget.value)}
-                  options={(field.options ?? []).map((opt) => ({ value: opt.value, label: tModuleFieldOption(t, def.id, field.key, opt) }))}
-                />
-              </div>
-            {:else if field.type === 'textarea'}
-              <textarea
-                id="mod-setting-{field.key}"
-                class="setting-input setting-textarea"
-                placeholder={fieldCopy(field, 'placeholder')}
-                value={config[field.key] ?? ''}
-                onchange={(e) => saveSetting(field, e.currentTarget.value)}
-              ></textarea>
-            {:else}
-              <input
-                id="mod-setting-{field.key}"
-                class="setting-input"
-                type={field.type === 'number' ? 'number' : 'text'}
-                placeholder={fieldCopy(field, 'placeholder')}
-                value={config[field.key] ?? ''}
-                onchange={(e) => saveSetting(field, e.currentTarget.value)}
-                onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-              />
-            {/if}
-          </div>
-        {/if}
-      {/each}
-    </Card>
+        {/each}
+      </Card>
+    </div>
   {/if}
 
   {#if hasDeck}
-    <div class="deck" class:inspecting={editing && hasInspector}>
+    <DeckLayout inspecting={editing && hasInspector}>
       <DeckList>
         {#if isTriggers}
           <div class="section-head rules-head">
             <div class="rh-text">
-              <h2 class="section-title">{t('modules.triggerRulesTitle')}</h2>
-              <span class="rh-hint">{t('modules.triggerRulesHint')}</span>
+              <Heading level={6} as="h2" variant="eyebrow">{t('modules.triggerRulesTitle')}</Heading>
+              <Text as="span" size="xs" tone="muted">{t('modules.triggerRulesHint')}</Text>
             </div>
             <Button variant="ghost" onclick={addRule}>{t('modules.addTrigger')}</Button>
           </div>
@@ -684,7 +674,7 @@
           {/if}
         </InspectorSurface>
       {/if}
-    </div>
+    </DeckLayout>
   {/if}
 </section>
 
@@ -709,41 +699,16 @@
     margin: 0;
     padding: 0;
     list-style: none;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    color: var(--bb-muted);
   }
-  .crumb-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 44px;
-    margin: -8px 0;
-    color: var(--bb-muted);
-    text-decoration: none;
-  }
-  .crumb-back:hover { color: var(--bb-white); }
-  .crumb-back:focus-visible { outline: 1px solid var(--bb-tan, #c9a87c); outline-offset: 2px; border-radius: var(--bb-radius-xs); }
-  .crumb-arrow { flex: none; }
   .crumb-sep { opacity: 0.5; }
-  .crumbs [aria-current='page'] { color: var(--bb-tan-light); }
 
-  :global(.settings-card) { margin-bottom: 16px; }
+  .settings-card { margin-bottom: 16px; }
   .master-row { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
   .tr-text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; min-width: 0; }
-  .tr-label { margin: 0; font-family: var(--bb-font-display); font-weight: 700; font-size: 14px; color: var(--bb-white); }
-  .tr-help { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-
-  .status-text { flex: none; }
 
   .disabled-note {
-    margin: 0;
     padding: 12px 18px 16px;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--bb-muted);
-    border-top: 1px solid var(--rule);
+    border-top: 1px solid var(--bb-border);
   }
 
   .section-head {
@@ -751,93 +716,32 @@
     align-items: center;
     gap: 12px;
     padding: 12px 18px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .section-title {
-    margin: 0;
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    color: var(--bb-tan);
+    border-bottom: 1px solid var(--bb-border);
   }
 
   .setting-row {
+    --input-w: min(260px, 44vw);
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 14px 18px;
-    border-top: 1px solid var(--rule);
+    border-top: 1px solid var(--bb-border);
   }
   .setting-picker { width: min(260px, 44vw); }
-  .setting-input {
-    width: min(260px, 44vw);
-    padding: 8px 12px;
-    border: 1px solid var(--rule);
-    border-radius: var(--bb-radius-sm);
-    background: rgba(240, 236, 228, 0.04);
-    color: var(--bb-white);
-    font-family: var(--bb-font-body);
-    font-size: 13px;
-    transition: border-color var(--bb-dur-fast, 140ms) ease;
-  }
-  .setting-input:focus {
-    outline: none;
-    border-color: var(--bb-tan, #c9a87c);
-  }
-  .setting-input::placeholder { color: var(--bb-muted); opacity: 0.7; }
 
+  .setting-row.toggle { display: block; }
   .setting-row.stacked { flex-direction: column; align-items: stretch; }
   .setting-row.stacked .tr-text { margin-right: 0; }
-  .setting-textarea {
-    width: 100%;
-    min-height: 132px;
-    padding: 10px 12px;
-    line-height: 1.55;
-    resize: vertical;
-    white-space: pre;
-    overflow-wrap: normal;
-  }
   @media (max-width: 560px) {
-    .setting-row { flex-wrap: wrap; }
-    .setting-input, .setting-picker { width: 100%; }
+    .setting-row { --input-w: 100%; flex-wrap: wrap; }
+    .setting-picker { width: 100%; }
   }
 
   .tz-suggest {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 0 18px 14px;
-    padding: 10px 12px 10px 14px;
-    border: 1px solid rgba(82, 183, 136, 0.35);
-    border-radius: var(--bb-radius-md);
-    background: rgba(82, 183, 136, 0.07);
-  }
-  .tz-suggest-text {
-    margin-right: auto;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--bb-white);
-  }
-  @media (max-width: 560px) {
-    .tz-suggest { flex-wrap: wrap; }
-  }
-
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting { grid-template-columns: minmax(0, 1fr) 420px; }
+    padding: 0 18px;
   }
 
   .list { list-style: none; margin: 0; padding: 0; }
-  .list > li:last-child :global(.row-shell) { border-bottom: none; }
 
   .rh-text { display: flex; flex-direction: column; gap: 2px; margin-right: auto; min-width: 0; }
-  .rh-hint { font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
-
 </style>

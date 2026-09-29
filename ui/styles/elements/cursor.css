@@ -13,7 +13,7 @@
         border-radius: var(--bb-radius-pill);
         background: var(--bb-tan);
         pointer-events: none;
-        z-index: 9999;
+        z-index: var(--bb-z-cursor);
         mix-blend-mode: difference;
         transition: opacity 200ms, width 150ms, height 150ms, top 150ms, left 150ms, border-radius 150ms;
         will-change: transform, opacity;
@@ -37,7 +37,7 @@
         border-radius: var(--bb-radius-sm);
         opacity: 0.5;
         pointer-events: none;
-        z-index: 9998;
+        z-index: calc(var(--bb-z-cursor) - 1);
         transition: opacity 250ms, background 250ms, border-color 250ms;
         will-change: transform, width, height, border-radius;
     }

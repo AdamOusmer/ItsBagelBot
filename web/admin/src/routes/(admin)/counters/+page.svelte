@@ -1,13 +1,17 @@
 <script lang="ts">
-  import Input from '@bagel/ui/svelte/Input.svelte';
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+  import Input from '@bagel/ui/svelte/Input.svelte';
   import { untrack } from 'svelte';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import PageHead from '@bagel/ui/svelte/PageHead.svelte';
   import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
   import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import Stack from '@bagel/ui/svelte/Stack.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
   import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
@@ -177,11 +181,11 @@
   <PageToolbar>
     {#snippet lead()}
       {#if loaded}
-        <span class="count">
+        <Text as="span" size="xs" tone="muted" mono>
           {rows.length === 1
             ? t('admin.counters.countOne')
             : t('admin.counters.count', { n: String(rows.length) })}
-        </span>
+        </Text>
       {:else}
         <Skeleton variant="pill" width="110px" />
       {/if}
@@ -191,7 +195,7 @@
     {/snippet}
   </PageToolbar>
 
-  <div class="deck" class:inspecting={inspector.isOpen}>
+  <DeckLayout inspecting={inspector.isOpen} width="380px">
     <DeckList>
       {#if !loaded}
         <SkeletonStack rows={3} height="56px" />
@@ -204,15 +208,11 @@
                 expanded={inspector.selectedId === c.name}
                 controls="counter-inspector"
                 onselect={() => openCounter(c)}
+                title={c.name}
+                meta={t('admin.counters.rowMeta', { scope: c.scope })}
               >
-                {#snippet primary()}
-                  <span class="row">
-                    <span class="who">
-                      <span class="name">{c.name}</span>
-                      <span class="meta">{t('admin.counters.rowMeta', { scope: c.scope })}</span>
-                    </span>
-                    <StatePill tone="neutral">{BigInt(c.value).toLocaleString()}</StatePill>
-                  </span>
+                {#snippet marks()}
+                  <StatePill tone="neutral">{BigInt(c.value).toLocaleString()}</StatePill>
                 {/snippet}
               </ManagementRow>
             </li>
@@ -242,7 +242,7 @@
             {#if !creating}<input type="hidden" name="value" value={String(draft.value)} />{/if}
 
             <Scroller fill padding="18px" smooth>
-              <div class="body">
+              <Stack gap={4}>
                 {#if creating}
                   <Field label={t('admin.counters.fieldName')}>
                     <Input
@@ -254,12 +254,12 @@
                     />
                   </Field>
                 {:else}
-                  <div class="ident">
-                    <div class="ident-name">{draft.name}</div>
-                    <div class="ident-meta">
+                  <Stack gap={1}>
+                    <Heading level={5} as="p" variant="title">{draft.name}</Heading>
+                    <Text size="xs" tone="muted" mono>
                       {t('admin.counters.rowMeta', { scope: selected?.scope ?? 'bot' })}
-                    </div>
-                  </div>
+                    </Text>
+                  </Stack>
                 {/if}
 
                 {#if !creating}
@@ -271,12 +271,12 @@
                       bind:value={draft.value}
                     />
                   </Field>
-                  <p class="note">{t('admin.counters.valueHint')}</p>
+                  <Text size="sm" tone="muted">{t('admin.counters.valueHint')}</Text>
                 {/if}
 
                 {#if selected}
-                  <section class="block">
-                    <h3 class="block-label">{t('admin.counters.dangerTitle')}</h3>
+                  <Stack as="section" gap={2} align="start">
+                    <Heading level={3} variant="label">{t('admin.counters.dangerTitle')}</Heading>
                     <Button
                       variant="destructive"
                       disabled={busy}
@@ -284,9 +284,9 @@
                     >
                       {t('common.delete')}
                     </Button>
-                  </section>
+                  </Stack>
                 {/if}
-              </div>
+              </Stack>
             </Scroller>
 
             <EditorFooter
@@ -305,7 +305,7 @@
         {/key}
       </InspectorSurface>
     {/if}
-  </div>
+  </DeckLayout>
 </section>
 
 <ConfirmDialog
@@ -333,91 +333,10 @@
 />
 
 <style>
-  .count {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-  }
-
-  .deck {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-  @media (min-width: 1080px) {
-    .deck.inspecting {
-      grid-template-columns: minmax(0, 1fr) 380px;
-    }
-  }
-
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-  }
-  .who {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-  }
-  .name {
-    font-family: var(--bb-font-mono);
-    font-weight: 600;
-    font-size: 13.5px;
-    color: var(--bb-white);
-  }
-  .meta {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
-  }
-
   .editor {
     display: flex;
     flex-direction: column;
     min-height: 0;
     max-height: 100%;
-  }
-  .body {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
-  .ident-name {
-    font-family: var(--bb-font-mono);
-    font-weight: 700;
-    font-size: 16px;
-    color: var(--bb-white);
-  }
-  .ident-meta {
-    font-family: var(--bb-font-mono);
-    font-size: 11.5px;
-    color: var(--bb-muted);
-    margin-top: 2px;
-  }
-  .block {
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-    align-items: flex-start;
-  }
-  .block-label {
-    font-family: var(--bb-font-mono);
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-    margin: 0;
-  }
-  .note {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--bb-muted);
-    margin: 0;
   }
 </style>

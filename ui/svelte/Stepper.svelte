@@ -1,0 +1,93 @@
+<script module lang="ts">
+  // Copyright (c) 2026 Adam Ousmer. All rights reserved.
+  // Proprietary. No license granted. See LICENSE.md.
+
+  export type StepperStep = { label: string; detail?: string };
+</script>
+
+<script lang="ts">
+  import '../styles/elements/stepper.css';
+  import Icon from './Icon.svelte';
+
+  let {
+    steps,
+    current,
+    label,
+    orientation = 'horizontal',
+    maxStep = Number.POSITIVE_INFINITY,
+    onselect,
+    class: className = '',
+    ...rest
+  }: {
+    steps: readonly StepperStep[];
+    current: number;
+    label: string;
+    orientation?: 'horizontal' | 'vertical';
+    maxStep?: number;
+    onselect?: (index: number) => void;
+    class?: string;
+    [key: string]: unknown;
+  } = $props();
+
+  const classes = $derived(
+    ['bb-stepper', orientation === 'vertical' ? 'bb-stepper--vertical' : null, className || null].filter(Boolean).join(' '),
+  );
+
+  function itemClass(index: number): string {
+    if (index === current) return 'bb-stepper__item bb-stepper__item--current';
+    return index < current ? 'bb-stepper__item bb-stepper__item--done' : 'bb-stepper__item';
+  }
+
+  const ordinal = (index: number) => String(index + 1).padStart(2, '0');
+  const currentOf = (index: number) => (index === current ? 'step' : undefined);
+</script>
+
+{#snippet marker(index: number)}
+  <span class="bb-stepper__num">{ordinal(index)}</span>
+  <span class="bb-stepper__pip" aria-hidden="true"></span>
+{/snippet}
+
+{#if orientation === 'vertical'}
+  <ol class={classes} aria-label={label} {...rest}>
+    {#each steps as step, i (i)}
+      <li class={itemClass(i)} aria-current={currentOf(i)}>
+        <span class="bb-stepper__gutter" aria-hidden="true">
+          <span class="bb-stepper__dot">{#if i < current}<Icon name="check" size={11} />{:else}{i + 1}{/if}</span>
+          {#if i < steps.length - 1}<span class="bb-stepper__bar"></span>{/if}
+        </span>
+        <span class="bb-stepper__text">
+          <span class="bb-stepper__title">{step.label}</span>
+          {#if step.detail}<span class="bb-stepper__detail">{step.detail}</span>{/if}
+        </span>
+      </li>
+    {/each}
+  </ol>
+{:else}
+  <nav
+    class={classes}
+    aria-label={label}
+    style="--stepper-i: {Math.max(current, 0)}; --stepper-n: {Math.max(steps.length, 1)};"
+    {...rest}
+  >
+    <span class={current < 0 ? 'bb-stepper__track bb-stepper__track--idle' : 'bb-stepper__track'} aria-hidden="true"><span class="bb-stepper__trail"></span></span>
+    <ol class="bb-stepper__list">
+      {#each steps as step, i (i)}
+        <li class={itemClass(i)}>
+          {#if onselect}
+            <button
+              type="button"
+              class="bb-stepper__step"
+              aria-label={step.label}
+              aria-current={currentOf(i)}
+              disabled={i > maxStep}
+              onclick={() => onselect(i)}
+            >{@render marker(i)}</button>
+          {:else}
+            <span class="bb-stepper__step" role="img" aria-label={step.label} aria-current={currentOf(i)}>{@render marker(i)}</span>
+          {/if}
+        </li>
+      {/each}
+    </ol>
+    <span class={current < 0 ? 'bb-stepper__glide bb-stepper__glide--hidden' : 'bb-stepper__glide'} aria-hidden="true"></span>
+  </nav>
+{/if}

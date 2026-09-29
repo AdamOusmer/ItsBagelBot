@@ -1,0 +1,49 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/elements/file-drop.css';
+
+interface Props {
+    label: string;
+    accept?: string;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { label, accept, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-file-drop', className].filter(Boolean).join(' ');
+---
+
+<label class={classes}><input type="file" class="bb-file-drop__input" accept={accept} {...rest} /><span class="bb-file-drop__text">{label}</span></label>
+
+<script>
+    function setOver(zone: HTMLElement, over: boolean) {
+        zone.toggleAttribute('data-over', over);
+    }
+
+    function showFile(zone: HTMLElement, input: HTMLInputElement, label: string) {
+        const file = input.files?.[0];
+        zone.toggleAttribute('data-filled', Boolean(file));
+        const text = zone.querySelector<HTMLElement>('.bb-file-drop__text');
+        if (text) text.textContent = file ? file.name : label;
+    }
+
+    function bindZone(zone: HTMLElement) {
+        const input = zone.querySelector<HTMLInputElement>('.bb-file-drop__input');
+        if (!input) return;
+        const label = zone.querySelector('.bb-file-drop__text')?.textContent ?? '';
+        zone.dataset.bbFileDrop = '';
+        input.addEventListener('dragover', () => setOver(zone, true));
+        input.addEventListener('dragleave', () => setOver(zone, false));
+        input.addEventListener('drop', () => setOver(zone, false));
+        input.addEventListener('change', () => showFile(zone, input, label));
+    }
+
+    function bindFileDrops() {
+        document.querySelectorAll<HTMLElement>('.bb-file-drop:not([data-bb-file-drop])').forEach(bindZone);
+    }
+
+    bindFileDrops();
+    document.addEventListener('astro:page-load', bindFileDrops);
+</script>

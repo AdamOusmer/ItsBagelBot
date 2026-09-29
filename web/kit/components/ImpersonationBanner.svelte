@@ -3,17 +3,14 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
   import type { Snippet } from 'svelte';
-  let { exitHref, exitForm = false, exitLabel = 'Exit', children }:
+  import { getI18n } from '../lib/i18n/context';
+
+  const { t } = getI18n();
+
+  let { exitHref, exitForm = false, exitLabel = t('banner.exit'), children }:
     { exitHref?: string; exitForm?: boolean; exitLabel?: string; children: Snippet } = $props();
+
+  const exit = $derived(exitForm ? { label: exitLabel, action: '/auth/logout' } : { label: exitLabel, href: exitHref });
 </script>
 
-<AlertBanner variant="impersonation" role="status">
-  {@render children()}
-  {#snippet action()}
-    {#if exitForm}
-      <form method="POST" action="/auth/logout"><button type="submit" class="bb-alert__exit">{exitLabel}</button></form>
-    {:else}
-      <a href={exitHref} class="bb-alert__exit">{exitLabel}</a>
-    {/if}
-  {/snippet}
-</AlertBanner>
+<AlertBanner variant="impersonation" role="status" {exit}>{@render children()}</AlertBanner>

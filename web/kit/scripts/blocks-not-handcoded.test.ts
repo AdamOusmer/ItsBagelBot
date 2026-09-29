@@ -12,9 +12,16 @@ const SURFACES = ['marketing/src', 'dashboard/src', 'admin/src', 'docs/src'];
 const ELEMENTS = [
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
   'p', 'span', 'small', 'code', 'a', 'button', 'input', 'select', 'textarea', 'table',
+  'th', 'td', 'dt', 'dd', 'li', 'b', 'strong', 'blockquote',
 ];
 
 const ALLOWLIST = new Map([
+  [
+    'docs/src/styles/theme.css',
+    'The Starlight theme. Every flagged selector dresses markup Starlight renders ' +
+      '(sidebar, TOC, search, theme select, hero) or authored markdown inside ' +
+      '.sl-markdown-content; this repo authors neither and cannot put block classes on them.',
+  ],
   [
     'marketing/src/components/home/Header.astro',
     'The hero wordmark. Its `h1` rules are a per-glyph motion rig (three ' +
@@ -63,13 +70,21 @@ const PENDING = new Map<string, number>([]);
 const HANDCODED =
   'Hand-coded presentation found. A rule that targets a bare element is a second answer to ' +
   '"what does a heading look like"; a rule that targets a .bb-* class reaches into a contract ' +
-  'this file does not own. Render the block instead (Heading, Text, Button, Field, Container, ' +
+  'this file does not own; a literal fallback in var(--bb-*, …) restates a token brand.css ' +
+  'already defines. Render the block instead (Heading, Text, Button, Field, Container, ' +
   'Stack, Cluster, Grid, Table …), or add a modifier to the contract in ui/styles/elements/.';
 
 const TYPE_DECL =
-  /(^|[\s;{])(font|font-size|font-family|font-weight|line-height|letter-spacing|text-transform|color)\s*:/;
+  /(^|[\s;{])(font|font-size|font-family|font-weight|line-height|letter-spacing|text-transform|color)\s*:\s*([^;]*)/g;
+
+const RESET_VALUE = /^(inherit|initial|unset|revert)\b/;
+
+const setsType = (body: string) =>
+  [...body.matchAll(TYPE_DECL)].some((decl) => !RESET_VALUE.test(decl[3].trim()));
 
 const STYLE_BLOCK = /<style\b[^>]*>([\s\S]*?)<\/style>/g;
+
+const TOKEN_FALLBACK = /var\((--bb-[\w-]+)\s*,/g;
 
 type Rule = { selector: string; line: number; body: string };
 type Hit = { rel: string; line: number; selector: string; parts: string[] };
@@ -112,7 +127,8 @@ export function offendingParts(selector: string, body: string): string[] {
   const flat = selector.replace(/:global\(([^)]*)\)/g, ' $1 ');
   const hits = new Set<string>();
   for (const cls of flat.matchAll(/\.(bb-[\w-]+)/g)) hits.add(`.${cls[1]}`);
-  if (!TYPE_DECL.test(body)) return [...hits];
+  for (const token of body.matchAll(TOKEN_FALLBACK)) hits.add(`${token[1]}, …`);
+  if (!setsType(body)) return [...hits];
   const withoutAttrs = flat.replace(/\[[^\]]*\]/g, ' ');
   for (const match of withoutAttrs.matchAll(/(^|[\s>+~,()])([a-z][a-z0-9]*)\b/g)) {
     if (ELEMENTS.includes(match[2])) hits.add(match[2]);
@@ -120,11 +136,18 @@ export function offendingParts(selector: string, body: string): string[] {
   return [...hits];
 }
 
+function styleBlocks(rel: string, source: string): { css: string; before: number }[] {
+  if (rel.endsWith('.css')) return [{ css: source, before: 0 }];
+  return [...source.matchAll(STYLE_BLOCK)].map((block) => ({
+    css: block[1],
+    before: source.slice(0, block.index).split('\n').length - 1,
+  }));
+}
+
 export function offendersIn(rel: string, source: string): Hit[] {
   const hits: Hit[] = [];
-  for (const block of source.matchAll(STYLE_BLOCK)) {
-    const before = source.slice(0, block.index).split('\n').length - 1;
-    for (const { selector, line, body } of rules(block[1])) {
+  for (const { css, before } of styleBlocks(rel, source)) {
+    for (const { selector, line, body } of rules(css)) {
       const parts = offendingParts(selector, body);
       if (parts.length) hits.push({ rel, line: before + line, selector: selector.replace(/\s+/g, ' '), parts });
     }
@@ -134,7 +157,9 @@ export function offendersIn(rel: string, source: string): Hit[] {
 
 const SKIPPED_DIRS = new Set(['node_modules', '.astro']);
 
-const isComponent = (name: string) => name.endsWith('.svelte') || name.endsWith('.astro');
+const SCANNED = ['.svelte', '.astro', '.css'];
+
+const isComponent = (name: string) => SCANNED.some((ext) => name.endsWith(ext));
 
 async function* components(dir: string): AsyncGenerator<string> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -169,6 +194,20 @@ describe('offendingParts', () => {
 
   test('flags any .bb-* class, including inside :global()', () => {
     expect(offendingParts('.editor :global(.bb-field)', 'margin: 0;')).toEqual(['.bb-field']);
+  });
+
+  test('ignores a reset that only inherits type', () => {
+    expect(offendingParts('input, button', 'font: inherit;')).toEqual([]);
+  });
+
+  test('flags a literal fallback on a brand token', () => {
+    expect(offendingParts('.row', 'color: var(--bb-muted, #888077);')).toEqual(['--bb-muted, …']);
+  });
+
+  test('scans a standalone stylesheet from its first line', () => {
+    expect(offendersIn('x.css', '.ok { display: grid; }\n.cell td { font-size: 12px; }\n')).toEqual([
+      { rel: 'x.css', line: 2, selector: '.cell td', parts: ['td'] },
+    ]);
   });
 
   test('does not read element names inside attribute selectors', () => {

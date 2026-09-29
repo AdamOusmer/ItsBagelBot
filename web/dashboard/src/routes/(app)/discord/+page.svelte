@@ -8,10 +8,12 @@
     Card,
     Chip,
     EmptyState,
+    Heading,
     PageHead,
     PageToolbar,
     MasterToggle,
     StatTile,
+    Text,
     getI18n,
     guildBotState
   } from '@bagel/kit';
@@ -69,11 +71,11 @@
 
   {#if data.locked}
     <section class="block reveal" style="--i:0" aria-labelledby="dc-locked-h">
-      <h2 id="dc-locked-h" class="block-title">{t('modules.betaLocked')}</h2>
+      <Heading level={6} as="h2" variant="title" id="dc-locked-h">{t('modules.betaLocked')}</Heading>
       <Card>
-        <p class="lead"><Chip on>{t('modules.betaChip')}</Chip></p>
-        <p class="hint">{t('modules.betaLockedBody')}</p>
-        <div class="row">
+        <div class="locked">
+          <Chip as="span" on>{t('modules.betaChip')}</Chip>
+          <Text size="sm" tone="muted">{t('modules.betaLockedBody')}</Text>
           <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>
         </div>
       </Card>
@@ -119,7 +121,7 @@
     {#if guilds.length > 0}
       <section class="block reveal" style="--i:0" aria-labelledby="dc-stats-h">
         <h2 id="dc-stats-h" class="bb-sr-only">{t('discord.hub.statsTitle')}</h2>
-        <div class="bb-stat-grid bb-stat-grid--auto">
+        <div class="bb-stat-grid bb-stat-grid--auto bb-stagger">
           <StatTile
             label={t('discord.hub.statServers')}
             value={guilds.length.toLocaleString()}
@@ -143,7 +145,7 @@
     {/if}
 
     <section class="block reveal" style="--i:1" aria-labelledby="dc-servers-h">
-      <h2 id="dc-servers-h" class="block-title">{t('discord.serversTitle')}</h2>
+      <Heading level={6} as="h2" variant="title" id="dc-servers-h">{t('discord.serversTitle')}</Heading>
 
       {#if guilds.length === 0}
         <Card>
@@ -153,12 +155,12 @@
                 {t('discord.addCta')}
               </ButtonLink>
             {:else}
-              <p class="hint">{t('discord.connectUnconfigured')}</p>
+              <Text size="sm" tone="muted">{t('discord.connectUnconfigured')}</Text>
             {/if}
           </EmptyState>
         </Card>
       {:else}
-        <p class="hint">{t('discord.serversHelp')}</p>
+        <Text size="sm" tone="muted">{t('discord.serversHelp')}</Text>
         {#if data.truncated}
           <AlertBanner variant="warn">
             {t('discord.serversTruncated', { n: guilds.length.toLocaleString() })}
@@ -169,14 +171,16 @@
           {#each guilds as g (g.guildId)}
             {@const state = guildBotState(g)}
             <li>
-              <Card as="a" href="/discord/{g.guildId}" hover class="server-card">
-                <span class="head">
-                  <GuildCrest name={g.name || t('discord.unknownServer')} iconUrl={g.iconUrl} />
-                  <DiscordStateTag {state} />
+              <Card as="a" href="/discord/{g.guildId}" hover>
+                <span class="server">
+                  <span class="head">
+                    <GuildCrest name={g.name || t('discord.unknownServer')} iconUrl={g.iconUrl} />
+                    <DiscordStateTag {state} />
+                  </span>
+                  <Heading level={6} as="span">{g.name || t('discord.unknownServer')}</Heading>
+                  <Text as="span" size="xs" tone="muted">{memberLabel(g)}</Text>
+                  {#if boundLabel(g)}<Text as="span" size="xs" tone="muted">{boundLabel(g)}</Text>{/if}
                 </span>
-                <span class="server-name">{g.name || t('discord.unknownServer')}</span>
-                <span class="tr-help">{memberLabel(g)}</span>
-                {#if boundLabel(g)}<span class="tr-help">{boundLabel(g)}</span>{/if}
               </Card>
             </li>
           {/each}
@@ -188,24 +192,18 @@
 
 <style>
   .screen { display: flex; flex-direction: column; gap: 18px; }
-  .block { margin: 0; }
-  .block-title {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0 0 12px;
+  .block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
   }
-  .hint {
-    margin: 0 0 14px;
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.55;
-    color: var(--bb-muted);
+  .locked {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
   }
-  .lead { margin: 0 0 12px; }
-  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
   .servers {
     list-style: none;
@@ -215,22 +213,12 @@
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
     gap: 14px;
   }
-  .servers :global(.server-card) {
+  .servers li { display: grid; }
+  .server {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    text-decoration: none;
-    color: inherit;
-    height: 100%;
-    box-sizing: border-box;
-  }
-  .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-  .server-name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 15px;
-    color: var(--bb-white);
     overflow-wrap: anywhere;
   }
-  .tr-help { font-family: var(--bb-font-body); font-size: 12.5px; color: var(--bb-muted); line-height: 1.45; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 </style>

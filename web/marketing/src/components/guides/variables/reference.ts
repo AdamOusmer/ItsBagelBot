@@ -16,13 +16,14 @@ function scrollToHash(): void {
 
 function wireCopyButtons(root: HTMLElement, copyLabel: string, copiedLabel: string, failedLabel: string): void {
     for (const button of root.querySelectorAll<HTMLButtonElement>('[data-vref-copy]')) {
+        const label = button.querySelector<HTMLElement>('[data-vref-copy-label]') ?? button;
         button.addEventListener('click', () => {
             const value = button.dataset.vrefCopy ?? '';
             void copyFlash(value, (on) => {
-                button.textContent = on ? copiedLabel : copyLabel;
+                label.textContent = on ? copiedLabel : copyLabel;
             }).catch(() => {
-                button.textContent = failedLabel;
-                window.setTimeout(() => { button.textContent = copyLabel; }, 1600);
+                label.textContent = failedLabel;
+                window.setTimeout(() => { label.textContent = copyLabel; }, 1600);
             });
         });
     }

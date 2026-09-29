@@ -5,6 +5,7 @@
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { LaneView } from '$lib/server/lanes';
   import StatusDot from '@bagel/ui/svelte/StatusDot.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import StatePill from '../StatePill.svelte';
   import { laneTone } from './lane-view';
 
@@ -29,34 +30,34 @@
       <StatusDot tone={laneTone(lane)} />
       <span class="who">
         <span class="name">{lane.display}</span>
-        <span class="meta">
+        <Text as="span" size="xs" mono tone="muted" truncate>
           {t('admin.lanes.rowMeta', {
             stream: lane.stream,
             consumer: lane.consumer,
             subject: lane.subject || '-'
           })}
-        </span>
+        </Text>
       </span>
       <span class="counts">
         <span class="metric">
-          <span class="metric-label">{t('admin.lanes.factDelivered')}</span>
-          <strong>{lane.delivered?.toLocaleString() ?? '—'}</strong>
+          <Text as="span" size="xs" tone="muted">{t('admin.lanes.factDelivered')}</Text>
+          <strong class="value">{lane.delivered?.toLocaleString() ?? '-'}</strong>
         </span>
         <span class="metric traffic">
-          <span class="metric-label">{t('admin.lanes.traffic')}</span>
-          <strong>{lane.rate === '-' ? t('admin.lanes.sampling') : lane.rate}</strong>
+          <Text as="span" size="xs" tone="muted">{t('admin.lanes.traffic')}</Text>
+          <strong class="value">{lane.rate === '-' ? t('admin.lanes.sampling') : lane.rate}</strong>
         </span>
         <span class="metric" class:hot={lane.pending > 0}>
-          <span class="metric-label">{t('admin.lanes.factPending')}</span>
-          <strong>{lane.pending.toLocaleString()}</strong>
+          <Text as="span" size="xs" tone="muted">{t('admin.lanes.factPending')}</Text>
+          <strong class="value">{lane.pending.toLocaleString()}</strong>
         </span>
         <span class="metric" title={t('admin.lanes.capacityHint')}>
-          <span class="metric-label">{t('admin.lanes.awaitingAck')}</span>
-          <strong>{lane.inFlight}</strong>
+          <Text as="span" size="xs" tone="muted">{t('admin.lanes.awaitingAck')}</Text>
+          <strong class="value">{lane.inFlight}</strong>
         </span>
         <span class="metric" class:hot={lane.redelivered > 0}>
-          <span class="metric-label">{t('admin.lanes.factRedelivered')}</span>
-          <strong>{lane.redelivered.toLocaleString()}</strong>
+          <Text as="span" size="xs" tone="muted">{t('admin.lanes.factRedelivered')}</Text>
+          <strong class="value">{lane.redelivered.toLocaleString()}</strong>
         </span>
       </span>
       <span class="marks">
@@ -76,7 +77,7 @@
     display: grid;
     grid-template-columns: 10px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 12px;
+    gap: var(--bb-space-3);
     min-width: 0;
   }
   .who {
@@ -89,16 +90,8 @@
   .name {
     font-family: var(--bb-font-body);
     font-weight: 600;
-    font-size: 13.5px;
+    font-size: var(--bb-text-sm);
     color: var(--bb-white);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .meta {
-    font-family: var(--bb-font-mono);
-    font-size: 11px;
-    color: var(--bb-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -111,23 +104,21 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 14px;
     padding-top: 6px;
-    border-top: 1px solid color-mix(in srgb, var(--bb-muted) 14%, transparent);
+    border-top: 1px solid var(--bb-border);
   }
-  .metric { display: flex; flex-direction: column; gap: 4px; text-align: left; }
-  .metric-label { color: var(--bb-muted); font-size: 10px; }
-  .metric strong {
+  .metric { display: flex; flex-direction: column; gap: var(--bb-space-1); text-align: left; }
+  .value {
     font-family: var(--bb-font-mono);
     font-weight: 500;
-    font-size: 12px;
+    font-size: var(--bb-text-xs);
     color: var(--bb-white);
     white-space: nowrap;
   }
-  .traffic strong { color: var(--bb-green-glow); }
-  .metric.hot strong { color: var(--bb-tan-light); }
-  .marks { display: flex; gap: 6px; flex: none; }
-  .marks { grid-column: 3; grid-row: 1; }
+  .traffic .value { color: var(--bb-green-glow); }
+  .metric.hot .value { color: var(--bb-tan-light); }
+  .marks { display: flex; gap: 6px; flex: none; grid-column: 3; grid-row: 1; }
   @media (max-width: 760px) {
-    .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--bb-space-3); }
   }
   @media (max-width: 500px) {
     .row { grid-template-columns: 10px minmax(0, 1fr); }

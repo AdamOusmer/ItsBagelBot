@@ -1,12 +1,11 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/kit';
   import {
     AlertBanner,
     Chip,
-    Switch,
-    alertOn,
+    Select,
+    Text,
     encodePinnedRoles,
     getI18n,
     parsePinnedRoles,
@@ -15,6 +14,7 @@
   } from '@bagel/kit';
   import GuildForm from '$lib/components/discord/GuildForm.svelte';
   import FieldNote from '$lib/components/discord/FieldNote.svelte';
+  import SwitchRow from '$lib/components/discord/SwitchRow.svelte';
   import { createGuildDraft } from '$lib/discord/guild-draft.svelte';
   import { ROLE_FIELDS } from '$lib/discord/guild-fields';
   import { layoutDownOf, rolesOf } from '$lib/discord/guild-view';
@@ -69,8 +69,8 @@
 {#snippet roleRow(row: RoleRow)}
   <div class="setting-row">
     <label class="tr-text" for="dc-{row.field}">
-      <span class="tr-label">{row.label}</span>
-      <span class="tr-help" id="dch-{row.field}">{row.help}</span>
+      <Text as="span" size="sm">{row.label}</Text>
+      <Text as="span" size="xs" tone="muted" id="dch-{row.field}">{row.help}</Text>
     </label>
     <span class="role-controls">
       <Chip
@@ -117,19 +117,14 @@
     {@render roleRow(row)}
   {/each}
 
-  <div class="setting-row">
-    <span class="tr-text">
-      <span class="tr-label">{t('discord.autoRoleLabel')}</span>
-      <span class="tr-help" id="dcs-autoRole">{t('discord.autoRoleHelp')}</span>
-    </span>
-    <Switch
-      label={t('discord.autoRoleLabel')}
-      describedby="dcs-autoRole"
-      checked={alertOn(draft.config.autoRoleEnabled)}
-      onchange={(v) => draft.setFlag('autoRoleEnabled', v)}
-    />
-    <FieldNote invalid={draft.invalid} field="autoRoleEnabled" />
-  </div>
+  <SwitchRow
+    {draft}
+    invalid={draft.invalid}
+    field="autoRoleEnabled"
+    label={t('discord.autoRoleLabel')}
+    help={t('discord.autoRoleHelp')}
+    defaultOn
+  />
 
-  <p class="hint">{t('discord.pinHelp')}</p>
+  <Text size="sm" tone="muted" class="hint">{t('discord.pinHelp')}</Text>
 </GuildForm>

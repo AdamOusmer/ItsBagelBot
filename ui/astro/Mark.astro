@@ -1,0 +1,20 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/tags.css';
+
+interface Props {
+    variant?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
+    size?: string;
+    style?: string;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { variant = 'solid', size, style, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-mark', variant === 'solid' ? null : `bb-mark--${variant}`, className].filter(Boolean).join(' ');
+const styles = [size && `--mark-size: ${size};`, style].filter(Boolean).join(' ') || undefined;
+---
+
+<i class={classes} style={styles} aria-hidden="true" {...rest}></i>

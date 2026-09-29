@@ -6,6 +6,8 @@ import type { Action } from 'svelte/action';
 import { observeDecode, type DecodeOptions } from '../lib/decode';
 import { observeReveal, type RevealOptions } from '../lib/reveal';
 import { mountMagnetic, type MagneticOptions } from '../lib/magnetic';
+import { mountParallax, type ParallaxOptions } from '../lib/parallax';
+import { mountRovingFocus, type RovingFocusOptions } from '../lib/roving-focus';
 
 export const reveal: Action<HTMLElement, RevealOptions | undefined> = (node, options) => {
   const dispose = observeReveal(node, options);
@@ -19,5 +21,21 @@ export const decode: Action<HTMLElement, DecodeOptions | undefined> = (node, opt
 
 export const magnetic: Action<HTMLElement, MagneticOptions | undefined> = (node, options) => {
   const dispose = mountMagnetic(node, options);
+  return { destroy: dispose };
+};
+
+export const parallax: Action<HTMLElement, ParallaxOptions> = (node, options) => {
+  let current = options;
+  const dispose = mountParallax(node, { scope: options.scope, onmove: (point) => current.onmove(point) });
+  return {
+    update(next: ParallaxOptions) {
+      current = next;
+    },
+    destroy: dispose,
+  };
+};
+
+export const rovingFocus: Action<HTMLElement, RovingFocusOptions> = (node, options) => {
+  const dispose = mountRovingFocus(node, options);
   return { destroy: dispose };
 };

@@ -5,6 +5,7 @@
 import Card from '@bagel/ui/astro/Card.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
 import Field from '@bagel/ui/astro/Field.astro';
+import Label from '@bagel/ui/astro/Label.astro';
 import '@bagel/ui/styles/elements/field.css';
 
 interface Props {
@@ -44,12 +45,12 @@ const L = {
             <Chip on>{L.chipDataSource}<i class="gs-mark" data-note="1"></i></Chip>
         </div>
         <div class="dsp__pop">
-            <span class="dsp__title">{L.popoverTitle}</span>
+            <Label mono as="span">{L.popoverTitle}</Label>
             <span class="dsp__row is-active">
-                <b>{L.row1Name}</b><em>{L.row1Path}</em>
+                <b class="dsp__name">{L.row1Name}</b><em>{L.row1Path}</em>
                 <i class="gs-mark" data-note="2"></i>
             </span>
-            <span class="dsp__row"><b>{L.row2Name}</b><em>{L.row2Path}</em></span>
+            <span class="dsp__row"><b class="dsp__name">{L.row2Name}</b><em>{L.row2Path}</em></span>
             <span class="dsp__new">{L.newSource}<i class="gs-mark" data-note="3"></i></span>
         </div>
     </Card>
@@ -61,17 +62,9 @@ const L = {
         gap: 4px;
         margin-top: 10px;
         padding: 8px 9px;
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        border-radius: var(--radius-sm);
-        background: rgba(10, 10, 10, 0.8);
-    }
-
-    .dsp__title {
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: 0.62rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--muted, #888077);
+        border: 1px solid var(--bb-border);
+        border-radius: var(--bb-radius-sm);
+        background: rgba(var(--bb-black-rgb), 0.8);
     }
 
     .dsp__row,
@@ -80,19 +73,19 @@ const L = {
         align-items: center;
         gap: 8px;
         padding: 5px 6px;
-        border-radius: var(--radius-sm);
-        font-family: var(--font-mono, "DM Mono", monospace);
+        border-radius: var(--bb-radius-sm);
+        font-family: var(--bb-font-mono);
         font-size: 0.72rem;
     }
 
-    .dsp__row b { font-weight: 400; color: rgba(240, 236, 228, 0.85); }
-    .dsp__row em { font-style: normal; color: var(--muted, #888077); }
-    .dsp__row.is-active { background: rgba(201, 168, 124, 0.12); }
-    .dsp__row.is-active b { color: var(--tan-light, #e0c49a); }
+    .dsp__name { font-weight: 400; color: rgba(var(--bb-white-rgb), 0.85); }
+    .dsp__row em { font-style: normal; color: var(--bb-muted); }
+    .dsp__row.is-active { background: rgba(var(--bb-tan-rgb), 0.12); }
+    .dsp__row.is-active .dsp__name { color: var(--bb-tan-light); }
 
     .dsp__new {
-        color: var(--tan-light, #e0c49a);
-        border-top: 1px solid var(--border, rgba(201, 168, 124, 0.15));
+        color: var(--bb-tan-light);
+        border-top: 1px solid var(--bb-border);
         border-radius: 0;
         margin-top: 2px;
         padding-top: 7px;

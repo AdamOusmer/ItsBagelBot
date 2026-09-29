@@ -6,6 +6,7 @@ import Layout from '../../../layouts/Layout.astro';
 import PageHero from '@bagel/ui/astro/PageHero.astro';
 import ChangelogList from '../../../components/changelog/ChangelogList.astro';
 import TextLink from '@bagel/ui/astro/TextLink.astro';
+import Cluster from '@bagel/ui/astro/Cluster.astro';
 import { getCollection } from 'astro:content';
 import { getLangFromUrl, useTranslations, locales, langParam, localizePath } from '../../../i18n/ui';
 
@@ -40,16 +41,13 @@ const localizedTitle = typeof title === 'string' ? title : (title[lang] ?? title
 
     <div class="clogv">
         <ChangelogList entries={[entry]} />
-        <p class="clogv__back">
+        <Cluster justify="center" class="clogv__back">
             <TextLink href={localizePath('/changelog', lang)} label={t('changelog.backToAll')} />
-        </p>
+        </Cluster>
     </div>
 </Layout>
 
 <style>
-    .clogv { padding-bottom: var(--space-section, 96px); }
-    .clogv__back {
-        text-align: center;
-        margin: 32px 0 0;
-    }
+    .clogv { padding-bottom: var(--bb-space-section); }
+    .clogv__back { margin-top: var(--bb-space-6); }
 </style>

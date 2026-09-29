@@ -3,7 +3,11 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+import Heading from '@bagel/ui/astro/Heading.astro';
 import LightField from '@bagel/ui/astro/LightField.astro';
+import Section from '@bagel/ui/astro/Section.astro';
+import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 
 const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
@@ -30,63 +34,36 @@ const steps = [
 ];
 ---
 
-<section class="steps" id="how">
+<Section size="page" class="steps" id="how">
     <LightField class="bb-light-field--bleed" />
-    <div class="steps__head">
-        <span class="steps__eyebrow" data-reveal>{t('steps.eyebrow')}</span>
-        <h2 class="steps__title" data-reveal style="--reveal-i: 1">{t('steps.title')}</h2>
-    </div>
+    <SectionHeading eyebrow={t('steps.eyebrow')} title={t('steps.title')} />
 
-    <ol class="steps__list" data-reveal style="--reveal-i: 2">
+    <ol class="steps__list" data-reveal>
         <span class="steps__rail" aria-hidden="true"></span>
         {steps.map((step, i) => (
             <li class="step" data-reveal style={`--reveal-i: ${i + 2}`}>
                 <span class="step__num" aria-hidden="true">{step.num}</span>
                 <div class="step__body">
-                    <h3 class="step__title">{step.title}</h3>
-                    <p class="step__text">{step.body}</p>
+                    <Heading level={4} as="h3" class="step__title">{step.title}</Heading>
+                    <Text tone="muted" class="step__text">{step.body}</Text>
                     <span class="step__receipt" data-decode={step.receipt}>{step.receipt}</span>
                 </div>
             </li>
         ))}
     </ol>
-</section>
+</Section>
 
 <style>
     .steps {
         position: relative;
-        padding: var(--space-section, 96px) 24px;
-        max-width: var(--content-narrow, 720px);
+        padding-inline: 24px;
+        max-width: var(--bb-content-hero);
         margin: 0 auto;
         z-index: 3;
     }
 
-    .steps__head {
-        text-align: center;
-        margin-bottom: 56px;
-    }
-
-    .steps__eyebrow {
-        display: block;
-        font-family: var(--font-mono, "DM Mono", monospace);
-        font-size: clamp(0.64rem, 1.4vw, 0.74rem);
-        letter-spacing: 0.24em;
-        text-transform: uppercase;
-        color: var(--green-glow, #52b788);
-        margin-bottom: 16px;
-    }
-
-    .steps__title {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-weight: 800;
-        font-size: clamp(1.8rem, 4.5vw, 2.8rem);
-        letter-spacing: -0.02em;
-        line-height: 1.08;
-        color: var(--white, #f0ece4);
-        margin: 0;
-    }
-
     .steps__list {
+        --reveal-i: 2;
         position: relative;
         display: flex;
         flex-direction: column;
@@ -103,12 +80,12 @@ const steps = [
         width: 1px;
         background: linear-gradient(
             to bottom,
-            rgba(82, 183, 136, 0.5),
-            rgba(201, 168, 124, 0.4)
+            rgba(var(--bb-green-glow-rgb), 0.5),
+            rgba(var(--bb-tan-rgb), 0.4)
         );
         transform: scaleY(0);
         transform-origin: top;
-        transition: transform 1400ms var(--ease-out-expo) 200ms;
+        transition: transform 1400ms var(--bb-ease-out-expo) 200ms;
     }
 
     .steps__list.is-revealed .steps__rail {
@@ -131,60 +108,52 @@ const steps = [
         width: 54px;
         height: 54px;
         border-radius: 50%;
-        background: var(--card-bg, #111110);
-        border: 1px solid var(--border, rgba(201, 168, 124, 0.15));
-        font-family: var(--font-mono, "DM Mono", monospace);
+        background: var(--bb-card-bg);
+        border: 1px solid var(--bb-border);
+        font-family: var(--bb-font-mono);
         font-size: 0.8rem;
-        color: var(--tan-light, #e0c49a);
+        color: var(--bb-tan-light);
         transition:
-            border-color 320ms var(--ease-out-expo),
-            box-shadow 320ms var(--ease-out-expo),
-            color 320ms ease;
+            border-color var(--bb-dur-base) var(--bb-ease-out-expo),
+            box-shadow var(--bb-dur-base) var(--bb-ease-out-expo),
+            color var(--bb-dur-base) ease;
     }
 
     @media (hover: hover) and (pointer: fine) {
         .step:hover .step__num {
-            border-color: rgba(201, 168, 124, 0.55);
-            box-shadow: 0 0 24px rgba(201, 168, 124, 0.25);
-            color: var(--tan-pale, #f5e6cf);
+            border-color: rgba(var(--bb-tan-rgb), 0.55);
+            box-shadow: 0 0 24px rgba(var(--bb-tan-rgb), 0.25);
+            color: var(--bb-tan-pale);
         }
     }
 
     .step__title {
-        font-family: var(--font-display, "Syne", sans-serif);
-        font-size: clamp(1.15rem, 2.4vw, 1.4rem);
         font-weight: 700;
-        letter-spacing: -0.01em;
-        color: var(--white, #f0ece4);
         margin: 6px 0 8px;
     }
 
     .step__text {
-        font-family: var(--font-body, "DM Sans", sans-serif);
-        font-size: 0.94rem;
-        line-height: 1.65;
-        color: var(--muted, #888077);
         max-width: 46ch;
         margin: 0 0 12px;
     }
 
     .step__receipt {
         display: inline-block;
-        font-family: var(--font-mono, "DM Mono", monospace);
+        font-family: var(--bb-font-mono);
         font-size: 0.7rem;
         letter-spacing: 0.05em;
-        color: var(--green-glow, #52b788);
-        background: rgba(82, 183, 136, 0.06);
-        border: 1px solid rgba(82, 183, 136, 0.18);
-        border-radius: var(--radius-sm);
+        color: var(--bb-green-glow);
+        background: rgba(var(--bb-green-glow-rgb), 0.06);
+        border: 1px solid rgba(var(--bb-green-glow-rgb), 0.18);
+        border-radius: var(--bb-radius-sm);
         padding: 6px 10px;
-        transition: box-shadow 320ms ease, border-color 320ms ease;
+        transition: box-shadow var(--bb-dur-base) ease, border-color var(--bb-dur-base) ease;
     }
 
     @media (hover: hover) and (pointer: fine) {
         .step:hover .step__receipt {
-            border-color: rgba(82, 183, 136, 0.4);
-            box-shadow: 0 0 18px rgba(82, 183, 136, 0.14);
+            border-color: rgba(var(--bb-green-glow-rgb), 0.4);
+            box-shadow: 0 0 18px rgba(var(--bb-green-glow-rgb), 0.14);
         }
     }
 
@@ -196,7 +165,7 @@ const steps = [
     }
 
     @media (max-width: 640px) {
-        .steps { padding: var(--space-section-sm, 72px) 20px; }
+        .steps { padding-inline: 20px; }
         .steps__list { gap: 40px; }
         .step { gap: 18px; }
         .step__num { width: 44px; height: 44px; font-size: 0.72rem; }

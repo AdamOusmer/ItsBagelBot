@@ -1,0 +1,20 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/elements/slider.css';
+
+interface Props {
+    value?: number;
+    min?: number;
+    max?: number;
+    step?: number;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const { value = 0, min = 0, max = 100, step = 1, class: className = '', ...rest } = Astro.props;
+const classes = ['bb-slider', className].filter(Boolean).join(' ');
+---
+
+<input type="range" class={classes} min={min} max={max} step={step} value={value} {...rest} />

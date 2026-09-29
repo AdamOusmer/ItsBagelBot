@@ -3,7 +3,22 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import { Icon, SaveStatus, Switch, Tag, getI18n, moduleCommandChips, moduleHref, tModuleLabel, tModuleTagline, type ModuleState } from '@bagel/kit';
+  import {
+    Heading,
+    Icon,
+    ManagementRow,
+    SaveStatus,
+    Switch,
+    Tag,
+    Text,
+    TextLink,
+    getI18n,
+    moduleCommandChips,
+    moduleHref,
+    tModuleLabel,
+    tModuleTagline,
+    type ModuleState
+  } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 
   const { t } = getI18n();
@@ -26,120 +41,91 @@
   const locked = $derived(module.locked === true);
 </script>
 
-<article class="mod" class:on={module.enabled && !locked} class:off={!module.enabled || locked} class:locked>
-  <a class="main" {href} data-cursor="quiet" aria-label="{t('modules.openSettings')}: {tModuleLabel(t, def)}">
-    <span class="copy">
-      <span class="name">
-        {tModuleLabel(t, def)}
-        {#if beta}<span class="beta"><Tag tone="alpha">{t('modules.betaChip')}</Tag></span>{/if}
+<ManagementRow as="article" {href} label="{t('modules.openSettings')}: {tModuleLabel(t, def)}">
+  {#snippet primary()}
+    <span class="main" class:on={module.enabled && !locked}>
+      <span class="bar" aria-hidden="true"></span>
+      <span class="copy">
+        <Heading level={6} as="span">
+          {tModuleLabel(t, def)}
+          {#if beta}<span class="beta"><Tag tone="alpha">{t('modules.betaChip')}</Tag></span>{/if}
+        </Heading>
+        <span class="tagline"><Text as="span" size="xs" tone="muted">{tModuleTagline(t, def)}</Text></span>
+        {#if chips.chips.length}
+          <span class="cmds">
+            {#each chips.chips as chip (chip)}
+              <Tag bare literal>{chip}</Tag>
+            {/each}
+            {#if chips.extra}
+              <Tag bare literal>{t('modules.moreCommands', { n: chips.extra })}</Tag>
+            {/if}
+          </span>
+        {/if}
       </span>
-      <span class="tagline">{tModuleTagline(t, def)}</span>
-      {#if chips.chips.length}
-        <span class="cmds">
-          {#each chips.chips as chip (chip)}
-            <span class="cmd bb-tag bb-tag--bare">{chip}</span>
-          {/each}
-          {#if chips.extra}
-            <span class="cmd more bb-tag bb-tag--bare">{t('modules.moreCommands', { n: chips.extra })}</span>
-          {/if}
-        </span>
+      <span class="open-action" aria-hidden="true" title={t('modules.openSettings')}>
+        <Icon name="gear" size={16} />
+      </span>
+    </span>
+  {/snippet}
+  {#snippet actions()}
+    <span class="side">
+      <SaveStatus state={status} compact />
+      {#if locked}
+        <TextLink href="/billing" label={t('modules.betaPremium')} />
+      {:else if toggleable}
+        {#if module.enabled}
+          <Tag tone="live" mark="solid">{t('modules.statusOn')}</Tag>
+        {/if}
+        <form method="POST" action="?/toggle" use:enhance={toggleSubmit}>
+          <input type="hidden" name="name" value={def.id} />
+          <input type="hidden" name="is_enabled" value={module.enabled ? '' : 'on'} />
+          <Switch
+            type="submit"
+            checked={module.enabled}
+            label={module.enabled ? t('modules.disableAria', { label: tModuleLabel(t, def) }) : t('modules.enableAria', { label: tModuleLabel(t, def) })}
+            pending={status === 'saving'}
+          />
+        </form>
+      {:else}
+        <Tag tone="pre">{t('modules.alwaysOn')}</Tag>
       {/if}
     </span>
-    <span class="open-action" aria-hidden="true" title={t('modules.openSettings')}>
-      <Icon name="gear" size={16} />
-    </span>
-  </a>
-  <div class="side">
-    <SaveStatus state={status} compact />
-    {#if locked}
-      <a class="always lock" href="/billing" data-cursor="quiet">{t('modules.betaPremium')}</a>
-    {:else if toggleable}
-      {#if module.enabled}
-        <span class="bb-tag bb-tag--live"><i class="bb-mark" aria-hidden="true"></i>{t('modules.statusOn')}</span>
-      {/if}
-      <form method="POST" action="?/toggle" use:enhance={toggleSubmit}>
-        <input type="hidden" name="name" value={def.id} />
-        <input type="hidden" name="is_enabled" value={module.enabled ? '' : 'on'} />
-        <Switch
-          type="submit"
-          checked={module.enabled}
-          label={module.enabled ? t('modules.disableAria', { label: tModuleLabel(t, def) }) : t('modules.enableAria', { label: tModuleLabel(t, def) })}
-          pending={status === 'saving'}
-        />
-      </form>
-    {:else}
-      <span class="always">{t('modules.alwaysOn')}</span>
-    {/if}
-  </div>
-</article>
+  {/snippet}
+</ManagementRow>
 
 <style>
-  .mod {
-    display: grid;
-    /* Reserve one control column so the gear stays aligned in both states. */
-    grid-template-columns: minmax(0, 1fr) 9rem;
-    align-items: stretch;
-    border-bottom: 1px solid var(--rule);
-    isolation: isolate;
-  }
-  .mod:last-child { border-bottom: none; }
-  .mod.on { background: linear-gradient(90deg, rgba(82, 183, 136, 0.07), transparent 42%); }
-
   .main {
-    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 14px 12px 14px 16px;
-    text-decoration: none;
-    color: inherit;
-    position: relative;
+    min-width: 0;
   }
-  .main::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 10px;
-    bottom: 10px;
+  .bar {
+    flex: none;
+    align-self: stretch;
     width: 3px;
     border-radius: var(--bb-radius-xs);
-    background: var(--rule);
+    background: var(--bb-border);
   }
-  .on .main::before {
+  .on .bar {
     background: var(--bb-green-glow);
     box-shadow: 0 0 8px var(--bb-green-glow);
   }
-  .main:hover { background: rgba(201, 168, 124, 0.05); }
   .open-action {
     display: inline-flex;
     align-items: center;
     flex: none;
+    margin-left: auto;
     padding: 8px;
-    border: 1px solid var(--rule);
+    border: 1px solid var(--bb-border);
     border-radius: var(--bb-radius-sm);
     color: var(--bb-tan-light);
   }
-  .main:hover .open-action { border-color: var(--bb-tan); }
-  .main:focus-visible {
-    outline: 2px solid var(--bb-tan);
-    outline-offset: -2px;
-  }
+  :global(:hover) > .main .open-action { border-color: var(--bb-tan); }
 
   .copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .name {
-    font-family: var(--bb-font-display);
-    font-weight: 700;
-    font-size: 15px;
-    letter-spacing: -0.015em;
-    color: var(--bb-white);
-    line-height: 1.2;
-  }
   .tagline {
-    font-family: var(--bb-font-body);
-    font-size: 12.5px;
-    line-height: 1.4;
-    color: var(--bb-muted);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
@@ -153,8 +139,6 @@
     gap: 6px 14px;
     margin-top: 6px;
   }
-  .cmd { color: var(--bb-tan-light); text-transform: none; letter-spacing: 0.02em; }
-  .cmd.more { color: var(--bb-muted); }
 
   .beta {
     display: inline-flex;
@@ -165,30 +149,12 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    min-width: 0;
     gap: 10px;
-    padding: 0 16px 0 8px;
+    width: 7.25rem;
   }
-  .always {
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--bb-tan-light);
-    white-space: nowrap;
-  }
-  .lock {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    text-decoration: none;
-    color: var(--bb-tan-light);
-  }
-  .lock:hover { text-decoration: underline; }
 
   @media (max-width: 760px) {
-    .mod { grid-template-columns: minmax(0, 1fr) 8.5rem; }
     .main { gap: 10px; }
-    .side { padding-right: 10px; padding-left: 0; }
+    .side { width: 6.75rem; }
   }
 </style>

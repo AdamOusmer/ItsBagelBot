@@ -45,18 +45,29 @@ const ICONS = {
   leaf: 'lucide:leaf',
   bulb: 'lucide:lightbulb',
   copy: 'lucide:copy',
+  arrowLeft: 'lucide:arrow-left',
+  clock: 'lucide:clock',
+  bolt: 'lucide:zap',
+  share: 'lucide:share',
+  addSquare: 'lucide:square-plus',
+  minus: 'lucide:minus',
+  expand: 'lucide:maximize-2',
+  coins: 'lucide:coins',
+  gamepad: 'lucide:gamepad-2',
+  githubLine: 'lucide:github',
   discord: 'simple-icons:discord',
   brandX: 'simple-icons:x',
   tiktok: 'simple-icons:tiktok',
   youtube: 'simple-icons:youtube',
-  github: 'simple-icons:github'
+  github: 'simple-icons:github',
+  twitch: 'simple-icons:twitch'
 };
 
 const STRIP = /\s(?:fill="none"|stroke="currentColor"|stroke-linecap="round"|stroke-linejoin="round"|stroke-width="2")/g;
 
 function body(ref) {
   const [set, name] = ref.split(':');
-  const icon = sets[set]?.icons[name];
+  const icon = sets[set]?.icons[name] ?? sets[set]?.icons[sets[set]?.aliases?.[name]?.parent];
   if (!icon) throw new Error(`gen-icons: ${ref} not found`);
   if (sets[set].width !== 24 || sets[set].height !== 24) throw new Error(`gen-icons: ${set} is not 24x24`);
   return set === 'lucide' ? icon.body.replace(STRIP, '') : icon.body.replace('<path ', '<path stroke="none" ');

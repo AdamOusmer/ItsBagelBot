@@ -1,8 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/kit';
-  import { getI18n, type DiscordConfig, type RefusedFields } from '@bagel/kit';
+  import { Select, Text, getI18n, type DiscordConfig, type RefusedFields } from '@bagel/kit';
   import type { DiscordEntry } from '$lib/server/discord-store';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
   import FieldNote from './FieldNote.svelte';
@@ -34,8 +33,8 @@
 
 <div class="setting-row">
   <label class="tr-text" for="dc-{field}">
-    <span class="tr-label">{label}</span>
-    <span class="tr-help" id="dch-{field}">{help}</span>
+    <Text as="span" size="sm">{label}</Text>
+    <Text as="span" size="xs" tone="muted" id="dch-{field}">{help}</Text>
   </label>
   <div class="setting-picker">
     <Select

@@ -1,10 +1,23 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/kit';
   import { deserialize } from '$app/forms';
-  import { getI18n, type CounterScope } from '@bagel/kit';
-  import { PickerPanel } from '@bagel/kit';
+  import {
+    Button,
+    Chip,
+    Code,
+    FieldError,
+    Icon,
+    Input,
+    Label,
+    PickerOption,
+    PickerPanel,
+    Select,
+    Tag,
+    Text,
+    getI18n,
+    type CounterScope
+  } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -12,8 +25,9 @@
 
   let { onInsert }: { onInsert: (token: string) => void } = $props();
 
+  const uid = $props.id();
   let open = $state(false);
-  let btnEl = $state<HTMLButtonElement>();
+  let anchorEl = $state<HTMLDivElement>();
   let loaded = $state(false);
   let loading = $state(false);
   let counters = $state<CounterRef[]>([]);
@@ -93,66 +107,63 @@
   }
 </script>
 
-<div class="cp">
-  <button
-    type="button"
-    class="bb-chip bb-chip--muted"
+<div class="cp" bind:this={anchorEl}>
+  <Chip
+    tone="muted"
     title={t('vars.counter.hint')}
     aria-haspopup="dialog"
     aria-expanded={open}
     onclick={toggle}
-    bind:this={btnEl}
   >
     {t('commandEditor.pickCounter')}
-    <span class="caret" aria-hidden="true">▾</span>
-  </button>
+    <Icon name="chevron" size={12} />
+  </Chip>
 
-  <PickerPanel {open} anchor={btnEl} label={t('counters.pickerTitle')} width={280} maxHeight={360} onClose={() => (open = false)}>
+  <PickerPanel {open} anchor={anchorEl} label={t('counters.pickerTitle')} width={280} maxHeight={360} onClose={() => (open = false)}>
     {#snippet children()}
-      <label class="counts-for">
-        <span class="panel-title">{t('counters.fieldScope')}</span>
+      <div class="counts-for">
+        <Label mono htmlFor="{uid}-scope">{t('counters.fieldScope')}</Label>
         <Select
+          id="{uid}-scope"
           fill
           bind:value={countsFor}
           options={COUNTS_FOR.map((s) => ({ value: s, label: countsForLabel[s] }))}
         />
-      </label>
+      </div>
       {#if countTarget}
-        <code class="preview">{'{counter:target:'}{newName || 'name'}{'}'}</code>
+        <div class="preview">
+          <Text as="span" size="xs"><Code tone="positive">{'{counter:target:'}{newName || 'name'}{'}'}</Code></Text>
+        </div>
       {/if}
 
-      <p class="panel-title">{t('counters.pickerExisting')}</p>
+      <Label mono as="span">{t('counters.pickerExisting')}</Label>
       {#if loading}
-        <p class="mut" role="status">{t('common.loading')}</p>
+        <Text size="xs" tone="muted" role="status">{t('common.loading')}</Text>
       {:else if counters.length === 0}
-        <p class="mut">{t('counters.pickerEmpty')}</p>
+        <Text size="xs" tone="muted">{t('counters.pickerEmpty')}</Text>
       {:else}
         <ul class="opts">
           {#each counters.toSorted((a, b) => a.name.localeCompare(b.name)) as c (c.name)}
-            <li>
-              <button type="button" class="opt" onclick={() => pick(c.name)}>
-                <span class="opt-name">{c.name}</span>
-                <span class="opt-tag bb-tag bb-tag--bare">{scopeTag[c.scope]}</span>
-              </button>
-            </li>
+            <PickerOption as="li" label={c.name} onclick={() => pick(c.name)}>
+              {#snippet trail()}<Tag tone="bare">{scopeTag[c.scope]}</Tag>{/snippet}
+            </PickerOption>
           {/each}
         </ul>
       {/if}
 
-      <p class="panel-title new">{t('counters.pickerNew')}</p>
-      <input
-        class="bb-input"
+      <div class="new-head"><Label mono as="span">{t('counters.pickerNew')}</Label></div>
+      <Input
         placeholder={t('counters.fieldNamePh')}
         maxlength="64"
         bind:value={newName}
-        onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), create())}
+        onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && (e.preventDefault(), create())}
       />
-      {#if err}
-        <small class="err" role="alert">{err}</small>
-      {/if}
-      <button type="button" class="create" disabled={creating} onclick={create}>
-        {creating ? t('counters.creating') : t('counters.pickerCreate')}
-      </button>
+      <FieldError message={err} />
+      <div class="create">
+        <Button variant="add" disabled={creating} onclick={create}>
+          {creating ? t('counters.creating') : t('counters.pickerCreate')}
+        </Button>
+      </div>
     {/snippet}
   </PickerPanel>
 </div>
@@ -160,62 +171,16 @@
 <style>
   .cp { position: relative; display: inline-flex; }
 
-  .caret { font-size: 9px; opacity: 0.7; }
-
-
-  .panel-title {
-    margin: 0;
-    font-family: var(--bb-font-body);
-    font-size: 10.5px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--bb-muted);
-  }
-  .panel-title.new { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--rule, var(--bb-border)); }
-
-  .mut { margin: 0; font-family: var(--bb-font-body); font-size: 12px; color: var(--bb-muted); }
+  .new-head { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--bb-border); }
 
   .opts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-  .opt {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 5px 8px;
-    background: transparent;
-    border: none;
-    border-radius: var(--bb-radius-sm);
-    cursor: pointer;
-    text-align: left;
-  }
-  .opt:hover { background: var(--glass-fill-2); }
-  .opt-name { font-family: var(--bb-font-mono); font-size: 12px; color: var(--bb-white); }
-  .opt-tag { flex: none; }
-
-  .err { font-family: var(--bb-font-body); font-size: 11.5px; color: var(--bb-status-error, #cf8a78); }
 
   .counts-for { display: flex; flex-direction: column; gap: 5px; }
   .preview {
     margin: -2px 0 2px;
     padding-left: 24px;
-    font-family: var(--bb-font-mono);
-    font-size: 10.5px;
-    color: var(--bb-green-glow, #52b788);
     opacity: 0.85;
   }
 
-  .create {
-    font-family: var(--bb-font-body);
-    font-size: 12px;
-    color: var(--bb-green-glow, #52b788);
-    background: rgba(82, 183, 136, 0.06);
-    border: 1px dashed rgba(82, 183, 136, 0.4);
-    border-radius: var(--bb-radius-pill);
-    padding: 5px 12px;
-    cursor: pointer;
-    transition: all var(--bb-dur-fast, 140ms) ease;
-  }
-  .create:hover:not(:disabled) { background: rgba(82, 183, 136, 0.14); }
-  .create:disabled { opacity: 0.45; cursor: default; }
+  .create { --btn-w: 100%; --btn-justify: center; }
 </style>

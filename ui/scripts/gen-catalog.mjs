@@ -18,6 +18,7 @@ const FAMILY = {
   Toggle: 'Controls', Field: 'Controls', FieldError: 'Controls', Input: 'Controls',
   Select: 'Controls', Textarea: 'Controls', Checkbox: 'Controls', RadioGroup: 'Controls',
   SegmentedControl: 'Controls', SearchInput: 'Controls',
+  SwitchRow: 'Controls', Slider: 'Controls', FileDrop: 'Controls', PickerOption: 'Controls',
   Badge: 'Feedback', NotificationBell: 'Feedback', StatusDot: 'Feedback', Chip: 'Feedback', Tag: 'Feedback', ToastHost: 'Feedback',
   AlertBanner: 'Feedback', Skeleton: 'Feedback', SkeletonStack: 'Feedback',
   EmptyState: 'Feedback', Modal: 'Feedback', ConfirmDialog: 'Feedback', Tooltip: 'Feedback',
@@ -30,21 +31,27 @@ const FAMILY = {
   Card: 'Data', CardHead: 'Data', DeckList: 'Data', ManagementRow: 'Data',
   OverviewGrid: 'Data', StatTile: 'Data', AreaSeries: 'Data', Table: 'Data', Icon: 'Data',
   LogTail: 'Data', CounterCard: 'Data', CommunityCard: 'Data', RankingCard: 'Data',
+  FactList: 'Data', Fact: 'Data', DeckLayout: 'Layout', Disclosure: 'Layout', Pager: 'Navigation',
   LightField: 'Motion', BackgroundOrbs: 'Motion', AuroraBg: 'Motion', Cursor: 'Motion',
   ReadingProgress: 'Motion', CardAtmosphere: 'Motion', Brackets: 'Motion', Sky: 'Motion', AmbientSky: 'Motion',
+  Stepper: 'Navigation', Spinner: 'Feedback', LineSeries: 'Data', Mark: 'Feedback',
+  ProfileMenu: 'Navigation', SkipLink: 'Navigation', Popover: 'Feedback', CopySurface: 'Controls',
 };
 
-const SINGLE_ADAPTER_REASON = {
+const ADAPTER_NOTE = {
   NotificationBell: 'Svelte only: interactive notification popover with caller-owned callbacks.',
   PickerPanel: 'Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.',
   ToastHost: 'Svelte only: it subscribes to the toast store, and a host with nothing to subscribe to renders nothing.',
   ConfirmDialog: 'Svelte only: a composition of Modal + Button with no CSS of its own, and its two callbacks are the element.',
   Toggle: 'Svelte only: bindable checkbox state; the static spelling is Switch.',
   FieldError: 'Svelte only: it renders only when a form action has returned an error, which a static page has not.',
-  ProgressBar: 'Svelte only: its value arrives from a live stream (the deploy run\'s snapshots) and eases between them; a static page has no progress to report.',
-  StepList: 'Svelte only: rows change state from a live stream, and the per-row detail is a Snippet that takes the step, which an Astro slot cannot.',
   Sky: 'Svelte only: it follows the pointer and a flow\'s progress from client state; a static page has neither.',
   LogTail: 'Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.',
+  ProfileMenu: 'Svelte only: an account menu with open state, scrim and Escape handling that only a client has.',
+  Popover: 'Svelte only: a non-modal floating sheet with open state and outside dismissal that only a client has.',
+  StepList: 'The navigable form (`onselect`) is Svelte only; Astro renders the static list.',
+  Stepper: 'Clickable steps (`onselect`) are Svelte only; Astro renders the static rail.',
+  LineSeries: 'Width tracking, crosshair and tooltip are Svelte only; Astro renders a static 800px chart.',
 };
 
 const PROP_RE = /^\s*(?:\/\*\*.*\*\/\s*)?([A-Za-z_$][\w$]*)(\??)\s*:\s*(.+);\s*$/;
@@ -139,7 +146,7 @@ const rows = names.map((name) => {
     props,
     adapters,
     contract: [...new Set([...contractOf(sv ?? ''), ...contractOf(as ?? '')])].sort().join(', '),
-    note: !sv || !as ? (SINGLE_ADAPTER_REASON[name] ?? '') : '',
+    note: ADAPTER_NOTE[name] ?? '',
   };
 });
 

@@ -1,0 +1,76 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/elements/progress-bar.css';
+
+interface Props {
+    value: number | null;
+    tone?: 'neutral' | 'success' | 'warning' | 'error';
+    label: string;
+    size?: 'sm' | 'md';
+    gradient?: boolean;
+    ramp?: 1 | 2 | 3;
+    target?: number;
+    segments?: readonly ('neutral' | 'success' | 'warning' | 'error' | null)[];
+    current?: number;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const {
+    value,
+    tone = 'neutral',
+    label,
+    size = 'md',
+    gradient = false,
+    ramp = 1,
+    target,
+    segments,
+    current,
+    class: className = '',
+    ...rest
+} = Astro.props;
+
+const clamp = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
+
+const fraction = value === null ? null : clamp(value);
+const mark = target === undefined ? null : clamp(target);
+
+const classes = [
+    'bb-progress',
+    `bb-progress--${tone}`,
+    size === 'sm' ? 'bb-progress--sm' : null,
+    gradient ? 'bb-progress--gradient' : null,
+    ramp > 1 ? `bb-progress--ramp-${ramp}` : null,
+    fraction === null ? 'bb-progress--indeterminate' : null,
+    mark === null ? null : 'bb-progress--target',
+    segments ? 'bb-progress--segmented' : null,
+    className || null,
+]
+    .filter(Boolean)
+    .join(' ');
+
+const segmentClass = (segmentTone: string | null, index: number) =>
+    [
+        'bb-progress__seg',
+        segmentTone ? `bb-progress__seg--${segmentTone}` : null,
+        index === current ? 'is-current' : null,
+    ]
+        .filter(Boolean)
+        .join(' ');
+---
+
+<div
+    class={classes}
+    role="progressbar"
+    aria-label={label}
+    aria-valuemin={0}
+    aria-valuemax={100}
+    aria-valuenow={fraction === null ? undefined : Math.round(fraction * 100)}
+    aria-busy={fraction === null ? 'true' : undefined}
+    style={fraction === null ? undefined : `--progress: ${fraction};`}
+    {...rest}
+>{segments ? segments.map((segmentTone, index) => <span class={segmentClass(segmentTone, index)}></span>) : (
+    <Fragment><span class="bb-progress__fill"></span>{mark !== null && <span class="bb-progress__target" aria-hidden="true" style={`--target: ${mark};`}></span>}</Fragment>
+)}</div>

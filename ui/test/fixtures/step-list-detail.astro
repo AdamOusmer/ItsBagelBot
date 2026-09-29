@@ -1,0 +1,10 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import StepList from '../../astro/StepList.astro';
+
+const { steps } = Astro.props;
+---
+
+<StepList steps={steps}>{(step: { id: string }) => <p>{step.id}</p>}</StepList>

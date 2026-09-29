@@ -2,7 +2,7 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
-  import { Button, ButtonLink, Card, ConfirmDialog, getI18n, toast } from '@bagel/kit';
+  import { Button, ButtonLink, Card, ConfirmDialog, Heading, Text, getI18n, toast } from '@bagel/kit';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { invalidateAll } from '$app/navigation';
   import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/guild-draft.svelte';
@@ -40,23 +40,23 @@
 </script>
 
 <section class="block reveal" style="--i:1" aria-labelledby="dc-setup-h">
-  <h2 id="dc-setup-h" class="block-title">{t('discord.setupTitle')}</h2>
+  <Heading level={6} as="h2" variant="title" id="dc-setup-h" class="block-title">{t('discord.setupTitle')}</Heading>
   <Card>
-    <p class="hint">{t('discord.setupHelp')}</p>
+    <Text size="sm" tone="muted" class="hint">{t('discord.setupHelp')}</Text>
     <form method="POST" action="?/setup" use:enhance={setupSubmit}>
       <Button variant="secondary" type="submit" loading={busy}>{t('discord.setupCta')}</Button>
     </form>
 
     {#if !data.found}
-      <p class="hint first-run">{t('discord.setupFirstRun')}</p>
+      <Text size="sm" tone="muted" class="hint first-run">{t('discord.setupFirstRun')}</Text>
     {/if}
   </Card>
 </section>
 
 <section class="block reveal" style="--i:2" aria-labelledby="dc-danger-h">
-  <h2 id="dc-danger-h" class="block-title">{t('discord.dangerTitle')}</h2>
+  <Heading level={6} as="h2" variant="title" id="dc-danger-h" class="block-title">{t('discord.dangerTitle')}</Heading>
   <Card>
-    <p class="hint">{t('discord.disconnectBody')}</p>
+    <Text size="sm" tone="muted" class="hint">{t('discord.disconnectBody')}</Text>
     <div class="row">
       <ButtonLink variant="ghost" href="/discord/connect" data-sveltekit-reload>
         {t('discord.reconnectCta')}
@@ -85,8 +85,3 @@
   onCancel={() => (disconnectOpen = false)}
 />
 
-<style>
-  .first-run {
-    margin: 14px 0 0;
-  }
-</style>

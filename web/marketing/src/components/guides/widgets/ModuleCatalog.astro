@@ -2,8 +2,14 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import VisuallyHidden from '@bagel/ui/astro/VisuallyHidden.astro';
+import Badge from '@bagel/ui/astro/Badge.astro';
+import Card from '@bagel/ui/astro/Card.astro';
 import Chip from '@bagel/ui/astro/Chip.astro';
+import Disclosure from '@bagel/ui/astro/Disclosure.astro';
+import Heading from '@bagel/ui/astro/Heading.astro';
+import Label from '@bagel/ui/astro/Label.astro';
+import SearchInput from '@bagel/ui/astro/SearchInput.astro';
+import Text from '@bagel/ui/astro/Text.astro';
 
 interface Module {
     name: string;
@@ -40,43 +46,44 @@ const categories = Array.isArray(props.categories) ? (props.categories as string
 const modules = Array.isArray(props.modules) ? (props.modules as Module[]) : [];
 const total = String(modules.length);
 const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toLowerCase();
+const planTone = (m: Module) => (m.plan === 'premium' ? 'paid' : 'free');
 ---
 
 <div class="mcat" data-mcat data-count-all={L.countAll} data-count-cat={L.countCat} data-count-match={L.countMatch}>
     <div class="mcat__bar" data-mcat-bar hidden>
         <div class="mcat__chips" role="group" aria-label={L.searchLabel}>
-            <Chip class="mcat__chip is-on" data-mcat-chip="" aria-pressed="true">{L.all}</Chip>
+            <Chip tone="muted" on data-mcat-chip="" aria-pressed="true">{L.all}</Chip>
             {categories.map((cat, i) => (
-                <Chip class="mcat__chip" data-mcat-chip={String(i)} aria-pressed="false">{cat}</Chip>
+                <Chip tone="muted" data-mcat-chip={String(i)} aria-pressed="false">{cat}</Chip>
             ))}
         </div>
-        <label class="mcat__search">
-            <VisuallyHidden>{L.searchLabel}</VisuallyHidden>
-            <input type="search" class="mcat__input" placeholder={L.searchPlaceholder} data-mcat-input />
-        </label>
+        <div class="mcat__search">
+            <SearchInput fill placeholder={L.searchPlaceholder} aria-label={L.searchLabel} data-mcat-input />
+        </div>
     </div>
-    <p class="mcat__count" data-mcat-count aria-live="polite">{L.countAll.replace('{n}', total)}</p>
+    <Label mono as="span" data-mcat-count aria-live="polite">{L.countAll.replace('{n}', total)}</Label>
     <ul class="mcat__grid">
         {modules.map((m) => (
-            <li class="mcat__cell" data-cat={String(categories.indexOf(m.cat))} data-hay={haystack(m)}>
-                <b class="mcat__name">{m.name}</b>
-                <span class="mcat__tags">
-                    <i>{m.cat}</i>
-                    <i>{m.plan === 'premium' ? L.premium : L.free}</i>
-                    {m.start && <i>{m.start}</i>}
-                </span>
-                <p class="mcat__line">{m.tagline}</p>
-                {m.needs && <p class="mcat__needs"><span class="mcat__needs-label">{L.needs}</span> {m.needs}</p>}
-                {m.commands && (
-                    <details class="mcat__cmds">
-                        <summary>{L.commands}</summary>
-                        <p class="mcat__cmds-list">{m.commands}</p>
-                    </details>
-                )}
-            </li>
+            <Card as="li" flush class="mcat__cell" data-cat={String(categories.indexOf(m.cat))} data-hay={haystack(m)}>
+                <div class="mcat__inner">
+                    <Heading level={6} as="span">{m.name}</Heading>
+                    <span class="mcat__tags">
+                        <Badge shape="pill" tone="neutral">{m.cat}</Badge>
+                        <Badge shape="pill" tone={planTone(m)}>{m.plan === 'premium' ? L.premium : L.free}</Badge>
+                        {m.start && <Badge shape="pill" tone="neutral">{m.start}</Badge>}
+                    </span>
+                    <Text size="sm" tone="muted-light">{m.tagline}</Text>
+                    {m.needs && <Text size="xs" tone="muted"><Text as="span" size="xs" tone="accent">{L.needs}</Text> {m.needs}</Text>}
+                    {m.commands && (
+                        <Disclosure size="sm" summary={L.commands}>
+                            <Text size="xs" mono tone="accent" class="mcat__cmds-list">{m.commands}</Text>
+                        </Disclosure>
+                    )}
+                </div>
+            </Card>
         ))}
     </ul>
-    <p class="mcat__empty" data-mcat-empty hidden>{L.empty}</p>
+    <Text size="sm" tone="muted" data-mcat-empty hidden>{L.empty}</Text>
 </div>
 
 <style>
@@ -86,71 +93,23 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
 
     .mcat__chips { display: flex; flex-wrap: wrap; gap: 8px; }
 
-    .mcat__chip { cursor: pointer; font-size: 11.5px; padding: 7px 12px; }
-
-    .mcat__chip.is-on { color: var(--white); border-color: var(--tan); background: rgba(201, 168, 124, 0.1); }
-
-    .mcat__search { display: block; }
-
-
-    .mcat__input {
-        width: 100%; max-width: 340px; padding: 9px 12px;
-        border: 1px solid var(--border); border-radius: var(--radius-sm);
-        background: rgba(240, 236, 228, 0.03);
-        color: var(--white); font-family: var(--font-body); font-size: 0.86rem;
-    }
-
-    .mcat__input:focus-visible { outline: 1px solid var(--tan); border-color: var(--tan); }
-
-    .mcat__count {
-        margin: 0; font-family: var(--font-mono); font-size: 0.68rem;
-        letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
-    }
+    .mcat__search { max-width: 340px; }
 
     .mcat__grid {
         list-style: none; margin: 0; padding: 0; display: grid; gap: 10px;
         grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
     }
 
-    .mcat__cell {
-        display: grid; gap: 7px; align-content: start; padding: 15px 16px;
-        border: 1px solid var(--border); border-radius: var(--radius-lg);
-        background: rgba(17, 17, 16, 0.6);
-    }
-
     .mcat__cell[hidden] { display: none; }
 
-    .mcat__name { font-family: var(--font-display); font-size: 0.98rem; color: var(--white); }
+    .mcat__inner { display: grid; gap: 7px; align-content: start; padding: 15px 16px; }
 
     .mcat__tags { display: flex; flex-wrap: wrap; gap: 6px; }
 
-    .mcat__tags i {
-        font-family: var(--font-mono); font-size: 0.6rem; font-style: normal;
-        letter-spacing: 0.1em; text-transform: uppercase; color: var(--tan-light);
-        padding: 3px 7px; border: 1px solid var(--border); border-radius: var(--radius-pill);
-    }
 
-    .mcat__line, .mcat__needs { margin: 0; font-family: var(--font-body); font-size: 0.85rem; line-height: 1.6; color: #a39c92; }
+    .mcat__cmds-list { overflow-wrap: anywhere; }
 
-    .mcat__needs { color: var(--muted); font-size: 0.78rem; }
-
-    .mcat__needs-label { color: var(--tan); }
-
-    .mcat__cmds summary {
-        cursor: pointer; font-family: var(--font-mono); font-size: 0.62rem;
-        letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
-    }
-
-    .mcat__cmds summary:hover { color: var(--tan); }
-
-    .mcat__cmds-list {
-        margin: 7px 0 0; font-family: var(--font-mono); font-size: 0.72rem;
-        line-height: 1.8; color: var(--tan-light); word-break: break-word;
-    }
-
-    .mcat__empty { margin: 0; font-family: var(--font-body); font-size: 0.9rem; color: var(--muted); }
-
-    .mcat__cell.is-shown { animation: mcat-in 240ms var(--ease-out-expo) both; }
+    .mcat__cell.is-shown { animation: mcat-in var(--bb-dur-fast) var(--bb-ease-out-expo) both; }
 
     @keyframes mcat-in {
         from { opacity: 0; transform: translateX(12px); }
@@ -165,6 +124,21 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
 <script>
     import { bindOnce } from '../../../script/bind';
 
+    function fill(tpl: string, values: Record<string, string>): string {
+        return tpl.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '');
+    }
+
+    function replayEntrance(cell: HTMLElement) {
+        cell.classList.remove('is-shown');
+        void cell.offsetWidth;
+        cell.classList.add('is-shown');
+    }
+
+    function showCell(cell: HTMLElement, visible: boolean) {
+        if (visible && cell.hidden) replayEntrance(cell);
+        cell.hidden = !visible;
+    }
+
     function setupCatalog(root: HTMLElement) {
         const bar = root.querySelector<HTMLElement>('[data-mcat-bar]');
         const input = root.querySelector<HTMLInputElement>('[data-mcat-input]');
@@ -172,34 +146,27 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
         const emptyEl = root.querySelector<HTMLElement>('[data-mcat-empty]');
         const chips = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-mcat-chip]'));
         const cells = Array.from(root.querySelectorAll<HTMLElement>('.mcat__cell'));
-        const total = cells.length;
+        const total = String(cells.length);
         let cat = '';
 
-        function fill(tpl: string, values: Record<string, string>): string {
-            return tpl.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '');
+        function matches(cell: HTMLElement, query: string): boolean {
+            const okCat = cat === '' || cell.dataset.cat === cat;
+            return okCat && (cell.dataset.hay ?? '').includes(query);
+        }
+
+        function countText(query: string, shown: number): string {
+            const label = chips.find((c) => c.dataset.mcatChip === cat)?.textContent ?? '';
+            if (query !== '') return fill(root.dataset.countMatch ?? '', { shown: String(shown), total });
+            if (cat !== '') return fill(root.dataset.countCat ?? '', { n: String(shown), cat: label });
+            return fill(root.dataset.countAll ?? '', { n: total });
         }
 
         function apply() {
             const query = (input?.value ?? '').trim().toLowerCase();
-            let shown = 0;
-            cells.forEach((cell) => {
-                const okCat = cat === '' || cell.dataset.cat === cat;
-                const okText = query === '' || (cell.dataset.hay ?? '').includes(query);
-                const visible = okCat && okText;
-                if (visible && cell.hidden) {
-                    cell.classList.remove('is-shown');
-                    void cell.offsetWidth;
-                    cell.classList.add('is-shown');
-                }
-                cell.hidden = !visible;
-                if (visible) shown += 1;
-            });
-            if (emptyEl) emptyEl.hidden = shown > 0;
-            if (!countEl) return;
-            const label = chips.find((c) => c.dataset.mcatChip === cat)?.textContent ?? '';
-            if (query !== '') countEl.textContent = fill(root.dataset.countMatch ?? '', { shown: String(shown), total: String(total) });
-            else if (cat !== '') countEl.textContent = fill(root.dataset.countCat ?? '', { n: String(shown), cat: label });
-            else countEl.textContent = fill(root.dataset.countAll ?? '', { n: String(total) });
+            const visible = cells.filter((cell) => matches(cell, query));
+            cells.forEach((cell) => showCell(cell, visible.includes(cell)));
+            if (emptyEl) emptyEl.hidden = visible.length > 0;
+            if (countEl) countEl.textContent = countText(query, visible.length);
         }
 
         chips.forEach((chip) => {
@@ -207,7 +174,7 @@ const haystack = (m: Module) => `${m.name} ${m.tagline} ${m.commands ?? ''}`.toL
                 cat = chip.dataset.mcatChip ?? '';
                 chips.forEach((other) => {
                     const on = other === chip;
-                    other.classList.toggle('is-on', on);
+                    other.toggleAttribute('data-on', on);
                     other.setAttribute('aria-pressed', on ? 'true' : 'false');
                 });
                 apply();

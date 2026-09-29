@@ -1,10 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/kit';
-  import { namespaceReplyTemplate } from '@bagel/kit';
-  import { Button, Cluster, Field, getI18n } from '@bagel/kit';
-  import { focusFirstInvalid } from '@bagel/kit';
+  import { Button, Cluster, Field, Input, Select, focusFirstInvalid, getI18n, namespaceReplyTemplate } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -74,12 +71,10 @@
 
 <div class="editor" bind:this={editorEl}>
   <Field label={t('modules.triggerPhrase')} error={phraseError} errorId={PHRASE_ERR_ID}>
-    <input
-      class="bb-input"
-      type="text"
+    <Input
       placeholder={t('modules.triggerPhrasePh')}
       required
-      data-invalid={phraseError ? '' : undefined}
+      invalid={!!phraseError}
       aria-invalid={phraseError ? 'true' : undefined}
       aria-describedby={phraseError ? PHRASE_ERR_ID : undefined}
       bind:value={phrase}
@@ -115,27 +110,33 @@
   />
 
   <div class="actions">
-  <Cluster gap={3}>
     {#if !isNew}
       <Button variant="destructive" onclick={onDelete} disabled={busy}>{t('common.delete')}</Button>
     {/if}
-    <span class="spacer"></span>
-    <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
-    <Button onclick={save} disabled={busy}>
-      {busy ? t('modules.loading') : t('modules.saveChanges')}
-    </Button>
-  </Cluster>
+    <div class="end">
+      <Cluster gap={3}>
+        <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
+        <Button onclick={save} disabled={busy}>
+          {busy ? t('modules.loading') : t('modules.saveChanges')}
+        </Button>
+      </Cluster>
+    </div>
   </div>
 </div>
 
 <style>
   .editor { padding: 4px 2px 2px; }
 
-  .actions { margin-top: 12px; }
-  .spacer { flex: 1; }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--bb-space-3);
+    margin-top: 12px;
+  }
+  .end { margin-left: auto; }
 
   @media (max-width: 480px) {
     .actions { --btn-w: 100%; --btn-justify: center; --btn-min-h: 44px; }
-    .spacer { display: none; }
+    .end { width: 100%; margin-left: 0; }
   }
 </style>

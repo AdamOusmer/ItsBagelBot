@@ -9,6 +9,11 @@
     tone = 'neutral',
     label,
     size = 'md',
+    gradient = false,
+    ramp = 1,
+    target,
+    segments,
+    current,
     class: className = '',
     ...rest
   }: {
@@ -16,6 +21,11 @@
     tone?: 'neutral' | 'success' | 'warning' | 'error';
     label: string;
     size?: 'sm' | 'md';
+    gradient?: boolean;
+    ramp?: 1 | 2 | 3;
+    target?: number;
+    segments?: readonly ('neutral' | 'success' | 'warning' | 'error' | null)[];
+    current?: number;
     class?: string;
     [key: string]: unknown;
   } = $props();
@@ -23,18 +33,32 @@
   const clamp = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
 
   const fraction = $derived(value === null ? null : clamp(value));
+  const mark = $derived(target === undefined ? null : clamp(target));
 
   const classes = $derived(
     [
       'bb-progress',
       `bb-progress--${tone}`,
       size === 'sm' ? 'bb-progress--sm' : null,
+      gradient ? 'bb-progress--gradient' : null,
+      ramp > 1 ? `bb-progress--ramp-${ramp}` : null,
       fraction === null ? 'bb-progress--indeterminate' : null,
+      mark === null ? null : 'bb-progress--target',
+      segments ? 'bb-progress--segmented' : null,
       className || null,
     ]
       .filter(Boolean)
       .join(' '),
   );
+
+  const segmentClass = (segmentTone: string | null, index: number) =>
+    [
+      'bb-progress__seg',
+      segmentTone ? `bb-progress__seg--${segmentTone}` : null,
+      index === current ? 'is-current' : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
 </script>
 
 <div
@@ -47,4 +71,4 @@
   aria-busy={fraction === null ? 'true' : undefined}
   style:--progress={fraction ?? undefined}
   {...rest}
-><span class="bb-progress__fill"></span></div>
+>{#if segments}{#each segments as segmentTone, index (index)}<span class={segmentClass(segmentTone, index)}></span>{/each}{:else}<span class="bb-progress__fill"></span>{#if mark !== null}<span class="bb-progress__target" style:--target={mark} aria-hidden="true"></span>{/if}{/if}</div>

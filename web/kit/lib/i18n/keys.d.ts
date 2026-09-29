@@ -3861,6 +3861,7 @@ export type KnownMessageKey =
   | 'topbar.roleBroadcaster'
   | 'topbar.support'
   | 'topbar.supportDiscordHint'
+  | 'topbar.supportEnterprise'
   | 'topbar.supportGithubHint'
   | 'validation.aliasDuplicate'
   | 'validation.aliasOwnName'

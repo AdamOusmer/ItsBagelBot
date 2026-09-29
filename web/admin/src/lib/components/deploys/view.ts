@@ -158,11 +158,19 @@ const PILL: Record<Tone, 'neutral' | 'positive' | 'warning' | 'danger'> = {
   error: 'danger'
 };
 
+const QUEUE_TONE: Partial<Record<StageState, Tone>> = {
+  succeeded: 'warning',
+  running: 'success',
+  waiting: 'success',
+  failed: 'error'
+};
+
 export const runTone = (s: RunState): Tone => RUN_TONE[s];
 export const runPill = (s: RunState) => PILL[RUN_TONE[s]];
 export const stageTone = (s: StageState): Tone => STAGE_TONE[s];
 export const checkTone = (s: CheckState): Tone => CHECK_TONE[s];
 export const podTone = (p: PodPhase): Tone => POD_TONE[p];
+export const queueTone = (s: StageState): Tone | null => QUEUE_TONE[s] ?? null;
 
 export const isTerminal = (s: RunState): boolean => TERMINAL_RUN_STATES.includes(s);
 

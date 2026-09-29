@@ -3,7 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
 
   import { page } from '$app/state';
-  import { Footer, LanguageSwitcher, Nav, getI18n } from '@bagel/kit';
+  import { ButtonLink, Footer, LanguageSwitcher, Nav, getI18n } from '@bagel/kit';
   import { LOCALES } from '@bagel/kit/i18n';
   import { reveal } from '@bagel/ui/svelte/actions';
   import {
@@ -71,7 +71,7 @@
   data-sveltekit-preload-data="off"
 >
   {#snippet mobileFooter()}
-    <a class="menu-app" href={dashboardHref('/?install=1', langQuery)}>{t('public.nav.getApp')}</a>
+    <ButtonLink variant="ghost" block href={dashboardHref('/?install=1', langQuery)}>{t('public.nav.getApp')}</ButtonLink>
     <div class="menu-lang" data-sveltekit-preload-data="off">
       <LanguageSwitcher options={locales} ariaLabel={t('lang.switchAria')} />
     </div>
@@ -93,21 +93,12 @@
     {legal}
     copyright={t('public.footer.copyright')}
     note={t('public.footer.note')}
-    style="--bb-footer-bg: var(--bb-bg-0);"
   />
 </div>
 
 <style>
-  .menu-app {
-    display: block;
-    text-align: center;
-    font-family: var(--bb-font-mono);
-    font-size: 0.78rem;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: var(--bb-tan-light);
-    text-decoration: none;
-    padding: 14px 0;
+  .footer-ground {
+    background: var(--bb-bg-0);
   }
 
   .menu-lang {

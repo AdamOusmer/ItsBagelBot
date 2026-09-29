@@ -1,0 +1,80 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import '../styles/elements/line-series.css';
+import {
+    clockTime,
+    lineChart,
+    plainValue,
+    seriesClass,
+    LINE_DEFAULT_WIDTH,
+    type LinePoint,
+    type LineSeriesSpec,
+} from '../lib/line-series';
+
+interface Props {
+    points: readonly LinePoint[];
+    series: readonly LineSeriesSpec[];
+    ariaLabel: string;
+    description?: string;
+    unit?: string;
+    emptyLabel?: string;
+    formatValue?: (value: number | null | undefined) => string;
+    formatTime?: (at: number) => string;
+    class?: string;
+    [key: string]: unknown;
+}
+
+const {
+    points,
+    series,
+    ariaLabel,
+    description = '',
+    unit = '',
+    emptyLabel = '',
+    formatValue = plainValue,
+    formatTime = clockTime,
+    class: className = '',
+    ...rest
+} = Astro.props;
+
+const chart = lineChart(points, series.map((s) => s.key), LINE_DEFAULT_WIDTH);
+const classes = ['bb-line-series', className].filter(Boolean).join(' ');
+---
+
+<div class={classes} {...rest}>
+    <div class="bb-line-series__legend">
+        {series.map((spec) => (
+            <div class={seriesClass(spec, 'key')}>
+                <span class="bb-line-series__swatch" aria-hidden="true"></span>
+                <span>{spec.label}</span>
+                <strong>{formatValue(chart.latest?.[spec.key])}</strong>
+            </div>
+        ))}
+    </div>
+    <div class="bb-line-series__plot">
+        <svg viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label={ariaLabel}>
+            <title>{ariaLabel}</title>
+            {description && <desc>{description}</desc>}
+            {unit && <text class="bb-line-series__unit" x={chart.left} y="12">{unit}</text>}
+            {chart.valueTicks.map((tick) => (
+                <>
+                    <line class="bb-line-series__grid" x1={chart.left} x2={chart.width - chart.right} y1={tick.y} y2={tick.y} />
+                    <text x={chart.left - 10} y={tick.y + 3} text-anchor="end">{tick.label}</text>
+                </>
+            ))}
+            {chart.timeTicks.map((tick) => (
+                <>
+                    <line class="bb-line-series__tick" x1={tick.x} x2={tick.x} y1={chart.height - chart.bottom} y2={chart.height - chart.bottom + 5} />
+                    <text x={tick.x} y={chart.height - 10} text-anchor={tick.anchor}>{formatTime(tick.at)}</text>
+                </>
+            ))}
+            {series.map((spec, i) => <path class={seriesClass(spec, 'line')} d={chart.paths[i]} />)}
+            {chart.dots.map((dot) => (
+                <circle class={seriesClass(series[dot.series], 'point')} cx={dot.x} cy={dot.y} r={chart.dotRadius} />
+            ))}
+        </svg>
+        {chart.sampling && emptyLabel && <div class="bb-line-series__empty">{emptyLabel}</div>}
+    </div>
+</div>
