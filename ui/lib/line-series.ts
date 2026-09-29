@@ -1,6 +1,11 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+type Millis = number;
+type Px = number;
+type SeriesKey = string;
+type SeriesKeys = readonly SeriesKey[];
+
 export type LinePoint = { readonly at: number; readonly [key: string]: number | null };
 
 export type LineTone = 'green' | 'tan';
@@ -71,7 +76,7 @@ export function plainValue(value: number | null | undefined): string {
   return v === null ? '' : axisValue(v);
 }
 
-export function clockTime(at: number): string {
+export function clockTime(at: Millis): string {
   return new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
@@ -81,7 +86,7 @@ export function seriesClass(spec: LineSeriesSpec, part: string): string {
   return `${base} ${base}--${spec.tone ?? 'green'}${dashed}`;
 }
 
-export function lineX(chart: LineChart, at: number): number {
+export function lineX(chart: LineChart, at: Millis): Px {
   return chart.left + ((at - chart.startAt) / chart.duration) * chart.plotWidth;
 }
 
@@ -94,15 +99,15 @@ function anchorOf(index: number, count: number): LineTimeTick['anchor'] {
   return index === count - 1 ? 'end' : 'middle';
 }
 
-function peak(readings: readonly LinePoint[], keys: readonly string[]): number {
+function peak(readings: readonly LinePoint[], keys: SeriesKeys): number {
   return Math.max(0, ...readings.flatMap((point) => keys.map((key) => plottable(point[key]) ?? 0)));
 }
 
-function hasValue(point: LinePoint, keys: readonly string[]): boolean {
+function hasValue(point: LinePoint, keys: SeriesKeys): boolean {
   return keys.some((key) => plottable(point[key]) !== null);
 }
 
-function seriesPath(chart: LineChart, key: string): string {
+function seriesPath(chart: LineChart, key: SeriesKey): string {
   let previousAt: number | null = null;
   return chart.readings
     .map((point) => {
@@ -118,7 +123,7 @@ function seriesPath(chart: LineChart, key: string): string {
     .join(' ');
 }
 
-function seriesDots(chart: LineChart, keys: readonly string[]): LineDot[] {
+function seriesDots(chart: LineChart, keys: SeriesKeys): LineDot[] {
   return chart.readings.flatMap((point) =>
     keys.flatMap((key, series) => {
       const value = plottable(point[key]);
@@ -127,7 +132,7 @@ function seriesDots(chart: LineChart, keys: readonly string[]): LineDot[] {
   );
 }
 
-function frame(readings: LinePoint[], keys: readonly string[], containerWidth: number): LineChart {
+function frame(readings: LinePoint[], keys: SeriesKeys, containerWidth: Px): LineChart {
   const width = Math.max(MIN_WIDTH, containerWidth || LINE_DEFAULT_WIDTH);
   const height = width < NARROW_WIDTH ? 220 : 260;
   const firstAt = readings[0]?.at ?? 0;
@@ -153,7 +158,7 @@ function frame(readings: LinePoint[], keys: readonly string[], containerWidth: n
   };
 }
 
-export function lineChart(points: readonly LinePoint[], keys: readonly string[], containerWidth: number): LineChart {
+export function lineChart(points: readonly LinePoint[], keys: SeriesKeys, containerWidth: Px): LineChart {
   const readings = points.filter((point) => Number.isFinite(point.at)).toSorted((a, b) => a.at - b.at);
   const chart = frame(readings, keys, containerWidth);
   const timeCount = chart.width < NARROW_WIDTH ? 3 : 5;
@@ -172,12 +177,12 @@ export function lineChart(points: readonly LinePoint[], keys: readonly string[],
   return chart;
 }
 
-export function hoverTime(chart: LineChart, localX: number): number {
+export function hoverTime(chart: LineChart, localX: Px): Millis {
   const fraction = Math.min(1, Math.max(0, (localX - chart.left) / chart.plotWidth));
   return chart.startAt + fraction * chart.duration;
 }
 
-export function nearestPoint(readings: readonly LinePoint[], at: number): LinePoint | null {
+export function nearestPoint(readings: readonly LinePoint[], at: Millis): LinePoint | null {
   let closest: LinePoint | null = null;
   for (const point of readings) {
     if (!closest || Math.abs(point.at - at) < Math.abs(closest.at - at)) closest = point;
@@ -185,7 +190,7 @@ export function nearestPoint(readings: readonly LinePoint[], at: number): LinePo
   return closest;
 }
 
-export function tooltipBox(chart: LineChart, x: number, lines: number): { x: number; y: number; width: number; height: number } {
+export function tooltipBox(chart: LineChart, x: Px, lines: number): { x: number; y: number; width: number; height: number } {
   return {
     x: Math.min(chart.width - 196, Math.max(chart.left + 5, x - 88)),
     y: chart.top + 7,
