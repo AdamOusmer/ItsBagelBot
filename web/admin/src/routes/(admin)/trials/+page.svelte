@@ -166,7 +166,7 @@
                   {#if trial.state !== 'stopping'}
                     <form method="POST" action="?/remove">
                       <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
-                      <Button type="submit" variant="destructive">{t('admin.trials.remove')}</Button>
+                      <Button type="submit" tone="danger">{t('admin.trials.remove')}</Button>
                     </form>
                   {/if}
                 </Cluster>

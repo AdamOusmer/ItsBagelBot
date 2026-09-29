@@ -22,4 +22,4 @@
   }
 </script>
 
-<Button variant="ghost" type="button" class={className} loading={busy} onclick={retry}>{t('overview.retry')}</Button>
+<Button variant="ghost" type="button" class={className} busy={busy} onclick={retry}>{t('overview.retry')}</Button>

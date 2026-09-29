@@ -3,7 +3,7 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import PageHero from '@bagel/ui/astro/PageHero.astro';
-import Button from '@bagel/ui/astro/Button.astro';
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import Table from '@bagel/ui/astro/Table.astro';
 import VisuallyHidden from '@bagel/ui/astro/VisuallyHidden.astro';
@@ -66,9 +66,9 @@ const title = `ItsBagelBot vs ${competitor}`;
     </ul>
 
     <Cluster justify="center" gap={3} class="vs__actions" data-reveal>
-        <Button href={DASHBOARD_LOGIN}>Add to Twitch</Button>
-        <Button variant="quiet" href="/import/">Import your setup</Button>
-        <Button variant="quiet" href={otherVs.href}>{otherVs.label}</Button>
+        <ButtonLink href={DASHBOARD_LOGIN}>Add to Twitch</ButtonLink>
+        <ButtonLink variant="secondary" href="/import/">Import your setup</ButtonLink>
+        <ButtonLink variant="secondary" href={otherVs.href}>{otherVs.label}</ButtonLink>
     </Cluster>
 
     <Text size="xs" mono tone="muted" class="vs__disclaimer">

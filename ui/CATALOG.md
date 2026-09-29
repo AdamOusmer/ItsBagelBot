@@ -35,7 +35,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
 | **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel*`: string<br>`crumbAriaLabel`: string<br>`dockAriaLabel`: string<br>`railAriaLabel`: string<br>`clock`: boolean<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railFoot`: Snippet | svelte + astro | `styles/elements/shell.css` |
-| **Cluster** | `gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`justify`: 'start' \| 'center' \| 'end' \| 'between'<br>`align`: 'baseline' \| 'stretch'<br>`nowrap`: boolean<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
+| **Cluster** | `gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`justify`: 'start' \| 'center' \| 'end' \| 'between'<br>`align`: 'baseline' \| 'stretch'<br>`nowrap`: boolean<br>`as`: T | svelte + astro | `styles/elements/layout.css` |
 | **Container** | `width`: 'default' \| 'narrow' \| 'text'<br>`flush`: boolean<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
 | **DeckLayout** | `inspecting`: boolean<br>`width`: string | svelte + astro | `styles/elements/deck-layout.css` |
 | **Disclosure** | `summary*`: string<br>`open`: boolean<br>`index`: string<br>`size`: 'md' \| 'sm' | svelte + astro | `styles/elements/disclosure.css` |
@@ -53,14 +53,14 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
-| **Button** | `variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go' \| 'add' \| 'brand'<br>`as`: 'button' \| 'span'<br>`solid`: boolean<br>`danger`: boolean<br>`block`: boolean<br>`size`: 'md' \| 'sm'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`loading`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css` |
-| **ButtonLink** | `href*`: string<br>`variant`: 'primary' \| 'secondary' \| 'ghost' \| 'green' \| 'destructive' \| 'icon' \| 'tan' \| 'quiet' \| 'go' \| 'add' \| 'brand'<br>`solid`: boolean<br>`block`: boolean<br>`size`: 'md' \| 'sm'<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css` |
+| **Button** | `variant`: ButtonVariant<br>`tone`: ButtonTone<br>`size`: ButtonSize<br>`block`: boolean<br>`as`: 'button' \| 'span'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`busy`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css` |
+| **ButtonLink** | `href*`: string<br>`variant`: ButtonVariant<br>`tone`: ButtonTone<br>`size`: ButtonSize<br>`block`: boolean<br>`done`: boolean<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css` |
 | **Checkbox** | `checked`: boolean | svelte + astro | `styles/elements/input.css` |
 | **CopySurface** | `text*`: string<br>`copiedLabel*`: string<br>`announce`: string<br>`variant`: 'card' \| 'row' \| 'well'<br>`label`: string<br>`hint`: string<br>`flashMs`: number<br>`legacyFallback`: boolean<br>`oncopy`: (copied: boolean) => void | svelte + astro | `styles/elements/copy-surface.css` |
 | **Field** | `label*`: string<br>`tag`: string<br>`hint`: string<br>`error`: string<br>`hintId`: string<br>`errorId`: string<br>`for`: string | svelte + astro | `styles/elements/field.css, styles/tags.css` |
 | **FieldError** | — | svelte<br>*Svelte only: it renders only when a form action has returned an error, which a static page has not.* | `styles/elements/field.css` |
 | **FileDrop** | `label*`: string<br>`file`: File \| null<br>`accept`: string<br>`onfile`: (file: File \| undefined) => void<br>`ondragchange`: (over: boolean) => void | svelte + astro | `styles/elements/file-drop.css` |
-| **IconButton** | `label*`: string<br>`tooltip`: boolean<br>`size`: 'md' \| 'sm'<br>`danger`: boolean<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css, styles/elements/tooltip.css` |
+| **IconButton** | `label*`: string<br>`tooltip`: boolean<br>`size`: 'md' \| 'sm'<br>`tone`: 'neutral' \| 'danger'<br>`type`: 'button' \| 'submit' \| 'reset'<br>`onclick`: (e: MouseEvent) => void<br>`disabled`: boolean | svelte + astro | `styles/elements/button.css, styles/elements/tooltip.css` |
 | **Input** | `value`: string \| number \| null<br>`type`: 'text' \| 'email' \| 'url' \| 'tel' \| 'number' \| 'password' \| 'search' \| 'date' \| 'datetime-local' \| 'month' \| 'time' \| 'week' \| 'color'<br>`invalid`: boolean<br>`fill`: boolean<br>`mono`: boolean<br>`align`: 'start' \| 'end'<br>`icon`: Snippet<br>`trail`: Snippet | svelte + astro | `styles/elements/field.css, styles/elements/input.css` |
 | **PickerOption** | `label`: string<br>`description`: string<br>`layout`: 'inline' \| 'stacked'<br>`selected`: boolean<br>`disabled`: boolean<br>`onclick`: () => void<br>`remove`: { label: string; armed?: boolean; armedLabel?: string; onclick: () => void }<br>`as`: 'div' \| 'li'<br>`trail`: Snippet | svelte + astro | `styles/elements/picker-panel.css` |
 | **RadioGroup** | `name*`: string<br>`options*`: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[]<br>`value*`: string<br>`label`: string<br>`variant`: 'tabs' \| 'cards' \| 'rows'<br>`min`: string<br>`cols`: number<br>`rail`: 'sm' \| 'md'<br>`maxHeight`: string<br>`onchange`: (value: string) => void<br>`onpick`: (value: string) => void<br>`lead`: Snippet<[RadioOption, boolean]> | svelte + astro | `styles/elements/radio-group.css, styles/tags.css` |
@@ -148,7 +148,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
-| **AmbientSky** | `shift`: number<br>`turn`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean<br>`position`: 'contained' \| 'fixed'<br>`warmth`: number<br>`uid`: string | svelte + astro | `styles/elements/ambient-sky.css, styles/orbs.css` |
+| **AmbientSky** | `shift`: number<br>`turn`: number<br>`px`: number<br>`py`: number<br>`progress`: number<br>`leaving`: boolean<br>`position`: 'contained' \| 'fixed'<br>`stillStars`: boolean<br>`warmth`: number<br>`uid`: string | svelte + astro | `styles/elements/ambient-sky.css, styles/orbs.css` |
 | **AuroraBg** | — | svelte + astro | `styles/elements/aurora.css, styles/orbs.css` |
 | **BackgroundOrbs** | — | svelte + astro | `styles/elements/bg-orbs.css, styles/orbs.css` |
 | **Brackets** | `variant`: 'page' \| 'loader'<br>`label`: string | svelte + astro | `styles/elements/brackets.css` |

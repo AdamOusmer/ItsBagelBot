@@ -158,7 +158,7 @@
         <form class="inline" method="POST" action="?/setTestAccount" use:enhance>
           <input type="hidden" name="user_id" value={user.id} />
           <input type="hidden" name="active" value={user.test_account ? 'false' : 'true'} />
-          <Button variant="ghost" type="submit" disabled={locked} loading={busy === 'setTestAccount'}>
+          <Button variant="ghost" type="submit" disabled={locked} busy={busy === 'setTestAccount'}>
             {user.test_account ? t('admin.users.markOrdinary') : t('admin.users.markTest')}
           </Button>
         </form>
@@ -200,9 +200,9 @@
       <Cluster gap={2}>
         {#each actionsFor('service', user, can) as def (def.id)}
           <Button
-            variant={def.danger ? 'destructive' : 'ghost'}
+            variant={def.danger ? 'primary' : 'ghost'} tone={def.danger ? 'danger' : 'neutral'}
             disabled={locked}
-            loading={busy === def.id}
+            busy={busy === def.id}
             onclick={() => onAction(def)}
           >
             {t(actionLabel(def, user))}
@@ -236,7 +236,7 @@
       <Heading level={3} variant="label">{t('admin.users.viewAsTitle')}</Heading>
       <Cluster gap={2}>
         {#each actionsFor('support', user, can) as def (def.id)}
-          <Button variant="ghost" disabled={locked} loading={busy === def.id} onclick={() => onAction(def)}>
+          <Button variant="ghost" disabled={locked} busy={busy === def.id} onclick={() => onAction(def)}>
             {t(def.label)}
           </Button>
         {/each}
@@ -315,9 +315,9 @@
         <Cluster gap={2}>
           {#each actionsFor('danger', user, can) as def (def.id)}
             <Button
-              variant={def.danger ? 'destructive' : 'ghost'}
+              variant={def.danger ? 'primary' : 'ghost'} tone={def.danger ? 'danger' : 'neutral'}
               disabled={locked}
-              loading={busy === def.id}
+              busy={busy === def.id}
               onclick={() => onAction(def)}
             >
               {t(def.label)}

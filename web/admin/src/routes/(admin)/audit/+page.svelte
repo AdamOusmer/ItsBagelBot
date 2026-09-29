@@ -188,7 +188,7 @@
           <Cluster justify="center">
             <Button
               variant="ghost"
-              loading={loadingMore}
+              busy={loadingMore}
               onclick={() => fetchPage(page + 1, search.trim(), true)}
             >
               {t('admin.audit.loadMore')}

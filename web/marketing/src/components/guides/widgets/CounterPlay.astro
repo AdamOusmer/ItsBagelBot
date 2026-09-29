@@ -53,7 +53,7 @@ const actions = [
     <ChatWindow title={L.windowTitle} label={L.windowTitle} lines={lines} />
     <div class="gcplay__row">
         {actions.map((action) => (
-            <Button variant="quiet" size="sm" data-counter-play-btn={action.kind} data-command={action.command}>{action.command}</Button>
+            <Button variant="secondary" size="sm" data-counter-play-btn={action.kind} data-command={action.command}>{action.command}</Button>
         ))}
     </div>
 </div>

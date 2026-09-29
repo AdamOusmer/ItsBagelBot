@@ -62,7 +62,7 @@
       <section class="block">
         <Heading level={4} variant="label">{t('admin.notifications.dangerTitle')}</Heading>
         <Text size="sm" tone="muted">{t('admin.notifications.retractHint')}</Text>
-        <Button variant="destructive" disabled={busy} onclick={onRetract}>
+        <Button disabled={busy} onclick={onRetract} tone="danger">
           {t('admin.notifications.retract')}
         </Button>
       </section>

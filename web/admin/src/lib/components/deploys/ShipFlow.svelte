@@ -345,11 +345,10 @@
           {#snippet actions()}
             {#if last}
               <Button
-                variant="green"
-                solid
                 disabled={blockKey !== null || leaving}
-                loading={busy}
+                busy={busy}
                 onclick={() => (confirmOpen = true)}
+                tone="success"
               >
                 {t(shipKey(kind), { version: shipVersion(ship) })}
               </Button>

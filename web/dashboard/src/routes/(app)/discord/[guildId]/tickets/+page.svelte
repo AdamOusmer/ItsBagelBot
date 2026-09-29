@@ -269,7 +269,7 @@
     <div class="repost">
       <Text size="sm" tone="muted" class="hint">{t('discord.tickets.repostHelp')}</Text>
       <form method="POST" action="?/repost" use:enhance={repostSubmit}>
-        <Button variant="secondary" type="submit" loading={draft.busy} disabled={!ticketsOn}>
+        <Button variant="secondary" type="submit" busy={draft.busy} disabled={!ticketsOn}>
           {t('discord.tickets.repostCta')}
         </Button>
       </form>

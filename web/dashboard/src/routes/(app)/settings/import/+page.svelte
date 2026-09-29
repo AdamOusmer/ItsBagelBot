@@ -301,7 +301,7 @@
           <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : (step = 'pick'))}
             >{submitting ? t('common.cancel') : t('import.back')}</Button
           >
-          <Button type="submit" variant="primary" loading={submitting}>
+          <Button type="submit" variant="primary" busy={submitting}>
             {t('import.continueCta')}
           </Button>
         </div>
@@ -461,7 +461,7 @@
           <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : reset())}
             >{submitting ? t('common.cancel') : t('import.startOver')}</Button
           >
-          <Button type="submit" variant="primary" loading={submitting}>
+          <Button type="submit" variant="primary" busy={submitting}>
             {t('import.importNow')}
           </Button>
         </div>
@@ -513,7 +513,7 @@
         <div class="hint"><Text size="sm" tone="muted">{t('import.nothingApplied')}</Text></div>
       {/if}
       <div class="actions actions-row">
-        <ButtonLink href="/commands" variant="green" solid>{t('import.reviewCommands')}</ButtonLink>
+        <ButtonLink href="/commands" tone="success">{t('import.reviewCommands')}</ButtonLink>
         <Button variant="ghost" onclick={reset}>{t('import.importAnother')}</Button>
       </div>
       {#if commitResult?.audit_id}

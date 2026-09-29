@@ -135,7 +135,7 @@ const styleOptions = data.styles.map((s) => ({ value: s.value || 'plain', label:
                     <Text as="span" size="xs" tone="danger" data-valid aria-live="polite"></Text>
                 </div>
                 <div class="send" data-send-wrap>
-                    <ButtonLink variant="green" solid block data-send target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'}>
+                    <ButtonLink block data-send target="_blank" rel="noopener noreferrer" href={data.dashboardOrigin + '/commands'} tone="success">
                         {ui.sendCta}<span aria-hidden="true">→</span>
                     </ButtonLink>
                     <Text size="xs" tone="muted" class="send__help">{ui.sendHelp}</Text>

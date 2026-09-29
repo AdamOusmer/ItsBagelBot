@@ -523,7 +523,7 @@
               </Field>
             {/each}
           </div>
-          <Button variant="secondary" type="submit" loading={quotaSaving} disabled={!quotaDirty}>{t('spotify.quota.save')}</Button>
+          <Button variant="secondary" type="submit" busy={quotaSaving} disabled={!quotaDirty}>{t('spotify.quota.save')}</Button>
         </form>
       </Card>
 

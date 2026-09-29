@@ -116,7 +116,7 @@
 
   {#if canDelete}
     <div class="del-row">
-      <Button variant="destructive" type="button" onclick={onRequestDelete} disabled={busy}>{t('spotify.delete.reward')}</Button>
+      <Button type="button" onclick={onRequestDelete} disabled={busy} tone="danger">{t('spotify.delete.reward')}</Button>
     </div>
   {/if}
 </div>

@@ -42,7 +42,7 @@
   <div class="bb-modal__actions">
     <Button variant="ghost" onclick={onCancel} disabled={busy}>{cancelLabel}</Button>
     <Button
-      variant={danger ? 'destructive' : 'primary'}
+      tone={danger ? 'danger' : 'neutral'}
       onclick={onConfirm}
       disabled={busy}
     >

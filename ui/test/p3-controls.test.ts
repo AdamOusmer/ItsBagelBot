@@ -74,9 +74,9 @@ describe('Button family', () => {
     name: 'a static button is a span with no button semantics',
     svelte: SvelteButton,
     astro: AstroButton,
-    props: { as: 'span', variant: 'quiet', 'data-cursor': '' },
+    props: { as: 'span', variant: 'secondary', 'data-cursor': '' },
     slots: { default: 'Open guide' },
-    html: `<span class="bb-btn bb-btn--quiet bb-btn--static" data-mark data-cursor>${MARK}<span class="bb-btn__content">Open guide</span></span>`,
+    html: `<span class="bb-btn bb-btn--secondary bb-btn--static" data-mark data-cursor>${MARK}<span class="bb-btn__content">Open guide</span></span>`,
   });
 
   contract({
@@ -92,7 +92,7 @@ describe('Button family', () => {
     name: 'a danger icon button carries the red hover',
     svelte: SvelteIconButton,
     astro: AstroIconButton,
-    props: { label: 'Delete deaths', size: 'sm', danger: true },
+    props: { label: 'Delete deaths', size: 'sm', tone: 'danger' },
     slots: { default: '<svg></svg>' },
     html:
       '<button class="bb-btn bb-btn--icon bb-btn--sm bb-btn--danger-hover" type="button" aria-label="Delete deaths" data-mark>' +
@@ -102,7 +102,7 @@ describe('Button family', () => {
   test('a static button follows the hover of the link around it, and brand reads only hooks', async () => {
     const button = await css('elements/button.css');
     expect(button).toContain('a:hover .bb-btn--static.bb-btn--primary {');
-    expect(button).toContain('a:hover .bb-btn--static:is(.bb-btn--secondary, .bb-btn--tan, .bb-btn--quiet) {');
+    expect(button).toContain('a:hover .bb-btn--static.bb-btn--secondary {');
     const brand = button.slice(button.indexOf('.bb-btn--brand {'), button.indexOf('.bb-btn--add {'));
     expect(brand).toContain('background: var(--btn-brand);');
     expect(brand).toContain('box-shadow: 0 0 24px var(--btn-brand-glow, transparent);');

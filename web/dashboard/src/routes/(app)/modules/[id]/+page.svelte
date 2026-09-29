@@ -598,7 +598,7 @@
                 <AlertBanner tone="success" role="status" stack>
                   {t('modules.tzSuggested', { tz: browserZone })}
                   {#snippet actions()}
-                    <Button variant="green" size="sm" disabled={locked} onclick={() => saveSetting(field, browserZone)}>{t('modules.tzApply', { tz: browserZone })}</Button>
+                    <Button variant="secondary" size="sm" disabled={locked} onclick={() => saveSetting(field, browserZone)} tone="success">{t('modules.tzApply', { tz: browserZone })}</Button>
                   {/snippet}
                 </AlertBanner>
               </div>

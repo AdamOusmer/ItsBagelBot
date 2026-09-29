@@ -424,7 +424,7 @@
                 type="submit"
                 variant="primary"
                 block
-                loading={launching === 'monthly'}
+                busy={launching === 'monthly'}
                 disabled={launching === 'once' || awaitingActivation}
                 aria-describedby="premium-fine"
               >
@@ -437,7 +437,7 @@
                 type="submit"
                 variant="secondary"
                 block
-                loading={launching === 'once'}
+                busy={launching === 'once'}
                 disabled={launching === 'monthly' || awaitingActivation}
                 aria-describedby="premium-fine"
               >
@@ -456,7 +456,7 @@
     <p class="oath">{t('billing.oath')}</p>
 
     <div class="gift-link-row">
-      <Button variant="quiet" onclick={openGift}>{t('billing.giftLink')}</Button>
+      <Button variant="secondary" onclick={openGift}>{t('billing.giftLink')}</Button>
     </div>
     {#if form?.error && !form?.gift}
       <div class="form-error"><FieldError message={String(form.error)} /></div>
@@ -467,7 +467,7 @@
         {t('billing.paymentFailed')}
         {#snippet actions()}
           <form method="POST" action="?/cancel" onsubmit={() => (managing = true)}>
-            <Button type="submit" variant="primary" loading={managing}>{t('billing.updatePayment')}</Button>
+            <Button type="submit" variant="primary" busy={managing}>{t('billing.updatePayment')}</Button>
           </form>
         {/snippet}
       </AlertBanner>
@@ -514,18 +514,18 @@
         {#if canManage}
           <div class="premium-actions-row">
             <form method="POST" action="?/cancel" onsubmit={() => (managing = true)}>
-              <Button type="submit" variant="primary" loading={managing} aria-describedby="manage-note">
+              <Button type="submit" variant="primary" busy={managing} aria-describedby="manage-note">
                 {t('billing.manageSubscription')}
               </Button>
             </form>
             {#if cancelPending}
               <form method="POST" action="?/cancel" onsubmit={() => (resuming = true)}>
-                <Button type="submit" variant="secondary" loading={resuming} aria-describedby="manage-note">
+                <Button type="submit" variant="secondary" busy={resuming} aria-describedby="manage-note">
                   {t('billing.resumeSubscription')}
                 </Button>
               </form>
             {:else}
-              <Button variant="destructive" onclick={openCancel}>
+              <Button onclick={openCancel} tone="danger">
                 {t('billing.cancelSubscription')}
               </Button>
             {/if}
@@ -630,7 +630,7 @@
       <Button
         type="submit"
         variant="primary"
-        loading={giftLaunching}
+        busy={giftLaunching}
         disabled={giftNeedsRecipient || giftMessageHasLink}
         aria-describedby={giftNeedsRecipient ? 'gift-need-recipient' : undefined}
       >

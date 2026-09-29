@@ -82,7 +82,7 @@ const enterpriseFeatures = [
                 ))}
             </ul>
             <ButtonLink
-                variant="quiet"
+                variant="secondary"
                 block
                 class="tier__cta"
                 href={dashboardHref('/billing?subscribe=1', lang === defaultLang ? '' : `?lang=${lang}`)}
@@ -120,7 +120,7 @@ const enterpriseFeatures = [
                     </li>
                 ))}
             </ul>
-            <ButtonLink variant="quiet" block class="tier__cta" href="mailto:enterprise@itsbagelbot.com">{t('pricingTiers.contactSales')}</ButtonLink>
+            <ButtonLink variant="secondary" block class="tier__cta" href="mailto:enterprise@itsbagelbot.com">{t('pricingTiers.contactSales')}</ButtonLink>
         </Card>
     </div>
 

@@ -117,7 +117,7 @@
           <section class="block">
             <Heading level={3} variant="label">{t('admin.lanes.dangerTitle')}</Heading>
             <Text size="sm" tone="muted">{t('admin.lanes.deleteHint')}</Text>
-            <Button variant="destructive" disabled={busy} onclick={onDelete}>
+            <Button disabled={busy} onclick={onDelete} tone="danger">
               {t('common.delete')}
             </Button>
           </section>

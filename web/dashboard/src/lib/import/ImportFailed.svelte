@@ -42,7 +42,7 @@
     {#if view.more > 0}<Text size="xs" mono tone="muted">{t('import.skippedMore', { n: view.more })}</Text>{/if}
     {#if retryCount > 0}
       <div class="failed-actions">
-        <Button variant="secondary" onclick={onRetry} disabled={submitting} loading={submitting}>
+        <Button variant="secondary" onclick={onRetry} disabled={submitting} busy={submitting}>
           {t('import.retryFailed', { n: retryCount })}
         </Button>
       </div>

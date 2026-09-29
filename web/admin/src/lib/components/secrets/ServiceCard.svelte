@@ -63,7 +63,7 @@
     <div class="actions">
       <Button variant="ghost" onclick={onRotate}>{t('admin.secrets.rotate')}</Button>
       <Button variant="ghost" onclick={onSet}>{t('admin.secrets.set')}</Button>
-      <Button variant="destructive" onclick={onRevoke}>{t('admin.secrets.revoke')}</Button>
+      <Button onclick={onRevoke} tone="danger">{t('admin.secrets.revoke')}</Button>
     </div>
   {/if}
 </Card>

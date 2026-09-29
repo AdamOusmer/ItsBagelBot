@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import Button from '@bagel/ui/astro/Button.astro';
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Cluster from '@bagel/ui/astro/Cluster.astro';
 import Eyebrow from '@bagel/ui/astro/Eyebrow.astro';
 import Heading from '@bagel/ui/astro/Heading.astro';
@@ -28,8 +28,8 @@ const titleWords = t('finale.title').split(' ');
             {t('finale.sub')}
         </Lead>
         <Cluster gap={4} justify="center" class="finale__actions" data-reveal>
-            <Button href={dashLoginHref(lang)}>{t('nav.cta')}</Button>
-            <Button variant="quiet" href={localizePath('/pricing', lang)}>{t('finale.seePricing')}</Button>
+            <ButtonLink href={dashLoginHref(lang)}>{t('nav.cta')}</ButtonLink>
+            <ButtonLink variant="secondary" href={localizePath('/pricing', lang)}>{t('finale.seePricing')}</ButtonLink>
         </Cluster>
         <Text as="span" size="xs" mono tone="muted" class="finale__honesty" data-reveal>
             {t('finale.honesty')}

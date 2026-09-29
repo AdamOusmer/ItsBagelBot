@@ -115,7 +115,7 @@
       <form class="verb" method="POST" action="/deploys?/start" use:enhance={submitRollback} bind:this={rollbackForm}>
         <input type="hidden" name="kind" value="rollback" />
         <input type="hidden" name="rollback_to" value={rollbackTo} />
-        <Button variant="destructive" size="sm" disabled={busy} onclick={() => (rollbackOpen = true)}>
+        <Button size="sm" disabled={busy} onclick={() => (rollbackOpen = true)} tone="danger">
           {t('admin.deploys.act.rollback', { version: rollbackTo })}
         </Button>
       </form>

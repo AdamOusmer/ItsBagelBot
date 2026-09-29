@@ -278,9 +278,9 @@
                   <Stack as="section" gap={2} align="start">
                     <Heading level={3} variant="label">{t('admin.counters.dangerTitle')}</Heading>
                     <Button
-                      variant="destructive"
                       disabled={busy}
                       onclick={() => (deleteTarget = selected)}
+                      tone="danger"
                     >
                       {t('common.delete')}
                     </Button>

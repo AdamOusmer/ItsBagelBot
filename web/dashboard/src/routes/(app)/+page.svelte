@@ -353,9 +353,9 @@
     <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="bb-modal__actions">
       <Button variant="ghost" type="button" disabled={actionBusy} onclick={() => closeModal()}>{t('common.cancel')}</Button>
       <Button
-        variant={pending === 'disconnect' ? 'tan' : 'primary'}
+        variant={pending === 'disconnect' ? 'secondary' : 'primary'}
         type="submit"
-        loading={actionBusy}
+        busy={actionBusy}
       >
         {pending === 'restart' ? t('overview.restart') : t('overview.disconnect')}
       </Button>

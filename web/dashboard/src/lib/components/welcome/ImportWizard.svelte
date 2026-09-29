@@ -547,7 +547,7 @@
           <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : goStep('pick'))}
             >{submitting ? t('common.cancel') : t('import.back')}</Button
           >
-          <Button type="submit" variant="primary" loading={submitting}>
+          <Button type="submit" variant="primary" busy={submitting}>
             {t('import.continueCta')}
           </Button>
         </div>
@@ -714,7 +714,7 @@
           <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : reset())}
             >{submitting ? t('common.cancel') : t('import.startOver')}</Button
           >
-          <Button type="submit" variant="primary" loading={submitting}>
+          <Button type="submit" variant="primary" busy={submitting}>
             {t('import.importNow')}
           </Button>
         </div>
@@ -763,7 +763,7 @@
         <div class="hint"><Text size="sm" tone="muted">{t('import.nothingApplied')}</Text></div>
       {/if}
       <div class="actions actions-row done-actions">
-        <Button variant="green" solid onclick={() => finishOnboarding('/')} loading={finishing}>{t('onboardingImport.dashboard')}</Button>
+        <Button onclick={() => finishOnboarding('/')} busy={finishing} tone="success">{t('onboardingImport.dashboard')}</Button>
         <Button variant="ghost" onclick={() => finishOnboarding('/commands')} disabled={finishing}>{t('import.reviewCommands')}</Button>
         <Button variant="ghost" onclick={reset} disabled={finishing}>{t('import.importAnother')}</Button>
       </div>

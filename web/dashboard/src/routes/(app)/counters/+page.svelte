@@ -498,7 +498,7 @@
       maxlength={64}
       bind:value={renameValue}
     />
-    <Button variant="ghost" loading={renaming} onclick={() => renameForm?.requestSubmit()}>
+    <Button variant="ghost" busy={renaming} onclick={() => renameForm?.requestSubmit()}>
       {t('counters.rename')}
     </Button>
   </div>
@@ -708,9 +708,9 @@
                             {#if entryEditable(selected.scope, e)}
                               <IconButton
                                 size="sm"
-                                danger
                                 label={t('counters.entryDeleteAria', { name: entryLabel(e) })}
                                 onclick={() => (entryDeleteTarget = e)}
+                                tone="danger"
                               ><Icon name="trash" size={15} /></IconButton>
                             {/if}
                           </td>
@@ -767,7 +767,7 @@
                         <Input fill type="text" inputmode="numeric" name="value" bind:value={addValue} />
                       </Field>
                     </div>
-                    <Button variant="secondary" type="submit" loading={adding}>
+                    <Button variant="secondary" type="submit" busy={adding}>
                       {t('counters.add')}
                     </Button>
                   </div>
@@ -781,7 +781,7 @@
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
-              <Button variant="destructive" onclick={() => (resetTarget = selected)}>
+              <Button onclick={() => (resetTarget = selected)} tone="danger">
                 {t('counters.reset')}
               </Button>
             </div>

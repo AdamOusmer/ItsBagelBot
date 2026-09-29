@@ -221,26 +221,42 @@ describe('Button', () => {
   });
 
   contract({
-    name: 'green solid, the one filled button',
+    name: 'success on primary is the one filled button',
     svelte: SvelteButton,
     astro: AstroButton,
-    props: { variant: 'green', solid: true },
-    html: '<button class="bb-btn bb-btn--green bb-btn--solid" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    props: { tone: 'success' },
+    html: '<button class="bb-btn bb-btn--go-solid" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
-    name: 'destructive submit',
+    name: 'success on secondary is the outlined go',
     svelte: SvelteButton,
     astro: AstroButton,
-    props: { variant: 'destructive', type: 'submit', class: 'row-act' },
-    html: '<button class="bb-btn bb-btn--destructive row-act" type="submit" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    props: { variant: 'secondary', tone: 'success' },
+    html: '<button class="bb-btn bb-btn--go" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
-    name: 'loading is disabled and busy, with a real spinner element',
+    name: 'danger submit',
     svelte: SvelteButton,
     astro: AstroButton,
-    props: { loading: true },
+    props: { tone: 'danger', type: 'submit', class: 'row-act' },
+    html: '<button class="bb-btn bb-btn--danger row-act" type="submit" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+  });
+
+  contract({
+    name: 'danger on ghost only reddens the hover',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { variant: 'ghost', tone: 'danger' },
+    html: '<button class="bb-btn bb-btn--ghost bb-btn--danger-hover" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+  });
+
+  contract({
+    name: 'busy is disabled and busy, with a real spinner element',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { busy: true },
     html: '<button class="bb-btn bb-btn--primary is-loading" type="button" disabled aria-busy="true" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span><span class="bb-btn__spinner" aria-hidden="true"></span></button>',
   });
 
@@ -253,23 +269,7 @@ describe('Button', () => {
   });
 
   contract({
-    name: 'icon-only carries no mark and an author-supplied name',
-    svelte: SvelteButton,
-    astro: AstroButton,
-    props: { variant: 'icon', icon: true, label: 'Close' },
-    html: '<button class="bb-btn bb-btn--icon" type="button" data-mark aria-label="Close"><span class="bb-btn__content"><svg viewBox="0 0 24 24"></svg></span></button>',
-  });
-
-  contract({
-    name: 'compact destructive icon preserves its accessible name and glyph',
-    svelte: SvelteButton,
-    astro: AstroButton,
-    props: { variant: 'icon', size: 'sm', danger: true, icon: true, label: 'Delete' },
-    html: '<button class="bb-btn bb-btn--icon bb-btn--danger-hover bb-btn--sm" type="button" data-mark aria-label="Delete"><span class="bb-btn__content"><svg viewBox="0 0 24 24"></svg></span></button>',
-  });
-
-  contract({
-    name: 'href renders an anchor (Astro Button) == ButtonLink (Svelte)',
+    name: 'ButtonLink renders an anchor in both adapters',
     svelte: SvelteButton,
     astro: AstroButton,
     props: { link: true, variant: 'secondary' },
@@ -1160,9 +1160,9 @@ const PRIMITIVES: {
     name: "ButtonLink",
     svelte: SvelteButtonLink,
     astro: AstroButtonLink,
-    props: {"href":"/pricing","variant":"green"},
+    props: {"href":"/pricing","variant":"secondary","tone":"success"},
     slot: "Go",
-    html: "<a class=\"bb-btn bb-btn--green\" href=\"/pricing\" data-mark><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\">Go</span></a>",
+    html: "<a class=\"bb-btn bb-btn--go\" href=\"/pricing\" data-mark><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\">Go</span></a>",
   },
   {
     name: "Tag",

@@ -53,7 +53,7 @@
 
       <div class="actions">
         <SaveStatus state={draft.saveState} />
-        <Button variant="primary" type="submit" loading={draft.saving}>{t('discord.save')}</Button>
+        <Button variant="primary" type="submit" busy={draft.saving}>{t('discord.save')}</Button>
       </div>
     </form>
 

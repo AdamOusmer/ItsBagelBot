@@ -15,7 +15,7 @@
 </script>
 
 <span class="row-delete">
-  <IconButton size="sm" danger {label} {disabled} {onclick}><Icon name="trash" size={15} /></IconButton>
+  <IconButton size="sm" {label} {disabled} {onclick} tone="danger"><Icon name="trash" size={15} /></IconButton>
 </span>
 
 <style>

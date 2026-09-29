@@ -224,7 +224,7 @@
 {#snippet devicesError()}
   <div class="err-block" role="alert">
     <Text size="sm" tone="danger">{t('govee.devicesError')}</Text>
-    <Button variant="secondary" type="button" loading={refreshing} onclick={refreshLights}>{t('govee.devicesRetry')}</Button>
+    <Button variant="secondary" type="button" busy={refreshing} onclick={refreshLights}>{t('govee.devicesRetry')}</Button>
   </div>
 {/snippet}
 
@@ -265,7 +265,7 @@
       {#if keyPresent}
         <div class="row">
           <Tag tone="live" mark="solid">{t('govee.keyOnFile')}</Tag>
-          <Button variant="destructive" type="button" onclick={() => (keyRemovePending = true)}>{t('govee.keyRemove')}</Button>
+          <Button type="button" onclick={() => (keyRemovePending = true)} tone="danger">{t('govee.keyRemove')}</Button>
         </div>
       {:else}
         <Text size="sm" tone="muted">
@@ -275,7 +275,7 @@
           <span class="key-input">
             <Input fill type="password" name="key" placeholder={t('govee.keyPlaceholder')} aria-label={t('govee.keyFieldLabel')} autocomplete="off" required />
           </span>
-          <Button variant="primary" type="submit" loading={keySaving}>{t('govee.keySave')}</Button>
+          <Button variant="primary" type="submit" busy={keySaving}>{t('govee.keySave')}</Button>
         </form>
       {/if}
     </div>
@@ -297,7 +297,7 @@
               {@render devicesError()}
             {:else if lights.length === 0}
               <EmptyState title={t('govee.noLights')} body={t('govee.noLightsBody')}>
-                <Button variant="secondary" type="button" loading={refreshing} onclick={refreshLights}>{t('govee.noLightsCta')}</Button>
+                <Button variant="secondary" type="button" busy={refreshing} onclick={refreshLights}>{t('govee.noLightsCta')}</Button>
               </EmptyState>
             {:else}
               <div>

@@ -51,9 +51,9 @@
               </Stack>
             </div>
             {#if data.active}
-              <ButtonLink href="/deploys/{data.active.id}" variant="green" solid>{t('admin.deploys.openRun')}</ButtonLink>
+              <ButtonLink href="/deploys/{data.active.id}" tone="success">{t('admin.deploys.openRun')}</ButtonLink>
             {:else}
-              <ButtonLink href="/deploys/new" variant="green" solid>{t('admin.deploys.start.cta')}</ButtonLink>
+              <ButtonLink href="/deploys/new" tone="success">{t('admin.deploys.start.cta')}</ButtonLink>
             {/if}
           </Cluster>
         </Card>

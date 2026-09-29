@@ -186,10 +186,10 @@
           <span class="line-remove">
             <IconButton
               size="sm"
-              danger
               title={i18n.t('commandEditor.removeLine', { n: String(i + 1) })}
               label={i18n.t('commandEditor.removeLine', { n: String(i + 1) })}
               onclick={() => removeLine(i)}
+              tone="danger"
             ><Icon name="x" /></IconButton>
           </span>
         {/if}

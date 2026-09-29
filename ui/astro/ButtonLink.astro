@@ -2,21 +2,26 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
+import { buttonClass, hasMark, type ButtonSize, type ButtonTone, type ButtonVariant } from '../lib/button';
+import '../styles/elements/button.css';
 
-import Button from './Button.astro';
-
-interface Props extends Omit<HTMLAttributes<'a'>, 'href' | 'variant' | 'solid' | 'block' | 'size' | 'done' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'a'>, 'href' | 'class'> {
     href: string;
-    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
-    solid?: boolean;
+    variant?: ButtonVariant;
+    tone?: ButtonTone;
+    size?: ButtonSize;
     block?: boolean;
-    size?: 'md' | 'sm';
     done?: boolean;
     disabled?: boolean;
     class?: string;
 }
 
-const props = Astro.props;
+const { href, variant = 'primary', tone = 'neutral', size = 'md', block = false, done = false, disabled = false, class: className, ...rest } = Astro.props;
+const classes = [buttonClass({ variant, tone, size, block, done }), className].filter(Boolean).join(' ');
+const link = disabled ? { role: 'link', 'aria-disabled': 'true' } : { href };
 ---
 
-<Button {...props}><slot /></Button>
+<a class={classes} {...link} data-mark="" {...rest}>
+    {hasMark(variant) && <i class="bb-btn__mark" aria-hidden="true" />}
+    <span class="bb-btn__content"><slot /></span>
+</a>

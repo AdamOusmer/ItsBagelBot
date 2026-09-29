@@ -93,7 +93,7 @@
   </div>
 
   <div class="cta reveal">
-    <ButtonLink href={HOME} variant="green" solid>{t('goodbye.cta')}</ButtonLink>
+    <ButtonLink href={HOME} tone="success">{t('goodbye.cta')}</ButtonLink>
   </div>
 
   <span class="bar reveal" aria-hidden="true"><i class:paused></i></span>

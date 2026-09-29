@@ -112,7 +112,7 @@
 
   <div class="actions">
     {#if !isNew}
-      <Button variant="destructive" onclick={onDelete} disabled={busy}>{t('common.delete')}</Button>
+      <Button onclick={onDelete} disabled={busy} tone="danger">{t('common.delete')}</Button>
     {/if}
     <div class="end">
       <Cluster gap={3}>

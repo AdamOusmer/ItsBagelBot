@@ -181,7 +181,7 @@
               <Button variant="ghost" type="button" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
             {:else if ui.showEnable}
               <form method="POST" action="?/enable" use:enhance={enableSubmit}>
-                <Button variant="primary" type="submit" loading={busy}>{t('overview.enable')}</Button>
+                <Button variant="primary" type="submit" busy={busy}>{t('overview.enable')}</Button>
               </form>
             {:else if ui.showConnect}
               <ButtonLink href="/settings#account" variant="primary"

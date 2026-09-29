@@ -45,7 +45,7 @@
   <Card>
     <Text size="sm" tone="muted" class="hint">{t('discord.settings.setupHelp')}</Text>
     <form method="POST" action="?/setup" use:enhance={setupSubmit}>
-      <Button variant="secondary" type="submit" loading={busy}>{t('discord.settings.setupCta')}</Button>
+      <Button variant="secondary" type="submit" busy={busy}>{t('discord.settings.setupCta')}</Button>
     </form>
 
     {#if !data.found}
@@ -62,7 +62,7 @@
       <ButtonLink variant="ghost" href="/discord/connect" data-sveltekit-reload>
         {t('discord.settings.reconnectCta')}
       </ButtonLink>
-      <Button variant="destructive" onclick={() => (disconnectOpen = true)}>
+      <Button onclick={() => (disconnectOpen = true)} tone="danger">
         {t('discord.settings.disconnectCta')}
       </Button>
     </div>

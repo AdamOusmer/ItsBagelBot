@@ -85,7 +85,7 @@ const t = useTranslations(lang);
                 </div>
 
                 <div class="hero-actions">
-                    <ButtonLink variant="green" solid class="hero-cta" href={dashLoginHref(lang)}>{t('nav.cta')}</ButtonLink>
+                    <ButtonLink class="hero-cta" href={dashLoginHref(lang)} tone="success">{t('nav.cta')}</ButtonLink>
 
                     <TextLink variant="arrow" tone="go" prose class="migrate" href={localizePath('/import', lang)} label={t('hero.migrateText')} />
                 </div>

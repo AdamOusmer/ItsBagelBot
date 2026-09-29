@@ -10,7 +10,7 @@
     label: string;
     tooltip?: boolean;
     size?: 'md' | 'sm';
-    danger?: boolean;
+    tone?: 'neutral' | 'danger';
     type?: 'button' | 'submit' | 'reset';
     onclick?: (e: MouseEvent) => void;
     disabled?: boolean;
@@ -22,7 +22,7 @@
     label,
     tooltip = false,
     size = 'md',
-    danger = false,
+    tone = 'neutral',
     type = 'button',
     onclick,
     disabled = false,
@@ -36,7 +36,7 @@
       'bb-btn',
       'bb-btn--icon',
       size === 'sm' ? 'bb-btn--sm' : null,
-      danger ? 'bb-btn--danger-hover' : null,
+      tone === 'danger' ? 'bb-btn--danger-hover' : null,
       className || null,
     ]
       .filter(Boolean)

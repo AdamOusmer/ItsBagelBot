@@ -289,7 +289,7 @@
 
         <div class="actions">
           <SaveStatus state={saveState} />
-          <Button variant="primary" type="submit" loading={busy}>{t('loyalty.save')}</Button>
+          <Button variant="primary" type="submit" busy={busy}>{t('loyalty.save')}</Button>
         </div>
       </form>
     </Card>

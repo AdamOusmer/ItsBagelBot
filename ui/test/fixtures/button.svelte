@@ -4,8 +4,8 @@
 
   import Button from '../../svelte/Button.svelte';
   import ButtonLink from '../../svelte/ButtonLink.svelte';
-  let { label = 'Save', icon = false, link = false, ...props }:
-    { label?: string; icon?: boolean; link?: boolean; [key: string]: unknown } = $props();
+  let { label = 'Save', link = false, ...props }:
+    { label?: string; link?: boolean; [key: string]: unknown } = $props();
 </script>
 
-{#if link}<ButtonLink {...props} href="/x">{label}</ButtonLink>{:else if icon}<Button {...props} aria-label={label}><svg viewBox="0 0 24 24"></svg></Button>{:else}<Button {...props}>{label}</Button>{/if}
+{#if link}<ButtonLink {...props} href="/x">{label}</ButtonLink>{:else}<Button {...props}>{label}</Button>{/if}

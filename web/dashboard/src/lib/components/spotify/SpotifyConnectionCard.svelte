@@ -92,7 +92,7 @@
     </Tag>
     <span class="line-actions">
       <ButtonLink variant="secondary" href="/spotify/connect" data-sveltekit-reload>{t('spotify.connection.reconnectSpotify')}</ButtonLink>
-      <Button variant="destructive" type="button" onclick={onDisconnect}>{t('spotify.connection.disconnect')}</Button>
+      <Button type="button" onclick={onDisconnect} tone="danger">{t('spotify.connection.disconnect')}</Button>
     </span>
   </div>
 
@@ -110,7 +110,7 @@
     <Code>{app.clientId}</Code>
     <span class="line-actions">
       <Button variant="secondary" type="button" onclick={startReplace} disabled={replacing}>{t('spotify.app.replace')}</Button>
-      <Button variant="destructive" type="button" onclick={onRemoveApp}>{t('spotify.app.remove')}</Button>
+      <Button type="button" onclick={onRemoveApp} tone="danger">{t('spotify.app.remove')}</Button>
     </span>
   </div>
 
@@ -128,7 +128,7 @@
         <Input fill name="client_secret" type="password" bind:value={clientSecret} autocomplete="off" spellcheck="false" required />
       </Field>
       <div class="line-actions">
-        <Button variant="primary" type="submit" loading={saving}>{t('spotify.app.save')}</Button>
+        <Button variant="primary" type="submit" busy={saving}>{t('spotify.app.save')}</Button>
         <Button variant="ghost" type="button" onclick={cancelReplace} disabled={saving}>{t('spotify.app.cancel')}</Button>
       </div>
     </form>
