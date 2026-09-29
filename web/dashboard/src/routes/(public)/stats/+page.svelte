@@ -176,7 +176,7 @@
     };
   });
 
-  const rateFmt = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
+  const rateFmt = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const compactFmt = new Intl.NumberFormat(locale, {
     notation: 'compact',
     maximumFractionDigits: 2
