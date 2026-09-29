@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func perm(v int64) string { return strconv.FormatInt(v, 10) }
+func perm(v uint64) string { return strconv.FormatUint(v, 10) }
 
 func TestChannelPermissionsResolution(t *testing.T) {
 	const send = PermViewChannel | PermSendMessages
@@ -64,8 +64,15 @@ func TestChannelPermissionsResolution(t *testing.T) {
 	}
 }
 
-func TestParsePermissionsRejectsGarbage(t *testing.T) {
-	for in, want := range map[string]int64{"": 0, "x": 0, "2048": 2048} {
+func TestParsePermissions(t *testing.T) {
+	cases := map[string]uint64{
+		"":                     0,
+		"x":                    0,
+		"2048":                 PermSendMessages,
+		"9223372036854775808":  1 << 63,
+		"18446744073709551615": ^uint64(0),
+	}
+	for in, want := range cases {
 		if got := ParsePermissions(in); got != want {
 			t.Fatalf("ParsePermissions(%q) = %d, want %d", in, got, want)
 		}
