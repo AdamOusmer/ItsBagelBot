@@ -16,7 +16,6 @@
   import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
-  import { visibleEventSource } from '$lib/visible-stream';
   import { exactDisplay, formatStatTotal, validBoards, validStats } from '$lib/stats-values';
   import { formatCounterValue } from '@bagel/kit/validation';
 
@@ -24,7 +23,7 @@
 
   const { t, locale } = getI18n();
 
-  const POLL_MS = 5000;
+  const POLL_MS = 2000;
   const INTRO_MS = 900;
   const TAU_MS = 200;
   const RATE_TAU_MS = 300;
@@ -44,11 +43,13 @@
   let live = $state(seed);
   let degraded = $state(seed.degraded);
 
-  let boards = $state(untrack(() => validBoards(data.boards) ?? {
+  const emptyBoards = () => ({
     channels: [],
     feed: { total: '0', ranked: '0', entries: [] },
     degraded: true
-  }));
+  });
+
+  let boards = $state(untrack(() => validBoards(data.boards) ?? emptyBoards()));
 
   let display = $state({
     messages: exactDisplay(Number(seed.messages_total)),
@@ -64,7 +65,7 @@
   let lastFrame = 0;
   let raf = 0;
   let reduced = false;
-  let streamDown = false;
+  let polling = false;
 
   function targetFrame(now: number): Frame {
     const secs = Math.min(Math.max(0, now - snapAt) / 1000, MAX_PROJECT_S);
@@ -136,50 +137,25 @@
     if (BigInt(next.events_total) < BigInt(prev.events_total)) display.events = exactDisplay(Number(next.events_total));
   }
 
-  async function refresh(): Promise<void> {
-    if (document.hidden) return;
-    try {
-      const res = await fetch('/stats/data', { headers: { accept: 'application/json' } });
-      if (!res.ok) return;
-      applySnapshot(await res.json());
-    } catch {
-    }
+  async function fetchJson(path: string): Promise<unknown> {
+    const res = await fetch(path, { headers: { accept: 'application/json' } });
+    if (!res.ok) throw new Error(`${path} ${res.status}`);
+    return res.json();
   }
 
-  async function refreshBoards(): Promise<void> {
-    if (document.hidden) return;
+  async function poll(resync: boolean): Promise<void> {
+    if (document.hidden || polling) return;
+    polling = true;
     try {
-      const res = await fetch('/stats/boards', { headers: { accept: 'application/json' } });
-      if (!res.ok) return;
-      boards = validBoards(await res.json()) ?? {
-        channels: [], feed: { total: '0', ranked: '0', entries: [] }, degraded: true
-      };
-    } catch {
+      const [stats, next] = await Promise.allSettled([fetchJson('/stats/data'), fetchJson('/stats/boards')]);
+      if (stats.status === 'fulfilled') {
+        applySnapshot(stats.value);
+        if (resync) snap(performance.now());
+      }
+      if (next.status === 'fulfilled') boards = validBoards(next.value) ?? emptyBoards();
+    } finally {
+      polling = false;
     }
-  }
-
-  function attachStream(es: EventSource, reopened: boolean): void {
-    let resync = reopened;
-    es.onopen = () => (streamDown = false);
-    es.onerror = () => (streamDown = true);
-    es.onmessage = (ev) => {
-      try {
-        applySnapshot(JSON.parse(ev.data));
-      } catch {
-        return;
-      }
-      if (!resync) return;
-      resync = false;
-      snap(performance.now());
-    };
-    es.addEventListener('boards', (ev) => {
-      try {
-        boards = validBoards(JSON.parse((ev as MessageEvent<string>).data)) ?? {
-          channels: [], feed: { total: '0', ranked: '0', entries: [] }, degraded: true
-        };
-      } catch {
-      }
-    });
   }
 
   onMount(() => {
@@ -195,12 +171,8 @@
       raf = requestAnimationFrame(tick);
     }
 
-    const stop = visibleEventSource('/stats/stream', attachStream);
-    const timer = setInterval(() => {
-      if (!streamDown) return;
-      void refresh();
-      void refreshBoards();
-    }, POLL_MS);
+    void poll(false);
+    const timer = setInterval(() => void poll(false), POLL_MS);
 
     const onVisible = () => {
       if (document.hidden) return;
@@ -209,14 +181,11 @@
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(tick);
       }
-      if (!streamDown) return;
-      void refresh();
-      void refreshBoards();
+      void poll(true);
     };
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      stop();
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
       cancelAnimationFrame(raf);
