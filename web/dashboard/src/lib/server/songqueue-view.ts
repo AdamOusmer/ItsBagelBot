@@ -38,8 +38,12 @@ export function shapeQueue(doc: SongQueueDoc, live: SpotifyPlayerQueue | null, n
   return progress ? { ...view, progress } : view;
 }
 
+function isCurrentTrackLive(live: SpotifyPlayerQueue | null, view: QueueView, currentId: string): live is SpotifyPlayerQueue {
+  return !!live && view.current?.tid === currentId;
+}
+
 function progressOf(live: SpotifyPlayerQueue | null, view: QueueView, currentId: string): QueueProgress | null {
-  if (!live || !view.current || view.current.tid !== currentId) return null;
+  if (!isCurrentTrackLive(live, view, currentId)) return null;
   const durationMs = live.duration_ms ?? 0;
   if (!(durationMs > 0)) return null;
   const positionMs = Math.min(Math.max(live.progress_ms ?? 0, 0), durationMs);

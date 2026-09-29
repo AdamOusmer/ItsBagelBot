@@ -691,26 +691,37 @@ func (p *api) playerQueue(ctx context.Context, req gossiprpc.Request) any {
 	if err := p.rateAdmit(broadcaster)(ctx); err != nil {
 		return gossiprpc.SpotifyQueueReply{Error: p.fetchFailed("spotify queue read denied", "Spotify is busy right now, try again in a moment", err)}
 	}
-	var resp struct {
-		Current trackItem   `json:"currently_playing"`
-		Queue   []trackItem `json:"queue"`
-	}
+	var resp queueResponse
 	if err := p.http.Do(ctx, core.Request{Method: http.MethodGet, Path: queuePath, Headers: bearerHeader(tok)}, &resp); err != nil {
 		return gossiprpc.SpotifyQueueReply{Error: p.fetchFailed("spotify queue read failed", "could not reach Spotify", err)}
 	}
-	reply := gossiprpc.SpotifyQueueReply{UpNext: make([]gossiprpc.SpotifyTrack, 0, len(resp.Queue))}
-	if resp.Current.ID != "" {
-		reply.Current = shapeTrack(resp.Current)
+	reply := resp.reply()
+	if wantsProgress(req, reply) {
+		p.attachProgress(ctx, tok, &reply)
 	}
-	for _, item := range resp.Queue {
+	return reply
+}
+
+type queueResponse struct {
+	Current trackItem   `json:"currently_playing"`
+	Queue   []trackItem `json:"queue"`
+}
+
+func (q queueResponse) reply() gossiprpc.SpotifyQueueReply {
+	reply := gossiprpc.SpotifyQueueReply{UpNext: make([]gossiprpc.SpotifyTrack, 0, len(q.Queue))}
+	if q.Current.ID != "" {
+		reply.Current = shapeTrack(q.Current)
+	}
+	for _, item := range q.Queue {
 		if item.ID != "" {
 			reply.UpNext = append(reply.UpNext, *shapeTrack(item))
 		}
 	}
-	if req.Progress && reply.Current != nil {
-		p.attachProgress(ctx, tok, &reply)
-	}
 	return reply
+}
+
+func wantsProgress(req gossiprpc.Request, reply gossiprpc.SpotifyQueueReply) bool {
+	return req.Progress && reply.Current != nil
 }
 
 // Progress is decoration: a failed read leaves the queue reply intact.

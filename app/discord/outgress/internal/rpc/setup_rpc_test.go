@@ -590,15 +590,15 @@ func TestHandleLayoutCarriesParentAndBotAccess(t *testing.T) {
 
 	got := d.handleLayout(context.Background(), outgressrpc.DiscordLayoutRequest{UserID: "b1", GuildID: "g1"})
 
-	want := map[string][3]any{
+	want := map[string]layoutWant{
 		"open":    {"Community", true, true},
 		"locked":  {"Community", false, false},
 		"noembed": {"", true, false},
 	}
 	for _, ch := range got.Channels {
 		w := want[ch.ID]
-		if ch.ParentName != w[0] || !sameFlag(ch.BotCanSend, w[1]) || !sameFlag(ch.BotCanEmbed, w[2]) {
-			t.Fatalf("%s = %+v, want %v", ch.ID, ch, w)
+		if !w.matches(ch) {
+			t.Fatalf("%s = %+v, want %+v", ch.ID, ch, w)
 		}
 	}
 	if got.Categories[0].BotCanSend != nil {
@@ -606,4 +606,18 @@ func TestHandleLayoutCarriesParentAndBotAccess(t *testing.T) {
 	}
 }
 
-func sameFlag(got *bool, want any) bool { return got != nil && *got == want }
+type layoutWant struct {
+	parent string
+	send   bool
+	embed  bool
+}
+
+func (w layoutWant) matches(ch outgressrpc.DiscordLayoutEntry) bool {
+	return ch.ParentName == w.parent && w.flagsMatch(ch)
+}
+
+func (w layoutWant) flagsMatch(ch outgressrpc.DiscordLayoutEntry) bool {
+	return sameFlag(ch.BotCanSend, w.send) && sameFlag(ch.BotCanEmbed, w.embed)
+}
+
+func sameFlag(got *bool, want bool) bool { return got != nil && *got == want }

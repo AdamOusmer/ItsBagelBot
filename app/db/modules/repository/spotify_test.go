@@ -148,13 +148,13 @@ const (
 	testClientSecret = "secret-xyz"
 )
 
-func seedApp(t *testing.T, creds *repository.SpotifyCreds, userID uint64) {
+func seedApp(t *testing.T, creds *repository.SpotifyCreds, userID repository.SpotifyUserID) {
 	t.Helper()
 	require.NoError(t, creds.SetApp(context.Background(), userID,
 		repository.SpotifyApp{ClientID: testClientID, ClientSecret: testClientSecret}))
 }
 
-func seedConnected(t *testing.T, creds *repository.SpotifyCreds, userID uint64, token string) {
+func seedConnected(t *testing.T, creds *repository.SpotifyCreds, userID repository.SpotifyUserID, token string) {
 	t.Helper()
 	seedApp(t, creds, userID)
 	require.NoError(t, creds.SetToken(context.Background(), userID, repository.SpotifyGrant{RefreshToken: token}))

@@ -246,7 +246,13 @@ function recordFailure(ctx: CommitContext, failure: Failure, err: unknown): void
   ctx.failures.push(failure);
 }
 
-function failRow(ctx: CommitContext, kind: RowKind, idx: number, reason: ImportFailedReason, err: unknown): void {
+interface RowRef {
+  kind: RowKind;
+  idx: number;
+}
+
+function failRow(ctx: CommitContext, row: RowRef, reason: ImportFailedReason, err: unknown): void {
+  const { kind, idx } = row;
   const failureKind = FAILED_KIND[kind];
   recordFailure(ctx, { kind: failureKind, name: rowLabel(kind, ctx.manifest[kind]![idx]), reason }, err);
   ctx.diags.push(errorDiag(idx, CODE.writeFailed, String(err)));
@@ -291,7 +297,7 @@ async function upsertOneCommand(ctx: CommitContext, target: CommandTarget): Prom
     });
     ctx.applied.commands++;
   } catch (err) {
-    failRow(ctx, 'commands', idx, 'rejected', err);
+    failRow(ctx, { kind: 'commands', idx }, 'rejected', err);
   }
 }
 
@@ -321,7 +327,7 @@ async function commitQuotes(ctx: CommitContext): Promise<void> {
       });
       ctx.applied.quotes++;
     } catch (err) {
-      failRow(ctx, 'quotes', idx, 'rejected', err);
+      failRow(ctx, { kind: 'quotes', idx }, 'rejected', err);
     }
   }
 }
@@ -390,7 +396,7 @@ async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): P
     await patchModule(ctx, { name: 'timers', configs: { timers: merged } });
     ctx.applied.timers += targets.length;
   } catch (err) {
-    for (const idx of targets) failRow(ctx, 'timers', idx, 'module', err);
+    for (const idx of targets) failRow(ctx, { kind: 'timers', idx }, 'module', err);
   }
 }
 
@@ -420,7 +426,7 @@ async function applyTriggers(ctx: CommitContext, blob: Record<string, unknown>):
     await patchModule(ctx, { name: 'triggers', configs: { rules: lines.join('\n') } });
     ctx.applied.triggers += landed.length;
   } catch (err) {
-    for (const idx of landed) failRow(ctx, 'triggers', idx, 'module', err);
+    for (const idx of landed) failRow(ctx, { kind: 'triggers', idx }, 'module', err);
   }
 }
 

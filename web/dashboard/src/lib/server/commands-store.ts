@@ -136,13 +136,8 @@ export interface CommandInput {
   restoreUses?: number;
 }
 
-export async function upsertCommand(
-  userId: string,
-  cmd: CommandInput,
-  originalName?: string
-): Promise<{ commands: CommandView[]; restored: boolean }> {
-  const canRestore = !originalName && (cmd.restoreUses ?? 0) > 0;
-  const reply = await rpc<{ restored?: boolean }>(`${SUB.commands}.upsert`, {
+function upsertRequest(userId: string, cmd: CommandInput, originalName: string | undefined, canRestore: boolean) {
+  return {
     user_id: userId,
     name: cmd.name,
     aliases: cmd.aliases,
@@ -155,38 +150,47 @@ export async function upsertCommand(
     bump_counter: cmd.bumpCounter,
     original_name: originalName ?? '',
     restore_uses: canRestore ? cmd.restoreUses : undefined
-  });
+  };
+}
+
+function upsertedView(cmd: CommandInput, previous: CommandView | undefined, restored: boolean): CommandView {
+  return {
+    name: cmd.name,
+    aliases: cmd.aliases,
+    response: cmd.response,
+    is_active: cmd.isActive,
+    stream_online_only: cmd.streamOnlineOnly,
+    perm: cmd.perm,
+    cooldown: cmd.cooldown,
+    allowed_user_id: cmd.allowedUserId,
+    bump_counter: cmd.bumpCounter,
+    uses: restored ? String(cmd.restoreUses) : previous?.uses,
+    created_at: previous?.created_at
+  };
+}
+
+function mergeUpserted(current: CommandView[], upserted: CommandView, originalName: string | undefined): CommandView[] {
+  const renamedFrom = originalName && originalName !== upserted.name ? originalName : undefined;
+  const kept = current.filter((c) => c.name !== renamedFrom);
+  if (!kept.some((c) => c.name === upserted.name)) return [...kept, upserted];
+  return kept.map((c) => (c.name === upserted.name ? upserted : c));
+}
+
+export async function upsertCommand(
+  userId: string,
+  cmd: CommandInput,
+  originalName?: string
+): Promise<{ commands: CommandView[]; restored: boolean }> {
+  const canRestore = !originalName && (cmd.restoreUses ?? 0) > 0;
+  const reply = await rpc<{ restored?: boolean }>(
+    `${SUB.commands}.upsert`,
+    upsertRequest(userId, cmd, originalName, canRestore)
+  );
   const restored = canRestore && reply?.restored === true;
   try {
     const current = await listCommands(userId);
-    let commands = current;
     const previous = current.find((c) => c.name === (originalName ?? cmd.name));
-    if (originalName && originalName !== cmd.name) {
-      commands = commands.filter((c) => c.name !== originalName);
-    }
-    const upserted: CommandView = {
-      name: cmd.name,
-      aliases: cmd.aliases,
-      response: cmd.response,
-      is_active: cmd.isActive,
-      stream_online_only: cmd.streamOnlineOnly,
-      perm: cmd.perm,
-      cooldown: cmd.cooldown,
-      allowed_user_id: cmd.allowedUserId,
-      bump_counter: cmd.bumpCounter,
-      uses: restored ? String(cmd.restoreUses) : previous?.uses,
-      created_at: previous?.created_at
-    };
-    let merged = false;
-    commands = commands.map((v) => {
-      if (v.name === cmd.name) {
-        merged = true;
-        return upserted;
-      }
-      return v;
-    });
-    if (!merged) commands.push(upserted);
-
+    const commands = mergeUpserted(current, upsertedView(cmd, previous, restored), originalName);
     const synced = (await replaceProjected('commands', userId, commands)) !== null;
     commitOptimistic(cacheKey('commands', userId), commands, synced);
     return { commands, restored };

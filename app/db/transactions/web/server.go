@@ -165,12 +165,8 @@ func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 		s.handleValidation(ctx, w, event)
 		return
 	}
-	if spec, ok := billingEventActions[event.Type]; ok {
-		s.processBillingEvent(ctx, w, billingWork{event: event, action: spec.action, notify: spec.notify})
-		return
-	}
-	if declinedRenewal(event) {
-		s.processBillingEvent(ctx, w, billingWork{event: event, action: billingrpc.ActionPaymentFailed})
+	if work, ok := billingWorkFor(event); ok {
+		s.processBillingEvent(ctx, w, work)
 		return
 	}
 	if strings.HasPrefix(event.Type, "recurring-payment.trial") {
@@ -178,6 +174,16 @@ func (s *Server) tebexWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.auditIgnored(ctx, w, event)
+}
+
+func billingWorkFor(event tebexEvent) (billingWork, bool) {
+	if spec, ok := billingEventActions[event.Type]; ok {
+		return billingWork{event: event, action: spec.action, notify: spec.notify}, true
+	}
+	if declinedRenewal(event) {
+		return billingWork{event: event, action: billingrpc.ActionPaymentFailed}, true
+	}
+	return billingWork{}, false
 }
 
 func (s *Server) verifiedBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {

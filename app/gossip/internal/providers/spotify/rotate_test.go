@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"ItsBagelBot/app/gossip/internal/core"
+	"ItsBagelBot/app/gossip/internal/provider"
 
 	"github.com/stretchr/testify/assert"
 
@@ -17,16 +18,17 @@ import (
 )
 
 type rotatingKeys struct {
+	readOnlyKeys
 	rotateErr error
 
 	calls []rotateCall
 }
 
-type rotateCall struct{ broadcaster, prev, next string }
-
-func (f *rotatingKeys) Credentials(context.Context, string) (core.SpotifyCredentials, error) {
-	return core.SpotifyCredentials{}, nil
+func newTestAPI(keys provider.SpotifyCredResolver) *api {
+	return &api{keys: keys, log: zap.NewNop()}
 }
+
+type rotateCall struct{ broadcaster, prev, next string }
 
 func (f *rotatingKeys) Rotate(_ context.Context, broadcaster, prev, next string) error {
 	f.calls = append(f.calls, rotateCall{broadcaster, prev, next})
@@ -41,7 +43,7 @@ func (readOnlyKeys) Credentials(context.Context, string) (core.SpotifyCredential
 
 func TestPersistRotationWritesBack(t *testing.T) {
 	keys := &rotatingKeys{}
-	p := &api{keys: keys, log: zap.NewNop()}
+	p := newTestAPI(keys)
 
 	p.persistRotation(context.Background(), "42", "old-token", "new-token")
 
@@ -50,7 +52,7 @@ func TestPersistRotationWritesBack(t *testing.T) {
 
 func TestPersistRotationSkipsWithoutRotation(t *testing.T) {
 	keys := &rotatingKeys{}
-	p := &api{keys: keys, log: zap.NewNop()}
+	p := newTestAPI(keys)
 
 	p.persistRotation(context.Background(), "42", "old-token", "")
 	p.persistRotation(context.Background(), "42", "old-token", "old-token")
@@ -60,7 +62,7 @@ func TestPersistRotationSkipsWithoutRotation(t *testing.T) {
 
 func TestPersistRotationToleratesWriteBackFailure(t *testing.T) {
 	keys := &rotatingKeys{rotateErr: errors.New("custody unreachable")}
-	p := &api{keys: keys, log: zap.NewNop()}
+	p := newTestAPI(keys)
 
 	p.persistRotation(context.Background(), "42", "old-token", "new-token")
 
@@ -68,7 +70,7 @@ func TestPersistRotationToleratesWriteBackFailure(t *testing.T) {
 }
 
 func TestPersistRotationToleratesReadOnlyResolver(t *testing.T) {
-	p := &api{keys: readOnlyKeys{}, log: zap.NewNop()}
+	p := newTestAPI(readOnlyKeys{})
 	p.persistRotation(context.Background(), "42", "old-token", "new-token")
 }
 
@@ -96,7 +98,7 @@ func TestReportRefreshFailure(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			keys := &deadMarkingKeys{}
-			p := &api{keys: keys, log: zap.NewNop()}
+			p := newTestAPI(keys)
 			p.reportRefreshFailure(context.Background(), "42", "rt", tc.err)
 			assert.Equal(t, tc.want, keys.calls)
 		})
