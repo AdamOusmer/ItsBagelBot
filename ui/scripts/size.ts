@@ -219,7 +219,9 @@ const ENTRIES: {
   },
   {
     name: "i18n",
-    budget: 1750, // 1443 B: lookup plus the en and fr catalogs, both bundled (nav gained previous, next, pagination); +150 B platform, +10%
+    // Lookup plus six bundled catalogs (en/fr/es/pt-br/de/ru): 3636 B gzip
+    // measured in Linux CI 2026-09-30; +150 B platform variance and ~10% room.
+    budget: 4200, // 564 B room for the four deliberately added language catalogs.
     external: [],
     source: `import { createUiI18n, uiText, resolveUiLocale } from "../../lib/i18n";
              globalThis.x = [createUiI18n, uiText, resolveUiLocale];`,
