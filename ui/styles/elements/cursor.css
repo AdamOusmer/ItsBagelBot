@@ -19,6 +19,19 @@
         will-change: transform, opacity;
     }
 
+    .bb-cursor[popover],
+    .bb-cursor-ring[popover] {
+        right: auto;
+        bottom: auto;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+    }
+
+    .bb-cursor[popover] {
+        border: 0;
+    }
+
     .bb-cursor.is-text {
         top: -9px;
         left: -1px;

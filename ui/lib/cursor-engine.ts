@@ -175,12 +175,29 @@ export function mountCursor(options: CursorOptions): () => void {
         wake(tick);
     };
 
+    const layered = [ring, dot].filter((el) => typeof el.showPopover === 'function');
+
+    const raise = (): void => {
+        for (const el of layered) {
+            if (el.matches(':popover-open')) el.hidePopover();
+            el.showPopover();
+        }
+    };
+
+    const onToggle = (event: Event): void => {
+        if ((event as ToggleEvent).newState !== 'open') return;
+        if (layered.includes(event.target as HTMLElement)) return;
+        queueMicrotask(raise);
+    };
+
     const syncMotion = (): void => {
         document.documentElement.classList.toggle('bb-cursor-on', !reduceMotion.matches);
         wake(tick);
     };
 
     const unsubscribe = subscribe(tick);
+    for (const el of layered) el.popover = 'manual';
+    raise();
     syncMotion();
     reduceMotion.addEventListener('change', syncMotion);
     window.addEventListener('pointermove', onMove, { passive: true });
@@ -188,6 +205,7 @@ export function mountCursor(options: CursorOptions): () => void {
     window.addEventListener('resize', remeasure, { passive: true });
     document.addEventListener('pointerover', onOver, { passive: true });
     document.addEventListener('pointerout', onOut, { passive: true });
+    document.addEventListener('beforetoggle', onToggle, true);
 
     return () => {
         unsubscribe();
@@ -197,6 +215,8 @@ export function mountCursor(options: CursorOptions): () => void {
         window.removeEventListener('resize', remeasure);
         document.removeEventListener('pointerover', onOver);
         document.removeEventListener('pointerout', onOut);
+        document.removeEventListener('beforetoggle', onToggle, true);
+        for (const el of layered) el.removeAttribute('popover');
         document.documentElement.classList.remove('bb-cursor-on');
     };
 }
