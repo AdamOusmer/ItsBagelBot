@@ -30,6 +30,8 @@ const (
 	FieldPerm = "perm"
 	// FieldCooldown holds the string denoting the cooldown field in the database.
 	FieldCooldown = "cooldown"
+	// FieldUserCooldown holds the string denoting the user_cooldown field in the database.
+	FieldUserCooldown = "user_cooldown"
 	// FieldAllowedUserID holds the string denoting the allowed_user_id field in the database.
 	FieldAllowedUserID = "allowed_user_id"
 	// FieldUses holds the string denoting the uses field in the database.
@@ -55,6 +57,7 @@ var Columns = []string{
 	FieldStreamOnlineOnly,
 	FieldPerm,
 	FieldCooldown,
+	FieldUserCooldown,
 	FieldAllowedUserID,
 	FieldUses,
 	FieldBumpCounter,
@@ -91,6 +94,8 @@ var (
 	DefaultPerm string
 	// DefaultCooldown holds the default value on creation for the "cooldown" field.
 	DefaultCooldown uint
+	// DefaultUserCooldown holds the default value on creation for the "user_cooldown" field.
+	DefaultUserCooldown uint
 	// DefaultAllowedUserID holds the default value on creation for the "allowed_user_id" field.
 	DefaultAllowedUserID uint64
 	// DefaultUses holds the default value on creation for the "uses" field.
@@ -150,6 +155,11 @@ func ByPerm(opts ...sql.OrderTermOption) OrderOption {
 // ByCooldown orders the results by the cooldown field.
 func ByCooldown(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCooldown, opts...).ToFunc()
+}
+
+// ByUserCooldown orders the results by the user_cooldown field.
+func ByUserCooldown(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUserCooldown, opts...).ToFunc()
 }
 
 // ByAllowedUserID orders the results by the allowed_user_id field.

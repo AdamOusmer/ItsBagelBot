@@ -330,6 +330,7 @@ func TestUrlFetchFailedFetchReleasesClaimForRedelivery(t *testing.T) {
 }
 
 type denySecondCooldown struct {
+	NoopCooldown
 	mu      sync.Mutex
 	allowed int
 }

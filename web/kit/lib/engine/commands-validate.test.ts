@@ -25,6 +25,7 @@ const validFields = {
   name: 'raid',
   aliases: [],
   cooldown: 0,
+  userCooldown: 0,
   allowedUserId: '',
   bumpCounter: ''
 };
@@ -52,6 +53,17 @@ describe('command response normalization', () => {
     const repeats = Array.from({ length: n + 3 }, () => '{urlfetch:def_0}').join(' ');
     expect(validateCommand({ ...validFields, response: repeats }).response).toBeUndefined();
     expect(validateCommand({ ...validFields, response: `{urlfetch:a} ok` }).response).toBeUndefined();
+  });
+});
+
+describe('cooldown scopes', () => {
+  test('each limit reports on its own field', () => {
+    const errors = validateCommand({ ...validFields, response: 'hi', cooldown: 5, userCooldown: 86401 });
+    expect(errors).toEqual({ user_cooldown: 'Cooldown must be between 0 and 86400 seconds.' });
+    expect(validateCommand({ ...validFields, response: 'hi', userCooldown: 1.5 }).user_cooldown).toBe(
+      'Cooldown must be a whole number of seconds.'
+    );
+    expect(validateCommand({ ...validFields, response: 'hi', cooldown: 0, userCooldown: 86400 })).toEqual({});
   });
 });
 

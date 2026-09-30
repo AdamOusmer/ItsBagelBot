@@ -16,6 +16,7 @@ type DashboardRequest struct {
 	StreamOnlineOnly bool     `json:"stream_online_only"`
 	Perm             string   `json:"perm"`
 	Cooldown         uint     `json:"cooldown"`
+	UserCooldown     uint     `json:"user_cooldown"`
 	AllowedUserID    string   `json:"allowed_user_id"`
 	BumpCounter      string   `json:"bump_counter"`
 	OriginalName     string   `json:"original_name"`

@@ -38,12 +38,13 @@ export interface CommandFields {
   aliases: string[];
   response: string;
   cooldown: number;
+  userCooldown: number;
   allowedUserId: string;
   bumpCounter: string;
 }
 
 export type CommandErrors = Partial<
-  Record<'name' | 'aliases' | 'response' | 'cooldown' | 'allowed_user_id' | 'bump_counter', string>
+  Record<'name' | 'aliases' | 'response' | 'cooldown' | 'user_cooldown' | 'allowed_user_id' | 'bump_counter', string>
 >;
 
 interface NameCheck {
@@ -85,11 +86,15 @@ function responseProblem(response: string): string | undefined {
   return undefined;
 }
 
-function cooldownProblem(cooldown: number): string | undefined {
-  const inRangeAndNotNaN = cooldown >= 0 && cooldown <= COOLDOWN_MAX;
-  if (!inRangeAndNotNaN) return `Cooldown must be between 0 and ${COOLDOWN_MAX} seconds.`;
-  if (!Number.isInteger(cooldown)) return 'Cooldown must be a whole number of seconds.';
-  return undefined;
+function cooldownErrors(f: CommandFields): CommandErrors {
+  const errors: CommandErrors = {};
+  const limits = [['cooldown', f.cooldown], ['user_cooldown', f.userCooldown]] as const;
+  for (const [field, cooldown] of limits) {
+    const inRangeAndNotNaN = cooldown >= 0 && cooldown <= COOLDOWN_MAX;
+    if (!inRangeAndNotNaN) errors[field] = `Cooldown must be between 0 and ${COOLDOWN_MAX} seconds.`;
+    else if (!Number.isInteger(cooldown)) errors[field] = 'Cooldown must be a whole number of seconds.';
+  }
+  return errors;
 }
 
 export function validateCommand(f: CommandFields): CommandErrors {
@@ -100,8 +105,7 @@ export function validateCommand(f: CommandFields): CommandErrors {
   if (aliases) errors.aliases = aliases;
   const response = responseProblem(f.response);
   if (response) errors.response = response;
-  const cooldown = cooldownProblem(f.cooldown);
-  if (cooldown) errors.cooldown = cooldown;
+  Object.assign(errors, cooldownErrors(f));
   if (f.allowedUserId && !/^[0-9]+$/.test(f.allowedUserId)) {
     errors.allowed_user_id = 'User restriction must be a numeric Twitch user id.';
   }

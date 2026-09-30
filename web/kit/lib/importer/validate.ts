@@ -402,10 +402,11 @@ function commandTierDiags(c: ManifestCommand, index: number): ImportDiagnostic[]
       })
     );
   }
-  if ((c.cooldown_seconds ?? 0) > MAX_COOLDOWN_SECONDS) {
-    out.push(
-      warnDiag(index, CODE.cooldownClamped, `cooldown ${c.cooldown_seconds}s clamped to ${MAX_COOLDOWN_SECONDS}s at commit`)
-    );
+  const cooldowns = [['cooldown', c.cooldown_seconds], ['per-user cooldown', c.user_cooldown_seconds]] as const;
+  for (const [label, seconds] of cooldowns) {
+    if ((seconds ?? 0) > MAX_COOLDOWN_SECONDS) {
+      out.push(warnDiag(index, CODE.cooldownClamped, `${label} ${seconds}s clamped to ${MAX_COOLDOWN_SECONDS}s at commit`));
+    }
   }
   return out;
 }

@@ -37,6 +37,8 @@ func (Commands) Fields() []ent.Field {
 
 		field.Uint("cooldown").Default(0),
 
+		field.Uint("user_cooldown").Default(0),
+
 		field.Uint64("allowed_user_id").Default(0),
 
 		field.Int64("uses").Default(0).Min(0),

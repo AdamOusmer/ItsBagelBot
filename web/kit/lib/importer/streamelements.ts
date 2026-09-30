@@ -355,7 +355,6 @@ export const SE_CODE = {
   commandTypeWhisper: 'command_type_whisper',
   commandTypeReply: 'command_type_reply',
   commandTypeUnknown: 'command_type_unknown',
-  commandUserCooldownDropped: 'command_user_cooldown_dropped',
   commandOfflineOnlyWidened: 'command_offline_only_widened',
   timerDisabledSkipped: 'timer_disabled_skipped',
   timerUnparseable: 'timer_unparseable_skipped',
@@ -551,11 +550,6 @@ function lossyNotes(c: BotCommand, name: string, online: boolean, sink: NoteSink
 
   const perm = accessLevelNote(c, name, sink).perm;
 
-  if (c.cooldownUser > 0) {
-    addNote(sink, SE_CODE.commandUserCooldownDropped,
-      `command ${q(name)} had a ${c.cooldownUser}s per-user cooldown; only the shared cooldown (${c.cooldownGlobal}s) is kept`);
-  }
-
   const { text, warns } = translateVariables(c.reply, sink.fetch);
   for (const tok of warns) {
     addNote(sink, CODE.variableUnmapped, `response uses ${tok}, ${unmappedClause(tok)}`);
@@ -608,6 +602,7 @@ function assembleCommand(draft: CommandDraft, sink: NoteSink): ManifestCommand {
   if (aliases.length > 0) cmd.aliases = aliases;
   cmd.permission = perm;
   if (clampCooldown(c.cooldownGlobal) > 0) cmd.cooldown_seconds = clampCooldown(c.cooldownGlobal);
+  if (clampCooldown(c.cooldownUser) > 0) cmd.user_cooldown_seconds = clampCooldown(c.cooldownUser);
   if (online && !flag(c.enabledOffline)) cmd.online_only = true;
   if (sink.notes.length > 0) cmd.warnings = sink.notes;
   return cmd;

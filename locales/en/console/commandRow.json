@@ -1,6 +1,7 @@
 {
   "lockedTo": "Locked to user {id}",
   "liveOnly": "Only runs while live",
+  "perViewerCooldown": "Each viewer waits {n}s between runs",
   "unsaved": "Unsaved",
   "unsavedTitle": "You have unsaved edits for this command",
   "also": "Also: {aliases}",

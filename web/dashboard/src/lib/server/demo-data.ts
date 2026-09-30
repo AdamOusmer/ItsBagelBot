@@ -508,7 +508,7 @@ export const demoCommandRows: CommandView[] = [
   { name: 'so', response: 'Go show some love to twitch.tv/{target}, absolute legend', perm: 'mod', cooldown: 0, uses: '96', is_active: true },
   { name: 'discord', response: 'Join the bakery → discord.gg/itsbagelbot', perm: 'everyone', cooldown: 60, uses: '203', is_active: true },
   { name: 'debug', response: 'node={node} replica={id} lag={ms}ms', perm: 'broadcaster', cooldown: 0, uses: '14', is_active: false },
-  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, uses: '521', is_active: true },
+  { name: 'lurk', response: '{user} fades into the shadows. Thanks for the lurk.', perm: 'everyone', cooldown: 5, user_cooldown: 60, uses: '521', is_active: true },
   { name: 'deaths', response: '{channel} has died {counter:deaths} times. {choice:F,RIP,ouch}', perm: 'sub', cooldown: 15, uses: '177', is_active: true }
 ];
 

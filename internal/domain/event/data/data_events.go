@@ -62,6 +62,7 @@ type CommandChangedDTO struct {
 	StreamOnlineOnly bool     `json:"stream_online_only"`
 	Perm             string   `json:"perm,omitempty"`
 	Cooldown         uint     `json:"cooldown,omitempty"`
+	UserCooldown     uint     `json:"user_cooldown,omitempty"`
 	AllowedUserID    uint64   `json:"allowed_user_id,omitempty"`
 	Uses             int64    `json:"uses,omitempty,string"`
 	BumpCounter      string   `json:"bump_counter,omitempty"`

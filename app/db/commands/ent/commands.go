@@ -34,6 +34,8 @@ type Commands struct {
 	Perm string `json:"perm,omitempty"`
 	// Cooldown holds the value of the "cooldown" field.
 	Cooldown uint `json:"cooldown,omitempty"`
+	// UserCooldown holds the value of the "user_cooldown" field.
+	UserCooldown uint `json:"user_cooldown,omitempty"`
 	// AllowedUserID holds the value of the "allowed_user_id" field.
 	AllowedUserID uint64 `json:"allowed_user_id,omitempty"`
 	// Uses holds the value of the "uses" field.
@@ -56,7 +58,7 @@ func (*Commands) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case commands.FieldIsActive, commands.FieldStreamOnlineOnly:
 			values[i] = new(sql.NullBool)
-		case commands.FieldID, commands.FieldUserID, commands.FieldCooldown, commands.FieldAllowedUserID, commands.FieldUses:
+		case commands.FieldID, commands.FieldUserID, commands.FieldCooldown, commands.FieldUserCooldown, commands.FieldAllowedUserID, commands.FieldUses:
 			values[i] = new(sql.NullInt64)
 		case commands.FieldName, commands.FieldResponse, commands.FieldPerm, commands.FieldBumpCounter:
 			values[i] = new(sql.NullString)
@@ -132,6 +134,12 @@ func (_m *Commands) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field cooldown", values[i])
 			} else if value.Valid {
 				_m.Cooldown = uint(value.Int64)
+			}
+		case commands.FieldUserCooldown:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field user_cooldown", values[i])
+			} else if value.Valid {
+				_m.UserCooldown = uint(value.Int64)
 			}
 		case commands.FieldAllowedUserID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -222,6 +230,9 @@ func (_m *Commands) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("cooldown=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Cooldown))
+	builder.WriteString(", ")
+	builder.WriteString("user_cooldown=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UserCooldown))
 	builder.WriteString(", ")
 	builder.WriteString("allowed_user_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AllowedUserID))

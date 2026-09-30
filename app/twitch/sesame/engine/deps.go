@@ -128,8 +128,14 @@ type GreetStore interface {
 	ResetGreets(ctx context.Context, broadcasterID uint64) error
 }
 
+type CooldownWindow struct {
+	Key string
+	TTL time.Duration
+}
+
 type CooldownStore interface {
 	Allow(ctx context.Context, key string, ttl time.Duration) (bool, error)
+	AllowAll(ctx context.Context, windows []CooldownWindow) (bool, error)
 }
 
 type Viewer struct {
@@ -216,3 +222,5 @@ type ChatLineCounter interface {
 type NoopCooldown struct{}
 
 func (NoopCooldown) Allow(context.Context, string, time.Duration) (bool, error) { return true, nil }
+
+func (NoopCooldown) AllowAll(context.Context, []CooldownWindow) (bool, error) { return true, nil }

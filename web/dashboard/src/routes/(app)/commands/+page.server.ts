@@ -124,7 +124,8 @@ function parseCommand(f: FormData) {
   const permRaw = String(f.get('perm') ?? 'everyone');
   const perm: Perm = (PERMS as readonly string[]).includes(permRaw) ? (permRaw as Perm) : 'everyone';
 
-  const cooldown = Math.max(0, Math.floor(Number(f.get('cooldown') ?? 0) || 0));
+  const cooldown = seconds(f.get('cooldown'));
+  const userCooldown = seconds(f.get('user_cooldown'));
 
   const allowedUserId = String(f.get('allowed_user_id') ?? '').replace(/\D/g, '');
 
@@ -132,7 +133,11 @@ function parseCommand(f: FormData) {
 
   const bumpCounter = normName(String(f.get('bump_counter') ?? ''));
 
-  return { name, aliases, response, perm, cooldown, allowedUserId, streamOnlineOnly, bumpCounter };
+  return { name, aliases, response, perm, cooldown, userCooldown, allowedUserId, streamOnlineOnly, bumpCounter };
+}
+
+function seconds(raw: FormDataEntryValue | null): number {
+  return Math.max(0, Math.floor(Number(raw ?? 0) || 0));
 }
 
 function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): CommandView {
@@ -144,6 +149,7 @@ function demoView(cmd: ReturnType<typeof parseCommand>, isActive: boolean): Comm
     stream_online_only: cmd.streamOnlineOnly,
     perm: cmd.perm,
     cooldown: cmd.cooldown,
+    user_cooldown: cmd.userCooldown,
     allowed_user_id: cmd.allowedUserId,
     bump_counter: cmd.bumpCounter
   };
@@ -282,6 +288,7 @@ export const actions: Actions = {
       aliases: s.cmd.aliases,
       response: s.cmd.response,
       cooldown: s.cmd.cooldown,
+      userCooldown: s.cmd.userCooldown,
       allowedUserId: s.cmd.allowedUserId,
       bumpCounter: s.cmd.bumpCounter
     });

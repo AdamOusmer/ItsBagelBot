@@ -324,6 +324,7 @@ func TestQueueJoinAndListViaSubcommand(t *testing.T) {
 }
 
 type fakeCooldown struct {
+	engine.NoopCooldown
 	keys  []string
 	ttls  []time.Duration
 	allow []bool

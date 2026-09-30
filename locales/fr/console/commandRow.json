@@ -1,6 +1,7 @@
 {
   "lockedTo": "Verrouillé sur l'utilisateur {id}",
   "liveOnly": "Ne s'exécute que pendant le direct",
+  "perViewerCooldown": "Chaque spectateur attend {n} s entre deux utilisations",
   "unsaved": "Non enregistré",
   "unsavedTitle": "Vous avez des modifications non enregistrées pour cette commande",
   "also": "Aussi : {aliases}",

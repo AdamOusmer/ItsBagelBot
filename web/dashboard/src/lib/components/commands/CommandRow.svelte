@@ -53,6 +53,7 @@
 
   const c = $derived(command);
   const cd = $derived(c.cooldown && c.cooldown > 0 ? `${c.cooldown}s` : '-');
+  const perViewer = $derived(c.user_cooldown && c.user_cooldown > 0 ? t('commandRow.perViewerCooldown', { n: c.user_cooldown }) : '');
   const idx = $derived(index !== undefined ? String(index).padStart(2, '0') : '');
   const uses = $derived(usesCount(c));
   const aliasList = $derived(c.aliases ?? []);
@@ -93,6 +94,9 @@
             {/if}
             {#if c.stream_online_only}
               <span class="lock" role="img" aria-label={t('commandRow.liveOnly')} title={t('commandRow.liveOnly')}><Icon name="pulse" size={11} /></span>
+            {/if}
+            {#if perViewer}
+              <span class="lock" role="img" aria-label={perViewer} title={perViewer}><Icon name="clock" size={11} /></span>
             {/if}
             {#if c.builtin}
               <span class="name-tag">
@@ -142,6 +146,7 @@
         <input type="hidden" name="response" value={c.response} />
         <input type="hidden" name="perm" value={c.perm ?? 'everyone'} />
         <input type="hidden" name="cooldown" value={c.cooldown ?? 0} />
+        <input type="hidden" name="user_cooldown" value={c.user_cooldown ?? 0} />
         <input type="hidden" name="allowed_user_id" value={c.allowed_user_id ?? ''} />
         <input type="hidden" name="bump_counter" value={c.bump_counter ?? ''} />
         <input type="hidden" name="stream_online_only" value={c.stream_online_only ? 'on' : ''} />

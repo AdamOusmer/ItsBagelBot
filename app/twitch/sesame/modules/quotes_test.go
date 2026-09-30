@@ -111,6 +111,7 @@ func (f *fakeQuotes) QuoteRemove(_ context.Context, _ uint64, number uint64) (bo
 }
 
 type countingCooldown struct {
+	engine.NoopCooldown
 	allow  bool
 	claims int
 }

@@ -128,6 +128,7 @@
       aliases: draft.aliases.map(normName).filter(Boolean),
       response: draft.response,
       cooldown: Math.floor(Number(draft.cooldown) || 0),
+      userCooldown: Math.floor(Number(draft.user_cooldown) || 0),
       allowedUserId: draft.allowed_user_id.replace(/\D/g, ''),
       bumpCounter: normName(draft.bump_counter)
     });
@@ -198,16 +199,21 @@
 
   <ChatPreview name={draft.name} response={draft.response} />
 
-  <Grid cols={2} gap={3}>
-    <Field label={t('commandEditor.access')}>
-      <Select
-        fill
-        name="perm" bind:value={draft.perm}
-        options={PERMS.map((p) => ({ value: p, label: tPerm(t, p) }))}
-      />
-    </Field>
+  <Field label={t('commandEditor.access')}>
+    <Select
+      fill
+      name="perm" bind:value={draft.perm}
+      options={PERMS.map((p) => ({ value: p, label: tPerm(t, p) }))}
+    />
+  </Field>
 
-    <Field label={t('commandEditor.cooldownS')} error={errors.cooldown} errorId="command-cooldown-err">
+  <Grid cols={2} gap={3}>
+    <Field
+      label={t('commandEditor.cooldownS')}
+      hint={t('commandEditor.cooldownHint')}
+      error={errors.cooldown}
+      errorId="command-cooldown-err"
+    >
       <Input
         type="number"
         name="cooldown"
@@ -217,6 +223,24 @@
         aria-invalid={errors.cooldown ? 'true' : undefined}
         aria-describedby={errors.cooldown ? 'command-cooldown-err' : undefined}
         bind:value={draft.cooldown}
+      />
+    </Field>
+
+    <Field
+      label={t('commandEditor.userCooldownS')}
+      hint={t('commandEditor.userCooldownHint')}
+      error={errors.user_cooldown}
+      errorId="command-user-cooldown-err"
+    >
+      <Input
+        type="number"
+        name="user_cooldown"
+        min={0}
+        max={COOLDOWN_MAX}
+        invalid={!!errors.user_cooldown}
+        aria-invalid={errors.user_cooldown ? 'true' : undefined}
+        aria-describedby={errors.user_cooldown ? 'command-user-cooldown-err' : undefined}
+        bind:value={draft.user_cooldown}
       />
     </Field>
   </Grid>

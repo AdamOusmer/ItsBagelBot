@@ -11,6 +11,7 @@ export interface CommandDraft {
   response: string;
   perm: Perm;
   cooldown: number;
+  user_cooldown: number;
   allowed_user_id: string;
   bump_counter: string;
   stream_online_only: boolean;
@@ -60,6 +61,7 @@ const STORED_FIELDS: Record<string, (value: unknown) => boolean> = {
   response: isString,
   perm: isString,
   cooldown: isFiniteNumber,
+  user_cooldown: isFiniteNumber,
   allowed_user_id: isString,
   bump_counter: isString,
   stream_online_only: isBoolean,
@@ -92,6 +94,7 @@ export function loadDraft(ref: DraftRef): CommandDraft | null {
       response: '',
       perm: 'everyone',
       cooldown: 0,
+      user_cooldown: 0,
       allowed_user_id: '',
       bump_counter: '',
       stream_online_only: false,

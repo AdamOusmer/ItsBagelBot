@@ -133,3 +133,19 @@ func TestSetCommandsWritesTheMarkerInTheSameHSETAsTheRows(t *testing.T) {
 	require.Len(t, cmds, 1)
 	assert.Equal(t, "Hello", cmds[0].Name)
 }
+
+func TestSetCommandProjectsBothCooldownsBehindAliases(t *testing.T) {
+	store, f := newTestStore(t)
+	ctx := context.Background()
+
+	dto := commandDTO(80, "lurk", "lurking", "afk")
+	dto.Cooldown, dto.UserCooldown = 5, 60
+	require.NoError(t, store.SetCommand(ctx, dto))
+	require.NoError(t, store.SetCommand(ctx, commandDTO(80, "plain", "no limits")))
+
+	view, found, _, err := store.GetCommand(ctx, 80, "afk")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, [2]uint{5, 60}, [2]uint{commandFromView(view).Cooldown, commandFromView(view).UserCooldown})
+	assert.NotContains(t, f.hash("settings:80")["command:plain"], "user_cooldown", "rows without a per-user limit keep their existing shape")
+}

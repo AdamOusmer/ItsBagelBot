@@ -134,6 +134,7 @@ func (r *Commands) List(ctx context.Context, userID uint64) ([]CommandView, erro
 					StreamOnlineOnly: row.StreamOnlineOnly,
 					Perm:             row.Perm,
 					Cooldown:         row.Cooldown,
+					UserCooldown:     row.UserCooldown,
 					AllowedUserID:    formatAllowed(row.AllowedUserID),
 					Uses:             row.Uses,
 					BumpCounter:      row.BumpCounter,
@@ -154,6 +155,7 @@ type CommandSpec struct {
 	StreamOnlineOnly bool
 	Perm             string
 	Cooldown         uint
+	UserCooldown     uint
 	AllowedUserID    uint64
 	BumpCounter      string
 }
@@ -181,6 +183,9 @@ func (s *CommandSpec) validate() error {
 	if err := validate.Cooldown(s.Cooldown); err != nil {
 		return err
 	}
+	if err := validate.Cooldown(s.UserCooldown); err != nil {
+		return err
+	}
 	return validate.BumpCounter(validate.CounterName(s.BumpCounter))
 }
 
@@ -194,6 +199,7 @@ func (s *CommandSpec) dto(userID uint64) data.CommandChangedDTO {
 		StreamOnlineOnly: s.StreamOnlineOnly,
 		Perm:             s.Perm,
 		Cooldown:         s.Cooldown,
+		UserCooldown:     s.UserCooldown,
 		AllowedUserID:    s.AllowedUserID,
 		BumpCounter:      s.BumpCounter,
 	}
@@ -319,6 +325,7 @@ func applyEdit(m *ent.CommandsMutation, item data.CommandChangedDTO) {
 	m.SetStreamOnlineOnly(item.StreamOnlineOnly)
 	m.SetPerm(item.Perm)
 	m.SetCooldown(item.Cooldown)
+	m.SetUserCooldown(item.UserCooldown)
 	m.SetAllowedUserID(item.AllowedUserID)
 	m.SetBumpCounter(item.BumpCounter)
 }
@@ -430,6 +437,7 @@ func (r *Commands) rowStates(ctx context.Context, keys []commandKey) (map[comman
 			StreamOnlineOnly: row.StreamOnlineOnly,
 			Perm:             row.Perm,
 			Cooldown:         row.Cooldown,
+			UserCooldown:     row.UserCooldown,
 			AllowedUserID:    row.AllowedUserID,
 			Uses:             row.Uses,
 			BumpCounter:      row.BumpCounter,
@@ -514,6 +522,7 @@ func bulkUpsertCommands(ctx context.Context, client *ent.Client, items []data.Co
 			u.UpdateStreamOnlineOnly()
 			u.UpdatePerm()
 			u.UpdateCooldown()
+			u.UpdateUserCooldown()
 			u.UpdateAllowedUserID()
 			u.UpdateBumpCounter()
 			u.UpdateUpdatedAt()

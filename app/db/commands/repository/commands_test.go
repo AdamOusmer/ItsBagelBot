@@ -180,3 +180,55 @@ func TestListServedFromCache(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "changed", views[0].Response)
 }
+
+func userCooldownSpec(name string) repository.CommandSpec {
+	s := spec(name, "lurking", false, 5)
+	s.UserCooldown = 60
+	return s
+}
+
+func requireStoredCooldowns(t *testing.T, client *ent.Client, pub *bustest.Publisher, name string) {
+	t.Helper()
+	row := client.Commands.Query().OnlyX(context.Background())
+	require.Equal(t, name, row.Name)
+	assert.Equal(t, [2]uint{5, 60}, [2]uint{row.Cooldown, row.UserCooldown})
+
+	events := pub.On(data.SubjectCommandChanged)
+	var dto data.CommandChangedDTO
+	require.NoError(t, codec.Unmarshal(events[len(events)-1].Payload, &dto))
+	assert.Equal(t, [2]uint{5, 60}, [2]uint{dto.Cooldown, dto.UserCooldown}, "projection event for %s", name)
+}
+
+func TestUserCooldownSurvivesEveryWritePath(t *testing.T) {
+	client, pub, repo := setup(t)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Upsert(1001, userCooldownSpec("!lurk")))
+	repo.Close(ctx)
+	requireStoredCooldowns(t, client, pub, "lurk")
+
+	repo = repository.NewCommands(client, pub, nil, zap.NewNop())
+	defer repo.Close(ctx)
+	views, err := repo.List(ctx, 1001)
+	require.NoError(t, err)
+	require.Len(t, views, 1)
+	assert.Equal(t, uint(60), views[0].UserCooldown)
+
+	require.NoError(t, repo.Rename(ctx, 1001, "!lurk", userCooldownSpec("!afk")))
+	requireStoredCooldowns(t, client, pub, "afk")
+
+	require.NoError(t, repo.Delete(ctx, 1001, "!afk"))
+	restored, err := repo.Restore(ctx, 1001, userCooldownSpec("!afk"), 12)
+	require.NoError(t, err)
+	require.True(t, restored)
+	requireStoredCooldowns(t, client, pub, "afk")
+}
+
+func TestUpsertRejectsUserCooldownOverOneDay(t *testing.T) {
+	_, _, repo := setup(t)
+	defer repo.Close(context.Background())
+
+	s := userCooldownSpec("!lurk")
+	s.UserCooldown = 86401
+	assert.Error(t, repo.Upsert(1001, s))
+}

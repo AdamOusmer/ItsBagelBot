@@ -138,6 +138,27 @@ func (_u *CommandsUpdate) AddCooldown(v int) *CommandsUpdate {
 	return _u
 }
 
+// SetUserCooldown sets the "user_cooldown" field.
+func (_u *CommandsUpdate) SetUserCooldown(v uint) *CommandsUpdate {
+	_u.mutation.ResetUserCooldown()
+	_u.mutation.SetUserCooldown(v)
+	return _u
+}
+
+// SetNillableUserCooldown sets the "user_cooldown" field if the given value is not nil.
+func (_u *CommandsUpdate) SetNillableUserCooldown(v *uint) *CommandsUpdate {
+	if v != nil {
+		_u.SetUserCooldown(*v)
+	}
+	return _u
+}
+
+// AddUserCooldown adds value to the "user_cooldown" field.
+func (_u *CommandsUpdate) AddUserCooldown(v int) *CommandsUpdate {
+	_u.mutation.AddUserCooldown(v)
+	return _u
+}
+
 // SetAllowedUserID sets the "allowed_user_id" field.
 func (_u *CommandsUpdate) SetAllowedUserID(v uint64) *CommandsUpdate {
 	_u.mutation.ResetAllowedUserID()
@@ -330,6 +351,12 @@ func (_u *CommandsUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedCooldown(); ok {
 		_spec.AddField(commands.FieldCooldown, field.TypeUint, value)
 	}
+	if value, ok := _u.mutation.UserCooldown(); ok {
+		_spec.SetField(commands.FieldUserCooldown, field.TypeUint, value)
+	}
+	if value, ok := _u.mutation.AddedUserCooldown(); ok {
+		_spec.AddField(commands.FieldUserCooldown, field.TypeUint, value)
+	}
 	if value, ok := _u.mutation.AllowedUserID(); ok {
 		_spec.SetField(commands.FieldAllowedUserID, field.TypeUint64, value)
 	}
@@ -477,6 +504,27 @@ func (_u *CommandsUpdateOne) SetNillableCooldown(v *uint) *CommandsUpdateOne {
 // AddCooldown adds value to the "cooldown" field.
 func (_u *CommandsUpdateOne) AddCooldown(v int) *CommandsUpdateOne {
 	_u.mutation.AddCooldown(v)
+	return _u
+}
+
+// SetUserCooldown sets the "user_cooldown" field.
+func (_u *CommandsUpdateOne) SetUserCooldown(v uint) *CommandsUpdateOne {
+	_u.mutation.ResetUserCooldown()
+	_u.mutation.SetUserCooldown(v)
+	return _u
+}
+
+// SetNillableUserCooldown sets the "user_cooldown" field if the given value is not nil.
+func (_u *CommandsUpdateOne) SetNillableUserCooldown(v *uint) *CommandsUpdateOne {
+	if v != nil {
+		_u.SetUserCooldown(*v)
+	}
+	return _u
+}
+
+// AddUserCooldown adds value to the "user_cooldown" field.
+func (_u *CommandsUpdateOne) AddUserCooldown(v int) *CommandsUpdateOne {
+	_u.mutation.AddUserCooldown(v)
 	return _u
 }
 
@@ -701,6 +749,12 @@ func (_u *CommandsUpdateOne) sqlSave(ctx context.Context) (_node *Commands, err 
 	}
 	if value, ok := _u.mutation.AddedCooldown(); ok {
 		_spec.AddField(commands.FieldCooldown, field.TypeUint, value)
+	}
+	if value, ok := _u.mutation.UserCooldown(); ok {
+		_spec.SetField(commands.FieldUserCooldown, field.TypeUint, value)
+	}
+	if value, ok := _u.mutation.AddedUserCooldown(); ok {
+		_spec.AddField(commands.FieldUserCooldown, field.TypeUint, value)
 	}
 	if value, ok := _u.mutation.AllowedUserID(); ok {
 		_spec.SetField(commands.FieldAllowedUserID, field.TypeUint64, value)
