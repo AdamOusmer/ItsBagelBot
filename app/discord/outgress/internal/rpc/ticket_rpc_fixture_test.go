@@ -27,9 +27,10 @@ type recordedCall struct {
 }
 
 type scriptedTransport struct {
-	mu    sync.Mutex
-	calls []recordedCall
-	reply func(call recordedCall) (int, string)
+	channelGuilds map[string]string
+	mu            sync.Mutex
+	calls         []recordedCall
+	reply         func(call recordedCall) (int, string)
 }
 
 func (s *scriptedTransport) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -46,7 +47,14 @@ func (s *scriptedTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	s.mu.Unlock()
 
 	status, body := 200, `{"id":"m-new"}`
-	if s.reply != nil {
+	if call.method == "GET" && strings.HasPrefix(call.path, "/channels/") && !strings.Contains(strings.TrimPrefix(call.path, "/channels/"), "/") {
+		id := strings.TrimPrefix(call.path, "/channels/")
+		guild := "g1"
+		if s.channelGuilds != nil {
+			guild = s.channelGuilds[id]
+		}
+		body = fmt.Sprintf(`{"id":%q,"guild_id":%q}`, id, guild)
+	} else if s.reply != nil {
 		status, body = s.reply(call)
 	}
 	rec := httptest.NewRecorder()

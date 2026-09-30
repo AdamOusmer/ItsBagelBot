@@ -13,6 +13,9 @@ import (
 )
 
 type fakeRest struct {
+	channelGuilds map[string]string
+	channelErr    error
+
 	identities   []discapi.CurrentMember
 	identityErrs []error
 	chats        []string
@@ -187,4 +190,15 @@ func dispatchAll(t *testing.T, cmds ...ddiscord.Command) *fakeRest {
 		dispatchOK(t, h, cmd)
 	}
 	return rest
+}
+
+func (f *fakeRest) GetChannel(_ context.Context, id string) (discapi.ChannelInfo, error) {
+	if f.channelErr != nil {
+		return discapi.ChannelInfo{}, f.channelErr
+	}
+	guild := "g1"
+	if f.channelGuilds != nil {
+		guild = f.channelGuilds[id]
+	}
+	return discapi.ChannelInfo{ID: id, GuildID: guild}, nil
 }

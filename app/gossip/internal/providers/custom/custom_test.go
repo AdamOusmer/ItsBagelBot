@@ -359,7 +359,7 @@ func TestFetchUnresolvablePathIsBadDefAndNegativeCached(t *testing.T) {
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
 	assert.Equal(t, gossiprpc.FetchBadDef, reply.Status)
 	assert.Equal(t, int32(1), h.hits.Load())
-	assert.Equal(t, 2*negativeTTL, h.store.retention(resultKey("wx")))
+	assert.Equal(t, 2*negativeTTL, h.store.retention(storedResultKey("ch1", h.defs["wx"])))
 	call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
 	assert.Equal(t, int32(1), h.hits.Load(), "second ask must come from the negative cache")
 }
@@ -375,17 +375,17 @@ func TestFetchPositiveCachesThenFreshBypassesReadButWrites(t *testing.T) {
 
 	h.route(t, "/wx", staged{status: http.StatusOK, ct: "application/json", body: `{"v":2}`})
 
-	cached := call(t, h, gossiprpc.Request{ChannelID: "ch2", DefID: "wx"})
+	cached := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
 	require.Equal(t, gossiprpc.FetchOK, cached.Status)
 	assert.Equal(t, []string{"1"}, cached.Values, "normal read serves the stored entry")
 	assert.Equal(t, int32(1), h.hits.Load())
 
-	fresh := call(t, h, gossiprpc.Request{ChannelID: "ch2", DefID: "wx", Fresh: true})
+	fresh := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx", Fresh: true})
 	require.Equal(t, gossiprpc.FetchOK, fresh.Status)
 	assert.Equal(t, []string{"2"}, fresh.Values, "fresh must skip the positive-cache read")
 	assert.Equal(t, int32(2), h.hits.Load())
 
-	again := call(t, h, gossiprpc.Request{ChannelID: "ch3", DefID: "wx"})
+	again := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
 	assert.Equal(t, []string{"2"}, again.Values, "the fresh result must have been written back")
 	assert.Equal(t, int32(2), h.hits.Load())
 }
@@ -397,7 +397,7 @@ func TestFetchUpstream404NegativeCachedAt15s(t *testing.T) {
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "gone"})
 	assert.Equal(t, gossiprpc.FetchUpstreamError, reply.Status)
-	assert.Equal(t, 2*negativeTTL, h.store.retention(resultKey("gone")))
+	assert.Equal(t, 2*negativeTTL, h.store.retention(storedResultKey("ch1", h.defs["gone"])))
 
 	call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "gone"})
 	assert.Equal(t, int32(1), h.hits.Load())
@@ -410,7 +410,7 @@ func TestFetchInfraFailureStaysUncached(t *testing.T) {
 
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "boom"})
 	assert.Equal(t, gossiprpc.FetchUpstreamError, reply.Status)
-	_, found, err := h.store.Get(context.Background(), resultKey("boom"))
+	_, found, err := h.store.Get(context.Background(), storedResultKey("ch1", h.defs["boom"]))
 	require.NoError(t, err)
 	assert.False(t, found, "infrastructure failures teach nothing; they must not be cached")
 
@@ -431,7 +431,7 @@ func TestFetchDryRunSpendsNoBucketWritesNoCache(t *testing.T) {
 	}
 	assert.Equal(t, int32(2), h.hits.Load(), "dry runs execute for real")
 	assert.Equal(t, int32(0), h.admit.Load(), "dry runs spend no bucket")
-	_, found, err := h.store.Get(context.Background(), resultKey("wx"))
+	_, found, err := h.store.Get(context.Background(), storedResultKey("ch1", h.defs["wx"]))
 	require.NoError(t, err)
 	assert.False(t, found, "dry runs write no cache")
 }
@@ -451,7 +451,7 @@ func TestFetchBucketDenialAnswersLimited(t *testing.T) {
 	reply := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "wx"})
 	assert.Equal(t, gossiprpc.FetchLimited, reply.Status)
 	assert.Zero(t, h.hits.Load(), "a bucket denial never reaches the upstream")
-	_, found, err := h.store.Get(context.Background(), resultKey("wx"))
+	_, found, err := h.store.Get(context.Background(), storedResultKey("ch1", h.defs["wx"]))
 	require.NoError(t, err)
 	assert.False(t, found, "denials are retried on the next request, never pinned")
 }
@@ -567,7 +567,7 @@ func TestFetchInlineDefRehearsal(t *testing.T) {
 	require.Equal(t, gossiprpc.FetchOK, reply.Status)
 	assert.Equal(t, []string{"71.2"}, reply.Values)
 
-	_, found, err := h.store.Get(context.Background(), resultKey("unsaved"))
+	_, found, err := h.store.Get(context.Background(), resultKey("sesame_sam", *draft, draft.JSONPath))
 	require.NoError(t, err)
 	assert.False(t, found, "inline drafts never touch the shared cache")
 }

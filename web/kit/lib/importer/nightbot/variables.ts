@@ -4,7 +4,7 @@
 import { emit, normalizeInstant, positional } from '../targets';
 import { parseFetchArgs } from './fetchdefs';
 import type { FetchSlotSink } from './fetchdefs';
-import { nextToken } from './scan';
+import { scanTokens } from './scan';
 import type { Token } from './scan';
 import { twitchToken } from './twitch';
 
@@ -107,33 +107,68 @@ interface Pass {
 
 type Classify = (token: Token) => TokenResult;
 
-function translatePass(text: string, classifyToken: Classify, warns: Warnings): Pass {
+// Optional work hooks let the Fossabot adapter bound its reference expansion
+// and these shared translation passes with the same per-response/import budget.
+export interface TranslationBudget {
+  scan(text: string): void;
+  visit(): void;
+  append(currentLength: number, fragment: string): void;
+}
+
+// Retain each fragment once and join once per pass/branch. This keeps output
+// construction linear even for many tiny tokens, and checks limits before
+// retaining an unsafe fragment.
+export class TranslationOutput {
+  private readonly fragments: string[] = [];
+  private length = 0;
+
+  constructor(private readonly budget?: TranslationBudget) {}
+
+  append(fragment: string): void {
+    this.budget?.append(this.length, fragment);
+    if (fragment.length === 0) return;
+    this.fragments.push(fragment);
+    this.length += fragment.length;
+  }
+
+  text(): string {
+    return this.fragments.join('');
+  }
+}
+
+function translatePass(text: string, classifyToken: Classify, warns: Warnings, budget?: TranslationBudget): Pass {
+  budget?.scan(text);
+  const out = new TranslationOutput(budget);
   const pass: Pass = { text: '', changed: false, jsonFetch: false };
   let pos = 0;
 
-  for (let token = nextToken(text, pos); token; token = nextToken(text, pos)) {
+  for (const token of scanTokens(text)) {
+    budget?.visit();
     const res = classifyToken(token);
-    pass.text += text.slice(pos, token.start) + res.repl;
+    out.append(text.slice(pos, token.start));
+    out.append(res.repl);
     pass.jsonFetch ||= res.jsonFetch === true;
     pass.changed ||= res.repl !== token.raw;
     pos = token.end;
     if (res.warned) warns.note(token.raw);
   }
 
-  pass.text += text.slice(pos);
+  out.append(text.slice(pos));
+  pass.text = out.text();
   return pass;
 }
 
 export function runPasses(
   inText: string,
   classifyToken: Classify,
-  warns: Warnings
+  warns: Warnings,
+  budget?: TranslationBudget
 ): { text: string; jsonFetch: boolean } {
   let text = inText;
   let jsonFetch = false;
 
   for (let n = 0; n < MAX_PASSES; n++) {
-    const pass = translatePass(text, classifyToken, warns);
+    const pass = translatePass(text, classifyToken, warns, budget);
     text = pass.text;
     jsonFetch ||= pass.jsonFetch;
     if (!pass.changed) break;

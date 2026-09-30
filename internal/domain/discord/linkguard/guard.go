@@ -5,7 +5,6 @@ package linkguard
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"github.com/valkey-io/valkey-go"
@@ -17,12 +16,6 @@ const (
 	AuthorThreshold = 2
 
 	Window = 10 * time.Minute
-
-	FleetOwnerThreshold = 2
-
-	FleetTTL = 7 * 24 * time.Hour
-
-	CorroborationWindow = 24 * time.Hour
 )
 
 const (
@@ -43,6 +36,8 @@ type Sighting struct {
 	MessageID string
 	Link      string
 
+	// Retained for compatibility; a guild binding is not owner approval of
+	// an arbitrary member's message and grants no fleet authority.
 	OwnerID string
 
 	OwnGuildInvite bool
@@ -62,7 +57,8 @@ type Verdict struct {
 	DistinctChannels int
 	DistinctAuthors  int
 
-	GuildTripped        bool
+	GuildTripped bool
+	// Deprecated: passive sightings never read or write global blocking state.
 	FleetHit            bool
 	FleetPromoted       bool
 	CorroboratingOwners int
@@ -93,9 +89,6 @@ func (g *Guarder) Observe(ctx context.Context, s Sighting) Verdict {
 	if v, exempt := exemptVerdict(s, link, invite); exempt {
 		return v
 	}
-	if v, hit := g.fleetHit(ctx, link, invite); hit {
-		return v
-	}
 	return g.countAndDecide(ctx, s, link, invite)
 }
 
@@ -110,22 +103,6 @@ func exemptVerdict(s Sighting, link normalizedLink, invite bool) (Verdict, bool)
 	default:
 		return Verdict{}, false
 	}
-}
-
-func (g *Guarder) fleetHit(ctx context.Context, link normalizedLink, invite bool) (Verdict, bool) {
-	raw, err := g.client.Do(ctx, g.client.B().Hget().Key(string(fleetKey(link))).Field(fleetFieldOwnerCount).Build()).ToString()
-	if err != nil || raw == "" {
-		return Verdict{}, false
-	}
-	count, _ := strconv.Atoi(raw)
-	return Verdict{
-		Allow:               false,
-		Reason:              ReasonFleetPromoted,
-		NormalizedLink:      string(link),
-		IsInvite:            invite,
-		FleetHit:            true,
-		CorroboratingOwners: count,
-	}, true
 }
 
 func (g *Guarder) countAndDecide(ctx context.Context, s Sighting, link normalizedLink, invite bool) Verdict {
@@ -144,10 +121,7 @@ func (g *Guarder) countAndDecide(ctx context.Context, s Sighting, link normalize
 		DistinctAuthors:  authors,
 		GuildTripped:     tripped,
 	}
-	if !tripped {
-		return v
-	}
-	return g.corroborate(ctx, s, v)
+	return v
 }
 
 func tripReason(channels, authors int) (string, bool) {
@@ -176,40 +150,6 @@ func (g *Guarder) recordAndCount(ctx context.Context, s Sighting, link normalize
 	return channels, authors, err
 }
 
-func (g *Guarder) corroborate(ctx context.Context, s Sighting, v Verdict) Verdict {
-	if s.OwnerID == "" {
-		return v
-	}
-	tk := tripsKey(normalizedLink(v.NormalizedLink))
-	if err := g.addAndExpire(ctx, tk, s.OwnerID, CorroborationWindow); err != nil {
-		return v
-	}
-	owners, err := g.card(ctx, tk)
-	if err != nil {
-		return v
-	}
-	v.CorroboratingOwners = owners
-	if owners < FleetOwnerThreshold {
-		return v
-	}
-	if err := g.fleetPromote(ctx, normalizedLink(v.NormalizedLink), owners); err == nil {
-		v.FleetPromoted = true
-	}
-	return v
-}
-
-func (g *Guarder) fleetPromote(ctx context.Context, link normalizedLink, ownerCount int) error {
-	key := fleetKey(link)
-	err := g.client.Do(ctx, g.client.B().Hset().Key(string(key)).
-		FieldValue().FieldValue(fleetFieldOwnerCount, strconv.Itoa(ownerCount)).
-		FieldValue(fleetFieldPromotedAt, strconv.FormatInt(time.Now().Unix(), 10)).
-		Build()).Error()
-	if err != nil {
-		return err
-	}
-	return g.client.Do(ctx, g.client.B().Expire().Key(string(key)).Seconds(int64(FleetTTL.Seconds())).Build()).Error()
-}
-
 func (g *Guarder) addAndExpire(ctx context.Context, key valkeyKey, member string, ttl time.Duration) error {
 	if err := g.client.Do(ctx, g.client.B().Sadd().Key(string(key)).Member(member).Build()).Error(); err != nil {
 		return err
@@ -227,11 +167,6 @@ func (g *Guarder) card(ctx context.Context, key valkeyKey) (int, error) {
 
 const keyPrefix = "discord:linkguard:"
 
-const (
-	fleetFieldOwnerCount = "owner_count"
-	fleetFieldPromotedAt = "promoted_at"
-)
-
 type guildLink struct {
 	GuildID string
 	Link    string
@@ -244,6 +179,3 @@ func (gl guildLink) channelsKey() valkeyKey {
 func (gl guildLink) authorsKey() valkeyKey {
 	return valkeyKey(keyPrefix + "authors:" + gl.GuildID + ":" + gl.Link)
 }
-
-func tripsKey(link normalizedLink) valkeyKey { return valkeyKey(keyPrefix + "trips:" + string(link)) }
-func fleetKey(link normalizedLink) valkeyKey { return valkeyKey(keyPrefix + "fleet:" + string(link)) }

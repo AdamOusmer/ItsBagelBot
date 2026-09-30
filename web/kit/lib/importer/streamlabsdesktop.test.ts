@@ -20,6 +20,35 @@ import { CODE, validateManifest } from './validate';
 const here = dirname(import.meta.path);
 const SQL = await initSqlJs();
 
+describe('malformed parameter scan bounds', () => {
+  test('all grouped handlers preserve repeated unmatched openers and translate following leaves', () => {
+    for (const name of ['randnum', 'checkcount', 'readline', 'desc', 'unknown', 'countdown', 'countup', 'readapi']) {
+      const prefix = `$${name}(`.repeat(455);
+      const res = translateVariables(`${prefix}$username $randnum(1,2)`, 'x');
+      expect(res.text).toBe(`${prefix}{user} {random:1-2}`);
+      expect(res.external).toBe(name === 'readline');
+      if (['randnum', 'checkcount', 'unknown', 'countdown', 'countup', 'readapi'].includes(name)) expect(res.diags).toHaveLength(1);
+    }
+  });
+
+  test('balanced groups inside an unmatched group retain nesting and quote behavior', () => {
+    const input = '$randnum($readline("a(b)") $checkcount(!Wins) $randnum(3,1)';
+    const res = translateVariables(input, 'x');
+    expect(res.text).toBe('$randnum($readline("a(b)") {counter:wins} {random:1-3}');
+    expect(res.external).toBe(true);
+    expect(res.diags).toHaveLength(1);
+  });
+
+  test('a full admitted command collection with malformed groups parses', async () => {
+    const response = '$randnum('.repeat(455);
+    const parsed = await parseStreamLabsDesktop(buildFixtureDB({
+      commands: Array.from({ length: 2000 }, (_, i) => ({ name: `c${i}`, response }))
+    }));
+    expect(parsed.manifest.commands).toHaveLength(2000);
+    expect(parsed.manifest.commands?.every((c) => c.responses[0] === response.slice(0, 500))).toBe(true);
+  });
+});
+
 interface CmdRow {
   name: string;
   response: string;

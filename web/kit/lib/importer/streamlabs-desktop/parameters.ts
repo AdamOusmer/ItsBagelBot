@@ -143,6 +143,7 @@ interface TranslationResult {
 
 interface ScanState {
   text: string;
+  parenEnds: Map<number, number>;
   cmdName: string;
   res: TranslationResult;
   out: string;
@@ -161,6 +162,7 @@ function warnOnce(s: ScanState, code: string, message: string): void {
 export function translateVariables(text: string, cmdName: string, sink?: FetchSlotSink): TranslationResult {
   const s: ScanState = {
     text,
+    parenEnds: indexParens(text),
     cmdName,
     res: { text: '', diags: [], external: false },
     out: '',
@@ -440,19 +442,24 @@ function parenArg(s: ScanState, cursor: ParamCursor): string | null {
 }
 
 function skipParensSpan(s: ScanState, cursor: ParamCursor): number | null {
-  const { text } = s;
-  if (text[cursor.next] !== '(') return null;
-  let depth = 0;
-  for (let i = cursor.next; i < text.length; i++) {
-    depth += parenStep(text[i]);
-    if (depth === 0) return i + 1;
-  }
-  return null;
+  return s.parenEnds.get(cursor.next) ?? null;
 }
 
-function parenStep(ch: string): number {
-  if (ch === '(') return 1;
-  return ch === ')' ? -1 : 0;
+// Index every group once, including balanced groups inside an unmatched one.
+// All parameter handlers share O(1) lookups, so repeated malformed parameters
+// cannot each rescan the remaining response. Quotes retain their old treatment
+// as plain characters; this changes only the amount of work, not the grammar.
+function indexParens(text: string): Map<number, number> {
+  const ends = new Map<number, number>();
+  const opens: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '(') opens.push(i);
+    else if (text[i] === ')') {
+      const open = opens.pop();
+      if (open !== undefined) ends.set(open, i + 1);
+    }
+  }
+  return ends;
 }
 
 function skipParens(s: ScanState, cursor: ParamCursor): number {

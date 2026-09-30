@@ -48,6 +48,12 @@ func (w *Worker) SetGuildConfig(ctx context.Context, write GuildConfigWrite) (in
 	if err := w.requireOwnerStrict(ctx, req, ownerCheck{}); err != nil {
 		return 0, err
 	}
+	if write.Config.GuildID != "" && write.Config.GuildID != write.GuildID {
+		return 0, discapi.ErrForbidden
+	}
+	if err := w.requireConfigChannels(ctx, write.GuildID, write.Config); err != nil {
+		return 0, err
+	}
 	version, err := w.store.SetGuildConfig(ctx, discordstore.SetConfig{
 		Guild:           discordstore.Guild{ID: write.GuildID},
 		Broadcaster:     discordstore.Broadcaster{ID: write.BroadcasterID},
@@ -59,6 +65,26 @@ func (w *Worker) SetGuildConfig(ctx context.Context, write GuildConfigWrite) (in
 	}
 	w.store.Invalidate(ctx, discordstore.Guild{ID: write.GuildID})
 	return version, nil
+}
+
+func (w *Worker) requireConfigChannels(ctx context.Context, guildID string, cfg ddiscord.Config) error {
+	seen := make(map[string]bool)
+	for _, id := range []string{cfg.LiveChannelID, cfg.ClipsChannelID, cfg.WelcomeChannelID,
+		cfg.VoiceHubID, cfg.LogChannelID, cfg.TicketChannelID, cfg.TicketCategoryID,
+		cfg.SubsChannelID, cfg.SubsCategoryID, cfg.VIPChannelID, cfg.VIPCategoryID,
+		cfg.TicketArchiveCategoryID, cfg.TicketLogChannelID} {
+		if id == "" || seen[id] {
+			continue
+		}
+		if w.discord == nil {
+			return ErrDiscordUnavailable
+		}
+		if err := discapi.RequireGuildChannel(ctx, w.discord, guildID, id); err != nil {
+			return err
+		}
+		seen[id] = true
+	}
+	return nil
 }
 
 type GuildListing struct {

@@ -16,7 +16,7 @@ import { IMPORT_ITEM_CAPS } from '../types';
 import { decodeEnvelope } from './envelope';
 import type { FbCommand, FbEnvelope } from './envelope';
 import { makeFetchSlotSink } from '../nightbot/fetchdefs';
-import { translateVariables } from './variables';
+import { translateVariables, TranslationWorkBudget } from './variables';
 
 export const FB_CODE = {
   commandBuiltinSkipped: 'command_builtin_skipped',
@@ -39,6 +39,7 @@ interface Row {
 
 class State {
   readonly diags: ImportDiagnostic[] = [];
+  readonly workBudget = new TranslationWorkBudget();
   readonly fetchDefs = new Map<string, ManifestFetch>();
   private readonly roleNames = new Map<string, string>();
   private readonly responses = new Map<string, string>();
@@ -232,7 +233,9 @@ function widest(current: Perm | null, next: Perm): Perm {
 function commandResponses(row: Row, notes: Notes): string[] {
   const sink = makeFetchSlotSink('fossabot', row.name, notes.state.fetchDefs, notes.state.diags);
   const lookup = (target: string): string | null => notes.state.reference(target);
-  const translated = translateVariables(stripActionPrefix(row, notes), { sink, lookup });
+  const translated = translateVariables(stripActionPrefix(row, notes), {
+    sink, lookup, workBudget: notes.state.workBudget
+  });
   for (const tok of translated.warns) {
     notes.add(CODE.variableUnmapped, `response uses ${tok}, which has no equivalent; left as literal text`);
   }

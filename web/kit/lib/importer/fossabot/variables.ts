@@ -4,12 +4,66 @@
 import { emit, normalizeInstant, positional, slice } from '../targets';
 import { normalizeName } from '../validate';
 import type { FetchSlotSink } from '../nightbot/fetchdefs';
-import { nextToken } from '../nightbot/scan';
+import { scanTokens } from '../nightbot/scan';
+import { FossabotExportError } from './envelope';
 import type { Token } from '../nightbot/scan';
-import { Warnings, fetchToken, literal, positionalToken, runPasses } from '../nightbot/variables';
+import { Warnings, TranslationOutput, fetchToken, literal, positionalToken, runPasses } from '../nightbot/variables';
 import type { TokenResult } from '../nightbot/variables';
 
 const MAX_REFERENCE_DEPTH = 3;
+
+// These bound intermediate strings and actual translation work, before chat
+// canonicalization. 64 Ki UTF-16 units leaves ample room for verbose source
+// variables around the final 5 x 500-byte response. Work counts scanned and
+// appended units, including every recursive branch and translation pass.
+// The import budget allows 2000 ordinary commands without letting each command
+// independently spend the full per-response budget on repeated references.
+const MAX_EXPANDED_UNITS = 64 << 10;
+const MAX_TRANSLATION_WORK = 1 << 20;
+const MAX_TOKEN_VISITS = 8192;
+const MAX_IMPORT_WORK = 64 << 20;
+
+export class TranslationWorkBudget {
+  private remaining = MAX_IMPORT_WORK;
+
+  consume(units: number): void {
+    if (units > this.remaining) throw limitError('the import translation work limit');
+    this.remaining -= units;
+  }
+}
+
+function limitError(limit: string): FossabotExportError {
+  return new FossabotExportError(`importer/fossabot: response expansion exceeds ${limit}; simplify command references and try again`);
+}
+
+class ResponseBudget {
+  private remainingWork = MAX_TRANSLATION_WORK;
+  private remainingVisits = MAX_TOKEN_VISITS;
+
+  constructor(private readonly shared: TranslationWorkBudget) {}
+
+  private consume(units: number): void {
+    if (units > this.remainingWork) throw limitError('the per-response translation work limit');
+    this.shared.consume(units);
+    this.remainingWork -= units;
+  }
+
+  scan(text: string): void {
+    if (text.length > MAX_EXPANDED_UNITS) throw limitError('the 64 Ki-character intermediate response limit');
+    this.consume(text.length);
+  }
+
+  visit(): void {
+    if (this.remainingVisits === 0) throw limitError('the per-response token visit limit');
+    this.remainingVisits--;
+  }
+
+  append(currentLength: number, fragment: string): void {
+    if (fragment.length > MAX_EXPANDED_UNITS - currentLength)
+      throw limitError('the 64 Ki-character intermediate response limit');
+    this.consume(fragment.length);
+  }
+}
 
 export interface TranslationResult {
   text: string;
@@ -19,6 +73,7 @@ export interface TranslationResult {
 export interface TranslationContext {
   sink?: FetchSlotSink;
   lookup?: (name: string) => string | null;
+  workBudget?: TranslationWorkBudget;
 }
 
 type Note = (raw: string) => void;
@@ -120,24 +175,28 @@ function classify(token: Token, ctx: TranslationContext): TokenResult {
   return literal(token);
 }
 
-function expandReferences(text: string, ctx: TranslationContext, depth: number, note: Note): string {
-  let out = '';
+function expandReferences(text: string, ctx: TranslationContext, depth: number, note: Note, budget: ResponseBudget): string {
+  budget.scan(text);
+  const out = new TranslationOutput(budget);
   let pos = 0;
-  for (let token = nextToken(text, pos); token; token = nextToken(text, pos)) {
-    out += text.slice(pos, token.start) + expandOne(token, ctx, depth, note);
+  for (const token of scanTokens(text)) {
+    budget.visit();
+    out.append(text.slice(pos, token.start));
+    out.append(expandOne(token, ctx, depth, note, budget));
     pos = token.end;
   }
-  return out + text.slice(pos);
+  out.append(text.slice(pos));
+  return out.text();
 }
 
-function expandOne(token: Token, ctx: TranslationContext, depth: number, note: Note): string {
+function expandOne(token: Token, ctx: TranslationContext, depth: number, note: Note, budget: ResponseBudget): string {
   if (token.head !== 'references') return token.raw;
   const target = referenceTarget(token, depth, ctx);
   if (target === null) {
     note(token.raw);
     return token.raw;
   }
-  return expandReferences(target, ctx, depth + 1, note);
+  return expandReferences(target, ctx, depth + 1, note, budget);
 }
 
 function referenceTarget(token: Token, depth: number, ctx: TranslationContext): string | null {
@@ -152,7 +211,8 @@ export function translateVariables(
 ): TranslationResult {
   const warns = new Warnings();
   const note: Note = (raw) => warns.note(raw);
-  const expanded = expandReferences(inText, ctx, 0, note);
-  const { text } = runPasses(expanded, (token) => classify(token, ctx), warns);
+  const budget = new ResponseBudget(ctx.workBudget ?? new TranslationWorkBudget());
+  const expanded = expandReferences(inText, ctx, 0, note, budget);
+  const { text } = runPasses(expanded, (token) => classify(token, ctx), warns, budget);
   return { text, warns: warns.tokens };
 }

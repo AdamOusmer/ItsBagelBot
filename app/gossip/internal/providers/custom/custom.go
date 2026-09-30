@@ -183,7 +183,7 @@ func (p *api) resolveFlight(ctx context.Context, req gossiprpc.Request) (*flight
 		def:       def,
 		inline:    inline,
 		path:      path,
-		key:       resultKey(strings.ToLower(strings.TrimSpace(req.DefID))),
+		key:       resultKey(channelID, *def, path),
 	}, gossiprpc.FetchOK
 }
 
@@ -473,9 +473,23 @@ func (p *api) admitFor(req gossiprpc.Request, fl *flight) func(context.Context) 
 
 func breakerKey(host string) string { return "gossip:custom:cb:" + host }
 
-func resultKey(defID string) string {
-	sum := sha256.Sum256([]byte(defID))
-	return "gossip:custom:fetch:" + hex.EncodeToString(sum[:8])
+// resultKey binds replies, flights, and refresh claims to one broadcaster's
+// current definition and exact extraction path. Only the definition name is
+// case-insensitive; JSON field names are not. A versioned namespace abandons
+// the old tenantless entries. Definition metadata is hashed, never stored raw;
+// FetchDef carries only a key label, never decrypted credential material.
+func resultKey(channelID string, def gossiprpc.FetchDef, path codec.Path) string {
+	def.Name = strings.ToLower(strings.TrimSpace(def.Name))
+	if len(path) == 0 {
+		path = nil
+	}
+	identity, _ := codec.Marshal(struct {
+		ChannelID  string
+		Definition gossiprpc.FetchDef
+		Path       codec.Path
+	}{strings.TrimSpace(channelID), def, path})
+	sum := sha256.Sum256(identity)
+	return "gossip:custom:fetch:v2:" + hex.EncodeToString(sum[:16])
 }
 
 func marshalReply(status gossiprpc.FetchStatus, values []string) []byte {

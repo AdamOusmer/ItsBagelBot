@@ -13,6 +13,7 @@ import {
   FossabotFetchError,
   parseFossabot
 } from './fossabot';
+import { translateVariables } from './fossabot/variables';
 import { CODE, isValidFetchDefName, validateManifest } from './validate';
 import type { ImportDiagnostic } from './types';
 
@@ -292,6 +293,73 @@ describe('permissions', () => {
 });
 
 describe('references', () => {
+  test('amplified reference output is refused before canonicalization can truncate it', () => {
+    const leaf = 'x'.repeat(1024);
+    expect(() => parseFossabot(feed([
+      command({ name: 'a', response: '$(references b)'.repeat(100) }),
+      command({ name: 'b', response: leaf })
+    ]))).toThrow(/64 Ki-character intermediate response limit/);
+  });
+
+  test('large raw responses and reference targets are explicitly refused', () => {
+    for (const referenced of [false, true]) {
+      expect(() => translateVariables(referenced ? '$(references x)' : 'x'.repeat(65537), {
+        lookup: () => 'x'.repeat(65537)
+      })).toThrow(FossabotExportError);
+    }
+  });
+
+  test('empty-output reference fanout cannot bypass the token visit budget', () => {
+    const lookup = (name: string) => name === 'branch' ? '$(references empty)'.repeat(100) : '';
+    expect(() => translateVariables('$(references branch)'.repeat(100), { lookup }))
+      .toThrow(/token visit limit/);
+  });
+
+  test('repeated scanning of references that collapse to empty has bounded work', () => {
+    let lookups = 0;
+    const lookup = (name: string) => {
+      lookups++;
+      return name === 'branch' ? `$(references ${' '.repeat(60000)}empty)` : '';
+    };
+    expect(() => translateVariables('$(references branch)'.repeat(100), { lookup }))
+      .toThrow(/per-response translation work limit/);
+    expect(lookups).toBeLessThan(50);
+  });
+
+  test('the import work budget is shared across otherwise bounded commands', () => {
+    const commands = Array.from({ length: 1000 }, (_, i) => command({
+      name: `a${i.toString().padStart(4, '0')}`, response: '$(references target)'
+    }));
+    commands.push(command({ name: 'target', response: ' '.repeat(60000) }));
+    expect(() => parseFossabot(feed(commands))).toThrow(/import translation work limit/);
+  });
+
+  test('ordinary maximum-size collections retain their responses', () => {
+    const response = `${'x'.repeat(480)} $(user)`;
+    const parsed = parseFossabot(feed(Array.from({ length: 2000 }, (_, i) => command({
+      name: `c${i}`, response
+    }))));
+    expect(parsed.manifest.commands).toHaveLength(2000);
+    expect(parsed.manifest.commands?.every((c) => c.responses[0] === `${'x'.repeat(480)} {user}`)).toBe(true);
+    expect(parsed.diagnostics).toEqual([]);
+  });
+
+  test('a three-level chain preserves repeated aliases and caller-specific fetch definitions', () => {
+    const parsed = parseFossabot(feed([
+      command({ name: 'a', response: '$(references ALIAS) $(references alias)' }),
+      command({ name: 'b', aliases: ['alias'], response: '$(references c)' }),
+      command({ name: 'c', response: '$(references d)' }),
+      command({ name: 'd', response: '$(customapi https://example.com) $(user)' })
+    ]));
+    expect(parsed.manifest.commands?.[0].responses).toEqual([
+      '{urlfetch:fossabot_a} {user} {urlfetch:fossabot_a} {user}'
+    ]);
+    expect(parsed.manifest.fetches?.map((f) => f.name)).toEqual([
+      'fossabot_a', 'fossabot_b', 'fossabot_c', 'fossabot_d'
+    ]);
+    expect(codesOf(parsed.diagnostics)).toEqual(Array(4).fill('fetch_def_created'));
+  });
+
   test('a reference is replaced by the referenced response and then translated', () => {
     const { manifest, diagnostics } = parseFossabot(
       feed([
