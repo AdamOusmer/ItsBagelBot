@@ -77,7 +77,7 @@
   }
 </script>
 
-<SkipLink href="#main-content" label={skipLabel} onclick={skipToMain} />
+<SkipLink href="#main-content" label={skipLabel} class="bb-shell__skip" onclick={skipToMain} />
 
 {#if banner}{@render banner()}{/if}
 

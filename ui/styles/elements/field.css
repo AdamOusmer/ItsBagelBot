@@ -54,7 +54,7 @@
         box-shadow: 0 0 0 3px rgba(var(--bb-tan-rgb), 0.10);
     }
 
-    .bb-input svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+    .bb-input :where(svg) { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
 
     .bb-input input {
         background: none;

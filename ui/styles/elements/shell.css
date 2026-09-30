@@ -4,6 +4,28 @@
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
 @layer bb.elements {
+  .bb-skip-link.bb-shell__skip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    transform: translateY(-120%);
+    margin: 8px;
+    padding: 10px 16px;
+    border-color: var(--bb-focus);
+    color: var(--bb-white);
+    font-family: var(--bb-font-body);
+    font-weight: 600;
+    font-size: 13px;
+    box-shadow: 0 8px 30px rgba(var(--bb-shadow-rgb), 0.5);
+    transition: transform var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+
+  .bb-skip-link.bb-shell__skip:focus,
+  .bb-skip-link.bb-shell__skip:focus-visible {
+    transform: translateY(0);
+    outline-offset: 3px;
+  }
+
   .bb-shell {
     --shell-rail-breakpoint: 761px;
     --shell-canvas-max: 1160px;

@@ -33,15 +33,15 @@
         right: 12px;
         top: 50%;
         translate: 0 -50%;
-        width: 13px;
-        height: 13px;
+        width: 15px;
+        height: 15px;
         stroke: currentColor;
         fill: none;
-        stroke-width: 1.8;
+        stroke-width: 1.7;
         pointer-events: none;
     }
 
-    .bb-input--area {
+    .bb-input.bb-input--area {
         align-items: stretch;
         padding: 10px 12px;
     }
@@ -64,7 +64,7 @@
         color: var(--bb-muted);
     }
 
-    .bb-input--mono :is(input, textarea) {
+    .bb-input.bb-input--mono :is(input, textarea) {
         font-family: var(--bb-font-mono);
         font-size: 13px;
     }
@@ -95,12 +95,12 @@
         background: rgba(var(--bb-white-pure-rgb), 0.02);
     }
 
-    .bb-input--color {
+    .bb-input.bb-input--color {
         width: fit-content;
         padding: 3px;
     }
 
-    .bb-input--color input {
+    .bb-input.bb-input--color input {
         flex: 1 0 36px;
         width: 36px;
         height: 29px;

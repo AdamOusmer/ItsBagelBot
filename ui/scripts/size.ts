@@ -252,7 +252,6 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/overview-grid", budget: 420 },
   { name: "elements/page-hero", budget: 1090 },
   { name: "elements/reading-progress", budget: 450 },
-  { name: "elements/save-status", budget: 270 },
   { name: "elements/section-heading", budget: 560 },
   { name: "elements/surface", budget: 980 },
   { name: "elements/text-link", budget: 1910 }, // 1583 B: arrow, inline and quiet variants
