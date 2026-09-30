@@ -177,9 +177,6 @@ func (w *Worker) reauthBeaconOnLive(ctx context.Context, broadcasterID string) {
 		return
 	}
 
-	// A chat ban can be lifted on Twitch's side without telling us; try to
-	// re-enable before paging the broadcaster again for a block that may
-	// already be gone.
 	if n == noticeBanned && w.recoverFromBan(ctx, broadcasterID) {
 		return
 	}
@@ -217,10 +214,8 @@ func (w *Worker) sendReauthBeacon(ctx context.Context, broadcasterID string, n n
 	}
 }
 
-// recoverFromBan retries the enable path that a working unban would satisfy.
-// It reports whether the channel is healthy afterward, not whether the retry
-// itself returned an error: enableEventSubs acks almost every failure so the
-// queue doesn't jam, so the registry state is the only reliable signal.
+// Reports whether the channel is healthy afterward, not whether the retry itself
+// errored: enableEventSubs acks almost every failure, so registry state is the only reliable signal.
 func (w *Worker) recoverFromBan(ctx context.Context, broadcasterID string) bool {
 	conduitID, err := w.conduit.Get(ctx)
 	if err != nil {

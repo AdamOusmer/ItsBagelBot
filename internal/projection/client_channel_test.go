@@ -163,8 +163,6 @@ func TestLoadChannelConcurrentColdLoadsSingleflight(t *testing.T) {
 func TestLoadChannelFailurePolicies(t *testing.T) {
 	c, _, _ := channelTestClient(t)
 	ctx := context.Background()
-	// An unavailable RPC serves the conservative user fallback for this call
-	// only, while absent modules remain a retryable error; neither is cached.
 	_, user, err := c.LoadChannel(ctx, 999, true)
 	require.Error(t, err)
 	require.Equal(t, User{Status: "standard"}, user)

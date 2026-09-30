@@ -69,23 +69,15 @@ func NewReauthNotifier(nc *nats.Conn, cfg ReauthConfig, log *zap.Logger) *Reauth
 	return &ReauthNotifier{nc: nc, cfg: cfg, log: log}
 }
 
-// noticeEpisode ties a notice to the moment its underlying block or grant-dead
-// state began, so repeat sends for the same unresolved episode share one
-// RequestID and dedup at the notifications table instead of paging the
-// broadcaster once a day (or once a beacon cycle) until they act.
 type noticeEpisode struct {
 	notice
 	episode time.Time
 }
 
-// Notify resolves the locale and sends, unless the broadcaster has no
-// account to notify (e.g. a trial channel shadow-read without a users row).
 func (r *ReauthNotifier) Notify(ctx context.Context, broadcasterID string, n notice, episode time.Time) {
 	r.notifyKnown(ctx, broadcasterID, n, episode)
 }
 
-// notifyKnown returns the resolved locale even when the send is skipped, so
-// callers that also owe the broadcaster a chat line can still localize it.
 func (r *ReauthNotifier) notifyKnown(ctx context.Context, broadcasterID string, n notice, episode time.Time) string {
 	locale, found := r.ResolveLocale(ctx, broadcasterID)
 	if !found {
@@ -119,8 +111,6 @@ func (r *ReauthNotifier) NotifyLocalized(ctx context.Context, broadcasterID, loc
 	r.logSendResult(broadcasterID, reply, err)
 }
 
-// episodeStamp falls back to the day when no episode start is known, keeping
-// the old daily-dedup behavior rather than sending an unkeyed notification.
 func episodeStamp(episode time.Time) string {
 	if episode.IsZero() {
 		return time.Now().UTC().Format("2006-01-02")
@@ -145,10 +135,7 @@ func (r *ReauthNotifier) ChatLine(locale string, n notice) string {
 	return i18n.T(locale, n.chat)
 }
 
-// ResolveLocale reports the broadcaster's locale and whether they have an
-// account at all. A transport failure resolves to (default locale, found)
-// rather than (default locale, not found): "found" must mean the users
-// lookup positively came back not_found, not that we couldn't ask.
+// "found" must mean the users lookup positively came back not_found, not that a transport error prevented asking.
 func (r *ReauthNotifier) ResolveLocale(ctx context.Context, broadcasterID string) (string, bool) {
 	reply, err := bus.RequestJSONTimeout[usersrpc.StateGetReply](ctx, r.nc, r.cfg.StateSubject,
 		usersrpc.StateGetRequest{BroadcasterUserID: broadcasterID}, 3*time.Second)

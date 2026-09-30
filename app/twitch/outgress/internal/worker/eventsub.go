@@ -39,9 +39,7 @@ const (
 type enrollment struct {
 	broadcasterID string
 	conduitID     string
-	// priorState is the sub_state read before this attempt wrote "pending",
-	// so a failure back into the same block can be told apart from a fresh
-	// one after the pending write has clobbered the stored state.
+	// priorState must be read before this attempt's "pending" write clobbers it.
 	priorState string
 }
 
@@ -236,9 +234,6 @@ func (w *Worker) priorSubState(ctx context.Context, broadcasterID string) string
 	return ch.SubState
 }
 
-// recordEnrollSuccess already marks the eventsubs healthy; this restores the
-// active flag a prior block turned off, using the state captured before this
-// attempt's own "pending" write overwrote it.
 func (w *Worker) recoverActiveFlag(ctx context.Context, e enrollment) {
 	if blockedState(e.priorState) {
 		w.setChannelActive(ctx, e.broadcasterID, true)

@@ -15,8 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// captureActiveSets records every active_set request, replying as if it
-// always succeeds.
 func captureActiveSets(t *testing.T, nc *nats.Conn, subject string) *[]usersrpc.ActiveSetRequest {
 	t.Helper()
 	sets := &[]usersrpc.ActiveSetRequest{}

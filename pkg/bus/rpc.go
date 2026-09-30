@@ -34,8 +34,6 @@ func (e RPCReplyError) Error() string {
 	return fmt.Sprintf("rpc %s: %s", e.Subject, e.Message)
 }
 
-// NotFoundReply reports whether err is a refusal coded not_found, as opposed
-// to a transient transport or server error.
 func NotFoundReply(err error) bool {
 	var reply RPCReplyError
 	return errors.As(err, &reply) && reply.Code == rpc.CodeNotFound

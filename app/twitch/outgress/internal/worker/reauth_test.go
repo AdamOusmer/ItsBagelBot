@@ -33,9 +33,6 @@ func newTestReauthNotifier(t *testing.T, nc *nats.Conn) *ReauthNotifier {
 	}, zap.NewNop())
 }
 
-// respondState makes the state lookup always resolve with the given locale
-// and not-found code, mimicking the users RPC for an account vs. a trial
-// channel with no users row.
 func respondState(t *testing.T, nc *nats.Conn, locale string, code rpc.Code) {
 	t.Helper()
 	sub, err := nc.Subscribe(testStateSubject, func(msg *nats.Msg) {
@@ -48,8 +45,6 @@ func respondState(t *testing.T, nc *nats.Conn, locale string, code rpc.Code) {
 	t.Cleanup(func() { _ = sub.Unsubscribe() })
 }
 
-// captureSends records every request_id sent through the notification send
-// subject, replying as if each send succeeded.
 func captureSends(t *testing.T, nc *nats.Conn) *[]string {
 	t.Helper()
 	ids := &[]string{}

@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// NATS starts an embedded server and returns a client connected to it,
-// both closed on test cleanup.
 func NATS(t *testing.T) *nats.Conn {
 	t.Helper()
 	s, err := server.NewServer(&server.Options{Host: "127.0.0.1", Port: -1, NoLog: true, NoSigs: true})
@@ -29,9 +27,6 @@ func NATS(t *testing.T) *nats.Conn {
 	return nc
 }
 
-// Respond subscribes to subject and replies with each of replies in call
-// order, repeating the last reply once the list is exhausted. It returns
-// the number of requests served.
 func Respond(t *testing.T, nc *nats.Conn, subject string, replies ...string) *atomic.Int32 {
 	t.Helper()
 	var served atomic.Int32

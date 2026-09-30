@@ -18,7 +18,6 @@ type options struct {
 	staleWindow time.Duration
 }
 
-// StaleOnError serves an entry for up to window past its TTL when its reload fails.
 func StaleOnError(window time.Duration) Option {
 	return func(o *options) { o.staleWindow = window }
 }

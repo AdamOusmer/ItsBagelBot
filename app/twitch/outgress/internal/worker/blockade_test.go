@@ -96,9 +96,6 @@ func TestAlreadyBlocked(t *testing.T) {
 }
 
 func TestAlreadyBlockedStateSurvivesAPendingClobber(t *testing.T) {
-	// A retried enable job writes sub_state=pending before it knows whether it
-	// will fail; the check that decides whether to re-notify must be given the
-	// state from before that write, not read it back off the registry.
 	tests := []struct {
 		name  string
 		prior string

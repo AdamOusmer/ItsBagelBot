@@ -166,9 +166,6 @@ func (w *Worker) blockChannel(ctx context.Context, broadcasterID string, b block
 	return w.applyBlock(ctx, broadcasterID, b, ch.SubState)
 }
 
-// blockChannelFrom lets a caller that already knows the pre-attempt sub_state
-// supply it directly, so a transient "pending" write made while retrying
-// cannot masquerade as a fresh block and re-notify a broadcaster mid-episode.
 func (w *Worker) blockChannelFrom(ctx context.Context, broadcasterID string, b blockade, priorState string) error {
 	return w.applyBlock(ctx, broadcasterID, b, priorState)
 }
@@ -194,10 +191,6 @@ func (w *Worker) applyBlock(ctx context.Context, broadcasterID string, b blockad
 	return nil
 }
 
-// markBlockedNow stamps the episode marker a repeat reauth notification is
-// keyed on. It must run only once per episode: the pending write SetSubState
-// makes while an enable/reconnect job retries must never look like a new
-// episode starting.
 func (w *Worker) markBlockedNow(ctx context.Context, broadcasterID string) error {
 	return w.registry.MarkBlocked(ctx, manage.Channel{BroadcasterID: broadcasterID})
 }
