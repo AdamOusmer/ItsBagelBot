@@ -13,11 +13,14 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"go.uber.org/zap"
 
+	"ItsBagelBot/app/db/users/ent"
 	"ItsBagelBot/app/db/users/ent/tokens"
 	"ItsBagelBot/app/db/users/repository"
 	"ItsBagelBot/internal/domain/i18n"
 	"ItsBagelBot/internal/domain/invalidate"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
+	"ItsBagelBot/internal/domain/validate"
 	"ItsBagelBot/pkg/bus"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
@@ -73,8 +76,16 @@ func tracedHandler(app *newrelic.Application, subject string, fn func(context.Co
 	}
 }
 
-func respondErr(msg *nats.Msg, text string) { bus.Respond(msg, map[string]any{"error": text}) }
-func respondOK(msg *nats.Msg)               { bus.Respond(msg, map[string]any{"ok": true}) }
+func respondErr(msg *nats.Msg, text string) {
+	bus.Respond(msg, domainrpc.Refused(domainrpc.CodeInvalid, text))
+}
+
+func respondFail(msg *nats.Msg, err error, rules ...domainrpc.Rule) {
+	rules = append(rules, domainrpc.When(ent.IsNotFound, domainrpc.CodeNotFound))
+	bus.Respond(msg, domainrpc.Fail(err, rules...))
+}
+
+func respondOK(msg *nats.Msg) { bus.Respond(msg, map[string]any{"ok": true}) }
 
 func decodeRequest[T any](msg *nats.Msg) (req T, ok bool) {
 	if err := codec.Unmarshal(msg.Data, &req); err != nil {
@@ -109,7 +120,7 @@ func (d *dashboardRPC) writeThenInvalidate(ctx context.Context, msg *nats.Msg, s
 
 	if err := write(ctx); err != nil {
 		d.log.Error(op, zap.Error(err))
-		respondErr(msg, err.Error())
+		respondFail(msg, err)
 		return
 	}
 	d.publishInvalidate(scope, broadcasterID, op)
@@ -148,7 +159,7 @@ func (d *dashboardRPC) handleUpsertUser(ctx context.Context, msg *nats.Msg) {
 
 	if err := d.repo.Register(ctx, id, req.Username, req.DisplayName, email); err != nil {
 		log.Error("upsert_user register", zap.Error(err))
-		respondErr(msg, err.Error())
+		respondFail(msg, err)
 		return
 	}
 
@@ -250,12 +261,12 @@ func (d *dashboardRPC) handleLoginResolve(ctx context.Context, msg *nats.Msg) {
 
 	id, err := d.repo.IDByUsername(ctx, req.Login)
 	if err != nil {
-		respondErr(msg, "not found")
+		respondFail(msg, err, domainrpc.Is(validate.ErrUsernameInvalid, domainrpc.CodeInvalid))
 		return
 	}
 	view, err := d.repo.Get(ctx, id)
 	if err != nil {
-		respondErr(msg, err.Error())
+		respondFail(msg, err)
 		return
 	}
 	bus.Respond(msg, map[string]any{
@@ -280,7 +291,7 @@ func (d *dashboardRPC) readView(ctx context.Context, msg *nats.Msg, render func(
 
 	view, err := d.repo.Get(ctx, id)
 	if err != nil {
-		respondErr(msg, err.Error())
+		respondFail(msg, err)
 		return
 	}
 	bus.Respond(msg, render(view))
@@ -345,7 +356,7 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 	delegateIDs, err := d.repo.DeleteDelegationsByOwner(ctx, id)
 	if err != nil {
 		log.Error("delete_self delegations", zap.Error(err))
-		respondErr(msg, err.Error())
+		respondFail(msg, err)
 		return
 	}
 	for _, delID := range delegateIDs {
@@ -353,7 +364,7 @@ func (d *dashboardRPC) handleDeleteSelf(ctx context.Context, msg *nats.Msg) {
 	}
 	if err := d.repo.Delete(ctx, id); err != nil {
 		log.Error("delete_self user", zap.Error(err))
-		respondErr(msg, err.Error())
+		respondFail(msg, err)
 		return
 	}
 
