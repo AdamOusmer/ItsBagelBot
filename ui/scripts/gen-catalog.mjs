@@ -164,6 +164,7 @@ const rows = names.map((name) => {
     family: FAMILY[name],
     props,
     adapters,
+    status: sv && as ? 'stable' : `${sv ? 'svelte' : 'astro'}-only`,
     contract: [...new Set([...contractOf(sv ?? ''), ...contractOf(as ?? '')])].sort().join(', '),
     note: ADAPTER_NOTE[name] ?? '',
   };
@@ -190,13 +191,13 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 for (const family of FAMILIES) {
   const inFamily = rows.filter((r) => r.family === family);
   if (!inFamily.length) continue;
-  body += `\n## ${family}\n\n| Block | Props | Adapters | Contract |\n| --- | --- | --- | --- |\n`;
+  body += `\n## ${family}\n\n| Block | Props | Adapters | Status | Contract |\n| --- | --- | --- | --- | --- |\n`;
   for (const row of inFamily) {
     const props = row.props.length
       ? row.props.map((p) => `\`${p.name}\`: ${p.type}`).join('<br>')
       : '—';
     const adapters = row.note ? `${row.adapters}<br>*${row.note}*` : row.adapters;
-    body += `| **${row.name}** | ${props} | ${adapters} | ${row.contract ? `\`${row.contract}\`` : '—'} |\n`;
+    body += `| **${row.name}** | ${props} | ${adapters} | ${row.status} | ${row.contract ? `\`${row.contract}\`` : '—'} |\n`;
   }
 }
 
