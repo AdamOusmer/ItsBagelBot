@@ -2,6 +2,8 @@
 
 Shared language for ItsBagelBot: Premium access, giveaways, and public channel pages.
 
+For app responsibilities, local terminology, code navigation, and focused checks, start with the [context map](CONTEXT-MAP.md), then read the relevant app's `context.md`.
+
 ## Language
 
 **Premium**:
