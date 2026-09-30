@@ -33,7 +33,9 @@ func Followage(d engine.Deps) module.Module {
 		return lookupCall[engine.FollowageResult]{
 			log: log, logKey: followageModuleName, unavailable: i18n.T(c.Locale, "followage.unavailable"),
 			read: readIf(d.Followage != nil, func() (engine.FollowageResult, error) {
-				return d.Followage.Lookup(ctx, bid, target.id, target.login, c.Env.Origin == "trial")
+				return d.Followage.Lookup(ctx, engine.FollowageQuery{
+					BroadcasterID: bid, TargetID: target.id, TargetLogin: target.login, Trial: c.Env.Origin == "trial",
+				})
 			}),
 			format: func(res engine.FollowageResult) string {
 				r := lookupReply{locale: c.Locale, targetName: target.name}

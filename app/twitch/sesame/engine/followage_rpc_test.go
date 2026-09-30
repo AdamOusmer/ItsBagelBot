@@ -30,7 +30,7 @@ func TestFollowageLookupCachesInSesame(t *testing.T) {
 	defer f.cache.Close()
 
 	for range 2 {
-		result, err := f.Lookup(context.Background(), "channel", "viewer", "", false)
+		result, err := f.Lookup(context.Background(), FollowageQuery{BroadcasterID: "channel", TargetID: "viewer"})
 		require.NoError(t, err)
 		require.True(t, result.Following)
 	}

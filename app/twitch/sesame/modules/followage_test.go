@@ -50,8 +50,8 @@ type fakeFollowage struct {
 	got    struct{ broadcasterID, targetID, targetLogin string }
 }
 
-func (f *fakeFollowage) Lookup(_ context.Context, broadcasterID, targetID, targetLogin string, _ bool) (engine.FollowageResult, error) {
-	f.got = struct{ broadcasterID, targetID, targetLogin string }{broadcasterID, targetID, targetLogin}
+func (f *fakeFollowage) Lookup(_ context.Context, query engine.FollowageQuery) (engine.FollowageResult, error) {
+	f.got = struct{ broadcasterID, targetID, targetLogin string }{query.BroadcasterID, query.TargetID, query.TargetLogin}
 	return f.result, f.err
 }
 
