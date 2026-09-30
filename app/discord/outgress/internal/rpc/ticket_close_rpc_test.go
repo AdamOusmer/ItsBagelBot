@@ -14,8 +14,10 @@ import (
 
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
+	"github.com/stretchr/testify/require"
 )
 
 func historyGet(call recordedCall) bool {
@@ -248,28 +250,6 @@ func TestCollectStopsAtTheMessageCap(t *testing.T) {
 	}
 }
 
-func TestCollectDegradesToThePartialTranscript(t *testing.T) {
-	calls := 0
-	h, _ := newTicketRPC(t, func(recordedCall) (int, string) {
-		calls++
-		if calls == 1 {
-			return 200, messagePage(1000, discapi.MessagePageMax)
-		}
-		return 500, `{"message":"boom"}`
-	})
-
-	reply := h.close(context.Background(), discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", Transcript: true, LogChannelID: "log1",
-	})
-
-	if reply.MessageCount != discapi.MessagePageMax {
-		t.Fatalf("count = %d, want the pages that did arrive", reply.MessageCount)
-	}
-	if !strings.Contains(reply.TranscriptBody, "line 1000") {
-		t.Fatal("a failed page must not throw away the pages that succeeded")
-	}
-}
-
 func TestArchivedNameLeavesAnUnknownNameAlone(t *testing.T) {
 	if got := archivedName(""); got != "" {
 		t.Fatalf("archivedName(\"\") = %q; an empty name means ModifyChannel leaves it alone", got)
@@ -347,60 +327,78 @@ func TestTicketCloseWithoutARowIDAlwaysPosts(t *testing.T) {
 }
 
 func TestTicketCloseFallsBackToAnEmbedWhenTheUploadFails(t *testing.T) {
-	uploaded := false
-	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
-		if historyGet(call) {
-			return 200, messagePage(1000, 2)
-		}
-		if strings.HasPrefix(call.contentType, "multipart/") {
-			uploaded = true
-			return 400, `{"message":"Request entity too large"}`
-		}
-		return 200, `{"id":"m-new"}`
-	})
+	for _, tc := range []struct {
+		name   string
+		status int
+	}{
+		{name: "fallback succeeds", status: http.StatusOK},
+		{name: "fallback fails", status: http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
+				if historyGet(call) {
+					return 200, messagePage(1000, 2)
+				}
+				if strings.HasPrefix(call.contentType, "multipart/") {
+					return 400, `{"message":"Request entity too large"}`
+				}
+				if call.method == http.MethodPost && call.path == "/channels/log1/messages" {
+					return tc.status, `{"id":"m-new"}`
+				}
+				return 200, `{"id":"m-new"}`
+			})
 
-	req := closeReq()
-	req.Transcript = true
+			req := closeReq()
+			req.Transcript = true
+			req.ChannelName = ""
 
-	h.close(context.Background(), req)
+			reply := h.close(context.Background(), req)
 
-	if !uploaded {
-		t.Fatal("the upload was never attempted")
-	}
-	fallback := wantLogPosts(t, tr, 2)[1]
-	if strings.HasPrefix(fallback.contentType, "multipart/") {
-		t.Fatalf("the fallback must be a plain embed: %q", fallback.contentType)
-	}
-	if !strings.Contains(fallback.body, uploadFailedNote) {
-		t.Fatalf("fallback body %q must say the upload failed", fallback.body)
+			require.Empty(t, reply.Error, "summary delivery must not fail ticket close")
+			posts := wantLogPosts(t, tr, 2)
+			require.Contains(t, posts[0].body, `filename="transcript.txt"`)
+			fallback := posts[1]
+			require.False(t, strings.HasPrefix(fallback.contentType, "multipart/"), "the fallback must be a plain embed")
+			require.Contains(t, fallback.body, uploadFailedNote)
+		})
 	}
 }
 
 func TestTicketCloseMarksATruncatedTranscript(t *testing.T) {
-	pages := 0
-	h, _ := newTicketRPC(t, func(call recordedCall) (int, string) {
-		if historyGet(call) {
-			pages++
-			if pages == 1 {
-				return 200, messagePage(1000, discapi.MessagePageMax)
-			}
-			return 500, `{"message":"Internal Server Error"}`
-		}
-		return 200, `{"id":"m-new"}`
-	})
+	for _, tc := range []struct {
+		name              string
+		archiveCategoryID string
+		wantCode          domainrpc.Code
+	}{
+		{name: "archive succeeds", archiveCategoryID: "cat1", wantCode: outgressrpc.CodeOK},
+		{name: "deletion fails", wantCode: outgressrpc.CodeUnknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			firstPage := true
+			h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
+				if historyGet(call) && firstPage {
+					firstPage = false
+					return 200, messagePage(1000, discapi.MessagePageMax)
+				}
+				if historyGet(call) || call.method == http.MethodDelete {
+					return 500, `{"message":"Internal Server Error"}`
+				}
+				return 200, `{"id":"m-new"}`
+			})
 
-	req := closeReq()
-	req.Transcript = true
+			req := closeReq()
+			req.Transcript = true
+			req.ArchiveCategoryID = tc.archiveCategoryID
 
-	reply := h.close(context.Background(), req)
+			reply := h.close(context.Background(), req)
 
-	if !reply.Truncated {
-		t.Fatalf("reply = %+v, want truncated", reply)
-	}
-	if !strings.Contains(reply.TranscriptBody, "transcript incomplete") {
-		t.Fatalf("transcript %q must carry the truncation line", firstLine(reply.TranscriptBody))
-	}
-	if reply.MessageCount != discapi.MessagePageMax {
-		t.Fatalf("message count = %d, want the partial page kept", reply.MessageCount)
+			require.Equal(t, 0, tr.indexOf(http.MethodGet, "/channels/c1/messages"), "history must be read before disposing the channel")
+			require.Equal(t, tc.wantCode, reply.Code)
+			require.Equal(t, tc.wantCode != outgressrpc.CodeOK, reply.Error != "")
+			require.True(t, reply.Truncated)
+			require.Equal(t, discapi.MessagePageMax, reply.MessageCount)
+			require.Contains(t, reply.TranscriptBody, "transcript incomplete")
+			require.Contains(t, reply.TranscriptBody, "line 1000")
+		})
 	}
 }
