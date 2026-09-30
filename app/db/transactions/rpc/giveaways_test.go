@@ -61,15 +61,18 @@ func TestGiveawayCapabilitiesExplainDisabledScheduling(t *testing.T) {
 }
 
 func TestGiveawaySummaryUsesExclusiveCategories(t *testing.T) {
-	pool := usersrpc.GiveawayPoolReply{Counts: usersrpc.GiveawayPoolCounts{Total: 3, Eligible: 3}, Candidates: []usersrpc.GiveawayCandidate{
+	pool := usersrpc.GiveawayPoolReply{Counts: usersrpc.GiveawayPoolCounts{Total: 6, Eligible: 6}, Candidates: []usersrpc.GiveawayCandidate{
 		{UserID: 1, Status: "free"},
 		{UserID: 2, Status: "paid"},
-		{UserID: 3, Status: "paid", SubscriptionRef: strptr("recurring")},
+		{UserID: 3, Status: "paid"},
+		{UserID: 4, Status: "paid", SubscriptionRef: strptr("recurring-4")},
+		{UserID: 5, Status: "paid", SubscriptionRef: strptr("recurring-5")},
+		{UserID: 6, Status: "free", SubscriptionRef: strptr("recurring-6")},
 	}}
 	got := summaryValues(pool, 1, 1)
 	require.Equal(t, 1, got.Free)
-	require.Equal(t, 1, got.Premium)
-	require.Equal(t, 1, got.Subscribers)
+	require.Equal(t, 2, got.Premium)
+	require.Equal(t, 3, got.Subscribers)
 }
 
 func TestEmptyPreviewSummaryCarriesRequestedValues(t *testing.T) {

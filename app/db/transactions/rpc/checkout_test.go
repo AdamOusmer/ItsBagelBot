@@ -97,6 +97,7 @@ func (f fakeAwards) HasPendingOrActiveAward(context.Context, uint64) (bool, erro
 
 func TestCheckoutGuardAllow(t *testing.T) {
 	paidUntil := time.Now().UTC().Add(time.Hour)
+	expired := time.Now().UTC().Add(-time.Hour)
 	tests := []struct {
 		name     string
 		coverage fakeCoverage
@@ -104,6 +105,10 @@ func TestCheckoutGuardAllow(t *testing.T) {
 		wantErr  error
 	}{
 		{"coverage outage", fakeCoverage{err: errors.New("users unavailable")}, fakeAwards{}, errors.New("could not verify premium coverage")},
+		{"award read outage", fakeCoverage{}, fakeAwards{err: errors.New("database unavailable")}, errors.New("could not verify premium coverage")},
+		{"billing uncertain", fakeCoverage{value: usersrpc.PremiumCoverage{BillingUncertain: true}}, fakeAwards{}, errors.New("could not verify premium coverage")},
+		{"active grant", fakeCoverage{value: usersrpc.PremiumCoverage{Grants: []usersrpc.PremiumGrant{{EndAt: paidUntil}}}}, fakeAwards{}, errAlreadyPremium},
+		{"expired coverage", fakeCoverage{value: usersrpc.PremiumCoverage{PaidThrough: &expired, Grants: []usersrpc.PremiumGrant{{EndAt: expired}}}}, fakeAwards{}, nil},
 		{"paid coverage", fakeCoverage{value: usersrpc.PremiumCoverage{PaidThrough: &paidUntil}}, fakeAwards{}, errAlreadyPremium},
 		{"durable award", fakeCoverage{}, fakeAwards{found: true}, errAlreadyPremium},
 		{"VIP without paid coverage", fakeCoverage{value: usersrpc.PremiumCoverage{Status: "vip", IsActive: true}}, fakeAwards{}, errAlreadyPremium},

@@ -6,12 +6,14 @@ package rpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"ItsBagelBot/app/discord/outgress/internal/kv"
 	discapi "ItsBagelBot/internal/discordapi"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -24,6 +26,7 @@ type fakeEngineREST struct {
 	bulkDel  []discapi.Purge
 	sent     []discapi.EmbedPost
 	edited   []discapi.Message
+	editErr  error
 
 	inviteCodes []string
 	inviteReply discapi.Invite
@@ -60,7 +63,7 @@ func (f *fakeEngineREST) SendEmbed(_ context.Context, post discapi.EmbedPost) (d
 }
 func (f *fakeEngineREST) EditMessage(_ context.Context, m discapi.Message, _ discapi.MessagePatch) error {
 	f.edited = append(f.edited, m)
-	return nil
+	return f.editErr
 }
 func (f *fakeEngineREST) GetInvite(_ context.Context, code string) (discapi.Invite, error) {
 	f.inviteCodes = append(f.inviteCodes, code)
@@ -213,5 +216,40 @@ func TestHandleInviteResolveTransientErrorIsError(t *testing.T) {
 	reply := h.handleInviteResolve(context.Background(), discordoutgress.InviteResolveRequest{Code: "x"})
 	if reply.Error == "" || reply.NotFound {
 		t.Fatalf("reply = %+v, want a non-empty Error and NotFound false", reply)
+	}
+}
+
+func TestHandleLiveOfflineRetainsTrackingOnlyForRetryableFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		keep bool
+	}{
+		{"message disappeared", fmt.Errorf("edit failed: %w", discapi.ErrChannelNotFound), false},
+		{"permission denied", discapi.ErrForbidden, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			rest := &fakeEngineREST{editErr: tc.err}
+			live := newMemLive()
+			msg := discapi.Message{ChannelID: "live1", ID: "m1"}
+			require.NoError(t, live.PutLiveMessage(ctx, "g1", msg))
+			h := &engineRPC{rest: rest, live: live, log: zap.NewNop()}
+			reply := h.handleLiveOffline(ctx, discordoutgress.LiveOfflineRequest{GuildID: "g1"})
+			require.Equal(t, tc.keep, reply.Error != "")
+			require.Equal(t, []discapi.Message{msg}, rest.edited)
+			tracked, known := live.GetLiveMessage(ctx, "g1")
+			require.Equal(t, tc.keep, known)
+			if tc.keep {
+				require.Equal(t, msg, tracked)
+				require.Equal(t, tc.err.Error(), reply.Error)
+				rest.editErr = nil
+				retry := h.handleLiveOffline(ctx, discordoutgress.LiveOfflineRequest{GuildID: "g1"})
+				require.Empty(t, retry.Error)
+				require.Equal(t, []discapi.Message{msg, msg}, rest.edited)
+				_, known = live.GetLiveMessage(ctx, "g1")
+				require.False(t, known)
+			}
+		})
 	}
 }

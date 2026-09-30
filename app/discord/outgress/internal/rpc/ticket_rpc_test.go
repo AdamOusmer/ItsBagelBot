@@ -14,6 +14,7 @@ import (
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
 	"ItsBagelBot/pkg/codec"
+	"github.com/stretchr/testify/require"
 )
 
 func channelCreate(call recordedCall) bool {
@@ -30,7 +31,7 @@ func TestTicketOpenCreatesThenPostsTheCard(t *testing.T) {
 
 	reply := h.open(context.Background(), discordoutgress.TicketOpenRequest{
 		GuildID: "g1", Name: "ticket-ada-1", ParentID: "cat1", Content: "<@u1>",
-		Embed:   ddiscord.TicketOpenedEmbed(ddiscord.TicketOpened{Opener: "Ada"}),
+		Embed:   ddiscord.Embed{Title: "Ticket", Description: "Describe your issue", Color: 7},
 		Buttons: []ddiscord.ButtonSpec{{Style: 2, Label: "Claim", CustomID: discapi.CustomTicketClaim}},
 	})
 
@@ -41,20 +42,26 @@ func TestTicketOpenCreatesThenPostsTheCard(t *testing.T) {
 	if len(posts) != 1 {
 		t.Fatalf("card posts = %+v, want exactly one", posts)
 	}
-	if !strings.Contains(posts[0].body, discapi.CustomTicketClaim) {
-		t.Fatalf("card post = %+v, want the claim button on it", posts[0])
-	}
+	require.JSONEq(t, `{"content":"<@u1>","embeds":[{"title":"Ticket","description":"Describe your issue","color":7}],"components":[{"type":1,"components":[{"type":2,"style":2,"label":"Claim","custom_id":"`+discapi.CustomTicketClaim+`"}]}]}`, posts[0].body)
+	require.Less(t, tr.indexOf(http.MethodPost, "/guilds/g1/channels"), tr.indexOf(http.MethodPost, "/channels/c-new/messages"))
 }
 
 func TestTicketOpenReportsTheChannelEvenWhenTheCardFails(t *testing.T) {
-	h, _ := newTicketRPC(t, func(call recordedCall) (int, string) {
+	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
 		if call.path == "/guilds/g1/channels" {
 			return 200, `{"id":"c-new"}`
 		}
 		return 403, `{"message":"Missing Permissions"}`
 	})
 
-	reply := h.open(context.Background(), discordoutgress.TicketOpenRequest{GuildID: "g1", Name: "t"})
+	wire := rpcWiring(t)
+	require.NoError(t, SubscribeTickets(h.rest, TicketDeps{BotID: h.botID}, wire))
+	var reply discordoutgress.TicketOpenReply
+	require.NoError(t, codec.Unmarshal(requestRPC(t, wire, "ticket.open", `{"guild_id":"g1","name":"t"}`), &reply))
+	require.Len(t, tr.find(http.MethodPost, "/guilds/g1/channels"), 1)
+	require.Len(t, tr.find(http.MethodPost, "/channels/c-new/messages"), 1)
+	require.NotEmpty(t, reply.Error)
+	require.Empty(t, reply.MessageID)
 
 	if reply.ChannelID != "c-new" {
 		t.Fatal("the caller must learn about the orphan channel so it can roll it back")
