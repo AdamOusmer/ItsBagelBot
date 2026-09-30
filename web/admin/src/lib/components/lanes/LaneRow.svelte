@@ -24,7 +24,7 @@
   const { t } = getI18n();
 </script>
 
-<ManagementRow {selected} expanded={selected} {controls} {onselect}>
+<ManagementRow {selected} expanded={selected} {controls} onSelect={onselect}>
   {#snippet primary()}
     <span class="row">
       <StatusDot tone={laneTone(lane)} />

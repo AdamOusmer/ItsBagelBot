@@ -109,7 +109,7 @@ export function dashboardNavItems(opts: {
         (def.grantsAny
           ? def.grantsAny.some((grant) => sections.includes(grant))
           : !def.grant || sections.includes(def.grant))),
-    active: (def) => section === def.id,
+    current: (def) => section === def.id,
     children: (def) => (def.id === 'modules' ? [...opts.moduleLinks] : undefined),
     t: opts.t
   });

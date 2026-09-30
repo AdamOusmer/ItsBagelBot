@@ -2,7 +2,9 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
+import type { ProgressTone } from '../lib/tone';
 
+import { uiI18n } from './i18n';
 import ProgressBar from './ProgressBar.astro';
 import '../styles/tags.css';
 import '../styles/elements/step-list.css';
@@ -24,24 +26,25 @@ interface Props extends Omit<HTMLAttributes<'ol'>, 'steps' | 'stateLabels' | 'cl
     class?: string;
 }
 
+const { t } = uiI18n(Astro);
 const { steps, stateLabels = {}, class: className = '', ...rest } = Astro.props;
 
 const DEFAULT_LABELS: Record<StepState, string> = {
-    pending: 'Pending',
-    running: 'Running',
-    waiting: 'Waiting',
-    succeeded: 'Succeeded',
-    failed: 'Failed',
-    skipped: 'Skipped',
-    cancelled: 'Cancelled',
+    pending: t('steps.pending'),
+    running: t('steps.running'),
+    waiting: t('steps.waiting'),
+    succeeded: t('steps.succeeded'),
+    failed: t('steps.failed'),
+    skipped: t('steps.skipped'),
+    cancelled: t('steps.cancelled'),
 };
 
-const TONE: Record<StepState, 'neutral' | 'success' | 'warning' | 'error'> = {
+const TONE: Record<StepState, ProgressTone> = {
     pending: 'neutral',
     running: 'neutral',
     waiting: 'warning',
     succeeded: 'success',
-    failed: 'error',
+    failed: 'danger',
     skipped: 'neutral',
     cancelled: 'neutral',
 };

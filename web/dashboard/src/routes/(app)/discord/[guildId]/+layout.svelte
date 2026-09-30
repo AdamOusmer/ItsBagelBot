@@ -29,7 +29,7 @@
     <section class="block reveal" style="--i:0" aria-labelledby="dc-locked-h">
       <Heading level={6} as="h2" variant="title" id="dc-locked-h" class="block-title">{t('modules.betaLocked')}</Heading>
       <Card>
-        <p class="lead"><Chip as="span" on>{t('modules.betaChip')}</Chip></p>
+        <p class="lead"><Chip as="span" pressed>{t('modules.betaChip')}</Chip></p>
         <Text size="sm" tone="muted" class="hint">{t('modules.betaLockedBody')}</Text>
         <div class="row">
           <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>

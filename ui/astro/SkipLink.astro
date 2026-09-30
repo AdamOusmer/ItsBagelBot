@@ -3,15 +3,18 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
 
+import { uiI18n } from './i18n';
+
 import '../styles/elements/skip-link.css';
 
 interface Props extends Omit<HTMLAttributes<'a'>, 'href' | 'label' | 'class'> {
     href: string;
-    label: string;
+    label?: string;
     class?: string;
 }
 
-const { href, label, class: className = '', ...rest } = Astro.props;
+const { t } = uiI18n(Astro);
+const { href, label = t('nav.skip'), class: className = '', ...rest } = Astro.props;
 const classes = ['bb-skip-link', className].filter(Boolean).join(' ');
 ---
 

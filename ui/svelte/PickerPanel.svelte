@@ -14,13 +14,14 @@
   import { MOBILE_QUERY, portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains } from '../lib/overlay-stack';
 
   let {
-    open = false,
+    open = $bindable(false),
     anchor,
     label,
     width = 300,
     maxHeight = 340,
     placement = 'beside',
     onClose,
+    onOpenChange,
     children
   }: {
     open?: boolean;
@@ -29,11 +30,19 @@
     width?: number;
     maxHeight?: number;
     placement?: 'beside' | 'below';
-    onClose: () => void;
+    onClose?: () => void;
+    onOpenChange?: (open: boolean) => void;
     children: Snippet;
   } = $props();
 
   const GAP_PX = 8;
+
+  function requestClose() {
+    onOpenChange?.(false);
+    // onClose owns the state so it can veto; open is written only without one.
+    if (onClose) onClose();
+    else open = false;
+  }
 
   const sheetQuery = mediaQuery(MOBILE_QUERY);
   let isSheet = $state(sheetQuery.matches);
@@ -94,7 +103,7 @@
     if (!open || isSheet) return;
     const close = (e: Event) => {
       if (e.type === 'scroll' && panelEl && e.target instanceof Node && overlayContains(panelEl, e.target)) return;
-      onClose();
+      requestClose();
     };
     window.addEventListener('scroll', close, { capture: true, passive: true });
     window.addEventListener('resize', close, { passive: true });
@@ -110,7 +119,7 @@
       const t = e.target as Node | null;
       if (!t) return;
       if ((panelEl && overlayContains(panelEl, t)) || anchor?.contains(t)) return;
-      onClose();
+      requestClose();
     };
     document.addEventListener('pointerdown', onDown, true);
     return () => document.removeEventListener('pointerdown', onDown, true);
@@ -127,14 +136,14 @@
     if (isSheet && !isTopmost(overlayId)) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    onClose();
+    requestClose();
   }}
 />
 
 {#if open}
   {#if isSheet}
     <div class="bb-picker-panel__shell" data-overlay style="z-index: {zIndex}" use:portal>
-      <button class="bb-picker-panel__scrim" type="button" aria-label={label} onclick={onClose}></button>
+      <button class="bb-picker-panel__scrim" type="button" aria-label={label} onclick={requestClose}></button>
       <div class="bb-picker-panel bb-picker-panel--sheet" data-lenis-prevent role="dialog" aria-modal="true" aria-label={label} bind:this={panelEl} tabindex="-1" use:trapFocus>
         <span class="bb-picker-panel__grabber" aria-hidden="true"></span>
         {@render children()}

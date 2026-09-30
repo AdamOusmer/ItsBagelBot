@@ -28,4 +28,4 @@
   );
 </script>
 
-<LanguageSwitcher action="/lang" name="to" fields={{ next }} {options} ariaLabel={i18n.t('lang.switchAria')} />
+<LanguageSwitcher action="/lang" name="to" fields={{ next }} {options} label={i18n.t('lang.switchAria')} />

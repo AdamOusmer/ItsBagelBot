@@ -2,12 +2,13 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/layout.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'width' | 'flush' | 'as' | 'class'> {
     width?: 'default' | 'narrow' | 'text';
     flush?: boolean;
-    as?: string;
+    as?: 'div' | 'section' | 'article' | 'aside' | 'header' | 'footer' | 'main' | 'nav' | 'ul' | 'ol' | 'li' | 'form';
     class?: string;
 }
 

@@ -230,7 +230,7 @@
       const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         if (p.snapshot) snap = p.snapshot;
-        toast('ok', p.action.notice);
+        toast('success', p.action.notice);
         return;
       }
       failed(p, t('admin.shards.scaleFailed'));
@@ -249,7 +249,7 @@
       const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
         if (p.snapshot) snap = p.snapshot;
-        toast('ok', p.action.notice);
+        toast('success', p.action.notice);
         return;
       }
       if (before) snap = before;
@@ -298,7 +298,7 @@
     </div>
 
     <PageToolbar>
-      {#snippet lead()}
+      {#snippet leading()}
         <Cluster gap={2}>
           <StatusDot tone={conduitReady ? 'success' : 'warning'} />
           <Text as="span" size="xs" tone="muted" mono>
@@ -310,7 +310,7 @@
           {#if live}<Tag tone="live">{t('admin.shards.live')}</Tag>{/if}
         </Cluster>
       {/snippet}
-      {#snippet trail()}
+      {#snippet trailing()}
         {#if canScale}
           <Cluster gap={2} nowrap>
             <Label mono as="span">{t('admin.shards.autoscaleLabel')}</Label>
@@ -318,8 +318,8 @@
               checked={autoscaleOn}
               label={t('admin.shards.autoscaleLabel')}
               describedby="shards-autoscale-hint"
-              pending={busy}
-              onchange={() => autoscaleForm?.requestSubmit()}
+              busy={busy}
+              onCheckedChange={() => autoscaleForm?.requestSubmit()}
             />
           </Cluster>
           <span class="stepper" class:dim={autoscaleOn}>
@@ -376,10 +376,10 @@
   })}
   confirmLabel={t('admin.shards.apply')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onCancel={() => (confirmScaleDown = false)}
   onConfirm={() => scaleForm?.requestSubmit()}
+  tone="danger"
 />
 
 <form method="POST" action="?/scale" use:enhance={scaleSubmit} bind:this={scaleForm} hidden>

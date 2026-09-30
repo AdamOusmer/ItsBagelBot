@@ -125,11 +125,11 @@
     .bb-text--accent { color: var(--bb-tan-light); }
     .bb-text--danger { color: var(--bb-status-danger); }
     .bb-text--pale { color: var(--bb-tan-pale); }
-    .bb-text--warn { color: var(--bb-warn); }
+    .bb-text--warning { color: var(--bb-warn); }
     .bb-text--muted-light { color: var(--bb-muted-light); }
     .bb-text--muted-soft { color: var(--bb-muted-soft); }
     .bb-text--soft { color: rgba(var(--bb-white-rgb), 0.75); }
-    .bb-text--positive { color: var(--bb-green-glow); }
+    .bb-text--success { color: var(--bb-green-glow); }
 
     .bb-text--truncate {
         display: block;
@@ -220,7 +220,7 @@
         border-color: rgba(var(--bb-status-danger-border-rgb), 0.30);
     }
 
-    .bb-code--positive {
+    .bb-code--success {
         color: var(--bb-green-glow);
         background: rgba(var(--bb-green-glow-rgb), 0.08);
         border-color: rgba(var(--bb-green-glow-rgb), 0.25);

@@ -4,9 +4,10 @@
 import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/tags.css';
+import type { TagTone } from '../lib/tone';
 
 interface Props extends Omit<HTMLAttributes<'span'>, 'tone' | 'bare' | 'literal' | 'mark' | 'sweep' | 'status' | 'as' | 'class'> {
-    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'error' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'neutral' | 'positive' | 'warning' | 'danger' | 'info';
+    tone?: TagTone;
     bare?: boolean;
     literal?: boolean;
     mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';

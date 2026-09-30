@@ -39,7 +39,6 @@ export { default as Select } from './Select.svelte';
 export type { SelectOption } from '../lib/select';
 export { default as Switch } from './Switch.svelte';
 export { default as Textarea } from './Textarea.svelte';
-export { default as Toggle } from './Toggle.svelte';
 
 export { default as AlertBanner } from './AlertBanner.svelte';
 export { default as Badge } from './Badge.svelte';
@@ -97,7 +96,7 @@ export { default as Sky } from './Sky.svelte';
 export { default as ReadingProgress } from './ReadingProgress.svelte';
 export { default as NavProgress } from './NavProgress.svelte';
 
-export { toast, toasts, dismissToast, type ToastItem } from './toast.svelte';
+export { toast, toasts, dismissToast, type ToastItem, type ToastKind } from './toast.svelte';
 export * from './inspector.svelte';
 export * from './discard-guard.svelte';
 export { reveal, decode, magnetic } from './actions';
@@ -142,4 +141,7 @@ export { default as CopySurface } from './CopySurface.svelte';
 export { setUiI18n, getUiI18n } from './i18n';
 export type { UiI18n, UiLocale, UiMessageKey, UiOverride } from '../lib/i18n';
 export type { ButtonVariant, ButtonTone, ButtonSize } from '../lib/button';
-export type { AlertTone, AlertVariant, AlertPlacement, AlertAction } from '../lib/alert';
+export type { AlertTone, AlertVariant, AlertPlacement, AlertCta } from '../lib/alert';
+export type {
+  Tone, TagTone, BadgeTone, TextTone, StatusDotTone, ProgressTone, CodeTone, StatTone, SwitchRowTone, CardTone, SeriesTone,
+} from '../lib/tone';

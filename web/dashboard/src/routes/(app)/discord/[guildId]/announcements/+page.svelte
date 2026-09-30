@@ -71,7 +71,7 @@
 {#snippet chipList(field: keyof DiscordConfig, names: string[])}
   <div class="chips">
     {#each names as name (name)}
-      <Chip as="span" on>
+      <Chip as="span" pressed>
         {name}
         <button type="button" class="chip-remove" aria-label={t('discord.announcements.chipRemove', { name })} onclick={() => removeName(field, name)}>
           <span class="chip-x" aria-hidden="true">×</span>

@@ -9,20 +9,20 @@ export function actionPayload<T = ActionOk>(result: unknown): T | undefined {
 }
 
 export function toastFailure(
-  toast: (kind: 'err', text: string) => unknown,
+  toast: (kind: 'danger', text: string) => unknown,
   t: (key: string) => string
 ): (payload: ActionOk | null | undefined, fallbackKey: string) => void {
   return (payload, fallbackKey) => {
-    toast('err', payload?.error ?? t(fallbackKey));
+    toast('danger', payload?.error ?? t(fallbackKey));
   };
 }
 
 export type AdminActionOk = ActionOk & { notice?: string; action?: { ok?: boolean; notice?: string } };
 
 export function adminToastFailure(
-  toast: (kind: 'err', text: string) => unknown
+  toast: (kind: 'danger', text: string) => unknown
 ): (payload: AdminActionOk | null | undefined, fallback: string) => void {
   return (payload, fallback) => {
-    toast('err', payload?.action?.notice ?? payload?.notice ?? payload?.error ?? fallback);
+    toast('danger', payload?.action?.notice ?? payload?.notice ?? payload?.error ?? fallback);
   };
 }

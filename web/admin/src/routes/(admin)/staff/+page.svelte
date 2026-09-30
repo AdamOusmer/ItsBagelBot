@@ -160,7 +160,7 @@
         failed(p, t('admin.staff.saveFailed'));
         return;
       }
-      toast('ok', p!.action!.notice);
+      toast('success', p!.action!.notice);
       if (p?.staff) staff = p.staff;
       if (wasCreating && applied) {
         inspector.reset();
@@ -191,7 +191,7 @@
         after?.();
         const p = actionPayload<ActionPayload>(result);
         if (result.type === 'success' && p?.action?.ok) {
-          toast('ok', p.action.notice);
+          toast('success', p.action.notice);
           if (p.staff) staff = p.staff;
           return;
         }
@@ -215,7 +215,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if loaded}
         <Text as="span" size="xs" tone="muted" mono>
           {roster.length === 1
@@ -226,7 +226,7 @@
         <Skeleton variant="pill" width="110px" />
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <Button variant="primary" onclick={openNew}>{t('admin.staff.add')}</Button>
     {/snippet}
   </PageToolbar>
@@ -296,10 +296,10 @@
     : undefined}
   confirmLabel={t('admin.staff.remove')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onCancel={() => (accessTarget = null)}
   onConfirm={() => removeForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/remove" use:enhance={removeSubmit} bind:this={removeForm} hidden>
   <input type="hidden" name="user_id" value={accessTarget?.id ?? ''} />

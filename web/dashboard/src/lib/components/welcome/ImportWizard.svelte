@@ -395,7 +395,7 @@
 <div class="welcome-import" class:leaving={showCompletion} data-orbs="off" use:parallax={{ scope: 'viewport', onmove: follow }}>
   <header class="top">
     <Brand title="ItsBagelBot" sub={t('common.console')} logoSrc="/logo.png" logoAlt="" size="md" />
-    <Stepper compact steps={journeySteps} current={journeyStep} maxStep={journeyStep} label={t('onboarding.stepOf', { n: journeyStep + 1, total: journeySteps.length })} onselect={selectRail} />
+    <Stepper compact steps={journeySteps} current={journeyStep} maxStep={journeyStep} label={t('onboarding.stepOf', { n: journeyStep + 1, total: journeySteps.length })} onSelect={selectRail} />
   </header>
 <section class="screen active">
   <div class="intro">
@@ -446,12 +446,12 @@
           label={unnumbered(t('import.stepPick'))}
           value={source}
           options={sourceOptions}
-          onchange={choose}
+          onValueChange={choose}
           class="bb-stagger"
           onpointerover={(e: PointerEvent) => hoverTile(e.target)}
           onpointerleave={() => (hover = null)}
         >
-          {#snippet lead(option, on)}
+          {#snippet leading(option, on)}
             {@const s = IMPORT_STRATEGIES[option.value as ImportSource]}
             <span class="glyph" class:picked={on} aria-hidden="true">{s.initials}</span>
             {#if s.available}<Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>{:else}<Tag tone="quiet">{t('import.chipSoon')}</Tag>{/if}
@@ -530,8 +530,8 @@
           label={t('import.dropHint')}
           accept={spec.accept}
           file={uploadFile}
-          onfile={pickFile}
-          ondragchange={(over) => (hover = over ? 'surprised' : null)}
+          onFileChange={pickFile}
+          onDragChange={(over) => (hover = over ? 'surprised' : null)}
         />
       {/if}
 
@@ -616,10 +616,10 @@
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
+                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                     {#if session.collidedCommands.has(normalizeName(c.name))}
-                      <Tag tone="error">{t('import.alreadyExists')}</Tag>
+                      <Tag tone="danger">{t('import.alreadyExists')}</Tag>
                     {/if}
                   </span>
                 </div>
@@ -650,7 +650,7 @@
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
+                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                   </span>
                 </div>
@@ -680,7 +680,7 @@
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
+                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                   </span>
                 </div>

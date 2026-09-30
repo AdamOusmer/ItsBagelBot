@@ -8,6 +8,7 @@
   type Own = {
     summary: string;
     open?: boolean;
+    onOpenChange?: (open: boolean) => void;
     index?: string;
     size?: 'md' | 'sm';
     class?: string;
@@ -16,7 +17,9 @@
 
   let {
     summary,
-    open = false,
+    open = $bindable(false),
+    onOpenChange,
+    ontoggle,
     index,
     size = 'md',
     class: className = '',
@@ -34,9 +37,17 @@
       .filter(Boolean)
       .join(' '),
   );
+
+  const toggled: NonNullable<SvelteHTMLElements['details']['ontoggle']> = (event) => {
+    ontoggle?.(event);
+    const next = event.currentTarget.open;
+    if (next === open) return;
+    open = next;
+    onOpenChange?.(next);
+  };
 </script>
 
-<details class={classes} {open} {...rest}><summary class="bb-disclosure__summary"
+<details class={classes} {open} ontoggle={toggled} {...rest}><summary class="bb-disclosure__summary"
     >{#if index}<span class="bb-disclosure__index" aria-hidden="true">{index}</span>{/if}<span
       class="bb-disclosure__label">{summary}</span
     ><span class="bb-disclosure__icon" aria-hidden="true"></span></summary

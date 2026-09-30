@@ -4,11 +4,12 @@
 import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/copy-surface.css';
+import { uiI18n } from './i18n';
 import Icon from './Icon.astro';
 
 interface Props extends Omit<HTMLAttributes<'button'>, 'text' | 'copiedLabel' | 'announce' | 'variant' | 'label' | 'hint' | 'flashMs' | 'legacyFallback' | 'class'> {
     text: string;
-    copiedLabel: string;
+    copiedLabel?: string;
     announce?: string;
     variant?: 'card' | 'row' | 'well';
     label?: string;
@@ -18,13 +19,14 @@ interface Props extends Omit<HTMLAttributes<'button'>, 'text' | 'copiedLabel' | 
     class?: string;
 }
 
+const { t } = uiI18n(Astro);
 const {
     text,
-    copiedLabel,
+    copiedLabel = t('action.copied'),
     announce,
     variant = 'card',
     label,
-    hint = '',
+    hint = t('action.copy'),
     flashMs,
     legacyFallback = false,
     class: className = '',

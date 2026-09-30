@@ -38,4 +38,4 @@ const classes = [
     .join(' ');
 ---
 
-<span class={classes} data-invalid={invalid ? '' : undefined}><slot name="icon" /><input type={type} value={value} {...rest} /><slot name="trail" /></span>
+<span class={classes} data-invalid={invalid ? '' : undefined}><slot name="leading" /><input type={type} value={value} {...rest} /><slot name="trailing" /></span>

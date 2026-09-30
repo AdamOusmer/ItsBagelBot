@@ -112,7 +112,7 @@ describe('ManagementRow modes', () => {
     svelte: SvelteManagementRow,
     astro: AstroManagementRow,
     props: { title: 'ada', meta: 'id 4', controls: 'insp' },
-    slots: { lead: '<b>L</b>', badge: '<b>You</b>', default: '<b>meter</b>', marks: '<b>paid</b>' },
+    slots: { leading: '<b>L</b>', badge: '<b>You</b>', default: '<b>meter</b>', marks: '<b>paid</b>' },
     defaultSnippet: 'primary',
     html:
       '<div class="bb-row row-shell">' +
@@ -261,12 +261,12 @@ describe('Pager', () => {
     astro: AstroPager,
     props: { label: 'Page 1 of 3', prevHref: '?page=0', nextHref: '?page=2', hasPrev: false },
     html:
-      '<div class="bb-pager">' +
+      '<nav class="bb-pager" aria-label="Pagination">' +
       '<a class="bb-btn bb-btn--ghost" role="link" aria-disabled="true" data-mark>' +
       '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Previous</span></a>' +
-      '<span class="bb-pager__label">Page 1 of 3</span>' +
+      '<span class="bb-pager__label" aria-current="page">Page 1 of 3</span>' +
       '<a class="bb-btn bb-btn--ghost" href="?page=2" data-mark>' +
-      '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Next</span></a></div>',
+      '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Next</span></a></nav>',
   });
 
   contract({
@@ -280,14 +280,15 @@ describe('Pager', () => {
       hasNext: false,
       prevLabel: 'Précédent',
       nextLabel: 'Suivant',
+      navLabel: 'Pages',
     },
     html:
-      '<div class="bb-pager">' +
+      '<nav class="bb-pager" aria-label="Pages">' +
       '<a class="bb-btn bb-btn--ghost" href="?page=2" data-mark>' +
       '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Précédent</span></a>' +
-      '<span class="bb-pager__label">Page 3 sur 3</span>' +
+      '<span class="bb-pager__label" aria-current="page">Page 3 sur 3</span>' +
       '<a class="bb-btn bb-btn--ghost" role="link" aria-disabled="true" data-mark>' +
-      '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Suivant</span></a></div>',
+      '<i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Suivant</span></a></nav>',
   });
 });
 

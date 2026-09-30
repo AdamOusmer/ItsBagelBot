@@ -123,7 +123,7 @@
         {#each TIERS as tier (tier)}
           <Chip
             tone={tier}
-            on={user.status === tier}
+            pressed={user.status === tier}
             disabled={locked || !can('users.grant')}
             onclick={() => onStatus(tier)}
           >

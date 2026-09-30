@@ -139,7 +139,7 @@
         return;
       }
       if (begun) upsert(begun.snapshot, wasCreating);
-      toast('ok', wasCreating ? t('admin.counters.created') : t('admin.counters.updated'));
+      toast('success', wasCreating ? t('admin.counters.created') : t('admin.counters.updated'));
       if (wasCreating && applied) {
         inspector.reset();
         draft = null;
@@ -161,7 +161,7 @@
         counters = counters.filter((c) => c.name !== target?.name);
         inspector.reset();
         draft = null;
-        toast('ok', t('admin.counters.deleted'));
+        toast('success', t('admin.counters.deleted'));
         return;
       }
       failed(p, t('admin.counters.deleteFailed'));
@@ -179,7 +179,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if loaded}
         <Text as="span" size="xs" tone="muted" mono>
           {rows.length === 1
@@ -190,7 +190,7 @@
         <Skeleton variant="pill" width="110px" />
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <Button variant="primary" onclick={openNew}>{t('admin.counters.add')}</Button>
     {/snippet}
   </PageToolbar>
@@ -207,7 +207,7 @@
                 selected={inspector.selectedId === c.name}
                 expanded={inspector.selectedId === c.name}
                 controls="counter-inspector"
-                onselect={() => openCounter(c)}
+                onSelect={() => openCounter(c)}
                 title={c.name}
                 meta={t('admin.counters.rowMeta', { scope: c.scope })}
               >
@@ -314,10 +314,10 @@
   body={deleteTarget ? t('admin.counters.confirmDeleteBody', { name: deleteTarget.name }) : undefined}
   confirmLabel={t('common.delete')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="name" value={deleteTarget?.name ?? ''} />

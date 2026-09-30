@@ -32,11 +32,11 @@ describe('lane presentation', () => {
   test('does not mark pull consumers with unknown connection as confirmed healthy', () => {
     expect(laneTone(lane('stream', 'pull', { connection: 'unknown' }))).toBe('neutral');
     expect(laneTone(lane('stream', 'backlog', { pending: 5 }))).toBe('warning');
-    expect(laneTone(lane('stream', 'orphan', { orphan: true }))).toBe('error');
+    expect(laneTone(lane('stream', 'orphan', { orphan: true }))).toBe('danger');
     expect(laneTone(lane('stream', 'healthy'))).toBe('success');
     expect(laneTone(lane('stream', 'temporary', { ephemeral: true }))).toBe('warning');
     expect(laneTone(lane('stream', 'redelivery', { redelivered: 1 }))).toBe('warning');
     expect(laneTone(lane('stream', 'unknown-backlog', { pending: 1, connection: 'unknown' }))).toBe('warning');
-    expect(laneTone(lane('stream', 'unbound-temporary', { orphan: true, ephemeral: true }))).toBe('error');
+    expect(laneTone(lane('stream', 'unbound-temporary', { orphan: true, ephemeral: true }))).toBe('danger');
   });
 });

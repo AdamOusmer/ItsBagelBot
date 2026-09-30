@@ -59,14 +59,14 @@
       value={clusterValue()}
       delta={clusterDelta()}
     >
-      {#snippet trail()}
+      {#snippet trailing()}
         <span class="trail">
           {#if active}<TextLink href="/deploys/{active.id}" label={t('admin.deploys.openRun')} />{/if}
         </span>
       {/snippet}
     </StatTile>
     <StatTile data-text label={t('admin.deploys.statusLastRun')} value={lastValue} delta={lastDelta()}>
-      {#snippet trail()}
+      {#snippet trailing()}
         <span class="trail">
           {#if last}<TextLink href="/deploys/{last.id}" label={t('admin.deploys.openLast')} />{/if}
         </span>

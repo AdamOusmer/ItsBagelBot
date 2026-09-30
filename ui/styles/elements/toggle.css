@@ -61,7 +61,7 @@
     }
 
     .bb-switch:disabled { cursor: default; opacity: 0.55; }
-    .bb-switch[data-pending] { cursor: progress; }
+    .bb-switch[data-busy] { cursor: progress; }
 
     @media (prefers-reduced-motion: reduce) {
         .bb-switch,
@@ -108,7 +108,7 @@
         color: var(--bb-white);
     }
 
-    .bb-switch-row--warn .bb-switch-row__label {
+    .bb-switch-row--warning .bb-switch-row__label {
         color: var(--bb-warn);
     }
 

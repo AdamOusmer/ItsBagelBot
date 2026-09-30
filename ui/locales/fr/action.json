@@ -4,5 +4,7 @@
   "confirm": "Confirmer",
   "save": "Enregistrer",
   "dismiss": "Ignorer",
-  "undo": "Annuler"
+  "undo": "Annuler",
+  "copy": "Copier",
+  "copied": "Copié"
 }

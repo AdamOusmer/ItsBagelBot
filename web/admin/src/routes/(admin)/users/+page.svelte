@@ -195,7 +195,7 @@
   let pending = $state<UserActionDef | null>(null);
 
   function applied(p: ActionPayload) {
-    toast('ok', p.action?.notice ?? '');
+    toast('success', p.action?.notice ?? '');
     if (p.lookup?.user) reconcile(p.lookup.user);
     if (p.subState) subState = p.subState;
     if (p.viewAsUrl) viewAsUrl = p.viewAsUrl;
@@ -300,7 +300,7 @@
       msgOpen = false;
       const p = actionPayload<ActionPayload>(result);
       if (result.type === 'success' && p?.action?.ok) {
-        toast('ok', p.action.notice);
+        toast('success', p.action.notice);
         return;
       }
       failed(p, t('admin.users.sendFailed'));
@@ -318,7 +318,7 @@
   </PageHead>
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if dir}
         <Text as="span" size="sm" tone="muted">
           {t('admin.users.stats', {
@@ -331,7 +331,7 @@
         <Skeleton variant="pill" width="220px" />
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <form
         class="searchbar"
         onsubmit={(e) => {
@@ -471,10 +471,10 @@
     : undefined}
   confirmLabel={pending ? t(pending.label) : ''}
   cancelLabel={t('common.cancel')}
-  danger={pending?.danger ?? false}
   busy={busy !== null}
   onCancel={() => (pending = null)}
   onConfirm={confirmPending}
+  tone={pending?.danger ? 'danger' : 'neutral'}
 />
 
 <ConfirmDialog

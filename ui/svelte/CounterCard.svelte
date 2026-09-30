@@ -4,6 +4,7 @@
   import type { SvelteHTMLElements } from 'svelte/elements';
   import { getUiI18n } from './i18n';
   import type { Snippet } from 'svelte';
+  import type { CardTone } from '../lib/tone';
   import '../styles/elements/counter-card.css';
 
   const i18n = getUiI18n();
@@ -17,7 +18,7 @@
     rateLabel?: string;
     period?: string;
     'aria-description'?: string;
-    tone?: 'green' | 'tan';
+    tone?: CardTone;
     appearance?: 'solid' | 'soft';
     tilt?: 'left' | 'right' | 'none';
     /** Decorative artwork can peek above the edge without clipping. */
@@ -27,7 +28,7 @@
 
   let {
     label, value, unit = '', detail = '', rate = null, rateUnit = '/s',
-    rateLabel = i18n.t('data.rightNow'), period = i18n.t('data.allTime'), tone = 'green',
+    rateLabel = i18n.t('data.rightNow'), period = i18n.t('data.allTime'), tone = 'accent',
     appearance = 'soft', tilt = 'none', artwork, class: cls = '', ...rest
   }: Own & Omit<SvelteHTMLElements['article'], keyof Own> = $props();
   const classes = $derived([

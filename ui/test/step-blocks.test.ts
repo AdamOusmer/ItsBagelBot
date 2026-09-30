@@ -29,8 +29,8 @@ const check =
   '<svg class="bb-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg>';
 
 describe('Stepper', () => {
-  test('horizontal with onselect: numbered buttons, current marked, steps past maxStep disabled', () => {
-    const html = svelte(SvelteStepper, { steps: WIZARD, current: 1, maxStep: 1, label: 'Step 2 of 3', onselect: () => {} });
+  test('horizontal with onSelect: numbered buttons, current marked, steps past maxStep disabled', () => {
+    const html = svelte(SvelteStepper, { steps: WIZARD, current: 1, maxStep: 1, label: 'Step 2 of 3', onSelect: () => {} });
     expect(html).toBe(
       '<nav class="bb-stepper" aria-label="Step 2 of 3" style="--stepper-i: 1; --stepper-n: 3;">' +
         '<span class="bb-stepper__track" aria-hidden="true"><span class="bb-stepper__trail"></span></span>' +
@@ -43,14 +43,14 @@ describe('Stepper', () => {
   });
 
   test('a negative current idles the trail and hides the glide', () => {
-    const html = svelte(SvelteStepper, { steps: WIZARD, current: -1, label: 'Steps', onselect: () => {} });
+    const html = svelte(SvelteStepper, { steps: WIZARD, current: -1, label: 'Steps', onSelect: () => {} });
     expect(html).toContain('style="--stepper-i: 0; --stepper-n: 3;"');
     expect(html).toContain('class="bb-stepper__track bb-stepper__track--idle"');
     expect(html).toContain('class="bb-stepper__glide bb-stepper__glide--hidden"');
     expect(html).not.toContain('aria-current');
   });
 
-  test('horizontal without onselect is a static indicator, identical in both adapters', async () => {
+  test('horizontal without onSelect is a static indicator, identical in both adapters', async () => {
     const props = { steps: WIZARD, current: 2, label: 'Step 3 of 3' };
     const html = svelte(SvelteStepper, props);
     expect(html).toContain('<span class="bb-stepper__step" role="img" aria-label="Keys" aria-current="step">');
@@ -74,13 +74,13 @@ describe('Stepper', () => {
   });
 
   test('compact adds the modifier and the current label after the glide, hidden from assistive tech', () => {
-    const html = svelte(SvelteStepper, { steps: WIZARD, current: 1, maxStep: 1, label: 'Step 2 of 3', compact: true, onselect: () => {} });
+    const html = svelte(SvelteStepper, { steps: WIZARD, current: 1, maxStep: 1, label: 'Step 2 of 3', compact: true, onSelect: () => {} });
     expect(html.startsWith('<nav class="bb-stepper bb-stepper--compact" aria-label="Step 2 of 3"')).toBe(true);
     expect(html.endsWith('<span class="bb-stepper__glide" aria-hidden="true"></span><span class="bb-stepper__compact" aria-hidden="true">App</span></nav>')).toBe(true);
   });
 
   test('compact is opt-in: false renders exactly the default rail', () => {
-    const props = { steps: WIZARD, current: 1, label: 'Step 2 of 3', onselect: () => {} };
+    const props = { steps: WIZARD, current: 1, label: 'Step 2 of 3', onSelect: () => {} };
     const html = svelte(SvelteStepper, { ...props, compact: false });
     expect(html).toBe(svelte(SvelteStepper, props));
     expect(html).not.toContain('compact');
@@ -115,9 +115,9 @@ const CHECKLIST = [
 ];
 
 describe('StepList navigable form', () => {
-  const html = svelte(SvelteStepList, { steps: CHECKLIST, selected: 'build', label: 'Stages', onselect: () => {} });
+  const html = svelte(SvelteStepList, { steps: CHECKLIST, selected: 'build', label: 'Stages', onSelect: () => {} });
 
-  test('onselect turns the list into a labelled nav with a glide at the selected index', () => {
+  test('onSelect turns the list into a labelled nav with a glide at the selected index', () => {
     expect(html.startsWith('<nav class="bb-steps bb-steps--nav" aria-label="Stages" style="--steps-at: 1; --steps-n: 4;">')).toBe(true);
     expect(html).toContain('<span class="bb-steps__glide" aria-hidden="true"></span><ol class="bb-steps__list">');
   });
@@ -141,7 +141,7 @@ describe('StepList navigable form', () => {
   });
 
   test('an unknown selection parks the glide on the first row', () => {
-    const other = svelte(SvelteStepList, { steps: CHECKLIST, selected: 'nope', onselect: () => {} });
+    const other = svelte(SvelteStepList, { steps: CHECKLIST, selected: 'nope', onSelect: () => {} });
     expect(other).toContain('style="--steps-at: 0; --steps-n: 4;"');
     expect(other).not.toContain('aria-current');
   });
@@ -185,12 +185,12 @@ describe('LineSeries', () => {
   ];
   const series = [
     { key: 'production', label: 'Production' },
-    { key: 'trials', label: 'Trials', tone: 'tan', dashed: true },
+    { key: 'trials', label: 'Trials', tone: 'warm', dashed: true },
   ];
   const props = {
     points,
     series,
-    ariaLabel: 'Throughput',
+    label: 'Throughput',
     description: 'Recent minutes',
     unit: 'eps',
     emptyLabel: 'Sampling',
@@ -206,9 +206,9 @@ describe('LineSeries', () => {
   test('legend carries the latest value per series and the tone modifiers', () => {
     const html = svelte(SvelteLineSeries, props);
     expect(html).toContain(
-      '<div class="bb-line-series__key bb-line-series__key--green"><span class="bb-line-series__swatch" aria-hidden="true"></span><span>Production</span><strong>2 eps</strong></div>',
+      '<div class="bb-line-series__key bb-line-series__key--accent"><span class="bb-line-series__swatch" aria-hidden="true"></span><span>Production</span><strong>2 eps</strong></div>',
     );
-    expect(html).toContain('<div class="bb-line-series__key bb-line-series__key--tan bb-line-series__key--dashed">');
+    expect(html).toContain('<div class="bb-line-series__key bb-line-series__key--warm bb-line-series__key--dashed">');
     expect(html).toContain('<svg viewBox="0 0 800 260" role="img" aria-label="Throughput"><title>Throughput</title><desc>Recent minutes</desc>');
     expect(html).not.toContain('bb-line-series__empty');
     expect(html).not.toContain('bb-line-series__tooltip');

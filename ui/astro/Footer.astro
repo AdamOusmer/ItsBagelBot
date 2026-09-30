@@ -34,8 +34,8 @@ const classes = ['bb-footer', className || null].filter(Boolean).join(' ');
 
 <slot name="colophon" /><footer class={classes} {...rest}>{signoff && <div class="bb-footer__signoff" data-reveal><p class="bb-footer__signoff-line">{signoff.line}</p>{signoff.sub && <p class="bb-footer__signoff-sub">{signoff.sub}</p>}</div>}<div class="bb-footer__top"><Brand class="bb-footer__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="lg" data-reveal /><div class="bb-footer__cols">{columns.map((column, i) => (
   <div class="bb-footer__col" data-reveal style={`--reveal-i: ${i + 1}`}><p class="bb-footer__col-title">{column.title}</p>{column.links.map((link) => (
-    <NavLink href={link.href} label={link.label} current={link.active} external={link.external} />
+    <NavLink href={link.href} label={link.label} current={link.current} external={link.external} />
   ))}</div>
 ))}</div></div><div class="bb-footer__bottom"><span class="bb-footer__copy">{copyright}</span><span class="bb-footer__note">{note}</span><div class="bb-footer__legal">{legal.map((link) => (
-  <NavLink href={link.href} label={link.label} current={link.active} external={link.external} />
+  <NavLink href={link.href} label={link.label} current={link.current} external={link.external} />
 ))}</div></div></footer>

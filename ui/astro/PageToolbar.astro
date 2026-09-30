@@ -13,4 +13,4 @@ const { class: className = '', ...rest } = Astro.props;
 const classes = ['bb-toolbar', className].filter(Boolean).join(' ');
 ---
 
-<div class={classes} {...rest}><slot name="lead" /><div class="bb-toolbar__grow"></div><slot name="trail" /></div>
+<div class={classes} {...rest}><slot name="leading" /><div class="bb-toolbar__grow"></div><slot name="trailing" /></div>

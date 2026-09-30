@@ -121,7 +121,7 @@
   </PageHead>
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if entries}
         <Text as="span" size="xs" tone="muted" mono>
           {t('admin.audit.stats', {
@@ -131,13 +131,13 @@
         </Text>
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <div class="toolbar-search">
         <SearchInput
           bind:value={search}
           placeholder={t('admin.audit.searchPlaceholder')}
           debounceMs={350}
-          oninput={submitSearch}
+          onValueChange={submitSearch}
         />
       </div>
       <Button variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>

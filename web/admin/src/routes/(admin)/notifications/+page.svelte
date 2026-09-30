@@ -134,7 +134,7 @@
         failed(p, t('admin.notifications.sendFailed'));
         return;
       }
-      toast('ok', p!.action!.notice ?? t('admin.notifications.sent'));
+      toast('success', p!.action!.notice ?? t('admin.notifications.sent'));
       if (applied) {
         inspector.reset();
         draft = null;
@@ -158,7 +158,7 @@
       if (result.type === 'success' && p?.action?.ok) {
         inspector.reset();
         draft = null;
-        toast('ok', p.action.notice ?? t('admin.notifications.retracted'));
+        toast('success', p.action.notice ?? t('admin.notifications.retracted'));
         return;
       }
       notifications = before;
@@ -180,7 +180,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if loaded}
         <Text as="span" size="xs" tone="muted" mono>
           {notifications.length === 1
@@ -191,7 +191,7 @@
         <Skeleton variant="pill" width="130px" />
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <Button variant="primary" onclick={openCompose}>{t('admin.notifications.compose')}</Button>
     {/snippet}
   </PageToolbar>
@@ -209,7 +209,7 @@
                 selected={inspector.selectedId === String(n.id)}
                 expanded={inspector.selectedId === String(n.id)}
                 controls="notification-inspector"
-                onselect={() => openNotification(n)}
+                onSelect={() => openNotification(n)}
                 title={n.title}
                 meta={t('admin.notifications.rowMeta', {
                   who: n.created_by_login,
@@ -287,10 +287,10 @@
   body={t('admin.notifications.confirmRetractBody')}
   confirmLabel={t('admin.notifications.retract')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onCancel={() => (retractTarget = null)}
   onConfirm={() => retractForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={retractSubmit} bind:this={retractForm} hidden>
   <input type="hidden" name="id" value={retractTarget?.id ?? ''} />

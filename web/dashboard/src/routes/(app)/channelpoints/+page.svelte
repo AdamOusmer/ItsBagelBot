@@ -110,10 +110,10 @@
       return;
     }
     if (payload?.duplicateTitle) {
-      toast('err', t('channelpoints.toastDuplicateTitle'));
+      toast('danger', t('channelpoints.toastDuplicateTitle'));
       return;
     }
-    toast('err', payload?.error ?? t(fallbackKey));
+    toast('danger', payload?.error ?? t(fallbackKey));
   }
 
   const saveSubmit: SubmitFunction = (input) => {
@@ -144,7 +144,7 @@
         failed(reply, 'channelpoints.toastSaveFailed');
         return;
       }
-      toast('ok', t(wasCreating ? 'channelpoints.toastCreated' : 'channelpoints.toastSaved', { name: payload.title }));
+      toast('success', t(wasCreating ? 'channelpoints.toastCreated' : 'channelpoints.toastSaved', { name: payload.title }));
       if (wasCreating && applied) doClose();
       await invalidateAll();
     };
@@ -178,7 +178,7 @@
         if (target) {
           rewards = rewards.filter((x) => x.id !== target.id);
           if (inspector.selectedId === target.id) doClose();
-          toast('ok', t('channelpoints.toastDeleted', { name: target.title }));
+          toast('success', t('channelpoints.toastDeleted', { name: target.title }));
         }
         await invalidateAll();
         return;
@@ -211,7 +211,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <MasterToggle
         action="?/toggle"
         bind:enabled
@@ -221,7 +221,7 @@
         failMessage={t('channelpoints.toastToggleFailed')}
       />
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <Button variant="primary" onclick={openNew} disabled={creating}>
         {t('channelpoints.newReward')}
       </Button>
@@ -295,9 +295,9 @@
   body={t('channelpoints.discardBody')}
   confirmLabel={t('channelpoints.discard')}
   cancelLabel={t('channelpoints.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -306,10 +306,10 @@
   body={t('channelpoints.deleteBody', { name: deleteTarget?.title ?? '' })}
   confirmLabel={t('channelpoints.del')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={deleting}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="id" value={deleteTarget?.id ?? ''} />

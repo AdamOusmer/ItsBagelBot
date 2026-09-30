@@ -3,18 +3,21 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
 
+import { uiI18n } from './i18n';
+
 import '../styles/elements/nav.css';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'options' | 'ariaLabel' | 'action' | 'name' | 'fields' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'options' | 'label' | 'action' | 'name' | 'fields' | 'class'> {
   options: { code: string; label: string; href?: string; current?: boolean; title?: string }[];
-  ariaLabel: string;
+  label?: string;
   action?: string;
   name?: string;
   fields?: Record<string, string>;
   class?: string;
 }
 
-const { options, ariaLabel, action, name = 'locale', fields = {}, class: className = '', ...rest } = Astro.props;
+const { t } = uiI18n(Astro);
+const { options, label = t('nav.language'), action, name = 'locale', fields = {}, class: className = '', ...rest } = Astro.props;
 
 const classes = ['bb-lang-switch', className || null]
   .filter(Boolean)
@@ -22,7 +25,7 @@ const classes = ['bb-lang-switch', className || null]
 ---
 
 {action ? (
-<form method="POST" action={action} class={classes} role="group" aria-label={ariaLabel} {...rest}>{Object.entries(fields).map(([field, fieldValue]) => (
+<form method="POST" action={action} class={classes} role="group" aria-label={label} {...rest}>{Object.entries(fields).map(([field, fieldValue]) => (
   <input type="hidden" name={field} value={fieldValue} />
 ))}{options.map((option) => (
   <button
@@ -35,7 +38,7 @@ const classes = ['bb-lang-switch', className || null]
   >{option.label}</button>
 ))}</form>
 ) : (
-<div class={classes} role="group" aria-label={ariaLabel} {...rest}>{options.map((option) => (
+<div class={classes} role="group" aria-label={label} {...rest}>{options.map((option) => (
   <a
     class={`bb-lang-switch__opt ${option.current ? 'is-active' : ''}`}
     href={option.href}

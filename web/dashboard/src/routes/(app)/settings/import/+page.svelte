@@ -212,9 +212,9 @@
           label={t('import.stepPick')}
           value={source}
           options={sourceOptions}
-          onchange={choose}
+          onValueChange={choose}
         >
-          {#snippet lead(option, on)}
+          {#snippet leading(option, on)}
             {@const s = IMPORT_STRATEGIES[option.value as ImportSource]}
             <span class="glyph" class:picked={on} aria-hidden="true">{s.initials}</span>
             {#if s.available}<Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>{:else}<Tag tone="quiet">{t('import.chipSoon')}</Tag>{/if}
@@ -286,7 +286,7 @@
           <div class="hint"><Text size="sm" tone="muted">{t(spec.i18n.scopeHint)}</Text></div>
         </div>
       {:else}
-        <FileDrop label={t('import.dropHint')} accept={spec.accept} file={uploadFile} onfile={pickFile} />
+        <FileDrop label={t('import.dropHint')} accept={spec.accept} file={uploadFile} onFileChange={pickFile} />
       {/if}
 
       {#if previewError}<AlertBanner>{previewError}</AlertBanner>{/if}
@@ -364,10 +364,10 @@
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
+                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                     {#if session.collidedCommands.has(normalizeName(c.name))}
-                      <Tag tone="error">{t('import.alreadyExists')}</Tag>
+                      <Tag tone="danger">{t('import.alreadyExists')}</Tag>
                     {/if}
                   </span>
                 </div>
@@ -398,7 +398,7 @@
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
+                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                   </span>
                 </div>
@@ -428,7 +428,7 @@
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>
                     {/each}
                     {#each diags.filter((d) => d.severity === 'error') as d (d.code + d.message)}
-                      <Tag tone="error" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
+                      <Tag tone="danger" title={d.message}>{t('import.cannotImport', { m: d.message })}</Tag>
                     {/each}
                   </span>
                 </div>

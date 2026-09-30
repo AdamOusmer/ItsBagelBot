@@ -25,10 +25,10 @@
   const { t } = getI18n();
 </script>
 
-<ManagementRow {selected} expanded={selected} {controls} {onselect}>
+<ManagementRow {selected} expanded={selected} {controls} onSelect={onselect}>
   {#snippet primary()}
     <span class="row">
-      <StatusDot tone={entry.ok ? 'success' : 'error'} />
+      <StatusDot tone={entry.ok ? 'success' : 'danger'} />
       <Bolota name={entry.actor_login} size={26} active={selected} />
       <span class="who">
         <Cluster as="span" gap={2} align="baseline">

@@ -72,10 +72,10 @@
       return;
     }
     if (payload?.code === 'key_invalid') {
-      toast('err', t('govee.keyInvalid'));
+      toast('danger', t('govee.keyInvalid'));
       return;
     }
-    toast('err', payload?.error ?? t(fallbackKey));
+    toast('danger', payload?.error ?? t(fallbackKey));
   }
 
   const isOk = (result: { type: string }, payload: GoveeActionOk | undefined) =>
@@ -91,7 +91,7 @@
         failed(payload, 'govee.keySaveFailed');
         return;
       }
-      toast('ok', t('govee.keySaved'));
+      toast('success', t('govee.keySaved'));
       await invalidateAll();
     };
   };
@@ -111,7 +111,7 @@
       }
       keyPresent = false;
       doClose();
-      toast('ok', t('govee.keyRemoved'));
+      toast('success', t('govee.keyRemoved'));
       await invalidateAll();
     };
   };
@@ -192,7 +192,7 @@
         failed(payload, 'govee.toastSaveFailed');
         return;
       }
-      toast('ok', t('govee.toastSaved'));
+      toast('success', t('govee.toastSaved'));
       await invalidateAll();
     };
   };
@@ -213,7 +213,7 @@
         return;
       }
       if (target && selected?.device === target.device) doClose();
-      toast('ok', t('govee.toastDeleted'));
+      toast('success', t('govee.toastDeleted'));
       await invalidateAll();
     };
   };
@@ -247,7 +247,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <MasterToggle
         action="?/toggle"
         bind:enabled
@@ -374,9 +374,9 @@
   body={t('govee.discardBody')}
   confirmLabel={t('govee.discard')}
   cancelLabel={t('govee.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -385,10 +385,10 @@
   body={t('govee.deleteBody', { name: deleteTarget?.name || t('govee.thisLight') })}
   confirmLabel={t('govee.deleteConfirm')}
   cancelLabel={t('govee.deleteCancel')}
-  danger
   busy={deleting}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/deleteReward" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="device" value={deleteTarget?.device ?? ''} />
@@ -400,10 +400,10 @@
   body={t('govee.keyRemoveBody')}
   confirmLabel={t('govee.keyRemove')}
   cancelLabel={t('govee.deleteCancel')}
-  danger
   busy={keyRemoving}
   onCancel={() => (keyRemovePending = false)}
   onConfirm={() => keyRemoveForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/clearKey" use:enhance={clearKeySubmit} bind:this={keyRemoveForm} hidden></form>
 

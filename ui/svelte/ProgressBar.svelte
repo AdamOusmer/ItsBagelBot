@@ -3,16 +3,17 @@
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/progress-bar.css';
+  import type { ProgressTone } from '../lib/tone';
 
   type Own = {
     value: number | null;
-    tone?: 'neutral' | 'success' | 'warning' | 'error';
+    tone?: ProgressTone;
     label: string;
     size?: 'sm' | 'md';
     gradient?: boolean;
     ramp?: 1 | 2 | 3;
     target?: number;
-    segments?: readonly ('neutral' | 'success' | 'warning' | 'error' | null)[];
+    segments?: readonly (ProgressTone | null)[];
     current?: number;
     class?: string;
   };

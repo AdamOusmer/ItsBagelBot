@@ -7,8 +7,7 @@
   import type { Snippet } from 'svelte';
 
   type Own = {
-    on?: boolean;
-    onclick?: () => void;
+    pressed?: boolean;
     type?: 'button' | 'submit' | 'reset';
     tone?: 'muted' | 'danger' | 'eyebrow' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive';
     as?: 'button' | 'span';
@@ -17,8 +16,7 @@
   };
 
   let {
-    on = false,
-    onclick,
+    pressed,
     type = 'button',
     tone = undefined,
     as: tag = 'button',
@@ -32,7 +30,7 @@
   this={tag}
   type={tag === 'button' ? type : undefined}
   class="bb-chip{tone ? ` bb-chip--${tone}` : ''}{cls ? ` ${cls}` : ''}"
-  data-on={on ? '' : undefined}
-  {onclick}
+  aria-pressed={tag === 'button' && pressed !== undefined ? pressed : undefined}
+  data-pressed={pressed ? '' : undefined}
   {...rest}
 >{@render children()}</svelte:element>

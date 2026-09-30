@@ -21,7 +21,7 @@
       if (!res.ok) throw new Error(String(res.status));
     } catch {
       customCursor.set(prev);
-      toast('err', t('settings.cursorSaveError'));
+      toast('danger', t('settings.cursorSaveError'));
     } finally {
       pending = false;
     }
@@ -30,8 +30,8 @@
 
 <Switch
   bind:checked={$customCursor}
-  {pending}
+  busy={pending}
   label={t('settings.customCursor')}
   {describedby}
-  onchange={persist}
+  onCheckedChange={persist}
 />

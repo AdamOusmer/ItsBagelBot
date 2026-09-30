@@ -30,7 +30,7 @@
   const togglePayload = $derived(JSON.stringify({ ...r, isEnabled: !r.isEnabled }));
 </script>
 
-<ManagementRow as="li" selected={expanded} {expanded} controls="reward-editor" onselect={onExpand}>
+<ManagementRow as="li" selected={expanded} {expanded} controls="reward-editor" onSelect={onExpand}>
   {#snippet primary()}
     <span class="prow">
       {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}

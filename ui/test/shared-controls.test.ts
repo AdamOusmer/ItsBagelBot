@@ -12,7 +12,7 @@ import AstroBadge from '../astro/Badge.astro';
 import Input from '../svelte/Input.svelte';
 import AstroInput from '../astro/Input.astro';
 
-for (const tone of ['success', 'warning', 'error', 'neutral'] as const) {
+for (const tone of ['success', 'warning', 'danger', 'neutral'] as const) {
   test(`status dot ${tone} is decorative in both adapters`, async () => {
     const expected = `<span class="bb-status-dot ${tone}" aria-hidden="true"></span>`;
     expect(normalise(render(StatusDot, { props: { tone } }).body)).toBe(expected);

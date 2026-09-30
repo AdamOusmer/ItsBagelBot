@@ -72,7 +72,7 @@
       <Heading level={6} as="h2" variant="title" id="dc-locked-h">{t('modules.betaLocked')}</Heading>
       <Card>
         <div class="locked">
-          <Chip as="span" on>{t('modules.betaChip')}</Chip>
+          <Chip as="span" pressed>{t('modules.betaChip')}</Chip>
           <Text size="sm" tone="muted">{t('modules.betaLockedBody')}</Text>
           <ButtonLink variant="primary" href="/billing">{t('modules.betaUpgrade')}</ButtonLink>
         </div>
@@ -90,7 +90,7 @@
     {/if}
 
     <PageToolbar>
-      {#snippet lead()}
+      {#snippet leading()}
         <MasterToggle
           action="?/toggle"
           bind:enabled
@@ -100,7 +100,7 @@
           failMessage={t('discord.masterFail')}
         />
       {/snippet}
-      {#snippet trail()}
+      {#snippet trailing()}
         {#if data.templateURL}
           <ButtonLink variant="ghost" href={data.templateURL} target="_blank" rel="noopener noreferrer">
             {t('discord.createCta')}

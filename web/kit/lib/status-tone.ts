@@ -3,7 +3,7 @@
 
 import type { ConnKind } from './connection-state';
 
-export type StatusTone = 'success' | 'warning' | 'error' | 'neutral';
+export type StatusTone = 'success' | 'warning' | 'danger' | 'neutral';
 
 export function statusTone(kind: ConnKind): StatusTone {
   switch (kind) {
@@ -12,7 +12,7 @@ export function statusTone(kind: ConnKind): StatusTone {
     case 'degraded':
     case 'reauth_required':
     case 'bot_banned':
-      return 'error';
+      return 'danger';
     case 'unavailable':
       return 'neutral';
     default:

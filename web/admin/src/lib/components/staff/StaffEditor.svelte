@@ -130,7 +130,7 @@
             label={t('admin.staff.activeLabel')}
             describedby="staff-access-hint"
             disabled={busy}
-            onchange={onAccess}
+            onCheckedChange={onAccess}
           />
           <Text size="xs" tone="muted" id="staff-access-hint">{t('admin.staff.activeHint')}</Text>
         </section>

@@ -62,9 +62,9 @@ describe('throughput capacity', () => {
   });
 
   test('75% is the scale target, with warning beginning at 60%', () => {
-    expect(utilizationTone(59.9, 75)).toBe('green');
-    expect(utilizationTone(60, 75)).toBe('warn');
-    expect(utilizationTone(75, 75)).toBe('err');
+    expect(utilizationTone(59.9, 75)).toBe('success');
+    expect(utilizationTone(60, 75)).toBe('warning');
+    expect(utilizationTone(75, 75)).toBe('danger');
   });
 });
 

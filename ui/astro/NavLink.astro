@@ -43,7 +43,7 @@ const classes = [
 ---
 
 {disabled ? (
-  <span class={classes} aria-disabled="true" {...rest}><slot name="icon" /><span class="bb-nav-link__label"><slot>{label}</slot></span><slot name="trail" />{hint && <span class="bb-nav-link__hint">{hint}</span>}</span>
+  <span class={classes} aria-disabled="true" {...rest}><slot name="leading" /><span class="bb-nav-link__label"><slot>{label}</slot></span><slot name="trailing" />{hint && <span class="bb-nav-link__hint">{hint}</span>}</span>
 ) : (
   <a
     class={classes}
@@ -52,5 +52,5 @@ const classes = [
     target={external ? '_blank' : undefined}
     rel={external ? 'noopener noreferrer' : undefined}
     {...rest}
-  ><slot name="icon" /><span class="bb-nav-link__label"><slot>{label}</slot></span><slot name="trail" /></a>
+  ><slot name="leading" /><span class="bb-nav-link__label"><slot>{label}</slot></span><slot name="trailing" /></a>
 )}

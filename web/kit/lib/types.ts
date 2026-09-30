@@ -122,7 +122,7 @@ export interface NavLink {
   href: string;
   icon?: IconName;
   label: string;
-  active?: boolean;
+  current?: boolean;
   locked?: boolean;
   count?: string | number;
   children?: NavChild[];

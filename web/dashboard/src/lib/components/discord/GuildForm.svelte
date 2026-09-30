@@ -67,7 +67,7 @@
   body={t('discord.unsavedBody')}
   confirmLabel={t('discord.unsavedConfirm')}
   cancelLabel={t('common.cancel')}
-  danger
   onConfirm={draft.confirmDiscard}
   onCancel={draft.cancelDiscard}
+  tone="danger"
 />

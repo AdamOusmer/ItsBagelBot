@@ -85,12 +85,12 @@ const nav = {
     titleHtml={L.titleHtml}
 >
     <PageToolbar>
-        <div class="gs-actions" slot="lead">
-            <Chip on>{L.filterAll}</Chip>
+        <div class="gs-actions" slot="leading">
+            <Chip pressed>{L.filterAll}</Chip>
             <Chip tone="muted">{L.filterActive}</Chip>
             <Chip tone="muted">{L.filterCustom}</Chip>
         </div>
-        <Fragment slot="trail">
+        <Fragment slot="trailing">
         <SearchInput placeholder={L.searchPlaceholder} readonly />
         <Button size="sm">{L.newCommand}</Button>
         <i class="gs-mark" data-note="1"></i>

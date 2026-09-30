@@ -88,7 +88,7 @@ export function adminNavItems(opts: {
   return navItems({
     sections: ADMIN_SECTIONS,
     visible: (def) => adminSectionVisible(def, opts.role),
-    active: (def) => def.id === opts.section,
+    current: (def) => def.id === opts.section,
     t: opts.t
   });
 }
@@ -104,7 +104,7 @@ export function adminNavGroups(opts: {
     const items = navItems({
       sections: ADMIN_SECTIONS.filter((def) => def.group === id),
       visible: (def) => adminSectionVisible(def, opts.role),
-      active: (def) => def.id === opts.section,
+      current: (def) => def.id === opts.section,
       t: opts.t
     });
     if (items.length) groups.push(...navGroups(label(ADMIN_GROUP_LABEL[id]), items));

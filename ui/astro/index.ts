@@ -35,6 +35,9 @@ export { default as SearchInput } from './SearchInput.astro';
 export { default as SegmentedControl } from './SegmentedControl.astro';
 export { default as Select } from './Select.astro';
 export type { SelectOption } from '../lib/select';
+export type {
+  Tone, TagTone, BadgeTone, TextTone, StatusDotTone, ProgressTone, CodeTone, StatTone, SwitchRowTone, CardTone, SeriesTone,
+} from '../lib/tone';
 export { default as Switch } from './Switch.astro';
 export { default as Textarea } from './Textarea.astro';
 

@@ -196,7 +196,7 @@
       const ok = p?.ok === true;
       if (begun) inspector.resolved(begun.requestId, { type: ok ? 'success' : 'error' });
       if (ok) {
-        toast('ok', p!.notice ?? t('admin.lanes.renamed'));
+        toast('success', p!.notice ?? t('admin.lanes.renamed'));
         return;
       }
       if (result && before) result.lanes = before;
@@ -217,7 +217,7 @@
         after();
         const p = actionPayload<LaneActionPayload>(r);
         if (p?.ok) {
-          toast('ok', p.notice ?? t('admin.lanes.done'));
+          toast('success', p.notice ?? t('admin.lanes.done'));
           pollLanes();
           return;
         }
@@ -247,7 +247,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       {#if result}
         <Cluster gap={2}>
           <Text as="span" size="xs" tone="muted" mono>
@@ -263,7 +263,7 @@
         <Skeleton variant="pill" width="220px" />
       {/if}
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <div class="toolbar-search">
         <SearchInput fill bind:value={search} placeholder={t('admin.lanes.searchPlaceholder')} />
       </div>
@@ -404,10 +404,10 @@
     : undefined}
   confirmLabel={t('common.delete')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onCancel={() => (confirmDelete = false)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="stream" value={selected?.stream ?? ''} />

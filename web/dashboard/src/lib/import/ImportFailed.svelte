@@ -35,7 +35,7 @@
       {#each view.shown as f (f.kind + f.name)}
         <li class="failed-row">
           <Text as="span" size="sm" mono>{f.name}</Text>
-          <Tag tone="error">{t(REASON_KEY[f.reason])}</Tag>
+          <Tag tone="danger">{t(REASON_KEY[f.reason])}</Tag>
         </li>
       {/each}
     </ul>

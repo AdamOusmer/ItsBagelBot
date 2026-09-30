@@ -78,7 +78,7 @@
       busy = false;
       const p = actionPayload<{ action?: { ok: boolean; notice: string }; error?: string }>(result);
       if (result.type === 'success' && p?.action?.ok) {
-        toast('ok', p.action.notice);
+        toast('success', p.action.notice);
         close();
         bundle = null;
         await invalidateAll();
@@ -150,7 +150,7 @@
 
       <Card dashed>
         <CardHead title={t('admin.secrets.genTitle')}>
-          {#snippet action()}
+          {#snippet actions()}
             <StatePill tone="free">{t('admin.secrets.genLocal')}</StatePill>
           {/snippet}
         </CardHead>
@@ -158,7 +158,7 @@
           <Text size="sm" tone="muted">{t('admin.secrets.genNote')}</Text>
           <Cluster gap={2}>
             {#each GEN_KINDS as kind (kind)}
-              <Chip on={genKind === kind} onclick={() => (genKind = kind)}>
+              <Chip pressed={genKind === kind} onclick={() => (genKind = kind)}>
                 {t(GEN_LABEL[kind])}
               </Chip>
             {/each}
@@ -183,10 +183,10 @@
   title={dialog ? t(dialog.title) : ''}
   confirmLabel={dialog ? t(dialog.cta) : t('common.done')}
   cancelLabel={t('common.cancel')}
-  danger={dialog?.danger ?? false}
   {busy}
   onCancel={close}
   onConfirm={() => dialogForm?.requestSubmit()}
+  tone={dialog?.danger ? 'danger' : 'neutral'}
 >
   {#if dialog && pendingService}
     <div class="fields">

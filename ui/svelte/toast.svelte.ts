@@ -2,8 +2,9 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { writable } from 'svelte/store';
+import type { ToastKind } from '../lib/tone';
 
-export type ToastKind = 'ok' | 'err' | 'info';
+export type { ToastKind };
 
 export interface ToastItem {
   id: number;

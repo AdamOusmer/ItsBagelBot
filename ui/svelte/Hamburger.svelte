@@ -2,18 +2,20 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
   import '../styles/elements/nav.css';
 
+  const i18n = getUiI18n();
   type Own = {
-    label: string;
+    label?: string;
     closeLabel?: string;
     controls?: string;
     class?: string;
   };
 
   let {
-    label,
-    closeLabel,
+    label = i18n.t('nav.menuOpen'),
+    closeLabel = i18n.t('nav.menuClose'),
     controls = 'bb-mobile-menu',
     class: className = '',
     ...rest

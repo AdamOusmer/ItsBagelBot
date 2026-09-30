@@ -10,7 +10,7 @@
     title?: string;
     description?: string;
     children?: Snippet;
-    trail?: Snippet;
+    trailing?: Snippet;
     compact?: boolean;
     class?: string;
   };
@@ -20,7 +20,7 @@
     title,
     description,
     children,
-    trail,
+    trailing,
     compact = false,
     class: className = '',
     ...rest
@@ -29,7 +29,7 @@
   const classes = $derived(
     [
       'bb-page-head',
-      trail ? 'bb-page-head--trailed' : null,
+      trailing ? 'bb-page-head--trailed' : null,
       compact ? 'bb-page-head--compact' : null,
       className || null,
     ]
@@ -42,5 +42,5 @@
   ><div class="bb-page-head__main"
     >{#if eyebrow}<span class="bb-page-head__eyebrow">{eyebrow}</span>{/if}<h1 tabindex="-1">{#if children}{@render children()}{:else}{title}{/if}</h1
     >{#if description}<p class="bb-page-head__description">{description}</p>{/if}</div
-  >{#if trail}<div class="bb-page-head__trail">{@render trail()}</div>{/if}</div
+  >{#if trailing}<div class="bb-page-head__trail">{@render trailing()}</div>{/if}</div
 >

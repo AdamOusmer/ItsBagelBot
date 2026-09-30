@@ -21,11 +21,11 @@
       busy = false;
       const p = payloadOf(result);
       if (succeeded(result, p)) {
-        toast(p?.refused ? 'err' : 'ok', p?.refused ? t('discord.toast.refused') : t('discord.toast.setup'));
+        toast(p?.refused ? 'danger' : 'success', p?.refused ? t('discord.toast.refused') : t('discord.toast.setup'));
         await invalidateAll();
         return;
       }
-      toast('err', refusalTextOf(t, p, t('discord.toast.setupFailed')));
+      toast('danger', refusalTextOf(t, p, t('discord.toast.setupFailed')));
     };
   };
 
@@ -35,7 +35,7 @@
       busy = false;
       const p = payloadOf(result);
       if (succeeded(result, p)) return;
-      toast('err', refusalTextOf(t, p, t('discord.toast.disconnectFailed')));
+      toast('danger', refusalTextOf(t, p, t('discord.toast.disconnectFailed')));
     };
   };
 </script>
@@ -77,12 +77,12 @@
   body={t('discord.settings.disconnectBody')}
   confirmLabel={t('discord.settings.disconnectCta')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onConfirm={() => {
     disconnectOpen = false;
     disconnectForm?.requestSubmit();
   }}
   onCancel={() => (disconnectOpen = false)}
+  tone="danger"
 />
 

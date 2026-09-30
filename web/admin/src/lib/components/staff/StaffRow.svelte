@@ -36,7 +36,7 @@
   {selected}
   expanded={selected}
   {controls}
-  {onselect}
+  onSelect={onselect}
   badge={isSelf ? you : undefined}
   title={member.display_name || member.login}
   meta={t('admin.staff.rowMeta', {
@@ -45,7 +45,7 @@
     when: ago(member.created_at)
   })}
 >
-  {#snippet lead()}
+  {#snippet leading()}
     <Bolota name={member.display_name || member.login} size={28} active={selected} />
   {/snippet}
   {#snippet marks()}

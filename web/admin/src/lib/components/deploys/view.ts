@@ -19,7 +19,7 @@ import type {
 } from '$lib/deploys/types';
 import { TERMINAL_RUN_STATES } from '$lib/deploys/types';
 
-export type Tone = 'neutral' | 'success' | 'warning' | 'error';
+export type Tone = 'neutral' | 'success' | 'warning' | 'danger';
 
 export type Translate = (key: string, params?: Record<string, string>) => string;
 
@@ -122,9 +122,9 @@ const RUN_TONE: Record<RunState, Tone> = {
   running: 'neutral',
   waiting: 'warning',
   succeeded: 'success',
-  failed: 'error',
+  failed: 'danger',
   cancelled: 'neutral',
-  verify_failed: 'error'
+  verify_failed: 'danger'
 };
 
 const STAGE_TONE: Record<StageState, Tone> = {
@@ -132,7 +132,7 @@ const STAGE_TONE: Record<StageState, Tone> = {
   running: 'neutral',
   waiting: 'warning',
   succeeded: 'success',
-  failed: 'error',
+  failed: 'danger',
   skipped: 'neutral',
   cancelled: 'neutral'
 };
@@ -141,28 +141,28 @@ const CHECK_TONE: Record<CheckState, Tone> = {
   none: 'neutral',
   pending: 'warning',
   success: 'success',
-  failure: 'error'
+  failure: 'danger'
 };
 
 const POD_TONE: Record<PodPhase, Tone> = {
   old: 'neutral',
   new: 'success',
   pending: 'warning',
-  failing: 'error'
+  failing: 'danger'
 };
 
-const PILL: Record<Tone, 'neutral' | 'positive' | 'warning' | 'danger'> = {
+const PILL: Record<Tone, 'neutral' | 'success' | 'warning' | 'danger'> = {
   neutral: 'neutral',
-  success: 'positive',
+  success: 'success',
   warning: 'warning',
-  error: 'danger'
+  danger: 'danger'
 };
 
 const QUEUE_TONE: Partial<Record<StageState, Tone>> = {
   succeeded: 'warning',
   running: 'success',
   waiting: 'success',
-  failed: 'error'
+  failed: 'danger'
 };
 
 export const runTone = (s: RunState): Tone => RUN_TONE[s];

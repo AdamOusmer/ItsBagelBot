@@ -13,4 +13,4 @@
   const action = $derived(exitForm ? { label: exitLabel, formAction: '/auth/logout' } : { label: exitLabel, href: exitHref ?? '/' });
 </script>
 
-<AlertBanner tone="warm" placement="top" row={second ? 2 : 1} role="status" {action}>{@render children()}</AlertBanner>
+<AlertBanner tone="warm" placement="top" row={second ? 2 : 1} role="status" cta={action}>{@render children()}</AlertBanner>

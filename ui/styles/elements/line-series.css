@@ -9,17 +9,17 @@
     display: block;
   }
 
-  .bb-line-series__key--green,
-  .bb-line-series__line--green,
-  .bb-line-series__point--green,
-  .bb-line-series__value--green {
+  .bb-line-series__key--accent,
+  .bb-line-series__line--accent,
+  .bb-line-series__point--accent,
+  .bb-line-series__value--accent {
     --line-tone: var(--bb-green-glow);
   }
 
-  .bb-line-series__key--tan,
-  .bb-line-series__line--tan,
-  .bb-line-series__point--tan,
-  .bb-line-series__value--tan {
+  .bb-line-series__key--warm,
+  .bb-line-series__line--warm,
+  .bb-line-series__point--warm,
+  .bb-line-series__value--warm {
     --line-tone: var(--bb-tan);
   }
 

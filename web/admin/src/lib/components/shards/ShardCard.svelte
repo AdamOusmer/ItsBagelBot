@@ -22,7 +22,7 @@
   } = $props();
   const { t } = getI18n();
   const badge = $derived(shardBadge(shard));
-  const PERCENT_TONE = { success: 'muted', warning: 'accent', error: 'danger', neutral: 'muted' } as const;
+  const PERCENT_TONE = { success: 'muted', warning: 'accent', danger: 'danger', neutral: 'muted' } as const;
   const tone = $derived(loadTone(utilization, targetUtilization));
   const instant = $derived(t('admin.shards.rowLoadBurst', { now: rateLabel(burstEps), eps: rateLabel(eps), pct: pctLabel(utilization) }));
 </script>

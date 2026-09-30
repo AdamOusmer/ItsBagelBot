@@ -3,6 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
   import type { Snippet } from 'svelte';
+  import type { SwitchRowTone } from '../lib/tone';
   import '../styles/elements/toggle.css';
   import Switch from './Switch.svelte';
 
@@ -13,11 +14,11 @@
     checked?: boolean;
     switchLabel?: string;
     control?: 'start' | 'end';
-    tone?: 'warn';
+    tone?: SwitchRowTone;
     disabled?: boolean;
-    pending?: boolean;
+    busy?: boolean;
     type?: 'button' | 'submit';
-    onchange?: (v: boolean) => void;
+    onCheckedChange?: (checked: boolean) => void;
     status?: Snippet;
     note?: Snippet;
     class?: string;
@@ -32,9 +33,9 @@
     control = 'start',
     tone,
     disabled = false,
-    pending = false,
+    busy = false,
     type = 'button',
-    onchange,
+    onCheckedChange,
     status,
     note,
     class: className = '',
@@ -59,9 +60,9 @@
     label={switchLabel ?? label}
     {describedby}
     {disabled}
-    {pending}
+    {busy}
     {type}
-    {onchange}
+    {onCheckedChange}
   />{/snippet}
 
 <div class={classes} {...rest}

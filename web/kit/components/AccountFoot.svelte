@@ -53,7 +53,7 @@
   linksLabel={t('topbar.dashboards')}
   {exit}
   logoutLabel={t('topbar.logout')}
-  onlogout={clearOnboarding}
+  onLogout={clearOnboarding}
   {help}
   helpLabel={t('topbar.support')}
   feedback={{ href: SITE.newIssue, label: t('topbar.feedback'), external: true }}

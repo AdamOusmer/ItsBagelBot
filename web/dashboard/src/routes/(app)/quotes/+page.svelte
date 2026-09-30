@@ -183,7 +183,7 @@
         failed(payload, wasCreating ? 'quotes.toastAddFailed' : 'quotes.toastEditFailed');
         return;
       }
-      toast('ok', t(wasCreating ? 'quotes.toastAdded' : 'quotes.toastEdited'));
+      toast('success', t(wasCreating ? 'quotes.toastAdded' : 'quotes.toastEdited'));
       if (wasCreating && applied) {
         inspector.reset();
         draft = null;
@@ -243,7 +243,7 @@
             inspector.reset();
             draft = null;
           }
-          toast('ok', t('quotes.toastDeleted'));
+          toast('success', t('quotes.toastDeleted'));
         }
         await invalidateAll();
         return;
@@ -274,7 +274,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <MasterToggle
         action="?/toggle"
         bind:enabled
@@ -284,7 +284,7 @@
         failMessage={t('quotes.toastToggleFailed')}
       />
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <div class="toolbar-actions">
         <div class="toolbar-search">
           <SearchInput id="quotes-search" aria-label={t('quotes.searchLabel')} autocomplete="off"
@@ -416,9 +416,9 @@
   body={t('quotes.discardBody')}
   confirmLabel={t('quotes.discard')}
   cancelLabel={t('quotes.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 <ConfirmDialog
   open={deleteTarget !== null}
@@ -426,10 +426,10 @@
   body={deleteTarget ? t('quotes.deleteBodyNamed', { snippet: snippet(deleteTarget.text) }) : undefined}
   confirmLabel={t('quotes.del')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={deleting}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="number" value={deleteTarget?.number ?? ''} />

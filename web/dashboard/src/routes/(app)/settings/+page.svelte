@@ -66,11 +66,11 @@
         ? 'settings.boardTwitch'
         : 'settings.boardTwitchOff'
   );
-  const LEVEL_TONE: Record<string, 'quiet' | 'live' | 'pre' | 'error'> = {
+  const LEVEL_TONE: Record<string, 'quiet' | 'live' | 'pre' | 'danger'> = {
     info: 'quiet',
     success: 'live',
     warning: 'pre',
-    critical: 'error'
+    critical: 'danger'
   };
 
   const createdGrant = $derived(form?.createdGrant as DelegationGrant | undefined);
@@ -146,7 +146,7 @@
       }
       failed(d, 'fetches.keySaveFailed');
     } catch {
-      toast('err', t('fetches.keySaveFailed'));
+      toast('danger', t('fetches.keySaveFailed'));
     } finally {
       keyBusy = false;
     }
@@ -158,14 +158,14 @@
     body.set('label', label);
     body.set('value', value);
     const d = await postKeyAction('setfetchkey', body);
-    if (d) toast('ok', t('fetches.keySavedToast', { label, last4: fetchKeys.find((k) => k.label === label)?.last4 ?? '' }));
+    if (d) toast('success', t('fetches.keySavedToast', { label, last4: fetchKeys.find((k) => k.label === label)?.last4 ?? '' }));
   }
 
   async function handleDeleteKey(label: string) {
     const body = new FormData();
     body.set('label', label);
     const d = await postKeyAction('delfetchkey', body);
-    if (d) toast('ok', t('fetches.keyDeletedToast', { label }));
+    if (d) toast('success', t('fetches.keyDeletedToast', { label }));
   }
 
   let editingToken = $state<string | null>(null);
@@ -192,10 +192,10 @@
   async function copy(token: string) {
     if (await copyText(linkFor(token))) {
       copied = { ...copied, [token]: true };
-      toast('ok', t('settings.toastInviteCopied'));
+      toast('success', t('settings.toastInviteCopied'));
       setTimeout(() => (copied = { ...copied, [token]: false }), 4000);
     } else {
-      toast('err', t('settings.toastClipboardBlocked'));
+      toast('danger', t('settings.toastClipboardBlocked'));
     }
   }
 
@@ -213,11 +213,11 @@
     lastForm = form;
     if (!form) return;
     if (form.error) {
-      toast('err', String(form.error));
+      toast('danger', String(form.error));
       return;
     }
     const message = form.ok ? actionToast[String(form.action)] : undefined;
-    if (message) toast('ok', message());
+    if (message) toast('success', message());
   });
 
   let commandsPageBusy = $state(false);
@@ -228,9 +228,9 @@
       await update();
       commandsPageBusy = false;
       if (result.type === 'success') {
-        toast('ok', t(enabling ? 'settings.toastCommandsPageOn' : 'settings.toastCommandsPageOff'));
+        toast('success', t(enabling ? 'settings.toastCommandsPageOn' : 'settings.toastCommandsPageOff'));
       } else if (result.type === 'error') {
-        toast('err', t('serverErrors.updateRetry'));
+        toast('danger', t('serverErrors.updateRetry'));
       }
     };
   };
@@ -531,7 +531,7 @@
       </div>
       <form method="POST" action="?/setCommandsPage" use:enhance={commandsPageSubmit}>
         <input type="hidden" name="enabled" value={data.commandsPage ? '' : 'on'} />
-        <Switch type="submit" checked={!!data.commandsPage} pending={commandsPageBusy} label={t('settings.commandsPage')} describedby="commands-page-hint" />
+        <Switch type="submit" checked={!!data.commandsPage} busy={commandsPageBusy} label={t('settings.commandsPage')} describedby="commands-page-hint" />
       </form>
     </div>
   </Card>
@@ -596,10 +596,10 @@
   confirmLabel={t('common.revoke')}
   cancelLabel={t('common.cancel')}
   busyLabel={t('settings.working')}
-  danger
   busy={revoking}
   onCancel={() => (revokeTarget = null)}
   onConfirm={() => revokeForm?.requestSubmit()}
+  tone="danger"
 />
 {#if revokeTarget}
   <form
@@ -620,10 +620,10 @@
   confirmLabel={t('common.leave')}
   cancelLabel={t('common.cancel')}
   busyLabel={t('settings.working')}
-  danger
   busy={leaving}
   onCancel={() => (leaveTarget = null)}
   onConfirm={() => leaveForm?.requestSubmit()}
+  tone="danger"
 />
 {#if leaveTarget}
   <form
@@ -644,10 +644,10 @@
   confirmLabel={t('settings.signOutEverywhere')}
   cancelLabel={t('common.cancel')}
   busyLabel={t('settings.working')}
-  danger
   busy={signingOut}
   onCancel={() => (signOutOpen = false)}
   onConfirm={() => signOutForm?.requestSubmit()}
+  tone="danger"
 />
 {#if signOutOpen}
   <form

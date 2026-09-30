@@ -33,7 +33,7 @@
   value={kind}
   {options}
   label={t('admin.deploys.kindLabel')}
-  onpick={(value) => onpick(value as RunKind)}
+  onSelect={(value) => onpick(value as RunKind)}
 >
-  {#snippet lead(option)}<Eyebrow aria-hidden="true">{position(option.value)}</Eyebrow>{/snippet}
+  {#snippet leading(option)}<Eyebrow aria-hidden="true">{position(option.value)}</Eyebrow>{/snippet}
 </RadioGroup>

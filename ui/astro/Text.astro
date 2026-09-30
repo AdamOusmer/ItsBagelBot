@@ -3,10 +3,11 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import '../styles/elements/typography.css';
+import type { TextTone } from '../lib/tone';
 
 interface Props {
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-    tone?: 'default' | 'muted' | 'muted-light' | 'muted-soft' | 'soft' | 'accent' | 'positive' | 'danger' | 'pale' | 'warn';
+    tone?: TextTone;
     mono?: boolean;
     truncate?: boolean;
     as?: 'p' | 'span' | 'small' | 'div' | 'li' | 'dd' | 'dt';

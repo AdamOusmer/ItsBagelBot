@@ -34,8 +34,8 @@
     --progress-fill: var(--bb-tan);
   }
 
-  .bb-progress--error,
-  .bb-progress__seg--error {
+  .bb-progress--danger,
+  .bb-progress__seg--danger {
     --progress-fill: var(--bb-status-danger);
   }
 
@@ -103,7 +103,7 @@
     .bb-progress__seg--neutral,
     .bb-progress__seg--success,
     .bb-progress__seg--warning,
-    .bb-progress__seg--error
+    .bb-progress__seg--danger
   ) {
     background: var(--progress-fill);
   }

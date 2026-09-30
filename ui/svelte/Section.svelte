@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import type { HTMLAttributes } from 'svelte/elements';
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/layout.css';
   import type { Snippet } from 'svelte';
 
@@ -9,7 +9,7 @@
     size?: 'default' | 'sm' | 'lg' | 'flush' | 'page';
     anchor?: boolean;
     reveal?: boolean;
-    as?: string;
+    as?: 'section' | 'article' | 'div' | 'ul' | 'ol' | 'li' | 'header' | 'footer' | 'aside' | 'main';
     class?: string;
     children: Snippet;
   };
@@ -22,7 +22,7 @@
     class: className = '',
     children,
     ...rest
-  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(
     [

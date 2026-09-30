@@ -15,7 +15,7 @@ const FAMILY = {
   Divider: 'Layout', Spacer: 'Layout', AppShell: 'Layout', Scroller: 'Layout',
   InspectorSurface: 'Layout', PageHero: 'Layout', PickerPanel: 'Layout',
   Button: 'Controls', ButtonLink: 'Controls', IconButton: 'Controls', Switch: 'Controls',
-  Toggle: 'Controls', Field: 'Controls', FieldError: 'Controls', Input: 'Controls',
+  Field: 'Controls', FieldError: 'Controls', Input: 'Controls',
   Select: 'Controls', Textarea: 'Controls', Checkbox: 'Controls', RadioGroup: 'Controls',
   SegmentedControl: 'Controls', SearchInput: 'Controls',
   SwitchRow: 'Controls', Slider: 'Controls', FileDrop: 'Controls', PickerOption: 'Controls',
@@ -42,14 +42,13 @@ const ADAPTER_NOTE = {
   PickerPanel: 'Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.',
   ToastHost: 'Svelte only: it subscribes to the toast store, and a host with nothing to subscribe to renders nothing.',
   ConfirmDialog: 'Svelte only: a composition of Modal + Button with no CSS of its own, and its two callbacks are the element.',
-  Toggle: 'Svelte only: bindable checkbox state; the static spelling is Switch.',
   FieldError: 'Svelte only: it renders only when a form action has returned an error, which a static page has not.',
   Sky: 'Svelte only: it follows the pointer and a flow\'s progress from client state; a static page has neither.',
   LogTail: 'Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.',
   ProfileMenu: 'Svelte only: an account menu with open state, scrim and Escape handling that only a client has.',
   Popover: 'Svelte only: a non-modal floating sheet with open state and outside dismissal that only a client has.',
-  StepList: 'The navigable form (`onselect`) is Svelte only; Astro renders the static list.',
-  Stepper: 'Clickable steps (`onselect`) are Svelte only; Astro renders the static rail.',
+  StepList: 'The navigable form (`onSelect`) is Svelte only; Astro renders the static list.',
+  Stepper: 'Clickable steps (`onSelect`) are Svelte only; Astro renders the static rail.',
   LineSeries: 'Width tracking, crosshair and tooltip are Svelte only; Astro renders a static 800px chart.',
 };
 
@@ -165,6 +164,7 @@ const rows = names.map((name) => {
     family: FAMILY[name],
     props,
     adapters,
+    status: sv && as ? 'stable' : `${sv ? 'svelte' : 'astro'}-only`,
     contract: [...new Set([...contractOf(sv ?? ''), ...contractOf(as ?? '')])].sort().join(', '),
     note: ADAPTER_NOTE[name] ?? '',
   };
@@ -191,13 +191,13 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 for (const family of FAMILIES) {
   const inFamily = rows.filter((r) => r.family === family);
   if (!inFamily.length) continue;
-  body += `\n## ${family}\n\n| Block | Props | Adapters | Contract |\n| --- | --- | --- | --- |\n`;
+  body += `\n## ${family}\n\n| Block | Props | Adapters | Status | Contract |\n| --- | --- | --- | --- | --- |\n`;
   for (const row of inFamily) {
     const props = row.props.length
       ? row.props.map((p) => `\`${p.name}\`: ${p.type}`).join('<br>')
       : '—';
     const adapters = row.note ? `${row.adapters}<br>*${row.note}*` : row.adapters;
-    body += `| **${row.name}** | ${props} | ${adapters} | ${row.contract ? `\`${row.contract}\`` : '—'} |\n`;
+    body += `| **${row.name}** | ${props} | ${adapters} | ${row.status} | ${row.contract ? `\`${row.contract}\`` : '—'} |\n`;
   }
 }
 

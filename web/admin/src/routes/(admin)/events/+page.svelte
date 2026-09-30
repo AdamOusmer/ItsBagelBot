@@ -32,7 +32,7 @@
 
   const TONE_DOT: Record<FeedEvent['tone'], StatusTone> = {
     up: 'success',
-    down: 'error',
+    down: 'danger',
     neutral: 'neutral'
   };
 
@@ -120,16 +120,16 @@
   </PageHead>
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <SegmentedControl options={TONES} bind:value={tone} label={t('admin.events.toneFilter')} />
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <div class="toolbar-search">
         <SearchInput fill bind:value={search} placeholder={t('admin.events.searchPlaceholder')} />
       </div>
       <Cluster gap={2} nowrap>
         <span class="pause-label"><Label mono as="span">{pauseLabel}</Label></span>
-        <Switch checked={paused} label={pauseLabel} onchange={setPaused} />
+        <Switch checked={paused} label={pauseLabel} onCheckedChange={setPaused} />
       </Cluster>
       <Button variant="ghost" onclick={clearFeed} disabled={events.length === 0}>
         {t('admin.events.clear')}
@@ -139,10 +139,10 @@
 
   <Card>
     <CardHead title={t('admin.events.subject')}>
-      {#snippet action()}
+      {#snippet actions()}
         <Cluster gap={3}>
           <Tag tone="live">{t('admin.events.upCount', { n: String(upCount) })}</Tag>
-          <Tag tone="error">{t('admin.events.downCount', { n: String(downCount) })}</Tag>
+          <Tag tone="danger">{t('admin.events.downCount', { n: String(downCount) })}</Tag>
           <Tag><StatusDot tone={statusTone} />{statusLabel}</Tag>
         </Cluster>
       {/snippet}

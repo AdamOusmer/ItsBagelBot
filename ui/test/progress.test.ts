@@ -13,7 +13,7 @@ const bar = (cls: string, aria: string) =>
 
 const BAR_CASES: {
   name: string;
-  props: { value: number | null; tone?: 'neutral' | 'success' | 'warning' | 'error'; size?: 'sm' | 'md' };
+  props: { value: number | null; tone?: 'neutral' | 'success' | 'warning' | 'danger'; size?: 'sm' | 'md' };
   html: string;
 }[] = [
   {
@@ -28,8 +28,8 @@ const BAR_CASES: {
   },
   {
     name: 'over 1 clamps to full',
-    props: { value: 1.7, tone: 'error' },
-    html: bar('bb-progress--error', 'aria-valuenow="100" style="--progress: 1;"'),
+    props: { value: 1.7, tone: 'danger' },
+    html: bar('bb-progress--danger', 'aria-valuenow="100" style="--progress: 1;"'),
   },
   {
     name: 'NaN renders empty rather than aria-valuenow="NaN"',

@@ -3,18 +3,21 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
 
+import { uiI18n } from './i18n';
+
 import '../styles/elements/nav.css';
 
 interface Props extends Omit<HTMLAttributes<'button'>, 'label' | 'closeLabel' | 'controls' | 'class'> {
-  label: string;
+  label?: string;
   closeLabel?: string;
   controls?: string;
   class?: string;
 }
 
+const { t } = uiI18n(Astro);
 const {
-  label,
-  closeLabel,
+  label = t('nav.menuOpen'),
+  closeLabel = t('nav.menuClose'),
   controls = 'bb-mobile-menu',
   class: className = '',
   ...rest

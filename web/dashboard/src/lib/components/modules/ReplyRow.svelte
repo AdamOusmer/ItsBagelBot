@@ -54,7 +54,7 @@
     {expanded}
     disabled={enabled === false}
     aria-disabled={disabled ? 'true' : undefined}
-    onselect={onExpand}
+    onSelect={onExpand}
   >
     {#snippet primary()}
       <span class="prow">
@@ -68,7 +68,7 @@
     {/snippet}
     {#snippet actions()}
       {#if enabled !== undefined}
-        <Switch checked={enabled} label={t('modules.toggleAria', { label: tModuleReplyPart(t, moduleId, reply, 'label') })} disabled={disabled} onchange={() => onToggle?.()} />
+        <Switch checked={enabled} label={t('modules.toggleAria', { label: tModuleReplyPart(t, moduleId, reply, 'label') })} disabled={disabled} onCheckedChange={() => onToggle?.()} />
       {:else}
         <span class="mini-spacer" aria-hidden="true"></span>
       {/if}

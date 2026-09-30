@@ -30,11 +30,11 @@
   {selected}
   expanded={selected}
   {controls}
-  {onselect}
+  onSelect={onselect}
   title={user.username}
   meta={t('admin.users.rowMeta', { id: String(user.id), joined: ago(user.created_at) })}
 >
-  {#snippet lead()}
+  {#snippet leading()}
     <Bolota name={user.username} size={28} gate active={selected} />
   {/snippet}
   {#snippet marks()}

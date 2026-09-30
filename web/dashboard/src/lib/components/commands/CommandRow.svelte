@@ -77,7 +77,7 @@
     selected={expanded}
     {expanded}
     disabled={!c.is_active}
-    onselect={onExpand}
+    onSelect={onExpand}
   >
     {#snippet primary()}
       <span class="prow" class:selecting>
@@ -148,7 +148,7 @@
         <input type="hidden" name="bump_counter" value={c.bump_counter ?? ''} />
         <input type="hidden" name="stream_online_only" value={c.stream_online_only ? 'on' : ''} />
         <input type="hidden" name="is_active" value={c.is_active ? '' : 'on'} />
-        <Switch type="submit" checked={c.is_active} pending={saving} label={t('commandRow.toggleAria', { name: c.name })} />
+        <Switch type="submit" checked={c.is_active} busy={saving} label={t('commandRow.toggleAria', { name: c.name })} />
       </form>
       <span class="state-compact"><SaveStatus state={status} compact aria-label={statusLabel} {...statusLabels} /></span>
       {#if !c.builtin}

@@ -88,7 +88,7 @@
 
 <Card as="section">
   <CardHead title={t('admin.overview.fleetTitle')}>
-    {#snippet action()}
+    {#snippet actions()}
       <a class="bb-card-head__more" href="/shards">{t('admin.overview.fleetAll')}</a>
     {/snippet}
   </CardHead>

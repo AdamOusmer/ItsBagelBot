@@ -14,7 +14,7 @@
     tone?: 'go' | 'lead';
     prose?: boolean;
     icon?: IconName;
-    active?: boolean;
+    current?: boolean;
     external?: boolean;
     size?: string;
     touch?: boolean;
@@ -29,7 +29,7 @@
     tone,
     prose = false,
     icon,
-    active = false,
+    current = false,
     external = false,
     size,
     touch = false,
@@ -54,7 +54,7 @@
       arrow && prose ? 'bb-link--prose' : null,
       touch && variant === 'quiet' ? 'bb-link--touch' : null,
       className || null,
-      active ? 'is-active' : null,
+      current ? 'is-active' : null,
     ]
       .filter(Boolean)
       .join(' '),
@@ -65,7 +65,7 @@
     class={classes}
     {href}
     aria-label={label}
-    aria-current={active ? 'page' : undefined}
+    aria-current={current ? 'page' : undefined}
     target={external ? '_blank' : undefined}
     rel={external ? 'noopener noreferrer' : undefined}
     style={size ? `--text-link-size: ${size};` : undefined}
@@ -86,7 +86,7 @@
   >{:else}<a
     class={classes}
     {href}
-    aria-current={active ? 'page' : undefined}
+    aria-current={current ? 'page' : undefined}
     target={external ? '_blank' : undefined}
     rel={external ? 'noopener noreferrer' : undefined}
     {...rest}

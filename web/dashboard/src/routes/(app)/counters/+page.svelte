@@ -257,7 +257,7 @@
         failed(actionPayload(result), 'counters.toastFailed');
         return;
       }
-      toast('ok', t('counters.toastCreated'));
+      toast('success', t('counters.toastCreated'));
       if (applied) present(null, null);
       await invalidateAll();
     };
@@ -278,7 +278,7 @@
         failed(actionPayload(result), 'counters.toastFailed');
         return;
       }
-      toast('ok', t('counters.toastSet'));
+      toast('success', t('counters.toastSet'));
       await invalidateAll();
     };
   };
@@ -300,7 +300,7 @@
     return async ({ result }) => {
       renaming = false;
       if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastRenamed'));
+        toast('success', t('counters.toastRenamed'));
         clearSubFields();
         present(null, null);
         syncSelection(null);
@@ -320,7 +320,7 @@
       resetting = false;
       resetTarget = null;
       if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastReset'));
+        toast('success', t('counters.toastReset'));
         await invalidateAll();
         return;
       }
@@ -356,7 +356,7 @@
     return async ({ result }) => {
       adding = false;
       if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastAdded'));
+        toast('success', t('counters.toastAdded'));
         addUser = '';
         addCommand = '';
         addValue = '0';
@@ -365,7 +365,7 @@
         return;
       }
       const err = actionPayload(result)?.error;
-      toast('err', err === 'unknown_user' ? t('counters.errUnknownUser') : (err ?? t('counters.toastFailed')));
+      toast('danger', err === 'unknown_user' ? t('counters.errUnknownUser') : (err ?? t('counters.toastFailed')));
     };
   };
 
@@ -408,7 +408,7 @@
     const payload = await postSet(c.name, next, { viewerId: e.viewerId, command: e.command });
     entrySaving = null;
     if (payload?.ok) {
-      toast('ok', t('counters.toastSet'));
+      toast('success', t('counters.toastSet'));
       delete entryEdits[key];
       await invalidateAll();
     } else {
@@ -429,7 +429,7 @@
       entryDeleting = false;
       entryDeleteTarget = null;
       if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastEntryRemoved'));
+        toast('success', t('counters.toastEntryRemoved'));
         await invalidateAll();
         return;
       }
@@ -452,7 +452,7 @@
     return async ({ result }) => {
       deleting = false;
       if (result.type === 'success' && actionPayload(result)?.ok) {
-        toast('ok', t('counters.toastDeleted'));
+        toast('success', t('counters.toastDeleted'));
         if (data.selected && snapshot && data.selected === snapshot.name) {
           await goto('/counters', { noScroll: true });
         }
@@ -515,14 +515,14 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <SegmentedControl
         options={scopeOptions}
         bind:value={scopeLabelPicked}
         label={t('counters.filterAria')}
       />
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <div class="toolbar-search">
         <SearchInput fill placeholder={t('counters.searchPlaceholder')} bind:value={search} debounceMs={200} />
       </div>
@@ -798,9 +798,9 @@
   body={t('counters.discardBody')}
   confirmLabel={t('counters.discard')}
   cancelLabel={t('counters.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -809,10 +809,10 @@
   body={t('counters.deleteBody', { name: deleteTarget?.name ?? '' })}
   confirmLabel={t('counters.del')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={deleting}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="name" value={deleteTarget?.name ?? ''} />
@@ -835,10 +835,10 @@
   body={t('counters.resetBody', { name: resetTarget?.name ?? '' })}
   confirmLabel={t('counters.reset')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={resetting}
   onCancel={() => (resetTarget = null)}
   onConfirm={() => resetForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/set" use:enhance={resetSubmit} bind:this={resetForm} hidden>
   <input type="hidden" name="name" value={resetTarget?.name ?? ''} />
@@ -851,10 +851,10 @@
   body={t('counters.entryDeleteBody', { name: entryDeleteTarget ? entryLabel(entryDeleteTarget) : '' })}
   confirmLabel={t('counters.remove')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={entryDeleting}
   onCancel={() => (entryDeleteTarget = null)}
   onConfirm={() => entryDeleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/deleteEntry" use:enhance={entryDeleteSubmit} bind:this={entryDeleteForm} hidden>
   <input type="hidden" name="name" value={selected?.name ?? ''} />

@@ -105,8 +105,8 @@
             label={t('admin.lanes.durableLabel')}
             describedby="lane-durable-hint"
             disabled={!lane.ephemeral || lane.orphan}
-            pending={busy}
-            onchange={onDurable}
+            busy={busy}
+            onCheckedChange={onDurable}
           />
           <Text size="sm" tone="muted" id="lane-durable-hint">
             {lane.ephemeral ? t('admin.lanes.durableHint') : t('admin.lanes.durableAlready')}

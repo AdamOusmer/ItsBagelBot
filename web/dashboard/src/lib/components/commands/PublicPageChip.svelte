@@ -11,13 +11,13 @@
 
   async function copy() {
     const ok = await copyText(url, { legacyFallback: true });
-    toast(ok ? 'ok' : 'err', t(ok ? 'commands.publicPageCopied' : 'commands.publicPageCopyFailed'));
+    toast(ok ? 'success' : 'danger', t(ok ? 'commands.publicPageCopied' : 'commands.publicPageCopyFailed'));
   }
 </script>
 
 {#if on && url}
   <div class="pp">
-    <span class="pp-label"><Icon name="link" size={12} /><Text as="span" size="xs" tone="positive">{t('commands.publicPageOn')}</Text></span>
+    <span class="pp-label"><Icon name="link" size={12} /><Text as="span" size="xs" tone="success">{t('commands.publicPageOn')}</Text></span>
     <button type="button" class="pp-act" onclick={copy}>{t('commands.publicPageCopy')}</button>
     <a class="pp-act" href={url} target="_blank" rel="noopener">{t('commands.publicPageOpen')}</a>
   </div>

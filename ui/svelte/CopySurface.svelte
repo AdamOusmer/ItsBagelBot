@@ -5,32 +5,34 @@
   import '../styles/elements/copy-surface.css';
   import { onDestroy, type Snippet } from 'svelte';
   import { copyText } from '../lib/clipboard';
+  import { getUiI18n } from './i18n';
   import Icon from './Icon.svelte';
 
   type Own = {
     text: string;
-    copiedLabel: string;
+    copiedLabel?: string;
     announce?: string;
     variant?: 'card' | 'row' | 'well';
     label?: string;
     hint?: string;
     flashMs?: number;
     legacyFallback?: boolean;
-    oncopy?: (copied: boolean) => void;
+    onCopy?: (copied: boolean) => void;
     class?: string;
     children?: Snippet<[boolean]>;
   };
 
+  const i18n = getUiI18n();
   let {
     text,
-    copiedLabel,
+    copiedLabel = i18n.t('action.copied'),
     announce,
     variant = 'card',
     label,
-    hint = '',
+    hint = i18n.t('action.copy'),
     flashMs,
     legacyFallback = false,
-    oncopy,
+    onCopy,
     class: className = '',
     children,
     ...rest
@@ -50,7 +52,7 @@
 
   async function copy() {
     const ok = await copyText(text, { legacyFallback });
-    oncopy?.(ok);
+    onCopy?.(ok);
     if (!ok) return;
     clearTimeout(timer);
     copied = true;

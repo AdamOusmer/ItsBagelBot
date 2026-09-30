@@ -12,7 +12,7 @@
     | 'banned'
     | 'inactive'
     | 'neutral'
-    | 'positive'
+    | 'success'
     | 'warning'
     | 'danger';
 

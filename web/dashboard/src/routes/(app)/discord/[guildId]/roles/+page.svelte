@@ -76,9 +76,8 @@
     </label>
     <span class="role-controls">
       <Chip
-        on={isPinned(row)}
+        pressed={isPinned(row)}
         onclick={() => togglePin(row)}
-        aria-pressed={isPinned(row)}
         disabled={draft.config[row.field] === ''}
       >
         {t('discord.roles.pinnedChip')}

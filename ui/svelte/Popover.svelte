@@ -5,6 +5,7 @@
   import '../styles/elements/popover.css';
   import type { Snippet } from 'svelte';
   import { hasOpenOverlay, overlayContains } from '../lib/overlay-stack';
+  import { getUiI18n } from './i18n';
   import Heading from './Heading.svelte';
   import Icon from './Icon.svelte';
 
@@ -12,27 +13,28 @@
     open?: boolean;
     label: string;
     title: string;
-    closeLabel: string;
+    closeLabel?: string;
     expands?: boolean;
     placement?: 'top' | 'bottom';
-    onactivate?: () => void;
+    onActivate?: () => void;
     dismissLabel?: string;
-    ondismiss?: () => void;
+    onDismiss?: () => void;
     pill: Snippet;
     class?: string;
     children?: Snippet;
   };
 
+  const i18n = getUiI18n();
   let {
     open = $bindable(false),
     label,
     title,
-    closeLabel,
+    closeLabel = i18n.t('action.close'),
     expands = true,
     placement = 'top',
-    onactivate,
-    dismissLabel = '',
-    ondismiss,
+    onActivate,
+    dismissLabel = i18n.t('action.dismiss'),
+    onDismiss,
     pill,
     class: className = '',
     children,
@@ -60,7 +62,7 @@
 
   function activate() {
     if (expands) open = !open;
-    else onactivate?.();
+    else onActivate?.();
   }
 
   function close() {
@@ -92,8 +94,8 @@
       aria-expanded={expands ? open : undefined}
       onclick={activate}>{@render pill()}</button
     >
-    {#if ondismiss}
-      <button class="bb-popover__x" type="button" aria-label={dismissLabel} onclick={ondismiss}>
+    {#if onDismiss}
+      <button class="bb-popover__x" type="button" aria-label={dismissLabel} onclick={onDismiss}>
         <Icon name="x" size={13} />
       </button>
     {/if}

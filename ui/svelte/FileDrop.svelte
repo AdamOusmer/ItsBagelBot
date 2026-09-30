@@ -8,8 +8,8 @@
     label: string;
     file?: File | null;
     accept?: string;
-    onfile?: (file: File | undefined) => void;
-    ondragchange?: (over: boolean) => void;
+    onFileChange?: (file: File | undefined) => void;
+    onDragChange?: (over: boolean) => void;
     class?: string;
   };
 
@@ -17,8 +17,8 @@
     label,
     file = null,
     accept,
-    onfile,
-    ondragchange,
+    onFileChange,
+    onDragChange,
     class: className = '',
     ...rest
   }: Own & Omit<SvelteHTMLElements['input'], keyof Own> = $props();
@@ -30,7 +30,7 @@
   function drag(next: boolean) {
     if (over === next) return;
     over = next;
-    ondragchange?.(next);
+    onDragChange?.(next);
   }
 
   function ondragover(event: DragEvent) {
@@ -41,7 +41,7 @@
   function ondrop(event: DragEvent) {
     event.preventDefault();
     drag(false);
-    onfile?.(event.dataTransfer?.files?.[0]);
+    onFileChange?.(event.dataTransfer?.files?.[0]);
   }
 </script>
 
@@ -50,7 +50,7 @@
     type="file"
     class="bb-file-drop__input"
     {accept}
-    onchange={(event) => onfile?.(event.currentTarget.files?.[0])}
+    onchange={(event) => onFileChange?.(event.currentTarget.files?.[0])}
     {ondragover}
     ondragleave={() => drag(false)}
     {ondrop}

@@ -148,7 +148,7 @@
   function reportFailure(payload: SongQueueActionOk | undefined, fallbackKey: string) {
     if (payload?.missingScope) {
       missingScope = true;
-      toast('err', t('spotify.connection.reconnect'));
+      toast('danger', t('spotify.connection.reconnect'));
       return;
     }
     failed(payload, fallbackKey);
@@ -169,7 +169,7 @@
         queueAt = Date.now();
       }
     } catch {
-      if (manual) toast('err', t('spotify.degraded'));
+      if (manual) toast('danger', t('spotify.degraded'));
     } finally {
       queueBusy = false;
       queueRefreshing = false;
@@ -196,12 +196,12 @@
       skipping = false;
       const payload = actionPayload<SongQueueActionOk & { code?: string }>(result);
       if (isOk(result, payload)) {
-        toast('ok', t('spotify.queue.skipped'));
+        toast('success', t('spotify.queue.skipped'));
         setTimeout(() => void refreshQueue(false), SKIP_REFRESH_MS);
         return;
       }
       const key = payload?.code ? SKIP_ERROR_KEYS[payload.code] : undefined;
-      if (key) toast('err', t(key));
+      if (key) toast('danger', t(key));
       else reportFailure(payload, 'spotify.queue.skipFailed');
     };
   };
@@ -210,7 +210,7 @@
     const poll = setInterval(() => {
       if (!document.hidden) void refreshQueue(false);
     }, QUEUE_POLL_MS);
-    if (data.justConnected) toast('ok', t('spotify.connection.connectedToast'));
+    if (data.justConnected) toast('success', t('spotify.connection.connectedToast'));
     return () => clearInterval(poll);
   });
 
@@ -232,7 +232,7 @@
       }
       if (action === 'clearApp') app = { present: false, clientId: '' };
       connected = false;
-      toast('ok', t(action === 'clearApp' ? 'spotify.app.removed' : 'spotify.connection.disconnectedToast'));
+      toast('success', t(action === 'clearApp' ? 'spotify.app.removed' : 'spotify.connection.disconnectedToast'));
       await invalidateAll();
     };
   };
@@ -252,7 +252,7 @@
           reportFailure(payload, opts.failKey);
           return;
         }
-        if (opts.okKey) toast('ok', t(opts.okKey));
+        if (opts.okKey) toast('success', t(opts.okKey));
         await invalidateAll();
       };
     };
@@ -288,7 +288,7 @@
         reportFailure(payload, 'spotify.quota.saveFailed');
         return;
       }
-      toast('ok', t('spotify.quota.saved'));
+      toast('success', t('spotify.quota.saved'));
       await invalidateAll();
     };
   };
@@ -358,7 +358,7 @@
         reportFailure(payload, 'spotify.toast.saveFailed');
         return;
       }
-      toast('ok', t('spotify.toast.saved'));
+      toast('success', t('spotify.toast.saved'));
       await invalidateAll();
     };
   };
@@ -378,7 +378,7 @@
         return;
       }
       doClose();
-      toast('ok', t('spotify.toast.deleted'));
+      toast('success', t('spotify.toast.deleted'));
       await invalidateAll();
     };
   };
@@ -396,7 +396,7 @@
       control="end"
       checked={opts.checked}
       disabled={opts.disabled}
-      onchange={opts.onchange}
+      onCheckedChange={opts.onchange}
       label={opts.label}
       hint={opts.desc}
       hintId={opts.descId}
@@ -436,7 +436,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <MasterToggle
         action="?/toggle"
         bind:enabled
@@ -622,9 +622,9 @@
   body={t('spotify.discardBody')}
   confirmLabel={t('spotify.discard')}
   cancelLabel={t('spotify.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -634,10 +634,10 @@
   confirmLabel={t(connectionAction === 'clearApp' ? 'spotify.app.remove' : 'spotify.connection.disconnect')}
   cancelLabel={t('spotify.app.cancel')}
   busyLabel={t('spotify.saving')}
-  danger
   busy={connectionBusy}
   onCancel={() => (connectionAction = null)}
   onConfirm={() => connectionForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/skip" use:enhance={skipSubmit} bind:this={skipForm} hidden></form>
 <form method="POST" action={connectionAction === 'clearApp' ? '?/clearApp' : '?/disconnect'} use:enhance={connectionSubmit} bind:this={connectionForm} hidden></form>
@@ -648,10 +648,10 @@
   body={t('spotify.delete.body', { name: redeem.reward?.title || t('spotify.reward.thisReward') })}
   confirmLabel={t('spotify.delete.confirm')}
   cancelLabel={t('spotify.delete.cancel')}
-  danger
   busy={deleting}
   onCancel={() => (deletePending = false)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/deleteReward" use:enhance={deleteSubmit} bind:this={deleteForm} hidden></form>
 

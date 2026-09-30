@@ -116,7 +116,7 @@ export function createGuildDraft(init: DraftInit) {
     markSave('saved', 4000);
     invalidFields = [];
     conflicted = false;
-    toast('ok', t('discord.toast.saved'));
+    toast('success', t('discord.toast.saved'));
     await invalidateAll();
   }
 
@@ -124,7 +124,7 @@ export function createGuildDraft(init: DraftInit) {
     markSave('error', 4000);
     conflicted = p?.code === 'conflict';
     invalidFields = p?.code === 'invalid' ? (p.fields ?? []) : [];
-    toast('err', refusalText(p, t('discord.toast.saveFailed')));
+    toast('danger', refusalText(p, t('discord.toast.saveFailed')));
     if (p?.code === 'invalid') await invalidateAll();
   }
 
@@ -146,12 +146,12 @@ export function createGuildDraft(init: DraftInit) {
         busy = false;
         const p = payloadOf(result);
         if (succeeded(result, p)) {
-          toast('ok', okMsg);
+          toast('success', okMsg);
           await invalidateAll();
           return;
         }
         guarded = true;
-        toast('err', refusalText(p, failMsg));
+        toast('danger', refusalText(p, failMsg));
       };
     };
   }

@@ -105,7 +105,7 @@
 
   function applyResult(d: ActionResult) {
     if (!d.ok) {
-      if (d.error) toast('err', d.error);
+      if (d.error) toast('danger', d.error);
       return;
     }
     if (d.action === 'deleted') {
@@ -124,7 +124,7 @@
           : d.action === 'created'
             ? 'commands.toastCreated'
             : 'commands.toastUpdated';
-      toast('ok', t(key, { name: d.name ?? '' }));
+      toast('success', t(key, { name: d.name ?? '' }));
     }
   }
 
@@ -566,7 +566,7 @@
     }
     items = items.map((x) => (x.name === name ? before : x));
     flagError(name);
-    toast('err', payload?.error ?? t('commands.toastToggleFailed'));
+    toast('danger', payload?.error ?? t('commands.toastToggleFailed'));
   }
 
   const toggleSubmit =
@@ -603,7 +603,7 @@
         } else {
           items = items.map((x) => (x.name === c.name ? before : x));
           flagError(c.name);
-          toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+          toast('danger', payload?.error ?? t('commands.toastSaveFailed'));
         }
       };
     };
@@ -625,7 +625,7 @@
         } else {
           items = items.map((x) => (x.name === c.name ? before : x));
           flagError(c.name);
-          toast('err', payload?.error ?? t('commands.toastSaveFailed'));
+          toast('danger', payload?.error ?? t('commands.toastSaveFailed'));
         }
       };
     };
@@ -665,10 +665,10 @@
       applyResult({ ...payload, silent: true });
       ackSaved(snapshot.name);
       const lostUses = usesCount(snapshot) > 0n && payload.restored !== true;
-      toast('ok', t(lostUses ? 'commands.toastRestoredResets' : 'commands.toastRestored', { name: snapshot.name }));
+      toast('success', t(lostUses ? 'commands.toastRestoredResets' : 'commands.toastRestored', { name: snapshot.name }));
     } else {
       flagError(snapshot.name);
-      toast('err', t('commands.toastCouldNotRestore', { name: snapshot.name }));
+      toast('danger', t('commands.toastCouldNotRestore', { name: snapshot.name }));
     }
   }
 
@@ -682,7 +682,7 @@
     draftVersion++;
 
     let undone = false;
-    toast('ok', t('commands.toastDeletedShort', { name: c.name }), {
+    toast('success', t('commands.toastDeletedShort', { name: c.name }), {
       ttlMs: UNDO_TTL_MS,
       undoLabel: t('commands.undo'),
       onUndo: () => {
@@ -696,7 +696,7 @@
     const payload = await postAction('delete', body);
     if (!payload?.ok && !undone) {
       items = [...items.filter((x) => x.name !== snapshot.name), snapshot];
-      toast('err', payload?.error ?? t('commands.toastDeleteFailed', { name: c.name }));
+      toast('danger', payload?.error ?? t('commands.toastDeleteFailed', { name: c.name }));
     }
   }
 
@@ -757,9 +757,9 @@
     revertBulk(before, failedNames);
     for (const r of results) (r.ok ? ackSaved : flagError)(r.name);
     selected = failedNames;
-    if (!payload?.ok) toast('err', t('commands.bulkFailed'));
-    else if (doneCount > 0) toast('ok', t(BULK_DONE_KEYS[op], { count: numberFormat.format(doneCount) }));
-    if (payload?.ok && failedNames.size > 0) toast('err', t('commands.bulkPartial', { failed: numberFormat.format(failedNames.size) }));
+    if (!payload?.ok) toast('danger', t('commands.bulkFailed'));
+    else if (doneCount > 0) toast('success', t(BULK_DONE_KEYS[op], { count: numberFormat.format(doneCount) }));
+    if (payload?.ok && failedNames.size > 0) toast('danger', t('commands.bulkPartial', { failed: numberFormat.format(failedNames.size) }));
   }
 
   async function runBulk(op: BulkOp) {
@@ -851,7 +851,7 @@
 <section class="screen active">
   <PageHead eyebrow={t('commands.eyebrow')} description={t('commands.description')}>
     {t('commands.titlePre')}<em>{t('commands.titleEm')}</em>
-    {#snippet trail()}
+    {#snippet trailing()}
       <dl class="deck-stats">
         <div class="ds-cell">
           <dt><Label mono as="span">{t('commands.statActive')}</Label></dt>
@@ -879,18 +879,18 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <div class="tb-lead">
         <SegmentedControl options={stateOptions} bind:value={stateValue.get, stateValue.set} label={t('commands.filterLabel')} />
         <div class="tb-select">
-          <Select fill bind:value={permFilter} options={permOptions} label={t('commands.permLabel')} aria-label={t('commands.permLabel')} />
+          <Select fill bind:value={permFilter} options={permOptions} label={t('commands.permLabel')} />
         </div>
         <div class="tb-select">
-          <Select fill bind:value={sortKey} options={sortOptions} label={t('commands.sortLabel')} aria-label={t('commands.sortLabel')} />
+          <Select fill bind:value={sortKey} options={sortOptions} label={t('commands.sortLabel')} />
         </div>
       </div>
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <span class="keys" aria-hidden="true"><Kbd>/</Kbd> {t('commands.keysSearch')} <Kbd>N</Kbd> {t('commands.keysNew')} <Kbd>Esc</Kbd> {t('commands.keysClear')}</span>
       <div class="toolbar-search">
         <SearchInput placeholder={t('commands.searchPlaceholder')} clearLabel={t('quotes.searchClear')}
@@ -1050,9 +1050,9 @@
   body={t('commands.bulkDeleteBody', { count: numberFormat.format(selectedCustom.length) })}
   confirmLabel={t('commands.bulkDeleteConfirm', { count: numberFormat.format(selectedCustom.length) })}
   cancelLabel={t('common.cancel')}
-  danger
   onCancel={() => (bulkDeleteOpen = false)}
   onConfirm={confirmBulkDelete}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -1061,9 +1061,9 @@
   body={t('commands.discardBody')}
   confirmLabel={t('commands.discard')}
   cancelLabel={t('commands.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <svelte:window onkeydown={onKey} />

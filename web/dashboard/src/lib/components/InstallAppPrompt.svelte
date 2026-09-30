@@ -125,12 +125,12 @@
     bind:open={iosOpen}
     placement="bottom"
     expands={mode === 'ios'}
-    onactivate={runInstall}
+    onActivate={runInstall}
     label={t('install.ariaLabel')}
     title={t('install.ios.title')}
     closeLabel={t('install.ios.close')}
     dismissLabel={t('install.dismiss')}
-    ondismiss={dismiss}
+    onDismiss={dismiss}
   >
     {#snippet pill()}
       <Icon name="home" size={15} />

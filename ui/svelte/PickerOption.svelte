@@ -12,12 +12,11 @@
     layout?: 'inline' | 'stacked';
     selected?: boolean;
     disabled?: boolean;
-    onclick?: () => void;
     remove?: { label: string; armed?: boolean; armedLabel?: string; onclick: () => void };
     as?: 'div' | 'li';
     class?: string;
     children?: Snippet;
-    trail?: Snippet;
+    trailing?: Snippet;
   };
 
   let {
@@ -26,12 +25,11 @@
     layout = 'inline',
     selected = false,
     disabled = false,
-    onclick,
     remove,
     as: tag = 'div',
     class: className = '',
     children,
-    trail,
+    trailing,
     ...rest
   }: Own & Omit<SvelteHTMLElements['button'], keyof Own> = $props();
 
@@ -48,11 +46,10 @@
     class="bb-picker-option__main"
     aria-current={selected ? 'true' : undefined}
     {disabled}
-    {onclick}
     {...rest}
     >{#if children}{@render children()}{:else}<span class="bb-picker-option__label">{label}</span>{/if}{#if description}<span
         class="bb-picker-option__desc">{description}</span
-      >{/if}{#if trail}{@render trail()}{/if}</button
+      >{/if}{#if trailing}{@render trailing()}{/if}</button
   >{#if remove}<button
       type="button"
       class="bb-picker-option__remove"

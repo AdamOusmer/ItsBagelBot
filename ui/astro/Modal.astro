@@ -6,10 +6,10 @@ import { uiI18n } from './i18n';
 
 import '../styles/elements/modal.css';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'open' | 'title' | 'ariaLabel' | 'closeLabel' | 'titleId' | 'variant' | 'toolbarLabel' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'open' | 'title' | 'label' | 'closeLabel' | 'titleId' | 'variant' | 'toolbarLabel' | 'class'> {
     open?: boolean;
     title?: string;
-    ariaLabel?: string;
+    label?: string;
     closeLabel?: string;
     titleId?: string;
     variant?: 'dialog' | 'viewer';
@@ -21,7 +21,7 @@ const { t } = uiI18n(Astro);
 const {
     open = true,
     title,
-    ariaLabel,
+    label,
     closeLabel = t('action.close'),
     titleId = 'bb-modal-title',
     variant = 'dialog',
@@ -35,4 +35,4 @@ const hasToolbar = Astro.slots.has('toolbar');
 const hasHint = Astro.slots.has('hint');
 ---
 
-<div class={classes} data-overlay style="z-index: 200" hidden={!open} {...rest}><button class="bb-modal__backdrop" type="button" aria-label={closeLabel} data-cursor="quiet"></button><div class="bb-modal__card" role="dialog" aria-modal="true" tabindex="-1" aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : ariaLabel} data-lenis-prevent>{title && <h3 class="bb-modal__title" id={titleId}>{title}</h3>}{viewer ? (<Fragment><div class="bb-modal__stage"><slot /></div>{hasToolbar && (<div class="bb-modal__toolbar" role="toolbar" aria-label={toolbarLabel}><slot name="toolbar" /></div>)}{hasHint && (<div class="bb-modal__hint" aria-hidden="true"><slot name="hint" /></div>)}</Fragment>) : <slot />}</div></div>
+<div class={classes} data-overlay style="z-index: 200" hidden={!open} {...rest}><button class="bb-modal__backdrop" type="button" aria-label={closeLabel} data-cursor="quiet"></button><div class="bb-modal__card" role="dialog" aria-modal="true" tabindex="-1" aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : label} data-lenis-prevent>{title && <h3 class="bb-modal__title" id={titleId}>{title}</h3>}{viewer ? (<Fragment><div class="bb-modal__stage"><slot /></div>{hasToolbar && (<div class="bb-modal__toolbar" role="toolbar" aria-label={toolbarLabel}><slot name="toolbar" /></div>)}{hasHint && (<div class="bb-modal__hint" aria-hidden="true"><slot name="hint" /></div>)}</Fragment>) : <slot />}</div></div>

@@ -8,14 +8,14 @@
 
   type Own = {
     items: readonly { label: string; href: string; icon: IconName }[];
-    ariaLabel: string;
+    label: string;
     size?: number;
     class?: string;
   };
 
   let {
     items,
-    ariaLabel,
+    label,
     size = 17,
     class: className = '',
     ...rest
@@ -24,7 +24,7 @@
   const classes = $derived(['bb-social-rail', className || null].filter(Boolean).join(' '));
 </script>
 
-<aside class={classes} aria-label={ariaLabel} {...rest}
+<aside class={classes} aria-label={label} {...rest}
   >{#each items as item (item.href)}<a
       class="bb-social-rail__item"
       href={item.href}

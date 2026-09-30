@@ -134,7 +134,7 @@
   <AmbientSky position="contained" shift={blobRight ? 1 : -1} turn={step * 24} {px} {py} progress={done ? 1 : step / 3} leaving={done} />
   <header class="top">
     <TextLink variant="quiet" icon="arrowLeft" href="/modules" label={t('spotify.back')} />
-    <Stepper compact steps={railSteps} current={step} {maxStep} label={t('onboarding.stepOf', { n: step + 1, total: 4 })} onselect={go} />
+    <Stepper compact steps={railSteps} current={step} {maxStep} label={t('onboarding.stepOf', { n: step + 1, total: 4 })} onSelect={go} />
   </header>
   <div class="stage">
     <div class="pair">

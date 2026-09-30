@@ -114,7 +114,7 @@
   {#if c.requires}
     <Tag tone="quiet">{t('commandEditor.requires', { module: requiresLabel(c.requires) })}</Tag>
     {#if moduleFlags[c.requires] === false}
-      <Tag tone="error">{t('commandEditor.off')}</Tag>
+      <Tag tone="danger">{t('commandEditor.off')}</Tag>
     {/if}
   {/if}
 {/snippet}
@@ -173,7 +173,7 @@
           debounceMs={120}
           bind:value={searchValue}
           bind:element={searchEl}
-          oninput={(v) => (query = v)}
+          onValueChange={(v) => (query = v)}
           placeholder={t('commandEditor.allVariables')}
         />
 

@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
   import '../styles/elements/shell.css';
   import Icon from './Icon.svelte';
   import {
@@ -15,10 +16,11 @@
   import type { IconName } from '../lib/icons';
   import type { UiNavGroup, UiNavLink } from '../lib/nav-types';
 
+  const i18n = getUiI18n();
   type Own = {
     items?: UiNavLink[];
     groups?: UiNavGroup[];
-    ariaLabel?: string;
+    label?: string;
     homeHref?: string;
     fallbackIcon?: IconName;
     class?: string;
@@ -27,7 +29,7 @@
   let {
     items = [],
     groups = [],
-    ariaLabel,
+    label = i18n.t('nav.main'),
     homeHref = '/',
     fallbackIcon,
     class: className = '',
@@ -64,13 +66,13 @@
   ></div>
 {/if}
 
-<nav class={classes} aria-label={ariaLabel} {...rest}
+<nav class={classes} aria-label={label} {...rest}
   ><div class="bb-dock__inner"
     >{#if home}<a
         class="bb-dock-item"
         href={home.href}
-        data-active={home.active ? '' : undefined}
-        aria-current={home.active ? 'page' : undefined}
+        data-active={home.current ? '' : undefined}
+        aria-current={home.current ? 'page' : undefined}
         onclick={closeOnNav}
         >{#if home.icon}<Icon name={home.icon} size={18} />{/if}<span
           class="bb-dock-item__label">{home.label}</span
@@ -79,8 +81,8 @@
         group.items[0]}<a
           class="bb-dock-item"
           href={item.href}
-          data-active={item.active ? '' : undefined}
-          aria-current={item.active ? 'page' : undefined}
+          data-active={item.current ? '' : undefined}
+          aria-current={item.current ? 'page' : undefined}
           onclick={closeOnNav}
           >{#if item.icon}<Icon name={item.icon} size={18} />{/if}<span
             class="bb-dock-item__label">{item.label}</span
@@ -107,8 +109,8 @@
                   class="bb-dock__pop-item"
                   href={item.href}
                   role="menuitem"
-                  data-active={item.active ? '' : undefined}
-                  aria-current={item.active ? 'page' : undefined}
+                  data-active={item.current ? '' : undefined}
+                  aria-current={item.current ? 'page' : undefined}
                   onclick={closeOnNav}
                   >{#if item.icon}<Icon name={item.icon} />{/if}<span>{item.label}</span
                   >{#if item.count}<span class="bb-dock__pop-count">{item.count}</span
@@ -118,8 +120,8 @@
         >{/if}{/each}{#each flat as item (item.href)}<a
         class="bb-dock-item"
         href={item.href}
-        data-active={item.active ? '' : undefined}
-        aria-current={item.active ? 'page' : undefined}
+        data-active={item.current ? '' : undefined}
+        aria-current={item.current ? 'page' : undefined}
         onclick={closeOnNav}
         >{#if item.icon}<Icon name={item.icon} size={18} />{/if}<span
           class="bb-dock-item__label">{item.label}</span

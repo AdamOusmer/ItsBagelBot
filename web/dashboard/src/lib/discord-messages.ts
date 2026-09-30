@@ -56,12 +56,12 @@ export const DISCORD_PILL_KEYS = {
 
 export const DISCORD_STATE_TAG = {
   online: { tone: 'live', mark: 'solid' },
-  offline: { tone: 'error', mark: 'solid' },
+  offline: { tone: 'danger', mark: 'solid' },
   reauth: { tone: 'alpha', mark: 'dash' },
   unknown: { tone: 'quiet', mark: 'hollow' }
 } as const satisfies Record<
   keyof typeof DISCORD_PILL_KEYS,
-  { tone: 'live' | 'error' | 'alpha' | 'quiet'; mark: 'solid' | 'dash' | 'hollow' }
+  { tone: 'live' | 'danger' | 'alpha' | 'quiet'; mark: 'solid' | 'dash' | 'hollow' }
 >;
 
 export const DISCORD_BADGE_KEYS = {

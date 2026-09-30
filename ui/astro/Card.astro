@@ -7,7 +7,7 @@ import CardAtmosphere from './CardAtmosphere.astro';
 import '../styles/elements/card.css';
 
 interface Props extends Omit<HTMLAttributes<'div'>, 'as' | 'href' | 'atmo' | 'sheen' | 'stat' | 'glass' | 'hover' | 'label' | 'class'> {
-    as?: string;
+    as?: 'div' | 'a' | 'article' | 'section' | 'li' | 'aside';
     href?: string;
     atmo?: boolean;
     sheen?: boolean;

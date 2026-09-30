@@ -23,7 +23,7 @@
 
 <Card as="section">
   <CardHead title={t('admin.overview.auditTitle')}>
-    {#snippet action()}
+    {#snippet actions()}
       <a class="bb-card-head__more" href="/audit">{t('admin.overview.auditAll')}</a>
     {/snippet}
   </CardHead>
@@ -37,7 +37,7 @@
           <span class="bb-node-list__meta"><Text as="span" size="xs" mono tone="muted" truncate>{line(e)}</Text></span>
           {#if !e.ok}
             <span class="err">
-              <Tag tone="error">{e.error || t('admin.overview.auditFailed')}</Tag>
+              <Tag tone="danger">{e.error || t('admin.overview.auditFailed')}</Tag>
             </span>
           {/if}
           <span class="bb-node-list__trail">{ago(e.created_at)}</span>

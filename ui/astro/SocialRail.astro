@@ -7,19 +7,19 @@ import '../styles/elements/nav.css';
 import Icon from './Icon.astro';
 import type { IconName } from '../lib/icons';
 
-interface Props extends Omit<HTMLAttributes<'aside'>, 'items' | 'ariaLabel' | 'size' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'aside'>, 'items' | 'label' | 'size' | 'class'> {
   items: readonly { label: string; href: string; icon: IconName }[];
-  ariaLabel: string;
+  label: string;
   size?: number;
   class?: string;
 }
 
-const { items, ariaLabel, size = 17, class: className = '', ...rest } = Astro.props;
+const { items, label, size = 17, class: className = '', ...rest } = Astro.props;
 
 const classes = ['bb-social-rail', className || null].filter(Boolean).join(' ');
 ---
 
-<aside class={classes} aria-label={ariaLabel} {...rest}>{items.map((item) => (
+<aside class={classes} aria-label={label} {...rest}>{items.map((item) => (
   <a
     class="bb-social-rail__item"
     href={item.href}

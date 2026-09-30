@@ -220,7 +220,7 @@
       } else {
         await update({ reset: false });
         actionBusy = false;
-        toast('err', t('overview.actionFailed'));
+        toast('danger', t('overview.actionFailed'));
       }
     };
   }
@@ -346,7 +346,7 @@
   <SetupProgress receiving={liveUi(c).live} {hasCommands} {modulesOn} />
 {/snippet}
 
-<Modal open={pending !== null} title={modalTitle} closeModal={closeModal}>
+<Modal open={pending !== null} title={modalTitle} onClose={closeModal}>
   {#if pending !== null}
     <p class="bb-modal__body">{modalBody}</p>
     <FieldError message={actionError} />

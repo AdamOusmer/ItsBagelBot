@@ -281,7 +281,7 @@
   {leaving}
 >
   {#snippet side()}
-    <StepList steps={checklist} selected={current} label={t('admin.deploys.flow.label')} onselect={selectStep} />
+    <StepList steps={checklist} selected={current} label={t('admin.deploys.flow.label')} onSelect={selectStep} />
   {/snippet}
 
   <form method="POST" action="/deploys?/start" use:enhance={submitStart} bind:this={form} hidden>

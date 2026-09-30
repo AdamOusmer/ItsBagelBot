@@ -294,7 +294,7 @@
   </PickerPanel>
 </div>
 
-<Modal open={building} title={t('fetches.builderTitle')} busy={creating} closeModal={() => (building = false)}>
+<Modal open={building} title={t('fetches.builderTitle')} busy={creating} onClose={() => (building = false)}>
   <div class="build" bind:this={buildEl}>
     <Text size="sm" tone="muted">{t('fetches.builderIntro')}</Text>
 
@@ -373,7 +373,7 @@
       <div class="chosen">
         {#if pathPicked && path.length > 0}
           <Tag tone="bare">{t('fetches.builderPicked')}</Tag>
-          <Code tone="positive">{buildJsonPath(path)}</Code>
+          <Code tone="success">{buildJsonPath(path)}</Code>
           <Button variant="ghost" size="sm" onclick={useWholeResponse}>{t('fetches.builderWholeResponse')}</Button>
         {:else}
           <Text as="span" size="xs" tone="muted">{t('fetches.builderWholeSelected')}</Text>

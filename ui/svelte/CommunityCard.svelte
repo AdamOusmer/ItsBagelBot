@@ -4,6 +4,7 @@
   import type { SvelteHTMLElements } from 'svelte/elements';
   import { getUiI18n } from './i18n';
   import type { Snippet } from 'svelte';
+  import type { CardTone } from '../lib/tone';
   import '../styles/elements/community-card.css';
 
   const i18n = getUiI18n();
@@ -12,7 +13,7 @@
     subtitle?: string;
     total: string;
     period?: string;
-    tone?: 'green' | 'tan';
+    tone?: CardTone;
     appearance?: 'solid' | 'soft';
     artwork?: Snippet;
     /** Caller-owned details or contributor content below the cover. */
@@ -21,7 +22,7 @@
   };
 
   let {
-    title, subtitle = '', total, period = i18n.t('data.allTime'), tone = 'tan',
+    title, subtitle = '', total, period = i18n.t('data.allTime'), tone = 'warm',
     appearance = 'soft', artwork, children, class: cls = '', ...rest
   }: Own & Omit<SvelteHTMLElements['section'], keyof Own> = $props();
   const classes = $derived([

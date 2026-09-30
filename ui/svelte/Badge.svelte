@@ -5,10 +5,11 @@
   import type { Snippet } from 'svelte';
   import '../styles/tags.css';
   import '../styles/elements/badge.css';
+  import type { BadgeTone } from '../lib/tone';
 
   type Own = {
     shape?: 'tag' | 'pill';
-    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'neutral' | 'positive' | 'warning' | 'danger';
+    tone?: BadgeTone;
     mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
     sweep?: boolean;
     dashed?: boolean;

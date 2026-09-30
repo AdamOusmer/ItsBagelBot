@@ -1,14 +1,14 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-
+import type { CodeTone } from '../lib/tone';
 import '../styles/elements/typography.css';
 
 interface Props {
     block?: boolean;
     wrap?: boolean;
     maxHeight?: string;
-    tone?: 'danger' | 'positive';
+    tone?: CodeTone;
     class?: string;
 }
 

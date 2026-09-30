@@ -2,6 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
   import '../styles/elements/shell.css';
   import Brand from './Brand.svelte';
   import RailItem from './RailItem.svelte';
@@ -9,19 +10,20 @@
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiNavGroup, UiNavLink } from '../lib/nav-types';
 
+  const i18n = getUiI18n();
   type Own = {
     brand: UiBrand;
     groups: UiNavGroup[];
-    foot?: Snippet;
-    ariaLabel?: string;
+    footer?: Snippet;
+    label?: string;
     class?: string;
   };
 
   let {
     brand,
     groups,
-    foot,
-    ariaLabel,
+    footer,
+    label = i18n.t('nav.main'),
     class: className = '',
     ...rest
   }: Own & Omit<SvelteHTMLElements['aside'], keyof Own> = $props();
@@ -29,7 +31,7 @@
   const classes = $derived(['bb-rail', className || null].filter(Boolean).join(' '));
 
   let manual = $state<Record<string, boolean>>({});
-  const isOpen = (item: UiNavLink) => manual[item.href ?? ''] ?? !!item.active;
+  const isOpen = (item: UiNavLink) => manual[item.href ?? ''] ?? !!item.current;
   const toggle = (item: UiNavLink) => {
     manual[item.href ?? ''] = !isOpen(item);
   };
@@ -45,7 +47,7 @@
   });
 </script>
 
-<aside bind:this={railEl} class={classes} aria-label={ariaLabel} {...rest}
+<aside bind:this={railEl} class={classes} aria-label={label} {...rest}
   ><Brand
     title={brand.title}
     sub={brand.sub}
@@ -65,7 +67,7 @@
                 href={item.href}
                 icon={item.icon}
                 label={item.label}
-                active={item.active}
+                current={item.current}
                 locked={item.locked}
                 lockedHint={item.lockedHint}
                 count={item.count}
@@ -93,11 +95,11 @@
               href={item.href}
               icon={item.icon}
               label={item.label}
-              active={item.active}
+              current={item.current}
               locked={item.locked}
               lockedHint={item.lockedHint}
               count={item.count}
             />{/if}{/each}</div
       >{/each}</div
-  ><div class="bb-rail__spacer"></div>{#if foot}{@render foot()}{/if}</aside
+  ><div class="bb-rail__spacer"></div>{#if footer}{@render footer()}{/if}</aside
 >

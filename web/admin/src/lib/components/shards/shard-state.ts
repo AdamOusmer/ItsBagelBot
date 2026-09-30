@@ -11,19 +11,19 @@ export type ShardBadge = { label: string; tone: StatusTone };
 export function shardBadge(shard: Shard): ShardBadge {
   if (shard.state === 'unknown') return { label: 'admin.shards.stateUnknown', tone: 'neutral' };
   if (shard.state === 'unregistered') {
-    return { label: 'admin.shards.stateMissing', tone: 'error' };
+    return { label: 'admin.shards.stateMissing', tone: 'danger' };
   }
   if (shard.managed === false) return { label: 'admin.shards.stateUnmanaged', tone: 'warning' };
   if (shard.state === 'connected') return { label: 'admin.shards.stateHealthy', tone: 'success' };
   if (RESTARTING.has(shard.state)) {
     return { label: 'admin.shards.stateRestarting', tone: 'warning' };
   }
-  return { label: 'admin.shards.stateDegraded', tone: 'error' };
+  return { label: 'admin.shards.stateDegraded', tone: 'danger' };
 }
 
 export function loadTone(utilization: number, targetUtilization: number): StatusTone {
   if (utilization <= 0) return 'neutral';
-  if (utilization >= targetUtilization) return 'error';
+  if (utilization >= targetUtilization) return 'danger';
   if (utilization >= targetUtilization * 0.8) return 'warning';
   return 'success';
 }

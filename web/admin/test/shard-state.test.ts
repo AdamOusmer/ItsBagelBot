@@ -9,6 +9,6 @@ describe('shard badge', () => {
     expect(shardBadge({ shard_id: 0, node: '', bound: false, state: 'unknown' })).toEqual({ label: 'admin.shards.stateUnknown', tone: 'neutral' });
   });
   test('a vacant unresponsive shard stays degraded', () => {
-    expect(shardBadge({ shard_id: 0, node: '', bound: false, state: 'unresponsive', managed: true })).toEqual({ label: 'admin.shards.stateDegraded', tone: 'error' });
+    expect(shardBadge({ shard_id: 0, node: '', bound: false, state: 'unresponsive', managed: true })).toEqual({ label: 'admin.shards.stateDegraded', tone: 'danger' });
   });
 });

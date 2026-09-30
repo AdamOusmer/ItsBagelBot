@@ -34,7 +34,7 @@ export interface SiteColumnDef {
 export interface SiteLink {
   href: string;
   label: string;
-  active: boolean;
+  current: boolean;
   external: boolean;
 }
 
@@ -101,7 +101,7 @@ export function resolveSiteLink(def: SiteLinkDef, ctx: SiteLinkContext): SiteLin
   return {
     href,
     label: def.label ?? ctx.label(def.key ?? ''),
-    active: ctx.isActive?.(href) ?? false,
+    current: ctx.isActive?.(href) ?? false,
     external,
   };
 }

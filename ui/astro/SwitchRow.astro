@@ -2,20 +2,21 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
+import type { SwitchRowTone } from '../lib/tone';
 
 import '../styles/elements/toggle.css';
 import Switch from './Switch.astro';
 
-interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'hint' | 'hintId' | 'checked' | 'switchLabel' | 'control' | 'tone' | 'disabled' | 'pending' | 'type' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'hint' | 'hintId' | 'checked' | 'switchLabel' | 'control' | 'tone' | 'disabled' | 'busy' | 'type' | 'class'> {
     label: string;
     hint?: string;
     hintId?: string;
     checked?: boolean;
     switchLabel?: string;
     control?: 'start' | 'end';
-    tone?: 'warn';
+    tone?: SwitchRowTone;
     disabled?: boolean;
-    pending?: boolean;
+    busy?: boolean;
     type?: 'button' | 'submit';
     class?: string;
 }
@@ -29,7 +30,7 @@ const {
     control = 'start',
     tone,
     disabled = false,
-    pending = false,
+    busy = false,
     type = 'button',
     class: className = '',
     ...rest
@@ -43,7 +44,7 @@ const classes = [
     .filter(Boolean)
     .join(' ');
 const describedby = hint ? hintId : undefined;
-const toggle = { checked, label: switchLabel ?? label, describedby, disabled, pending, type };
+const toggle = { checked, label: switchLabel ?? label, describedby, disabled, busy, type };
 ---
 
 <div class={classes} {...rest}>{control === 'start' && <Switch {...toggle} />}<span class="bb-switch-row__text"><span class="bb-switch-row__label">{label}</span>{hint && <span class="bb-switch-row__hint" id={hintId}>{hint}</span>}</span>{Astro.slots.has('status') && <span class="bb-switch-row__status"><slot name="status" /></span>}{control === 'end' && <Switch {...toggle} />}{Astro.slots.has('note') && <span class="bb-switch-row__note"><slot name="note" /></span>}</div>

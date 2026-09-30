@@ -56,7 +56,7 @@
                 title={c.name || t('discord.unknownServer')}
                 meta={t(DISCORD_BADGE_KEYS[c.badge])}
               >
-                {#snippet lead()}<GuildCrest name={c.name || t('discord.unknownServer')} iconUrl={c.iconUrl} />{/snippet}
+                {#snippet leading()}<GuildCrest name={c.name || t('discord.unknownServer')} iconUrl={c.iconUrl} />{/snippet}
                 {#snippet actions()}
                   {#if c.badge === 'mine'}
                     <ButtonLink variant="secondary" href={c.openURL}>

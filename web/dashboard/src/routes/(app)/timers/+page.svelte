@@ -127,7 +127,7 @@
       const ok = result.type === 'success' && payload?.ok === true;
       const applied = requestId ? inspector.resolved(requestId, { type: ok ? 'success' : 'error' }) : false;
       if (ok) {
-        toast('ok', t(wasCreating ? 'timers.toastCreated' : 'timers.toastSaved'));
+        toast('success', t(wasCreating ? 'timers.toastCreated' : 'timers.toastSaved'));
         if (wasCreating && applied) {
           inspector.reset();
           draft = null;
@@ -172,7 +172,7 @@
       failed(res ?? undefined, 'timers.toastDeleteFailed');
       return;
     }
-    toast('ok', t('timers.toastDeleted'), {
+    toast('success', t('timers.toastDeleted'), {
       undoLabel: t('timers.undo'),
       onUndo: () => undoDelete(tmr)
     });
@@ -196,7 +196,7 @@
   {/if}
 
   <PageToolbar>
-    {#snippet lead()}
+    {#snippet leading()}
       <MasterToggle
         action="?/toggle"
         bind:enabled
@@ -206,7 +206,7 @@
         failMessage={t('timers.toastToggleFailed')}
       />
     {/snippet}
-    {#snippet trail()}
+    {#snippet trailing()}
       <Button variant="primary" onclick={openNew} disabled={creating}>
         {t('timers.newTimer')}
       </Button>
@@ -280,9 +280,9 @@
   body={t('timers.discardBody')}
   confirmLabel={t('timers.discard')}
   cancelLabel={t('timers.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <style>

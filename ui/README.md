@@ -110,6 +110,24 @@ updated before the handler runs. Astro additionally supports native option
 slots for existing callers. The adapters have separate SSR contract tests
 because Svelte pre-renders its trigger and Astro creates it during enhancement.
 
+## API conventions
+
+Both adapters follow the same prop vocabulary. `CATALOG.md` lists each block's
+props and whether it ships one adapter or both (`stable` or `svelte-only`).
+
+| Topic | Convention |
+| --- | --- |
+| `variant` vs `tone` | `variant` picks a shape or emphasis (`primary`, `secondary`, `display`). `tone` picks a colour from `neutral \| accent \| warm \| success \| warning \| danger \| info`; each component accepts a subset, typed in `lib/tone.ts`. |
+| Accessible names | `label` names the component; `<part>Label` names a part (`searchClearLabel`, `closeLabel`). Defaults come from locales, see below. |
+| Callbacks | Native DOM events keep their lowercase names (`onclick`, `oninput`). Semantic callbacks are camelCase and receive a value: `onSelect`, `onClose`, `onCheckedChange`, `onValueChange`, `onOpenChange`. When `onClose` is given it owns the open state. |
+| Bindables | `checked`, `value` and `open` are `$bindable`. |
+| State flags | `busy` for work in progress, `pressed` for toggle buttons, `current` for the active item in a set. |
+| Slots | Svelte snippets and Astro slots share names: `actions`, `footer`, `leading`, `trailing`. |
+| `class` | Always merged with the component's own classes, never replaced. |
+| Rest props | Unknown attributes land on the root element, or on the native control for form inputs. |
+| `as` | Typed to the elements the block supports. Svelte layout blocks are generic over the element, so `Cluster as="form"` accepts `method` and `action`; `Heading` and `Section` take a fixed union. Astro takes a union and types rest props as `div` attributes. |
+| Locale defaults | Built-in strings come from `locales/<code>/<ns>.json`, resolved by `setUiI18n` (Svelte) or `uiI18n(Astro)` (Astro). A prop always overrides the default. |
+
 ## Checks
 
 ```bash

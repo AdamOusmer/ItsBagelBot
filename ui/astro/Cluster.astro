@@ -2,14 +2,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/layout.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'gap' | 'justify' | 'align' | 'nowrap' | 'as' | 'class'> {
     gap?: 1 | 2 | 3 | 4 | 5 | 6;
     justify?: 'start' | 'center' | 'end' | 'between';
     align?: 'baseline' | 'stretch';
     nowrap?: boolean;
-    as?: string;
+    as?: 'div' | 'span' | 'ul' | 'ol' | 'li' | 'nav' | 'header' | 'footer' | 'section' | 'form';
     class?: string;
 }
 

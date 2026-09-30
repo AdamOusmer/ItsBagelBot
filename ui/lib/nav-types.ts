@@ -7,7 +7,7 @@ export interface UiNavLink {
   href?: string;
   label: string;
   icon?: IconName;
-  active?: boolean;
+  current?: boolean;
   locked?: boolean;
   lockedHint?: string;
   count?: string | number;

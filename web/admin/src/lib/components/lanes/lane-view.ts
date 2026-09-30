@@ -15,7 +15,7 @@ function laneHasWarning(lane: LaneView): boolean {
 }
 
 export function laneTone(lane: LaneView): StatusTone {
-  if (lane.orphan) return 'error';
+  if (lane.orphan) return 'danger';
   if (laneHasWarning(lane)) return 'warning';
   if (lane.connection === 'unknown') return 'neutral';
   return 'success';

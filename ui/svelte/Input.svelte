@@ -14,8 +14,8 @@
     mono?: boolean;
     align?: 'start' | 'end';
     class?: string;
-    icon?: Snippet;
-    trail?: Snippet;
+    leading?: Snippet;
+    trailing?: Snippet;
   };
 
   let {
@@ -26,8 +26,8 @@
     mono = false,
     align = 'start',
     class: className = '',
-    icon,
-    trail,
+    leading,
+    trailing,
     ...rest
   }: Own & Omit<SvelteHTMLElements['input'], keyof Own> = $props();
 
@@ -45,8 +45,8 @@
   );
 </script>
 
-<span class={classes} data-invalid={invalid ? '' : undefined}>{#if icon}{@render icon()}{/if}<input
+<span class={classes} data-invalid={invalid ? '' : undefined}>{#if leading}{@render leading()}{/if}<input
     {type}
     bind:value
     {...rest}
-  />{#if trail}{@render trail()}{/if}</span>
+  />{#if trailing}{@render trailing()}{/if}</span>

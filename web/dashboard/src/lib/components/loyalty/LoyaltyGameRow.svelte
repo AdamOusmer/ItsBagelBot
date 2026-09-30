@@ -54,7 +54,7 @@
       pending = false;
       if (result.type !== 'success') {
         enabled = was;
-        toast('err', t('loyalty.toastGameToggleFailed', { label: tModuleLabel(t, def) }));
+        toast('danger', t('loyalty.toastGameToggleFailed', { label: tModuleLabel(t, def) }));
       }
     };
   };
@@ -82,7 +82,7 @@
         type="submit"
         checked={enabled}
         disabled={!loyaltyOn}
-        pending={pending}
+        busy={pending}
         label={enabled ? t('modules.disableAria', { label: tModuleLabel(t, def) }) : t('modules.enableAria', { label: tModuleLabel(t, def) })}
       />
     </form>

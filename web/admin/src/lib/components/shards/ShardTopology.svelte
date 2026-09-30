@@ -140,7 +140,7 @@
                             <div class="trial-channel">
                               <header class="line spread">
                                 <strong class="trial-channel-name">{trial.display_name?.trim() || trial.broadcaster_id}</strong>
-                                <span class="dotted"><StatusDot tone={!trial.enabled ? 'neutral' : trial.state === 'receiving' ? 'success' : trial.state === 'failed' ? 'error' : 'warning'} /><Text as="span" size="xs" tone="muted">{trial.enabled ? t(`admin.trials.state.${trial.state}`) : t('admin.trials.off')}</Text></span>
+                                <span class="dotted"><StatusDot tone={!trial.enabled ? 'neutral' : trial.state === 'receiving' ? 'success' : trial.state === 'failed' ? 'danger' : 'warning'} /><Text as="span" size="xs" tone="muted">{trial.enabled ? t(`admin.trials.state.${trial.state}`) : t('admin.trials.off')}</Text></span>
                               </header>
                               <Text as="small" size="xs" mono tone="muted">{t('admin.shards.trialBroadcasterId', { id: trial.broadcaster_id })}</Text>
                               <LoadMeter eps={rate(snapshot.trial_loads?.[trial.broadcaster_id])} burstEps={burstRate(snapshot.trial_burst_loads?.[trial.broadcaster_id])} utilization={utilizationPct(rate(snapshot.trial_loads?.[trial.broadcaster_id]), capacity.websocket_rated_eps)} targetUtilization={capacity.target_utilization_pct} />
