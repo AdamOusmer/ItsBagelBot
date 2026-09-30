@@ -173,6 +173,7 @@
           <Textarea
             rows={2}
             fill
+            aria-label={i18n.t('commandEditor.responseLine', { n: String(i + 1) })}
             {invalid}
             placeholder={fieldPlaceholder(i)}
             aria-invalid={invalid ? 'true' : undefined}
@@ -215,6 +216,7 @@
       {name}
       rows={4}
       fill
+      aria-label={i18n.t('commandEditor.response')}
       {invalid}
       placeholder={fieldPlaceholder(0)}
       aria-invalid={invalid ? 'true' : undefined}

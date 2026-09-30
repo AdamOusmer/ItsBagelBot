@@ -150,6 +150,7 @@
 
       <div class="new-head"><Label mono as="span">{t('counters.pickerNew')}</Label></div>
       <Input
+        aria-label={t('counters.fieldName')}
         placeholder={t('counters.fieldNamePh')}
         maxlength={64}
         bind:value={newName}

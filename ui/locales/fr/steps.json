@@ -5,5 +5,8 @@
   "succeeded": "Réussie",
   "failed": "Échouée",
   "skipped": "Ignorée",
-  "cancelled": "Annulée"
+  "cancelled": "Annulée",
+  "completed": "Terminée",
+  "current": "Étape en cours",
+  "upcoming": "À venir"
 }

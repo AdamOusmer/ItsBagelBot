@@ -5,6 +5,8 @@ import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/stepper.css';
 import Icon from './Icon.astro';
+import VisuallyHidden from './VisuallyHidden.astro';
+import { uiI18n } from './i18n';
 
 interface Props extends Omit<HTMLAttributes<'div'>, 'steps' | 'current' | 'label' | 'orientation' | 'compact' | 'class'> {
     steps: readonly { label: string; detail?: string }[];
@@ -26,6 +28,12 @@ function itemClass(index: number): string {
     return index < current ? 'bb-stepper__item bb-stepper__item--done' : 'bb-stepper__item';
 }
 
+const { t } = uiI18n(Astro);
+function stateText(index: number): string {
+    if (index === current) return t('steps.current');
+    return t(index < current ? 'steps.completed' : 'steps.upcoming');
+}
+
 const ordinal = (index: number) => String(index + 1).padStart(2, '0');
 const currentOf = (index: number) => (index === current ? 'step' : undefined);
 ---
@@ -40,6 +48,7 @@ const currentOf = (index: number) => (index === current ? 'step' : undefined);
                 </span>
                 <span class="bb-stepper__text">
                     <span class="bb-stepper__title">{step.label}</span>
+                    <VisuallyHidden>{stateText(i)}</VisuallyHidden>
                     {step.detail && <span class="bb-stepper__detail">{step.detail}</span>}
                 </span>
             </li>
@@ -51,7 +60,7 @@ const currentOf = (index: number) => (index === current ? 'step' : undefined);
         <ol class="bb-stepper__list">
             {steps.map((step, i) => (
                 <li class={itemClass(i)}>
-                    <span class="bb-stepper__step" role="img" aria-label={step.label} aria-current={currentOf(i)}><span class="bb-stepper__num">{ordinal(i)}</span><span class="bb-stepper__pip" aria-hidden="true"></span></span>
+                    <span class="bb-stepper__step" aria-current={currentOf(i)}><span class="bb-stepper__num" aria-hidden="true">{ordinal(i)}</span><span class="bb-stepper__pip" aria-hidden="true"></span><VisuallyHidden>{step.label}, {stateText(i)}</VisuallyHidden></span>
                 </li>
             ))}
         </ol>

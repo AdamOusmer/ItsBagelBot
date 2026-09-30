@@ -1,0 +1,22 @@
+---
+// Copyright (c) 2026 Adam Ousmer. All rights reserved.
+// Proprietary. No license granted. See LICENSE.md.
+
+import Checkbox from '../../astro/Checkbox.astro';
+import Field from '../../astro/Field.astro';
+import Input from '../../astro/Input.astro';
+import Select from '../../astro/Select.astro';
+import Slider from '../../astro/Slider.astro';
+import Textarea from '../../astro/Textarea.astro';
+
+const { kind } = Astro.props;
+const options = [{ value: 'a', label: 'A' }];
+---
+
+<Field label="Channel">
+  {kind === 'Checkbox' && <Checkbox />}
+  {kind === 'Input' && <Input />}
+  {kind === 'Select' && <Select options={options} />}
+  {kind === 'Slider' && <Slider />}
+  {kind === 'Textarea' && <Textarea />}
+</Field>

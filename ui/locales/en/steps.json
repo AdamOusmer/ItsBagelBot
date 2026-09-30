@@ -5,5 +5,8 @@
   "succeeded": "Succeeded",
   "failed": "Failed",
   "skipped": "Skipped",
-  "cancelled": "Cancelled"
+  "cancelled": "Cancelled",
+  "completed": "Completed",
+  "current": "Current step",
+  "upcoming": "Upcoming"
 }

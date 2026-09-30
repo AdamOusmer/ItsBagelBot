@@ -10,6 +10,7 @@
   const i18n = getUiI18n();
   type Own = {
     title: string;
+    headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
     subtitle?: string;
     total: string;
     period?: string;
@@ -22,7 +23,7 @@
   };
 
   let {
-    title, subtitle = '', total, period = i18n.t('data.allTime'), tone = 'warm',
+    title, headingLevel = 2, subtitle = '', total, period = i18n.t('data.allTime'), tone = 'warm',
     appearance = 'soft', artwork, children, class: cls = '', ...rest
   }: Own & Omit<SvelteHTMLElements['section'], keyof Own> = $props();
   const classes = $derived([
@@ -32,7 +33,7 @@
 
 <section class={classes} aria-label={title} {...rest}>
   <div class="bb-community-card__cover">
-    <div class="bb-community-card__head"><h2 class="bb-community-card__title">{title}</h2>{#if subtitle}<p class="bb-community-card__subtitle">{subtitle}</p>{/if}</div>
+    <div class="bb-community-card__head"><svelte:element this={`h${headingLevel}`} class="bb-community-card__title">{title}</svelte:element>{#if subtitle}<p class="bb-community-card__subtitle">{subtitle}</p>{/if}</div>
     {#if artwork}<div class="bb-community-card__artwork" aria-hidden="true">{@render artwork()}</div>{/if}
     <div class="bb-community-card__measure"><strong class="bb-community-card__total">{total}</strong>{#if period}<p class="bb-community-card__period">{period}</p>{/if}</div>
   </div>

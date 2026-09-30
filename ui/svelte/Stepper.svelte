@@ -9,6 +9,8 @@
 <script lang="ts">
   import '../styles/elements/stepper.css';
   import Icon from './Icon.svelte';
+  import VisuallyHidden from './VisuallyHidden.svelte';
+  import { getUiI18n } from './i18n';
 
   type Own = {
     steps: readonly StepperStep[];
@@ -47,12 +49,18 @@
     return index < current ? 'bb-stepper__item bb-stepper__item--done' : 'bb-stepper__item';
   }
 
+  const i18n = getUiI18n();
+  function stateText(index: number): string {
+    if (index === current) return i18n.t('steps.current');
+    return i18n.t(index < current ? 'steps.completed' : 'steps.upcoming');
+  }
+
   const ordinal = (index: number) => String(index + 1).padStart(2, '0');
   const currentOf = (index: number) => (index === current ? 'step' : undefined);
 </script>
 
 {#snippet marker(index: number)}
-  <span class="bb-stepper__num">{ordinal(index)}</span>
+  <span class="bb-stepper__num" aria-hidden="true">{ordinal(index)}</span>
   <span class="bb-stepper__pip" aria-hidden="true"></span>
 {/snippet}
 
@@ -66,6 +74,7 @@
         </span>
         <span class="bb-stepper__text">
           <span class="bb-stepper__title">{step.label}</span>
+          <VisuallyHidden>{stateText(i)}</VisuallyHidden>
           {#if step.detail}<span class="bb-stepper__detail">{step.detail}</span>{/if}
         </span>
       </li>
@@ -86,13 +95,12 @@
             <button
               type="button"
               class="bb-stepper__step"
-              aria-label={step.label}
               aria-current={currentOf(i)}
               disabled={i > maxStep}
               onclick={() => onSelect(i)}
-            >{@render marker(i)}</button>
+            >{@render marker(i)}<VisuallyHidden>{step.label}, {stateText(i)}</VisuallyHidden></button>
           {:else}
-            <span class="bb-stepper__step" role="img" aria-label={step.label} aria-current={currentOf(i)}>{@render marker(i)}</span>
+            <span class="bb-stepper__step" aria-current={currentOf(i)}>{@render marker(i)}<VisuallyHidden>{step.label}, {stateText(i)}</VisuallyHidden></span>
           {/if}
         </li>
       {/each}

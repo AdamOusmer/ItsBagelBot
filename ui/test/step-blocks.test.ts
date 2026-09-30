@@ -25,6 +25,8 @@ const astro = async (component: Parameters<typeof container.renderToString>[0], 
 const WIZARD = [{ label: 'Welcome' }, { label: 'App', detail: 'Create it' }, { label: 'Keys' }];
 
 const pip = '<span class="bb-stepper__pip" aria-hidden="true"></span>';
+const num = (n: string) => `<span class="bb-stepper__num" aria-hidden="true">${n}</span>`;
+const sr = (text: string) => `<span class="bb-sr-only">${text}</span>`;
 const check =
   '<svg class="bb-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></svg>';
 
@@ -35,9 +37,9 @@ describe('Stepper', () => {
       '<nav class="bb-stepper" aria-label="Step 2 of 3" style="--stepper-i: 1; --stepper-n: 3;">' +
         '<span class="bb-stepper__track" aria-hidden="true"><span class="bb-stepper__trail"></span></span>' +
         '<ol class="bb-stepper__list">' +
-        `<li class="bb-stepper__item bb-stepper__item--done"><button type="button" class="bb-stepper__step" aria-label="Welcome"><span class="bb-stepper__num">01</span>${pip}</button></li>` +
-        `<li class="bb-stepper__item bb-stepper__item--current"><button type="button" class="bb-stepper__step" aria-label="App" aria-current="step"><span class="bb-stepper__num">02</span>${pip}</button></li>` +
-        `<li class="bb-stepper__item"><button type="button" class="bb-stepper__step" aria-label="Keys" disabled><span class="bb-stepper__num">03</span>${pip}</button></li>` +
+        `<li class="bb-stepper__item bb-stepper__item--done"><button type="button" class="bb-stepper__step">${num('01')}${pip}${sr('Welcome, Completed')}</button></li>` +
+        `<li class="bb-stepper__item bb-stepper__item--current"><button type="button" class="bb-stepper__step" aria-current="step">${num('02')}${pip}${sr('App, Current step')}</button></li>` +
+        `<li class="bb-stepper__item"><button type="button" class="bb-stepper__step" disabled>${num('03')}${pip}${sr('Keys, Upcoming')}</button></li>` +
         '</ol><span class="bb-stepper__glide" aria-hidden="true"></span></nav>',
     );
   });
@@ -53,7 +55,8 @@ describe('Stepper', () => {
   test('horizontal without onSelect is a static indicator, identical in both adapters', async () => {
     const props = { steps: WIZARD, current: 2, label: 'Step 3 of 3' };
     const html = svelte(SvelteStepper, props);
-    expect(html).toContain('<span class="bb-stepper__step" role="img" aria-label="Keys" aria-current="step">');
+    expect(html).toContain(`<span class="bb-stepper__step" aria-current="step">${num('03')}${pip}${sr('Keys, Current step')}</span>`);
+    expect(html).not.toContain('role="img"');
     expect(html).not.toContain('<button');
     expect(await astro(AstroStepper, props)).toBe(html);
   });
@@ -64,11 +67,11 @@ describe('Stepper', () => {
     expect(html).toBe(
       '<ol class="bb-stepper bb-stepper--vertical" aria-label="Stages">' +
         `<li class="bb-stepper__item bb-stepper__item--done"><span class="bb-stepper__gutter" aria-hidden="true"><span class="bb-stepper__dot">${check}</span><span class="bb-stepper__bar"></span></span>` +
-        '<span class="bb-stepper__text"><span class="bb-stepper__title">Welcome</span></span></li>' +
+        '<span class="bb-stepper__text"><span class="bb-stepper__title">Welcome</span>' + sr('Completed') + '</span></li>' +
         '<li class="bb-stepper__item bb-stepper__item--current" aria-current="step"><span class="bb-stepper__gutter" aria-hidden="true"><span class="bb-stepper__dot">2</span><span class="bb-stepper__bar"></span></span>' +
-        '<span class="bb-stepper__text"><span class="bb-stepper__title">App</span><span class="bb-stepper__detail">Create it</span></span></li>' +
+        '<span class="bb-stepper__text"><span class="bb-stepper__title">App</span>' + sr('Current step') + '<span class="bb-stepper__detail">Create it</span></span></li>' +
         '<li class="bb-stepper__item"><span class="bb-stepper__gutter" aria-hidden="true"><span class="bb-stepper__dot">3</span></span>' +
-        '<span class="bb-stepper__text"><span class="bb-stepper__title">Keys</span></span></li></ol>',
+        '<span class="bb-stepper__text"><span class="bb-stepper__title">Keys</span>' + sr('Upcoming') + '</span></li></ol>',
     );
     expect(await astro(AstroStepper, props)).toBe(html);
   });

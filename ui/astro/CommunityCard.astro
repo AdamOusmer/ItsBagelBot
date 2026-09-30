@@ -8,6 +8,7 @@ import '../styles/elements/community-card.css';
 
 interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'subtitle' | 'total' | 'period' | 'tone' | 'appearance' | 'class'> {
   title: string;
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
   subtitle?: string;
   total: string;
   period?: string;
@@ -17,9 +18,10 @@ interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'subtitle' | '
 }
 const { t } = uiI18n(Astro);
 const {
-  title, subtitle = '', total, period = t('data.allTime'), tone = 'warm',
+  title, headingLevel = 2, subtitle = '', total, period = t('data.allTime'), tone = 'warm',
   appearance = 'soft', class: cls = '', ...rest
 } = Astro.props;
+const HeadingTag = `h${headingLevel}`;
 const classes = [
   'bb-community-card', `bb-community-card--${tone}`, `bb-community-card--${appearance}`, cls,
 ].filter(Boolean).join(' ');
@@ -27,7 +29,7 @@ const classes = [
 
 <section class={classes} aria-label={title} {...rest}>
   <div class="bb-community-card__cover">
-    <div class="bb-community-card__head"><h2 class="bb-community-card__title">{title}</h2>{subtitle && <p class="bb-community-card__subtitle">{subtitle}</p>}</div>
+    <div class="bb-community-card__head"><HeadingTag class="bb-community-card__title">{title}</HeadingTag>{subtitle && <p class="bb-community-card__subtitle">{subtitle}</p>}</div>
     {Astro.slots.has('artwork') && <div class="bb-community-card__artwork" aria-hidden="true"><slot name="artwork" /></div>}
     <div class="bb-community-card__measure"><strong class="bb-community-card__total">{total}</strong>{period && <p class="bb-community-card__period">{period}</p>}</div>
   </div>

@@ -304,9 +304,9 @@ contract({
   },
   html:
     '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Source">' +
-    '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" value="all">All<span class="bb-tab__count">12</span></button>' +
-    '<button type="button" class="bb-tab " role="radio" aria-checked="false" value="mod">Modules<span class="bb-tab__count">0</span></button>' +
-    '<button type="button" class="bb-tab " role="radio" aria-checked="false" value="Plain">Plain</button></div>',
+    '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="all">All<span class="bb-tab__count">12</span></button>' +
+    '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="mod">Modules<span class="bb-tab__count">0</span></button>' +
+    '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="Plain">Plain</button></div>',
 });
 
 describe('SwitchRow', () => {

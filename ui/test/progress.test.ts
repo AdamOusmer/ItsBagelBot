@@ -56,7 +56,7 @@ const STEPS: StepItem[] = [
 const detail = createRawSnippet((step: () => StepItem) => ({ render: () => `<p>${step().id}</p>` }));
 
 test('StepList: ordered rows, every slot rendered, running row alone is current', () => {
-  const html = normalise(render(StepList, { props: { steps: STEPS, detail } }).body);
+  const html = normalise(render(StepList as never, { props: { steps: STEPS, detail } as never }).body);
   expect(html).toBe(
     '<ol class="bb-steps">' +
       '<li class="bb-step bb-step--succeeded"><div class="bb-step__row"><i class="bb-mark" aria-hidden="true"></i>' +
@@ -78,7 +78,7 @@ test('StepList: ordered rows, every slot rendered, running row alone is current'
 
 test('StepList: state words are props merged over the English defaults', () => {
   const html = normalise(
-    render(StepList, { props: { steps: STEPS, stateLabels: { running: 'En cours' } } }).body,
+    render(StepList as never, { props: { steps: STEPS, stateLabels: { running: 'En cours' } } as never }).body,
   );
   const words = [...html.matchAll(/class="bb-step__state">([^<]*)</g)].map((m) => m[1]);
   expect(words).toEqual(['Succeeded', 'En cours', 'Pending']);

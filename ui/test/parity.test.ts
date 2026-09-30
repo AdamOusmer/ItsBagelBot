@@ -171,6 +171,10 @@ import SvelteCard from './fixtures/card.svelte';
 import AstroCard from './fixtures/card.astro';
 import SvelteCardHead from './fixtures/cardhead.svelte';
 import AstroCardHead from './fixtures/cardhead.astro';
+import SvelteCardAtmosphere from '../svelte/CardAtmosphere.svelte';
+import AstroCardAtmosphere from '../astro/CardAtmosphere.astro';
+import SveltePageToolbar from '../svelte/PageToolbar.svelte';
+import AstroPageToolbar from '../astro/PageToolbar.astro';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Adapter = any;
@@ -319,6 +323,34 @@ describe('Card', () => {
   });
 });
 
+describe('CardAtmosphere', () => {
+  contract({
+    name: 'ring and sheen, hidden from assistive tech',
+    svelte: SvelteCardAtmosphere,
+    astro: AstroCardAtmosphere,
+    props: {},
+    html: '<div class="bb-card-atmo" aria-hidden="true"><span class="bb-card-atmo__ring"></span><span class="bb-card-atmo__sheen"></span></div>',
+  });
+});
+
+describe('PageToolbar', () => {
+  contract({
+    name: 'a bare toolbar keeps its growing spacer',
+    svelte: SveltePageToolbar,
+    astro: AstroPageToolbar,
+    props: {},
+    html: '<div class="bb-toolbar"><div class="bb-toolbar__grow"></div></div>',
+  });
+
+  contract({
+    name: 'class and attributes land on the toolbar',
+    svelte: SveltePageToolbar,
+    astro: AstroPageToolbar,
+    props: { class: 'filters', role: 'toolbar', 'aria-label': 'Filters' },
+    html: '<div class="bb-toolbar filters" role="toolbar" aria-label="Filters"><div class="bb-toolbar__grow"></div></div>',
+  });
+});
+
 describe('CardHead', () => {
   contract({
     name: 'title only',
@@ -334,6 +366,14 @@ describe('CardHead', () => {
     astro: AstroCardHead,
     props: { withAction: true },
     html: '<div class="bb-card-head"><h3 class="bb-card-head__title">Recent</h3><a class="bb-card-head__more" href="/x">All</a></div>',
+  });
+
+  contract({
+    name: 'headingLevel swaps the tag and keeps the class',
+    svelte: SvelteCardHead,
+    astro: AstroCardHead,
+    props: { headingLevel: 4 },
+    html: '<div class="bb-card-head"><h4 class="bb-card-head__title">Recent</h4></div>',
   });
 });
 
@@ -1214,7 +1254,7 @@ const PRIMITIVES: {
     svelte: SvelteSegmentedControl,
     astro: AstroSegmentedControl,
     props: {"options":["All","Live"],"value":"Live"},
-    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\" value=\"All\">All</button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\" value=\"Live\">Live</button></div>",
+    html: "<div class=\"bb-tabs bb-tabs--wrap\" role=\"radiogroup\" aria-label=\"Filter\"><button type=\"button\" class=\"bb-tab \" role=\"radio\" aria-checked=\"false\" tabindex=\"-1\" value=\"All\">All</button><button type=\"button\" class=\"bb-tab is-active\" role=\"radio\" aria-checked=\"true\" tabindex=\"0\" value=\"Live\">Live</button></div>",
   },
   {
     name: "RadioGroup",
