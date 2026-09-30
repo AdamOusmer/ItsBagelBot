@@ -51,8 +51,7 @@ export default defineConfig({
   },
 
   build: {
-      // Relies on style-src 'unsafe-inline': a nonce or hash CSP would block these inlined styles.
-      inlineStylesheets: 'always',
+      inlineStylesheets: 'never',
   },
 
   markdown: {

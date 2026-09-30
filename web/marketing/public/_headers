@@ -1,5 +1,5 @@
 # Keep in sync with the CSP <meta> in src/layouts/Layout.astro: the two intersect, so drift silently makes the stricter win.
-# style-src keeps 'unsafe-inline' for the reveal system's style="" attributes and Astro's inlined stylesheets.
+# style-src keeps 'unsafe-inline' for the reveal system's style="" attributes.
 /*
   Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com
   X-Frame-Options: DENY
