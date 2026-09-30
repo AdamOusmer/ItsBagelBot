@@ -92,6 +92,15 @@
   let celebrateKind = $state<'premium' | 'gift'>('premium');
   let celebrateRecipient = $state('');
   let activationSlow = $state(false);
+  const celebrateLabel = $derived(
+    celebrateKind === 'gift'
+      ? t('billing.giftSent')
+      : isPaid
+        ? t('billing.premiumActivated')
+        : activationSlow
+          ? t('billing.paymentReceived')
+          : t('billing.paymentReceivedTitle')
+  );
   let celebratedActivation = $state(false);
   let confetti = $state<
     {
@@ -659,7 +668,7 @@
   </form>
 </Modal>
 
-<Modal open={celebrateOpen} onClose={closeCelebrate}>
+<Modal open={celebrateOpen} onClose={closeCelebrate} label={celebrateLabel}>
   <div class="celebrate">
     <div class="celebrate-badge" class:celebrate-badge--gift={celebrateKind === 'gift'}>
       <Bolota

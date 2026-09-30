@@ -16,6 +16,7 @@
     closeLabel?: string;
     expands?: boolean;
     placement?: 'top' | 'bottom';
+    headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
     onActivate?: () => void;
     dismissLabel?: string;
     onDismiss?: () => void;
@@ -32,6 +33,7 @@
     closeLabel = i18n.t('action.close'),
     expands = true,
     placement = 'top',
+    headingLevel = 2,
     onActivate,
     dismissLabel = i18n.t('action.dismiss'),
     onDismiss,
@@ -43,6 +45,7 @@
 
   const uid = $props.id();
   const titleId = `bb-popover-title-${uid}`;
+  const sheetId = `bb-popover-sheet-${uid}`;
   const classes = $derived(['bb-popover', placement === 'bottom' ? 'bb-popover--bottom' : null, className || null].filter(Boolean).join(' '));
 
   let root = $state<HTMLDivElement>();
@@ -70,8 +73,8 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.key !== 'Escape' || hasOpenOverlay()) return;
-    close();
+    if (event.key !== 'Escape' || !open || hasOpenOverlay()) return;
+    if (root?.contains(document.activeElement)) close();
   }
 
   function onpointerdown(event: PointerEvent) {
@@ -92,19 +95,20 @@
       aria-label={label}
       aria-haspopup={expands ? 'dialog' : undefined}
       aria-expanded={expands ? open : undefined}
+      aria-controls={expands && open ? sheetId : undefined}
       onclick={activate}>{@render pill()}</button
     >
     {#if onDismiss}
-      <button class="bb-popover__x" type="button" aria-label={dismissLabel} onclick={onDismiss}>
+      <button class="bb-popover__x" type="button" aria-label={dismissLabel || i18n.t('action.dismiss')} onclick={onDismiss}>
         <Icon name="x" size={13} />
       </button>
     {/if}
   </div>
 
   {#if open}
-    <div class="bb-popover__sheet" role="dialog" aria-modal="false" aria-labelledby={titleId}>
+    <div class="bb-popover__sheet" id={sheetId} role="dialog" aria-modal="false" aria-labelledby={titleId} tabindex="-1">
       <div class="bb-popover__head">
-        <Heading level={6} as="h2" id={titleId}>{title}</Heading>
+        <Heading level={6} as={`h${headingLevel}`} id={titleId}>{title}</Heading>
         <button
           class="bb-popover__close"
           type="button"

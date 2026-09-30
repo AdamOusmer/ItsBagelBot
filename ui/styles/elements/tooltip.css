@@ -47,6 +47,11 @@
         transition-delay: 320ms;
     }
 
+    .bb-tooltip[data-dismissed] .bb-tooltip__bubble {
+        opacity: 0;
+        transition-delay: 0s;
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .bb-tooltip__bubble { transition: opacity 1ms linear; translate: -50% 0; }
         .bb-tooltip--bottom .bb-tooltip__bubble { translate: -50% 0; }

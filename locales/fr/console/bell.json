@@ -3,5 +3,10 @@
   "viewAll": "Tout voir →",
   "empty": "Rien pour le moment.",
   "read": "Lu",
-  "markFailed": "Impossible de marquer comme lu."
+  "markFailed": "Impossible de marquer comme lu.",
+  "unread": "Non lues : {count}",
+  "levelInfo": "Info",
+  "levelSuccess": "Succès",
+  "levelWarning": "Avertissement",
+  "levelCritical": "Critique"
 }

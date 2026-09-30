@@ -4,6 +4,10 @@
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
 @layer bb.elements {
+  .bb-copy-host {
+    display: contents;
+  }
+
   .bb-copy {
     position: relative;
     margin: 0;

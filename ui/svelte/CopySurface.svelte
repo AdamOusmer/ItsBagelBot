@@ -35,6 +35,7 @@
     onCopy,
     class: className = '',
     children,
+    onclick: userClick,
     ...rest
   }: Own & Omit<SvelteHTMLElements['button'], keyof Own> = $props();
 
@@ -50,6 +51,11 @@
 
   onDestroy(() => clearTimeout(timer));
 
+  function onclick(event: MouseEvent & { currentTarget: EventTarget & HTMLButtonElement }) {
+    userClick?.(event);
+    void copy();
+  }
+
   async function copy() {
     const ok = await copyText(text, { legacyFallback });
     onCopy?.(ok);
@@ -60,22 +66,24 @@
   }
 </script>
 
-<button
-  class={classes}
-  type="button"
-  data-copy={text}
-  data-copy-announce={announce}
-  data-copy-ms={flashMs}
-  data-copy-legacy={legacyFallback ? '' : undefined}
-  data-copied={copied ? '' : undefined}
-  onclick={copy}
-  {...rest}
-  >{#if label}<span class="bb-copy__label">{label}</span>{/if}<span class="bb-copy__row"
-    ><span class="bb-copy__value">{#if children}{@render children(copied)}{:else}{text}{/if}</span
-    ><span class="bb-copy__hint" aria-hidden="true"
-      ><span class="bb-copy__idle">{#if glyphs}<Icon name="copy" size={12} />{/if}{hint}</span
-      ><span class="bb-copy__done">{#if glyphs}<Icon name="check" size={12} />{/if}{copiedLabel}</span
+<span class="bb-copy-host"
+  ><button
+    {...rest}
+    class={classes}
+    type="button"
+    data-copy={text}
+    data-copy-announce={announce}
+    data-copy-ms={flashMs}
+    data-copy-legacy={legacyFallback ? '' : undefined}
+    data-copied={copied ? '' : undefined}
+    {onclick}
+    >{#if label}<span class="bb-copy__label">{label}</span>{/if}<span class="bb-copy__row"
+      ><span class="bb-copy__value">{#if children}{@render children(copied)}{:else}{text}{/if}</span
+      ><span class="bb-copy__hint" aria-hidden="true"
+        ><span class="bb-copy__idle">{#if glyphs}<Icon name="copy" size={12} />{/if}{hint}</span
+        ><span class="bb-copy__done">{#if glyphs}<Icon name="check" size={12} />{/if}{copiedLabel}</span
+        ></span
       ></span
-    ></span
-  ><span class="bb-copy__status" role="status">{copied ? (announce ?? copiedLabel) : ''}</span></button
+    ></button
+  ><span class="bb-copy__status" role="status">{copied ? (announce ?? copiedLabel) : ''}</span></span
 >

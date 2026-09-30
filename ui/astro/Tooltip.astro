@@ -19,3 +19,18 @@ const classes = ['bb-tooltip', placement === 'bottom' ? 'bb-tooltip--bottom' : n
 ---
 
 <span class={classes} {...rest}><slot /><span class="bb-tooltip__bubble" id={id} role={id ? 'tooltip' : undefined} aria-hidden={id ? undefined : 'true'}>{text}</span></span>
+
+<script>
+    import { wireTooltip } from '../lib/tooltip';
+
+    document.querySelectorAll<HTMLElement>('.bb-tooltip').forEach((root, index) => {
+        const bubble = root.querySelector<HTMLElement>(':scope > .bb-tooltip__bubble');
+        if (!bubble) return;
+        if (!bubble.id) {
+            bubble.id = `bb-tooltip-a${index}`;
+            bubble.setAttribute('role', 'tooltip');
+            bubble.removeAttribute('aria-hidden');
+        }
+        wireTooltip(root, bubble);
+    });
+</script>

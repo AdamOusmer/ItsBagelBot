@@ -37,7 +37,7 @@ const glyphs = variant === 'well';
 const hasChildren = Astro.slots.has('default');
 ---
 
-<button class={classes} type="button" data-copy={text} data-copy-announce={announce} data-copy-ms={flashMs} data-copy-legacy={legacyFallback ? '' : undefined} {...rest}>{label && <span class="bb-copy__label">{label}</span>}<span class="bb-copy__row"><span class="bb-copy__value">{hasChildren ? <slot /> : text}</span><span class="bb-copy__hint" aria-hidden="true"><span class="bb-copy__idle">{glyphs && <Icon name="copy" size={12} />}{hint}</span><span class="bb-copy__done">{glyphs && <Icon name="check" size={12} />}{copiedLabel}</span></span></span><span class="bb-copy__status" role="status"></span></button>
+<span class="bb-copy-host"><button {...rest} class={classes} type="button" data-copy={text} data-copy-announce={announce} data-copy-ms={flashMs} data-copy-legacy={legacyFallback ? '' : undefined}>{label && <span class="bb-copy__label">{label}</span>}<span class="bb-copy__row"><span class="bb-copy__value">{hasChildren ? <slot /> : text}</span><span class="bb-copy__hint" aria-hidden="true"><span class="bb-copy__idle">{glyphs && <Icon name="copy" size={12} />}{hint}</span><span class="bb-copy__done">{glyphs && <Icon name="check" size={12} />}{copiedLabel}</span></span></span></button><span class="bb-copy__status" role="status"></span></span>
 
 <script>
     import { copyText } from '../lib/clipboard';
@@ -47,7 +47,7 @@ const hasChildren = Astro.slots.has('default');
 
     function flash(surface: HTMLElement, on: boolean): void {
         surface.toggleAttribute('data-copied', on);
-        const status = surface.querySelector('.bb-copy__status');
+        const status = surface.parentElement?.querySelector('.bb-copy__status');
         const done = surface.querySelector('.bb-copy__done')?.textContent ?? '';
         if (status) status.textContent = on ? (surface.dataset.copyAnnounce ?? done) : '';
     }
