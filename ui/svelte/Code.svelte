@@ -1,9 +1,18 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/typography.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    block?: boolean;
+    wrap?: boolean;
+    maxHeight?: string;
+    tone?: 'danger' | 'positive';
+    class?: string;
+    children: Snippet;
+  };
 
   let {
     block = false,
@@ -13,15 +22,7 @@
     class: className = '',
     children,
     ...rest
-  }: {
-    block?: boolean;
-    wrap?: boolean;
-    maxHeight?: string;
-    tone?: 'danger' | 'positive';
-    class?: string;
-    children: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(
     ['bb-code', tone ? `bb-code--${tone}` : null, className || null].filter(Boolean).join(' '),

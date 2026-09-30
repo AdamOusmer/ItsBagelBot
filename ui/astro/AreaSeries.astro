@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/area-series.css';
 import {
@@ -12,14 +13,13 @@ import {
     AREA_TICK_BOTTOM,
 } from '../lib/area-series';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'svg'>, 'values' | 'ticks' | 'ariaLabel' | 'height' | 'uid' | 'class'> {
     values: readonly number[];
     ticks?: readonly number[];
     ariaLabel: string;
     height?: number;
     uid: string;
     class?: string;
-    [key: string]: unknown;
 }
 
 const { values, ticks = [], ariaLabel, height = 178, uid, class: className = '', ...rest } =

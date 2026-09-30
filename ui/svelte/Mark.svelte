@@ -1,8 +1,15 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/tags.css';
+
+  type Own = {
+    variant?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
+    size?: string;
+    style?: string;
+    class?: string;
+  };
 
   let {
     variant = 'solid',
@@ -10,13 +17,7 @@
     style,
     class: className = '',
     ...rest
-  }: {
-    variant?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
-    size?: string;
-    style?: string;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['i'], keyof Own> = $props();
 
   const classes = $derived(
     ['bb-mark', variant === 'solid' ? null : `bb-mark--${variant}`, className || null].filter(Boolean).join(' '),

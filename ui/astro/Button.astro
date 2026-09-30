@@ -1,72 +1,43 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-
+import type { HTMLAttributes } from 'astro/types';
+import { buttonClass, hasMark, type ButtonSize, type ButtonTone, type ButtonVariant } from '../lib/button';
 import '../styles/elements/button.css';
 
-interface Props {
-    variant?: 'primary' | 'secondary' | 'ghost' | 'green' | 'destructive' | 'icon' | 'tan' | 'quiet' | 'go' | 'add' | 'brand';
-    as?: 'button' | 'span';
-    solid?: boolean;
-    danger?: boolean;
+interface Props extends Omit<HTMLAttributes<'button'>, 'type' | 'disabled' | 'class'> {
+    variant?: ButtonVariant;
+    tone?: ButtonTone;
+    size?: ButtonSize;
     block?: boolean;
-    size?: 'md' | 'sm';
+    as?: 'button' | 'span';
     type?: 'button' | 'submit' | 'reset';
-    href?: string;
-    loading?: boolean;
+    busy?: boolean;
     done?: boolean;
     disabled?: boolean;
     class?: string;
-    [key: string]: unknown;
 }
 
 const {
     variant = 'primary',
-    as = 'button',
-    solid = false,
-    danger = false,
-    block = false,
+    tone = 'neutral',
     size = 'md',
+    block = false,
+    as: Tag = 'button',
     type = 'button',
-    href,
-    loading = false,
+    busy = false,
     done = false,
     disabled = false,
-    class: cls = '',
+    class: className,
     ...rest
 } = Astro.props;
-
-if (variant === 'icon' && !rest['aria-label'] && !rest['aria-labelledby']) {
-    throw new Error('<Button variant="icon"> needs an aria-label (icon-only button has no text).');
-}
-
-const isStatic = !href && as === 'span';
-
-const classes = [
-    'bb-btn',
-    `bb-btn--${variant}`,
-    isStatic && 'bb-btn--static',
-    solid && 'bb-btn--solid',
-    danger && 'bb-btn--danger-hover',
-    block && 'bb-btn--block',
-    size === 'sm' && 'bb-btn--sm',
-    loading && 'is-loading',
-    done && 'is-done',
-    cls,
-]
-    .filter(Boolean)
-    .join(' ');
-
-const isDisabled = disabled || loading;
-const marked = variant !== 'icon' && variant !== 'add';
-const Tag = href ? 'a' : as;
-const linkProps = disabled ? { role: 'link', 'aria-disabled': 'true' } : { href };
-const buttonProps = { type, disabled: isDisabled, 'aria-busy': loading ? 'true' : undefined };
-const elementProps = href ? linkProps : isStatic ? {} : buttonProps;
+const isStatic = Tag === 'span';
+const classes = [buttonClass({ variant, tone, size, block, busy, done, static: isStatic }), className].filter(Boolean).join(' ');
+const control = isStatic ? {} : { type, disabled: disabled || busy, 'aria-busy': busy ? 'true' : undefined };
 ---
 
-<Tag class={classes} {...elementProps} data-mark="" {...rest}>
-    {marked && <i class="bb-btn__mark" aria-hidden="true" />}
+<Tag class={classes} {...control} data-mark="" {...rest}>
+    {hasMark(variant) && <i class="bb-btn__mark" aria-hidden="true" />}
     <span class="bb-btn__content"><slot /></span>
-    {loading && <span class="bb-btn__spinner" aria-hidden="true" />}
+    {busy && <span class="bb-btn__spinner" aria-hidden="true" />}
 </Tag>

@@ -1,13 +1,13 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/orbs.css';
 import '../styles/elements/aurora.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'class'> {
     class?: string;
-    [key: string]: unknown;
 }
 
 const { class: className = '', ...rest } = Astro.props;

@@ -1,6 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { HTMLAttributes } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
   // The native control bridges forms, validation, reset and real change events.
   // After mounting, selection uses the same portal and mobile sheet as pickers.
   import { onMount, tick } from 'svelte';
@@ -13,14 +15,8 @@
   import '../styles/elements/input.css';
   import '../styles/elements/select.css';
 
-  let {
-    value = $bindable(''), options, searchable = false,
-    searchPlaceholder = 'Search…', searchClearLabel = 'Clear search',
-    emptyLabel = 'No matches', placeholder = 'Select…', label,
-    filterOptions = filterSelectOptions, invalid = false, fill = false,
-    id, name, form, disabled = false, required = false,
-    class: className = '', onchange, oninput, ...rest
-  }: {
+  const i18n = getUiI18n();
+  type Own = {
     value?: string;
     options: readonly SelectOption[];
     /** Show the search field. Small lists can omit it. */
@@ -42,12 +38,20 @@
     class?: string;
     onchange?: (event: Event & { currentTarget: HTMLSelectElement }) => void;
     oninput?: (event: Event & { currentTarget: HTMLSelectElement }) => void;
-    [key: string]: unknown;
-  } = $props();
+  };
+
+  let {
+    value = $bindable(''), options, searchable = false,
+    searchPlaceholder = i18n.t('search.placeholder'), searchClearLabel = i18n.t('search.clear'),
+    emptyLabel = i18n.t('search.empty'), placeholder = i18n.t('select.placeholder'), label,
+    filterOptions = filterSelectOptions, invalid = false, fill = false,
+    id, name, form, disabled = false, required = false,
+    class: className = '', onchange, oninput, ...rest
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const uid = $props.id();
   const controlId = $derived(id || uid);
-  const panelLabel = $derived(label || String(rest['aria-label'] || 'Select an option'));
+  const panelLabel = $derived(label || String(rest['aria-label'] || i18n.t('select.label')));
   const classes = $derived(['bb-input', 'bb-input--select', 'bb-select__trigger', fill ? 'bb-input--fill' : '', className].filter(Boolean).join(' '));
   const selected = $derived(options.find((option) => option.value === value));
 

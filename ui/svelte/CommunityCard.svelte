@@ -1,13 +1,13 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
   import type { Snippet } from 'svelte';
   import '../styles/elements/community-card.css';
 
-  let {
-    title, subtitle = '', total, period = 'All time', tone = 'tan',
-    appearance = 'soft', artwork, children, class: cls = '', ...rest
-  }: {
+  const i18n = getUiI18n();
+  type Own = {
     title: string;
     subtitle?: string;
     total: string;
@@ -18,8 +18,12 @@
     /** Caller-owned details or contributor content below the cover. */
     children?: Snippet;
     class?: string;
-    [key: string]: unknown;
-  } = $props();
+  };
+
+  let {
+    title, subtitle = '', total, period = i18n.t('data.allTime'), tone = 'tan',
+    appearance = 'soft', artwork, children, class: cls = '', ...rest
+  }: Own & Omit<SvelteHTMLElements['section'], keyof Own> = $props();
   const classes = $derived([
     'bb-community-card', `bb-community-card--${tone}`, `bb-community-card--${appearance}`, cls,
   ].filter(Boolean).join(' '));

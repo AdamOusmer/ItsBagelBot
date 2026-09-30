@@ -218,11 +218,12 @@
   <div class="acts">
     <span class="follow" class:gone={pinned === null}>
       <Button
-        variant="green"
+        variant="secondary"
         size="sm"
         tabindex={pinned === null ? -1 : undefined}
         aria-hidden={pinned === null}
         onclick={() => select(live)}
+        tone="success"
       >
         {t('admin.deploys.run.follow')}
       </Button>
@@ -260,7 +261,7 @@
     color: var(--bb-green-glow);
   }
   .state.failed {
-    color: var(--bb-status-error);
+    color: var(--bb-status-danger);
   }
   .state.pending,
   .state.skipped,

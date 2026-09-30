@@ -6,7 +6,7 @@ import PageHero from '@bagel/ui/astro/PageHero.astro';
 import SectionHeading from '@bagel/ui/astro/SectionHeading.astro';
 import Card from '@bagel/ui/astro/Card.astro';
 import Faq from '../pricing/Faq.astro';
-import Button from '@bagel/ui/astro/Button.astro';
+import ButtonLink from '@bagel/ui/astro/ButtonLink.astro';
 import Section from '@bagel/ui/astro/Section.astro';
 import Grid from '@bagel/ui/astro/Grid.astro';
 import Cluster from '@bagel/ui/astro/Cluster.astro';
@@ -83,8 +83,8 @@ const {
 <Section class="flcta">
     <SectionHeading title={ctaTitle} class="flcta__title" />
     <Cluster justify="center" gap={3} class="flcta__actions" data-reveal>
-        <Button href={ctaPrimary.href}>{ctaPrimary.label}</Button>
-        {ctaSecondary && <Button variant="quiet" href={ctaSecondary.href}>{ctaSecondary.label}</Button>}
+        <ButtonLink href={ctaPrimary.href}>{ctaPrimary.label}</ButtonLink>
+        {ctaSecondary && <ButtonLink variant="secondary" href={ctaSecondary.href}>{ctaSecondary.label}</ButtonLink>}
     </Cluster>
     {legal && <Text size="xs" mono tone="muted" class="flcta__legal">{legal}</Text>}
 </Section>

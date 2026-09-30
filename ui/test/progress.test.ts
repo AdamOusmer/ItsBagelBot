@@ -44,7 +44,8 @@ for (const c of BAR_CASES) {
   });
 }
 
-type StepItem = { id: string; label: string; state: string; value?: number | null; meta?: string; href?: string };
+type StepState = 'pending' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'skipped' | 'cancelled';
+type StepItem = { id: string; label: string; state: StepState; value?: number | null; meta?: string; href?: string };
 
 const STEPS: StepItem[] = [
   { id: 'tag', label: 'Tag', state: 'succeeded', href: '/runs/1#tag' },

@@ -1,26 +1,26 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/button.css';
 import '../styles/elements/tooltip.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'button'>, 'label' | 'tooltip' | 'size' | 'tone' | 'type' | 'disabled' | 'class'> {
     label: string;
     tooltip?: boolean;
     size?: 'md' | 'sm';
-    danger?: boolean;
+    tone?: 'neutral' | 'danger';
     type?: 'button' | 'submit' | 'reset';
     disabled?: boolean;
     class?: string;
-    [key: string]: unknown;
 }
 
 const {
     label,
     tooltip = false,
     size = 'md',
-    danger = false,
+    tone = 'neutral',
     type = 'button',
     disabled = false,
     class: className = '',
@@ -30,7 +30,7 @@ const classes = [
     'bb-btn',
     'bb-btn--icon',
     size === 'sm' ? 'bb-btn--sm' : null,
-    danger ? 'bb-btn--danger-hover' : null,
+    tone === 'danger' ? 'bb-btn--danger-hover' : null,
     className,
 ]
     .filter(Boolean)

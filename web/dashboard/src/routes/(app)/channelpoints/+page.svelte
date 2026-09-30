@@ -14,19 +14,21 @@
     Button,
     ButtonLink,
     toast,
-    getI18n,
-    blankReward,
-    type ChannelPointReward,
-    MasterToggle,
     PageToolbar,
     AlertBanner,
     DeckLayout,
     DeckList,
     EmptyState,
-    actionPayload,
     focusFirstInvalid,
-    createDiscardGuard,
-    type ActionOk,
+    createDiscardGuard
+  } from '@bagel/ui/svelte';
+  import {
+    getI18n,
+    blankReward,
+    type ChannelPointReward,
+    MasterToggle,
+    actionPayload,
+    type ActionOk
   } from '@bagel/kit';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import RewardRow from '$lib/components/channelpoints/RewardRow.svelte';
@@ -200,9 +202,9 @@
   {/if}
 
   {#if missingScope}
-    <AlertBanner variant="warn">
+    <AlertBanner tone="warning">
       {t('channelpoints.reconnect')}
-      {#snippet action()}
+      {#snippet actions()}
         <ButtonLink variant="primary" href="/login?next=/channelpoints" data-sveltekit-reload>{t('channelpoints.reconnectCta')}</ButtonLink>
       {/snippet}
     </AlertBanner>

@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AuroraBg, Chip, Code, EmptyState, Eyebrow, Heading, Lead, LightField, AlertBanner, Card, Table, Tag, Text, TextLink, formatPointValue, getI18n } from '@bagel/kit';
+  import { AuroraBg, Chip, Code, EmptyState, Eyebrow, Heading, Lead, LightField, AlertBanner, Card, Table, Tag, Text, TextLink } from '@bagel/ui/svelte';
+  import { formatPointValue, getI18n } from '@bagel/kit';
   import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';
   import { commandsHref } from '@bagel/kit/site-links';
@@ -59,7 +60,7 @@
 
   {#if data.degraded}
     <div class="notice reveal">
-      <AlertBanner variant="warn">{t('leaderboard.degraded')}</AlertBanner>
+      <AlertBanner tone="warning">{t('leaderboard.degraded')}</AlertBanner>
     </div>
   {:else if data.top.length === 0}
     <div class="empty reveal">

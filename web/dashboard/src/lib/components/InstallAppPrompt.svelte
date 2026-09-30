@@ -148,7 +148,7 @@
       </li>
     </ol>
 
-    <Button variant="green" block onclick={() => (iosOpen = false)}>{t('common.gotIt')}</Button>
+    <Button variant="secondary" block onclick={() => (iosOpen = false)} tone="success">{t('common.gotIt')}</Button>
   </Popover>
 {/if}
 

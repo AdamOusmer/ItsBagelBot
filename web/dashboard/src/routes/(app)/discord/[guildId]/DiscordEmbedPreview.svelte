@@ -2,7 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
-  import { Text, getI18n } from '@bagel/kit';
+  import { Text } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
 
   let {
     title,

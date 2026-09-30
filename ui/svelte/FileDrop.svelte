@@ -1,7 +1,17 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/file-drop.css';
+
+  type Own = {
+    label: string;
+    file?: File | null;
+    accept?: string;
+    onfile?: (file: File | undefined) => void;
+    ondragchange?: (over: boolean) => void;
+    class?: string;
+  };
 
   let {
     label,
@@ -11,15 +21,7 @@
     ondragchange,
     class: className = '',
     ...rest
-  }: {
-    label: string;
-    file?: File | null;
-    accept?: string;
-    onfile?: (file: File | undefined) => void;
-    ondragchange?: (over: boolean) => void;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['input'], keyof Own> = $props();
 
   let over = $state(false);
 

@@ -76,18 +76,14 @@
   }
 
   .bb-btn--secondary,
-  .bb-btn--tan,
-  .bb-btn--quiet,
   .bb-btn--icon {
     border-color: var(--bb-border-chip);
     color: var(--bb-tan-light);
   }
 
   .bb-btn--secondary:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
-  .bb-btn--tan:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
-  .bb-btn--quiet:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
   .bb-btn--icon:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
-  a:hover .bb-btn--static:is(.bb-btn--secondary, .bb-btn--tan, .bb-btn--quiet) {
+  a:hover .bb-btn--static.bb-btn--secondary {
     background: rgba(var(--bb-tan-rgb), 0.08);
     border-color: rgba(var(--bb-tan-rgb), 0.5);
     color: var(--bb-tan-pale);
@@ -114,48 +110,40 @@
     color: var(--bb-tan-light);
   }
 
-  .bb-btn--green,
   .bb-btn--go {
     border-color: var(--bb-green-light);
     color: var(--bb-green-glow);
     --btn-spinner: var(--bb-green-glow);
   }
 
-  .bb-btn--green:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
   .bb-btn--go:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
     background: var(--bb-green);
     color: var(--bb-white);
   }
 
-  .bb-btn--go-solid,
-  .bb-btn--go.bb-btn--solid,
-  .bb-btn--green.bb-btn--solid {
+  .bb-btn--go-solid {
     border-color: var(--bb-green-light);
     background: var(--bb-green);
     color: var(--bb-white);
   }
 
-  .bb-btn--go-solid:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
-  .bb-btn--go.bb-btn--solid:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
-  .bb-btn--green.bb-btn--solid:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+  .bb-btn--go-solid:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
     border-color: var(--bb-green-glow);
     background: var(--bb-green-light);
     color: var(--bb-white);
   }
 
-  .bb-btn--destructive,
   .bb-btn--danger {
     border-style: dashed;
-    border-color: rgba(var(--bb-danger-rgb), 0.4);
-    color: var(--bb-danger);
-    --btn-spinner: var(--bb-danger);
+    border-color: rgba(var(--bb-status-danger-rgb), 0.4);
+    color: var(--bb-status-danger);
+    --btn-spinner: var(--bb-status-danger);
   }
 
-  .bb-btn--destructive:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done),
   .bb-btn--danger:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    background: rgba(var(--bb-danger-rgb), 0.08);
-    border-color: rgba(var(--bb-danger-rgb), 0.6);
-    color: var(--bb-danger);
+    background: rgba(var(--bb-status-danger-rgb), 0.08);
+    border-color: rgba(var(--bb-status-danger-rgb), 0.6);
+    color: var(--bb-status-danger);
   }
 
   .bb-btn--brand {
@@ -244,8 +232,8 @@
   }
 
   .bb-btn.bb-btn--danger-hover:hover:not(:disabled):not([aria-disabled="true"]):not(.is-done) {
-    color: var(--bb-status-error);
-    border-color: rgba(var(--bb-status-error-border-rgb), 0.4);
+    color: var(--bb-status-danger);
+    border-color: rgba(var(--bb-status-danger-border-rgb), 0.4);
   }
 
   .bb-btn:disabled,

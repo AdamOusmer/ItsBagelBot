@@ -198,6 +198,13 @@ const ENTRIES: {
     source: `import * as m from "../../lib/roving-focus";
              globalThis.x = m;`,
   },
+  {
+    name: "i18n",
+    budget: 1410, // 1132 B: lookup plus the en and fr catalogs, both bundled; +150 B platform, +10%
+    external: [],
+    source: `import { createUiI18n, uiText, resolveUiLocale } from "../../lib/i18n";
+             globalThis.x = [createUiI18n, uiText, resolveUiLocale];`,
+  },
 ];
 
 const CSS_ENTRIES: { name: string; budget: number }[] = [
@@ -251,7 +258,6 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/log-tail", budget: 440 },
   // Stats contracts, macOS/arm64: measured gzip bytes +150 B platform variance and ~10% room.
   { name: "elements/ambient-sky", budget: 1130 }, // 869 B
-  { name: "elements/stats-page-layout", budget: 1520 }, // 1231 B
   { name: "elements/counter-card", budget: 1180 }, // 917 B
   { name: "elements/community-card", budget: 1020 }, // 773 B
   { name: "elements/ranking-card", budget: 1190 }, // 928 B
@@ -272,7 +278,6 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/popover", budget: 1230 }, // 964 B: bottom placement, touch areas (2026-09-29)
   { name: "elements/copy-surface", budget: 1620 }, // 1319 B
   { name: "elements/profile-menu", budget: 2010 }, // 1675 B: menu height cap, coarse-pointer targets (2026-09-29)
-  { name: "elements/notifications", budget: 1410 }, // 1133 B: coarse-pointer touch area (2026-09-29)
   { name: "elements/nav-progress", budget: 510 }, // 310 B: nav progress bar (2026-09-29)
 ];
 

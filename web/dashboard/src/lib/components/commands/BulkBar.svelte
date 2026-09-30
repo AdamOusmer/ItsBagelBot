@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Text, getI18n } from '@bagel/kit';
+  import { Button, Text } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -34,7 +35,7 @@
   <span class="bulk-grow"></span>
   <span class="hit"><Button variant="secondary" size="sm" onclick={onEnable} disabled={none}>{t('commands.bulkEnable')}</Button></span>
   <span class="hit"><Button variant="secondary" size="sm" onclick={onDisable} disabled={none}>{t('commands.bulkDisable')}</Button></span>
-  <span class="hit"><Button variant="destructive" size="sm" onclick={onDelete} disabled={none || deletable === 0}>{t('commands.bulkDelete')}</Button></span>
+  <span class="hit"><Button size="sm" onclick={onDelete} disabled={none || deletable === 0} tone="danger">{t('commands.bulkDelete')}</Button></span>
   <span class="hit"><Button variant="ghost" size="sm" onclick={onDone} disabled={busy}>{t('commands.selectDone')}</Button></span>
 </div>
 

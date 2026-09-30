@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Cluster, Field, Input, Select, focusFirstInvalid, getI18n, namespaceReplyTemplate } from '@bagel/kit';
+  import { Button, Cluster, Field, Input, Select, focusFirstInvalid } from '@bagel/ui/svelte';
+  import { getI18n, namespaceReplyTemplate } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
 
@@ -111,7 +112,7 @@
 
   <div class="actions">
     {#if !isNew}
-      <Button variant="destructive" onclick={onDelete} disabled={busy}>{t('common.delete')}</Button>
+      <Button onclick={onDelete} disabled={busy} tone="danger">{t('common.delete')}</Button>
     {/if}
     <div class="end">
       <Cluster gap={3}>

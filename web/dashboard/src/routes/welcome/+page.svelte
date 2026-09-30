@@ -577,9 +577,9 @@
               {:else}
                 {#if last}
                   {#if setup === 'import'}
-                    <Button variant="green" solid data-react="excited" onclick={startImport}>{tr('onboarding.choiceImportCta')}</Button>
+                    <Button data-react="excited" onclick={startImport} tone="success">{tr('onboarding.choiceImportCta')}</Button>
                   {:else}
-                    <Button variant="green" solid data-react="excited" onclick={finish}>{tr('onboarding.finishCta')}</Button>
+                    <Button data-react="excited" onclick={finish} tone="success">{tr('onboarding.finishCta')}</Button>
                   {/if}
                 {:else}
                   <Button
@@ -593,7 +593,7 @@
               {/if}
             </div>
             {#if saveError}
-              <div class="save-error"><AlertBanner variant="danger">{tr('onboarding.saveError')}</AlertBanner></div>
+              <div class="save-error"><AlertBanner tone="danger">{tr('onboarding.saveError')}</AlertBanner></div>
             {/if}
           </section>
         {/key}

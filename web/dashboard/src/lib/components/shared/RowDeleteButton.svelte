@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, IconButton } from '@bagel/kit';
+  import { Icon, IconButton } from '@bagel/ui/svelte';
 
   let {
     label,
@@ -15,7 +15,7 @@
 </script>
 
 <span class="row-delete">
-  <IconButton size="sm" danger {label} {disabled} {onclick}><Icon name="trash" size={15} /></IconButton>
+  <IconButton size="sm" {label} {disabled} {onclick} tone="danger"><Icon name="trash" size={15} /></IconButton>
 </span>
 
 <style>

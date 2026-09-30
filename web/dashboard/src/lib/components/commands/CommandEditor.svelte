@@ -13,7 +13,9 @@
     Text,
     Scroller,
     EditorFooter,
-    Switch,
+    Switch
+  } from '@bagel/ui/svelte';
+  import {
     PERMS,
     tPerm,
     validateCommand,
@@ -25,14 +27,14 @@
     translateValidationMessage,
     type CommandErrors
   } from '@bagel/kit';
-  import { Checkbox } from '@bagel/kit';
+  import { Checkbox } from '@bagel/ui/svelte';
   import AliasChips from './AliasChips.svelte';
   import ResponseEditor from './ResponseEditor.svelte';
   import type { SourceDef } from './fetches/FetchSourcePicker.svelte';
   import ChatPreview from './ChatPreview.svelte';
   import { nameConflict } from './name-conflict';
   import { draftRef, loadDraft, saveDraft, type BoardId, type CommandDraft } from './drafts';
-  import { focusFirstInvalid } from '@bagel/kit';
+  import { focusFirstInvalid } from '@bagel/ui/svelte';
 
   let {
     draft = $bindable<CommandDraft>(),
@@ -211,7 +213,7 @@
       <Input
         type="number"
         name="cooldown"
-        min="0"
+        min={0}
         max={COOLDOWN_MAX}
         invalid={!!errors.cooldown}
         aria-invalid={errors.cooldown ? 'true' : undefined}
@@ -268,7 +270,7 @@
   >
     <Input
       name="bump_counter"
-      maxlength="64"
+      maxlength={64}
       placeholder={t('commandEditor.bumpCounterPlaceholder')}
       invalid={!!errors.bump_counter}
       aria-invalid={errors.bump_counter ? 'true' : undefined}

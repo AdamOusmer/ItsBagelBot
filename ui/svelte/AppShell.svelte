@@ -1,13 +1,34 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/shell.css';
   import Topbar from './Topbar.svelte';
   import Dock from './Dock.svelte';
   import Rail from './Rail.svelte';
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiCrumb, UiNavGroup, UiNavLink } from '../lib/nav-types';
+
+  type Own = {
+    brand: UiBrand;
+    crumbs?: UiCrumb[];
+    groups?: UiNavGroup[];
+    dockItems?: UiNavLink[];
+    rail?: boolean;
+    offset?: boolean;
+    stacked?: boolean;
+    skipLabel: string;
+    crumbAriaLabel?: string;
+    dockAriaLabel?: string;
+    railAriaLabel?: string;
+    clock?: boolean;
+    banner?: Snippet;
+    topActions?: Snippet;
+    account?: Snippet;
+    railFoot?: Snippet;
+    children: Snippet;
+    class?: string;
+  };
 
   let {
     brand,
@@ -29,27 +50,7 @@
     children,
     class: className = '',
     ...rest
-  }: {
-    brand: UiBrand;
-    crumbs?: UiCrumb[];
-    groups?: UiNavGroup[];
-    dockItems?: UiNavLink[];
-    rail?: boolean;
-    offset?: boolean;
-    stacked?: boolean;
-    skipLabel: string;
-    crumbAriaLabel?: string;
-    dockAriaLabel?: string;
-    railAriaLabel?: string;
-    clock?: boolean;
-    banner?: Snippet;
-    topActions?: Snippet;
-    account?: Snippet;
-    railFoot?: Snippet;
-    children: Snippet;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(
     [

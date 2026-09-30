@@ -5,8 +5,8 @@
   // Composition only: callers supply live data, copy and their own artwork.
   // The shared layout owns responsive placement and the onboarding sky.
   import type { Snippet } from 'svelte';
-  import AmbientSky from './AmbientSky.svelte';
-  import '../styles/elements/stats-page-layout.css';
+  import AmbientSky from '@bagel/ui/svelte/AmbientSky.svelte';
+  import './stats-page-layout.css';
 
   let {
     heading, crowd, counters, ranking, community, notice, footer,
@@ -27,22 +27,22 @@
     [key: string]: unknown;
   } = $props();
 
-  const classes = $derived(['bb-stats-page', `bb-stats-page--${arrangement}`, className].filter(Boolean).join(' '));
+  const classes = $derived(['stats-page', `stats-page--${arrangement}`, className].filter(Boolean).join(' '));
 </script>
 
 <div class={classes} {...rest}>
-  <AmbientSky position="fixed" progress={0.65} turn={24} />
-  <div class="bb-stats-page__inner">
-    <header class="bb-stats-page__header">
-      <div class="bb-stats-page__heading">{@render heading()}</div>
-      {#if crowd}<div class="bb-stats-page__crowd" aria-hidden="true">{@render crowd()}</div>{/if}
+  <AmbientSky position="fixed" stillStars progress={0.65} turn={24} />
+  <div class="stats-page__inner">
+    <header class="stats-page__header">
+      <div class="stats-page__heading">{@render heading()}</div>
+      {#if crowd}<div class="stats-page__crowd" aria-hidden="true">{@render crowd()}</div>{/if}
     </header>
-    {#if notice}<div class="bb-stats-page__notice">{@render notice()}</div>{/if}
-    <div class="bb-stats-page__body">
-      <div class="bb-stats-page__counters">{@render counters()}</div>
-      <div class="bb-stats-page__ranking">{@render ranking()}</div>
-      <div class="bb-stats-page__community">{@render community()}</div>
+    {#if notice}<div class="stats-page__notice">{@render notice()}</div>{/if}
+    <div class="stats-page__body">
+      <div class="stats-page__counters">{@render counters()}</div>
+      <div class="stats-page__ranking">{@render ranking()}</div>
+      <div class="stats-page__community">{@render community()}</div>
     </div>
-    {#if footer}<div class="bb-stats-page__footer">{@render footer()}</div>{/if}
+    {#if footer}<div class="stats-page__footer">{@render footer()}</div>{/if}
   </div>
 </div>

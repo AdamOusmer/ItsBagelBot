@@ -1,9 +1,18 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/tags.css';
   import { mountSectionNav } from '../lib/scroll-spy';
+
+  type Own = {
+    label: string;
+    items: { href: string; label: string; count?: number; current?: boolean; attrs?: Record<string, string> }[];
+    orientation?: 'auto' | 'horizontal' | 'vertical';
+    variant?: 'tabs' | 'toc';
+    index?: boolean;
+    class?: string;
+  };
 
   let {
     label,
@@ -13,15 +22,7 @@
     index = false,
     class: className = '',
     ...rest
-  }: {
-    label: string;
-    items: { href: string; label: string; count?: number; current?: boolean; attrs?: Record<string, string> }[];
-    orientation?: 'auto' | 'horizontal' | 'vertical';
-    variant?: 'tabs' | 'toc';
-    index?: boolean;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['nav'], keyof Own> = $props();
 
   const MODIFIER = {
     auto: 'bb-tabs--auto',

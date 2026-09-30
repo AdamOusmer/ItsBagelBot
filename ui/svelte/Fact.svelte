@@ -1,9 +1,19 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/fact-list.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    term: string;
+    tone?: 'danger';
+    mono?: boolean;
+    wide?: boolean;
+    truncate?: boolean;
+    class?: string;
+    children?: Snippet;
+  };
 
   let {
     term,
@@ -14,16 +24,7 @@
     class: className = '',
     children,
     ...rest
-  }: {
-    term: string;
-    tone?: 'danger';
-    mono?: boolean;
-    wide?: boolean;
-    truncate?: boolean;
-    class?: string;
-    children?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(
     [

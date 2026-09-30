@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/error-scene.css';
 import LightField from './LightField.astro';
@@ -11,7 +12,7 @@ type ErrorSceneAction = {
     [attribute: string]: unknown;
 };
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'main'>, 'status' | 'eyebrow' | 'title' | 'description' | 'aside' | 'class' | 'labelledBy' | 'primary' | 'secondary'> {
     status: number | string;
     eyebrow: string;
     title: string;
@@ -21,7 +22,6 @@ interface Props {
     labelledBy?: string;
     primary?: ErrorSceneAction;
     secondary?: ErrorSceneAction;
-    [key: string]: unknown;
 }
 
 const {

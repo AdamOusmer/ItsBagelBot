@@ -248,7 +248,7 @@
                     <Input
                       fill mono
                       type="text"
-                      maxlength="64"
+                      maxlength={64}
                       placeholder={t('admin.counters.fieldNamePlaceholder')}
                       bind:value={draft.name}
                     />
@@ -278,9 +278,9 @@
                   <Stack as="section" gap={2} align="start">
                     <Heading level={3} variant="label">{t('admin.counters.dangerTitle')}</Heading>
                     <Button
-                      variant="destructive"
                       disabled={busy}
                       onclick={() => (deleteTarget = selected)}
+                      tone="danger"
                     >
                       {t('common.delete')}
                     </Button>

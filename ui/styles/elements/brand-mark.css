@@ -46,7 +46,7 @@
     border-radius: var(--brand-radius);
   }
 
-  .bb-brand[data-premium] .bb-brand__logo img {
+  .bb-brand[data-logo="circle"] .bb-brand__logo img {
     border-radius: 50%;
   }
 

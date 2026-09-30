@@ -1,24 +1,28 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
   import '../styles/tags.css';
   import { rovingTarget } from '../lib/roving-focus';
 
-  let {
-    options,
-    value = $bindable(''),
-    label = 'Filter',
-    onchange,
-    class: className = '',
-    ...rest
-  }: {
+  const i18n = getUiI18n();
+  type Own = {
     options: readonly (string | { value: string; label: string; count?: number | string; attrs?: Record<string, string> })[];
     value: string;
     label?: string;
     onchange?: (value: string) => void;
     class?: string;
-    [key: string]: unknown;
-  } = $props();
+  };
+
+  let {
+    options,
+    value = $bindable(''),
+    label = i18n.t('choice.filter'),
+    onchange,
+    class: className = '',
+    ...rest
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const RADIOS = { selector: 'button[role="radio"]', orientation: 'both', wrap: true } as const;
 

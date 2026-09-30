@@ -221,26 +221,42 @@ describe('Button', () => {
   });
 
   contract({
-    name: 'green solid, the one filled button',
+    name: 'success on primary is the one filled button',
     svelte: SvelteButton,
     astro: AstroButton,
-    props: { variant: 'green', solid: true },
-    html: '<button class="bb-btn bb-btn--green bb-btn--solid" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    props: { tone: 'success' },
+    html: '<button class="bb-btn bb-btn--go-solid" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
-    name: 'destructive submit',
+    name: 'success on secondary is the outlined go',
     svelte: SvelteButton,
     astro: AstroButton,
-    props: { variant: 'destructive', type: 'submit', class: 'row-act' },
-    html: '<button class="bb-btn bb-btn--destructive row-act" type="submit" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+    props: { variant: 'secondary', tone: 'success' },
+    html: '<button class="bb-btn bb-btn--go" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
   });
 
   contract({
-    name: 'loading is disabled and busy, with a real spinner element',
+    name: 'danger submit',
     svelte: SvelteButton,
     astro: AstroButton,
-    props: { loading: true },
+    props: { tone: 'danger', type: 'submit', class: 'row-act' },
+    html: '<button class="bb-btn bb-btn--danger row-act" type="submit" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+  });
+
+  contract({
+    name: 'danger on ghost only reddens the hover',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { variant: 'ghost', tone: 'danger' },
+    html: '<button class="bb-btn bb-btn--ghost bb-btn--danger-hover" type="button" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span></button>',
+  });
+
+  contract({
+    name: 'busy is disabled and busy, with a real spinner element',
+    svelte: SvelteButton,
+    astro: AstroButton,
+    props: { busy: true },
     html: '<button class="bb-btn bb-btn--primary is-loading" type="button" disabled aria-busy="true" data-mark><i class="bb-btn__mark" aria-hidden="true"></i><span class="bb-btn__content">Save</span><span class="bb-btn__spinner" aria-hidden="true"></span></button>',
   });
 
@@ -253,23 +269,7 @@ describe('Button', () => {
   });
 
   contract({
-    name: 'icon-only carries no mark and an author-supplied name',
-    svelte: SvelteButton,
-    astro: AstroButton,
-    props: { variant: 'icon', icon: true, label: 'Close' },
-    html: '<button class="bb-btn bb-btn--icon" type="button" data-mark aria-label="Close"><span class="bb-btn__content"><svg viewBox="0 0 24 24"></svg></span></button>',
-  });
-
-  contract({
-    name: 'compact destructive icon preserves its accessible name and glyph',
-    svelte: SvelteButton,
-    astro: AstroButton,
-    props: { variant: 'icon', size: 'sm', danger: true, icon: true, label: 'Delete' },
-    html: '<button class="bb-btn bb-btn--icon bb-btn--danger-hover bb-btn--sm" type="button" data-mark aria-label="Delete"><span class="bb-btn__content"><svg viewBox="0 0 24 24"></svg></span></button>',
-  });
-
-  contract({
-    name: 'href renders an anchor (Astro Button) == ButtonLink (Svelte)',
+    name: 'ButtonLink renders an anchor in both adapters',
     svelte: SvelteButton,
     astro: AstroButton,
     props: { link: true, variant: 'secondary' },
@@ -519,18 +519,18 @@ const REMAINING: {
     html: '<div class="bb-alert bb-alert--danger" role="alert"><span class="bb-alert__msg"></span></div>',
   },
   {
-    name: 'AlertBanner: impersonation',
+    name: 'AlertBanner: accent top bar',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { variant: 'impersonation', role: 'status' },
-    html: '<div class="bb-alert bb-alert--impersonation" role="status"><span class="bb-alert__msg"></span></div>',
+    props: { tone: 'warm', placement: 'top', role: 'status', class: 'host' },
+    html: '<div class="bb-alert bb-alert--warm bb-alert--top host" role="status"><span class="bb-alert__msg"></span></div>',
   },
   {
     name: 'AlertBanner: stack',
     svelte: SvelteAlertBanner,
     astro: AstroAlertBanner,
-    props: { variant: 'warn', role: 'note', flush: true, stack: true },
-    html: '<div class="bb-alert bb-alert--warn bb-alert--flush bb-alert--stack" role="note"><span class="bb-alert__msg"></span></div>',
+    props: { tone: 'warning', role: 'note', flush: true, stack: true },
+    html: '<div class="bb-alert bb-alert--warning bb-alert--flush bb-alert--stack" role="note"><span class="bb-alert__msg"></span></div>',
   },
   {
     name: 'Mark: dash',
@@ -639,7 +639,7 @@ const REMAINING: {
     props: { state: 'live' },
     html:
       '<span class="bb-tag bb-tag--live" role="status">' +
-      '<i class="bb-mark" aria-hidden="true"></i>Synced to chat' +
+      '<i class="bb-mark" aria-hidden="true"></i>Live' +
       '<i class="bb-sweep" aria-hidden="true"></i></span>',
   },
   {
@@ -771,7 +771,7 @@ const REMAINING: {
       '<div class="bb-ornaments bb-ornaments--loader" aria-hidden="true">' +
       '<div class="bb-corner bb-corner--bl"></div>' +
       '<div class="bb-corner bb-corner--br"></div>' +
-      '<div class="bb-ornament-label">ItsBagelBot</div></div>',
+      '<div class="bb-ornament-label"></div></div>',
   },
   {
     name: 'ReadingProgress: default',
@@ -803,7 +803,7 @@ for (const testCase of REMAINING) {
 
 test('Modal: a title mints an id and points aria-labelledby at it', () => {
   const { body } = render(SvelteModal, {
-    props: { open: true, title: 'Delete timer' },
+    props: { open: true, title: 'Delete timer', closeModal: () => {} },
   });
   const html = normalise(body);
   const id = /<h3 class="bb-modal__title" id="([^"]+)">/.exec(html)?.[1];
@@ -813,7 +813,7 @@ test('Modal: a title mints an id and points aria-labelledby at it', () => {
 });
 
 test('Modal: closed renders nothing at all', () => {
-  const { body } = render(SvelteModal, { props: { open: false } });
+  const { body } = render(SvelteModal, { props: { open: false, closeModal: () => {} } });
   expect(normalise(body)).toBe('');
 });
 
@@ -1160,9 +1160,9 @@ const PRIMITIVES: {
     name: "ButtonLink",
     svelte: SvelteButtonLink,
     astro: AstroButtonLink,
-    props: {"href":"/pricing","variant":"green"},
+    props: {"href":"/pricing","variant":"secondary","tone":"success"},
     slot: "Go",
-    html: "<a class=\"bb-btn bb-btn--green\" href=\"/pricing\" data-mark><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\">Go</span></a>",
+    html: "<a class=\"bb-btn bb-btn--go\" href=\"/pricing\" data-mark><i class=\"bb-btn__mark\" aria-hidden=\"true\"></i><span class=\"bb-btn__content\">Go</span></a>",
   },
   {
     name: "Tag",
@@ -1302,18 +1302,18 @@ for (const primitive of PRIMITIVES) {
   });
 }
 
-test('typography.css keeps the bare-element rules in bb.base', async () => {
-  const css = await Bun.file(
-    new URL('../styles/elements/typography.css', import.meta.url),
-  ).text();
-  const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
-  const base = body.slice(body.indexOf('@layer bb.base'));
+test('bare-element rules live only in the opt-in base.css, in bb.base', async () => {
+  const strip = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const base = strip(await Bun.file(new URL('../styles/base.css', import.meta.url)).text());
+  const layered = base.slice(base.indexOf('@layer bb.base {'));
   for (const selector of ['h1 {', 'p {', 'small {', 'code, pre, kbd, samp {']) {
-    expect(body).toContain(selector);
-    expect(base).toContain(selector);
+    expect(layered).toContain(selector);
   }
-  const elements = body.slice(body.indexOf('@layer bb.elements'), body.indexOf('@layer bb.base'));
-  expect(elements).not.toMatch(/^\s{4}(h[1-6]|p|small|code|kbd)\s*[,{]/m);
+  const typography = strip(
+    await Bun.file(new URL('../styles/elements/typography.css', import.meta.url)).text(),
+  );
+  expect(typography).not.toContain('@layer bb.base');
+  expect(typography).not.toMatch(/^\s{4}(h[1-6]|p|small|code|kbd)\s*[,{]/m);
 });
 
 test('magnetic keeps its tuned ease and settle threshold', async () => {

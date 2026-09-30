@@ -13,7 +13,7 @@
   import CounterCard from '@bagel/ui/svelte/CounterCard.svelte';
   import CommunityCard from '@bagel/ui/svelte/CommunityCard.svelte';
   import RankingCard from '@bagel/ui/svelte/RankingCard.svelte';
-  import StatsPageLayout from '@bagel/ui/svelte/StatsPageLayout.svelte';
+  import StatsPageLayout from '$lib/components/stats/StatsPageLayout.svelte';
   import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
   import Tag from '@bagel/ui/svelte/Tag.svelte';
   import PublicHead from '$lib/components/public/PublicHead.svelte';
@@ -279,7 +279,7 @@
     {#snippet heading()}
       <div class="stats-heading">
         <Tag tone="live" mark="solid" sweep>{t('stats.liveNote')}</Tag>
-        <Heading level={1}>{t('stats.pageHeadline')}<span class="ink-tan" aria-hidden="true">.</span></Heading>
+        <Heading level={1} class="stats-page__title">{t('stats.pageHeadline')}<span class="ink-tan" aria-hidden="true">.</span></Heading>
         <Text size="sm" tone="muted">{t('stats.pageTagline')}</Text>
       </div>
     {/snippet}
@@ -292,9 +292,9 @@
 
     {#snippet notice()}
       {#if degraded}
-        <AlertBanner variant="warn">{t('stats.degraded')}</AlertBanner>
+        <AlertBanner tone="warning">{t('stats.degraded')}</AlertBanner>
       {:else if boards.degraded}
-        <AlertBanner variant="warn">{t('stats.boardsUnavailable')}</AlertBanner>
+        <AlertBanner tone="warning">{t('stats.boardsUnavailable')}</AlertBanner>
       {/if}
     {/snippet}
 

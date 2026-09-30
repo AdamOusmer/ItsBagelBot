@@ -5,7 +5,7 @@
 
 @layer bb.elements {
   .bb-tag--error {
-    color: var(--bb-status-error);
-    border-bottom-color: rgba(var(--bb-status-error-border-rgb), 0.45);
+    color: var(--bb-status-danger);
+    border-bottom-color: rgba(var(--bb-status-danger-border-rgb), 0.45);
   }
 }

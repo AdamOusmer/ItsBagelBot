@@ -6,15 +6,14 @@ import { untrack } from 'svelte';
 import type { SubmitFunction } from '@sveltejs/kit';
 import {
   actionPayload,
-  createDiscardGuard,
   fieldErrorsByField,
   flagValue,
-  toast,
   type ActionOk,
   type DiscordConfig,
   type I18n,
   type RefusedFields
 } from '@bagel/kit';
+import { createDiscardGuard, toast } from '@bagel/ui/svelte';
 import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
 import { DISCORD_CODE_KEYS } from '$lib/discord-messages';
 import { FIELD_LABEL_KEYS } from './guild-fields';

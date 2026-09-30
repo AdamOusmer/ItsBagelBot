@@ -4,6 +4,11 @@
   import { copyText } from '@bagel/ui/lib/clipboard';
   import {
     Bolota,
+    getI18n,
+    toastFailure,
+    type Locale
+  } from '@bagel/kit';
+  import {
     Button,
     ButtonLink,
     Card,
@@ -16,13 +21,10 @@
     ConfirmDialog,
     EmptyState,
     toast,
-    getI18n,
-    toastFailure,
     StatusDot,
     Tag,
-    Switch,
-    type Locale
-  } from '@bagel/kit';
+    Switch
+  } from '@bagel/ui/svelte';
   import { page } from '$app/state';
   import { enhance, deserialize } from '$app/forms';
   import FetchKeyManager from '$lib/components/commands/fetches/FetchKeyManager.svelte';
@@ -388,7 +390,7 @@
             </div>
             <div class="actions">
               <Button variant="ghost" size="sm" onclick={() => openEdit(g.token)}>{t('settings.editAccess')}</Button>
-              <Button variant="destructive" size="sm" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</Button>
+              <Button size="sm" onclick={() => (revokeTarget = g)} tone="danger">{t('common.revoke')}</Button>
             </div>
             {#if editingToken === g.token}{@render editSections(g)}{/if}
           </li>
@@ -413,7 +415,7 @@
                 {copied[g.token] ? t('common.copied') : t('common.copy')}
               </Button>
               <Button variant="ghost" size="sm" onclick={() => openEdit(g.token)}>{t('settings.editAccess')}</Button>
-              <Button variant="destructive" size="sm" onclick={() => (revokeTarget = g)}>{t('common.revoke')}</Button>
+              <Button size="sm" onclick={() => (revokeTarget = g)} tone="danger">{t('common.revoke')}</Button>
             </div>
             <div class="grant-sections">{@render sectionChips(g.sections)}</div>
             {#if editingToken === g.token}{@render editSections(g)}{/if}
@@ -439,10 +441,10 @@
                 <ButtonLink href={`/delegate/enter?owner=${r.owner_user_id}`} variant="ghost" size="sm">{t('common.open')}</ButtonLink>
                 <Button
                   type="button"
-                  variant="destructive"
                   size="sm"
                   aria-label={t('settings.leaveDashboardAria', { login: r.owner_login })}
                   onclick={() => (leaveTarget = r)}
+                  tone="danger"
                 >{t('common.leave')}</Button>
               </div>
             </li>
@@ -570,14 +572,14 @@
         <Text as="span" size="sm"><b>{t('settings.signOutEverywhere')}</b></Text>
         <Text size="sm" tone="muted">{t('settings.signOutEverywhereHint')}</Text>
       </div>
-      <Button variant="destructive" onclick={() => (signOutOpen = true)}>{t('settings.signOutEverywhere')}</Button>
+      <Button onclick={() => (signOutOpen = true)} tone="danger">{t('settings.signOutEverywhere')}</Button>
     </div>
     <div class="row">
       <div class="row-text">
         <Text as="span" size="sm"><b>{t('settings.deleteAccount')}</b></Text>
         <Text size="sm" tone="muted">{t('settings.deleteAccountHint')}</Text>
       </div>
-      <Button variant="destructive" onclick={() => (deleteOpen = true)}>{t('settings.deleteAccount')}</Button>
+      <Button onclick={() => (deleteOpen = true)} tone="danger">{t('settings.deleteAccount')}</Button>
     </div>
   </Card>
   </section>

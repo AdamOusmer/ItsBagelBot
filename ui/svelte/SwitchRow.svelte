@@ -1,9 +1,27 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import type { Snippet } from 'svelte';
   import '../styles/elements/toggle.css';
   import Switch from './Switch.svelte';
+
+  type Own = {
+    label: string;
+    hint?: string;
+    hintId?: string;
+    checked?: boolean;
+    switchLabel?: string;
+    control?: 'start' | 'end';
+    tone?: 'warn';
+    disabled?: boolean;
+    pending?: boolean;
+    type?: 'button' | 'submit';
+    onchange?: (v: boolean) => void;
+    status?: Snippet;
+    note?: Snippet;
+    class?: string;
+  };
 
   let {
     label,
@@ -21,23 +39,7 @@
     note,
     class: className = '',
     ...rest
-  }: {
-    label: string;
-    hint?: string;
-    hintId?: string;
-    checked?: boolean;
-    switchLabel?: string;
-    control?: 'start' | 'end';
-    tone?: 'warn';
-    disabled?: boolean;
-    pending?: boolean;
-    type?: 'button' | 'submit';
-    onchange?: (v: boolean) => void;
-    status?: Snippet;
-    note?: Snippet;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(
     [

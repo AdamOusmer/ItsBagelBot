@@ -1,9 +1,11 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+import { uiI18n } from './i18n';
 import '../styles/elements/community-card.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'subtitle' | 'total' | 'period' | 'tone' | 'appearance' | 'class'> {
   title: string;
   subtitle?: string;
   total: string;
@@ -11,10 +13,10 @@ interface Props {
   tone?: 'green' | 'tan';
   appearance?: 'solid' | 'soft';
   class?: string;
-  [key: string]: unknown;
 }
+const { t } = uiI18n(Astro);
 const {
-  title, subtitle = '', total, period = 'All time', tone = 'tan',
+  title, subtitle = '', total, period = t('data.allTime'), tone = 'tan',
   appearance = 'soft', class: cls = '', ...rest
 } = Astro.props;
 const classes = [

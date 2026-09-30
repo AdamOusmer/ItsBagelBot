@@ -2,7 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { page } from '$app/state';
-  import { SectionNav, getI18n } from '@bagel/kit';
+  import { SectionNav } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
 
   let { guildId }: { guildId: string } = $props();
   const { t } = getI18n();

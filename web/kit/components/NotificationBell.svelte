@@ -2,11 +2,11 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
-  import '../styles/elements/notifications.css';
+  import '../styles/notifications.css';
   import type { ComponentProps } from 'svelte';
-  import Icon from './Icon.svelte';
-  import Badge from './Badge.svelte';
-  import Button from './Button.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Badge from '@bagel/ui/svelte/Badge.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
 
   export interface BellNotification {
     id: number;

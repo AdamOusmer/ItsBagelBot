@@ -9,9 +9,9 @@ interface Props {
     html: string;
 }
 
-const VARIANT = { tip: 'tip', warn: 'danger', note: 'note' } as const;
+const TONE = { tip: 'warm', warn: 'danger', note: 'neutral' } as const;
 
 const { tone, html } = Astro.props;
 ---
 
-<AlertBanner variant={VARIANT[tone] ?? 'tip'} callout role="note"><Fragment set:html={html} /></AlertBanner>
+<AlertBanner tone={TONE[tone] ?? 'warm'} variant="callout" role="note"><Fragment set:html={html} /></AlertBanner>

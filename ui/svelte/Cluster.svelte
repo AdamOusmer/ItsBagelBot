@@ -1,29 +1,30 @@
-<script lang="ts">
+<script lang="ts" generics="T extends keyof SvelteHTMLElements = 'div'">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/layout.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    gap?: 1 | 2 | 3 | 4 | 5 | 6;
+    justify?: 'start' | 'center' | 'end' | 'between';
+    align?: 'baseline' | 'stretch';
+    nowrap?: boolean;
+    as?: T;
+    class?: string;
+    children: Snippet;
+  };
 
   let {
     gap = 2,
     justify,
     align,
     nowrap = false,
-    as: tag = 'div',
+    as: tag = 'div' as T,
     class: className = '',
     children,
     ...rest
-  }: {
-    gap?: 1 | 2 | 3 | 4 | 5 | 6;
-    justify?: 'start' | 'center' | 'end' | 'between';
-    align?: 'baseline' | 'stretch';
-    nowrap?: boolean;
-    as?: string;
-    class?: string;
-    children: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements[T], keyof Own> = $props();
 
   const classes = $derived(
     [

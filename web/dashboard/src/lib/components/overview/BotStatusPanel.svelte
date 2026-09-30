@@ -181,7 +181,7 @@
               <Button variant="ghost" type="button" disabled={busy} onclick={() => onDisconnect?.()}>{t('overview.disconnect')}</Button>
             {:else if ui.showEnable}
               <form method="POST" action="?/enable" use:enhance={enableSubmit}>
-                <Button variant="primary" type="submit" loading={busy}>{t('overview.enable')}</Button>
+                <Button variant="primary" type="submit" busy={busy}>{t('overview.enable')}</Button>
               </form>
             {:else if ui.showConnect}
               <ButtonLink href="/settings#account" variant="primary"
@@ -273,7 +273,7 @@
     color: var(--bb-status-success);
   }
   .tone-error .dot {
-    color: var(--bb-status-error);
+    color: var(--bb-status-danger);
   }
   .tone-warning .dot {
     color: var(--bb-status-warning);
@@ -282,7 +282,7 @@
     color: var(--bb-white);
   }
   .tone-error .state-text {
-    color: var(--bb-status-error-fg);
+    color: var(--bb-status-danger-fg);
   }
   .tone-warning .state-text {
     color: var(--bb-status-warning-fg);

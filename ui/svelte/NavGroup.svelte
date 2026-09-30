@@ -1,11 +1,18 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/nav.css';
   import NavLink from './NavLink.svelte';
   import Icon from './Icon.svelte';
   import type { UiNavLink } from '../lib/nav-types';
+
+  type Own = {
+    label?: string;
+    items: UiNavLink[];
+    startIndex?: number;
+    class?: string;
+  };
 
   let {
     label,
@@ -13,13 +20,7 @@
     startIndex = 1,
     class: className = '',
     ...rest
-  }: {
-    label?: string;
-    items: UiNavLink[];
-    startIndex?: number;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['nav'], keyof Own> = $props();
 
   const classes = $derived(['bb-nav-group', className || null].filter(Boolean).join(' '));
 

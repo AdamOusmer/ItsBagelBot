@@ -11,7 +11,9 @@
     Input,
     Select,
     SwitchRow,
-    Text,
+    Text
+  } from '@bagel/ui/svelte';
+  import {
     PERMS,
     getI18n,
     tPerm,

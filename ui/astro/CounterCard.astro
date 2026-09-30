@@ -1,9 +1,11 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+import { uiI18n } from './i18n';
 import '../styles/elements/counter-card.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'article'>, 'label' | 'value' | 'unit' | 'detail' | 'rate' | 'rateUnit' | 'rateLabel' | 'period' | 'tone' | 'appearance' | 'tilt' | 'class'> {
   label: string;
   value: string;
   unit?: string;
@@ -16,11 +18,11 @@ interface Props {
   appearance?: 'solid' | 'soft';
   tilt?: 'left' | 'right' | 'none';
   class?: string;
-  [key: string]: unknown;
 }
+const { t } = uiI18n(Astro);
 const {
   label, value, unit = '', detail = '', rate = null, rateUnit = '/s',
-  rateLabel = 'Right now', period = 'All time', tone = 'green',
+  rateLabel = t('data.rightNow'), period = t('data.allTime'), tone = 'green',
   appearance = 'soft', tilt = 'none', class: cls = '', ...rest
 } = Astro.props;
 const classes = [

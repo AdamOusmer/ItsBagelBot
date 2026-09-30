@@ -136,11 +136,11 @@ describe('AppShell stacked', () => {
 
 describe('AlertBanner second row', () => {
   test('adds the row modifier only when asked, in both adapters', async () => {
-    const props = { variant: 'impersonation', role: 'status', second: true };
-    const expected = '<div class="bb-alert bb-alert--impersonation bb-alert--row-2" role="status"><span class="bb-alert__msg"></span></div>';
+    const props = { tone: 'warm', placement: 'top', row: 2, role: 'status' } as const;
+    const expected = '<div class="bb-alert bb-alert--warm bb-alert--top bb-alert--row-2" role="status"><span class="bb-alert__msg"></span></div>';
     expect(normalise(render(SvelteAlertBanner, { props }).body)).toBe(expected);
     expect(await astro(AstroAlertBanner, props)).toBe(expected);
-    expect(normalise(render(SvelteAlertBanner, { props: { variant: 'impersonation' } }).body)).not.toContain('row-2');
+    expect(normalise(render(SvelteAlertBanner, { props: { tone: 'warm', placement: 'top' } }).body)).not.toContain('row-2');
   });
 });
 
@@ -175,13 +175,12 @@ describe('stylesheet contracts', () => {
     expect(css).not.toMatch(/var\(--bb-[\w-]+,/);
   });
 
-  test('shell, alert, profile menu and notifications carry the rules console.css used to hold', async () => {
+  test('shell, alert and profile menu carry the rules console.css used to hold', async () => {
     expect(await read('elements/shell.css')).toContain('.bb-shell--stacked .bb-topbar');
     expect(await read('elements/alert.css')).toMatch(/\.bb-alert--row-2 \{\s*top: 44px;/);
     const menu = await read('elements/profile-menu.css');
     expect(menu).toContain('max-height: calc(100dvh - 96px)');
     expect(menu).toMatch(/pointer: coarse[\s\S]*min-height: 44px[\s\S]*inset: -4px/);
-    expect(await read('elements/notifications.css')).toMatch(/pointer: coarse[\s\S]*bb-notifications__icon-btn::after/);
     expect(await read('elements/status-dot.css')).toMatch(/\.bb-status-dot\.flat \{\s*box-shadow: none;/);
   });
 });

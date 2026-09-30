@@ -1,14 +1,14 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/skip-link.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'a'>, 'href' | 'label' | 'class'> {
     href: string;
     label: string;
     class?: string;
-    [key: string]: unknown;
 }
 
 const { href, label, class: className = '', ...rest } = Astro.props;

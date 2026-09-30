@@ -4,7 +4,8 @@
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { AlertBanner, Eyebrow, Icon, LightField, Text, TextLink, getI18n, Tag } from '@bagel/kit';
+  import { AlertBanner, Eyebrow, Icon, LightField, Text, TextLink, Tag } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import { SITE, webHref } from '@bagel/kit/site-links';
   import PublicHead from '$lib/components/public/PublicHead.svelte';
 
@@ -161,7 +162,7 @@
   <div class="header-material">
     {#if notice}
       <div class="notice reveal">
-        <AlertBanner variant="danger">{notice}</AlertBanner>
+        <AlertBanner tone="danger">{notice}</AlertBanner>
       </div>
     {/if}
 

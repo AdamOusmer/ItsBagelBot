@@ -1,9 +1,18 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+import { uiI18n } from './i18n';
 import '../styles/elements/field.css';
 import '../styles/elements/search-input.css';
-const { placeholder = 'Search…', value = '', fill = false, ...rest } = Astro.props;
+interface Props extends Omit<HTMLAttributes<'input'>, 'placeholder' | 'value' | 'fill'> {
+    placeholder?: string;
+    value?: string;
+    fill?: boolean;
+}
+
+const { t } = uiI18n(Astro);
+const { placeholder = t('search.placeholder'), value = '', fill = false, ...rest } = Astro.props;
 ---
 
 <label class={`bb-search bb-input${fill ? ' bb-input--fill' : ''}`}>

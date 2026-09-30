@@ -1,24 +1,14 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
 
   import '../styles/elements/editor-footer.css';
   import Button from './Button.svelte';
 
-  let {
-    status = 'idle',
-    dirty = false,
-    canSave = true,
-    saveLabel = 'Save',
-    cancelLabel = 'Cancel',
-    savingLabel = 'Saving…',
-    savedLabel = 'Saved',
-    errorLabel = 'Could not save',
-    dirtyLabel = 'Unsaved changes',
-    class: className = '',
-    onCancel,
-    ...rest
-  }: {
+  const i18n = getUiI18n();
+  type Own = {
     status?: 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
     dirty?: boolean;
     canSave?: boolean;
@@ -30,8 +20,22 @@
     dirtyLabel?: string;
     class?: string;
     onCancel: () => void;
-    [key: string]: unknown;
-  } = $props();
+  };
+
+  let {
+    status = 'idle',
+    dirty = false,
+    canSave = true,
+    saveLabel = i18n.t('action.save'),
+    cancelLabel = i18n.t('action.cancel'),
+    savingLabel = i18n.t('status.saving'),
+    savedLabel = i18n.t('status.saved'),
+    errorLabel = i18n.t('status.saveFailed'),
+    dirtyLabel = i18n.t('status.unsaved'),
+    class: className = '',
+    onCancel,
+    ...rest
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(['bb-editor-foot', className || null].filter(Boolean).join(' '));
 </script>

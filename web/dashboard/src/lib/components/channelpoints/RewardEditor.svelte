@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select, namespaceReplySamples, Field, Input, RadioGroup, Checkbox, Text, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
+  import { Select, Field, Input, RadioGroup, Checkbox, Text } from '@bagel/ui/svelte';
+  import { namespaceReplySamples, getI18n, type ChannelPointReward, type CounterScope } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import { rewardErrors, type RewardErrorField } from './reward-draft';
@@ -62,7 +63,7 @@
   <Field label={t('channelpoints.fieldTitle')} error={titleError} errorId="reward-title-err">
     <Input
       placeholder={t('channelpoints.fieldTitlePh')}
-      maxlength="45"
+      maxlength={45}
       required
       invalid={!!titleError}
       aria-invalid={titleError ? 'true' : undefined}
@@ -76,7 +77,7 @@
       <Field label={t('channelpoints.fieldCost')} error={costError} errorId="reward-cost-err">
         <Input
           type="number"
-          min="1"
+          min={1}
           invalid={!!costError}
           aria-invalid={costError ? 'true' : undefined}
           aria-describedby={costError ? 'reward-cost-err' : undefined}
@@ -92,7 +93,7 @@
   </div>
 
   <Field label={t('channelpoints.fieldPrompt')} tag={t('common.optional')}>
-    <Input placeholder={t('channelpoints.fieldPromptPh')} maxlength="200" bind:value={draft.prompt} />
+    <Input placeholder={t('channelpoints.fieldPromptPh')} maxlength={200} bind:value={draft.prompt} />
   </Field>
 
   <div class="check">
@@ -143,7 +144,7 @@
           >
             <Input
               placeholder={t('channelpoints.fieldCounterPh')}
-              maxlength="64"
+              maxlength={64}
               required
               invalid={!!counterError}
               aria-invalid={counterError ? 'true' : undefined}
@@ -169,7 +170,7 @@
             <Field label={t('rewardCounter.pointsLabel')} hint={t('rewardCounter.pointsHint')}>
               <span class="points-input">
                 <span class="plus">+</span>
-                <span class="points-num"><Input type="number" min="1" bind:value={draft.points} /></span>
+                <span class="points-num"><Input type="number" min={1} bind:value={draft.points} /></span>
               </span>
             </Field>
           </div>
@@ -194,7 +195,7 @@
         <Input
           fill
           type="number"
-          min="1"
+          min={1}
           aria-label={t('channelpoints.limitPerStream')}
           aria-invalid={perStreamError ? 'true' : undefined}
           invalid={!!perStreamError}
@@ -212,7 +213,7 @@
         <Input
           fill
           type="number"
-          min="1"
+          min={1}
           aria-label={t('channelpoints.limitPerUser')}
           aria-invalid={perUserError ? 'true' : undefined}
           invalid={!!perUserError}
@@ -230,7 +231,7 @@
         <Input
           fill
           type="number"
-          min="1"
+          min={1}
           aria-label={t('channelpoints.limitCooldown')}
           aria-invalid={cooldownError ? 'true' : undefined}
           invalid={!!cooldownError}

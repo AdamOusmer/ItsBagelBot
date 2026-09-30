@@ -2,7 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
-  import { Button, ButtonLink, Card, ConfirmDialog, Heading, Text, getI18n, toast } from '@bagel/kit';
+  import { Button, ButtonLink, Card, ConfirmDialog, Heading, Text, toast } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { invalidateAll } from '$app/navigation';
   import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/guild-draft.svelte';
@@ -44,7 +45,7 @@
   <Card>
     <Text size="sm" tone="muted" class="hint">{t('discord.settings.setupHelp')}</Text>
     <form method="POST" action="?/setup" use:enhance={setupSubmit}>
-      <Button variant="secondary" type="submit" loading={busy}>{t('discord.settings.setupCta')}</Button>
+      <Button variant="secondary" type="submit" busy={busy}>{t('discord.settings.setupCta')}</Button>
     </form>
 
     {#if !data.found}
@@ -61,7 +62,7 @@
       <ButtonLink variant="ghost" href="/discord/connect" data-sveltekit-reload>
         {t('discord.settings.reconnectCta')}
       </ButtonLink>
-      <Button variant="destructive" onclick={() => (disconnectOpen = true)}>
+      <Button onclick={() => (disconnectOpen = true)} tone="danger">
         {t('discord.settings.disconnectCta')}
       </Button>
     </div>

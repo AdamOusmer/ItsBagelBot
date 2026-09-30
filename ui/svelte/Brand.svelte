@@ -1,8 +1,19 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/brand-mark.css';
+
+  type Own = {
+    title: string;
+    sub?: string;
+    href?: string;
+    logoSrc?: string;
+    logoAlt?: string;
+    size?: 'sm' | 'md' | 'lg';
+    logoShape?: 'square' | 'circle';
+    class?: string;
+  };
 
   let {
     title,
@@ -11,20 +22,10 @@
     logoSrc,
     logoAlt = '',
     size = 'md',
-    premium = false,
+    logoShape = 'square',
     class: className = '',
     ...rest
-  }: {
-    title: string;
-    sub?: string;
-    href?: string;
-    logoSrc?: string;
-    logoAlt?: string;
-    size?: 'sm' | 'md' | 'lg';
-    premium?: boolean;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(
     ['bb-brand', `bb-brand--${size}`, className || null].filter(Boolean).join(' '),
@@ -34,7 +35,7 @@
 </script>
 
 {#if href}
-  <a class={classes} {href} data-premium={premium ? '' : undefined} {...rest}
+  <a class={classes} {href} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}
     >{#if logoSrc}<span class="bb-brand__logo"
         ><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span
       >{/if}<span class="bb-brand__id"
@@ -44,7 +45,7 @@
     ></a
   >
 {:else}
-  <div class={classes} data-premium={premium ? '' : undefined} {...rest}
+  <div class={classes} data-logo={logoShape === 'circle' ? 'circle' : undefined} {...rest}
     >{#if logoSrc}<span class="bb-brand__logo"
         ><img src={logoSrc} alt={logoAlt} width={px} height={px} /></span
       >{/if}<span class="bb-brand__id"

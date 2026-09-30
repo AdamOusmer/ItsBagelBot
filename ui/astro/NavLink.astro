@@ -1,11 +1,12 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/button.css';
 import '../styles/elements/nav-link.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'href' | 'label' | 'current' | 'variant' | 'external' | 'block' | 'disabled' | 'hint' | 'class'> {
   href?: string;
   label?: string;
   current?: boolean;
@@ -15,7 +16,6 @@ interface Props {
   disabled?: boolean;
   hint?: string;
   class?: string;
-  [key: string]: unknown;
 }
 
 const {

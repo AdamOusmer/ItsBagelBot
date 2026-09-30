@@ -4,7 +4,8 @@
   import { untrack } from 'svelte';
   import { page } from '$app/state';
   import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
-  import { Button, Icon, IconButton, RESPONSE_MAX, Text, TextLink, Textarea, getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
+  import { Button, Icon, IconButton, Text, TextLink, Textarea } from '@bagel/ui/svelte';
+  import { RESPONSE_MAX, getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
   import { requiredModuleVariables } from '@bagel/kit/variables';
   import type { VariableSurface } from '@bagel/kit/variables';
   import VariablePalette from '$lib/components/variables/VariablePalette.svelte';
@@ -185,10 +186,10 @@
           <span class="line-remove">
             <IconButton
               size="sm"
-              danger
               title={i18n.t('commandEditor.removeLine', { n: String(i + 1) })}
               label={i18n.t('commandEditor.removeLine', { n: String(i + 1) })}
               onclick={() => removeLine(i)}
+              tone="danger"
             ><Icon name="x" /></IconButton>
           </span>
         {/if}

@@ -1,14 +1,13 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
   import type { Snippet } from 'svelte';
   import '../styles/elements/counter-card.css';
 
-  let {
-    label, value, unit = '', detail = '', rate = null, rateUnit = '/s',
-    rateLabel = 'Right now', period = 'All time', tone = 'green',
-    appearance = 'soft', tilt = 'none', artwork, class: cls = '', ...rest
-  }: {
+  const i18n = getUiI18n();
+  type Own = {
     label: string;
     value: string;
     unit?: string;
@@ -17,14 +16,20 @@
     rateUnit?: string;
     rateLabel?: string;
     period?: string;
+    'aria-description'?: string;
     tone?: 'green' | 'tan';
     appearance?: 'solid' | 'soft';
     tilt?: 'left' | 'right' | 'none';
     /** Decorative artwork can peek above the edge without clipping. */
     artwork?: Snippet;
     class?: string;
-    [key: string]: unknown;
-  } = $props();
+  };
+
+  let {
+    label, value, unit = '', detail = '', rate = null, rateUnit = '/s',
+    rateLabel = i18n.t('data.rightNow'), period = i18n.t('data.allTime'), tone = 'green',
+    appearance = 'soft', tilt = 'none', artwork, class: cls = '', ...rest
+  }: Own & Omit<SvelteHTMLElements['article'], keyof Own> = $props();
   const classes = $derived([
     'bb-counter-card', `bb-counter-card--${tone}`, `bb-counter-card--${appearance}`,
     tilt !== 'none' && `bb-counter-card--tilt-${tilt}`, cls,

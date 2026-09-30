@@ -2,7 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import type { Snippet } from 'svelte';
-  import { Input, Select, Text, getI18n } from '@bagel/kit';
+  import { Input, Select, Text } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
 
   type Unit = 'seconds' | 'minutes' | 'hours';
   const UNIT_SECONDS: Record<Unit, number> = { seconds: 1, minutes: 60, hours: 3600 };
@@ -73,7 +74,7 @@
         inputmode="numeric"
         min={min / UNIT_SECONDS[unit]}
         max={max / UNIT_SECONDS[unit]}
-        step="1"
+        step={1}
         {disabled}
         {invalid}
         aria-label={label}

@@ -1,0 +1,72 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.tokens {
+
+:root {
+    --bb-bg-0: var(--bb-black);
+    --bb-bg-1: var(--bb-card-bg);
+
+    --bb-border: rgba(var(--bb-tan-rgb), 0.15);
+    --bb-border-strong: rgba(var(--bb-tan-rgb), 0.35);
+    --bb-border-chip: rgba(var(--bb-tan-rgb), 0.28);
+    --bb-glow-tan: rgba(var(--bb-tan-rgb), 0.18);
+    --bb-glow-green: rgba(var(--bb-green-glow-rgb), 0.16);
+    --bb-accent-soft: rgba(var(--bb-green-glow-rgb), 0.12);
+
+    --bb-glass-fill: rgba(var(--bb-white-rgb), 0.022);
+    --bb-glass-fill-2: rgba(var(--bb-white-rgb), 0.04);
+    --bb-glass-border: rgba(var(--bb-white-rgb), 0.11);
+    --bb-glass-blur: 0px;
+    --bb-glass-sat: 100%;
+    --bb-glass-rim: 0 0 0 0 transparent;
+    --bb-glass-shadow: 0 0 0 0 transparent;
+
+    --bb-focus: var(--bb-tan-light);
+
+    --bb-status-success: var(--bb-green-glow);
+    --bb-status-success-fg: #8fe0b4;
+    --bb-status-success-bg: #0f2118;
+    --bb-status-success-border: #2f7355;
+
+    --bb-status-warning: var(--bb-tan-light);
+    --bb-status-warning-fg: #eccfa3;
+    --bb-status-warning-bg: #241c10;
+    --bb-status-warning-border: #8a6f43;
+
+    --bb-status-danger: #cf8a78;
+    --bb-status-danger-fg: #f0b0a4;
+    --bb-status-danger-bg: #2a1310;
+    --bb-status-danger-border: #b05a46;
+    --bb-status-danger-rgb: 207, 138, 120;
+    --bb-status-danger-border-rgb: 176, 90, 70;
+
+    --bb-status-info: #7bb5d9;
+    --bb-status-info-fg: #a9d0e8;
+    --bb-status-info-bg: #0f1e28;
+    --bb-status-info-border: #3f6d86;
+
+    --bb-tier-free: var(--bb-green-glow);
+    --bb-tier-free-bg: rgba(var(--bb-green-glow-rgb), 0.12);
+    --bb-tier-free-border: rgba(var(--bb-green-glow-rgb), 0.35);
+
+    --bb-tier-paid: var(--bb-tan-light);
+    --bb-tier-paid-bg: rgba(var(--bb-tan-rgb), 0.12);
+    --bb-tier-paid-border: rgba(var(--bb-tan-rgb), 0.40);
+
+    --bb-tier-vip: #dfe4e9;
+    --bb-tier-vip-bg: rgba(217, 222, 228, 0.12);
+    --bb-tier-vip-border: rgba(217, 222, 228, 0.34);
+
+    --bb-tier-banned: var(--bb-status-danger);
+    --bb-tier-banned-bg: var(--bb-status-danger-bg);
+    --bb-tier-banned-border: var(--bb-status-danger-border);
+
+    --bb-tier-inactive: var(--bb-muted);
+    --bb-tier-inactive-bg: rgba(var(--bb-white-pure-rgb), 0.04);
+    --bb-tier-inactive-border: rgba(var(--bb-tan-rgb), 0.20);
+}
+
+}

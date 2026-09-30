@@ -1,11 +1,12 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/pager.css';
 import ButtonLink from './ButtonLink.astro';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'label' | 'prevHref' | 'nextHref' | 'hasPrev' | 'hasNext' | 'prevLabel' | 'nextLabel' | 'class'> {
     label: string;
     prevHref: string;
     nextHref: string;
@@ -14,7 +15,6 @@ interface Props {
     prevLabel?: string;
     nextLabel?: string;
     class?: string;
-    [key: string]: unknown;
 }
 
 const {

@@ -1,12 +1,27 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/popover.css';
   import type { Snippet } from 'svelte';
   import { hasOpenOverlay, overlayContains } from '../lib/overlay-stack';
   import Heading from './Heading.svelte';
   import Icon from './Icon.svelte';
+
+  type Own = {
+    open?: boolean;
+    label: string;
+    title: string;
+    closeLabel: string;
+    expands?: boolean;
+    placement?: 'top' | 'bottom';
+    onactivate?: () => void;
+    dismissLabel?: string;
+    ondismiss?: () => void;
+    pill: Snippet;
+    class?: string;
+    children?: Snippet;
+  };
 
   let {
     open = $bindable(false),
@@ -22,21 +37,7 @@
     class: className = '',
     children,
     ...rest
-  }: {
-    open?: boolean;
-    label: string;
-    title: string;
-    closeLabel: string;
-    expands?: boolean;
-    placement?: 'top' | 'bottom';
-    onactivate?: () => void;
-    dismissLabel?: string;
-    ondismiss?: () => void;
-    pill: Snippet;
-    class?: string;
-    children?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const uid = $props.id();
   const titleId = `bb-popover-title-${uid}`;

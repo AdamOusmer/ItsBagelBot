@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AlertBanner, ButtonLink, Card, Chip, Heading, Text, getI18n, droppedPinNotice } from '@bagel/kit';
+  import { AlertBanner, ButtonLink, Card, Chip, Heading, Text } from '@bagel/ui/svelte';
+  import { getI18n, droppedPinNotice } from '@bagel/kit';
   import GuildHeader from '$lib/components/discord/GuildHeader.svelte';
   import GuildNav from '$lib/components/discord/GuildNav.svelte';
   import { SLOT_LABEL_KEYS } from '$lib/discord/guild-fields';
@@ -41,17 +42,17 @@
     {/if}
 
     {#if data.justConnected && data.refused}
-      <AlertBanner variant="warn">{t('discord.connectedLivedIn')}</AlertBanner>
+      <AlertBanner tone="warning">{t('discord.connectedLivedIn')}</AlertBanner>
     {/if}
 
     {#if droppedBanner}
-      <AlertBanner variant="warn">{droppedBanner}</AlertBanner>
+      <AlertBanner tone="warning">{droppedBanner}</AlertBanner>
     {/if}
 
     {#if needsReauth}
-      <AlertBanner variant="warn">
+      <AlertBanner tone="warning">
         {t('discord.reauthNeeded')}
-        {#snippet action()}
+        {#snippet actions()}
           <ButtonLink variant="secondary" href="/discord/connect" data-sveltekit-reload>
             {t('discord.reauthCta')}
           </ButtonLink>

@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select, namespaceReplySamples, Button, Code, Field, Input, SwitchRow, Text, getI18n } from '@bagel/kit';
+  import { Select, Button, Code, Field, Input, SwitchRow, Text } from '@bagel/ui/svelte';
+  import { namespaceReplySamples, getI18n } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
   import DurationField from '$lib/components/shared/DurationField.svelte';
@@ -45,7 +46,7 @@
       fill
       invalid={!!titleError}
       type="text"
-      maxlength="45"
+      maxlength={45}
       bind:value={draft.title}
       aria-invalid={titleError ? 'true' : undefined}
       aria-describedby={titleError ? 'govee-title-err' : undefined}
@@ -60,8 +61,8 @@
           fill
           invalid={!!costError}
           type="number"
-          min="1"
-          max="10000000"
+          min={1}
+          max={10000000}
           bind:value={draft.cost}
           aria-invalid={costError ? 'true' : undefined}
           aria-describedby={costError ? 'govee-cost-err' : undefined}
@@ -126,7 +127,7 @@
 
   {#if canDelete}
     <div class="del-row">
-      <Button variant="destructive" type="button" onclick={onRequestDelete} disabled={busy}>{t('govee.deleteReward')}</Button>
+      <Button type="button" onclick={onRequestDelete} disabled={busy} tone="danger">{t('govee.deleteReward')}</Button>
     </div>
   {/if}
 </div>

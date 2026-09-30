@@ -25,12 +25,12 @@
   }
 
   .bb-alert--danger {
-    --alert-rgb: var(--bb-status-error-border-rgb);
-    --alert-fg: var(--bb-status-error);
-    --alert-accent: var(--bb-danger);
+    --alert-rgb: var(--bb-status-danger-border-rgb);
+    --alert-fg: var(--bb-status-danger);
+    --alert-accent: var(--bb-status-danger);
   }
 
-  .bb-alert--positive {
+  .bb-alert--success {
     --alert-rgb: var(--bb-green-glow-rgb);
     --alert-fg: var(--bb-green-glow);
     --alert-accent: var(--bb-green-glow);
@@ -49,8 +49,8 @@
   }
 
   .bb-alert--callout.bb-alert--danger {
-    --alert-bg: rgba(var(--bb-danger-rgb), 0.06);
-    --alert-border: rgba(var(--bb-danger-rgb), 0.24);
+    --alert-bg: rgba(var(--bb-status-danger-rgb), 0.06);
+    --alert-border: rgba(var(--bb-status-danger-rgb), 0.24);
   }
 
   .bb-alert--callout .bb-alert__msg > b:first-child {
@@ -64,17 +64,19 @@
     text-transform: uppercase;
   }
 
-  .bb-alert--note {
+  .bb-alert--neutral {
     --alert-fg: var(--bb-white);
     --alert-accent: var(--bb-white);
     --alert-bg: rgba(var(--bb-white-rgb), 0.03);
     --alert-border: var(--bb-border);
+  }
 
+  .bb-alert--callout.bb-alert--neutral {
     border-width: 0 0 0 2px;
     border-radius: 0;
   }
 
-  .bb-alert--note .bb-alert__msg > b:first-child {
+  .bb-alert--callout.bb-alert--neutral .bb-alert__msg > b:first-child {
     display: inline;
     margin: 0;
     color: var(--alert-accent);
@@ -84,9 +86,9 @@
     text-transform: none;
   }
 
-  .bb-alert--impersonation {
+  .bb-alert--top {
     --alert-fg: var(--bb-bg-1);
-    --alert-bg: var(--bb-tan);
+    --alert-bg: var(--alert-accent);
     --alert-border: rgba(var(--bb-shadow-rgb), 0.2);
 
     position: fixed;
@@ -107,25 +109,25 @@
     top: 44px;
   }
 
-  .bb-alert--impersonation .bb-alert__msg {
+  .bb-alert--top .bb-alert__msg {
     flex: 0 1 auto;
   }
 
-  .bb-alert--impersonation b {
+  .bb-alert--top b {
     font-weight: 700;
   }
 
-  .bb-alert--impersonation form {
+  .bb-alert--top form {
     display: inline;
   }
 
-  .bb-alert__exit {
+  .bb-alert__action {
     display: inline-block;
     padding: 3px 12px;
     border: 1px solid rgba(var(--bb-shadow-rgb), 0.35);
     border-radius: var(--bb-radius-sm);
     background: transparent;
-    color: var(--bb-bg-1);
+    color: var(--alert-fg);
     font: inherit;
     font-weight: 700;
     line-height: 1.4;
@@ -133,7 +135,7 @@
     cursor: pointer;
   }
 
-  .bb-alert__exit:hover {
+  .bb-alert__action:hover {
     background: rgba(var(--bb-shadow-rgb), 0.12);
   }
 

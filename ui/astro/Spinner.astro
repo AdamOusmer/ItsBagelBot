@@ -1,13 +1,13 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/spinner.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'span'>, 'size' | 'class'> {
     size?: 'sm' | 'md';
     class?: string;
-    [key: string]: unknown;
 }
 
 const { size = 'sm', class: className = '', ...rest } = Astro.props;

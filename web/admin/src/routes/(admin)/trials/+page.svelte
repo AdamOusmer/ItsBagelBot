@@ -119,7 +119,7 @@
 
   {#if degraded}<AlertBanner>{t('admin.trials.degraded')}</AlertBanner>{/if}
   {#if form?.error}<AlertBanner>{form.error}</AlertBanner>{/if}
-  {#if form?.notice}<AlertBanner variant="warn" role="status">{form.notice}</AlertBanner>{/if}
+  {#if form?.notice}<AlertBanner tone="warning" role="status">{form.notice}</AlertBanner>{/if}
 
   <Stack gap={4}>
     <form method="POST" action="?/add" class="trial-add">
@@ -129,7 +129,7 @@
           type="text"
           inputmode="numeric"
           pattern="[1-9][0-9]*"
-          maxlength="20"
+          maxlength={20}
           autocomplete="off"
           required
           bind:value={broadcasterId}
@@ -166,7 +166,7 @@
                   {#if trial.state !== 'stopping'}
                     <form method="POST" action="?/remove">
                       <input type="hidden" name="broadcaster_id" value={trial.broadcaster_id} />
-                      <Button type="submit" variant="destructive">{t('admin.trials.remove')}</Button>
+                      <Button type="submit" tone="danger">{t('admin.trials.remove')}</Button>
                     </form>
                   {/if}
                 </Cluster>

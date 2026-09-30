@@ -1,9 +1,32 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/management-row.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    as?: string;
+    href?: string;
+    selectable?: boolean;
+    selected?: boolean;
+    expanded?: boolean;
+    controls?: string;
+    disabled?: boolean;
+    accent?: boolean;
+    wrap?: boolean;
+    stackActions?: boolean;
+    label?: string;
+    title?: string;
+    meta?: string;
+    class?: string;
+    onselect?: () => void;
+    lead?: Snippet;
+    badge?: Snippet;
+    marks?: Snippet;
+    primary?: Snippet;
+    actions?: Snippet;
+  };
 
   let {
     as = 'div',
@@ -27,29 +50,7 @@
     primary,
     actions,
     ...rest
-  }: {
-    as?: string;
-    href?: string;
-    selectable?: boolean;
-    selected?: boolean;
-    expanded?: boolean;
-    controls?: string;
-    disabled?: boolean;
-    accent?: boolean;
-    wrap?: boolean;
-    stackActions?: boolean;
-    label?: string;
-    title?: string;
-    meta?: string;
-    class?: string;
-    onselect?: () => void;
-    lead?: Snippet;
-    badge?: Snippet;
-    marks?: Snippet;
-    primary?: Snippet;
-    actions?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const isStatic = $derived(!href && !selectable);
 

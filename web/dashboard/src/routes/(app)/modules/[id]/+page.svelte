@@ -1,10 +1,12 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select, namespaceReplyTemplate } from '@bagel/kit';
+  import { Select } from '@bagel/ui/svelte';
+  import { namespaceReplyTemplate } from '@bagel/kit';
   import { deserialize } from '$app/forms';
   import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
-  import { Card, PageHead, Scroller, SectionNav, SearchInput, SaveStatus, Switch, SwitchRow, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckLayout, DeckList, EmptyState, Heading, Input, Tag, Text, Textarea, TextLink, toast, getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
+  import { Card, PageHead, Scroller, SectionNav, SearchInput, SaveStatus, Switch, SwitchRow, Button, ButtonLink, InspectorSurface, ConfirmDialog, AlertBanner, DeckLayout, DeckList, EmptyState, Heading, Input, Tag, Text, Textarea, TextLink, toast } from '@bagel/ui/svelte';
+  import { getI18n, automodToggleDefault, moduleDef, tModuleLabel, tModuleDescription, tModuleFieldPart, tModuleFieldOption, tModuleReplyPart, type ModuleField, type ModuleReply, MOD } from '@bagel/kit';
   import type { SaveState } from '@bagel/ui/svelte/SaveStatus.svelte';
   import ReplyRow from '$lib/components/modules/ReplyRow.svelte';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
@@ -503,18 +505,18 @@
   {/if}
 
   {#if data.locked}
-    <AlertBanner variant="warn">
+    <AlertBanner tone="warning">
       {t('modules.betaLockedBody')}
-      {#snippet action()}
+      {#snippet actions()}
         <ButtonLink href="/billing" variant="ghost">{t('modules.betaUpgrade')}</ButtonLink>
       {/snippet}
     </AlertBanner>
   {/if}
 
   {#if parentDef}
-    <AlertBanner variant="warn">
+    <AlertBanner tone="warning">
       {t('modules.nestedUnder', { parent: tModuleLabel(t, parentDef) })}
-      {#snippet action()}
+      {#snippet actions()}
         <ButtonLink href={parentDef.href ?? `/modules/${parentDef.id}`} variant="ghost">{t('modules.nestedUnderLink', { parent: tModuleLabel(t, parentDef) })}</ButtonLink>
       {/snippet}
     </AlertBanner>
@@ -593,10 +595,10 @@
             </div>
             {#if browserZone && (config[field.key] ?? '') !== browserZone}
               <div class="tz-suggest">
-                <AlertBanner variant="positive" role="status" stack>
+                <AlertBanner tone="success" role="status" stack>
                   {t('modules.tzSuggested', { tz: browserZone })}
-                  {#snippet action()}
-                    <Button variant="green" size="sm" disabled={locked} onclick={() => saveSetting(field, browserZone)}>{t('modules.tzApply', { tz: browserZone })}</Button>
+                  {#snippet actions()}
+                    <Button variant="secondary" size="sm" disabled={locked} onclick={() => saveSetting(field, browserZone)} tone="success">{t('modules.tzApply', { tz: browserZone })}</Button>
                   {/snippet}
                 </AlertBanner>
               </div>

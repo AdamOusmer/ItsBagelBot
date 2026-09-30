@@ -154,8 +154,8 @@
             <h1 class="title" tabindex="-1" bind:this={heading} in:arrive={{ i: 1 }} out:depart={{ i: 1 }}>{t(`spotifySetup.${done ? 'readyTitle' : titles[step]}`)}</h1>
             <div class="body" in:arrive={{ i: 2 }} out:depart={{ i: 2 }}><Text tone="muted">{t(`spotifySetup.${done ? 'readyBody' : bodies[step]}`)}</Text></div>
             <div class="controls" in:arrive={{ i: 3 }} out:depart={{ i: 3 }}>
-              {#if error}<AlertBanner variant="warn">{error}</AlertBanner>{/if}
-              {#if saveError}<AlertBanner variant="danger">{saveError}</AlertBanner>{/if}
+              {#if error}<AlertBanner tone="warning">{error}</AlertBanner>{/if}
+              {#if saveError}<AlertBanner tone="danger">{saveError}</AlertBanner>{/if}
               {#if done}
                 <ButtonLink href="/songqueue">{t('spotifySetup.readyCta')}</ButtonLink>
               {:else if step === 0}
@@ -175,7 +175,7 @@
                   <div class="actions">
                     <Button variant="ghost" onclick={() => go(1)}>{t('onboarding.back')}</Button>
                     <Button variant="secondary" onclick={startReplace}>{t('spotify.app.replace')}</Button>
-                    {#if app.present}<Button variant="destructive" onclick={removeApp}>{t('spotify.app.remove')}</Button>{/if}
+                    {#if app.present}<Button onclick={removeApp} tone="danger">{t('spotify.app.remove')}</Button>{/if}
                     <Button onclick={() => go(3)}>{t('onboardingImport.continue')} →</Button>
                   </div>
                 {:else}
@@ -186,7 +186,7 @@
                     <div class="actions">
                       {#if replacing}<Button variant="ghost" onclick={cancelReplace} disabled={saving}>{t('spotify.app.cancel')}</Button>
                       {:else}<Button variant="ghost" onclick={() => go(1)} disabled={saving}>{t('onboarding.back')}</Button>{/if}
-                      <Button type="submit" loading={saving}>{t('spotifySetup.saveContinue')} →</Button>
+                      <Button type="submit" busy={saving}>{t('spotifySetup.saveContinue')} →</Button>
                     </div>
                   </form>
                   {#if dev && preview}<div class="preview-action"><Button variant="ghost" onclick={usePreviewKeys}>{t('spotifySetup.previewKeys')} →</Button></div>{/if}

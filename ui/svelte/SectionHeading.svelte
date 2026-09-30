@@ -1,9 +1,17 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/section-heading.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    eyebrow?: string;
+    title: string;
+    align?: 'center' | 'left';
+    class?: string;
+    badge?: Snippet;
+  };
 
   let {
     eyebrow,
@@ -12,14 +20,7 @@
     class: className = '',
     badge,
     ...rest
-  }: {
-    eyebrow?: string;
-    title: string;
-    align?: 'center' | 'left';
-    class?: string;
-    badge?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(
     ['bb-section-heading', `bb-section-heading--${align}`, className || null]

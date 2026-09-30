@@ -43,8 +43,8 @@
   }
 
   .bb-card--danger {
-    border-color: var(--bb-status-error-border);
-    background: var(--bb-status-error-bg);
+    border-color: var(--bb-status-danger-border);
+    background: var(--bb-status-danger-bg);
   }
 
   .bb-card--glass {

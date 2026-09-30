@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Chip, EmptyState, Label, getI18n, type MessageKey } from '@bagel/kit';
+  import { Button, Chip, EmptyState, Label } from '@bagel/ui/svelte';
+  import { getI18n, type MessageKey } from '@bagel/kit';
   import { STARTER_IDS, type Starter, type StarterId } from './starters';
 
   const { t } = getI18n();

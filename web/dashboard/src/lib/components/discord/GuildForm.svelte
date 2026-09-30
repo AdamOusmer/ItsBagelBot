@@ -2,7 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
-  import { AlertBanner, Button, Card, ConfirmDialog, Heading, SaveStatus, Text, getI18n } from '@bagel/kit';
+  import { AlertBanner, Button, Card, ConfirmDialog, Heading, SaveStatus, Text } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import type { Snippet } from 'svelte';
   import type { GuildDraft } from '$lib/discord/guild-draft.svelte';
 
@@ -28,16 +29,16 @@
 </script>
 
 {#if draft.conflicted}
-  <AlertBanner variant="warn">
+  <AlertBanner tone="warning">
     {t('discord.conflictBody')}
-    {#snippet action()}
+    {#snippet actions()}
       <Button variant="secondary" onclick={draft.reload}>{t('discord.conflictCta')}</Button>
     {/snippet}
   </AlertBanner>
 {/if}
 
 {#if draft.invalidBanner}
-  <AlertBanner variant="warn">{draft.invalidBanner}</AlertBanner>
+  <AlertBanner tone="warning">{draft.invalidBanner}</AlertBanner>
 {/if}
 
 <section class="block reveal" style="--i:{index}" aria-labelledby={id}>
@@ -52,7 +53,7 @@
 
       <div class="actions">
         <SaveStatus state={draft.saveState} />
-        <Button variant="primary" type="submit" loading={draft.saving}>{t('discord.save')}</Button>
+        <Button variant="primary" type="submit" busy={draft.saving}>{t('discord.save')}</Button>
       </div>
     </form>
 

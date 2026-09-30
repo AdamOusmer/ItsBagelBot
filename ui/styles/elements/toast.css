@@ -41,7 +41,7 @@
   }
 
   .bb-toast--err {
-    --toast-fg: #cf8a78;
+    --toast-fg: var(--bb-status-danger);
     --toast-border: rgba(176, 90, 70, 0.45);
     color: var(--toast-fg);
     border-color: var(--toast-border);

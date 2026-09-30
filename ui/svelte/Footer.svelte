@@ -1,12 +1,23 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/footer.css';
   import Brand from './Brand.svelte';
   import NavLink from './NavLink.svelte';
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiFooterColumn, UiNavLink } from '../lib/nav-types';
+
+  type Own = {
+    brand: UiBrand;
+    signoff?: { line: string; sub?: string };
+    columns?: UiFooterColumn[];
+    legal?: UiNavLink[];
+    copyright: string;
+    note?: string;
+    colophon?: Snippet;
+    class?: string;
+  };
 
   let {
     brand,
@@ -18,17 +29,7 @@
     colophon,
     class: className = '',
     ...rest
-  }: {
-    brand: UiBrand;
-    signoff?: { line: string; sub?: string };
-    columns?: UiFooterColumn[];
-    legal?: UiNavLink[];
-    copyright: string;
-    note?: string;
-    colophon?: Snippet;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['footer'], keyof Own> = $props();
 
   const classes = $derived(['bb-footer', className || null].filter(Boolean).join(' '));
 </script>

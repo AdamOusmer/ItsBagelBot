@@ -1,11 +1,21 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/nav.css';
   import NavLink from './NavLink.svelte';
   import type { Snippet } from 'svelte';
   import type { UiNavLink } from '../lib/nav-types';
+
+  type Own = {
+    links: UiNavLink[];
+    cta?: UiNavLink;
+    id?: string;
+    panelLabel: string;
+    meta?: string;
+    footer?: Snippet;
+    class?: string;
+  };
 
   let {
     links,
@@ -16,16 +26,7 @@
     footer,
     class: className = '',
     ...rest
-  }: {
-    links: UiNavLink[];
-    cta?: UiNavLink;
-    id?: string;
-    panelLabel: string;
-    meta?: string;
-    footer?: Snippet;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(['bb-mobile-menu', className || null].filter(Boolean).join(' '));
 

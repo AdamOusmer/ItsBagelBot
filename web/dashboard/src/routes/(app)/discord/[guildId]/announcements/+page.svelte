@@ -6,7 +6,9 @@
     Chip,
     Input,
     Text,
-    VisuallyHidden,
+    VisuallyHidden
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     encodeNameList,
     parseNameList,

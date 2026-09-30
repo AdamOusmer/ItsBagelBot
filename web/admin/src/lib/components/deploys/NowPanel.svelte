@@ -176,8 +176,8 @@
     animation: pulse calc(var(--bb-dur-slow) * 2) ease-in-out infinite;
   }
   .pod.failing {
-    background: var(--bb-status-error);
-    border-color: var(--bb-status-error);
+    background: var(--bb-status-danger);
+    border-color: var(--bb-status-danger);
   }
 
   .jobs {

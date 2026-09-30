@@ -10,7 +10,9 @@
     SearchInput,
     SegmentedControl,
     Text,
-    Textarea,
+    Textarea
+  } from '@bagel/ui/svelte';
+  import {
     alertOn,
     encodeIdList,
     getI18n,
@@ -70,7 +72,7 @@
 </script>
 
 {#if layoutDown}
-  <AlertBanner variant="warn">{t('discord.layoutUnavailable')}</AlertBanner>
+  <AlertBanner tone="warning">{t('discord.layoutUnavailable')}</AlertBanner>
 {/if}
 
 <GuildForm {draft} id="dc-tickets-h" title={t('discord.tickets.title')} hint={t('discord.tickets.sectionHelp')}>
@@ -267,7 +269,7 @@
     <div class="repost">
       <Text size="sm" tone="muted" class="hint">{t('discord.tickets.repostHelp')}</Text>
       <form method="POST" action="?/repost" use:enhance={repostSubmit}>
-        <Button variant="secondary" type="submit" loading={draft.busy} disabled={!ticketsOn}>
+        <Button variant="secondary" type="submit" busy={draft.busy} disabled={!ticketsOn}>
           {t('discord.tickets.repostCta')}
         </Button>
       </form>

@@ -1,10 +1,12 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+import { uiI18n } from './i18n';
 
 import '../styles/elements/modal.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'open' | 'title' | 'ariaLabel' | 'closeLabel' | 'titleId' | 'variant' | 'toolbarLabel' | 'class'> {
     open?: boolean;
     title?: string;
     ariaLabel?: string;
@@ -13,14 +15,14 @@ interface Props {
     variant?: 'dialog' | 'viewer';
     toolbarLabel?: string;
     class?: string;
-    [key: string]: unknown;
 }
 
+const { t } = uiI18n(Astro);
 const {
     open = true,
     title,
     ariaLabel,
-    closeLabel = 'Close',
+    closeLabel = t('action.close'),
     titleId = 'bb-modal-title',
     variant = 'dialog',
     toolbarLabel,

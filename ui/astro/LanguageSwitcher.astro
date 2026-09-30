@@ -1,17 +1,17 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/nav.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'options' | 'ariaLabel' | 'action' | 'name' | 'fields' | 'class'> {
   options: { code: string; label: string; href?: string; current?: boolean; title?: string }[];
   ariaLabel: string;
   action?: string;
   name?: string;
   fields?: Record<string, string>;
   class?: string;
-  [key: string]: unknown;
 }
 
 const { options, ariaLabel, action, name = 'locale', fields = {}, class: className = '', ...rest } = Astro.props;

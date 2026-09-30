@@ -12,12 +12,15 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
   import type { Snippet } from 'svelte';
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/ranking-card.css';
 
+  const i18n = getUiI18n();
   let {
     title, description = '', items, actions, leading,
-    emptyLabel = 'No entries yet', class: cls = '', ...rest
+    emptyLabel = i18n.t('data.empty'), class: cls = '', ...rest
   }: {
     title: string;
     description?: string;
@@ -27,8 +30,7 @@
     leading?: Snippet<[RankingItem, number]>;
     emptyLabel?: string;
     class?: string;
-    [key: string]: unknown;
-  } = $props();
+  } & Omit<SvelteHTMLElements['section'], 'title' | 'class'> = $props();
   const maximum = $derived(items.reduce((max, item) =>
     Number.isFinite(item.value) ? Math.max(max, item.value) : max, 0) || 1);
   function proportion(value: number): string {

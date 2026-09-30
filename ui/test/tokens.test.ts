@@ -29,9 +29,11 @@ test('every token ui reads without a fallback is declared inside ui', () => {
   expect(missing).toEqual([]);
 });
 
-test('global tokens are declared only in brand.css', () => {
+const TOKEN_TIERS = new Set(['styles/brand.css', 'styles/semantic.css']);
+
+test('global tokens are declared only in the brand and semantic tiers', () => {
   const owners = sources
-    .filter(({ path }) => path.startsWith('styles/') && path !== 'styles/brand.css')
+    .filter(({ path }) => path.startsWith('styles/') && !TOKEN_TIERS.has(path))
     .filter(({ text }) => /(^|[\s,}]):root\s*\{/.test(text))
     .map(({ path }) => path);
   expect(owners).toEqual([]);

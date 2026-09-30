@@ -1,10 +1,11 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/tags.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'span'>, 'tone' | 'bare' | 'literal' | 'mark' | 'sweep' | 'status' | 'as' | 'class'> {
     tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'error' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'neutral' | 'positive' | 'warning' | 'danger' | 'info';
     bare?: boolean;
     literal?: boolean;
@@ -13,7 +14,6 @@ interface Props {
     status?: boolean;
     as?: 'span' | 'small' | 'div';
     class?: string;
-    [key: string]: unknown;
 }
 
 const {

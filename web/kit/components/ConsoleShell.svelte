@@ -27,7 +27,7 @@
 </script>
 
 <AppShell
-  brand={{ title: brandTitle, sub: brandSub, href: '/', logoSrc, logoAlt: '', premium: isPremium }}
+  brand={{ title: brandTitle, sub: brandSub, href: '/', logoSrc, logoAlt: '', logoShape: isPremium ? 'circle' : 'square' }}
   crumbs={[{ label: crumbRoot, href: '/' }, { label: crumb }]}
   groups={withHints}
   dockItems={mobileItems}

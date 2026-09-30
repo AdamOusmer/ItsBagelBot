@@ -106,11 +106,9 @@ export { focusFirstInvalid } from './forms';
 
 export { default as StatusDot } from './StatusDot.svelte';
 
-export { default as NotificationBell } from './NotificationBell.svelte';
 
 export { default as AmbientSky } from './AmbientSky.svelte';
 
-export { default as StatsPageLayout } from './StatsPageLayout.svelte';
 
 export { default as CounterCard } from './CounterCard.svelte';
 
@@ -140,3 +138,8 @@ export { default as ProfileMenu } from './ProfileMenu.svelte';
 export { default as SkipLink } from './SkipLink.svelte';
 export { default as Popover } from './Popover.svelte';
 export { default as CopySurface } from './CopySurface.svelte';
+
+export { setUiI18n, getUiI18n } from './i18n';
+export type { UiI18n, UiLocale, UiMessageKey, UiOverride } from '../lib/i18n';
+export type { ButtonVariant, ButtonTone, ButtonSize } from '../lib/button';
+export type { AlertTone, AlertVariant, AlertPlacement, AlertAction } from '../lib/alert';

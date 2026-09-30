@@ -39,7 +39,7 @@
   </Field>
   <div class="bb-modal__actions">
     <Button variant="ghost" onclick={onCancel} disabled={busy}>{t('common.cancel')}</Button>
-    <Button variant="destructive" onclick={onConfirm} disabled={busy || !matches}>
+    <Button onclick={onConfirm} disabled={busy || !matches} tone="danger">
       {busy ? t('settings.working') : t('settings.deleteAccount')}
     </Button>
   </div>

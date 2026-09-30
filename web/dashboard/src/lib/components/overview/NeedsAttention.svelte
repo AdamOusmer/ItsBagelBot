@@ -52,9 +52,9 @@
     <ul class="ov-attention__list">
       {#each issues as issue (issue.id)}
         <li>
-          <AlertBanner variant="warn" flush role="note" stack>
+          <AlertBanner tone="warning" flush role="note" stack>
             {issue.text}
-            {#snippet action()}
+            {#snippet actions()}
               <ButtonLink href={issue.href} variant="ghost">{issue.cta}</ButtonLink>
             {/snippet}
           </AlertBanner>

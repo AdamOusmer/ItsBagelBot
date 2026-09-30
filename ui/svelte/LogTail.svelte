@@ -1,8 +1,15 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/log-tail.css';
+
+  type Own = {
+    lines: string[];
+    label: string;
+    max?: number;
+    class?: string;
+  };
 
   let {
     lines,
@@ -10,13 +17,7 @@
     max = 50,
     class: className = '',
     ...rest
-  }: {
-    lines: string[];
-    label: string;
-    max?: number;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['pre'], keyof Own> = $props();
 
   let box = $state<HTMLElement>();
   let pinned = true;

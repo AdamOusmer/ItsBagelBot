@@ -13,7 +13,7 @@
   import Stack from '@bagel/ui/svelte/Stack.svelte';
   import Heading from '@bagel/ui/svelte/Heading.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import type { InspectorStatus } from '@bagel/kit';
+  import type { InspectorStatus } from '@bagel/ui/lib/inspector-machine';
   import { getI18n } from '@bagel/kit/i18n/context';
   import {
     LEVELS,
@@ -92,7 +92,7 @@
           fill mono
           type="text"
           name="title"
-          maxlength="120"
+          maxlength={120}
           required
           placeholder={t('admin.notifications.fieldTitlePlaceholder')}
           bind:value={draft.title}
@@ -103,7 +103,7 @@
         <Textarea
           fill
           name="body"
-          maxlength="2000"
+          maxlength={2000}
           rows={4}
           required
           placeholder={t('admin.notifications.fieldBodyPlaceholder')}

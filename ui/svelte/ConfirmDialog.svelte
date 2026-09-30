@@ -1,19 +1,21 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
 
   import '../styles/elements/modal.css';
   import type { Snippet } from 'svelte';
   import Button from './Button.svelte';
   import Modal from './Modal.svelte';
 
+  const i18n = getUiI18n();
   let {
     open = false,
     title,
     body = undefined as string | undefined,
-    confirmLabel = 'Confirm',
-    cancelLabel = 'Cancel',
-    busyLabel = 'Working…',
+    confirmLabel = i18n.t('action.confirm'),
+    cancelLabel = i18n.t('action.cancel'),
+    busyLabel = i18n.t('status.working'),
     danger = false,
     busy = false,
     onConfirm,
@@ -40,7 +42,7 @@
   <div class="bb-modal__actions">
     <Button variant="ghost" onclick={onCancel} disabled={busy}>{cancelLabel}</Button>
     <Button
-      variant={danger ? 'destructive' : 'primary'}
+      tone={danger ? 'danger' : 'neutral'}
       onclick={onConfirm}
       disabled={busy}
     >

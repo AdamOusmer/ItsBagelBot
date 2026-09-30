@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/shell.css';
 import Topbar from './Topbar.astro';
@@ -8,7 +9,7 @@ import Dock from './Dock.astro';
 import Rail from './Rail.astro';
 import type { UiBrand, UiCrumb, UiNavGroup, UiNavLink } from '../lib/nav-types';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'brand' | 'crumbs' | 'groups' | 'dockItems' | 'rail' | 'offset' | 'skipLabel' | 'crumbAriaLabel' | 'dockAriaLabel' | 'railAriaLabel' | 'clock' | 'class'> {
   brand: UiBrand;
   crumbs?: UiCrumb[];
   groups?: UiNavGroup[];
@@ -22,7 +23,6 @@ interface Props {
   railAriaLabel?: string;
   clock?: boolean;
   class?: string;
-  [key: string]: unknown;
 }
 
 const {

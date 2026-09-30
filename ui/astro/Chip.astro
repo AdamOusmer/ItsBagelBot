@@ -1,17 +1,16 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
-
+import type { HTMLAttributes } from 'astro/types';
 import '../styles/tags.css';
 import '../styles/elements/chip.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'button'>, 'on' | 'type' | 'tone' | 'as' | 'class'> {
     on?: boolean;
     type?: 'button' | 'submit' | 'reset';
     tone?: 'muted' | 'danger' | 'eyebrow' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive';
     as?: 'button' | 'span';
     class?: string;
-    [key: string]: unknown;
 }
 
 const { on = false, type = 'button', tone, as: Tag = 'button', class: cls = '', ...rest } = Astro.props;

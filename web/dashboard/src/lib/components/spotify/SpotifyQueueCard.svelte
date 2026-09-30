@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Card, EmptyState, Heading, Text, getI18n } from '@bagel/kit';
+  import { Button, Card, EmptyState, Heading, Text } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import type { QueueView } from '$lib/server/songqueue-view';
 
   const TICK_MS = 1000;
@@ -91,7 +92,7 @@
   <div class="queue-head">
     <Heading level={6} as="h2">{t('spotify.queue.title')}</Heading>
     <span class="queue-stamp" role="status"><Text as="span" size="xs" mono tone="muted">{refreshing ? t('spotify.queue.refreshing') : updatedLabel}</Text></span>
-    <Button variant="ghost" type="button" loading={refreshing} onclick={onRefresh}>{t('spotify.queue.refresh')}</Button>
+    <Button variant="ghost" type="button" busy={refreshing} onclick={onRefresh}>{t('spotify.queue.refresh')}</Button>
   </div>
   {#if queue?.current}
     <div class="queue-now">
@@ -100,7 +101,7 @@
       {#if progressLabel}
         <span class="queue-time" aria-label={progressLabel.aria}><Text as="span" size="xs" mono tone="muted">{progressLabel.text}</Text></span>
       {/if}
-      <Button variant="secondary" type="button" loading={skipping} onclick={onSkip}>{t('spotify.queue.skip')}</Button>
+      <Button variant="secondary" type="button" busy={skipping} onclick={onSkip}>{t('spotify.queue.skip')}</Button>
     </div>
   {/if}
   {#if upRows.length}

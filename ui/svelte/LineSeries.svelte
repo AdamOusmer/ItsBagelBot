@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/line-series.css';
   import {
     clockTime,
@@ -19,6 +19,18 @@
     type LineSeriesSpec,
   } from '../lib/line-series';
 
+  type Own = {
+    points: readonly LinePoint[];
+    series: readonly LineSeriesSpec[];
+    ariaLabel: string;
+    description?: string;
+    unit?: string;
+    emptyLabel?: string;
+    formatValue?: (value: number | null | undefined) => string;
+    formatTime?: (at: number) => string;
+    class?: string;
+  };
+
   let {
     points,
     series,
@@ -30,18 +42,7 @@
     formatTime = clockTime,
     class: className = '',
     ...rest
-  }: {
-    points: readonly LinePoint[];
-    series: readonly LineSeriesSpec[];
-    ariaLabel: string;
-    description?: string;
-    unit?: string;
-    emptyLabel?: string;
-    formatValue?: (value: number | null | undefined) => string;
-    formatTime?: (at: number) => string;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   let containerWidth = $state(LINE_DEFAULT_WIDTH);
   let hoveredAt = $state<number | null>(null);

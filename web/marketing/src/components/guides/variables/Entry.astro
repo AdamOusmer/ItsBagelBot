@@ -34,7 +34,7 @@ const extraForms = entry.syntaxes.slice(1).map((syntax, i) => ({
     <td>
         <span class="vref-td-variable">
             <Code class="vref-syntax">{entry.syntax}</Code>
-            <Button variant="quiet" size="sm" data-vref-copy={entry.example}><span data-vref-copy-label>{copy.copy}</span></Button>
+            <Button variant="secondary" size="sm" data-vref-copy={entry.example}><span data-vref-copy-label>{copy.copy}</span></Button>
         </span>
     </td>
     <td class="vref-td-means"><Text as="span" size="sm" tone="accent">{means}</Text></td>

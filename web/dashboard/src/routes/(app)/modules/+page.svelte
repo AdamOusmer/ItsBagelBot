@@ -22,13 +22,15 @@
     Text,
     EmptyState,
     toast,
+    SectionNav
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     filterModuleIndex,
     groupModulesByCategory,
     readModuleIndexQuery,
     writeModuleIndexQuery,
     MODULE_CATEGORY_I18N,
-    SectionNav,
     categoryAnchorId,
     categoryHref,
     moduleHref,

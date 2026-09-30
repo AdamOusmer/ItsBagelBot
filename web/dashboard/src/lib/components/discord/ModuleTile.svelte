@@ -12,11 +12,9 @@
     Switch,
     Tag,
     Text,
-    flagValue,
-    getI18n,
-    toast,
-    type ModuleTile
-  } from '@bagel/kit';
+    toast
+  } from '@bagel/ui/svelte';
+  import { flagValue, getI18n, type ModuleTile } from '@bagel/kit';
   import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/guild-draft.svelte';
 
   let {

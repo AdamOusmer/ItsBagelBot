@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/error-scene.css';
   import type { Snippet } from 'svelte';
   import LightField from './LightField.svelte';
@@ -11,6 +11,19 @@
     href?: string;
     onclick?: (event: MouseEvent) => void;
     [attribute: string]: unknown;
+  };
+
+  type Own = {
+    status: number | string;
+    eyebrow: string;
+    title: string;
+    description: string;
+    aside?: string;
+    class?: string;
+    labelledBy?: string;
+    primary?: ErrorSceneAction;
+    secondary?: ErrorSceneAction;
+    actions?: Snippet;
   };
 
   let {
@@ -25,19 +38,7 @@
     secondary,
     actions,
     ...rest
-  }: {
-    status: number | string;
-    eyebrow: string;
-    title: string;
-    description: string;
-    aside?: string;
-    class?: string;
-    labelledBy?: string;
-    primary?: ErrorSceneAction;
-    secondary?: ErrorSceneAction;
-    actions?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['main'], keyof Own> = $props();
 
   const classes = $derived(['bb-error-scene', className || null].filter(Boolean).join(' '));
   const hasActions = $derived(Boolean(primary || secondary || actions));

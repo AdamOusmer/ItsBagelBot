@@ -1,0 +1,10 @@
+{
+  "working": "Working…",
+  "loading": "Loading",
+  "saving": "Saving…",
+  "saved": "Saved",
+  "live": "Live",
+  "failed": "Failed",
+  "saveFailed": "Could not save",
+  "unsaved": "Unsaved changes"
+}

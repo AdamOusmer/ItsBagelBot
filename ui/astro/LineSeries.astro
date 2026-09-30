@@ -1,6 +1,7 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/line-series.css';
 import {
@@ -13,7 +14,7 @@ import {
     type LineSeriesSpec,
 } from '../lib/line-series';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'points' | 'series' | 'ariaLabel' | 'description' | 'unit' | 'emptyLabel' | 'formatValue' | 'formatTime' | 'class'> {
     points: readonly LinePoint[];
     series: readonly LineSeriesSpec[];
     ariaLabel: string;
@@ -23,7 +24,6 @@ interface Props {
     formatValue?: (value: number | null | undefined) => string;
     formatTime?: (at: number) => string;
     class?: string;
-    [key: string]: unknown;
 }
 
 const {

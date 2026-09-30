@@ -1,10 +1,21 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/shell.css';
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
+
+  type Own = {
+    href?: string;
+    icon?: IconName;
+    label: string;
+    active?: boolean;
+    locked?: boolean;
+    lockedHint?: string;
+    count?: string | number;
+    class?: string;
+  };
 
   let {
     href,
@@ -16,17 +27,7 @@
     count,
     class: className = '',
     ...rest
-  }: {
-    href?: string;
-    icon?: IconName;
-    label: string;
-    active?: boolean;
-    locked?: boolean;
-    lockedHint?: string;
-    count?: string | number;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(['bb-rail-item', className || null].filter(Boolean).join(' '));
 </script>

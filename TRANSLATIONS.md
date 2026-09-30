@@ -18,6 +18,9 @@ English (`en`) is the reference. To translate `locales/en/console/timers.json` i
 | `locales/<code>/console/` | Dashboard, admin, public commands page, module labels, and reply-editor copy | `locales/fr/console/timers.json` |
 | `locales/<code>/website/` | Marketing website navigation and shared copy | `locales/fr/website/hero.json` |
 | `locales/<code>/docs/` | Documentation site chrome: navigation, sidebar, menus, and metadata | `locales/fr/docs/menu.json` |
+| `ui/locales/<code>/` | Shared controls on every site: dialogs, search, dropdowns, save status, deploy steps | `ui/locales/fr/status.json` |
+
+The shared controls are the one exception to the one rule: their files live inside the `ui/` library so it can ship on its own. The same rules apply. When you add a language folder there, run `bun ui/scripts/gen-locales.mjs` so the library loads it; the checks tell you if you forget.
 
 Bigger features are folders. `locales/fr/console/admin/users.json` holds the admin users page, and `locales/fr/console/admin/index.json` holds the text shared by the whole admin area.
 

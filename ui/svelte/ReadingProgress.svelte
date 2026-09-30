@@ -1,11 +1,11 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/reading-progress.css';
   import { mountReadingProgress } from '../lib/reading-progress';
 
-  let { class: className = '', ...rest }: { class?: string; [key: string]: unknown } = $props();
+  let { class: className = '', ...rest }: { class?: string } & Omit<SvelteHTMLElements['div'], 'class'> = $props();
 
   let fill = $state<HTMLElement>();
 

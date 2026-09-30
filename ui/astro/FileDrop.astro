@@ -1,14 +1,14 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/file-drop.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'input'>, 'label' | 'accept' | 'class'> {
     label: string;
     accept?: string;
     class?: string;
-    [key: string]: unknown;
 }
 
 const { label, accept, class: className = '', ...rest } = Astro.props;

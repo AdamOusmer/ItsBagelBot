@@ -1,29 +1,17 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import type { Snippet } from 'svelte';
+  import { getUiI18n } from './i18n';
   import '../styles/tags.css';
   import '../styles/elements/radio-group.css';
   import Icon from './Icon.svelte';
 
   type RadioOption = { value: string; label: string; description?: string; meta?: string; disabled?: boolean };
 
-  let {
-    name,
-    options,
-    value = $bindable(''),
-    label = 'Options',
-    variant = 'tabs',
-    min,
-    cols,
-    rail,
-    maxHeight,
-    onchange,
-    onpick,
-    lead,
-    class: className = '',
-    ...rest
-  }: {
+  const i18n = getUiI18n();
+  type Own = {
     name: string;
     options: readonly { value: string; label: string; description?: string; meta?: string; disabled?: boolean }[];
     value: string;
@@ -37,8 +25,24 @@
     onpick?: (value: string) => void;
     lead?: Snippet<[RadioOption, boolean]>;
     class?: string;
-    [key: string]: unknown;
-  } = $props();
+  };
+
+  let {
+    name,
+    options,
+    value = $bindable(''),
+    label = i18n.t('choice.options'),
+    variant = 'tabs',
+    min,
+    cols,
+    rail,
+    maxHeight,
+    onchange,
+    onpick,
+    lead,
+    class: className = '',
+    ...rest
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const tabsClass = $derived(['bb-tabs bb-tabs--wrap', className || null].filter(Boolean).join(' '));
   const choicesClass = $derived(

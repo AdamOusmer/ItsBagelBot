@@ -1,20 +1,23 @@
 <script module lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
 
   export type SaveState = 'idle' | 'saving' | 'saved' | 'live' | 'error';
 </script>
 
 <script lang="ts">
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/save-status.css';
 
+  const i18n = getUiI18n();
   let {
     state = 'idle',
     compact = false,
-    savingLabel = 'Saving…',
-    savedLabel = 'Saved',
-    liveLabel = 'Synced to chat',
-    errorLabel = 'Failed',
+    savingLabel = i18n.t('status.saving'),
+    savedLabel = i18n.t('status.saved'),
+    liveLabel = i18n.t('status.live'),
+    errorLabel = i18n.t('status.failed'),
     class: className = '',
     ...rest
   }: {
@@ -25,8 +28,7 @@
     liveLabel?: string;
     errorLabel?: string;
     class?: string;
-    [key: string]: unknown;
-  } = $props();
+  } & Omit<SvelteHTMLElements['span'], 'class'> = $props();
 
   const TONE: Record<SaveState, string> = {
     idle: '',

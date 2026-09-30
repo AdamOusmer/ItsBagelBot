@@ -70,7 +70,7 @@ const ordinal = (position: number) => String(position + 1).padStart(2, '0');
                 <section class="gshell__block" id={section.id} data-guide-section data-reveal style={`--reveal-i: ${Math.min(i + 1, 6)}`}>
                     <Heading level={3} as="h2" class="gshell__heading"><Text as="span" size="xs" mono tone="positive" class="gshell__num">{ordinal(i)}</Text>{section.heading}</Heading>
                     {section.note && (
-                        <AlertBanner variant="positive" callout role="note" class="gshell__glance"><Tag tone="live" bare class="gshell__glance-tag">{labels.glance}</Tag>{section.note}</AlertBanner>
+                        <AlertBanner tone="success" role="note" class="gshell__glance" variant="callout"><Tag tone="live" bare class="gshell__glance-tag">{labels.glance}</Tag>{section.note}</AlertBanner>
                     )}
                     <GuideBody blocks={section.blocks} />
                 </section>

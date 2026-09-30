@@ -1,11 +1,11 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/orbs.css';
   import '../styles/elements/aurora.css';
 
-  let { class: className = '', ...rest }: { class?: string; [key: string]: unknown } = $props();
+  let { class: className = '', ...rest }: { class?: string } & Omit<SvelteHTMLElements['div'], 'class'> = $props();
 
   const classes = $derived(['bb-aurora', className || null].filter(Boolean).join(' '));
 </script>

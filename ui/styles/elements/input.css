@@ -75,11 +75,11 @@
     }
 
     .bb-input[data-invalid] {
-        border-color: rgba(207, 138, 120, 0.55);
+        border-color: rgba(var(--bb-status-danger-rgb), 0.55);
     }
 
     .bb-input[data-invalid]:focus-within {
-        box-shadow: 0 0 0 3px rgba(207, 138, 120, 0.12);
+        box-shadow: 0 0 0 3px rgba(var(--bb-status-danger-rgb), 0.12);
     }
 
     .bb-input:has(:disabled) {

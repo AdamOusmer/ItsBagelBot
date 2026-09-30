@@ -115,7 +115,7 @@
     </PageHead>
     {#if degraded}<AlertBanner>{t('admin.giveaways.degraded')}</AlertBanner>{/if}
     {#if alertsDegraded}<AlertBanner>{t('admin.giveaways.alertsUnavailable')}</AlertBanner>{/if}
-    {#if actionMessage || errorMessage}<AlertBanner variant={actionFailed || Boolean(errorMessage) ? 'danger' : 'warn'}>{actionMessage ?? errorMessage}</AlertBanner>{/if}
+    {#if actionMessage || errorMessage}<AlertBanner tone={actionFailed || Boolean(errorMessage) ? 'danger' : 'warning'}>{actionMessage ?? errorMessage}</AlertBanner>{/if}
 
     <Stack gap={5}>
       <FactList layout="tiles">

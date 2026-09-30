@@ -1,19 +1,19 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/nav.css';
 import NavLink from './NavLink.astro';
 import type { UiNavLink } from '../lib/nav-types';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'links' | 'cta' | 'id' | 'panelLabel' | 'meta' | 'class'> {
   links: UiNavLink[];
   cta?: UiNavLink;
   id?: string;
   panelLabel: string;
   meta?: string;
   class?: string;
-  [key: string]: unknown;
 }
 
 const {

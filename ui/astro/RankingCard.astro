@@ -1,6 +1,8 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+import { uiI18n } from './i18n';
 import '../styles/elements/ranking-card.css';
 
 interface RankingItem {
@@ -11,16 +13,16 @@ interface RankingItem {
   valueLabel: string;
   secondary?: string;
 }
-interface Props {
+interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'description' | 'items' | 'emptyLabel' | 'class'> {
   title: string;
   description?: string;
   /** IDs are unique. Use named slots `leading-${item.id}` for item artwork. */
   items: readonly RankingItem[];
   emptyLabel?: string;
   class?: string;
-  [key: string]: unknown;
 }
-const { title, description = '', items, emptyLabel = 'No entries yet', class: cls = '', ...rest } = Astro.props;
+const { t } = uiI18n(Astro);
+const { title, description = '', items, emptyLabel = t('data.empty'), class: cls = '', ...rest } = Astro.props;
 const maximum = items.reduce((max, item) =>
   Number.isFinite(item.value) ? Math.max(max, item.value) : max, 0) || 1;
 // Astro's compiler resolves literal <slot> names statically. Render the

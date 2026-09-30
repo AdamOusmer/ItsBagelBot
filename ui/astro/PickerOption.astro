@@ -1,11 +1,12 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/picker-panel.css';
 import Icon from './Icon.astro';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'button'>, 'label' | 'description' | 'layout' | 'selected' | 'disabled' | 'remove' | 'as' | 'class'> {
     label?: string;
     description?: string;
     layout?: 'inline' | 'stacked';
@@ -14,7 +15,6 @@ interface Props {
     remove?: { label: string; armed?: boolean; armedLabel?: string };
     as?: 'div' | 'li';
     class?: string;
-    [key: string]: unknown;
 }
 
 const {

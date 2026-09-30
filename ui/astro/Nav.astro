@@ -1,6 +1,8 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
+import { uiI18n } from './i18n';
 
 import '../styles/elements/nav.css';
 import Brand from './Brand.astro';
@@ -10,7 +12,7 @@ import MobileMenu from './MobileMenu.astro';
 import LanguageSwitcher from './LanguageSwitcher.astro';
 import type { UiBrand, UiLocaleOption, UiNavLink } from '../lib/nav-types';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'nav'>, 'brand' | 'links' | 'cta' | 'locales' | 'localeLabel' | 'ariaLabel' | 'menuLabels' | 'menuMeta' | 'menuId' | 'variant' | 'menu' | 'class'> {
   brand: UiBrand;
   links: UiNavLink[];
   cta?: UiNavLink;
@@ -23,15 +25,15 @@ interface Props {
   variant?: 'pill' | 'bar';
   menu?: boolean;
   class?: string;
-  [key: string]: unknown;
 }
 
+const { t } = uiI18n(Astro);
 const {
   brand,
   links,
   cta,
   locales,
-  localeLabel = 'Language',
+  localeLabel = t('nav.language'),
   ariaLabel,
   menuLabels,
   menuMeta,
@@ -45,7 +47,7 @@ const {
 const classes = ['bb-nav', className || null].filter(Boolean).join(' ');
 ---
 
-<nav class={classes} aria-label={ariaLabel} data-variant={variant} {...rest}><div class="bb-nav__inner"><Brand class="bb-nav__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" premium={brand.premium} data-home-logo /><ul class="bb-nav__links">{links.map((link) => (
+<nav class={classes} aria-label={ariaLabel} data-variant={variant} {...rest}><div class="bb-nav__inner"><Brand class="bb-nav__brand" title={brand.title} sub={brand.sub} href={brand.href} logoSrc={brand.logoSrc} logoAlt={brand.logoAlt} size="sm" logoShape={brand.logoShape} data-home-logo /><ul class="bb-nav__links">{links.map((link) => (
   <li><NavLink href={link.href} label={link.label} current={link.active} external={link.external} /></li>
 ))}</ul><div class="bb-nav__actions">{locales && locales.length > 0 && <LanguageSwitcher options={locales} ariaLabel={localeLabel} />}{cta && <NavLink class="bb-nav__cta" variant="cta" href={cta.href} label={cta.label} external={cta.external} />}<slot name="actions" /></div>{menu && <Hamburger label={menuLabels.open} closeLabel={menuLabels.close} controls={menuId} />}</div></nav>{menu && <MobileMenu links={links} cta={cta} id={menuId} panelLabel={menuLabels.panel} meta={menuMeta}><slot name="mobileFooter" slot="footer" /></MobileMenu>}
 

@@ -27,10 +27,12 @@
     Tag,
     Text,
     Textarea,
+    focusFirstInvalid
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     slugifyName,
     buildJsonPath,
-    focusFirstInvalid,
     DEFS_PER_BROADCASTER
   } from '@bagel/kit';
   import JsonTree from './JsonTree.svelte';
@@ -342,7 +344,7 @@
     {/if}
 
     <div class="sample-row">
-      <Button variant="secondary" loading={fetching} onclick={fetchSample}>
+      <Button variant="secondary" busy={fetching} onclick={fetchSample}>
         {fetching ? t('fetches.builderFetching') : t('fetches.builderFetch')}
       </Button>
       {#if !showPaste && sample === ''}
@@ -381,7 +383,7 @@
 
     <div class="foot">
       <Button variant="ghost" onclick={() => (building = false)}>{t('common.cancel')}</Button>
-      <Button variant="primary" loading={creating} onclick={create}>
+      <Button variant="primary" busy={creating} onclick={create}>
         {creating ? t('fetches.builderCreating') : t('fetches.builderCreate')}
       </Button>
     </div>

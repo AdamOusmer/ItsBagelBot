@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   // The onboarding atmosphere, shared by pages that need the same depth.
   // Props describe stage/pointer motion; copy and foreground artwork stay in the app.
   import LightField from './LightField.svelte';
@@ -9,11 +9,7 @@
   import '../styles/elements/ambient-sky.css';
 
   const generatedId = $props.id();
-  let {
-    shift = 0, turn = 0, px = 0, py = 0, progress = 0, leaving = false,
-    position = 'fixed', warmth = 0.7, uid = generatedId,
-    class: className = '', ...rest
-  }: {
+  type Own = {
     /** Lateral stage offset, -1..1. */
     shift?: number;
     /** Additional ring rotation in degrees. */
@@ -26,14 +22,20 @@
     leaving?: boolean;
     /** Contained fills a positioned ancestor; fixed fills the viewport. */
     position?: 'contained' | 'fixed';
+    stillStars?: boolean;
     warmth?: number;
     /** Override for deterministic rendering; each sky needs a unique value. */
     uid?: string;
     class?: string;
-    [key: string]: unknown;
-  } = $props();
+  };
 
-  const classes = $derived(['bb-ambient-sky', `bb-ambient-sky--${position}`, leaving && 'bb-ambient-sky--leaving', className].filter(Boolean).join(' '));
+  let {
+    shift = 0, turn = 0, px = 0, py = 0, progress = 0, leaving = false,
+    position = 'fixed', stillStars = false, warmth = 0.7, uid = generatedId,
+    class: className = '', ...rest
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
+
+  const classes = $derived(['bb-ambient-sky', `bb-ambient-sky--${position}`, leaving && 'bb-ambient-sky--leaving', stillStars && 'bb-ambient-sky--still-stars', className].filter(Boolean).join(' '));
   const variables = $derived(`--ambient-shift: ${shift}; --ambient-turn: ${turn}deg; --ambient-px: ${px}; --ambient-py: ${py}; --ambient-progress: ${Math.min(Math.max(progress, 0), 1)};`);
 </script>
 

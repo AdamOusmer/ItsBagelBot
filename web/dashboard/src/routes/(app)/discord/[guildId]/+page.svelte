@@ -8,7 +8,9 @@
     Fact,
     FactList,
     Heading,
-    Text,
+    Text
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     guildModuleTiles,
     tilesNeedingSetup,
@@ -59,9 +61,9 @@
 </script>
 
 {#if !data.found}
-  <AlertBanner variant="warn">
+  <AlertBanner tone="warning">
     {t('discord.overview.notSetUp')}
-    {#snippet action()}
+    {#snippet actions()}
       <ButtonLink variant="secondary" href="/discord/{data.guildId}/settings">
         {t('discord.settings.setupCta')}
       </ButtonLink>

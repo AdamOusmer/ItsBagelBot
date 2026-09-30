@@ -27,8 +27,6 @@
   import { deserialize } from '$app/forms';
   import {
     AlertBanner,
-    PermBadge,
-    Bolota,
     Button,
     ButtonLink,
     Card,
@@ -48,7 +46,8 @@
     TextLink,
     Textarea,
     parallax
-  } from '@bagel/kit';
+  } from '@bagel/ui/svelte';
+  import { PermBadge, Bolota } from '@bagel/kit';
   import {
     CHIP_LABEL_KEYS,
     IMPORT_STRATEGIES,
@@ -549,7 +548,7 @@
           <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : goStep('pick'))}
             >{submitting ? t('common.cancel') : t('import.back')}</Button
           >
-          <Button type="submit" variant="primary" loading={submitting}>
+          <Button type="submit" variant="primary" busy={submitting}>
             {t('import.continueCta')}
           </Button>
         </div>
@@ -575,18 +574,18 @@
         <Text tone="muted">{step === 'commands' ? t('onboardingImport.commandsBody') : t('onboardingImport.extrasBody')}</Text>
       </div>
       {#if step === 'extras'}
-        <AlertBanner variant="warn" role="note" callout><b>{t('onboardingImport.modulesTitle')}</b>{t('onboardingImport.modulesBody')}</AlertBanner>
+        <AlertBanner tone="warning" role="note" variant="callout"><b>{t('onboardingImport.modulesTitle')}</b>{t('onboardingImport.modulesBody')}</AlertBanner>
       {/if}
     {/if}
 
       {#each session.manifestLevelDiags as d (d.code + d.message)}
-        <AlertBanner variant="warn" role="status">{d.message}</AlertBanner>
+        <AlertBanner tone="warning" role="status">{d.message}</AlertBanner>
       {/each}
 
       {#if session.anyCollisions}
-        <AlertBanner variant="danger" role="note" stack>
+        <AlertBanner tone="danger" role="note" stack>
           <span class="conflict-lines">{@html t('import.conflictsNote', { n: previewResult.collisions?.length ?? 0 })}</span>
-          {#snippet action()}
+          {#snippet actions()}
             <span class="overwrite-toggle">
               <Checkbox bind:checked={session.overwrite} name="overwrite" value="on">{t('import.overwriteToggle')}</Checkbox>
             </span>
@@ -716,7 +715,7 @@
           <Button variant="ghost" type="button" onclick={() => (submitting ? session.cancel() : reset())}
             >{submitting ? t('common.cancel') : t('import.startOver')}</Button
           >
-          <Button type="submit" variant="primary" loading={submitting}>
+          <Button type="submit" variant="primary" busy={submitting}>
             {t('import.importNow')}
           </Button>
         </div>
@@ -759,13 +758,13 @@
           </div>
         {/if}
         {#each commitResult.diagnostics ?? [] as d (d.code + d.message)}
-          <AlertBanner variant={d.severity === 'error' ? 'danger' : 'warn'} role="status">{d.message}</AlertBanner>
+          <AlertBanner tone={d.severity === 'error' ? 'danger' : 'warning'} role="status">{d.message}</AlertBanner>
         {/each}
       {:else}
         <div class="hint"><Text size="sm" tone="muted">{t('import.nothingApplied')}</Text></div>
       {/if}
       <div class="actions actions-row done-actions">
-        <Button variant="green" solid onclick={() => finishOnboarding('/')} loading={finishing}>{t('onboardingImport.dashboard')}</Button>
+        <Button onclick={() => finishOnboarding('/')} busy={finishing} tone="success">{t('onboardingImport.dashboard')}</Button>
         <Button variant="ghost" onclick={() => finishOnboarding('/commands')} disabled={finishing}>{t('import.reviewCommands')}</Button>
         <Button variant="ghost" onclick={reset} disabled={finishing}>{t('import.importAnother')}</Button>
       </div>
@@ -1033,7 +1032,7 @@
     background: var(--bb-glass-fill);
   }
   .row-item.collision {
-    border-color: rgba(var(--bb-status-error-border-rgb), 0.55);
+    border-color: rgba(var(--bb-status-danger-border-rgb), 0.55);
   }
   .pick {
     display: inline-flex;

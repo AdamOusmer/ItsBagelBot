@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/shell.css';
   import Icon from './Icon.svelte';
   import {
@@ -15,6 +15,15 @@
   import type { IconName } from '../lib/icons';
   import type { UiNavGroup, UiNavLink } from '../lib/nav-types';
 
+  type Own = {
+    items?: UiNavLink[];
+    groups?: UiNavGroup[];
+    ariaLabel?: string;
+    homeHref?: string;
+    fallbackIcon?: IconName;
+    class?: string;
+  };
+
   let {
     items = [],
     groups = [],
@@ -23,15 +32,7 @@
     fallbackIcon,
     class: className = '',
     ...rest
-  }: {
-    items?: UiNavLink[];
-    groups?: UiNavGroup[];
-    ariaLabel?: string;
-    homeHref?: string;
-    fallbackIcon?: IconName;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['nav'], keyof Own> = $props();
 
   const classes = $derived(['bb-dock', className || null].filter(Boolean).join(' '));
 

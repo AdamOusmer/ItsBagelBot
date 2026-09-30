@@ -1,11 +1,26 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/text-link.css';
   import type { Snippet } from 'svelte';
   import type { IconName } from '../lib/icons';
   import Icon from './Icon.svelte';
+
+  type Own = {
+    href: string;
+    label?: string;
+    variant?: 'roll' | 'arrow' | 'inline' | 'quiet';
+    tone?: 'go' | 'lead';
+    prose?: boolean;
+    icon?: IconName;
+    active?: boolean;
+    external?: boolean;
+    size?: string;
+    touch?: boolean;
+    class?: string;
+    children?: Snippet;
+  };
 
   let {
     href,
@@ -21,21 +36,7 @@
     class: className = '',
     children,
     ...rest
-  }: {
-    href: string;
-    label?: string;
-    variant?: 'roll' | 'arrow' | 'inline' | 'quiet';
-    tone?: 'go' | 'lead';
-    prose?: boolean;
-    icon?: IconName;
-    active?: boolean;
-    external?: boolean;
-    size?: string;
-    touch?: boolean;
-    class?: string;
-    children?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['a'], keyof Own> = $props();
 
   const ROOT = {
     roll: 'bb-text-link',

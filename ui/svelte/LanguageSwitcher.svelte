@@ -1,10 +1,20 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/elements/nav.css';
 
   type LocaleChoice = { code: string; label: string; href?: string; current?: boolean; title?: string };
+
+  type Own = {
+    options: { code: string; label: string; href?: string; current?: boolean; title?: string }[];
+    ariaLabel: string;
+    action?: string;
+    name?: string;
+    fields?: Record<string, string>;
+    onselect?: (code: string) => void;
+    class?: string;
+  };
 
   let {
     options,
@@ -15,16 +25,7 @@
     onselect,
     class: className = '',
     ...rest
-  }: {
-    options: { code: string; label: string; href?: string; current?: boolean; title?: string }[];
-    ariaLabel: string;
-    action?: string;
-    name?: string;
-    fields?: Record<string, string>;
-    onselect?: (code: string) => void;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(
     ['bb-lang-switch', className || null].filter(Boolean).join(' '),

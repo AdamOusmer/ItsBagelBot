@@ -6,7 +6,6 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import {
     PageHead,
-    MasterToggle,
     PageToolbar,
     Switch,
     SwitchRow,
@@ -23,7 +22,10 @@
     EmptyState,
     SaveStatus,
     DeckList,
-    toast,
+    toast
+  } from '@bagel/ui/svelte';
+  import {
+    MasterToggle,
     getI18n,
     LOYALTY_DEFAULTS,
     formatPointValue,
@@ -214,7 +216,7 @@
         <input type="hidden" name="config" value={payload} />
 
         <Field label={t('loyalty.fieldName')} tag={t('common.optional')}>
-          <Input placeholder={t('loyalty.fieldNamePh')} maxlength="32" bind:value={config.pointsName} />
+          <Input placeholder={t('loyalty.fieldNamePh')} maxlength={32} bind:value={config.pointsName} />
         </Field>
 
         {#each rateFields as rf (rf.key)}
@@ -232,9 +234,9 @@
                     fill
                     type="number"
                     inputmode="numeric"
-                    min="1"
+                    min={1}
                     max={RATE_MAX}
-                    step="1"
+                    step={1}
                     disabled={!rates[rf.key].on}
                     invalid={!!err}
                     aria-invalid={err ? 'true' : undefined}
@@ -287,7 +289,7 @@
 
         <div class="actions">
           <SaveStatus state={saveState} />
-          <Button variant="primary" type="submit" loading={busy}>{t('loyalty.save')}</Button>
+          <Button variant="primary" type="submit" busy={busy}>{t('loyalty.save')}</Button>
         </div>
       </form>
     </Card>

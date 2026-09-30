@@ -11,12 +11,10 @@
     Heading,
     PageHead,
     PageToolbar,
-    MasterToggle,
     StatTile,
-    Text,
-    getI18n,
-    guildBotState
-  } from '@bagel/kit';
+    Text
+  } from '@bagel/ui/svelte';
+  import { MasterToggle, getI18n, guildBotState } from '@bagel/kit';
   import { DISCORD_SLUG_KEYS } from '$lib/discord-messages';
   import DiscordStateTag from '$lib/components/discord/DiscordStateTag.svelte';
   import GuildCrest from '$lib/components/discord/GuildCrest.svelte';
@@ -88,7 +86,7 @@
     {/if}
 
     {#if data.errorSlug && DISCORD_SLUG_KEYS[data.errorSlug]}
-      <AlertBanner variant="warn">{t(DISCORD_SLUG_KEYS[data.errorSlug])}</AlertBanner>
+      <AlertBanner tone="warning">{t(DISCORD_SLUG_KEYS[data.errorSlug])}</AlertBanner>
     {/if}
 
     <PageToolbar>
@@ -162,7 +160,7 @@
       {:else}
         <Text size="sm" tone="muted">{t('discord.serversHelp')}</Text>
         {#if data.truncated}
-          <AlertBanner variant="warn">
+          <AlertBanner tone="warning">
             {t('discord.serversTruncated', { n: guilds.length.toLocaleString() })}
           </AlertBanner>
         {/if}

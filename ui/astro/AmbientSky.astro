@@ -1,13 +1,14 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 // Astro twin of the onboarding atmosphere in AmbientSky.svelte.
 import LightField from './LightField.astro';
 import '../styles/orbs.css';
 import '../styles/elements/ambient-sky.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'shift' | 'turn' | 'px' | 'py' | 'progress' | 'leaving' | 'position' | 'stillStars' | 'warmth' | 'uid' | 'class'> {
     shift?: number;
     turn?: number;
     px?: number;
@@ -15,17 +16,17 @@ interface Props {
     progress?: number;
     leaving?: boolean;
     position?: 'contained' | 'fixed';
+    stillStars?: boolean;
     warmth?: number;
     uid?: string;
     class?: string;
-    [key: string]: unknown;
 }
 const {
     shift = 0, turn = 0, px = 0, py = 0, progress = 0, leaving = false,
-    position = 'fixed', warmth = 0.7, uid = `bb-sky-${crypto.randomUUID()}`,
+    position = 'fixed', stillStars = false, warmth = 0.7, uid = `bb-sky-${crypto.randomUUID()}`,
     class: className = '', ...rest
 } = Astro.props;
-const classes = ['bb-ambient-sky', `bb-ambient-sky--${position}`, leaving && 'bb-ambient-sky--leaving', className].filter(Boolean).join(' ');
+const classes = ['bb-ambient-sky', `bb-ambient-sky--${position}`, leaving && 'bb-ambient-sky--leaving', stillStars && 'bb-ambient-sky--still-stars', className].filter(Boolean).join(' ');
 const variables = `--ambient-shift: ${shift}; --ambient-turn: ${turn}deg; --ambient-px: ${px}; --ambient-py: ${py}; --ambient-progress: ${Math.min(Math.max(progress, 0), 1)};`;
 ---
 

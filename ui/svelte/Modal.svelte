@@ -1,6 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
 
   import '../styles/elements/modal.css';
   import type { Snippet } from 'svelte';
@@ -13,21 +15,8 @@
     trapFocus,
   } from '../lib/overlay-stack';
 
-  let {
-    open = false,
-    title,
-    closeModal,
-    busy = false,
-    closeLabel = 'Close',
-    ariaLabel,
-    variant = 'dialog',
-    toolbarLabel,
-    class: className = '',
-    children,
-    toolbar,
-    hint,
-    ...rest
-  }: {
+  const i18n = getUiI18n();
+  type Own = {
     open: boolean;
     title?: string;
     closeModal: () => void;
@@ -40,8 +29,23 @@
     children?: Snippet;
     toolbar?: Snippet;
     hint?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  };
+
+  let {
+    open = false,
+    title,
+    closeModal,
+    busy = false,
+    closeLabel = i18n.t('action.close'),
+    ariaLabel,
+    variant = 'dialog',
+    toolbarLabel,
+    class: className = '',
+    children,
+    toolbar,
+    hint,
+    ...rest
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const uid = $props.id();
   const titleId = `bb-modal-title-${uid}`;

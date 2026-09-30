@@ -324,12 +324,12 @@
     {#if !cd.ok}
       <section class="ov-top" aria-labelledby="ov-cmd-h">
         <Heading level={6} as="h2" variant="title" id="ov-cmd-h">{t('overview.topCommands')}</Heading>
-        <AlertBanner variant="warn" role="status" flush>
+        <AlertBanner tone="warning" role="status" flush>
           <span class="ov-unavail">
             <Text as="span" size="sm">{t('overview.commandsUnavailable')}</Text>
             <Text as="span" size="sm" tone="muted">{t('overview.commandsUnavailableDesc')}</Text>
           </span>
-          {#snippet action()}
+          {#snippet actions()}
             <RetryButton />
           {/snippet}
         </AlertBanner>
@@ -353,9 +353,9 @@
     <form method="POST" action={modalAction} use:enhance={closeAfterSubmit} class="bb-modal__actions">
       <Button variant="ghost" type="button" disabled={actionBusy} onclick={() => closeModal()}>{t('common.cancel')}</Button>
       <Button
-        variant={pending === 'disconnect' ? 'tan' : 'primary'}
+        variant={pending === 'disconnect' ? 'secondary' : 'primary'}
         type="submit"
-        loading={actionBusy}
+        busy={actionBusy}
       >
         {pending === 'restart' ? t('overview.restart') : t('overview.disconnect')}
       </Button>

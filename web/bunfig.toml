@@ -5,3 +5,7 @@
 # Do not set optional = false: vite/rolldown/lightningcss platform bindings are optionalDependencies.
 [install]
 linker = "hoisted"
+
+[test]
+# Compiles .svelte for component render tests and stubs CSS imports.
+preload = ["./kit/test/svelte-ssr.ts"]

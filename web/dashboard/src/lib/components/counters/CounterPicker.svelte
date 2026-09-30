@@ -14,10 +14,9 @@
     PickerPanel,
     Select,
     Tag,
-    Text,
-    getI18n,
-    type CounterScope
-  } from '@bagel/kit';
+    Text
+  } from '@bagel/ui/svelte';
+  import { getI18n, type CounterScope } from '@bagel/kit';
 
   const { t } = getI18n();
 
@@ -154,7 +153,7 @@
       <div class="new-head"><Label mono as="span">{t('counters.pickerNew')}</Label></div>
       <Input
         placeholder={t('counters.fieldNamePh')}
-        maxlength="64"
+        maxlength={64}
         bind:value={newName}
         onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && (e.preventDefault(), create())}
       />

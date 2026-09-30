@@ -9,7 +9,9 @@
     Switch,
     Tag,
     Text,
-    toast,
+    toast
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     tModuleLabel,
     tModuleTagline,

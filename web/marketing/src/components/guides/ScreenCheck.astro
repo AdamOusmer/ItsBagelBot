@@ -13,7 +13,7 @@ const { label, checked = false, note } = Astro.props;
 ---
 
 <span class="screen-check" inert>
-    <Checkbox checked={checked} tabindex="-1">{label}</Checkbox>
+    <Checkbox checked={checked} tabindex={-1}>{label}</Checkbox>
     {note && <i class="gs-mark" data-note={note}></i>}
 </span>
 

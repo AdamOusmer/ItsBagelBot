@@ -1,28 +1,12 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import type { Snippet } from 'svelte';
   import CardAtmosphere from './CardAtmosphere.svelte';
   import '../styles/elements/card.css';
 
-  let {
-    as = 'div',
-    href,
-    atmo = false,
-    sheen = false,
-    stat = false,
-    glass = false,
-    hover = false,
-    flush = false,
-    dashed = false,
-    tone,
-    label = '',
-    band,
-    class: cls = '',
-    children,
-    ...rest
-  }: {
+  type Own = {
     as?: string;
     href?: string;
     atmo?: boolean;
@@ -37,8 +21,25 @@
     band?: Snippet;
     class?: string;
     children: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  };
+
+  let {
+    as,
+    href,
+    atmo = false,
+    sheen = false,
+    stat = false,
+    glass = false,
+    hover = false,
+    flush = false,
+    dashed = false,
+    tone,
+    label = '',
+    band,
+    class: cls = '',
+    children,
+    ...rest
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(
     [
@@ -58,7 +59,7 @@
 </script>
 
 <svelte:element
-  this={as}
+  this={as ?? (href ? 'a' : 'div')}
   class={classes}
   {...href ? { href } : {}}
   data-card=""

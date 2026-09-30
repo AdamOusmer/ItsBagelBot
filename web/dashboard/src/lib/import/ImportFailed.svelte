@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { Button, Tag, Text } from '@bagel/kit';
+  import { Button, Tag, Text } from '@bagel/ui/svelte';
   import type { ImportFailedItem } from '@bagel/kit';
   import { capFailed } from './helpers';
   import type { Translate } from './session.svelte';
@@ -42,7 +42,7 @@
     {#if view.more > 0}<Text size="xs" mono tone="muted">{t('import.skippedMore', { n: view.more })}</Text>{/if}
     {#if retryCount > 0}
       <div class="failed-actions">
-        <Button variant="secondary" onclick={onRetry} disabled={submitting} loading={submitting}>
+        <Button variant="secondary" onclick={onRetry} disabled={submitting} busy={submitting}>
           {t('import.retryFailed', { n: retryCount })}
         </Button>
       </div>

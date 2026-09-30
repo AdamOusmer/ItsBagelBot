@@ -1,6 +1,7 @@
 <script module lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { HTMLAttributes } from 'svelte/elements';
 
   export type StepState =
     | 'pending'
@@ -27,8 +28,19 @@
   import { prefersReducedMotion } from '../lib/motion-query';
   import Icon from './Icon.svelte';
   import ProgressBar from './ProgressBar.svelte';
+  import { getUiI18n } from './i18n';
   import '../styles/tags.css';
   import '../styles/elements/step-list.css';
+
+  type Own = {
+    steps: StepItem[];
+    detail?: Snippet<[StepItem]>;
+    stateLabels?: Partial<Record<StepState, string>>;
+    selected?: string;
+    onselect?: (id: string) => void;
+    label?: string;
+    class?: string;
+  };
 
   let {
     steps,
@@ -39,25 +51,17 @@
     label,
     class: className = '',
     ...rest
-  }: {
-    steps: StepItem[];
-    detail?: Snippet<[StepItem]>;
-    stateLabels?: Partial<Record<StepState, string>>;
-    selected?: string;
-    onselect?: (id: string) => void;
-    label?: string;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
+  const i18n = getUiI18n();
   const DEFAULT_LABELS: Record<StepState, string> = {
-    pending: 'Pending',
-    running: 'Running',
-    waiting: 'Waiting',
-    succeeded: 'Succeeded',
-    failed: 'Failed',
-    skipped: 'Skipped',
-    cancelled: 'Cancelled',
+    pending: i18n.t('steps.pending'),
+    running: i18n.t('steps.running'),
+    waiting: i18n.t('steps.waiting'),
+    succeeded: i18n.t('steps.succeeded'),
+    failed: i18n.t('steps.failed'),
+    skipped: i18n.t('steps.skipped'),
+    cancelled: i18n.t('steps.cancelled'),
   };
 
   const TONE: Record<StepState, 'neutral' | 'success' | 'warning' | 'error'> = {

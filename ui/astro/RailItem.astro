@@ -1,12 +1,13 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/shell.css';
 import Icon from './Icon.astro';
 import type { IconName } from '../lib/icons';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'href' | 'icon' | 'label' | 'active' | 'locked' | 'lockedHint' | 'count' | 'class'> {
   href?: string;
   icon?: IconName;
   label: string;
@@ -15,7 +16,6 @@ interface Props {
   lockedHint?: string;
   count?: string | number;
   class?: string;
-  [key: string]: unknown;
 }
 
 const {

@@ -1395,6 +1395,7 @@ export type KnownMessageKey =
   | 'common.selectNoMatch'
   | 'common.selectTitle'
   | 'common.skipToContent'
+  | 'common.syncedToChat'
   | 'common.unit.hours'
   | 'common.unit.label'
   | 'common.unit.minutes'

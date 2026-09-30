@@ -1,11 +1,25 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/copy-surface.css';
   import { onDestroy, type Snippet } from 'svelte';
   import { copyText } from '../lib/clipboard';
   import Icon from './Icon.svelte';
+
+  type Own = {
+    text: string;
+    copiedLabel: string;
+    announce?: string;
+    variant?: 'card' | 'row' | 'well';
+    label?: string;
+    hint?: string;
+    flashMs?: number;
+    legacyFallback?: boolean;
+    oncopy?: (copied: boolean) => void;
+    class?: string;
+    children?: Snippet<[boolean]>;
+  };
 
   let {
     text,
@@ -20,20 +34,7 @@
     class: className = '',
     children,
     ...rest
-  }: {
-    text: string;
-    copiedLabel: string;
-    announce?: string;
-    variant?: 'card' | 'row' | 'well';
-    label?: string;
-    hint?: string;
-    flashMs?: number;
-    legacyFallback?: boolean;
-    oncopy?: (copied: boolean) => void;
-    class?: string;
-    children?: Snippet<[boolean]>;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['button'], keyof Own> = $props();
 
   const FLASH_MS = 1600;
 

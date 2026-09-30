@@ -13,7 +13,6 @@
     ConfirmDialog,
     EditorFooter,
     InspectorSurface,
-    MasterToggle,
     AlertBanner,
     DeckLayout,
     DeckList,
@@ -25,13 +24,16 @@
     Spinner,
     Text,
     toast,
+    focusFirstInvalid,
+    createDiscardGuard,
+    Tag
+  } from '@bagel/ui/svelte';
+  import {
+    MasterToggle,
     getI18n,
     type GoveeDevice,
     actionPayload,
-    focusFirstInvalid,
-    createDiscardGuard,
-    type ActionOk,
-    Tag,
+    type ActionOk
   } from '@bagel/kit';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import GoveeLightRow from '$lib/components/govee/GoveeLightRow.svelte';
@@ -222,7 +224,7 @@
 {#snippet devicesError()}
   <div class="err-block" role="alert">
     <Text size="sm" tone="danger">{t('govee.devicesError')}</Text>
-    <Button variant="secondary" type="button" loading={refreshing} onclick={refreshLights}>{t('govee.devicesRetry')}</Button>
+    <Button variant="secondary" type="button" busy={refreshing} onclick={refreshLights}>{t('govee.devicesRetry')}</Button>
   </div>
 {/snippet}
 
@@ -236,9 +238,9 @@
   {/if}
 
   {#if missingScope}
-    <AlertBanner variant="warn">
+    <AlertBanner tone="warning">
       {t('govee.reconnect')}
-      {#snippet action()}
+      {#snippet actions()}
         <ButtonLink variant="primary" href="/login?next=/govee" data-sveltekit-reload>{t('govee.reconnectCta')}</ButtonLink>
       {/snippet}
     </AlertBanner>
@@ -263,7 +265,7 @@
       {#if keyPresent}
         <div class="row">
           <Tag tone="live" mark="solid">{t('govee.keyOnFile')}</Tag>
-          <Button variant="destructive" type="button" onclick={() => (keyRemovePending = true)}>{t('govee.keyRemove')}</Button>
+          <Button type="button" onclick={() => (keyRemovePending = true)} tone="danger">{t('govee.keyRemove')}</Button>
         </div>
       {:else}
         <Text size="sm" tone="muted">
@@ -273,7 +275,7 @@
           <span class="key-input">
             <Input fill type="password" name="key" placeholder={t('govee.keyPlaceholder')} aria-label={t('govee.keyFieldLabel')} autocomplete="off" required />
           </span>
-          <Button variant="primary" type="submit" loading={keySaving}>{t('govee.keySave')}</Button>
+          <Button variant="primary" type="submit" busy={keySaving}>{t('govee.keySave')}</Button>
         </form>
       {/if}
     </div>
@@ -295,7 +297,7 @@
               {@render devicesError()}
             {:else if lights.length === 0}
               <EmptyState title={t('govee.noLights')} body={t('govee.noLightsBody')}>
-                <Button variant="secondary" type="button" loading={refreshing} onclick={refreshLights}>{t('govee.noLightsCta')}</Button>
+                <Button variant="secondary" type="button" busy={refreshing} onclick={refreshLights}>{t('govee.noLightsCta')}</Button>
               </EmptyState>
             {:else}
               <div>

@@ -1,18 +1,18 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/stepper.css';
 import Icon from './Icon.astro';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'steps' | 'current' | 'label' | 'orientation' | 'compact' | 'class'> {
     steps: readonly { label: string; detail?: string }[];
     current: number;
     label: string;
     orientation?: 'horizontal' | 'vertical';
     compact?: boolean;
     class?: string;
-    [key: string]: unknown;
 }
 
 const { steps, current, label, orientation = 'horizontal', compact = false, class: className = '', ...rest } = Astro.props;

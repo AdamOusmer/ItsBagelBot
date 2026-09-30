@@ -10,11 +10,11 @@
     rehearseTimer,
     COMMAND_SAMPLES,
     normName,
-    Tag,
     getI18n,
     type RehearsedLine,
     type Seg
   } from '@bagel/kit';
+  import { Tag } from '@bagel/ui/svelte';
 
   const i18n = getI18n();
 
@@ -264,8 +264,8 @@
     padding: 0 3px;
   }
   .msg mark.unknown {
-    background: rgba(var(--bb-status-error-border-rgb), 0.16);
-    color: var(--bb-status-error);
+    background: rgba(var(--bb-status-danger-border-rgb), 0.16);
+    color: var(--bb-status-danger);
     font-family: var(--bb-font-mono);
     font-size: 12px;
   }

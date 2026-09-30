@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/kit';
+  import { Select } from '@bagel/ui/svelte';
   import { enhance, deserialize } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
   import { tick, untrack } from 'svelte';
@@ -31,6 +31,9 @@
     Tag,
     Text,
     toast,
+    SegmentedControl
+  } from '@bagel/ui/svelte';
+  import {
     getI18n,
     COUNTER_SCOPES,
     type CounterDef,
@@ -38,11 +41,10 @@
     type CounterScope,
     actionPayload,
     toastFailure,
-    type ActionOk,
-    SegmentedControl,
+    type ActionOk
   } from '@bagel/kit';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
-  import { focusFirstInvalid } from '@bagel/kit';
+  import { focusFirstInvalid } from '@bagel/ui/svelte';
   import { formatCounterValue, parseCounterValue } from '@bagel/kit/validation';
 
   let { data } = $props();
@@ -493,10 +495,10 @@
       invalid={!!renameError}
       aria-invalid={renameError ? 'true' : undefined}
       aria-describedby={renameError ? 'counter-rename-err' : undefined}
-      maxlength="64"
+      maxlength={64}
       bind:value={renameValue}
     />
-    <Button variant="ghost" loading={renaming} onclick={() => renameForm?.requestSubmit()}>
+    <Button variant="ghost" busy={renaming} onclick={() => renameForm?.requestSubmit()}>
       {t('counters.rename')}
     </Button>
   </div>
@@ -578,7 +580,7 @@
                   id="counter-name"
                   name="name"
                   placeholder={t('counters.fieldNamePh')}
-                  maxlength="64"
+                  maxlength={64}
                   bind:value={draft.name}
                   invalid={!!nameError}
                   aria-invalid={nameError ? 'true' : undefined}
@@ -706,9 +708,9 @@
                             {#if entryEditable(selected.scope, e)}
                               <IconButton
                                 size="sm"
-                                danger
                                 label={t('counters.entryDeleteAria', { name: entryLabel(e) })}
                                 onclick={() => (entryDeleteTarget = e)}
+                                tone="danger"
                               ><Icon name="trash" size={15} /></IconButton>
                             {/if}
                           </td>
@@ -736,7 +738,7 @@
                       <Input
                         name="username"
                         placeholder={t('counters.addUserPh')}
-                        maxlength="32"
+                        maxlength={32}
                         required
                         invalid={!!addUserError}
                         aria-invalid={addUserError ? 'true' : undefined}
@@ -750,7 +752,7 @@
                       <Input
                         name="command"
                         placeholder={t('counters.addCommandPh')}
-                        maxlength="64"
+                        maxlength={64}
                         required
                         invalid={!!addCommandError}
                         aria-invalid={addCommandError ? 'true' : undefined}
@@ -765,7 +767,7 @@
                         <Input fill type="text" inputmode="numeric" name="value" bind:value={addValue} />
                       </Field>
                     </div>
-                    <Button variant="secondary" type="submit" loading={adding}>
+                    <Button variant="secondary" type="submit" busy={adding}>
                       {t('counters.add')}
                     </Button>
                   </div>
@@ -779,7 +781,7 @@
             </Scroller>
             <div class="ins-foot">
               <Button variant="ghost" onclick={closeEditor}>{t('common.cancel')}</Button>
-              <Button variant="destructive" onclick={() => (resetTarget = selected)}>
+              <Button onclick={() => (resetTarget = selected)} tone="danger">
                 {t('counters.reset')}
               </Button>
             </div>

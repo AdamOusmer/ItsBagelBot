@@ -13,7 +13,7 @@
   import Text from '@bagel/ui/svelte/Text.svelte';
   import FactList from '@bagel/ui/svelte/FactList.svelte';
   import Fact from '@bagel/ui/svelte/Fact.svelte';
-  import type { InspectorStatus } from '@bagel/kit';
+  import type { InspectorStatus } from '@bagel/ui/lib/inspector-machine';
   import { getI18n } from '@bagel/kit/i18n/context';
   import type { LaneView } from '$lib/server/lanes';
   import { ALIAS_MAX, type LaneDraft } from './lane-view';
@@ -117,7 +117,7 @@
           <section class="block">
             <Heading level={3} variant="label">{t('admin.lanes.dangerTitle')}</Heading>
             <Text size="sm" tone="muted">{t('admin.lanes.deleteHint')}</Text>
-            <Button variant="destructive" disabled={busy} onclick={onDelete}>
+            <Button disabled={busy} onclick={onDelete} tone="danger">
               {t('common.delete')}
             </Button>
           </section>

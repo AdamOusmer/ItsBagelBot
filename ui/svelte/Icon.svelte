@@ -1,9 +1,17 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/icon.css';
   import { icons, type IconName } from '../lib/icons';
+
+  type Own = {
+    name: IconName;
+    size?: number;
+    strokeWidth?: number;
+    fill?: string;
+    class?: string;
+  };
 
   let {
     name,
@@ -12,14 +20,7 @@
     fill = 'none',
     class: className = '',
     ...rest
-  }: {
-    name: IconName;
-    size?: number;
-    strokeWidth?: number;
-    fill?: string;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['svg'], keyof Own> = $props();
 
   const classes = $derived(['bb-icon', className || null].filter(Boolean).join(' '));
 </script>

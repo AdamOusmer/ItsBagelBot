@@ -159,11 +159,11 @@ function createList(id: string, label: string, searchable: boolean): HTMLUListEl
 function createSearch(root: HTMLElement, panel: HTMLDivElement, id: string, render: () => void): { input: HTMLInputElement; clear: HTMLButtonElement } {
   const search = document.createElement('label'); search.className = 'bb-search bb-input bb-input--fill';
   const input = document.createElement('input'); input.type = 'search'; input.className = 'bb-search__input';
-  input.placeholder = root.dataset.searchPlaceholder ?? 'Search…'; input.setAttribute('aria-label', input.placeholder);
+  input.placeholder = root.dataset.searchPlaceholder ?? ''; input.setAttribute('aria-label', input.placeholder);
   input.setAttribute('role', 'combobox'); input.setAttribute('aria-expanded', 'true'); input.setAttribute('aria-autocomplete', 'list');
   input.setAttribute('aria-controls', `${id}-list`); input.autocomplete = 'off'; input.addEventListener('input', render);
   const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'bb-search__clear';
-  clear.setAttribute('aria-label', root.dataset.searchClearLabel ?? 'Clear search'); clear.append(searchGlyph(true));
+  clear.setAttribute('aria-label', root.dataset.searchClearLabel ?? ''); clear.append(searchGlyph(true));
   clear.addEventListener('click', () => { input.value = ''; render(); input.focus(); });
   search.append(searchGlyph(), input, clear); panel.append(search);
   return { input, clear };
@@ -177,7 +177,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
   if (!native || !fallback) return;
   root.dataset.selectEnhanced = '';
   const id = native.id || `bb-astro-select-${++sequence}`;
-  const label = root.dataset.label || 'Select an option';
+  const label = root.dataset.label ?? '';
   const trigger = createTrigger(native, fallback, id, label);
   const valueLabel = document.createElement('span');
   valueLabel.className = 'bb-select__value';
@@ -213,7 +213,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
 
   function sync() {
     const selected = selectedOption();
-    valueLabel.textContent = selected?.triggerLabel ?? selected?.label ?? root.dataset.placeholder ?? 'Select…';
+    valueLabel.textContent = selected?.triggerLabel ?? selected?.label ?? root.dataset.placeholder ?? '';
     trigger.disabled = native!.disabled;
     trigger.toggleAttribute('data-placeholder', !selected?.value);
     if (trigger.disabled && panel) close(false);
@@ -296,7 +296,7 @@ export function enhanceAstroSelect(root: HTMLElement): void {
       group = option.group;
       target.append(createOptionItem(option, index, context));
     }
-    if (!matches.length) appendEmptyMessage(target, root.dataset.emptyLabel ?? 'No matches');
+    if (!matches.length) appendEmptyMessage(target, root.dataset.emptyLabel ?? '');
   }
 
   function resetActive() {

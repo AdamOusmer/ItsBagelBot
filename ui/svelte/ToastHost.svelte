@@ -1,14 +1,16 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import { getUiI18n } from './i18n';
 
   import '../styles/elements/toast.css';
   import Icon from './Icon.svelte';
   import { toasts, dismissToast, pauseToast, resumeToast, type ToastItem } from './toast.svelte';
 
+  const i18n = getUiI18n();
   let {
-    dismissLabel = 'Dismiss',
-    undoLabel = 'Undo',
+    dismissLabel = i18n.t('action.dismiss'),
+    undoLabel = i18n.t('action.undo'),
   }: {
     dismissLabel?: string;
     undoLabel?: string;

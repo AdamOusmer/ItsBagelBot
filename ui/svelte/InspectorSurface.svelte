@@ -1,6 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { HTMLAttributes } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
 
   import '../styles/elements/card.css';
   import '../styles/elements/surface.css';
@@ -17,17 +19,8 @@
     trapFocus,
   } from '../lib/overlay-stack';
 
-  let {
-    open = false,
-    title,
-    controls,
-    closeLabel = 'Close',
-    class: className = '',
-    onClose,
-    children,
-    idle,
-    ...rest
-  }: {
+  const i18n = getUiI18n();
+  type Own = {
     open?: boolean;
     title: string;
     controls?: string;
@@ -36,8 +29,19 @@
     onClose: () => void;
     children?: Snippet;
     idle?: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  };
+
+  let {
+    open = false,
+    title,
+    controls,
+    closeLabel = i18n.t('action.close'),
+    class: className = '',
+    onClose,
+    children,
+    idle,
+    ...rest
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const SHEET_QUERY = '(max-width: 1079px)';
   const sheetQuery = mediaQuery(SHEET_QUERY);

@@ -1,9 +1,19 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/shell.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    eyebrow?: string;
+    title?: string;
+    description?: string;
+    children?: Snippet;
+    trail?: Snippet;
+    compact?: boolean;
+    class?: string;
+  };
 
   let {
     eyebrow,
@@ -14,16 +24,7 @@
     compact = false,
     class: className = '',
     ...rest
-  }: {
-    eyebrow?: string;
-    title?: string;
-    description?: string;
-    children?: Snippet;
-    trail?: Snippet;
-    compact?: boolean;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(
     [

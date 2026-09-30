@@ -36,7 +36,7 @@
   .bb-editor-foot__s--dirty { color: var(--bb-muted); }
   .bb-editor-foot__s--saving { color: var(--bb-tan-light); }
   .bb-editor-foot__s--saved { color: var(--bb-green-glow); }
-  .bb-editor-foot__s--error { color: var(--bb-status-error); }
+  .bb-editor-foot__s--error { color: var(--bb-status-danger); }
 
   .bb-editor-foot__s--saved svg {
     fill: none;

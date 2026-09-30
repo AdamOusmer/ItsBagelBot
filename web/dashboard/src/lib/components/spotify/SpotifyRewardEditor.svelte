@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { namespaceReplySamples, Button, Code, Field, Text, getI18n } from '@bagel/kit';
+  import { namespaceReplySamples, getI18n } from '@bagel/kit';
+  import { Button, Code, Field, Text } from '@bagel/ui/svelte';
   import Input from '@bagel/ui/svelte/Input.svelte';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
@@ -51,7 +52,7 @@
       fill
       invalid={!!titleError}
       type="text"
-      maxlength="45"
+      maxlength={45}
       bind:value={draft.title}
       aria-invalid={titleError ? 'true' : undefined}
       aria-describedby={titleError ? 'spotify-title-err' : undefined}
@@ -66,8 +67,8 @@
           fill
           invalid={!!costError}
           type="number"
-          min="1"
-          max="10000000"
+          min={1}
+          max={10000000}
           bind:value={draft.cost}
           aria-invalid={costError ? 'true' : undefined}
           aria-describedby={costError ? 'spotify-cost-err' : undefined}
@@ -115,7 +116,7 @@
 
   {#if canDelete}
     <div class="del-row">
-      <Button variant="destructive" type="button" onclick={onRequestDelete} disabled={busy}>{t('spotify.delete.reward')}</Button>
+      <Button type="button" onclick={onRequestDelete} disabled={busy} tone="danger">{t('spotify.delete.reward')}</Button>
     </div>
   {/if}
 </div>

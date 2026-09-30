@@ -2,7 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
-  import { Chip, Text, getI18n } from '@bagel/kit';
+  import { Chip, Text } from '@bagel/ui/svelte';
+  import { getI18n } from '@bagel/kit';
   import type { VariableChip } from '@bagel/kit/variables';
 
   let { chips }: { chips: readonly VariableChip[] } = $props();

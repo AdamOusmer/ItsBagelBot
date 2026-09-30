@@ -1,6 +1,7 @@
 <script module lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { HTMLAttributes } from 'svelte/elements';
 
   export type StepperStep = { label: string; detail?: string };
 </script>
@@ -8,6 +9,17 @@
 <script lang="ts">
   import '../styles/elements/stepper.css';
   import Icon from './Icon.svelte';
+
+  type Own = {
+    steps: readonly StepperStep[];
+    current: number;
+    label: string;
+    orientation?: 'horizontal' | 'vertical';
+    maxStep?: number;
+    compact?: boolean;
+    onselect?: (index: number) => void;
+    class?: string;
+  };
 
   let {
     steps,
@@ -19,17 +31,7 @@
     onselect,
     class: className = '',
     ...rest
-  }: {
-    steps: readonly StepperStep[];
-    current: number;
-    label: string;
-    orientation?: 'horizontal' | 'vertical';
-    maxStep?: number;
-    compact?: boolean;
-    onselect?: (index: number) => void;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(
     [

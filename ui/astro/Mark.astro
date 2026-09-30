@@ -1,15 +1,15 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/tags.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'i'>, 'variant' | 'size' | 'style' | 'class'> {
     variant?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
     size?: string;
     style?: string;
     class?: string;
-    [key: string]: unknown;
 }
 
 const { variant = 'solid', size, style, class: className = '', ...rest } = Astro.props;

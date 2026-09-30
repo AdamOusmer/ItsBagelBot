@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Checkbox, DEFAULT_CHAT_LINES, Field, Input, SwitchRow, Text, getI18n, type TimerDef } from '@bagel/kit';
+  import { Checkbox, Field, Input, SwitchRow, Text } from '@bagel/ui/svelte';
+  import { DEFAULT_CHAT_LINES, getI18n, type TimerDef } from '@bagel/kit';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
@@ -114,15 +115,15 @@
   </div>
 
   <Field label={t('timers.fieldMinChatLines')} hint={t('timers.fieldMinChatLinesHint')}>
-    <span class="num"><Input type="number" min="1" max="100" disabled={!chatGateOn} bind:value={draft.minChatLines} /></span>
+    <span class="num"><Input type="number" min={1} max={100} disabled={!chatGateOn} bind:value={draft.minChatLines} /></span>
   </Field>
 
   <Field label={t('timers.fieldChatWindow')} hint={t('timers.fieldChatWindowHint')}>
-    <span class="num"><Input type="number" min="1" max="60" disabled={!chatGateOn} bind:value={draft.chatWindowMinutes} /></span>
+    <span class="num"><Input type="number" min={1} max={60} disabled={!chatGateOn} bind:value={draft.chatWindowMinutes} /></span>
   </Field>
 
   <Field label={t('timers.fieldMaxFires')} hint={t('timers.fieldMaxFiresHint')}>
-    <span class="num"><Input type="number" min="0" max="100" bind:value={draft.maxFiresPerStream} /></span>
+    <span class="num"><Input type="number" min={0} max={100} bind:value={draft.maxFiresPerStream} /></span>
   </Field>
 
   <Field label={t('timers.fieldEndsAt')} hint={t('timers.fieldEndsAtHint')}>

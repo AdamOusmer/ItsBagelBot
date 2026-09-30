@@ -3,27 +3,48 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { readdir, readFile } from 'node:fs/promises';
-import { join, relative, resolve } from 'node:path';
+import { builtinModules } from 'node:module';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 
 const uiRoot = resolve(import.meta.dir, '..');
 
-const DOMAIN_DIRS = ['lib', 'styles'];
-const ALL_DIRS = ['lib', 'styles', 'svelte', 'astro', 'scripts', 'test'];
+const SCAN_EXTENSIONS = new Set(['.ts', '.js', '.mjs', '.css', '.svelte', '.astro']);
+const NODE_BUILTINS = new Set(builtinModules);
 
-const SCAN_EXTENSIONS = new Set([
-  '.ts', '.js', '.mjs', '.css', '.svelte', '.astro',
-]);
+const isSvelte = (s) => s === 'svelte' || s.startsWith('svelte/');
+const isAstro = (s) => s === 'astro' || s.startsWith('astro/') || s.startsWith('astro:');
+const isSvelteKit = (s) => s.startsWith('$app/') || s.startsWith('@sveltejs/kit');
+const isNode = (s) => s.startsWith('node:') || NODE_BUILTINS.has(s.split('/')[0]);
 
-const DOMAIN_BANS = [
-  { test: (s) => s === 'svelte' || s.startsWith('svelte/'), what: 'svelte' },
-  { test: (s) => s.startsWith('$app/'), what: '$app/* (SvelteKit)' },
-  { test: (s) => s.startsWith('astro:'), what: 'astro:*' },
-  { test: (s) => s === 'astro' || s.startsWith('astro/'), what: 'astro' },
-  { test: (s) => s.startsWith('node:'), what: 'node:* builtin' },
-  { test: (s) => s.startsWith('@bagel/kit'), what: '@bagel/kit' },
+const EVERYWHERE = [
+  { test: (s) => s.startsWith('@bagel/'), what: 'another @bagel package' },
+  { test: (s) => s.startsWith('$lib') || s.startsWith('$env'), what: 'an app alias ($lib, $env)' },
 ];
 
-const KIT_BAN = { test: (s) => s.startsWith('@bagel/kit'), what: '@bagel/kit' };
+const BANS = {
+  lib: [
+    { test: isSvelte, what: 'svelte' },
+    { test: isAstro, what: 'astro' },
+    { test: isSvelteKit, what: 'SvelteKit' },
+    { test: isNode, what: 'a node builtin' },
+  ],
+  styles: [
+    { test: isSvelte, what: 'svelte' },
+    { test: isAstro, what: 'astro' },
+  ],
+  svelte: [
+    { test: isAstro, what: 'astro' },
+    { test: isSvelteKit, what: 'SvelteKit' },
+    { test: isNode, what: 'a node builtin' },
+  ],
+  astro: [
+    { test: isSvelte, what: 'svelte' },
+    { test: isSvelteKit, what: 'SvelteKit' },
+  ],
+  types: [],
+  scripts: [],
+  test: [],
+};
 
 const SPECIFIER_PATTERNS = [
   /\bimport\s+[^'";]*?\bfrom\s*['"]([^'"]+)['"]/g,
@@ -67,34 +88,42 @@ function specifiers(source) {
   return found;
 }
 
+function escapesPackage(file, specifier) {
+  if (!specifier.startsWith('.')) return false;
+  const target = resolve(dirname(file), specifier);
+  return target !== uiRoot && !target.startsWith(uiRoot + sep);
+}
+
+const SHIPPED = new Set(['lib', 'styles', 'svelte', 'astro', 'types']);
+
+function problems(dir, file, specifier, bans) {
+  const found = [...EVERYWHERE, ...bans].filter((ban) => ban.test(specifier)).map((ban) => ban.what);
+  if (SHIPPED.has(dir) && escapesPackage(file, specifier)) found.push('a path outside @bagel/ui');
+  return found;
+}
+
 const violations = [];
 
-for (const dir of ALL_DIRS) {
-  const domain = DOMAIN_DIRS.includes(dir);
-  const bans = domain ? DOMAIN_BANS : [KIT_BAN];
+for (const [dir, bans] of Object.entries(BANS)) {
   for (const file of await walk(join(uiRoot, dir))) {
     const source = await readFile(file, 'utf8');
     for (const { specifier, line } of specifiers(source)) {
-      for (const ban of bans) {
-        if (!ban.test(specifier)) continue;
-        violations.push(
-          `${relative(uiRoot, file)}:${line}: imports ${ban.what} ('${specifier}')`,
-        );
+      for (const what of problems(dir, file, specifier, bans)) {
+        violations.push(`${relative(uiRoot, file)}:${line}: imports ${what} ('${specifier}')`);
       }
     }
   }
 }
 
 if (violations.length > 0) {
-  console.error('@bagel/ui is not framework-free:\n');
+  console.error('@bagel/ui has a forbidden dependency:\n');
   for (const v of violations) console.error(`  ✗ ${v}`);
   console.error(
-    '\nlib/ and styles/ are the framework-free domain half of this package;' +
-      '\nput the framework-specific part in ui/svelte/ or ui/astro/ instead.' +
-      '\n@bagel/kit may never be imported from ui at all: the dependency' +
-      '\ndirection is ui -> nothing internal, kit -> ui.',
+    '\nlib/ and styles/ are framework-free; svelte/ and astro/ import only their own framework.' +
+      '\nNothing in ui may import another @bagel package, an app alias, or a path outside ui:' +
+      '\nthe dependency direction is apps -> kit -> ui -> nothing internal.',
   );
   process.exit(1);
 }
 
-console.log('✓ @bagel/ui is framework-free (lib/, styles/) and kit-free');
+console.log('✓ @bagel/ui dependencies point inward only (framework-free lib/ and styles/, no @bagel/*, no escapes)');

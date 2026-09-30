@@ -13,7 +13,6 @@
     ConfirmDialog,
     EditorFooter,
     InspectorSurface,
-    MasterToggle,
     AlertBanner,
     DeckLayout,
     DeckList,
@@ -24,6 +23,11 @@
     SwitchRow,
     Text,
     toast,
+    focusFirstInvalid,
+    createDiscardGuard
+  } from '@bagel/ui/svelte';
+  import {
+    MasterToggle,
     getI18n,
     moduleDef,
     SPOTIFY_SR_PERMS,
@@ -36,10 +40,8 @@
     SPOTIFY_QUOTA_TIERS,
     type SpotifyQuotas,
     actionPayload,
-    focusFirstInvalid,
-    createDiscardGuard,
     toastFailure,
-    type ActionOk,
+    type ActionOk
   } from '@bagel/kit';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import Input from '@bagel/ui/svelte/Input.svelte';
@@ -421,13 +423,13 @@
   {@render head()}
 
   {#if data.errorSlug && ERROR_SLUG_KEYS[data.errorSlug]}
-    <AlertBanner variant="warn">{t(ERROR_SLUG_KEYS[data.errorSlug])}</AlertBanner>
+    <AlertBanner tone="warning">{t(ERROR_SLUG_KEYS[data.errorSlug])}</AlertBanner>
   {/if}
 
   {#if missingScope}
-    <AlertBanner variant="warn">
+    <AlertBanner tone="warning">
       {t('spotify.connection.reconnect')}
-      {#snippet action()}
+      {#snippet actions()}
         <ButtonLink variant="primary" href="/login?next=/songqueue" data-sveltekit-reload>{t('spotify.connection.reconnectCta')}</ButtonLink>
       {/snippet}
     </AlertBanner>
@@ -513,15 +515,15 @@
                   fill
                   name={`quota_${tier}`}
                   type="number"
-                  min="1"
-                  step="1"
+                  min={1}
+                  step={1}
                   placeholder={t('spotify.quota.unlimited')}
                   bind:value={quotaDraft[tier]}
                 />
               </Field>
             {/each}
           </div>
-          <Button variant="secondary" type="submit" loading={quotaSaving} disabled={!quotaDirty}>{t('spotify.quota.save')}</Button>
+          <Button variant="secondary" type="submit" busy={quotaSaving} disabled={!quotaDirty}>{t('spotify.quota.save')}</Button>
         </form>
       </Card>
 

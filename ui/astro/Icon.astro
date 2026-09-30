@@ -1,17 +1,17 @@
 ---
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
+import type { HTMLAttributes } from 'astro/types';
 
 import '../styles/elements/icon.css';
 import { icons, type IconName } from '../lib/icons';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'svg'>, 'name' | 'size' | 'strokeWidth' | 'fill' | 'class'> {
   name: IconName;
   size?: number;
   strokeWidth?: number;
   fill?: string;
   class?: string;
-  [key: string]: unknown;
 }
 
 const {

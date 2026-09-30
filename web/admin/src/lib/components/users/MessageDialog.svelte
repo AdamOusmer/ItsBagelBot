@@ -63,7 +63,7 @@
   <div class="fields">
     <Stack gap={3}>
       <Field label={t('admin.users.messageFieldTitle')}>
-        <Input fill mono type="text" maxlength="120" bind:value={title} />
+        <Input fill mono type="text" maxlength={120} bind:value={title} />
       </Field>
       <Field label={t('admin.users.messageFieldBody')}>
         <Textarea rows={3} maxlength={2000} fill mono bind:value={body} />

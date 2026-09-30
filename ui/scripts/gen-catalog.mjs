@@ -13,13 +13,13 @@ const FAMILY = {
   VisuallyHidden: 'Typography', SectionHeading: 'Typography',
   Container: 'Layout', Section: 'Layout', Stack: 'Layout', Cluster: 'Layout', Grid: 'Layout',
   Divider: 'Layout', Spacer: 'Layout', AppShell: 'Layout', Scroller: 'Layout',
-  InspectorSurface: 'Layout', PageHero: 'Layout', PickerPanel: 'Layout', StatsPageLayout: 'Layout',
+  InspectorSurface: 'Layout', PageHero: 'Layout', PickerPanel: 'Layout',
   Button: 'Controls', ButtonLink: 'Controls', IconButton: 'Controls', Switch: 'Controls',
   Toggle: 'Controls', Field: 'Controls', FieldError: 'Controls', Input: 'Controls',
   Select: 'Controls', Textarea: 'Controls', Checkbox: 'Controls', RadioGroup: 'Controls',
   SegmentedControl: 'Controls', SearchInput: 'Controls',
   SwitchRow: 'Controls', Slider: 'Controls', FileDrop: 'Controls', PickerOption: 'Controls',
-  Badge: 'Feedback', NotificationBell: 'Feedback', StatusDot: 'Feedback', Chip: 'Feedback', Tag: 'Feedback', ToastHost: 'Feedback',
+  Badge: 'Feedback', StatusDot: 'Feedback', Chip: 'Feedback', Tag: 'Feedback', ToastHost: 'Feedback',
   AlertBanner: 'Feedback', Skeleton: 'Feedback', SkeletonStack: 'Feedback',
   EmptyState: 'Feedback', Modal: 'Feedback', ConfirmDialog: 'Feedback', Tooltip: 'Feedback',
   SaveStatus: 'Feedback', ErrorScene: 'Feedback', ProgressBar: 'Feedback', StepList: 'Feedback',
@@ -39,7 +39,6 @@ const FAMILY = {
 };
 
 const ADAPTER_NOTE = {
-  NotificationBell: 'Svelte only: interactive notification popover with caller-owned callbacks.',
   PickerPanel: 'Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.',
   ToastHost: 'Svelte only: it subscribes to the toast store, and a host with nothing to subscribe to renders nothing.',
   ConfirmDialog: 'Svelte only: a composition of Modal + Button with no CSS of its own, and its two callbacks are the element.',
@@ -56,7 +55,28 @@ const ADAPTER_NOTE = {
 
 const PROP_RE = /^\s*(?:\/\*\*.*\*\/\s*)?([A-Za-z_$][\w$]*)(\??)\s*:\s*(.+);\s*$/;
 
+function objectLiteralAt(source, open) {
+  let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}' && --depth === 0) return source.slice(open + 1, i);
+  }
+  return null;
+}
+
+function propsFromTypeAlias(source) {
+  const alias = /\btype (?:Own|Props) = /.exec(source);
+  if (!alias) return null;
+  const open = /(?:^|[=&]\s*)\{/.exec(source.slice(alias.index + alias[0].length - 2));
+  if (!open) return null;
+  const at = alias.index + alias[0].length - 2 + open.index + open[0].length - 1;
+  const body = objectLiteralAt(source, at);
+  return body === null ? null : parseProps(body);
+}
+
 function propsFromSvelte(source, file) {
+  const aliased = propsFromTypeAlias(source);
+  if (aliased) return aliased;
   const start = source.indexOf('}: {');
   if (start === -1) return null;
   const end = source.indexOf('= $props()', start);

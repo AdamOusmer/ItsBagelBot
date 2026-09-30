@@ -2,7 +2,8 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
 
-  import { getI18n, Chip, Heading, PickerOption, PickerPanel, SearchInput, Tag, Text, TextLink, moduleDef, builtinDef, rovingFocus } from '@bagel/kit';
+  import { getI18n, moduleDef, builtinDef } from '@bagel/kit';
+  import { Chip, Heading, PickerOption, PickerPanel, SearchInput, Tag, Text, TextLink, rovingFocus } from '@bagel/ui/svelte';
   import { pinnedFor, sheetFor, type VariableChip, type VariableGroup, type VariableSurface } from '@bagel/kit/variables';
   import { webHref } from '@bagel/kit/site-links';
   import ModuleVariablePicker from '$lib/components/commands/ModuleVariablePicker.svelte';

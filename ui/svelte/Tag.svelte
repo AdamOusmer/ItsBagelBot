@@ -1,9 +1,21 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { HTMLAttributes } from 'svelte/elements';
   import '../styles/tags.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'error' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'neutral' | 'positive' | 'warning' | 'danger' | 'info';
+    bare?: boolean;
+    literal?: boolean;
+    mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
+    sweep?: boolean;
+    status?: boolean;
+    as?: 'span' | 'small' | 'div';
+    class?: string;
+    children: Snippet;
+  };
 
   let {
     tone = undefined,
@@ -16,18 +28,7 @@
     class: className = '',
     children,
     ...rest
-  }: {
-    tone?: 'quiet' | 'live' | 'alpha' | 'pre' | 'incoming' | 'bare' | 'error' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive' | 'neutral' | 'positive' | 'warning' | 'danger' | 'info';
-    bare?: boolean;
-    literal?: boolean;
-    mark?: 'solid' | 'hollow' | 'dash' | 'up' | 'plus';
-    sweep?: boolean;
-    status?: boolean;
-    as?: 'span' | 'small' | 'div';
-    class?: string;
-    children: Snippet;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
 
   const classes = $derived(
     [

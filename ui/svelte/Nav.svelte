@@ -1,6 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
+  import type { SvelteHTMLElements } from 'svelte/elements';
+  import { getUiI18n } from './i18n';
 
   import '../styles/elements/nav.css';
   import Brand from './Brand.svelte';
@@ -12,23 +14,8 @@
   import type { Snippet } from 'svelte';
   import type { UiBrand, UiLocaleOption, UiNavLink } from '../lib/nav-types';
 
-  let {
-    brand,
-    links,
-    cta,
-    locales,
-    localeLabel = 'Language',
-    ariaLabel,
-    menuLabels,
-    menuMeta,
-    menuId = 'bb-mobile-menu',
-    variant = 'pill',
-    menu = true,
-    actions,
-    mobileFooter,
-    class: className = '',
-    ...rest
-  }: {
+  const i18n = getUiI18n();
+  type Own = {
     brand: UiBrand;
     links: UiNavLink[];
     cta?: UiNavLink;
@@ -43,8 +30,25 @@
     actions?: Snippet;
     mobileFooter?: Snippet;
     class?: string;
-    [key: string]: unknown;
-  } = $props();
+  };
+
+  let {
+    brand,
+    links,
+    cta,
+    locales,
+    localeLabel = i18n.t('nav.language'),
+    ariaLabel,
+    menuLabels,
+    menuMeta,
+    menuId = 'bb-mobile-menu',
+    variant = 'pill',
+    menu = true,
+    actions,
+    mobileFooter,
+    class: className = '',
+    ...rest
+  }: Own & Omit<SvelteHTMLElements['nav'], keyof Own> = $props();
 
   const classes = $derived(['bb-nav', className || null].filter(Boolean).join(' '));
 
@@ -90,7 +94,7 @@
       logoSrc={brand.logoSrc}
       logoAlt={brand.logoAlt}
       size="sm"
-      premium={brand.premium}
+      logoShape={brand.logoShape}
       data-home-logo
     /><ul class="bb-nav__links"
       >{#each links as link (link.href)}<li

@@ -1,21 +1,22 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/shell.css';
   import type { Snippet } from 'svelte';
+
+  type Own = {
+    lead?: Snippet;
+    trail?: Snippet;
+    class?: string;
+  };
 
   let {
     lead,
     trail,
     class: className = '',
     ...rest
-  }: {
-    lead?: Snippet;
-    trail?: Snippet;
-    class?: string;
-    [key: string]: unknown;
-  } = $props();
+  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
   const classes = $derived(['bb-toolbar', className || null].filter(Boolean).join(' '));
 </script>
