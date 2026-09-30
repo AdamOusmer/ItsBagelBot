@@ -14,8 +14,10 @@ import (
 
 	discapi "ItsBagelBot/internal/discordapi"
 	ddiscord "ItsBagelBot/internal/domain/discord"
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	discordoutgress "ItsBagelBot/internal/domain/rpc/discordoutgress"
 	outgressrpc "ItsBagelBot/internal/domain/rpc/outgress"
+	"github.com/stretchr/testify/require"
 )
 
 func historyGet(call recordedCall) bool {
@@ -372,23 +374,20 @@ func TestTicketCloseMarksATruncatedTranscript(t *testing.T) {
 	for _, tc := range []struct {
 		name              string
 		archiveCategoryID string
-		wantError         bool
+		wantCode          domainrpc.Code
 	}{
-		{name: "archive succeeds", archiveCategoryID: "cat1"},
-		{name: "deletion fails", wantError: true},
+		{name: "archive succeeds", archiveCategoryID: "cat1", wantCode: outgressrpc.CodeOK},
+		{name: "deletion fails", wantCode: outgressrpc.CodeUnknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			pages := 0
-			h, _ := newTicketRPC(t, func(call recordedCall) (int, string) {
-				if historyGet(call) {
-					pages++
-					if pages == 1 {
-						return 200, messagePage(1000, discapi.MessagePageMax)
-					}
-					return 500, `{"message":"Internal Server Error"}`
+			firstPage := true
+			h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
+				if historyGet(call) && firstPage {
+					firstPage = false
+					return 200, messagePage(1000, discapi.MessagePageMax)
 				}
-				if call.method == http.MethodDelete && call.path == "/channels/c1" {
-					return 500, `{"message":"could not delete channel"}`
+				if historyGet(call) || call.method == http.MethodDelete {
+					return 500, `{"message":"Internal Server Error"}`
 				}
 				return 200, `{"id":"m-new"}`
 			})
@@ -399,25 +398,13 @@ func TestTicketCloseMarksATruncatedTranscript(t *testing.T) {
 
 			reply := h.close(context.Background(), req)
 
-			if !tc.wantError {
-				if reply.Error != "" {
-					t.Fatalf("close reply = %+v, want successful archive", reply)
-				}
-			} else if reply.Error == "" || reply.Code != outgressrpc.CodeUnknown {
-				t.Fatalf("reply = %+v, want the channel deletion error alongside the transcript", reply)
-			}
-			if !reply.Truncated {
-				t.Fatalf("reply = %+v, want truncated", reply)
-			}
-			if !strings.Contains(reply.TranscriptBody, "transcript incomplete") {
-				t.Fatalf("transcript %q must carry the truncation line", firstLine(reply.TranscriptBody))
-			}
-			if reply.MessageCount != discapi.MessagePageMax {
-				t.Fatalf("message count = %d, want the partial page kept", reply.MessageCount)
-			}
-			if !strings.Contains(reply.TranscriptBody, "line 1000") {
-				t.Fatal("a failed page must not throw away the pages that succeeded")
-			}
+			require.Equal(t, 0, tr.indexOf(http.MethodGet, "/channels/c1/messages"), "history must be read before disposing the channel")
+			require.Equal(t, tc.wantCode, reply.Code)
+			require.Equal(t, tc.wantCode != outgressrpc.CodeOK, reply.Error != "")
+			require.True(t, reply.Truncated)
+			require.Equal(t, discapi.MessagePageMax, reply.MessageCount)
+			require.Contains(t, reply.TranscriptBody, "transcript incomplete")
+			require.Contains(t, reply.TranscriptBody, "line 1000")
 		})
 	}
 }
