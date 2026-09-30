@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/pkg/bus"
 
 	"github.com/nats-io/nats.go"
@@ -55,8 +57,25 @@ func (s *Store) Load(ctx context.Context) (Loaded, error) {
 }
 
 func Unavailable(err error) bool {
+	if err == nil {
+		return false
+	}
 	var refused bus.RPCReplyError
-	return err != nil && !errors.As(err, &refused)
+	if !errors.As(err, &refused) {
+		return true
+	}
+	return !tokenNotFound(refused)
+}
+
+func tokenNotFound(refused bus.RPCReplyError) bool {
+	if refused.Code == domainrpc.CodeNotFound {
+		return true
+	}
+	return refused.Code == "" && legacyNotFoundMessage(refused.Message)
+}
+
+func legacyNotFoundMessage(message string) bool {
+	return strings.Contains(message, "not found")
 }
 
 func (s *Store) Save(ctx context.Context, accessToken, refreshToken string, expiresAt *time.Time) error {

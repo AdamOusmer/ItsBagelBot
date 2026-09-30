@@ -5,10 +5,10 @@ package tokenstore
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/pkg/bus"
 
@@ -37,47 +37,66 @@ func serveTokensGet(t *testing.T, nc *nats.Conn, prefix string, get func(context
 	require.NoError(t, bus.ServeVerbs(wiring, prefix, bus.VerbForUser[usersrpc.TokensRequest, usersrpc.TokensReply]("get", get)))
 }
 
-func TestLoadSeparatesRefusalFromOutage(t *testing.T) {
-	tests := []struct {
-		name            string
-		serve           func(t *testing.T, nc *nats.Conn, prefix string)
-		wantErr         bool
-		wantUnavailable bool
-	}{
-		{
-			name: "stored token loads",
-			serve: func(t *testing.T, nc *nats.Conn, prefix string) {
-				serveTokensGet(t, nc, prefix, func(context.Context, usersrpc.TokensRequest, uint64) (usersrpc.TokensReply, error) {
-					return usersrpc.TokensReply{RefreshToken: "refresh"}, nil
-				})
-			},
-		},
-		{
-			name: "not found refusal keeps the no-token path",
-			serve: func(t *testing.T, nc *nats.Conn, prefix string) {
-				serveTokensGet(t, nc, prefix, func(context.Context, usersrpc.TokensRequest, uint64) (usersrpc.TokensReply, error) {
-					return usersrpc.TokensReply{}, errors.New("ent: tokens not found")
-				})
-			},
-			wantErr: true,
-		},
-		{
-			name:            "no responders is an outage",
-			serve:           func(*testing.T, *nats.Conn, string) {},
-			wantErr:         true,
-			wantUnavailable: true,
-		},
-		{
-			name: "silent users service is an outage",
-			serve: func(t *testing.T, nc *nats.Conn, prefix string) {
-				require.NoError(t, bus.QueueSubscribeRPC(nc, prefix+".get", "tokens-test", func(*nats.Msg) {}))
-			},
-			wantErr:         true,
-			wantUnavailable: true,
-		},
+func replyingWith(reply usersrpc.TokensReply) func(t *testing.T, nc *nats.Conn, prefix string) {
+	return func(t *testing.T, nc *nats.Conn, prefix string) {
+		serveTokensGet(t, nc, prefix, func(context.Context, usersrpc.TokensRequest, uint64) (usersrpc.TokensReply, error) {
+			return reply, nil
+		})
 	}
+}
 
-	for _, tc := range tests {
+type loadRefusalCase struct {
+	name            string
+	serve           func(t *testing.T, nc *nats.Conn, prefix string)
+	wantErr         bool
+	wantUnavailable bool
+}
+
+var loadRefusalCases = []loadRefusalCase{
+	{
+		name:  "stored token loads",
+		serve: replyingWith(usersrpc.TokensReply{RefreshToken: "refresh"}),
+	},
+	{
+		name:    "not_found refusal keeps the no-token path",
+		serve:   replyingWith(usersrpc.TokensReply{Refusal: domainrpc.Refused(domainrpc.CodeNotFound, "ent: tokens not found")}),
+		wantErr: true,
+	},
+	{
+		name:            "internal refusal is an outage",
+		serve:           replyingWith(usersrpc.TokensReply{Refusal: domainrpc.Refused(domainrpc.CodeInternal, "db exploded")}),
+		wantErr:         true,
+		wantUnavailable: true,
+	},
+	{
+		name:    "uncoded not found refusal from an old users service keeps the no-token path",
+		serve:   replyingWith(usersrpc.TokensReply{Refusal: domainrpc.Refusal{Error: "tokens not found for user"}}),
+		wantErr: true,
+	},
+	{
+		name:            "uncoded internal refusal from an old users service is an outage",
+		serve:           replyingWith(usersrpc.TokensReply{Refusal: domainrpc.Refusal{Error: "db exploded"}}),
+		wantErr:         true,
+		wantUnavailable: true,
+	},
+	{
+		name:            "no responders is an outage",
+		serve:           func(*testing.T, *nats.Conn, string) {},
+		wantErr:         true,
+		wantUnavailable: true,
+	},
+	{
+		name: "silent users service is an outage",
+		serve: func(t *testing.T, nc *nats.Conn, prefix string) {
+			require.NoError(t, bus.QueueSubscribeRPC(nc, prefix+".get", "tokens-test", func(*nats.Msg) {}))
+		},
+		wantErr:         true,
+		wantUnavailable: true,
+	},
+}
+
+func TestLoadSeparatesRefusalFromOutage(t *testing.T) {
+	for _, tc := range loadRefusalCases {
 		t.Run(tc.name, func(t *testing.T) {
 			nc := connectBroker(t)
 			tc.serve(t, nc, "tokens")
