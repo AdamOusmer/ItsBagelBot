@@ -71,5 +71,9 @@
     .bb-counter-card { --counter-card-pad: 22px; }
     .bb-counter-card__label { font-size: 21px; }
     .bb-counter-card__measure { margin-top: 22px; }
+    .bb-counter-card__foot { flex-direction: column; align-items: flex-start; gap: 4px; }
+  }
+  @media (max-width: 480px) {
+    .bb-counter-card__rate-label { min-height: 2lh; }
   }
 }
