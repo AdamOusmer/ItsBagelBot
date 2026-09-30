@@ -26,6 +26,7 @@
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { LOCALES, ensureCatalog, translate, type Locale } from '@bagel/kit/i18n';
+  import { localeFlag } from '@bagel/kit/site-links';
   import CursorSwitch from '$lib/components/CursorSwitch.svelte';
   import Sky from '@bagel/ui/svelte/Sky.svelte';
   import Completion from '$lib/components/welcome/Completion.svelte';
@@ -77,7 +78,15 @@
       description: tr(`onboarding.choice${c.key}Body`)
     }))
   );
-  const langOptions = $derived(LOCALES.map((l) => ({ code: l, label: l.toUpperCase(), current: l === locale })));
+  const langOptions = $derived(
+    LOCALES.map((code) => ({
+      code,
+      label: code.toUpperCase(),
+      title: page.data.localeNames?.[code] ?? code,
+      flag: localeFlag(code),
+      current: code === locale
+    }))
+  );
   const choiceIndex = $derived(Math.max(0, CHOICES.findIndex((c) => c.id === (hoveredChoice ?? setup))));
   const choicePosition = $derived(['12.5%', '37.5%', '62.5%', '87.5%'][choiceIndex]);
   const choicePositionCompact = $derived(['25%', '75%', '25%', '75%'][choiceIndex]);
@@ -526,7 +535,7 @@
             {:else if current.kind === 'lang'}
               <div class="control prefs" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
                 <div class="lang-row">
-                  <LanguageSwitcher label={tr('lang.switchAria')} options={langOptions} onSelect={(code) => setLang(code as Locale)} />
+                  <LanguageSwitcher label={tr('lang.switchAria')} options={langOptions} variant="field" onSelect={(code) => setLang(code as Locale)} />
                 </div>
                 <div class="pref-row">
                   <div class="pref-text">

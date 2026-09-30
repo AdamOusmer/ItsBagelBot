@@ -19,6 +19,24 @@ const ENTRIES: {
              globalThis.x = { filterSelectOptions, nextEnabledOption };`,
   },
   {
+    // Locale popover anchoring and keys: 1017 B gzip measured 2026-09-30,
+    // +150 B platform delta and ~10% room.
+    name: "lang-switch",
+    budget: 1290,
+    external: [],
+    source: `import { mountLangSwitch } from "../../lib/lang-switch";
+             globalThis.x = mountLangSwitch;`,
+  },
+  {
+    // Six circle flags (br de es fr gb ru): 1296 B gzip measured 2026-09-30,
+    // +150 B platform delta and ~10% room.
+    name: "flags",
+    budget: 1600,
+    external: [],
+    source: `import { flagBody } from "../../lib/flags";
+             globalThis.x = flagBody;`,
+  },
+  {
     // Astro's optional-search picker plus shared overlay/focus. Raised from 4540
     // (2026-09-28) for measured below-field placement and hover that follows
     // the pointer through scrolls: 4608 B gzip measured, +150 B platform delta
@@ -228,7 +246,7 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/card", budget: 1460 },
   { name: "elements/icon", budget: 280 },
   { name: "elements/brand-mark", budget: 900 },
-  { name: "elements/nav", budget: 2400 },
+  { name: "elements/nav", budget: 3450 }, // 2981 B: flagged locale popover replaced the code row (2026-09-30)
   { name: "elements/footer", budget: 1100 },
   { name: "elements/shell", budget: 3200 }, // 2818 B after the page head split (2026-09-29)
   { name: "elements/badge", budget: 320 },

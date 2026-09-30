@@ -49,8 +49,9 @@ const links = [
 ];
 
 const locales = [
-  { code: 'en', href: '/', label: 'EN', current: true },
-  { code: 'fr', href: '/fr/', label: 'FR' },
+  { code: 'en', href: '/', label: 'EN', title: 'English', flag: 'gb', current: true },
+  { code: 'fr', href: '/fr/', label: 'FR', title: 'Français', flag: 'fr' },
+  { code: 'eo', href: '/eo/', label: 'EO' },
 ];
 
 const cta = { href: '/add', label: 'Add to Twitch' };
@@ -97,7 +98,21 @@ export const CASES: ParityCase[] = [
     name: 'LanguageSwitcher',
     svelte: SvelteLanguageSwitcher,
     astro: AstroLanguageSwitcher,
-    props: { options: locales, label: 'Language' },
+    props: { options: locales, label: 'Language', menuId: 'lang' },
+  },
+  {
+    name: 'LanguageSwitcherForm',
+    svelte: SvelteLanguageSwitcher,
+    astro: AstroLanguageSwitcher,
+    props: {
+      options: locales.map(({ href: _, ...option }) => option),
+      label: 'Language',
+      action: '/lang',
+      name: 'to',
+      fields: { next: '/settings' },
+      variant: 'field',
+      menuId: 'lang-form',
+    },
   },
   {
     name: 'SocialRail',

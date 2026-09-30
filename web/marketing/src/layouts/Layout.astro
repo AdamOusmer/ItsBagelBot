@@ -278,7 +278,7 @@ const contentSecurityPolicy = [
     >
         <Fragment slot="mobileFooter">
             <ButtonLink variant="ghost" block href={getAppHref}>{t('nav.getApp')}</ButtonLink>
-            <Cluster justify="center"><LanguageSwitcher options={navLocales} /></Cluster>
+            <Cluster justify="center"><LanguageSwitcher options={navLocales} menuId="mobile-menu-lang" variant="field" /></Cluster>
         </Fragment>
     </Nav>
     <SocialRail items={SOCIAL_LINKS} label={t('nav.social')}/>

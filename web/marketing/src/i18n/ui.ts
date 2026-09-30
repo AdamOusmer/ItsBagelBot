@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { dashboardHref } from '@bagel/kit/site-links';
+import { dashboardHref, localeFlag } from '@bagel/kit/site-links';
 import { flatCatalogs, type FlatTree } from '@bagel/kit/i18n/flat';
 import { guideLocalizedPaths } from '../lib/guides/slugs';
 import { defaultLang, type Lang } from './lang';
@@ -91,6 +91,8 @@ export function localeOptions(url: URL) {
     href:
       code === defaultLang || !LOCALIZED_PATHS.has(path) ? path : localizePath(path, code),
     label: code.toUpperCase(),
+    title: languageName(code),
+    flag: localeFlag(code),
     current: code === current,
   }));
 }

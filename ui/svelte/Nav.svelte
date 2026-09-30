@@ -112,6 +112,7 @@
       >{#if locales && locales.length > 0}<LanguageSwitcher
           options={locales}
           label={localeLabel}
+          menuId="{menuId}-lang"
         />{/if}{#if cta}<NavLink
           class="bb-nav__cta"
           variant="cta"
