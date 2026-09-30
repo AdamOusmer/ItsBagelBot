@@ -1,0 +1,7 @@
+{
+  "release": "Étiquette {version} sur {sha}, construit, épingle et redéploie {services}.",
+  "hotfix": "Déplace {version} sur {sha}, reconstruit, réépingle et redéploie {services}.",
+  "bump": "Épingle les images construites sur {sha} et redéploie {services}.",
+  "rollback": "Épingle les images de {version} et redéploie chaque service dont l’épinglage change.",
+  "reapply": "Redéploie les épinglages de main sur {services}."
+}

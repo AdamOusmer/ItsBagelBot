@@ -1,0 +1,5 @@
+{
+  "name": "Time until a date",
+  "hint": "how long until that date (YYYY-MM-DD, or a full timestamp)",
+  "desc": "How long until that date. Write it as YYYY-MM-DD, or as a full timestamp. Nothing once the date has passed."
+}

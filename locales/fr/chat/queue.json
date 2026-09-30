@@ -1,0 +1,21 @@
+{
+  "cleared": "La file a été vidée.",
+  "closed": "La file est maintenant fermée aux nouvelles inscriptions.",
+  "err.usage": "Utilisation : !queue <open|close|next|list|remove|clear> ; ou !join / !leave / !list",
+  "join.already": "@{queue:user} vous êtes déjà dans la file en position n°{queue:pos}.",
+  "join.closed": "@{queue:user} la file est fermée pour le moment.",
+  "join.ok": "@{queue:user} vous avez rejoint la file en position n°{queue:pos}.",
+  "leave.not_in": "@{queue:user} vous n'êtes pas dans la file.",
+  "leave.ok": "@{queue:user} vous avez quitté la file.",
+  "list": "À suivre : {queue:list}",
+  "list.empty": "La file est vide.",
+  "list.more": "À suivre : {queue:list} (+{queue:count} autres)",
+  "next": "@{queue:target} c'est à vous ! ({queue:count} encore en attente)",
+  "next.empty": "La file est vide.",
+  "opened": "La file est maintenant ouverte ! Tapez !join pour vous inscrire.",
+  "remove.not_found": "@{queue:target} n'était pas dans la file.",
+  "remove.ok": "@{queue:target} a été retiré de la file.",
+  "remove.usage": "Utilisation : !queue remove <utilisateur>",
+  "status.closed": "La file est fermée. {queue:count} encore en attente.",
+  "status.open": "La file est ouverte, {queue:count} en attente. Tapez !join pour vous inscrire."
+}

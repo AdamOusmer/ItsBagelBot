@@ -1,0 +1,5 @@
+{
+  "name": "Répéter une phrase",
+  "hint": "répète une phrase n fois (20 au maximum, une ligne de chat)",
+  "desc": "Répète votre phrase, séparée par des espaces. 20 fois au maximum, et le tout doit tenir sur une ligne de chat."
+}

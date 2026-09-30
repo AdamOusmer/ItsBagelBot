@@ -5,10 +5,9 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import mermaid from 'astro-mermaid';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFlatCatalogs } from '@bagel/kit/i18n/fs';
 
-const localeFolder = new URL('./src/i18n/locales/', import.meta.url);
-const docsCatalogs = Object.fromEntries(readdirSync(localeFolder).filter((name) => name.endsWith('.json')).map((name) => [name.slice(0, -5), JSON.parse(readFileSync(new URL(name, localeFolder), 'utf8'))]));
+const docsCatalogs = readFlatCatalogs('docs');
 const docsLocales = Object.fromEntries(Object.entries(docsCatalogs).map(([code, copy]) => [code === 'en' ? 'root' : code, { label: copy['lang.name'] ?? code, lang: code }]));
 const sidebarGroup = (key, directory) => ({
   label: docsCatalogs.en[key],

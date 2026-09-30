@@ -1,0 +1,5 @@
+{
+  "name": "Viewer name",
+  "hint": "who ran the command",
+  "desc": "Whoever used the command. {sender} works too."
+}

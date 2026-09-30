@@ -1,0 +1,19 @@
+{
+  "shoutout": {
+    "raider": {
+      "name": "Raider name",
+      "hint": "Friendly display name of the raiding channel",
+      "desc": "Friendly display name of the raiding channel."
+    },
+    "raider_login": {
+      "name": "Raider login",
+      "hint": "URL-safe login",
+      "desc": "URL-safe login, for twitch.tv/ links."
+    },
+    "viewers": {
+      "name": "Raid size",
+      "hint": "How many viewers arrived",
+      "desc": "How many viewers arrived."
+    }
+  }
+}

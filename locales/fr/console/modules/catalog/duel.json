@@ -1,0 +1,59 @@
+{
+  "label": "Duels",
+  "tagline": "Duels de points entre viewers : pots ouverts et défis 1v1.",
+  "description": "Deux façons de dueller pour des points. Un pot : quelqu'un tape !duel <mise> et tout le monde a la fenêtre pour ajouter sa propre mise ; à la fin le bot tire un gagnant pondéré par la mise, qui prend tout le pot. Ou un défi : !duel <utilisateur> <mise> nomme un adversaire qui doit taper !duel accept avant la fin de la fenêtre ; mises égales, pile ou face, le gagnant prend les deux. Refus, annulation et absences remboursent toujours chaque point en séquestre, et chaque mouvement passe par la dépense protégée du service de fidélité, donc personne ne mise ce qu'il n'a pas. Activé depuis la page Fidélité ; il utilise le même nom de monnaie et reste éteint tant que la fidélité l'est.",
+  "settings": {
+    "minStake": {
+      "label": "Mise minimum",
+      "placeholder": "1"
+    },
+    "maxStake": {
+      "label": "Mise maximum",
+      "placeholder": "1000"
+    },
+    "potSeconds": {
+      "label": "Fenêtre du pot (secondes)",
+      "help": "Combien de temps un pot accepte des mises.",
+      "placeholder": "60"
+    },
+    "challengeSeconds": {
+      "label": "Fenêtre d'acceptation (secondes)",
+      "help": "Combien de temps la partie défiée a pour accepter.",
+      "placeholder": "120"
+    }
+  },
+  "replies": {
+    "opened": {
+      "label": "Pot ouvert",
+      "tagline": "Quand un pot démarre et que les mises s'ouvrent.",
+      "event": "!duel 100",
+      "defaultMessage": "Duel à cagnotte LANCÉ ! @{user} a misé {stake} {points}. Tape !duel <montant> pour rejoindre. Tirage dans {secs}s !"
+    },
+    "joined": {
+      "label": "Confirmation d'entrée",
+      "tagline": "Quand un viewer ajoute sa mise à un pot en cours.",
+      "event": "!duel 250",
+      "defaultMessage": "@{user} c’est parti pour {stake} ! {count} dans le duel, {pot} {points} dans la cagnotte."
+    },
+    "challenge": {
+      "label": "Défi envoyé",
+      "tagline": "Quand un viewer défie un autre à mises égales.",
+      "event": "!duel @maya_live 500",
+      "defaultMessage": "@{user} défie @{target} pour {stake} {points} ! @{target}, tape !duel accept dans les {secs}s. Le vainqueur prend {pot} !"
+    },
+    "won": {
+      "label": "Ligne de résultat",
+      "tagline": "Quand un défi est accepté et réglé.",
+      "event": "!duel accept",
+      "defaultMessage": "Les lames retombent. @{winner} bat @{loser} et rafle {pot} {points} !"
+    }
+  },
+  "commands": {
+    "duel": "Voir ce qui tourne : un pot (entrants, cagnotte, secondes) ou un défi en attente.",
+    "duel_stake": "Ouvrir un pot, ou rejoindre un pot en cours.",
+    "duel_user_stake": "Défier quelqu'un à mises égales ; le gagnant prend les deux.",
+    "duel_accept": "La partie défiée égale la mise et règle instantanément.",
+    "duel_decline": "Refuser un défi ; l'ouvreur est remboursé.",
+    "duel_cancel": "Annuler le duel en cours avec remboursement intégral (ouvreur ou modo)."
+  }
+}

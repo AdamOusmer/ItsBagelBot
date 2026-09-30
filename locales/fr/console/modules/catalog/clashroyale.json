@@ -1,0 +1,33 @@
+{
+  "label": "Stats Clash Royale",
+  "tagline": "Profils Clash Royale, decks et classement Chemin des Légendes dans le chat.",
+  "description": "Une commande, quatre regards : !cr montre le profil à vie d'un joueur (niveau, bilan victoires/défaites, taux de victoire, victoires à trois couronnes, clan) ; !cr decks liste son deck de combat actuel avec le coût d'élixir moyen ; !cr ranked montre son standing Chemin des Légendes (avec repli sur les saisons de ligue héritées pour les vieux comptes) ; !cr road montre son palmarès de la route des trophées et son arène. Les formes compactes !crstats, !crdecks, !crranked et !crroad marchent aussi. Liez votre tag joueur ci-dessous. Clash Royale n'a pas de recherche par nom, donc un tag du genre #P2LQ0GR est obligatoire. Les viewers peuvent aussi nommer n'importe quel tag, ex. « !cr #P2LQ0GR ».",
+  "settings": {
+    "account": {
+      "label": "Tag joueur lié",
+      "help": "Joueur par défaut de chaque commande. Clash Royale n'a pas de recherche par nom, donc ce doit être un tag joueur ; laissez vide seulement si vous en tapez toujours un.",
+      "placeholder": "#P2LQ0GR"
+    }
+  },
+  "replies": {
+    "stats": {
+      "tagline": "Profil à vie : !cr, !cr stats ou !crstats.",
+      "defaultMessage": "{player} · niveau {level} · {wins} victoires / {losses} défaites · {winrate}% de victoires · {crowns} victoires à trois couronnes · {clan}"
+    },
+    "decks": {
+      "tagline": "Le deck de combat actuel avec son élixir moyen (aussi !crdecks).",
+      "event": "!cr decks",
+      "defaultMessage": "Deck de {player} ({count}/8) : {cards} · coût moyen en élixir {elixir}"
+    },
+    "ranked": {
+      "tagline": "Standing Chemin des Légendes (aussi !crranked) ; les saisons de ligue héritées complètent les vieux palmarès.",
+      "event": "!cr ranked",
+      "defaultMessage": "Voie des légendes de {player} : ligue {league} · {trophies} trophées · rang n°{rank} · record {besttrophies}"
+    },
+    "road": {
+      "tagline": "Palmarès de la route des trophées et arène (aussi !crroad).",
+      "event": "!cr road",
+      "defaultMessage": "{player}: {trophies} trophées · meilleur {besttrophies} · {arena}"
+    }
+  }
+}

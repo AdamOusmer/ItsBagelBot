@@ -1,0 +1,12 @@
+{
+  "eyebrow": "Getting set up",
+  "title": "One Twitch login and you're running.",
+  "s1Title": "Connect your channel.",
+  "s1Body": "One click through Twitch. No API keys, and the whole thing takes about two minutes.",
+  "s2Title": "Make it yours.",
+  "s2Body": "Turn on the modules you want and write your rules in plain sentences.",
+  "s2Receipt": "modules: 6 active",
+  "s3Title": "Go live, and breathe.",
+  "s3Body": "It joins your chat quietly and gets to work. You get to just stream.",
+  "s3Receipt": "itsbagelbot joined #your_channel"
+}

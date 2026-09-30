@@ -264,6 +264,17 @@ jobs:
               internal/*)
                 add_root_go_services
                 ;;
+              # Images whose binaries import internal/domain/i18n; a new importer must be added here.
+              locales/embed.go|locales/manifest.json|locales/*/chat/*)
+                add "outgress"
+                add "transactions"
+                add "users"
+                add "sesame"
+                ;;
+              locales/*/console/*)
+                add "console-dashboard"
+                add "console-admin"
+                ;;
               app/db/commands/*)
                 add "commands"
                 ;;

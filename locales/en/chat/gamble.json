@@ -1,0 +1,12 @@
+{
+  "broke": "@{gamble:user} you can't cover that bet, you have {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} the dice need a breather. Try again in {gamble:secs}s.",
+  "err": "@{gamble:user} that didn't work, please try again.",
+  "lose": "@{gamble:user} rolled {gamble:roll} (needed {gamble:chance} or less) and lost {gamble:amount} {gamble:points}. Now at {gamble:balance}.",
+  "range": "@{gamble:user} that bet could exceed the points limit.",
+  "max": "@{gamble:user} max bet is {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} minimum bet is {gamble:min} {gamble:points}.",
+  "usage": "Usage: !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} I haven't seen you in this channel yet. Stick around to earn some {gamble:points} first!",
+  "win": "@{gamble:user} rolled {gamble:roll} (needed {gamble:chance} or less) and won {gamble:amount} {gamble:points}. Now at {gamble:balance}!"
+}

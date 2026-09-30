@@ -1,0 +1,15 @@
+{
+  "forbidden": "forbidden",
+  "numericUserIdRequired": "numeric user id required",
+  "loginRequired": "login required",
+  "invalidRole": "invalid role",
+  "cannotRemoveMember": "cannot remove this member",
+  "userIdRequired": "user_id required",
+  "queryRequired": "query required",
+  "queryTooLong": "query too long",
+  "idRequired": "id required",
+  "cannotGrantRole": "cannot grant {role}",
+  "countPositive": "count must be a positive integer",
+  "laneDemoDisabled": "demo mode: lane mutations are disabled",
+  "laneFailed": "{verb} failed: {error}"
+}

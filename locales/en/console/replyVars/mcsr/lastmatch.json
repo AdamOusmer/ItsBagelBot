@@ -1,0 +1,42 @@
+{
+  "player": {
+    "name": "Player",
+    "hint": "The resolved player",
+    "desc": "The resolved player."
+  },
+  "opponent": {
+    "name": "Opponent",
+    "hint": "The other player in that match",
+    "desc": "The other player in that match."
+  },
+  "result": {
+    "name": "Result",
+    "hint": "Win",
+    "desc": "Win, loss or draw. Forfeits and decay matches are called out too."
+  },
+  "time": {
+    "name": "Time",
+    "hint": "The match's completion time",
+    "desc": "The match's completion time, when it reached one."
+  },
+  "seed": {
+    "name": "Seed",
+    "hint": "The seed type for that match",
+    "desc": "The seed type for that match."
+  },
+  "structure": {
+    "name": "Structure",
+    "hint": "The bastion structure type for that match",
+    "desc": "The bastion structure type for that match."
+  },
+  "elochange": {
+    "name": "Elo change",
+    "hint": "Elo change from that match",
+    "desc": "Elo change from that match."
+  },
+  "ago": {
+    "name": "Ago",
+    "hint": "How long ago that match ended",
+    "desc": "How long ago that match ended."
+  }
+}

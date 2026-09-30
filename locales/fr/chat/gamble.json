@@ -1,0 +1,12 @@
+{
+  "broke": "@{gamble:user} tu ne peux pas couvrir cette mise, tu as {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} les dés ont besoin de souffler. Réessaie dans {gamble:secs}s.",
+  "err": "@{gamble:user} ça n'a pas fonctionné, veuillez réessayer.",
+  "lose": "@{gamble:user} a tiré {gamble:roll} (il fallait {gamble:chance} ou moins) et perd {gamble:amount} {gamble:points}. Il te reste {gamble:balance}.",
+  "range": "@{gamble:user} cette mise pourrait dépasser la limite de points.",
+  "max": "@{gamble:user} la mise maximale est de {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} la mise minimale est de {gamble:min} {gamble:points}.",
+  "usage": "Utilisation : !gamble <montant|half|all>",
+  "unknown": "@{gamble:user} je ne t'ai pas encore vu sur cette chaîne. Reste dans le chat pour gagner des {gamble:points} !",
+  "win": "@{gamble:user} a tiré {gamble:roll} (il fallait {gamble:chance} ou moins) et gagne {gamble:amount} {gamble:points}. Il te reste {gamble:balance} !"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Temps avant une date",
+  "hint": "le temps restant jusqu’à cette date (AAAA-MM-JJ, ou un horodatage complet)",
+  "desc": "Le temps restant avant cette date. Écrivez-la AAAA-MM-JJ, ou en horodatage complet. Plus rien une fois la date passée."
+}

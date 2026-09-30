@@ -1,0 +1,5 @@
+{
+  "name": "Titre du direct",
+  "hint": "le titre actuel de votre stream, ou {title:quelquun} pour une autre chaîne (interrupteur !title)",
+  "desc": "Le titre actuel du direct, celui qu’affiche !title. Fonctionne aussi hors ligne. {title:quelquun} donne celui d’une autre chaîne. Suit l’interrupteur !title."
+}

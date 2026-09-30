@@ -1,0 +1,7 @@
+{
+  "sharedPre": "Accès partagé au tableau de bord de ",
+  "sharedPost": " ({sections})",
+  "viewingPre": "Vue en tant que ",
+  "viewingPost": " (admin {admin})",
+  "exit": "Quitter"
+}

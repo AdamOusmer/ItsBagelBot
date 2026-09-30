@@ -96,7 +96,7 @@ New `CountChatLine(ctx, bid)` called from the chat path in `pipeline.go`, guarde
 
 ## 8. i18n
 
-`web/kit/lib/i18n/locales/{en,fr}.json` under `timers`: `fieldMinChatLines`, `fieldMinChatLinesHint`, `fieldMaxFires`, `fieldMaxFiresHint`, `fieldEndsAt`, `fieldEndsAtHint`, `pillMinLines`, `pillMaxFires`, `pillUntil`, `pillEnded` (alongside the existing `chipInterval`, which keeps its name). The module description in `modules.catalog.timers.description` gains one sentence about gates and stops. Keys regenerate into `keys.d.ts`.
+`locales/{en,fr}/console/timers.json` under `timers`: `fieldMinChatLines`, `fieldMinChatLinesHint`, `fieldMaxFires`, `fieldMaxFiresHint`, `fieldEndsAt`, `fieldEndsAtHint`, `pillMinLines`, `pillMaxFires`, `pillUntil`, `pillEnded` (alongside the existing `chipInterval`, which keeps its name). The module description in `modules.catalog.timers.description` gains one sentence about gates and stops. Keys regenerate into `keys.d.ts`.
 
 ## 9. Tests
 

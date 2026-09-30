@@ -1,0 +1,19 @@
+{
+  "reply": {
+    "user": {
+      "name": "Échangeur",
+      "hint": "Qui a échangé la récompense",
+      "desc": "Qui a échangé la récompense."
+    },
+    "input": {
+      "name": "Texte du spectateur",
+      "hint": "Le texte de couleur saisi par le spectateur",
+      "desc": "Le texte de couleur saisi par le spectateur lors de l'échange."
+    },
+    "color": {
+      "name": "Couleur",
+      "hint": "Le nom de couleur résolu",
+      "desc": "Le nom de couleur que le bot a choisi et appliqué aux lumières."
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "player": {
+    "name": "Player",
+    "hint": "The linked player",
+    "desc": "The linked player."
+  },
+  "nethers": {
+    "name": "Nethers",
+    "hint": "Nether entrances this session",
+    "desc": "Nether entrances this session."
+  },
+  "nether": {
+    "name": "Nether avg",
+    "hint": "Average nether split",
+    "desc": "Average nether split."
+  },
+  "nph": {
+    "name": "Nethers/hour",
+    "hint": "Nether-entrance pace",
+    "desc": "Nether-entrance pace."
+  }
+}

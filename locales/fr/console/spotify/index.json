@@ -1,0 +1,23 @@
+{
+  "back": "Tous les modules",
+  "bothNote": "Les deux chemins partagent la même file d'attente. L'un peut être actif sans l'autre.",
+  "degraded": "Impossible de joindre le serveur. Réessayez dans un instant.",
+  "description": "Déclarez votre propre application Spotify, connectez-y votre compte, puis laissez les viewers ajouter des morceaux depuis le chat ou une récompense de points de chaîne. Chaque voie fonctionne indépendamment de l'autre.",
+  "eyebrow": "Demandes de musiques",
+  "liveOnlyLabel": "En live uniquement",
+  "masterAria": "Activer ou désactiver les demandes de musiques",
+  "masterFail": "Impossible d'enregistrer l'interrupteur.",
+  "masterHintOff": "Les demandes sont en pause. Aucun chemin n'alimente la file tant que le module est désactivé.",
+  "masterHintOn": "!sr et la récompense sont actifs. Les demandes s'enchaînent pendant votre stream.",
+  "masterLabel": "Activer les demandes de musiques",
+  "saveChanges": "Enregistrer les modifications",
+  "saving": "Enregistrement…",
+  "titleEm": "musiques",
+  "titlePre": "Demandes de",
+  "unsavedChanges": "Modifications non enregistrées",
+  "saved": "Enregistré",
+  "discardTitle": "Abandonner les modifications ?",
+  "discardBody": "Vous avez des modifications non enregistrées sur cette récompense. Les abandonner ?",
+  "discard": "Abandonner",
+  "keepEditing": "Continuer l’édition"
+}

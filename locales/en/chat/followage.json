@@ -1,0 +1,6 @@
+{
+  "broadcaster": "@%s is the broadcaster.",
+  "followed": "@%s has followed for %s.",
+  "not_following": "@%s is not following this channel.",
+  "unavailable": "Followage is unavailable right now."
+}

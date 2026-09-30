@@ -1,0 +1,11 @@
+{
+  "added": "@{user} the command {command} has been added",
+  "err.exists": "@{user} the command {command} already exists, use !cmd edit",
+  "err.missing_resp": "@{user} please provide a response for the command",
+  "err.not_found": "@{user} the command {command} was not found, use !cmd add",
+  "err.usage": "Usage: !cmd <add|edit|remove> <name> [response]",
+  "link": "@{user} browse {channel}'s commands here: {url}",
+  "page_off": "@{user} {channel}'s command list isn't public.",
+  "modified": "@{user} the command {command} has been modified",
+  "removed": "@{user} the command {command} has been removed"
+}

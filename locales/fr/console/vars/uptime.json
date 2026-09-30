@@ -1,0 +1,5 @@
+{
+  "name": "Durée du direct",
+  "hint": "depuis combien de temps vous êtes en direct, vide hors ligne (interrupteur !uptime)",
+  "desc": "Depuis combien de temps le direct dure, formulé comme !uptime. Hors ligne renvoie du vide: donnez-lui une valeur par défaut. {uptime:quelquun} fait de même pour une autre chaîne. Suit l’interrupteur !uptime."
+}

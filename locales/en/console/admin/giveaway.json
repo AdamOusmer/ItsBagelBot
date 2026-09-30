@@ -1,0 +1,18 @@
+{
+  "titleRequired": "title required",
+  "reasonRequired": "internal reason required",
+  "winnerCountPositive": "winner count must be a positive whole number",
+  "prizeMonthsRange": "prize duration must be a whole number from 1 to 12",
+  "idRequired": "giveaway id required",
+  "operationRequired": "snapshot version and operation key required",
+  "poolDigestRequired": "pool digest required",
+  "awardIdRequired": "award id required",
+  "draftCreatedDemo": "Giveaway draft created (demo).",
+  "draftCreated": "Giveaway draft created.",
+  "drawCommittedDemo": "Draw committed (demo).",
+  "drawCommitted": "Draw committed.",
+  "snapshotFrozenDemo": "Eligibility snapshot frozen (demo).",
+  "snapshotFrozen": "Eligibility snapshot frozen.",
+  "retryQueuedDemo": "Fulfillment retry queued (demo).",
+  "retryQueued": "Fulfillment retry queued."
+}

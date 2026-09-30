@@ -1,0 +1,11 @@
+{
+  "title": "Admin",
+  "roleModerator": "Moderator",
+  "roleAdmin": "Admin",
+  "roleOwner": "Owner",
+  "close": "Close",
+  "unsaved": "Unsaved changes",
+  "saving": "Saving…",
+  "saved": "Saved",
+  "saveFailed": "Could not save"
+}

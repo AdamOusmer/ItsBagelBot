@@ -1,0 +1,5 @@
+{
+  "label": "Minuteurs",
+  "tagline": "Publiez des messages de chat répétitifs selon un horaire pendant le direct.",
+  "description": "Définissez des messages que le bot répète selon un horaire pendant le direct : annonces, réseaux, rappels. Chaque minuteur a son propre intervalle et ne s'enclenche que pendant le stream. Ajoutez, modifiez et armez-les sur cette page. Un minuteur peut aussi exiger un minimum d'activité dans le chat avant de publier, ou s'arrêter après un nombre de publications ou à une date donnée."
+}

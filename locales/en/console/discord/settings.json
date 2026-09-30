@@ -1,0 +1,11 @@
+{
+  "disconnectBody": "Bagel stops posting and forgets which server this channel is linked to. Your channels and roles stay exactly as they are.",
+  "disconnectCta": "Disconnect",
+  "disconnectTitle": "Disconnect Discord?",
+  "reconnectCta": "Re-authorize",
+  "setupCta": "Set up this server",
+  "setupHelp": "Re-runs the fill: creates anything missing, adopts your pinned roles, and leaves everything else alone.",
+  "setupTitle": "Rebuild the server",
+  "setupFirstRun": "This server has no saved settings yet. The first setup writes them.",
+  "dangerTitle": "Danger zone"
+}

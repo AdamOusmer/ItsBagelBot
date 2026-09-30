@@ -1,0 +1,40 @@
+{
+  "loading": "Loading…",
+  "skipToContent": "Skip to content",
+  "breadcrumb": "Breadcrumb",
+  "appName": "ItsBagelBot",
+  "console": "Console",
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "open": "Open",
+  "leave": "Leave",
+  "copy": "Copy",
+  "copied": "Copied",
+  "revoke": "Revoke",
+  "read": "Read",
+  "generate": "Generate link",
+  "reconnect": "Reconnect",
+  "done": "Done",
+  "gotIt": "Got it",
+  "retry": "Retry",
+  "optional": "(optional)",
+  "selectTitle": "Select an option",
+  "searchOptions": "Search options…",
+  "searchClear": "Clear search",
+  "selectNoMatch": "No options match your search.",
+  "unit": {
+    "label": "Unit",
+    "seconds": "seconds",
+    "minutes": "minutes",
+    "hours": "hours"
+  },
+  "duration": {
+    "seconds": "{n} s",
+    "minutes": "{n} min",
+    "hours": "{n} h"
+  },
+  "newVersion": "New version available",
+  "reload": "Reload",
+  "opensInNewTab": "(opens in a new tab)"
+}

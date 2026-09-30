@@ -1,0 +1,9 @@
+{
+  "pending": "Pending",
+  "running": "Running",
+  "waiting": "Waiting",
+  "succeeded": "Succeeded",
+  "failed": "Failed",
+  "skipped": "Skipped",
+  "cancelled": "Cancelled"
+}

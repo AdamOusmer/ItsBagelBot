@@ -12,6 +12,7 @@
 !web/serve-node.js
 !web/kit
 !web/admin
+!locales
 
 # Other members contribute only their manifest: --frozen-lockfile fails if a bun.lock member has no package.json.
 !web/dashboard/package.json

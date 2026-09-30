@@ -1,0 +1,32 @@
+{
+  "eyebrow": "Observation",
+  "title": "Chaînes d'essai",
+  "description": "Traiter le clavardage de {max} diffuseurs non inscrits au maximum, répartis sur trois sockets d'essai au plus. Les actions Twitch restent bloquées pendant l'essai.",
+  "degraded": "L'état des essais est indisponible. Les commandes peuvent échouer jusqu'au rétablissement de l'entrée.",
+  "idLabel": "Identifiant Twitch du diffuseur",
+  "add": "Ajouter un essai",
+  "remove": "Retirer",
+  "on": "Activé",
+  "off": "Désactivé",
+  "toggleLabel": "Collecte du clavardage d'essai pour {name}",
+  "note": "Utilisez l'identifiant Twitch numérique. Désactiver un essai suspend sa collecte, mais il occupe toujours l'un des {max} emplacements. L'inscription met automatiquement fin à l'essai.",
+  "count": "{count} / {max} chaînes d'essai",
+  "empty": "Aucune chaîne d'essai n'est configurée.",
+  "history": "Essais récents",
+  "received": "{count} reçus",
+  "decoded": "{count} décodés",
+  "processed": "{count} traités",
+  "failed": "{count} échecs",
+  "retried": "{count} reprises",
+  "blocked": "{count} actions bloquées",
+  "latency": "{duration} de traitement moyen",
+  "state": {
+    "pending": "En attente",
+    "receiving": "En réception",
+    "disabled": "Désactivé",
+    "stopping": "Arrêt en cours",
+    "promoted": "Inscrit",
+    "removed": "Retiré",
+    "failed": "Échec"
+  }
+}

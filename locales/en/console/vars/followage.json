@@ -1,0 +1,5 @@
+{
+  "name": "Time following",
+  "hint": "how long they have followed the channel (Followage module)",
+  "desc": "How long the viewer has followed you, in the same wording as !followage. {followage:alex} asks about someone else, and someone who does not follow comes back empty. Needs the Followage module."
+}

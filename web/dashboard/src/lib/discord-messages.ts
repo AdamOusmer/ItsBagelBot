@@ -3,55 +3,55 @@
 
 export const DISCORD_CODE_KEYS: Record<
   string,
-  | 'discord.errBoundElsewhere'
-  | 'discord.errNotBound'
-  | 'discord.errUnavailable'
-  | 'discord.errForbidden'
-  | 'discord.errRateLimited'
-  | 'discord.errInvalid'
-  | 'discord.errConflict'
-  | 'discord.errTimeout'
-  | 'discord.errNotFound'
-  | 'discord.errUnknown'
-  | 'discord.errLocked'
-  | 'discord.errTicketsOff'
+  | 'discord.errors.boundElsewhere'
+  | 'discord.errors.notBound'
+  | 'discord.errors.unavailable'
+  | 'discord.errors.forbidden'
+  | 'discord.errors.rateLimited'
+  | 'discord.errors.invalid'
+  | 'discord.errors.conflict'
+  | 'discord.errors.timeout'
+  | 'discord.errors.notFound'
+  | 'discord.errors.unknown'
+  | 'discord.errors.locked'
+  | 'discord.errors.ticketsOff'
 > = {
-  bound_elsewhere: 'discord.errBoundElsewhere',
-  not_bound: 'discord.errNotBound',
-  discord_unavailable: 'discord.errUnavailable',
-  forbidden: 'discord.errForbidden',
-  rate_limited: 'discord.errRateLimited',
-  invalid: 'discord.errInvalid',
-  conflict: 'discord.errConflict',
-  timeout: 'discord.errTimeout',
-  not_found: 'discord.errNotFound',
-  unknown: 'discord.errUnknown',
-  locked: 'discord.errLocked',
-  tickets_off: 'discord.errTicketsOff'
+  bound_elsewhere: 'discord.errors.boundElsewhere',
+  not_bound: 'discord.errors.notBound',
+  discord_unavailable: 'discord.errors.unavailable',
+  forbidden: 'discord.errors.forbidden',
+  rate_limited: 'discord.errors.rateLimited',
+  invalid: 'discord.errors.invalid',
+  conflict: 'discord.errors.conflict',
+  timeout: 'discord.errors.timeout',
+  not_found: 'discord.errors.notFound',
+  unknown: 'discord.errors.unknown',
+  locked: 'discord.errors.locked',
+  tickets_off: 'discord.errors.ticketsOff'
 };
 
 export const DISCORD_SLUG_KEYS: Record<
   string,
   | (typeof DISCORD_CODE_KEYS)[string]
-  | 'discord.errOauth'
-  | 'discord.errUnconfigured'
-  | 'discord.errSetup'
-  | 'discord.errState'
-  | 'discord.errNoGuilds'
+  | 'discord.errors.oauth'
+  | 'discord.errors.unconfigured'
+  | 'discord.errors.setup'
+  | 'discord.errors.state'
+  | 'discord.errors.noGuilds'
 > = {
-  oauth: 'discord.errOauth',
-  unconfigured: 'discord.errUnconfigured',
-  setup: 'discord.errSetup',
-  state: 'discord.errState',
-  noguilds: 'discord.errNoGuilds',
+  oauth: 'discord.errors.oauth',
+  unconfigured: 'discord.errors.unconfigured',
+  setup: 'discord.errors.setup',
+  state: 'discord.errors.state',
+  noguilds: 'discord.errors.noGuilds',
   ...DISCORD_CODE_KEYS
 };
 
 export const DISCORD_PILL_KEYS = {
-  online: 'discord.statusOnline',
-  offline: 'discord.statusOffline',
-  reauth: 'discord.statusReauth',
-  unknown: 'discord.statusUnknown'
+  online: 'discord.status.online',
+  offline: 'discord.status.offline',
+  reauth: 'discord.status.reauth',
+  unknown: 'discord.status.unknown'
 } as const;
 
 export const DISCORD_STATE_TAG = {
@@ -65,7 +65,7 @@ export const DISCORD_STATE_TAG = {
 >;
 
 export const DISCORD_BADGE_KEYS = {
-  mine: 'discord.pickMine',
-  elsewhere: 'discord.pickElsewhere',
-  addable: 'discord.pickAddable'
+  mine: 'discord.pick.mine',
+  elsewhere: 'discord.pick.elsewhere',
+  addable: 'discord.pick.addable'
 } as const;

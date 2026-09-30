@@ -1,0 +1,27 @@
+{
+  "leader": {
+    "name": "Meneur",
+    "hint": "Le premier de cette semaine",
+    "desc": "Le premier de cette semaine."
+  },
+  "leadertime": {
+    "name": "Temps du meneur",
+    "hint": "Le temps du meneur",
+    "desc": "Le temps du meneur."
+  },
+  "player": {
+    "name": "Joueur",
+    "hint": "Le joueur résolu",
+    "desc": "Le joueur résolu."
+  },
+  "time": {
+    "name": "Temps",
+    "hint": "Le temps du joueur cette semaine",
+    "desc": "Le temps du joueur cette semaine, s'il en a un."
+  },
+  "rank": {
+    "name": "Rang",
+    "hint": "Le classement du joueur cette semaine",
+    "desc": "Le classement du joueur cette semaine."
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "player": {
+    "name": "Joueur",
+    "hint": "Le joueur lié",
+    "desc": "Le joueur lié."
+  },
+  "nethers": {
+    "name": "Nethers",
+    "hint": "Entrées au Nether pour cette session",
+    "desc": "Entrées au Nether pour cette session."
+  },
+  "nether": {
+    "name": "Moy Nether",
+    "hint": "Split moyen du Nether",
+    "desc": "Split moyen du Nether."
+  },
+  "bastion": {
+    "name": "Moy Bastion",
+    "hint": "Split moyen du Bastion",
+    "desc": "Split moyen du Bastion."
+  },
+  "fortress": {
+    "name": "Moy Forteresse",
+    "hint": "Split moyen de la Forteresse",
+    "desc": "Split moyen de la Forteresse."
+  },
+  "firststructure": {
+    "name": "Moy 1re structure",
+    "hint": "Split moyen de la structure entrée en premier",
+    "desc": "Split moyen de la structure entrée en premier."
+  },
+  "secondstructure": {
+    "name": "Moy 2e structure",
+    "hint": "Split moyen de la structure entrée en second",
+    "desc": "Split moyen de la structure entrée en second."
+  },
+  "firstportal": {
+    "name": "Moy 1er portail",
+    "hint": "Split moyen du premier portail",
+    "desc": "Split moyen du premier portail."
+  },
+  "stronghold": {
+    "name": "Moy Forteresse de fin",
+    "hint": "Split moyen de la forteresse de fin",
+    "desc": "Split moyen de la forteresse de fin."
+  },
+  "end": {
+    "name": "Moy End",
+    "hint": "Split moyen d'entrée dans l'End",
+    "desc": "Split moyen d'entrée dans l'End."
+  },
+  "finish": {
+    "name": "Moy Finish",
+    "hint": "Split moyen de fin de run",
+    "desc": "Split moyen de fin de run."
+  },
+  "nph": {
+    "name": "Nethers/heure",
+    "hint": "Rythme d'entrée au Nether",
+    "desc": "Rythme d'entrée au Nether."
+  }
+}

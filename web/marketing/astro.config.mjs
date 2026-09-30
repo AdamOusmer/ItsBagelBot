@@ -4,14 +4,9 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
-import { readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { surfaceLocales } from '@bagel/kit/i18n/fs';
 
-const localesDir = fileURLToPath(new URL('./src/i18n/locales', import.meta.url));
-const locales = readdirSync(localesDir)
-  .filter((f) => f.endsWith('.json'))
-  .map((f) => f.slice(0, -'.json'.length))
-  .sort();
+const locales = surfaceLocales('website');
 const defaultLocale = 'en';
 
 export default defineConfig({

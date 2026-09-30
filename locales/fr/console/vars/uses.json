@@ -1,0 +1,5 @@
+{
+  "name": "Nombre d’utilisations",
+  "hint": "combien de fois cette commande a servi, sans compter celle-ci; {uses} est la même valeur (approximatif)",
+  "desc": "Combien de fois cette commande a servi dans votre chaîne, sans compter celle qui l’affiche. Elle compte chaque utilisation, quel que soit le nom tapé, et ne demande aucun compteur. {uses} est l’ancienne orthographe de la même valeur. Le total est approximatif: le bot compte par lots et peut avoir jusqu’à une minute de retard."
+}

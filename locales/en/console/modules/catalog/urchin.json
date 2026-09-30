@@ -1,0 +1,42 @@
+{
+  "label": "Bedwars Stats",
+  "tagline": "Hypixel Bedwars stats, urchin score and blacklist tags in chat.",
+  "description": "Viewer commands backed by urchin.gg: daily, weekly and monthly Bedwars sessions, lifetime stats, the Urchin sniper score and active blacklist tags. Commands default to your linked Minecraft account; viewers can also name any player, e.g. \"!daily Technoblade\".",
+  "settings": {
+    "account": {
+      "label": "Linked Minecraft account",
+      "help": "Default player for every command. Leave blank to use your Twitch username. The bot stores the account UUID when Mojang allows it, so commands keep working after a rename.",
+      "placeholder": "Your Minecraft username"
+    }
+  },
+  "replies": {
+    "daily": {
+      "tagline": "Bedwars session since the daily reset.",
+      "defaultMessage": "{player} today: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
+    },
+    "weekly": {
+      "tagline": "Bedwars session since the weekly reset.",
+      "defaultMessage": "{player} this week: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
+    },
+    "monthly": {
+      "tagline": "Bedwars session since the monthly reset.",
+      "defaultMessage": "{player} this month: {wins}W {losses}L · {finals} finals · {beds} beds · {fkdr} FKDR"
+    },
+    "stats": {
+      "tagline": "Lifetime Bedwars stats.",
+      "defaultMessage": "{player}: {stars} stars · {wins} wins · {finals} finals · {fkdr} FKDR · {beds} beds broken"
+    },
+    "sniper": {
+      "tagline": "Urchin (Cubelify overlay) score.",
+      "defaultMessage": "{player} urchin score: {score}"
+    },
+    "tags": {
+      "tagline": "Active Urchin blacklist tags.",
+      "defaultMessage": "{player}: {tags}"
+    },
+    "tagdescription": {
+      "tagline": "Blacklist tags with their reasons.",
+      "defaultMessage": "{player}: {tags}"
+    }
+  }
+}

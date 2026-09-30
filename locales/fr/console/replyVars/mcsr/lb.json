@@ -1,0 +1,12 @@
+{
+  "board": {
+    "name": "Classement",
+    "hint": "Le classement qui a répondu",
+    "desc": "Le classement qui a répondu."
+  },
+  "list": {
+    "name": "Top 5",
+    "hint": "Les 5 premières lignes",
+    "desc": "Les 5 premières lignes, préformatées sur une seule ligne."
+  }
+}

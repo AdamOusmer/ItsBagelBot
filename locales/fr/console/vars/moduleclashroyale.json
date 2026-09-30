@@ -1,0 +1,5 @@
+{
+  "name": "Statistiques Clash Royale",
+  "hint": "Nécessite le module Statistiques Clash Royale activé.",
+  "desc": "Utilisez {clashroyale:variable} dans une commande personnalisée pour lire les valeurs publiques de ce module. Le module Statistiques Clash Royale doit être activé. Ajouter une variable n'active pas son module. Les modules désactivés laissent la variable visible dans le chat. Les valeurs liées à un événement sont vides sans événement correspondant; utilisez |texte pour remplacer une valeur vide. L'aperçu utilise des exemples et ne confirme pas l'activation du module."
+}

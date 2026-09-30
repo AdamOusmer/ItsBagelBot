@@ -4,7 +4,7 @@
 const EM_DASH = '—';
 
 const sources = import.meta.glob<string>(
-    ['../content/**/*.{md,ts,json}', '../i18n/locales/*.json'],
+    ['../content/**/*.{md,ts,json}', '../../../../locales/*/website/**/*.json'],
     { eager: true, query: '?raw', import: 'default' },
 );
 

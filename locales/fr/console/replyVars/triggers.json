@@ -1,0 +1,7 @@
+{
+  "user": {
+    "name": "Auteur du message",
+    "hint": "La personne dont le message correspond à la règle",
+    "desc": "La personne dont le message correspond à la règle."
+  }
+}

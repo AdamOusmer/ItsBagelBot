@@ -1,0 +1,10 @@
+{
+  "enableLabel": "Accept reward redemptions",
+  "enableOff": "Redemptions are refunded and nothing queues.",
+  "enableOn": "Redemptions queue songs right now.",
+  "help": "A custom reward whose typed input is the song query. Redeeming it queues the song.",
+  "liveOnlyOff": "The redemption works even when you are offline.",
+  "liveOnlyOn": "The redemption only works while you are live.",
+  "title": "Channel points",
+  "liveOnlyDisabled": "Turn on redemptions to change this."
+}

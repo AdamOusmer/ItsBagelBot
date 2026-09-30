@@ -1,0 +1,33 @@
+{
+  "label": "Clash Royale Stats",
+  "tagline": "Clash Royale profiles, decks and Path of Legends standing in chat.",
+  "description": "One command, four looks: !cr shows a player's lifetime profile (level, win/loss record, win rate, three-crown wins, clan); !cr decks lists their current battle deck with the average elixir cost; !cr ranked shows their Path of Legends standing (falling back to legacy league seasons for older accounts); !cr road shows their trophy-road record and arena. The squashed forms !crstats, !crdecks, !crranked and !crroad work too. Link your player tag below. Clash Royale has no name lookup, so a tag like #P2LQ0GR is required. Viewers can also name any tag, e.g. \"!cr #P2LQ0GR\".",
+  "settings": {
+    "account": {
+      "label": "Linked player tag",
+      "help": "Default player for every command. Clash Royale has no name lookup, so this must be a player tag; leave blank only if you always type one.",
+      "placeholder": "#P2LQ0GR"
+    }
+  },
+  "replies": {
+    "stats": {
+      "tagline": "Lifetime profile: !cr, !cr stats or !crstats.",
+      "defaultMessage": "{player} · level {level} · {wins}W/{losses}L · {winrate}% WR · {crowns} three-crowns · {clan}"
+    },
+    "decks": {
+      "tagline": "The current battle deck with its average elixir (also !crdecks).",
+      "event": "!cr decks",
+      "defaultMessage": "{player}'s deck ({count}/8): {cards} · avg elixir {elixir}"
+    },
+    "ranked": {
+      "tagline": "Path of Legends standing (also !crranked); legacy league seasons fill in for older records.",
+      "event": "!cr ranked",
+      "defaultMessage": "{player} Path of Legends: league {league} · {trophies} trophies · rank #{rank} · best {besttrophies}"
+    },
+    "road": {
+      "tagline": "Trophy-road record and arena (also !crroad).",
+      "event": "!cr road",
+      "defaultMessage": "{player}: {trophies} trophies · best {besttrophies} · {arena}"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "eyebrow": "Observation",
+  "title": "Trial channels",
+  "description": "Process chat from up to {max} unregistered broadcasters, spread across up to three trial sockets. Twitch output stays blocked while they are in a trial.",
+  "degraded": "Trial state is unavailable. Controls may fail until ingress reconnects.",
+  "idLabel": "Twitch broadcaster ID",
+  "add": "Add trial",
+  "remove": "Remove",
+  "on": "On",
+  "off": "Off",
+  "toggleLabel": "Trial chat ingestion for {name}",
+  "note": "Use the numeric Twitch ID. Turn an individual trial off to pause its chat ingestion; it still counts toward the {max} slots. Registration automatically ends a trial.",
+  "count": "{count} / {max} trial channels",
+  "empty": "No trial channels are configured.",
+  "history": "Recent trials",
+  "received": "{count} received",
+  "decoded": "{count} decoded",
+  "processed": "{count} processed",
+  "failed": "{count} failed",
+  "retried": "{count} retried",
+  "blocked": "{count} blocked actions",
+  "latency": "{duration} average processing",
+  "state": {
+    "pending": "Pending",
+    "receiving": "Receiving",
+    "disabled": "Off",
+    "stopping": "Stopping",
+    "promoted": "Promoted",
+    "removed": "Removed",
+    "failed": "Failed"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "closeEditor": "Fermer",
+  "costPts": "{n} points",
+  "create": "Créer la récompense",
+  "defaultTitle": "Passe une demande de musique",
+  "edit": "Modifier la récompense",
+  "inputHint": "Les spectateurs tapent la chanson en échangeant, un titre comme",
+  "inputHintLink": "Ou bien ils collent un lien Spotify.",
+  "inputHintPair": "ou une paire « artiste - titre » comme",
+  "noRewardBody": "Créez la récompense de points de chaîne ci-dessous. Elle apparaît dans le menu de points Twitch dès l'enregistrement.",
+  "noRewardTitle": "Aucune récompense",
+  "notSetUp": "Non configurée",
+  "previewTag": "Répétition",
+  "removeAria": "Supprimer la récompense : {name}",
+  "rowHint": "Points de chaîne",
+  "rowLabel": "Demande de morceau",
+  "thisReward": "Demande de morceau",
+  "previewUserSample": "Spectateur99"
+}

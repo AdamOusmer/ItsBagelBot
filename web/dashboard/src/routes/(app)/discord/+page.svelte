@@ -43,14 +43,14 @@
   const reach = $derived(guilds.reduce((n, g) => n + Math.max(0, g.memberCount), 0));
 
   function memberLabel(g: DiscordGuildSummary): string {
-    if (g.memberCount <= 0) return t('discord.statusNoMembers');
-    return t('discord.statusMembers', { n: g.memberCount.toLocaleString() });
+    if (g.memberCount <= 0) return t('discord.status.noMembers');
+    return t('discord.status.members', { n: g.memberCount.toLocaleString() });
   }
 
   const SINCE_KEYS = {
-    minutes: 'discord.sinceMinutes',
-    hours: 'discord.sinceHours',
-    days: 'discord.sinceDays'
+    minutes: 'discord.status.sinceMinutes',
+    hours: 'discord.status.sinceHours',
+    days: 'discord.status.sinceDays'
   } as const;
 
   let now = $state(0);

@@ -1,0 +1,8 @@
+{
+  "run": "Run",
+  "kind": "Kind",
+  "state": "State",
+  "stage": "Stage",
+  "by": "By",
+  "started": "Started"
+}

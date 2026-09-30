@@ -1,0 +1,42 @@
+{
+  "player": {
+    "name": "Joueur",
+    "hint": "Le joueur résolu",
+    "desc": "Le joueur résolu."
+  },
+  "elo": {
+    "name": "Elo",
+    "hint": "Le classement actuel",
+    "desc": "Le classement actuel."
+  },
+  "rank": {
+    "name": "Rang",
+    "hint": "Rang au classement",
+    "desc": "Rang au classement."
+  },
+  "wins": {
+    "name": "Victoires",
+    "hint": "Victoires de la saison",
+    "desc": "Victoires de la saison."
+  },
+  "losses": {
+    "name": "Défaites",
+    "hint": "Défaites de la saison",
+    "desc": "Défaites de la saison."
+  },
+  "draws": {
+    "name": "Nuls",
+    "hint": "Matchs de la saison terminés sans vainqueur",
+    "desc": "Matchs de la saison terminés sans vainqueur."
+  },
+  "matches": {
+    "name": "Matchs",
+    "hint": "Matchs de la saison",
+    "desc": "Matchs de la saison."
+  },
+  "country": {
+    "name": "Pays",
+    "hint": "Code du pays",
+    "desc": "Code du pays."
+  }
+}

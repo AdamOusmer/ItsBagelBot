@@ -1,0 +1,45 @@
+{
+  "follow": {
+    "user": {
+      "name": "New follower",
+      "hint": "The person who just followed",
+      "desc": "The person who just followed."
+    }
+  },
+  "sub": {
+    "user": {
+      "name": "Subscriber",
+      "hint": "The new subscriber",
+      "desc": "The new subscriber."
+    },
+    "tier": {
+      "name": "Sub tier",
+      "hint": "The subscription tier",
+      "desc": "The subscription tier."
+    }
+  },
+  "cheer": {
+    "user": {
+      "name": "Cheerer",
+      "hint": "The viewer who cheered",
+      "desc": "The viewer who cheered."
+    },
+    "bits": {
+      "name": "Bits amount",
+      "hint": "How many bits were cheered",
+      "desc": "How many bits were cheered."
+    }
+  },
+  "raid": {
+    "user": {
+      "name": "Raider",
+      "hint": "The raiding channel's display name",
+      "desc": "The raiding channel's display name."
+    },
+    "viewers": {
+      "name": "Raid size",
+      "hint": "How many viewers arrived",
+      "desc": "How many viewers arrived."
+    }
+  }
+}

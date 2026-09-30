@@ -5,9 +5,9 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readConsoleTree } from '../lib/i18n/tree-fs.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const EN = join(here, '../lib/i18n/locales/en.json');
 const OUT = join(here, '../lib/i18n/keys.d.ts');
 
 function leafPaths(tree, prefix, out) {
@@ -19,12 +19,12 @@ function leafPaths(tree, prefix, out) {
   return out;
 }
 
-const en = JSON.parse(readFileSync(EN, 'utf8'));
+const en = readConsoleTree('en');
 const keys = leafPaths(en, '', []).sort();
 const union = keys.map((k) => `  | '${k}'`).join('\n');
 
-const body = `// AUTO-GENERATED from lib/i18n/locales/en.json by scripts/gen-i18n-keys.mjs.
-// Do not edit by hand. Regenerate after changing en.json:
+const body = `// AUTO-GENERATED from locales/en/console by scripts/gen-i18n-keys.mjs.
+// Do not edit by hand. Regenerate after changing the English console catalog:
 //   bun scripts/gen-i18n-keys.mjs   (or: bun run i18n:keys)
 //
 // Soft key typing: KnownMessageKey enumerates every English leaf so the

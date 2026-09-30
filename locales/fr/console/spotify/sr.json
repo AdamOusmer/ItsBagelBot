@@ -1,0 +1,13 @@
+{
+  "enableLabel": "Autoriser !sr",
+  "enableOff": "!sr est inactif : la commande répond mais rien ne se met en file.",
+  "enableOn": "!sr est actif : le chat peut demander des musiques.",
+  "help": "Les spectateurs tapent !sr avec un titre, « artiste - titre », ou un lien Spotify.",
+  "liveOnlyOff": "Les spectateurs peuvent demander des musiques même hors live.",
+  "liveOnlyOn": "Les spectateurs ne peuvent demander des musiques que lorsque vous êtes en live.",
+  "permLabel": "Qui peut demander",
+  "saveFailed": "Impossible d'enregistrer les réglages de la commande.",
+  "saved": "Réglages de la commande enregistrés.",
+  "title": "Commande chat (!sr)",
+  "permOffHint": "Activez !sr pour choisir qui peut ajouter des morceaux."
+}

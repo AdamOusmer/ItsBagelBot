@@ -1,0 +1,14 @@
+{
+  "eyebrow": "FAQ",
+  "title": "Fair questions.",
+  "q1": "Is the free plan really free?",
+  "a1": "Yes. Every feature, and it stays that way. I built it because good tools shouldn't depend on your budget.",
+  "q2": "So what am I actually paying for with Premium?",
+  "a2": "Priority. Premium messages jump to the front of the line, so commands and moderation land faster when chat is busiest. It keeps the servers running, too.",
+  "q3": "Can I cancel Premium anytime?",
+  "a3": "One click from the dashboard. You keep the perks until the end of the billing period you already paid for.",
+  "q4": "What's included in Enterprise?",
+  "a4": "Dedicated hardware, multi-streamer management, custom terms, and direct engineering support. Write to enterprise@itsbagelbot.com for a quote.",
+  "q5": "Is ItsBagelBot source available?",
+  "a5": "ItsBagelBot's source is on GitHub under a source-available licence, which is not the same as open source. You can read and audit every line, but the licence limits redistribution and commercial use."
+}

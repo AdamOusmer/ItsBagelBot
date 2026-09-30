@@ -1,0 +1,5 @@
+{
+  "label": "Mots déclencheurs",
+  "tagline": "Réponse automatique quand un mot apparaît dans le chat, sans « ! ».",
+  "description": "Donnez au bot une liste de mots ou de phrases et la ligne à poster quand il en voit une dans le chat ordinaire, sans préfixe de commande. Chaque règle associe une phrase à une réponse : choisissez comment la phrase correspond (mot entier, contient, message exact ou commence par ; le défaut est le mot entier, donc « hi » ne se déclenche pas dans « this »), écrivez la réponse, et activez ou désactivez les règles une par une sans les supprimer. Les réponses gèrent {user}, {random} et {choice:a,b,c}. La première règle qui correspond gagne, donc un message n'obtient qu'une réponse au plus."
+}

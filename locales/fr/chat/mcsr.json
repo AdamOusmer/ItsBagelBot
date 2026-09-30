@@ -1,0 +1,22 @@
+{
+  "lastmatch.decay": "(déclin)",
+  "lastmatch.draw": "match nul",
+  "lastmatch.empty": "aucun match trouvé pour l'instant",
+  "lastmatch.forfeit": "(forfait)",
+  "lastmatch.loss": "défaite",
+  "lastmatch.win": "victoire",
+  "leaderboard.empty": "personne sur ce classement pour l'instant",
+  "pace.empty": "aucun pace suivi cette session",
+  "pace.nofort": "aucun pace de forteresse suivi récemment",
+  "pb.empty": "aucun record personnel pour l'instant (%s)",
+  "pb.window.alltime": "de tous les temps",
+  "pb.window.daily": "quotidien",
+  "pb.window.monthly": "mensuel",
+  "pb.window.ranked": "classé",
+  "pb.window.weekly": "hebdomadaire",
+  "race.empty": "aucun temps soumis pour la course de cette semaine",
+  "race.noplayer": "aucun temps pour la course de cette semaine",
+  "record.usage": "Utilisation : !record <joueur> [joueur2]",
+  "session.started": "le suivi de session vient de démarrer (%s elo), redemandez après une partie !",
+  "unrated": "non classé"
+}

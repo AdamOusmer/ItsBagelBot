@@ -1,0 +1,6 @@
+{
+  "broadcaster": "@%s est le diffuseur.",
+  "followed": "@%s suit la chaîne depuis %s.",
+  "not_following": "@%s ne suit pas cette chaîne.",
+  "unavailable": "Le suivi n'est pas disponible pour le moment."
+}

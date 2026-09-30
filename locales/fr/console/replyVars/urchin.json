@@ -1,0 +1,135 @@
+{
+  "daily": {
+    "player": {
+      "name": "Joueur",
+      "hint": "Le joueur Minecraft résolu",
+      "desc": "Le joueur Minecraft résolu."
+    },
+    "wins": {
+      "name": "Victoires",
+      "hint": "Victoires sur la période",
+      "desc": "Victoires sur la période."
+    },
+    "losses": {
+      "name": "Défaites",
+      "hint": "Défaites sur la période",
+      "desc": "Défaites sur la période."
+    },
+    "finals": {
+      "name": "Final kills",
+      "hint": "Final kills sur la période",
+      "desc": "Final kills sur la période."
+    },
+    "finaldeaths": {
+      "name": "Morts finales",
+      "hint": "Morts finales sur la période",
+      "desc": "Morts finales sur la période."
+    },
+    "beds": {
+      "name": "Lits détruits",
+      "hint": "Lits détruits sur la période",
+      "desc": "Lits détruits sur la période."
+    },
+    "games": {
+      "name": "Parties",
+      "hint": "Parties jouées sur la période",
+      "desc": "Parties jouées sur la période."
+    },
+    "levels": {
+      "name": "Niveaux gagnés",
+      "hint": "Niveaux d’étoile gagnés",
+      "desc": "Niveaux d’étoile gagnés."
+    },
+    "fkdr": {
+      "name": "FKDR",
+      "hint": "Final kills divisés par les morts finales",
+      "desc": "Final kills divisés par les morts finales."
+    }
+  },
+  "stats": {
+    "player": {
+      "name": "Joueur",
+      "hint": "Le joueur Minecraft résolu",
+      "desc": "Le joueur Minecraft résolu."
+    },
+    "stars": {
+      "name": "Étoiles",
+      "hint": "Niveau d’étoile Bedwars",
+      "desc": "Niveau d’étoile Bedwars."
+    },
+    "wins": {
+      "name": "Victoires",
+      "hint": "Victoires à vie",
+      "desc": "Victoires à vie."
+    },
+    "losses": {
+      "name": "Défaites",
+      "hint": "Défaites à vie",
+      "desc": "Défaites à vie."
+    },
+    "finals": {
+      "name": "Final kills",
+      "hint": "Final kills à vie",
+      "desc": "Final kills à vie."
+    },
+    "finaldeaths": {
+      "name": "Morts finales",
+      "hint": "Morts finales à vie",
+      "desc": "Morts finales à vie."
+    },
+    "beds": {
+      "name": "Lits détruits",
+      "hint": "Lits détruits à vie",
+      "desc": "Lits détruits à vie."
+    },
+    "fkdr": {
+      "name": "FKDR",
+      "hint": "Ratio final K/D à vie",
+      "desc": "Ratio final K/D à vie."
+    },
+    "wlr": {
+      "name": "Ratio V/D",
+      "hint": "Ratio victoires/défaites à vie",
+      "desc": "Ratio victoires/défaites à vie."
+    }
+  },
+  "sniper": {
+    "player": {
+      "name": "Joueur",
+      "hint": "Le joueur résolu",
+      "desc": "Le joueur résolu."
+    },
+    "score": {
+      "name": "Score sniper",
+      "hint": "Le score actuel",
+      "desc": "Le score actuel."
+    },
+    "mode": {
+      "name": "Mode",
+      "hint": "Le mode d'avertissement actuel",
+      "desc": "Le mode d'avertissement actuel."
+    },
+    "tagcount": {
+      "name": "Nombre de tags",
+      "hint": "Tags de liste noire actifs",
+      "desc": "Tags de liste noire actifs."
+    }
+  },
+  "tags": {
+    "player": {
+      "name": "Joueur",
+      "hint": "Le joueur résolu",
+      "desc": "Le joueur résolu."
+    },
+    "tags": {
+      "name": "Tags",
+      "hint": "La liste des tags formatée",
+      "desc": "La liste des tags formatée."
+    },
+    "tagcount": {
+      "name": "Nombre de tags",
+      "hint": "Combien de tags sont actifs",
+      "desc": "Combien de tags sont actifs."
+    }
+  }
+}

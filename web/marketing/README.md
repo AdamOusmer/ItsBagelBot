@@ -15,7 +15,7 @@ web/
 │   ├── assets/      # build-time assets
 │   ├── components/  # Astro components
 │   ├── content/     # legal pages, changelog JSON collection, guides/ copy
-│   ├── i18n/        # EN/FR catalogs
+│   ├── i18n/        # catalog loader; strings live in /locales/<code>/website
 │   ├── layouts/     # Layout.astro (head, CSP, icons, LOCALIZED sets)
 │   ├── lib/         # guides/ content model, slug list and parity check
 │   ├── pages/       # [...lang]/ routes: index, pricing, guides, changelog, builder, legal

@@ -1,0 +1,14 @@
+{
+  "label": "Points de fidélité",
+  "tagline": "Les viewers gagnent une monnaie de chaîne pour les subs, cheers et le temps de visionnage.",
+  "description": "Donnez à votre communauté sa propre monnaie : les viewers gagnent des points en s'abonnant, en se réabonnant, en offrant des subs, en cheerant des bits, et simplement en regardant (tout le chat gagne à chaque tick de 5 minutes pendant le direct). Nommez la monnaie, réglez chaque taux, et laissez les modos accorder des points avec !points set/add. Les viewers voient leur solde avec !points. Gamble et Duels dépensent ce registre et s'arment depuis cette page. Ils ne tournent pas tant que la monnaie est éteinte. Se couple aux Compteurs et aux récompenses de points de chaîne qui donnent des points.",
+  "commands": {
+    "points": "Voir votre solde et votre temps de visionnage.",
+    "points_give_user_500": "Donner une partie de vos propres points à un autre viewer.",
+    "leaderboard": "Afficher le classement de la chaîne.",
+    "points_set_user_500": "Fixer le solde d'un viewer.",
+    "points_add_user_500": "Accorder des points à un viewer.",
+    "points_remove_user_500": "Retirer des points à un viewer.",
+    "counter": "Gérer les compteurs (aussi sur la page Compteurs)."
+  }
+}

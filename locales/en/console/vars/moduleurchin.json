@@ -1,0 +1,5 @@
+{
+  "name": "Bedwars Stats",
+  "hint": "Needs the Bedwars Stats module enabled.",
+  "desc": "Use {urchin:variable} in a custom command to read this module's public values. Needs the Bedwars Stats module enabled. Adding a variable does not enable its module. Disabled modules leave the variable visible in chat. Event-only values are empty when the command has no matching event; use a |fallback for empty values. The preview uses example data and does not confirm your module is enabled."
+}

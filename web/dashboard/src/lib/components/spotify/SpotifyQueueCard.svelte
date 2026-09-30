@@ -43,7 +43,7 @@
       seconds < 60
         ? rtf.format(-Math.floor(seconds / 5) * 5, 'second')
         : rtf.format(-Math.floor(seconds / 60), 'minute');
-    return t('spotify.queueUpdated', { when });
+    return t('spotify.queue.updated', { when });
   });
 
   const secondsFormat = $derived(new Intl.NumberFormat(locale, { minimumIntegerDigits: 2, useGrouping: false }));
@@ -57,7 +57,7 @@
     const drift = progress.playing ? Math.max(0, now - updatedAt) : 0;
     const elapsed = clock(Math.min(progress.positionMs + drift, progress.durationMs));
     const duration = clock(progress.durationMs);
-    return { text: `${elapsed} / ${duration}`, aria: t('spotify.queueProgressLabel', { elapsed, duration }) };
+    return { text: `${elapsed} / ${duration}`, aria: t('spotify.queue.progressLabel', { elapsed, duration }) };
   });
 
   const upRows = $derived.by(() => {
@@ -71,12 +71,12 @@
 
   const emptyBody = $derived(
     srEnabled && redeemEnabled
-      ? t('spotify.queueEmptyBoth')
+      ? t('spotify.queue.emptyBoth')
       : srEnabled
-        ? t('spotify.queueEmptySr')
+        ? t('spotify.queue.emptySr')
         : redeemEnabled
-          ? t('spotify.queueEmptyRedeem')
-          : t('spotify.queueEmptyOff')
+          ? t('spotify.queue.emptyRedeem')
+          : t('spotify.queue.emptyOff')
   );
   const isEmpty = $derived(!queue?.current && upRows.length === 0);
 </script>
@@ -84,23 +84,23 @@
 {#snippet track(row: { title: string; artists: string; requester: string })}
   <strong>{row.title}</strong>
   {#if row.artists}<Text as="span" size="sm" tone="muted"> · {row.artists}</Text>{/if}
-  {#if row.requester}<Text as="span" size="sm" tone="muted"> ({t('spotify.queueAskedBy')} {row.requester})</Text>{/if}
+  {#if row.requester}<Text as="span" size="sm" tone="muted"> ({t('spotify.queue.askedBy')} {row.requester})</Text>{/if}
 {/snippet}
 
 <Card>
   <div class="queue-head">
-    <Heading level={6} as="h2">{t('spotify.queueTitle')}</Heading>
-    <span class="queue-stamp" role="status"><Text as="span" size="xs" mono tone="muted">{refreshing ? t('spotify.queueRefreshing') : updatedLabel}</Text></span>
-    <Button variant="ghost" type="button" loading={refreshing} onclick={onRefresh}>{t('spotify.queueRefresh')}</Button>
+    <Heading level={6} as="h2">{t('spotify.queue.title')}</Heading>
+    <span class="queue-stamp" role="status"><Text as="span" size="xs" mono tone="muted">{refreshing ? t('spotify.queue.refreshing') : updatedLabel}</Text></span>
+    <Button variant="ghost" type="button" loading={refreshing} onclick={onRefresh}>{t('spotify.queue.refresh')}</Button>
   </div>
   {#if queue?.current}
     <div class="queue-now">
-      <span class="queue-label">{t('spotify.queueNow')}</span>
+      <span class="queue-label">{t('spotify.queue.now')}</span>
       <span class="queue-track">{@render track(queue.current)}</span>
       {#if progressLabel}
         <span class="queue-time" aria-label={progressLabel.aria}><Text as="span" size="xs" mono tone="muted">{progressLabel.text}</Text></span>
       {/if}
-      <Button variant="secondary" type="button" loading={skipping} onclick={onSkip}>{t('spotify.queueSkip')}</Button>
+      <Button variant="secondary" type="button" loading={skipping} onclick={onSkip}>{t('spotify.queue.skip')}</Button>
     </div>
   {/if}
   {#if upRows.length}
@@ -110,9 +110,9 @@
       {/each}
     </ol>
   {:else if isEmpty}
-    <EmptyState title={t('spotify.queueEmpty')} body={emptyBody}>
+    <EmptyState title={t('spotify.queue.empty')} body={emptyBody}>
       {#if !srEnabled && !redeemEnabled}
-        <Button variant="secondary" type="button" onclick={onEnableSr}>{t('spotify.queueEnableSr')}</Button>
+        <Button variant="secondary" type="button" onclick={onEnableSr}>{t('spotify.queue.enableSr')}</Button>
       {/if}
     </EmptyState>
   {/if}

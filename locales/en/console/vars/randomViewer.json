@@ -1,0 +1,5 @@
+{
+  "name": "A random viewer",
+  "hint": "someone in chat right now, picked at random (never you, never the bot)",
+  "desc": "The name of one person Twitch says is in chat right now, picked at random, not someone who has necessarily said anything. Never you and never the bot. Two of them in one response are two separate picks. Right after the bot restarts, before it has loaded who is in chat, it names someone who has spoken recently instead."
+}

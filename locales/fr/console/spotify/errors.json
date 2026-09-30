@@ -1,0 +1,11 @@
+{
+  "noApp": "Ajoutez votre application Spotify avant de connecter votre compte.",
+  "noToken": "Spotify a réutilisé votre consentement, aucun nouveau jeton n'a été émis. Révoquez cette application sur la page de votre compte Spotify, puis reconnectez-vous.",
+  "oauth": "Spotify a refusé la connexion. Réessayez.",
+  "state": "Le lien de connexion a expiré ou a été rejoué. Relancez la connexion.",
+  "store": "Le jeton n'a pas pu être stocké. Réessayez dans un instant.",
+  "titleRequired": "Donnez un titre à la récompense.",
+  "unconfigured": "Les demandes de musiques ne sont pas configurées sur ce déploiement : l'URL de callback Spotify est absente. Demandez à l'opérateur de définir SPOTIFY_REDIRECT_URI.",
+  "cost": "Saisissez un nombre entier de points, au moins 1.",
+  "cooldown": "Saisissez un délai entre 0 seconde et 7 jours."
+}

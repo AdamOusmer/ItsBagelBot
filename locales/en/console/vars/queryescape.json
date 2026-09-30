@@ -1,0 +1,5 @@
+{
+  "name": "URL-encode text",
+  "hint": "URL-encodes the text you put after the colon",
+  "desc": "Encodes your own text for the query part of a URL. Replace the words."
+}

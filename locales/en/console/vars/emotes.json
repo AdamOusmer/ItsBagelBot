@@ -1,0 +1,5 @@
+{
+  "name": "Emote list",
+  "hint": "every global emote code from one provider ({emotes:7tv}, {emotes:bttv} or {emotes:ffz}), space-separated",
+  "desc": "The global emote codes for one provider (7TV, BetterTTV or FrankerFaceZ), separated by spaces. These are the ones every channel has, not the emotes you added to yours, and a long list is cut to fit one chat line."
+}

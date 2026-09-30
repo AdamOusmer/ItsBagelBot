@@ -1,0 +1,7 @@
+{
+  "release": "Étiquette une nouvelle version, construit chaque image, l’épingle et redéploie chaque service.",
+  "hotfix": "Déplace l’étiquette actuelle vers un commit plus récent, reconstruit, réépingle et redéploie.",
+  "bump": "Épingle les images que main vient de construire. Seuls les services dont l’image a changé sont redéployés.",
+  "rollback": "Épingle les images d’une version antérieure et redéploie, sans reconstruction.",
+  "reapply": "Redéploie les épinglages déjà présents dans main, sans reconstruction ni PR."
+}

@@ -1,0 +1,17 @@
+{
+  "songqueue": "Song Requests",
+  "lockedBroadcaster": "Broadcaster only",
+  "ariaMain": "Main navigation",
+  "manage": "Manage",
+  "overview": "Overview",
+  "commands": "Commands",
+  "modules": "Modules",
+  "discord": "Discord",
+  "counters": "Counters",
+  "channelpoints": "Channel Points",
+  "timers": "Timers",
+  "billing": "Billing",
+  "stats": "Stats",
+  "status": "Status",
+  "settings": "Settings"
+}

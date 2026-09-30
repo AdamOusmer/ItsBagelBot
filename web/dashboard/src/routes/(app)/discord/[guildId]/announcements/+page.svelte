@@ -25,8 +25,8 @@
   const draft = createGuildDraft({ data: () => data, fields: ANNOUNCEMENT_FIELDS, t });
 
   const switches = $derived([
-    { field: 'liveEnabled' as const, label: t('discord.liveLabel'), help: t('discord.liveHelp'), defaultOn: true },
-    { field: 'clipsEnabled' as const, label: t('discord.clipsLabel'), help: t('discord.clipsHelp'), defaultOn: true }
+    { field: 'liveEnabled' as const, label: t('discord.announcements.liveLabel'), help: t('discord.announcements.liveHelp'), defaultOn: true },
+    { field: 'clipsEnabled' as const, label: t('discord.announcements.clipsLabel'), help: t('discord.announcements.clipsHelp'), defaultOn: true }
   ]);
 
   const allowList = $derived(parseNameList(draft.config.categoryAllow));
@@ -47,7 +47,7 @@
 
   function removeName(field: keyof DiscordConfig, name: string) {
     draft.set(field, encodeNameList(parseNameList(draft.config[field]).filter((n) => n !== name)));
-    removedNote = t('discord.chipRemoved', { name });
+    removedNote = t('discord.announcements.chipRemoved', { name });
   }
 
   let removedNote = $state('');
@@ -71,62 +71,62 @@
     {#each names as name (name)}
       <Chip as="span" on>
         {name}
-        <button type="button" class="chip-remove" aria-label={t('discord.chipRemove', { name })} onclick={() => removeName(field, name)}>
+        <button type="button" class="chip-remove" aria-label={t('discord.announcements.chipRemove', { name })} onclick={() => removeName(field, name)}>
           <span class="chip-x" aria-hidden="true">×</span>
         </button>
       </Chip>
     {/each}
     {#if names.length === 0}
-      <Text as="span" size="xs" tone="muted">{t('discord.chipEmpty')}</Text>
+      <Text as="span" size="xs" tone="muted">{t('discord.announcements.chipEmpty')}</Text>
     {/if}
   </div>
 {/snippet}
 
 <VisuallyHidden as="p" role="status" aria-live="polite">{removedNote}</VisuallyHidden>
 
-<GuildForm {draft} id="dc-posts-h" title={t('discord.postsTitle')} hint={t('discord.postsHelp')}>
+<GuildForm {draft} id="dc-posts-h" title={t('discord.announcements.postsTitle')} hint={t('discord.announcements.postsHelp')}>
   {#each switches as row (row.field)}
     <SwitchRow {draft} invalid={draft.invalid} {...row} />
   {/each}
 
   <div class="setting-row stacked">
     <span class="tr-text">
-      <Text as="span" size="sm">{t('discord.allowLabel')}</Text>
-      <Text as="span" size="xs" tone="muted" id="dch-allow">{t('discord.allowTag')}</Text>
+      <Text as="span" size="sm">{t('discord.announcements.allowLabel')}</Text>
+      <Text as="span" size="xs" tone="muted" id="dch-allow">{t('discord.announcements.allowTag')}</Text>
     </span>
     {@render chipList('categoryAllow', allowList)}
     <span class="adder">
       <Input
         fill
         aria-describedby="dch-allow"
-        aria-label={t('discord.allowLabel')}
+        aria-label={t('discord.announcements.allowLabel')}
         maxlength={CATEGORY_NAME_MAX}
-        placeholder={t('discord.allowPlaceholder')}
+        placeholder={t('discord.announcements.allowPlaceholder')}
         bind:value={allowDraft}
         onkeydown={(e: KeyboardEvent) => addOnEnter(e, commitAllow)}
       />
-      <Button variant="secondary" onclick={commitAllow}>{t('discord.chipAdd')}</Button>
+      <Button variant="secondary" onclick={commitAllow}>{t('discord.announcements.chipAdd')}</Button>
     </span>
     <FieldNote invalid={draft.invalid} field="categoryAllow" />
   </div>
 
   <div class="setting-row stacked">
     <span class="tr-text">
-      <Text as="span" size="sm">{t('discord.denyLabel')}</Text>
-      <Text as="span" size="xs" tone="muted" id="dch-deny">{t('discord.denyTag')}</Text>
+      <Text as="span" size="sm">{t('discord.announcements.denyLabel')}</Text>
+      <Text as="span" size="xs" tone="muted" id="dch-deny">{t('discord.announcements.denyTag')}</Text>
     </span>
     {@render chipList('categoryDeny', denyList)}
     <span class="adder">
       <Input
         fill
         aria-describedby="dch-deny"
-        aria-label={t('discord.denyLabel')}
+        aria-label={t('discord.announcements.denyLabel')}
         maxlength={CATEGORY_NAME_MAX}
-        placeholder={t('discord.denyPlaceholder')}
+        placeholder={t('discord.announcements.denyPlaceholder')}
         bind:value={denyDraft}
         onkeydown={(e: KeyboardEvent) => addOnEnter(e, commitDeny)}
       />
-      <Button variant="secondary" onclick={commitDeny}>{t('discord.chipAdd')}</Button>
+      <Button variant="secondary" onclick={commitDeny}>{t('discord.announcements.chipAdd')}</Button>
     </span>
     <FieldNote invalid={draft.invalid} field="categoryDeny" />
   </div>

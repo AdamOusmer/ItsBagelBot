@@ -1,0 +1,13 @@
+{
+  "label": "Lumières Govee",
+  "tagline": "Laissez les viewers recolorer vos lumières Govee avec des points de chaîne.",
+  "description": "Les viewers échangent une récompense de points de chaîne, tapent une couleur (un nom comme « blue » ou un hex comme #00ccff), et le bot allume votre lumière Govee et la règle. Direct seulement : les échanges hors stream sont remboursés automatiquement. Pour obtenir votre clé API Govee : ouvrez l'appli Govee Home, touchez Profil (en bas à droite), touchez l'engrenage des réglages (en haut à droite), touchez « Apply for API Key », remplissez le court formulaire, et Govee vous envoie une clé par e-mail en quelques minutes. Puis sur cette page : collez la clé (nous la stockons chiffrée et ne la réaffichons jamais), choisissez la lumière à contrôler, et créez la récompense.",
+  "replies": {
+    "reply": {
+      "label": "Réponse de succès",
+      "tagline": "Ce que le bot poste après avoir changé les lumières.",
+      "event": "à l'échange",
+      "defaultMessage": "@{user} a réglé les lumières sur {color} !"
+    }
+  }
+}

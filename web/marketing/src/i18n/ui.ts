@@ -2,26 +2,21 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { dashboardHref } from '@bagel/kit/site-links';
-import en from './locales/en.json';
+import { flatCatalogs, type FlatTree } from '@bagel/kit/i18n/flat';
 import { guideLocalizedPaths } from '../lib/guides/slugs';
 import { defaultLang, type Lang } from './lang';
 export { defaultLang, type Lang };
 
-const files = import.meta.glob<Record<string, string>>('./locales/*.json', {
-  eager: true,
-  import: 'default',
-});
+export type UIKey = string;
 
-export type UIKey = keyof typeof en;
-
-const catalog: Record<string, Record<string, string>> = {};
-for (const path in files) {
-  const code = path.slice(path.lastIndexOf('/') + 1, -'.json'.length);
-  catalog[code] = files[path];
-}
+const catalog = flatCatalogs(
+  import.meta.glob<FlatTree>('../../../../locales/*/website/**/*.json', { eager: true, import: 'default' }),
+  'website',
+);
 
 export const locales: readonly Lang[] = Object.freeze(Object.keys(catalog).sort());
 
+const en: Record<string, string> = catalog[defaultLang];
 const EN_KEYS: readonly string[] = Object.keys(en);
 const EN_KEY_SET: ReadonlySet<string> = new Set(EN_KEYS);
 const EMPTY: Record<string, string> = {};

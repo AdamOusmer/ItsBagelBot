@@ -1,0 +1,23 @@
+{
+  "back": "All modules",
+  "bothNote": "Both paths share one up-next list. Either can be on while the other is off.",
+  "degraded": "Could not reach the backend. Try again in a moment.",
+  "description": "Register your own Spotify app, connect your account to it, then let viewers queue tracks from chat or a channel-points reward. Either path can be on while the other is off.",
+  "eyebrow": "Song requests",
+  "liveOnlyLabel": "Live only",
+  "masterAria": "Toggle song requests",
+  "masterFail": "Could not save the toggle.",
+  "masterHintOff": "Requests are paused. Neither path queues until you enable the module.",
+  "masterHintOn": "!sr and the reward are live. Requests queue while you stream.",
+  "masterLabel": "Enable song requests",
+  "saveChanges": "Save changes",
+  "saving": "Saving…",
+  "titleEm": "Requests",
+  "titlePre": "Song",
+  "unsavedChanges": "Unsaved changes",
+  "saved": "Saved",
+  "discardTitle": "Discard changes?",
+  "discardBody": "You have unsaved changes to this reward. Discard them?",
+  "discard": "Discard",
+  "keepEditing": "Keep editing"
+}

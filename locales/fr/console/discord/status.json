@@ -1,0 +1,19 @@
+{
+  "close4004": "Discord a rejeté le jeton du bot. Il faut le remplacer avant que le bot revienne.",
+  "close4011": "Ce bot a maintenant besoin de plusieurs shards. Rien à faire de votre côté, on s’en occupe.",
+  "close4013": "Discord a refusé les intents de la passerelle. Rien à faire de votre côté, on s’en occupe.",
+  "close4014": "Discord n’a pas approuvé les intents privilégiés dont ce bot a besoin. Rien à faire de votre côté, on s’en occupe.",
+  "sinceDays": "{n} j",
+  "sinceHours": "{n} h",
+  "sinceMinutes": "{n} min",
+  "members": "{n} membres",
+  "noMembers": "Nombre de membres indisponible",
+  "offline": "Hors ligne",
+  "online": "En ligne",
+  "reauth": "Réautoriser",
+  "reconnecting": "La passerelle a coupé et se reconnecte toute seule. Rien à faire.",
+  "resumes": "Reprises de session",
+  "since": "En ligne depuis",
+  "title": "Serveur et bot",
+  "unknown": "Inconnu"
+}

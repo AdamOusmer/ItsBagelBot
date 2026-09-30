@@ -1,0 +1,5 @@
+{
+  "name": "Command name",
+  "hint": "the command’s own name, without the “!”",
+  "desc": "The name of the command that ran, without the \"!\". Alternate names all report the main one."
+}

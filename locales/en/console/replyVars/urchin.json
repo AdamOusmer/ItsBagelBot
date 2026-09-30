@@ -1,0 +1,135 @@
+{
+  "daily": {
+    "player": {
+      "name": "Player",
+      "hint": "The resolved Minecraft player",
+      "desc": "The resolved Minecraft player."
+    },
+    "wins": {
+      "name": "Wins",
+      "hint": "Wins in the period",
+      "desc": "Wins in the period."
+    },
+    "losses": {
+      "name": "Losses",
+      "hint": "Losses in the period",
+      "desc": "Losses in the period."
+    },
+    "finals": {
+      "name": "Final kills",
+      "hint": "Final kills in the period",
+      "desc": "Final kills in the period."
+    },
+    "finaldeaths": {
+      "name": "Final deaths",
+      "hint": "Final deaths in the period",
+      "desc": "Final deaths in the period."
+    },
+    "beds": {
+      "name": "Beds broken",
+      "hint": "Beds broken in the period",
+      "desc": "Beds broken in the period."
+    },
+    "games": {
+      "name": "Games",
+      "hint": "Games played in the period",
+      "desc": "Games played in the period."
+    },
+    "levels": {
+      "name": "Levels gained",
+      "hint": "Star levels gained",
+      "desc": "Star levels gained."
+    },
+    "fkdr": {
+      "name": "FKDR",
+      "hint": "Final kills divided by final deaths",
+      "desc": "Final kills divided by final deaths."
+    }
+  },
+  "stats": {
+    "player": {
+      "name": "Player",
+      "hint": "The resolved Minecraft player",
+      "desc": "The resolved Minecraft player."
+    },
+    "stars": {
+      "name": "Stars",
+      "hint": "Bedwars star level",
+      "desc": "Bedwars star level."
+    },
+    "wins": {
+      "name": "Wins",
+      "hint": "Lifetime wins",
+      "desc": "Lifetime wins."
+    },
+    "losses": {
+      "name": "Losses",
+      "hint": "Lifetime losses",
+      "desc": "Lifetime losses."
+    },
+    "finals": {
+      "name": "Final kills",
+      "hint": "Lifetime final kills",
+      "desc": "Lifetime final kills."
+    },
+    "finaldeaths": {
+      "name": "Final deaths",
+      "hint": "Lifetime final deaths",
+      "desc": "Lifetime final deaths."
+    },
+    "beds": {
+      "name": "Beds broken",
+      "hint": "Lifetime beds broken",
+      "desc": "Lifetime beds broken."
+    },
+    "fkdr": {
+      "name": "FKDR",
+      "hint": "Lifetime final K/D ratio",
+      "desc": "Lifetime final K/D ratio."
+    },
+    "wlr": {
+      "name": "Win/loss ratio",
+      "hint": "Lifetime win/loss ratio",
+      "desc": "Lifetime win/loss ratio."
+    }
+  },
+  "sniper": {
+    "player": {
+      "name": "Player",
+      "hint": "The resolved player",
+      "desc": "The resolved player."
+    },
+    "score": {
+      "name": "Sniper score",
+      "hint": "The current overlay score",
+      "desc": "The current overlay score."
+    },
+    "mode": {
+      "name": "Mode",
+      "hint": "The current warning mode",
+      "desc": "The current warning mode."
+    },
+    "tagcount": {
+      "name": "Tag count",
+      "hint": "Active blacklist tags",
+      "desc": "Active blacklist tags."
+    }
+  },
+  "tags": {
+    "player": {
+      "name": "Player",
+      "hint": "The resolved player",
+      "desc": "The resolved player."
+    },
+    "tags": {
+      "name": "Tags",
+      "hint": "The formatted tag list",
+      "desc": "The formatted tag list."
+    },
+    "tagcount": {
+      "name": "Tag count",
+      "hint": "How many tags are active",
+      "desc": "How many tags are active."
+    }
+  }
+}

@@ -13,8 +13,8 @@ import type { VariableDef } from './types';
 import { MODULE_CATALOG } from '../catalog';
 import { BUILTIN_COMMANDS } from '../catalog/builtin-commands';
 import type { ReplyToken } from '../catalog/module-def';
-import en from '../i18n/locales/en.json';
-import fr from '../i18n/locales/fr.json';
+import { readConsoleTree } from '../i18n/tree-fs';
+import type { MessageTree } from '../i18n/types';
 
 const GOLDEN_PATH = join(import.meta.dir, '../../../../app/twitch/sesame/engine/scope/testdata/token_catalog.golden.json');
 
@@ -60,7 +60,9 @@ const lexesToOneVar = (example: string): boolean => {
 };
 
 type LocaleTable = Record<string, Record<string, unknown> | undefined>;
-const varsTable = (locale: typeof en): LocaleTable => ((locale as { vars?: LocaleTable }).vars ?? {});
+const en = readConsoleTree('en');
+const fr = readConsoleTree('fr');
+const varsTable = (locale: MessageTree): LocaleTable => ((locale as { vars?: LocaleTable }).vars ?? {});
 const LOCALES: [string, LocaleTable][] = [['en', varsTable(en)], ['fr', varsTable(fr)]];
 
 const requiredCopyKeys = (v: VariableDef): string[] => [

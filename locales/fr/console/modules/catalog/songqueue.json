@@ -1,0 +1,21 @@
+{
+  "label": "Demandes de morceaux",
+  "tagline": "!sr et une récompense de points de chaîne qui mettent des morceaux Spotify en file.",
+  "description": "Enregistrez votre propre appli Spotify et connectez-y votre compte une fois, puis laissez les viewers mettre de la musique en file de deux façons : la commande !sr (avec un palier de permission que vous choisissez, de tout le monde jusqu'à vous seul) et une récompense de points de chaîne dont le texte saisi est la recherche : un nom, « artiste - morceau », ou un lien Spotify collé. Le bot annonce ce qui joue, résout les liens et les noms contre Spotify, et garde un morceau par viewer dans la liste suivante. !current lit votre lecteur Spotify directement, donc il répond même pour des pistes que personne n'a demandées. Les modérateurs gèrent la file avec !sr next, remove et clear.",
+  "commands": {
+    "sr": "Afficher ce qui joue, ou mettre une piste en file par nom, « artiste - morceau », ou un lien Spotify.",
+    "remove": "Retirer votre demande en file, ou enlever une position en tant que modo.",
+    "skip": "Marquer la piste actuelle comme jouée et promouvoir la suivante (aussi !next).",
+    "clear": "Vider la file.",
+    "srlist": "Afficher les cinq prochains morceaux de la file (aussi !songlist).",
+    "current": "Dire ce que votre Spotify joue en ce moment (aussi !song, !np)."
+  },
+  "replies": {
+    "redeem": {
+      "label": "Réponse à l'échange",
+      "tagline": "Ce que le bot poste quand la récompense de file est échangée.",
+      "event": "à l'échange",
+      "defaultMessage": "@{user} a mis {track} en file, position #{pos}."
+    }
+  }
+}

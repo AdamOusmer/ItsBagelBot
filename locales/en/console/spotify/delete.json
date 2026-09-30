@@ -1,0 +1,7 @@
+{
+  "body": "“{name}” disappears from your Twitch points menu immediately. Queued songs stay. This cannot be undone.",
+  "cancel": "Keep it",
+  "confirm": "Delete reward",
+  "reward": "Delete reward",
+  "title": "Delete this reward?"
+}

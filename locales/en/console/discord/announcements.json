@@ -1,0 +1,18 @@
+{
+  "allowLabel": "Announce only these categories",
+  "allowPlaceholder": "Minecraft",
+  "allowTag": "Empty means every category is announced.",
+  "chipAdd": "Add",
+  "chipEmpty": "None yet.",
+  "chipRemove": "Remove {name}",
+  "clipsHelp": "Archive !clip (and EventSub clips) in #clips.",
+  "clipsLabel": "Clips",
+  "denyLabel": "Never announce these categories",
+  "denyPlaceholder": "Just Chatting",
+  "denyTag": "A denied category wins over the allow list.",
+  "liveHelp": "Post in #now-live when you start streaming. Edited to “Stream ended.” when you go offline.",
+  "liveLabel": "Go live",
+  "postsHelp": "Go-live and clips post straight from outgress.",
+  "postsTitle": "Stream posts",
+  "chipRemoved": "Removed {name}"
+}

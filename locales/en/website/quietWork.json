@@ -1,0 +1,22 @@
+{
+  "eyebrow": "The quiet work",
+  "title": "The things it handles while you stream.",
+  "goveeReward": "moth_lamp redeemed · sunset",
+  "goveeTitle": "Your lights, chat's remote.",
+  "goveeDesc": "Channel points plug straight into your Govee setup. One redeem and the room drifts to whatever colour chat picked.",
+  "cmdOut": "welcome in, moth_lamp. grab a seat 🥯",
+  "cmdTitle": "It greets your regulars by name.",
+  "cmdDesc": "Commands, cooldowns and shout-outs, written in your words in the dashboard.",
+  "songTitle": "Spotify song requests, run by chat.",
+  "songDesc": "Viewers type !sr and the track drops straight into your Spotify queue. Live now playing, !skip, !srlist, and a per-viewer limit you set.",
+  "songNow": "now playing",
+  "songTrack": "late night lo-fi · requested by moth_lamp",
+  "songAck": "queued · #2",
+  "pollTitle": "Polls your chat votes in.",
+  "pollDesc": "Votes counted live, results moving as they land.",
+  "winLabel": "winner",
+  "winTitle": "Every entry gets the same odds.",
+  "winDesc": "The draw is random and the result is logged.",
+  "beatTitle": "It stays in chat when you're offline.",
+  "beatDesc": "Commands, moderation and timers keep running between streams."
+}

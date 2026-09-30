@@ -12,39 +12,39 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 ---
 
-<Layout title={t('sr.metaTitle')} description={t('sr.metaDesc')}>
+<Layout title={t('songRequests.metaTitle')} description={t('songRequests.metaDesc')}>
     <FeatureLanding
-        eyebrow={t('sr.eyebrow')}
-        title={t('sr.title')}
-        lead={t('sr.lead')}
-        howEyebrow={t('sr.howEyebrow')}
-        howTitle={t('sr.howTitle')}
+        eyebrow={t('songRequests.eyebrow')}
+        title={t('songRequests.title')}
+        lead={t('songRequests.lead')}
+        howEyebrow={t('songRequests.howEyebrow')}
+        howTitle={t('songRequests.howTitle')}
         steps={[
-            { title: t('sr.step1Title'), desc: t('sr.step1Desc') },
-            { title: t('sr.step2Title'), desc: t('sr.step2Desc') },
-            { title: t('sr.step3Title'), desc: t('sr.step3Desc') },
+            { title: t('songRequests.step1Title'), desc: t('songRequests.step1Desc') },
+            { title: t('songRequests.step2Title'), desc: t('songRequests.step2Desc') },
+            { title: t('songRequests.step3Title'), desc: t('songRequests.step3Desc') },
         ]}
-        listEyebrow={t('sr.cmdEyebrow')}
-        listTitle={t('sr.cmdTitle')}
+        listEyebrow={t('songRequests.cmdEyebrow')}
+        listTitle={t('songRequests.cmdTitle')}
         listItems={[
-            { name: t('sr.cmd1Name'), desc: t('sr.cmd1Desc') },
-            { name: t('sr.cmd2Name'), desc: t('sr.cmd2Desc') },
-            { name: t('sr.cmd3Name'), desc: t('sr.cmd3Desc') },
-            { name: t('sr.cmd4Name'), desc: t('sr.cmd4Desc') },
+            { name: t('songRequests.cmd1Name'), desc: t('songRequests.cmd1Desc') },
+            { name: t('songRequests.cmd2Name'), desc: t('songRequests.cmd2Desc') },
+            { name: t('songRequests.cmd3Name'), desc: t('songRequests.cmd3Desc') },
+            { name: t('songRequests.cmd4Name'), desc: t('songRequests.cmd4Desc') },
         ]}
-        listNote={t('sr.limitsNote')}
-        faqEyebrow={t('sr.faqEyebrow')}
-        faqTitle={t('sr.faqTitle')}
+        listNote={t('songRequests.limitsNote')}
+        faqEyebrow={t('songRequests.faqEyebrow')}
+        faqTitle={t('songRequests.faqTitle')}
         faqItems={[
-            { question: t('sr.faqQ1'), answer: t('sr.faqA1') },
-            { question: t('sr.faqQ2'), answer: t('sr.faqA2') },
-            { question: t('sr.faqQ3'), answer: t('sr.faqA3') },
-            { question: t('sr.faqQ4'), answer: t('sr.faqA4') },
-            { question: t('sr.faqQ5'), answer: t('sr.faqA5') },
-            { question: t('sr.faqQ6'), answer: t('sr.faqA6') },
+            { question: t('songRequests.faqQ1'), answer: t('songRequests.faqA1') },
+            { question: t('songRequests.faqQ2'), answer: t('songRequests.faqA2') },
+            { question: t('songRequests.faqQ3'), answer: t('songRequests.faqA3') },
+            { question: t('songRequests.faqQ4'), answer: t('songRequests.faqA4') },
+            { question: t('songRequests.faqQ5'), answer: t('songRequests.faqA5') },
+            { question: t('songRequests.faqQ6'), answer: t('songRequests.faqA6') },
         ]}
-        ctaTitle={t('sr.ctaTitle')}
+        ctaTitle={t('songRequests.ctaTitle')}
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
-        ctaSecondary={{ href: localizePath('/guides/modules', lang), label: t('sr.ctaGuide') }}
+        ctaSecondary={{ href: localizePath('/guides/modules', lang), label: t('songRequests.ctaGuide') }}
     />
 </Layout>

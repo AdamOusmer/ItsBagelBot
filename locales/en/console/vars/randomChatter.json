@@ -1,0 +1,5 @@
+{
+  "name": "A random chatter",
+  "hint": "one of them, picked at random (never you, never the bot)",
+  "desc": "The name of one person who has talked recently, picked at random. Never you and never the bot. Two of them in one response are two separate picks, and a silent channel comes back empty."
+}

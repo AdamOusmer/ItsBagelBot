@@ -1,0 +1,9 @@
+{
+  "board": "Bagel leaderboard: {personality:places}. {personality:standing}",
+  "board.empty": "Nobody has fed the bagel yet. Say \"feed the bagel\" and take first place.",
+  "board.none": "This channel has never fed the bagel.",
+  "board.standing": "This channel: {personality:count} feedings, #{personality:rank} of {personality:ranked}.",
+  "rank": "{personality:channel} has fed the bagel {personality:count} times: #{personality:rank} of {personality:ranked} channels.",
+  "rank.none": "{personality:channel} has never fed the bagel. Say \"feed the bagel\" to get on the board.",
+  "unavailable": "The bagel cannot count right now, try again in a moment."
+}

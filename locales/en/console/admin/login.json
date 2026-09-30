@@ -1,0 +1,10 @@
+{
+  "botCta": "Authorize bot account",
+  "sub": "Admin Console",
+  "lede": "Operator access. Sign in with the Twitch account on the staff allowlist.",
+  "cta": "Sign in with Twitch",
+  "errDenied": "That Twitch account is not on the staff allowlist.",
+  "errState": "Sign-in expired or was tampered with. Try again.",
+  "errOauth": "Twitch rejected the sign-in. Try again.",
+  "errScope": "Missing required permission."
+}

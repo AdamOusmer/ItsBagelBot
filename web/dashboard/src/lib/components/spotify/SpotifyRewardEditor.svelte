@@ -27,7 +27,7 @@
 
   const DEFAULT_REPLY = '@{songqueue:user} queued {songqueue:track}!';
   const replySamples: Record<string, string> = namespaceReplySamples('songqueue', {
-    user: t('spotify.previewUserSample'),
+    user: t('spotify.reward.previewUserSample'),
     track: 'Never Gonna Give You Up',
     input: 'rick roll',
     pos: '3'
@@ -42,11 +42,11 @@
 
 <div class="editor">
   <Text size="sm" tone="muted">
-    {t('spotify.editorInputHint')} <Code>Blinding Lights</Code>. {t('spotify.editorInputHintPair')}
-    <Code>The Weeknd - Blinding Lights</Code>. {t('spotify.editorInputHintLink')}
+    {t('spotify.reward.inputHint')} <Code>Blinding Lights</Code>. {t('spotify.reward.inputHintPair')}
+    <Code>The Weeknd - Blinding Lights</Code>. {t('spotify.reward.inputHintLink')}
   </Text>
 
-  <Field label={t('spotify.fieldTitle')} error={titleError} errorId="spotify-title-err">
+  <Field label={t('spotify.fields.title')} error={titleError} errorId="spotify-title-err">
     <Input
       fill
       invalid={!!titleError}
@@ -61,7 +61,7 @@
 
   <div class="field-row">
     <div class="field-grow">
-      <Field label={t('spotify.fieldCost')} error={costError} errorId="spotify-cost-err">
+      <Field label={t('spotify.fields.cost')} error={costError} errorId="spotify-cost-err">
         <Input
           fill
           invalid={!!costError}
@@ -76,7 +76,7 @@
       </Field>
     </div>
     <div class="color-field">
-      <Field label={t('spotify.fieldColor')}>
+      <Field label={t('spotify.fields.color')}>
         <span class="color-row">
           <span class="swatch"><Input data-cursor type="color" bind:value={draft.color} /></span>
           <Text as="span" size="xs" mono tone="accent">{draft.color.toUpperCase()}</Text>
@@ -85,29 +85,29 @@
     </div>
   </div>
 
-  <Field label={t('spotify.fieldCooldown')} tag={t('spotify.fieldCooldownTag')} error={cooldownError} errorId="spotify-cooldown-err">
+  <Field label={t('spotify.fields.cooldown')} tag={t('spotify.fields.cooldownTag')} error={cooldownError} errorId="spotify-cooldown-err">
     <DurationField
       bind:value={draft.cooldown}
       min={0}
       max={SPOTIFY_COOLDOWN_MAX}
-      label={t('spotify.fieldCooldown')}
+      label={t('spotify.fields.cooldown')}
       invalid={!!cooldownError}
       describedby={cooldownError ? 'spotify-cooldown-err' : undefined}
     />
   </Field>
 
-  <Field label={t('spotify.fieldReply')} tag={t('common.optional')}>
+  <Field label={t('spotify.fields.reply')} tag={t('common.optional')}>
     <ResponseEditor bind:value={draft.replyMessage} surface="reward:spotify" placeholder={DEFAULT_REPLY} />
   </Field>
-  <ChatPreview kind="reply" response={draft.replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('spotify.previewTag')} samples={replySamples} />
+  <ChatPreview kind="reply" response={draft.replyMessage || DEFAULT_REPLY} showViewer={false} tag={t('spotify.reward.previewTag')} samples={replySamples} />
 
-  <Field label={t('spotify.afterTitle')}>
+  <Field label={t('spotify.after.title')}>
     <Select
       fill
       options={[
-        { value: 'fulfill', label: t('spotify.afterFulfill') },
-        { value: 'cancel', label: t('spotify.afterCancel') },
-        { value: 'leave', label: t('spotify.afterLeave') }
+        { value: 'fulfill', label: t('spotify.after.fulfill') },
+        { value: 'cancel', label: t('spotify.after.cancel') },
+        { value: 'leave', label: t('spotify.after.leave') }
       ]}
       bind:value={draft.onRedeem}
     />
@@ -115,7 +115,7 @@
 
   {#if canDelete}
     <div class="del-row">
-      <Button variant="destructive" type="button" onclick={onRequestDelete} disabled={busy}>{t('spotify.deleteReward')}</Button>
+      <Button variant="destructive" type="button" onclick={onRequestDelete} disabled={busy}>{t('spotify.delete.reward')}</Button>
     </div>
   {/if}
 </div>

@@ -1,0 +1,20 @@
+{
+  "brand": "Documentation",
+  "title": "ItsBagelBot Documentation",
+  "description": "Guides, architecture, and reference for the all-in-one Twitch companion.",
+  "guides": "Guides",
+  "architecture": "Architecture",
+  "infrastructure": "Infrastructure",
+  "data": "Data & State",
+  "services": "Services",
+  "qa": "QA Reports",
+  "adr": "Architecture decisions",
+  "reference": "Reference",
+  "product": "Product",
+  "mainSite": "Main site",
+  "pricing": "Pricing",
+  "dashboard": "Dashboard",
+  "community": "Community",
+  "privacy": "Privacy",
+  "terms": "Terms"
+}

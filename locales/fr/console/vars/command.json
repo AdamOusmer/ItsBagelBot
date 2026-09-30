@@ -1,0 +1,5 @@
+{
+  "name": "Nom de la commande",
+  "hint": "le nom de la commande elle-même, sans le «!»",
+  "desc": "Le nom de la commande qui a répondu, sans le «!». Les autres noms rapportent tous le nom principal."
+}

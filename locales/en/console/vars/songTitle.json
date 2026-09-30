@@ -1,0 +1,5 @@
+{
+  "name": "Song title",
+  "hint": "just the track title, the first half of {song}",
+  "desc": "The track title on its own, the first half of {song}. Nothing playing comes back empty. Needs the Song requests module."
+}

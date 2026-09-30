@@ -1,0 +1,17 @@
+{
+  "player": {
+    "name": "Player",
+    "hint": "The resolved player",
+    "desc": "The resolved player."
+  },
+  "time": {
+    "name": "Time",
+    "hint": "The personal best for the requested window",
+    "desc": "The personal best for the requested window."
+  },
+  "window": {
+    "name": "Window",
+    "hint": "Which window answered: daily",
+    "desc": "Which window answered: daily, weekly, monthly, all-time or ranked."
+  }
+}

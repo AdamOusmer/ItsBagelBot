@@ -1,0 +1,9 @@
+{
+  "board": "Classement bagel : {personality:places}. {personality:standing}",
+  "board.empty": "Personne n'a encore nourri le bagel. Dites « feed the bagel » et prenez la première place.",
+  "board.none": "Cette chaîne n'a jamais nourri le bagel.",
+  "board.standing": "Cette chaîne : {personality:count} repas, n°{personality:rank} sur {personality:ranked}.",
+  "rank": "{personality:channel} a nourri le bagel {personality:count} fois : n°{personality:rank} sur {personality:ranked} chaînes.",
+  "rank.none": "{personality:channel} n'a jamais nourri le bagel. Dites « feed the bagel » pour entrer au classement.",
+  "unavailable": "Le bagel n'arrive plus à compter, réessayez dans un instant."
+}

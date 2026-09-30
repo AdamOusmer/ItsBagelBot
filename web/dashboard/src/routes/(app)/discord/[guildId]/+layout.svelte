@@ -19,7 +19,7 @@
   const droppedBanner = $derived(
     droppedPins.length === 0
       ? ''
-      : t('discord.droppedPins', { slots: droppedPins.map((slot) => t(SLOT_LABEL_KEYS[slot])).join(', ') })
+      : t('discord.roles.droppedPins', { slots: droppedPins.map((slot) => t(SLOT_LABEL_KEYS[slot])).join(', ') })
   );
 </script>
 

@@ -40,9 +40,9 @@ const whole = (n: unknown, min: number, max: number) =>
 
 export function spotifyErrors(draft: SpotifyRewardDraft): SpotifyErrors {
   const errors: SpotifyErrors = {};
-  if (!draft.title.trim()) errors.title = 'spotify.errTitleRequired';
-  if (!whole(draft.cost, 1, COST_MAX)) errors.cost = 'spotify.errCost';
-  if (!whole(draft.cooldown, 0, SPOTIFY_COOLDOWN_MAX)) errors.cooldown = 'spotify.errCooldown';
+  if (!draft.title.trim()) errors.title = 'spotify.errors.titleRequired';
+  if (!whole(draft.cost, 1, COST_MAX)) errors.cost = 'spotify.errors.cost';
+  if (!whole(draft.cooldown, 0, SPOTIFY_COOLDOWN_MAX)) errors.cooldown = 'spotify.errors.cooldown';
   return errors;
 }
 

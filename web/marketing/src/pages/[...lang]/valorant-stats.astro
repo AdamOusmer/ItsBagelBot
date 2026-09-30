@@ -12,40 +12,40 @@ const lang = getLangFromUrl(Astro.url);
 const t = useTranslations(lang);
 ---
 
-<Layout title={t('vp.metaTitle')} description={t('vp.metaDesc')}>
+<Layout title={t('valorantStats.metaTitle')} description={t('valorantStats.metaDesc')}>
     <FeatureLanding
-        eyebrow={t('vp.eyebrow')}
-        title={t('vp.title')}
-        lead={t('vp.lead')}
-        howEyebrow={t('vp.howEyebrow')}
-        howTitle={t('vp.howTitle')}
+        eyebrow={t('valorantStats.eyebrow')}
+        title={t('valorantStats.title')}
+        lead={t('valorantStats.lead')}
+        howEyebrow={t('valorantStats.howEyebrow')}
+        howTitle={t('valorantStats.howTitle')}
         steps={[
-            { title: t('vp.step1Title'), desc: t('vp.step1Desc') },
-            { title: t('vp.step2Title'), desc: t('vp.step2Desc') },
-            { title: t('vp.step3Title'), desc: t('vp.step3Desc') },
+            { title: t('valorantStats.step1Title'), desc: t('valorantStats.step1Desc') },
+            { title: t('valorantStats.step2Title'), desc: t('valorantStats.step2Desc') },
+            { title: t('valorantStats.step3Title'), desc: t('valorantStats.step3Desc') },
         ]}
-        listEyebrow={t('vp.cmdEyebrow')}
-        listTitle={t('vp.cmdTitle')}
+        listEyebrow={t('valorantStats.cmdEyebrow')}
+        listTitle={t('valorantStats.cmdTitle')}
         listItems={[
-            { name: t('vp.cmd1Name'), desc: t('vp.cmd1Desc') },
-            { name: t('vp.cmd2Name'), desc: t('vp.cmd2Desc') },
-            { name: t('vp.cmd3Name'), desc: t('vp.cmd3Desc') },
-            { name: t('vp.cmd4Name'), desc: t('vp.cmd4Desc') },
-            { name: t('vp.cmd5Name'), desc: t('vp.cmd5Desc') },
-            { name: t('vp.cmd6Name'), desc: t('vp.cmd6Desc') },
+            { name: t('valorantStats.cmd1Name'), desc: t('valorantStats.cmd1Desc') },
+            { name: t('valorantStats.cmd2Name'), desc: t('valorantStats.cmd2Desc') },
+            { name: t('valorantStats.cmd3Name'), desc: t('valorantStats.cmd3Desc') },
+            { name: t('valorantStats.cmd4Name'), desc: t('valorantStats.cmd4Desc') },
+            { name: t('valorantStats.cmd5Name'), desc: t('valorantStats.cmd5Desc') },
+            { name: t('valorantStats.cmd6Name'), desc: t('valorantStats.cmd6Desc') },
         ]}
-        listNote={t('vp.limitsNote')}
-        faqEyebrow={t('vp.faqEyebrow')}
-        faqTitle={t('vp.faqTitle')}
+        listNote={t('valorantStats.limitsNote')}
+        faqEyebrow={t('valorantStats.faqEyebrow')}
+        faqTitle={t('valorantStats.faqTitle')}
         faqItems={[
-            { question: t('vp.faqQ1'), answer: t('vp.faqA1') },
-            { question: t('vp.faqQ2'), answer: t('vp.faqA2') },
-            { question: t('vp.faqQ3'), answer: t('vp.faqA3') },
-            { question: t('vp.faqQ4'), answer: t('vp.faqA4') },
+            { question: t('valorantStats.faqQ1'), answer: t('valorantStats.faqA1') },
+            { question: t('valorantStats.faqQ2'), answer: t('valorantStats.faqA2') },
+            { question: t('valorantStats.faqQ3'), answer: t('valorantStats.faqA3') },
+            { question: t('valorantStats.faqQ4'), answer: t('valorantStats.faqA4') },
         ]}
-        ctaTitle={t('vp.ctaTitle')}
+        ctaTitle={t('valorantStats.ctaTitle')}
         ctaPrimary={{ href: dashLoginHref(lang), label: t('nav.cta') }}
-        ctaSecondary={{ href: localizePath('/guides/data-sources', lang), label: t('vp.ctaGuide') }}
-        legal={t('vp.legal')}
+        ctaSecondary={{ href: localizePath('/guides/data-sources', lang), label: t('valorantStats.ctaGuide') }}
+        legal={t('valorantStats.legal')}
     />
 </Layout>

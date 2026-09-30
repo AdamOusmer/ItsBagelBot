@@ -1,0 +1,8 @@
+{
+  "name": "Word number",
+  "hint": "word 1 typed after the command; {2} is the next one, up to {30}; {2:4} takes a range",
+  "desc": "Word 1 typed after the command. {2} is the next one, and so on up to {30}. Empty when that word was not typed. {2:} takes a word through to the end, as one string; change the number to start elsewhere, {1:} is the whole thing. {2:4} takes words 2 through 4 the same way, and {:2} is the same range starting at word 1 (the first two words). Naming an end past the last word actually typed just stops at that last word; naming the end before the start, like {4:2}, is left exactly as written.",
+  "restHint": "word 2 through to the end, as one string",
+  "leadingHint": "the first 2 words, as one string",
+  "boundedHint": "words 2 through 4, as one string"
+}

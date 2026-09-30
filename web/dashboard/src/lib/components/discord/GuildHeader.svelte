@@ -45,9 +45,9 @@
   });
 
   const SINCE_KEYS = {
-    minutes: 'discord.sinceMinutes',
-    hours: 'discord.sinceHours',
-    days: 'discord.sinceDays'
+    minutes: 'discord.status.sinceMinutes',
+    hours: 'discord.status.sinceHours',
+    days: 'discord.status.sinceDays'
   } as const;
 
   const uptime = $derived.by(() => {
@@ -90,10 +90,10 @@
     <div class="facts">
       <DiscordStateTag state={pillState} />
       <Text as="span" size="xs" tone="muted">
-        {#if members}{t('discord.statusMembers', { n: members })}{:else}{t('discord.statusNoMembers')}{/if}
+        {#if members}{t('discord.status.members', { n: members })}{:else}{t('discord.status.noMembers')}{/if}
       </Text>
       {#if uptime}
-        <Text as="span" size="xs" tone="muted">{t('discord.statusSince')} {uptime}</Text>
+        <Text as="span" size="xs" tone="muted">{t('discord.status.since')} {uptime}</Text>
       {/if}
     </div>
   </div>

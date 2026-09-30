@@ -1,0 +1,10 @@
+{
+  "botCta": "Autoriser le compte du bot",
+  "sub": "Console d’administration",
+  "lede": "Accès opérateur. Connectez-vous avec le compte Twitch inscrit sur la liste du personnel.",
+  "cta": "Se connecter avec Twitch",
+  "errDenied": "Ce compte Twitch n’est pas sur la liste du personnel.",
+  "errState": "La connexion a expiré ou a été altérée. Réessayez.",
+  "errOauth": "Twitch a refusé la connexion. Réessayez.",
+  "errScope": "Autorisation requise manquante."
+}

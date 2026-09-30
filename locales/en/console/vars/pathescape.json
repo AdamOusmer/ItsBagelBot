@@ -1,0 +1,5 @@
+{
+  "name": "URL-encode a path",
+  "hint": "URL-encodes the text for a path, not a query",
+  "desc": "The same, for the path part of a URL, where a space is not a plus."
+}

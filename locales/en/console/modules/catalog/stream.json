@@ -1,0 +1,13 @@
+{
+  "label": "Stream Management",
+  "tagline": "Set the live title, category and tags, run ads, and drop markers from chat.",
+  "description": "Lead moderators edit the live stream from chat the way Nightbot and StreamElements do: !title / !settitle, !game / !setgame, !tags, !commercial / !ad, and !marker. Each command can be toggled on this page. They ship on. Needs a Twitch re-consent for channel:manage:broadcast and channel:edit:commercial if you signed up before those grants existed.",
+  "commands": {
+    "title": "Show or set the stream title.",
+    "game": "Show or set the stream category.",
+    "tags": "Show or set stream tags.",
+    "commercial": "Run a mid-roll commercial (live only).",
+    "marker": "Drop a stream marker (live only).",
+    "cmd": "List commands, or add/edit/remove custom ones."
+  }
+}
