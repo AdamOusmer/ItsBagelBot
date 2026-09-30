@@ -16,6 +16,15 @@ const slots = {
 };
 const required = ['heading', 'counters', 'ranking', 'community'];
 
+function withoutComments(html: string): string {
+  let previous: string;
+  do {
+    previous = html;
+    html = html.replace(/<!--[\s\S]*?-->/g, '');
+  } while (html !== previous);
+  return html;
+}
+
 for (const arrangement of ['playful', 'onboarding', 'gathering'] as const) {
   for (const optional of [false, true]) {
     test(`StatsPageLayout renders ${arrangement}, optional slots ${optional}`, () => {
@@ -23,8 +32,7 @@ for (const arrangement of ['playful', 'onboarding', 'gathering'] as const) {
       const snippets = Object.fromEntries(
         chosen.map(([name, html]) => [name, createRawSnippet(() => ({ render: () => html }))]),
       );
-      const html = render(StatsPageLayout, { props: { arrangement, class: 'preview', ...snippets } as never }).body
-        .replace(/<!--[\s\S]*?-->/g, '');
+      const html = withoutComments(render(StatsPageLayout, { props: { arrangement, class: 'preview', ...snippets } as never }).body);
       expect(html).toContain(`class="stats-page stats-page--${arrangement} preview"`);
       expect(html).toContain('bb-ambient-sky bb-ambient-sky--fixed');
       expect(html).toContain('<div class="stats-page__counters"><article>Messages</article><article>Events</article></div>');

@@ -298,10 +298,14 @@ def layout_errors(root, codes, surfaces):
     return errors
 
 
+def _skips_external_entry(path):
+    return path.name in IGNORED or (path.is_file() and path.name == EXTERNAL_INDEX)
+
+
 def _external_layout_errors(root, base, codes):
     errors = []
     for path in sorted((root / base).iterdir()):
-        if path.name in IGNORED or (path.is_file() and path.name == EXTERNAL_INDEX):
+        if _skips_external_entry(path):
             continue
         if not path.is_dir():
             errors.append(f'{base}/{path.name}: only locale folders and {EXTERNAL_INDEX} belong directly in {base}/')
