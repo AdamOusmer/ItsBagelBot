@@ -7,10 +7,10 @@
   .bb-nav {
     --nav-max: 1000px;
     --nav-blur: 18px;
-    --nav-bg: rgba(10, 10, 10, 0.55);
+    --nav-bg: rgba(var(--bb-black-rgb), 0.55);
     --nav-link-gap: 30px;
     --bb-lang-switch-gap: 8px;
-    --bb-lang-switch-rest: rgba(240, 236, 228, 0.5);
+    --bb-lang-switch-rest: rgba(var(--bb-white-rgb), 0.5);
     --bb-lang-switch-hover: var(--bb-tan-light);
     --bb-lang-switch-lit: var(--bb-white);
     --nav-z: 50;
@@ -64,7 +64,7 @@
 
   .bb-nav__inner .bb-nav-link {
     --bb-nav-link-size: 0.7rem;
-    --bb-nav-link-rest: rgba(240, 236, 228, 0.5);
+    --bb-nav-link-rest: rgba(var(--bb-white-rgb), 0.5);
   }
 
   .bb-nav__actions {
@@ -151,8 +151,8 @@
     width: 44px;
     height: 44px;
     padding: 0;
-    background: rgba(240, 236, 228, 0.05);
-    border: 1px solid rgba(240, 236, 228, 0.14);
+    background: rgba(var(--bb-white-rgb), 0.05);
+    border: 1px solid rgba(var(--bb-white-rgb), 0.14);
     border-radius: var(--bb-radius-pill);
     cursor: pointer;
     flex-direction: column;
@@ -172,8 +172,8 @@
 
   .bb-hamburger:hover,
   .bb-hamburger:focus-visible {
-    border-color: rgba(224, 196, 154, 0.5);
-    background: rgba(201, 168, 124, 0.1);
+    border-color: rgba(var(--bb-tan-light-rgb), 0.5);
+    background: rgba(var(--bb-tan-rgb), 0.1);
     outline: none;
   }
 
@@ -182,8 +182,8 @@
   }
 
   .bb-hamburger.is-open {
-    border-color: rgba(224, 196, 154, 0.55);
-    background: rgba(201, 168, 124, 0.14);
+    border-color: rgba(var(--bb-tan-light-rgb), 0.55);
+    background: rgba(var(--bb-tan-rgb), 0.14);
   }
 
   .bb-hamburger__bar {
@@ -227,7 +227,7 @@
     position: fixed;
     inset: var(--nav-offset, 76px) 0 0;
     padding: 16px;
-    background: rgba(10, 10, 10, 0.72);
+    background: rgba(var(--bb-black-rgb), 0.72);
     backdrop-filter: blur(22px);
     z-index: calc(var(--nav-z, 50) - 1);
     isolation: isolate;
@@ -260,7 +260,7 @@
   }
 
   .bb-mobile-menu__curve-path {
-    fill: #fff;
+    fill: rgb(var(--bb-white-pure-rgb));
   }
 
   .bb-mobile-menu__panel {
@@ -311,7 +311,7 @@
     gap: 16px;
     margin-bottom: calc(clamp(56px, 8vh, 86px) + env(safe-area-inset-bottom, 0px));
     padding-top: 24px;
-    border-top: 1px solid rgba(201, 168, 124, 0.15);
+    border-top: 1px solid rgba(var(--bb-tan-rgb), 0.15);
   }
 
   .bb-mobile-menu__cta {
@@ -336,7 +336,7 @@
   @media (max-width: 639px) {
     .bb-mobile-menu {
       padding: 0;
-      background: rgba(10, 10, 10, 0.96);
+      background: rgba(var(--bb-black-rgb), 0.96);
     }
 
     .bb-mobile-menu__panel {
@@ -431,7 +431,7 @@
     text-decoration: none;
     white-space: nowrap;
     cursor: pointer;
-    color: var(--bb-lang-switch-rest, rgba(240, 236, 228, 0.5));
+    color: var(--bb-lang-switch-rest, rgba(var(--bb-white-rgb), 0.5));
     transition: color var(--bb-dur-base) var(--bb-ease-out-expo);
   }
 
@@ -472,13 +472,13 @@
     content: "";
     flex: 1;
     height: 1px;
-    background: rgba(240, 236, 228, 0.1);
+    background: rgba(var(--bb-white-rgb), 0.1);
   }
 
   .bb-nav-group {
     display: flex;
     flex-direction: column;
-    border-top: 1px solid rgba(240, 236, 228, 0.1);
+    border-top: 1px solid rgba(var(--bb-white-rgb), 0.1);
   }
 
   .bb-nav-group > .bb-nav-link {
@@ -486,7 +486,7 @@
     --bb-nav-link-size: 12px;
     --bb-nav-link-tracking: 0.08em;
 
-    border-bottom: 1px solid rgba(240, 236, 228, 0.06);
+    border-bottom: 1px solid rgba(var(--bb-white-rgb), 0.06);
   }
 
   .bb-nav-group__index {

@@ -7,23 +7,21 @@
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    Icon,
-    Kbd,
-    Label,
-    PageHead,
-    AlertBanner,
-    Button,
-    ButtonLink,
-    DeckList,
-    Heading,
-    SearchInput,
-    SegmentedControl,
-    Text,
-    EmptyState,
-    toast,
-    SectionNav
-  } from '@bagel/ui/svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Kbd from '@bagel/ui/svelte/Kbd.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import SectionNav from '@bagel/ui/svelte/SectionNav.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
   import {
     getI18n,
     filterModuleIndex,

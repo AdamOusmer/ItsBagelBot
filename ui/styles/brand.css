@@ -14,6 +14,7 @@
     --bb-muted: #888077;
     --bb-muted-light: #a39c92;
     --bb-muted-soft: #b0a898;
+    --bb-mint: #b8f0d4;
 
     --bb-green: #2d6a4f;
     --bb-green-light: #40916c;
@@ -39,6 +40,8 @@
     --bb-green-glow-rgb: 82, 183, 136;
     --bb-mint-glow-rgb: 167, 243, 208;
     --bb-tan-rgb: 201, 168, 124;
+    --bb-tan-light-rgb: 224, 196, 154;
+    --bb-muted-rgb: 136, 128, 119;
     --bb-tan-pale-rgb: 245, 230, 207;
     --bb-tan-deep-rgb: 138, 106, 62;
 

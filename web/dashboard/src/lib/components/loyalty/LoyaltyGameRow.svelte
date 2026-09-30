@@ -3,14 +3,12 @@
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    Heading,
-    ManagementRow,
-    Switch,
-    Tag,
-    Text,
-    toast
-  } from '@bagel/ui/svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
   import {
     getI18n,
     tModuleLabel,

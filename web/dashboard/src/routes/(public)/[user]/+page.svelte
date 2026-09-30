@@ -1,7 +1,20 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { AuroraBg, Chip, Code, EmptyState, Eyebrow, Heading, Lead, LightField, AlertBanner, Card, Table, Tag, Text, TextLink } from '@bagel/ui/svelte';
+  import AuroraBg from '@bagel/ui/svelte/AuroraBg.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Lead from '@bagel/ui/svelte/Lead.svelte';
+  import LightField from '@bagel/ui/svelte/LightField.svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Table from '@bagel/ui/svelte/Table.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { formatPointValue, getI18n } from '@bagel/kit';
   import PublicHead from '$lib/components/public/PublicHead.svelte';
   import type { PageData } from './$types';

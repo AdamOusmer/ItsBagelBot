@@ -2,16 +2,14 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { enhance } from '$app/forms';
-  import {
-    AlertBanner,
-    Button,
-    Checkbox,
-    Input,
-    SearchInput,
-    SegmentedControl,
-    Text,
-    Textarea
-  } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import {
     alertOn,
     encodeIdList,

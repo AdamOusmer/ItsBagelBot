@@ -60,7 +60,7 @@ function flush(): void {
 }
 
 const dir = mkdtempSync(join(tmpdir(), 'bagel-pointer-test-'));
-for (const file of ['motion-query.ts', 'raf-loop.ts', 'parallax.ts', 'tilt.ts']) {
+for (const file of ['motion-query.ts', 'raf-loop.ts', 'rect-cache.ts', 'parallax.ts', 'tilt.ts']) {
   copyFileSync(new URL(`../lib/${file}`, import.meta.url), join(dir, file));
 }
 const { mountParallax } = (await import(join(dir, 'parallax.ts'))) as typeof import('../lib/parallax');
@@ -154,6 +154,8 @@ describe('tilt', () => {
     const dispose = mountTilt(el as unknown as HTMLElement);
     expect([el.vars.get('--tilt-x'), el.vars.get('--tilt-y')]).toEqual(['0deg', '0deg']);
     el.dispatch('pointermove', { clientX: 150, clientY: 0 });
+    expect(el.vars.get('--tilt-x')).toBe('0deg');
+    flush();
     expect([el.vars.get('--tilt-x'), el.vars.get('--tilt-y')]).toEqual(['4.00deg', '2.00deg']);
     el.dispatch('pointerleave');
     expect(el.vars.get('--tilt-x')).toBe('0deg');
@@ -166,6 +168,7 @@ describe('tilt', () => {
     mountTilt(el as unknown as HTMLElement);
     expect(el.count('pointermove')).toBe(1);
     el.dispatch('pointermove', { clientX: 100, clientY: 50 });
+    flush();
     expect(el.vars.get('--tilt-y')).toBe('2.00deg');
     dispose();
     expect([el.count('pointermove'), el.dataset.tiltReady]).toEqual([0, undefined]);
@@ -179,8 +182,38 @@ describe('tilt', () => {
     reduced = false;
     fine = false;
     el.dispatch('pointermove', { clientX: 100, clientY: 100 });
+    flush();
     expect(el.vars.get('--tilt-x')).toBe('0deg');
     dispose();
+  });
+
+  test('moves coalesce to one write per frame, and the rect is measured once until scroll', () => {
+    let reads = 0;
+    const el = node({ left: 0, top: 0, width: 100, height: 100 });
+    el.getBoundingClientRect = () => {
+      reads += 1;
+      return { left: 0, top: 0, width: 100, height: 100 };
+    };
+    let writes = 0;
+    const setProperty = el.style.setProperty;
+    el.style.setProperty = (name, value) => {
+      writes += 1;
+      return setProperty(name, value);
+    };
+    const dispose = mountTilt(el as unknown as HTMLElement);
+    writes = 0;
+    for (let x = 10; x <= 50; x += 10) el.dispatch('pointermove', { clientX: x, clientY: 50 });
+    flush();
+    expect([writes, reads]).toEqual([2, 1]);
+    el.dispatch('pointermove', { clientX: 60, clientY: 50 });
+    flush();
+    expect(reads).toBe(1);
+    win.dispatch('scroll');
+    el.dispatch('pointermove', { clientX: 70, clientY: 50 });
+    flush();
+    expect(reads).toBe(2);
+    dispose();
+    expect(win.count('scroll')).toBe(0);
   });
 
   test('observeTilt mounts every [data-tilt] under the root', () => {

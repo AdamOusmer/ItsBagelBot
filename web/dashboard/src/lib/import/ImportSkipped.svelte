@@ -1,7 +1,8 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { Tag, Text } from '@bagel/ui/svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import type { CollisionRef } from '@bagel/kit';
   import { capSkipped } from './helpers';
   import type { Translate } from './session.svelte';

@@ -39,7 +39,7 @@
         align-items: center;
         gap: 9px;
         padding: 10px 14px;
-        background: rgba(0, 0, 0, 0.35);
+        background: rgba(var(--bb-shadow-rgb), 0.35);
         border: 1px solid var(--bb-border);
         border-radius: var(--bb-radius-sm);
         width: var(--input-w, 240px);

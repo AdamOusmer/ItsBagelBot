@@ -26,7 +26,12 @@ const lengthDuration = (length: number): number =>
 
 const keepsShape = (char: string): boolean => char === ' ' || /\W/.test(char);
 
-export function decode(el: HTMLElement, text: string, options: ScrambleOptions = {}): () => void {
+export function decode(
+    el: HTMLElement,
+    text: string,
+    options: ScrambleOptions = {},
+    onDone?: () => void,
+): () => void {
     if (prefersReducedMotion()) {
         el.textContent = text;
         return () => {};
@@ -37,7 +42,7 @@ export function decode(el: HTMLElement, text: string, options: ScrambleOptions =
     const duration = options.durationMs ?? lengthDuration(chars.length);
     const start = performance.now();
 
-    return subscribe((now) => {
+    const stop = subscribe((now) => {
         const progress = Math.min(1, Math.max(0, (now - start) / duration));
         const revealCount = Math.floor(chars.length * progress);
         const roll = Math.floor(progress * SCRAMBLE_ROLLS);
@@ -51,8 +56,11 @@ export function decode(el: HTMLElement, text: string, options: ScrambleOptions =
 
         if (progress < 1) return;
         el.textContent = text;
+        stop();
+        onDone?.();
         return false;
     });
+    return stop;
 }
 
 export function observeDecode(root: ParentNode, options: DecodeOptions = {}): () => void {
@@ -82,7 +90,7 @@ export function observeDecode(root: ParentNode, options: DecodeOptions = {}): ()
                 if (!entry.isIntersecting) continue;
                 const el = entry.target as HTMLElement;
                 observer.unobserve(el);
-                const stop = decode(el, source.get(el) ?? '', scramble);
+                const stop = decode(el, source.get(el) ?? '', scramble, () => running.delete(stop));
                 running.add(stop);
             }
         },

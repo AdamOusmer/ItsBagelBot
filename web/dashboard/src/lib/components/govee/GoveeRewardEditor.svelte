@@ -1,7 +1,13 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select, Button, Code, Field, Input, SwitchRow, Text } from '@bagel/ui/svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import SwitchRow from '@bagel/ui/svelte/SwitchRow.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { namespaceReplySamples, getI18n } from '@bagel/kit';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';

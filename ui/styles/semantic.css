@@ -57,8 +57,9 @@
     --bb-tier-paid-border: rgba(var(--bb-tan-rgb), 0.40);
 
     --bb-tier-vip: #dfe4e9;
-    --bb-tier-vip-bg: rgba(217, 222, 228, 0.12);
-    --bb-tier-vip-border: rgba(217, 222, 228, 0.34);
+    --bb-tier-vip-rgb: 217, 222, 228;
+    --bb-tier-vip-bg: rgba(var(--bb-tier-vip-rgb), 0.12);
+    --bb-tier-vip-border: rgba(var(--bb-tier-vip-rgb), 0.34);
 
     --bb-tier-banned: var(--bb-status-danger);
     --bb-tier-banned-bg: var(--bb-status-danger-bg);

@@ -4,16 +4,14 @@
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    ButtonLink,
-    Card,
-    Heading,
-    Spacer,
-    Switch,
-    Tag,
-    Text,
-    toast
-  } from '@bagel/ui/svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Spacer from '@bagel/ui/svelte/Spacer.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
   import { flagValue, getI18n, type ModuleTile } from '@bagel/kit';
   import { payloadOf, refusalTextOf, succeeded } from '$lib/discord/guild-draft.svelte';
 

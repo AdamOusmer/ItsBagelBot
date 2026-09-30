@@ -2,7 +2,26 @@
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
-  import { Badge, PageHead, Card, Modal, AlertBanner, Button, ConfirmDialog, Eyebrow, Field, FieldError, AuroraBg, Input, Label, LightField, Spinner, Tag, Heading, Text, Textarea, toast } from '@bagel/ui/svelte';
+  import Badge from '@bagel/ui/svelte/Badge.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Modal from '@bagel/ui/svelte/Modal.svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import FieldError from '@bagel/ui/svelte/FieldError.svelte';
+  import AuroraBg from '@bagel/ui/svelte/AuroraBg.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import LightField from '@bagel/ui/svelte/LightField.svelte';
+  import Spinner from '@bagel/ui/svelte/Spinner.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Textarea from '@bagel/ui/svelte/Textarea.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
   import { Bolota, getI18n, containsLink } from '@bagel/kit';
   import { portal } from '@bagel/ui/lib/overlay-stack';
   import { fmtDateTime } from '@bagel/kit/format';

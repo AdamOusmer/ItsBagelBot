@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Icon, IconButton } from '@bagel/ui/svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import IconButton from '@bagel/ui/svelte/IconButton.svelte';
 
   let {
     label,

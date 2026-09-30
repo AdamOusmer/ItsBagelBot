@@ -45,20 +45,22 @@ and an out-of-root `workspaces` entry (silently ignored) are ruled out. The
 measurements are in `web/README.md` under "postinstall links the design
 library"; that is also the file to update if a later bun makes one of them work.
 
-### Subpath exports are wildcards, on purpose
+### The exports map is the public surface
 
-`package.json` maps `./styles/*`, `./fonts/*`, `./lib/*`, `./svelte/*` and
-`./astro/*` rather than listing every file the way `@bagel/kit` does. JSON has
-no comments, so the reason is here: this library is filled in by a stack of
-parallel pull requests, each adding files under those directories. With
-explicit entries, every one of those branches edits the same object in the same
-file and every one of them conflicts with its siblings. With wildcards, adding
-a file is adding a file.
+`package.json` `exports` lists what apps may import: components by extension
+(`./svelte/*.svelte`, `./astro/*.astro`), stylesheets (`./styles/*.css`), fonts
+(`./fonts/*.woff2`), the two barrels, the stateful svelte modules (`toast`,
+`inspector`, `discard-guard`, `actions`, `forms`, `i18n`) and each `lib` module
+an app imports, one entry per file. Anything else (tests, scripts, fixtures,
+internal helpers) is unreachable through the package name. A new `lib` module
+becomes public only by adding its line.
 
-`./lib/*` maps to `./lib/*.ts` so consumers write `@bagel/ui/lib/light-field`
-without the extension, matching how kit's explicit entries read. The other
-three keep the extension, because a stylesheet, a font and a component are
-imported by full filename anyway.
+Apps import components and modules directly. The barrels (`./svelte`,
+`./astro`) exist for external consumers; `web/kit/scripts/ui-barrel-not-imported.test.ts`
+fails if anything under `web/` imports them.
+
+`./lib/<name>` maps to `./lib/<name>.ts` so consumers write
+`@bagel/ui/lib/light-field` without the extension.
 
 ### The symlink means ui's own dependencies must be installed
 

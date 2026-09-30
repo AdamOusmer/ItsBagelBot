@@ -1,7 +1,14 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { Chip, Field, Icon, PickerOption, PickerPanel, Select, Text, TextLink } from '@bagel/ui/svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import PickerOption from '@bagel/ui/svelte/PickerOption.svelte';
+  import PickerPanel from '@bagel/ui/svelte/PickerPanel.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
   import { getI18n, moduleDef, tModuleLabel } from '@bagel/kit';
   import { MODULE_VARIABLES } from '@bagel/kit/variables';
 

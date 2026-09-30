@@ -262,7 +262,7 @@
   .bb-rail__sub-count {
     font-family: var(--bb-font-mono);
     font-size: 10.5px;
-    color: rgba(136, 128, 119, 0.8);
+    color: rgba(var(--bb-muted-rgb), 0.8);
   }
 
   .bb-rail__spacer {

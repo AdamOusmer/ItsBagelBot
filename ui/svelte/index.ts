@@ -97,8 +97,8 @@ export { default as ReadingProgress } from './ReadingProgress.svelte';
 export { default as NavProgress } from './NavProgress.svelte';
 
 export { toast, toasts, dismissToast, type ToastItem, type ToastKind } from './toast.svelte';
-export * from './inspector.svelte';
-export * from './discard-guard.svelte';
+export { createInspector, type Inspector } from './inspector.svelte';
+export { createDiscardGuard, type DiscardGuard } from './discard-guard.svelte';
 export { reveal, decode, magnetic } from './actions';
 
 export { focusFirstInvalid } from './forms';

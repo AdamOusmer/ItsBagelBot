@@ -96,6 +96,23 @@ test("a second scan over the same elements does not double-observe", () => {
   expect(observed).toEqual([below]);
 });
 
+test("every rect is read before any class is written", () => {
+  const log: string[] = [];
+  const spy = (name: string, top: number): Stub => {
+    const target = el(top);
+    const read = target.getBoundingClientRect;
+    target.getBoundingClientRect = () => {
+      log.push(`read ${name}`);
+      return read();
+    };
+    target.classList.add = (cls: string) => void log.push(`write ${name} ${cls}`);
+    return target;
+  };
+  observeReveal(root([spy("a", 200), spy("b", 300), spy("c", 4000)]));
+
+  expect(log).toEqual(["read a", "read b", "read c", "write a is-revealed", "write b is-revealed"]);
+});
+
 test("dispose releases the ready flag so a re-scan re-wires", () => {
   const below = el(4000);
   const dispose = observeReveal(root([below]));

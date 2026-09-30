@@ -1,12 +1,10 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import {
-    AlertBanner,
-    Chip,
-    Select,
-    Text
-  } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import {
     encodePinnedRoles,
     getI18n,

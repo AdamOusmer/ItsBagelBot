@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import { Tag } from '@bagel/ui/svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
   import { DEFAULT_CHAT_WINDOW_MINUTES, type ManifestTimer } from '@bagel/kit';
   import type { Translate } from './session.svelte';
 

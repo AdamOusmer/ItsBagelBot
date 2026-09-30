@@ -4,7 +4,13 @@
   import { prefersReducedMotion } from '@bagel/ui/lib/motion-query';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { AlertBanner, Eyebrow, Icon, LightField, Text, TextLink, Tag } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import LightField from '@bagel/ui/svelte/LightField.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
   import { getI18n } from '@bagel/kit';
   import { SITE, webHref } from '@bagel/kit/site-links';
   import PublicHead from '$lib/components/public/PublicHead.svelte';

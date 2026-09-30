@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { FieldError } from '@bagel/ui/svelte';
+  import FieldError from '@bagel/ui/svelte/FieldError.svelte';
   import { getI18n, type DiscordConfig, type RefusedFields } from '@bagel/kit';
 
   let {

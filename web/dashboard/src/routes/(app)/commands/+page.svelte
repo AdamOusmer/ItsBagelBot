@@ -8,26 +8,24 @@
   import type { SubmitFunction } from '@sveltejs/kit';
   import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import { isShortcut } from '@bagel/ui/lib/hotkeys';
-  import {
-    DeckLayout,
-    Eyebrow,
-    Kbd,
-    Label,
-    SearchInput,
-    Text,
-    PageHead,
-    Scroller,
-    PageToolbar,
-    AlertBanner,
-    Button,
-    Select,
-    DeckList,
-    EmptyState,
-    InspectorSurface,
-    ConfirmDialog,
-    toast,
-    SegmentedControl
-  } from '@bagel/ui/svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import Kbd from '@bagel/ui/svelte/Kbd.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
   import {
     normName,
     getI18n,

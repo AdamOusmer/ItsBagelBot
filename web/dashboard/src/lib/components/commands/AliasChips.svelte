@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Chip, Icon, Input } from '@bagel/ui/svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
   import { getI18n } from '@bagel/kit';
 
   const { t } = getI18n();

@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { FieldError, PickerOption, Text } from '@bagel/ui/svelte';
+  import FieldError from '@bagel/ui/svelte/FieldError.svelte';
+  import PickerOption from '@bagel/ui/svelte/PickerOption.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { JSON_PATH_MAX_DEPTH, buildJsonPath, getI18n, parseJsonPath } from '@bagel/kit';
 
   const { t } = getI18n();

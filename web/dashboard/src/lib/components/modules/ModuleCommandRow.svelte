@@ -1,7 +1,11 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Code, Label, ManagementRow, Tag, Text } from '@bagel/ui/svelte';
+  import Code from '@bagel/ui/svelte/Code.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n, tModuleCommandSummary, type ModuleCommandInfo } from '@bagel/kit';
 
   const { t } = getI18n();

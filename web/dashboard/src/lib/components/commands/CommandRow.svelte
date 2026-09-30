@@ -4,15 +4,13 @@
   import { formatCounterValue } from '@bagel/kit/validation';
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    Icon,
-    ProgressBar,
-    SaveStatus,
-    ManagementRow,
-    Switch,
-    Tag,
-    Text
-  } from '@bagel/ui/svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import ProgressBar from '@bagel/ui/svelte/ProgressBar.svelte';
+  import SaveStatus from '@bagel/ui/svelte/SaveStatus.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import {
     PermBadge,
     getI18n,

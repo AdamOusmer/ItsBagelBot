@@ -1,38 +1,36 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Select } from '@bagel/ui/svelte';
+  import Select from '@bagel/ui/svelte/Select.svelte';
   import { enhance, deserialize } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
   import { tick, untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    PageHead,
-    PageToolbar,
-    AlertBanner,
-    DeckLayout,
-    DeckList,
-    EmptyState,
-    InspectorSurface,
-    Scroller,
-    SearchInput,
-    Button,
-    Field,
-    FieldError,
-    EditorFooter,
-    createDiscardGuard,
-    ConfirmDialog,
-    Icon,
-    IconButton,
-    Input,
-    Label,
-    Table,
-    Tag,
-    Text,
-    toast,
-    SegmentedControl
-  } from '@bagel/ui/svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Field from '@bagel/ui/svelte/Field.svelte';
+  import FieldError from '@bagel/ui/svelte/FieldError.svelte';
+  import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import IconButton from '@bagel/ui/svelte/IconButton.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import Table from '@bagel/ui/svelte/Table.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import SegmentedControl from '@bagel/ui/svelte/SegmentedControl.svelte';
+  import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
+  import { toast } from '@bagel/ui/svelte/toast';
   import {
     getI18n,
     COUNTER_SCOPES,
@@ -44,7 +42,7 @@
     type ActionOk
   } from '@bagel/kit';
   import CounterRow from '$lib/components/counters/CounterRow.svelte';
-  import { focusFirstInvalid } from '@bagel/ui/svelte';
+  import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
   import { formatCounterValue, parseCounterValue } from '@bagel/kit/validation';
 
   let { data } = $props();

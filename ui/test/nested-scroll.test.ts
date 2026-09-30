@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 
 import {
   createNestedScrollGate,
@@ -131,6 +131,35 @@ describe("createNestedScrollGate", () => {
     const short = node("auto", { scrollHeight: 150 }) as unknown as HTMLElement;
     gate.virtualScroll(wheel(120));
     expect(gate.prevent(short)).toBe(false);
+  });
+
+  test("computed style is read once per node within a gesture and again after a pause", () => {
+    let styleReads = 0;
+    const read = (globalThis as unknown as { getComputedStyle: (n: FakeNode) => Record<string, string> }).getComputedStyle;
+    (globalThis as { getComputedStyle?: unknown }).getComputedStyle = (n: FakeNode) => {
+      styleReads += 1;
+      return read(n);
+    };
+    const clock = spyOn(performance, "now");
+    const gate = createNestedScrollGate();
+    const pane = node("auto", { scrollTop: 0 }) as unknown as HTMLElement;
+
+    clock.mockReturnValue(1000);
+    gate.virtualScroll(wheel(120));
+    gate.prevent(pane);
+    clock.mockReturnValue(1016);
+    gate.virtualScroll(wheel(120));
+    gate.prevent(pane);
+    gate.prevent(pane);
+    expect(styleReads).toBe(1);
+
+    clock.mockReturnValue(2000);
+    gate.virtualScroll(wheel(120));
+    gate.prevent(pane);
+    expect(styleReads).toBe(2);
+
+    clock.mockRestore();
+    (globalThis as { getComputedStyle?: unknown }).getComputedStyle = read;
   });
 
   test("touch parks nothing: the browser owns it and prevent stays false", () => {

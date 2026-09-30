@@ -1,13 +1,11 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import {
-    Button,
-    Chip,
-    Input,
-    Text,
-    VisuallyHidden
-  } from '@bagel/ui/svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import VisuallyHidden from '@bagel/ui/svelte/VisuallyHidden.svelte';
   import {
     getI18n,
     encodeNameList,

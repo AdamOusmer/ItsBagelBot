@@ -52,13 +52,15 @@ export function mountScrollSpy(
   let disposed = false;
   let previous: string | undefined;
   let menuHeight: number | undefined;
+  let scroller: HTMLElement | undefined;
   function update() {
     frame = undefined;
     if (disposed) return;
     const current = currentSection(sections, offset?.() ?? window.innerHeight * threshold);
     markCurrent(links, current, activeClass);
     const activeLink = current ? links.get(current) : undefined;
-    const container = menuScroller(scrollContainer);
+    scroller ??= menuScroller(scrollContainer);
+    const container = scroller;
     if (activeLink && container) {
       if (current !== previous || menuHeight !== container.clientHeight) revealLink(activeLink, container);
       menuHeight = container.clientHeight;
@@ -70,6 +72,7 @@ export function mountScrollSpy(
   }
   function resize() {
     menuHeight = undefined;
+    scroller = undefined;
     schedule();
   }
   window.addEventListener('scroll', schedule, { passive: true });
@@ -97,9 +100,15 @@ export function mountScrollSpy(
  * links, so removed sections and stale URL fragments cannot keep an item lit. */
 export function mountSectionNav(root: HTMLElement): () => void {
   let dispose: (() => void) | undefined;
+  let margin: number | undefined;
+  let sections: HTMLElement[] = [];
+  const measureMargin = () => Math.max(0, ...sections.map((section) =>
+    parseFloat(window.getComputedStyle(section).scrollMarginTop) || 0)) + 1;
+  const forgetMargin = () => { margin = undefined; };
   function bind() {
     dispose?.();
-    const sections: HTMLElement[] = [];
+    forgetMargin();
+    sections = [];
     const links = new Map<string, HTMLElement>();
     for (const link of root.querySelectorAll<HTMLAnchorElement>('a[href^="#"]')) {
       link.classList.remove('is-active');
@@ -116,14 +125,15 @@ export function mountSectionNav(root: HTMLElement): () => void {
       activeClass: 'is-active',
       scrollContainer: root,
       // Match native anchor landing positions below the page's sticky chrome.
-      offset: () => Math.max(0, ...sections.map((section) =>
-        parseFloat(window.getComputedStyle(section).scrollMarginTop) || 0)) + 1,
+      offset: () => (margin ??= measureMargin()),
     });
   }
+  window.addEventListener('resize', forgetMargin, { passive: true });
   bind();
   const observer = new MutationObserver(bind);
   observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] });
   return () => {
+    window.removeEventListener('resize', forgetMargin);
     observer.disconnect();
     dispose?.();
   };

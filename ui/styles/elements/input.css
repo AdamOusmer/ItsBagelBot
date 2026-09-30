@@ -144,7 +144,7 @@
         margin-top: 2px;
         border: 1px solid var(--bb-border-strong);
         border-radius: var(--bb-radius-xs);
-        background: rgba(0, 0, 0, 0.35);
+        background: rgba(var(--bb-shadow-rgb), 0.35);
         transition:
             background-color var(--bb-dur-base) var(--bb-ease-out-expo),
             border-color var(--bb-dur-base) var(--bb-ease-out-expo);

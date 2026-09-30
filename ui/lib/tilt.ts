@@ -2,6 +2,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { finePointer, reduceMotion } from './motion-query';
+import { subscribe, wake, type Tick } from './raf-loop';
+import { cachedMeasure } from './rect-cache';
 
 export type TiltOptions = { max?: number };
 
@@ -23,22 +25,51 @@ export function mountTilt(el: HTMLElement, options: TiltOptions = {}): () => voi
   el.dataset.tiltReady = 'true';
 
   const max = maxOf(el, options);
-  const reset = () => setTilt(el, '0', '0');
+  const bounds = cachedMeasure(() => el.getBoundingClientRect());
+  let pending: { x: number; y: number } | null = null;
+  let active = false;
+
+  const tick: Tick = () => {
+    if (pending) {
+      const rect = bounds.read();
+      const px = (pending.x - rect.left) / rect.width - 0.5;
+      const py = (pending.y - rect.top) / rect.height - 0.5;
+      setTilt(el, (-py * max).toFixed(2), (px * max).toFixed(2));
+      pending = null;
+    }
+    return false;
+  };
+  const unsubscribe = subscribe(tick);
+
+  const enter = () => {
+    if (active) return;
+    active = true;
+    bounds.watch();
+  };
   const move = (event: PointerEvent) => {
     if (!finePointer.matches || reduceMotion.matches) return;
-    const rect = el.getBoundingClientRect();
-    const px = (event.clientX - rect.left) / rect.width - 0.5;
-    const py = (event.clientY - rect.top) / rect.height - 0.5;
-    setTilt(el, (-py * max).toFixed(2), (px * max).toFixed(2));
+    enter();
+    pending = { x: event.clientX, y: event.clientY };
+    wake(tick);
+  };
+  const leave = () => {
+    active = false;
+    pending = null;
+    bounds.unwatch();
+    setTilt(el, '0', '0');
   };
 
+  el.addEventListener('pointerenter', enter);
   el.addEventListener('pointermove', move);
-  el.addEventListener('pointerleave', reset);
-  reset();
+  el.addEventListener('pointerleave', leave);
+  setTilt(el, '0', '0');
 
   return () => {
+    unsubscribe();
+    if (active) bounds.unwatch();
+    el.removeEventListener('pointerenter', enter);
     el.removeEventListener('pointermove', move);
-    el.removeEventListener('pointerleave', reset);
+    el.removeEventListener('pointerleave', leave);
     delete el.dataset.tiltReady;
   };
 }

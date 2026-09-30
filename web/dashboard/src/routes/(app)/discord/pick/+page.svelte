@@ -1,18 +1,16 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import {
-    ButtonLink,
-    Card,
-    Chip,
-    EmptyState,
-    Heading,
-    Icon,
-    ManagementRow,
-    PageHead,
-    SearchInput,
-    Text
-  } from '@bagel/ui/svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Icon from '@bagel/ui/svelte/Icon.svelte';
+  import ManagementRow from '@bagel/ui/svelte/ManagementRow.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import SearchInput from '@bagel/ui/svelte/SearchInput.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
   import { getI18n } from '@bagel/kit';
   import { DISCORD_BADGE_KEYS } from '$lib/discord-messages';
   import GuildCrest from '$lib/components/discord/GuildCrest.svelte';

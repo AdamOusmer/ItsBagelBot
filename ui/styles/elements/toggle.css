@@ -17,7 +17,7 @@
         display: inline-block;
         position: relative;
         border-radius: var(--bb-radius-pill);
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(var(--bb-white-pure-rgb), 0.06);
         border: 1px solid rgba(var(--bb-white-rgb), 0.11);
         cursor: pointer;
         transition: background var(--bb-dur-base) var(--bb-ease-out-back),

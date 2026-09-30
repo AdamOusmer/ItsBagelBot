@@ -43,10 +43,13 @@ function idleBox(x: number, y: number): Box {
     return { x: x - half, y: y - half, w: IDLE_SIZE, h: IDLE_SIZE, r: half };
 }
 
-function hoverBox(el: HTMLElement): Box {
+function radiusOf(el: HTMLElement): number {
+    return parseFloat(getComputedStyle(el).borderRadius) || FALLBACK_RADIUS;
+}
+
+function hoverBox(el: HTMLElement, radius: number): Box {
     const bounds = el.getBoundingClientRect();
     const h = bounds.height + HOVER_PAD * 2;
-    const radius = parseFloat(getComputedStyle(el).borderRadius) || FALLBACK_RADIUS;
     return {
         x: bounds.left - HOVER_PAD,
         y: bounds.top - HOVER_PAD,
@@ -76,7 +79,13 @@ function paintRing(ring: HTMLElement, box: Box, hovering: boolean, text: boolean
 }
 
 function arrived(box: Box, to: Box): boolean {
-    return Math.abs(box.x - to.x) < SETTLE_PX && Math.abs(box.y - to.y) < SETTLE_PX;
+    return (
+        Math.abs(box.x - to.x) < SETTLE_PX &&
+        Math.abs(box.y - to.y) < SETTLE_PX &&
+        Math.abs(box.w - to.w) < SETTLE_PX &&
+        Math.abs(box.h - to.h) < SETTLE_PX &&
+        Math.abs(box.r - to.r) < SETTLE_PX
+    );
 }
 
 export function mountCursor(options: CursorOptions): () => void {
@@ -92,6 +101,14 @@ export function mountCursor(options: CursorOptions): () => void {
     let target: HTMLElement | null = null;
     let overText = false;
     let lastMove = 0;
+    let radius = FALLBACK_RADIUS;
+    let measured: Box | null = null;
+
+    function setTarget(next: HTMLElement | null): void {
+        target = next;
+        measured = null;
+        if (next) radius = radiusOf(next);
+    }
 
     function hovered(): HTMLElement | null {
         return target?.isConnected ? target : null;
@@ -102,7 +119,8 @@ export function mountCursor(options: CursorOptions): () => void {
         dot.style.opacity = el && !overText ? '0' : '1';
         dot.classList.toggle('is-text', overText);
 
-        const to = el ? hoverBox(el) : idleBox(pointerX, pointerY);
+        if (el) measured ??= hoverBox(el, radius);
+        const to = el ? (measured as Box) : idleBox(pointerX, pointerY);
         box = lerpBox(box, to, el ? ease.hover : ease.release);
         paintRing(ring, box, !!el, overText);
         return to;
@@ -112,8 +130,13 @@ export function mountCursor(options: CursorOptions): () => void {
         const el = hovered();
         const to = paint(el);
         if (reduceMotion.matches) return false;
-        if (el) return;
-        if (arrived(box, to) && now - lastMove > IDLE_MS) return false;
+        if (!arrived(box, to)) return;
+        if (el) {
+            box = to;
+            paintRing(ring, box, true, overText);
+            return false;
+        }
+        if (now - lastMove > IDLE_MS) return false;
     }
 
     const nearest = (event: PointerEvent): HTMLElement | null =>
@@ -136,13 +159,19 @@ export function mountCursor(options: CursorOptions): () => void {
         }
         const el = nearest(event);
         if (!el) return;
-        target = el.matches(quietAttr) ? null : el;
+        setTarget(el.matches(quietAttr) ? null : el);
         wake(tick);
     };
 
     const onOut = (event: PointerEvent): void => {
         if (!target || nearest(event) !== target) return;
-        target = null;
+        setTarget(null);
+        wake(tick);
+    };
+
+    const remeasure = (): void => {
+        if (!target) return;
+        measured = null;
         wake(tick);
     };
 
@@ -155,6 +184,8 @@ export function mountCursor(options: CursorOptions): () => void {
     syncMotion();
     reduceMotion.addEventListener('change', syncMotion);
     window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('scroll', remeasure, { passive: true, capture: true });
+    window.addEventListener('resize', remeasure, { passive: true });
     document.addEventListener('pointerover', onOver, { passive: true });
     document.addEventListener('pointerout', onOut, { passive: true });
 
@@ -162,6 +193,8 @@ export function mountCursor(options: CursorOptions): () => void {
         unsubscribe();
         reduceMotion.removeEventListener('change', syncMotion);
         window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('scroll', remeasure, true);
+        window.removeEventListener('resize', remeasure);
         document.removeEventListener('pointerover', onOver);
         document.removeEventListener('pointerout', onOut);
         document.documentElement.classList.remove('bb-cursor-on');

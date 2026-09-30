@@ -64,7 +64,7 @@
     height: 7px;
     border-radius: 50%;
     background: var(--bb-tan-light);
-    box-shadow: 0 0 16px rgba(224, 196, 154, 0.8);
+    box-shadow: 0 0 16px rgba(var(--bb-tan-light-rgb), 0.8);
   }
 
   .bb-error-scene__orbit--two {

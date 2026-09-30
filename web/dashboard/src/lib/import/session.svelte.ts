@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { toast } from '@bagel/ui/svelte';
+import { toast } from '@bagel/ui/svelte/toast';
 import { applyImportCaps } from '@bagel/kit/importer/caps';
 import {
   IMPORT_STRATEGIES,

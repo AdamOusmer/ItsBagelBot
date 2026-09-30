@@ -68,7 +68,7 @@
         width: 30%;
         height: 1px;
         pointer-events: none;
-        background: linear-gradient(90deg, transparent, #b8f0d4, transparent);
+        background: linear-gradient(90deg, transparent, var(--bb-mint), transparent);
         animation: bb-sweep 3.4s var(--bb-ease-out-expo) infinite;
     }
 

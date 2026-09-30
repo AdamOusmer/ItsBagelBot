@@ -5,29 +5,27 @@
   import { invalidateAll } from '$app/navigation';
   import { untrack } from 'svelte';
   import type { SubmitFunction } from '@sveltejs/kit';
-  import {
-    Card,
-    PageHead,
-    PageToolbar,
-    Scroller,
-    ConfirmDialog,
-    EditorFooter,
-    InspectorSurface,
-    AlertBanner,
-    DeckLayout,
-    DeckList,
-    EmptyState,
-    Button,
-    ButtonLink,
-    Heading,
-    Input,
-    Spinner,
-    Text,
-    toast,
-    focusFirstInvalid,
-    createDiscardGuard,
-    Tag
-  } from '@bagel/ui/svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import PageToolbar from '@bagel/ui/svelte/PageToolbar.svelte';
+  import Scroller from '@bagel/ui/svelte/Scroller.svelte';
+  import ConfirmDialog from '@bagel/ui/svelte/ConfirmDialog.svelte';
+  import EditorFooter from '@bagel/ui/svelte/EditorFooter.svelte';
+  import InspectorSurface from '@bagel/ui/svelte/InspectorSurface.svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import DeckLayout from '@bagel/ui/svelte/DeckLayout.svelte';
+  import DeckList from '@bagel/ui/svelte/DeckList.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Spinner from '@bagel/ui/svelte/Spinner.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import { toast } from '@bagel/ui/svelte/toast';
+  import { focusFirstInvalid } from '@bagel/ui/svelte/forms';
+  import { createDiscardGuard } from '@bagel/ui/svelte/discard-guard';
   import {
     MasterToggle,
     getI18n,

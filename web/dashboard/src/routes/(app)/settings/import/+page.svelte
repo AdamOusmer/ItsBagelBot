@@ -4,26 +4,24 @@
 
   import { page } from '$app/state';
   import { PermBadge, Bolota, getI18n } from '@bagel/kit';
-  import {
-    AlertBanner,
-    Button,
-    ButtonLink,
-    Card,
-    Checkbox,
-    Eyebrow,
-    FileDrop,
-    Heading,
-    Input,
-    Label,
-    PageHead,
-    RadioGroup,
-    StatTile,
-    Stepper,
-    Tag,
-    Text,
-    TextLink,
-    Textarea
-  } from '@bagel/ui/svelte';
+  import AlertBanner from '@bagel/ui/svelte/AlertBanner.svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import ButtonLink from '@bagel/ui/svelte/ButtonLink.svelte';
+  import Card from '@bagel/ui/svelte/Card.svelte';
+  import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import Eyebrow from '@bagel/ui/svelte/Eyebrow.svelte';
+  import FileDrop from '@bagel/ui/svelte/FileDrop.svelte';
+  import Heading from '@bagel/ui/svelte/Heading.svelte';
+  import Input from '@bagel/ui/svelte/Input.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
+  import PageHead from '@bagel/ui/svelte/PageHead.svelte';
+  import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
+  import StatTile from '@bagel/ui/svelte/StatTile.svelte';
+  import Stepper from '@bagel/ui/svelte/Stepper.svelte';
+  import Tag from '@bagel/ui/svelte/Tag.svelte';
+  import Text from '@bagel/ui/svelte/Text.svelte';
+  import TextLink from '@bagel/ui/svelte/TextLink.svelte';
+  import Textarea from '@bagel/ui/svelte/Textarea.svelte';
   import {
     CHIP_LABEL_KEYS,
     IMPORT_STRATEGIES,

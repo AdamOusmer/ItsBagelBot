@@ -1,7 +1,10 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Button, Chip, EmptyState, Label } from '@bagel/ui/svelte';
+  import Button from '@bagel/ui/svelte/Button.svelte';
+  import Chip from '@bagel/ui/svelte/Chip.svelte';
+  import EmptyState from '@bagel/ui/svelte/EmptyState.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
   import { getI18n, type MessageKey } from '@bagel/kit';
   import { STARTER_IDS, type Starter, type StarterId } from './starters';
 

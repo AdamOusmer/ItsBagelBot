@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Checkbox, FieldError, Label } from '@bagel/ui/svelte';
+  import Checkbox from '@bagel/ui/svelte/Checkbox.svelte';
+  import FieldError from '@bagel/ui/svelte/FieldError.svelte';
+  import Label from '@bagel/ui/svelte/Label.svelte';
 
   let {
     legend,
