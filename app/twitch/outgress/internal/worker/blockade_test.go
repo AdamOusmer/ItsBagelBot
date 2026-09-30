@@ -95,6 +95,43 @@ func TestAlreadyBlocked(t *testing.T) {
 	}
 }
 
+func TestAlreadyBlockedStateSurvivesAPendingClobber(t *testing.T) {
+	// A retried enable job writes sub_state=pending before it knows whether it
+	// will fail; the check that decides whether to re-notify must be given the
+	// state from before that write, not read it back off the registry.
+	tests := []struct {
+		name  string
+		prior string
+		b     blockade
+		want  bool
+	}{
+		{"still banned across a pending retry", subStateBanned, blockBanned, true},
+		{"still revoked across a pending retry", subStateRevoked, blockRevoked, true},
+		{"a genuinely fresh block", subStatePending, blockBanned, false},
+		{"revoked still wins over a banned retry", subStateRevoked, blockBanned, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := alreadyBlockedState(tc.prior, tc.b); got != tc.want {
+				t.Errorf("alreadyBlockedState(%q) = %v, want %v", tc.prior, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBlockedState(t *testing.T) {
+	for _, s := range []string{subStateRevoked, subStateBanned} {
+		if !blockedState(s) {
+			t.Errorf("blockedState(%q) = false", s)
+		}
+	}
+	for _, s := range []string{subStateOK, subStateFailing, subStatePending, ""} {
+		if blockedState(s) {
+			t.Errorf("blockedState(%q) = true", s)
+		}
+	}
+}
+
 func TestBlockadeBecauseKeepsIdentity(t *testing.T) {
 	reason := "chat_user_banned: channel.chat.message"
 	want := blockade{state: subStateBanned, notice: noticeBanned, reason: reason}
@@ -107,14 +144,14 @@ func TestBlockadeBecauseKeepsIdentity(t *testing.T) {
 }
 
 func TestLiveNoticeBanned(t *testing.T) {
-	n, ok := liveNotice(manage.Channel{SubState: subStateBanned})
+	n, _, ok := liveNotice(manage.Channel{SubState: subStateBanned})
 	if !ok || n != noticeBanned {
 		t.Fatalf("liveNotice(banned) = %+v, %v; want noticeBanned", n, ok)
 	}
 	if n.chat != "" {
 		t.Error("banned notice carries a chat line, but the chat that banned the bot cannot receive one")
 	}
-	n, _ = liveNotice(manage.Channel{SubState: subStateRevoked, GrantState: manage.GrantDead})
+	n, _, _ = liveNotice(manage.Channel{SubState: subStateRevoked, GrantState: manage.GrantDead})
 	if n != noticeRevoked {
 		t.Errorf("revoked must still win over grant dead, got %+v", n)
 	}

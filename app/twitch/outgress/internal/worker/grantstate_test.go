@@ -184,12 +184,38 @@ func TestLiveNotice(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := liveNotice(tc.channel)
+			got, _, ok := liveNotice(tc.channel)
 			if ok != tc.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
 			}
 			if got != tc.want {
 				t.Errorf("notice = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLiveNoticeEpisodeMatchesTriggeringState(t *testing.T) {
+	blockedAt := time.Unix(1700000000, 0)
+	grantAt := time.Unix(1700000500, 0)
+
+	tests := []struct {
+		name    string
+		channel manage.Channel
+		want    time.Time
+	}{
+		{"banned uses BlockedAt", manage.Channel{SubState: subStateBanned, BlockedAt: blockedAt, GrantCheckedAt: grantAt}, blockedAt},
+		{"revoked uses BlockedAt", manage.Channel{SubState: subStateRevoked, BlockedAt: blockedAt, GrantCheckedAt: grantAt}, blockedAt},
+		{"grant dead uses GrantCheckedAt", manage.Channel{SubState: "ok", GrantState: manage.GrantDead, BlockedAt: blockedAt, GrantCheckedAt: grantAt}, grantAt},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, episode, ok := liveNotice(tc.channel)
+			if !ok {
+				t.Fatal("liveNotice() ok = false, want true")
+			}
+			if !episode.Equal(tc.want) {
+				t.Errorf("episode = %v, want %v", episode, tc.want)
 			}
 		})
 	}

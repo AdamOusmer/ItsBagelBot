@@ -17,15 +17,17 @@ const (
 )
 
 type Channel struct {
-	BroadcasterID string     `json:"broadcaster_id"`
-	Enabled       bool       `json:"enabled"`
-	IsMod         bool       `json:"is_mod"`
-	ModCheckedAt  time.Time  `json:"mod_checked_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	SubState      string     `json:"sub_state"`
-	SubError      string     `json:"sub_error"`
-	SubCheckedAt  time.Time  `json:"sub_checked_at"`
-	GrantState    GrantState `json:"grant_state"`
+	BroadcasterID  string     `json:"broadcaster_id"`
+	Enabled        bool       `json:"enabled"`
+	IsMod          bool       `json:"is_mod"`
+	ModCheckedAt   time.Time  `json:"mod_checked_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	SubState       string     `json:"sub_state"`
+	SubError       string     `json:"sub_error"`
+	SubCheckedAt   time.Time  `json:"sub_checked_at"`
+	BlockedAt      time.Time  `json:"blocked_at"`
+	GrantState     GrantState `json:"grant_state"`
+	GrantCheckedAt time.Time  `json:"grant_checked_at"`
 }
 
 type ChannelRequest struct {

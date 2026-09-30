@@ -190,15 +190,17 @@ func channelFromFields(broadcasterID string, fields map[string]string) manage.Ch
 		return manage.Channel{}
 	}
 	return manage.Channel{
-		BroadcasterID: broadcasterID,
-		Enabled:       fields["enabled"] == "1",
-		IsMod:         fields["is_mod"] == "1",
-		ModCheckedAt:  unixField(fields["mod_checked_at"]),
-		UpdatedAt:     unixField(fields["updated_at"]),
-		SubState:      fields["sub_state"],
-		SubError:      fields["sub_error"],
-		SubCheckedAt:  unixField(fields["sub_checked_at"]),
-		GrantState:    manage.GrantState(fields["grant_state"]),
+		BroadcasterID:  broadcasterID,
+		Enabled:        fields["enabled"] == "1",
+		IsMod:          fields["is_mod"] == "1",
+		ModCheckedAt:   unixField(fields["mod_checked_at"]),
+		UpdatedAt:      unixField(fields["updated_at"]),
+		SubState:       fields["sub_state"],
+		SubError:       fields["sub_error"],
+		SubCheckedAt:   unixField(fields["sub_checked_at"]),
+		BlockedAt:      unixField(fields["blocked_at"]),
+		GrantState:     manage.GrantState(fields["grant_state"]),
+		GrantCheckedAt: unixField(fields["grant_checked_at"]),
 	}
 }
 
@@ -225,14 +227,16 @@ func (r *Registry) Get(ctx context.Context, broadcasterID string) (manage.Channe
 
 func savedFields(ch manage.Channel) map[string]string {
 	return map[string]string{
-		"enabled":        utils.BoolField(ch.Enabled),
-		"is_mod":         utils.BoolField(ch.IsMod),
-		"mod_checked_at": unixOrZero(ch.ModCheckedAt),
-		"updated_at":     strconv.FormatInt(time.Now().Unix(), 10),
-		"sub_state":      ch.SubState,
-		"sub_error":      ch.SubError,
-		"sub_checked_at": unixOrZero(ch.SubCheckedAt),
-		"grant_state":    string(ch.GrantState),
+		"enabled":          utils.BoolField(ch.Enabled),
+		"is_mod":           utils.BoolField(ch.IsMod),
+		"mod_checked_at":   unixOrZero(ch.ModCheckedAt),
+		"updated_at":       strconv.FormatInt(time.Now().Unix(), 10),
+		"sub_state":        ch.SubState,
+		"sub_error":        ch.SubError,
+		"sub_checked_at":   unixOrZero(ch.SubCheckedAt),
+		"blocked_at":       unixOrZero(ch.BlockedAt),
+		"grant_state":      string(ch.GrantState),
+		"grant_checked_at": unixOrZero(ch.GrantCheckedAt),
 	}
 }
 
@@ -305,6 +309,7 @@ func (r *Registry) SetGrantState(ctx context.Context, broadcasterID string, stat
 		r.client.B().Hsetnx().Key(key).Field("enabled").Value("1").Build(),
 		r.client.B().Hset().Key(key).FieldValue().
 			FieldValue("grant_state", string(state)).
+			FieldValue("grant_checked_at", now).
 			FieldValue("updated_at", now).
 			Build(),
 		r.client.B().Sadd().Key(indexKey).Member(broadcasterID).Build(),
