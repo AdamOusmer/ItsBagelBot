@@ -41,7 +41,8 @@ function demoCommands(): NonNullable<ImportManifest['commands']> {
       name: 'lurk',
       responses: ['{user} slips into the shadows. Enjoy the lurk!'],
       permission: 'everyone',
-      cooldown_seconds: 5
+      cooldown_seconds: 5,
+      user_cooldown_seconds: 60
     },
     {
       name: 'followage',

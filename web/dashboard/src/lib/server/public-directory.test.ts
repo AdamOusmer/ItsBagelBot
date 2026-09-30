@@ -40,14 +40,15 @@ describe('public directory locale shaping', () => {
     expect(module?.commands.find((command) => command.label === '!join')?.meta).toContain('file');
   });
 
-  test('localizes finite permission labels while preserving custom response text', () => {
+  test('localizes finite permission labels while preserving custom response text and both cooldowns', () => {
     const rows = publicCommands([
       {
         name: 'hello',
         aliases: [],
         response: 'Welcome to the channel!',
         perm: 'sub',
-        cooldown: 0,
+        cooldown: 5,
+        user_cooldown: 60,
         stream_online_only: false,
         uses: '0',
         is_active: true
@@ -55,6 +56,7 @@ describe('public directory locale shaping', () => {
     ], 'fr');
     expect(rows[0]?.perm).toBe('Abonnés');
     expect(rows[0]?.response).toBe('Welcome to the channel!');
+    expect([rows[0]?.cooldown, rows[0]?.userCooldown]).toEqual([5, 60]);
   });
 });
 

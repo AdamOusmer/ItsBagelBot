@@ -133,14 +133,14 @@ export interface CommandInput {
   streamOnlineOnly: boolean;
   perm: Perm;
   cooldown: number;
+  userCooldown: number;
   allowedUserId: string;
   bumpCounter: string;
   restoreUses?: number;
 }
 
-function upsertRequest(userId: string, cmd: CommandInput, originalName: string | undefined, canRestore: boolean) {
+function commandFields(cmd: CommandInput) {
   return {
-    user_id: userId,
     name: cmd.name,
     aliases: cmd.aliases,
     response: cmd.response,
@@ -148,8 +148,16 @@ function upsertRequest(userId: string, cmd: CommandInput, originalName: string |
     stream_online_only: cmd.streamOnlineOnly,
     perm: cmd.perm,
     cooldown: cmd.cooldown,
+    user_cooldown: cmd.userCooldown,
     allowed_user_id: cmd.allowedUserId,
-    bump_counter: cmd.bumpCounter,
+    bump_counter: cmd.bumpCounter
+  } satisfies CommandView;
+}
+
+function upsertRequest(userId: string, cmd: CommandInput, originalName: string | undefined, canRestore: boolean) {
+  return {
+    user_id: userId,
+    ...commandFields(cmd),
     original_name: originalName ?? '',
     restore_uses: canRestore ? cmd.restoreUses : undefined
   };
@@ -157,15 +165,7 @@ function upsertRequest(userId: string, cmd: CommandInput, originalName: string |
 
 function upsertedView(cmd: CommandInput, previous: CommandView | undefined, restored: boolean): CommandView {
   return {
-    name: cmd.name,
-    aliases: cmd.aliases,
-    response: cmd.response,
-    is_active: cmd.isActive,
-    stream_online_only: cmd.streamOnlineOnly,
-    perm: cmd.perm,
-    cooldown: cmd.cooldown,
-    allowed_user_id: cmd.allowedUserId,
-    bump_counter: cmd.bumpCounter,
+    ...commandFields(cmd),
     uses: restored ? String(cmd.restoreUses) : previous?.uses,
     created_at: previous?.created_at
   };

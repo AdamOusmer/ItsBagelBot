@@ -272,13 +272,10 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
       '-1|command_regex_skipped': 1,
       '-1|command_disabled_skipped': 1,
       '-1|timer_disabled_skipped': 1,
-      '0|command_user_cooldown_dropped': 1,
       '1|command_type_reply': 1,
-      '2|command_user_cooldown_dropped': 1,
       '3|command_variable_unmapped': 1,
       '4|command_type_whisper': 1,
       '4|command_cost_unsupported': 1,
-      '4|command_user_cooldown_dropped': 1,
       '5|command_variable_unmapped': 1,
       '7|command_offline_only_widened': 1,
       '10|command_permission_unmapped': 1,
@@ -297,8 +294,28 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
   });
 
   test('warnings mirror onto the command for the preview screen', () => {
-    expect((manifest.commands![4].warnings ?? []).length).toBeGreaterThanOrEqual(3);
+    expect((manifest.commands![4].warnings ?? []).length).toBeGreaterThanOrEqual(2);
   });
+});
+
+describe('command cooldown scopes', () => {
+  const parse = (cooldown: Record<string, unknown>) =>
+    parseStreamElements(JSON.stringify({ commands: [{ command: 'lurk', reply: 'hi', enabled: true, accessLevel: 100, cooldown }] }));
+  const cases: [string, Record<string, unknown>, Record<string, number>][] = [
+    ['shared and per-user', { global: 5, user: 60 }, { cooldown_seconds: 5, user_cooldown_seconds: 60 }],
+    ['per-user only', { global: 0, user: 60 }, { user_cooldown_seconds: 60 }],
+    ['shared only', { global: 5, user: 0 }, { cooldown_seconds: 5 }],
+    ['neither', { global: 0, user: 0 }, {}],
+    ['clamped to one day', { global: 90000, user: 90000 }, { cooldown_seconds: 86400, user_cooldown_seconds: 86400 }]
+  ];
+  for (const [name, cooldown, want] of cases) {
+    test(`${name} keeps each limit in its own field`, () => {
+      const { manifest, diagnostics } = parse(cooldown);
+      const cmd = manifest.commands![0];
+      expect({ cooldown_seconds: cmd.cooldown_seconds, user_cooldown_seconds: cmd.user_cooldown_seconds }).toEqual(want);
+      expect(diagnostics).toEqual([]);
+    });
+  }
 });
 
 describe('timer gate and online/offline mapping', () => {

@@ -145,8 +145,8 @@ const guide: GuideContent = {
           kind: 'prose',
           html: `
             <p>
-                The editor also offers access levels (everyone up to broadcaster), a cooldown, and a
-                "only while live" switch, all optional, all explained in the
+                The editor also offers access levels (everyone up to broadcaster), shared and per-viewer
+                cooldowns, and an "only while live" switch, all optional, all explained in the
                 <a href="/guides/commands">commands guide</a>.
             </p>`,
         },

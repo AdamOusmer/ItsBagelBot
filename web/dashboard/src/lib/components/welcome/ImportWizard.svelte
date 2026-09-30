@@ -609,6 +609,7 @@
                   <span class="chips">
                     {#if c.permission && c.permission !== 'everyone'}<PermBadge perm={c.permission} />{/if}
                     {#if c.cooldown_seconds}<Tag tone="bare">{t('import.cooldownChip', { n: c.cooldown_seconds })}</Tag>{/if}
+                    {#if c.user_cooldown_seconds}<Tag tone="bare">{t('import.userCooldownChip', { n: c.user_cooldown_seconds })}</Tag>{/if}
                     {#each c.aliases ?? [] as a (a)}<Tag bare literal>!{a}</Tag>{/each}
                     {#each diags.filter((d) => d.severity === 'warn') as d (d.code + d.message)}
                       <Tag tone="alpha" title={d.message}>{d.message}</Tag>

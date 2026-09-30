@@ -34,6 +34,7 @@ export interface ManifestCommand {
   source_responses?: string[];
   permission?: Perm;
   cooldown_seconds?: number;
+  user_cooldown_seconds?: number;
   online_only?: boolean;
   warnings?: string[];
 }

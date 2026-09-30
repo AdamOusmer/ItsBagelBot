@@ -102,6 +102,20 @@ func (_c *CommandsCreate) SetNillableCooldown(v *uint) *CommandsCreate {
 	return _c
 }
 
+// SetUserCooldown sets the "user_cooldown" field.
+func (_c *CommandsCreate) SetUserCooldown(v uint) *CommandsCreate {
+	_c.mutation.SetUserCooldown(v)
+	return _c
+}
+
+// SetNillableUserCooldown sets the "user_cooldown" field if the given value is not nil.
+func (_c *CommandsCreate) SetNillableUserCooldown(v *uint) *CommandsCreate {
+	if v != nil {
+		_c.SetUserCooldown(*v)
+	}
+	return _c
+}
+
 // SetAllowedUserID sets the "allowed_user_id" field.
 func (_c *CommandsCreate) SetAllowedUserID(v uint64) *CommandsCreate {
 	_c.mutation.SetAllowedUserID(v)
@@ -225,6 +239,10 @@ func (_c *CommandsCreate) defaults() error {
 		v := commands.DefaultCooldown
 		_c.mutation.SetCooldown(v)
 	}
+	if _, ok := _c.mutation.UserCooldown(); !ok {
+		v := commands.DefaultUserCooldown
+		_c.mutation.SetUserCooldown(v)
+	}
 	if _, ok := _c.mutation.AllowedUserID(); !ok {
 		v := commands.DefaultAllowedUserID
 		_c.mutation.SetAllowedUserID(v)
@@ -286,6 +304,9 @@ func (_c *CommandsCreate) check() error {
 	}
 	if _, ok := _c.mutation.Cooldown(); !ok {
 		return &ValidationError{Name: "cooldown", err: errors.New(`ent: missing required field "Commands.cooldown"`)}
+	}
+	if _, ok := _c.mutation.UserCooldown(); !ok {
+		return &ValidationError{Name: "user_cooldown", err: errors.New(`ent: missing required field "Commands.user_cooldown"`)}
 	}
 	if _, ok := _c.mutation.AllowedUserID(); !ok {
 		return &ValidationError{Name: "allowed_user_id", err: errors.New(`ent: missing required field "Commands.allowed_user_id"`)}
@@ -370,6 +391,10 @@ func (_c *CommandsCreate) createSpec() (*Commands, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Cooldown(); ok {
 		_spec.SetField(commands.FieldCooldown, field.TypeUint, value)
 		_node.Cooldown = value
+	}
+	if value, ok := _c.mutation.UserCooldown(); ok {
+		_spec.SetField(commands.FieldUserCooldown, field.TypeUint, value)
+		_node.UserCooldown = value
 	}
 	if value, ok := _c.mutation.AllowedUserID(); ok {
 		_spec.SetField(commands.FieldAllowedUserID, field.TypeUint64, value)
@@ -536,6 +561,24 @@ func (u *CommandsUpsert) UpdateCooldown() *CommandsUpsert {
 // AddCooldown adds v to the "cooldown" field.
 func (u *CommandsUpsert) AddCooldown(v uint) *CommandsUpsert {
 	u.Add(commands.FieldCooldown, v)
+	return u
+}
+
+// SetUserCooldown sets the "user_cooldown" field.
+func (u *CommandsUpsert) SetUserCooldown(v uint) *CommandsUpsert {
+	u.Set(commands.FieldUserCooldown, v)
+	return u
+}
+
+// UpdateUserCooldown sets the "user_cooldown" field to the value that was provided on create.
+func (u *CommandsUpsert) UpdateUserCooldown() *CommandsUpsert {
+	u.SetExcluded(commands.FieldUserCooldown)
+	return u
+}
+
+// AddUserCooldown adds v to the "user_cooldown" field.
+func (u *CommandsUpsert) AddUserCooldown(v uint) *CommandsUpsert {
+	u.Add(commands.FieldUserCooldown, v)
 	return u
 }
 
@@ -765,6 +808,27 @@ func (u *CommandsUpsertOne) AddCooldown(v uint) *CommandsUpsertOne {
 func (u *CommandsUpsertOne) UpdateCooldown() *CommandsUpsertOne {
 	return u.Update(func(s *CommandsUpsert) {
 		s.UpdateCooldown()
+	})
+}
+
+// SetUserCooldown sets the "user_cooldown" field.
+func (u *CommandsUpsertOne) SetUserCooldown(v uint) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetUserCooldown(v)
+	})
+}
+
+// AddUserCooldown adds v to the "user_cooldown" field.
+func (u *CommandsUpsertOne) AddUserCooldown(v uint) *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.AddUserCooldown(v)
+	})
+}
+
+// UpdateUserCooldown sets the "user_cooldown" field to the value that was provided on create.
+func (u *CommandsUpsertOne) UpdateUserCooldown() *CommandsUpsertOne {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateUserCooldown()
 	})
 }
 
@@ -1172,6 +1236,27 @@ func (u *CommandsUpsertBulk) AddCooldown(v uint) *CommandsUpsertBulk {
 func (u *CommandsUpsertBulk) UpdateCooldown() *CommandsUpsertBulk {
 	return u.Update(func(s *CommandsUpsert) {
 		s.UpdateCooldown()
+	})
+}
+
+// SetUserCooldown sets the "user_cooldown" field.
+func (u *CommandsUpsertBulk) SetUserCooldown(v uint) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.SetUserCooldown(v)
+	})
+}
+
+// AddUserCooldown adds v to the "user_cooldown" field.
+func (u *CommandsUpsertBulk) AddUserCooldown(v uint) *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.AddUserCooldown(v)
+	})
+}
+
+// UpdateUserCooldown sets the "user_cooldown" field to the value that was provided on create.
+func (u *CommandsUpsertBulk) UpdateUserCooldown() *CommandsUpsertBulk {
+	return u.Update(func(s *CommandsUpsert) {
+		s.UpdateUserCooldown()
 	})
 }
 

@@ -243,6 +243,7 @@
       response: '',
       perm: 'everyone',
       cooldown: 0,
+      user_cooldown: 0,
       allowed_user_id: '',
       bump_counter: '',
       stream_online_only: false,
@@ -259,6 +260,7 @@
       response: c.response,
       perm: (c.perm ?? 'everyone') as Perm,
       cooldown: c.cooldown ?? 0,
+      user_cooldown: c.user_cooldown ?? 0,
       allowed_user_id: c.allowed_user_id ?? '',
       bump_counter: c.bump_counter ?? '',
       stream_online_only: c.stream_online_only === true,
@@ -401,6 +403,7 @@
       aliases: draft.aliases,
       response: draft.response,
       cooldown: draft.cooldown,
+      userCooldown: draft.user_cooldown,
       allowedUserId: '',
       bumpCounter: ''
     });
@@ -440,6 +443,7 @@
       stream_online_only: false,
       perm: d.perm,
       cooldown: d.cooldown,
+      user_cooldown: d.user_cooldown,
       allowed_user_id: ''
     };
     const body = formDataFor(view);
@@ -502,6 +506,7 @@
       stream_online_only: d.stream_online_only,
       perm: d.perm,
       cooldown: Math.floor(Number(d.cooldown) || 0),
+      user_cooldown: Math.floor(Number(d.user_cooldown) || 0),
       allowed_user_id: d.allowed_user_id.replace(/\D/g, ''),
       bump_counter: d.bump_counter,
       uses: live?.uses,
@@ -646,6 +651,7 @@
     body.set('response', c.response);
     body.set('perm', c.perm ?? 'everyone');
     body.set('cooldown', String(c.cooldown ?? 0));
+    body.set('user_cooldown', String(c.user_cooldown ?? 0));
     body.set('allowed_user_id', c.allowed_user_id ?? '');
     body.set('bump_counter', c.bump_counter ?? '');
     body.set('stream_online_only', c.stream_online_only ? 'on' : '');

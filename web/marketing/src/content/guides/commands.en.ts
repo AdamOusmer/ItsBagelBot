@@ -25,14 +25,14 @@ const guide: GuideContent = {
     {
       id: 'anatomy',
       heading: 'The anatomy of a command',
-      note: 'Two required fields, five optional dials. Learn them once, reuse them forever.',
+      note: 'Two required fields, six optional dials. Learn them once, reuse them forever.',
       blocks: [
         {
           kind: 'prose',
           html: `
             <p>
                 A custom command is a question your viewers can ask (<code>!hug</code>) and the answer
-                your bot gives. The editor has seven fields; only Name and Response are required.
+                your bot gives. The editor has eight fields; only Name and Response are required.
             </p>`,
         },
         {
@@ -45,7 +45,7 @@ const guide: GuideContent = {
             { n: 2, text: 'Alternate names: extra triggers for the same command (!hug and !cuddle can be one command).' },
             { n: 3, text: 'Response: what the bot says. Up to 5 lines; every line is its own chat message.' },
             { n: 4, text: 'The chat rehearsal acts your response out with sample values before you save. The command builder has the same one.' },
-            { n: 5, text: 'Access and cooldown: who can use it, and how many quiet seconds follow each use.' },
+            { n: 5, text: 'Access and cooldowns: who can use it, how long everyone waits after each use, and how long each viewer waits between their own uses.' },
             { n: 6, text: 'Only while live parks the command when the stream is offline; Active is the on/off switch.' },
             { n: 7, text: 'Data source: inserts a value fetched from a saved API definition instead of a variable.' },
           ],
@@ -109,7 +109,7 @@ const guide: GuideContent = {
           html: `
                 <b>Tip</b>
                 Chat is fast for quick one-liners; the dashboard shows the extra dials (access,
-                cooldown, aliases) and a live preview. Use whichever is closer to your hands.`,
+                cooldowns, aliases) and a live preview. Use whichever is closer to your hands.`,
         },
       ],
     },
@@ -215,7 +215,8 @@ const guide: GuideContent = {
             ['Name', '1 to 64 characters, no spaces, and leave out the "!" (chat adds it). Stored lowercase: <code>!Hug</code> and <code>!hug</code> are the same command.'],
             ['Alternate names', 'Up to 25, each following the same rules as the name.'],
             ['Response', 'Up to 5 lines, each up to 500 characters (one chat message per line).'],
-            ['Cooldown', '0 to 86400 seconds. It is shared by the whole chat: after anyone uses the command, everyone waits.'],
+            ['Shared cooldown', '0 to 86400 seconds. It is shared by the whole chat: after anyone uses the command, everyone waits. 0 turns it off.'],
+            ['Per-viewer cooldown', '0 to 86400 seconds. Each viewer waits this long between their own uses; everyone else can still run it once the shared cooldown ends. Alternate names count as the same command. 0 turns it off.'],
             ['Access', 'Minimum rank, in order: everyone, subscribers, VIPs, moderators, lead moderators, broadcaster. Each level includes everyone above it.'],
             ['Restrict to one user', "Optionally lock a command to a single Twitch account; that overrides the access level entirely. Perfect for one friend's personal command."],
           ],

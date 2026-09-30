@@ -41,6 +41,7 @@ func commandViewFromEvent(dto data.CommandChangedDTO) CommandView {
 		StreamOnlineOnly: dto.StreamOnlineOnly,
 		Perm:             dto.Perm,
 		Cooldown:         dto.Cooldown,
+		UserCooldown:     dto.UserCooldown,
 		AllowedUserID:    allowed,
 		Uses:             dto.Uses,
 		BumpCounter:      dto.BumpCounter,

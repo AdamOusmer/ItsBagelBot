@@ -303,6 +303,7 @@ async function upsertOneCommand(ctx: CommitContext, target: CommandTarget): Prom
       streamOnlineOnly: !!cmd.online_only,
       perm: cmd.permission ?? 'everyone',
       cooldown: clampCooldown(cmd.cooldown_seconds ?? 0),
+      userCooldown: clampCooldown(cmd.user_cooldown_seconds ?? 0),
       allowedUserId: '',
       bumpCounter: ''
     });

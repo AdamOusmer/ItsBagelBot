@@ -17,9 +17,7 @@
           ],
           "permission": "everyone",
           "cooldown_seconds": 10,
-          "warnings": [
-            "command \"socials\" had a 30s per-user cooldown; only the shared cooldown (10s) is kept"
-          ]
+          "user_cooldown_seconds": 30
         },
         {
           "name": "hug",
@@ -48,9 +46,7 @@
           ],
           "permission": "mod",
           "cooldown_seconds": 5,
-          "warnings": [
-            "command \"death\" had a 15s per-user cooldown; only the shared cooldown (5s) is kept"
-          ]
+          "user_cooldown_seconds": 15
         },
         {
           "name": "hype",
@@ -76,10 +72,10 @@
           ],
           "permission": "vip",
           "cooldown_seconds": 20,
+          "user_cooldown_seconds": 60,
           "warnings": [
             "command \"lurk\" whispered its response upstream; the response posts publicly here",
-            "command \"lurk\" costs 50 loyalty points upstream; loyalty gating is not supported, so it is free here",
-            "command \"lurk\" had a 60s per-user cooldown; only the shared cooldown (20s) is kept"
+            "command \"lurk\" costs 50 loyalty points upstream; loyalty gating is not supported, so it is free here"
           ]
         },
         {
@@ -213,21 +209,9 @@
     "diags": [
       {
         "severity": "warn",
-        "item_index": 0,
-        "code": "command_user_cooldown_dropped",
-        "message": "command \"socials\" had a 30s per-user cooldown; only the shared cooldown (10s) is kept"
-      },
-      {
-        "severity": "warn",
         "item_index": 1,
         "code": "command_type_reply",
         "message": "command \"hug\" replies natively upstream; it posts as a normal chat message here"
-      },
-      {
-        "severity": "warn",
-        "item_index": 2,
-        "code": "command_user_cooldown_dropped",
-        "message": "command \"death\" had a 15s per-user cooldown; only the shared cooldown (5s) is kept"
       },
       {
         "severity": "warn",
@@ -258,12 +242,6 @@
         "item_index": 4,
         "code": "command_cost_unsupported",
         "message": "command \"lurk\" costs 50 loyalty points upstream; loyalty gating is not supported, so it is free here"
-      },
-      {
-        "severity": "warn",
-        "item_index": 4,
-        "code": "command_user_cooldown_dropped",
-        "message": "command \"lurk\" had a 60s per-user cooldown; only the shared cooldown (20s) is kept"
       },
       {
         "severity": "warn",

@@ -39,8 +39,10 @@ const L = {
     botHtml: '<mark>sesame_sam</mark> gives <mark>ferret_king</mark> a warm bagel hug 🥯',
     fieldAccess: 'Access',
     accessValue: 'Everyone',
-    fieldCooldown: 'Cooldown (s)',
+    fieldCooldown: 'Shared cooldown (s)',
     cooldownValue: '10',
+    fieldUserCooldown: 'Per-viewer cooldown (s)',
+    userCooldownValue: '30',
     fieldRestrict: 'Restrict to user ID',
     restrictPlaceholder: 'Twitch user ID. Only they can run it',
     checkActive: 'Active',
@@ -82,12 +84,15 @@ const L = {
                 { who: 'bot', name: L.botName, html: L.botHtml },
             ]}
         />
+        <Field label={L.fieldAccess}>
+            <span class="bb-input gs-value">{L.accessValue}</span>
+        </Field>
         <div class="gs-pair">
-            <Field label={L.fieldAccess}>
-                <span class="bb-input gs-value">{L.accessValue}</span>
-            </Field>
             <Field label={L.fieldCooldown}>
                 <span class="bb-input gs-value">{L.cooldownValue}<i class="gs-mark" data-note="5"></i></span>
+            </Field>
+            <Field label={L.fieldUserCooldown}>
+                <span class="bb-input gs-value">{L.userCooldownValue}</span>
             </Field>
         </div>
         <Field label={L.fieldRestrict} tag={L.optional}>

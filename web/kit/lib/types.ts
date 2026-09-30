@@ -24,6 +24,7 @@ export interface CommandView {
   stream_online_only?: boolean;
   perm?: Perm;
   cooldown?: number;
+  user_cooldown?: number;
   allowed_user_id?: string;
   bump_counter?: string;
   uses?: string;

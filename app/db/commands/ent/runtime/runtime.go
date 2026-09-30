@@ -86,28 +86,32 @@ func init() {
 	commandsDescCooldown := commandsFields[7].Descriptor()
 	// commands.DefaultCooldown holds the default value on creation for the cooldown field.
 	commands.DefaultCooldown = commandsDescCooldown.Default.(uint)
+	// commandsDescUserCooldown is the schema descriptor for user_cooldown field.
+	commandsDescUserCooldown := commandsFields[8].Descriptor()
+	// commands.DefaultUserCooldown holds the default value on creation for the user_cooldown field.
+	commands.DefaultUserCooldown = commandsDescUserCooldown.Default.(uint)
 	// commandsDescAllowedUserID is the schema descriptor for allowed_user_id field.
-	commandsDescAllowedUserID := commandsFields[8].Descriptor()
+	commandsDescAllowedUserID := commandsFields[9].Descriptor()
 	// commands.DefaultAllowedUserID holds the default value on creation for the allowed_user_id field.
 	commands.DefaultAllowedUserID = commandsDescAllowedUserID.Default.(uint64)
 	// commandsDescUses is the schema descriptor for uses field.
-	commandsDescUses := commandsFields[9].Descriptor()
+	commandsDescUses := commandsFields[10].Descriptor()
 	// commands.DefaultUses holds the default value on creation for the uses field.
 	commands.DefaultUses = commandsDescUses.Default.(int64)
 	// commands.UsesValidator is a validator for the "uses" field. It is called by the builders before save.
 	commands.UsesValidator = commandsDescUses.Validators[0].(func(int64) error)
 	// commandsDescBumpCounter is the schema descriptor for bump_counter field.
-	commandsDescBumpCounter := commandsFields[10].Descriptor()
+	commandsDescBumpCounter := commandsFields[11].Descriptor()
 	// commands.DefaultBumpCounter holds the default value on creation for the bump_counter field.
 	commands.DefaultBumpCounter = commandsDescBumpCounter.Default.(string)
 	// commands.BumpCounterValidator is a validator for the "bump_counter" field. It is called by the builders before save.
 	commands.BumpCounterValidator = commandsDescBumpCounter.Validators[0].(func(string) error)
 	// commandsDescCreatedAt is the schema descriptor for created_at field.
-	commandsDescCreatedAt := commandsFields[11].Descriptor()
+	commandsDescCreatedAt := commandsFields[12].Descriptor()
 	// commands.DefaultCreatedAt holds the default value on creation for the created_at field.
 	commands.DefaultCreatedAt = commandsDescCreatedAt.Default.(func() time.Time)
 	// commandsDescUpdatedAt is the schema descriptor for updated_at field.
-	commandsDescUpdatedAt := commandsFields[12].Descriptor()
+	commandsDescUpdatedAt := commandsFields[13].Descriptor()
 	// commands.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	commands.DefaultUpdatedAt = commandsDescUpdatedAt.Default.(func() time.Time)
 	// commands.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

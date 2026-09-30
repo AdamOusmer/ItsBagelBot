@@ -178,6 +178,15 @@ describe('Validate', () => {
     expect(diags[0].severity).toBe('warn');
   });
 
+  test('oversized per-user cooldown warns about the commit clamp', () => {
+    const diags = validateManifest({
+      commands: [{ name: 'ok', responses: ['hi'], cooldown_seconds: 5, user_cooldown_seconds: 900000 }]
+    });
+    expect(diags.map((d) => [d.severity, d.message])).toEqual([
+      ['warn', 'per-user cooldown 900000s clamped to 86400s at commit']
+    ]);
+  });
+
   test('sub-floor timer interval warns; blank message errors', () => {
     const diags = validateManifest({
       timers: [

@@ -89,6 +89,11 @@ func Cooldown(v uint) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldCooldown, v))
 }
 
+// UserCooldown applies equality check predicate on the "user_cooldown" field. It's identical to UserCooldownEQ.
+func UserCooldown(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldUserCooldown, v))
+}
+
 // AllowedUserID applies equality check predicate on the "allowed_user_id" field. It's identical to AllowedUserIDEQ.
 func AllowedUserID(v uint64) predicate.Commands {
 	return predicate.Commands(sql.FieldEQ(FieldAllowedUserID, v))
@@ -417,6 +422,46 @@ func CooldownLT(v uint) predicate.Commands {
 // CooldownLTE applies the LTE predicate on the "cooldown" field.
 func CooldownLTE(v uint) predicate.Commands {
 	return predicate.Commands(sql.FieldLTE(FieldCooldown, v))
+}
+
+// UserCooldownEQ applies the EQ predicate on the "user_cooldown" field.
+func UserCooldownEQ(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldEQ(FieldUserCooldown, v))
+}
+
+// UserCooldownNEQ applies the NEQ predicate on the "user_cooldown" field.
+func UserCooldownNEQ(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldNEQ(FieldUserCooldown, v))
+}
+
+// UserCooldownIn applies the In predicate on the "user_cooldown" field.
+func UserCooldownIn(vs ...uint) predicate.Commands {
+	return predicate.Commands(sql.FieldIn(FieldUserCooldown, vs...))
+}
+
+// UserCooldownNotIn applies the NotIn predicate on the "user_cooldown" field.
+func UserCooldownNotIn(vs ...uint) predicate.Commands {
+	return predicate.Commands(sql.FieldNotIn(FieldUserCooldown, vs...))
+}
+
+// UserCooldownGT applies the GT predicate on the "user_cooldown" field.
+func UserCooldownGT(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldGT(FieldUserCooldown, v))
+}
+
+// UserCooldownGTE applies the GTE predicate on the "user_cooldown" field.
+func UserCooldownGTE(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldGTE(FieldUserCooldown, v))
+}
+
+// UserCooldownLT applies the LT predicate on the "user_cooldown" field.
+func UserCooldownLT(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldLT(FieldUserCooldown, v))
+}
+
+// UserCooldownLTE applies the LTE predicate on the "user_cooldown" field.
+func UserCooldownLTE(v uint) predicate.Commands {
+	return predicate.Commands(sql.FieldLTE(FieldUserCooldown, v))
 }
 
 // AllowedUserIDEQ applies the EQ predicate on the "allowed_user_id" field.

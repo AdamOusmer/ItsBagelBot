@@ -74,6 +74,7 @@ func specFromRequest(req commandsrpc.DashboardRequest) (repository.CommandSpec, 
 		StreamOnlineOnly: req.StreamOnlineOnly,
 		Perm:             req.Perm,
 		Cooldown:         req.Cooldown,
+		UserCooldown:     req.UserCooldown,
 		AllowedUserID:    allowedUserID,
 		BumpCounter:      req.BumpCounter,
 	}, ok

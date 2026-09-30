@@ -34,6 +34,7 @@ var (
 		{Name: "stream_online_only", Type: field.TypeBool, Default: false},
 		{Name: "perm", Type: field.TypeString, Default: "everyone"},
 		{Name: "cooldown", Type: field.TypeUint, Default: 0},
+		{Name: "user_cooldown", Type: field.TypeUint, Default: 0},
 		{Name: "allowed_user_id", Type: field.TypeUint64, Default: 0},
 		{Name: "uses", Type: field.TypeInt64, Default: 0},
 		{Name: "bump_counter", Type: field.TypeString, Size: 64, Default: ""},

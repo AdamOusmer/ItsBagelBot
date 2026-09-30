@@ -238,13 +238,20 @@ func validateCommandChanged(dto data.CommandChangedDTO) error {
 	if err := validate.Perm(dto.Perm); err != nil {
 		return err
 	}
-	if err := validate.Cooldown(dto.Cooldown); err != nil {
+	if err := validateCooldowns(dto); err != nil {
 		return err
 	}
 	if dto.AllowedUserID != 0 {
 		return validate.UserID(dto.AllowedUserID)
 	}
 	return nil
+}
+
+func validateCooldowns(dto data.CommandChangedDTO) error {
+	if err := validate.Cooldown(dto.Cooldown); err != nil {
+		return err
+	}
+	return validate.Cooldown(dto.UserCooldown)
 }
 
 func (p *Projector) drop(msg *bus.Message, subject string, err error) {

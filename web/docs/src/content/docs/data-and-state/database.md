@@ -51,6 +51,7 @@ erDiagram
         bool stream_online_only
         string perm
         uint cooldown
+        uint user_cooldown
         uint64 allowed_user_id
         datetime created_at
         datetime updated_at
@@ -121,6 +122,7 @@ erDiagram
         bool stream_online_only
         string perm
         uint cooldown
+        uint user_cooldown
         uint64 allowed_user_id
         datetime created_at
         datetime updated_at

@@ -4,16 +4,18 @@
 import { beforeEach, expect, mock, test } from 'bun:test';
 
 const calls: string[] = [];
+const upserts: Record<string, unknown>[] = [];
 let failName = '';
 mock.module('@bagel/kit/server/logger', () => ({ logger: { error: () => {} } }));
 mock.module('./commands-store', () => ({
   listCommands: async () => [
     { name: 'discord', response: 'a', is_active: true },
-    { name: 'lurk', response: 'b', is_active: true }
+    { name: 'lurk', response: 'b', is_active: true, cooldown: 5, user_cooldown: 60 }
   ],
   upsertCommand: async (_uid: string, c: { name: string; isActive: boolean }) => {
     if (c.name === failName) throw new Error('rpc');
     calls.push(`upsert:${c.name}:${c.isActive}`);
+    upserts.push(c);
   },
   upsertModule: async (_uid: string, name: string, on: boolean) => calls.push(`module:${name}:${on}`),
   deleteCommand: async (_uid: string, name: string) => calls.push(`delete:${name}`)
@@ -22,6 +24,7 @@ const { runBulk } = await import('./commands-bulk');
 
 beforeEach(() => {
   calls.length = 0;
+  upserts.length = 0;
   failName = '';
 });
 
@@ -29,6 +32,11 @@ test('disable routes built-ins to modules and customs to commands', async () => 
   const r = await runBulk('1', 'disable', ['uptime', 'discord']);
   expect(r).toEqual([{ name: 'uptime', ok: true }, { name: 'discord', ok: true }]);
   expect(calls).toEqual(['module:uptime:false', 'upsert:discord:false']);
+});
+
+test('toggling keeps both cooldowns', async () => {
+  await runBulk('1', 'disable', ['lurk']);
+  expect(upserts[0]).toMatchObject({ isActive: false, cooldown: 5, userCooldown: 60 });
 });
 
 test('one failure is reported per item and does not stop the rest', async () => {

@@ -615,6 +615,8 @@ type CommandsMutation struct {
 	perm               *string
 	cooldown           *uint
 	addcooldown        *int
+	user_cooldown      *uint
+	adduser_cooldown   *int
 	allowed_user_id    *uint64
 	addallowed_user_id *int64
 	uses               *int64
@@ -1083,6 +1085,62 @@ func (m *CommandsMutation) ResetCooldown() {
 	m.addcooldown = nil
 }
 
+// SetUserCooldown sets the "user_cooldown" field.
+func (m *CommandsMutation) SetUserCooldown(u uint) {
+	m.user_cooldown = &u
+	m.adduser_cooldown = nil
+}
+
+// UserCooldown returns the value of the "user_cooldown" field in the mutation.
+func (m *CommandsMutation) UserCooldown() (r uint, exists bool) {
+	v := m.user_cooldown
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserCooldown returns the old "user_cooldown" field's value of the Commands entity.
+// If the Commands object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CommandsMutation) OldUserCooldown(ctx context.Context) (v uint, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserCooldown is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserCooldown requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserCooldown: %w", err)
+	}
+	return oldValue.UserCooldown, nil
+}
+
+// AddUserCooldown adds u to the "user_cooldown" field.
+func (m *CommandsMutation) AddUserCooldown(u int) {
+	if m.adduser_cooldown != nil {
+		*m.adduser_cooldown += u
+	} else {
+		m.adduser_cooldown = &u
+	}
+}
+
+// AddedUserCooldown returns the value that was added to the "user_cooldown" field in this mutation.
+func (m *CommandsMutation) AddedUserCooldown() (r int, exists bool) {
+	v := m.adduser_cooldown
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserCooldown resets all changes to the "user_cooldown" field.
+func (m *CommandsMutation) ResetUserCooldown() {
+	m.user_cooldown = nil
+	m.adduser_cooldown = nil
+}
+
 // SetAllowedUserID sets the "allowed_user_id" field.
 func (m *CommandsMutation) SetAllowedUserID(u uint64) {
 	m.allowed_user_id = &u
@@ -1337,7 +1395,7 @@ func (m *CommandsMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CommandsMutation) Fields() []string {
-	fields := make([]string, 0, 13)
+	fields := make([]string, 0, 14)
 	if m.user_id != nil {
 		fields = append(fields, commands.FieldUserID)
 	}
@@ -1361,6 +1419,9 @@ func (m *CommandsMutation) Fields() []string {
 	}
 	if m.cooldown != nil {
 		fields = append(fields, commands.FieldCooldown)
+	}
+	if m.user_cooldown != nil {
+		fields = append(fields, commands.FieldUserCooldown)
 	}
 	if m.allowed_user_id != nil {
 		fields = append(fields, commands.FieldAllowedUserID)
@@ -1401,6 +1462,8 @@ func (m *CommandsMutation) Field(name string) (ent.Value, bool) {
 		return m.Perm()
 	case commands.FieldCooldown:
 		return m.Cooldown()
+	case commands.FieldUserCooldown:
+		return m.UserCooldown()
 	case commands.FieldAllowedUserID:
 		return m.AllowedUserID()
 	case commands.FieldUses:
@@ -1436,6 +1499,8 @@ func (m *CommandsMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldPerm(ctx)
 	case commands.FieldCooldown:
 		return m.OldCooldown(ctx)
+	case commands.FieldUserCooldown:
+		return m.OldUserCooldown(ctx)
 	case commands.FieldAllowedUserID:
 		return m.OldAllowedUserID(ctx)
 	case commands.FieldUses:
@@ -1511,6 +1576,13 @@ func (m *CommandsMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetCooldown(v)
 		return nil
+	case commands.FieldUserCooldown:
+		v, ok := value.(uint)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserCooldown(v)
+		return nil
 	case commands.FieldAllowedUserID:
 		v, ok := value.(uint64)
 		if !ok {
@@ -1560,6 +1632,9 @@ func (m *CommandsMutation) AddedFields() []string {
 	if m.addcooldown != nil {
 		fields = append(fields, commands.FieldCooldown)
 	}
+	if m.adduser_cooldown != nil {
+		fields = append(fields, commands.FieldUserCooldown)
+	}
 	if m.addallowed_user_id != nil {
 		fields = append(fields, commands.FieldAllowedUserID)
 	}
@@ -1578,6 +1653,8 @@ func (m *CommandsMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedUserID()
 	case commands.FieldCooldown:
 		return m.AddedCooldown()
+	case commands.FieldUserCooldown:
+		return m.AddedUserCooldown()
 	case commands.FieldAllowedUserID:
 		return m.AddedAllowedUserID()
 	case commands.FieldUses:
@@ -1604,6 +1681,13 @@ func (m *CommandsMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddCooldown(v)
+		return nil
+	case commands.FieldUserCooldown:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserCooldown(v)
 		return nil
 	case commands.FieldAllowedUserID:
 		v, ok := value.(int64)
@@ -1678,6 +1762,9 @@ func (m *CommandsMutation) ResetField(name string) error {
 		return nil
 	case commands.FieldCooldown:
 		m.ResetCooldown()
+		return nil
+	case commands.FieldUserCooldown:
+		m.ResetUserCooldown()
 		return nil
 	case commands.FieldAllowedUserID:
 		m.ResetAllowedUserID()

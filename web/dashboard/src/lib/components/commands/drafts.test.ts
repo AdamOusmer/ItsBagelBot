@@ -32,6 +32,7 @@ const draft: CommandDraft = {
   response: 'Hello {user}!\nWelcome back.',
   perm: 'everyone',
   cooldown: 0,
+  user_cooldown: 0,
   allowed_user_id: '',
   bump_counter: '',
   stream_online_only: false,
@@ -72,6 +73,7 @@ describe('command draft restoration', () => {
   test('rejects invalid JSON and incompatible field types without throwing', () => {
     for (const raw of ['{', 'null', '[]', '42', JSON.stringify({ ...draft, response: null }),
       JSON.stringify({ ...draft, aliases: ['hi', 3] }), JSON.stringify({ ...draft, cooldown: '4' }),
+      JSON.stringify({ ...draft, user_cooldown: '60' }),
       JSON.stringify({ ...draft, is_active: 'on' })]) {
       storage.set(draftKey(NEW), raw);
       expect(loadDraft(NEW)).toBeNull();
@@ -83,15 +85,16 @@ describe('command draft restoration', () => {
     expect(loadDraft(NEW)).toEqual({ ...draft, aliases: [], response: 'keep my text' });
   });
 
-  test('restores drafts from before the counter field existed', () => {
-    const { bump_counter, ...legacy } = draft;
+  test('restores drafts from before the counter and per-viewer cooldown fields existed', () => {
+    const { bump_counter, user_cooldown, ...legacy } = draft;
     storage.set(draftKey(NEW), JSON.stringify(legacy));
     expect(loadDraft(NEW)?.bump_counter).toBe('');
+    expect(loadDraft(NEW)?.user_cooldown).toBe(0);
     expect(loadDraft(NEW)?.response).toBe(draft.response);
   });
 
-  test('preserves a saved counter selection', () => {
-    const counted = { ...draft, bump_counter: 'deaths' };
+  test('preserves a saved counter selection and per-viewer cooldown', () => {
+    const counted = { ...draft, bump_counter: 'deaths', user_cooldown: 60 };
     storage.set(draftKey(NEW), JSON.stringify(counted));
     expect(loadDraft(NEW)).toEqual(counted);
   });

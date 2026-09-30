@@ -19,6 +19,7 @@ type CommandView struct {
 	StreamOnlineOnly bool     `json:"stream_online_only"`
 	Perm             string   `json:"perm"`
 	Cooldown         uint     `json:"cooldown"`
+	UserCooldown     uint     `json:"user_cooldown,omitempty"`
 	AllowedUserID    string   `json:"allowed_user_id,omitempty"`
 	Uses             int64    `json:"uses,omitempty,string"`
 	BumpCounter      string   `json:"bump_counter,omitempty"`

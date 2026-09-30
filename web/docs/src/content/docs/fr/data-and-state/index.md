@@ -73,7 +73,7 @@ Les sujets et DTO de contenu résident dans `internal/domain/event/data` et cons
 | `data.users.changed` | vue utilisateur complète (identifiant, nom, activation, statut) | Inscription, renommage, changement de niveau |
 | `data.users.deleted` | identifiant utilisateur | Suppression de l’utilisateur |
 | `data.modules.changed` | identifiant utilisateur, nom du module, activation, configuration JSON | Chaque ligne de module enregistrée lors d’un vidage |
-| `data.commands.changed` | identifiant utilisateur, nom, réponse, activation, restriction au direct, permissions, délai, utilisateur autorisé, indicateur de suppression | Chaque ligne de commande enregistrée lors d’un vidage, et les suppressions |
+| `data.commands.changed` | identifiant utilisateur, nom, réponse, activation, restriction au direct, permissions, délais commun et par spectateur, utilisateur autorisé, indicateur de suppression | Chaque ligne de commande enregistrée lors d’un vidage, et les suppressions |
 | `data.transactions.recorded` | identifiant de transaction, identifiant utilisateur | Premier enregistrement réussi d’une transaction |
 | `data.reproject.request` | vide | Démarrage à froid du projector ; les propriétaires rejouent leur état sous forme d’événements de changement ordinaires |
 

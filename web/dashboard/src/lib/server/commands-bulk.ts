@@ -36,6 +36,7 @@ async function toggleOne(uid: string, name: string, isActive: boolean, custom: M
     streamOnlineOnly: c.stream_online_only === true,
     perm: c.perm ?? 'everyone',
     cooldown: c.cooldown ?? 0,
+    userCooldown: c.user_cooldown ?? 0,
     allowedUserId: c.allowed_user_id ?? '',
     bumpCounter: c.bump_counter ?? ''
   });

@@ -10,6 +10,7 @@ let commandFail: (name: string) => Error | null = () => null;
 let existing: string[] = [];
 let modulesDown = false;
 let patches: { configs: { timers: Record<string, unknown>[] } }[] = [];
+let upserted: Record<string, unknown>[] = [];
 
 mock.module('@bagel/kit/server/nats', () => ({
   RpcError,
@@ -31,6 +32,7 @@ mock.module('../commands-store', () => ({
   upsertCommand: async (_uid: string, c: { name: string }) => {
     const err = commandFail(c.name);
     if (err) throw err;
+    upserted.push(c);
   }
 }));
 mock.module('../quotes-store', () => ({ addQuote: async () => ({}) }));
@@ -51,6 +53,7 @@ beforeEach(() => {
   existing = [];
   modulesDown = false;
   patches = [];
+  upserted = [];
 });
 
 test('a refused command fails alone and the rest apply', async () => {
@@ -90,6 +93,22 @@ test('all applied leaves failed absent', async () => {
   const clean = { commands: [{ name: 'a', responses: ['x'] }] };
   const res = await commitImport(session, { source: 'nightbot', manifest: clean, overwrite: false });
   expect(res.failed).toBeUndefined();
+});
+
+test('each cooldown lands in its own field, clamped to one day', async () => {
+  const cooldowns = {
+    commands: [
+      { name: 'both', responses: ['x'], cooldown_seconds: 5, user_cooldown_seconds: 60 },
+      { name: 'viewer', responses: ['y'], user_cooldown_seconds: 90000 },
+      { name: 'none', responses: ['z'] }
+    ]
+  };
+  await commitImport(session, { source: 'streamelements', manifest: cooldowns, overwrite: true });
+  expect(upserted.map((c) => [c.name, c.cooldown, c.userCooldown])).toEqual([
+    ['both', 5, 60],
+    ['viewer', 0, 86400],
+    ['none', 0, 0]
+  ]);
 });
 
 async function appliedTimers(timers: Record<string, unknown>[]) {

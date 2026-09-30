@@ -60,7 +60,13 @@ func (p *Pipeline) runBaked(ctx context.Context, c *module.Context, cmd module.C
 	if err != nil {
 		return err
 	}
-	pass, err := p.gate(ctx, c, gateRule{cmd.Name, cmd.AllowedUserID, perm, cmd.LiveOnly, cmd.Cooldown})
+	pass, err := p.gate(ctx, c, gateRule{
+		name:          cmd.Name,
+		allowedUserID: cmd.AllowedUserID,
+		perm:          perm,
+		liveOnly:      cmd.LiveOnly,
+		cooldown:      cmd.Cooldown,
+	})
 	if err != nil || !pass {
 		return err
 	}
@@ -131,8 +137,14 @@ func (p *Pipeline) runCustom(ctx context.Context, c *module.Context, name, args 
 		return nil
 	}
 
-	rule := gateRule{name, cc.AllowedUserID, module.ParsePerm(cc.Perm), cc.StreamOnlineOnly, time.Duration(cc.Cooldown) * time.Second}
-	pass, err := p.gate(ctx, c, rule)
+	pass, err := p.gate(ctx, c, gateRule{
+		name:          strings.ToLower(cc.Name),
+		allowedUserID: cc.AllowedUserID,
+		perm:          module.ParsePerm(cc.Perm),
+		liveOnly:      cc.StreamOnlineOnly,
+		cooldown:      time.Duration(cc.Cooldown) * time.Second,
+		userCooldown:  time.Duration(cc.UserCooldown) * time.Second,
+	})
 	if err != nil || !pass {
 		return err
 	}
@@ -332,6 +344,7 @@ type gateRule struct {
 	perm          module.Role
 	liveOnly      bool
 	cooldown      time.Duration
+	userCooldown  time.Duration
 }
 
 func (p *Pipeline) gate(ctx context.Context, c *module.Context, r gateRule) (bool, error) {
@@ -344,7 +357,7 @@ func (p *Pipeline) gate(ctx context.Context, c *module.Context, r gateRule) (boo
 	if c.Env.Origin == "trial" {
 		return true, nil
 	}
-	return p.cooldownOK(ctx, c.BroadcasterID, r.name, r.cooldown)
+	return p.cooldownOK(ctx, c, r)
 }
 
 func permits(c *module.Context, allowedUserID string, perm module.Role) bool {
@@ -361,11 +374,35 @@ func (p *Pipeline) liveOK(ctx context.Context, c *module.Context, liveOnly bool)
 	return p.live.IsLive(ctx, c.BroadcasterID)
 }
 
-func (p *Pipeline) cooldownOK(ctx context.Context, broadcasterID uint64, name string, cooldown time.Duration) (bool, error) {
-	if cooldown <= 0 {
+// Both windows are claimed together or not at all, so a viewer still inside
+// their own window never starts the channel window, and the reverse.
+func (p *Pipeline) cooldownOK(ctx context.Context, c *module.Context, r gateRule) (bool, error) {
+	switch {
+	case r.cooldown <= 0 && r.userCooldown <= 0:
 		return true, nil
+	case r.userCooldown <= 0:
+		return p.cooldown.Allow(ctx, cooldownKey(c.BroadcasterID, r.name), r.cooldown)
+	case r.cooldown <= 0:
+		return p.cooldown.Allow(ctx, r.viewerCooldownKey(c), r.userCooldown)
+	default:
+		return p.cooldown.AllowAll(ctx, []CooldownWindow{
+			{Key: cooldownKey(c.BroadcasterID, r.name), TTL: r.cooldown},
+			{Key: r.viewerCooldownKey(c), TTL: r.userCooldown},
+		})
 	}
-	return p.cooldown.Allow(ctx, cooldownKey(broadcasterID, name), cooldown)
+}
+
+func (r gateRule) viewerCooldownKey(c *module.Context) string {
+	buf := GetBuf()
+	buf = append(buf, "cooldown:cmduser:"...)
+	buf = strconv.AppendUint(buf, c.BroadcasterID, 10)
+	buf = append(buf, ':')
+	buf = append(buf, c.Env.ChatterUserID...)
+	buf = append(buf, ':')
+	buf = append(buf, r.name...)
+	key := string(buf)
+	PutBuf(buf)
+	return key
 }
 
 func CommandCooldownKey(broadcasterID uint64, name string) string {
