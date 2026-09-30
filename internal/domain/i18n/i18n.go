@@ -55,6 +55,41 @@ func mustLoadManifest(fsys fs.FS) []string {
 	return codes
 }
 
+type namespaceFile struct {
+	path   string
+	prefix string
+}
+
+func newNamespaceFile(dir fs.DirEntry, file fs.DirEntry) namespaceFile {
+	f := namespaceFile{path: path.Join(dir.Name(), chatDir, file.Name())}
+	if namespace := strings.TrimSuffix(file.Name(), ".json"); namespace != rootNamespace {
+		f.prefix = namespace + "."
+	}
+	return f
+}
+
+func (f namespaceFile) read(fsys fs.FS) map[string]string {
+	b, err := fs.ReadFile(fsys, f.path)
+	if err != nil {
+		panic("i18n: cannot read " + f.path + ": " + err.Error())
+	}
+	var entries map[string]string
+	if err := codec.Unmarshal(b, &entries); err != nil {
+		panic("i18n: malformed " + f.path + ": " + err.Error())
+	}
+	return entries
+}
+
+func (f namespaceFile) mergeInto(table, entries map[string]string) {
+	for key, tmpl := range entries {
+		full := f.prefix + key
+		if _, dup := table[full]; dup {
+			panic("i18n: duplicate key " + full + " in " + f.path)
+		}
+		table[full] = strings.ReplaceAll(tmpl, dashboardToken, DashboardURL)
+	}
+}
+
 func mustLoadCatalogs(fsys fs.FS) map[string]map[string]string {
 	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
@@ -62,8 +97,8 @@ func mustLoadCatalogs(fsys fs.FS) map[string]map[string]string {
 	}
 	out := make(map[string]map[string]string, len(entries))
 	for _, e := range entries {
-		if e.IsDir() && hasChatCatalog(fsys, e.Name()) {
-			out[e.Name()] = mustLoadCatalog(fsys, e.Name())
+		if e.IsDir() && hasChatCatalog(fsys, e) {
+			out[e.Name()] = mustLoadCatalog(fsys, e)
 		}
 	}
 	if _, ok := out[DefaultLocale]; !ok {
@@ -72,13 +107,13 @@ func mustLoadCatalogs(fsys fs.FS) map[string]map[string]string {
 	return out
 }
 
-func hasChatCatalog(fsys fs.FS, locale string) bool {
-	info, err := fs.Stat(fsys, path.Join(locale, chatDir))
+func hasChatCatalog(fsys fs.FS, locale fs.DirEntry) bool {
+	info, err := fs.Stat(fsys, path.Join(locale.Name(), chatDir))
 	return err == nil && info.IsDir()
 }
 
-func mustLoadCatalog(fsys fs.FS, locale string) map[string]string {
-	dir := path.Join(locale, chatDir)
+func mustLoadCatalog(fsys fs.FS, locale fs.DirEntry) map[string]string {
+	dir := path.Join(locale.Name(), chatDir)
 	files, err := fs.ReadDir(fsys, dir)
 	if err != nil {
 		panic("i18n: cannot read " + dir + ": " + err.Error())
@@ -88,40 +123,10 @@ func mustLoadCatalog(fsys fs.FS, locale string) map[string]string {
 		if f.IsDir() || path.Ext(f.Name()) != ".json" {
 			continue
 		}
-		name := path.Join(dir, f.Name())
-		mergeNamespace(table, name, keyPrefix(f.Name()), mustReadNamespace(fsys, name))
+		file := newNamespaceFile(locale, f)
+		file.mergeInto(table, file.read(fsys))
 	}
 	return table
-}
-
-func mustReadNamespace(fsys fs.FS, name string) map[string]string {
-	b, err := fs.ReadFile(fsys, name)
-	if err != nil {
-		panic("i18n: cannot read " + name + ": " + err.Error())
-	}
-	var entries map[string]string
-	if err := codec.Unmarshal(b, &entries); err != nil {
-		panic("i18n: malformed " + name + ": " + err.Error())
-	}
-	return entries
-}
-
-func keyPrefix(file string) string {
-	namespace := strings.TrimSuffix(file, ".json")
-	if namespace == rootNamespace {
-		return ""
-	}
-	return namespace + "."
-}
-
-func mergeNamespace(table map[string]string, name, prefix string, entries map[string]string) {
-	for key, tmpl := range entries {
-		full := prefix + key
-		if _, dup := table[full]; dup {
-			panic("i18n: duplicate key " + full + " in " + name)
-		}
-		table[full] = strings.ReplaceAll(tmpl, dashboardToken, DashboardURL)
-	}
 }
 
 func Supported(code string) bool {
@@ -186,7 +191,7 @@ func T(locale, key string) string {
 // prefix.1, and so on. The English catalog defines both the copy and the size
 // of the set; a gap is a broken source catalog and fails at startup.
 func DefaultSeries(prefix string) []string {
-	count := defaultSeriesCount(prefix)
+	count := defaultSeriesCount(seriesPrefix(prefix))
 	if count == 0 {
 		panic("i18n: missing default series " + prefix)
 	}
@@ -201,10 +206,12 @@ func DefaultSeries(prefix string) []string {
 	return series
 }
 
-func defaultSeriesCount(prefix string) int {
+type seriesPrefix string
+
+func defaultSeriesCount(prefix seriesPrefix) int {
 	count := 0
 	for key := range catalog[DefaultLocale] {
-		suffix, ok := strings.CutPrefix(key, prefix+".")
+		suffix, ok := strings.CutPrefix(key, string(prefix)+".")
 		if !ok {
 			continue
 		}

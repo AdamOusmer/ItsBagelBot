@@ -170,15 +170,18 @@ func requirePanic(t *testing.T, want string, load func()) {
 	load()
 }
 
-func TestKeyPrefix(t *testing.T) {
-	cases := map[string]string{
-		"loyalty.json":      "loyalty.",
-		"bagels_ready.json": "bagels_ready.",
-		"index.json":        "",
+func TestNamespaceFilePrefix(t *testing.T) {
+	fsys := fstest.MapFS{
+		"en/chat/loyalty.json":      jsonFile(`{}`),
+		"en/chat/bagels_ready.json": jsonFile(`{}`),
+		"en/chat/index.json":        jsonFile(`{}`),
 	}
-	for file, want := range cases {
-		if got := keyPrefix(file); got != want {
-			t.Errorf("keyPrefix(%q) = %q, want %q", file, got, want)
+	want := map[string]string{"loyalty.json": "loyalty.", "bagels_ready.json": "bagels_ready.", "index.json": ""}
+	roots, _ := fs.ReadDir(fsys, ".")
+	files, _ := fs.ReadDir(fsys, "en/chat")
+	for _, f := range files {
+		if got := newNamespaceFile(roots[0], f); got.prefix != want[f.Name()] || got.path != "en/chat/"+f.Name() {
+			t.Errorf("newNamespaceFile(en, %s) = %+v, want prefix %q", f.Name(), got, want[f.Name()])
 		}
 	}
 }
@@ -235,9 +238,13 @@ func isChatCatalogFile(name string) bool {
 	return len(segments) >= 3 && segments[1] == chatDir && path.Ext(name) == ".json"
 }
 
+func skipsEmbedCheck(name string, d fs.DirEntry, err error) bool {
+	return err != nil || d.IsDir() || !isChatCatalogFile(name)
+}
+
 func TestEmbedCoversChatTree(t *testing.T) {
 	err := fs.WalkDir(os.DirFS("../../../locales"), ".", func(name string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !isChatCatalogFile(name) {
+		if skipsEmbedCheck(name, d, err) {
 			return err
 		}
 		if _, statErr := fs.Stat(locales.FS, name); statErr != nil {

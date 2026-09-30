@@ -249,7 +249,7 @@ def compare(english, target, surface):
                          'use the same file paths as the English folder' for relative in sorted(orphans))
     printf = surface in PRINTF_SURFACES
     for key, (value, relative) in target.keys.items():
-        placed, errors = _placement(english, target, key, relative, orphans)
+        placed, errors = _placement(english, target, (key, relative), orphans)
         result.errors.extend(errors)
         if not placed:
             result.unknown += 1
@@ -260,7 +260,8 @@ def compare(english, target, surface):
     return result
 
 
-def _placement(english, target, key, relative, orphans):
+def _placement(english, target, entry, orphans):
+    key, relative = entry
     if relative in orphans:
         return False, []
     owner = english.keys.get(key)
