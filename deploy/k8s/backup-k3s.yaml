@@ -152,7 +152,7 @@ spec:
               hostPath: {path: /etc/rancher/k3s/config.yaml, type: File}
           initContainers:
             - name: snapshot
-              image: alpine/sqlite:3.53.4@sha256:cd3fda4f01e81f3ea0142a9e3da0cfabfa4bf86669fdcbff1fbeb73d6ba313aa
+              image: alpine/sqlite:3.53.4@sha256:7d1599487ead0a5fe7399bb66c6803ae47b46bfa6a1e05db797d907796e4524d
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/snapshot.sh"]
               volumeMounts:
@@ -172,7 +172,7 @@ spec:
                 requests: {cpu: 50m, memory: 128Mi}
                 limits: {memory: 512Mi}
             - name: encrypt
-              image: alpine/openssl:3.5.8@sha256:6aa2be0ed55a61fff35583e5763c2ea8288bcd3549d316b954b01eec32fb7006
+              image: alpine/openssl:3.5.8@sha256:3f25da71f70eba788067daac3f3df03bd1de7a7c52ed89fa93b94ad2c92d986b
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/encrypt.sh"]
               envFrom:
