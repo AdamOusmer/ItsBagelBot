@@ -1,7 +1,7 @@
 {
   "label": "AutoMod",
   "tagline": "Attrapez les arnaques, les voleurs d'IP et le spam de raid avant vos modos.",
-  "description": "Le bot examine chaque ligne du chat pour le contenu nuisible et les vagues de raid coordonnées, et avertit, supprime, exclut ou ban l'auteur. Les chatters de confiance (VIP, modos, le streamer) sont toujours exemptés, et tout ce qui est limite est laissé à vos modos humains. Choisissez un niveau de Aucun à Tout, puis affinez chaque contrôle ci-dessous. Le plancher de sécurité (insultes haineuses et liens voleurs d'IP) s'applique toujours, à chaque niveau et même avec le module éteint : les héberger met en danger votre chaîne et le compte du bot sur toute la plateforme. Le reste est à vous.",
+  "description": "AutoMod garde un œil sur le chat pour repérer les messages nuisibles et les vagues de raid, pour que vos modos profitent aussi du stream. Selon la gravité du message, il peut avertir l'auteur, retirer le message, ou donner une exclusion ou un ban. Les VIP, les modos et vous êtes toujours exemptés, et tout ce qui est limite est laissé à vos modos humains. Choisissez un niveau de Aucun à Tout, puis ajustez chaque contrôle ci-dessous. Un petit plancher de sécurité (insultes haineuses et liens voleurs d'IP) reste actif à chaque niveau, même avec le module éteint, car ces contenus peuvent mettre votre chaîne et le bot en danger sur Twitch. Le reste est à vous.",
   "settings": {
     "level": {
       "label": "Niveau d'application",
@@ -16,7 +16,7 @@
     },
     "harassment": {
       "label": "Harcèlement",
-      "help": "Attaques dirigées (« kys » et consorts) : avertit l'auteur et retire le message ; les récidivistes sont exclus, puis bannis."
+      "help": "Messages destinés à blesser quelqu'un : l'auteur reçoit un avertissement et le message est retiré. Si ça continue, une exclusion suit, puis un ban."
     },
     "sexual": {
       "label": "Contenu sexuel",

@@ -10,7 +10,7 @@ export const AUTOMOD_MODULE: ModuleDef =
   label: 'AutoMod',
   tagline: 'Catch scams, IP-grabbers and raid spam before your mods do.',
   description:
-    'The bot screens every chat line for harmful content and coordinated raid floods, and warns, deletes, times out or bans the sender. Trusted chatters (VIPs, mods, the broadcaster) are always exempt, and anything borderline is left to your human mods. Pick a level from None to All, then fine-tune each check below. The safety floor (hate slurs and IP-grabber links) is always enforced, on every level and even with the module off: hosting those risks your channel and the bot account platform-wide. Everything else is your call.',
+    'AutoMod keeps an eye on chat for harmful messages and raid floods, so your mods can enjoy the stream too. Depending on how serious a message is, it can warn the sender, remove the message, or hand out a timeout or ban. VIPs, mods and you are always exempt, and anything borderline is left to your human mods. Pick a level from None to All, then adjust each check below. A small safety floor (hate slurs and IP-grabber links) stays on at every level, even with the module off, because that content can put your channel and the bot at risk on Twitch. The rest is up to you.',
   category: 'Moderation',
   defaultEnabled: true,
   replies: [],
@@ -33,7 +33,7 @@ export const AUTOMOD_MODULE: ModuleDef =
       label: 'Harassment',
       type: 'toggle',
       followsLevel: true,
-      help: 'Directed harm ("kys" and friends): warns the sender and removes the message; repeat offenders are timed out, then banned.'
+      help: 'Messages meant to hurt someone: the sender gets a warning and the message is removed. If it keeps happening, a timeout comes next, then a ban.'
     },
     {
       key: 'sexual',
