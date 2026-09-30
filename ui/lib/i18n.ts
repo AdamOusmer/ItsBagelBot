@@ -38,7 +38,8 @@ export function resolveUiLocale(input: string | null | undefined): UiLocale {
   const code = (input ?? '').toLowerCase().replace('_', '-');
   if (isUiLocale(code)) return code;
   const base = code.split('-')[0];
-  return isUiLocale(base) ? base : UI_DEFAULT_LOCALE;
+  if (isUiLocale(base)) return base;
+  return UI_LOCALES.find((locale) => locale.startsWith(`${base}-`)) ?? UI_DEFAULT_LOCALE;
 }
 
 function format(template: string, params?: UiParams): string {

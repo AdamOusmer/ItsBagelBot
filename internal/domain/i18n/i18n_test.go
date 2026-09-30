@@ -63,7 +63,7 @@ func TestGapsShowCompleteLocaleAsComplete(t *testing.T) {
 }
 
 func TestSupported(t *testing.T) {
-	cases := map[string]bool{"en": true, "fr": true, "xx": false, "": false}
+	cases := map[string]bool{"en": true, "fr": true, "es": true, "pt-br": true, "de": true, "ru": true, "pt": false, "xx": false, "": false}
 	for code, want := range cases {
 		if got := Supported(code); got != want {
 			t.Errorf("Supported(%q) = %v, want %v", code, got, want)

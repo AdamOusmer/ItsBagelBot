@@ -2,17 +2,18 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import { describe, expect, mock, test } from 'bun:test';
-import { staticText } from '../../../../../kit/lib/i18n/static';
+import { STATIC_LOCALES, staticText } from '../../../../../kit/lib/i18n/static';
 
 let setCommandsPageCalls: [string, boolean][] = [];
 let purgeUrls: string[][] = [];
 let purgeReply = true;
 let accountUsername = 'streamerlogin';
+let savedLocale = 'en';
 
 mock.module('$app/environment', () => ({ dev: false }));
 mock.module('$env/dynamic/private', () => ({ env: {} }));
 mock.module('@bagel/kit/i18n', () => ({
-  isLocale: (v: unknown) => v === 'en' || v === 'fr',
+  isLocale: (v: unknown) => typeof v === 'string' && STATIC_LOCALES.includes(v),
   DEFAULT_LOCALE: 'en'
 }));
 mock.module('@bagel/kit', () => ({
@@ -56,7 +57,7 @@ mock.module('$lib/server/services', () => ({
   notificationMarkRead: async () => {},
   notificationMarkPeeked: async () => {},
   hasGrant: async () => true,
-  userLocale: async () => 'en',
+  userLocale: async () => savedLocale,
   userCommandsPage: async () => true,
   setCommandsPage: async (userId: string, hidden: boolean) => {
     setCommandsPageCalls.push([userId, hidden]);
@@ -74,7 +75,7 @@ mock.module('$lib/server/services', () => ({
 const actionErrors = await import('../../../lib/server/action-errors');
 mock.module('$lib/server/action-errors', () => actionErrors);
 
-const { actions } = await import('./+page.server');
+const { actions, load } = await import('./+page.server');
 
 function formRequest(fields: Record<string, string>): Request {
   const body = new URLSearchParams(fields);
@@ -150,4 +151,11 @@ describe('setCommandsPage action', () => {
 
     expect(setCommandsPageCalls).toEqual([['7', true]]);
   });
+});
+
+
+test.each(['es', 'pt-br', 'de', 'ru'])('settings preserves saved %s as the selected language', async (locale) => {
+  savedLocale = locale;
+  const result = await load({ locals: { session: { user_id: '42' }, locale: 'en' } } as unknown as Parameters<typeof load>[0]) as { savedLocale: string };
+  expect(result.savedLocale).toBe(locale);
 });

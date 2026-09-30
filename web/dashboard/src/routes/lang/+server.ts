@@ -14,6 +14,10 @@ export const POST: RequestHandler = async ({ request, url, cookies, locals }) =>
 
   if (isLocale(to)) {
     const s = locals.session;
+    if (s?.user_id) {
+      await setLocale(s.user_id, to);
+    }
+
     cookies.set(LOCALE_COOKIE, s?.impersonator_id ? 'en' : to, {
       path: '/',
       maxAge: 60 * 60 * 24 * 365,
@@ -22,9 +26,6 @@ export const POST: RequestHandler = async ({ request, url, cookies, locals }) =>
       secure: url.protocol === 'https:'
     });
 
-    if (s?.user_id) {
-      await setLocale(s.user_id, to);
-    }
   }
 
   const dest = safeReturnPath(next) ?? '/';

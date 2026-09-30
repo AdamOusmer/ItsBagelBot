@@ -4,7 +4,7 @@
 import { defaultLang, type Lang } from './lang';
 import { SITE } from '@bagel/kit/site-links';
 import { COMMAND_NAME_MAX, RESPONSE_MAX, RESPONSE_MAX_LINES, COOLDOWN_MAX } from '@bagel/kit/engine/commands-validate';
-import { staticText } from '@bagel/kit/i18n/static';
+import { STATIC_LOCALES, staticText } from '@bagel/kit/i18n/static';
 import { VARIABLES as KIT_VARIABLES, variableById, type VariableDef, type VariableForm } from '@bagel/kit/variables';
 import { moduleDef, namespaceReplyTemplate } from '@bagel/kit/catalog';
 import { BUILTIN_COMMANDS } from '@bagel/kit/catalog/builtin-commands';
@@ -14,15 +14,12 @@ type L10n = Record<Lang, string>;
 
 const pick = (m: L10n, lang: Lang): string => m[lang] ?? m[defaultLang];
 
-const KIT_LOCALES = new Set(['en', 'fr']);
-
 export function kitText(lang: Lang, key: string): string {
-  const locale = KIT_LOCALES.has(lang) ? (lang as 'en' | 'fr') : 'en';
-  return staticText(locale, key);
+  return staticText(lang, key);
 }
 
 function l10n(key: string): L10n {
-  return { en: kitText('en', key), fr: kitText('fr', key) };
+  return Object.fromEntries(STATIC_LOCALES.map((locale) => [locale, kitText(locale, key)]));
 }
 
 interface ScopeDef {
