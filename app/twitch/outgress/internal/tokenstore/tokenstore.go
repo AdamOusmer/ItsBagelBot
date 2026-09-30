@@ -5,6 +5,7 @@ package tokenstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -44,13 +45,18 @@ func (s *Store) Load(ctx context.Context) (Loaded, error) {
 		return Loaded{}, fmt.Errorf("tokens get rpc: %w", err)
 	}
 	if r.Error != "" {
-		return Loaded{}, fmt.Errorf("tokens get: %s", r.Error)
+		return Loaded{}, bus.RPCReplyError{Subject: s.prefix + ".get", Message: r.Error}
 	}
 	return Loaded{
 		AccessToken:          r.AccessToken,
 		AccessTokenExpiresAt: r.AccessTokenExpiresAt,
 		RefreshToken:         r.RefreshToken,
 	}, nil
+}
+
+func Unavailable(err error) bool {
+	var refused bus.RPCReplyError
+	return err != nil && !errors.As(err, &refused)
 }
 
 func (s *Store) Save(ctx context.Context, accessToken, refreshToken string, expiresAt *time.Time) error {

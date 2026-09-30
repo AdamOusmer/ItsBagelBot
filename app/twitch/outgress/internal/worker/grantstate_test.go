@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"ItsBagelBot/app/twitch/outgress/internal/twitch"
 	"ItsBagelBot/internal/domain/rpc/manage"
@@ -37,6 +38,15 @@ func testWorker(g grantRegistry) *Worker {
 
 func deadGrantErr() error {
 	return &twitch.TokenError{Status: 400, Body: `{"status":400,"message":"Invalid refresh token"}`}
+}
+
+func storedTokenErr(load twitch.StoredLoad) error {
+	src := twitch.NewStoredUserTokenSource(twitch.ClientCredentials{}, "", twitch.StoredTokenIO{
+		Load:    func(context.Context) twitch.StoredLoad { return load },
+		Persist: func(context.Context, string, string, time.Time) error { return nil },
+	}, twitch.MintLease{})
+	_, err := src.Token(context.Background())
+	return err
 }
 
 func TestNoteGrantHealth(t *testing.T) {
@@ -75,6 +85,18 @@ func TestNoteGrantHealth(t *testing.T) {
 			"transport failure does not mark",
 			twitch.IdentityBroadcaster, registered, true,
 			errors.New("dial tcp: i/o timeout"), nil,
+		},
+
+		{
+			"failed token load does not mark",
+			twitch.IdentityBroadcaster, registered, true,
+			storedTokenErr(twitch.StoredLoad{Err: errors.New("tokens get rpc: nats: timeout")}), nil,
+		},
+		{
+			"no stored token marks dead",
+			twitch.IdentityBroadcaster, registered, true,
+			storedTokenErr(twitch.StoredLoad{}),
+			[]manage.GrantState{manage.GrantDead},
 		},
 
 		{
