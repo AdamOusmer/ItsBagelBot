@@ -199,12 +199,7 @@ func (w *Worker) applyBlock(ctx context.Context, broadcasterID string, b blockad
 // makes while an enable/reconnect job retries must never look like a new
 // episode starting.
 func (w *Worker) markBlockedNow(ctx context.Context, broadcasterID string) error {
-	ch, found, err := w.registry.Get(ctx, broadcasterID)
-	if err != nil || !found {
-		return err
-	}
-	ch.BlockedAt = time.Now()
-	return w.registry.Save(ctx, ch)
+	return w.registry.MarkBlocked(ctx, manage.Channel{BroadcasterID: broadcasterID})
 }
 
 func (w *Worker) notifyBlock(ctx context.Context, broadcasterID string, b blockade) {

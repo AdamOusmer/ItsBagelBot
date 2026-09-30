@@ -301,6 +301,19 @@ func (r *Registry) SetSubState(ctx context.Context, broadcasterID, state, errMsg
 	)
 }
 
+func (r *Registry) MarkBlocked(ctx context.Context, ch manage.Channel) error {
+	key := keyPrefix + ch.BroadcasterID
+	now := strconv.FormatInt(time.Now().Unix(), 10)
+
+	return r.applyChannelUpdate(ctx, ch.BroadcasterID,
+		r.client.B().Hset().Key(key).FieldValue().
+			FieldValue("blocked_at", now).
+			FieldValue("updated_at", now).
+			Build(),
+		r.client.B().Sadd().Key(indexKey).Member(ch.BroadcasterID).Build(),
+	)
+}
+
 func (r *Registry) SetGrantState(ctx context.Context, broadcasterID string, state manage.GrantState) error {
 	key := keyPrefix + broadcasterID
 	now := strconv.FormatInt(time.Now().Unix(), 10)
