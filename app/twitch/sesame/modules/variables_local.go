@@ -100,7 +100,7 @@ func followedAt(ctx context.Context, d engine.Deps, c *module.Context) (time.Tim
 	if d.Followage == nil {
 		return time.Time{}, nil
 	}
-	result, err := d.Followage.Lookup(ctx, c.Env.BroadcasterUserID, c.Env.ChatterUserID, c.Env.ChatterUserLogin)
+	result, err := d.Followage.Lookup(ctx, c.Env.BroadcasterUserID, c.Env.ChatterUserID, c.Env.ChatterUserLogin, c.Env.Origin == "trial")
 	if !result.UserFound || !result.Following {
 		return time.Time{}, err
 	}

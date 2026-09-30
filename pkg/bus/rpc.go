@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/pkg/codec"
 	"ItsBagelBot/pkg/monitor"
 
@@ -22,6 +23,7 @@ const defaultRPCTimeout = 5 * time.Second
 type RPCReplyError struct {
 	Subject string
 	Message string
+	Code    rpc.Code
 }
 
 func (e RPCReplyError) Error() string {
@@ -56,8 +58,8 @@ func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, requ
 		return zero, fmt.Errorf("rpc %s request: %w", subject, err)
 	}
 
-	if errorMessage := rpcErrorMessage(msg.Data); errorMessage != "" {
-		return zero, RPCReplyError{Subject: subject, Message: errorMessage}
+	if refusal := replyRefusal(msg.Data); refusal.Error != "" {
+		return zero, RPCReplyError{Subject: subject, Message: refusal.Error, Code: refusal.Code}
 	}
 
 	decodeSegment := startMessagingSegment(ctx, messagingSpan{
@@ -178,17 +180,21 @@ func respondAndLog(msg *nats.Msg, subject string, start time.Time, log *zap.Logg
 
 var errorFieldProbe = []byte(`"error"`)
 
-func ReplyErrorMessage(data []byte) string { return rpcErrorMessage(data) }
+func ReplyErrorMessage(data []byte) string { return replyRefusal(data).Error }
 
-func rpcErrorMessage(data []byte) string {
+func replyRefusal(data []byte) rpc.Refusal {
 	if !bytes.Contains(data, errorFieldProbe) {
-		return ""
+		return rpc.Refusal{}
 	}
 	var envelope struct {
 		Error string `json:"error"`
 	}
-	if err := codec.Unmarshal(data, &envelope); err != nil {
-		return ""
+	if err := codec.Unmarshal(data, &envelope); err != nil || envelope.Error == "" {
+		return rpc.Refusal{}
 	}
-	return envelope.Error
+	var coded struct {
+		Code rpc.Code `json:"code"`
+	}
+	_ = codec.Unmarshal(data, &coded)
+	return rpc.Refusal{Error: envelope.Error, Code: coded.Code}
 }

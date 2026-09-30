@@ -5,6 +5,7 @@ package twitch
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -33,6 +34,36 @@ func TestIsMissingScope(t *testing.T) {
 				t.Fatalf("isMissingScope() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestBroadcasterPermissionDenialKeepsBotToken(t *testing.T) {
+	refreshes, requests := 0, 0
+	bot := &Source{refresh: func(context.Context) (string, time.Duration, error) {
+		refreshes++
+		return "bot-token", time.Hour, nil
+	}}
+	client := &Client{
+		clientID: "client",
+		user:     bot,
+		http: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			requests++
+			return &http.Response{
+				StatusCode: http.StatusUnauthorized,
+				Body:       io.NopCloser(strings.NewReader(`{"error":"Unauthorized","status":401,"message":"user does not have the required permission for the broadcaster"}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	_, _, err := client.FollowedAt(context.Background(), "broadcaster", "viewer")
+
+	var status *StatusError
+	if !errors.As(err, &status) || status.Status != http.StatusUnauthorized {
+		t.Fatalf("err = %v, want 401 StatusError", err)
+	}
+	if requests != 1 || refreshes != 1 {
+		t.Fatalf("requests/refreshes = %d/%d, want 1/1", requests, refreshes)
 	}
 }
 

@@ -10,11 +10,15 @@ import (
 	"testing"
 	"time"
 
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/projection"
+	"ItsBagelBot/pkg/bus"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 type fakeStore struct {
@@ -315,6 +319,41 @@ func TestEnsureAsyncRetriesTransientFetchFailureThenSucceeds(t *testing.T) {
 	require.Equal(t, write{section: "modules", ttl: 2 * time.Hour, count: 1}, modulesWrite)
 	require.Equal(t, int32(hydrationRetryAttempts), moduleFetches.Load(),
 		"must succeed on the last allowed attempt, proving retry recovered it rather than a single lucky call")
+}
+
+func TestMissingAccountIsFinalAndQuiet(t *testing.T) {
+	cases := []struct {
+		name        string
+		code        domainrpc.Code
+		wantFetches int32
+		wantWarns   int
+	}{
+		{"not found", domainrpc.CodeNotFound, 1, 0},
+		{"internal", domainrpc.CodeInternal, hydrationRetryAttempts, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var fetches, userWrites atomic.Int32
+			store := noOpStore()
+			store.setUser = func(context.Context, uint64, projection.UserProjection, time.Duration) error {
+				userWrites.Add(1)
+				return nil
+			}
+			fetch := noOpFetchers()
+			fetch.user = func(context.Context, uint64) (rpcprojection.UserReply, error) {
+				fetches.Add(1)
+				return rpcprojection.UserReply{}, bus.RPCReplyError{Subject: "users.get", Message: "user account not found", Code: tc.code}
+			}
+			core, logs := observer.New(zapcore.InfoLevel)
+
+			newHydrator(store, fetch, time.Hour, time.Hour, 1, zap.New(core)).run(job{userID: 42, force: true, ttl: time.Hour})
+
+			require.Equal(t, tc.wantFetches, fetches.Load())
+			require.Zero(t, userWrites.Load())
+			require.Equal(t, tc.wantWarns, logs.FilterMessage("hydration: section failed").Len())
+			require.Equal(t, tc.wantWarns, logs.Len())
+		})
+	}
 }
 
 func TestFillUserKeepsCommandsPageHidden(t *testing.T) {

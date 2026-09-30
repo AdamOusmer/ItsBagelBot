@@ -32,7 +32,7 @@ type FollowageResult struct {
 }
 
 type FollowageLookup interface {
-	Lookup(ctx context.Context, broadcasterID, targetID, targetLogin string) (FollowageResult, error)
+	Lookup(ctx context.Context, broadcasterID, targetID, targetLogin string, trial bool) (FollowageResult, error)
 }
 
 type FollowageRPC struct {
@@ -50,14 +50,14 @@ func NewFollowageRPC(nc *nats.Conn, prefix string) *FollowageRPC {
 	}
 }
 
-func (f *FollowageRPC) Lookup(ctx context.Context, broadcasterID, targetID, targetLogin string) (FollowageResult, error) {
+func (f *FollowageRPC) Lookup(ctx context.Context, broadcasterID, targetID, targetLogin string, trial bool) (FollowageResult, error) {
 	keyTarget := targetID
 	if keyTarget == "" {
 		keyTarget = "login:" + strings.ToLower(strings.TrimPrefix(targetLogin, "@"))
 	}
 	return f.cache.GetOrLoadTTL(ctx, broadcasterID+":"+keyTarget, func(ctx context.Context) (FollowageResult, time.Duration, error) {
 		reply, err := f.request(ctx, outgressrpc.FollowageRequest{
-			BroadcasterID: broadcasterID, TargetID: targetID, TargetLogin: targetLogin,
+			BroadcasterID: broadcasterID, TargetID: targetID, TargetLogin: targetLogin, Trial: trial,
 		})
 		if err != nil {
 			return FollowageResult{}, 0, err

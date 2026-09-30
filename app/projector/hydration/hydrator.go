@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	domainrpc "ItsBagelBot/internal/domain/rpc"
 	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -303,7 +304,7 @@ func fetchWithRetry[T any](ctx context.Context, log *zap.Logger, section string,
 		if err == nil {
 			return reply, nil
 		}
-		if attempt == hydrationRetryAttempts {
+		if attempt == hydrationRetryAttempts || notFound(err) {
 			break
 		}
 		log.Debug("hydration: section retrying", zap.String("section", section), zap.Uint64("user_id", userID), zap.Int("attempt", attempt), zap.Error(err))
@@ -324,7 +325,16 @@ func sleepOrCancel(ctx context.Context, d time.Duration) error {
 }
 
 func (h *Hydrator) logFailure(section string, userID uint64, err error) {
+	if notFound(err) {
+		h.log.Debug("hydration: section not found", zap.String("section", section), zap.Uint64("user_id", userID), zap.Error(err))
+		return
+	}
 	h.log.Warn("hydration: section failed", zap.String("section", section), zap.Uint64("user_id", userID), zap.Error(err))
+}
+
+func notFound(err error) bool {
+	var reply bus.RPCReplyError
+	return errors.As(err, &reply) && reply.Code == domainrpc.CodeNotFound
 }
 
 func request(userID uint64) rpcprojection.Request {

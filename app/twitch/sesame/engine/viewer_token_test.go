@@ -23,7 +23,7 @@ type stubFollowage struct {
 	calls  []string
 }
 
-func (s *stubFollowage) Lookup(_ context.Context, _, targetID, targetLogin string) (FollowageResult, error) {
+func (s *stubFollowage) Lookup(_ context.Context, _, targetID, targetLogin string, _ bool) (FollowageResult, error) {
 	s.calls = append(s.calls, targetID+"/"+targetLogin)
 	return s.result, s.err
 }

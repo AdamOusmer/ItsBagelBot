@@ -6,8 +6,14 @@ package bus
 import (
 	"bytes"
 	"testing"
+	"time"
 
+	"ItsBagelBot/internal/domain/rpc"
 	"ItsBagelBot/pkg/codec"
+
+	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFastMarshalErrorEnvelopeHitsProbe(t *testing.T) {
@@ -50,6 +56,37 @@ func errorMessageOf(t *testing.T, body any) string {
 		t.Fatalf("std-encoded %s also missed by ReplyErrorMessage", data)
 	}
 	return msg
+}
+
+func TestRequestJSONKeepsRefusalCode(t *testing.T) {
+	s, err := server.NewServer(&server.Options{Host: "127.0.0.1", Port: -1, NoLog: true, NoSigs: true})
+	require.NoError(t, err)
+	s.Start()
+	require.True(t, s.ReadyForConnections(5*time.Second))
+	t.Cleanup(s.Shutdown)
+	nc, err := nats.Connect(s.ClientURL())
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+	want := rpc.Refused(rpc.CodeNotFound, "user account not found")
+	reply, err := codec.FastMarshal(struct {
+		UserID string `json:"user_id"`
+		rpc.Refusal
+	}{UserID: "42", Refusal: want})
+	require.NoError(t, err)
+	_, err = nc.Subscribe("users.get", func(msg *nats.Msg) { _ = msg.Respond(reply) })
+	require.NoError(t, err)
+
+	_, err = RequestJSONTimeout[struct{}](t.Context(), nc, "users.get", struct{}{}, time.Second)
+
+	var got RPCReplyError
+	require.ErrorAs(t, err, &got)
+	require.Equal(t, RPCReplyError{Subject: "users.get", Message: want.Error, Code: want.Code}, got)
+}
+
+func TestReplyErrorMessageToleratesNonStringCode(t *testing.T) {
+	if got := ReplyErrorMessage([]byte(`{"error":"slow down","code":429}`)); got != "slow down" {
+		t.Fatalf("ReplyErrorMessage = %q, want %q", got, "slow down")
+	}
 }
 
 func TestRPCErrorMessageValueFalsePositiveStaysSuccess(t *testing.T) {
