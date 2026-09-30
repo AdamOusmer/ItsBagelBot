@@ -216,6 +216,48 @@ describe('cursor', () => {
     expect(rects()).toBe(0);
     dispose();
   });
+
+  test('the cursor re-enters the top layer above any popover that opens', async () => {
+    const shown: string[] = [];
+    const layer = (name: string) => {
+      let open = false;
+      const el = {
+        name,
+        popover: null as string | null,
+        style: {} as Record<string, string>,
+        classList: { toggle() {} },
+        matches: () => open,
+        showPopover: () => {
+          open = true;
+          shown.push(name);
+        },
+        hidePopover: () => {
+          open = false;
+        },
+        removeAttribute: (attr: string) => {
+          if (attr === 'popover') el.popover = null;
+          open = false;
+        },
+      };
+      return el;
+    };
+    const dot = layer('dot');
+    const ring = layer('ring');
+    const dispose = mountCursor({ dot: dot as never, ring: ring as never });
+    expect([dot.popover, ring.popover, shown]).toEqual(['manual', 'manual', ['ring', 'dot']]);
+
+    doc.dispatch('beforetoggle', { newState: 'open', target: {} });
+    expect(shown).toHaveLength(2);
+    await Promise.resolve();
+    expect(shown).toEqual(['ring', 'dot', 'ring', 'dot']);
+    doc.dispatch('beforetoggle', { newState: 'closed', target: {} });
+    doc.dispatch('beforetoggle', { newState: 'open', target: dot });
+    await Promise.resolve();
+    expect(shown).toHaveLength(4);
+
+    dispose();
+    expect([dot.popover, ring.popover, doc.count('beforetoggle')]).toEqual([null, null, 0]);
+  });
 });
 
 describe('magnetic', () => {

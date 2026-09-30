@@ -55,8 +55,10 @@ const ENTRIES: {
              globalThis.x = field;`,
   },
   {
+    // Raised from 1700 (2026-09-30) to keep the cursor above top-layer popovers:
+    // 1760 B gzip measured, +150 B platform delta and ~10% room.
     name: "cursor-engine",
-    budget: 1700,
+    budget: 2100,
     external: [],
     source: `import { mountCursor } from "../../lib/cursor-engine";
              globalThis.x = mountCursor;`,
