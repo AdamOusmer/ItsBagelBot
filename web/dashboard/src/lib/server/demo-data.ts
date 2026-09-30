@@ -546,6 +546,7 @@ export const demoPublicCommands = [
     response: '{user} tosses a warm bagel to {target}. Toasty.',
     perm: PERM_LABELS.everyone,
     cooldown: 10,
+    userCooldown: 60,
     liveOnly: false,
     uses: '1200'
   },
@@ -555,6 +556,7 @@ export const demoPublicCommands = [
     response: 'Follow along on Twitch and everywhere else.',
     perm: PERM_LABELS.everyone,
     cooldown: 30,
+    userCooldown: 0,
     liveOnly: false,
     uses: '288'
   }

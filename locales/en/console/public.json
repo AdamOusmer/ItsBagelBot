@@ -73,8 +73,10 @@
     "moduleAuto": "auto",
     "noModules": "No active modules.",
     "legendTitle": "Reading the tags",
-    "legend": "Everyone, Subscribers, VIPs and Moderators say who can run it. The clock is the cooldown between uses. Live only commands answer while the stream is up.",
+    "legend": "Everyone, Subscribers, VIPs and Moderators say who can run it. The clock is the cooldown between uses, for the whole chat or per viewer. Live only commands answer while the stream is up.",
     "cooldownSeconds": "Cooldown {n}s",
+    "userCooldownSeconds": "Each viewer waits {n}s between runs",
+    "userCooldownShort": "{n}s per viewer",
     "copiedAnnounce": "Copied {trigger}",
     "summaryOneThing": "{count} thing to type"
   }

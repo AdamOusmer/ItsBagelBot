@@ -3080,6 +3080,8 @@ export type KnownMessageKey =
   | 'public.commands.summaryOneModule'
   | 'public.commands.summaryOneThing'
   | 'public.commands.summaryThings'
+  | 'public.commands.userCooldownSeconds'
+  | 'public.commands.userCooldownShort'
   | 'public.commands.uses'
   | 'public.footer.builder'
   | 'public.footer.changelog'

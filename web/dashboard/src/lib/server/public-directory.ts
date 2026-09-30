@@ -24,6 +24,7 @@ export type PublicCommand = {
   response: string;
   perm: string;
   cooldown: number;
+  userCooldown: number;
   liveOnly: boolean;
   uses: string;
 };
@@ -80,6 +81,7 @@ export function publicCommands(rows: CommandView[], locale: Locale = 'en'): Publ
         response: cmd.response,
         perm: localizedPerm === permKey ? (PERM_LABELS[perm] ?? PERM_LABELS.everyone) : localizedPerm,
         cooldown: Math.max(0, Number(cmd.cooldown ?? 0) || 0),
+        userCooldown: Math.max(0, Number(cmd.user_cooldown ?? 0) || 0),
         liveOnly: cmd.stream_online_only === true,
         uses: cmd.uses == null ? '' : formatCounterValue(usesCount(cmd).toString(), locale)
       };

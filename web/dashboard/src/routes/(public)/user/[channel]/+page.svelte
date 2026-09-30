@@ -35,6 +35,7 @@
     response: string;
     perm: string;
     cooldown: number;
+    userCooldown: number;
     liveOnly: boolean;
     uses: string;
     kind: Kind;
@@ -71,6 +72,7 @@
         response: c.meta,
         perm: '',
         cooldown: 0,
+        userCooldown: 0,
         liveOnly: false,
         uses: '',
         kind: m.category === 'Built-in' ? 'builtin' : 'module',
@@ -217,6 +219,13 @@
                         <Icon name="clock" size={11} />
                         <span aria-hidden="true">{row.cooldown}s</span>
                         <VisuallyHidden>{t('public.commands.cooldownSeconds', { n: row.cooldown })}</VisuallyHidden>
+                      </Tag>
+                    {/if}
+                    {#if row.userCooldown > 0}
+                      <Tag tone="bare" title={t('public.commands.userCooldownSeconds', { n: row.userCooldown })}>
+                        <Icon name="clock" size={11} />
+                        <span aria-hidden="true">{t('public.commands.userCooldownShort', { n: row.userCooldown })}</span>
+                        <VisuallyHidden>{t('public.commands.userCooldownSeconds', { n: row.userCooldown })}</VisuallyHidden>
                       </Tag>
                     {/if}
                     {#if row.liveOnly}

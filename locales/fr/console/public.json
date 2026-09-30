@@ -73,8 +73,10 @@
     "moduleAuto": "auto",
     "noModules": "Aucun module actif.",
     "legendTitle": "Lire les étiquettes",
-    "legend": "Tout le monde, Abonnés, VIP et Modérateurs indiquent qui peut l’utiliser. L’horloge indique le temps entre deux utilisations. Les commandes en direct uniquement répondent quand le stream est actif.",
+    "legend": "Tout le monde, Abonnés, VIP et Modérateurs indiquent qui peut l’utiliser. L’horloge indique le temps entre deux utilisations, pour tout le chat ou par spectateur. Les commandes en direct uniquement répondent quand le stream est actif.",
     "cooldownSeconds": "Temps de recharge : {n} s",
+    "userCooldownSeconds": "Chaque spectateur attend {n} s entre deux utilisations",
+    "userCooldownShort": "{n} s par spectateur",
     "copiedAnnounce": "{trigger} copié",
     "summaryOneThing": "{count} action saisissable"
   }
