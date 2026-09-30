@@ -23,6 +23,16 @@ export interface VirtualScrollData extends Gesture {
 }
 
 const SCROLLS = new Set(['auto', 'scroll', 'overlay']);
+const GESTURE_GAP_MS = 250;
+
+export type ScrollStyles = WeakMap<Element, ScrollStyle>;
+
+interface ScrollStyle {
+  overflowX: string;
+  overflowY: string;
+  overscrollBehaviorX: string;
+  overscrollBehaviorY: string;
+}
 
 function along(box: ScrollBox, { deltaX, deltaY }: Gesture): { axis: ScrollAxis; delta: number } {
   return Math.abs(deltaX) >= Math.abs(deltaY)
@@ -38,8 +48,17 @@ export function keepsWheel(box: ScrollBox, gesture: Gesture): boolean {
   return delta > 0 ? at < axis.max : at > 0;
 }
 
-export function readScrollBox(node: Element): ScrollBox {
-  const style = getComputedStyle(node);
+function styleOf(node: Element, cache?: ScrollStyles): ScrollStyle {
+  const cached = cache?.get(node);
+  if (cached) return cached;
+  const { overflowX, overflowY, overscrollBehaviorX, overscrollBehaviorY } = getComputedStyle(node);
+  const style = { overflowX, overflowY, overscrollBehaviorX, overscrollBehaviorY };
+  cache?.set(node, style);
+  return style;
+}
+
+export function readScrollBox(node: Element, cache?: ScrollStyles): ScrollBox {
+  const style = styleOf(node, cache);
   const x: ScrollAxis = { overflow: style.overflowX, overscroll: style.overscrollBehaviorX, at: 0, max: 0 };
   const y: ScrollAxis = { overflow: style.overflowY, overscroll: style.overscrollBehaviorY, at: 0, max: 0 };
   if (SCROLLS.has(x.overflow) || SCROLLS.has(y.overflow)) {
@@ -65,14 +84,19 @@ export function createNestedScrollGate<D extends VirtualScrollData = VirtualScro
   outer: NestedScrollHooks<D> = {},
 ): NestedScrollGate<D> {
   let wheel: Gesture | null = null;
+  let styles: ScrollStyles = new WeakMap();
+  let lastEvent = 0;
   return {
     virtualScroll(data) {
+      const now = performance.now();
+      if (now - lastEvent > GESTURE_GAP_MS) styles = new WeakMap();
+      lastEvent = now;
       wheel = data.event.type === 'wheel' ? data : null;
       return outer.virtualScroll?.(data) !== false;
     },
     prevent(node) {
       if (outer.prevent?.(node)) return true;
-      return wheel !== null && keepsWheel(readScrollBox(node), wheel);
+      return wheel !== null && keepsWheel(readScrollBox(node, styles), wheel);
     },
   };
 }

@@ -51,10 +51,11 @@ export function observeReveal(root: ParentNode, options: RevealOptions = {}): ()
     }
 
     const observer = new IntersectionObserver(onIntersect, { rootMargin, threshold });
-    for (const el of targets) {
-        if (onScreen(el)) el.classList.add(REVEALED);
+    const visible = targets.map(onScreen);
+    targets.forEach((el, i) => {
+        if (visible[i]) el.classList.add(REVEALED);
         else observer.observe(el);
-    }
+    });
 
     return () => {
         observer.disconnect();

@@ -196,3 +196,23 @@ test('section menus use anchor offsets and rebind after filtering or link replac
   dispose();
   expect(f.observers.every((observer) => observer.disconnected)).toBe(true);
 });
+
+test('scroll margins and the menu scroller are read once, then again only after a resize', () => {
+  const f = fixture();
+  let styleReads = 0;
+  Object.assign(f.events, { getComputedStyle: () => { styleReads += 1; return { scrollMarginTop: '160px', overflowY: 'auto' }; } });
+  const root = Object.assign({
+    scrollTop: 0, scrollHeight: 500, clientHeight: 200,
+    getBoundingClientRect: () => ({ top: 100, bottom: 300 }),
+  }, { querySelectorAll: () => [...f.links.values()] }) as unknown as HTMLElement;
+  const dispose = mountSectionNav(root);
+  const afterMount = styleReads;
+  expect(afterMount).toBe(f.sections.length + 1);
+  f.dispatch();
+  f.dispatch();
+  f.dispatch('hashchange');
+  expect(styleReads).toBe(afterMount);
+  f.dispatch('resize');
+  expect(styleReads).toBe(afterMount + f.sections.length + 1);
+  dispose();
+});

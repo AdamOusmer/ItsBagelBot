@@ -17,6 +17,13 @@ export type FieldOptions = {
 
 const FRAME_MS = 1000 / 60;
 const EDGE_PX = 10;
+const RESIZE_DEBOUNCE_MS = 150;
+const TAN_RGB = '201, 168, 124';
+const GREEN_GLOW_RGB = '82, 183, 136';
+
+function channel(host: HTMLElement, name: string, fallback: string): string {
+    return getComputedStyle(host).getPropertyValue(name).trim() || fallback;
+}
 
 export function field(host: HTMLElement, options: FieldOptions = {}): (() => void) | null {
     if (prefersReducedMotion()) return null;
@@ -27,6 +34,9 @@ export function field(host: HTMLElement, options: FieldOptions = {}): (() => voi
     let height = 0;
     let visible = false;
     const animations = new Set<Animation>();
+    const warmRgb = channel(host, '--bb-tan-rgb', TAN_RGB);
+    const coolRgb = channel(host, '--bb-green-glow-rgb', GREEN_GLOW_RGB);
+    let rebuild: ReturnType<typeof setTimeout> | undefined;
 
     function clear() {
         for (const animation of animations) animation.cancel();
@@ -59,7 +69,7 @@ export function field(host: HTMLElement, options: FieldOptions = {}): (() => voi
         for (const mote of makeMotes(width, warmth)) {
             const dot = document.createElement('span');
             dot.style.width = dot.style.height = `${mote.r * 2}px`;
-            dot.style.background = `rgba(${mote.warm ? '201, 168, 124' : '82, 183, 136'}, ${mote.alpha.toFixed(3)})`;
+            dot.style.background = `rgba(${mote.warm ? warmRgb : coolRgb}, ${mote.alpha.toFixed(3)})`;
             host.append(dot);
             fly(dot, mote, Math.random() * height);
         }
@@ -74,7 +84,10 @@ export function field(host: HTMLElement, options: FieldOptions = {}): (() => voi
     const resized = () => host.clientWidth !== width || host.clientHeight !== height;
 
     const resizer = new ResizeObserver(() => {
-        if (visible && resized()) build();
+        clearTimeout(rebuild);
+        rebuild = setTimeout(() => {
+            if (visible && resized()) build();
+        }, RESIZE_DEBOUNCE_MS);
     });
 
     observer.observe(host);
@@ -83,6 +96,7 @@ export function field(host: HTMLElement, options: FieldOptions = {}): (() => voi
     return () => {
         observer.disconnect();
         resizer.disconnect();
+        clearTimeout(rebuild);
         clear();
     };
 }

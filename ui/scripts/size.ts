@@ -51,8 +51,9 @@ const ENTRIES: {
              globalThis.x = observeReveal;`,
   },
   {
+    // 761 B gzip measured 2026-09-29: now bundles raf-loop and motion-query, room ~10%.
     name: "count-up",
-    budget: 620,
+    budget: 840,
     external: [],
     source: `import { countUp } from "../../lib/count-up";
              globalThis.x = countUp;`,
@@ -167,9 +168,9 @@ const ENTRIES: {
              globalThis.x = m;`,
   },
   {
-    // 689 B gzip measured 2026-09-28, +150 B platform delta and ~10% room.
+    // 1114 B gzip measured 2026-09-29: rect cache and the shared frame loop, room ~10%.
     name: "tilt",
-    budget: 930,
+    budget: 1230,
     external: [],
     source: `import * as m from "../../lib/tilt";
              globalThis.x = m;`,
