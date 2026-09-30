@@ -107,7 +107,7 @@
     <SwitchRow
       control="end"
       checked={chatGateOn}
-      onchange={setChatGate}
+      onCheckedChange={setChatGate}
       label={t('timers.fieldChatGate')}
       hint={t('timers.fieldChatGateHint')}
       hintId="timer-chatgate-desc"
