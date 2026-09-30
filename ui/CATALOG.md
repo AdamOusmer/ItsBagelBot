@@ -21,7 +21,7 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | --- | --- | --- | --- |
 | **Code** | `block`: boolean<br>`wrap`: boolean<br>`maxHeight`: string<br>`tone`: CodeTone | svelte + astro | `styles/elements/typography.css` |
 | **Eyebrow** | `tone`: 'default' \| 'go'<br>`as`: 'span' \| 'p' \| 'div' | svelte + astro | `styles/elements/typography.css` |
-| **Heading** | `level`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`variant`: 'display' \| 'section' \| 'card' \| 'title' \| 'eyebrow' \| 'label'<br>`uppercase`: boolean<br>`as`: string<br>`element`: HTMLElement \| null | svelte + astro | `styles/elements/typography.css` |
+| **Heading** | `level`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`variant`: 'display' \| 'section' \| 'card' \| 'title' \| 'eyebrow' \| 'label'<br>`uppercase`: boolean<br>`as`: 'h1' \| 'h2' \| 'h3' \| 'h4' \| 'h5' \| 'h6' \| 'p' \| 'div' \| 'span'<br>`element`: HTMLElement \| null | svelte + astro | `styles/elements/typography.css` |
 | **Kbd** | — | svelte + astro | `styles/elements/typography.css` |
 | **Label** | `htmlFor`: string<br>`mono`: boolean<br>`as`: 'label' \| 'span' \| 'legend' | svelte + astro | `styles/elements/typography.css` |
 | **Lead** | `as`: 'p' \| 'div' | svelte + astro | `styles/elements/typography.css` |
@@ -36,18 +36,18 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | --- | --- | --- | --- |
 | **AppShell** | `brand*`: UiBrand<br>`crumbs`: UiCrumb[]<br>`groups`: UiNavGroup[]<br>`dockItems`: UiNavLink[]<br>`rail`: boolean<br>`offset`: boolean<br>`stacked`: boolean<br>`skipLabel`: string<br>`crumbLabel`: string<br>`dockLabel`: string<br>`railLabel`: string<br>`clock`: boolean<br>`banner`: Snippet<br>`topActions`: Snippet<br>`account`: Snippet<br>`railFooter`: Snippet | svelte + astro | `styles/elements/shell.css` |
 | **Cluster** | `gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`justify`: 'start' \| 'center' \| 'end' \| 'between'<br>`align`: 'baseline' \| 'stretch'<br>`nowrap`: boolean<br>`as`: T | svelte + astro | `styles/elements/layout.css` |
-| **Container** | `width`: 'default' \| 'narrow' \| 'text'<br>`flush`: boolean<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
+| **Container** | `width`: 'default' \| 'narrow' \| 'text'<br>`flush`: boolean<br>`as`: T | svelte + astro | `styles/elements/layout.css` |
 | **DeckLayout** | `inspecting`: boolean<br>`width`: string | svelte + astro | `styles/elements/deck-layout.css` |
 | **Disclosure** | `summary*`: string<br>`open`: boolean<br>`onOpenChange`: (open: boolean) => void<br>`index`: string<br>`size`: 'md' \| 'sm' | svelte + astro | `styles/elements/disclosure.css` |
 | **Divider** | `vertical`: boolean<br>`flush`: boolean<br>`fade`: boolean | svelte + astro | `styles/elements/layout.css` |
-| **Grid** | `cols`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`min`: string<br>`stackAt`: 'sm' \| 'md'<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
+| **Grid** | `cols`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`gap`: 1 \| 2 \| 3 \| 4 \| 5 \| 6<br>`min`: string<br>`stackAt`: 'sm' \| 'md'<br>`as`: T | svelte + astro | `styles/elements/layout.css` |
 | **InspectorSurface** | `open`: boolean<br>`title*`: string<br>`controls`: string<br>`closeLabel`: string<br>`onClose`: () => void<br>`onOpenChange`: (open: boolean) => void<br>`idle`: Snippet | svelte + astro | `styles/elements/card.css, styles/elements/surface.css` |
 | **PageHero** | `eyebrow`: string<br>`title*`: string<br>`description`: string | svelte + astro | `styles/elements/page-hero.css` |
 | **PickerPanel** | `open`: boolean<br>`anchor`: HTMLElement<br>`label*`: string<br>`width`: number<br>`maxHeight`: number<br>`placement`: 'beside' \| 'below'<br>`onClose`: () => void<br>`onOpenChange`: (open: boolean) => void | svelte<br>*Svelte only: interactive anchored dropdown that becomes a modal sheet on mobile.* | `styles/elements/picker-panel.css` |
 | **Scroller** | `maxHeight`: string<br>`fill`: boolean<br>`padding`: string<br>`smooth`: boolean | svelte + astro | `styles/elements/shell.css` |
-| **Section** | `size`: 'default' \| 'sm' \| 'lg' \| 'flush' \| 'page'<br>`anchor`: boolean<br>`reveal`: boolean<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
+| **Section** | `size`: 'default' \| 'sm' \| 'lg' \| 'flush' \| 'page'<br>`anchor`: boolean<br>`reveal`: boolean<br>`as`: 'section' \| 'article' \| 'div' \| 'ul' \| 'ol' \| 'li' \| 'header' \| 'footer' \| 'aside' \| 'main' | svelte + astro | `styles/elements/layout.css` |
 | **Spacer** | `size`: 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`grow`: boolean | svelte + astro | `styles/elements/layout.css` |
-| **Stack** | `gap`: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`align`: 'start' \| 'center' \| 'end'<br>`as`: string | svelte + astro | `styles/elements/layout.css` |
+| **Stack** | `gap`: 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7 \| 8<br>`align`: 'start' \| 'center' \| 'end'<br>`as`: T | svelte + astro | `styles/elements/layout.css` |
 
 ## Controls
 
@@ -127,17 +127,17 @@ per-file subpath when you want exactly one element's CSS in the bundle.
 | Block | Props | Adapters | Contract |
 | --- | --- | --- | --- |
 | **AreaSeries** | `values*`: readonly number[]<br>`ticks`: readonly number[]<br>`label*`: string<br>`height`: number<br>`uid`: string | svelte + astro | `styles/elements/area-series.css` |
-| **Card** | `as`: string<br>`href`: string<br>`atmo`: boolean<br>`sheen`: boolean<br>`stat`: boolean<br>`glass`: boolean<br>`hover`: boolean<br>`flush`: boolean<br>`dashed`: boolean<br>`tone`: 'accent' \| 'danger'<br>`label`: string<br>`band`: Snippet | svelte + astro | `styles/elements/card.css` |
+| **Card** | `as`: T<br>`href`: string<br>`atmo`: boolean<br>`sheen`: boolean<br>`stat`: boolean<br>`glass`: boolean<br>`hover`: boolean<br>`flush`: boolean<br>`dashed`: boolean<br>`tone`: 'accent' \| 'danger'<br>`label`: string<br>`band`: Snippet | svelte + astro | `styles/elements/card.css` |
 | **CardHead** | — | svelte + astro | `styles/elements/card.css` |
 | **CommunityCard** | `title*`: string<br>`subtitle`: string<br>`total*`: string<br>`period`: string<br>`tone`: CardTone<br>`appearance`: 'solid' \| 'soft'<br>`artwork`: Snippet | svelte + astro | `styles/elements/community-card.css` |
 | **CounterCard** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`detail`: string<br>`rate`: string \| null<br>`rateUnit`: string<br>`rateLabel`: string<br>`period`: string<br>`tone`: CardTone<br>`appearance`: 'solid' \| 'soft'<br>`tilt`: 'left' \| 'right' \| 'none'<br>`artwork`: Snippet | svelte + astro | `styles/elements/counter-card.css` |
-| **DeckList** | `as`: string | svelte + astro | `styles/elements/card.css, styles/elements/deck-list.css` |
+| **DeckList** | `as`: T | svelte + astro | `styles/elements/card.css, styles/elements/deck-list.css` |
 | **Fact** | `term*`: string<br>`tone`: 'danger'<br>`mono`: boolean<br>`wide`: boolean<br>`truncate`: boolean | svelte + astro | `styles/elements/fact-list.css` |
 | **FactList** | `layout`: 'rows' \| 'tiles' \| 'inline' | svelte + astro | `styles/elements/fact-list.css` |
 | **Icon** | `name*`: IconName<br>`size`: number<br>`strokeWidth`: number<br>`fill`: string | svelte + astro | `styles/elements/icon.css` |
 | **LineSeries** | `points*`: readonly LinePoint[]<br>`series*`: readonly LineSeriesSpec[]<br>`label*`: string<br>`description`: string<br>`unit`: string<br>`emptyLabel`: string<br>`formatValue`: (value: number \| null \| undefined) => string<br>`formatTime`: (at: number) => string | svelte + astro<br>*Width tracking, crosshair and tooltip are Svelte only; Astro renders a static 800px chart.* | `styles/elements/line-series.css` |
 | **LogTail** | `lines*`: string[]<br>`label*`: string<br>`max`: number | svelte<br>*Svelte only: it pins itself to the newest line as lines arrive and lets go when the reader scrolls up, which needs a client.* | `styles/elements/log-tail.css` |
-| **ManagementRow** | `as`: string<br>`href`: string<br>`selectable`: boolean<br>`selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`accent`: boolean<br>`wrap`: boolean<br>`stackActions`: boolean<br>`label`: string<br>`title`: string<br>`meta`: string<br>`onSelect`: () => void<br>`leading`: Snippet<br>`badge`: Snippet<br>`marks`: Snippet<br>`primary`: Snippet<br>`actions`: Snippet | svelte + astro | `styles/elements/management-row.css` |
+| **ManagementRow** | `as`: T<br>`href`: string<br>`selectable`: boolean<br>`selected`: boolean<br>`expanded`: boolean<br>`controls`: string<br>`disabled`: boolean<br>`accent`: boolean<br>`wrap`: boolean<br>`stackActions`: boolean<br>`label`: string<br>`title`: string<br>`meta`: string<br>`onSelect`: () => void<br>`leading`: Snippet<br>`badge`: Snippet<br>`marks`: Snippet<br>`primary`: Snippet<br>`actions`: Snippet | svelte + astro | `styles/elements/management-row.css` |
 | **OverviewGrid** | `main`: Snippet<br>`side`: Snippet | svelte + astro | `styles/elements/overview-grid.css` |
 | **RankingCard** | `title*`: string<br>`description`: string<br>`items*`: readonly RankingItem[]<br>`actions`: Snippet<br>`leading`: Snippet<[RankingItem, number]><br>`emptyLabel`: string | svelte + astro | `styles/elements/ranking-card.css` |
 | **StatTile** | `label*`: string<br>`value*`: string<br>`unit`: string<br>`delta`: string<br>`flat`: boolean<br>`static`: boolean<br>`inline`: boolean<br>`tone`: StatTone<br>`trailing`: Snippet | svelte + astro | `styles/elements/stat-tile.css` |

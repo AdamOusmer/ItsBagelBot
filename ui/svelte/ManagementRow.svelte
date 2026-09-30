@@ -1,12 +1,12 @@
-<script lang="ts">
+<script lang="ts" generics="T extends keyof SvelteHTMLElements = 'div'">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import type { HTMLAttributes } from 'svelte/elements';
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/management-row.css';
   import type { Snippet } from 'svelte';
 
   type Own = {
-    as?: string;
+    as?: T;
     href?: string;
     selectable?: boolean;
     selected?: boolean;
@@ -29,7 +29,7 @@
   };
 
   let {
-    as = 'div',
+    as = 'div' as T,
     href,
     selectable = true,
     selected = false,
@@ -50,7 +50,7 @@
     primary,
     actions,
     ...rest
-  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
+  }: Own & Omit<SvelteHTMLElements[T], keyof Own> = $props();
 
   const isStatic = $derived(!href && !selectable);
 

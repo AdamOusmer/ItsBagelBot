@@ -2,11 +2,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/card.css';
 import '../styles/elements/deck-list.css';
 
-interface Props {
-    as?: string;
+interface Props extends Omit<HTMLAttributes<'div'>, 'as' | 'class'> {
+    as?: 'div' | 'ul' | 'ol' | 'section';
     class?: string;
 }
 

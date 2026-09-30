@@ -2,14 +2,15 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
+import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/layout.css';
 
-interface Props {
+interface Props extends Omit<HTMLAttributes<'div'>, 'cols' | 'gap' | 'min' | 'stackAt' | 'as' | 'class'> {
     cols?: 1 | 2 | 3 | 4 | 5 | 6;
     gap?: 1 | 2 | 3 | 4 | 5 | 6;
     min?: string;
     stackAt?: 'sm' | 'md';
-    as?: string;
+    as?: 'div' | 'ul' | 'ol' | 'section';
     class?: string;
 }
 

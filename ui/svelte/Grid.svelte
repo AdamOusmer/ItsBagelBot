@@ -1,7 +1,7 @@
-<script lang="ts">
+<script lang="ts" generics="T extends keyof SvelteHTMLElements = 'div'">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import type { HTMLAttributes } from 'svelte/elements';
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/layout.css';
   import type { Snippet } from 'svelte';
 
@@ -10,7 +10,7 @@
     gap?: 1 | 2 | 3 | 4 | 5 | 6;
     min?: string;
     stackAt?: 'sm' | 'md';
-    as?: string;
+    as?: T;
     class?: string;
     children: Snippet;
   };
@@ -20,11 +20,11 @@
     gap = 4,
     min,
     stackAt = 'sm',
-    as: tag = 'div',
+    as: tag = 'div' as T,
     class: className = '',
     children,
     ...rest
-  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
+  }: Own & Omit<SvelteHTMLElements[T], keyof Own> = $props();
 
   const classes = $derived(
     [

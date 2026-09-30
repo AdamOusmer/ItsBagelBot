@@ -6,7 +6,7 @@ import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/management-row.css';
 
 interface Props extends Omit<HTMLAttributes<'div'>, 'as' | 'href' | 'selectable' | 'selected' | 'expanded' | 'controls' | 'disabled' | 'accent' | 'wrap' | 'stackActions' | 'label' | 'title' | 'meta' | 'class'> {
-    as?: string;
+    as?: 'div' | 'a' | 'li' | 'article';
     href?: string;
     selectable?: boolean;
     selected?: boolean;

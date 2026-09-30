@@ -1,7 +1,7 @@
 <script lang="ts">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import type { HTMLAttributes } from 'svelte/elements';
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/typography.css';
   import type { Snippet } from 'svelte';
 
@@ -9,7 +9,7 @@
     level?: 1 | 2 | 3 | 4 | 5 | 6;
     variant?: 'display' | 'section' | 'card' | 'title' | 'eyebrow' | 'label';
     uppercase?: boolean;
-    as?: string;
+    as?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'p' | 'div' | 'span';
     element?: HTMLElement | null;
     class?: string;
     children: Snippet;
@@ -24,7 +24,7 @@
     class: className = '',
     children,
     ...rest
-  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
+  }: Own & Omit<SvelteHTMLElements['h2'], keyof Own> = $props();
 
   const tagName = $derived(tag ?? `h${level}`);
   const classes = $derived(

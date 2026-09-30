@@ -1,13 +1,13 @@
-<script lang="ts">
+<script lang="ts" generics="T extends keyof SvelteHTMLElements = 'div'">
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
-  import type { HTMLAttributes } from 'svelte/elements';
+  import type { SvelteHTMLElements } from 'svelte/elements';
   import type { Snippet } from 'svelte';
   import CardAtmosphere from './CardAtmosphere.svelte';
   import '../styles/elements/card.css';
 
   type Own = {
-    as?: string;
+    as?: T;
     href?: string;
     atmo?: boolean;
     sheen?: boolean;
@@ -39,7 +39,7 @@
     class: cls = '',
     children,
     ...rest
-  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
+  }: Own & Omit<SvelteHTMLElements[T], keyof Own> = $props();
 
   const classes = $derived(
     [
