@@ -6,6 +6,7 @@ package bus
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,6 +32,13 @@ func (e RPCReplyError) Error() string {
 		return e.Message
 	}
 	return fmt.Sprintf("rpc %s: %s", e.Subject, e.Message)
+}
+
+// NotFoundReply reports whether err is a refusal coded not_found, as opposed
+// to a transient transport or server error.
+func NotFoundReply(err error) bool {
+	var reply RPCReplyError
+	return errors.As(err, &reply) && reply.Code == rpc.CodeNotFound
 }
 
 func RequestJSON[T any](ctx context.Context, nc *nats.Conn, subject string, request any) (T, error) {

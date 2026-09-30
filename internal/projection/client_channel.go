@@ -15,8 +15,7 @@ import (
 // its standard fallback. Returned module maps must remain read-only.
 func (c *Client) LoadChannel(ctx context.Context, userID uint64, needModules bool) (map[string]ModuleView, User, error) {
 	if !needModules {
-		user, err := c.channelUser(ctx, userID)
-		return nil, user, err
+		return nil, c.channelUser(ctx, userID), nil
 	}
 	user, userCached := c.users.Get(key("user", userID))
 	mods, modulesCached := c.modules.Get(key("modules", userID))
@@ -28,19 +27,26 @@ func (c *Client) LoadChannel(ctx context.Context, userID uint64, needModules boo
 		mods, err := c.Modules(ctx, userID)
 		return mods, user, err
 	case modulesCached:
-		user, err := c.User(ctx, userID)
-		return mods, user, err
+		return mods, c.userOrStandard(ctx, userID), nil
 	default:
 		return c.loadColdChannel(ctx, userID)
 	}
 }
 
-func (c *Client) channelUser(ctx context.Context, userID uint64) (User, error) {
- if user, ok := c.users.Get(key("user", userID)); ok {
-  loadSource(ctx, "projection.user.source", "local")
-  return user, nil
- }
- return c.User(ctx, userID)
+func (c *Client) channelUser(ctx context.Context, userID uint64) User {
+	if user, ok := c.users.Get(key("user", userID)); ok {
+		loadSource(ctx, "projection.user.source", "local")
+		return user
+	}
+	return c.userOrStandard(ctx, userID)
+}
+
+func (c *Client) userOrStandard(ctx context.Context, userID uint64) User {
+	user, err := c.User(ctx, userID)
+	if err != nil {
+		return User{Status: "standard"}
+	}
+	return user
 }
 
 func (c *Client) loadColdChannel(ctx context.Context, userID uint64) (map[string]ModuleView, User, error) {
@@ -50,21 +56,12 @@ func (c *Client) loadColdChannel(ctx context.Context, userID uint64) (map[string
 	if txn := newrelic.FromContext(ctx); txn != nil {
 		userCtx = newrelic.NewContext(ctx, txn.NewGoroutine())
 	}
-	type userResult struct {
-		user User
-		err  error
-	}
-	done := make(chan userResult, 1)
+	done := make(chan User, 1)
 	go func() {
-		user, err := c.User(userCtx, userID)
-		done <- userResult{user, err}
+		done <- c.userOrStandard(userCtx, userID)
 	}()
-	mods, moduleErr := c.Modules(ctx, userID)
-	result := <-done
-	if moduleErr != nil {
-		return mods, result.user, moduleErr
-	}
-	return mods, result.user, result.err
+	mods, err := c.Modules(ctx, userID)
+	return mods, <-done, err
 }
 
 func recordCachedSources(ctx context.Context, userCached, modulesCached bool) {

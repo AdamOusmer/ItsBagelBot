@@ -81,7 +81,10 @@ func (s *statusRPC) handleGet(ctx context.Context, req projectorrpc.StatusReques
 		return projectorrpc.StatusReply{BroadcasterID: req.BroadcasterID, Tier: "standard"}
 	}
 
-	entry := s.tierOf(ctx, id)
+	entry, err := s.tierOf(ctx, id)
+	if err != nil {
+		return projectorrpc.StatusReply{BroadcasterID: req.BroadcasterID, Tier: "standard", Error: "status unavailable"}
+	}
 
 	return projectorrpc.StatusReply{
 		BroadcasterID: req.BroadcasterID,
@@ -108,30 +111,28 @@ func (s *statusRPC) tierFromValkey(ctx context.Context, id uint64) (statusEntry,
 	return statusEntry{}, false
 }
 
-func (s *statusRPC) fetchUserFallback(ctx context.Context, id uint64) statusEntry {
+func (s *statusRPC) fetchUserFallback(ctx context.Context, id uint64) (statusEntry, error) {
 	reply, err := bus.RequestJSON[rpcprojection.UserReply](ctx, s.nc, s.usersTopic, map[string]string{"user_id": fmt.Sprint(id)})
+	if bus.NotFoundReply(err) {
+		return statusEntry{Tier: "standard"}, nil
+	}
 	if err != nil {
-		return statusEntry{Tier: "standard"}
+		return statusEntry{}, err
 	}
 
 	_ = s.valkey.SetUser(ctx, id, projection.UserFromReply(reply))
 
 	if !reply.IsActive {
-		return statusEntry{Tier: "standard", Banned: reply.Banned}
+		return statusEntry{Tier: "standard", Banned: reply.Banned}, nil
 	}
-	return statusEntry{Tier: tierFromStatus(reply.Status), Banned: reply.Banned}
+	return statusEntry{Tier: tierFromStatus(reply.Status), Banned: reply.Banned}, nil
 }
 
-func (s *statusRPC) tierOf(ctx context.Context, id uint64) statusEntry {
-	entry, err := s.views.GetOrLoad(ctx, tierKey(id), func(ctx context.Context) (statusEntry, error) {
+func (s *statusRPC) tierOf(ctx context.Context, id uint64) (statusEntry, error) {
+	return s.views.GetOrLoad(ctx, tierKey(id), func(ctx context.Context) (statusEntry, error) {
 		if entry, found := s.tierFromValkey(ctx, id); found {
 			return entry, nil
 		}
-		return s.fetchUserFallback(ctx, id), nil
+		return s.fetchUserFallback(ctx, id)
 	})
-
-	if err != nil {
-		return statusEntry{Tier: "standard"}
-	}
-	return entry
 }

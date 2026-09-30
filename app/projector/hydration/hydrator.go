@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	domainrpc "ItsBagelBot/internal/domain/rpc"
 	rpcprojection "ItsBagelBot/internal/domain/rpc/projection"
 	"ItsBagelBot/internal/projection"
 	"ItsBagelBot/pkg/bus"
@@ -333,8 +332,7 @@ func (h *Hydrator) logFailure(section string, userID uint64, err error) {
 }
 
 func notFound(err error) bool {
-	var reply bus.RPCReplyError
-	return errors.As(err, &reply) && reply.Code == domainrpc.CodeNotFound
+	return bus.NotFoundReply(err)
 }
 
 func request(userID uint64) rpcprojection.Request {

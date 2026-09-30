@@ -192,17 +192,16 @@ func TestClientFetchDefsTiersAndNegativeCaching(t *testing.T) {
 	defer client.Close()
 
 	_, found, err := client.FetchDefs(ctx, 46, "late")
-	require.NoError(t, err)
+	require.Error(t, err, "an unprojected row with no RPC reachable is a retryable failure")
 	assert.False(t, found)
 
 	require.NoError(t, store.SetFetches(ctx, 46, []FetchView{
 		{Name: "late", URL: "https://late.example", KeyLabel: "k", IsActive: true},
 	}))
-	client.fetches.Invalidate(fetchKey(46, "late"))
 
 	view, found, err := client.FetchDefs(ctx, 46, "Late")
 	require.NoError(t, err)
-	require.True(t, found, "tier-2 hit after invalidation")
+	require.True(t, found, "tier-2 hit once the section is projected")
 	assert.Equal(t, "https://late.example", view.URL)
 	assert.Equal(t, "k", view.KeyLabel, "label projects; key material never does")
 

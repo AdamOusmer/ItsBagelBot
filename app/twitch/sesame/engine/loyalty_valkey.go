@@ -110,9 +110,9 @@ func (s *ValkeyLoyaltyStore) Earn(broadcasterID, viewerID uint64, login, name st
 	s.reporter.Earn(broadcasterID, viewerID, login, name, points, watchSeconds)
 }
 
-func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, name string) string {
+func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, name string) (string, error) {
 	key := counterRef{broadcasterID, name}.scopeKey()
-	scope, err := s.scopes.GetOrLoad(ctx, key, func(ctx context.Context) (string, error) {
+	return s.scopes.GetOrLoad(ctx, key, func(ctx context.Context) (string, error) {
 		c, found, err := s.rpc.CounterGet(ctx, broadcasterID, name, 0, "")
 		if err != nil {
 			return "", err
@@ -127,12 +127,6 @@ func (s *ValkeyLoyaltyStore) scope(ctx context.Context, broadcasterID uint64, na
 			return data.CounterScopeChannel, nil
 		}
 	})
-	if err != nil {
-		s.log.Debug("loyalty: scope resolve failed, defaulting to channel",
-			module.BIDField(broadcasterID), zap.String("counter", name), zap.Error(err))
-		return data.CounterScopeChannel
-	}
-	return scope
 }
 
 func entryField(scope string, viewerID uint64, command string) string {
@@ -172,6 +166,12 @@ func bumpTarget(scope string, viewerID uint64, command string) (string, uint64, 
 	}
 }
 
+type resolvedBump struct {
+	scope    string
+	viewerID uint64
+	command  string
+}
+
 func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, b CounterBump) (int64, error) {
 	name := NormalizeCounterName(b.Name)
 	if name == "" || b.Delta == 0 {
@@ -180,20 +180,14 @@ func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, b CounterBump) (in
 	if data.SystemCounter(name) {
 		return 0, ErrReservedCounter
 	}
-	scope, viewerID, command := bumpTarget(s.scope(ctx, b.BroadcasterID, name), b.Viewer.ID, NormalizeCounterName(b.Command))
-	viewer := b.Viewer
-	if viewerID == 0 {
-		viewer = Viewer{}
+	target, err := s.scope(ctx, b.BroadcasterID, name)
+	if err != nil {
+		return 0, err
 	}
-	viewer.ID = viewerID
+	scope, viewerID, command := bumpTarget(target, b.Viewer.ID, NormalizeCounterName(b.Command))
+	resolved := resolvedBump{scope: scope, viewerID: viewerID, command: command}
 
-	var value int64
-	var err error
-	if rowScoped(scope) {
-		value, err = s.bumpChannel(ctx, b.BroadcasterID, name, b.Delta)
-	} else {
-		value, err = s.bumpEntry(ctx, b.BroadcasterID, name, entryField(scope, viewerID, command), viewerID, command, b.Delta)
-	}
+	value, err := s.bumpValue(ctx, b, name, resolved)
 	if err != nil {
 		return 0, err
 	}
@@ -202,10 +196,26 @@ func (s *ValkeyLoyaltyStore) CounterBump(ctx context.Context, b CounterBump) (in
 		BroadcasterID: b.BroadcasterID,
 		Name:          name,
 		Scope:         scope,
-		Viewer:        viewer,
+		Viewer:        bumpViewer(b.Viewer, viewerID),
 		Command:       command,
 	}, b.Delta)
 	return value, nil
+}
+
+func (s *ValkeyLoyaltyStore) bumpValue(ctx context.Context, b CounterBump, name string, resolved resolvedBump) (int64, error) {
+	if rowScoped(resolved.scope) {
+		return s.bumpChannel(ctx, b.BroadcasterID, name, b.Delta)
+	}
+	field := entryField(resolved.scope, resolved.viewerID, resolved.command)
+	return s.bumpEntry(ctx, b.BroadcasterID, name, field, resolved.viewerID, resolved.command, b.Delta)
+}
+
+func bumpViewer(viewer Viewer, viewerID uint64) Viewer {
+	if viewerID == 0 {
+		return Viewer{ID: viewerID}
+	}
+	viewer.ID = viewerID
+	return viewer
 }
 
 func (s *ValkeyLoyaltyStore) bumpChannel(ctx context.Context, broadcasterID uint64, name string, delta int64) (int64, error) {
@@ -256,8 +266,11 @@ func (s *ValkeyLoyaltyStore) CounterPeek(ctx context.Context, target CounterTarg
 		return loyaltyrpc.Counter{}, false, nil
 	}
 	broadcasterID, viewerID := target.BroadcasterID, target.ViewerID
-	scope := s.scope(ctx, broadcasterID, name)
 	command := NormalizeCounterName(target.Command)
+	scope, err := s.scope(ctx, broadcasterID, name)
+	if err != nil {
+		return s.rpc.CounterGet(ctx, broadcasterID, name, viewerID, command)
+	}
 
 	if v, ok := s.peekView(ctx, broadcasterID, name, scope, viewerID, command); ok {
 		return loyaltyrpc.Counter{Name: name, Scope: scope, Value: v}, true, nil

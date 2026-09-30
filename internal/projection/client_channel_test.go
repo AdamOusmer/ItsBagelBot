@@ -163,15 +163,15 @@ func TestLoadChannelConcurrentColdLoadsSingleflight(t *testing.T) {
 func TestLoadChannelFailurePolicies(t *testing.T) {
 	c, _, _ := channelTestClient(t)
 	ctx := context.Background()
-	// An absent account and unavailable RPC retain the conservative user
-	// fallback, while absent modules remain a retryable error, never cached.
+	// An unavailable RPC serves the conservative user fallback for this call
+	// only, while absent modules remain a retryable error; neither is cached.
 	_, user, err := c.LoadChannel(ctx, 999, true)
 	require.Error(t, err)
 	require.Equal(t, User{Status: "standard"}, user)
 	_, modulesCached := c.modules.Get(key("modules", 999))
 	require.False(t, modulesCached)
 	_, userCached := c.users.Get(key("user", 999))
-	require.True(t, userCached)
+	require.False(t, userCached)
 }
 
 func BenchmarkLoadChannelHot(b *testing.B) {

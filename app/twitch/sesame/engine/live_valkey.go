@@ -87,7 +87,7 @@ func (s *ValkeyLiveStore) IsLive(ctx context.Context, broadcasterID uint64) (boo
 			s.rpcTimeout,
 		)
 		if err != nil {
-			return false, nil
+			return false, err
 		}
 		if reply.Live {
 			_, _ = s.setLiveKey(ctx, broadcasterID, livekey.VersionNow())
