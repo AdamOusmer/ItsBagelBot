@@ -41,13 +41,14 @@
     transform-origin: top right;
     animation: bb-notifications-in 240ms var(--bb-ease-out-back) both;
   }
+  .bb-notifications__dropdown:focus { outline: none; }
   @keyframes bb-notifications-in {
     from { opacity: 0; transform: translateY(-6px) scale(0.97); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
   .bb-notifications__drop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-  .bb-notifications__drop-head h4 { font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; letter-spacing: -0.01em; color: var(--bb-white); margin: 0; }
+  .bb-notifications__title { font-family: var(--bb-font-display); font-weight: 700; font-size: 15px; letter-spacing: -0.01em; color: var(--bb-white); margin: 0; }
 
   .bb-notifications__empty { color: var(--bb-muted); font-family: var(--bb-font-body); font-size: 13px; margin: 4px 0 4px; }
 

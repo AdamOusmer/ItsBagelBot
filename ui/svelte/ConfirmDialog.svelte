@@ -37,6 +37,9 @@
     children?: Snippet;
   } = $props();
 
+  const uid = $props.id();
+  const bodyId = `bb-confirm-body-${uid}`;
+
   function cancel() {
     open = false;
     onOpenChange?.(false);
@@ -44,8 +47,15 @@
   }
 </script>
 
-<Modal {open} {title} {busy} onClose={cancel}>
-  {#if body}<p class="bb-modal__body">{body}</p>{/if}
+<Modal
+  {open}
+  {title}
+  {busy}
+  onClose={cancel}
+  role={tone === 'danger' ? 'alertdialog' : 'dialog'}
+  describedBy={body ? bodyId : undefined}
+>
+  {#if body}<p class="bb-modal__body" id={bodyId}>{body}</p>{/if}
   {#if children}{@render children()}{/if}
   <div class="bb-modal__actions">
     <Button variant="ghost" onclick={cancel} disabled={busy}>{cancelLabel}</Button>

@@ -10,6 +10,7 @@
   "response": "Response",
   "responsePlaceholder": "What the bot replies… insert variables below.",
   "linePlaceholder": "The next message…",
+  "responseLine": "Response line {n}",
   "addLine": "Add line",
   "removeLine": "Remove line {n}",
   "linesHint": "Up to {max} lines; each line is sent as its own chat message.",

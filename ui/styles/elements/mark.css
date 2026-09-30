@@ -1,0 +1,63 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+    .bb-mark { width: var(--mark-size, 5px); height: var(--mark-size, 5px); flex-shrink: 0; transform: rotate(45deg); background: currentColor; }
+    .bb-mark--hollow { background: transparent; border: 1px solid currentColor; }
+    .bb-mark--dash   { width: 6px; height: 1px; transform: none; }
+    .bb-mark--up     { width: 0; height: 0; transform: none; background: transparent;
+                       border-left: 3.5px solid transparent; border-right: 3.5px solid transparent;
+                       border-bottom: 6px solid currentColor; }
+    .bb-mark--plus   { width: auto; height: auto; transform: none; background: none; }
+    .bb-mark--plus::before { content: "+"; font-size: 12px; line-height: 0; opacity: 0.6; }
+
+    .bb-sweep {
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        width: 30%;
+        height: 1px;
+        pointer-events: none;
+        background: linear-gradient(90deg, transparent, var(--bb-mint), transparent);
+        animation: bb-sweep 3.4s var(--bb-ease-out-expo) infinite;
+    }
+
+    .bb-sweep--tan { background: linear-gradient(90deg, transparent, var(--bb-tan-pale), transparent); }
+
+    @keyframes bb-sweep {
+        0%        { transform: translateX(-100%); opacity: 0; }
+        10%       { opacity: 1; }
+        55%       { opacity: 1; }
+        65%, 100% { transform: translateX(333.333%); opacity: 0; }
+    }
+
+    .bb-drawline {
+        position: relative;
+        display: inline-block;
+        width: 36px;
+        height: 1px;
+        background: rgba(var(--bb-green-glow-rgb), 0.25);
+        overflow: hidden;
+        vertical-align: middle;
+    }
+
+    .bb-drawline::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 1px;
+        width: 0;
+        background: var(--bb-green-glow);
+        animation: bb-draw 1.6s var(--bb-ease-out-expo) infinite;
+    }
+
+    @keyframes bb-draw { 0% { width: 0; } 60%, 100% { width: 100%; } }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bb-sweep { animation: none; transform: translateX(116.667%); opacity: 1; }
+        .bb-drawline::after { animation: none; width: 100%; }
+    }
+}

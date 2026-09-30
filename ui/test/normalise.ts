@@ -15,12 +15,16 @@ export function normalise(html: string): string {
     .trim();
 }
 
-function stripHtmlComments(html: string): string {
+export function removeAll(text: string, pattern: RegExp): string {
   let prev;
   do {
-    prev = html;
-    html = html.replace(/<!--[\s\S]*?-->/g, '');
-  } while (html !== prev);
-  return html;
+    prev = text;
+    text = text.replace(pattern, '');
+  } while (text !== prev);
+  return text;
+}
+
+function stripHtmlComments(html: string): string {
+  return removeAll(html, /<!--[\s\S]*?-->/g);
 }
 

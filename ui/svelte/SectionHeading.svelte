@@ -8,6 +8,7 @@
   type Own = {
     eyebrow?: string;
     title: string;
+    headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
     align?: 'center' | 'left';
     class?: string;
     badge?: Snippet;
@@ -16,6 +17,7 @@
   let {
     eyebrow,
     title,
+    headingLevel = 2,
     align = 'center',
     class: className = '',
     badge,
@@ -33,4 +35,4 @@
     class="bb-section-heading__meta"
     data-reveal
   >{#if eyebrow}<span class="bb-section-heading__eyebrow">{eyebrow}</span>{/if}{#if badge}{@render badge()}{/if}</div
-  >{/if}<h2 class="bb-section-heading__title" data-reveal style="--reveal-i: 1">{title}</h2></div>
+  >{/if}<svelte:element this={`h${headingLevel}`} class="bb-section-heading__title" data-reveal style="--reveal-i: 1">{title}</svelte:element></div>

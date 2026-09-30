@@ -4,6 +4,28 @@
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
 @layer bb.elements {
+  .bb-skip-link.bb-shell__skip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    transform: translateY(-120%);
+    margin: 8px;
+    padding: 10px 16px;
+    border-color: var(--bb-focus);
+    color: var(--bb-white);
+    font-family: var(--bb-font-body);
+    font-weight: 600;
+    font-size: 13px;
+    box-shadow: 0 8px 30px rgba(var(--bb-shadow-rgb), 0.5);
+    transition: transform var(--bb-dur-fast) var(--bb-ease-out-expo);
+  }
+
+  .bb-skip-link.bb-shell__skip:focus,
+  .bb-skip-link.bb-shell__skip:focus-visible {
+    transform: translateY(0);
+    outline-offset: 3px;
+  }
+
   .bb-shell {
     --shell-rail-breakpoint: 761px;
     --shell-canvas-max: 1160px;
@@ -711,109 +733,6 @@
     .bb-dock__group .bb-dock-item {
       width: 100%;
     }
-  }
-
-  .bb-page-head {
-    margin-bottom: calc(30px * var(--d, 1));
-  }
-
-  .bb-page-head--trailed {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 32px;
-    flex-wrap: wrap;
-  }
-
-  .bb-page-head__main {
-    min-width: 0;
-  }
-
-  .bb-page-head__trail {
-    flex: none;
-  }
-
-  .bb-page-head__eyebrow {
-    font-family: var(--bb-font-mono);
-    font-size: 0.72rem;
-    letter-spacing: var(--bb-tracking-eyebrow);
-    text-transform: uppercase;
-    color: var(--bb-green-glow);
-    display: block;
-    margin-bottom: 14px;
-  }
-
-  .bb-page-head h1 {
-    font-family: var(--bb-font-display);
-    font-weight: 800;
-    font-size: clamp(32px, 4vw, 48px);
-    line-height: 1.05;
-    letter-spacing: -0.01em;
-    color: var(--bb-white);
-    margin: 0;
-  }
-
-  .bb-page-head h1 em {
-    font-style: normal;
-    font-weight: 800;
-    color: var(--bb-tan-light);
-    font-family: var(--bb-font-display);
-  }
-
-  .bb-page-head__description {
-    font-family: var(--bb-font-body);
-    font-size: 14.5px;
-    line-height: 1.55;
-    color: var(--bb-muted);
-    margin: 12px 0 0;
-    max-width: 560px;
-  }
-
-  .bb-page-head--compact {
-    margin-bottom: calc(22px * var(--d, 1));
-  }
-
-  .bb-page-head--compact .bb-page-head__eyebrow {
-    margin-bottom: 10px;
-  }
-
-  .bb-page-head--compact h1 {
-    font-size: clamp(26px, 3vw, 36px);
-    line-height: 1.06;
-  }
-
-  .bb-page-head--compact .bb-page-head__description {
-    font-size: 14px;
-    line-height: 1.5;
-    margin-top: 8px;
-  }
-
-  .bb-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 18px;
-  }
-
-  .bb-toolbar__grow {
-    flex: 1;
-  }
-
-  @media (max-width: 600px) {
-    .bb-toolbar {
-      flex-wrap: wrap;
-    }
-  }
-
-  .bb-scroller {
-    --bb-scrollbar-size: 6px;
-
-    overflow-y: auto;
-  }
-
-  .bb-scroller--fill {
-    flex: 1;
-    min-height: 0;
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -15,6 +15,7 @@ interface RankingItem {
 }
 interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'description' | 'items' | 'emptyLabel' | 'class'> {
   title: string;
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
   description?: string;
   /** IDs are unique. Use named slots `leading-${item.id}` for item artwork. */
   items: readonly RankingItem[];
@@ -22,7 +23,8 @@ interface Props extends Omit<HTMLAttributes<'section'>, 'title' | 'description' 
   class?: string;
 }
 const { t } = uiI18n(Astro);
-const { title, description = '', items, emptyLabel = t('data.empty'), class: cls = '', ...rest } = Astro.props;
+const { title, headingLevel = 2, description = '', items, emptyLabel = t('data.empty'), class: cls = '', ...rest } = Astro.props;
+const HeadingTag = `h${headingLevel}`;
 const maximum = items.reduce((max, item) =>
   Number.isFinite(item.value) ? Math.max(max, item.value) : max, 0) || 1;
 // Astro's compiler resolves literal <slot> names statically. Render the
@@ -35,7 +37,7 @@ function proportion(value: number): string {
 ---
 
 <section class={['bb-ranking-card', cls].filter(Boolean).join(' ')} aria-label={title} {...rest}>
-  <header class="bb-ranking-card__head"><div class="bb-ranking-card__intro"><h2 class="bb-ranking-card__title">{title}</h2>{description && <p class="bb-ranking-card__description">{description}</p>}</div>{Astro.slots.has('actions') && <div class="bb-ranking-card__actions"><slot name="actions" /></div>}</header>
+  <header class="bb-ranking-card__head"><div class="bb-ranking-card__intro"><HeadingTag class="bb-ranking-card__title">{title}</HeadingTag>{description && <p class="bb-ranking-card__description">{description}</p>}</div>{Astro.slots.has('actions') && <div class="bb-ranking-card__actions"><slot name="actions" /></div>}</header>
   {items.length ? (
     <ol class="bb-ranking-card__list">
       {items.map((item, index) => (

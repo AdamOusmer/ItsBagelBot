@@ -11,12 +11,15 @@
   import '../styles/elements/picker-panel.css';
   import { mediaQuery } from '../lib/motion-query';
   import { naturalHeight, placeDropdown, type DropdownPlacement } from '../lib/dropdown-placement';
-  import { MOBILE_QUERY, portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains } from '../lib/overlay-stack';
+  import { MOBILE_QUERY, portal, pushOverlay, removeOverlay, isTopmost, overlayIndex, trapFocus, registerOverlayAnchor, overlayContains, wirePopupAnchor, focusWithin, FOCUSABLE } from '../lib/overlay-stack';
+
+  const uid = $props.id();
 
   let {
     open = $bindable(false),
     anchor,
     label,
+    id = $bindable(`bb-picker-${uid}`),
     width = 300,
     maxHeight = 340,
     placement = 'beside',
@@ -27,6 +30,7 @@
     open?: boolean;
     anchor?: HTMLElement;
     label: string;
+    id?: string;
     width?: number;
     maxHeight?: number;
     placement?: 'beside' | 'below';
@@ -36,6 +40,33 @@
   } = $props();
 
   const GAP_PX = 8;
+
+  let wasOpen = false;
+
+  $effect.pre(() => {
+    const closing = wasOpen && !open;
+    wasOpen = open;
+    if (closing && anchor && panelEl && overlayContains(panelEl, document.activeElement)) anchor.focus({ preventScroll: true });
+  });
+
+  $effect(() => {
+    if (anchor) return wirePopupAnchor(anchor, open, id);
+  });
+
+  $effect(() => {
+    if (open && !isSheet && panelEl) focusWithin(panelEl);
+  });
+
+  function leaveDropdown(e: KeyboardEvent) {
+    if (e.key !== 'Tab' || !panelEl) return;
+    const items = Array.from(panelEl.querySelectorAll<HTMLElement>(FOCUSABLE));
+    const active = document.activeElement;
+    const leaving = e.shiftKey ? active === panelEl || active === items[0] : active === (items.at(-1) ?? panelEl);
+    if (!leaving) return;
+    e.preventDefault();
+    requestClose();
+    anchor?.focus({ preventScroll: true });
+  }
 
   function requestClose() {
     onOpenChange?.(false);
@@ -143,8 +174,8 @@
 {#if open}
   {#if isSheet}
     <div class="bb-picker-panel__shell" data-overlay style="z-index: {zIndex}" use:portal>
-      <button class="bb-picker-panel__scrim" type="button" aria-label={label} onclick={requestClose}></button>
-      <div class="bb-picker-panel bb-picker-panel--sheet" data-lenis-prevent role="dialog" aria-modal="true" aria-label={label} bind:this={panelEl} tabindex="-1" use:trapFocus>
+      <button class="bb-picker-panel__scrim" type="button" tabindex="-1" aria-hidden="true" onclick={requestClose}></button>
+      <div class="bb-picker-panel bb-picker-panel--sheet" data-lenis-prevent role="dialog" aria-modal="true" aria-label={label} {id} bind:this={panelEl} tabindex="-1" use:trapFocus>
         <span class="bb-picker-panel__grabber" aria-hidden="true"></span>
         {@render children()}
       </div>
@@ -156,6 +187,9 @@
       data-lenis-prevent
       role="dialog"
       aria-label={label}
+      {id}
+      tabindex="-1"
+      onkeydown={leaveDropdown}
       style:top={px(pos.top)}
       style:bottom={px(pos.bottom)}
       style:left={px(pos.left)}

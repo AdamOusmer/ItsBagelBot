@@ -218,7 +218,7 @@ describe('Mark', () => {
   });
 
   test('the size hook defaults to the old 5px diamond', async () => {
-    const tags = await Bun.file(new URL('../styles/tags.css', import.meta.url)).text();
+    const tags = await Bun.file(new URL('../styles/elements/mark.css', import.meta.url)).text();
     expect(tags).toContain('.bb-mark { width: var(--mark-size, 5px); height: var(--mark-size, 5px);');
   });
 });
@@ -380,11 +380,11 @@ describe('CopySurface', () => {
     astro: AstroCopySurface,
     props: { text: 'BAGEL', label: 'Creator code', hint: 'Click to copy', copiedLabel: 'Copied' },
     html:
-      '<button class="bb-copy bb-copy--card" type="button" data-copy="BAGEL">' +
+      '<span class="bb-copy-host"><button class="bb-copy bb-copy--card" type="button" data-copy="BAGEL">' +
       '<span class="bb-copy__label">Creator code</span><span class="bb-copy__row">' +
       '<span class="bb-copy__value">BAGEL</span><span class="bb-copy__hint" aria-hidden="true">' +
       '<span class="bb-copy__idle">Click to copy</span><span class="bb-copy__done">Copied</span></span></span>' +
-      '<span class="bb-copy__status" role="status"></span></button>',
+      '</button><span class="bb-copy__status" role="status"></span></span>',
   });
 
   contract({
@@ -393,10 +393,10 @@ describe('CopySurface', () => {
     astro: AstroCopySurface,
     props: { text: '/mod bot', variant: 'well', hint: 'Copy', copiedLabel: 'Copied', flashMs: 2000, legacyFallback: true },
     html:
-      '<button class="bb-copy bb-copy--well" type="button" data-copy="/mod bot" data-copy-ms="2000" data-copy-legacy>' +
+      '<span class="bb-copy-host"><button class="bb-copy bb-copy--well" type="button" data-copy="/mod bot" data-copy-ms="2000" data-copy-legacy>' +
       '<span class="bb-copy__row"><span class="bb-copy__value">/mod bot</span><span class="bb-copy__hint" aria-hidden="true">' +
       `<span class="bb-copy__idle">${icon('copy', 12)}Copy</span><span class="bb-copy__done">${icon('check', 12)}Copied</span>` +
-      '</span></span><span class="bb-copy__status" role="status"></span></button>',
+      '</span></span></button><span class="bb-copy__status" role="status"></span></span>',
   });
 
   contract({
@@ -405,10 +405,10 @@ describe('CopySurface', () => {
     astro: AstroCopySurface,
     props: { text: '!hi', variant: 'row', hint: '', copiedLabel: 'Copied', announce: 'Copied !hi' },
     html:
-      '<button class="bb-copy bb-copy--row" type="button" data-copy="!hi" data-copy-announce="Copied !hi">' +
+      '<span class="bb-copy-host"><button class="bb-copy bb-copy--row" type="button" data-copy="!hi" data-copy-announce="Copied !hi">' +
       '<span class="bb-copy__row"><span class="bb-copy__value">!hi</span><span class="bb-copy__hint" aria-hidden="true">' +
       '<span class="bb-copy__idle"></span><span class="bb-copy__done">Copied</span></span></span>' +
-      '<span class="bb-copy__status" role="status"></span></button>',
+      '</button><span class="bb-copy__status" role="status"></span></span>',
   });
 
   test('small print sizes are hooks with the old defaults', async () => {
@@ -418,7 +418,7 @@ describe('CopySurface', () => {
     expect(await read('elements/typography.css')).toContain('font-size: var(--label-mono-size, 10px);');
     expect(await read('elements/typography.css')).toContain('font-size: var(--h-label-size, 10px);');
     expect(await read('elements/badge.css')).toContain('font-size: var(--badge-pill-size, 10px);');
-    expect(await read('tags.css')).toContain('.bb-tabs--wrap > .bb-tab { flex-shrink: 0; }');
+    expect(await read('elements/tabs.css')).toContain('.bb-tabs--wrap > .bb-tab { flex-shrink: 0; }');
   });
 
   test('row children receive the copied state', () => {
@@ -460,12 +460,12 @@ describe('ProfileMenu', () => {
       }).body,
     );
     expect(html).toContain('<div class="bb-profile__scrim" role="presentation"></div>');
-    expect(html).toContain('<div class="bb-profile-topbar__op-menu" role="menu">');
-    expect(html).toContain('<span class="bb-profile__portrait"><i data-size="72" data-item="false"></i></span><b>Mavey</b><i>Owner</i>');
-    expect(html).toContain('<div class="bb-profile__section">Dashboards</div>');
+    expect(html).toContain('role="menu" aria-label="Account menu">');
+    expect(html).toContain('<div class="bb-profile__head" aria-hidden="true"><span class="bb-profile__portrait"><i data-size="72" data-item="false"></i></span><b>Mavey</b><i>Owner</i>');
+    expect(html).toContain('<div class="bb-profile__section" aria-hidden="true">Dashboards</div>');
     expect(html).toContain('<a class="bb-profile__link" href="/c/alpha" role="menuitem"><span class="bb-profile__avatar"><i data-size="26" data-item="true"></i></span>');
     expect(html).toContain(`<span class="bb-profile__avatar">${icon('home', 14)}</span><span class="bb-profile__name">Back to mine</span>`);
-    expect(html).toContain('<form method="POST" action="/auth/logout"><button type="submit" class="bb-profile-topbar__op-menu-item" role="menuitem">Log out</button></form>');
+    expect(html).toContain('<form method="POST" action="/auth/logout" role="none"><button type="submit" class="bb-profile-topbar__op-menu-item" role="menuitem">Log out</button></form>');
   });
 
   test('rail without dashboards shows help, a static account row and the logout', () => {
@@ -518,7 +518,7 @@ describe('Popover', () => {
     expect(id).toBeTruthy();
     expect(html).toContain(`<h2 class="bb-h bb-h--l6" id="${id}">Add to home screen</h2>`);
     expect(html).toContain('<button class="bb-popover__x" type="button" aria-label="Dismiss">');
-    expect(html).toContain('<div class="bb-popover__sheet" role="dialog" aria-modal="false"');
+    expect(html).toContain('role="dialog" aria-modal="false"');
     expect(html).toContain('<ol></ol></div></div>');
   });
 

@@ -19,10 +19,11 @@
 
   const i18n = getUiI18n();
   let {
-    title, description = '', items, actions, leading,
+    title, headingLevel = 2, description = '', items, actions, leading,
     emptyLabel = i18n.t('data.empty'), class: cls = '', ...rest
   }: {
     title: string;
+    headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
     description?: string;
     /** IDs are unique. Items render in the order supplied by the caller. */
     items: readonly RankingItem[];
@@ -39,7 +40,7 @@
 </script>
 
 <section class={['bb-ranking-card', cls].filter(Boolean).join(' ')} aria-label={title} {...rest}>
-  <header class="bb-ranking-card__head"><div class="bb-ranking-card__intro"><h2 class="bb-ranking-card__title">{title}</h2>{#if description}<p class="bb-ranking-card__description">{description}</p>{/if}</div>{#if actions}<div class="bb-ranking-card__actions">{@render actions()}</div>{/if}</header>
+  <header class="bb-ranking-card__head"><div class="bb-ranking-card__intro"><svelte:element this={`h${headingLevel}`} class="bb-ranking-card__title">{title}</svelte:element>{#if description}<p class="bb-ranking-card__description">{description}</p>{/if}</div>{#if actions}<div class="bb-ranking-card__actions">{@render actions()}</div>{/if}</header>
   {#if items.length}
     <ol class="bb-ranking-card__list">
       {#each items as item, index (item.id)}

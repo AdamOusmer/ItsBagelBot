@@ -216,7 +216,10 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/select", budget: 1060 },
   { name: "elements/tooltip", budget: 730 },
   { name: "elements/table", budget: 830 }, // 596 B: min width hook (2026-09-29)
-  { name: "tags", budget: 2830 }, // 2420 B: tier, status and toc tones, mark size hook (2026-09-29)
+  { name: "elements/tag", budget: 1000 }, // 760 B: split from tags.css (2026-09-29)
+  { name: "elements/mark", budget: 890 }, // 652 B: mark, sweep, drawline, split from tags.css (2026-09-29)
+  { name: "elements/tabs", budget: 1440 }, // 1169 B: split from tags.css (2026-09-29)
+  { name: "elements/page", budget: 830 }, // 604 B: page head, toolbar, scroller, split from shell.css (2026-09-29)
   { name: "reveal", budget: 520 },
   { name: "orbs", budget: 1000 },
   { name: "a11y", budget: 560 },
@@ -227,9 +230,9 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/brand-mark", budget: 900 },
   { name: "elements/nav", budget: 2400 },
   { name: "elements/footer", budget: 1100 },
-  { name: "elements/shell", budget: 3800 },
+  { name: "elements/shell", budget: 3200 }, // 2818 B after the page head split (2026-09-29)
   { name: "elements/badge", budget: 320 },
-  { name: "elements/chip", budget: 340 },
+  { name: "elements/chip", budget: 1110 }, // 864 B: chip base and tier tones, split from tags.css (2026-09-29)
   { name: "elements/empty-state", budget: 500 },
   { name: "elements/field", budget: 760 },
   { name: "elements/search-input", budget: 520 },
@@ -249,7 +252,6 @@ const CSS_ENTRIES: { name: string; budget: number }[] = [
   { name: "elements/overview-grid", budget: 420 },
   { name: "elements/page-hero", budget: 1090 },
   { name: "elements/reading-progress", budget: 450 },
-  { name: "elements/save-status", budget: 270 },
   { name: "elements/section-heading", budget: 560 },
   { name: "elements/surface", budget: 980 },
   { name: "elements/text-link", budget: 1910 }, // 1583 B: arrow, inline and quiet variants

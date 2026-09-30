@@ -3,7 +3,8 @@
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
   import type { Snippet } from 'svelte';
-  import '../styles/tags.css';
+  import '../styles/elements/tag.css';
+  import '../styles/elements/mark.css';
   import '../styles/elements/badge.css';
   import type { BadgeTone } from '../lib/tone';
 

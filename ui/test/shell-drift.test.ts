@@ -42,11 +42,11 @@ describe('ProfileMenu help group', () => {
         },
       }).body,
     );
-    expect(html).toContain('<div class="bb-profile-topbar__op-dash-group"><div class="bb-profile__section">Help</div>');
+    expect(html).toContain('<div class="bb-profile-topbar__op-dash-group" role="group" aria-label="Help"><div class="bb-profile__section" aria-hidden="true">Help</div>');
     expect(html).toContain('<span class="bb-profile__hint" title="a@b.c">a@b.c</span>');
     expect(html).toContain('target="_blank" rel="noopener noreferrer"');
     expect(html).toContain('<span class="bb-profile__name">Status <span class="bb-sr-only">opens in new tab</span></span>');
-    expect(html.indexOf('bb-profile__section">Help')).toBeLessThan(html.indexOf('<form'));
+    expect(html.indexOf('bb-profile__section" aria-hidden="true">Help')).toBeLessThan(html.indexOf('<form'));
   });
 
   test('topbar without help lines or more links has no help group', () => {

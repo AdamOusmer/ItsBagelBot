@@ -75,12 +75,19 @@
     more = [],
     newTabLabel = i18n.t('profile.newTab'),
     feedback,
-    menuLabel,
+    menuLabel = i18n.t('profile.menu'),
     triggerLabel,
     avatar,
     class: className = '',
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
+
+  const uid = $props.id();
+  const accountMenuId = `bb-profile-menu-${uid}`;
+  const helpMenuId = `bb-profile-help-${uid}`;
+  const menuName = $derived(menuLabel || i18n.t('profile.menu'));
+  const helpName = $derived(helpLabel || i18n.t('profile.help'));
+  const helpGroupName = $derived(helpTitle || helpName);
 
   let hovered = $state(false);
   let topTrigger = $state<HTMLButtonElement | null>(null);
@@ -107,10 +114,6 @@
     helpOpen = false;
   }
 
-  function closeOnEnter(event: KeyboardEvent) {
-    if (event.key === 'Enter') close();
-  }
-
   function opener() {
     if (helpOpen) return helpTrigger;
     if (!open) return null;
@@ -134,12 +137,12 @@
 <svelte:window {onkeydown} />
 
 {#snippet scrim()}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="bb-profile__scrim" role="presentation" onclick={close} onkeydown={closeOnEnter}></div>
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="bb-profile__scrim" role="presentation" onclick={close}></div>
 {/snippet}
 
 {#snippet head()}
-  <div class="bb-profile__head">
+  <div class="bb-profile__head" aria-hidden="true">
     <span class="bb-profile__portrait">{@render avatar({ name, size: 72, active: open, item: false })}</span>
     <b>{name}</b>
     <i>{caption}</i>
@@ -147,7 +150,7 @@
 {/snippet}
 
 {#snippet list()}
-  <div class="bb-profile__section">{linksLabel}</div>
+  <div class="bb-profile__section" aria-hidden="true">{linksLabel}</div>
   <Scroller maxHeight="208px" role="group" aria-label={linksLabel}>
     <div class="bb-profile__list">
       {#each links as link (link.href)}
@@ -209,6 +212,7 @@
     aria-label={trigger}
     aria-expanded={open}
     aria-haspopup="menu"
+    aria-controls={open ? accountMenuId : undefined}
     bind:this={topTrigger}
     onclick={toggleAccount}
     onpointerenter={hover(true)}
@@ -220,18 +224,18 @@
   </button>
   {#if open}
     {@render scrim()}
-    <div class="bb-profile-topbar__op-menu" role="menu" aria-label={menuLabel} use:menuKeys={closeToTrigger}>
+    <div class="bb-profile-topbar__op-menu" id={accountMenuId} role="menu" aria-label={menuName} use:menuKeys={closeToTrigger}>
       {@render head()}
       {#if links.length}<div class="bb-profile-topbar__op-dash-group">{@render list()}</div>{/if}
       {#if exit}<div class="bb-profile-topbar__op-dash-group">{@render exitLink(exit)}</div>{/if}
       {#if hasTopbarHelp}
-        <div class="bb-profile-topbar__op-dash-group">
-          <div class="bb-profile__section">{helpTitle}</div>
+        <div class="bb-profile-topbar__op-dash-group" role="group" aria-label={helpGroupName}>
+          <div class="bb-profile__section" aria-hidden="true">{helpTitle}</div>
           {#each help as line (line.href)}{@render helpLine(line)}{/each}
           {#each more as line (line.href)}{@render moreLine(line)}{/each}
         </div>
       {/if}
-      <form method="POST" action={logoutAction} onsubmit={onLogout}>
+      <form method="POST" action={logoutAction} onsubmit={onLogout} role="none">
         <button type="submit" class="bb-profile-topbar__op-menu-item" role="menuitem">{logoutLabel}</button>
       </form>
     </div>
@@ -247,8 +251,9 @@
             type="button"
             aria-expanded={helpOpen}
             aria-haspopup="menu"
+            aria-controls={helpOpen ? helpMenuId : undefined}
             bind:this={helpTrigger}
-            onclick={toggleHelp}>{helpLabel}</button
+            onclick={toggleHelp}>{helpName}</button
           >
         {/if}
         {#if feedback}
@@ -263,7 +268,7 @@
     {/if}
     {#if open || helpOpen}{@render scrim()}{/if}
     {#if helpOpen}
-      <div class="bb-profile-rail__foot-menu" role="menu" aria-label={helpLabel} use:menuKeys={closeToTrigger}>
+      <div class="bb-profile-rail__foot-menu" id={helpMenuId} role="menu" aria-label={helpName} use:menuKeys={closeToTrigger}>
         {#each help as line (line.href)}{@render helpLine(line)}{/each}
       </div>
     {/if}
@@ -274,6 +279,7 @@
         type="button"
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-controls={open ? accountMenuId : undefined}
         bind:this={railTrigger}
         onclick={toggleAccount}
         onpointerenter={hover(true)}
@@ -286,7 +292,7 @@
         >
       </button>
       {#if open}
-        <div class="bb-profile-rail__foot-menu" role="menu" aria-label={menuLabel} use:menuKeys={closeToTrigger}>
+        <div class="bb-profile-rail__foot-menu" id={accountMenuId} role="menu" aria-label={menuName} use:menuKeys={closeToTrigger}>
           {@render head()}
           {#if links.length}{@render list()}{/if}
           {#if exit}{@render exitLink(exit)}{/if}

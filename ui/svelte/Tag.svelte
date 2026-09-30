@@ -2,7 +2,8 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { HTMLAttributes } from 'svelte/elements';
-  import '../styles/tags.css';
+  import '../styles/elements/tag.css';
+  import '../styles/elements/mark.css';
   import type { Snippet } from 'svelte';
   import type { TagTone } from '../lib/tone';
 

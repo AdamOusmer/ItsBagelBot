@@ -3,6 +3,6 @@
 // Proprietary. No license granted. See LICENSE.md.
 
 import CardHead from '../../astro/CardHead.astro';
-const { title = 'Recent', withAction = false } = Astro.props;
+const { title = 'Recent', withAction = false, headingLevel } = Astro.props;
 ---
-{withAction ? <CardHead title={title}><a class="bb-card-head__more" href="/x" slot="actions">All</a></CardHead> : <CardHead title={title} />}
+{withAction ? <CardHead title={title} headingLevel={headingLevel}><a class="bb-card-head__more" href="/x" slot="actions">All</a></CardHead> : <CardHead title={title} headingLevel={headingLevel} />}

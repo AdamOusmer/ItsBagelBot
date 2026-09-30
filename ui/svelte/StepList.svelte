@@ -29,8 +29,9 @@
   import { prefersReducedMotion } from '../lib/motion-query';
   import Icon from './Icon.svelte';
   import ProgressBar from './ProgressBar.svelte';
+  import VisuallyHidden from './VisuallyHidden.svelte';
   import { getUiI18n } from './i18n';
-  import '../styles/tags.css';
+  import '../styles/elements/mark.css';
   import '../styles/elements/step-list.css';
 
   type Own = {
@@ -42,6 +43,9 @@
     label?: string;
     class?: string;
   };
+  type Navigable = { onSelect: (id: string) => void; label: string };
+  type Plain = { onSelect?: undefined };
+  type Rest = Omit<HTMLAttributes<HTMLElement>, keyof Own>;
 
   let {
     steps,
@@ -52,7 +56,7 @@
     label,
     class: className = '',
     ...rest
-  }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
+  }: Own & Rest & (Navigable | Plain) = $props();
 
   const i18n = getUiI18n();
   const DEFAULT_LABELS: Record<StepState, string> = {
@@ -143,6 +147,7 @@
             </span>
             <span class="bb-step__text">
               <span class="bb-step__label">{step.label}</span>
+              <VisuallyHidden>{labels[step.state]}</VisuallyHidden>
               <span class="bb-step__meta">{step.meta ?? ''}</span>
               <span class="bb-step__track" aria-hidden="true">
                 <span class={step.value === null ? 'bb-step__fill bb-step__fill--indeterminate' : 'bb-step__fill'} style="--step-value: {step.value ?? 0};"></span>

@@ -106,13 +106,35 @@ export function overlayContains(panel: HTMLElement, target: Node | null): boolea
   return false;
 }
 
-const FOCUSABLE =
+export function wirePopupAnchor(anchor: HTMLElement, open: boolean, panelId: string): () => void {
+  const owned: string[] = [];
+  const set = (name: string, value: string) => {
+    if (anchor.hasAttribute(name)) return;
+    anchor.setAttribute(name, value);
+    owned.push(name);
+  };
+  set('aria-haspopup', 'dialog');
+  set('aria-expanded', String(open));
+  if (open) set('aria-controls', panelId);
+  return () => owned.forEach((name) => anchor.removeAttribute(name));
+}
+
+export function focusWithin(container: HTMLElement): void {
+  const target = container.querySelector<HTMLElement>(FOCUSABLE) ?? container;
+  target.focus({ preventScroll: true });
+}
+
+export const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+export function isRendered(el: HTMLElement): boolean {
+  return el.checkVisibility?.() ?? el.getClientRects().length > 0;
+}
 
 export function trapFocus(node: HTMLElement) {
   const opener = document.activeElement as HTMLElement | null;
 
-  const visible = (el: HTMLElement) => el.offsetParent !== null || el === document.activeElement;
+  const visible = (el: HTMLElement) => el === document.activeElement || isRendered(el);
   const items = () => Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(visible);
 
   let raf2 = 0;

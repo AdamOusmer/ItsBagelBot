@@ -221,8 +221,8 @@ describe('RadioGroup and SegmentedControl', () => {
     props: { value: 'custom', label: 'Mode', options: [{ value: 'custom', label: 'Custom' }, 'plain'] },
     html:
       '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Mode">' +
-      '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" value="custom">Custom</button>' +
-      '<button type="button" class="bb-tab " role="radio" aria-checked="false" value="plain">plain</button></div>',
+      '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="custom">Custom</button>' +
+      '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="plain">plain</button></div>',
   });
 
   contract({
@@ -236,8 +236,8 @@ describe('RadioGroup and SegmentedControl', () => {
     },
     html:
       '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Mode">' +
-      '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" value="custom" data-mode="custom">Custom</button>' +
-      '<button type="button" class="bb-tab " role="radio" aria-checked="false" value="plain">plain</button></div>',
+      '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="custom" data-mode="custom">Custom</button>' +
+      '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="plain">plain</button></div>',
   });
 
   test('the astro tabs sync is-active with the checked radio', async () => {

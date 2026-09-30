@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
+	import '@bagel/ui/styles/elements/layout.css';
   import Select from '@bagel/ui/svelte/Select.svelte';
   import { untrack } from 'svelte';
   import { createInspector } from '@bagel/ui/svelte/inspector';

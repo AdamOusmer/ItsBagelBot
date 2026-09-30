@@ -4,7 +4,7 @@
 import type { HTMLAttributes } from 'astro/types';
 import { uiI18n } from './i18n';
 
-import '../styles/tags.css';
+import '../styles/elements/tabs.css';
 
 interface Props extends Omit<HTMLAttributes<'div'>, 'options' | 'value' | 'label' | 'class'> {
     options: readonly (string | { value: string; label: string; count?: number | string; attrs?: Record<string, string> })[];
@@ -16,10 +16,11 @@ interface Props extends Omit<HTMLAttributes<'div'>, 'options' | 'value' | 'label
 const { t } = uiI18n(Astro);
 const { options, value = '', label = t('choice.filter'), class: className = '', ...rest } = Astro.props;
 const items = options.map((opt) => (typeof opt === 'string' ? { value: opt, label: opt, count: undefined, attrs: undefined } : opt));
+const tabStop = items.some((opt) => opt.value === value) ? value : items[0]?.value;
 const classes = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
 ---
 
-<div class={classes} role="radiogroup" aria-label={label} {...rest}>{items.map((opt) => (<button type="button" class={`bb-tab ${value === opt.value ? 'is-active' : ''}`} role="radio" aria-checked={value === opt.value} value={opt.value} {...opt.attrs}>{opt.label}{opt.count !== undefined && <span class="bb-tab__count">{opt.count}</span>}</button>))}</div>
+<div class={classes} role="radiogroup" aria-label={label} {...rest}>{items.map((opt) => (<button type="button" class={`bb-tab ${value === opt.value ? 'is-active' : ''}`} role="radio" aria-checked={value === opt.value} tabindex={tabStop === opt.value ? 0 : -1} value={opt.value} {...opt.attrs}>{opt.label}{opt.count !== undefined && <span class="bb-tab__count">{opt.count}</span>}</button>))}</div>
 
 <script>
     import { rovingTarget } from '../lib/roving-focus';
@@ -32,6 +33,7 @@ const classes = ['bb-tabs bb-tabs--wrap', className].filter(Boolean).join(' ');
             const on = button === chosen;
             button.setAttribute('aria-checked', String(on));
             button.classList.toggle('is-active', on);
+            button.tabIndex = on ? 0 : -1;
         }
     }
 

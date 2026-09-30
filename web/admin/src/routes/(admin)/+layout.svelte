@@ -74,6 +74,13 @@
         title={t('bell.title')}
         viewAllLabel={t('bell.viewAll')}
         emptyLabel={t('common.loading')}
+        unreadLabel={(count) => t('bell.unread', { count })}
+        levelLabels={{
+          info: t('bell.levelInfo'),
+          success: t('bell.levelSuccess'),
+          warning: t('bell.levelWarning'),
+          critical: t('bell.levelCritical')
+        }}
       />
     {:then list}
       <NotificationBell
@@ -82,6 +89,13 @@
         title={t('bell.title')}
         viewAllLabel={t('bell.viewAll')}
         emptyLabel={t('bell.empty')}
+        unreadLabel={(count) => t('bell.unread', { count })}
+        levelLabels={{
+          info: t('bell.levelInfo'),
+          success: t('bell.levelSuccess'),
+          warning: t('bell.levelWarning'),
+          critical: t('bell.levelCritical')
+        }}
       />
     {/await}
   {/snippet}

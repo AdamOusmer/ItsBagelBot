@@ -4,6 +4,7 @@
   import type { SvelteHTMLElements } from 'svelte/elements';
   import '../styles/elements/tooltip.css';
   import type { Snippet } from 'svelte';
+  import { wireTooltip } from '../lib/tooltip';
 
   type Own = {
     text: string;
@@ -27,11 +28,20 @@
       .filter(Boolean)
       .join(' '),
   );
+
+  const uid = $props.id();
+  const bubbleId = $derived(id ?? `bb-tooltip-${uid}`);
+  let root = $state<HTMLSpanElement>();
+  let bubble = $state<HTMLSpanElement>();
+
+  $effect(() => {
+    if (root && bubble) return wireTooltip(root, bubble);
+  });
 </script>
 
-<span class={classes} {...rest}>{@render children()}<span
+<span class={classes} bind:this={root} {...rest}>{@render children()}<span
     class="bb-tooltip__bubble"
-    {id}
-    role={id ? 'tooltip' : undefined}
-    aria-hidden={id ? undefined : 'true'}>{text}</span
+    id={bubbleId}
+    role="tooltip"
+    bind:this={bubble}>{text}</span
   ></span>

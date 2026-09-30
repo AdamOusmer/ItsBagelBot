@@ -304,9 +304,9 @@ contract({
   },
   html:
     '<div class="bb-tabs bb-tabs--wrap" role="radiogroup" aria-label="Source">' +
-    '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" value="all">All<span class="bb-tab__count">12</span></button>' +
-    '<button type="button" class="bb-tab " role="radio" aria-checked="false" value="mod">Modules<span class="bb-tab__count">0</span></button>' +
-    '<button type="button" class="bb-tab " role="radio" aria-checked="false" value="Plain">Plain</button></div>',
+    '<button type="button" class="bb-tab is-active" role="radio" aria-checked="true" tabindex="0" value="all">All<span class="bb-tab__count">12</span></button>' +
+    '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="mod">Modules<span class="bb-tab__count">0</span></button>' +
+    '<button type="button" class="bb-tab " role="radio" aria-checked="false" tabindex="-1" value="Plain">Plain</button></div>',
 });
 
 describe('SwitchRow', () => {
@@ -435,13 +435,13 @@ describe('control stylesheets', () => {
     (await Bun.file(new URL(`../styles/${path}`, import.meta.url)).text()).replace(/\/\*[\s\S]*?\*\//g, '');
 
   test('error red comes from the status token, not a literal', async () => {
-    for (const path of ['elements/field.css', 'elements/typography.css', 'elements/button.css', 'tags.css']) {
+    for (const path of ['elements/field.css', 'elements/typography.css', 'elements/button.css', 'elements/tag.css', 'elements/chip.css']) {
       expect(await css(path)).not.toMatch(/#cf8a78/i);
     }
   });
 
   test('tier tones read the tier tokens, and vip stays silver', async () => {
-    const tags = await css('tags.css');
+    const tags = (await css('elements/tag.css')) + (await css('elements/chip.css'));
     for (const tier of ['free', 'paid', 'vip', 'banned', 'inactive']) {
       expect(tags).toContain(`--tone: var(--bb-tier-${tier});`);
     }

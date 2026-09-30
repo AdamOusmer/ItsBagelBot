@@ -1,23 +1,10 @@
 /* Copyright (c) 2026 Adam Ousmer. All rights reserved.
    Proprietary. No license granted. See LICENSE.md. */
 
-@import '@bagel/ui/styles/elements/button.css';
-@import '@bagel/ui/styles/elements/card.css';
-@import '@bagel/ui/styles/tags.css';
 @import '@bagel/ui/styles/motion.css';
 @import '@bagel/ui/styles/reveal.css';
-@import '@bagel/ui/styles/orbs.css';
 @import '@bagel/ui/styles/a11y.css';
 @import '@bagel/ui/styles/lenis.css';
-@import '@bagel/ui/styles/elements/badge.css';
-@import '@bagel/ui/styles/elements/chip.css';
-@import '@bagel/ui/styles/elements/empty-state.css';
-@import '@bagel/ui/styles/elements/feed.css';
-@import '@bagel/ui/styles/elements/field.css';
-@import '@bagel/ui/styles/elements/search-input.css';
-@import '@bagel/ui/styles/elements/skeleton.css';
-@import '@bagel/ui/styles/elements/stat-tile.css';
-@import '@bagel/ui/styles/elements/toggle.css';
 
 html, body { margin: 0; padding: 0; height: 100%; }
 html { overflow-x: hidden; }

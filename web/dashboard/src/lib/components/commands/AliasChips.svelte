@@ -44,6 +44,7 @@
 
 <Input
   fill
+  aria-label={t('commandEditor.altNames')}
   placeholder={t('commandEditor.aliasPlaceholder')}
   bind:value={draft}
   onkeydown={onKey}

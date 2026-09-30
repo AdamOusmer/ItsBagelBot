@@ -279,7 +279,7 @@
     {#snippet heading()}
       <div class="stats-heading">
         <Tag tone="live" mark="solid" sweep>{t('stats.liveNote')}</Tag>
-        <Heading level={1} class="stats-page__title">{t('stats.pageHeadline')}<span class="ink-tan" aria-hidden="true">.</span></Heading>
+        <Heading level={1} class="stats-layout__title">{t('stats.pageHeadline')}<span class="ink-tan" aria-hidden="true">.</span></Heading>
         <Text size="sm" tone="muted">{t('stats.pageTagline')}</Text>
       </div>
     {/snippet}

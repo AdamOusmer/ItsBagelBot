@@ -49,12 +49,12 @@
                     box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
-    .bb-input:focus-within {
+    .bb-input:focus-within:not(:where([data-invalid])) {
         border-color: var(--bb-border-strong);
         box-shadow: 0 0 0 3px rgba(var(--bb-tan-rgb), 0.10);
     }
 
-    .bb-input svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+    .bb-input :where(svg) { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
 
     .bb-input input {
         background: none;

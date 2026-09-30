@@ -3,5 +3,10 @@
   "viewAll": "View all →",
   "empty": "Nothing yet.",
   "read": "Read",
-  "markFailed": "Could not mark that as read."
+  "markFailed": "Could not mark that as read.",
+  "unread": "Unread: {count}",
+  "levelInfo": "Info",
+  "levelSuccess": "Success",
+  "levelWarning": "Warning",
+  "levelCritical": "Critical"
 }

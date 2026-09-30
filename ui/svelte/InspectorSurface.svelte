@@ -6,6 +6,7 @@
 
   import '../styles/elements/card.css';
   import '../styles/elements/surface.css';
+  import '../styles/elements/tag.css';
   import Icon from './Icon.svelte';
   import type { Snippet } from 'svelte';
   import { mediaQuery } from '../lib/motion-query';

@@ -156,6 +156,13 @@
           viewAllLabel={t('bell.viewAll')}
           emptyLabel={t('bell.empty')}
           readLabel={t('bell.read')}
+          unreadLabel={(count) => t('bell.unread', { count })}
+          levelLabels={{
+            info: t('bell.levelInfo'),
+            success: t('bell.levelSuccess'),
+            warning: t('bell.levelWarning'),
+            critical: t('bell.levelCritical')
+          }}
         />
       {/await}
     {/if}

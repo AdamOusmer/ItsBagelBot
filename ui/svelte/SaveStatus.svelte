@@ -8,7 +8,8 @@
 
 <script lang="ts">
   import type { SvelteHTMLElements } from 'svelte/elements';
-  import '../styles/elements/save-status.css';
+  import '../styles/elements/tag.css';
+  import '../styles/elements/mark.css';
 
   const i18n = getUiI18n();
   let {

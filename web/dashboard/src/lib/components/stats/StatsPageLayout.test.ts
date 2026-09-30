@@ -33,12 +33,12 @@ for (const arrangement of ['playful', 'onboarding', 'gathering'] as const) {
         chosen.map(([name, html]) => [name, createRawSnippet(() => ({ render: () => html }))]),
       );
       const html = withoutComments(render(StatsPageLayout, { props: { arrangement, class: 'preview', ...snippets } as never }).body);
-      expect(html).toContain(`class="stats-page stats-page--${arrangement} preview"`);
+      expect(html).toContain(`class="stats-layout stats-layout--${arrangement} preview"`);
       expect(html).toContain('bb-ambient-sky bb-ambient-sky--fixed');
-      expect(html).toContain('<div class="stats-page__counters"><article>Messages</article><article>Events</article></div>');
-      expect(html.includes('stats-page__notice')).toBe(optional);
-      expect(html.includes('stats-page__crowd')).toBe(optional);
-      expect(html.includes('stats-page__footer')).toBe(optional);
+      expect(html).toContain('<div class="stats-layout__counters"><article>Messages</article><article>Events</article></div>');
+      expect(html.includes('stats-layout__notice')).toBe(optional);
+      expect(html.includes('stats-layout__crowd')).toBe(optional);
+      expect(html.includes('stats-layout__footer')).toBe(optional);
     });
   }
 }

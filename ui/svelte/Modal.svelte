@@ -16,19 +16,24 @@
   } from '../lib/overlay-stack';
 
   const i18n = getUiI18n();
+  type Named = { title: string } | { title?: undefined; label: string };
+  type Toolbar = { toolbar?: undefined } | { toolbar: Snippet; toolbarLabel: string };
   type Own = {
     open?: boolean;
     title?: string;
+    label?: string;
+    toolbarLabel?: string;
+    toolbar?: Snippet;
     onClose?: () => void;
     onOpenChange?: (open: boolean) => void;
     busy?: boolean;
     closeLabel?: string;
-    label?: string;
     variant?: 'dialog' | 'viewer';
-    toolbarLabel?: string;
+    role?: 'dialog' | 'alertdialog';
+    describedBy?: string;
+    headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
     class?: string;
     children?: Snippet;
-    toolbar?: Snippet;
     hint?: Snippet;
   };
 
@@ -41,13 +46,16 @@
     closeLabel = i18n.t('action.close'),
     label,
     variant = 'dialog',
+    role = 'dialog',
+    describedBy,
+    headingLevel = 3,
     toolbarLabel,
     class: className = '',
     children,
     toolbar,
     hint,
     ...rest
-  }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
+  }: Own & Named & Toolbar & Omit<SvelteHTMLElements['div'], keyof Own | 'title'> = $props();
 
   const uid = $props.id();
   const titleId = `bb-modal-title-${uid}`;
@@ -94,14 +102,15 @@
       onclick={tryClose}
     ></button><div
       class="bb-modal__card"
-      role="dialog"
+      {role}
       aria-modal="true"
       tabindex="-1"
+      aria-describedby={describedBy}
       aria-labelledby={title ? titleId : undefined}
       aria-label={title ? undefined : label}
       data-lenis-prevent
       use:trapFocus
-    >{#if title}<h3 class="bb-modal__title" id={titleId}>{title}</h3>{/if}{#if viewer}<div class="bb-modal__stage"
+    >{#if title}<svelte:element this={`h${headingLevel}`} class="bb-modal__title" id={titleId}>{title}</svelte:element>{/if}{#if viewer}<div class="bb-modal__stage"
           >{#if children}{@render children()}{/if}</div
         >{#if toolbar}<div class="bb-modal__toolbar" role="toolbar" aria-label={toolbarLabel}
             >{@render toolbar()}</div

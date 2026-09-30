@@ -166,7 +166,7 @@
           <Cluster gap={2}>
             <Button variant="primary" onclick={generate}>{t('admin.secrets.generate')}</Button>
             {#if generated}
-              <Input fill mono type="text" readonly value={generated} />
+              <Input fill mono type="text" readonly aria-label={t('admin.secrets.generatedValue')} value={generated} />
               <Button variant="ghost" onclick={copyGenerated}>
                 {genCopied ? t('common.copied') : t('common.copy')}
               </Button>
