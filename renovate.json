@@ -6,7 +6,7 @@
   ],
   "timezone": "America/Toronto",
   "schedule": [
-    "before 5am on Monday"
+    "* 0-4 1 * *"
   ],
   "dependencyDashboard": false,
   "prConcurrentLimit": 5,
@@ -30,12 +30,13 @@
   },
   "constraints": {
     "bun": "1.4.2",
-    "elixir": "1.20.3"
+    "elixir": "1.20.3",
+    "erlang": "^28"
   },
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": [
-      "before 5am on Monday"
+      "* 0-4 1 * *"
     ]
   },
   "vulnerabilityAlerts": {
