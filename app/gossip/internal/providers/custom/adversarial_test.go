@@ -53,7 +53,7 @@ func TestAdvTruncatedAndGarbageJSONIsStableBadDef(t *testing.T) {
 			cached := call(t, h, gossiprpc.Request{ChannelID: "ch1", DefID: "w"})
 			assert.Equal(t, gossiprpc.FetchBadDef, cached.Status)
 			assert.Equal(t, int32(1), h.hits.Load(), "negative cache must absorb the retry")
-			assert.Equal(t, 2*negativeTTL, h.store.retention(resultKey(strings.ToLower("w"))), "bad authoring caches briefly, not forever")
+			assert.Equal(t, 2*negativeTTL, h.store.retention(storedResultKey("ch1", h.defs["w"])), "bad authoring caches briefly, not forever")
 		})
 	}
 }

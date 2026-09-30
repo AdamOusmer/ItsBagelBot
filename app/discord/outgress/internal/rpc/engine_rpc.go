@@ -19,6 +19,7 @@ import (
 const engineHandleTimeout = 8 * time.Second
 
 type engineREST interface {
+	discapi.ChannelReader
 	CreateChannel(ctx context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error)
 	DeleteChannel(ctx context.Context, ch discapi.Snowflake) error
 	ModifyChannel(ctx context.Context, patch discapi.ChannelPatch) error
@@ -123,6 +124,9 @@ func (h *engineRPC) handleLiveOnline(ctx context.Context, req discordoutgress.Li
 	if _, known := h.live.GetLiveMessage(ctx, kv.GuildID(req.GuildID)); known {
 		return discordoutgress.LiveOnlineReply{}
 	}
+	if err := discapi.RequireGuildChannel(ctx, h.rest, req.GuildID, req.ChannelID); err != nil {
+		return discordoutgress.LiveOnlineReply{Error: err.Error()}
+	}
 	msg, err := h.rest.SendEmbed(ctx, discapi.EmbedPost{ChannelID: req.ChannelID, Embed: req.Embed})
 	if err != nil {
 		return discordoutgress.LiveOnlineReply{Error: err.Error()}
@@ -140,6 +144,9 @@ func (h *engineRPC) handleLiveOffline(ctx context.Context, req discordoutgress.L
 	msg, known := h.live.GetLiveMessage(ctx, kv.GuildID(req.GuildID))
 	if !known {
 		return discordoutgress.LiveOfflineReply{}
+	}
+	if err := discapi.RequireGuildChannel(ctx, h.rest, req.GuildID, msg.ChannelID); err != nil {
+		return discordoutgress.LiveOfflineReply{Error: err.Error()}
 	}
 	err := h.rest.EditMessage(ctx, msg, discapi.MessagePatch{Content: ddiscord.OfflineContent, Embeds: []ddiscord.Embed{}})
 	if keepLiveMessage(err) {

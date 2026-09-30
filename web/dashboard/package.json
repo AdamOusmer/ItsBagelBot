@@ -8,7 +8,8 @@
     "verify:demo-gated": "bun ../kit/scripts/assert-demo-gated.mjs dashboard",
     "verify:production-clean": "bun scripts/assert-production-clean.ts",
     "preview": "NEW_RELIC_ENABLED=false bun ../serve-node.js",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test:account-isolation": "bun test/account-isolation-harness.ts"
   },
   "dependencies": {
     "@bagel/kit": "workspace:*",

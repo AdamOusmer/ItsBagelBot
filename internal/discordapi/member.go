@@ -33,10 +33,38 @@ func memberPath(m GuildMember) string {
 
 type ChannelInfo struct {
 	ID                   string                `json:"id"`
+	GuildID              string                `json:"guild_id"`
 	Name                 string                `json:"name"`
 	Type                 int                   `json:"type"`
 	ParentID             string                `json:"parent_id"`
 	PermissionOverwrites []PermissionOverwrite `json:"permission_overwrites"`
+}
+
+// GetChannel includes guild_id for text, voice, category and thread channels.
+func (c *Client) GetChannel(ctx context.Context, channelID string) (ChannelInfo, error) {
+	var out ChannelInfo
+	err := c.doInto(ctx, request{method: http.MethodGet, path: "/channels/" + url.PathEscape(channelID)}, &out)
+	return out, err
+}
+
+type ChannelReader interface {
+	GetChannel(context.Context, string) (ChannelInfo, error)
+}
+
+// RequireGuildChannel fails closed before a guild-scoped operation uses a
+// channel addressed only by its globally unique id. DMs have no guild_id.
+func RequireGuildChannel(ctx context.Context, reader ChannelReader, guildID, channelID string) error {
+	if guildID == "" || channelID == "" {
+		return ErrBadRequest
+	}
+	channel, err := reader.GetChannel(ctx, channelID)
+	if err != nil {
+		return err
+	}
+	if channel.ID != channelID || channel.GuildID != guildID {
+		return ErrForbidden
+	}
+	return nil
 }
 
 func (c *Client) ListGuildChannelsFull(ctx context.Context, guild Guild) ([]ChannelInfo, error) {

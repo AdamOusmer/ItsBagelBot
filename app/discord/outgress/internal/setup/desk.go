@@ -33,6 +33,14 @@ func (w *Worker) RepostDesk(ctx context.Context, req DeskRepostRequest) (string,
 	if channelID == "" {
 		return "", discapi.ErrBadRequest
 	}
+	if err := discapi.RequireGuildChannel(ctx, w.discord, req.GuildID, channelID); err != nil {
+		return "", err
+	}
+	if previous.ChannelID != "" && previous.MessageID != "" {
+		if err := discapi.RequireGuildChannel(ctx, w.discord, req.GuildID, previous.ChannelID); err != nil {
+			return "", err
+		}
+	}
 	w.deleteDeskMessage(ctx, previous)
 	return w.postDesk(ctx, req, channelID)
 }

@@ -143,6 +143,7 @@ interface TranslationResult {
 
 interface ScanState {
   text: string;
+  parenEnds: Map<number, number>;
   cmdName: string;
   res: TranslationResult;
   out: string;
@@ -161,6 +162,7 @@ function warnOnce(s: ScanState, code: string, message: string): void {
 export function translateVariables(text: string, cmdName: string, sink?: FetchSlotSink): TranslationResult {
   const s: ScanState = {
     text,
+    parenEnds: indexParens(text),
     cmdName,
     res: { text: '', diags: [], external: false },
     out: '',
@@ -440,19 +442,36 @@ function parenArg(s: ScanState, cursor: ParamCursor): string | null {
 }
 
 function skipParensSpan(s: ScanState, cursor: ParamCursor): number | null {
-  const { text } = s;
-  if (text[cursor.next] !== '(') return null;
-  let depth = 0;
-  for (let i = cursor.next; i < text.length; i++) {
-    depth += parenStep(text[i]);
-    if (depth === 0) return i + 1;
-  }
-  return null;
+  return s.parenEnds.get(cursor.next) ?? null;
 }
 
-function parenStep(ch: string): number {
-  if (ch === '(') return 1;
-  return ch === ')' ? -1 : 0;
+// Index every group once, including balanced groups inside an unmatched one.
+// All parameter handlers share O(1) lookups, so repeated malformed parameters
+// cannot each rescan the remaining response. Quotes retain their old treatment
+// as plain characters; this changes only the amount of work, not the grammar.
+function indexParens(text: string): Map<number, number> {
+  const index = new ParenIndex();
+  for (let i = 0; i < text.length; i++) index.read(text[i], i);
+  return index.ends;
+}
+
+class ParenIndex {
+  readonly ends = new Map<number, number>();
+  private readonly opens: number[] = [];
+
+  read(ch: string, at: number): void {
+    if (ch === '(') {
+      this.opens.push(at);
+      return;
+    }
+    if (ch === ')') this.close(at);
+  }
+
+  private close(at: number): void {
+    const open = this.opens.pop();
+    if (open === undefined) return;
+    this.ends.set(open, at + 1);
+  }
 }
 
 function skipParens(s: ScanState, cursor: ParamCursor): number {

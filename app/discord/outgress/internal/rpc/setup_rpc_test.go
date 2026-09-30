@@ -24,6 +24,8 @@ import (
 )
 
 type fakeSetupREST struct {
+	channelGuild string
+
 	channels  []discapi.Snowflake
 	guild     discapi.GuildInfo
 	guildErr  error
@@ -373,7 +375,7 @@ func configRPCFor(t *testing.T, guildIDs ...string) *discordRPC {
 			t.Fatalf("BindGuild: %v", err)
 		}
 	}
-	w := setup.New(setup.Config{Store: store, Log: zap.NewNop()})
+	w := setup.New(setup.Config{Store: store, Discord: &fakeSetupREST{channelGuild: "guild-1", guildErr: discapi.ErrForbidden}, Log: zap.NewNop()})
 	return &discordRPC{w: w, log: zap.NewNop()}
 }
 
@@ -621,3 +623,11 @@ func (w layoutWant) flagsMatch(ch outgressrpc.DiscordLayoutEntry) bool {
 }
 
 func sameFlag(got *bool, want bool) bool { return got != nil && *got == want }
+
+func (f *fakeSetupREST) GetChannel(_ context.Context, id string) (discapi.ChannelInfo, error) {
+	guild := f.channelGuild
+	if guild == "" {
+		guild = "g1"
+	}
+	return discapi.ChannelInfo{ID: id, GuildID: guild}, nil
+}

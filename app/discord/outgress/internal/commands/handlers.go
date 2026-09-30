@@ -18,6 +18,7 @@ import (
 )
 
 type rest interface {
+	discapi.ChannelReader
 	SendChat(ctx context.Context, post discapi.ChatPost) error
 	SendEmbed(ctx context.Context, post discapi.EmbedPost) (discapi.Message, error)
 	SendPanel(ctx context.Context, post discapi.EmbedPost, buttons []discapi.Button) (discapi.Message, error)
@@ -82,6 +83,13 @@ func (h *Handlers) Dispatch(ctx context.Context, c ddiscord.Command) error {
 	fn, ok := dispatchTable[c.Type]
 	if !ok {
 		return fmt.Errorf("discord outgress: unknown command type %q", c.Type)
+	}
+	switch c.Type {
+	case ddiscord.TypePostChat, ddiscord.TypePostEmbed, ddiscord.TypePostPanel,
+		ddiscord.TypeEditMessage, ddiscord.TypeDeleteMessage:
+		if err := discapi.RequireGuildChannel(ctx, h.Rest, c.GuildID, c.ChannelID); err != nil {
+			return err
+		}
 	}
 	return fn(h, ctx, c)
 }

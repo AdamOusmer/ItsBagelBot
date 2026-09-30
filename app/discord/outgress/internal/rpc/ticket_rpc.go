@@ -22,6 +22,7 @@ const (
 )
 
 type ticketREST interface {
+	discapi.ChannelReader
 	CreateChannel(ctx context.Context, ch discapi.GuildChannel) (discapi.Snowflake, error)
 	DeleteChannel(ctx context.Context, ch discapi.Snowflake) error
 	ModifyChannel(ctx context.Context, patch discapi.ChannelPatch) error
@@ -81,6 +82,9 @@ type ticketRPC struct {
 }
 
 func (h *ticketRPC) panel(ctx context.Context, req discordoutgress.TicketPanelRequest) discordoutgress.TicketPanelReply {
+	if err := discapi.RequireGuildChannel(ctx, h.rest, req.GuildID, req.ChannelID); err != nil {
+		return discordoutgress.TicketPanelReply{Error: err.Error(), Code: codeFor(err)}
+	}
 	if req.ChannelID == "" {
 		return discordoutgress.TicketPanelReply{Error: "missing channel_id", Code: outgressrpc.CodeInvalid}
 	}
@@ -264,7 +268,14 @@ type summaryPost struct {
 }
 
 func (h *ticketRPC) postSummary(ctx context.Context, p summaryPost) {
-	if p.req.LogChannelID == "" || !h.claimSummary(ctx, p.req.TicketID) {
+	if p.req.LogChannelID == "" {
+		return
+	}
+	if err := discapi.RequireGuildChannel(ctx, h.rest, p.req.GuildID, p.req.LogChannelID); err != nil {
+		h.logger().Warn("ticket log channel refused", zap.Error(err))
+		return
+	}
+	if !h.claimSummary(ctx, p.req.TicketID) {
 		return
 	}
 	embed := ddiscord.TicketClosedEmbed(ddiscord.TicketClosed{

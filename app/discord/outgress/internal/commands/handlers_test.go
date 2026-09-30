@@ -23,7 +23,7 @@ func TestDispatchPostEmbed(t *testing.T) {
 
 func TestDispatchPostPanelCarriesButtons(t *testing.T) {
 	rest := dispatchAll(t, ddiscord.Command{
-		Type: ddiscord.TypePostPanel, ChannelID: "c1",
+		Type: ddiscord.TypePostPanel, GuildID: "g1", ChannelID: "c1",
 		Payload: marshalPayload(t, ddiscord.EmbedPayload{
 			Embed:   ddiscord.Embed{Title: "panel"},
 			Buttons: []ddiscord.ButtonSpec{{Label: "Open", CustomID: "x"}},
@@ -36,7 +36,7 @@ func TestDispatchPostPanelCarriesButtons(t *testing.T) {
 
 func TestDispatchEditMessage(t *testing.T) {
 	rest := dispatchAll(t, ddiscord.Command{
-		Type: ddiscord.TypeEditMessage, ChannelID: "c1",
+		Type: ddiscord.TypeEditMessage, GuildID: "g1", ChannelID: "c1",
 		Payload: marshalPayload(t, ddiscord.EditPayload{MessageID: "m1", Content: "ended"}),
 	})
 	if len(rest.edited) != 1 || rest.edited[0].ID != "m1" {
@@ -53,7 +53,7 @@ func TestDispatchModerationTypes(t *testing.T) {
 			Payload: marshalPayload(t, ddiscord.TimeoutPayload{UntilISO: "2026-01-01T00:00:00Z"}),
 		},
 		ddiscord.Command{
-			Type: ddiscord.TypeDeleteMessage, ChannelID: "c1",
+			Type: ddiscord.TypeDeleteMessage, GuildID: "g1", ChannelID: "c1",
 			Payload: marshalPayload(t, ddiscord.DeletePayload{MessageID: "m9"}),
 		},
 	)

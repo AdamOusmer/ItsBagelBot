@@ -18,6 +18,9 @@ import (
 )
 
 type fakeEngineREST struct {
+	channelGuilds map[string]string
+	channelErr    error
+
 	created  []string
 	deleted  []string
 	modified []discapi.ChannelPatch
@@ -252,4 +255,15 @@ func TestHandleLiveOfflineRetainsTrackingOnlyForRetryableFailures(t *testing.T) 
 			}
 		})
 	}
+}
+
+func (f *fakeEngineREST) GetChannel(_ context.Context, id string) (discapi.ChannelInfo, error) {
+	if f.channelErr != nil {
+		return discapi.ChannelInfo{}, f.channelErr
+	}
+	guild := "g1"
+	if f.channelGuilds != nil {
+		guild = f.channelGuilds[id]
+	}
+	return discapi.ChannelInfo{ID: id, GuildID: guild}, nil
 }

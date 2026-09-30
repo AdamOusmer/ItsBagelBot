@@ -18,6 +18,9 @@ import (
 )
 
 type guildRecorder struct {
+	channelGuilds map[string]string
+	channelErr    error
+
 	mu           sync.Mutex
 	channels     []discapi.Snowflake
 	roles        []discapi.Snowflake
@@ -346,4 +349,15 @@ func TestRolePermissionsAreStringEncoded(t *testing.T) {
 	if got := rolePermissions(regulars); got != "" {
 		t.Fatalf("Regulars permissions = %q, want empty (grants nothing)", got)
 	}
+}
+
+func (r *guildRecorder) GetChannel(_ context.Context, id string) (discapi.ChannelInfo, error) {
+	if r.channelErr != nil {
+		return discapi.ChannelInfo{}, r.channelErr
+	}
+	guild := "guild-1"
+	if r.channelGuilds != nil {
+		guild = r.channelGuilds[id]
+	}
+	return discapi.ChannelInfo{ID: id, GuildID: guild}, nil
 }

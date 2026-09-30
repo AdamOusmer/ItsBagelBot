@@ -33,7 +33,7 @@ func requestRPC(t *testing.T, wire Wiring, verb, body string) []byte {
 
 func TestSubscribeEngineRoutesRequestsToDiscord(t *testing.T) {
 	wire := rpcWiring(t)
-	tr := &scriptedTransport{reply: func(call recordedCall) (int, string) {
+	tr := &scriptedTransport{channelGuilds: map[string]string{"live1": "g1", "live2": "g2"}, reply: func(call recordedCall) (int, string) {
 		switch call.path {
 		case "/channels/c1/messages":
 			if call.method == http.MethodGet {
@@ -67,13 +67,13 @@ func TestSubscribeEngineRoutesRequestsToDiscord(t *testing.T) {
 		{verb: "live.online", request: `{"guild_id":"g1","channel_id":"live1","embed":{"title":"Live now","url":"https://twitch.tv/bagel","color":7}}`, reply: `{}`,
 			method: http.MethodPost, path: "/channels/live1/messages", body: `{"embeds":[{"title":"Live now","url":"https://twitch.tv/bagel","color":7}]}`},
 		{verb: "live.offline", request: `{"guild_id":"g2"}`, reply: `{}`,
-			method: http.MethodPatch, path: "/channels/live1/messages/tracked1", body: `{"content":"Stream ended.","embeds":[]}`},
+			method: http.MethodPatch, path: "/channels/live2/messages/tracked1", body: `{"content":"Stream ended.","embeds":[]}`},
 		{verb: "invite.resolve", request: `{"code":"bagel"}`, reply: `{"guild_id":"g1"}`,
 			method: http.MethodGet, path: "/invites/bagel", query: "with_counts=false"},
 	} {
 		t.Run(tc.verb, func(t *testing.T) {
 			if tc.verb == "live.offline" {
-				require.NoError(t, live.PutLiveMessage(context.Background(), "g2", discapi.Message{ChannelID: "live1", ID: "tracked1"}))
+				require.NoError(t, live.PutLiveMessage(context.Background(), "g2", discapi.Message{ChannelID: "live2", ID: "tracked1"}))
 			}
 			before := len(tr.find(tc.method, tc.path))
 			require.JSONEq(t, tc.reply, string(requestRPC(t, wire, tc.verb, tc.request)))

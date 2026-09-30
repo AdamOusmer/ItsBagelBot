@@ -6,6 +6,8 @@ package linkguard
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const testLink = "https://discord.gg/spamcode"
@@ -166,109 +168,48 @@ func tripGuild(ctx context.Context, g *Guarder, guild, owner string) Verdict {
 	return last
 }
 
-func TestObserveSingleGuildTripDoesNotPromoteFleetWide(t *testing.T) {
+// Guild ownership is not an endorsement of arbitrary members' messages.
+// One member can spray a rival's link in two unrelated servers, but that
+// activity must never make a third server block its first sighting.
+func TestObserveDifferentOwnersCannotPromoteMemberSightings(t *testing.T) {
 	g, ctx := newTestGuarder(t)
-
-	trip := tripGuild(ctx, g, "g1", "owner1")
-	if trip.Allow {
-		t.Fatalf("g1 did not trip locally (verdict %+v)", trip)
+	for _, owner := range []string{"owner1", "owner2"} {
+		trip := tripGuild(ctx, g, owner+"-guild", owner)
+		require.False(t, trip.Allow, "local spam must be blocked")
+		require.True(t, trip.GuildTripped, "local spam must trip this guild")
+		require.False(t, trip.FleetPromoted, "member sightings must not promote global blocking")
+		require.Zero(t, trip.CorroboratingOwners, "member sightings must not endorse a link for owners")
 	}
-	if trip.FleetPromoted {
-		t.Fatalf("a single owner's trip promoted the link fleet-wide: %+v", trip)
-	}
-
-	v := g.Observe(ctx, sightingOwner(sightingArgs{Guild: "g2", Channel: "c1", User: "u1", Owner: "owner2"}))
-	if !v.Allow {
-		t.Fatalf("g2's first-ever sighting was blocked by g1's local trip: %+v", v)
-	}
-	if v.FleetHit {
-		t.Fatalf("g2 saw a fleet hit after only one owner ever tripped: %+v", v)
-	}
-}
-
-func TestObserveSameOwnerTwoGuildsDoesNotPromote(t *testing.T) {
-	g, ctx := newTestGuarder(t)
-
-	tripGuild(ctx, g, "g1", "sharedOwner")
-	trip2 := tripGuild(ctx, g, "g2", "sharedOwner")
-
-	if trip2.FleetPromoted {
-		t.Fatalf("two guilds sharing one owner promoted the link fleet-wide: %+v", trip2)
-	}
-	if trip2.CorroboratingOwners != 1 {
-		t.Fatalf("CorroboratingOwners = %d, want 1 (one owner, regardless of guild count)", trip2.CorroboratingOwners)
-	}
-
-	v := g.Observe(ctx, sightingOwner(sightingArgs{Guild: "g3", Channel: "c1", User: "u1", Owner: "unrelatedOwner"}))
-	if !v.Allow || v.FleetHit {
-		t.Fatalf("link was promoted despite only one distinct owner ever corroborating: %+v", v)
-	}
-}
-
-func TestObserveTwoDistinctOwnersPromote(t *testing.T) {
-	g, ctx := newTestGuarder(t)
-
-	trip1 := tripGuild(ctx, g, "g1", "owner1")
-	if trip1.FleetPromoted {
-		t.Fatalf("1st owner alone promoted the link: %+v", trip1)
-	}
-
-	trip2 := tripGuild(ctx, g, "g2", "owner2")
-	if !trip2.GuildTripped {
-		t.Fatalf("g2 did not trip locally: %+v", trip2)
-	}
-	if !trip2.FleetPromoted {
-		t.Fatalf("2nd independent owner's trip did not promote the link fleet-wide: %+v", trip2)
-	}
-	if trip2.CorroboratingOwners != FleetOwnerThreshold {
-		t.Errorf("CorroboratingOwners = %d, want %d", trip2.CorroboratingOwners, FleetOwnerThreshold)
-	}
-}
-
-func TestObservePromotedLinkActionedInUnseenThirdGuild(t *testing.T) {
-	g, ctx := newTestGuarder(t)
-
-	tripGuild(ctx, g, "g1", "owner1")
-	promo := tripGuild(ctx, g, "g2", "owner2")
-	if !promo.FleetPromoted {
-		t.Fatalf("setup: link never promoted: %+v", promo)
-	}
-
-	v := g.Observe(ctx, sighting(sightingArgs{Guild: "g3", Channel: "brand-new-channel", User: "brand-new-user"}))
-	if v.Allow {
-		t.Fatalf("promoted link allowed through an unrelated guild that never saw it: %+v", v)
-	}
-	if !v.FleetHit {
-		t.Errorf("FleetHit = false, want true: %+v", v)
-	}
-	if v.Reason != ReasonFleetPromoted {
-		t.Errorf("Reason = %q, want %q", v.Reason, ReasonFleetPromoted)
-	}
-	if v.DistinctChannels != 0 || v.DistinctAuthors != 0 {
-		t.Errorf("fleet hit touched g3's local counters: channels=%d authors=%d", v.DistinctChannels, v.DistinctAuthors)
-	}
-}
-
-func TestObserveEmptyOwnerNeverCorroborates(t *testing.T) {
-	g, ctx := newTestGuarder(t)
-
-	trip := tripGuild(ctx, g, "g1", "")
-	if trip.Allow {
-		t.Fatalf("unbound guild's local trip was allowed through: %+v", trip)
-	}
-	if !trip.GuildTripped {
-		t.Fatalf("unbound guild did not trip locally: %+v", trip)
-	}
-	if trip.FleetPromoted || trip.CorroboratingOwners != 0 {
-		t.Fatalf("empty-owner trip contributed to fleet corroboration: %+v", trip)
-	}
-
+	v := g.Observe(ctx, sightingOwner(sightingArgs{Guild: "victim", Channel: "general", User: "innocent", Owner: "owner3"}))
+	require.True(t, v.Allow, "other guilds must not block the victim's first sighting")
+	require.False(t, v.FleetHit, "other guilds must not supply global blocking authority")
+	require.Equal(t, 1, v.DistinctChannels, "the victim must keep its own local channel count")
 	link, _ := NormalizeLink(testLink)
-	n, err := g.card(ctx, tripsKey(normalizedLink(link)))
-	if err != nil {
-		t.Fatalf("card: %v", err)
+	for _, prefix := range []string{"trips:", "fleet:"} {
+		n, err := g.client.Do(ctx, g.client.B().Exists().Key(keyPrefix+prefix+link).Build()).AsInt64()
+		require.NoError(t, err, "checking global state %s", prefix)
+		require.Zero(t, n, "ordinary sightings must not write global state %s", prefix)
 	}
-	if n != 0 {
-		t.Fatalf("trips set has %d member(s), want 0 -- empty OwnerID must never be written", n)
-	}
+}
+
+func TestObserveIgnoresLegacyFleetPromotion(t *testing.T) {
+	g, ctx := newTestGuarder(t)
+	link, _ := NormalizeLink(testLink)
+	// Existing entries may already have been poisoned through passive
+	// sightings. They must not survive the fix as blocking authority.
+	err := g.client.Do(ctx, g.client.B().Hset().Key(keyPrefix+"fleet:"+link).
+		FieldValue().FieldValue("owner_count", "2").Build()).Error()
+	require.NoError(t, err, "seeding the legacy fleet entry")
+	v := g.Observe(ctx, sighting(sightingArgs{Guild: "victim", Channel: "general", User: "innocent"}))
+	require.True(t, v.Allow, "legacy fleet entries must not block unrelated guilds")
+	require.False(t, v.FleetHit, "legacy fleet entries must not supply blocking authority")
+	require.Equal(t, 1, v.DistinctAuthors, "the victim must keep its own local author count")
+}
+
+func TestObserveLocalDetectionDoesNotRequireOwner(t *testing.T) {
+	g, ctx := newTestGuarder(t)
+	trip := tripGuild(ctx, g, "g1", "")
+	require.False(t, trip.Allow, "unbound guilds must still block local spam")
+	require.True(t, trip.GuildTripped, "unbound guilds must still trip local detection")
+	require.False(t, trip.FleetPromoted, "unbound guilds must not promote global blocking")
 }
