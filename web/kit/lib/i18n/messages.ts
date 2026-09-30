@@ -3,7 +3,7 @@
 
 /// <reference types="vite/client" />
 import type { Locale, MessageTree } from './types';
-import { acceptedLanguages } from './accept-language';
+import { matchAcceptLanguage } from './accept-language';
 import { assembleCatalogs, catalogLocale } from './tree';
 
 export type { Locale } from './types';
@@ -121,5 +121,5 @@ export function translateList(locale: Locale, key: string): string[] {
 
 export function detectLocale(opts: { cookie?: string | null; accept?: string | null }): Locale {
   if (isLocale(opts.cookie)) return opts.cookie;
-  return acceptedLanguages(opts.accept).find(isLocale) ?? DEFAULT_LOCALE;
+  return matchAcceptLanguage(opts.accept, LOCALES) ?? DEFAULT_LOCALE;
 }
