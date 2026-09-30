@@ -354,18 +354,12 @@ func TestTicketCloseFallsBackToAnEmbedWhenTheUploadFails(t *testing.T) {
 
 			reply := h.close(context.Background(), req)
 
-			if reply.Error != "" {
-				t.Fatalf("summary delivery must not fail ticket close: %+v", reply)
-			}
+			require.Empty(t, reply.Error, "summary delivery must not fail ticket close")
 			posts := wantLogPosts(t, tr, 2)
-			wantContainsAll(t, posts[0].body, `filename="transcript.txt"`)
+			require.Contains(t, posts[0].body, `filename="transcript.txt"`)
 			fallback := posts[1]
-			if strings.HasPrefix(fallback.contentType, "multipart/") {
-				t.Fatalf("the fallback must be a plain embed: %q", fallback.contentType)
-			}
-			if !strings.Contains(fallback.body, uploadFailedNote) {
-				t.Fatalf("fallback body %q must say the upload failed", fallback.body)
-			}
+			require.False(t, strings.HasPrefix(fallback.contentType, "multipart/"), "the fallback must be a plain embed")
+			require.Contains(t, fallback.body, uploadFailedNote)
 		})
 	}
 }
