@@ -6,7 +6,7 @@ import { createRawSnippet, type Component } from 'svelte';
 import { render } from 'svelte/server';
 import { experimental_AstroContainer } from 'astro/container';
 import { findUnnamed } from '../scripts/control-names';
-import { normalise } from './normalise';
+import { normalise, removeAll } from './normalise';
 import SvelteCardHead from '../svelte/CardHead.svelte';
 import AstroCardHead from '../astro/CardHead.astro';
 import SvelteCheckbox from '../svelte/Checkbox.svelte';
@@ -128,7 +128,7 @@ function isNamed(html: string): boolean {
   const control = FORM_CONTROL.exec(html)?.[0] ?? '';
   if (/aria-label="[^"]+"|aria-labelledby="[^"]+"/.test(control)) return true;
   const label = /<label\b[^>]*>([\s\S]*?)<\/label>/.exec(html)?.[1] ?? '';
-  return label.replace(/<select[\s\S]*?<\/select>/g, '').replace(/<[^>]*>/g, '').trim() !== '';
+  return removeAll(removeAll(label, /<select[\s\S]*?<\/select>/g), /<[^>]*>/g).trim() !== '';
 }
 
 describe('form controls always have an accessible name', () => {

@@ -15,8 +15,17 @@ const props = {
   levelLabels: { info: 'Info', success: 'Success', warning: 'Warning', critical: 'Critical' },
 };
 
+function withoutComments(html: string): string {
+  let previous: string;
+  do {
+    previous = html;
+    html = html.replace(/<!--[\s\S]*?-->/g, '');
+  } while (html !== previous);
+  return html;
+}
+
 const closed = (extra: Record<string, unknown> = {}) =>
-  render(NotificationBell, { props: { ...props, ...extra } as never }).body.replace(/<!--[\s\S]*?-->/g, '');
+  withoutComments(render(NotificationBell, { props: { ...props, ...extra } as never }).body);
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 

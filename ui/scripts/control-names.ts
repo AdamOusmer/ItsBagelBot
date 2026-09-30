@@ -16,6 +16,14 @@ export function importedControls(source: string): Map<string, string> {
   return locals;
 }
 
+const MARKUP_QUOTES = `"'`;
+const EXPRESSION_QUOTES = "\"'`";
+const BRACE_DEPTH: Record<string, number> = { '{': 1, '}': -1 };
+
+function opensQuote(ch: string, depth: number): boolean {
+  return (depth > 0 ? EXPRESSION_QUOTES : MARKUP_QUOTES).includes(ch);
+}
+
 function tagEnd(source: string, from: number): number {
   let depth = 0;
   let quote: string | null = null;
@@ -23,15 +31,11 @@ function tagEnd(source: string, from: number): number {
     const ch = source[i];
     if (quote) {
       if (ch === quote) quote = null;
-    } else if (ch === '"' || ch === "'" || (depth > 0 && ch === '`')) {
-      quote = ch;
-    } else if (ch === '{') {
-      depth++;
-    } else if (ch === '}') {
-      depth--;
-    } else if (ch === '>' && depth === 0) {
-      return i;
+      continue;
     }
+    if (ch === '>' && depth === 0) return i;
+    if (opensQuote(ch, depth)) quote = ch;
+    else depth += BRACE_DEPTH[ch] ?? 0;
   }
   return source.length - 1;
 }

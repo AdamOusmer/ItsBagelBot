@@ -26,7 +26,7 @@ const fixtureSources = new Map(
 );
 
 function uses(source: string, path: string): boolean {
-  const local = new RegExp(`import (\\w+) from '${path.replace(/[./]/g, '\\$&')}'`).exec(source)?.[1];
+  const local = new RegExp(`import (\\w+) from '${path.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}'`).exec(source)?.[1];
   return local !== undefined && source.split(new RegExp(`\\b${local}\\b`)).length > 2;
 }
 

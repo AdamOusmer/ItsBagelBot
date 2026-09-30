@@ -15,10 +15,12 @@ function addToken(el: HTMLElement, name: string, token: string): () => void {
   };
 }
 
-export function wireTooltip(root: HTMLElement, bubble: HTMLElement): () => void {
+function describeTrigger(root: HTMLElement, bubble: HTMLElement): () => void {
   const trigger = root.querySelector<HTMLElement>(FOCUSABLE);
-  const unlink = trigger && bubble.id ? addToken(trigger, 'aria-describedby', bubble.id) : undefined;
+  return trigger && bubble.id ? addToken(trigger, 'aria-describedby', bubble.id) : () => {};
+}
 
+function dismissal(root: HTMLElement) {
   const shown = () => !root.hasAttribute(TOOLTIP_DISMISSED) && root.matches(':hover, :focus-within');
   const reset = () => root.removeAttribute(TOOLTIP_DISMISSED);
 
@@ -33,6 +35,12 @@ export function wireTooltip(root: HTMLElement, bubble: HTMLElement): () => void 
   const onFocusOut = (event: FocusEvent) => {
     if (!root.matches(':hover') && !root.contains(event.relatedTarget as Node | null)) reset();
   };
+  return { reset, onKeydown, onPointerLeave, onFocusOut };
+}
+
+export function wireTooltip(root: HTMLElement, bubble: HTMLElement): () => void {
+  const unlink = describeTrigger(root, bubble);
+  const { reset, onKeydown, onPointerLeave, onFocusOut } = dismissal(root);
 
   document.addEventListener('keydown', onKeydown, true);
   root.addEventListener('pointerleave', onPointerLeave);
@@ -41,7 +49,7 @@ export function wireTooltip(root: HTMLElement, bubble: HTMLElement): () => void 
     document.removeEventListener('keydown', onKeydown, true);
     root.removeEventListener('pointerleave', onPointerLeave);
     root.removeEventListener('focusout', onFocusOut);
-    unlink?.();
+    unlink();
     reset();
   };
 }

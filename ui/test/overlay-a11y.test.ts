@@ -20,7 +20,7 @@ import AstroCopySurface from '../astro/CopySurface.astro';
 
 const snippet = (html: string) => createRawSnippet(() => ({ render: () => html }));
 const html = (component: never, props: Record<string, unknown>) =>
-  normalise(render(component, { props: props as never }).body).replace(/<!--[\s\S]*?-->/g, '');
+  normalise(render(component, { props: props as never }).body);
 
 class FakeElement {
   attrs = new Map<string, string>();
