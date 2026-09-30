@@ -450,16 +450,28 @@ function skipParensSpan(s: ScanState, cursor: ParamCursor): number | null {
 // cannot each rescan the remaining response. Quotes retain their old treatment
 // as plain characters; this changes only the amount of work, not the grammar.
 function indexParens(text: string): Map<number, number> {
-  const ends = new Map<number, number>();
-  const opens: number[] = [];
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === '(') opens.push(i);
-    else if (text[i] === ')') {
-      const open = opens.pop();
-      if (open !== undefined) ends.set(open, i + 1);
+  const index = new ParenIndex();
+  for (let i = 0; i < text.length; i++) index.read(text[i], i);
+  return index.ends;
+}
+
+class ParenIndex {
+  readonly ends = new Map<number, number>();
+  private readonly opens: number[] = [];
+
+  read(ch: string, at: number): void {
+    if (ch === '(') {
+      this.opens.push(at);
+      return;
     }
+    if (ch === ')') this.close(at);
   }
-  return ends;
+
+  private close(at: number): void {
+    const open = this.opens.pop();
+    if (open === undefined) return;
+    this.ends.set(open, at + 1);
+  }
 }
 
 function skipParens(s: ScanState, cursor: ParamCursor): number {

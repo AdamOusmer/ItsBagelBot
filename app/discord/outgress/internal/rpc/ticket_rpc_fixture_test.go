@@ -47,8 +47,7 @@ func (s *scriptedTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	s.mu.Unlock()
 
 	status, body := 200, `{"id":"m-new"}`
-	if call.method == "GET" && strings.HasPrefix(call.path, "/channels/") && !strings.Contains(strings.TrimPrefix(call.path, "/channels/"), "/") {
-		id := strings.TrimPrefix(call.path, "/channels/")
+	if id, lookup := channelLookupID(call); lookup {
 		guild := "g1"
 		if s.channelGuilds != nil {
 			guild = s.channelGuilds[id]
@@ -125,4 +124,16 @@ func firstLine(s string) string {
 		return s[:i]
 	}
 	return s
+}
+
+// channelLookupID distinguishes channel metadata requests from message routes.
+func channelLookupID(call recordedCall) (string, bool) {
+	if call.method != http.MethodGet {
+		return "", false
+	}
+	if !strings.HasPrefix(call.path, "/channels/") {
+		return "", false
+	}
+	id := strings.TrimPrefix(call.path, "/channels/")
+	return id, !strings.Contains(id, "/")
 }

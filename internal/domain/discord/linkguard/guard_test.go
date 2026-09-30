@@ -6,6 +6,8 @@ package linkguard
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const testLink = "https://discord.gg/spamcode"
@@ -173,23 +175,20 @@ func TestObserveDifferentOwnersCannotPromoteMemberSightings(t *testing.T) {
 	g, ctx := newTestGuarder(t)
 	for _, owner := range []string{"owner1", "owner2"} {
 		trip := tripGuild(ctx, g, owner+"-guild", owner)
-		if trip.Allow || !trip.GuildTripped {
-			t.Fatalf("local spam detection stopped working: %+v", trip)
-		}
-		if trip.FleetPromoted || trip.CorroboratingOwners != 0 {
-			t.Fatalf("member sightings granted global authority: %+v", trip)
-		}
+		require.False(t, trip.Allow, "local spam must be blocked")
+		require.True(t, trip.GuildTripped, "local spam must trip this guild")
+		require.False(t, trip.FleetPromoted, "member sightings must not promote global blocking")
+		require.Zero(t, trip.CorroboratingOwners, "member sightings must not endorse a link for owners")
 	}
 	v := g.Observe(ctx, sightingOwner(sightingArgs{Guild: "victim", Channel: "general", User: "innocent", Owner: "owner3"}))
-	if !v.Allow || v.FleetHit || v.DistinctChannels != 1 {
-		t.Fatalf("unseen victim guild was affected by other guilds: %+v", v)
-	}
+	require.True(t, v.Allow, "other guilds must not block the victim's first sighting")
+	require.False(t, v.FleetHit, "other guilds must not supply global blocking authority")
+	require.Equal(t, 1, v.DistinctChannels, "the victim must keep its own local channel count")
 	link, _ := NormalizeLink(testLink)
 	for _, prefix := range []string{"trips:", "fleet:"} {
 		n, err := g.client.Do(ctx, g.client.B().Exists().Key(keyPrefix+prefix+link).Build()).AsInt64()
-		if err != nil || n != 0 {
-			t.Fatalf("ordinary sightings wrote global state %s: exists=%d err=%v", prefix, n, err)
-		}
+		require.NoError(t, err, "checking global state %s", prefix)
+		require.Zero(t, n, "ordinary sightings must not write global state %s", prefix)
 	}
 }
 
@@ -200,19 +199,17 @@ func TestObserveIgnoresLegacyFleetPromotion(t *testing.T) {
 	// sightings. They must not survive the fix as blocking authority.
 	err := g.client.Do(ctx, g.client.B().Hset().Key(keyPrefix+"fleet:"+link).
 		FieldValue().FieldValue("owner_count", "2").Build()).Error()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "seeding the legacy fleet entry")
 	v := g.Observe(ctx, sighting(sightingArgs{Guild: "victim", Channel: "general", User: "innocent"}))
-	if !v.Allow || v.FleetHit || v.DistinctAuthors != 1 {
-		t.Fatalf("legacy fleet entry still blocks unrelated guilds: %+v", v)
-	}
+	require.True(t, v.Allow, "legacy fleet entries must not block unrelated guilds")
+	require.False(t, v.FleetHit, "legacy fleet entries must not supply blocking authority")
+	require.Equal(t, 1, v.DistinctAuthors, "the victim must keep its own local author count")
 }
 
 func TestObserveLocalDetectionDoesNotRequireOwner(t *testing.T) {
 	g, ctx := newTestGuarder(t)
 	trip := tripGuild(ctx, g, "g1", "")
-	if trip.Allow || !trip.GuildTripped || trip.FleetPromoted {
-		t.Fatalf("unbound guild's local spam detection failed: %+v", trip)
-	}
+	require.False(t, trip.Allow, "unbound guilds must still block local spam")
+	require.True(t, trip.GuildTripped, "unbound guilds must still trip local detection")
+	require.False(t, trip.FleetPromoted, "unbound guilds must not promote global blocking")
 }

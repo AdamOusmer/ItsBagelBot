@@ -20,20 +20,42 @@ const NAME_RUN = /^[A-Za-z0-9_]*/;
 // the composite has no mapping of its own (it is warned as-is on the next pass,
 // once its interior reads translated) while the inner leaf lands cleanly now.
 export function* scanTokens(text: string): Generator<Token> {
-  const opens: number[] = [];
-  let lastTokenStart = -1;
+  const scan = new TokenScan(text);
   for (let i = 0; i < text.length; i++) {
-    if (text[i] === '(') {
-      opens.push(i);
-      if (i > 0 && text[i - 1] === '$') lastTokenStart = i - 1;
-    } else if (text[i] === ')') {
-      const open = opens.pop();
-      if (open === undefined || open === 0 || text[open - 1] !== '$') continue;
-      const start = open - 1;
-      if (lastTokenStart > start) continue;
-      const end = i + 1;
-      yield { ...split(text.slice(open + 1, i).trim()), raw: text.slice(start, end), start, end };
-    }
+    const token = scan.read(i);
+    if (token) yield token;
+  }
+}
+
+// One response's delimiter stack and latest token opener travel together.
+// Separate character dispatch from closing a group so malformed/nested groups
+// take the same flat, constant-time path as ordinary leaves.
+class TokenScan {
+  private readonly opens: number[] = [];
+  private lastTokenStart = -1;
+
+  constructor(private readonly text: string) {}
+
+  read(at: number): Token | null {
+    if (this.text[at] === '(') return this.open(at);
+    if (this.text[at] === ')') return this.close(at);
+    return null;
+  }
+
+  private open(at: number): null {
+    this.opens.push(at);
+    if (this.text[at - 1] === '$') this.lastTokenStart = at - 1;
+    return null;
+  }
+
+  private close(at: number): Token | null {
+    const open = this.opens.pop();
+    if (open === undefined) return null;
+    const start = open - 1;
+    if (this.text[start] !== '$') return null;
+    if (this.lastTokenStart > start) return null;
+    const end = at + 1;
+    return { ...split(this.text.slice(open + 1, at).trim()), raw: this.text.slice(start, end), start, end };
   }
 }
 

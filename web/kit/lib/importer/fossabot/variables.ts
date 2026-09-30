@@ -175,34 +175,44 @@ function classify(token: Token, ctx: TranslationContext): TokenResult {
   return literal(token);
 }
 
-function expandReferences(text: string, ctx: TranslationContext, depth: number, note: Note, budget: ResponseBudget): string {
-  budget.scan(text);
-  const out = new TranslationOutput(budget);
-  let pos = 0;
-  for (const token of scanTokens(text)) {
-    budget.visit();
-    out.append(text.slice(pos, token.start));
-    out.append(expandOne(token, ctx, depth, note, budget));
-    pos = token.end;
-  }
-  out.append(text.slice(pos));
-  return out.text();
-}
+// A reference walk owns its lookup, warnings and shared response budget.
+// Recursive branches change only the text and depth; none can reset the budget.
+class ReferenceExpansion {
+  constructor(
+    private readonly ctx: TranslationContext,
+    private readonly note: Note,
+    private readonly budget: ResponseBudget
+  ) {}
 
-function expandOne(token: Token, ctx: TranslationContext, depth: number, note: Note, budget: ResponseBudget): string {
-  if (token.head !== 'references') return token.raw;
-  const target = referenceTarget(token, depth, ctx);
-  if (target === null) {
-    note(token.raw);
-    return token.raw;
+  expand(text: string, depth: number): string {
+    this.budget.scan(text);
+    const out = new TranslationOutput(this.budget);
+    let pos = 0;
+    for (const token of scanTokens(text)) {
+      this.budget.visit();
+      out.append(text.slice(pos, token.start));
+      out.append(this.expandOne(token, depth));
+      pos = token.end;
+    }
+    out.append(text.slice(pos));
+    return out.text();
   }
-  return expandReferences(target, ctx, depth + 1, note, budget);
-}
 
-function referenceTarget(token: Token, depth: number, ctx: TranslationContext): string | null {
-  if (depth >= MAX_REFERENCE_DEPTH) return null;
-  const name = token.rest.trim();
-  return name === '' ? null : (ctx.lookup?.(name) ?? null);
+  private expandOne(token: Token, depth: number): string {
+    if (token.head !== 'references') return token.raw;
+    const target = this.referenceTarget(token, depth);
+    if (target === null) {
+      this.note(token.raw);
+      return token.raw;
+    }
+    return this.expand(target, depth + 1);
+  }
+
+  private referenceTarget(token: Token, depth: number): string | null {
+    if (depth >= MAX_REFERENCE_DEPTH) return null;
+    const name = token.rest.trim();
+    return name === '' ? null : (this.ctx.lookup?.(name) ?? null);
+  }
 }
 
 export function translateVariables(
@@ -212,7 +222,7 @@ export function translateVariables(
   const warns = new Warnings();
   const note: Note = (raw) => warns.note(raw);
   const budget = new ResponseBudget(ctx.workBudget ?? new TranslationWorkBudget());
-  const expanded = expandReferences(inText, ctx, 0, note, budget);
+  const expanded = new ReferenceExpansion(ctx, note, budget).expand(inText, 0);
   const { text } = runPasses(expanded, (token) => classify(token, ctx), warns, budget);
   return { text, warns: warns.tokens };
 }

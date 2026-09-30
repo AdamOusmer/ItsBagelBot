@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -84,56 +85,62 @@ func TestFetchDoesNotReadLegacyTenantlessEntry(t *testing.T) {
 	require.Equal(t, int32(2), h.hits.Load())
 }
 
-func TestFetchTenantMissesDoNotShareAuthenticatedFlights(t *testing.T) {
-	h := newHarness(t)
-	started, release := make(chan struct{}), make(chan struct{})
-	defer func() {
-		select {
-		case <-release:
-		default:
-			close(release)
-		}
-	}()
+// The first tenant stays blocked until the test releases it. Cleanup releases
+// it before closing the server, including when a timeout fails the test.
+func blockedTenantUpstream(t *testing.T) (string, <-chan struct{}, func()) {
+	t.Helper()
+	started, unblock := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(unblock) }) }
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner := "two"
 		if r.Header.Get(authHeaderName) == "Bearer secret-for-one" {
 			owner = "one"
 			close(started)
-			<-release
+			<-unblock
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(w, `{"owner":%q}`, owner)
 	}))
 	t.Cleanup(server.Close)
-	def := gossiprpc.FetchDef{Name: "private", URL: server.URL, JSONPath: []string{"owner"}, KeyLabel: "prod", IsActive: true}
+	t.Cleanup(release)
+	return server.URL, started, release
+}
+
+func fetchTenantAsync(p *api, tenant string) <-chan any {
+	replies := make(chan any, 1)
+	go func() {
+		replies <- p.fetch(context.Background(), gossiprpc.Request{ChannelID: tenant, DefID: "private"})
+	}()
+	return replies
+}
+
+func requireTenantReply(t *testing.T, replies <-chan any, tenant, timeoutMessage string) {
+	t.Helper()
+	select {
+	case reply := <-replies:
+		require.Equal(t, []string{tenant}, reply.(gossiprpc.CustomFetchReply).Values)
+	case <-time.After(time.Second):
+		t.Fatal(timeoutMessage)
+	}
+}
+
+func TestFetchTenantMissesDoNotShareAuthenticatedFlights(t *testing.T) {
+	h := newHarness(t)
+	upstream, started, release := blockedTenantUpstream(t)
+	def := gossiprpc.FetchDef{Name: "private", URL: upstream, JSONPath: []string{"owner"}, KeyLabel: "prod", IsActive: true}
 	h.p.defs = tenantDefs{"one": {"private": def}, "two": {"private": def}}
 	h.p.keys = tenantKeys{}
-	first := make(chan any, 1)
-	go func() {
-		first <- h.p.fetch(context.Background(), gossiprpc.Request{ChannelID: "one", DefID: "private"})
-	}()
+	first := fetchTenantAsync(h.p, "one")
 	select {
 	case <-started:
 	case <-time.After(time.Second):
 		t.Fatal("first tenant never reached upstream")
 	}
-	second := make(chan any, 1)
-	go func() {
-		second <- h.p.fetch(context.Background(), gossiprpc.Request{ChannelID: "two", DefID: "private"})
-	}()
-	select {
-	case reply := <-second:
-		require.Equal(t, []string{"two"}, reply.(gossiprpc.CustomFetchReply).Values)
-	case <-time.After(time.Second):
-		t.Fatal("second tenant joined the first tenant's blocked flight")
-	}
-	close(release)
-	select {
-	case reply := <-first:
-		require.Equal(t, []string{"one"}, reply.(gossiprpc.CustomFetchReply).Values)
-	case <-time.After(time.Second):
-		t.Fatal("first tenant did not finish after release")
-	}
+	second := fetchTenantAsync(h.p, "two")
+	requireTenantReply(t, second, "two", "second tenant joined the first tenant's blocked flight")
+	release()
+	requireTenantReply(t, first, "one", "first tenant did not finish after release")
 }
 
 func TestFetchPathCaseAndDefinitionChangesInvalidateCache(t *testing.T) {
