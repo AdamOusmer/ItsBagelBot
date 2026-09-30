@@ -93,7 +93,7 @@ func NewUsers(client *ent.Client, packer domaincrypto.Packer, pub bus.Publisher,
 
 	r := &Users{
 		client:       client,
-		views:        cache.New[UserView](userCacheCapacity, userCacheTTL),
+		views:        cache.New[UserView](userCacheCapacity, userCacheTTL, cache.StaleOnError(userCacheTTL)),
 		stats:        cache.New[userStatsRow](userStatsCapacity, userStatsTTL),
 		packer:       packer,
 		pub:          pub,
@@ -171,13 +171,17 @@ func (r *Users) Register(ctx context.Context, id uint64, username, rawDisplayNam
 }
 
 func (r *Users) Get(ctx context.Context, id uint64) (UserView, error) {
-
-	return r.views.GetOrLoad(ctx, cache.UserKey(userKeyPrefix, id), func(ctx context.Context) (UserView, error) {
+	key := cache.UserKey(userKeyPrefix, id)
+	return r.views.GetOrLoad(ctx, key, func(ctx context.Context) (UserView, error) {
 		return db.WithRead(ctx, func(ctx context.Context) (UserView, error) {
 
 			u, err := r.client.User.Query().
 				Where(user.IDEQ(id)).
 				Only(ctx)
+			if ent.IsNotFound(err) {
+				// Drop the view so StaleOnError cannot resurrect a deleted user.
+				r.views.Invalidate(key)
+			}
 			if err != nil {
 				return UserView{}, err
 			}

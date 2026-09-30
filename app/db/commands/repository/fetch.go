@@ -65,7 +65,7 @@ func NewFetches(client *ent.Client, packer domaincrypto.Packer, pub bus.Publishe
 	return &Fetches{
 		client: client,
 		packer: packer,
-		views:  cache.New[[]FetchView](fetchesCacheCapacity, fetchesCacheTTL),
+		views:  cache.New[[]FetchView](fetchesCacheCapacity, fetchesCacheTTL, cache.StaleOnError(fetchesCacheTTL)),
 		pub:    pub,
 		log:    log,
 	}

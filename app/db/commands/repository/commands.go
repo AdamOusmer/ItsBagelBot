@@ -101,7 +101,7 @@ func NewCommands(client *ent.Client, pub bus.Publisher, app *newrelic.Applicatio
 
 	r := &Commands{
 		client: client,
-		views:  cache.New[[]CommandView](commandsCacheCapacity, commandsCacheTTL),
+		views:  cache.New[[]CommandView](commandsCacheCapacity, commandsCacheTTL, cache.StaleOnError(commandsCacheTTL)),
 		pub:    pub,
 		app:    app,
 		log:    log,

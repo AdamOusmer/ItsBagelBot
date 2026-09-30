@@ -62,7 +62,7 @@ func NewModules(client *ent.Client, pub bus.Publisher, app *newrelic.Application
 
 	r := &Modules{
 		client:  client,
-		views:   cache.New[[]ModuleView](modulesCacheCapacity, modulesCacheTTL),
+		views:   cache.New[[]ModuleView](modulesCacheCapacity, modulesCacheTTL, cache.StaleOnError(modulesCacheTTL)),
 		pub:     pub,
 		app:     app,
 		log:     log,

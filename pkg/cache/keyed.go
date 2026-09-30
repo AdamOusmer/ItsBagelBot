@@ -12,27 +12,51 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+type Option func(*options)
+
+type options struct {
+	staleWindow time.Duration
+}
+
+// StaleOnError serves an entry for up to window past its TTL when its reload fails.
+func StaleOnError(window time.Duration) Option {
+	return func(o *options) { o.staleWindow = window }
+}
+
+type entry[V any] struct {
+	value      V
+	freshUntil time.Time
+}
+
+func (e *entry[V]) fresh() bool {
+	return e.freshUntil.IsZero() || time.Now().Before(e.freshUntil)
+}
+
 type Keyed[K comparable, V any] struct {
-	client *theine.Cache[K, V]
+	client *theine.Cache[K, entry[V]]
 	group  singleflight.Group
 	keyFn  func(K) string
 
-	capacity int64
-	ttl      time.Duration
-	jitter   time.Duration
+	capacity    int64
+	ttl         time.Duration
+	staleWindow time.Duration
 }
 
-func NewKeyed[K comparable, V any](capacity int64, ttl time.Duration, keyFn func(K) string) *Keyed[K, V] {
-	client, err := theine.NewBuilder[K, V](capacity).Build()
+func NewKeyed[K comparable, V any](capacity int64, ttl time.Duration, keyFn func(K) string, opts ...Option) *Keyed[K, V] {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	client, err := theine.NewBuilder[K, entry[V]](capacity).Build()
 	if err != nil {
 		panic("failed to build theine cache: " + err.Error())
 	}
 	return &Keyed[K, V]{
-		client:   client,
-		keyFn:    keyFn,
-		capacity: capacity,
-		ttl:      ttl,
-		jitter:   ttl / 10,
+		client:      client,
+		keyFn:       keyFn,
+		capacity:    capacity,
+		ttl:         ttl,
+		staleWindow: o.staleWindow,
 	}
 }
 
@@ -42,7 +66,13 @@ func (c *Keyed[K, V]) Capacity() int64 { return c.capacity }
 
 // Get returns a live cached entry without loading a miss. Fill misses with
 // GetOrLoad so concurrent readers retain singleflight protection.
-func (c *Keyed[K, V]) Get(key K) (V, bool) { return c.client.Get(key) }
+func (c *Keyed[K, V]) Get(key K) (V, bool) {
+	if e, ok := c.client.Get(key); ok && e.fresh() {
+		return e.value, true
+	}
+	var zero V
+	return zero, false
+}
 
 func (c *Keyed[K, V]) GetOrLoad(ctx context.Context, key K, loader func(context.Context) (V, error)) (V, error) {
 	return c.GetOrLoadTTL(ctx, key, func(ctx context.Context) (V, time.Duration, error) {
@@ -52,22 +82,12 @@ func (c *Keyed[K, V]) GetOrLoad(ctx context.Context, key K, loader func(context.
 }
 
 func (c *Keyed[K, V]) GetOrLoadTTL(ctx context.Context, key K, loader func(context.Context) (V, time.Duration, error)) (V, error) {
-	if value, ok := c.client.Get(key); ok {
+	if value, ok := c.Get(key); ok {
 		return value, nil
 	}
 
 	result, err, _ := c.group.Do(c.keyFn(key), func() (any, error) {
-		if value, ok := c.client.Get(key); ok {
-			return value, nil
-		}
-
-		value, ttl, err := loader(ctx)
-		if err != nil {
-			return value, err
-		}
-
-		c.SetFor(key, value, ttl)
-		return value, nil
+		return c.load(ctx, key, loader)
 	})
 
 	if err != nil {
@@ -78,13 +98,41 @@ func (c *Keyed[K, V]) GetOrLoadTTL(ctx context.Context, key K, loader func(conte
 	return result.(V), nil
 }
 
+func (c *Keyed[K, V]) load(ctx context.Context, key K, loader func(context.Context) (V, time.Duration, error)) (V, error) {
+	if value, ok := c.Get(key); ok {
+		return value, nil
+	}
+
+	value, ttl, err := loader(ctx)
+	if err != nil {
+		return c.staleOr(key, value, err)
+	}
+
+	c.SetFor(key, value, ttl)
+	return value, nil
+}
+
+func (c *Keyed[K, V]) staleOr(key K, value V, err error) (V, error) {
+	if c.staleWindow <= 0 {
+		return value, err
+	}
+	if e, ok := c.client.Get(key); ok {
+		return e.value, nil
+	}
+	return value, err
+}
+
 func (c *Keyed[K, V]) Set(key K, value V) {
-	c.client.SetWithTTL(key, value, 1, c.ttl+rand.N(c.jitter+1))
+	c.SetFor(key, value, c.ttl)
 }
 
 func (c *Keyed[K, V]) SetFor(key K, value V, ttl time.Duration) {
-	jitter := ttl / 10
-	c.client.SetWithTTL(key, value, 1, ttl+rand.N(jitter+1))
+	ttl += rand.N(ttl/10 + 1)
+	e := entry[V]{value: value}
+	if c.staleWindow > 0 {
+		e.freshUntil = time.Now().Add(ttl)
+	}
+	c.client.SetWithTTL(key, e, 1, ttl+c.staleWindow)
 }
 
 func (c *Keyed[K, V]) Invalidate(key K) {
