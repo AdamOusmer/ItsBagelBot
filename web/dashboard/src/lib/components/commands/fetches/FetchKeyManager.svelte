@@ -171,10 +171,10 @@
   title={t('fetches.keyDeleteTitle', { label: deleteTarget?.label ?? '' })}
   confirmLabel={t('common.delete')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={busy}
   onConfirm={confirmDelete}
   onCancel={() => (deleteTarget = null)}
+  tone="danger"
 >
   {#if referencing.length > 0}
     <Text size="sm">{t('fetches.keyDeleteRefs')}</Text>

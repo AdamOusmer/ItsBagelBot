@@ -125,7 +125,6 @@
 
 <ConfirmDialog
   open={rollbackOpen}
-  danger
   title={t('admin.deploys.rollbackTitle')}
   body={t('admin.deploys.rollbackBody', { version: rollbackTo })}
   confirmLabel={t('admin.deploys.act.rollback', { version: rollbackTo })}
@@ -134,6 +133,7 @@
   {busy}
   onConfirm={() => rollbackForm?.requestSubmit()}
   onCancel={() => (rollbackOpen = false)}
+  tone="danger"
 />
 
 <style>

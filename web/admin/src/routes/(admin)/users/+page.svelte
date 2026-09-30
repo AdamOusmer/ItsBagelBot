@@ -471,10 +471,10 @@
     : undefined}
   confirmLabel={pending ? t(pending.label) : ''}
   cancelLabel={t('common.cancel')}
-  danger={pending?.danger ?? false}
   busy={busy !== null}
   onCancel={() => (pending = null)}
   onConfirm={confirmPending}
+  tone={pending?.danger ? 'danger' : 'neutral'}
 />
 
 <ConfirmDialog

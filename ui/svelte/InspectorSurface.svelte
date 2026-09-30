@@ -26,18 +26,20 @@
     controls?: string;
     closeLabel?: string;
     class?: string;
-    onClose: () => void;
+    onClose?: () => void;
+    onOpenChange?: (open: boolean) => void;
     children?: Snippet;
     idle?: Snippet;
   };
 
   let {
-    open = false,
+    open = $bindable(true),
     title,
     controls,
     closeLabel = i18n.t('action.close'),
     class: className = '',
     onClose,
+    onOpenChange,
     children,
     idle,
     ...rest
@@ -77,6 +79,13 @@
     }
   });
 
+  function requestClose() {
+    onOpenChange?.(false);
+    // onClose owns the state so it can veto; open is written only without one.
+    if (onClose) onClose();
+    else open = false;
+  }
+
   const dockedClasses = $derived(
     ['bb-surface', 'bb-card', 'bb-surface--docked', open ? null : 'bb-surface--idle', className || null]
       .filter(Boolean)
@@ -93,7 +102,7 @@
     const canDismiss = isSheet ? isTopmost(overlayId) : !hasOpenOverlay();
     if (canDismiss) {
       e.preventDefault();
-      onClose();
+      requestClose();
     }
   }}
 />
@@ -101,7 +110,7 @@
 {#snippet body(content: Snippet | undefined)}
   <div class="bb-surface__head">
     <span class="bb-surface__tag bb-tag bb-tag--bare">{title}</span>
-    <button class="bb-surface__close" type="button" aria-label={closeLabel} onclick={onClose}>
+    <button class="bb-surface__close" type="button" aria-label={closeLabel} onclick={requestClose}>
       <Icon name="x" size={14} />
     </button>
   </div>
@@ -117,7 +126,7 @@
 {#if open}
   {#if isSheet}
     <div class="bb-sheet-shell" data-overlay style="z-index: {zIndex}" use:portal>
-      <button class="bb-sheet-shell__scrim" type="button" aria-label={closeLabel} onclick={onClose}
+      <button class="bb-sheet-shell__scrim" type="button" aria-label={closeLabel} onclick={requestClose}
       ></button>
       <div
         class={sheetClasses}

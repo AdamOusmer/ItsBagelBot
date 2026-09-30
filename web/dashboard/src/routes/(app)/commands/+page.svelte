@@ -1050,9 +1050,9 @@
   body={t('commands.bulkDeleteBody', { count: numberFormat.format(selectedCustom.length) })}
   confirmLabel={t('commands.bulkDeleteConfirm', { count: numberFormat.format(selectedCustom.length) })}
   cancelLabel={t('common.cancel')}
-  danger
   onCancel={() => (bulkDeleteOpen = false)}
   onConfirm={confirmBulkDelete}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -1061,9 +1061,9 @@
   body={t('commands.discardBody')}
   confirmLabel={t('commands.discard')}
   cancelLabel={t('commands.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <svelte:window onkeydown={onKey} />

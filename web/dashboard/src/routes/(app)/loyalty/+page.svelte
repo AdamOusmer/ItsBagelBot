@@ -252,7 +252,7 @@
               <Switch
                 label={t('loyalty.rateToggleAria', { name: rf.label })}
                 checked={rates[rf.key].on}
-                onchange={(v) => (rates[rf.key].on = v)}
+                onCheckedChange={(v) => (rates[rf.key].on = v)}
               />
             </span>
           </div>
@@ -265,7 +265,7 @@
             hint={t('loyalty.streamerPointsHint')}
             hintId="streamer-points-hint"
             checked={config.streamerPoints >= 0}
-            onchange={(v) => (config.streamerPoints = v ? 0 : -1)}
+            onCheckedChange={(v) => (config.streamerPoints = v ? 0 : -1)}
           />
         </div>
 
@@ -282,7 +282,7 @@
               hint={pt.hint}
               hintId="perm-hint-{pt.key}"
               checked={config[pt.key] >= 0}
-              onchange={(v) => (config[pt.key] = v ? 0 : -1)}
+              onCheckedChange={(v) => (config[pt.key] = v ? 0 : -1)}
             />
           </div>
         {/each}

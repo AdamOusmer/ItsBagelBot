@@ -37,7 +37,7 @@
   const perScopeNote = $derived(c.scope === 'command' ? t('counters.perCommandNote') : t('counters.perUserNote'));
 </script>
 
-<ManagementRow selected={expanded} {expanded} controls="counter-inspector" onselect={onExpand}>
+<ManagementRow selected={expanded} {expanded} controls="counter-inspector" onSelect={onExpand}>
   {#snippet primary()}
     <span class="prow">
       {#if idx}<span class="idx" aria-hidden="true">{idx}</span>{/if}

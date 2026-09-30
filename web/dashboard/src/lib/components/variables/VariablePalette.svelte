@@ -173,7 +173,7 @@
           debounceMs={120}
           bind:value={searchValue}
           bind:element={searchEl}
-          oninput={(v) => (query = v)}
+          onValueChange={(v) => (query = v)}
           placeholder={t('commandEditor.allVariables')}
         />
 

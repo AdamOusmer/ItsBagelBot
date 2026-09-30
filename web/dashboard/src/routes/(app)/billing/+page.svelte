@@ -574,14 +574,14 @@
     : t('billing.cancelConfirmBodyNoDate')}
   confirmLabel={t('billing.cancelConfirmLabel')}
   cancelLabel={t('billing.keepSubscription')}
-  danger
   busy={cancelling}
   onConfirm={confirmCancel}
   onCancel={closeCancel}
+  tone="danger"
 />
 <form method="POST" action="?/cancel" bind:this={cancelForm} hidden></form>
 
-<Modal open={giftModalOpen} title={t('billing.giftPremium')} closeModal={closeGift}>
+<Modal open={giftModalOpen} title={t('billing.giftPremium')} onClose={closeGift}>
   <p class="bb-modal__body">
     {t('billing.giftModalBody')}
   </p>
@@ -640,7 +640,7 @@
   </form>
 </Modal>
 
-<Modal open={celebrateOpen} closeModal={closeCelebrate}>
+<Modal open={celebrateOpen} onClose={closeCelebrate}>
   <div class="celebrate">
     <div class="celebrate-badge" class:celebrate-badge--gift={celebrateKind === 'gift'}>
       <Bolota

@@ -4,13 +4,13 @@
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
 @layer bb.elements {
-    .bb-chip[data-on] {
+    .bb-chip[data-pressed] {
         color: var(--bb-tan-pale);
         background: rgba(var(--bb-tan-rgb), 0.10);
         border-color: rgba(var(--bb-tan-rgb), 0.50);
     }
 
-    .bb-chip[data-on]:is(.bb-chip--free, .bb-chip--paid, .bb-chip--vip, .bb-chip--banned, .bb-chip--inactive) {
+    .bb-chip[data-pressed]:is(.bb-chip--free, .bb-chip--paid, .bb-chip--vip, .bb-chip--banned, .bb-chip--inactive) {
         color: var(--tone);
         background: var(--tone-bg);
         border-color: var(--tone-rule);

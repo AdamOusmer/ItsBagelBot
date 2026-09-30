@@ -78,7 +78,7 @@ function primaryElement() {
 const Tag = as;
 const { tag: Primary, attrs: primaryAttrs } = primaryElement();
 const structured = title !== undefined;
-const hasLead = Astro.slots.has('lead');
+const hasLeading = Astro.slots.has('leading');
 const hasBadge = Astro.slots.has('badge');
 const hasMarks = Astro.slots.has('marks');
 const hasActions = Astro.slots.has('actions');
@@ -87,7 +87,7 @@ const hasActions = Astro.slots.has('actions');
 <Tag class={classes} {...rest}>
     <Primary class="bb-row__primary" {...primaryAttrs}>{structured ? (
         <span class="bb-row__line">
-            {hasLead && <slot name="lead" />}
+            {hasLeading && <slot name="leading" />}
             <span class="bb-row__text">
                 <span class="bb-row__title">{title}{hasBadge && <span class="bb-row__badge"><slot name="badge" /></span>}</span>
                 {meta && <span class="bb-row__meta">{meta}</span>}

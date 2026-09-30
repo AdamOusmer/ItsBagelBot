@@ -280,9 +280,9 @@
   body={t('timers.discardBody')}
   confirmLabel={t('timers.discard')}
   cancelLabel={t('timers.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <style>

@@ -296,10 +296,10 @@
     : undefined}
   confirmLabel={t('admin.staff.remove')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onCancel={() => (accessTarget = null)}
   onConfirm={() => removeForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/remove" use:enhance={removeSubmit} bind:this={removeForm} hidden>
   <input type="hidden" name="user_id" value={accessTarget?.id ?? ''} />

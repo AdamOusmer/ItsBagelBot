@@ -374,9 +374,9 @@
   body={t('govee.discardBody')}
   confirmLabel={t('govee.discard')}
   cancelLabel={t('govee.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -385,10 +385,10 @@
   body={t('govee.deleteBody', { name: deleteTarget?.name || t('govee.thisLight') })}
   confirmLabel={t('govee.deleteConfirm')}
   cancelLabel={t('govee.deleteCancel')}
-  danger
   busy={deleting}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/deleteReward" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="device" value={deleteTarget?.device ?? ''} />
@@ -400,10 +400,10 @@
   body={t('govee.keyRemoveBody')}
   confirmLabel={t('govee.keyRemove')}
   cancelLabel={t('govee.deleteCancel')}
-  danger
   busy={keyRemoving}
   onCancel={() => (keyRemovePending = false)}
   onConfirm={() => keyRemoveForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/clearKey" use:enhance={clearKeySubmit} bind:this={keyRemoveForm} hidden></form>
 

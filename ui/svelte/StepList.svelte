@@ -38,7 +38,7 @@
     detail?: Snippet<[StepItem]>;
     stateLabels?: Partial<Record<StepState, string>>;
     selected?: string;
-    onselect?: (id: string) => void;
+    onSelect?: (id: string) => void;
     label?: string;
     class?: string;
   };
@@ -48,7 +48,7 @@
     detail,
     stateLabels = {},
     selected,
-    onselect,
+    onSelect,
     label,
     class: className = '',
     ...rest
@@ -118,7 +118,7 @@
   });
 </script>
 
-{#if onselect}
+{#if onSelect}
   <nav
     class={navClasses}
     aria-label={label}
@@ -136,7 +136,7 @@
             class="bb-step__row"
             aria-current={step.id === selected ? 'step' : undefined}
             disabled={step.disabled}
-            onclick={() => onselect(step.id)}
+            onclick={() => onSelect(step.id)}
           >
             <span class="bb-step__mark" aria-hidden="true">
               {#if icon}<Icon name={icon} size={12} />{:else}<span class="bb-step__num">{String(i + 1).padStart(2, '0')}</span>{/if}

@@ -26,6 +26,7 @@
   import type { Snippet } from 'svelte';
   import { menuKeys } from '../lib/menu-keys';
   import { hasOpenOverlay } from '../lib/overlay-stack';
+  import { getUiI18n } from './i18n';
   import Button from './Button.svelte';
   import Icon from './Icon.svelte';
   import Scroller from './Scroller.svelte';
@@ -42,7 +43,7 @@
     exit?: ProfileMenuLink;
     logoutLabel: string;
     logoutAction?: string;
-    onlogout?: () => void;
+    onLogout?: () => void;
     help?: ProfileMenuLink[];
     helpLabel?: string;
     helpTitle?: string;
@@ -55,6 +56,7 @@
     class?: string;
   };
 
+  const i18n = getUiI18n();
   let {
     variant = 'topbar',
     name,
@@ -62,16 +64,16 @@
     open = $bindable(false),
     helpOpen = $bindable(false),
     links = [],
-    linksLabel = '',
+    linksLabel = i18n.t('profile.links'),
     exit,
     logoutLabel,
     logoutAction = '/auth/logout',
-    onlogout,
+    onLogout,
     help = [],
-    helpLabel = '',
+    helpLabel = i18n.t('profile.help'),
     helpTitle = '',
     more = [],
-    newTabLabel = '',
+    newTabLabel = i18n.t('profile.newTab'),
     feedback,
     menuLabel,
     triggerLabel,
@@ -229,7 +231,7 @@
           {#each more as line (line.href)}{@render moreLine(line)}{/each}
         </div>
       {/if}
-      <form method="POST" action={logoutAction} onsubmit={onlogout}>
+      <form method="POST" action={logoutAction} onsubmit={onLogout}>
         <button type="submit" class="bb-profile-topbar__op-menu-item" role="menuitem">{logoutLabel}</button>
       </form>
     </div>
@@ -296,7 +298,7 @@
         <div class="bb-profile-rail__who"><b>{name}</b><span>{caption}</span></div>
       </div>
     {/if}
-    <form class="bb-profile-rail__logout" method="POST" action={logoutAction} onsubmit={onlogout}>
+    <form class="bb-profile-rail__logout" method="POST" action={logoutAction} onsubmit={onLogout}>
       <Button variant="ghost" type="submit">{logoutLabel}</Button>
     </form>
   </div>

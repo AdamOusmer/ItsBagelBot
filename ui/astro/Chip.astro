@@ -5,16 +5,16 @@ import type { HTMLAttributes } from 'astro/types';
 import '../styles/tags.css';
 import '../styles/elements/chip.css';
 
-interface Props extends Omit<HTMLAttributes<'button'>, 'on' | 'type' | 'tone' | 'as' | 'class'> {
-    on?: boolean;
+interface Props extends Omit<HTMLAttributes<'button'>, 'pressed' | 'type' | 'tone' | 'as' | 'class'> {
+    pressed?: boolean;
     type?: 'button' | 'submit' | 'reset';
     tone?: 'muted' | 'danger' | 'eyebrow' | 'free' | 'paid' | 'vip' | 'banned' | 'inactive';
     as?: 'button' | 'span';
     class?: string;
 }
 
-const { on = false, type = 'button', tone, as: Tag = 'button', class: cls = '', ...rest } = Astro.props;
+const { pressed, type = 'button', tone, as: Tag = 'button', class: cls = '', ...rest } = Astro.props;
 const className = `bb-chip${tone ? ` bb-chip--${tone}` : ''}${cls ? ` ${cls}` : ''}`;
 ---
 
-<Tag type={Tag === 'button' ? type : undefined} class={className} data-on={on ? '' : undefined} {...rest}><slot /></Tag>
+<Tag type={Tag === 'button' ? type : undefined} class={className} aria-pressed={Tag === 'button' && pressed !== undefined ? pressed : undefined} data-pressed={pressed ? '' : undefined} {...rest}><slot /></Tag>

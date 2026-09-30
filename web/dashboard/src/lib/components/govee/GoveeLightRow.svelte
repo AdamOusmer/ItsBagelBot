@@ -29,7 +29,7 @@
   selected={expanded}
   {expanded}
   controls="govee-editor"
-  onselect={onExpand}
+  onSelect={onExpand}
 >
   {#snippet primary()}
     <span class="prow">

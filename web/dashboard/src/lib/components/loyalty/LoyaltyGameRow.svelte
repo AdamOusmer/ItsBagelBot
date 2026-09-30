@@ -82,7 +82,7 @@
         type="submit"
         checked={enabled}
         disabled={!loyaltyOn}
-        pending={pending}
+        busy={pending}
         label={enabled ? t('modules.disableAria', { label: tModuleLabel(t, def) }) : t('modules.enableAria', { label: tModuleLabel(t, def) })}
       />
     </form>

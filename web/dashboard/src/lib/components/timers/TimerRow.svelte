@@ -46,7 +46,7 @@
   selected={expanded}
   {expanded}
   controls="timer-editor"
-  onselect={onExpand}
+  onSelect={onExpand}
 >
   {#snippet primary()}
     <span class="prow">

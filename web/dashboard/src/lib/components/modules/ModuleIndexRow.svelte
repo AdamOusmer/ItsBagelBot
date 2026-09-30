@@ -84,7 +84,7 @@
             type="submit"
             checked={module.enabled}
             label={module.enabled ? t('modules.disableAria', { label: tModuleLabel(t, def) }) : t('modules.enableAria', { label: tModuleLabel(t, def) })}
-            pending={status === 'saving'}
+            busy={status === 'saving'}
           />
         </form>
       {:else}

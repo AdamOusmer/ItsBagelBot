@@ -77,12 +77,12 @@
   body={t('discord.settings.disconnectBody')}
   confirmLabel={t('discord.settings.disconnectCta')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onConfirm={() => {
     disconnectOpen = false;
     disconnectForm?.requestSubmit();
   }}
   onCancel={() => (disconnectOpen = false)}
+  tone="danger"
 />
 

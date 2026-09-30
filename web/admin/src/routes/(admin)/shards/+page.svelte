@@ -318,8 +318,8 @@
               checked={autoscaleOn}
               label={t('admin.shards.autoscaleLabel')}
               describedby="shards-autoscale-hint"
-              pending={busy}
-              onchange={() => autoscaleForm?.requestSubmit()}
+              busy={busy}
+              onCheckedChange={() => autoscaleForm?.requestSubmit()}
             />
           </Cluster>
           <span class="stepper" class:dim={autoscaleOn}>
@@ -376,10 +376,10 @@
   })}
   confirmLabel={t('admin.shards.apply')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onCancel={() => (confirmScaleDown = false)}
   onConfirm={() => scaleForm?.requestSubmit()}
+  tone="danger"
 />
 
 <form method="POST" action="?/scale" use:enhance={scaleSubmit} bind:this={scaleForm} hidden>

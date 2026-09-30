@@ -4,12 +4,12 @@
 import type { HTMLAttributes } from 'astro/types';
 import '../styles/elements/toggle.css';
 
-interface Props extends Omit<HTMLAttributes<'button'>, 'checked' | 'label' | 'describedby' | 'disabled' | 'pending' | 'type' | 'class'> {
+interface Props extends Omit<HTMLAttributes<'button'>, 'checked' | 'label' | 'describedby' | 'disabled' | 'busy' | 'type' | 'class'> {
   checked?: boolean;
   label: string;
   describedby?: string;
   disabled?: boolean;
-  pending?: boolean;
+  busy?: boolean;
   type?: 'button' | 'submit';
   class?: string;
 }
@@ -19,7 +19,7 @@ const {
   label,
   describedby,
   disabled = false,
-  pending = false,
+  busy = false,
   type = 'button',
   class: className,
   ...rest
@@ -33,9 +33,9 @@ const {
   aria-checked={checked ? 'true' : 'false'}
   aria-label={label}
   aria-describedby={describedby}
-  aria-busy={pending ? 'true' : undefined}
-  disabled={disabled || pending}
+  aria-busy={busy ? 'true' : undefined}
+  disabled={disabled || busy}
   data-state={checked ? 'on' : 'off'}
-  data-pending={pending ? '' : undefined}
+  data-busy={busy ? '' : undefined}
   {...rest}
 ></button>

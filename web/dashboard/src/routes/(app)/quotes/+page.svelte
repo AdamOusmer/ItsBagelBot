@@ -416,9 +416,9 @@
   body={t('quotes.discardBody')}
   confirmLabel={t('quotes.discard')}
   cancelLabel={t('quotes.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 <ConfirmDialog
   open={deleteTarget !== null}
@@ -426,10 +426,10 @@
   body={deleteTarget ? t('quotes.deleteBodyNamed', { snippet: snippet(deleteTarget.text) }) : undefined}
   confirmLabel={t('quotes.del')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={deleting}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="number" value={deleteTarget?.number ?? ''} />

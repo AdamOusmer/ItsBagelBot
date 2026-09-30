@@ -544,8 +544,8 @@
           <Switch
             checked={enabled}
             label={t('modules.toggleAria', { label: modLabel })}
-            pending={modStatus['module'] === 'saving'}
-            onchange={toggleModule}
+            busy={modStatus['module'] === 'saving'}
+            onCheckedChange={toggleModule}
           />
         {/if}
       </div>
@@ -576,10 +576,10 @@
                 hint={fieldCopy(field, 'help') || undefined}
                 hintId="sh-{field.key}"
                 checked={settingToggleOn(field)}
-                pending={modStatus[`setting:${field.key}`] === 'saving'}
+                busy={modStatus[`setting:${field.key}`] === 'saving'}
                 disabled={locked}
                 title={locked ? t('modules.lockedHint') : undefined}
-                onchange={(v) => saveSetting(field, v ? 'on' : 'off')}
+                onCheckedChange={(v) => saveSetting(field, v ? 'on' : 'off')}
               >
                 {#snippet status()}<SaveStatus state={modStatus[`setting:${field.key}`] ?? 'idle'} />{/snippet}
               </SwitchRow>
@@ -761,9 +761,9 @@
   body={t('modules.deleteRuleBody', { phrase: deletePhrase })}
   confirmLabel={t('common.delete')}
   cancelLabel={t('common.cancel')}
-  danger
   onCancel={() => (deleteIndex = null)}
   onConfirm={confirmDeleteRule}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -772,9 +772,9 @@
   body={t('modules.discardBody')}
   confirmLabel={t('modules.discard')}
   cancelLabel={t('modules.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <style>

@@ -17,7 +17,7 @@
     orientation?: 'horizontal' | 'vertical';
     maxStep?: number;
     compact?: boolean;
-    onselect?: (index: number) => void;
+    onSelect?: (index: number) => void;
     class?: string;
   };
 
@@ -28,7 +28,7 @@
     orientation = 'horizontal',
     maxStep = Number.POSITIVE_INFINITY,
     compact = false,
-    onselect,
+    onSelect,
     class: className = '',
     ...rest
   }: Own & Omit<HTMLAttributes<HTMLElement>, keyof Own> = $props();
@@ -82,14 +82,14 @@
     <ol class="bb-stepper__list">
       {#each steps as step, i (i)}
         <li class={itemClass(i)}>
-          {#if onselect}
+          {#if onSelect}
             <button
               type="button"
               class="bb-stepper__step"
               aria-label={step.label}
               aria-current={currentOf(i)}
               disabled={i > maxStep}
-              onclick={() => onselect(i)}
+              onclick={() => onSelect(i)}
             >{@render marker(i)}</button>
           {:else}
             <span class="bb-stepper__step" role="img" aria-label={step.label} aria-current={currentOf(i)}>{@render marker(i)}</span>

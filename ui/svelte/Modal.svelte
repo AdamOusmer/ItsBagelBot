@@ -17,12 +17,13 @@
 
   const i18n = getUiI18n();
   type Own = {
-    open: boolean;
+    open?: boolean;
     title?: string;
-    closeModal: () => void;
+    onClose?: () => void;
+    onOpenChange?: (open: boolean) => void;
     busy?: boolean;
     closeLabel?: string;
-    ariaLabel?: string;
+    label?: string;
     variant?: 'dialog' | 'viewer';
     toolbarLabel?: string;
     class?: string;
@@ -32,12 +33,13 @@
   };
 
   let {
-    open = false,
+    open = $bindable(false),
     title,
-    closeModal,
+    onClose,
+    onOpenChange,
     busy = false,
     closeLabel = i18n.t('action.close'),
-    ariaLabel,
+    label,
     variant = 'dialog',
     toolbarLabel,
     class: className = '',
@@ -61,7 +63,11 @@
   });
 
   function tryClose() {
-    if (!busy) closeModal();
+    if (busy) return;
+    onOpenChange?.(false);
+    // onClose owns the state so it can veto; open is written only without one.
+    if (onClose) onClose();
+    else open = false;
   }
 
   const viewer = $derived(variant === 'viewer');
@@ -92,7 +98,7 @@
       aria-modal="true"
       tabindex="-1"
       aria-labelledby={title ? titleId : undefined}
-      aria-label={title ? undefined : ariaLabel}
+      aria-label={title ? undefined : label}
       data-lenis-prevent
       use:trapFocus
     >{#if title}<h3 class="bb-modal__title" id={titleId}>{title}</h3>{/if}{#if viewer}<div class="bb-modal__stage"

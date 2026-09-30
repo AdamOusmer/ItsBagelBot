@@ -7,6 +7,7 @@ import en_action from './en/action.json';
 import en_choice from './en/choice.json';
 import en_data from './en/data.json';
 import en_nav from './en/nav.json';
+import en_profile from './en/profile.json';
 import en_search from './en/search.json';
 import en_select from './en/select.json';
 import en_status from './en/status.json';
@@ -15,6 +16,7 @@ import fr_action from './fr/action.json';
 import fr_choice from './fr/choice.json';
 import fr_data from './fr/data.json';
 import fr_nav from './fr/nav.json';
+import fr_profile from './fr/profile.json';
 import fr_search from './fr/search.json';
 import fr_select from './fr/select.json';
 import fr_status from './fr/status.json';
@@ -26,6 +28,7 @@ export const CATALOG_FILES = {
     choice: en_choice,
     data: en_data,
     nav: en_nav,
+    profile: en_profile,
     search: en_search,
     select: en_select,
     status: en_status,
@@ -36,6 +39,7 @@ export const CATALOG_FILES = {
     choice: fr_choice,
     data: fr_data,
     nav: fr_nav,
+    profile: fr_profile,
     search: fr_search,
     select: fr_select,
     status: fr_status,

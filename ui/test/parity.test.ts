@@ -359,9 +359,9 @@ const PAIRS: {
     name: 'Chip',
     svelte: SvelteChip,
     astro: AstroChip,
-    props: { on: true, tone: 'muted' },
+    props: { pressed: true, tone: 'muted' },
     slot: 'Timers',
-    html: '<button type="button" class="bb-chip bb-chip--muted" data-on>Timers</button>',
+    html: '<button type="button" class="bb-chip bb-chip--muted" aria-pressed="true" data-pressed>Timers</button>',
   },
   {
     name: 'EmptyState',
@@ -655,7 +655,7 @@ const REMAINING: {
     name: 'Modal: labelled by aria-label',
     svelte: SvelteModal,
     astro: AstroModal,
-    props: { open: true, ariaLabel: 'Celebration' },
+    props: { open: true, label: 'Celebration' },
     html:
       '<div class="bb-modal" data-overlay style="z-index: 200">' +
       '<button class="bb-modal__backdrop" type="button" aria-label="Close" data-cursor="quiet"></button>' +
@@ -803,7 +803,7 @@ for (const testCase of REMAINING) {
 
 test('Modal: a title mints an id and points aria-labelledby at it', () => {
   const { body } = render(SvelteModal, {
-    props: { open: true, title: 'Delete timer', closeModal: () => {} },
+    props: { open: true, title: 'Delete timer', onClose: () => {} },
   });
   const html = normalise(body);
   const id = /<h3 class="bb-modal__title" id="([^"]+)">/.exec(html)?.[1];
@@ -813,7 +813,7 @@ test('Modal: a title mints an id and points aria-labelledby at it', () => {
 });
 
 test('Modal: closed renders nothing at all', () => {
-  const { body } = render(SvelteModal, { props: { open: false, closeModal: () => {} } });
+  const { body } = render(SvelteModal, { props: { open: false, onClose: () => {} } });
   expect(normalise(body)).toBe('');
 });
 

@@ -129,7 +129,7 @@
       </div>
       <Cluster gap={2} nowrap>
         <span class="pause-label"><Label mono as="span">{pauseLabel}</Label></span>
-        <Switch checked={paused} label={pauseLabel} onchange={setPaused} />
+        <Switch checked={paused} label={pauseLabel} onCheckedChange={setPaused} />
       </Cluster>
       <Button variant="ghost" onclick={clearFeed} disabled={events.length === 0}>
         {t('admin.events.clear')}

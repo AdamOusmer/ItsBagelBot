@@ -798,9 +798,9 @@
   body={t('counters.discardBody')}
   confirmLabel={t('counters.discard')}
   cancelLabel={t('counters.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -809,10 +809,10 @@
   body={t('counters.deleteBody', { name: deleteTarget?.name ?? '' })}
   confirmLabel={t('counters.del')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={deleting}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="name" value={deleteTarget?.name ?? ''} />
@@ -835,10 +835,10 @@
   body={t('counters.resetBody', { name: resetTarget?.name ?? '' })}
   confirmLabel={t('counters.reset')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={resetting}
   onCancel={() => (resetTarget = null)}
   onConfirm={() => resetForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/set" use:enhance={resetSubmit} bind:this={resetForm} hidden>
   <input type="hidden" name="name" value={resetTarget?.name ?? ''} />
@@ -851,10 +851,10 @@
   body={t('counters.entryDeleteBody', { name: entryDeleteTarget ? entryLabel(entryDeleteTarget) : '' })}
   confirmLabel={t('counters.remove')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={entryDeleting}
   onCancel={() => (entryDeleteTarget = null)}
   onConfirm={() => entryDeleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/deleteEntry" use:enhance={entryDeleteSubmit} bind:this={entryDeleteForm} hidden>
   <input type="hidden" name="name" value={selected?.name ?? ''} />

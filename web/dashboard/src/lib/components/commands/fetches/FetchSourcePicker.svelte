@@ -294,7 +294,7 @@
   </PickerPanel>
 </div>
 
-<Modal open={building} title={t('fetches.builderTitle')} busy={creating} closeModal={() => (building = false)}>
+<Modal open={building} title={t('fetches.builderTitle')} busy={creating} onClose={() => (building = false)}>
   <div class="build" bind:this={buildEl}>
     <Text size="sm" tone="muted">{t('fetches.builderIntro')}</Text>
 

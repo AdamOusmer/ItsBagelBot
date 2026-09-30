@@ -20,8 +20,8 @@
     title?: string;
     meta?: string;
     class?: string;
-    onselect?: () => void;
-    lead?: Snippet;
+    onSelect?: () => void;
+    leading?: Snippet;
     badge?: Snippet;
     marks?: Snippet;
     primary?: Snippet;
@@ -43,8 +43,8 @@
     title,
     meta,
     class: className = '',
-    onselect,
-    lead,
+    onSelect,
+    leading,
     badge,
     marks,
     primary,
@@ -94,7 +94,7 @@
 
 {#snippet line()}
   <span class="bb-row__line">
-    {#if lead}{@render lead()}{/if}
+    {#if leading}{@render leading()}{/if}
     <span class="bb-row__text">
       <span class="bb-row__title">{title}{#if badge}<span class="bb-row__badge">{@render badge()}</span>{/if}</span>
       {#if meta}<span class="bb-row__meta">{meta}</span>{/if}
@@ -105,7 +105,7 @@
 {/snippet}
 
 <svelte:element this={as} class={classes} {...rest}>
-  <svelte:element this={primaryEl.tag} class="bb-row__primary" {...primaryEl.attrs} onclick={onselect}
+  <svelte:element this={primaryEl.tag} class="bb-row__primary" {...primaryEl.attrs} onclick={onSelect}
     >{#if title !== undefined}{@render line()}{:else if primary}{@render primary()}{/if}</svelte:element
   >
   {#if actions}<div class="bb-row__actions">{@render actions()}</div>{/if}

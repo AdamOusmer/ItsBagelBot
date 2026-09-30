@@ -27,7 +27,7 @@
   }
 </script>
 
-<ManagementRow as="li" class="reveal" selected={expanded} {expanded} controls="quote-inspector" onselect={onExpand}>
+<ManagementRow as="li" class="reveal" selected={expanded} {expanded} controls="quote-inspector" onSelect={onExpand}>
   {#snippet primary()}
     <span class="prow">
       <span class="num" class:on={expanded}>#{quote.number}</span>

@@ -158,7 +158,7 @@
           <Text size="sm" tone="muted">{t('admin.secrets.genNote')}</Text>
           <Cluster gap={2}>
             {#each GEN_KINDS as kind (kind)}
-              <Chip on={genKind === kind} onclick={() => (genKind = kind)}>
+              <Chip pressed={genKind === kind} onclick={() => (genKind = kind)}>
                 {t(GEN_LABEL[kind])}
               </Chip>
             {/each}
@@ -183,10 +183,10 @@
   title={dialog ? t(dialog.title) : ''}
   confirmLabel={dialog ? t(dialog.cta) : t('common.done')}
   cancelLabel={t('common.cancel')}
-  danger={dialog?.danger ?? false}
   {busy}
   onCancel={close}
   onConfirm={() => dialogForm?.requestSubmit()}
+  tone={dialog?.danger ? 'danger' : 'neutral'}
 >
   {#if dialog && pendingService}
     <div class="fields">

@@ -161,9 +161,35 @@ describe('Chip, Badge and Tag tones', () => {
     name: 'tier chip',
     svelte: SvelteChip,
     astro: AstroChip,
-    props: { tone: 'vip', on: true, class: 'tier' },
+    props: { tone: 'vip', pressed: true, class: 'tier' },
     slot: 'vip',
-    html: '<button type="button" class="bb-chip bb-chip--vip tier" data-on>vip</button>',
+    html: '<button type="button" class="bb-chip bb-chip--vip tier" aria-pressed="true" data-pressed>vip</button>',
+  });
+
+  contract({
+    name: 'unpressed toggle chip',
+    svelte: SvelteChip,
+    astro: AstroChip,
+    props: { pressed: false },
+    slot: 'all',
+    html: '<button type="button" class="bb-chip" aria-pressed="false">all</button>',
+  });
+
+  contract({
+    name: 'action chip carries no pressed state',
+    svelte: SvelteChip,
+    astro: AstroChip,
+    slot: 'go',
+    html: '<button type="button" class="bb-chip">go</button>',
+  });
+
+  contract({
+    name: 'span chip never claims aria-pressed',
+    svelte: SvelteChip,
+    astro: AstroChip,
+    props: { as: 'span', pressed: true },
+    slot: 'beta',
+    html: '<span class="bb-chip" data-pressed>beta</span>',
   });
 
   contract({
@@ -225,11 +251,11 @@ describe('RadioGroup', () => {
       '<label class="bb-tab "><input class="bb-tab__input" type="radio" name="t" value="b" disabled> B</label></div>',
   });
 
-  test('svelte cards render the lead snippet with the selected flag', () => {
-    const lead = createRawSnippet((opt: () => { label: string }, on: () => boolean) => ({
+  test('svelte cards render the leading snippet with the selected flag', () => {
+    const leading = createRawSnippet((opt: () => { label: string }, on: () => boolean) => ({
       render: () => `<b>${opt().label[0]}${on() ? '*' : ''}</b>`,
     }));
-    const html = svelteHtml(SvelteRadioGroup, { name: 'k', value: 'deploy', variant: 'cards', options: KINDS, lead });
+    const html = svelteHtml(SvelteRadioGroup, { name: 'k', value: 'deploy', variant: 'cards', options: KINDS, leading });
     expect(html).toContain('<span class="bb-choice__lead"><b>D*</b></span>');
     expect(html).toContain('<span class="bb-choice__lead"><b>R</b></span>');
   });
@@ -421,8 +447,8 @@ describe('control stylesheets', () => {
     expect(tags).not.toMatch(/#d9aaff|purple/i);
   });
 
-  test('a chip shows its tier colour only while on', async () => {
+  test('a chip shows its tier colour only while pressed', async () => {
     const chip = await css('elements/chip.css');
-    expect(chip).toContain('.bb-chip[data-on]:is(.bb-chip--free, .bb-chip--paid, .bb-chip--vip, .bb-chip--banned, .bb-chip--inactive)');
+    expect(chip).toContain('.bb-chip[data-pressed]:is(.bb-chip--free, .bb-chip--paid, .bb-chip--vip, .bb-chip--banned, .bb-chip--inactive)');
   });
 });

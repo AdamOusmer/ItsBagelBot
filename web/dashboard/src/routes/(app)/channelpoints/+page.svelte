@@ -295,9 +295,9 @@
   body={t('channelpoints.discardBody')}
   confirmLabel={t('channelpoints.discard')}
   cancelLabel={t('channelpoints.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -306,10 +306,10 @@
   body={t('channelpoints.deleteBody', { name: deleteTarget?.title ?? '' })}
   confirmLabel={t('channelpoints.del')}
   cancelLabel={t('common.cancel')}
-  danger
   busy={deleting}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="id" value={deleteTarget?.id ?? ''} />

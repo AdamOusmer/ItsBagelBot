@@ -291,8 +291,7 @@ describe('Modal viewer', () => {
     name: 'viewer frames a stage with toolbar and hint',
     svelte: SvelteModal,
     astro: AstroModal,
-    props: { open: true, variant: 'viewer', ariaLabel: 'Diagram', toolbarLabel: 'Controls' },
-    svelteProps: { closeModal: () => {} },
+    props: { open: true, variant: 'viewer', label: 'Diagram', toolbarLabel: 'Controls' },
     slots: { default: '<svg></svg>', toolbar: '<button>+</button>', hint: '<span>Drag to pan</span>' },
     html:
       '<div class="bb-modal bb-modal--viewer" data-overlay style="z-index: 200">' +
@@ -305,7 +304,7 @@ describe('Modal viewer', () => {
   });
 
   test('a closed astro modal stays in the document, hidden', async () => {
-    const html = await astroHtml(AstroModal, { open: false, variant: 'viewer', ariaLabel: 'Diagram' });
+    const html = await astroHtml(AstroModal, { open: false, variant: 'viewer', label: 'Diagram' });
     expect(html).toContain('<div class="bb-modal bb-modal--viewer" data-overlay style="z-index: 200" hidden>');
   });
 });
@@ -370,7 +369,7 @@ describe('CopySurface', () => {
     name: 'announce text rides on the surface for the status region',
     svelte: SvelteCopySurface,
     astro: AstroCopySurface,
-    props: { text: '!hi', variant: 'row', copiedLabel: 'Copied', announce: 'Copied !hi' },
+    props: { text: '!hi', variant: 'row', hint: '', copiedLabel: 'Copied', announce: 'Copied !hi' },
     html:
       '<button class="bb-copy bb-copy--row" type="button" data-copy="!hi" data-copy-announce="Copied !hi">' +
       '<span class="bb-copy__row"><span class="bb-copy__value">!hi</span><span class="bb-copy__hint" aria-hidden="true">' +
@@ -478,7 +477,7 @@ describe('Popover', () => {
   test('open popover labels its sheet by its heading and offers a dismiss', () => {
     const html = normalise(
       render(SveltePopover, {
-        props: { ...base, open: true, dismissLabel: 'Dismiss', ondismiss: () => {}, children: snippet('<ol></ol>') },
+        props: { ...base, open: true, dismissLabel: 'Dismiss', onDismiss: () => {}, children: snippet('<ol></ol>') },
       }).body,
     );
     const id = /aria-labelledby="([^"]+)"/.exec(html)?.[1];

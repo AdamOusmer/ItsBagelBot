@@ -144,7 +144,7 @@
         <ul class="opts">
           {#each counters.toSorted((a, b) => a.name.localeCompare(b.name)) as c (c.name)}
             <PickerOption as="li" label={c.name} onclick={() => pick(c.name)}>
-              {#snippet trail()}<Tag tone="bare">{scopeTag[c.scope]}</Tag>{/snippet}
+              {#snippet trailing()}<Tag tone="bare">{scopeTag[c.scope]}</Tag>{/snippet}
             </PickerOption>
           {/each}
         </ul>

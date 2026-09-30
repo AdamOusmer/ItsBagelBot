@@ -22,7 +22,7 @@
   import RadioGroup from '@bagel/ui/svelte/RadioGroup.svelte';
   import Stepper from '@bagel/ui/svelte/Stepper.svelte';
   import Text from '@bagel/ui/svelte/Text.svelte';
-  import Toggle from '@bagel/ui/svelte/Toggle.svelte';
+  import Switch from '@bagel/ui/svelte/Switch.svelte';
   import Bolota from '@bagel/kit/components/Bolota.svelte';
   import { getI18n } from '@bagel/kit/i18n/context';
   import { LOCALES, ensureCatalog, translate, type Locale } from '@bagel/kit/i18n';
@@ -442,7 +442,7 @@
       current={step - 1}
       maxStep={maxStep - 1}
       label={tr('onboarding.stepOf', { n: Math.max(step, 1), total: journeyTotal })}
-      onselect={goTo}
+      onSelect={goTo}
     />
   </header>
 
@@ -489,7 +489,7 @@
 
             {#if current.kind === 'consent'}
               <div class="control consent" in:arrive|global={{ i: 3 }} out:depart|global={{ i: 3 }}>
-                <Toggle bind:on={consentAccepted} onchange={onConsent} />
+                <Switch bind:checked={consentAccepted} label={current.title} onCheckedChange={onConsent} />
                 <Text as="span" size="sm" tone="muted" class="bb-prose">{@html tr('onboarding.consentLabel')}</Text>
               </div>
               <div class="consent-hint" class:shown={consentBlocked}>
@@ -504,14 +504,14 @@
                   label={tr('onboarding.choiceTitle')}
                   value={setup}
                   options={choiceOptions}
-                  onchange={pickSetup}
+                  onValueChange={pickSetup}
                   aria-describedby="wlc-preview-{setup}"
                   onpointerover={(e: PointerEvent) => previewChoice(e.target)}
                   onfocusin={(e: FocusEvent) => previewChoice(e.target)}
                   onpointerleave={clearChoice}
                   onfocusout={clearChoice}
                 >
-                  {#snippet lead(option, on)}
+                  {#snippet leading(option, on)}
                     <span class="role-glyph" class:on aria-hidden="true"><Icon name={choiceOf(option.value).icon} size={15} /></span>
                   {/snippet}
                 </RadioGroup>
@@ -546,7 +546,7 @@
                   flashMs={2000}
                   legacyFallback
                   title={tr('common.copy')}
-                  oncopy={celebrateCopy}
+                  onCopy={celebrateCopy}
                 >
                   {#snippet children()}<span data-decode={MOD_COMMAND}>{MOD_COMMAND}</span>{/snippet}
                 </CopySurface>

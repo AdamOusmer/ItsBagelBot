@@ -137,7 +137,7 @@
           bind:value={search}
           placeholder={t('admin.audit.searchPlaceholder')}
           debounceMs={350}
-          oninput={submitSearch}
+          onValueChange={submitSearch}
         />
       </div>
       <Button variant="ghost" onclick={exportCsv} disabled={rows.length === 0}>

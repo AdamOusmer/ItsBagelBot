@@ -531,7 +531,7 @@
       </div>
       <form method="POST" action="?/setCommandsPage" use:enhance={commandsPageSubmit}>
         <input type="hidden" name="enabled" value={data.commandsPage ? '' : 'on'} />
-        <Switch type="submit" checked={!!data.commandsPage} pending={commandsPageBusy} label={t('settings.commandsPage')} describedby="commands-page-hint" />
+        <Switch type="submit" checked={!!data.commandsPage} busy={commandsPageBusy} label={t('settings.commandsPage')} describedby="commands-page-hint" />
       </form>
     </div>
   </Card>
@@ -596,10 +596,10 @@
   confirmLabel={t('common.revoke')}
   cancelLabel={t('common.cancel')}
   busyLabel={t('settings.working')}
-  danger
   busy={revoking}
   onCancel={() => (revokeTarget = null)}
   onConfirm={() => revokeForm?.requestSubmit()}
+  tone="danger"
 />
 {#if revokeTarget}
   <form
@@ -620,10 +620,10 @@
   confirmLabel={t('common.leave')}
   cancelLabel={t('common.cancel')}
   busyLabel={t('settings.working')}
-  danger
   busy={leaving}
   onCancel={() => (leaveTarget = null)}
   onConfirm={() => leaveForm?.requestSubmit()}
+  tone="danger"
 />
 {#if leaveTarget}
   <form
@@ -644,10 +644,10 @@
   confirmLabel={t('settings.signOutEverywhere')}
   cancelLabel={t('common.cancel')}
   busyLabel={t('settings.working')}
-  danger
   busy={signingOut}
   onCancel={() => (signOutOpen = false)}
   onConfirm={() => signOutForm?.requestSubmit()}
+  tone="danger"
 />
 {#if signOutOpen}
   <form

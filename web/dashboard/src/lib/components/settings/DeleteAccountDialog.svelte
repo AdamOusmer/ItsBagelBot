@@ -32,7 +32,7 @@
   });
 </script>
 
-<Modal {open} title={t('settings.deleteTitle')} {busy} closeModal={onCancel}>
+<Modal {open} title={t('settings.deleteTitle')} {busy} onClose={onCancel}>
   <p class="bb-modal__body">{t('settings.deleteBody')}</p>
   <Field label={t('settings.deleteConfirmLabel', { login })} hint={t('settings.deleteConfirmHint', { login })}>
     <Input fill mono name="confirm_login" bind:value={typed} autocomplete="off" autocapitalize="off" spellcheck="false" disabled={busy} />

@@ -11,7 +11,7 @@
     options: readonly (string | { value: string; label: string; count?: number | string; attrs?: Record<string, string> })[];
     value: string;
     label?: string;
-    onchange?: (value: string) => void;
+    onValueChange?: (value: string) => void;
     class?: string;
   };
 
@@ -19,7 +19,7 @@
     options,
     value = $bindable(''),
     label = i18n.t('choice.filter'),
-    onchange,
+    onValueChange,
     class: className = '',
     ...rest
   }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
@@ -31,7 +31,7 @@
 
   function pick(next: string) {
     value = next;
-    onchange?.(next);
+    onValueChange?.(next);
   }
 
   function onkeydown(event: KeyboardEvent) {

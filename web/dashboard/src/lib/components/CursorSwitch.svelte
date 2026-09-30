@@ -30,8 +30,8 @@
 
 <Switch
   bind:checked={$customCursor}
-  {pending}
+  busy={pending}
   label={t('settings.customCursor')}
   {describedby}
-  onchange={persist}
+  onCheckedChange={persist}
 />

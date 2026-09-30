@@ -16,9 +16,9 @@
     control?: 'start' | 'end';
     tone?: SwitchRowTone;
     disabled?: boolean;
-    pending?: boolean;
+    busy?: boolean;
     type?: 'button' | 'submit';
-    onchange?: (v: boolean) => void;
+    onCheckedChange?: (checked: boolean) => void;
     status?: Snippet;
     note?: Snippet;
     class?: string;
@@ -33,9 +33,9 @@
     control = 'start',
     tone,
     disabled = false,
-    pending = false,
+    busy = false,
     type = 'button',
-    onchange,
+    onCheckedChange,
     status,
     note,
     class: className = '',
@@ -60,9 +60,9 @@
     label={switchLabel ?? label}
     {describedby}
     {disabled}
-    {pending}
+    {busy}
     {type}
-    {onchange}
+    {onCheckedChange}
   />{/snippet}
 
 <div class={classes} {...rest}

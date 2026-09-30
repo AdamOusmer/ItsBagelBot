@@ -21,9 +21,9 @@
     cols?: number;
     rail?: 'sm' | 'md';
     maxHeight?: string;
-    onchange?: (value: string) => void;
-    onpick?: (value: string) => void;
-    lead?: Snippet<[RadioOption, boolean]>;
+    onValueChange?: (value: string) => void;
+    onSelect?: (value: string) => void;
+    leading?: Snippet<[RadioOption, boolean]>;
     class?: string;
   };
 
@@ -37,9 +37,9 @@
     cols,
     rail,
     maxHeight,
-    onchange,
-    onpick,
-    lead,
+    onValueChange,
+    onSelect,
+    leading,
     class: className = '',
     ...rest
   }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
@@ -65,12 +65,12 @@
 
   function pick(next: string) {
     value = next;
-    onchange?.(next);
-    onpick?.(next);
+    onValueChange?.(next);
+    onSelect?.(next);
   }
 
   function repick(next: string) {
-    if (next === value) onpick?.(next);
+    if (next === value) onSelect?.(next);
   }
 </script>
 
@@ -106,7 +106,7 @@
           onclick={() => repick(opt.value)}
           onchange={() => pick(opt.value)}
         />{#if variant === 'cards'}<span class="bb-choice__top"
-            >{#if lead}<span class="bb-choice__lead">{@render lead(opt, value === opt.value)}</span>{/if}<span
+            >{#if leading}<span class="bb-choice__lead">{@render leading(opt, value === opt.value)}</span>{/if}<span
               class="bb-choice__tick"
               aria-hidden="true"><Icon name="check" size={12} /></span
             ></span

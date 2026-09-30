@@ -4,5 +4,7 @@
   "confirm": "Confirm",
   "save": "Save",
   "dismiss": "Dismiss",
-  "undo": "Undo"
+  "undo": "Undo",
+  "copy": "Copy",
+  "copied": "Copied"
 }

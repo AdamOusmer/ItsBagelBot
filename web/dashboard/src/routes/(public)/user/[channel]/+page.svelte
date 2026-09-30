@@ -162,7 +162,7 @@
         options={filterOptions}
         value={moduleId ? '' : filter}
         label={t('public.commands.sourceLabel')}
-        onchange={pickFilter}
+        onValueChange={pickFilter}
       />
     </div>
   </div>
@@ -182,6 +182,7 @@
                 <CopySurface
                   variant="row"
                   text={row.trigger}
+                  hint=""
                   copiedLabel={t('common.copied')}
                   flashMs={COPY_FLASH_MS}
                   announce={t('public.commands.copiedAnnounce', { trigger: row.trigger })}

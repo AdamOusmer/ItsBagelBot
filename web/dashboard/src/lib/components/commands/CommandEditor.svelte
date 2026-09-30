@@ -247,8 +247,8 @@
         <Text as="span" size="sm">{t('commandEditor.active')}</Text>
         <Switch
           checked={liveActive}
-          pending={busy}
-          onchange={() => onToggleActive(!liveActive)}
+          busy={busy}
+          onCheckedChange={() => onToggleActive(!liveActive)}
           label={t('commandEditor.active')}
         />
       </div>

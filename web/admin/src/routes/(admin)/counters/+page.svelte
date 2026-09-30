@@ -207,7 +207,7 @@
                 selected={inspector.selectedId === c.name}
                 expanded={inspector.selectedId === c.name}
                 controls="counter-inspector"
-                onselect={() => openCounter(c)}
+                onSelect={() => openCounter(c)}
                 title={c.name}
                 meta={t('admin.counters.rowMeta', { scope: c.scope })}
               >
@@ -314,10 +314,10 @@
   body={deleteTarget ? t('admin.counters.confirmDeleteBody', { name: deleteTarget.name }) : undefined}
   confirmLabel={t('common.delete')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onCancel={() => (deleteTarget = null)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="name" value={deleteTarget?.name ?? ''} />

@@ -396,7 +396,7 @@
       control="end"
       checked={opts.checked}
       disabled={opts.disabled}
-      onchange={opts.onchange}
+      onCheckedChange={opts.onchange}
       label={opts.label}
       hint={opts.desc}
       hintId={opts.descId}
@@ -622,9 +622,9 @@
   body={t('spotify.discardBody')}
   confirmLabel={t('spotify.discard')}
   cancelLabel={t('spotify.keepEditing')}
-  danger
   onCancel={discard.cancel}
   onConfirm={discard.confirm}
+  tone="danger"
 />
 
 <ConfirmDialog
@@ -634,10 +634,10 @@
   confirmLabel={t(connectionAction === 'clearApp' ? 'spotify.app.remove' : 'spotify.connection.disconnect')}
   cancelLabel={t('spotify.app.cancel')}
   busyLabel={t('spotify.saving')}
-  danger
   busy={connectionBusy}
   onCancel={() => (connectionAction = null)}
   onConfirm={() => connectionForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/skip" use:enhance={skipSubmit} bind:this={skipForm} hidden></form>
 <form method="POST" action={connectionAction === 'clearApp' ? '?/clearApp' : '?/disconnect'} use:enhance={connectionSubmit} bind:this={connectionForm} hidden></form>
@@ -648,10 +648,10 @@
   body={t('spotify.delete.body', { name: redeem.reward?.title || t('spotify.reward.thisReward') })}
   confirmLabel={t('spotify.delete.confirm')}
   cancelLabel={t('spotify.delete.cancel')}
-  danger
   busy={deleting}
   onCancel={() => (deletePending = false)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/deleteReward" use:enhance={deleteSubmit} bind:this={deleteForm} hidden></form>
 

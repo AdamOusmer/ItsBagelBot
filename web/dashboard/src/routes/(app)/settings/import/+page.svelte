@@ -212,9 +212,9 @@
           label={t('import.stepPick')}
           value={source}
           options={sourceOptions}
-          onchange={choose}
+          onValueChange={choose}
         >
-          {#snippet lead(option, on)}
+          {#snippet leading(option, on)}
             {@const s = IMPORT_STRATEGIES[option.value as ImportSource]}
             <span class="glyph" class:picked={on} aria-hidden="true">{s.initials}</span>
             {#if s.available}<Tag tone="pre">{t(CHIP_LABEL_KEYS[s.chip])}</Tag>{:else}<Tag tone="quiet">{t('import.chipSoon')}</Tag>{/if}
@@ -286,7 +286,7 @@
           <div class="hint"><Text size="sm" tone="muted">{t(spec.i18n.scopeHint)}</Text></div>
         </div>
       {:else}
-        <FileDrop label={t('import.dropHint')} accept={spec.accept} file={uploadFile} onfile={pickFile} />
+        <FileDrop label={t('import.dropHint')} accept={spec.accept} file={uploadFile} onFileChange={pickFile} />
       {/if}
 
       {#if previewError}<AlertBanner>{previewError}</AlertBanner>{/if}

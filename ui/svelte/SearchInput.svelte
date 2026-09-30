@@ -17,6 +17,7 @@
     clearLabel = i18n.t('search.clear'),
     fill = false,
     oninput,
+    onValueChange,
     ...rest
   }: {
     value?: string;
@@ -26,27 +27,28 @@
     debounceMs?: number;
     clearLabel?: string;
     fill?: boolean;
-    oninput?: (value: string) => void;
-  } & Omit<HTMLInputAttributes, 'value' | 'oninput' | 'type'> = $props();
+    onValueChange?: (value: string) => void;
+  } & Omit<HTMLInputAttributes, 'value' | 'type'> = $props();
 
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   onDestroy(() => clearTimeout(timer));
 
-  function changed() {
-    if (!oninput) return;
+  const changed: NonNullable<HTMLInputAttributes['oninput']> = (event) => {
+    oninput?.(event);
+    if (!onValueChange) return;
     if (!debounceMs) {
-      oninput(value);
+      onValueChange(value);
       return;
     }
     clearTimeout(timer);
-    timer = setTimeout(() => oninput?.(value), debounceMs);
-  }
+    timer = setTimeout(() => onValueChange?.(value), debounceMs);
+  };
 
   function clear() {
     value = '';
     clearTimeout(timer);
-    oninput?.('');
+    onValueChange?.('');
   }
 </script>
 

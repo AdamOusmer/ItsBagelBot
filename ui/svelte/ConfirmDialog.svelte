@@ -10,16 +10,17 @@
 
   const i18n = getUiI18n();
   let {
-    open = false,
+    open = $bindable(false),
     title,
     body = undefined as string | undefined,
     confirmLabel = i18n.t('action.confirm'),
     cancelLabel = i18n.t('action.cancel'),
     busyLabel = i18n.t('status.working'),
-    danger = false,
+    tone = 'neutral',
     busy = false,
     onConfirm,
     onCancel,
+    onOpenChange,
     children = undefined as Snippet | undefined,
   }: {
     open: boolean;
@@ -28,21 +29,28 @@
     confirmLabel?: string;
     cancelLabel?: string;
     busyLabel?: string;
-    danger?: boolean;
+    tone?: 'neutral' | 'danger';
     busy?: boolean;
     onConfirm: () => void;
-    onCancel: () => void;
+    onCancel?: () => void;
+    onOpenChange?: (open: boolean) => void;
     children?: Snippet;
   } = $props();
+
+  function cancel() {
+    open = false;
+    onOpenChange?.(false);
+    onCancel?.();
+  }
 </script>
 
-<Modal {open} {title} {busy} closeModal={onCancel}>
+<Modal {open} {title} {busy} onClose={cancel}>
   {#if body}<p class="bb-modal__body">{body}</p>{/if}
   {#if children}{@render children()}{/if}
   <div class="bb-modal__actions">
-    <Button variant="ghost" onclick={onCancel} disabled={busy}>{cancelLabel}</Button>
+    <Button variant="ghost" onclick={cancel} disabled={busy}>{cancelLabel}</Button>
     <Button
-      tone={danger ? 'danger' : 'neutral'}
+      {tone}
       onclick={onConfirm}
       disabled={busy}
     >

@@ -68,7 +68,7 @@
     <form method="POST" action="?/save" use:enhance={submit} class="flip">
       <input type="hidden" name="config" value={payload} />
       <input type="hidden" name="version" value={version} />
-      <Switch type="submit" checked={on} {pending} label={name} describedby={helpId} />
+      <Switch type="submit" checked={on} busy={pending} label={name} describedby={helpId} />
     </form>
   </div>
 

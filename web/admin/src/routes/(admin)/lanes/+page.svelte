@@ -404,10 +404,10 @@
     : undefined}
   confirmLabel={t('common.delete')}
   cancelLabel={t('common.cancel')}
-  danger
   {busy}
   onCancel={() => (confirmDelete = false)}
   onConfirm={() => deleteForm?.requestSubmit()}
+  tone="danger"
 />
 <form method="POST" action="?/delete" use:enhance={deleteSubmit} bind:this={deleteForm} hidden>
   <input type="hidden" name="stream" value={selected?.stream ?? ''} />

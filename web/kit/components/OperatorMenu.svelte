@@ -50,7 +50,7 @@
   linksLabel={t('topbar.dashboards')}
   {exit}
   logoutLabel={t('topbar.logout')}
-  onlogout={clearOnboarding}
+  onLogout={clearOnboarding}
   {help}
   helpTitle={t('topbar.supportTitle')}
   {more}

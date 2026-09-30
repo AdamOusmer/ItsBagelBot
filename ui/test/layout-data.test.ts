@@ -112,7 +112,7 @@ describe('ManagementRow modes', () => {
     svelte: SvelteManagementRow,
     astro: AstroManagementRow,
     props: { title: 'ada', meta: 'id 4', controls: 'insp' },
-    slots: { lead: '<b>L</b>', badge: '<b>You</b>', default: '<b>meter</b>', marks: '<b>paid</b>' },
+    slots: { leading: '<b>L</b>', badge: '<b>You</b>', default: '<b>meter</b>', marks: '<b>paid</b>' },
     defaultSnippet: 'primary',
     html:
       '<div class="bb-row row-shell">' +

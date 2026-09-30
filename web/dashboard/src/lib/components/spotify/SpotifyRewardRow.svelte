@@ -27,7 +27,7 @@
   selected={expanded}
   {expanded}
   controls="spotify-editor"
-  onselect={onExpand}
+  onSelect={onExpand}
 >
   {#snippet primary()}
     <span class="prow">

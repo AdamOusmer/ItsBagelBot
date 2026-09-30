@@ -32,7 +32,7 @@
     hint={help}
     hintId="dcs-{field}"
     checked={on}
-    onchange={(v) => draft.setFlag(field, v)}
+    onCheckedChange={(v) => draft.setFlag(field, v)}
   >
     {#snippet note()}<FieldNote {invalid} {field} />{/snippet}
   </UiSwitchRow>

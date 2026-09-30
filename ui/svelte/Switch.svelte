@@ -9,9 +9,9 @@
     label: string;
     describedby?: string;
     disabled?: boolean;
-    pending?: boolean;
+    busy?: boolean;
     type?: 'button' | 'submit';
-    onchange?: (v: boolean) => void;
+    onCheckedChange?: (checked: boolean) => void;
     class?: string;
   };
 
@@ -20,18 +20,18 @@
     label,
     describedby,
     disabled = false,
-    pending = false,
+    busy = false,
     type = 'button',
-    onchange,
+    onCheckedChange,
     class: className,
     ...rest
   }: Own & Omit<SvelteHTMLElements['button'], keyof Own> = $props();
 
   function flip() {
-    if (disabled || pending) return;
+    if (disabled || busy) return;
     if (type === 'submit') return;
     checked = !checked;
-    onchange?.(checked);
+    onCheckedChange?.(checked);
   }
 </script>
 
@@ -42,10 +42,10 @@
   aria-checked={checked ? 'true' : 'false'}
   aria-label={label}
   aria-describedby={describedby}
-  aria-busy={pending ? 'true' : undefined}
-  disabled={disabled || pending}
+  aria-busy={busy ? 'true' : undefined}
+  disabled={disabled || busy}
   data-state={checked ? 'on' : 'off'}
-  data-pending={pending ? '' : undefined}
+  data-busy={busy ? '' : undefined}
   onclick={flip}
   {...rest}
 ></button>

@@ -164,7 +164,7 @@
   {/snippet}
 
   {#snippet side()}
-    <StepList steps={checklist} selected={focusId} label={t('admin.deploys.stages')} onselect={select} />
+    <StepList steps={checklist} selected={focusId} label={t('admin.deploys.stages')} onSelect={select} />
     <div class="by"><Text size="xs" tone="muted" mono>{t('admin.deploys.startedBy', { login: run.actor.login })}</Text></div>
   {/snippet}
 

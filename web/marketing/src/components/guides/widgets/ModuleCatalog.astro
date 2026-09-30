@@ -52,9 +52,9 @@ const planTone = (m: Module) => (m.plan === 'premium' ? 'paid' : 'free');
 <div class="mcat" data-mcat data-count-all={L.countAll} data-count-cat={L.countCat} data-count-match={L.countMatch}>
     <div class="mcat__bar" data-mcat-bar hidden>
         <div class="mcat__chips" role="group" aria-label={L.searchLabel}>
-            <Chip tone="muted" on data-mcat-chip="" aria-pressed="true">{L.all}</Chip>
+            <Chip tone="muted" pressed data-mcat-chip="">{L.all}</Chip>
             {categories.map((cat, i) => (
-                <Chip tone="muted" data-mcat-chip={String(i)} aria-pressed="false">{cat}</Chip>
+                <Chip tone="muted" pressed={false} data-mcat-chip={String(i)}>{cat}</Chip>
             ))}
         </div>
         <div class="mcat__search">
@@ -174,7 +174,7 @@ const planTone = (m: Module) => (m.plan === 'premium' ? 'paid' : 'free');
                 cat = chip.dataset.mcatChip ?? '';
                 chips.forEach((other) => {
                     const on = other === chip;
-                    other.toggleAttribute('data-on', on);
+                    other.toggleAttribute('data-pressed', on);
                     other.setAttribute('aria-pressed', on ? 'true' : 'false');
                 });
                 apply();
