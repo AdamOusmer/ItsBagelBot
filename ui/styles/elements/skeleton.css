@@ -10,7 +10,7 @@
         height: var(--skel-h, 0.9em);
         position: relative;
         overflow: hidden;
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(var(--bb-white-pure-rgb), 0.04);
         border-radius: var(--bb-radius-sm);
     }
 
@@ -18,7 +18,7 @@
         content: "";
         position: absolute;
         inset: 0;
-        background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.052) 50%, transparent 70%);
+        background: linear-gradient(100deg, transparent 30%, rgba(var(--bb-white-pure-rgb), 0.052) 50%, transparent 70%);
         transform: translateX(-150%);
         animation: bb-shimmer 1.4s ease-in-out infinite;
     }

@@ -80,7 +80,7 @@
     position: absolute;
     inset: 0 auto auto 0;
     color: var(--text-link-lit);
-    text-shadow: 0 0 14px rgba(224, 196, 154, 0.28);
+    text-shadow: 0 0 14px rgba(var(--bb-tan-light-rgb), 0.28);
   }
 
   .bb-text-link__glyph {
@@ -94,7 +94,7 @@
   }
 
   .bb-text-link:focus-visible {
-    outline: 1px solid rgba(224, 196, 154, 0.58);
+    outline: 1px solid rgba(var(--bb-tan-light-rgb), 0.58);
     outline-offset: 4px;
   }
 
@@ -267,7 +267,7 @@
   .bb-link--inline {
     color: var(--bb-tan-light);
     text-decoration: underline;
-    text-decoration-color: rgba(224, 196, 154, 0.4);
+    text-decoration-color: rgba(var(--bb-tan-light-rgb), 0.4);
     text-underline-offset: 3px;
     transition:
       color var(--bb-dur-fast) ease,

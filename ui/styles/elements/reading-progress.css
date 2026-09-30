@@ -19,7 +19,7 @@
     width: 100%;
     height: 100%;
     background: linear-gradient(90deg, var(--bb-green-glow), var(--bb-tan));
-    box-shadow: 0 0 12px rgba(201, 168, 124, 0.5);
+    box-shadow: 0 0 12px rgba(var(--bb-tan-rgb), 0.5);
     transform: scaleX(var(--read, 0));
     transform-origin: left;
   }

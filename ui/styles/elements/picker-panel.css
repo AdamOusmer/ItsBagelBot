@@ -22,7 +22,7 @@
     border-radius: var(--bb-radius-md);
     box-shadow: 0 12px 32px rgba(var(--bb-shadow-rgb), 0.45);
   }
-  :root[data-theme='light'] .bb-picker-panel--dropdown { box-shadow: 0 12px 32px rgba(20, 17, 12, 0.15); }
+  :root[data-theme='light'] .bb-picker-panel--dropdown { box-shadow: 0 12px 32px rgba(var(--bb-ink-rgb), 0.15); }
 
   .bb-picker-panel__shell { position: fixed; inset: 0; }
   .bb-picker-panel__scrim {

@@ -10,12 +10,12 @@
   }
 
   .bb-area__grid {
-    stroke: rgba(201, 168, 124, 0.1);
+    stroke: rgba(var(--bb-tan-rgb), 0.1);
     stroke-width: 1;
   }
 
   .bb-area__grid--base {
-    stroke: rgba(201, 168, 124, 0.14);
+    stroke: rgba(var(--bb-tan-rgb), 0.14);
   }
 
   .bb-area__line {

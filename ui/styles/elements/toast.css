@@ -26,7 +26,7 @@
     border: 1px solid var(--toast-border);
     border-radius: var(--bb-radius-md);
     background: var(--bb-card-bg);
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 14px 40px rgba(var(--bb-shadow-rgb), 0.5);
     color: var(--bb-white);
     font-family: var(--bb-font-body);
     font-size: 13.5px;
@@ -35,14 +35,14 @@
 
   .bb-toast--success {
     --toast-fg: var(--bb-green-glow);
-    --toast-border: rgba(82, 183, 136, 0.45);
+    --toast-border: rgba(var(--bb-green-glow-rgb), 0.45);
     color: var(--toast-fg);
     border-color: var(--toast-border);
   }
 
   .bb-toast--danger {
     --toast-fg: var(--bb-status-danger);
-    --toast-border: rgba(176, 90, 70, 0.45);
+    --toast-border: rgba(var(--bb-status-danger-border-rgb), 0.45);
     color: var(--toast-fg);
     border-color: var(--toast-border);
   }
@@ -59,9 +59,9 @@
   .bb-toast__undo {
     flex: none;
     padding: 4px 12px;
-    border: 1px solid rgba(201, 168, 124, 0.28);
+    border: 1px solid rgba(var(--bb-tan-rgb), 0.28);
     border-radius: var(--bb-radius-pill);
-    background: rgba(201, 168, 124, 0.1);
+    background: rgba(var(--bb-tan-rgb), 0.1);
     color: var(--bb-tan-light);
     font-family: var(--bb-font-mono);
     font-size: 11.5px;
@@ -72,7 +72,7 @@
   }
 
   .bb-toast__undo:hover {
-    background: rgba(201, 168, 124, 0.2);
+    background: rgba(var(--bb-tan-rgb), 0.2);
     color: var(--bb-white);
   }
 
@@ -92,7 +92,7 @@
 
   .bb-toast__close:hover {
     color: var(--bb-white);
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(var(--bb-white-pure-rgb), 0.06);
   }
 
   @keyframes bb-toast-in {

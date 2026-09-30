@@ -175,9 +175,9 @@
     justify-content: center;
     width: 26px;
     height: 26px;
-    border: 1px solid rgba(240, 236, 228, 0.11);
+    border: 1px solid rgba(var(--bb-white-rgb), 0.11);
     border-radius: 50%;
-    background: rgba(240, 236, 228, 0.022);
+    background: rgba(var(--bb-white-rgb), 0.022);
     color: var(--bb-muted);
     font-family: var(--bb-font-mono);
     font-size: 11px;
