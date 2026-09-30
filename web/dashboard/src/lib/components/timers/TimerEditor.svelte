@@ -1,8 +1,8 @@
 <script lang="ts">
 	// Copyright (c) 2026 Adam Ousmer. All rights reserved.
 	// Proprietary. No license granted. See LICENSE.md.
-  import { Checkbox, Field, Input, Text } from '@bagel/ui/svelte';
-  import { getI18n, type TimerDef } from '@bagel/kit';
+  import { Checkbox, Field, Input, SwitchRow, Text } from '@bagel/ui/svelte';
+  import { DEFAULT_CHAT_LINES, getI18n, type TimerDef } from '@bagel/kit';
   import { urlFetchNames, URLFETCH_TOKEN_CAP } from '@bagel/kit/engine/fetch-validate';
   import ResponseEditor from '$lib/components/commands/ResponseEditor.svelte';
   import ChatPreview from '$lib/components/commands/ChatPreview.svelte';
@@ -49,6 +49,17 @@
     return local && !Number.isNaN(d.getTime()) ? d.toISOString() : '';
   }
 
+  const chatGateOn = $derived(draft.minChatLines > 0);
+  let rememberedLines = 0;
+  function setChatGate(on: boolean) {
+    if (on) {
+      draft.minChatLines = rememberedLines || DEFAULT_CHAT_LINES;
+      return;
+    }
+    rememberedLines = draft.minChatLines;
+    draft.minChatLines = 0;
+  }
+
   let endsAtLocal = $state(isoToLocalInput(draft.endsAt));
   function onEndsAtInput(e: Event) {
     endsAtLocal = (e.currentTarget as HTMLInputElement).value;
@@ -92,8 +103,23 @@
     </DurationField>
   </Field>
 
+  <div class="toggle">
+    <SwitchRow
+      control="end"
+      checked={chatGateOn}
+      onchange={setChatGate}
+      label={t('timers.fieldChatGate')}
+      hint={t('timers.fieldChatGateHint')}
+      hintId="timer-chatgate-desc"
+    />
+  </div>
+
   <Field label={t('timers.fieldMinChatLines')} hint={t('timers.fieldMinChatLinesHint')}>
-    <span class="num"><Input type="number" min={0} max={100} bind:value={draft.minChatLines} /></span>
+    <span class="num"><Input type="number" min={1} max={100} disabled={!chatGateOn} bind:value={draft.minChatLines} /></span>
+  </Field>
+
+  <Field label={t('timers.fieldChatWindow')} hint={t('timers.fieldChatWindowHint')}>
+    <span class="num"><Input type="number" min={1} max={60} disabled={!chatGateOn} bind:value={draft.chatWindowMinutes} /></span>
   </Field>
 
   <Field label={t('timers.fieldMaxFires')} hint={t('timers.fieldMaxFiresHint')}>
@@ -106,6 +132,17 @@
       {#if tzAbbr}<Text as="span" size="xs" mono tone="muted" aria-hidden="true">{tzAbbr}</Text>{/if}
     </div>
   </Field>
+
+  <div class="toggle">
+    <SwitchRow
+      control="end"
+      checked={!draft.allowOffline}
+      onchange={(v) => (draft.allowOffline = !v)}
+      label={t('timers.fieldLiveOnly')}
+      hint={t('timers.fieldLiveOnlyHint')}
+      hintId="timer-liveonly-desc"
+    />
+  </div>
 
   <div class="check">
     <Checkbox bind:checked={draft.enabled}>{t('timers.active')}</Checkbox>
@@ -121,4 +158,5 @@
   .ends-row { display: flex; align-items: center; gap: 10px; }
 
   .check { margin: 4px 0 6px; --bb-check-align: center; }
+  .toggle { margin: 14px 0 10px; }
 </style>

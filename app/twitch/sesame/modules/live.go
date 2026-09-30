@@ -48,7 +48,7 @@ func liveOnlineHandler(d engine.Deps, log *zap.Logger) module.EventHandler {
 				log.Warn("live: failed to reset greets", module.BIDField(id), zap.Error(err))
 			}
 			if d.Timers != nil {
-				d.Timers.ArmAll(wctx, id)
+				d.Timers.ArmOnline(wctx, id)
 			}
 		})
 

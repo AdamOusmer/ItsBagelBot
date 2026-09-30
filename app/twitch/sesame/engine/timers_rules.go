@@ -8,44 +8,43 @@ import "time"
 const (
 	maxGateLines = 100
 	maxFireCap   = 100
+
+	defaultChatWindowMinutes = 5
+	maxChatWindowMinutes     = 60
 )
 
-func clampGateLines(n int) int {
+func chatWindow(td timerDef) time.Duration {
 	switch {
-	case n < 0:
-		return 0
-	case n > maxGateLines:
-		return maxGateLines
+	case td.ChatWindowMinutes <= 0:
+		return defaultChatWindowMinutes * time.Minute
+	case td.ChatWindowMinutes > maxChatWindowMinutes:
+		return maxChatWindowMinutes * time.Minute
 	default:
-		return n
+		return time.Duration(td.ChatWindowMinutes) * time.Minute
 	}
 }
 
-func clampFireCap(n int) int {
+func clampCount(n, limit int) int {
 	switch {
 	case n < 0:
 		return 0
-	case n > maxFireCap:
-		return maxFireCap
+	case n > limit:
+		return limit
 	default:
 		return n
 	}
 }
 
 func isGated(td timerDef) bool {
-	return clampGateLines(td.MinChatLines) > 0
+	return clampCount(td.MinChatLines, maxGateLines) > 0
 }
 
-func gatePasses(td timerDef, lines, mark int64) bool {
-	threshold := clampGateLines(td.MinChatLines)
-	if threshold <= 0 {
-		return true
-	}
-	return lines-mark >= int64(threshold)
+func gatePasses(td timerDef, lines int64) bool {
+	return lines >= int64(clampCount(td.MinChatLines, maxGateLines))
 }
 
 func stopped(td timerDef, fires int64, now time.Time) bool {
-	if fireCap := clampFireCap(td.MaxFires); fireCap > 0 && fires >= int64(fireCap) {
+	if fireCap := clampCount(td.MaxFires, maxFireCap); fireCap > 0 && fires >= int64(fireCap) {
 		return true
 	}
 	endsAt, ok := parseEndsAt(td.EndsAt)

@@ -253,10 +253,12 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
     expect(manifest.timers![0]).toEqual({
       message: 'Enjoying the stream? Follow {channel} so you never miss a live!',
       interval_seconds: 300,
-      online_only: true
+      online_only: false,
+      min_chat_lines: 5,
+      chat_window_minutes: 5
     });
     expect(manifest.timers![1].interval_seconds).toBe(900);
-    expect(manifest.timers![1].online_only).toBeUndefined();
+    expect(manifest.timers![1].online_only).toBe(false);
     expect(manifest.timers![2].message).toBe('Line one starring {user}\nLine two with a $(random.chatter) cameo');
   });
 
@@ -284,7 +286,9 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
       '11|command_variable_unmapped': 2,
       '0|trigger_variable_unmapped': 1,
       '1|trigger_variable_unmapped': 1,
+      '0|timer_offline_interval_dropped': 1,
       '1|timer_offline_only_widened': 1,
+      '2|timer_offline_interval_dropped': 1,
       '2|timer_variable_unmapped': 1
     };
     for (const [key, n] of Object.entries(expected)) {
@@ -294,6 +298,58 @@ describe('full-fixture parse assertions (from parse_test.go)', () => {
 
   test('warnings mirror onto the command for the preview screen', () => {
     expect((manifest.commands![4].warnings ?? []).length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('timer gate and online/offline mapping', () => {
+  const parse = (timer: Record<string, unknown>) =>
+    parseStreamElements(JSON.stringify({ timers: [{ name: 't', message: 'hi', enabled: true, ...timer }] }));
+
+  test('chatLines becomes a 5 minute line gate; zero or missing adds none', () => {
+    const gated = parse({ chatLines: 7, online: { enabled: true, interval: 5 } }).manifest.timers![0];
+    expect(gated).toMatchObject({ min_chat_lines: 7, chat_window_minutes: 5 });
+    for (const extra of [{ chatLines: 0 }, {}]) {
+      const t = parse({ ...extra, online: { enabled: true, interval: 5 } }).manifest.timers![0];
+      expect(t.min_chat_lines).toBeUndefined();
+      expect(t.chat_window_minutes).toBeUndefined();
+    }
+  });
+
+  test('online only stays live only', () => {
+    const { manifest, diagnostics } = parse({
+      online: { enabled: true, interval: 5 },
+      offline: { enabled: false, interval: 30 }
+    });
+    expect(manifest.timers![0]).toMatchObject({ interval_seconds: 300, online_only: true });
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('online plus offline with the same interval runs offline too without a warning', () => {
+    const { manifest, diagnostics } = parse({
+      online: { enabled: true, interval: 5 },
+      offline: { enabled: true, interval: 5 }
+    });
+    expect(manifest.timers![0]).toMatchObject({ interval_seconds: 300, online_only: false });
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('online plus offline with different intervals keeps the online interval and warns', () => {
+    const { manifest, diagnostics } = parse({
+      online: { enabled: true, interval: 5 },
+      offline: { enabled: true, interval: 30 }
+    });
+    expect(manifest.timers![0]).toMatchObject({ interval_seconds: 300, online_only: false });
+    expect(diagnostics.map((d) => [d.code, d.severity, d.item_index])).toEqual([['timer_offline_interval_dropped', 'warn', 0]]);
+  });
+
+  test('offline only keeps the offline interval and warns about widening', () => {
+    const { manifest, diagnostics } = parse({
+      online: { enabled: false, interval: 5 },
+      offline: { enabled: true, interval: 15 }
+    });
+    expect(manifest.timers![0]).toMatchObject({ interval_seconds: 900, online_only: false });
+    expect(diagnostics.map((d) => [d.code, d.severity, d.item_index])).toEqual([['timer_offline_only_widened', 'warn', 0]]);
+    expect(diagnostics[0].message).toContain('also post while live');
   });
 });
 

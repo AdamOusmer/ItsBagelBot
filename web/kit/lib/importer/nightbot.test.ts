@@ -391,11 +391,29 @@ describe('timers', () => {
     expect(diagnostics).toEqual([]);
   });
 
-  test('the chat-line gate is reported as dropped', () => {
-    const { diagnostics } = parseNightbot(
+  test('lines becomes a 5 minute chat gate', () => {
+    const { manifest, diagnostics } = parseNightbot(
       bytes({ timers: [{ name: 'promo', message: 'hi', interval: 5, lines: 20 }] })
     );
-    expect(codesOf(diagnostics)).toEqual([NB_CODE.timerLinesIgnored]);
+    expect(manifest.timers).toEqual([
+      { message: 'hi', interval_seconds: 300, online_only: true, min_chat_lines: 20, chat_window_minutes: 5 }
+    ]);
+    expect(diagnostics).toEqual([]);
+  });
+
+  test('a missing or non-positive lines value adds no gate', () => {
+    const { manifest } = parseNightbot(
+      bytes({
+        timers: [
+          { name: 'a', message: 'hi', interval: 5 },
+          { name: 'b', message: 'hi', interval: 5, lines: -3 }
+        ]
+      })
+    );
+    for (const t of manifest.timers!) {
+      expect(t.min_chat_lines).toBeUndefined();
+      expect(t.chat_window_minutes).toBeUndefined();
+    }
   });
 
   test('a disabled timer is skipped', () => {

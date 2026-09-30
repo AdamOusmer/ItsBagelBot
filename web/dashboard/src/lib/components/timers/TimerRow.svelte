@@ -63,7 +63,10 @@
           {r.enabled ? t('timers.active') : t('timers.hiddenTag')}
         </Tag>
         {#if r.minChatLines > 0}
-          <Tag class="m-pill" tone="bare">{t('timers.pillMinLines', { n: r.minChatLines })}</Tag>
+          <Tag class="m-pill" tone="bare">{t('timers.pillMinLines', { n: r.minChatLines, m: r.chatWindowMinutes })}</Tag>
+        {/if}
+        {#if r.allowOffline}
+          <Tag class="m-pill" tone="bare">{t('timers.pillOffline')}</Tag>
         {/if}
         {#if r.maxFiresPerStream > 0}
           <Tag class="m-pill" tone="bare">{t('timers.pillMaxFires', { n: r.maxFiresPerStream })}</Tag>

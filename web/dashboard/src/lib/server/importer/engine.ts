@@ -34,16 +34,27 @@ import type {
   ImportSource,
   ImportStats,
   ManifestCommand,
+  ManifestTimer,
   ManifestTrigger,
   PreviewResponse,
   TimerDef
 } from '@bagel/kit';
+import { DEFAULT_CHAT_WINDOW_MINUTES } from '@bagel/kit/timers';
 
 const COMMIT_COMMAND_BATCH = 25;
 
 const MAX_QUOTE_ADDED_BY_LEN = 64;
 
 const MAX_TIMER_INTERVAL_SECONDS = 7 * 86400;
+
+interface GateField {
+  label: string;
+  min: number;
+  max: number;
+}
+
+const MIN_LINES_FIELD: GateField = { label: 'minimum chat lines', min: 0, max: 100 };
+const WINDOW_FIELD: GateField = { label: 'chat window (minutes)', min: 1, max: 60 };
 
 export type ImportPreviewRequest = {
   source: ImportSource | '';
@@ -363,6 +374,21 @@ function eligibleIndexes(ctx: CommitContext, collection: ManifestCollection): nu
   return out;
 }
 
+function clampGate(ctx: CommitContext, field: GateField, value: number, idx: number): number {
+  const bounded = Math.min(Math.max(value, field.min), field.max);
+  if (bounded !== value) {
+    ctx.diags.push(warnDiag(idx, CODE.timerGateClamped, `timer ${field.label} ${value} clamped to ${bounded}`));
+  }
+  return Math.trunc(bounded);
+}
+
+function timerGate(ctx: CommitContext, t: ManifestTimer, idx: number): Pick<TimerDef, 'minChatLines' | 'chatWindowMinutes'> {
+  return {
+    minChatLines: clampGate(ctx, MIN_LINES_FIELD, t.min_chat_lines ?? 0, idx),
+    chatWindowMinutes: clampGate(ctx, WINDOW_FIELD, t.chat_window_minutes || DEFAULT_CHAT_WINDOW_MINUTES, idx)
+  };
+}
+
 async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): Promise<void> {
   const targets = eligibleIndexes(ctx, 'timers');
   if (targets.length === 0) return;
@@ -387,7 +413,8 @@ async function applyTimers(ctx: CommitContext, blob: Record<string, unknown>): P
       message: t.message.trim(),
       intervalSeconds: interval,
       enabled: true,
-      minChatLines: 0,
+      ...timerGate(ctx, t, idx),
+      allowOffline: t.online_only === false,
       maxFiresPerStream: 0,
       endsAt: ''
     } satisfies TimerDef);

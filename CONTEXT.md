@@ -119,7 +119,7 @@ A condition that ends a timer: once reached, the timer does not post and does no
 _Avoid_: Gate when referring to an end condition.
 
 **Chat activity gate**:
-The v1 gate: a timer fires only once at least a set number of chat lines have arrived since it last fired (or, for its first tick, since it armed). Configured per timer as a line count from 0 (off) to 100.
+The v1 gate: a timer fires only when at least a set number of chat lines arrived in the last M minutes, counted per channel over a sliding window. Configured per timer as a line count from 0 (off) to 100 and a window of 1 to 60 minutes (default 5).
 _Avoid_: Activity filter.
 
 **Fire cap**:
@@ -129,6 +129,10 @@ _Avoid_: Post limit, rate limit (this is a per-stream count, not a rate).
 **End date**:
 The v1 stop ending a timer at a fixed instant. A timer past its end date shows as Ended and stays editable; nothing about it is auto-disabled.
 _Avoid_: Expiry, deadline.
+
+**Offline timer**:
+A timer with `allowOffline` set: it keeps ticking while the channel is offline, where other timers only tick live. Its fire cap counts per live session or offline stretch.
+_Avoid_: Always-on timer.
 
 **Skipped tick**:
 A tick whose gate failed: no post, cadence unchanged, no effect on any stop. A skipped tick is not a fire.
