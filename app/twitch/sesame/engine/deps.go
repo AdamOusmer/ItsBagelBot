@@ -205,7 +205,7 @@ type VersionedLoyaltyTicker interface {
 }
 
 type TimersStore interface {
-	ArmAll(ctx context.Context, broadcasterID uint64)
+	ArmOnline(ctx context.Context, broadcasterID uint64)
 	DisarmAll(ctx context.Context, broadcasterID uint64)
 }
 

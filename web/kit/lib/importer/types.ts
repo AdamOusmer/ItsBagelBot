@@ -42,6 +42,8 @@ export interface ManifestTimer {
   message: string;
   interval_seconds: number;
   online_only?: boolean;
+  min_chat_lines?: number;
+  chat_window_minutes?: number;
 }
 
 export interface ManifestTrigger {

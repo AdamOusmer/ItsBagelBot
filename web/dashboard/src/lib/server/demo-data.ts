@@ -183,8 +183,8 @@ export function demoTimersView() {
 
 export function demoTimers(): TimerDef[] {
   return [
-    { ...blankTimer(), id: 'demo-1', message: 'Follow on socials: twitch.tv/yourchannel', intervalSeconds: 900 },
-    { ...blankTimer(), id: 'demo-2', message: '!discord for the community server', intervalSeconds: 1800 }
+    { ...blankTimer(), id: 'demo-1', message: 'Follow on socials: twitch.tv/yourchannel', intervalSeconds: 900, minChatLines: 15, chatWindowMinutes: 10 },
+    { ...blankTimer(), id: 'demo-2', message: '!discord for the community server', intervalSeconds: 1800, minChatLines: 0, allowOffline: true }
   ];
 }
 

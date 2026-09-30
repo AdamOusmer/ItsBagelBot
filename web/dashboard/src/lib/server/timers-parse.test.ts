@@ -43,6 +43,43 @@ describe('parseTimer', () => {
     }
   });
 
+  test('defaults the velocity fields when absent (old blob)', () => {
+    const draft = parseTimer(JSON.stringify({ id: '', message: 'hi', intervalSeconds: 600, enabled: true }));
+    expect(draft!.chatWindowMinutes).toBe(5);
+    expect(draft!.allowOffline).toBe(false);
+  });
+
+  describe('chatWindowMinutes clamp (1-60, default 5)', () => {
+    for (const [raw, want] of [
+      [undefined, 5],
+      [0, 1],
+      [-3, 1],
+      [1, 1],
+      [30, 30],
+      [60, 60],
+      [61, 60],
+      ['not a number', 5]
+    ] as const) {
+      test(`${JSON.stringify(raw)} -> ${want}`, () => {
+        expect(parseTimer(withTimer({ chatWindowMinutes: raw }))!.chatWindowMinutes).toBe(want);
+      });
+    }
+  });
+
+  describe('allowOffline is true only for literal true', () => {
+    for (const [raw, want] of [
+      [true, true],
+      [false, false],
+      [undefined, false],
+      ['true', false],
+      [1, false]
+    ] as const) {
+      test(`${JSON.stringify(raw)} -> ${want}`, () => {
+        expect(parseTimer(withTimer({ allowOffline: raw }))!.allowOffline).toBe(want);
+      });
+    }
+  });
+
   describe('maxFiresPerStream clamp (0-100, default 0)', () => {
     for (const [raw, want] of [
       [undefined, 0],

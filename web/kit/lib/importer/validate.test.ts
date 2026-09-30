@@ -192,6 +192,20 @@ describe('Validate', () => {
     ]);
   });
 
+  test('timer gate fields must be non-negative finite numbers', () => {
+    const diags = validateManifest({
+      timers: [
+        { message: 'ok', interval_seconds: 600, min_chat_lines: 5, chat_window_minutes: 5 },
+        { message: 'neg', interval_seconds: 600, min_chat_lines: -1 },
+        { message: 'nan', interval_seconds: 600, chat_window_minutes: Number.NaN }
+      ]
+    });
+    expect(diags.map((d) => [d.code, d.severity, d.item_index])).toEqual([
+      ['timer_gate_invalid', 'error', 1],
+      ['timer_gate_invalid', 'error', 2]
+    ]);
+  });
+
   test('trigger needs both halves', () => {
     const diags = validateManifest({ triggers: [{ phrase: '', response: '' }] });
     expect(diags.map((d) => [d.code, d.severity])).toEqual([['trigger_invalid', 'error']]);

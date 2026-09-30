@@ -41,6 +41,8 @@ export const CODE = {
   cooldownClamped: 'command_cooldown_clamped',
   variableUnmapped: 'command_variable_unmapped',
   intervalClamped: 'timer_interval_clamped',
+  timerGateInvalid: 'timer_gate_invalid',
+  timerGateClamped: 'timer_gate_clamped',
   timerMessageEmpty: 'timer_message_empty',
   triggerInvalid: 'trigger_invalid',
   quoteTextInvalid: 'quote_text_invalid',
@@ -420,7 +422,17 @@ function validateTimerItem(t: ManifestTimer, index: number): ImportDiagnostic[] 
       )
     );
   }
+  out.push(...timerGateDiags(t, index));
   return out;
+}
+
+function timerGateDiags(t: ManifestTimer, index: number): ImportDiagnostic[] {
+  const fields = { min_chat_lines: t.min_chat_lines, chat_window_minutes: t.chat_window_minutes };
+  return Object.entries(fields)
+    .filter(([, v]) => v !== undefined && !(Number.isFinite(v) && v >= 0))
+    .map(([k, v]) =>
+      errDiag({ item_index: index, code: CODE.timerGateInvalid, message: `timer ${k} must be a non-negative number; got ${String(v)}` })
+    );
 }
 
 function validateTriggerItem(tr: ManifestTrigger, index: number): ImportDiagnostic[] {

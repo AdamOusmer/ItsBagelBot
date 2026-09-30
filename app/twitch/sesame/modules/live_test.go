@@ -55,7 +55,7 @@ func (f *versionedLive) ClearLive(_ context.Context, _ uint64, version int64) (b
 
 type orderedTimers struct{ log *lifecycleLog }
 
-func (t orderedTimers) ArmAll(context.Context, uint64)    { t.log.add("arm") }
+func (t orderedTimers) ArmOnline(context.Context, uint64) { t.log.add("arm") }
 func (t orderedTimers) DisarmAll(context.Context, uint64) { t.log.add("disarm") }
 
 type orderedGreets struct{ log *lifecycleLog }
