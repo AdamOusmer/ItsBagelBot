@@ -31,7 +31,7 @@
 </script>
 
 <div class={classes} {...rest}>
-  <AmbientSky position="fixed" progress={0.65} turn={24} />
+  <AmbientSky position="fixed" stillStars progress={0.65} turn={24} />
   <div class="stats-page__inner">
     <header class="stats-page__header">
       <div class="stats-page__heading">{@render heading()}</div>

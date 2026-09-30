@@ -22,6 +22,7 @@
     leaving?: boolean;
     /** Contained fills a positioned ancestor; fixed fills the viewport. */
     position?: 'contained' | 'fixed';
+    stillStars?: boolean;
     warmth?: number;
     /** Override for deterministic rendering; each sky needs a unique value. */
     uid?: string;
@@ -30,11 +31,11 @@
 
   let {
     shift = 0, turn = 0, px = 0, py = 0, progress = 0, leaving = false,
-    position = 'fixed', warmth = 0.7, uid = generatedId,
+    position = 'fixed', stillStars = false, warmth = 0.7, uid = generatedId,
     class: className = '', ...rest
   }: Own & Omit<SvelteHTMLElements['div'], keyof Own> = $props();
 
-  const classes = $derived(['bb-ambient-sky', `bb-ambient-sky--${position}`, leaving && 'bb-ambient-sky--leaving', className].filter(Boolean).join(' '));
+  const classes = $derived(['bb-ambient-sky', `bb-ambient-sky--${position}`, leaving && 'bb-ambient-sky--leaving', stillStars && 'bb-ambient-sky--still-stars', className].filter(Boolean).join(' '));
   const variables = $derived(`--ambient-shift: ${shift}; --ambient-turn: ${turn}deg; --ambient-px: ${px}; --ambient-py: ${py}; --ambient-progress: ${Math.min(Math.max(progress, 0), 1)};`);
 </script>
 
