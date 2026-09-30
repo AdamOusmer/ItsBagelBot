@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSanitizeGiftMessage(t *testing.T) {
@@ -24,19 +25,12 @@ func TestSanitizeGiftMessage(t *testing.T) {
 		{"tabs become spaces", "a\tb", "a b"},
 		{"strips control chars", "hi\x00\x07 there", "hi there"},
 		{"empty stays empty", "   ", ""},
+		{"caps Unicode by runes", strings.Repeat("é", 400), strings.Repeat("é", giftMessageMaxRunes)},
 	}
 	for _, tc := range tests {
 		if got := sanitizeGiftMessage(tc.in); got != tc.want {
 			t.Errorf("%s: sanitizeGiftMessage(%q) = %q, want %q", tc.name, tc.in, got, tc.want)
 		}
-	}
-}
-
-func TestSanitizeGiftMessageCaps(t *testing.T) {
-	long := strings.Repeat("é", 400)
-	got := sanitizeGiftMessage(long)
-	if n := utf8.RuneCountInString(got); n > giftMessageMaxRunes {
-		t.Errorf("capped length = %d runes, want <= %d", n, giftMessageMaxRunes)
 	}
 }
 
@@ -101,30 +95,33 @@ func (f fakeAwards) HasPendingOrActiveAward(context.Context, uint64) (bool, erro
 	return f.found, f.err
 }
 
-func TestCheckoutGuardFailsClosedAndBlocksCoverage(t *testing.T) {
-	guard := &CheckoutGuard{Coverage: fakeCoverage{err: errors.New("users unavailable")}, Awards: fakeAwards{}}
-	if err := guard.Allow(context.Background(), 7); err == nil {
-		t.Fatal("coverage outage was allowed")
-	}
+func TestCheckoutGuardAllow(t *testing.T) {
 	paidUntil := time.Now().UTC().Add(time.Hour)
-	guard = &CheckoutGuard{Coverage: fakeCoverage{value: usersrpc.PremiumCoverage{PaidThrough: &paidUntil}}, Awards: fakeAwards{}}
-	if err := guard.Allow(context.Background(), 7); err == nil {
-		t.Fatal("paid coverage was allowed")
+	tests := []struct {
+		name     string
+		coverage fakeCoverage
+		awards   fakeAwards
+		wantErr  error
+	}{
+		{"coverage outage", fakeCoverage{err: errors.New("users unavailable")}, fakeAwards{}, errors.New("could not verify premium coverage")},
+		{"paid coverage", fakeCoverage{value: usersrpc.PremiumCoverage{PaidThrough: &paidUntil}}, fakeAwards{}, errAlreadyPremium},
+		{"durable award", fakeCoverage{}, fakeAwards{found: true}, errAlreadyPremium},
+		{"VIP without paid coverage", fakeCoverage{value: usersrpc.PremiumCoverage{Status: "vip", IsActive: true}}, fakeAwards{}, errAlreadyPremium},
+		{"banned without paid coverage", fakeCoverage{value: usersrpc.PremiumCoverage{Banned: true, IsActive: true}}, fakeAwards{}, errAlreadyPremium},
+		{"eligible account", fakeCoverage{}, fakeAwards{}, nil},
 	}
-	guard = &CheckoutGuard{Coverage: fakeCoverage{}, Awards: fakeAwards{found: true}}
-	if err := guard.Allow(context.Background(), 7); err == nil {
-		t.Fatal("durable award was allowed")
-	}
-}
-
-func TestCheckoutGuardBlocksVipAndBannedAccountsWithoutPaidThrough(t *testing.T) {
-	for _, coverage := range []usersrpc.PremiumCoverage{
-		{Status: "vip", IsActive: true},
-		{Banned: true, IsActive: true},
-	} {
-		guard := &CheckoutGuard{Coverage: fakeCoverage{value: coverage}, Awards: fakeAwards{}}
-		if err := guard.Allow(context.Background(), 7); err == nil {
-			t.Fatalf("premium checkout was allowed for coverage=%+v", coverage)
-		}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			guard := &CheckoutGuard{Coverage: tc.coverage, Awards: tc.awards}
+			err := guard.Allow(context.Background(), 7)
+			switch tc.wantErr {
+			case nil:
+				require.NoError(t, err)
+			case errAlreadyPremium:
+				require.ErrorIs(t, err, errAlreadyPremium)
+			default:
+				require.EqualError(t, err, tc.wantErr.Error())
+			}
+		})
 	}
 }

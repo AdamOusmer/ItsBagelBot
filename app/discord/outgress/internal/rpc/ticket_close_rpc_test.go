@@ -248,28 +248,6 @@ func TestCollectStopsAtTheMessageCap(t *testing.T) {
 	}
 }
 
-func TestCollectDegradesToThePartialTranscript(t *testing.T) {
-	calls := 0
-	h, _ := newTicketRPC(t, func(recordedCall) (int, string) {
-		calls++
-		if calls == 1 {
-			return 200, messagePage(1000, discapi.MessagePageMax)
-		}
-		return 500, `{"message":"boom"}`
-	})
-
-	reply := h.close(context.Background(), discordoutgress.TicketCloseRequest{
-		GuildID: "g1", ChannelID: "c1", Transcript: true, LogChannelID: "log1",
-	})
-
-	if reply.MessageCount != discapi.MessagePageMax {
-		t.Fatalf("count = %d, want the pages that did arrive", reply.MessageCount)
-	}
-	if !strings.Contains(reply.TranscriptBody, "line 1000") {
-		t.Fatal("a failed page must not throw away the pages that succeeded")
-	}
-}
-
 func TestArchivedNameLeavesAnUnknownNameAlone(t *testing.T) {
 	if got := archivedName(""); got != "" {
 		t.Fatalf("archivedName(\"\") = %q; an empty name means ModifyChannel leaves it alone", got)
@@ -347,60 +325,99 @@ func TestTicketCloseWithoutARowIDAlwaysPosts(t *testing.T) {
 }
 
 func TestTicketCloseFallsBackToAnEmbedWhenTheUploadFails(t *testing.T) {
-	uploaded := false
-	h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
-		if historyGet(call) {
-			return 200, messagePage(1000, 2)
-		}
-		if strings.HasPrefix(call.contentType, "multipart/") {
-			uploaded = true
-			return 400, `{"message":"Request entity too large"}`
-		}
-		return 200, `{"id":"m-new"}`
-	})
+	for _, tc := range []struct {
+		name   string
+		status int
+	}{
+		{name: "fallback succeeds", status: http.StatusOK},
+		{name: "fallback fails", status: http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, tr := newTicketRPC(t, func(call recordedCall) (int, string) {
+				if historyGet(call) {
+					return 200, messagePage(1000, 2)
+				}
+				if strings.HasPrefix(call.contentType, "multipart/") {
+					return 400, `{"message":"Request entity too large"}`
+				}
+				if call.method == http.MethodPost && call.path == "/channels/log1/messages" {
+					return tc.status, `{"id":"m-new"}`
+				}
+				return 200, `{"id":"m-new"}`
+			})
 
-	req := closeReq()
-	req.Transcript = true
+			req := closeReq()
+			req.Transcript = true
+			req.ChannelName = ""
 
-	h.close(context.Background(), req)
+			reply := h.close(context.Background(), req)
 
-	if !uploaded {
-		t.Fatal("the upload was never attempted")
-	}
-	fallback := wantLogPosts(t, tr, 2)[1]
-	if strings.HasPrefix(fallback.contentType, "multipart/") {
-		t.Fatalf("the fallback must be a plain embed: %q", fallback.contentType)
-	}
-	if !strings.Contains(fallback.body, uploadFailedNote) {
-		t.Fatalf("fallback body %q must say the upload failed", fallback.body)
+			if reply.Error != "" {
+				t.Fatalf("summary delivery must not fail ticket close: %+v", reply)
+			}
+			posts := wantLogPosts(t, tr, 2)
+			wantContainsAll(t, posts[0].body, `filename="transcript.txt"`)
+			fallback := posts[1]
+			if strings.HasPrefix(fallback.contentType, "multipart/") {
+				t.Fatalf("the fallback must be a plain embed: %q", fallback.contentType)
+			}
+			if !strings.Contains(fallback.body, uploadFailedNote) {
+				t.Fatalf("fallback body %q must say the upload failed", fallback.body)
+			}
+		})
 	}
 }
 
 func TestTicketCloseMarksATruncatedTranscript(t *testing.T) {
-	pages := 0
-	h, _ := newTicketRPC(t, func(call recordedCall) (int, string) {
-		if historyGet(call) {
-			pages++
-			if pages == 1 {
-				return 200, messagePage(1000, discapi.MessagePageMax)
+	for _, tc := range []struct {
+		name              string
+		archiveCategoryID string
+		wantError         bool
+	}{
+		{name: "archive succeeds", archiveCategoryID: "cat1"},
+		{name: "deletion fails", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pages := 0
+			h, _ := newTicketRPC(t, func(call recordedCall) (int, string) {
+				if historyGet(call) {
+					pages++
+					if pages == 1 {
+						return 200, messagePage(1000, discapi.MessagePageMax)
+					}
+					return 500, `{"message":"Internal Server Error"}`
+				}
+				if call.method == http.MethodDelete && call.path == "/channels/c1" {
+					return 500, `{"message":"could not delete channel"}`
+				}
+				return 200, `{"id":"m-new"}`
+			})
+
+			req := closeReq()
+			req.Transcript = true
+			req.ArchiveCategoryID = tc.archiveCategoryID
+
+			reply := h.close(context.Background(), req)
+
+			if !tc.wantError {
+				if reply.Error != "" {
+					t.Fatalf("close reply = %+v, want successful archive", reply)
+				}
+			} else if reply.Error == "" || reply.Code != outgressrpc.CodeUnknown {
+				t.Fatalf("reply = %+v, want the channel deletion error alongside the transcript", reply)
 			}
-			return 500, `{"message":"Internal Server Error"}`
-		}
-		return 200, `{"id":"m-new"}`
-	})
-
-	req := closeReq()
-	req.Transcript = true
-
-	reply := h.close(context.Background(), req)
-
-	if !reply.Truncated {
-		t.Fatalf("reply = %+v, want truncated", reply)
-	}
-	if !strings.Contains(reply.TranscriptBody, "transcript incomplete") {
-		t.Fatalf("transcript %q must carry the truncation line", firstLine(reply.TranscriptBody))
-	}
-	if reply.MessageCount != discapi.MessagePageMax {
-		t.Fatalf("message count = %d, want the partial page kept", reply.MessageCount)
+			if !reply.Truncated {
+				t.Fatalf("reply = %+v, want truncated", reply)
+			}
+			if !strings.Contains(reply.TranscriptBody, "transcript incomplete") {
+				t.Fatalf("transcript %q must carry the truncation line", firstLine(reply.TranscriptBody))
+			}
+			if reply.MessageCount != discapi.MessagePageMax {
+				t.Fatalf("message count = %d, want the partial page kept", reply.MessageCount)
+			}
+			if !strings.Contains(reply.TranscriptBody, "line 1000") {
+				t.Fatal("a failed page must not throw away the pages that succeeded")
+			}
+		})
 	}
 }

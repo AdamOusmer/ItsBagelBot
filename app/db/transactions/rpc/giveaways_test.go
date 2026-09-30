@@ -12,7 +12,6 @@ import (
 	"ItsBagelBot/app/db/transactions/ent/enttest"
 	"ItsBagelBot/app/db/transactions/ent/giveawayfulfillmentplan"
 	giveawayengine "ItsBagelBot/app/db/transactions/giveaway"
-	giveaways "ItsBagelBot/internal/domain/rpc/giveaways"
 	usersrpc "ItsBagelBot/internal/domain/rpc/users"
 	"ItsBagelBot/internal/testdb"
 	_ "github.com/mattn/go-sqlite3"
@@ -22,14 +21,19 @@ import (
 func TestGiveawayCapabilitiesReflectLaunchGates(t *testing.T) {
 	service := &GiveawayRPC{config: giveawayengine.Config{NewAwardsEnabled: true, IntervalRuleVerified: true, ProviderMutations: true}}
 	got := service.capabilities()
-	if !allGatesEnabled(got) {
-		t.Fatalf("capabilities lost enabled gates: %+v", got)
-	}
+	require.True(t, got.NewAwardsEnabled)
+	require.True(t, got.SchedulingEnabled)
+	require.True(t, got.ProviderMutations)
+	require.True(t, got.IntervalRuleVerified)
+	require.Empty(t, got.Reason)
+
 	service.config = giveawayengine.Config{}
 	got = service.capabilities()
-	if anyGateEnabled(got) || got.Reason == "" {
-		t.Fatalf("disabled gates were advertised as active: %+v", got)
-	}
+	require.False(t, got.NewAwardsEnabled)
+	require.False(t, got.SchedulingEnabled)
+	require.False(t, got.ProviderMutations)
+	require.False(t, got.IntervalRuleVerified)
+	require.NotEmpty(t, got.Reason)
 }
 
 func TestGiveawayCapabilitiesExposeNonRecurringSchedulingSeparately(t *testing.T) {
@@ -49,26 +53,11 @@ func TestGiveawayCapabilitiesExposeNonRecurringSchedulingSeparately(t *testing.T
 	}
 }
 
-func TestGiveawayCapabilitiesExposeProviderSchedulingSeparately(t *testing.T) {
-	service := &GiveawayRPC{config: giveawayengine.Config{NewAwardsEnabled: true, IntervalRuleVerified: true, ProviderMutations: true}}
-	got := service.capabilities()
-	require.True(t, got.SchedulingEnabled)
-	require.True(t, got.ProviderMutations)
-	require.Empty(t, got.Reason)
-}
-
 func TestGiveawayCapabilitiesExplainDisabledScheduling(t *testing.T) {
 	service := &GiveawayRPC{config: giveawayengine.Config{NewAwardsEnabled: true}}
 	got := service.capabilities()
 	require.False(t, got.SchedulingEnabled)
 	require.Contains(t, got.Reason, "scheduling is disabled")
-}
-
-func allGatesEnabled(c giveaways.Capabilities) bool {
-	return c.NewAwardsEnabled && c.SchedulingEnabled && c.ProviderMutations && c.IntervalRuleVerified
-}
-func anyGateEnabled(c giveaways.Capabilities) bool {
-	return c.NewAwardsEnabled || c.SchedulingEnabled || c.ProviderMutations || c.IntervalRuleVerified
 }
 
 func TestGiveawaySummaryUsesExclusiveCategories(t *testing.T) {
@@ -77,9 +66,10 @@ func TestGiveawaySummaryUsesExclusiveCategories(t *testing.T) {
 		{UserID: 2, Status: "paid"},
 		{UserID: 3, Status: "paid", SubscriptionRef: strptr("recurring")},
 	}}
-	if got := categoryCounts(pool); got != [3]int{1, 1, 1} {
-		t.Fatalf("category counts = %v, want free/one-time/subscriber = 1/1/1", got)
-	}
+	got := summaryValues(pool, 1, 1)
+	require.Equal(t, 1, got.Free)
+	require.Equal(t, 1, got.Premium)
+	require.Equal(t, 1, got.Subscribers)
 }
 
 func TestEmptyPreviewSummaryCarriesRequestedValues(t *testing.T) {
@@ -134,22 +124,6 @@ func TestAdminAuthorizationRejectsMalformedActorBeforeNATS(t *testing.T) {
 	if refusal.Code != "invalid" || refusal.Error == "" {
 		t.Fatalf("malformed actor was not rejected: %+v", refusal)
 	}
-}
-
-func categoryCounts(pool usersrpc.GiveawayPoolReply) [3]int {
-	var result [3]int
-	for _, candidate := range pool.Candidates {
-		if candidate.SubscriptionRef != nil && *candidate.SubscriptionRef != "" {
-			result[2]++
-			continue
-		}
-		if candidate.Status == "free" {
-			result[0]++
-		} else {
-			result[1]++
-		}
-	}
-	return result
 }
 
 func strptr(value string) *string { return &value }
