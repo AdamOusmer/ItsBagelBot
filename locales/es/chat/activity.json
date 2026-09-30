@@ -1,0 +1,10 @@
+{
+  "command.answered": "!%s respondió a @%s",
+  "event.follow": "%s empezó a seguir el canal",
+  "event.subscribe": "%s se suscribió (%s)",
+  "event.gift": "%s regaló suscripciones: %d",
+  "event.raid": "%s llegó de raid; espectadores: %d",
+  "automod.ban_timeout": "expulsión/restricción temporal aplicada",
+  "automod.deleted": "mensaje eliminado",
+  "reward.redemption": "canje %s"
+}

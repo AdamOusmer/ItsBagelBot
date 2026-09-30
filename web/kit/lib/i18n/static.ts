@@ -1,10 +1,12 @@
 // Copyright (c) 2026 Adam Ousmer. All rights reserved.
 // Proprietary. No license granted. See LICENSE.md.
 
-import { readConsoleTree } from './tree-fs';
+import { consoleLocales, readConsoleTree } from './tree-fs';
+import type { Locale } from './types';
 import type { MessageTree } from './types';
 
-const catalogs: Record<'en' | 'fr', MessageTree> = { en: readConsoleTree('en'), fr: readConsoleTree('fr') };
+export const STATIC_LOCALES: readonly Locale[] = Object.freeze(consoleLocales());
+const catalogs: Record<Locale, MessageTree> = Object.fromEntries(STATIC_LOCALES.map((locale) => [locale, readConsoleTree(locale)]));
 
 type Node = string | string[] | MessageTree | undefined;
 
@@ -15,6 +17,6 @@ function lookup(tree: MessageTree | undefined, key: string): string | undefined 
   return typeof node === 'string' ? node : undefined;
 }
 
-export function staticText(locale: 'en' | 'fr', key: string): string {
+export function staticText(locale: Locale, key: string): string {
   return lookup(catalogs[locale], key) ?? lookup(catalogs.en, key) ?? key;
 }

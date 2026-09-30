@@ -1,0 +1,6 @@
+{
+  "name": "Zufallszahl 1-100",
+  "hint": "eine Zufallszahl von 1 bis 100 oder {random:min-max}",
+  "desc": "Eine ganze Zahl von 1 bis 100, jedes Mal neu. {random:1-6} wählt aus deinem eigenen Bereich; beide Grenzen sind enthalten.",
+  "rangeHint": "eine Zufallszahl in deinem eigenen Bereich"
+}

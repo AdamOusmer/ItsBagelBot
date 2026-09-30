@@ -1,0 +1,5 @@
+{
+  "label": "Palavras-gatilho",
+  "tagline": "Responda automaticamente quando uma palavra aparecer no chat, sem precisar de \"!\".",
+  "description": "Dê ao bot uma lista de palavras ou expressões e a mensagem a publicar quando encontrar uma no chat comum, sem prefixo de comando. Cada regra combina uma expressão com uma resposta: escolha como ela corresponde (palavra inteira, contém, mensagem exata ou começa com; o padrão corresponde à palavra inteira, então \"hi\" não dispara dentro de \"this\"), escreva a resposta e ative ou desative regras individuais sem excluí-las. As respostas aceitam {user}, {random} e {choice:a,b,c}. A primeira regra correspondente prevalece, então cada mensagem recebe no máximo uma resposta."
+}

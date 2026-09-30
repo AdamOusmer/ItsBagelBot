@@ -1,0 +1,13 @@
+{
+  "enableLabel": "Permitir !sr",
+  "enableOff": "!sr está desativado: o comando responde, mas nada entra na fila.",
+  "enableOn": "!sr está ativado: o chat pode adicionar músicas agora.",
+  "help": "Espectadores digitam !sr com nome de música, \"artista - música\" ou link do Spotify.",
+  "liveOnlyOff": "Espectadores podem pedir músicas mesmo quando você está offline.",
+  "liveOnlyOn": "Espectadores só podem pedir músicas enquanto você está ao vivo.",
+  "permLabel": "Quem pode pedir",
+  "saveFailed": "Não foi possível salvar as configurações do comando.",
+  "saved": "Configurações do comando salvas.",
+  "title": "Comando de chat (!sr)",
+  "permOffHint": "Ative !sr para escolher quem pode pedir."
+}

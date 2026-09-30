@@ -1,0 +1,12 @@
+{
+  "broke": "@{gamble:user} no puedes cubrir esa apuesta; tienes {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} los dados necesitan un respiro. Vuelve a intentarlo en {gamble:secs}s.",
+  "err": "@{gamble:user} no funcionó, vuelve a intentarlo.",
+  "lose": "@{gamble:user} sacaste {gamble:roll} (necesitabas {gamble:chance} o menos) y perdiste {gamble:amount} {gamble:points}. Saldo actual: {gamble:balance}.",
+  "range": "@{gamble:user} esa apuesta podría superar el límite de puntos.",
+  "max": "@{gamble:user} la apuesta máxima es {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} la apuesta mínima es {gamble:min} {gamble:points}.",
+  "usage": "Uso: !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} aún no te he visto en este canal. ¡Quédate para ganar {gamble:points} primero!",
+  "win": "@{gamble:user} sacaste {gamble:roll} (necesitabas {gamble:chance} o menos) y ganaste {gamble:amount} {gamble:points}. ¡Saldo actual: {gamble:balance}!"
+}

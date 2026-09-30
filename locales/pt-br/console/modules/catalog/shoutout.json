@@ -1,0 +1,19 @@
+{
+  "label": "Divulgação automática",
+  "tagline": "Receba raids com uma divulgação automática do canal.",
+  "description": "Quando outro canal faz uma raid, o bot publica uma divulgação direcionando seu chat para quem fez a raid. Ative o módulo e personalize a mensagem de divulgação.",
+  "settings": {
+    "native_shoutout": {
+      "label": "Também enviar divulgação da Twitch",
+      "help": "Executa o /shoutout da própria Twitch para quem fez a raid junto com a mensagem de chat, mostrando a categoria atual e o cartão do perfil diretamente na plataforma. Desativado por padrão."
+    }
+  },
+  "replies": {
+    "shoutout": {
+      "label": "Divulgação de raid",
+      "tagline": "Divulgação automática no chat ao receber uma raid",
+      "event": "na raid",
+      "defaultMessage": "Um grande destaque para {raider} pela raid! Espectadores: {viewers}. Confira em twitch.tv/{raider.login}"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Text URL-kodieren",
+  "hint": "kodiert den Text nach dem Doppelpunkt für eine URL",
+  "desc": "Kodiert deinen eigenen Text für den Abfrageteil einer URL. Ersetze die Wörter."
+}

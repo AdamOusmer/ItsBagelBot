@@ -1,0 +1,56 @@
+{
+  "modulesTitle": "Module",
+  "modulesHelp": "Alles, was Bagel auf diesem Server kann. Schalte ein Modul hier um oder öffne es, um seinen Kanal auszuwählen.",
+  "needsSetup": "Einrichtung erforderlich",
+  "needsSetupHint": "Aktiviert, aber ohne Kanal oder Rolle: {n}. Öffne das gewünschte Modul und wähle das Fehlende aus.",
+  "configure": "Konfigurieren",
+  "notSetUp": "Dieser Server wurde noch nie eingerichtet. Starte die Einrichtung, damit Bagel die nötigen Kanäle und Rollen erstellt.",
+  "botState": "Bot",
+  "modulesOn": "Aktive Module",
+  "tiles": {
+    "announcementsLive": {
+      "name": "Streamstart-Beiträge",
+      "help": "Ein Beitrag in deinem Streamstart-Kanal beim Start des Streams, der beim Ende bearbeitet wird."
+    },
+    "announcementsClips": {
+      "name": "Clip-Beiträge",
+      "help": "Jeder Clip von !clip und Twitch landet in deinem Clip-Kanal."
+    },
+    "welcome": {
+      "name": "Willkommen",
+      "help": "Ein Embed pro neuem Mitglied. Bagel sendet neuen Mitgliedern nie DMs."
+    },
+    "goodbye": {
+      "name": "Abschied",
+      "help": "Eine kurze Zeile im selben Kanal, wenn jemand geht."
+    },
+    "voiceHub": {
+      "name": "Sprachraum per Beitritt erstellen",
+      "help": "Beim Beitritt zur Zentrale wird ein persönlicher Raum mit Schaltflächen zum Sperren und Entsperren erstellt."
+    },
+    "logs": {
+      "name": "Team-Protokolle",
+      "help": "Beitritte, Austritte, Bearbeitungen, Löschungen und Moderation in einem Kanal."
+    },
+    "levels": {
+      "name": "Krümel und Ränge",
+      "help": "Chat-XP mit Rang- und Tageskarten. Keine Auswahl nötig."
+    },
+    "linkGuard": {
+      "name": "Link-Schutz",
+      "help": "Löscht Links von Mitgliedern, die noch keine Rolle haben."
+    },
+    "subscribers": {
+      "name": "Abonnentenstufe",
+      "help": "Eine Subscriber-Rolle und ihr privater Bereich, erstellt bei der Einrichtung."
+    },
+    "autoRole": {
+      "name": "Automatische Rollen",
+      "help": "Jeder erhält beim Beitritt die Member-Rolle."
+    },
+    "tickets": {
+      "name": "Support-Tickets",
+      "help": "Ein Panel, über das Mitglieder einen privaten Kanal mit deinem Team öffnen."
+    }
+  }
+}

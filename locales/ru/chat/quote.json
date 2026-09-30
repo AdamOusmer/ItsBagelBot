@@ -1,0 +1,12 @@
+{
+  "added": "@{quotes:user} цитата #{quotes:num} добавлена.",
+  "edit.usage": "Использование: !quote edit <number> <new text>",
+  "edited": "Цитата #{quotes:num} обновлена.",
+  "err.usage": "Использование: !quote; !quote <number>; !quote <word>; !addquote <text>; !quote edit <number> <text>; !quote remove <number>",
+  "none": "Цитат пока нет. Добавьте командой !addquote <text>.",
+  "not_found": "Цитаты #{quotes:num} не существует.",
+  "remove.usage": "Использование: !quote remove <number>",
+  "removed": "Цитата #{quotes:num} удалена.",
+  "search.none": "Цитат с «{quotes:term}» нет.",
+  "show": "Цитата #{quotes:num}: {quotes:text} ({quotes:date})"
+}

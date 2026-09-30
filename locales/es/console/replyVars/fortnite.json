@@ -1,0 +1,101 @@
+{
+  "stats": {
+    "player": {
+      "name": "Jugador",
+      "hint": "La cuenta vinculada",
+      "desc": "La cuenta vinculada."
+    },
+    "window": {
+      "name": "Período",
+      "hint": "Qué período de estadísticas: general o temporada",
+      "desc": "Qué período de estadísticas: general o temporada."
+    },
+    "wins": {
+      "name": "Victorias",
+      "hint": "Victorias totales",
+      "desc": "Victorias totales."
+    },
+    "matches": {
+      "name": "Partidas",
+      "hint": "Partidas jugadas",
+      "desc": "Partidas jugadas."
+    },
+    "kills": {
+      "name": "Eliminaciones",
+      "hint": "Eliminaciones totales",
+      "desc": "Eliminaciones totales."
+    },
+    "kd": {
+      "name": "K/D",
+      "hint": "Relación entre eliminaciones y muertes",
+      "desc": "Relación entre eliminaciones y muertes."
+    },
+    "winrate": {
+      "name": "Porcentaje de victorias %",
+      "hint": "Victorias por cada cien partidas",
+      "desc": "Victorias por cada cien partidas."
+    },
+    "solowins": {
+      "name": "Victorias en solitario",
+      "hint": "Victorias en solitario",
+      "desc": "Victorias en solitario."
+    },
+    "solomatches": {
+      "name": "Partidas en solitario",
+      "hint": "Partidas jugadas en solitario",
+      "desc": "Partidas jugadas en solitario."
+    },
+    "solokd": {
+      "name": "K/D en solitario",
+      "hint": "Relación entre eliminaciones y muertes en solitario",
+      "desc": "Relación entre eliminaciones y muertes en solitario."
+    },
+    "duowins": {
+      "name": "Victorias en dúo",
+      "hint": "Victorias en dúos",
+      "desc": "Victorias en dúos."
+    },
+    "duomatches": {
+      "name": "Partidas en dúo",
+      "hint": "Partidas jugadas en dúos",
+      "desc": "Partidas jugadas en dúos."
+    },
+    "duokd": {
+      "name": "K/D en dúo",
+      "hint": "Relación entre eliminaciones y muertes en dúos",
+      "desc": "Relación entre eliminaciones y muertes en dúos."
+    },
+    "squadwins": {
+      "name": "Victorias en escuadrón",
+      "hint": "Victorias en escuadrones",
+      "desc": "Victorias en escuadrones."
+    },
+    "squadmatches": {
+      "name": "Partidas en escuadrón",
+      "hint": "Partidas jugadas en escuadrones",
+      "desc": "Partidas jugadas en escuadrones."
+    },
+    "squadkd": {
+      "name": "K/D en escuadrón",
+      "hint": "Relación entre eliminaciones y muertes en escuadrones",
+      "desc": "Relación entre eliminaciones y muertes en escuadrones."
+    }
+  },
+  "store": {
+    "date": {
+      "name": "Fecha de la tienda",
+      "hint": "La fecha de la tienda de hoy",
+      "desc": "La fecha de la tienda de hoy."
+    },
+    "count": {
+      "name": "Número de artículos",
+      "hint": "Cuántos artículos hay en la tienda",
+      "desc": "Cuántos artículos hay en la tienda."
+    },
+    "items": {
+      "name": "Lista de artículos",
+      "hint": "Los artículos destacados",
+      "desc": "Los artículos destacados."
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "release": "{version} bei {sha} taggen, bauen, festlegen und {services} neu ausrollen.",
+  "hotfix": "{version} auf {sha} verschieben, neu bauen, erneut festlegen und {services} neu ausrollen.",
+  "bump": "Die bei {sha} gebauten Images festlegen und {services} neu ausrollen.",
+  "rollback": "Die Images von {version} festlegen und jeden Dienst neu ausrollen, dessen Festlegung sich ändert.",
+  "reapply": "Die auf main festgelegten Images auf {services} ausrollen."
+}

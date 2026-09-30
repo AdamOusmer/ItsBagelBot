@@ -1,0 +1,5 @@
+{
+  "name": "Quantidade de inscritos",
+  "hint": "sua quantidade atual de inscritos",
+  "desc": "Sua quantidade atual de inscritos, diretamente da Twitch. Não aceita parâmetros; sempre conta seu próprio canal."
+}

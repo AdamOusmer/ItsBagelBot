@@ -1,0 +1,51 @@
+{
+  "time": {
+    "time": {
+      "name": "Ortszeit",
+      "hint": "Die Uhrzeit",
+      "desc": "Die Uhrzeit in deiner eingestellten Zeitzone und im gewählten Format."
+    },
+    "date": {
+      "name": "Ortsdatum",
+      "hint": "Heutiges Datum in deiner Zeitzone",
+      "desc": "Heutiges Datum in deiner Zeitzone."
+    },
+    "timezone": {
+      "name": "Zeitzone",
+      "hint": "Der eingestellte Zeitzonenname",
+      "desc": "Der eingestellte Zeitzonenname."
+    },
+    "user": {
+      "name": "Fragende Person",
+      "hint": "Wer nach der Uhrzeit gefragt hat",
+      "desc": "Wer nach der Uhrzeit gefragt hat."
+    }
+  },
+  "lookup": {
+    "time": {
+      "name": "Ortszeit",
+      "hint": "Die Uhrzeit am gesuchten Ort",
+      "desc": "Die Uhrzeit an dem Ort, nach dem ein Zuschauer gefragt hat."
+    },
+    "date": {
+      "name": "Ortsdatum",
+      "hint": "Heutiges Datum am gesuchten Ort",
+      "desc": "Heutiges Datum an dem Ort, nach dem ein Zuschauer gefragt hat."
+    },
+    "place": {
+      "name": "Ort",
+      "hint": "Der Ort, nach dem ein Zuschauer gefragt hat",
+      "desc": "Der normalisierte Ortsname, den die Suche ermittelt hat."
+    },
+    "timezone": {
+      "name": "Zeitzone",
+      "hint": "Zeitzonenname des gesuchten Orts",
+      "desc": "Zeitzonenname oder Versatz am gesuchten Ort."
+    },
+    "user": {
+      "name": "Fragende Person",
+      "hint": "Wer nach der Uhrzeit gefragt hat",
+      "desc": "Wer nach der Uhrzeit gefragt hat."
+    }
+  }
+}

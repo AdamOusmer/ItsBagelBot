@@ -1,0 +1,19 @@
+{
+  "reply": {
+    "user": {
+      "name": "Einlösende Person",
+      "hint": "Wer die Belohnung eingelöst hat",
+      "desc": "Wer die Belohnung eingelöst hat."
+    },
+    "input": {
+      "name": "Zuschauereingabe",
+      "hint": "Der vom Zuschauer eingegebene Farbtext",
+      "desc": "Der bei der Einlösung vom Zuschauer eingegebene Farbtext."
+    },
+    "color": {
+      "name": "Farbe",
+      "hint": "Der ermittelte Farbname",
+      "desc": "Der Farbname, den der Bot erkannt und für die Beleuchtung eingestellt hat."
+    }
+  }
+}

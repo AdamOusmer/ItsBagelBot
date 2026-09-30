@@ -1,0 +1,30 @@
+{
+  "label": "Hora local",
+  "tagline": "Espectadores perguntam sua hora local com !time.",
+  "description": "Espectadores digitam !time e o bot responde com sua hora local. Também podem perguntar sobre outro lugar: !time Tokyo, !time EST, !time UTC+2. Escolha seu fuso abaixo. A página sugere o fuso informado pelo navegador, calculado só no seu dispositivo (nada é lido ou armazenado até você salvar). Escolha um relógio de 12 ou 24 horas e personalize as duas respostas.",
+  "settings": {
+    "timezone": {
+      "label": "Fuso horário",
+      "help": "Nome do fuso IANA usado para exibir {time} e {date}. A sugestão vem do navegador e só é armazenada quando você salva.",
+      "placeholder": "America/Toronto"
+    },
+    "format": {
+      "label": "Formato do relógio",
+      "placeholder": "12",
+      "options": {
+        "12": "12 horas (2:30 PM)",
+        "24": "24 horas (14:30)"
+      }
+    }
+  },
+  "replies": {
+    "time": {
+      "tagline": "Sua hora local atual.",
+      "defaultMessage": "Horário atual de quem transmite: {time}."
+    },
+    "lookup": {
+      "tagline": "Hora em outro lugar.",
+      "defaultMessage": "Horário atual em {place}: {time}."
+    }
+  }
+}

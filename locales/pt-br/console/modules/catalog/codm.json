@@ -1,0 +1,22 @@
+{
+  "label": "Perfil de CODM",
+  "tagline": "Consultas de perfis do Call of Duty: Mobile Global no chat.",
+  "description": "Consulte um perfil do CODM Global por UID ou apelido exato com !codm, !codmprofile ou !codmrank. O perfil somente para leitura inclui nível, patente e pontuação do Multijogador, país e ID curto. Compatível com a edição CODM Global; não inclui KD, histórico de partidas nem estatísticas de Battle Royale.",
+  "settings": {
+    "account": {
+      "label": "Conta CODM vinculada",
+      "help": "Perfil padrão do comando. Se estiver em branco, informe um UID do CODM ou apelido exato após !codm.",
+      "placeholder": "UID do CODM ou apelido exato"
+    },
+    "linkedOnly": {
+      "help": "Quando ativado, todas as consultas usam sua conta CODM vinculada e ignoram os nomes fornecidos pelos espectadores. Vincule primeiro um UID do CODM ou apelido exato."
+    }
+  },
+  "replies": {
+    "profile": {
+      "tagline": "Perfil do CODM Global: !codm, !codmprofile ou !codmrank.",
+      "event": "!codm [UID/exact nickname]",
+      "defaultMessage": "{player} · nível {level} · MP {rank} · pontuação: {rating} · {country}"
+    }
+  }
+}

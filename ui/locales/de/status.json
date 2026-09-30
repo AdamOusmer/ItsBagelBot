@@ -1,0 +1,10 @@
+{
+  "working": "Wird bearbeitet…",
+  "loading": "Wird geladen",
+  "saving": "Wird gespeichert…",
+  "saved": "Gespeichert",
+  "live": "Live",
+  "failed": "Fehlgeschlagen",
+  "saveFailed": "Speichern fehlgeschlagen",
+  "unsaved": "Ungespeicherte Änderungen"
+}

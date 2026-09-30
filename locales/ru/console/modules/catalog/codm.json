@@ -1,0 +1,22 @@
+{
+  "label": "Профиль CODM",
+  "tagline": "Поиск профилей Call of Duty: Mobile Global в чате.",
+  "description": "Ищите профиль CODM Global по UID или точному никнейму через !codm, !codmprofile или !codmrank. Профиль только для чтения включает уровень, ранг и рейтинг Multiplayer, страну и короткий ID. Поддерживается издание CODM Global; K/D, история матчей и статистика Battle Royale не включены.",
+  "settings": {
+    "account": {
+      "label": "Привязанный аккаунт CODM",
+      "help": "Профиль по умолчанию для команды. Если поле пустое, укажите UID CODM или точный никнейм после !codm.",
+      "placeholder": "UID CODM или точный никнейм"
+    },
+    "linkedOnly": {
+      "help": "Если включено, всегда используется привязанный аккаунт CODM, а имена, указанные зрителями, игнорируются. Сначала привяжите UID CODM или точный никнейм."
+    }
+  },
+  "replies": {
+    "profile": {
+      "tagline": "Профиль CODM Global: !codm, !codmprofile или !codmrank.",
+      "event": "!codm [UID/exact nickname]",
+      "defaultMessage": "{player} · Уровень: {level} · MP: {rank} · Рейтинг: {rating} · {country}"
+    }
+  }
+}

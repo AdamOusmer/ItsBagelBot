@@ -1,0 +1,101 @@
+{
+  "stats": {
+    "player": {
+      "name": "Spieler",
+      "hint": "Das verknüpfte Konto",
+      "desc": "Das verknüpfte Konto."
+    },
+    "window": {
+      "name": "Zeitraum",
+      "hint": "Statistikzeitraum: insgesamt oder Saison",
+      "desc": "Statistikzeitraum: insgesamt oder Saison."
+    },
+    "wins": {
+      "name": "Siege",
+      "hint": "Siege insgesamt",
+      "desc": "Siege insgesamt."
+    },
+    "matches": {
+      "name": "Matches",
+      "hint": "Gespielte Matches",
+      "desc": "Gespielte Matches."
+    },
+    "kills": {
+      "name": "Kills",
+      "hint": "Eliminierungen insgesamt",
+      "desc": "Eliminierungen insgesamt."
+    },
+    "kd": {
+      "name": "K/D",
+      "hint": "Kill-/Tod-Verhältnis",
+      "desc": "Kill-/Tod-Verhältnis."
+    },
+    "winrate": {
+      "name": "Siegquote %",
+      "hint": "Siege pro hundert Matches",
+      "desc": "Siege pro hundert Matches."
+    },
+    "solowins": {
+      "name": "Solo-Siege",
+      "hint": "Siege im Solo-Modus",
+      "desc": "Siege im Solo-Modus."
+    },
+    "solomatches": {
+      "name": "Solo-Matches",
+      "hint": "Gespielte Matches im Solo-Modus",
+      "desc": "Gespielte Matches im Solo-Modus."
+    },
+    "solokd": {
+      "name": "Solo-K/D",
+      "hint": "Kill-/Tod-Verhältnis im Solo-Modus",
+      "desc": "Kill-/Tod-Verhältnis im Solo-Modus."
+    },
+    "duowins": {
+      "name": "Duo-Siege",
+      "hint": "Siege im Duo-Modus",
+      "desc": "Siege im Duo-Modus."
+    },
+    "duomatches": {
+      "name": "Duo-Matches",
+      "hint": "Gespielte Matches im Duo-Modus",
+      "desc": "Gespielte Matches im Duo-Modus."
+    },
+    "duokd": {
+      "name": "Duo-K/D",
+      "hint": "Kill-/Tod-Verhältnis im Duo-Modus",
+      "desc": "Kill-/Tod-Verhältnis im Duo-Modus."
+    },
+    "squadwins": {
+      "name": "Squad-Siege",
+      "hint": "Siege im Squad-Modus",
+      "desc": "Siege im Squad-Modus."
+    },
+    "squadmatches": {
+      "name": "Squad-Matches",
+      "hint": "Gespielte Matches im Squad-Modus",
+      "desc": "Gespielte Matches im Squad-Modus."
+    },
+    "squadkd": {
+      "name": "Squad-K/D",
+      "hint": "Kill-/Tod-Verhältnis im Squad-Modus",
+      "desc": "Kill-/Tod-Verhältnis im Squad-Modus."
+    }
+  },
+  "store": {
+    "date": {
+      "name": "Shop-Datum",
+      "hint": "Heutiges Shop-Datum",
+      "desc": "Heutiges Shop-Datum."
+    },
+    "count": {
+      "name": "Artikelzahl",
+      "hint": "Wie viele Artikel im Shop sind",
+      "desc": "Wie viele Artikel im Shop sind."
+    },
+    "items": {
+      "name": "Artikelliste",
+      "hint": "Die vorgestellten Artikel",
+      "desc": "Die vorgestellten Artikel."
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Aktuelle Zuschauer",
+  "hint": "wie viele Personen gerade zuschauen, 0 wenn du offline bist",
+  "desc": "Wie viele Personen gerade zuschauen, direkt von Twitch. Bei einem Offline-Kanal wird 0 zurückgegeben. {channel} ohne Zusatz bleibt dein Kanalname."
+}

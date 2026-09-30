@@ -1,0 +1,5 @@
+{
+  "name": "Título",
+  "hint": "Requiere el módulo Título activado.",
+  "desc": "Usa {title:variable} en un comando personalizado para leer los valores públicos de este módulo. Requiere el módulo Título activado. Añadir una variable no activa su módulo. Los módulos desactivados dejan la variable visible en el chat. Los valores exclusivos de eventos quedan vacíos cuando el comando no tiene un evento correspondiente; usa |fallback para los valores vacíos. La vista previa usa datos de ejemplo y no confirma que tu módulo esté activado."
+}

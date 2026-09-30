@@ -1,0 +1,18 @@
+{
+  "titleRequired": "Titel erforderlich",
+  "reasonRequired": "interne Begründung erforderlich",
+  "winnerCountPositive": "Gewinnerzahl muss eine positive ganze Zahl sein",
+  "prizeMonthsRange": "Gewinndauer muss eine ganze Zahl von 1 bis 12 sein",
+  "idRequired": "Gewinnspiel-ID erforderlich",
+  "operationRequired": "Snapshot-Version und Vorgangsschlüssel erforderlich",
+  "poolDigestRequired": "Digest des Teilnehmerpools erforderlich",
+  "awardIdRequired": "Gewinn-ID erforderlich",
+  "draftCreatedDemo": "Gewinnspielentwurf erstellt (Demo).",
+  "draftCreated": "Gewinnspielentwurf erstellt.",
+  "drawCommittedDemo": "Auslosung verbindlich gespeichert (Demo).",
+  "drawCommitted": "Auslosung verbindlich gespeichert.",
+  "snapshotFrozenDemo": "Snapshot der Teilnahmeberechtigung eingefroren (Demo).",
+  "snapshotFrozen": "Snapshot der Teilnahmeberechtigung eingefroren.",
+  "retryQueuedDemo": "Erneute Bereitstellung eingereiht (Demo).",
+  "retryQueued": "Erneute Bereitstellung eingereiht."
+}

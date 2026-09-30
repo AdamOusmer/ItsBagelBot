@@ -1,0 +1,5 @@
+{
+  "name": "Artista da música",
+  "hint": "só o nome do artista, a segunda metade de {song}",
+  "desc": "O nome do artista sozinho, a segunda metade de {song}. Sem música tocando, retorna vazio. Requer o módulo Pedidos de música."
+}

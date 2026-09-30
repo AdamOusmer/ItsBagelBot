@@ -1,0 +1,77 @@
+{
+  "accountage": {
+    "label": "Kontoalter",
+    "summary": "Zeigt, wie lange ein Twitch-Konto existiert.",
+    "usage": [
+      "!accountage",
+      "!accountage <user>"
+    ]
+  },
+  "followage": {
+    "label": "Follower-Dauer",
+    "summary": "Zeigt, wie lange ein Zuschauer dem Kanal folgt.",
+    "usage": [
+      "!followage",
+      "!followage <user>"
+    ]
+  },
+  "uptime": {
+    "label": "Stream-Laufzeit",
+    "summary": "Zeigt, wie lange der aktuelle Stream live ist.",
+    "usage": [
+      "!uptime"
+    ]
+  },
+  "clip": {
+    "label": "Clip",
+    "summary": "Erstellt einen Clip der letzten Momente des Streams und postet den Link.",
+    "usage": [
+      "!clip",
+      "!clip <title>"
+    ]
+  },
+  "title": {
+    "label": "Titel",
+    "summary": "Stream-Titel anzeigen oder festlegen.",
+    "usage": [
+      "!title",
+      "!title <title>",
+      "!settitle <title>"
+    ]
+  },
+  "game": {
+    "label": "Spiel",
+    "summary": "Stream-Kategorie anzeigen oder festlegen.",
+    "usage": [
+      "!game",
+      "!game <name>",
+      "!setgame <name>"
+    ]
+  },
+  "tags": {
+    "label": "Tags",
+    "summary": "Stream-Tags anzeigen oder festlegen.",
+    "usage": [
+      "!tags",
+      "!tags <tag1, tag2>",
+      "!settags <tag1, tag2>"
+    ]
+  },
+  "commercial": {
+    "label": "Werbung",
+    "summary": "Startet eine Werbeunterbrechung im laufenden Stream.",
+    "usage": [
+      "!commercial",
+      "!commercial 60",
+      "!ad 90"
+    ]
+  },
+  "marker": {
+    "label": "Markierung",
+    "summary": "Setzt eine Stream-Markierung in der Live-Übertragung.",
+    "usage": [
+      "!marker",
+      "!marker <description>"
+    ]
+  }
+}

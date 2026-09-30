@@ -1,0 +1,8 @@
+{
+  "name": "Número de palabra",
+  "hint": "palabra 1 escrita después del comando; {2} es la siguiente, hasta {30}; {2:4} toma un intervalo",
+  "desc": "Palabra 1 escrita después del comando. {2} es la siguiente, y así hasta {30}. Está vacía si no se escribió esa palabra. {2:} toma desde una palabra hasta el final como una sola cadena; cambia el número para empezar en otro lugar, {1:} toma todo. {2:4} toma las palabras 2 a 4 de la misma forma, y {:2} es el mismo intervalo empezando en la palabra 1 (las dos primeras palabras). Si el final indicado supera la última palabra escrita, se detiene en esa última palabra; si el final precede al inicio, como {4:2}, se deja exactamente como está escrito.",
+  "restHint": "desde la palabra 2 hasta el final, como una sola cadena",
+  "leadingHint": "las primeras 2 palabras, como una sola cadena",
+  "boundedHint": "las palabras 2 a 4, como una sola cadena"
+}

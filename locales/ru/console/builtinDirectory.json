@@ -1,0 +1,77 @@
+{
+  "accountage": {
+    "label": "Возраст аккаунта",
+    "summary": "Показывает, как давно существует аккаунт Twitch.",
+    "usage": [
+      "!accountage",
+      "!accountage <user>"
+    ]
+  },
+  "followage": {
+    "label": "Время отслеживания",
+    "summary": "Показывает, как давно зритель отслеживает канал.",
+    "usage": [
+      "!followage",
+      "!followage <user>"
+    ]
+  },
+  "uptime": {
+    "label": "Длительность трансляции",
+    "summary": "Показывает, как долго идёт текущая трансляция.",
+    "usage": [
+      "!uptime"
+    ]
+  },
+  "clip": {
+    "label": "Клип",
+    "summary": "Создаёт клип последних моментов трансляции и публикует ссылку.",
+    "usage": [
+      "!clip",
+      "!clip <title>"
+    ]
+  },
+  "title": {
+    "label": "Название",
+    "summary": "Показывает или задаёт название трансляции.",
+    "usage": [
+      "!title",
+      "!title <title>",
+      "!settitle <title>"
+    ]
+  },
+  "game": {
+    "label": "Игра",
+    "summary": "Показывает или задаёт категорию трансляции.",
+    "usage": [
+      "!game",
+      "!game <name>",
+      "!setgame <name>"
+    ]
+  },
+  "tags": {
+    "label": "Теги",
+    "summary": "Показывает или задаёт теги трансляции.",
+    "usage": [
+      "!tags",
+      "!tags <tag1, tag2>",
+      "!settags <tag1, tag2>"
+    ]
+  },
+  "commercial": {
+    "label": "Реклама",
+    "summary": "Запускает рекламу во время прямой трансляции.",
+    "usage": [
+      "!commercial",
+      "!commercial 60",
+      "!ad 90"
+    ]
+  },
+  "marker": {
+    "label": "Маркер",
+    "summary": "Ставит маркер во время прямой трансляции.",
+    "usage": [
+      "!marker",
+      "!marker <description>"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "close4004": "O Discord rejeitou o token do bot. Ele precisa ser substituído para o bot voltar.",
+  "close4011": "Este bot agora precisa de mais de um shard. Você não pode resolver por aqui; estamos cuidando disso.",
+  "close4013": "O Discord recusou os intents do gateway. Você não pode resolver por aqui; estamos cuidando disso.",
+  "close4014": "O Discord não aprovou os intents privilegiados de que este bot precisa. Você não pode resolver por aqui; estamos cuidando disso.",
+  "sinceDays": "{n} d",
+  "sinceHours": "{n} h",
+  "sinceMinutes": "{n} min",
+  "members": "Membros: {n}",
+  "noMembers": "Quantidade de membros indisponível",
+  "offline": "Offline",
+  "online": "Online",
+  "reauth": "Autorizar novamente",
+  "reconnecting": "O gateway caiu e está se reconectando sozinho. Nenhuma ação necessária.",
+  "resumes": "Retomadas de sessão",
+  "since": "Online há",
+  "title": "Servidor e bot",
+  "unknown": "Desconhecido"
+}

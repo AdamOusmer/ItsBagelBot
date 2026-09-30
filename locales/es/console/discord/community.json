@@ -1,0 +1,19 @@
+{
+  "help": "Las bienvenidas, las salas de voz creadas al entrar, los tickets, los registros del equipo y los rangos de migas funcionan en el gateway de Discord.",
+  "title": "Gestión de la comunidad",
+  "goodbyeHelp": "Desactivado por defecto. Una frase breve cuando alguien se va.",
+  "goodbyeLabel": "Despedida",
+  "levelsHelp": "XP del chat (15 migas, 60s de espera). El rango y la recompensa diaria son tarjetas integradas con un botón para reclamar la recompensa diaria.",
+  "levelsLabel": "Migas y rangos",
+  "linkGuardHelp": "Desactivado por defecto. Elimina los enlaces de miembros que aún no tienen ningún rol.",
+  "linkGuardLabel": "Protección contra enlaces",
+  "logsHelp": "Las entradas, salidas, ediciones, eliminaciones y acciones de moderación llegan a #logs.",
+  "logsLabel": "Registros del equipo",
+  "subscribersHelp": "Crea un rol de suscriptor y un área privada para suscriptores durante la configuración. Desactívalo si no lo usas: una categoría vacía y bloqueada no ayuda a nadie. Los suscriptores no se sincronizan automáticamente; consulta la nota bajo Roles.",
+  "subscribersLabel": "Nivel de suscriptores",
+  "tierRolesHelp": "Bagel crea estos roles y sus canales privados, pero nunca los asigna ni los sincroniza desde Twitch. Tus moderadores, VIP y suscriptores de Twitch no reciben automáticamente los roles de moderador, VIP o suscriptor en Discord: debes asignarlos tú. La única excepción que puedes añadir es la integración de Twitch del propio Discord, en Ajustes del servidor, Integraciones, que solo sincroniza suscriptores y requiere una cuenta de afiliado o socio de Twitch. Discord no permite activarla desde aquí.",
+  "voiceHelp": "Al entrar en “+ Create voice” se crea una copia como sala personal con botones Lock (bloquear) y Unlock (desbloquear). Las copias vacías se eliminan.",
+  "voiceLabel": "Salas de voz al entrar",
+  "welcomeHelp": "Un mensaje integrado en #welcome. Bagel nunca envía mensajes privados a quienes entran.",
+  "welcomeLabel": "Dar la bienvenida a nuevos miembros"
+}

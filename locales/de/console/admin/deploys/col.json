@@ -1,0 +1,8 @@
+{
+  "run": "Durchlauf",
+  "kind": "Art",
+  "state": "Status",
+  "stage": "Phase",
+  "by": "Von",
+  "started": "Gestartet"
+}

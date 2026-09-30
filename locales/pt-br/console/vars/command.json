@@ -1,0 +1,5 @@
+{
+  "name": "Nome do comando",
+  "hint": "o nome do próprio comando, sem “!”",
+  "desc": "O nome do comando executado, sem \"!\". Nomes alternativos sempre retornam o principal."
+}

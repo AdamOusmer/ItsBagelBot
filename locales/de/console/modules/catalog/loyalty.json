@@ -1,0 +1,14 @@
+{
+  "label": "Treuepunkte",
+  "tagline": "Zuschauer verdienen Kanalwährung für Abos, Cheers und Sehzeit.",
+  "description": "Gib deiner Community eine eigene Währung: Zuschauer verdienen Punkte für Abos, erneute Abos, verschenkte Abos, Bits-Cheers und einfach fürs Zuschauen (alle im Chat verdienen alle 5 Minuten Punkte, während du live bist). Benenne die Währung, passe jede Rate an und lass Mods mit !points set/add Punkte vergeben. Zuschauer prüfen ihren Stand mit !points. Würfelspiel und Duelle verwenden dieses Punktebuch und werden hier aktiviert. Sie funktionieren nicht bei deaktivierter Punktewährung. Kombinierbar mit Zählern und Kanalpunkte-Belohnungen, die Punkte vergeben.",
+  "commands": {
+    "points": "Prüfe deinen Punktestand und deine Sehzeit.",
+    "points_give_user_500": "Gib einen Teil deiner eigenen Punkte an einen anderen Zuschauer.",
+    "leaderboard": "Zeige die höchsten Punktestände des Kanals.",
+    "points_set_user_500": "Lege den Punktestand eines Zuschauers fest.",
+    "points_add_user_500": "Vergib Punkte an einen Zuschauer.",
+    "points_remove_user_500": "Entferne Punkte eines Zuschauers.",
+    "counter": "Verwalte Zähler (auch auf der Zählerseite)."
+  }
+}

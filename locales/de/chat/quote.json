@@ -1,0 +1,12 @@
+{
+  "added": "@{quotes:user} Zitat #{quotes:num} hinzugefügt.",
+  "edit.usage": "Verwendung: !quote edit <number> <new text>",
+  "edited": "Zitat #{quotes:num} aktualisiert.",
+  "err.usage": "Verwendung: !quote; !quote <number>; !quote <word>; !addquote <text>; !quote edit <number> <text>; !quote remove <number>",
+  "none": "Noch keine Zitate gespeichert. Füge eines mit !addquote <text> hinzu.",
+  "not_found": "Zitat #{quotes:num} existiert nicht.",
+  "remove.usage": "Verwendung: !quote remove <number>",
+  "removed": "Zitat #{quotes:num} entfernt.",
+  "search.none": "Kein Zitat gefunden, das zu \"{quotes:term}\" passt.",
+  "show": "Zitat #{quotes:num}: {quotes:text} ({quotes:date})"
+}

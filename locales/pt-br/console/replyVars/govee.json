@@ -1,0 +1,19 @@
+{
+  "reply": {
+    "user": {
+      "name": "Quem resgatou",
+      "hint": "Quem resgatou a recompensa",
+      "desc": "Quem resgatou a recompensa."
+    },
+    "input": {
+      "name": "Texto do espectador",
+      "hint": "O texto da cor digitado pelo espectador",
+      "desc": "O texto da cor digitado pelo espectador no resgate."
+    },
+    "color": {
+      "name": "Cor",
+      "hint": "O nome da cor identificada",
+      "desc": "O nome da cor que o bot identificou e aplicou às luzes."
+    }
+  }
+}

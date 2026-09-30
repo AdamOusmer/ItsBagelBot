@@ -1,0 +1,8 @@
+{
+  "color": "Farbe",
+  "cooldown": "Globale Abklingzeit",
+  "cooldownTag": "0 = aus",
+  "cost": "Punktekosten",
+  "reply": "Chat-Antwort",
+  "title": "Belohnungstitel"
+}

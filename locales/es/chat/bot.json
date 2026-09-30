@@ -1,0 +1,4 @@
+{
+  "banned.body": "Tu canal expulsó la cuenta de Twitch del bot, así que no puede leer el chat ni responder. Revoca su expulsión en el chat de Twitch, abre {dashboard_url} y pulsa Activar para que vuelva.",
+  "banned.title": "El bot está expulsado de tu chat"
+}

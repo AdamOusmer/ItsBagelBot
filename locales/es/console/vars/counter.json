@@ -1,0 +1,6 @@
+{
+  "name": "Contador",
+  "hint": "muestra el valor actual de un contador; {count:…} hace la misma lectura (Fidelidad)",
+  "desc": "Muestra el valor actual de un contador sin cambiarlo. Para incrementarlo, activa \"Incrementar un contador\" en el propio comando; esto solo lee lo que haya producido esa opción (o !counter). {counter:target:name} lee el recuento del espectador mencionado en lugar del del canal. Requiere el módulo Puntos de fidelidad.",
+  "targetHint": "el recuento del espectador mencionado, no el del canal"
+}

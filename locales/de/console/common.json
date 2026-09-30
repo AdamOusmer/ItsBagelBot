@@ -1,0 +1,41 @@
+{
+  "loading": "Wird geladen…",
+  "skipToContent": "Zum Inhalt springen",
+  "breadcrumb": "Navigationspfad",
+  "appName": "ItsBagelBot",
+  "console": "Konsole",
+  "cancel": "Abbrechen",
+  "save": "Speichern",
+  "delete": "Löschen",
+  "open": "Öffnen",
+  "leave": "Verlassen",
+  "copy": "Kopieren",
+  "copied": "Kopiert",
+  "syncedToChat": "Mit dem Chat synchronisiert",
+  "revoke": "Widerrufen",
+  "read": "Gelesen",
+  "generate": "Link generieren",
+  "reconnect": "Erneut verbinden",
+  "done": "Fertig",
+  "gotIt": "Verstanden",
+  "retry": "Erneut versuchen",
+  "optional": "(optional)",
+  "selectTitle": "Option auswählen",
+  "searchOptions": "Optionen suchen…",
+  "searchClear": "Suche leeren",
+  "selectNoMatch": "Keine Optionen passen zu deiner Suche.",
+  "unit": {
+    "label": "Einheit",
+    "seconds": "Sekunden",
+    "minutes": "Minuten",
+    "hours": "Stunden"
+  },
+  "duration": {
+    "seconds": "{n} s",
+    "minutes": "{n} min",
+    "hours": "{n} h"
+  },
+  "newVersion": "Neue Version verfügbar",
+  "reload": "Neu laden",
+  "opensInNewTab": "(öffnet sich in einem neuen Tab)"
+}

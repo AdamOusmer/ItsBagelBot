@@ -1,0 +1,5 @@
+{
+  "name": "Todo lo escrito después",
+  "hint": "todo lo escrito después del comando",
+  "desc": "Todo el texto después del comando, en una sola cadena."
+}

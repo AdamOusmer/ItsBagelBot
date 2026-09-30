@@ -1,0 +1,4 @@
+{
+  "banned.body": "Dein Kanal hat das Twitch-Konto des Bots gebannt. Daher kann er den Chat weder lesen noch beantworten. Hebe den Bann in deinem Twitch-Chat auf, öffne dann {dashboard_url} und drücke auf Aktivieren, um ihn zurückzuholen.",
+  "banned.title": "Der Bot ist in deinem Chat gebannt"
+}

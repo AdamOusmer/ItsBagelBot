@@ -1,0 +1,5 @@
+{
+  "label": "Auslösewörter",
+  "tagline": "Antworte automatisch, wenn ein Wort im Chat erscheint, ohne „!“.",
+  "description": "Gib dem Bot Wörter oder Phrasen und die zugehörigen Chat-Antworten, ganz ohne Befehlspräfix. Jede Regel verbindet eine Phrase mit einer Antwort: Wähle die Übereinstimmung (ganzes Wort, enthält, exakte Nachricht oder beginnt mit; standardmäßig ganzes Wort, sodass „hi“ nicht in „this“ auslöst), schreibe die Antwort und schalte einzelne Regeln ein oder aus, ohne sie zu löschen. Antworten unterstützen {user}, {random} und {choice:a,b,c}. Die erste passende Regel gewinnt, daher erhält eine Nachricht höchstens eine Antwort."
+}

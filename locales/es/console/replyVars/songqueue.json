@@ -1,0 +1,24 @@
+{
+  "redeem": {
+    "user": {
+      "name": "Autor del canje",
+      "hint": "Quién canjeó la recompensa",
+      "desc": "Quién canjeó la recompensa."
+    },
+    "track": {
+      "name": "Título de la canción",
+      "hint": "El título de la canción en cola",
+      "desc": "El título de la canción en cola."
+    },
+    "input": {
+      "name": "Texto del espectador",
+      "hint": "El texto que escribió el espectador para pedir una canción",
+      "desc": "El nombre de la canción, \"artista - canción\" o el enlace que el espectador escribió al canjear."
+    },
+    "pos": {
+      "name": "Posición en la cola",
+      "hint": "La posición de la canción en la cola",
+      "desc": "La posición de la canción en la cola."
+    }
+  }
+}

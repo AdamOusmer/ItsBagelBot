@@ -1,0 +1,5 @@
+{
+  "name": "Repetir uma expressão",
+  "hint": "repete uma expressão n vezes (até 20, em uma linha de chat)",
+  "desc": "Repete sua expressão, separada por espaços. Até 20 vezes, e precisa caber em uma linha de chat."
+}

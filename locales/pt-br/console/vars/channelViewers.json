@@ -1,0 +1,5 @@
+{
+  "name": "Espectadores assistindo",
+  "hint": "quantas pessoas estão assistindo agora; 0 quando você está offline",
+  "desc": "Quantas pessoas estão assistindo agora, diretamente da Twitch. Um canal offline retorna 0. {channel} sem sufixo continua sendo o nome do seu canal."
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Deine Ortszeit",
+  "hint": "deine Ortszeit im eingestellten Uhrzeitformat (Modul Ortszeit); {time:Paris} für andere Orte, ohne Modul",
+  "desc": "Die Uhrzeit bei dir, in der Zeitzone und im Uhrzeitformat, die du im Modul Ortszeit eingestellt hast. Benötigt dieses Modul mit gespeicherter Zeitzone. {time:Paris} fragt stattdessen einen anderen Ort ab (eine Stadt, ein Land, eine Abkürzung wie EST oder einen UTC-Versatz) und funktioniert auch ohne Modul: Es braucht keine eigene Zeitzone, nur dein gewähltes Uhrzeitformat, falls du jemals eines eingestellt hast. Bei einem unbekannten Ort ist das Ergebnis leer.",
+  "placeHint": "die Uhrzeit an einem angegebenen Ort, ohne Modul"
+}

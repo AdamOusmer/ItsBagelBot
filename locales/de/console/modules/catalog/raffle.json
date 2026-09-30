@@ -1,0 +1,47 @@
+{
+  "label": "Verlosung",
+  "tagline": "Zeitgesteuerte Zufallsziehungen, an denen dein Chat mit !join teilnimmt.",
+  "description": "Starte eine Verlosung; Zuschauer nehmen mit !join teil. Während sie läuft, erinnert der Bot alle paar Minuten an die verbleibende Zeit (das Intervall legst du fest). Nach Ablauf zieht er automatisch. Alle Teilnahmen haben dieselbe Zufallschance, jede zählt einmal, und die Ziehung hinterlässt einen überprüfbaren Beleg. Gewinner bestätigen innerhalb von 15 Minuten mit !claim. Du und deine Mods steuern auch alles im Chat: !raffle open startet eine Verlosung, !raffle draw beendet sie vorzeitig und verkündet das Ergebnis, !raffle cancel bricht ohne Ziehung ab. Sind dieses Modul und die Spielwarteschlange aktiv, gehört !join zur Verlosung; die Warteschlange ist über !queue join erreichbar.",
+  "replies": {
+    "joined": {
+      "label": "Teilnahmebestätigung",
+      "tagline": "Wenn ein Zuschauer an der Verlosung teilnimmt.",
+      "defaultMessage": "@{user} du bist dabei! Bisherige Teilnahmen: {count}. Viel Glück!"
+    },
+    "already": {
+      "label": "Bereits dabei",
+      "tagline": "Wenn ein bereits teilnehmender Zuschauer erneut !join eingibt.",
+      "defaultMessage": "@{user} du bist bei dieser Verlosung schon dabei (Teilnahmen: {count})."
+    },
+    "noRaffle": {
+      "label": "Keine laufende Verlosung",
+      "tagline": "Wenn jemand teilnimmt, obwohl keine Verlosung offen ist.",
+      "defaultMessage": "@{user} gerade läuft keine Verlosung."
+    },
+    "opened": {
+      "label": "Verlosung eröffnet",
+      "tagline": "Wenn eine Verlosung startet und die Teilnahme öffnet.",
+      "event": "!raffle open",
+      "defaultMessage": "Verlosung ist LIVE! Gib !join ein, um teilzunehmen. Ziehung in {mins} Min.!"
+    },
+    "won": {
+      "label": "Gewinner verkündet",
+      "tagline": "Wenn eine Ziehung die Gewinner nennt (manuell oder zeitgesteuert).",
+      "event": "!raffle draw",
+      "defaultMessage": "{targets}, herzlichen Glückwunsch zum Gewinn der Verlosung! Gewinner: {count}, Teilnahmen: {entrants}. Zum Bestätigen des Preises innerhalb von {claim} Min. !claim eingeben!"
+    },
+    "claimOk": {
+      "label": "Preis bestätigt",
+      "tagline": "Wenn ein Gewinner mit !claim bestätigt.",
+      "defaultMessage": "@{user} dein Preis ist bestätigt. Viel Spaß!"
+    }
+  },
+  "commands": {
+    "winner": "Ruft die Gewinner der letzten Ziehung und die Anzahl der Bestätigungen ab.",
+    "raffle": "Zeigt, ob eine Verlosung läuft, die Teilnahmen und die Restzeit.",
+    "raffle_open_minutes_winners_remind": "Startet eine Verlosung (Standard: 10 Min., 1 Gewinner, Erinnerungen alle 5 Min.; remind 0 schaltet Erinnerungen aus).",
+    "raffle_draw_winners": "Schließt sofort und verkündet die Gewinner.",
+    "raffle_close": "Wie draw mit der eingestellten Gewinneranzahl.",
+    "raffle_cancel": "Bricht ohne Ziehung ab."
+  }
+}

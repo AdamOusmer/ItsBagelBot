@@ -1,0 +1,6 @@
+{
+  "none": "nenhum",
+  "pending": "em execução",
+  "success": "aprovado",
+  "failure": "falhou"
+}

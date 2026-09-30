@@ -1,0 +1,10 @@
+{
+  "botCta": "Autorizar conta do bot",
+  "sub": "Console de administração",
+  "lede": "Acesso de operadores. Entre com a conta da Twitch na lista de equipe autorizada.",
+  "cta": "Entrar com Twitch",
+  "errDenied": "Essa conta da Twitch não está na lista de equipe autorizada.",
+  "errState": "O login expirou ou foi adulterado. Tente novamente.",
+  "errOauth": "A Twitch rejeitou o login. Tente novamente.",
+  "errScope": "Falta uma permissão obrigatória."
+}

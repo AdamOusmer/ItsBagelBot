@@ -1,0 +1,8 @@
+{
+  "follow.default": "Danke, dass du dem Kanal folgst, {alerts:user}!",
+  "sub.default": "Willkommen in der Community, {alerts:user}! Danke für dein Abo!",
+  "gift.default": "{alerts:user} hat gerade Abos an die Community verschenkt: {alerts:count}! Vielen Dank!",
+  "cheer.default": "Danke für die Bits, {alerts:user}: {alerts:bits}!",
+  "raid.default": "{alerts:user} raidet den Kanal! Zuschauerzahl: {alerts:viewers}. Willkommen zusammen!",
+  "ads.default": "Werbung läuft für {alerts:duration} Sek. Bleib dran, wir sind gleich zurück!"
+}

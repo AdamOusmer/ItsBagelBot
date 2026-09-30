@@ -1,0 +1,14 @@
+{
+  "eyebrow": "FAQ",
+  "title": "Berechtigte Fragen.",
+  "q1": "Ist der kostenlose Tarif wirklich kostenlos?",
+  "a1": "Ja. Jede Funktion, und das bleibt so. Ich habe es gebaut, weil gute Werkzeuge nicht von deinem Budget abhängen sollten.",
+  "q2": "Wofür bezahle ich dann eigentlich bei Premium?",
+  "a2": "Priorität. Premium-Nachrichten kommen vorne in die Warteschlange, damit Befehle und Moderation bei viel Chat-Aktivität schneller ankommen. Außerdem hält es die Server am Laufen.",
+  "q3": "Kann ich Premium jederzeit kündigen?",
+  "a3": "Mit einem Klick im Dashboard. Du behältst die Vorteile bis zum Ende des bereits bezahlten Abrechnungszeitraums.",
+  "q4": "Was ist in Enterprise enthalten?",
+  "a4": "Dedizierte Hardware, Verwaltung mehrerer Streamer, individuelle Konditionen und direkter technischer Support. Schreibe für ein Angebot an enterprise@itsbagelbot.com.",
+  "q5": "Ist der Quellcode von ItsBagelBot einsehbar?",
+  "a5": "Der Quellcode von ItsBagelBot steht auf GitHub unter einer Lizenz mit einsehbarem Quellcode, was nicht dasselbe wie Open Source ist. Du kannst jede Zeile lesen und prüfen, aber die Lizenz beschränkt Weiterverbreitung und kommerzielle Nutzung."
+}

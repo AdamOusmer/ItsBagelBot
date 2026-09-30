@@ -1,0 +1,51 @@
+{
+  "time": {
+    "time": {
+      "name": "Hora local",
+      "hint": "La hora",
+      "desc": "La hora, en tu zona horaria y formato configurados."
+    },
+    "date": {
+      "name": "Fecha local",
+      "hint": "La fecha de hoy en tu zona horaria",
+      "desc": "La fecha de hoy en tu zona horaria."
+    },
+    "timezone": {
+      "name": "Zona horaria",
+      "hint": "El nombre de la zona horaria configurada",
+      "desc": "El nombre de la zona horaria configurada."
+    },
+    "user": {
+      "name": "Quien pregunta",
+      "hint": "Quién preguntó la hora",
+      "desc": "Quién preguntó la hora."
+    }
+  },
+  "lookup": {
+    "time": {
+      "name": "Hora local",
+      "hint": "La hora en el lugar consultado",
+      "desc": "La hora en el lugar por el que preguntó un espectador."
+    },
+    "date": {
+      "name": "Fecha local",
+      "hint": "La fecha de hoy en el lugar consultado",
+      "desc": "La fecha de hoy en el lugar por el que preguntó un espectador."
+    },
+    "place": {
+      "name": "Lugar",
+      "hint": "El lugar por el que preguntó un espectador",
+      "desc": "El nombre normalizado del lugar encontrado en la consulta."
+    },
+    "timezone": {
+      "name": "Zona horaria",
+      "hint": "El nombre de la zona horaria del lugar consultado",
+      "desc": "El nombre o desfase de la zona horaria del lugar consultado."
+    },
+    "user": {
+      "name": "Quien pregunta",
+      "hint": "Quién preguntó la hora",
+      "desc": "Quién preguntó la hora."
+    }
+  }
+}

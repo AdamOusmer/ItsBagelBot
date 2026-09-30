@@ -1,0 +1,11 @@
+{
+  "added": "@{user} o comando {command} foi adicionado",
+  "err.exists": "@{user} o comando {command} já existe, use !cmd edit",
+  "err.missing_resp": "@{user} informe uma resposta para o comando",
+  "err.not_found": "@{user} o comando {command} não foi encontrado, use !cmd add",
+  "err.usage": "Uso: !cmd <add|edit|remove> <name> [response]",
+  "link": "@{user} veja os comandos de {channel} aqui: {url}",
+  "page_off": "@{user} a lista de comandos de {channel} não é pública.",
+  "modified": "@{user} o comando {command} foi alterado",
+  "removed": "@{user} o comando {command} foi removido"
+}

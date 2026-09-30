@@ -1,0 +1,12 @@
+{
+  "viewer": "Visor de diagramas",
+  "controls": "Controles del diagrama",
+  "zoomOut": "Alejar",
+  "reset": "Restablecer vista",
+  "zoomIn": "Acercar",
+  "close": "Cerrar (Esc)",
+  "hint": "arrastra para desplazarte · desplaza la rueda para ajustar el zoom · esc para cerrar",
+  "open": "Abrir diagrama en el visor de pantalla completa",
+  "fullscreen": "Abrir en pantalla completa",
+  "expand": "Ampliar"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Ein zufälliger Zuschauer",
+  "hint": "eine zufällig gewählte Person, die gerade im Chat ist (nie du, nie der Bot)",
+  "desc": "Der Name einer zufällig ausgewählten Person, die laut Twitch gerade im Chat ist und nicht unbedingt etwas geschrieben hat. Nie du und nie der Bot. Zwei davon in einer Antwort sind zwei getrennte Ziehungen. Direkt nach einem Bot-Neustart, bevor die Chat-Teilnehmer geladen wurden, wird stattdessen jemand genannt, der kürzlich geschrieben hat."
+}

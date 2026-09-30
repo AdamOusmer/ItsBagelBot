@@ -1,0 +1,42 @@
+{
+  "player": {
+    "name": "Jogador",
+    "hint": "O jogador identificado",
+    "desc": "O jogador identificado."
+  },
+  "elo": {
+    "name": "Elo",
+    "hint": "Pontuação Elo atual",
+    "desc": "Pontuação Elo atual."
+  },
+  "rank": {
+    "name": "Posição",
+    "hint": "Posição no ranking",
+    "desc": "Posição no ranking."
+  },
+  "wins": {
+    "name": "Vitórias",
+    "hint": "Vitórias na temporada",
+    "desc": "Vitórias na temporada."
+  },
+  "losses": {
+    "name": "Derrotas",
+    "hint": "Derrotas na temporada",
+    "desc": "Derrotas na temporada."
+  },
+  "draws": {
+    "name": "Empates",
+    "hint": "Partidas da temporada sem vencedor",
+    "desc": "Partidas da temporada sem vencedor."
+  },
+  "matches": {
+    "name": "Partidas",
+    "hint": "Partidas da temporada",
+    "desc": "Partidas da temporada."
+  },
+  "country": {
+    "name": "País",
+    "hint": "Código do país",
+    "desc": "Código do país."
+  }
+}

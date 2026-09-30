@@ -1,0 +1,16 @@
+{
+  "back": "Voltar",
+  "home": "Voltar ao início",
+  "aside": "O forno ainda está quente. Todo o resto está onde você deixou.",
+  "404.metaTitle": "404: Página não encontrada | ItsBagelBot",
+  "404.metaDesc": "Esta página do ItsBagelBot não foi encontrada.",
+  "404.eyebrow": "Perdido nas migalhas",
+  "404.title": "Esta página saiu andando.",
+  "404.desc": "Procuramos sob cada semente de gergelim, mas a página que você quer não está aqui.",
+  "500.metaTitle": "500: Algo deu errado | ItsBagelBot",
+  "500.metaDesc": "ItsBagelBot encontrou um erro inesperado.",
+  "500.eyebrow": "Passou um pouco do ponto",
+  "500.title": "Algo deu errado.",
+  "500.desc": "Uma bandeja virou nos bastidores. Aguarde um instante e tente abrir a página novamente.",
+  "500.action": "Voltar a um lugar seguro"
+}

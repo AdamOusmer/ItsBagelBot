@@ -1,0 +1,32 @@
+{
+  "eyebrow": "Beobachtung",
+  "title": "Testkanäle",
+  "description": "Verarbeite den Chat von bis zu {max} nicht registrierten Streamern, verteilt auf bis zu drei Test-Sockets. Twitch-Ausgaben bleiben während des Tests blockiert.",
+  "degraded": "Der Teststatus ist nicht verfügbar. Steuerelemente können fehlschlagen, bis Ingress wieder verbunden ist.",
+  "idLabel": "Twitch-Streamer-ID",
+  "add": "Test hinzufügen",
+  "remove": "Entfernen",
+  "on": "Ein",
+  "off": "Aus",
+  "toggleLabel": "Testweiser Chat-Empfang für {name}",
+  "note": "Verwende die numerische Twitch-ID. Deaktiviere einen einzelnen Test, um dessen Chat-Empfang zu pausieren; er belegt weiterhin einen der {max} Plätze. Eine Registrierung beendet den Test automatisch.",
+  "count": "Testkanäle: {count} / {max}",
+  "empty": "Keine Testkanäle konfiguriert.",
+  "history": "Letzte Tests",
+  "received": "{count} empfangen",
+  "decoded": "{count} dekodiert",
+  "processed": "{count} verarbeitet",
+  "failed": "{count} fehlgeschlagen",
+  "retried": "{count} erneut versucht",
+  "blocked": "Blockierte Aktionen: {count}",
+  "latency": "Durchschnittliche Verarbeitung: {duration}",
+  "state": {
+    "pending": "Ausstehend",
+    "receiving": "Empfängt",
+    "disabled": "Aus",
+    "stopping": "Wird beendet",
+    "promoted": "In regulären Betrieb übernommen",
+    "removed": "Entfernt",
+    "failed": "Fehlgeschlagen"
+  }
+}

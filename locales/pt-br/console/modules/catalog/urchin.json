@@ -1,0 +1,42 @@
+{
+  "label": "Estatísticas de Bedwars",
+  "tagline": "Estatísticas de Hypixel Bedwars, pontuação do Urchin e marcadores de bloqueio no chat.",
+  "description": "Comandos para espectadores com dados de urchin.gg: sessões diárias, semanais e mensais de Bedwars, estatísticas históricas, pontuação de sniper do Urchin e marcadores ativos da lista de bloqueio. Os comandos usam sua conta Minecraft vinculada por padrão; os espectadores também podem informar qualquer jogador, por exemplo, \"!daily Technoblade\".",
+  "settings": {
+    "account": {
+      "label": "Conta Minecraft vinculada",
+      "help": "Jogador padrão de todos os comandos. Deixe em branco para usar seu nome de usuário da Twitch. O bot armazena o UUID da conta quando a Mojang permite, para os comandos continuarem funcionando após uma mudança de nome.",
+      "placeholder": "Seu nome de usuário do Minecraft"
+    }
+  },
+  "replies": {
+    "daily": {
+      "tagline": "Sessão de Bedwars desde a redefinição diária.",
+      "defaultMessage": "{player}, hoje: V: {wins} D: {losses} · eliminações finais: {finals} · camas: {beds} · {fkdr} FKDR"
+    },
+    "weekly": {
+      "tagline": "Sessão de Bedwars desde a redefinição semanal.",
+      "defaultMessage": "{player}, nesta semana: V: {wins} D: {losses} · eliminações finais: {finals} · camas: {beds} · {fkdr} FKDR"
+    },
+    "monthly": {
+      "tagline": "Sessão de Bedwars desde a redefinição mensal.",
+      "defaultMessage": "{player}, neste mês: V: {wins} D: {losses} · eliminações finais: {finals} · camas: {beds} · {fkdr} FKDR"
+    },
+    "stats": {
+      "tagline": "Estatísticas históricas de Bedwars.",
+      "defaultMessage": "{player}: estrelas: {stars} · vitórias: {wins} · eliminações finais: {finals} · {fkdr} FKDR · camas destruídas: {beds}"
+    },
+    "sniper": {
+      "tagline": "Pontuação do Urchin (overlay do Cubelify).",
+      "defaultMessage": "Pontuação de {player} no Urchin: {score}"
+    },
+    "tags": {
+      "tagline": "Marcadores ativos da lista de bloqueio do Urchin.",
+      "defaultMessage": "{player}: {tags}"
+    },
+    "tagdescription": {
+      "tagline": "Marcadores de bloqueio com seus motivos.",
+      "defaultMessage": "{player}: {tags}"
+    }
+  }
+}

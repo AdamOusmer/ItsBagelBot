@@ -1,0 +1,11 @@
+{
+  "disconnectFailed": "Discord konnte nicht getrennt werden.",
+  "disconnected": "Discord getrennt.",
+  "refused": "Dieser Server hat bereits eine Struktur. Nutze „Vorhandenen Server verbinden“.",
+  "repostFailed": "Das Ticket-Panel konnte nicht erneut gepostet werden.",
+  "reposted": "Ticket-Panel erneut gepostet.",
+  "saveFailed": "Discord-Einstellungen konnten nicht gespeichert werden.",
+  "saved": "Discord-Einstellungen gespeichert.",
+  "setup": "Server eingerichtet.",
+  "setupFailed": "Dieser Server konnte nicht eingerichtet werden."
+}

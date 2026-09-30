@@ -1,0 +1,5 @@
+{
+  "name": "Pfad URL-kodieren",
+  "hint": "kodiert den Text für einen URL-Pfad, nicht für eine Abfrage",
+  "desc": "Dasselbe für den Pfadteil einer URL, in dem ein Leerzeichen kein Pluszeichen ist."
+}

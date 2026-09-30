@@ -1,0 +1,5 @@
+{
+  "name": "Tempo assistido",
+  "hint": "quanto tempo a pessoa assistiu, no formato de !uptime (Fidelidade)",
+  "desc": "Quanto tempo a pessoa assistiu enquanto o relógio de fidelidade estava ativo. {watchtime:alex} consulta outra pessoa. Requer o módulo Pontos de fidelidade."
+}

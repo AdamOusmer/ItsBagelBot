@@ -157,3 +157,26 @@ func TestInteractiveActiveToggleIsCommittedBeforeReadback(t *testing.T) {
 	events := decodeChanged(t, pub)
 	require.False(t, events[len(events)-1].IsActive)
 }
+
+func TestInteractiveLanguageSaveCommitsBeforeRead(t *testing.T) {
+	for _, locale := range []string{"en", "fr", "es", "pt-br", "de", "ru"} {
+		t.Run(locale, func(t *testing.T) {
+			client, pub, repo := setup(t)
+			ctx := context.Background()
+			require.NoError(t, repo.Register(ctx, 1001, "Mavey", "Mavey", "mavey@concordia.ca"))
+			_, err := repo.Get(ctx, 1001) // Prime the cached account view.
+			require.NoError(t, err)
+			baseline := len(decodeChanged(t, pub))
+			require.NoError(t, repo.SetLocaleNow(ctx, 1001, locale))
+			require.Equal(t, locale, client.User.GetX(ctx, 1001).Locale)
+			view, err := repo.Get(ctx, 1001)
+			require.NoError(t, err)
+			require.Equal(t, locale, view.Locale)
+			events := decodeChanged(t, pub)
+			require.Len(t, events, baseline+1)
+			require.Equal(t, locale, events[len(events)-1].Locale)
+			require.Error(t, repo.SetLocaleNow(ctx, 9999, locale))
+			require.Len(t, decodeChanged(t, pub), baseline+1, "failed saves must not announce a change")
+		})
+	}
+}

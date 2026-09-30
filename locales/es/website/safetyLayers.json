@@ -1,0 +1,19 @@
+{
+  "eyebrow": "Moderación por capas",
+  "title": "Qué ocurre antes de que un mensaje llegue al chat.",
+  "juryTitle": "Varios clasificadores deben coincidir.",
+  "juryDesc": "Cada clasificador independiente evalúa señales de spam y odio en el mensaje. Solo se elimina cuando coinciden.",
+  "juryVerdict": "consenso",
+  "spam": "spam",
+  "hate": "odio",
+  "gatesTitle": "Los filtros estáticos resuelven lo evidente.",
+  "gatesDesc": "Primero se comprueban la frecuencia, la forma y los enlaces. Son controles rápidos y predecibles que detectan avalanchas de mensajes y enlaces conocidos como peligrosos antes de ejecutar análisis más pesados.",
+  "gateRate": "frecuencia",
+  "gateShape": "forma",
+  "gateLink": "enlace",
+  "gatesPassed": "3 filtros superados",
+  "networkTitle": "Un ataque avisa a todos los canales protegidos.",
+  "networkDesc": "Un patrón de ataque detectado en un canal se señala en todos los canales inscritos, de modo que el segundo objetivo ya está cubierto.",
+  "networkAlert": "firma del ataque",
+  "networkStatus": "red protegida"
+}

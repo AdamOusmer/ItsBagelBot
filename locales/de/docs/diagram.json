@@ -1,0 +1,12 @@
+{
+  "viewer": "Diagrammansicht",
+  "controls": "Diagrammsteuerung",
+  "zoomOut": "Verkleinern",
+  "reset": "Ansicht zurücksetzen",
+  "zoomIn": "Vergrößern",
+  "close": "Schließen (Esc)",
+  "hint": "ziehen zum Verschieben · scrollen zum Zoomen · esc zum Schließen",
+  "open": "Diagramm in der Vollbildansicht öffnen",
+  "fullscreen": "Vollbild öffnen",
+  "expand": "Erweitern"
+}

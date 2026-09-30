@@ -1,0 +1,11 @@
+{
+  "disconnectFailed": "No se pudo desconectar Discord.",
+  "disconnected": "Discord desconectado.",
+  "refused": "Este servidor ya tiene una estructura. Usa Conectar existente.",
+  "repostFailed": "No se pudo volver a publicar el panel de tickets.",
+  "reposted": "Panel de tickets publicado de nuevo.",
+  "saveFailed": "No se pudieron guardar los ajustes de Discord.",
+  "saved": "Ajustes de Discord guardados.",
+  "setup": "Servidor configurado.",
+  "setupFailed": "No se pudo configurar este servidor."
+}

@@ -1,0 +1,13 @@
+{
+  "label": "Govee-Leuchten",
+  "tagline": "Lass Zuschauer deine Govee-Leuchten mit Kanalpunkten umfärben.",
+  "description": "Zuschauer lösen eine Kanalpunkte-Belohnung ein und geben eine Farbe an (einen Namen wie „blue“ oder einen Hex-Wert wie #00ccff). Der Bot schaltet deine Govee-Leuchte ein und stellt die Farbe ein. Nur live: Einlösungen außerhalb des Streams werden automatisch durch Punkterückgabe aufgehoben. So erhältst du deinen Govee-API-Schlüssel: Öffne die Govee Home-App, tippe auf Profile (unten rechts), dann auf das Einstellungszahnrad (oben rechts), dann auf „Apply for API Key“ und fülle das kurze Formular aus. Govee sendet dir innerhalb weniger Minuten einen Schlüssel per E-Mail. Dann hier auf der Seite: Schlüssel einfügen (wir speichern ihn verschlüsselt und zeigen ihn nie wieder an), Leuchte auswählen und Belohnung erstellen.",
+  "replies": {
+    "reply": {
+      "label": "Erfolgsantwort",
+      "tagline": "Was der Bot nach dem Ändern der Leuchten postet.",
+      "event": "beim Einlösen",
+      "defaultMessage": "@{user} hat die Leuchten auf {color} gestellt!"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "player": {
+    "name": "Jogador",
+    "hint": "O jogador encontrado",
+    "desc": "O jogador encontrado."
+  },
+  "opponent": {
+    "name": "Oponente",
+    "hint": "O outro jogador dessa partida",
+    "desc": "O outro jogador dessa partida."
+  },
+  "result": {
+    "name": "Resultado",
+    "hint": "Vitória",
+    "desc": "Vitória, derrota ou empate. Desistências e partidas de perda de pontuação por inatividade também são indicadas."
+  },
+  "time": {
+    "name": "Tempo",
+    "hint": "O tempo de conclusão da partida",
+    "desc": "O tempo de conclusão da partida, quando ela foi concluída."
+  },
+  "seed": {
+    "name": "Seed",
+    "hint": "O tipo de seed dessa partida",
+    "desc": "O tipo de seed dessa partida."
+  },
+  "structure": {
+    "name": "Estrutura",
+    "hint": "O tipo de estrutura do bastião dessa partida",
+    "desc": "O tipo de estrutura do bastião dessa partida."
+  },
+  "elochange": {
+    "name": "Variação de Elo",
+    "hint": "Variação de Elo dessa partida",
+    "desc": "Variação de Elo dessa partida."
+  },
+  "ago": {
+    "name": "Tempo desde a partida",
+    "hint": "Há quanto tempo a partida terminou",
+    "desc": "Há quanto tempo a partida terminou."
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "boundElsewhere": "Dieser Discord-Server ist bereits mit einem anderen Twitch-Kanal verknüpft.",
+  "conflict": "Jemand anderes hat diesen Server zuerst gespeichert. Lade neu und versuche es erneut.",
+  "forbidden": "Discord hat das abgelehnt. Bagel fehlt eine Berechtigung auf diesem Server.",
+  "invalid": "Einige Einstellungen waren ungültig und wurden unverändert gelassen.",
+  "invalidFields": "Gespeichert, aber unverändert gelassen: {fields}.",
+  "locked": "Discord ist in der Beta und nur für Premium-Kanäle verfügbar.",
+  "noGuilds": "Discord hat keinen Server aufgeführt, zu dem du einen Bot hinzufügen kannst. Du musst den Server besitzen oder dort „Server verwalten“ dürfen.",
+  "notBound": "Noch kein Discord-Server verbunden.",
+  "oauth": "Discord hat keinen Server zurückgegeben. Versuche erneut, Bagel hinzuzufügen.",
+  "rateLimited": "Discord begrenzt gerade unsere Anfragen. Versuche es in einer Minute erneut.",
+  "setup": "Der verbundene Server konnte nicht gespeichert werden. Versuche es erneut.",
+  "state": "Dieser Discord-Link ist abgelaufen. Starte erneut mit „Bagel hinzufügen“.",
+  "ticketsOff": "Aktiviere den Ticketbereich und speichere, bevor du das Panel erneut postest.",
+  "unavailable": "Discord hat nicht geantwortet. Versuche es gleich erneut.",
+  "timeout": "Das hat zu lange gedauert. Teile könnten fehlen; lade neu, um den Rest zu sehen.",
+  "notFound": "Dieser Kanal oder diese Rolle existiert auf dem Server nicht mehr. Wähle etwas anderes.",
+  "unknown": "Bei uns ist etwas schiefgelaufen. Versuche es erneut und informiere den Support, falls es weiter auftritt.",
+  "unconfigured": "Discord ist in dieser Bereitstellung nicht konfiguriert (Client-ID oder Weiterleitung fehlt)."
+}

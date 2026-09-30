@@ -1,0 +1,34 @@
+{
+  "stageOf": "Etapa {n} de {total}",
+  "follow": "Seguir en directo",
+  "about": {
+    "preflight": "Comprueba que el clúster sea accesible, que los manifiestos pasen la validación, que las comprobaciones obligatorias del destino se superen y que todas las cargas estén estables.",
+    "merge_prs": "Fusiona cada solicitud de cambios elegida cuando supera sus comprobaciones, actualizando primero las ramas desactualizadas.",
+    "changelog": "Abre y fusiona una solicitud de cambios que añade el archivo de novedades de esta versión a main.",
+    "tag": "Crea la etiqueta de versión en el commit del historial de cambios. Rechaza todo lo que no esté en main.",
+    "release": "Publica la versión de GitHub para la etiqueta, con los puntos destacados del historial de cambios como notas.",
+    "build": "Espera a que termine el flujo de imágenes en GitHub y sigue las tareas de construcción de cada imagen.",
+    "digests": "Busca cada imagen construida y comprueba que tenga ambas arquitecturas, el commit correcto y su procedencia.",
+    "pin_pr": "Abre y fusiona una solicitud de cambios que fija los manifiestos de main a los nuevos resúmenes de imagen.",
+    "acl": "Aplica la configuración de NATS y espera a que todos los servidores de NATS la hayan recargado y estén tranquilos.",
+    "rollout": "Aplica la configuración compartida; después despliega los servicios uno a uno y espera a sus pods antes del siguiente.",
+    "verify": "Comprueba que cada pod ejecute su imagen fijada y que las páginas de estado respondan. Si algo falla, ofrece una reversión."
+  },
+  "state": {
+    "pending": "Empieza cuando terminan las etapas anteriores.",
+    "running": "En ejecución ahora.",
+    "waiting": "En pausa hasta que algo externo a la ejecución esté listo.",
+    "succeeded": "Listo.",
+    "failed": "Se detuvo aquí. No se ejecutó nada posterior.",
+    "skipped": "No es necesario para esta ejecución.",
+    "cancelled": "Se canceló antes de terminar."
+  },
+  "nowBuilding": "Construyendo",
+  "nowRolling": "Desplegando",
+  "nowOf": "{n} de {total}",
+  "nowAllBuilt": "Imágenes construidas: {total}; todas listas",
+  "nowAllRolled": "Servicios desplegados: {total}; todos listos",
+  "pods": "Pods listos: {done} de {total}",
+  "jobs": "Tareas terminadas: {done} de {total}",
+  "openJob": "Abrir tarea"
+}

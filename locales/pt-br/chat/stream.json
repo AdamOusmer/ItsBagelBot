@@ -1,0 +1,18 @@
+{
+  "commercial.ok": "@{commercial:user} iniciou um anúncio de {commercial:length}s.",
+  "commercial.usage": "Uso: !commercial [30|60|90|120|150|180]",
+  "game.current": "O jogo atual é: {game:game}",
+  "game.not_found": "@{game:user} jogo não encontrado: {game:game}",
+  "game.updated": "@{game:user} atualizou o jogo para: {game:game}",
+  "game.usage": "Uso: !setgame <game>",
+  "marker.ok": "@{marker:user} adicionou um marcador na transmissão.",
+  "tags.current": "Tags atuais: {tags:tags}",
+  "tags.none": "Nenhuma tag definida.",
+  "tags.updated": "@{tags:user} atualizou as tags para: {tags:tags}",
+  "tags.usage": "Uso: !tags <tag1, tag2, …> (máx. 10, 25 caracteres cada)",
+  "title.current": "O título atual é: {title:title}",
+  "title.too_long": "@{title:user} esse título é longo demais (máx. 140 caracteres).",
+  "title.updated": "@{title:user} atualizou o título para: {title:title}",
+  "title.usage": "Uso: !settitle <title>",
+  "unavailable": "Não foi possível atualizar a transmissão agora."
+}

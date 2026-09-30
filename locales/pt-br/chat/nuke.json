@@ -1,0 +1,7 @@
+{
+  "usage": "Uso: !nuke <phrase> [seconds]. Busca nos últimos 10m de chat mensagens que contenham a frase",
+  "none": "Nenhuma mensagem recente correspondeu. Nenhuma restrição aplicada.",
+  "actioned": "🚯 usuários com restrição de chat de {seconds}s: {count}",
+  "shielded": ", limite de ações excedido, Modo Escudo ativado",
+  "capped": ", limite atingido, usuários restantes para o Modo Escudo: {count}"
+}

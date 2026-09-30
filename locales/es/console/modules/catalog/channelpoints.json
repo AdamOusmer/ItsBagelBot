@@ -1,0 +1,13 @@
+{
+  "label": "Puntos del canal",
+  "tagline": "Convierte los canjes de puntos del canal en acciones del bot.",
+  "description": "Crea las recompensas personalizadas que los espectadores canjean con puntos del canal (creadas mediante el bot en Twitch, con el estilo nativo) y vincula cada una a una acción del bot, como publicar un mensaje en el chat. Elige si cada canje se completa, se devuelve o se deja para un moderador. Gestiona las recompensas en esta página.",
+  "replies": {
+    "reply": {
+      "label": "Respuesta de la recompensa en el chat",
+      "tagline": "Lo que publica el bot al canjear una recompensa vinculada.",
+      "event": "al canjear",
+      "defaultMessage": "¡{user} canjeó {reward}!"
+    }
+  }
+}

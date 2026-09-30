@@ -1,0 +1,51 @@
+{
+  "label": "AutoMod",
+  "tagline": "Detecta estafas, rastreadores de IP y spam de ataques antes que tus moderadores.",
+  "description": "AutoMod vigila el chat para detectar mensajes dañinos y avalanchas de ataques, para que tus moderadores también disfruten del directo. Según la gravedad del mensaje, puede advertir al remitente, eliminar el mensaje o aplicar una restricción temporal o una expulsión. Los VIP y los moderadores siempre están exentos, y tú también; los casos dudosos se dejan a tus moderadores humanos. Elige un nivel de Ninguno a Todo y ajusta cada comprobación abajo. Una protección mínima (insultos de odio y enlaces que capturan IP) permanece activa en todos los niveles, incluso con el módulo desactivado, porque ese contenido puede poner en riesgo tu canal y el bot en Twitch. El resto lo decides tú.",
+  "settings": {
+    "level": {
+      "label": "Nivel de intervención",
+      "help": "Establece el valor predeterminado de todas las comprobaciones de abajo. La protección mínima se aplica en todos los niveles.",
+      "placeholder": "moderado",
+      "options": {
+        "none": "Ninguno: solo protección mínima",
+        "basic": "Básico: protección mínima y acoso",
+        "moderate": "Moderado: recomendado (predeterminado)",
+        "strict": "Todo: todas las comprobaciones, estricto para toda la familia"
+      }
+    },
+    "harassment": {
+      "label": "Acoso",
+      "help": "Mensajes destinados a dañar a alguien: el remitente recibe una advertencia y el mensaje se elimina. Si continúa, se aplica primero una restricción temporal y después una expulsión."
+    },
+    "sexual": {
+      "label": "Contenido sexual",
+      "help": "Elimina mensajes con términos sexuales explícitos."
+    },
+    "profanity": {
+      "label": "Lenguaje malsonante",
+      "help": "Elimina las palabrotas. Desactivado por defecto: la mayoría de los canales las permiten."
+    },
+    "style": {
+      "label": "Spam de mayúsculas y símbolos",
+      "help": "Elimina gritos, bloques de símbolos y avalanchas de caracteres. Los bloques de emoticonos (spam de KEKW) se reconocen y nunca se señalan."
+    },
+    "links": {
+      "label": "Radar de spam de enlaces",
+      "help": "Detecta la misma plantilla de enlace publicada por muchas cuentas distintas y elimina la oleada. Los enlaces individuales nunca se tocan."
+    },
+    "clips_only": {
+      "label": "Solo clips de Twitch",
+      "help": "Elimina mensajes que contengan cualquier enlace que no sea un clip de Twitch (clips.twitch.tv/… o twitch.tv/…/clip/…). Desactivado por defecto: actívalo cuando el chat deba compartir solo clips."
+    },
+    "block_terms": {
+      "label": "Términos bloqueados",
+      "help": "Palabras o frases adicionales que se deben detectar en tu canal. Sepáralas con comas o saltos de línea. Se detectan incluso si están disimuladas (l33t, letras parecidas).",
+      "placeholder": "primer término, segundo término"
+    },
+    "allow_terms": {
+      "label": "Términos permitidos",
+      "help": "Palabras aceptadas en tu canal: una línea que contenga una nunca se señala por las comprobaciones anteriores ni por tus términos bloqueados. No puede anular la protección mínima."
+    }
+  }
+}

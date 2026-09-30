@@ -1,0 +1,7 @@
+{
+  "sharedPre": "Acceso compartido al panel de ",
+  "sharedPost": " ({sections})",
+  "viewingPre": "Viendo como ",
+  "viewingPost": " (admin {admin})",
+  "exit": "Salir"
+}

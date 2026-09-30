@@ -1,0 +1,5 @@
+{
+  "name": "Alles nach dem Befehl",
+  "hint": "alles, was nach dem Befehl eingegeben wurde",
+  "desc": "Der gesamte Text nach dem Befehl als eine Zeichenfolge."
+}

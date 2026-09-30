@@ -1,0 +1,5 @@
+{
+  "name": "En reproducción",
+  "hint": "la canción que se reproduce ahora, o {song.title} / {song.artist} (Peticiones de canciones)",
+  "desc": "La canción que se reproduce en Spotify ahora. {song.title} y {song.artist} dan las dos partes por separado. Si no se reproduce nada, devuelve un valor vacío. Requiere el módulo Peticiones de canciones."
+}

@@ -1,0 +1,19 @@
+{
+  "label": "Recomendación automática",
+  "tagline": "Da la bienvenida a las raids entrantes con una recomendación automática.",
+  "description": "Cuando llega una raid de otro canal, el bot publica una recomendación que dirige tu chat a quien la envía. Activa el módulo y personaliza el mensaje de recomendación.",
+  "settings": {
+    "native_shoutout": {
+      "label": "Enviar también una recomendación de Twitch",
+      "help": "Ejecuta el /shoutout de Twitch para quien envía la raid, además del mensaje en el chat. Esto muestra su categoría actual y su tarjeta de perfil de forma nativa. Desactivado por defecto."
+    }
+  },
+  "replies": {
+    "shoutout": {
+      "label": "Recomendación por raid",
+      "tagline": "Recomendación automática en el chat al recibir una raid",
+      "event": "al recibir una raid",
+      "defaultMessage": "¡Un gran saludo a {raider} por la raid! Espectadores: {viewers}. Visita su canal en twitch.tv/{raider.login}"
+    }
+  }
+}

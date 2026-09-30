@@ -1,0 +1,19 @@
+{
+  "help": "Boas-vindas, salas de voz criadas ao entrar, tickets, logs da equipe e níveis de migalhas funcionam pelo gateway do Discord.",
+  "title": "Operações da comunidade",
+  "goodbyeHelp": "Desativado por padrão. Uma mensagem curta quando alguém sai.",
+  "goodbyeLabel": "Despedida",
+  "levelsHelp": "XP do chat (15 migalhas, intervalo de 60s). Nível e recompensa diária aparecem em cartões incorporados com um botão de resgate diário.",
+  "levelsLabel": "Migalhas e níveis",
+  "linkGuardHelp": "Desativado por padrão. Exclui links de membros que ainda não têm cargo.",
+  "linkGuardLabel": "Proteção contra links",
+  "logsHelp": "Entradas, saídas, edições, exclusões e moderação aparecem em #logs.",
+  "logsLabel": "Logs da equipe",
+  "subscribersHelp": "Cria um cargo de Inscrito e uma área privada para inscritos na configuração inicial. Desative se não usar: uma categoria vazia e bloqueada não ajuda ninguém. Os inscritos não são sincronizados automaticamente; veja a observação em Cargos.",
+  "subscribersLabel": "Nível de inscritos",
+  "tierRolesHelp": "O Bagel cria estes cargos e seus canais privados, mas nunca os atribui nem os sincroniza com a Twitch. Seus moderadores, VIPs e inscritos da Twitch não recebem automaticamente os cargos de Moderador, VIP ou Inscrito no Discord: atribua esses cargos manualmente. A única exceção que você pode adicionar é a integração da própria Twitch no Discord, em Configurações do servidor, Integrações, que sincroniza apenas inscritos e exige uma conta de Afiliado ou Parceiro da Twitch. O Discord não permite ativá-la por aqui.",
+  "voiceHelp": "Entrar em “+ Create voice” cria uma cópia de sala pessoal com botões Lock (Bloquear) e Unlock (Desbloquear). As cópias vazias são excluídas.",
+  "voiceLabel": "Salas de voz criadas ao entrar",
+  "welcomeHelp": "Uma mensagem incorporada em #welcome. O Bagel nunca envia mensagens privadas a quem entra.",
+  "welcomeLabel": "Dar boas-vindas a novos membros"
+}

@@ -1,0 +1,77 @@
+{
+  "accountage": {
+    "label": "Idade da conta",
+    "summary": "Mostra há quanto tempo uma conta da Twitch existe.",
+    "usage": [
+      "!accountage",
+      "!accountage <user>"
+    ]
+  },
+  "followage": {
+    "label": "Tempo de seguidor",
+    "summary": "Mostra há quanto tempo um espectador segue o canal.",
+    "usage": [
+      "!followage",
+      "!followage <user>"
+    ]
+  },
+  "uptime": {
+    "label": "Tempo de transmissão",
+    "summary": "Mostra há quanto tempo a transmissão atual está ao vivo.",
+    "usage": [
+      "!uptime"
+    ]
+  },
+  "clip": {
+    "label": "Clipe",
+    "summary": "Cria um clipe dos últimos momentos da transmissão e publica o link.",
+    "usage": [
+      "!clip",
+      "!clip <title>"
+    ]
+  },
+  "title": {
+    "label": "Título",
+    "summary": "Mostra ou define o título da transmissão.",
+    "usage": [
+      "!title",
+      "!title <title>",
+      "!settitle <title>"
+    ]
+  },
+  "game": {
+    "label": "Jogo",
+    "summary": "Mostra ou define a categoria da transmissão.",
+    "usage": [
+      "!game",
+      "!game <name>",
+      "!setgame <name>"
+    ]
+  },
+  "tags": {
+    "label": "Tags",
+    "summary": "Mostra ou define as tags da transmissão.",
+    "usage": [
+      "!tags",
+      "!tags <tag1, tag2>",
+      "!settags <tag1, tag2>"
+    ]
+  },
+  "commercial": {
+    "label": "Anúncio",
+    "summary": "Exibe um anúncio durante a transmissão ao vivo.",
+    "usage": [
+      "!commercial",
+      "!commercial 60",
+      "!ad 90"
+    ]
+  },
+  "marker": {
+    "label": "Marcador",
+    "summary": "Adiciona um marcador na transmissão ao vivo.",
+    "usage": [
+      "!marker",
+      "!marker <description>"
+    ]
+  }
+}

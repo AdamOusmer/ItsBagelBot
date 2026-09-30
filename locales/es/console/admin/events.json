@@ -1,0 +1,21 @@
+{
+  "eyebrow": "Ciclo de vida de Ingress",
+  "titlePre": "Actividad del ciclo de vida de los ",
+  "titleEm": "fragmentos",
+  "description": "Una vista en directo y sin persistencia de las conexiones de fragmentos, vinculaciones de Conduit y motivos de desconexión. Solo aparecen las transiciones posteriores a la apertura de esta página; no aparecen los contenidos de chat ni de EventSub.",
+  "subject": "twitch.ingress.status.>",
+  "toneFilter": "Tono del evento",
+  "searchPlaceholder": "Filtrar mensajes del ciclo de vida…",
+  "pauseLabel": "Pausar la actividad",
+  "pauseLabelBuffered": "Reanudar la actividad (retenidos: {n})",
+  "clear": "Limpiar",
+  "streaming": "Transmitiendo",
+  "connecting": "Conectando…",
+  "reconnecting": "Reconectando…",
+  "paused": "En pausa",
+  "upCount": "Activos: {n}",
+  "downCount": "Caídos: {n}",
+  "listLabel": "Eventos del ciclo de vida",
+  "idleBody": "Una flota sana y estable está tranquila. Aquí aparecen las nuevas transiciones de fragmentos activos, vinculados y caídos; no es un historial de eventos almacenado.",
+  "emptyMatch": "Ningún evento coincide con el filtro"
+}

@@ -1,0 +1,22 @@
+{
+  "eyebrow": "El trabajo silencioso",
+  "title": "Lo que resuelve mientras transmites.",
+  "goveeReward": "moth_lamp canjeó · atardecer",
+  "goveeTitle": "Tus luces, el mando del chat.",
+  "goveeDesc": "Los puntos del canal se conectan directamente a tu configuración de Govee. Un canje y la habitación pasa al color que eligió el chat.",
+  "cmdOut": "bienvenido, moth_lamp. toma asiento 🥯",
+  "cmdTitle": "Saluda a tus habituales por su nombre.",
+  "cmdDesc": "Comandos, tiempos de espera y menciones a otros canales, escritos con tus palabras en el panel.",
+  "songTitle": "Solicitudes de canciones de Spotify, a cargo del chat.",
+  "songDesc": "Los espectadores escriben !sr y la canción entra directamente en tu cola de Spotify. Canción actual en directo, !skip, !srlist y un límite por espectador que tú decides.",
+  "songNow": "sonando",
+  "songTrack": "late night lo-fi · solicitada por moth_lamp",
+  "songAck": "en cola · #2",
+  "pollTitle": "Encuestas en las que vota tu chat.",
+  "pollDesc": "Votos contados en directo, resultados que cambian según llegan.",
+  "winLabel": "ganador",
+  "winTitle": "Todas las participaciones tienen la misma probabilidad.",
+  "winDesc": "El sorteo es aleatorio y el resultado queda registrado.",
+  "beatTitle": "Sigue en el chat cuando estás desconectado.",
+  "beatDesc": "Los comandos, la moderación y los temporizadores siguen funcionando entre directos."
+}

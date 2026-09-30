@@ -1,0 +1,33 @@
+{
+  "label": "Estatísticas de Clash Royale",
+  "tagline": "Perfis, decks e classificação no Caminho das Lendas do Clash Royale no chat.",
+  "description": "Um comando, quatro visões: !cr mostra o perfil histórico de um jogador (nível, vitórias/derrotas, taxa de vitória, vitórias de três coroas, clã); !cr decks lista seu deck de batalha atual com o custo médio de elixir; !cr ranked mostra sua classificação no Caminho das Lendas (usando temporadas das ligas antigas para contas mais antigas); !cr road mostra seu histórico no Caminho de Troféus e sua arena. As formas compactas !crstats, !crdecks, !crranked e !crroad também funcionam. Vincule sua tag de jogador abaixo. O Clash Royale não permite busca por nome, então uma tag como #P2LQ0GR é obrigatória. Os espectadores também podem informar qualquer tag, por exemplo, \"!cr #P2LQ0GR\".",
+  "settings": {
+    "account": {
+      "label": "Tag de jogador vinculada",
+      "help": "Jogador padrão de todos os comandos. O Clash Royale não permite busca por nome, então precisa ser uma tag de jogador; deixe em branco apenas se você sempre digitar uma.",
+      "placeholder": "#P2LQ0GR"
+    }
+  },
+  "replies": {
+    "stats": {
+      "tagline": "Perfil histórico: !cr, !cr stats ou !crstats.",
+      "defaultMessage": "{player} · nível {level} · V: {wins}/D: {losses} · taxa de vitória: {winrate}% · três coroas: {crowns} · {clan}"
+    },
+    "decks": {
+      "tagline": "O deck de batalha atual com o elixir médio (também !crdecks).",
+      "event": "!cr decks",
+      "defaultMessage": "Deck de {player} ({count}/8): {cards} · elixir médio: {elixir}"
+    },
+    "ranked": {
+      "tagline": "Classificação no Caminho das Lendas (também !crranked); temporadas das ligas antigas preenchem registros mais antigos.",
+      "event": "!cr ranked",
+      "defaultMessage": "{player} no Caminho das Lendas: liga {league} · troféus: {trophies} · posição #{rank} · recorde: {besttrophies}"
+    },
+    "road": {
+      "tagline": "Histórico no Caminho de Troféus e arena (também !crroad).",
+      "event": "!cr road",
+      "defaultMessage": "{player}: troféus: {trophies} · recorde: {besttrophies} · {arena}"
+    }
+  }
+}

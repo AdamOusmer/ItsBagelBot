@@ -1,0 +1,17 @@
+{
+  "songqueue": "Musikwünsche",
+  "lockedBroadcaster": "Nur Kanalinhaber",
+  "ariaMain": "Hauptnavigation",
+  "manage": "Verwalten",
+  "overview": "Übersicht",
+  "commands": "Befehle",
+  "modules": "Module",
+  "discord": "Discord",
+  "counters": "Zähler",
+  "channelpoints": "Kanalpunkte",
+  "timers": "Timer",
+  "billing": "Abrechnung",
+  "stats": "Statistiken",
+  "status": "Status",
+  "settings": "Einstellungen"
+}

@@ -1,0 +1,11 @@
+{
+  "noApp": "Füge deine Spotify-App hinzu, bevor du dein Konto verbindest.",
+  "noToken": "Spotify hat deine Zustimmung wiederverwendet, daher wurde kein neues Token ausgestellt. Widerrufe diese App auf deiner Spotify-Kontoseite und stelle die Verbindung dann erneut her.",
+  "oauth": "Spotify hat die Anmeldung abgelehnt. Versuche die Verbindung erneut.",
+  "state": "Der Anmeldelink ist abgelaufen oder wurde erneut verwendet. Starte die Verbindung erneut.",
+  "store": "Das Token konnte nicht gespeichert werden. Versuche es gleich noch mal.",
+  "titleRequired": "Gib der Belohnung einen Titel.",
+  "unconfigured": "Songwünsche sind in diesem Deployment noch nicht konfiguriert: Die Spotify-Callback-URL fehlt. Bitte den Betreiber, SPOTIFY_REDIRECT_URI festzulegen.",
+  "cost": "Gib eine ganze Punktzahl von mindestens 1 ein.",
+  "cooldown": "Gib eine Abklingzeit zwischen 0 Sekunden und 7 Tagen ein."
+}

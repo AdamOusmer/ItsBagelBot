@@ -1,0 +1,5 @@
+{
+  "name": "Tempo de transmissão",
+  "hint": "há quanto tempo você está ao vivo, vazio offline (controle de !uptime)",
+  "desc": "Há quanto tempo a transmissão está ao vivo, no formato de !uptime. Offline retorna vazio, então defina um valor padrão. {uptime:someone} faz o mesmo para outro canal. Segue o controle de !uptime."
+}

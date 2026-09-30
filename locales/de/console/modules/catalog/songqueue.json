@@ -1,0 +1,21 @@
+{
+  "label": "Songwünsche",
+  "tagline": "!sr und eine Kanalpunkte-Belohnung, die Songs von Spotify einreihen.",
+  "description": "Registriere deine eigene Spotify-App und verbinde dein Konto einmal damit. Lass Zuschauer dann auf zwei Wegen Musik einreihen: über den Chat-Befehl !sr (mit einer Berechtigungsstufe deiner Wahl, von allen bis nur dir) und über eine Kanalpunkte-Belohnung, deren Texteingabe die Songsuche ist: ein Name, \"artist - song\" oder ein eingefügter Spotify-Link. Der Bot kündigt den laufenden Song an, löst Links und Suchbegriffe über Spotify auf und hält einen Song pro Zuschauer in der Liste der nächsten Titel. !current liest deinen Spotify-Player direkt aus und antwortet auch für Titel, die niemand gewünscht hat. Moderatoren verwalten die Warteschlange mit !sr next, remove und clear.",
+  "commands": {
+    "sr": "Zeige den laufenden Song oder reihe einen Titel per Name, \"artist - song\" oder Spotify-Link ein.",
+    "remove": "Ziehe deinen eingereihten Wunsch zurück oder entferne als Mod einen Platz.",
+    "skip": "Markiere den aktuellen Titel als gespielt und rücke den nächsten vor (auch !next).",
+    "clear": "Leere die Warteschlange.",
+    "srlist": "Zeige die nächsten fünf Songs in der Warteschlange (auch !songlist).",
+    "current": "Sage, was dein Spotify gerade spielt (auch !song, !np)."
+  },
+  "replies": {
+    "redeem": {
+      "label": "Einlösungsantwort",
+      "tagline": "Was der Bot postet, wenn die Warteschlangenbelohnung eingelöst wird.",
+      "event": "bei Einlösung",
+      "defaultMessage": "@{user} hat {track} auf Platz #{pos} eingereiht."
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "label": "MCSR Ranked",
+  "tagline": "Elo de clasificación y estadísticas por directo para corredores de MCSR.",
+  "description": "Comandos para espectadores basados en la API de MCSR Ranked: !elo muestra la puntuación actual y el balance de temporada; !session muestra el elo y las victorias/derrotas desde el inicio del directo, tomando una instantánea de tu posición al empezar. !elo puede indicar cualquier jugador (p. ej., \"!elo Feinberg\"); !session siempre sigue tu cuenta vinculada. !lastmatch muestra la partida más reciente; !record compara el balance de enfrentamientos de dos jugadores; !lb muestra los 5 primeros de la clasificación de elo, puntos de fase o balance; !race muestra el líder de la carrera semanal y tu tiempo. !elo, !lastmatch, !record y !lb aceptan \"season:11\" al final para consultar una temporada pasada. !pace, !nethers y !lastfort obtienen tiempos parciales de speedruns en directo desde PaceMan.gg para la misma cuenta vinculada. !pb muestra un récord personal: daily/weekly/monthly de PaceMan, o \"ranked\" para el mejor de la temporada de MCSR Ranked; puede seguir el nombre de un jugador a cualquiera de ellos, o aparecer solo para el récord histórico de PaceMan.",
+  "settings": {
+    "account": {
+      "label": "Cuenta de Minecraft vinculada",
+      "help": "Jugador predeterminado para cada comando. Déjalo vacío para usar tu nombre de usuario de Twitch. El bot guarda el UUID de la cuenta cuando Mojang lo permite, para que los comandos de Ranked sigan funcionando tras un cambio de nombre. PaceMan sigue usando el nombre de usuario.",
+      "placeholder": "Tu nombre de usuario de Minecraft"
+    }
+  },
+  "replies": {
+    "elo": {
+      "tagline": "Elo actual, posición y balance de temporada.",
+      "defaultMessage": "{player}: {elo} elo · puesto #{rank} · V: {wins}, D: {losses} esta temporada"
+    },
+    "session": {
+      "tagline": "Elo y balance desde el inicio del directo.",
+      "defaultMessage": "{player} en este directo: {elochange} elo (ahora {elo}) · V: {wins}, D: {losses}, E: {draws} · partidas: {matches}"
+    },
+    "pace": {
+      "tagline": "Medias de tiempos parciales de la sesión actual, desde PaceMan.gg.",
+      "defaultMessage": "{player} en esta sesión: entradas al Nether: {nethers} (media {nether}) · bastión {bastion} · fortaleza {fortress} · primer portal {firstportal} · {nph} nph"
+    },
+    "nethers": {
+      "tagline": "Número de entradas al Nether y ritmo de la sesión actual.",
+      "defaultMessage": "{player}: entradas al Nether esta sesión: {nethers} (media {nether}) · {nph} nph"
+    },
+    "lastfort": {
+      "tagline": "Tiempos parciales del intento más reciente que llegó a una fortaleza o bastión.",
+      "defaultMessage": "{player}, última fortaleza: nether {nether} · bastión {bastion} · fortaleza {fortress} · primer portal {firstportal} · stronghold {stronghold} · hace {ago}"
+    },
+    "lastmatch": {
+      "tagline": "La partida más reciente: rival, resultado, semilla y cambio de elo.",
+      "defaultMessage": "{player} contra {opponent}: {result} · {time} · {seed} {structure} · {elochange} elo · hace {ago}"
+    },
+    "record": {
+      "tagline": "Victorias en enfrentamientos entre dos jugadores.",
+      "event": "!record <player> [player2]",
+      "defaultMessage": "{playera} {winsa} - {winsb} {playerb} · partidas: {played}"
+    },
+    "lb": {
+      "tagline": "Los 5 primeros de la clasificación de elo, puntos de fase o balance.",
+      "event": "!lb [phase [predicted]|record] [country:xx]",
+      "defaultMessage": "{board}: {list}"
+    },
+    "race": {
+      "tagline": "Líder de la carrera de esta semana y tiempo del jugador.",
+      "defaultMessage": "#1 {leader} ({leadertime}) · {player}: {time} (#{rank})"
+    },
+    "pb": {
+      "tagline": "Récord personal: diario/semanal/mensual/histórico de PaceMan, o el mejor de la temporada de MCSR Ranked.",
+      "event": "!pb [daily|weekly|monthly|ranked] [player]",
+      "defaultMessage": "{player}: {time} (récord personal {window})"
+    }
+  }
+}

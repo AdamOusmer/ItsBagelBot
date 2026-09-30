@@ -1,0 +1,42 @@
+{
+  "label": "Pasos del despliegue",
+  "stepOf": "Paso {n} de {total}",
+  "next": "Siguiente",
+  "back": "Atrás",
+  "rail": {
+    "kind": "Tipo",
+    "build": "Compilación",
+    "rollback": "Versión",
+    "prs": "Solicitudes de cambios",
+    "changelog": "Registro de cambios",
+    "review": "Revisión"
+  },
+  "title": {
+    "kind": "¿Qué vamos a desplegar?",
+    "build": "Versión y commit",
+    "rollback": "Elige la versión",
+    "prs": "Fusiona primero las solicitudes de cambios",
+    "changelog": "Escribe el registro de cambios",
+    "review": "Revisa y despliega"
+  },
+  "body": {
+    "kind": "Cada tipo ejecuta una serie fija de etapas en orden y se detiene ante el primer fallo.",
+    "build": "El commit de main a partir del que se compila esta ejecución. Las versiones y las correcciones urgentes también crean la etiqueta de versión.",
+    "rollback": "El clúster fija las imágenes de esa versión y despliega cada servicio cuya imagen fijada cambie. Sin compilación.",
+    "prs": "Las solicitudes de cambios marcadas se fusionan antes de compilar. Solo puedes marcar PR con comprobaciones aprobadas o en curso.",
+    "changelog": "Se publica con las notas de la versión. El inglés es obligatorio. Si el francés queda vacío, se usa el inglés.",
+    "review": "Revisa lo que hace esta ejecución y luego iníciala. Nada se revierte por sí solo."
+  },
+  "stagesCount": "Etapas: {n}",
+  "picked": "PR seleccionadas: {n}",
+  "pickedOne": "1 PR seleccionada",
+  "pickedNone": "No hay PR seleccionadas. No se fusiona nada.",
+  "releasesEmpty": "No hay ninguna versión anterior a la que revertir.",
+  "reviewKind": "Tipo",
+  "reviewPrs": "Fusión previa",
+  "reviewPrsNone": "Nada",
+  "reviewChangelog": "Título del registro de cambios",
+  "eyebrow": "Nuevo despliegue",
+  "close": "Cancelar",
+  "pending": "Aún no se ha llegado aquí"
+}

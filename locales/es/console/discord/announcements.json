@@ -1,0 +1,18 @@
+{
+  "allowLabel": "Anunciar solo estas categorías",
+  "allowPlaceholder": "Minecraft",
+  "allowTag": "Si está vacío, se anuncian todas las categorías.",
+  "chipAdd": "Añadir",
+  "chipEmpty": "Aún no hay ninguna.",
+  "chipRemove": "Quitar {name}",
+  "clipsHelp": "Archiva los clips de !clip (y de EventSub) en #clips.",
+  "clipsLabel": "Clips",
+  "denyLabel": "No anunciar nunca estas categorías",
+  "denyPlaceholder": "Just Chatting",
+  "denyTag": "Una categoría excluida tiene prioridad sobre la lista de permitidas.",
+  "liveHelp": "Publica en #now-live cuando empiezas a transmitir. Se edita a “Transmisión finalizada.” cuando te desconectas.",
+  "liveLabel": "Inicio de transmisión",
+  "postsHelp": "Los avisos de inicio y los clips se publican directamente desde outgress.",
+  "postsTitle": "Publicaciones de la transmisión",
+  "chipRemoved": "Se quitó {name}"
+}

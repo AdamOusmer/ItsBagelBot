@@ -1,0 +1,21 @@
+{
+  "cleared": "A fila foi esvaziada.",
+  "closed": "A fila está fechada para novas entradas.",
+  "err.usage": "Uso: !queue <open|close|next|list|remove|clear>; ou !join / !leave / !list",
+  "join.already": "@{queue:user} você já está na fila na posição #{queue:pos}.",
+  "join.closed": "@{queue:user} a fila está fechada agora.",
+  "join.ok": "@{queue:user} você entrou na fila na posição #{queue:pos}.",
+  "leave.not_in": "@{queue:user} você não está na fila.",
+  "leave.ok": "@{queue:user} você saiu da fila.",
+  "list": "A seguir: {queue:list}",
+  "list.empty": "A fila está vazia.",
+  "list.more": "A seguir: {queue:list} (+{queue:count})",
+  "next": "@{queue:target} é sua vez! (na espera: {queue:count})",
+  "next.empty": "A fila está vazia.",
+  "opened": "A fila está aberta! Digite !join para entrar.",
+  "remove.not_found": "@{queue:target} não estava na fila.",
+  "remove.ok": "Remoção da fila: @{queue:target}.",
+  "remove.usage": "Uso: !queue remove <user>",
+  "status.closed": "A fila está fechada. Na espera para jogar: {queue:count}.",
+  "status.open": "A fila está aberta. Na espera: {queue:count}. Digite !join para entrar."
+}

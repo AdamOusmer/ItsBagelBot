@@ -1,0 +1,37 @@
+{
+  "player": {
+    "name": "Spieler",
+    "hint": "Der verknüpfte Spieler",
+    "desc": "Der verknüpfte Spieler."
+  },
+  "elo": {
+    "name": "Aktuelle Elo",
+    "hint": "Aktuelle Bewertung",
+    "desc": "Aktuelle Bewertung."
+  },
+  "elochange": {
+    "name": "Elo-Änderung",
+    "hint": "Änderung seit Streamstart",
+    "desc": "Änderung seit Streamstart."
+  },
+  "wins": {
+    "name": "Siege",
+    "hint": "Siege in diesem Stream",
+    "desc": "Siege in diesem Stream."
+  },
+  "losses": {
+    "name": "Niederlagen",
+    "hint": "Niederlagen in diesem Stream",
+    "desc": "Niederlagen in diesem Stream."
+  },
+  "draws": {
+    "name": "Unentschieden",
+    "hint": "Matches in diesem Stream ohne Gewinner",
+    "desc": "Matches in diesem Stream ohne Gewinner."
+  },
+  "matches": {
+    "name": "Matches",
+    "hint": "Matches in diesem Stream",
+    "desc": "Matches in diesem Stream."
+  }
+}

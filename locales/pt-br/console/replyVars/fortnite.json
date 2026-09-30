@@ -1,0 +1,101 @@
+{
+  "stats": {
+    "player": {
+      "name": "Jogador",
+      "hint": "A conta vinculada",
+      "desc": "A conta vinculada."
+    },
+    "window": {
+      "name": "Período",
+      "hint": "Período das estatísticas: geral ou temporada",
+      "desc": "Período das estatísticas: geral ou temporada."
+    },
+    "wins": {
+      "name": "Vitórias",
+      "hint": "Total de vitórias",
+      "desc": "Total de vitórias."
+    },
+    "matches": {
+      "name": "Partidas",
+      "hint": "Partidas jogadas",
+      "desc": "Partidas jogadas."
+    },
+    "kills": {
+      "name": "Eliminações",
+      "hint": "Total de eliminações",
+      "desc": "Total de eliminações."
+    },
+    "kd": {
+      "name": "K/D",
+      "hint": "Proporção de eliminações/mortes",
+      "desc": "Proporção de eliminações/mortes."
+    },
+    "winrate": {
+      "name": "Taxa de vitória %",
+      "hint": "Vitórias a cada cem partidas",
+      "desc": "Vitórias a cada cem partidas."
+    },
+    "solowins": {
+      "name": "Vitórias solo",
+      "hint": "Vitórias no modo solo",
+      "desc": "Vitórias no modo solo."
+    },
+    "solomatches": {
+      "name": "Partidas solo",
+      "hint": "Partidas jogadas no modo solo",
+      "desc": "Partidas jogadas no modo solo."
+    },
+    "solokd": {
+      "name": "K/D solo",
+      "hint": "Proporção de eliminações/mortes no modo solo",
+      "desc": "Proporção de eliminações/mortes no modo solo."
+    },
+    "duowins": {
+      "name": "Vitórias em dupla",
+      "hint": "Vitórias no modo duplas",
+      "desc": "Vitórias no modo duplas."
+    },
+    "duomatches": {
+      "name": "Partidas em dupla",
+      "hint": "Partidas jogadas no modo duplas",
+      "desc": "Partidas jogadas no modo duplas."
+    },
+    "duokd": {
+      "name": "K/D em dupla",
+      "hint": "Proporção de eliminações/mortes no modo duplas",
+      "desc": "Proporção de eliminações/mortes no modo duplas."
+    },
+    "squadwins": {
+      "name": "Vitórias em esquadrão",
+      "hint": "Vitórias no modo esquadrões",
+      "desc": "Vitórias no modo esquadrões."
+    },
+    "squadmatches": {
+      "name": "Partidas em esquadrão",
+      "hint": "Partidas jogadas no modo esquadrões",
+      "desc": "Partidas jogadas no modo esquadrões."
+    },
+    "squadkd": {
+      "name": "K/D em esquadrão",
+      "hint": "Proporção de eliminações/mortes no modo esquadrões",
+      "desc": "Proporção de eliminações/mortes no modo esquadrões."
+    }
+  },
+  "store": {
+    "date": {
+      "name": "Data da loja",
+      "hint": "Data da loja de hoje",
+      "desc": "Data da loja de hoje."
+    },
+    "count": {
+      "name": "Quantidade de itens",
+      "hint": "Quantos itens estão na loja",
+      "desc": "Quantos itens estão na loja."
+    },
+    "items": {
+      "name": "Lista de itens",
+      "hint": "Os itens em destaque",
+      "desc": "Os itens em destaque."
+    }
+  }
+}

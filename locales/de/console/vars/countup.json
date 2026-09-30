@@ -1,0 +1,5 @@
+{
+  "name": "Zeit seit einem Datum",
+  "hint": "wie viel Zeit seit diesem Datum vergangen ist",
+  "desc": "Die Zeit seit diesem Datum, in derselben Formulierung wie bei !uptime."
+}

@@ -1,0 +1,19 @@
+{
+  "label": "Automatischer Shoutout",
+  "tagline": "Begrüße eingehende Raids mit einem automatischen Shoutout.",
+  "description": "Wenn ein anderer Kanal raidet, postet der Bot einen Shoutout, der deinen Chat auf den Raid-Kanal aufmerksam macht. Aktiviere das Modul und passe die Shoutout-Zeile an.",
+  "settings": {
+    "native_shoutout": {
+      "label": "Auch Twitch-Shoutout senden",
+      "help": "Löst zusätzlich zur Chat-Zeile Twitchs eigenen /shoutout für den Raid-Kanal aus. Dadurch werden die aktuelle Kategorie und Profilkarte direkt in Twitch angezeigt. Standardmäßig aus."
+    }
+  },
+  "replies": {
+    "shoutout": {
+      "label": "Raid-Shoutout",
+      "tagline": "Automatischer Chat-Shoutout bei einem Raid",
+      "event": "bei einem Raid",
+      "defaultMessage": "Großer Shoutout an {raider} für den Raid! Mitgebrachte Zuschauer: {viewers}. Schaut vorbei auf twitch.tv/{raider.login}"
+    }
+  }
+}

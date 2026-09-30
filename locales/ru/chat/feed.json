@@ -1,0 +1,9 @@
+{
+  "board": "Рейтинг кормления бейгла: {personality:places}. {personality:standing}",
+  "board.empty": "Бейгла ещё никто не кормил. Напишите \"feed the bagel\" и займите первое место.",
+  "board.none": "На этом канале бейгла ещё ни разу не кормили.",
+  "board.standing": "Этот канал: кормлений — {personality:count}, место #{personality:rank} из {personality:ranked}.",
+  "rank": "Канал {personality:channel}: кормлений — {personality:count}, место #{personality:rank} из {personality:ranked}.",
+  "rank.none": "На канале {personality:channel} бейгла ещё не кормили. Напишите \"feed the bagel\", чтобы попасть в рейтинг.",
+  "unavailable": "Сейчас бейгл не может считать, попробуйте снова чуть позже."
+}

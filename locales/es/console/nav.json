@@ -1,0 +1,17 @@
+{
+  "songqueue": "Peticiones de canciones",
+  "lockedBroadcaster": "Solo el streamer",
+  "ariaMain": "Navegación principal",
+  "manage": "Gestionar",
+  "overview": "Vista general",
+  "commands": "Comandos",
+  "modules": "Módulos",
+  "discord": "Discord",
+  "counters": "Contadores",
+  "channelpoints": "Puntos del canal",
+  "timers": "Temporizadores",
+  "billing": "Facturación",
+  "stats": "Estadísticas",
+  "status": "Estado",
+  "settings": "Ajustes"
+}

@@ -1,0 +1,22 @@
+{
+  "lastmatch.decay": "(Wertungsverfall)",
+  "lastmatch.draw": "unentschieden",
+  "lastmatch.empty": "noch keine Matches gefunden",
+  "lastmatch.forfeit": "(Aufgabe)",
+  "lastmatch.loss": "verloren",
+  "lastmatch.win": "gewonnen",
+  "leaderboard.empty": "noch niemand auf dieser Rangliste",
+  "pace.empty": "in dieser Sitzung noch keine Zwischenzeit erfasst",
+  "pace.nofort": "zuletzt keine Festungs-Zwischenzeit erfasst",
+  "pb.empty": "noch keine persönliche Bestzeit (%s)",
+  "pb.window.alltime": "gesamt",
+  "pb.window.daily": "täglich",
+  "pb.window.monthly": "monatlich",
+  "pb.window.ranked": "Rangliste",
+  "pb.window.weekly": "wöchentlich",
+  "race.empty": "noch keine Zeiten für das Rennen dieser Woche eingereicht",
+  "race.noplayer": "noch keine Zeit im Rennen dieser Woche",
+  "record.usage": "Verwendung: !record <player> [player2]",
+  "session.started": "Sitzungserfassung gerade gestartet (%s Elo), frag nach einem Match noch mal!",
+  "unrated": "ohne Wertung"
+}

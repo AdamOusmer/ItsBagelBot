@@ -1,0 +1,51 @@
+{
+  "label": "Spielwarteschlange",
+  "tagline": "Lass Zuschauer sich zum Mitspielen anstellen, in der Reihenfolge ihrer Anmeldung.",
+  "description": "Zuschauer geben !join ein, um sich anzustellen, und !list, um die nächsten Spieler zu sehen (die ersten 10). Du und deine Mods verwalten die Warteschlange im Chat: !queue open und !queue close erlauben oder stoppen neue Einträge, !queue next ruft den nächsten Spieler auf, !queue remove <user> entfernt jemanden und !queue clear leert die Liste. Zuschauer können sie jederzeit mit !leave verlassen. Aktiviere das Modul, um die Befehle zu nutzen; die Warteschlange bleibt beim Schließen erhalten, damit alle bereits Wartenden noch mitspielen können.",
+  "replies": {
+    "join": {
+      "label": "Beitrittsbestätigung",
+      "tagline": "Wenn ein Zuschauer sich anstellt.",
+      "defaultMessage": "@{user} du stehst jetzt auf Platz #{pos} in der Warteschlange."
+    },
+    "already": {
+      "label": "Bereits in der Warteschlange",
+      "tagline": "Wenn ein bereits wartender Zuschauer erneut !join eingibt.",
+      "defaultMessage": "@{user} du bist bereits auf Platz #{pos} in der Warteschlange."
+    },
+    "leave": {
+      "label": "Austrittsbestätigung",
+      "tagline": "Wenn ein Zuschauer die Warteschlange verlässt.",
+      "defaultMessage": "@{user} du hast die Warteschlange verlassen."
+    },
+    "next": {
+      "label": "Nächster Spieler",
+      "tagline": "Wenn du den nächsten Spieler aufrufst.",
+      "event": "!queue next",
+      "defaultMessage": "@{target} du bist als Nächstes dran! (Noch wartend: {count})"
+    },
+    "opened": {
+      "label": "Warteschlange geöffnet",
+      "tagline": "Ankündigung beim Öffnen der Warteschlange.",
+      "event": "!queue open",
+      "defaultMessage": "Die Warteschlange ist jetzt offen! Gib !join ein, um dich anzustellen."
+    },
+    "closed": {
+      "label": "Warteschlange geschlossen",
+      "tagline": "Ankündigung beim Schließen der Warteschlange.",
+      "event": "!queue close",
+      "defaultMessage": "Die Warteschlange ist jetzt für neue Einträge geschlossen."
+    }
+  },
+  "commands": {
+    "join": "Stelle dich zum Mitspielen an (auch !queue join).",
+    "leave": "Verlasse die Warteschlange (auch !queue leave).",
+    "list": "Zeige die nächsten 10 wartenden Spieler (auch !queue list).",
+    "queue": "Zeige, ob die Warteschlange offen ist und wie viele warten.",
+    "queue_open": "Erlaube neue Einträge.",
+    "queue_close": "Stoppe neue Einträge; die Warteschlange bleibt erhalten.",
+    "queue_next": "Rufe den nächsten Spieler auf und kündige ihn an.",
+    "queue_remove_user": "Entferne jemanden aus der Warteschlange.",
+    "queue_clear": "Leere die Warteschlange."
+  }
+}

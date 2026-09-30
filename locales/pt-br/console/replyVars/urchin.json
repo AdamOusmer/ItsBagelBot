@@ -1,0 +1,135 @@
+{
+  "daily": {
+    "player": {
+      "name": "Jogador",
+      "hint": "O jogador de Minecraft encontrado",
+      "desc": "O jogador de Minecraft encontrado."
+    },
+    "wins": {
+      "name": "Vitórias",
+      "hint": "Vitórias no período",
+      "desc": "Vitórias no período."
+    },
+    "losses": {
+      "name": "Derrotas",
+      "hint": "Derrotas no período",
+      "desc": "Derrotas no período."
+    },
+    "finals": {
+      "name": "Eliminações finais",
+      "hint": "Eliminações finais no período",
+      "desc": "Eliminações finais no período."
+    },
+    "finaldeaths": {
+      "name": "Mortes finais",
+      "hint": "Mortes finais no período",
+      "desc": "Mortes finais no período."
+    },
+    "beds": {
+      "name": "Camas destruídas",
+      "hint": "Camas destruídas no período",
+      "desc": "Camas destruídas no período."
+    },
+    "games": {
+      "name": "Partidas",
+      "hint": "Partidas jogadas no período",
+      "desc": "Partidas jogadas no período."
+    },
+    "levels": {
+      "name": "Níveis ganhos",
+      "hint": "Níveis de estrelas ganhos",
+      "desc": "Níveis de estrelas ganhos."
+    },
+    "fkdr": {
+      "name": "FKDR",
+      "hint": "Eliminações finais divididas por mortes finais",
+      "desc": "Eliminações finais divididas por mortes finais."
+    }
+  },
+  "stats": {
+    "player": {
+      "name": "Jogador",
+      "hint": "O jogador de Minecraft encontrado",
+      "desc": "O jogador de Minecraft encontrado."
+    },
+    "stars": {
+      "name": "Estrelas",
+      "hint": "Nível de estrelas no Bedwars",
+      "desc": "Nível de estrelas no Bedwars."
+    },
+    "wins": {
+      "name": "Vitórias",
+      "hint": "Vitórias históricas",
+      "desc": "Vitórias históricas."
+    },
+    "losses": {
+      "name": "Derrotas",
+      "hint": "Derrotas históricas",
+      "desc": "Derrotas históricas."
+    },
+    "finals": {
+      "name": "Eliminações finais",
+      "hint": "Eliminações finais históricas",
+      "desc": "Eliminações finais históricas."
+    },
+    "finaldeaths": {
+      "name": "Mortes finais",
+      "hint": "Mortes finais históricas",
+      "desc": "Mortes finais históricas."
+    },
+    "beds": {
+      "name": "Camas destruídas",
+      "hint": "Camas destruídas históricas",
+      "desc": "Camas destruídas históricas."
+    },
+    "fkdr": {
+      "name": "FKDR",
+      "hint": "Proporção histórica entre eliminações e mortes finais",
+      "desc": "Proporção histórica entre eliminações e mortes finais."
+    },
+    "wlr": {
+      "name": "Proporção de vitórias/derrotas",
+      "hint": "Proporção histórica de vitórias/derrotas",
+      "desc": "Proporção histórica de vitórias/derrotas."
+    }
+  },
+  "sniper": {
+    "player": {
+      "name": "Jogador",
+      "hint": "O jogador encontrado",
+      "desc": "O jogador encontrado."
+    },
+    "score": {
+      "name": "Pontuação de sniper",
+      "hint": "A pontuação atual do overlay",
+      "desc": "A pontuação atual do overlay."
+    },
+    "mode": {
+      "name": "Modo",
+      "hint": "O modo de aviso atual",
+      "desc": "O modo de aviso atual."
+    },
+    "tagcount": {
+      "name": "Quantidade de marcadores",
+      "hint": "Marcadores ativos da lista de bloqueio",
+      "desc": "Marcadores ativos da lista de bloqueio."
+    }
+  },
+  "tags": {
+    "player": {
+      "name": "Jogador",
+      "hint": "O jogador encontrado",
+      "desc": "O jogador encontrado."
+    },
+    "tags": {
+      "name": "Marcadores",
+      "hint": "A lista formatada de marcadores",
+      "desc": "A lista formatada de marcadores."
+    },
+    "tagcount": {
+      "name": "Quantidade de marcadores",
+      "hint": "Quantos marcadores estão ativos",
+      "desc": "Quantos marcadores estão ativos."
+    }
+  }
+}

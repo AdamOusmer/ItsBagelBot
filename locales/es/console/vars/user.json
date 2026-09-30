@@ -1,0 +1,5 @@
+{
+  "name": "Nombre del espectador",
+  "hint": "quién ejecutó el comando",
+  "desc": "Quien usó el comando. {sender} también funciona."
+}

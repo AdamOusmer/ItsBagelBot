@@ -1,0 +1,5 @@
+{
+  "name": "Título del directo",
+  "hint": "tu título actual del directo, o {title:someone} para otro canal (interruptor !title)",
+  "desc": "El título actual del directo, el mismo que muestra !title. También funciona sin conexión. {title:someone} devuelve el de otro canal. Sigue el interruptor de !title."
+}

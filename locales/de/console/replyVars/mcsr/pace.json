@@ -1,0 +1,62 @@
+{
+  "player": {
+    "name": "Spieler",
+    "hint": "Der verknüpfte Spieler",
+    "desc": "Der verknüpfte Spieler."
+  },
+  "nethers": {
+    "name": "Nether-Eintritte",
+    "hint": "Nether-Eintritte in dieser Sitzung",
+    "desc": "Nether-Eintritte in dieser Sitzung."
+  },
+  "nether": {
+    "name": "Ø Nether-Zeit",
+    "hint": "Durchschnittliche Zwischenzeit beim Nether-Eintritt",
+    "desc": "Durchschnittliche Zwischenzeit beim Nether-Eintritt."
+  },
+  "bastion": {
+    "name": "Ø Bastionszeit",
+    "hint": "Durchschnittliche Zwischenzeit beim Bastionseintritt",
+    "desc": "Durchschnittliche Zwischenzeit beim Bastionseintritt."
+  },
+  "fortress": {
+    "name": "Ø Festungszeit",
+    "hint": "Durchschnittliche Zwischenzeit beim Festungseintritt",
+    "desc": "Durchschnittliche Zwischenzeit beim Festungseintritt."
+  },
+  "firststructure": {
+    "name": "Ø Zeit der ersten Struktur",
+    "hint": "Durchschnittliche Zwischenzeit beim Eintritt in die erste Struktur",
+    "desc": "Durchschnittliche Zwischenzeit beim Eintritt in die erste Struktur."
+  },
+  "secondstructure": {
+    "name": "Ø Zeit der zweiten Struktur",
+    "hint": "Durchschnittliche Zwischenzeit beim Eintritt in die zweite Struktur",
+    "desc": "Durchschnittliche Zwischenzeit beim Eintritt in die zweite Struktur."
+  },
+  "firstportal": {
+    "name": "Ø Zeit des ersten Portals",
+    "hint": "Durchschnittliche Zwischenzeit am ersten Portal",
+    "desc": "Durchschnittliche Zwischenzeit am ersten Portal."
+  },
+  "stronghold": {
+    "name": "Ø Stronghold-Zeit",
+    "hint": "Durchschnittliche Zwischenzeit beim Stronghold-Eintritt",
+    "desc": "Durchschnittliche Zwischenzeit beim Stronghold-Eintritt."
+  },
+  "end": {
+    "name": "Ø End-Zeit",
+    "hint": "Durchschnittliche Zwischenzeit beim End-Eintritt",
+    "desc": "Durchschnittliche Zwischenzeit beim End-Eintritt."
+  },
+  "finish": {
+    "name": "Ø Abschlusszeit",
+    "hint": "Durchschnittliche Abschlusszeit",
+    "desc": "Durchschnittliche Abschlusszeit."
+  },
+  "nph": {
+    "name": "Nether-Eintritte/Stunde",
+    "hint": "Rate der Nether-Eintritte",
+    "desc": "Rate der Nether-Eintritte."
+  }
+}

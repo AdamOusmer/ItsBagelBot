@@ -1,0 +1,19 @@
+{
+  "shoutout": {
+    "raider": {
+      "name": "Raider-Name",
+      "hint": "Anzeigename des raidenden Kanals",
+      "desc": "Anzeigename des raidenden Kanals."
+    },
+    "raider_login": {
+      "name": "Raider-Anmeldename",
+      "hint": "URL-tauglicher Anmeldename",
+      "desc": "URL-tauglicher Anmeldename für twitch.tv/-Links."
+    },
+    "viewers": {
+      "name": "Raid-Größe",
+      "hint": "Wie viele Zuschauer angekommen sind",
+      "desc": "Wie viele Zuschauer angekommen sind."
+    }
+  }
+}

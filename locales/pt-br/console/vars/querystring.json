@@ -1,0 +1,5 @@
+{
+  "name": "Argumentos codificados para URL",
+  "hint": "tudo digitado após o comando, codificado para URL de uma fonte de dados",
+  "desc": "Tudo digitado após o comando, codificado para ser inserido na URL de uma fonte de dados."
+}

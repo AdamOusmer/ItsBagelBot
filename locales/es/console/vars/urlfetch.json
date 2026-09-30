@@ -1,0 +1,5 @@
+{
+  "name": "Valor obtenido",
+  "hint": "Inserta un valor obtenido de una definición de API guardada",
+  "desc": "Un valor de una definición de fuente de datos guardada (página Fuentes de datos). Escribe {urlfetch:name} para toda la respuesta, o añade una ruta con puntos para acceder a un campo de una respuesta JSON, como {urlfetch:weather.forecast.current.temp_f}."
+}

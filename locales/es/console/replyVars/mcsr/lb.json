@@ -1,0 +1,12 @@
+{
+  "board": {
+    "name": "Clasificación",
+    "hint": "Qué clasificación respondió",
+    "desc": "Qué clasificación respondió."
+  },
+  "list": {
+    "name": "Primeros 5",
+    "hint": "Las primeras 5 filas",
+    "desc": "Las primeras 5 filas, con formato en una sola línea."
+  }
+}

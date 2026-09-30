@@ -1,0 +1,8 @@
+{
+  "follow.default": "Спасибо, что отслеживаете канал, {alerts:user}!",
+  "sub.default": "Добро пожаловать в сообщество, {alerts:user}! Спасибо за подписку!",
+  "gift.default": "{alerts:user} дарит сообществу подписки: {alerts:count}! Спасибо!",
+  "cheer.default": "Спасибо за Bits: {alerts:bits}, {alerts:user}!",
+  "raid.default": "{alerts:user} начинает рейд на канал! Зрителей: {alerts:viewers}. Всем добро пожаловать!",
+  "ads.default": "Идёт реклама, длительность: {alerts:duration} сек. Подождите немного, скоро вернёмся!"
+}

@@ -1,0 +1,52 @@
+{
+  "label": "Estatísticas de Valorant",
+  "tagline": "Patentes, histórico de partidas, rankings e rotação diária da loja de Valorant no chat.",
+  "description": "Um comando, cinco visões: !val mostra a classificação competitiva de um jogador (patente, RR, variação de RR da última partida, maior patente); !val matches lista partidas ranqueadas recentes com agente e resultados K/D/A; !val account mostra a quem um Riot ID corresponde, com o nível da conta; !val lb exibe os 10 primeiros de qualquer ranking regional, PC ou console; !val shop mostra a rotação global de skins de hoje com preços em VP e contagem regressiva para a renovação. As formas compactas !valrank, !valmatches, !valaccount, !vallb e !valshop também funcionam. Vincule seu Riot ID abaixo (\"Name#Tag\"). Os espectadores também podem informar qualquer jogador, por exemplo, \"!val Frosty#EUW1\", e adicionar um shard ou uma plataforma em qualquer lugar da linha para limitar essa consulta (\"!val eu Frosty#EUW1\", \"!val lb console ap\"). Deixe a região em branco para o bot detectar o shard pela própria conta.",
+  "settings": {
+    "account": {
+      "label": "Riot ID vinculado",
+      "help": "Jogador padrão de todos os comandos, como \"Name#Tag\". O Valorant não permite busca apenas pelo nome, então a #tag é obrigatória.",
+      "placeholder": "Frosty#EUW1"
+    },
+    "region": {
+      "label": "Shard da região",
+      "help": "na, eu, ap, kr, br ou latam. Deixe em branco para o bot detectar o shard pela própria conta.",
+      "placeholder": "eu"
+    },
+    "platform": {
+      "label": "Plataforma do ranking",
+      "help": "Patentes e rankings são acompanhados separadamente por plataforma; em branco significa PC.",
+      "placeholder": "pc",
+      "options": {
+        "pc": "PC",
+        "console": "Console"
+      }
+    }
+  },
+  "replies": {
+    "rank": {
+      "tagline": "Classificação competitiva: !val, !val rank ou !valrank.",
+      "defaultMessage": "{player} · {tier} · {rr} RR ({lastchange}) · maior patente: {peaktier}"
+    },
+    "matches": {
+      "tagline": "Partidas ranqueadas recentes (também !valmatches).",
+      "event": "!val matches",
+      "defaultMessage": "{player}, partidas recentes ({count}): {matches}"
+    },
+    "account": {
+      "tagline": "A quem um ID corresponde, com nível da conta (também !valaccount).",
+      "event": "!val account",
+      "defaultMessage": "{player} · nível da conta: {level}"
+    },
+    "board": {
+      "tagline": "Os 10 primeiros da região, PC ou console (também !vallb).",
+      "event": "!val lb",
+      "defaultMessage": "{board}: {entries}"
+    },
+    "shop": {
+      "tagline": "Rotação global de skins de hoje com contagem regressiva para a renovação (também !valshop).",
+      "event": "!val shop",
+      "defaultMessage": "Rotação diária ({count}): {items} · tempo até renovar: {reset}"
+    }
+  }
+}

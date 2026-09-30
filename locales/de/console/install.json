@@ -1,0 +1,11 @@
+{
+  "cta": "App installieren",
+  "ariaLabel": "ItsBagelBot als App installieren",
+  "dismiss": "Ausblenden",
+  "ios": {
+    "title": "Zum Home-Bildschirm hinzufügen",
+    "step1": "Tippe auf die Teilen-Schaltfläche in der Werkzeugleiste.",
+    "step2": "Wähle „Zum Home-Bildschirm hinzufügen“.",
+    "close": "Schließen"
+  }
+}

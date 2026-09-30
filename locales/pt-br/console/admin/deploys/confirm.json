@@ -1,0 +1,7 @@
+{
+  "release": "Criar a tag {version} em {sha}, compilar, fixar e implantar {services}.",
+  "hotfix": "Mover {version} para {sha}, recompilar, fixar novamente e implantar {services}.",
+  "bump": "Fixar as imagens compiladas em {sha} e implantar {services}.",
+  "rollback": "Fixar as imagens de {version} e implantar cada serviço cuja referência fixada mudar.",
+  "reapply": "Implantar as referências fixadas em main nos serviços {services}."
+}

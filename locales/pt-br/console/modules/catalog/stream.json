@@ -1,0 +1,13 @@
+{
+  "label": "Gerenciamento da transmissão",
+  "tagline": "Defina título, categoria e tags, exiba anúncios e adicione marcadores pelo chat.",
+  "description": "Moderadores líderes editam a transmissão pelo chat como no Nightbot e StreamElements: !title / !settitle, !game / !setgame, !tags, !commercial / !ad e !marker. Cada comando pode ser ativado ou desativado nesta página. Vêm ativados. Requer novo consentimento na Twitch para channel:manage:broadcast e channel:edit:commercial se você se cadastrou antes dessas permissões existirem.",
+  "commands": {
+    "title": "Mostre ou defina o título da transmissão.",
+    "game": "Mostre ou defina a categoria da transmissão.",
+    "tags": "Mostre ou defina as tags da transmissão.",
+    "commercial": "Exiba um anúncio durante a transmissão (somente ao vivo).",
+    "marker": "Adicione um marcador à transmissão (somente ao vivo).",
+    "cmd": "Liste comandos ou adicione/edite/remova comandos personalizados."
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "sharedPre": "Geteilter Zugriff auf das Dashboard von ",
+  "sharedPost": " ({sections})",
+  "viewingPre": "Ansicht als ",
+  "viewingPost": " (Admin {admin})",
+  "exit": "Verlassen"
+}

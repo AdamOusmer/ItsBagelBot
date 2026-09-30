@@ -1,0 +1,4 @@
+{
+  "pyramid": "{emoteplay:user}: пирамида из {emoteplay:emote} завершена! (Высота: {emoteplay:height})",
+  "streak": "Серия {emoteplay:emote} ×{emoteplay:count}!"
+}

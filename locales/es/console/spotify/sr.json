@@ -1,0 +1,13 @@
+{
+  "enableLabel": "Permitir !sr",
+  "enableOff": "!sr está desactivado: el comando responde, pero no añade nada a la cola.",
+  "enableOn": "!sr está activado: el chat puede añadir canciones a la cola ahora.",
+  "help": "Los espectadores escriben !sr con el nombre de una canción, \"artista - canción\" o un enlace de Spotify.",
+  "liveOnlyOff": "Los espectadores pueden solicitar canciones aunque no estés en directo.",
+  "liveOnlyOn": "Los espectadores solo pueden solicitar canciones durante el directo.",
+  "permLabel": "Quién puede añadir a la cola",
+  "saveFailed": "No se pudieron guardar los ajustes del comando.",
+  "saved": "Ajustes del comando guardados.",
+  "title": "Comando de chat (!sr)",
+  "permOffHint": "Activa !sr para elegir quién puede añadir canciones a la cola."
+}

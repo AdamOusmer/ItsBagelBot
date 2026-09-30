@@ -1,0 +1,12 @@
+{
+  "board": {
+    "name": "Rangliste",
+    "hint": "Welche Rangliste geantwortet hat",
+    "desc": "Welche Rangliste geantwortet hat."
+  },
+  "list": {
+    "name": "Top 5",
+    "hint": "Die ersten 5 Einträge",
+    "desc": "Die ersten 5 Einträge, als eine Zeile vorformatiert."
+  }
+}

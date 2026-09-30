@@ -1,0 +1,42 @@
+{
+  "label": "Auslieferungsschritte",
+  "stepOf": "Schritt {n} von {total}",
+  "next": "Weiter",
+  "back": "Zurück",
+  "rail": {
+    "kind": "Art",
+    "build": "Build",
+    "rollback": "Release",
+    "prs": "Pull Requests",
+    "changelog": "Änderungsprotokoll",
+    "review": "Prüfung"
+  },
+  "title": {
+    "kind": "Was liefern wir aus?",
+    "build": "Version und Commit",
+    "rollback": "Release auswählen",
+    "prs": "Zuerst Pull Requests zusammenführen",
+    "changelog": "Änderungsprotokoll schreiben",
+    "review": "Prüfen und ausliefern"
+  },
+  "body": {
+    "kind": "Jede Art führt eine feste Reihenfolge von Phasen aus und stoppt beim ersten Fehler.",
+    "build": "Der Commit auf main, aus dem dieser Durchlauf baut. Releases und Hotfixes setzen außerdem das Versions-Tag.",
+    "rollback": "Der Cluster legt die Images dieses Releases fest und rollt jeden Dienst neu aus, dessen Festlegung sich ändert. Kein Build.",
+    "prs": "Ausgewählte Pull Requests werden vor jedem Build zusammengeführt. Nur PRs mit erfolgreichen oder laufenden Prüfungen können ausgewählt werden.",
+    "changelog": "Wird mit den Release Notes veröffentlicht. Englisch ist erforderlich. Leeres Französisch fällt auf Englisch zurück.",
+    "review": "Prüfe, was dieser Durchlauf bewirkt, und starte ihn dann. Es gibt keine automatische Rücksetzung."
+  },
+  "stagesCount": "Phasen: {n}",
+  "picked": "Ausgewählte PRs: {n}",
+  "pickedOne": "1 PR ausgewählt",
+  "pickedNone": "Kein PR ausgewählt. Es wird nichts zusammengeführt.",
+  "releasesEmpty": "Kein früheres Release zum Zurücksetzen vorhanden.",
+  "reviewKind": "Art",
+  "reviewPrs": "Wird zuerst zusammengeführt",
+  "reviewPrsNone": "Nichts",
+  "reviewChangelog": "Titel des Änderungsprotokolls",
+  "eyebrow": "Neue Bereitstellung",
+  "close": "Abbrechen",
+  "pending": "Noch nicht erreicht"
+}

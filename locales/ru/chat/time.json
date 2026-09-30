@@ -1,0 +1,18 @@
+{
+  "day": "дн.",
+  "days": "дн.",
+  "hour": "ч",
+  "hours": "ч",
+  "less_than_minute": "меньше минуты",
+  "minute": "мин",
+  "minutes": "мин",
+  "month": "мес.",
+  "months": "мес.",
+  "unavailable": "Сейчас время недоступно.",
+  "default": "У стримера сейчас {time:time}.",
+  "lookup": "{time:place}: сейчас {time:time}.",
+  "unknown": "Не знаю, где находится «{time:place}». Попробуйте город (Tokyo), регион или страну (Texas, Japan), часовой пояс (Europe/Paris) или смещение (UTC+2).",
+  "unset": "Стример ещё не указал свой часовой пояс.",
+  "year": "г.",
+  "years": "г."
+}

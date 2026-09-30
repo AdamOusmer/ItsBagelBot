@@ -1,0 +1,5 @@
+{
+  "revoked.body": "Twitch hat die Autorisierung des Bots für deinen Kanal widerrufen (das passiert nach einer Passwortänderung oder wenn die App getrennt wurde). Chat-Antworten und Benachrichtigungen sind pausiert. Melde dich unter {dashboard_url} an und verbinde dein Twitch-Konto erneut, um den Bot zurückzuholen.",
+  "revoked.chat": "Der Bot hat seine Twitch-Autorisierung für diesen Kanal verloren (Passwortänderung oder Trennung der App). Melde dich unter {dashboard_url} an, um ihn erneut zu verbinden.",
+  "revoked.title": "Der Bot hat den Zugriff auf deinen Kanal verloren"
+}

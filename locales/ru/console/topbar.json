@@ -1,0 +1,13 @@
+{
+  "roleBroadcaster": "Стример",
+  "notifications": "Уведомления",
+  "logout": "Выйти",
+  "dashboards": "Общие панели управления",
+  "support": "Поддержка",
+  "supportDiscordHint": "обычно минуты",
+  "supportGithubHint": "исходный код доступен",
+  "feedback": "Ошибка или идея",
+  "enterprise": "Enterprise",
+  "reconnecting": "Повторное подключение",
+  "supportTitle": "Помощь и обратная связь"
+}

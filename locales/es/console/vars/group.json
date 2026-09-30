@@ -1,0 +1,17 @@
+{
+  "who": {
+    "label": "Quién"
+  },
+  "typed": {
+    "label": "Lo que escribieron"
+  },
+  "stream": {
+    "label": "Tu transmisión"
+  },
+  "fun": {
+    "label": "Diversión"
+  },
+  "data": {
+    "label": "Tus datos"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "errScope": "Twitch hat nicht alle erforderlichen Bot-Berechtigungen erteilt. Autorisiere den Bot erneut und bestätige jede angeforderte Berechtigung.",
+  "okTitle": "Bot autorisiert",
+  "okBody": "Das Token des Bot-Kontos wurde gespeichert. Du kannst diesen Tab schließen.",
+  "failTitle": "Autorisierung fehlgeschlagen",
+  "errState": "Der Autorisierungslink ist abgelaufen oder ungültig. Starte die Bot-Autorisierung erneut.",
+  "errOauth": "Twitch hat die Autorisierung abgelehnt. Versuche es erneut.",
+  "errAccount": "Dieses Twitch-Konto ist nicht das konfigurierte Bot-Konto.",
+  "errConfig": "Die Bot-Autorisierung ist deaktiviert, bis TWITCH_BOT_USER_ID konfiguriert ist.",
+  "errSave": "Twitch hat den Bot zugelassen, aber ItsBagelBot konnte sein Token nicht speichern. Prüfe die Bot-Konfiguration und autorisiere den Bot erneut.",
+  "errGeneric": "Etwas ist schiefgelaufen. Erstelle einen neuen Link und versuche es erneut."
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Título de la canción",
+  "hint": "solo el título de la canción, la primera parte de {song}",
+  "desc": "El título de la canción por separado, la primera parte de {song}. Si no se reproduce nada, devuelve un valor vacío. Requiere el módulo Peticiones de canciones."
+}

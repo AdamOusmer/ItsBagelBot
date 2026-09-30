@@ -1,0 +1,43 @@
+{
+  "label": "Alertas de chat",
+  "tagline": "Anuncie seguidores, inscrições, cheers, raids e intervalos de anúncios no chat.",
+  "description": "O bot publica uma mensagem no chat quando alguém segue, se inscreve, envia cheers ou faz uma raid, e pode anunciar intervalos de anúncios. Ative ou desative cada alerta e personalize sua mensagem. Novos alertas começam ativados, exceto o de intervalo de anúncios, que fica desativado até você ativá-lo. Um alerta de seguidor dispara no máximo uma vez por espectador a cada três dias, para que deixar de seguir e seguir novamente não gere spam no chat.",
+  "replies": {
+    "follow": {
+      "label": "Alerta de seguidor",
+      "tagline": "Quando alguém segue seu canal. Dispara uma vez por espectador a cada três dias.",
+      "event": "ao seguir",
+      "defaultMessage": "Obrigado por seguir o canal, {user}!"
+    },
+    "sub": {
+      "label": "Alerta de inscrição",
+      "tagline": "Quando alguém se inscreve ou renova a inscrição.",
+      "event": "na inscrição",
+      "defaultMessage": "Boas-vindas à comunidade, {user}! Obrigado pela inscrição!"
+    },
+    "gift": {
+      "label": "Alerta de inscrições presenteadas",
+      "tagline": "Quando alguém presenteia inscrições. Uma mensagem por quem presenteia, nunca por destinatário.",
+      "event": "ao presentear inscrições",
+      "defaultMessage": "{user} acabou de presentear inscrições à comunidade! Quantidade: {count}. Obrigado!"
+    },
+    "cheer": {
+      "label": "Alerta de cheer",
+      "tagline": "Quando alguém envia bits em cheers.",
+      "event": "no cheer",
+      "defaultMessage": "Obrigado pelos bits, {user}! Total: {bits}."
+    },
+    "raid": {
+      "label": "Alerta de raid",
+      "tagline": "Quando outro canal faz uma raid.",
+      "event": "na raid",
+      "defaultMessage": "{user} está fazendo uma raid no canal! Espectadores: {viewers}. Boas-vindas a todos!"
+    },
+    "ads": {
+      "label": "Alerta de intervalo de anúncios",
+      "tagline": "Quando um intervalo de anúncios começa. Desativado por padrão.",
+      "event": "no intervalo de anúncios",
+      "defaultMessage": "Anúncios em exibição. Duração: {duration}s. Aguente firme, já voltamos!"
+    }
+  }
+}

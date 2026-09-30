@@ -1,0 +1,13 @@
+{
+  "label": "Kanalpunkte",
+  "tagline": "Mache Kanalpunkte-Einlösungen zu Bot-Aktionen.",
+  "description": "Erstelle eigene Belohnungen, die Zuschauer mit Kanalpunkten einlösen (auf Twitch unter dem Bot erstellt, im nativen Design), und verknüpfe jede mit einer Bot-Aktion, etwa einer Chat-Nachricht. Wähle, ob jede Einlösung abgeschlossen, zurückerstattet oder einem Mod überlassen wird. Verwalte die Belohnungen auf dieser Seite.",
+  "replies": {
+    "reply": {
+      "label": "Chat-Antwort auf Belohnung",
+      "tagline": "Was der Bot postet, wenn eine verknüpfte Belohnung eingelöst wird.",
+      "event": "bei Einlösung",
+      "defaultMessage": "{user} hat {reward} eingelöst!"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "label": "Duelos",
+  "tagline": "Duelos por pontos entre espectadores: disputas de pote e desafios 1v1.",
+  "description": "Duas formas de disputar pontos. Duelo de pote: alguém digita !duel <stake> e todos têm um prazo para adicionar sua própria aposta; quando o tempo acaba, o bot sorteia um vencedor com chances proporcionais à aposta, que leva o pote inteiro. Ou um desafio: !duel <user> <stake> indica um oponente, que deve digitar !duel accept antes do prazo; apostas iguais, chances iguais, o vencedor leva ambas. Recusas, cancelamentos e ausência sempre devolvem todos os pontos reservados, e toda movimentação passa pelo gasto protegido do serviço de fidelidade, para ninguém apostar o que não tem. Ativado na página Fidelidade; usa o mesmo nome de moeda virtual e fica desativado enquanto a fidelidade estiver desativada.",
+  "settings": {
+    "minStake": {
+      "label": "Aposta mínima",
+      "placeholder": "1"
+    },
+    "maxStake": {
+      "label": "Aposta máxima",
+      "placeholder": "1000"
+    },
+    "potSeconds": {
+      "label": "Prazo do pote (segundos)",
+      "help": "Por quanto tempo um duelo de pote aceita apostas.",
+      "placeholder": "60"
+    },
+    "challengeSeconds": {
+      "label": "Prazo para aceitar (segundos)",
+      "help": "Por quanto tempo a pessoa desafiada pode aceitar.",
+      "placeholder": "120"
+    }
+  },
+  "replies": {
+    "opened": {
+      "label": "Duelo de pote aberto",
+      "tagline": "Quando um duelo de pote começa e as apostas são abertas.",
+      "event": "!duel 100",
+      "defaultMessage": "Duelo de pote ABERTO! @{user} apostou {stake} {points}. Digite !duel <amount> para participar. Sorteio em {secs}s!"
+    },
+    "joined": {
+      "label": "Confirmação de participação",
+      "tagline": "Quando um espectador adiciona sua aposta a um pote em andamento.",
+      "event": "!duel 250",
+      "defaultMessage": "@{user}, você entrou com {stake}! Participantes: {count}; pote: {pot} {points}."
+    },
+    "challenge": {
+      "label": "Desafio enviado",
+      "tagline": "Quando um espectador desafia outro com apostas iguais.",
+      "event": "!duel @maya_live 500",
+      "defaultMessage": "@{user} desafia @{target} por {stake} {points}! @{target}, digite !duel accept em até {secs}s. Quem vencer leva {pot}!"
+    },
+    "won": {
+      "label": "Mensagem de resultado",
+      "tagline": "Quando um desafio é aceito e resolvido.",
+      "event": "!duel accept",
+      "defaultMessage": "As lâminas descem: @{winner} derrota @{loser} e leva {pot} {points}!"
+    }
+  },
+  "commands": {
+    "duel": "Mostra o que está em andamento: um pote (participantes, total, segundos) ou um desafio pendente.",
+    "duel_stake": "Abre um duelo de pote ou entra em um que esteja em andamento.",
+    "duel_user_stake": "Desafia alguém com apostas iguais; quem vencer leva ambas.",
+    "duel_accept": "A pessoa desafiada iguala a aposta e resolve o duelo imediatamente.",
+    "duel_decline": "Recusa um desafio; os pontos de quem abriu são devolvidos.",
+    "duel_cancel": "Encerra o duelo em andamento com devolução total dos pontos (quem abriu ou moderador)."
+  }
+}

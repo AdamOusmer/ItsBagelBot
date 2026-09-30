@@ -1,0 +1,5 @@
+{
+  "name": "Genannte Person",
+  "hint": "erstes Argument, z. B. ein erwähnter Nutzer",
+  "desc": "Das erste Wort nach dem Befehl (ohne \"@\"); bei leerer Eingabe der Zuschauer selbst. {target} funktioniert auch."
+}

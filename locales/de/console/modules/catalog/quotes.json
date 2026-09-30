@@ -1,0 +1,13 @@
+{
+  "label": "Zitate",
+  "tagline": "Speichere die besten Sprüche aus dem Stream und gib sie im Chat wieder.",
+  "description": "Führe ein Zitatbuch für deinen Kanal. Jemand speichert eine Zeile mit !addquote the text oder !quote \"the text\"; der Bot vergibt eine Nummer und speichert das Datum. Jeder kann mit !quote ein zufälliges Zitat abrufen, mit !quote 12 eine bestimmte Nummer oder mit !quote ferret ein zufälliges Zitat mit diesem Wort. Der Bot antwortet „Zitat #12: the text (2026-07-11)“. Wähle unten, wer speichern und wer umschreiben darf (!quote edit 12 the fixed text); standardmäßig beides nur Moderatoren. Mods entfernen Fehler mit !quote remove 12. Nummern werden nie wiederverwendet, daher verweist eine alte Nummer immer auf dasselbe Zitat. Die Antworten sind feste Systemtexte in deiner Konsolensprache.",
+  "commands": {
+    "quote": "Postet ein zufälliges gespeichertes Zitat (auch !quotes).",
+    "quote_number": "Postet genau dieses Zitat.",
+    "quote_word": "Postet ein zufälliges Zitat mit diesem Wort.",
+    "addquote_text": "Speichert ein neues Zitat (auch !quoteadd oder !quote \"text\"; wer speichern darf, ist oben festgelegt); das Speicherdatum wird mitgeführt.",
+    "quote_edit_number_text": "Schreibt ein gespeichertes Zitat um (wer bearbeiten darf, ist oben festgelegt); Nummer und Datum bleiben erhalten.",
+    "quote_remove_number": "Löscht ein Zitat; seine Nummer wird nicht wiederverwendet."
+  }
+}

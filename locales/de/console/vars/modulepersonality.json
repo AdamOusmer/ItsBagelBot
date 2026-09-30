@@ -1,0 +1,5 @@
+{
+  "name": "Chat-Persönlichkeit",
+  "hint": "Benötigt das aktivierte Modul Chat-Persönlichkeit.",
+  "desc": "Verwende {personality:variable} in einem eigenen Befehl, um die öffentlichen Werte dieses Moduls zu lesen. Benötigt das aktivierte Modul Chat-Persönlichkeit. Das Hinzufügen einer Variable aktiviert ihr Modul nicht. Bei deaktivierten Modulen bleibt die Variable im Chat sichtbar. Reine Ereigniswerte sind leer, wenn der Befehl kein passendes Ereignis hat; nutze einen |fallback für leere Werte. Die Vorschau verwendet Beispieldaten und bestätigt nicht, dass dein Modul aktiv ist."
+}

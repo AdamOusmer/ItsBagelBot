@@ -1,0 +1,7 @@
+{
+  "release": "Versão",
+  "hotfix": "Hotfix",
+  "bump": "Atualização de imagens",
+  "rollback": "Reversão",
+  "reapply": "Reaplicação"
+}

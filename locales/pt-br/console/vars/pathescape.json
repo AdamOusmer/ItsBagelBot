@@ -1,0 +1,5 @@
+{
+  "name": "Codificar um caminho para URL",
+  "hint": "codifica o texto para um caminho de URL, não para uma consulta",
+  "desc": "O mesmo, para a parte do caminho de uma URL, em que um espaço não é um sinal de mais."
+}

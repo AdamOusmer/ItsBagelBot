@@ -1,0 +1,13 @@
+{
+  "preflight": "Verificação preliminar",
+  "merge_prs": "Mesclar PRs",
+  "changelog": "Histórico de alterações",
+  "tag": "Tag",
+  "release": "Versão no GitHub",
+  "build": "Compilar imagens",
+  "digests": "Verificar digests",
+  "pin_pr": "PR de fixação",
+  "acl": "ACL do NATS",
+  "rollout": "Implantação",
+  "verify": "Verificar"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Stream-Kategorie",
+  "hint": "deine Stream-Kategorie oder {game:someone} für einen anderen Kanal (Schalter für !game)",
+  "desc": "Die gestreamte Kategorie, dieselbe wie bei !game. Funktioniert auch offline. {game:someone} liefert die Kategorie eines anderen Kanals, etwa für einen Shoutout-Befehl. Folgt dem Schalter für !game."
+}

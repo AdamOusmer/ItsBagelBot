@@ -1,0 +1,5 @@
+{
+  "name": "Uma pessoa aleatória do chat",
+  "hint": "uma delas, escolhida ao acaso (nunca você nem o bot)",
+  "desc": "O nome de uma pessoa que falou recentemente, escolhida ao acaso. Nunca você nem o bot. Duas ocorrências em uma resposta são duas escolhas separadas, e um canal silencioso retorna vazio."
+}

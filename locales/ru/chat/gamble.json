@@ -1,0 +1,12 @@
+{
+  "broke": "@{gamble:user} для этой ставки недостаточно баллов. У вас {gamble:balance} {gamble:points}.",
+  "cool": "@{gamble:user} кубикам нужен отдых. Повторите через {gamble:secs} сек.",
+  "err": "@{gamble:user} не получилось, попробуйте снова.",
+  "lose": "@{gamble:user} результат броска: {gamble:roll} (нужно {gamble:chance} или меньше). Проигрыш: {gamble:amount} {gamble:points}. Остаток: {gamble:balance}.",
+  "range": "@{gamble:user} эта ставка может превысить лимит баллов.",
+  "max": "@{gamble:user} максимальная ставка: {gamble:max} {gamble:points}.",
+  "min": "@{gamble:user} минимальная ставка: {gamble:min} {gamble:points}.",
+  "usage": "Использование: !gamble <amount|half|all>",
+  "unknown": "@{gamble:user} я ещё не видел вас на этом канале. Останьтесь, чтобы сначала заработать {gamble:points}!",
+  "win": "@{gamble:user} результат броска: {gamble:roll} (нужно {gamble:chance} или меньше). Выигрыш: {gamble:amount} {gamble:points}. Остаток: {gamble:balance}!"
+}

@@ -1,0 +1,12 @@
+{
+  "pending": "Pendiente",
+  "running": "En ejecución",
+  "waiting": "En espera",
+  "succeeded": "Correcto",
+  "failed": "Error",
+  "skipped": "Omitido",
+  "cancelled": "Cancelado",
+  "completed": "Completado",
+  "current": "Paso actual",
+  "upcoming": "Próximo"
+}

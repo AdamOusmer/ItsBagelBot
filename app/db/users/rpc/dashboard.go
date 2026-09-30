@@ -309,7 +309,7 @@ func (d *dashboardRPC) handleLocaleSet(ctx context.Context, msg *nats.Msg) {
 	}
 
 	d.writeThenInvalidate(ctx, msg, "locale", req.BroadcasterUserID, "locale_set",
-		func(ctx context.Context) error { return d.repo.SetLocale(ctx, id, req.Locale) })
+		func(ctx context.Context) error { return d.repo.SetLocaleNow(ctx, id, req.Locale) })
 }
 
 func (d *dashboardRPC) handleCursorSet(ctx context.Context, msg *nats.Msg) {

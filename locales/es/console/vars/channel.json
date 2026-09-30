@@ -1,0 +1,5 @@
+{
+  "name": "Nombre del canal",
+  "hint": "el canal en el que se ejecuta el comando",
+  "desc": "El nombre visible de tu canal."
+}

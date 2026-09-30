@@ -1,0 +1,135 @@
+{
+  "daily": {
+    "player": {
+      "name": "Spieler",
+      "hint": "Der ermittelte Minecraft-Spieler",
+      "desc": "Der ermittelte Minecraft-Spieler."
+    },
+    "wins": {
+      "name": "Siege",
+      "hint": "Siege im Zeitraum",
+      "desc": "Siege im Zeitraum."
+    },
+    "losses": {
+      "name": "Niederlagen",
+      "hint": "Niederlagen im Zeitraum",
+      "desc": "Niederlagen im Zeitraum."
+    },
+    "finals": {
+      "name": "Final-Kills",
+      "hint": "Final-Kills im Zeitraum",
+      "desc": "Final-Kills im Zeitraum."
+    },
+    "finaldeaths": {
+      "name": "Finale Tode",
+      "hint": "Finale Tode im Zeitraum",
+      "desc": "Finale Tode im Zeitraum."
+    },
+    "beds": {
+      "name": "Zerstörte Betten",
+      "hint": "Zerstörte Betten im Zeitraum",
+      "desc": "Zerstörte Betten im Zeitraum."
+    },
+    "games": {
+      "name": "Spiele",
+      "hint": "Gespielte Spiele im Zeitraum",
+      "desc": "Gespielte Spiele im Zeitraum."
+    },
+    "levels": {
+      "name": "Gewonnene Level",
+      "hint": "Gewonnene Sternlevel",
+      "desc": "Gewonnene Sternlevel."
+    },
+    "fkdr": {
+      "name": "FKDR",
+      "hint": "Final-Kills geteilt durch finale Tode",
+      "desc": "Final-Kills geteilt durch finale Tode."
+    }
+  },
+  "stats": {
+    "player": {
+      "name": "Spieler",
+      "hint": "Der ermittelte Minecraft-Spieler",
+      "desc": "Der ermittelte Minecraft-Spieler."
+    },
+    "stars": {
+      "name": "Sterne",
+      "hint": "Bedwars-Sternlevel",
+      "desc": "Bedwars-Sternlevel."
+    },
+    "wins": {
+      "name": "Siege",
+      "hint": "Siege insgesamt",
+      "desc": "Siege insgesamt."
+    },
+    "losses": {
+      "name": "Niederlagen",
+      "hint": "Niederlagen insgesamt",
+      "desc": "Niederlagen insgesamt."
+    },
+    "finals": {
+      "name": "Final-Kills",
+      "hint": "Final-Kills insgesamt",
+      "desc": "Final-Kills insgesamt."
+    },
+    "finaldeaths": {
+      "name": "Finale Tode",
+      "hint": "Finale Tode insgesamt",
+      "desc": "Finale Tode insgesamt."
+    },
+    "beds": {
+      "name": "Zerstörte Betten",
+      "hint": "Zerstörte Betten insgesamt",
+      "desc": "Zerstörte Betten insgesamt."
+    },
+    "fkdr": {
+      "name": "FKDR",
+      "hint": "Gesamtes Verhältnis von Final-Kills zu finalen Toden",
+      "desc": "Gesamtes Verhältnis von Final-Kills zu finalen Toden."
+    },
+    "wlr": {
+      "name": "Sieg-/Niederlagenverhältnis",
+      "hint": "Gesamtes Sieg-/Niederlagenverhältnis",
+      "desc": "Gesamtes Sieg-/Niederlagenverhältnis."
+    }
+  },
+  "sniper": {
+    "player": {
+      "name": "Spieler",
+      "hint": "Der ermittelte Spieler",
+      "desc": "Der ermittelte Spieler."
+    },
+    "score": {
+      "name": "Sniper-Wertung",
+      "hint": "Die aktuelle Overlay-Wertung",
+      "desc": "Die aktuelle Overlay-Wertung."
+    },
+    "mode": {
+      "name": "Modus",
+      "hint": "Der aktuelle Warnmodus",
+      "desc": "Der aktuelle Warnmodus."
+    },
+    "tagcount": {
+      "name": "Tag-Anzahl",
+      "hint": "Aktive Sperrlisten-Tags",
+      "desc": "Aktive Sperrlisten-Tags."
+    }
+  },
+  "tags": {
+    "player": {
+      "name": "Spieler",
+      "hint": "Der ermittelte Spieler",
+      "desc": "Der ermittelte Spieler."
+    },
+    "tags": {
+      "name": "Tags",
+      "hint": "Die formatierte Tag-Liste",
+      "desc": "Die formatierte Tag-Liste."
+    },
+    "tagcount": {
+      "name": "Tag-Anzahl",
+      "hint": "Wie viele Tags aktiv sind",
+      "desc": "Wie viele Tags aktiv sind."
+    }
+  }
+}

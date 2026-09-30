@@ -1,0 +1,45 @@
+{
+  "follow": {
+    "user": {
+      "name": "Novo seguidor",
+      "hint": "A pessoa que acabou de seguir",
+      "desc": "A pessoa que acabou de seguir."
+    }
+  },
+  "sub": {
+    "user": {
+      "name": "Inscrito",
+      "hint": "O novo inscrito",
+      "desc": "O novo inscrito."
+    },
+    "tier": {
+      "name": "Nível da inscrição",
+      "hint": "O nível da inscrição",
+      "desc": "O nível da inscrição."
+    }
+  },
+  "cheer": {
+    "user": {
+      "name": "Autor do cheer",
+      "hint": "O espectador que enviou cheers",
+      "desc": "O espectador que enviou cheers."
+    },
+    "bits": {
+      "name": "Quantidade de bits",
+      "hint": "Quantos bits foram enviados em cheers",
+      "desc": "Quantos bits foram enviados em cheers."
+    }
+  },
+  "raid": {
+    "user": {
+      "name": "Autor da raid",
+      "hint": "O nome de exibição do canal que faz a raid",
+      "desc": "O nome de exibição do canal que faz a raid."
+    },
+    "viewers": {
+      "name": "Tamanho da raid",
+      "hint": "Quantos espectadores chegaram",
+      "desc": "Quantos espectadores chegaram."
+    }
+  }
+}

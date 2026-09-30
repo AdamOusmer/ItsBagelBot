@@ -1,0 +1,5 @@
+{
+  "name": "Quantidade de usos",
+  "hint": "quantas vezes este comando foi usado, sem contar esta; {uses} é a mesma coisa (aproximado)",
+  "desc": "Quantas vezes este comando foi usado no seu canal, sem contar a execução que exibe o valor. Conta todos os usos, independentemente do nome digitado, e não precisa de contador. {uses} é a forma antiga de escrever o mesmo valor. O total é aproximado: o bot agrupa as contagens, então pode estar até um minuto atrasado."
+}

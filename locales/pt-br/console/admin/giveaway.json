@@ -1,0 +1,18 @@
+{
+  "titleRequired": "título obrigatório",
+  "reasonRequired": "motivo interno obrigatório",
+  "winnerCountPositive": "a quantidade de ganhadores deve ser um número inteiro positivo",
+  "prizeMonthsRange": "a duração do prêmio deve ser um número inteiro de 1 a 12",
+  "idRequired": "ID do sorteio obrigatório",
+  "operationRequired": "versão do snapshot e chave de operação obrigatórias",
+  "poolDigestRequired": "digest do grupo obrigatório",
+  "awardIdRequired": "ID do prêmio obrigatório",
+  "draftCreatedDemo": "Rascunho do sorteio criado (demonstração).",
+  "draftCreated": "Rascunho do sorteio criado.",
+  "drawCommittedDemo": "Sorteio confirmado (demonstração).",
+  "drawCommitted": "Sorteio confirmado.",
+  "snapshotFrozenDemo": "Snapshot de elegibilidade congelado (demonstração).",
+  "snapshotFrozen": "Snapshot de elegibilidade congelado.",
+  "retryQueuedDemo": "Nova tentativa de entrega na fila (demonstração).",
+  "retryQueued": "Nova tentativa de entrega na fila."
+}

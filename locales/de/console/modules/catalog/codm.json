@@ -1,0 +1,22 @@
+{
+  "label": "CODM-Profil",
+  "tagline": "Call of Duty: Mobile Global-Profile im Chat abrufen.",
+  "description": "Rufe ein CODM Global-Profil per UID oder exaktem Nicknamen mit !codm, !codmprofile oder !codmrank ab. Das schreibgeschützte Profil umfasst Level, Mehrspieler-Rang und Bewertung, Land und Kurz-ID. Unterstützt die CODM Global-Edition und enthält keine KD, keinen Spielverlauf und keine Battle-Royale-Statistiken.",
+  "settings": {
+    "account": {
+      "label": "Verknüpftes CODM-Konto",
+      "help": "Standardprofil für den Befehl. Wenn leer, gib nach !codm eine CODM-UID oder einen exakten Nicknamen ein.",
+      "placeholder": "CODM-UID oder exakter Nickname"
+    },
+    "linkedOnly": {
+      "help": "Wenn aktiv, nutzt jede Abfrage dein verknüpftes CODM-Konto und ignoriert von Zuschauern eingegebene Namen. Verknüpfe zuerst eine CODM-UID oder einen exakten Nicknamen."
+    }
+  },
+  "replies": {
+    "profile": {
+      "tagline": "CODM Global-Profil: !codm, !codmprofile oder !codmrank.",
+      "event": "!codm [UID/exact nickname]",
+      "defaultMessage": "{player} · Level {level} · MP {rank} · Bewertung {rating} · {country}"
+    }
+  }
+}

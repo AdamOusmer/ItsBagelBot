@@ -1,0 +1,6 @@
+{
+  "name": "Sua hora local",
+  "hint": "sua hora local, no formato escolhido (módulo Hora local); {time:Paris} para outro lugar, sem precisar de módulo",
+  "desc": "A hora onde você está, no fuso e formato definidos no módulo Hora local. Requer esse módulo com um fuso salvo. {time:Paris} consulta outro lugar (cidade, país, abreviação como EST ou diferença em relação ao UTC) e funciona mesmo sem o módulo: não precisa de um fuso próprio, só usa o formato de relógio escolhido se você já definiu um. Um lugar não reconhecido retorna vazio.",
+  "placeHint": "a hora em um lugar indicado por você, sem precisar de módulo"
+}

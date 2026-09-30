@@ -1,0 +1,5 @@
+{
+  "name": "Veces usado",
+  "hint": "cuántas veces se ha usado este comando, sin contar esta; {uses} es lo mismo (aproximado)",
+  "desc": "Cuántas veces se ha usado este comando en tu canal, sin contar la que lo muestra. Cuenta todos los usos, sea cual sea el nombre escrito, y no necesita un contador. {uses} es la forma antigua de escribir el mismo valor. El total es aproximado: el bot agrupa los recuentos, así que puede llevar hasta un minuto de retraso."
+}

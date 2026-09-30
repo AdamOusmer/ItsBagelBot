@@ -1,0 +1,5 @@
+{
+  "name": "Personas en el chat",
+  "hint": "cuántas personas han hablado en el chat recientemente",
+  "desc": "Cuántas personas han hablado en el chat recientemente. Cuenta a quienes el bot ha visto hablar, no a todos los que tienen la página abierta; un canal en silencio devuelve 0."
+}

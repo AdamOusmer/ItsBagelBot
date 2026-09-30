@@ -1,0 +1,12 @@
+{
+  "enabled": "Aktiviert",
+  "enabledHelp": "Aktiviere oder deaktiviere diesen integrierten Befehl für deinen Kanal.",
+  "usage": "Verwendung",
+  "preview": "Vorschau",
+  "access": "Zugriff",
+  "saveAccess": "Zugriff speichern",
+  "cooldown": "Abklingzeit",
+  "replyMessage": "Antwortnachricht",
+  "replyHint": "Für die Standardantwort leer lassen. {clip} = Clip-Link, {user} = Clip-Ersteller, {target} = Titel.",
+  "saveReply": "Antwort speichern"
+}

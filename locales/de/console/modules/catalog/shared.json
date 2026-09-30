@@ -1,0 +1,6 @@
+{
+  "linkedOnly": {
+    "label": "Nur mein verknüpftes Konto abfragen",
+    "help": "Wenn aktiv, können Zuschauer keine anderen Spieler angeben: Jeder Befehl zeigt dein verknüpftes Konto (oder deinen Twitch-Benutzernamen, falls keines verknüpft ist). Eingegebene Namen werden ohne Chat-Antwort ignoriert. Standardmäßig aus."
+  }
+}

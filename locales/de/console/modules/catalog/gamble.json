@@ -1,0 +1,43 @@
+{
+  "label": "Würfelspiel",
+  "tagline": "Lass Zuschauer ihre Punkte mit !gamble auf einen Wurf setzen.",
+  "description": "Gib deinen Treuepunkten ein Spiel: Zuschauer geben !gamble <amount> ein (oder half/all für die Hälfte/alles), und der Bot würfelt 1-100. Ein Wurf innerhalb deiner Gewinnchance gibt den Einsatz plus denselben Betrag zurück; sonst geht er verloren. Lege unten Gewinnchance, Einsatzlimits und Abklingzeit pro Zuschauer fest und passe die Gewinn- und Verlustnachrichten an. Jede Gutschrift und Abbuchung bewegt tatsächliche Treuepunkte im selben Punktebuch wie !points. Wird auf der Treueseite aktiviert. Funktioniert nicht bei deaktivierter Punktewährung und verwendet denselben Währungsnamen.",
+  "settings": {
+    "winPercent": {
+      "label": "Gewinnchance %",
+      "help": "Ein Wurf mit dieser Zahl oder niedriger gewinnt. 50 entspricht einem fairen Münzwurf; erlaubt sind 1-99.",
+      "placeholder": "50"
+    },
+    "minBet": {
+      "label": "Mindesteinsatz",
+      "placeholder": "1"
+    },
+    "maxBet": {
+      "label": "Höchsteinsatz",
+      "placeholder": "1000"
+    },
+    "cooldownSeconds": {
+      "label": "Abklingzeit (Sekunden)",
+      "help": "Pro Zuschauer. Ein würfelnder Chatter blockiert nie einen anderen.",
+      "placeholder": "10"
+    }
+  },
+  "replies": {
+    "won": {
+      "label": "Gewinnnachricht",
+      "tagline": "Wenn der Wurf innerhalb der Gewinnchance liegt.",
+      "event": "!gamble 100",
+      "defaultMessage": "@{user} hat {roll} gewürfelt (nötig: höchstens {chance}) und {amount} {points} gewonnen. Neuer Stand: {balance}!"
+    },
+    "lost": {
+      "label": "Verlustnachricht",
+      "tagline": "Wenn der Wurf außerhalb der Gewinnchance liegt.",
+      "event": "!gamble 100",
+      "defaultMessage": "@{user} hat {roll} gewürfelt (nötig: höchstens {chance}) und {amount} {points} verloren. Neuer Stand: {balance}."
+    }
+  },
+  "commands": {
+    "gamble_amount": "Setze diese Punktzahl auf einen Wurf.",
+    "gamble_half_all": "Setze die Hälfte / den gesamten Punktestand."
+  }
+}

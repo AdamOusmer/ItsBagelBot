@@ -1,0 +1,22 @@
+{
+  "notFoundEyebrow": "Entre las migas",
+  "notFoundTitle": "Esta página se ha ido de paseo.",
+  "notFoundDescription": "Busqué bajo cada semilla de sésamo, pero la página que buscas no está aquí.",
+  "accessEyebrow": "Detrás del mostrador",
+  "accessTitle": "Esto es solo para el personal.",
+  "accessDescription": "Inicia sesión con una cuenta que tenga acceso a esta sección ({app}).",
+  "serverEyebrow": "Un poco pasado de horno",
+  "serverTitle": "Algo se torció.",
+  "serverDescription": "Una bandeja se cayó entre bastidores. Espera un momento y vuelve a intentar abrir la página.",
+  "unexpectedEyebrow": "Un desvío inesperado",
+  "unexpectedTitle": "He encontrado un bache.",
+  "unexpectedDescription": "Ocurrió algo inesperado al cargar esta página.",
+  "aside": "El horno sigue caliente. Todo lo demás está donde lo dejaste.",
+  "backToDashboard": "Volver al panel",
+  "backToApp": "Volver: {app}",
+  "tryAgain": "Reintentar",
+  "signIn": "Iniciar sesión",
+  "goBack": "Volver",
+  "appDashboard": "panel",
+  "appAdmin": "consola de administración"
+}

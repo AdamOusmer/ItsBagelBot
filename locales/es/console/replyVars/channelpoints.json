@@ -1,0 +1,39 @@
+{
+  "reply": {
+    "user": {
+      "name": "Quien canjea",
+      "hint": "Quién canjeó la recompensa",
+      "desc": "Quién canjeó la recompensa."
+    },
+    "input": {
+      "name": "Texto del espectador",
+      "hint": "texto del espectador",
+      "desc": "El texto escrito con el canje (cuando la recompensa lo solicita)."
+    },
+    "reward": {
+      "name": "Título de recompensa",
+      "hint": "El nombre de la recompensa canjeada",
+      "desc": "El nombre de la recompensa canjeada."
+    },
+    "cost": {
+      "name": "Coste en puntos",
+      "hint": "Lo que cuesta la recompensa",
+      "desc": "Lo que cuesta la recompensa."
+    },
+    "channel": {
+      "name": "Canal",
+      "hint": "El nombre de tu canal",
+      "desc": "El nombre de tu canal."
+    },
+    "counter": {
+      "name": "Contador vinculado",
+      "hint": "El nuevo valor del contador vinculado",
+      "desc": "El nuevo valor del contador vinculado, cuando la recompensa tiene uno. Dale alcance por comando para un total conjunto compartido por todos los canjes de esta recompensa."
+    },
+    "points": {
+      "name": "Puntos de fidelidad",
+      "hint": "Puntos de fidelidad que concede la recompensa (si son positivos)",
+      "desc": "Puntos de fidelidad que concede la recompensa (si son positivos)."
+    }
+  }
+}

@@ -7,6 +7,7 @@ import { builtinDef } from '@bagel/kit/catalog/builtin-commands';
 import { moduleDef } from '@bagel/kit/catalog';
 import { SURFACES, kitText, type VarDef as SurfaceVarDef, type SurfaceDef } from '../../i18n/builder';
 import type { Lang } from '../../i18n/lang';
+import { STATIC_LOCALES } from '@bagel/kit/i18n/static';
 import type {
   LocaleText,
   VariableAvailability,
@@ -50,7 +51,7 @@ function surfaceOnlyGroup(surfaceId: string): VariableGroup {
 }
 
 function l10n(key: string): LocaleText {
-  return { en: kitText('en', key), fr: kitText('fr', key) };
+  return Object.fromEntries(STATIC_LOCALES.map((locale) => [locale, kitText(locale, key)]));
 }
 
 const EMPTY_LOCALE: LocaleText = Object.freeze({ en: '', fr: '' });

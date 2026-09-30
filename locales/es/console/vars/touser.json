@@ -1,0 +1,5 @@
+{
+  "name": "Persona indicada",
+  "hint": "primer argumento, p. ej., un usuario mencionado",
+  "desc": "La primera palabra escrita después del comando (sin \"@\"); el propio espectador si está vacía. {target} también funciona."
+}

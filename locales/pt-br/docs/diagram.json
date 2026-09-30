@@ -1,0 +1,12 @@
+{
+  "viewer": "Visualizador de diagramas",
+  "controls": "Controles do diagrama",
+  "zoomOut": "Diminuir zoom",
+  "reset": "Redefinir visualização",
+  "zoomIn": "Aumentar zoom",
+  "close": "Fechar (Esc)",
+  "hint": "arraste para mover · role para ajustar o zoom · esc para fechar",
+  "open": "Abrir diagrama no visualizador em tela cheia",
+  "fullscreen": "Abrir tela cheia",
+  "expand": "Expandir"
+}

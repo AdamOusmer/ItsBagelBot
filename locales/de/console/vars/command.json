@@ -1,0 +1,5 @@
+{
+  "name": "Befehlsname",
+  "hint": "der eigene Name des Befehls, ohne „!“",
+  "desc": "Der Name des ausgeführten Befehls, ohne \"!\". Alternative Namen geben immer den Hauptnamen aus."
+}

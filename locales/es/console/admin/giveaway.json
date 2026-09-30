@@ -1,0 +1,18 @@
+{
+  "titleRequired": "se requiere un título",
+  "reasonRequired": "se requiere un motivo interno",
+  "winnerCountPositive": "el número de ganadores debe ser un entero positivo",
+  "prizeMonthsRange": "la duración del premio debe ser un entero de 1 a 12",
+  "idRequired": "se requiere el ID del sorteo",
+  "operationRequired": "se requieren la versión de la instantánea y la clave de operación",
+  "poolDigestRequired": "se requiere el resumen del conjunto de participantes",
+  "awardIdRequired": "se requiere el ID del premio",
+  "draftCreatedDemo": "Borrador del sorteo creado (demostración).",
+  "draftCreated": "Borrador del sorteo creado.",
+  "drawCommittedDemo": "Sorteo confirmado (demostración).",
+  "drawCommitted": "Sorteo confirmado.",
+  "snapshotFrozenDemo": "Instantánea de elegibilidad congelada (demostración).",
+  "snapshotFrozen": "Instantánea de elegibilidad congelada.",
+  "retryQueuedDemo": "Reintento de entrega en cola (demostración).",
+  "retryQueued": "Reintento de entrega en cola."
+}

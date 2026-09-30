@@ -1,0 +1,22 @@
+{
+  "connectCta": "Conectar Spotify",
+  "connectHelp": "Conecte a conta Spotify em cuja reprodução os espectadores adicionarão músicas. Ela é autorizada no aplicativo acima. O token de atualização é armazenado com criptografia e nunca exibido novamente.",
+  "connectNeedsApp": "Adicione seu aplicativo Spotify acima primeiro.",
+  "connectTitle": "Conectar Spotify",
+  "connectedHelp": "Sua conta Spotify está conectada. O token fica criptografado no servidor e nunca é exibido novamente aqui.",
+  "connectedPill": "Conectado",
+  "connectedToast": "Spotify conectado.",
+  "disconnect": "Desconectar",
+  "disconnectTitle": "Desconectar Spotify?",
+  "disconnectBody": "Bagel deixará de acessar sua conta Spotify. Os pedidos de música ficarão indisponíveis até você reconectar.",
+  "disconnectFailed": "Não foi possível desconectar Spotify.",
+  "disconnectedToast": "Spotify desconectado.",
+  "reconnect": "Sua autorização do Spotify não tem uma permissão necessária aos pedidos de música.",
+  "reconnectCta": "Reconectar Spotify",
+  "reconnectSpotify": "Reconectar Spotify",
+  "scopeGap": "Sua conexão com o Spotify não tem uma permissão necessária aos pedidos de música. Reconecte para concedê-la.",
+  "title": "Conexão",
+  "accountLabel": "Conta",
+  "needsReconnectPill": "Precisa reconectar",
+  "grantRevoked": "O Spotify não aceita mais esta conexão, então os pedidos de música estão pausados. Reconecte para retomá-los."
+}

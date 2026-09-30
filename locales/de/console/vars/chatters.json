@@ -1,0 +1,5 @@
+{
+  "name": "Personen im Chat",
+  "hint": "wie viele Personen kürzlich im Chat geschrieben haben",
+  "desc": "Wie viele Personen kürzlich im Chat geschrieben haben. Gezählt werden Personen, deren Nachrichten der Bot gesehen hat, nicht alle mit geöffneter Seite. Bei einem stillen Kanal wird 0 zurückgegeben."
+}

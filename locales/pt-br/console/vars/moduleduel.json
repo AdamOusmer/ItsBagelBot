@@ -1,0 +1,5 @@
+{
+  "name": "Duelos",
+  "hint": "Exige o módulo Duelos ativado. Também exige que os Pontos de fidelidade estejam ativados.",
+  "desc": "Use {duel:variable} em um comando personalizado para ler os valores públicos deste módulo. Exige o módulo Duelos ativado. Adicionar uma variável não ativa seu módulo. Módulos desativados deixam a variável visível no chat. Valores exclusivos de eventos ficam vazios quando o comando não tem um evento correspondente; use um |fallback para valores vazios. A prévia usa dados de exemplo e não confirma que seu módulo está ativado. Também exige o módulo Pontos de fidelidade ativado."
+}

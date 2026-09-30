@@ -1,0 +1,51 @@
+{
+  "label": "AutoMod",
+  "tagline": "Detecte golpes, capturadores de IP e spam de raids antes dos seus moderadores.",
+  "description": "AutoMod monitora o chat em busca de mensagens nocivas e enxurradas de raids, para seus moderadores também aproveitarem a transmissão. Conforme a gravidade da mensagem, pode advertir o remetente, remover a mensagem ou aplicar uma restrição temporária no chat ou um banimento. VIPs, moderadores e você sempre são isentos, e casos duvidosos ficam para seus moderadores humanos. Escolha um nível de Nenhum a Todos e ajuste cada verificação abaixo. Uma proteção mínima (ofensas discriminatórias e links que capturam IP) permanece ativa em todos os níveis, mesmo com o módulo desativado, pois esse conteúdo pode colocar seu canal e o bot em risco na Twitch. O resto é com você.",
+  "settings": {
+    "level": {
+      "label": "Nível de aplicação",
+      "help": "Define o padrão de todas as verificações abaixo. A proteção mínima vale em todos os níveis.",
+      "placeholder": "moderate",
+      "options": {
+        "none": "Nenhum - somente proteção mínima",
+        "basic": "Básico - proteção mínima + assédio",
+        "moderate": "Moderado - recomendado (padrão)",
+        "strict": "Todos - todas as verificações, rigor familiar"
+      }
+    },
+    "harassment": {
+      "label": "Assédio",
+      "help": "Mensagens feitas para ferir alguém: o remetente recebe uma advertência e a mensagem é removida. Se continuar, vem uma restrição temporária no chat e depois um banimento."
+    },
+    "sexual": {
+      "label": "Conteúdo sexual",
+      "help": "Remove mensagens com termos sexuais explícitos."
+    },
+    "profanity": {
+      "label": "Palavrões",
+      "help": "Remove palavrões comuns. Desativado por padrão: a maioria dos canais permite."
+    },
+    "style": {
+      "label": "Spam de maiúsculas e símbolos",
+      "help": "Remove gritaria, paredes de símbolos e enxurradas de caracteres. Paredes de emotes (spam de KEKW) são reconhecidas e nunca sinalizadas."
+    },
+    "links": {
+      "label": "Radar de spam de links",
+      "help": "Monitora o mesmo padrão de link publicado por várias contas e remove a onda. Links isolados nunca são afetados."
+    },
+    "clips_only": {
+      "label": "Somente clipes da Twitch",
+      "help": "Remove mensagens com qualquer link que não seja um clipe da Twitch (clips.twitch.tv/… ou twitch.tv/…/clip/…). Desativado por padrão: ative quando o chat só deve compartilhar clipes."
+    },
+    "block_terms": {
+      "label": "Termos bloqueados",
+      "help": "Palavras ou frases extras para sinalizar no seu canal. Separe por vírgulas ou quebras de linha. Detectadas mesmo com disfarces (l33t, letras parecidas).",
+      "placeholder": "termo um, termo dois"
+    },
+    "allow_terms": {
+      "label": "Termos permitidos",
+      "help": "Palavras aceitas no seu canal: uma linha com uma delas nunca é sinalizada pelas verificações acima ou pelos termos bloqueados. Não pode anular a proteção mínima."
+    }
+  }
+}

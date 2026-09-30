@@ -1,0 +1,22 @@
+{
+  "connectCta": "Spotify verbinden",
+  "connectHelp": "Verbinde das Spotify-Konto, in dessen Wiedergabe Zuschauer Songs einreihen sollen. Es wird über deine App oben autorisiert. Das Refresh-Token wird verschlüsselt gespeichert und nie wieder angezeigt.",
+  "connectNeedsApp": "Füge zuerst oben deine Spotify-App hinzu.",
+  "connectTitle": "Spotify verbinden",
+  "connectedHelp": "Dein Spotify-Konto ist verbunden. Das Token wird verschlüsselt auf dem Server gespeichert und hier nie wieder angezeigt.",
+  "connectedPill": "Verbunden",
+  "connectedToast": "Spotify verbunden.",
+  "disconnect": "Trennen",
+  "disconnectTitle": "Spotify trennen?",
+  "disconnectBody": "Bagel greift nicht mehr auf dein Spotify-Konto zu. Songwünsche bleiben nicht verfügbar, bis du es erneut verbindest.",
+  "disconnectFailed": "Spotify konnte nicht getrennt werden.",
+  "disconnectedToast": "Spotify getrennt.",
+  "reconnect": "Deiner Spotify-Autorisierung fehlt eine für Songwünsche erforderliche Berechtigung.",
+  "reconnectCta": "Spotify erneut verbinden",
+  "reconnectSpotify": "Spotify erneut verbinden",
+  "scopeGap": "Deiner Spotify-Verbindung fehlt eine für Songwünsche erforderliche Berechtigung. Verbinde sie erneut, um diese zu erteilen.",
+  "title": "Verbindung",
+  "accountLabel": "Konto",
+  "needsReconnectPill": "Erneute Verbindung nötig",
+  "grantRevoked": "Spotify akzeptiert diese Verbindung nicht mehr, daher sind Songwünsche pausiert. Verbinde sie erneut, um sie fortzusetzen."
+}

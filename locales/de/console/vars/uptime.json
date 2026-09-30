@@ -1,0 +1,5 @@
+{
+  "name": "Stream-Laufzeit",
+  "hint": "wie lange du live bist, leer, wenn du offline bist (Schalter !uptime)",
+  "desc": "Wie lange der Stream live ist, in der Formulierung von !uptime. Offline ist das Ergebnis leer, also gib einen Standardwert an. {uptime:someone} liefert dasselbe für einen anderen Kanal. Richtet sich nach dem Schalter für !uptime."
+}

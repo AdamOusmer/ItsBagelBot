@@ -1,0 +1,18 @@
+{
+  "commercial.ok": "@{commercial:user} hat Werbung für {commercial:length}s gestartet.",
+  "commercial.usage": "Verwendung: !commercial [30|60|90|120|150|180]",
+  "game.current": "Das aktuelle Spiel ist: {game:game}",
+  "game.not_found": "@{game:user} Spiel nicht gefunden: {game:game}",
+  "game.updated": "@{game:user} hat das Spiel geändert zu: {game:game}",
+  "game.usage": "Verwendung: !setgame <game>",
+  "marker.ok": "@{marker:user} hat eine Stream-Markierung gesetzt.",
+  "tags.current": "Aktuelle Tags: {tags:tags}",
+  "tags.none": "Keine Tags gesetzt.",
+  "tags.updated": "@{tags:user} hat die Tags geändert zu: {tags:tags}",
+  "tags.usage": "Verwendung: !tags <tag1, tag2, …> (max. 10, je 25 Zeichen)",
+  "title.current": "Der aktuelle Titel ist: {title:title}",
+  "title.too_long": "@{title:user} der Titel ist zu lang (max. 140 Zeichen).",
+  "title.updated": "@{title:user} hat den Titel geändert zu: {title:title}",
+  "title.usage": "Verwendung: !settitle <title>",
+  "unavailable": "Der Stream konnte gerade nicht aktualisiert werden."
+}

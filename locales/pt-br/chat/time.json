@@ -1,0 +1,18 @@
+{
+  "day": "dia",
+  "days": "dias",
+  "hour": "hora",
+  "hours": "horas",
+  "less_than_minute": "menos de um minuto",
+  "minute": "minuto",
+  "minutes": "minutos",
+  "month": "mês",
+  "months": "meses",
+  "unavailable": "O horário está indisponível no momento.",
+  "default": "Horário atual de quem transmite: {time:time}.",
+  "lookup": "Horário atual em {time:place}: {time:time}.",
+  "unknown": "Não sei onde fica \"{time:place}\". Tente uma cidade (Tokyo), um estado ou país (Texas, Japan), um fuso (Europe/Paris) ou uma diferença em relação ao UTC (UTC+2).",
+  "unset": "Quem transmite ainda não definiu seu fuso horário.",
+  "year": "ano",
+  "years": "anos"
+}

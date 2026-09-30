@@ -1,0 +1,11 @@
+{
+  "cta": "Instalar aplicación",
+  "ariaLabel": "Instalar ItsBagelBot como aplicación",
+  "dismiss": "Descartar",
+  "ios": {
+    "title": "Añadir a la pantalla de inicio",
+    "step1": "Toca el botón Compartir de la barra de herramientas.",
+    "step2": "Elige \"Añadir a la pantalla de inicio\".",
+    "close": "Cerrar"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "close4004": "Discord hat das Bot-Token abgelehnt. Es muss ersetzt werden, bevor der Bot zurückkehren kann.",
+  "close4011": "Dieser Bot benötigt jetzt mehr als einen Shard. Hier kannst du nichts tun; wir kümmern uns darum.",
+  "close4013": "Discord hat die Gateway-Intents abgelehnt. Hier kannst du nichts tun; wir kümmern uns darum.",
+  "close4014": "Discord hat die privilegierten Intents, die dieser Bot benötigt, nicht genehmigt. Hier kannst du nichts tun; wir kümmern uns darum.",
+  "sinceDays": "{n} T.",
+  "sinceHours": "{n} Std.",
+  "sinceMinutes": "{n} Min.",
+  "members": "Mitglieder: {n}",
+  "noMembers": "Mitgliederzahl nicht verfügbar",
+  "offline": "Offline",
+  "online": "Online",
+  "reauth": "Erneut autorisieren",
+  "reconnecting": "Die Gateway-Verbindung wurde unterbrochen und wird automatisch wiederhergestellt. Keine Aktion nötig.",
+  "resumes": "Sitzungsfortsetzungen",
+  "since": "Online seit",
+  "title": "Server und Bot",
+  "unknown": "Unbekannt"
+}

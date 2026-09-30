@@ -1,0 +1,14 @@
+{
+  "rehearsal": "Ensayo del chat",
+  "ariaPreview": "Vista previa del chat",
+  "ariaTyping": "El bot está escribiendo",
+  "runsVerb": "Esta respuesta ejecuta el comando {verb} de Twitch",
+  "announcement": "Anuncio",
+  "addMessageAfter": "…añade un mensaje después de {verb}",
+  "shoutsOut": "Recomienda a",
+  "nameChannel": "…indica un canal después de /shoutout",
+  "pinnedForStream": "Fijado hasta que termine la transmisión",
+  "addActionAfterMe": "…añade una acción después de /me",
+  "nothingToSay": "…el bot aún no tiene nada que decir",
+  "unknownVar": "Variable desconocida"
+}

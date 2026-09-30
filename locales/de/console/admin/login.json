@@ -1,0 +1,10 @@
+{
+  "botCta": "Bot-Konto autorisieren",
+  "sub": "Admin-Konsole",
+  "lede": "Zugang für Betreiber. Melde dich mit dem Twitch-Konto auf der Mitarbeiter-Zulassungsliste an.",
+  "cta": "Mit Twitch anmelden",
+  "errDenied": "Dieses Twitch-Konto steht nicht auf der Mitarbeiter-Zulassungsliste.",
+  "errState": "Die Anmeldung ist abgelaufen oder wurde manipuliert. Versuche es erneut.",
+  "errOauth": "Twitch hat die Anmeldung abgelehnt. Versuche es erneut.",
+  "errScope": "Erforderliche Berechtigung fehlt."
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Tocando agora",
+  "hint": "a faixa tocando agora, ou {song.title} / {song.artist} (Pedidos de músicas)",
+  "desc": "A faixa tocando no Spotify agora. {song.title} e {song.artist} retornam as duas partes separadamente. Se nada estiver tocando, retorna vazio. Exige o módulo Pedidos de músicas."
+}

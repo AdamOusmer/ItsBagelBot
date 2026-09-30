@@ -1,0 +1,14 @@
+{
+  "eyebrow": "Perguntas frequentes",
+  "title": "Perguntas justas.",
+  "q1": "O plano gratuito é gratuito mesmo?",
+  "a1": "Sim. Todos os recursos, e assim continuará. Criei porque boas ferramentas não deveriam depender do seu orçamento.",
+  "q2": "Então pelo que estou pagando com Premium?",
+  "a2": "Prioridade. Mensagens Premium vão para o início da fila, então comandos e moderação chegam mais rápido quando o chat está cheio. Também ajuda a manter os servidores.",
+  "q3": "Posso cancelar Premium a qualquer momento?",
+  "a3": "Um clique no painel. Você mantém os benefícios até o fim do período de cobrança já pago.",
+  "q4": "O que inclui o plano Empresarial?",
+  "a4": "Hardware dedicado, gerenciamento de vários streamers, termos personalizados e suporte direto de engenharia. Escreva para enterprise@itsbagelbot.com para pedir um orçamento.",
+  "q5": "O código-fonte do ItsBagelBot está disponível?",
+  "a5": "O código-fonte do ItsBagelBot está no GitHub sob uma licença de código-fonte disponível, que não é o mesmo que código aberto. Você pode ler e auditar cada linha, mas a licença limita a redistribuição e o uso comercial."
+}

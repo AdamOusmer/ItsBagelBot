@@ -1,0 +1,22 @@
+{
+  "lastmatch.decay": "(снижение рейтинга)",
+  "lastmatch.draw": "ничья",
+  "lastmatch.empty": "матчи ещё не найдены",
+  "lastmatch.forfeit": "(сдача)",
+  "lastmatch.loss": "поражение",
+  "lastmatch.win": "победа",
+  "leaderboard.empty": "в этом рейтинге пока никого нет",
+  "pace.empty": "в этой сессии темп не отслеживался",
+  "pace.nofort": "недавно темп до крепости не отслеживался",
+  "pb.empty": "личного рекорда пока нет (%s)",
+  "pb.window.alltime": "за всё время",
+  "pb.window.daily": "за день",
+  "pb.window.monthly": "за месяц",
+  "pb.window.ranked": "рейтинговый",
+  "pb.window.weekly": "за неделю",
+  "race.empty": "для гонки этой недели ещё нет результатов",
+  "race.noplayer": "в гонке этой недели ещё нет результата",
+  "record.usage": "Использование: !record <player> [player2]",
+  "session.started": "отслеживание сессии только началось (%s elo), спросите снова после матча!",
+  "unrated": "без рейтинга"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Título da música",
+  "hint": "apenas o título da faixa, a primeira parte de {song}",
+  "desc": "O título da faixa sozinho, a primeira parte de {song}. Se nada estiver tocando, retorna vazio. Exige o módulo Pedidos de músicas."
+}

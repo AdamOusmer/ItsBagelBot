@@ -1,0 +1,19 @@
+{
+  "shoutout": {
+    "raider": {
+      "name": "Nombre de quien hace la raid",
+      "hint": "Nombre visible del canal que hace la raid",
+      "desc": "Nombre visible del canal que hace la raid."
+    },
+    "raider_login": {
+      "name": "Nombre de inicio de sesión de quien hace la raid",
+      "hint": "Nombre de inicio de sesión apto para URL",
+      "desc": "Nombre de inicio de sesión apto para URL, para enlaces twitch.tv/."
+    },
+    "viewers": {
+      "name": "Tamaño de la raid",
+      "hint": "Cuántos espectadores llegaron",
+      "desc": "Cuántos espectadores llegaron."
+    }
+  }
+}

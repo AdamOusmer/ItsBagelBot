@@ -1,0 +1,22 @@
+{
+  "notFoundEyebrow": "In den Krümeln verloren",
+  "notFoundTitle": "Diese Seite ist davongelaufen.",
+  "notFoundDescription": "Ich habe unter jedem Sesamkorn gesucht, aber die gesuchte Seite ist nicht hier.",
+  "accessEyebrow": "Hinter dem Tresen",
+  "accessTitle": "Hier dürfen nur Mitarbeiter rein.",
+  "accessDescription": "Melde dich mit einem Konto an, das Zugriff auf diesen Bereich ({app}) hat.",
+  "serverEyebrow": "Etwas zu lange gebacken",
+  "serverTitle": "Etwas ist schiefgelaufen.",
+  "serverDescription": "Hinter den Kulissen ist ein Blech umgekippt. Warte kurz und versuche die Seite dann erneut.",
+  "unexpectedEyebrow": "Ein unerwarteter Umweg",
+  "unexpectedTitle": "Ich bin ins Stolpern geraten.",
+  "unexpectedDescription": "Beim Laden dieser Seite ist etwas Unerwartetes passiert.",
+  "aside": "Der Ofen ist noch warm. Alles andere ist genau da, wo du es gelassen hast.",
+  "backToDashboard": "Zurück zum Dashboard",
+  "backToApp": "Zurück: {app}",
+  "tryAgain": "Erneut versuchen",
+  "signIn": "Anmelden",
+  "goBack": "Zurück",
+  "appDashboard": "Dashboard",
+  "appAdmin": "Admin-Konsole"
+}

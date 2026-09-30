@@ -1,0 +1,18 @@
+{
+  "lockedTo": "Auf Nutzer {id} beschränkt",
+  "liveOnly": "Wird nur während des Live-Streams ausgeführt",
+  "unsaved": "Ungespeichert",
+  "unsavedTitle": "Du hast ungespeicherte Änderungen an diesem Befehl",
+  "also": "Auch: {aliases}",
+  "cooldown": "Abklingzeit",
+  "uses": "Verwendungen",
+  "toggleAria": "!{name} aktivieren oder deaktivieren",
+  "deleteAria": "!{name} löschen",
+  "builtin": "Integriert",
+  "builtinTitle": "Integrierter Befehl: nur ein- und ausschaltbar, keine bearbeitbare Antwort",
+  "failed": "Fehlgeschlagen",
+  "moreAliases": "Weitere alternative Namen ({count}): {aliases}",
+  "selected": "Ausgewählt",
+  "notSelected": "Nicht ausgewählt",
+  "perViewerCooldown": "Jeder Zuschauer wartet {n}s zwischen eigenen Ausführungen"
+}

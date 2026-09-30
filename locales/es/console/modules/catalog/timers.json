@@ -1,0 +1,5 @@
+{
+  "label": "Temporizadores",
+  "tagline": "Publica mensajes recurrentes en el chat según un horario mientras transmites en directo.",
+  "description": "Configura mensajes que el bot repite según un horario mientras transmites en directo: anuncios, redes sociales, recordatorios. Cada temporizador mantiene su propio intervalo y solo se activa durante la transmisión. Añádelos, edítalos y actívalos en esta página."
+}

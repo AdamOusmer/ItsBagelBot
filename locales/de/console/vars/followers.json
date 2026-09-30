@@ -1,0 +1,5 @@
+{
+  "name": "Followerzahl",
+  "hint": "deine aktuelle Followerzahl",
+  "desc": "Deine aktuelle Followerzahl, direkt von Twitch. Akzeptiert keinen Zusatz; zählt immer deinen eigenen Kanal."
+}

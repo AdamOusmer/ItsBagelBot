@@ -1,0 +1,22 @@
+{
+  "notFoundEyebrow": "Perdido nas migalhas",
+  "notFoundTitle": "Esta página saiu andando.",
+  "notFoundDescription": "Procurei sob cada semente de gergelim, mas a página que você quer não está aqui.",
+  "accessEyebrow": "Atrás do balcão",
+  "accessTitle": "Esta área é só para a equipe.",
+  "accessDescription": "Entre com uma conta que tenha acesso ao aplicativo: {app}.",
+  "serverEyebrow": "Passou um pouco do ponto",
+  "serverTitle": "Algo deu errado.",
+  "serverDescription": "Uma bandeja virou nos bastidores. Aguarde um instante e tente abrir a página novamente.",
+  "unexpectedEyebrow": "Um desvio inesperado",
+  "unexpectedTitle": "Encontrei um obstáculo.",
+  "unexpectedDescription": "Algo inesperado aconteceu ao carregar esta página.",
+  "aside": "O forno ainda está quente. Todo o resto está onde você deixou.",
+  "backToDashboard": "Voltar ao painel",
+  "backToApp": "Voltar ao aplicativo: {app}",
+  "tryAgain": "Tentar novamente",
+  "signIn": "Entrar",
+  "goBack": "Voltar",
+  "appDashboard": "painel",
+  "appAdmin": "console de administração"
+}

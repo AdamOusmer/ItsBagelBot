@@ -1,0 +1,18 @@
+{
+  "allowLabel": "Anunciar apenas estas categorias",
+  "allowPlaceholder": "Minecraft",
+  "allowTag": "Vazio significa que todas as categorias serão anunciadas.",
+  "chipAdd": "Adicionar",
+  "chipEmpty": "Nenhuma ainda.",
+  "chipRemove": "Remover {name}",
+  "clipsHelp": "Arquive clipes de !clip (e do EventSub) em #clips.",
+  "clipsLabel": "Clipes",
+  "denyLabel": "Nunca anunciar estas categorias",
+  "denyPlaceholder": "Just Chatting",
+  "denyTag": "Uma categoria bloqueada prevalece sobre a lista de permitidas.",
+  "liveHelp": "Publique em #now-live quando você começar a transmitir. O texto muda para “Transmissão encerrada.” quando você fica offline.",
+  "liveLabel": "Início de transmissão",
+  "postsHelp": "Os avisos de transmissão e os clipes são publicados diretamente pelo serviço de saída.",
+  "postsTitle": "Publicações de transmissão",
+  "chipRemoved": "{name} removido"
+}

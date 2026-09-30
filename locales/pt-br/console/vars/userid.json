@@ -1,0 +1,5 @@
+{
+  "name": "ID do espectador",
+  "hint": "o ID de usuário da Twitch de quem executou o comando",
+  "desc": "O ID de usuário da Twitch do espectador. Nunca muda, mesmo após uma mudança de nome."
+}

@@ -17,9 +17,9 @@ function keys(tree: object, prefix = ''): string[] {
 describe('catalogs', () => {
   const reference = keys(CATALOG_FILES.en).sort();
 
-  test('French is complete: exactly the English keys, none empty', () => {
-    expect(keys(CATALOG_FILES.fr).sort()).toEqual(reference);
-    for (const key of reference) expect(uiText('fr', key as never).trim().length).toBeGreaterThan(0);
+  test.each(UI_LOCALES)('%s is complete: exactly the English keys, none empty', (locale) => {
+    expect(keys(CATALOG_FILES[locale]).sort()).toEqual(reference);
+    for (const key of reference) expect(uiText(locale, key as never).trim().length).toBeGreaterThan(0);
   });
 
   test('no locale has a key English lacks', () => {
@@ -40,7 +40,13 @@ describe('lookup', () => {
   test('resolves regional and unknown locales', () => {
     expect(resolveUiLocale('fr-CA')).toBe('fr');
     expect(resolveUiLocale('FR')).toBe('fr');
-    expect(resolveUiLocale('de')).toBe('en');
+    expect(resolveUiLocale('de-DE')).toBe('de');
+    expect(resolveUiLocale('es-MX')).toBe('es');
+    expect(resolveUiLocale('ru-RU')).toBe('ru');
+    expect(resolveUiLocale('PT_BR')).toBe('pt-br');
+    expect(resolveUiLocale('pt-PT')).toBe('pt-br');
+    expect(resolveUiLocale('pt')).toBe('pt-br');
+    expect(resolveUiLocale('zz')).toBe('en');
     expect(resolveUiLocale(undefined)).toBe('en');
   });
 

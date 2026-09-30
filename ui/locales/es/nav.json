@@ -1,0 +1,12 @@
+{
+  "language": "Idioma",
+  "skip": "Ir al contenido",
+  "breadcrumb": "Ruta de navegación",
+  "main": "Navegación principal",
+  "menuOpen": "Abrir menú",
+  "menuClose": "Cerrar menú",
+  "menu": "Menú",
+  "previous": "Anterior",
+  "next": "Siguiente",
+  "pagination": "Paginación"
+}

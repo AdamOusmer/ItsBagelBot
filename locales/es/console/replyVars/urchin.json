@@ -1,0 +1,135 @@
+{
+  "daily": {
+    "player": {
+      "name": "Jugador",
+      "hint": "El jugador de Minecraft identificado",
+      "desc": "El jugador de Minecraft identificado."
+    },
+    "wins": {
+      "name": "Victorias",
+      "hint": "Victorias en el período",
+      "desc": "Victorias en el período."
+    },
+    "losses": {
+      "name": "Derrotas",
+      "hint": "Derrotas en el período",
+      "desc": "Derrotas en el período."
+    },
+    "finals": {
+      "name": "Bajas finales",
+      "hint": "Bajas finales en el período",
+      "desc": "Bajas finales en el período."
+    },
+    "finaldeaths": {
+      "name": "Muertes finales",
+      "hint": "Muertes finales en el período",
+      "desc": "Muertes finales en el período."
+    },
+    "beds": {
+      "name": "Camas destruidas",
+      "hint": "Camas destruidas en el período",
+      "desc": "Camas destruidas en el período."
+    },
+    "games": {
+      "name": "Partidas",
+      "hint": "Partidas jugadas en el período",
+      "desc": "Partidas jugadas en el período."
+    },
+    "levels": {
+      "name": "Niveles ganados",
+      "hint": "Niveles de estrellas ganados",
+      "desc": "Niveles de estrellas ganados."
+    },
+    "fkdr": {
+      "name": "FKDR",
+      "hint": "Bajas finales divididas entre muertes finales",
+      "desc": "Bajas finales divididas entre muertes finales."
+    }
+  },
+  "stats": {
+    "player": {
+      "name": "Jugador",
+      "hint": "El jugador de Minecraft identificado",
+      "desc": "El jugador de Minecraft identificado."
+    },
+    "stars": {
+      "name": "Estrellas",
+      "hint": "Nivel de estrellas de Bedwars",
+      "desc": "Nivel de estrellas de Bedwars."
+    },
+    "wins": {
+      "name": "Victorias",
+      "hint": "Victorias totales",
+      "desc": "Victorias totales."
+    },
+    "losses": {
+      "name": "Derrotas",
+      "hint": "Derrotas totales",
+      "desc": "Derrotas totales."
+    },
+    "finals": {
+      "name": "Bajas finales",
+      "hint": "Bajas finales totales",
+      "desc": "Bajas finales totales."
+    },
+    "finaldeaths": {
+      "name": "Muertes finales",
+      "hint": "Muertes finales totales",
+      "desc": "Muertes finales totales."
+    },
+    "beds": {
+      "name": "Camas destruidas",
+      "hint": "Camas destruidas totales",
+      "desc": "Camas destruidas totales."
+    },
+    "fkdr": {
+      "name": "FKDR",
+      "hint": "Proporción histórica de bajas y muertes finales",
+      "desc": "Proporción histórica de bajas y muertes finales."
+    },
+    "wlr": {
+      "name": "Proporción de victorias/derrotas",
+      "hint": "Proporción histórica de victorias y derrotas",
+      "desc": "Proporción histórica de victorias y derrotas."
+    }
+  },
+  "sniper": {
+    "player": {
+      "name": "Jugador",
+      "hint": "El jugador identificado",
+      "desc": "El jugador identificado."
+    },
+    "score": {
+      "name": "Puntuación de sniper",
+      "hint": "La puntuación actual de la superposición",
+      "desc": "La puntuación actual de la superposición."
+    },
+    "mode": {
+      "name": "Modo",
+      "hint": "El modo de advertencia actual",
+      "desc": "El modo de advertencia actual."
+    },
+    "tagcount": {
+      "name": "Cantidad de etiquetas",
+      "hint": "Etiquetas activas de la lista de bloqueados",
+      "desc": "Etiquetas activas de la lista de bloqueados."
+    }
+  },
+  "tags": {
+    "player": {
+      "name": "Jugador",
+      "hint": "El jugador identificado",
+      "desc": "El jugador identificado."
+    },
+    "tags": {
+      "name": "Etiquetas",
+      "hint": "La lista de etiquetas con formato",
+      "desc": "La lista de etiquetas con formato."
+    },
+    "tagcount": {
+      "name": "Cantidad de etiquetas",
+      "hint": "Cuántas etiquetas están activas",
+      "desc": "Cuántas etiquetas están activas."
+    }
+  }
+}

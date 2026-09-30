@@ -1,0 +1,18 @@
+{
+  "commercial.ok": "@{commercial:user}: реклама длительностью {commercial:length} сек. запущена.",
+  "commercial.usage": "Использование: !commercial [30|60|90|120|150|180]",
+  "game.current": "Текущая игра: {game:game}",
+  "game.not_found": "@{game:user} игра не найдена: {game:game}",
+  "game.updated": "@{game:user}: игра изменена на {game:game}",
+  "game.usage": "Использование: !setgame <game>",
+  "marker.ok": "@{marker:user}: маркер трансляции поставлен.",
+  "tags.current": "Текущие теги: {tags:tags}",
+  "tags.none": "Теги не заданы.",
+  "tags.updated": "@{tags:user}: теги изменены на {tags:tags}",
+  "tags.usage": "Использование: !tags <tag1, tag2, …> (максимум 10 тегов, до 25 символов каждый)",
+  "title.current": "Текущее название: {title:title}",
+  "title.too_long": "@{title:user} название слишком длинное (максимум 140 символов).",
+  "title.updated": "@{title:user}: название изменено на {title:title}",
+  "title.usage": "Использование: !settitle <title>",
+  "unavailable": "Сейчас не удалось обновить трансляцию."
+}

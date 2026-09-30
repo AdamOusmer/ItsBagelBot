@@ -1,0 +1,10 @@
+{
+  "command.answered": "!%s hat @%s geantwortet",
+  "event.follow": "%s folgt jetzt",
+  "event.subscribe": "%s hat abonniert (%s)",
+  "event.gift": "%s hat Abos verschenkt: %d",
+  "event.raid": "%s hat geraidet, Zuschauerzahl: %d",
+  "automod.ban_timeout": "Bann/Chat-Timeout verhängt",
+  "automod.deleted": "Nachricht gelöscht",
+  "reward.redemption": "Einlösung %s"
+}

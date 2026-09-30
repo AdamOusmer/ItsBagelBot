@@ -1,0 +1,41 @@
+{
+  "join": {
+    "user": {
+      "name": "Participante",
+      "hint": "Quién entró en la cola",
+      "desc": "Quién entró en la cola."
+    },
+    "pos": {
+      "name": "Posición en la cola",
+      "hint": "Su puesto en la cola",
+      "desc": "Su puesto en la cola."
+    },
+    "channel": {
+      "name": "Canal",
+      "hint": "El nombre de tu canal",
+      "desc": "El nombre de tu canal."
+    }
+  },
+  "next": {
+    "target": {
+      "name": "Siguiente jugador",
+      "hint": "A quién le toca jugar después",
+      "desc": "A quién le toca jugar después."
+    },
+    "count": {
+      "name": "En espera",
+      "hint": "Cuántas personas quedan en la cola",
+      "desc": "Cuántas personas quedan en la cola."
+    },
+    "user": {
+      "name": "Autor del comando",
+      "hint": "El moderador que llamó al siguiente jugador",
+      "desc": "El moderador que ejecutó !queue next."
+    },
+    "channel": {
+      "name": "Canal",
+      "hint": "El nombre de tu canal",
+      "desc": "El nombre de tu canal."
+    }
+  }
+}

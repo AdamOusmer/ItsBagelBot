@@ -1,0 +1,19 @@
+{
+  "help": "Willkommensnachrichten, Sprachräume zum Erstellen per Beitritt, Tickets, Team-Protokolle und Krümelränge laufen über das Discord-Gateway.",
+  "title": "Community-Verwaltung",
+  "goodbyeHelp": "Standardmäßig aus. Eine kurze Zeile, wenn jemand geht.",
+  "goodbyeLabel": "Abschied",
+  "levelsHelp": "Chat-XP (15 Krümel, 60s Abklingzeit). Rang und Tagesbonus erscheinen als Embed-Karten mit einer Schaltfläche zum Abholen des Tagesbonus.",
+  "levelsLabel": "Krümel und Ränge",
+  "linkGuardHelp": "Standardmäßig aus. Löscht Links von Mitgliedern, die noch keine Rolle haben.",
+  "linkGuardLabel": "Link-Schutz",
+  "logsHelp": "Beitritte, Austritte, Bearbeitungen, Löschungen und Moderation landen in #logs.",
+  "logsLabel": "Team-Protokolle",
+  "subscribersHelp": "Erstellt bei der Einrichtung eine Subscriber-Rolle und einen privaten Abonnentenbereich. Schalte dies aus, wenn du es nicht nutzt: Eine leere gesperrte Kategorie hilft niemandem. Abonnenten werden nicht automatisch synchronisiert; siehe den Hinweis unter Rollen.",
+  "subscribersLabel": "Abonnentenstufe",
+  "tierRolesHelp": "Bagel erstellt diese Rollen und ihre privaten Kanäle, weist sie aber nie zu und synchronisiert sie nie von Twitch. Deine Twitch-Mods, VIPs und Abonnenten werden nicht von selbst zu Discord-Mods, VIP oder Subscriber: Vergib diese Rollen selbst. Die einzige ergänzbare Ausnahme ist Discords eigene Twitch-Integration unter Servereinstellungen, Integrationen. Sie synchronisiert nur Abonnenten und erfordert ein Twitch-Affiliate- oder Partnerkonto. Discord bietet keine Möglichkeit, sie hier einzuschalten.",
+  "voiceHelp": "Beim Beitritt zu „+ Create voice“ wird ein persönlicher Raum mit Schaltflächen zum Sperren und Entsperren erstellt. Leere Kopien werden gelöscht.",
+  "voiceLabel": "Sprachraum per Beitritt erstellen",
+  "welcomeHelp": "Ein Embed in #welcome. Bagel sendet neuen Mitgliedern nie DMs.",
+  "welcomeLabel": "Neue Mitglieder begrüßen"
+}

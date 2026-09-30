@@ -1,0 +1,14 @@
+{
+  "backToAll": "Todas as versões",
+  "eyebrow": "Notas de versão",
+  "title": "Novidades.",
+  "desc": "O que mudou para você, versão por versão. Alpha, beta e pré-lançamentos vêm identificados. As notas completas estão no GitHub.",
+  "metaTitle": "Notas de versão - ItsBagelBot",
+  "metaDesc": "Novidades do ItsBagelBot: cada lançamento, em ordem de versão e com link para o GitHub.",
+  "releaseLink": "Versão no GitHub",
+  "empty": "Nada no forno ainda.",
+  "tag.alpha": "Alpha",
+  "tag.beta": "Beta",
+  "tag.prerelease": "Pré-lançamento",
+  "tag.release": "Lançamento"
+}

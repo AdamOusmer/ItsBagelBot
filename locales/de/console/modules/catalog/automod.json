@@ -1,0 +1,51 @@
+{
+  "label": "AutoMod",
+  "tagline": "Fange Betrugsversuche, IP-Grabber und Raid-Spam ab, bevor deine Mods es tun.",
+  "description": "AutoMod beobachtet den Chat auf schädliche Nachrichten und Raid-Fluten, damit auch deine Mods den Stream genießen können. Je nach Schwere einer Nachricht kann es den Absender warnen, die Nachricht entfernen oder einen Chat-Timeout oder Bann verhängen. VIPs, Mods und du sind immer ausgenommen; Grenzfälle bleiben deinen menschlichen Mods überlassen. Wähle eine Stufe von Keine bis Alle und passe dann die einzelnen Prüfungen unten an. Ein kleiner Basisschutz (Hassbeleidigungen und IP-Grabber-Links) bleibt auf jeder Stufe aktiv, auch bei deaktiviertem Modul, weil solche Inhalte deinen Kanal und den Bot auf Twitch gefährden können. Den Rest entscheidest du.",
+  "settings": {
+    "level": {
+      "label": "Eingriffsstufe",
+      "help": "Legt die Voreinstellung für alle folgenden Prüfungen fest. Der Basisschutz gilt auf jeder Stufe.",
+      "placeholder": "moderat",
+      "options": {
+        "none": "Keine – nur Basisschutz",
+        "basic": "Basis – Basisschutz + Belästigung",
+        "moderate": "Moderat – empfohlen (Standard)",
+        "strict": "Alle – jede Prüfung, streng familienfreundlich"
+      }
+    },
+    "harassment": {
+      "label": "Belästigung",
+      "help": "Nachrichten, die jemanden verletzen sollen: Der Absender wird gewarnt und die Nachricht entfernt. Bei Wiederholung folgt ein Chat-Timeout, dann ein Bann."
+    },
+    "sexual": {
+      "label": "Sexuelle Inhalte",
+      "help": "Entfernt Nachrichten mit expliziten sexuellen Begriffen."
+    },
+    "profanity": {
+      "label": "Schimpfwörter",
+      "help": "Entfernt gewöhnliche Schimpfwörter. Standardmäßig aus: Die meisten Kanäle erlauben sie."
+    },
+    "style": {
+      "label": "Großbuchstaben- und Symbol-Spam",
+      "help": "Entfernt Schreien, Symbolwände und Zeichenfluten. Emote-Wände (KEKW-Spam) werden erkannt und nie beanstandet."
+    },
+    "links": {
+      "label": "Link-Spam-Radar",
+      "help": "Erkennt dieselbe Link-Vorlage von vielen verschiedenen Konten und entfernt die Welle. Einzelne Links werden nie angefasst."
+    },
+    "clips_only": {
+      "label": "Nur Twitch-Clips",
+      "help": "Entfernt Nachrichten mit Links, die keine Twitch-Clips sind (clips.twitch.tv/… oder twitch.tv/…/clip/…). Standardmäßig aus: Aktiviere dies, wenn der Chat nur Clips teilen soll."
+    },
+    "block_terms": {
+      "label": "Blockierte Begriffe",
+      "help": "Zusätzliche Wörter oder Ausdrücke, die in deinem Kanal beanstandet werden sollen. Mit Kommas oder Zeilenumbrüchen trennen. Werden auch bei Verschleierung erkannt (l33t, ähnlich aussehende Buchstaben).",
+      "placeholder": "erster Begriff, zweiter Begriff"
+    },
+    "allow_terms": {
+      "label": "Erlaubte Begriffe",
+      "help": "Wörter, die in deinem Kanal in Ordnung sind: Eine Zeile mit einem davon wird weder von den obigen Prüfungen noch wegen deiner blockierten Begriffe beanstandet. Kann den Basisschutz nicht außer Kraft setzen."
+    }
+  }
+}

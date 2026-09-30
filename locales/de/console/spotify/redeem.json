@@ -1,0 +1,10 @@
+{
+  "enableLabel": "Belohnungseinlösungen annehmen",
+  "enableOff": "Einlösungen werden durch Punkterückgabe aufgehoben; nichts wird eingereiht.",
+  "enableOn": "Einlösungen reihen derzeit Songs ein.",
+  "help": "Eine eigene Belohnung, deren Texteingabe die Songsuche ist. Beim Einlösen wird der Song eingereiht.",
+  "liveOnlyOff": "Die Einlösung funktioniert auch, wenn du offline bist.",
+  "liveOnlyOn": "Die Einlösung funktioniert nur während deines Livestreams.",
+  "title": "Kanalpunkte",
+  "liveOnlyDisabled": "Aktiviere Einlösungen, um dies zu ändern."
+}

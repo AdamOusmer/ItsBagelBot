@@ -1,0 +1,7 @@
+{
+  "sharedPre": "Общий доступ к панели ",
+  "sharedPost": " ({sections})",
+  "viewingPre": "Просмотр от имени ",
+  "viewingPost": " (администратор {admin})",
+  "exit": "Выйти"
+}

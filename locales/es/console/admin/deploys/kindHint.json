@@ -1,0 +1,7 @@
+{
+  "release": "Etiquetar una nueva versión, compilar todas las imágenes, fijarlas y desplegar todos los servicios.",
+  "hotfix": "Mover la etiqueta actual a un commit posterior, recompilar, volver a fijar imágenes y desplegar.",
+  "bump": "Fijar las imágenes recién compiladas en main. Solo se despliegan los servicios cuya imagen cambió.",
+  "rollback": "Fijar las imágenes de una versión anterior y desplegar. Sin compilación.",
+  "reapply": "Desplegar las imágenes ya fijadas en main. Sin compilación ni PR."
+}

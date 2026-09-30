@@ -1,0 +1,18 @@
+{
+  "day": "Tag",
+  "days": "Tage",
+  "hour": "Stunde",
+  "hours": "Stunden",
+  "less_than_minute": "weniger als eine Minute",
+  "minute": "Minute",
+  "minutes": "Minuten",
+  "month": "Monat",
+  "months": "Monate",
+  "unavailable": "Die Uhrzeit ist gerade nicht verfügbar.",
+  "default": "Beim Streamer ist es gerade {time:time}.",
+  "lookup": "In {time:place} ist es gerade {time:time}.",
+  "unknown": "Ich weiß nicht, wo \"{time:place}\" liegt. Versuche eine Stadt (Tokyo), einen Bundesstaat oder ein Land (Texas, Japan), eine Zeitzone (Europe/Paris) oder einen Versatz (UTC+2).",
+  "unset": "Der Streamer hat noch keine Zeitzone festgelegt.",
+  "year": "Jahr",
+  "years": "Jahre"
+}

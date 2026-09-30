@@ -1,0 +1,8 @@
+{
+  "color": "Color",
+  "cooldown": "Espera global",
+  "cooldownTag": "0 = desactivada",
+  "cost": "Coste en puntos",
+  "reply": "Respuesta en el chat",
+  "title": "Título de recompensa"
+}

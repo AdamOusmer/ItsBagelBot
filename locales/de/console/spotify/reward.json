@@ -1,0 +1,19 @@
+{
+  "closeEditor": "Schließen",
+  "costPts": "{n} Pkt.",
+  "create": "Belohnung erstellen",
+  "defaultTitle": "Musikwunsch abspielen",
+  "edit": "Belohnung bearbeiten",
+  "inputHint": "Zuschauer geben beim Einlösen einen Song ein, einen Namen wie",
+  "inputHintLink": "Oder sie fügen einen Spotify-Link ein.",
+  "inputHintPair": "oder ein Paar „artist - song“ wie",
+  "noRewardBody": "Erstelle unten die Kanalpunkte-Belohnung. Sie erscheint beim Speichern in deinem Twitch-Punktemenü.",
+  "noRewardTitle": "Noch keine Belohnung",
+  "notSetUp": "Nicht eingerichtet",
+  "previewTag": "Probelauf",
+  "removeAria": "Belohnung löschen: {name}",
+  "rowHint": "Kanalpunkte",
+  "rowLabel": "Musikwunsch",
+  "thisReward": "Musikwunsch",
+  "previewUserSample": "Viewer99"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Songtitel",
+  "hint": "nur der Songtitel, der erste Teil von {song}",
+  "desc": "Nur der Songtitel, der erste Teil von {song}. Läuft nichts, ist die Ausgabe leer. Benötigt das Modul Musikwünsche."
+}

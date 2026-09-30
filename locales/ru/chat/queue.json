@@ -1,0 +1,21 @@
+{
+  "cleared": "Очередь очищена.",
+  "closed": "Запись в очередь закрыта.",
+  "err.usage": "Использование: !queue <open|close|next|list|remove|clear>; или !join / !leave / !list",
+  "join.already": "@{queue:user} вы уже в очереди на месте #{queue:pos}.",
+  "join.closed": "@{queue:user} сейчас очередь закрыта.",
+  "join.ok": "@{queue:user} вы встали в очередь на место #{queue:pos}.",
+  "leave.not_in": "@{queue:user} вас нет в очереди.",
+  "leave.ok": "@{queue:user} вы вышли из очереди.",
+  "list": "Далее: {queue:list}",
+  "list.empty": "Очередь пуста.",
+  "list.more": "Далее: {queue:list} (ещё +{queue:count})",
+  "next": "@{queue:target} ваша очередь! (Ещё ожидают: {queue:count})",
+  "next.empty": "Очередь пуста.",
+  "opened": "Очередь открыта! Введите !join, чтобы записаться.",
+  "remove.not_found": "@{queue:target} не было в очереди.",
+  "remove.ok": "Удаление из очереди: @{queue:target}.",
+  "remove.usage": "Использование: !queue remove <user>",
+  "status.closed": "Очередь закрыта. Ожидают игры: {queue:count}.",
+  "status.open": "Очередь открыта, ожидают: {queue:count}. Введите !join, чтобы записаться."
+}

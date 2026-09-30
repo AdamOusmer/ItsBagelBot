@@ -1,0 +1,19 @@
+{
+  "reply": {
+    "user": {
+      "name": "Quien canjea",
+      "hint": "Quién canjeó la recompensa",
+      "desc": "Quién canjeó la recompensa."
+    },
+    "input": {
+      "name": "Texto del espectador",
+      "hint": "El texto de color que escribió el espectador",
+      "desc": "El texto de color que escribió el espectador al canjear."
+    },
+    "color": {
+      "name": "Color",
+      "hint": "El nombre del color encontrado",
+      "desc": "El nombre de color que el bot encontró y aplicó a las luces."
+    }
+  }
+}
