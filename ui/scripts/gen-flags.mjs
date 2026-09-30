@@ -35,7 +35,7 @@ const lines = [
   '// markup of a viewBox="0 0 512 512" SVG, unclipped.',
   `// Source: @iconify-json/circle-flags ${version}.`,
   'export const flags = {',
-  ...FLAGS.map((code) => `  ${code}: '${body(code).replace(/'/g, "\\'")}',`),
+  ...FLAGS.map((code) => `  ${code}: '${body(code).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}',`),
   '} as const;',
   '',
   'export type FlagCode = keyof typeof flags;',
