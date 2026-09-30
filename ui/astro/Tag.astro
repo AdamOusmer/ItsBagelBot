@@ -3,7 +3,8 @@
 // Proprietary. No license granted. See LICENSE.md.
 import type { HTMLAttributes } from 'astro/types';
 
-import '../styles/tags.css';
+import '../styles/elements/tag.css';
+import '../styles/elements/mark.css';
 import type { TagTone } from '../lib/tone';
 
 interface Props extends Omit<HTMLAttributes<'span'>, 'tone' | 'bare' | 'literal' | 'mark' | 'sweep' | 'status' | 'as' | 'class'> {

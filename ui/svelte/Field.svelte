@@ -2,7 +2,7 @@
   // Copyright (c) 2026 Adam Ousmer. All rights reserved.
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
-  import '../styles/tags.css';
+  import '../styles/elements/tag.css';
   import '../styles/elements/field.css';
   import type { Snippet } from 'svelte';
 

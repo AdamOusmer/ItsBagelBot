@@ -49,7 +49,7 @@
                     box-shadow var(--bb-dur-base) var(--bb-ease-out-expo);
     }
 
-    .bb-input:focus-within {
+    .bb-input:focus-within:not(:where([data-invalid])) {
         border-color: var(--bb-border-strong);
         box-shadow: 0 0 0 3px rgba(var(--bb-tan-rgb), 0.10);
     }

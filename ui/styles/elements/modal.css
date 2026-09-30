@@ -165,7 +165,7 @@
     animation: bb-modal-viewer-rise var(--bb-dur-fast) var(--bb-ease-out-expo);
   }
 
-  .bb-modal__toolbar .bb-btn--icon {
+  .bb-modal .bb-modal__toolbar .bb-btn--icon {
     border-color: transparent;
     border-radius: var(--bb-radius-pill);
     color: var(--bb-tan-pale);
@@ -176,7 +176,7 @@
       transform var(--bb-dur-fast) ease;
   }
 
-  .bb-modal__toolbar .bb-btn--icon:is(:hover, :focus-visible):not(:disabled):not([aria-disabled="true"]):not(.is-done) {
+  .bb-modal .bb-modal__toolbar .bb-btn--icon:is(:hover, :focus-visible):not(:disabled):not([aria-disabled="true"]):not(.is-done) {
     border-color: rgba(var(--bb-green-glow-rgb), 0.55);
     background: rgba(var(--bb-green-rgb), 0.22);
     color: var(--bb-white);

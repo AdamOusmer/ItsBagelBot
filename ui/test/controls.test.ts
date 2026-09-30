@@ -435,13 +435,13 @@ describe('control stylesheets', () => {
     (await Bun.file(new URL(`../styles/${path}`, import.meta.url)).text()).replace(/\/\*[\s\S]*?\*\//g, '');
 
   test('error red comes from the status token, not a literal', async () => {
-    for (const path of ['elements/field.css', 'elements/typography.css', 'elements/button.css', 'tags.css']) {
+    for (const path of ['elements/field.css', 'elements/typography.css', 'elements/button.css', 'elements/tag.css', 'elements/chip.css']) {
       expect(await css(path)).not.toMatch(/#cf8a78/i);
     }
   });
 
   test('tier tones read the tier tokens, and vip stays silver', async () => {
-    const tags = await css('tags.css');
+    const tags = (await css('elements/tag.css')) + (await css('elements/chip.css'));
     for (const tier of ['free', 'paid', 'vip', 'banned', 'inactive']) {
       expect(tags).toContain(`--tone: var(--bb-tier-${tier});`);
     }

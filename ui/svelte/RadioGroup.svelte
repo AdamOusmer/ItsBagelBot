@@ -4,7 +4,7 @@
   import type { SvelteHTMLElements } from 'svelte/elements';
   import type { Snippet } from 'svelte';
   import { getUiI18n } from './i18n';
-  import '../styles/tags.css';
+  import '../styles/elements/tabs.css';
   import '../styles/elements/radio-group.css';
   import Icon from './Icon.svelte';
 

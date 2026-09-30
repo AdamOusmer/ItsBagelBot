@@ -4,6 +4,45 @@
 @layer bb.tokens, bb.base, bb.elements, bb.app;
 
 @layer bb.elements {
+    .bb-chip--free { --tone: var(--bb-tier-free); --tone-bg: var(--bb-tier-free-bg); --tone-rule: var(--bb-tier-free-border); }
+    .bb-chip--paid { --tone: var(--bb-tier-paid); --tone-bg: var(--bb-tier-paid-bg); --tone-rule: var(--bb-tier-paid-border); }
+    .bb-chip--vip { --tone: var(--bb-tier-vip); --tone-bg: var(--bb-tier-vip-bg); --tone-rule: var(--bb-tier-vip-border); }
+    .bb-chip--banned { --tone: var(--bb-tier-banned); --tone-bg: var(--bb-tier-banned-bg); --tone-rule: var(--bb-tier-banned-border); }
+    .bb-chip--inactive { --tone: var(--bb-tier-inactive); --tone-bg: var(--bb-tier-inactive-bg); --tone-rule: var(--bb-tier-inactive-border); }
+
+    .bb-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        padding: 8px 14px;
+        border: 1px solid var(--bb-border-chip);
+        border-radius: var(--bb-radius-sm);
+        background: transparent;
+        color: var(--bb-tan-light);
+        font-family: var(--bb-font-mono);
+        font-size: 12.5px;
+        letter-spacing: 0.04em;
+        line-height: 1;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background var(--bb-dur-base) var(--bb-ease-out-expo),
+                    border-color var(--bb-dur-base) var(--bb-ease-out-expo),
+                    color var(--bb-dur-base) var(--bb-ease-out-expo);
+    }
+
+    .bb-chip:hover { background: rgba(var(--bb-tan-rgb), 0.08); border-color: rgba(var(--bb-tan-rgb), 0.50); color: var(--bb-tan-pale); }
+    .bb-chip--muted { color: var(--bb-muted); font-size: 11.5px; padding: 7px 12px; }
+    .bb-chip--muted:hover { color: var(--bb-tan-light); }
+    .bb-chip--danger { color: var(--bb-status-danger); border-style: dashed; border-color: rgba(var(--bb-status-danger-rgb), 0.40); }
+    .bb-chip--danger:hover { background: rgba(var(--bb-status-danger-rgb), 0.08); border-color: rgba(var(--bb-status-danger-rgb), 0.60); color: var(--bb-status-danger); }
+    .bb-chip.is-done { color: var(--bb-green-glow); border-color: rgba(var(--bb-green-glow-rgb), 0.40); background: rgba(var(--bb-green-glow-rgb), 0.07); }
+    .bb-chip svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    .bb-chip--eyebrow { gap: 14px; padding: 9px 14px; color: var(--bb-green-glow); }
+    .bb-chip--eyebrow .bb-tag { padding-bottom: 5px; }
+    .bb-chip--eyebrow .bb-chip__text { font-size: 12.5px; letter-spacing: var(--bb-tracking-eyebrow); text-transform: uppercase; color: var(--bb-tan-light); }
+    .bb-chip--eyebrow .bb-chip__arrow { font-size: 13px; color: var(--bb-tan); }
+
     .bb-chip[data-pressed] {
         color: var(--bb-tan-pale);
         background: rgba(var(--bb-tan-rgb), 0.10);

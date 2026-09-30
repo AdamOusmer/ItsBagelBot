@@ -3,7 +3,7 @@
   // Proprietary. No license granted. See LICENSE.md.
   import type { SvelteHTMLElements } from 'svelte/elements';
   import { getUiI18n } from './i18n';
-  import '../styles/tags.css';
+  import '../styles/elements/tabs.css';
   import { rovingTarget } from '../lib/roving-focus';
 
   const i18n = getUiI18n();

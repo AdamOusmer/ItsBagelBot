@@ -30,7 +30,7 @@
   import Icon from './Icon.svelte';
   import ProgressBar from './ProgressBar.svelte';
   import { getUiI18n } from './i18n';
-  import '../styles/tags.css';
+  import '../styles/elements/mark.css';
   import '../styles/elements/step-list.css';
 
   type Own = {

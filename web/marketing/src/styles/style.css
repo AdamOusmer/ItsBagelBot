@@ -9,7 +9,10 @@
 @import '@bagel/ui/styles/elements/layout.css';
 @import '@bagel/ui/styles/elements/button.css';
 @import '@bagel/ui/styles/elements/card.css';
-@import '@bagel/ui/styles/tags.css';
+@import '@bagel/ui/styles/elements/tag.css';
+@import '@bagel/ui/styles/elements/mark.css';
+@import '@bagel/ui/styles/elements/chip.css';
+@import '@bagel/ui/styles/elements/tabs.css';
 @import '@bagel/ui/styles/motion.css';
 @import '@bagel/ui/styles/reveal.css';
 @import '@bagel/ui/styles/orbs.css';

@@ -1,0 +1,53 @@
+/* Copyright (c) 2026 Adam Ousmer. All rights reserved.
+   Proprietary. No license granted. See LICENSE.md. */
+
+@layer bb.tokens, bb.base, bb.elements, bb.app;
+
+@layer bb.elements {
+    .bb-tag {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 2px 7px;
+        border-bottom: 1px solid var(--bb-border);
+        font-family: var(--bb-font-mono);
+        font-size: 11px;
+        font-weight: 400;
+        letter-spacing: var(--bb-tracking-eyebrow);
+        text-transform: uppercase;
+        line-height: 1;
+        color: var(--bb-muted);
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .bb-tag--live     { color: var(--bb-green-glow); border-bottom-color: rgba(var(--bb-green-glow-rgb), 0.30); }
+    .bb-tag--alpha    { color: var(--bb-tan-pale);   border-bottom-style: dashed; border-bottom-color: rgba(var(--bb-tan-pale-rgb), 0.40); }
+    .bb-tag--pre      { color: var(--bb-tan-light);  border-bottom-color: transparent;
+                        background: linear-gradient(90deg, var(--bb-tan), var(--bb-green-glow)) bottom / 100% 1px no-repeat; }
+    .bb-tag--quiet    { color: var(--bb-muted);      border-bottom-color: rgba(var(--bb-tan-rgb), 0.20); }
+    .bb-tag--incoming { color: var(--bb-green-glow); border-bottom-style: dotted; border-bottom-color: rgba(var(--bb-green-glow-rgb), 0.50); }
+    .bb-tag--danger   { color: var(--bb-status-danger); border-bottom-color: rgba(var(--bb-status-danger-border-rgb), 0.45); }
+
+    .bb-tag--free { --tone: var(--bb-tier-free); --tone-bg: var(--bb-tier-free-bg); --tone-rule: var(--bb-tier-free-border); }
+    .bb-tag--paid { --tone: var(--bb-tier-paid); --tone-bg: var(--bb-tier-paid-bg); --tone-rule: var(--bb-tier-paid-border); }
+    .bb-tag--vip { --tone: var(--bb-tier-vip); --tone-bg: var(--bb-tier-vip-bg); --tone-rule: var(--bb-tier-vip-border); }
+    .bb-tag--banned { --tone: var(--bb-tier-banned); --tone-bg: var(--bb-tier-banned-bg); --tone-rule: var(--bb-tier-banned-border); }
+    .bb-tag--inactive { --tone: var(--bb-tier-inactive); --tone-bg: var(--bb-tier-inactive-bg); --tone-rule: var(--bb-tier-inactive-border); }
+    .bb-tag--neutral                           { --tone: var(--bb-muted);         --tone-rule: var(--bb-border); }
+    .bb-tag--success                           { --tone: var(--bb-green-light);   --tone-bg: var(--bb-tier-free-bg);     --tone-rule: rgba(var(--bb-green-glow-rgb), 0.30); }
+    .bb-tag--warning                           { --tone: var(--bb-status-warning); --tone-bg: var(--bb-status-warning-bg); --tone-rule: var(--bb-status-warning-border); }
+    .bb-tag--info                              { --tone: var(--bb-status-info);   --tone-bg: var(--bb-status-info-bg);   --tone-rule: var(--bb-status-info-border); }
+
+    .bb-tag:is(.bb-tag--free, .bb-tag--paid, .bb-tag--vip, .bb-tag--banned, .bb-tag--inactive, .bb-tag--neutral, .bb-tag--success, .bb-tag--warning, .bb-tag--info) {
+        color: var(--tone);
+        border-bottom-color: var(--tone-rule);
+    }
+
+    .bb-tag--wrap { white-space: normal; text-align: left; }
+
+    .bb-tag--literal { text-transform: none; letter-spacing: 0.04em; }
+
+    .bb-tag--bare { border-bottom: 0; padding-bottom: 0; overflow: visible; letter-spacing: 0.14em; }
+}

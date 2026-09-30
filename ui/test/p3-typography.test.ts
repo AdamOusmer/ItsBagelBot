@@ -270,7 +270,7 @@ describe('Tag options', () => {
   });
 
   test('info joins the toned group', () => {
-    const source = css('tags.css');
+    const source = css('elements/tag.css');
     expect(source).toContain('.bb-tag--info');
     expect(source).toMatch(/\.bb-tag:is\([^)]*\.bb-tag--info\)/);
   });

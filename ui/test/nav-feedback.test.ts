@@ -218,7 +218,7 @@ describe('Mark', () => {
   });
 
   test('the size hook defaults to the old 5px diamond', async () => {
-    const tags = await Bun.file(new URL('../styles/tags.css', import.meta.url)).text();
+    const tags = await Bun.file(new URL('../styles/elements/mark.css', import.meta.url)).text();
     expect(tags).toContain('.bb-mark { width: var(--mark-size, 5px); height: var(--mark-size, 5px);');
   });
 });
@@ -418,7 +418,7 @@ describe('CopySurface', () => {
     expect(await read('elements/typography.css')).toContain('font-size: var(--label-mono-size, 10px);');
     expect(await read('elements/typography.css')).toContain('font-size: var(--h-label-size, 10px);');
     expect(await read('elements/badge.css')).toContain('font-size: var(--badge-pill-size, 10px);');
-    expect(await read('tags.css')).toContain('.bb-tabs--wrap > .bb-tab { flex-shrink: 0; }');
+    expect(await read('elements/tabs.css')).toContain('.bb-tabs--wrap > .bb-tab { flex-shrink: 0; }');
   });
 
   test('row children receive the copied state', () => {
